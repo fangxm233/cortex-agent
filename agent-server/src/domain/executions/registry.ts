@@ -1,108 +1,8 @@
-import * as fs from 'node:fs';
-import * as fsp from 'node:fs/promises';
-import path from 'node:path';
-import { executionRepo, TERMINAL_STATUSES } from '@store/execution-repo.js';
-import { PROJECTS_DIR } from '@core/paths.js';
-import { releaseLock, releaseLockAsync } from '@domain/tasks/system/task-lock.js';
-import { parseTasksFileWithLock } from '@core/task-parser.js';
-import { createLogger } from '@core/log.js';
+import { executionRepo } from '@store/execution-repo.js';
 import { runRegistry } from '@core/run-registry.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 
 export type { ExecutionRecord } from '@store/execution-repo.js';
-
-const lockLog = createLogger('execution-lock-release');
-
-/** Project directories that currently have a TASKS.yaml. One readdir, no per-project stat. */
-function projectsWithTasksFile(): Array<{ project: string; tasksPath: string }> {
-  let names: string[];
-  try {
-    names = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })
-      .filter(d => d.isDirectory()).map(d => d.name);
-  } catch { return []; }
-  const out: Array<{ project: string; tasksPath: string }> = [];
-  for (const project of names) {
-    const tasksPath = path.join(PROJECTS_DIR, project, 'TASKS.yaml');
-    if (fs.existsSync(tasksPath)) out.push({ project, tasksPath });
-  }
-  return out;
-}
-
-/** Release any task locks still owned by `executionId` after its agent finished.
- *  Idempotent — `releaseLock` returns success on absent or non-matching locks.
- *
- *  The lock lives inside TASKS.yaml, so a project whose file does not even mention the execution
- *  id cannot hold a matching lock. Reading + substring-scanning the ~22 task files costs ~0.4ms;
- *  YAML-parsing all of them costs ~20ms (measured), so the parse is deferred to the rare match.
- *  This function stays sync because terminal transitions (and their tests) are sync; event-loop-
- *  sensitive callers use `releaseLocksOwnedByAsync` instead. */
-function releaseLocksOwnedBy(executionId: string | null | undefined): void {
-  if (!executionId) return;
-  for (const { project, tasksPath } of projectsWithTasksFile()) {
-    let content: string;
-    try { content = fs.readFileSync(tasksPath, 'utf8'); } catch { continue; }
-    if (!content.includes(executionId)) continue;
-    let lock;
-    try { lock = parseTasksFileWithLock(content, project).lock; } catch { continue; }
-    if (!lock || lock.owner !== executionId) continue;
-    try {
-      const r = releaseLock(project, executionId);
-      if (r.released) {
-        lockLog.warn(
-          `auto-released stale lock on '${project}' held by execution ${executionId} ` +
-          `(agent finished without calling cortex-task lock-release)`,
-        );
-      }
-    } catch (err: any) {
-      lockLog.warn(`release attempt failed for ${project} / ${executionId}: ${err?.message || err}`);
-    }
-  }
-}
-
-/** Async twin of `releaseLocksOwnedBy`: no sync fs and no sync mutation-lock wait, so an
- *  event-loop-sensitive caller (thread suspend, stale reconciliation) never parks the process on a
- *  contended cross-process lock. Same pre-filter, same owner-match semantics, same logging. */
-async function releaseLocksOwnedByAsync(executionId: string | null | undefined): Promise<void> {
-  if (!executionId) return;
-  let projects: string[];
-  try {
-    projects = (await fsp.readdir(PROJECTS_DIR, { withFileTypes: true }))
-      .filter(d => d.isDirectory()).map(d => d.name);
-  } catch { return; }
-
-  for (const project of projects) {
-    let content: string;
-    try { content = await fsp.readFile(path.join(PROJECTS_DIR, project, 'TASKS.yaml'), 'utf8'); }
-    catch { continue; }
-    if (!content.includes(executionId)) continue;
-    let lock;
-    try { lock = parseTasksFileWithLock(content, project).lock; } catch { continue; }
-    if (!lock || lock.owner !== executionId) continue;
-    try {
-      const r = await releaseLockAsync(project, executionId);
-      if (r.released) {
-        lockLog.warn(
-          `auto-released stale lock on '${project}' held by execution ${executionId} ` +
-          `(agent finished without calling cortex-task lock-release)`,
-        );
-      }
-    } catch (err: any) {
-      lockLog.warn(`release attempt failed for ${project} / ${executionId}: ${err?.message || err}`);
-    }
-  }
-}
-
-/** Release any task locks owned by `executionId` WITHOUT ending the execution.
- *  Used by the thread suspend path (DR-0014): a manager that acquired a project lock
- *  (e.g. `cortex-task decompose --auto-lock`, which does not auto-release) and then calls
- *  thread_wait must release BEFORE yielding. Otherwise the lock is held for the entire
- *  child-wait window (starving sibling managers' decomposes), and the terminal auto-release
- *  cannot recover it because re-entry completes under a NEW executionId that no longer matches
- *  the original lock owner — leaking the lock until its 20-min TTL expires. Idempotent.
- *  Async so the suspend path never parks the event loop on a contended cross-process lock. */
-export async function releaseExecutionLocksAsync(executionId: string | null | undefined): Promise<void> {
-  await releaseLocksOwnedByAsync(executionId);
-}
 
 // --- Sync reads ---
 
@@ -142,19 +42,16 @@ export function touchExecution(id: string, patch?: Parameters<typeof executionRe
 
 export function completeExecution(id: string, metrics?: Parameters<typeof executionRepo.completeExecution>[1]) {
   const r = executionRepo.completeExecution(id, metrics);
-  if (r && TERMINAL_STATUSES.has(r.status)) releaseLocksOwnedBy(id);
   return r;
 }
 
 export function failExecution(id: string, metrics?: Parameters<typeof executionRepo.failExecution>[1]) {
   const r = executionRepo.failExecution(id, metrics);
-  if (r && TERMINAL_STATUSES.has(r.status)) releaseLocksOwnedBy(id);
   return r;
 }
 
 export function cancelExecution(id: string, metrics?: Parameters<typeof executionRepo.cancelExecution>[1]) {
   const r = executionRepo.cancelExecution(id, metrics);
-  if (r && TERMINAL_STATUSES.has(r.status)) releaseLocksOwnedBy(id);
   return r;
 }
 
@@ -206,12 +103,10 @@ export function teardownExecution({ executionId, status, result, error, duration
 
 export async function markMissingRunningExecutionsStale(keepRunning?: Parameters<typeof executionRepo.markMissingRunningExecutionsStale>[0]) {
   const staled = await executionRepo.markMissingRunningExecutionsStale(keepRunning);
-  for (const id of staled) await releaseLocksOwnedByAsync(id);
   return staled;
 }
 
 export async function reconcileStaleDispatches(opts: Parameters<typeof executionRepo.reconcileStaleDispatches>[0]) {
   const { count, staled } = await executionRepo.reconcileStaleDispatches(opts);
-  for (const id of staled) await releaseLocksOwnedByAsync(id);
   return count;
 }

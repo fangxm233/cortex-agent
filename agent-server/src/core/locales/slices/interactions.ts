@@ -52,7 +52,6 @@ export const interactionsEn = {
   'modal.feedbackPlaceholder': 'What should be changed?',
 
   // --- agent-runner.ts (a human's reply routed back to a subtask's question) ---
-  'subtask.replyDelivered': 'Your reply has been delivered to the subtask that asked.',
 } as const;
 
 export const interactionsZh: Record<keyof typeof interactionsEn, string> = {
@@ -107,5 +106,4 @@ export const interactionsZh: Record<keyof typeof interactionsEn, string> = {
   'modal.feedbackPlaceholder': '应该修改什么？',
 
   // --- agent-runner.ts (a human's reply routed back to a subtask's question) ---
-  'subtask.replyDelivered': '已把你的回复作为答复返回给提问的子任务。',
 };

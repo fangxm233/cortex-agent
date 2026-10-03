@@ -20,7 +20,6 @@ test('the interactive hold gate reads the continuation capability, not the backe
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import {
   conversationRunPolicy,
@@ -34,7 +33,7 @@ import { DIRECT_RUN_POLICY } from '../src/domain/runs/builders.js';
 import { supportsBackgroundContinuation } from '../src/orchestration/turn/turn.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import type { ActiveCommissionContext, CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
-import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
+import type { AgentSlotConfig } from '../src/core/types/environment-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';
 
 function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotConfig {
@@ -85,7 +84,6 @@ test('conversation prompt injects a project block naming the project id and cont
   // The project block is a prefix: it comes before the user message.
   assert.ok(prompt.indexOf('tactile-vr') < prompt.indexOf('hello'));
   assert.ok(prompt.endsWith('hello'), 'user message stays last');
-  assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE));
 });
 
 // ── The agent template owns the execution environment ───────────────────────

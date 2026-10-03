@@ -1,4 +1,4 @@
-import type { Destination, PlatformAdapter, MessageRef, IncomingMessage } from '@platform/index.js';
+import type { PlatformAdapter, MessageRef, IncomingMessage } from '@platform/index.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
@@ -12,8 +12,6 @@ import { isTeamLead } from '@domain/sessions/team.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { getSettings } from '@core/settings.js';
-import { Icons } from '../core/icons.js';
-import { t } from '../core/i18n.js';
 import { publishSessionDebugUpdated } from './session-events.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
 import { runRegistry } from '@core/run-registry.js';
@@ -23,7 +21,6 @@ import { recordHistory } from './transcript-sink.js';
 import {
   acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
 } from './turn/turn-prep.js';
-import { tryConsume as tryHumanAnswerBackstop } from './human-answer-backstop.js';
 import { downloadMessageFiles, type InboundFiles } from './routing/file-handler.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 import { isRebuildHeld, refuseTurnForRebuild } from '@domain/system/rebuild-hold.js';
@@ -95,22 +92,6 @@ export class AgentRunner {
         text: ctx.userMessage || '',
         interactive: message.senderId !== SYNTHETIC_CALLBACK_SENDER && !message.systemOrigin,
       });
-      return false;
-    }
-    // DR-0016 top-level fallback: if this channel has a pending human-escalated subtask question,
-    // consume this message as the answer and short-circuit normal turn handling. Scope is narrow —
-    // the backstop is disarmed unless this exact channel is awaiting a human reply, and it is armed
-    // by manager-qa through a leaf registry (this module must not import manager-qa: that closes an
-    // import cycle back through thread-callback/session-gateway).
-    // It sits on route() so that EVERY entry into a session passes it — an inbound platform
-    // message, the web chat box (ui-service → deliverToSession), a resume, a callback.
-    // Synthetic wake/callback messages (deliverToSession's callback origins) are exempt: askManager
-    // arms this backstop and then wakes the origin session THROUGH route(), so without the
-    // exemption the backstop consumed the question notice itself as "the human's answer"
-    // (2026-07-05 self-consumption bug).
-    if (message.senderId !== SYNTHETIC_CALLBACK_SENDER && tryHumanAnswerBackstop(channel, ctx.userMessage || '')) {
-      const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-      await adapter.postMessage(dest, { text: `${Icons.ok} ${t('subtask.replyDelivered')}` }).catch(() => {});
       return false;
     }
     // A plain user message arriving while this channel already has a live turn is delivered INTO

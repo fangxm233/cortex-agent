@@ -6,21 +6,21 @@ import { createSubscription } from '../../../src/domain/ui-service/subscribe.js'
 test('subscribe receives published events matching filter', async () => {
   const bus = new EventBus();
   const sub = createSubscription(bus, {
-    events: ['thread.created', 'task.claimed'],
+    events: ['commission.updated', 'scheduler.tick'],
   });
 
-  bus.publish({ type: 'thread.created', threadId: 'thr_1', templateName: 'test' });
-  bus.publish({ type: 'task.claimed', taskId: 't1', by: 'agent1' });
+  bus.publish({ type: 'commission.updated', commissionId: 'c1', projectId: 'p1' });
+  bus.publish({ type: 'scheduler.tick', jobKey: 'memory-index-regen' });
 
   const iter = sub[Symbol.asyncIterator]();
   const event1 = await iter.next();
   assert.equal(event1.done, false);
-  assert.equal(event1.value.type, 'thread.created');
+  assert.equal(event1.value.type, 'commission.updated');
   assert.ok(event1.value.ts);
 
   const event2 = await iter.next();
   assert.equal(event2.done, false);
-  assert.equal(event2.value.type, 'task.claimed');
+  assert.equal(event2.value.type, 'scheduler.tick');
 
   sub.close();
 });
@@ -52,16 +52,16 @@ test('subscribe close() unsubscribes all bus handlers', async () => {
   let called = false;
 
   // Subscribe normally to verify handler is registered
-  const sub1 = bus.subscribe('thread.created', () => { called = true; });
+  const sub1 = bus.subscribe('scheduler.tick', () => { called = true; });
   const sub = createSubscription(bus, {
-    events: ['thread.created'],
+    events: ['scheduler.tick'],
   });
 
   // Close the UI subscription
   sub.close();
 
   // Publish event — the original handler (sub1) still fires, but the UI subscription handler doesn't
-  bus.publish({ type: 'thread.created', threadId: 'thr_1', templateName: 'test' });
+  bus.publish({ type: 'scheduler.tick', jobKey: 'memory-index-regen' });
 
   // The external handler should still work
   assert.equal(called, true);
@@ -146,7 +146,7 @@ test('a delta flood from another session cannot evict a subscriber own events', 
 test('subscribe close() unblocks pending iterator next()', async () => {
   const bus = new EventBus();
   const sub = createSubscription(bus, {
-    events: ['thread.created'],
+    events: ['scheduler.tick'],
   });
 
   const iter = sub[Symbol.asyncIterator]();

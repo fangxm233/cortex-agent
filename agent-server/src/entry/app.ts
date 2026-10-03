@@ -26,8 +26,6 @@ import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
-import { taskStore } from '@store/task-repo.js';
-import { taskMutator } from '@domain/tasks/mutator.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
@@ -41,14 +39,12 @@ import { startClientManager, stopClientManager, startAllRemoteClients, releaseUn
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
-import { threadStore } from '@store/thread-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
-import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier } from '@domain/threads/index.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
-import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
+import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
 import { applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
@@ -167,7 +163,6 @@ function retentionLiveness(): RetentionLivenessSnapshot {
     bgHeldSessions: sessionHolds,
     interactionRecords,
     pendingDirectResumeSessionIds: pendingDirectTrackSessionIds(),
-    threads: threadStore.getAll(),
     activeClaudeCapturePaths: activeClaudeCaptureRegistry.listPaths(),
     activeClaudeCapturePairs: activeClaudeCaptureRegistry.listPairs(),
   });
@@ -313,7 +308,6 @@ runRegistry.setBus(bus);   // S6-A: wire lifecycle events
 bus.subscribe('session.status', (e) => sessionHolds.onSessionStatus(e));
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
-taskMutator.setBus(bus);    // c39d: wire task lifecycle events
 initInteractionHandlers(bus); // BLK-1: wire ask-user.answered publisher
 
 const TEMP_DIR = WORKSPACE_DIR;
@@ -353,7 +347,6 @@ const notifyAdmin = (text: string) => {
   void emitSystemNotice(adapter, { text });
 };
 setProfileNotifier(notifyAdmin);
-setConfigNotifier(notifyAdmin);
 setMachineNotifier(notifyAdmin);
 setMachineReloadListener(() => {
   void releaseUnregisteredDevices().catch((e) => log.error(`Releasing removed machines failed: ${(e as Error).message}`));
@@ -384,8 +377,7 @@ initAuthExpiryScan(buildAuthRequiredLoginAction);
 const scheduler = createScheduler();
 scheduler.setAdminNotifier(notifyAdmin);
 // Rate-limit resume registry + throttle are initialized later, inside main(), as one ordered
-// awaited sequence (initRateLimitRecovery) — it must run AFTER threadStore.load() so it can
-// reconcile orphaned rate-limited threads back into the resume queue.
+// awaited sequence (initRateLimitRecovery).
 initDiskMonitor(adapter);
 // Agent sessions run in this process, so a stalled loop degrades all of them at once.
 startEventLoopMonitor();
@@ -467,7 +459,7 @@ process.on('SIGTERM', async () => {
   // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
   // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
   try {
-    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), waitpointRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), sessionStore.flush()]);
+    await Promise.allSettled([bus.close(), oq.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), executionRepo.flush(), projectDirRepo.flush(), waitpointRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), sessionStore.flush()]);
   } catch {}
   await stopGateway(); process.exit(0);
 });
@@ -695,9 +687,6 @@ process.on('SIGTERM', async () => {
   }
   oq.startDrainLoop();
 
-  taskStore.load();
-
-  loadThreadConfig();
   // Execution environments: copy-if-missing the shipped defaults (a sealed trial home brings its
   // own), then load and watch config/environments/.
   if (syncManagedAssets) mergeDefaultEnvironments(DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR);
@@ -705,16 +694,12 @@ process.on('SIGTERM', async () => {
   startEnvironmentWatcher();
   initializeProductionAttemptIdentity({
     configurationRevision: () => ({
-      profiles: getProfileConfigRevision(), environments: getThreadConfigRevision(),
+      profiles: getProfileConfigRevision(), environments: getEnvironmentRevision(),
     }),
   });
-  startThreadConfigWatcher();
   _stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
     bus.publish({ type: 'config.changed', section: 'profiles' });
   });
-  threadStore.load();
-  await threadStore.markRunningAsFailedOnStartup();
-  await threadStore.cleanup();
   await executionRepo.archiveTerminal().catch((e) => log.error(`Execution archive failed: ${(e as Error).message}`));
 
   // --- Rate-limit recovery (ordered) ---
@@ -796,13 +781,12 @@ process.on('SIGTERM', async () => {
     }
   }
 
-  // Daily store archival: move week-old terminal execution/thread records to data/archive/*.jsonl.
+  // Daily store archival: move week-old terminal execution records to data/archive/*.jsonl.
   // Keeps the hot stores small — their full-map sync stringify on every persist is the main
   // event-loop stall source when they grow to multi-MB.
   startStoreArchiveJob(getSettings().storeArchiveEnabled, async () => {
     try {
       await executionRepo.archiveTerminal();
-      await threadStore.cleanup();
     } catch (e) {
       log.error(`Daily store archive failed: ${(e as Error).message}`);
     }

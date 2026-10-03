@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { CONTEXT_DIR } from '../src/core/paths.js';
 import { loadUserContext } from '../src/domain/memory/user-context.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
-import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
+import type { AgentSlotConfig } from '../src/core/types/environment-types.js';
 import type { CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 

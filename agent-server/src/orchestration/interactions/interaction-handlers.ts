@@ -21,7 +21,6 @@ import { attachExistingSession } from '@domain/sessions/session-lifecycle.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
-import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
 import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
 
@@ -217,54 +216,26 @@ function registerStatusActionHandlers(adapter: PlatformAdapter): void {
 async function handleStatusCancel(ctx: ActionContext): Promise<void> {
   if (!_adapter) return;
   let channel: string;
-  let threadId: string | null;
   let executionId: string | null;
   try {
     const parsed = JSON.parse(ctx.value);
     channel = parsed.channel;
-    threadId = parsed.threadId ?? null;
     executionId = parsed.executionId ?? null;
   } catch {
     return;
   }
-
-  // Conversation path: plain user messages are no longer wrapped in a thread, so the
-  // Cancel button carries an executionId. Resolve and kill via the execution index;
-  // there is no thread to cancel.
-  if (!threadId && executionId) {
-    const exec = runRegistry.getById(executionId);
-    if (!exec) {
-      log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
-      return;
-    }
-    if (exec.trackSessionId) await setSessionAsync(exec.channel ?? channel, exec.trackSessionId).catch(() => {});
-    // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
-    executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
-    conduitQueues.delete(exec.channel ?? channel);
-    if (ctx.messageRef) {
-      await _adapter.updateMessage(ctx.messageRef, {
-        text: `${Icons.stopped} ${t('interaction.cancelledPreserved')}`,
-      }).catch(() => {});
-    }
+  if (!executionId) {
+    log.warn('Cancel button clicked but executionId missing in value', { channel });
     return;
   }
-
-  if (!threadId) {
-    log.warn('Cancel button clicked but threadId/executionId missing in value', { channel });
-    return;
-  }
-  const exec = runRegistry.getByThreadId(threadId);
+  const exec = runRegistry.getById(executionId);
   if (!exec) {
-    log.warn('Cancel button clicked but no running execution for threadId', { channel, threadId });
+    log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
     return;
   }
-  await cancelThreadById(threadId).catch(() => {});
   if (exec.trackSessionId) await setSessionAsync(exec.channel ?? channel, exec.trackSessionId).catch(() => {});
-  if (exec.executionId) {
-    executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
-  } else {
-    runRegistry.killByThreadId(threadId);
-  }
+  // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
+  executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
   conduitQueues.delete(exec.channel ?? channel);
   if (ctx.messageRef) {
     await _adapter.updateMessage(ctx.messageRef, {

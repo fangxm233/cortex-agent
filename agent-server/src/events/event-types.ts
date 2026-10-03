@@ -84,26 +84,10 @@ export type CortexEvent =
   | { type: 'auth.required';          ts: string; backend: 'claude' | 'pi'; provider: string; authType: 'oauth' | 'api_key' | null; kind: AuthErrorKind; channel: string | null; sessionId: string | null }
   | { type: 'auth.recovered';         ts: string; backend: 'claude' | 'pi'; provider: string }
 
-  // Thread lifecycle
-  | { type: 'thread.created';         ts: string; threadId: string; templateName: string }
-  | { type: 'thread.step.started';    ts: string; threadId: string; step: string }
-  | { type: 'thread.step.finished';   ts: string; threadId: string; step: string; result: string }
-  | { type: 'thread.transitioned';    ts: string; threadId: string; from: string; to: string }
-  | { type: 'thread.completed';       ts: string; threadId: string }
-  | { type: 'thread.failed';          ts: string; threadId: string; error: string }
-
   // Commission (DR-0037). Content-free change hint — published on approval landing, close, and
   // decision projection. Clients refetch commissions.* queries; `projectId` feeds the subscribe
   // post-filter so project-scoped streams only see their own commissions.
   | { type: 'commission.updated';     ts: string; commissionId: string; projectId: string }
-
-  // Task
-  | { type: 'task.claimed';           ts: string; taskId: string; by: string }
-  | { type: 'task.unclaimed';         ts: string; taskId: string }
-  | { type: 'task.completed';         ts: string; taskId: string; dispatchGeneration?: string | null }
-  | { type: 'task.dispatched';        ts: string; taskId: string; machine: string }
-  | { type: 'task.blocked';           ts: string; taskId: string; reason: string; dispatchGeneration?: string | null }
-  | { type: 'task.unblocked';         ts: string; taskId: string }
 
   // System
   | { type: 'system.notice';          ts: string; level: 'info' | 'warning' | 'error'; text: string; title?: string }

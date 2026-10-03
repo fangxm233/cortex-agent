@@ -7,7 +7,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { bareSpec, fromAgentSlot, fromRole } from '../../src/domain/runs/spec-loader.js';
-import type { AgentSlotConfig } from '../../src/core/types/thread-types.js';
+import type { AgentSlotConfig } from '../../src/core/types/environment-types.js';
 import type { AgentRole } from '../../src/core/agents/roles.js';
 
 function slot(overrides: Partial<AgentSlotConfig> = {}): AgentSlotConfig {

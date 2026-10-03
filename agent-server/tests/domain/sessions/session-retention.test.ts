@@ -519,7 +519,7 @@ test('retention sweep rejects symlink cleanup and parses canonical plus timestam
   await assert.doesNotReject(() => fs.lstat(captureLink));
 });
 
-test('retention liveness protects running, waiting, rate-limited, bg-held, and pending-interaction sessions', () => {
+test('retention liveness protects running, bg-held, and pending-interaction sessions', () => {
   const snapshot = buildSessionRetentionLiveness({
     runningExecutions: {
       getAll: () => [
@@ -530,57 +530,15 @@ test('retention liveness protects running, waiting, rate-limited, bg-held, and p
     bgHeldSessions: { listIds: () => ['track-bg'] },
     interactionRecords: { pendingSessionIds: () => ['track-pending'] },
     pendingDirectResumeSessionIds: ['track-resume'],
-    threads: [
-      {
-        status: 'waiting',
-        agents: {
-          main: {
-            slotId: 'main', profile: 'default', sessionId: 'track-agent', backendSessionId: 'backend-agent',
-            sessionName: null, status: 'running', lastOutput: null, persistSession: true,
-          },
-        },
-        steps: [
-          {
-            stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null,
-            sessionId: 'track-step', backendSessionId: 'backend-step', sessionName: null,
-            input: '', output: null, costUsd: null, numTurns: null, durationS: null, startedAt: null, endedAt: null,
-          },
-        ],
-      },
-      {
-        status: 'rate_limited',
-        agents: {
-          aux: {
-            slotId: 'aux', profile: 'default', sessionId: 'track-rate', backendSessionId: undefined,
-            sessionName: null, status: 'running', lastOutput: null, persistSession: true,
-          },
-        },
-        steps: [],
-      },
-      {
-        status: 'completed',
-        agents: {
-          done: {
-            slotId: 'done', profile: 'default', sessionId: 'track-done', backendSessionId: 'backend-done',
-            sessionName: null, status: 'completed', lastOutput: null, persistSession: true,
-          },
-        },
-        steps: [{
-          stepIndex: 1, agentSlotId: 'done', stage: null, executionId: null,
-          sessionId: 'track-done-step', backendSessionId: 'backend-done-step', sessionName: null,
-          input: '', output: null, costUsd: null, numTurns: null, durationS: null, startedAt: null, endedAt: null,
-        }],
-      },
-    ],
     activeClaudeCapturePaths: ['/tmp/cap-a.jsonl'],
     activeClaudeCapturePairs: ['pair-a'],
   });
 
   assert.deepEqual(new Set(snapshot.protectedTrackSessionIds), new Set([
-    'track-run', 'track-bg', 'track-pending', 'track-resume', 'track-agent', 'track-step', 'track-rate',
+    'track-run', 'track-bg', 'track-pending', 'track-resume',
   ]));
   assert.deepEqual(new Set(snapshot.protectedBackendSessionIds), new Set([
-    'backend-run', 'backend-legacy', 'backend-agent', 'backend-step', 'track-rate',
+    'backend-run', 'backend-legacy',
   ]));
   assert.deepEqual(snapshot.activeClaudeCapturePaths, ['/tmp/cap-a.jsonl']);
   assert.deepEqual(snapshot.activeClaudeCapturePairs, ['pair-a']);
