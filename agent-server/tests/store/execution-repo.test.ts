@@ -303,6 +303,34 @@ test('persistence — a new record carries no thread or dispatch data, and a leg
   assert.equal(repo2.getExecution(legacy.id)?.dispatch?.taskId, 't1');
 });
 
+test('follow — a reader process sees what the writer persisted since, and only then', async () => {
+  const writer = createRepo();
+  const first = writer.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'first' });
+  await writer.flush();
+
+  const reader = new ExecutionRepo({ filePath: writer.filePath });
+  reader.follow();
+  assert.deepEqual(reader.getAllExecutions().map((r) => r.id), [first.id]);
+
+  const second = writer.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'second' });
+  writer.completeExecution(first.id, { costUsd: 0.5 });
+  // Not persisted yet: the reader still serves the last file.
+  assert.equal(reader.getExecution(second.id), null);
+  await writer.flush();
+
+  assert.equal(reader.getExecution(second.id)?.status, 'running');
+  assert.equal(reader.getExecution(first.id)?.status, 'completed');
+  assert.deepEqual(reader.getRunningExecutions().map((r) => r.id), [second.id]);
+
+  // A half-written file keeps the last good snapshot instead of emptying it.
+  await fs.writeFile(writer.filePath, '{"exec_partial": ');
+  assert.equal(reader.getAll().length, 2);
+
+  // A repo that does not follow keeps its own in-memory state, as the daemon's must.
+  const owner = new ExecutionRepo({ filePath: writer.filePath });
+  assert.equal(owner.getAllExecutions().length, 0);
+});
+
 // ── Group 12: getAll returns sorted by createdAt desc ──
 
 test('getAll — returns records sorted by createdAt descending', async () => {

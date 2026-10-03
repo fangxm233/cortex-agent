@@ -133,13 +133,14 @@ export async function createBundledServer(
 export async function startServer(): Promise<void> {
   const selection = process.env[MCP_BUNDLES_ENV] ?? process.argv[2];
   const bundles = parseMcpBundles(selection);
-  // Only this process needs the execution store filled: nothing else populated it. Loading
-  // belongs here rather than in the ext bundle because the in-process host shares one daemon-wide
-  // repository — the daemon loads it at boot and keeps writing to it, so a per-session reload
-  // there re-read the file on every session start and dropped whatever was still queued to write.
+  // Only this process reads the execution store from the file: the daemon writes it while the
+  // session runs, so every read follows the file instead of a copy taken at startup. This belongs
+  // here rather than in the ext bundle because the in-process host shares the daemon's own
+  // repository, which is live already and must not re-read the file (that would drop whatever it
+  // still has queued to write).
   if (bundles.includes('cortex-ext')) {
     const { executionRepo } = await import('@store/execution-repo.js');
-    executionRepo.load();
+    executionRepo.follow();
   }
   const server = await createBundledServer(bundles, toolContextFromEnv());
   await server.connect(new StdioServerTransport());
