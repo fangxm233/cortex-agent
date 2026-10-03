@@ -49,3 +49,22 @@ export function groupWorkers(sessions: SessionInfo[]): WorkerGrouping {
 export function workersOf(leadId: string, sessions: SessionInfo[]): SessionInfo[] {
   return orderWorkers(sessions.filter((s) => s.teamLeadId === leadId && s.sessionId !== leadId));
 }
+
+export interface TeamContext {
+  /** The open session's lead, when it is a worker and the lead is in the list. */
+  lead: SessionInfo | null;
+  /** The open session's own workers (retired included; the strip drops those). */
+  workers: SessionInfo[];
+}
+
+const NO_TEAM: TeamContext = { lead: null, workers: [] };
+
+/** What a chat view shows of the team around the open session — nothing at all with team mode off. */
+export function teamContext(enabled: boolean, active: SessionInfo | null, sessions: SessionInfo[]): TeamContext {
+  if (!enabled || !active) return NO_TEAM;
+  const lead = active.teamLeadId && active.teamLeadId !== active.sessionId
+    ? sessions.find((s) => s.sessionId === active.teamLeadId) ?? null
+    : null;
+  const workers = workersOf(active.sessionId, sessions);
+  return lead || workers.length > 0 ? { lead, workers } : NO_TEAM;
+}

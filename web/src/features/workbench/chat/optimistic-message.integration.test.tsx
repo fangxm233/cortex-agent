@@ -22,6 +22,7 @@ const harness = vi.hoisted(() => ({
   selectCreatedSession: vi.fn(),
   invalidateQueries: vi.fn(),
   liveState: {} as any,
+  teamEnabled: false,
 }));
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
@@ -36,6 +37,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
               defaultProfile: 'default',
               profiles: [{ name: 'default', model: 'claude-sonnet', backend: 'claude', mode: 'plan' }],
             },
+            settings: [{ key: 'teamEnabled', value: harness.teamEnabled }],
           },
         };
       }
@@ -177,7 +179,7 @@ vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInte
 vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
-vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} /> }));
+vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null} /> }));
 vi.mock('./InlineThreadCard', () => ({ InlineThreadCard: () => null }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
@@ -289,6 +291,41 @@ describe('desktop chat metadata target', () => {
   });
 });
 
+describe('desktop chat team context', () => {
+  const lead = { ...SESSION, teamLeadId: null, workerName: null, workerRetiredAt: null };
+  const worker = { ...SESSION, sessionId: 'w1', name: 'Worker', teamLeadId: 's1', workerName: 'bench', workerRetiredAt: null };
+  const strips = () => mounted!.root.findAll((n) => n.type === 'div' && n.props['data-worker-strip'] !== undefined);
+  const parent = () => mounted!.root.findByProps({ 'data-chat-header': true }).props['data-parent'];
+
+  it('shows no strip or breadcrumb with team mode off, even for a lead with workers', () => {
+    harness.sessions = [lead, worker];
+    mounted = mountCenterChat();
+    expect(strips()).toHaveLength(0);
+    harness.selection = { ...selection(false), selectedSessionId: 'w1' };
+    act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
+    expect(parent()).toBeNull();
+  });
+
+  it('shows the worker strip on a lead and the lead breadcrumb on a worker with team mode on', () => {
+    harness.teamEnabled = true;
+    harness.sessions = [lead, worker];
+    mounted = mountCenterChat();
+    expect(strips()).toHaveLength(1);
+    expect(parent()).toBeNull();
+    harness.selection = { ...selection(false), selectedSessionId: 'w1' };
+    act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
+    expect(strips()).toHaveLength(0);
+    expect(parent()).toBe('Session');
+  });
+
+  it('shows neither for a session without a team', () => {
+    harness.teamEnabled = true;
+    mounted = mountCenterChat();
+    expect(strips()).toHaveLength(0);
+    expect(parent()).toBeNull();
+  });
+});
+
 const restoredAttachment: AttachmentMeta = {
   name: 'notes.txt', path: 'attachments/upload-1/notes.txt', size: 10, mimeType: 'text/plain', type: 'file',
 };
@@ -321,6 +358,7 @@ beforeEach(() => {
   harness.selectCreatedSession.mockReset();
   harness.invalidateQueries.mockReset();
   harness.liveState = emptyLiveState();
+  harness.teamEnabled = false;
 });
 
 afterEach(() => {
