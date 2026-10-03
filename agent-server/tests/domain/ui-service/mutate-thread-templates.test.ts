@@ -14,6 +14,16 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 // The handlers bind CONFIG_DIR, which the vitest setup file has already pointed at an isolated temp home.
 const TT_DIR = path.join(CONFIG_DIR, 'thread-templates');
+const ENV_DIR = path.join(CONFIG_DIR, 'environments');
+
+function environmentBody(name: string) {
+  return { name, description: `${name} environment`, profile: 'plan', persistSession: true, tools: 'Read' };
+}
+
+function seedEnvironment(name: string, body: unknown): void {
+  mkdirSync(ENV_DIR, { recursive: true });
+  writeFileSync(path.join(ENV_DIR, `${name}.json`), `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+}
 
 function agentBody(name: string, stages: string[] = ['work']) {
   return {
@@ -54,6 +64,7 @@ function deps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
 
 beforeEach(() => {
   rmSync(TT_DIR, { recursive: true, force: true });
+  rmSync(ENV_DIR, { recursive: true, force: true });
   mkdirSync(TT_DIR, { recursive: true });
   seed('agents', 'a', agentBody('a'));
   seed('agents', 'b', agentBody('b'));
@@ -92,9 +103,20 @@ describe('threadTemplates.validate', () => {
     });
     assert.ok(before.ok && before.data.ok === false);
 
-    // ...but validating `c` itself sees itself present.
-    const self = await handleThreadTemplatesValidate(deps(), { kind: 'agent', name: 'c', body: agentBody('c') });
+    // ...while an agent is judged as an environment on its own.
+    const self = await handleThreadTemplatesValidate(deps(), { kind: 'agent', name: 'c', body: environmentBody('c') });
     assert.ok(self.ok && self.data.ok === true, JSON.stringify(self));
+  });
+
+  test('an agent body is validated as an environment', async () => {
+    const result = await handleThreadTemplatesValidate(deps(), {
+      kind: 'agent',
+      name: 'c',
+      body: { ...environmentBody('c'), mcpComposition: 'thread-control' },
+    });
+    assert.ok(result.ok);
+    assert.equal(result.data.ok, false);
+    assert.ok(result.data.errors.some((e) => e.path === 'mcpComposition'), JSON.stringify(result.data.errors));
   });
 });
 
@@ -159,19 +181,25 @@ describe('threadTemplates.save', () => {
 });
 
 describe('threadTemplates.remove', () => {
-  test('deletes an unreferenced entity', async () => {
-    await handleThreadTemplatesSave(deps(), { kind: 'agent', name: 'c', body: agentBody('c') });
+  test('an agent is written to and deleted from config/environments', async () => {
+    const saved = await handleThreadTemplatesSave(deps(), { kind: 'agent', name: 'c', body: environmentBody('c') });
+    assert.ok(saved.ok, JSON.stringify(saved));
+    assert.equal(existsSync(path.join(ENV_DIR, 'c.json')), true);
+    assert.equal(existsSync(path.join(TT_DIR, 'agents', 'c.json')), false);
     const result = await handleThreadTemplatesRemove(deps(), { kind: 'agent', name: 'c' });
     assert.ok(result.ok, JSON.stringify(result));
-    assert.equal(existsSync(path.join(TT_DIR, 'agents', 'c.json')), false);
+    assert.equal(existsSync(path.join(ENV_DIR, 'c.json')), false);
   });
 
-  test('refuses while a template still declares the agent', async () => {
-    seed('templates', 'ab', templateBody('ab'));
-    const result = await handleThreadTemplatesRemove(deps(), { kind: 'agent', name: 'a' });
+  test('refuses to remove a shell a template still binds', async () => {
+    seed('shells', 'wr', {
+      params: ['worker'], agents: ['{worker}'], transitions: [], entryAgent: '{worker}', maxTotalSteps: 1,
+    });
+    seed('templates', 'bound', { shell: 'wr', worker: 'a' });
+    const result = await handleThreadTemplatesRemove(deps(), { kind: 'shell', name: 'wr' });
     assert.equal(result.ok, false);
     assert.match((result as { message: string }).message, /still used by/);
-    assert.equal(existsSync(path.join(TT_DIR, 'agents', 'a.json')), true);
+    assert.equal(existsSync(path.join(TT_DIR, 'shells', 'wr.json')), true);
   });
 
   test('a missing entity is not-found', async () => {
@@ -182,21 +210,22 @@ describe('threadTemplates.remove', () => {
 });
 
 describe('threadTemplates.detail', () => {
-  test('returns the raw body, hash, dependents and validation verdict', async () => {
+  test('returns the raw body, hash and validation verdict of an environment', async () => {
     seed('templates', 'ab', templateBody('ab'));
+    seedEnvironment('a', environmentBody('a'));
     const detail = await handleThreadTemplatesDetail(deps(), { kind: 'agent', name: 'a' });
 
     assert.equal(detail.name, 'a');
     assert.equal(detail.body?.name, 'a');
-    assert.equal(detail.filePath, path.join(TT_DIR, 'agents', 'a.json'));
+    assert.equal(detail.filePath, path.join(ENV_DIR, 'a.json'));
     assert.deepEqual(detail.errors, []);
-    assert.deepEqual(detail.usedByTemplates, ['ab']);
-    assert.equal(detail.origin, 'custom', 'a test-only agent has no shipped default');
+    assert.deepEqual(detail.usedByTemplates, [], 'thread templates name thread agents, not environments');
+    assert.equal(detail.origin, 'custom', 'a test-only environment has no shipped default');
     assert.ok(detail.sha256.length === 64);
   });
 
   test('a `file:` prompt ref survives the round trip, so an edit cannot inline the prompt', async () => {
-    seed('agents', 'c', { ...agentBody('c'), systemPrompt: 'file:c.md' });
+    seedEnvironment('c', { ...environmentBody('c'), systemPrompt: 'file:c.md' });
     const detail = await handleThreadTemplatesDetail(deps(), { kind: 'agent', name: 'c' });
     assert.equal(detail.body?.systemPrompt, 'file:c.md');
   });
@@ -253,6 +282,7 @@ describe('threadTemplates.detail', () => {
 describe('threadTemplates.get', () => {
   test('flags a broken entity and counts its errors', async () => {
     seed('templates', 'broken', { ...templateBody('broken'), entryAgent: 'nobody' });
+    seedEnvironment('a', environmentBody('a'));
     const entries = await readThreadTemplates(CONFIG_DIR);
 
     const broken = entries.find((e) => e.name === 'broken');

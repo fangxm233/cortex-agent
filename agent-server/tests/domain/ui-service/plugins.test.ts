@@ -24,13 +24,15 @@ import {
   getTemplate,
   loadConfig,
 } from '../../../src/domain/threads/template-loader.js';
+import { getEnvironment } from '../../../src/domain/agents/environments/index.js';
 
 const TT_DIR = path.join(CONFIG_DIR, 'thread-templates');
-const AGENTS_DIR = path.join(TT_DIR, 'agents');
+const ENV_DIR = path.join(CONFIG_DIR, 'environments');
 const TEMPLATES_DIR = path.join(TT_DIR, 'templates');
-const WRITER_FILE = path.join(AGENTS_DIR, 'writer.json');
+const WRITER_FILE = path.join(ENV_DIR, 'writer.json');
+const THREAD_WRITER_FILE = path.join(TT_DIR, 'agents', 'writer.json');
 const WORKFLOW_FILE = path.join(TEMPLATES_DIR, 'workflow.json');
-const MALFORMED_AGENT_FILE = path.join(AGENTS_DIR, 'badreader.json');
+const MALFORMED_AGENT_FILE = path.join(ENV_DIR, 'badreader.json');
 
 type ListResult = Awaited<ReturnType<typeof handlePluginsList>>;
 type AssignResult = Awaited<ReturnType<typeof handlePluginsAssign>>;
@@ -52,6 +54,17 @@ function agentBody(name: string, pluginDirs?: string[]) {
     tools: 'Read',
     entryStage: 'work',
     stages: { work: { promptTemplate: 'work: {{input}}' } },
+    ...(pluginDirs ? { pluginDirs } : {}),
+  };
+}
+
+function environmentBody(name: string, pluginDirs?: string[]) {
+  return {
+    name,
+    description: `${name} environment`,
+    profile: 'plan',
+    persistSession: true,
+    tools: 'Read',
     ...(pluginDirs ? { pluginDirs } : {}),
   };
 }
@@ -155,8 +168,14 @@ function portableMcp(): string {
   }, null, 2);
 }
 
+function seedEnvironment(name: string, body: unknown): void {
+  mkdirSync(ENV_DIR, { recursive: true });
+  writeFileSync(path.join(ENV_DIR, `${name}.json`), `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+}
+
 function seedFixture(): void {
   rmSync(TT_DIR, { recursive: true, force: true });
+  rmSync(ENV_DIR, { recursive: true, force: true });
   rmSync(PLUGINS_DIR, { recursive: true, force: true });
   mkdirSync(TT_DIR, { recursive: true });
   mkdirSync(PLUGINS_DIR, { recursive: true });
@@ -164,6 +183,9 @@ function seedFixture(): void {
   seedPortablePlugin('beta');
   seedPortablePlugin('mcp-plugin', { mcp: true });
   seedPortablePlugin('broken', { invalid: true });
+  // Agent targets are environments; the template slots name the thread agents of the same names.
+  seedEnvironment('writer', environmentBody('writer', writerPluginDirs()));
+  seedEnvironment('reviewer', environmentBody('reviewer'));
   seedEntity('agents', 'writer', agentBody('writer', writerPluginDirs()));
   seedEntity('agents', 'reviewer', agentBody('reviewer'));
   seedEntity('templates', 'workflow', templateBody());
@@ -310,10 +332,13 @@ test('plugins.assign keeps only out-of-catalog agent paths', async () => {
 
   assert.ok(result.ok, JSON.stringify(result));
   assert.deepEqual(readJson(WRITER_FILE).pluginDirs, ['plugins/beta', '/opt/agent-extra']);
-  assert.deepEqual(getAgent('writer')?.pluginDirs, [
+  assert.deepEqual(getEnvironment('writer')?.pluginDirs, [
     path.join(PLUGINS_DIR, 'beta'),
     '/opt/agent-extra',
   ]);
+  // The thread agent of the same name is a different file and is left alone.
+  assert.deepEqual(readJson(THREAD_WRITER_FILE).pluginDirs, writerPluginDirs());
+  assert.equal(getAgent('writer')?.pluginDirs?.length, writerPluginDirs().length);
 });
 
 test('switching inherit to custom copies inherited snapshot', async () => {

@@ -4,6 +4,7 @@ import { CONFIG_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { validateRegistry, type RawRegistry } from '@domain/threads/template-validate.js';
 import { loaderRefResolver } from '@domain/threads/template-loader.js';
 import { entityPath } from '@domain/threads/template-writer.js';
+import { readEnvironmentEntries } from './environments.js';
 import type {
   UiServiceDeps,
   ThreadTemplatesGetParams,
@@ -66,31 +67,31 @@ export async function classifyOrigin(
 }
 
 /**
- * Read all thread-template entries from config/thread-templates/{templates,agents,shells}/*.json.
- * Pure over configDir (hermetically testable). Returns templates first, then agents,
- * then shells, each group sorted alphabetically by basename. body is null when the file cannot be
- * parsed. Each entry carries its validation verdict so the list can flag a broken entity without a
- * round trip per row.
+ * Read the editor list: templates and shells from config/thread-templates/{templates,shells}/, and
+ * the agents a user edits — the execution environments in config/environments/. Pure over
+ * configDir (hermetically testable). Returns templates first, then agents, then shells, each group
+ * sorted alphabetically by basename. body is null when the file cannot be parsed. Each entry
+ * carries its validation verdict so the list can flag a broken entity without a round trip per row.
+ * Templates are validated against the thread agents they name (thread-templates/agents/), which
+ * the list no longer shows.
  */
 export async function readThreadTemplates(configDir: string): Promise<ThreadTemplateEntry[]> {
   const tt = path.join(configDir, 'thread-templates');
-  const [templates, agents, shells] = await Promise.all([
+  const [templates, threadAgents, shells, environments] = await Promise.all([
     readEntriesForKind(path.join(tt, 'templates'), 'template'),
     readEntriesForKind(path.join(tt, 'agents'), 'agent'),
     readEntriesForKind(path.join(tt, 'shells'), 'shell'),
+    readEnvironmentEntries(configDir),
   ]);
-  const raw = [...templates, ...agents, ...shells];
 
   const registry: RawRegistry = { agents: {}, templates: {}, shells: {} };
-  for (const entry of raw) {
-    const bucket =
-      entry.kind === 'agent' ? registry.agents : entry.kind === 'template' ? registry.templates : registry.shells;
-    bucket[entry.name] = entry.body;
-  }
+  for (const entry of threadAgents) registry.agents[entry.name] = entry.body;
+  for (const entry of templates) registry.templates[entry.name] = entry.body;
+  for (const entry of shells) registry.shells[entry.name] = entry.body;
   const verdicts = validateRegistry(registry, loaderRefResolver());
 
-  return Promise.all(
-    raw.map(async ({ content, ...entry }) => {
+  const withVerdict = (entries: RawEntry[]) => Promise.all(
+    entries.map(async ({ content, ...entry }) => {
       const errorCount = verdicts.get(`${entry.kind}:${entry.name}`)?.errors.length ?? 0;
       return {
         ...entry,
@@ -100,6 +101,7 @@ export async function readThreadTemplates(configDir: string): Promise<ThreadTemp
       };
     }),
   );
+  return [...await withVerdict(templates), ...environments, ...await withVerdict(shells)];
 }
 
 export async function handleThreadTemplatesGet(

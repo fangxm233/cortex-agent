@@ -6,6 +6,8 @@ import {
 } from '@domain/threads/template-loader.js';
 import { isShellBinding } from '@domain/threads/shell-templates.js';
 import { readEntity, readRawRegistry, saveEntity } from '@domain/threads/template-writer.js';
+import { ENVIRONMENTS_DIR, readEnvironment } from '@domain/agents/environments/index.js';
+import { saveEnvironmentBody } from './environments.js';
 import {
   addedInvalidPluginIds,
   addedMcpPluginIds,
@@ -58,15 +60,14 @@ function requireMcpAck(
   }
 }
 
-function saveWithReload(
-  kind: 'agent' | 'template',
+function saveTemplateWithReload(
   name: string,
   body: Record<string, unknown>,
   baseHash: string,
 ): PluginsAssignReturn {
   const result = saveEntity(
     CONFIG_TEMPLATES_DIR,
-    { kind, name, body, baseHash },
+    { kind: 'template', name, body, baseHash },
     loaderRefResolver(),
   );
   if (result.changed) loadConfig();
@@ -76,7 +77,7 @@ function saveWithReload(
 function assignAgentPlugins(args: PluginsAssignArgs): PluginsAssignReturn {
   if (args.target.kind !== 'agent') throw fail('invalid-args', 'agent target required');
   const snapshot = readPluginCatalogSnapshot();
-  const entity = readEntity(CONFIG_TEMPLATES_DIR, 'agent', args.target.name);
+  const entity = readEnvironment(ENVIRONMENTS_DIR, args.target.name);
   if (!entity.body) throw fail('invalid-args', `Agent '${args.target.name}' is not a JSON object`);
   const current = normalizePluginDirs(entity.body.pluginDirs, snapshot);
   const desired = requireDesiredPluginIds(current.managedIds, args.pluginIds, snapshot);
@@ -85,7 +86,8 @@ function assignAgentPlugins(args: PluginsAssignArgs): PluginsAssignReturn {
   const pluginDirs = [...canonicalManagedPluginDirs(desired), ...current.unmanaged];
   if (pluginDirs.length > 0) next.pluginDirs = pluginDirs;
   else delete next.pluginDirs;
-  return saveWithReload('agent', args.target.name, next, args.target.baseHash);
+  const saved = saveEnvironmentBody(args.target.name, next, args.target.baseHash);
+  return { changed: saved.changed, baseHash: saved.sha256 };
 }
 
 function requireTemplateBody(entity: TemplateEntity, templateName: string): Record<string, unknown> {
@@ -197,7 +199,7 @@ function saveTemplateSlot(
 ): PluginsAssignReturn {
   const body = { ...slot.body, agents: [...slot.refs] } as Record<string, unknown> & { agents: unknown[] };
   body.agents[target.index] = next;
-  return saveWithReload('template', target.templateName, body, target.baseHash);
+  return saveTemplateWithReload(target.templateName, body, target.baseHash);
 }
 
 function assignTemplateSlotPlugins(args: PluginsAssignArgs): PluginsAssignReturn {
