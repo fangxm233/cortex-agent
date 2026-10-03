@@ -197,7 +197,8 @@ export async function handleSessionsList(
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
-      waitingOn: (waitingOnBySession.get(s.sessionId) ?? 0) + waitingOnLead,
+      waitingOn: waitingOnBySession.get(s.sessionId) ?? 0,
+      waitingOnLead,
       numTurns: resolveNumTurns(s.sessionId, inTurn, state.numTurns),
       costUsd: resolveCost(s.sessionId, inTurn),
       // Cumulative over every finished run this session has had (plus its Agent-tool children's

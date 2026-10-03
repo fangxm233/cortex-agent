@@ -565,9 +565,10 @@ test('sessions.list: a worker blocked on a question routed to its lead waits on 
   try {
     const [w, o] = await handleSessionsList(deps, { projectId: 'proj1' });
     assert.equal(w.awaitingInput, false);
-    assert.equal(w.waitingOn, 1, 'the routed question is a hollow-ring wait');
+    assert.equal(w.waitingOnLead, 1, 'the routed question waits on the lead');
+    assert.equal(w.waitingOn, 0, 'waitpoint count is untouched');
     assert.equal(o.awaitingInput, true, 'a worker whose lead is gone asks the user as before');
-    assert.equal(o.waitingOn, 0);
+    assert.equal(o.waitingOnLead, 0);
   } finally {
     delete process.env.CORTEX_TEAM_ENABLED;
     resetSettingsForTests();

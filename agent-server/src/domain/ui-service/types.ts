@@ -858,9 +858,11 @@ export interface SessionInfo {
    *  why it must never drive the amber dot. Counted with the ownership union documented on
    *  WaitpointInfo (own sessionId OR own channel), deduped per waitpoint. 0 when nothing is pending
    *  and 0 when the waitpoint dep is absent (fixtures / TUI). Optional for rolling compatibility
-   *  with older servers, like `totals` below — consumers read it as `?? 0`. Team mode: a worker's
-   *  blocking question or plan, routed to its lead, counts here too (and not in `awaitingInput`). */
+   *  with older servers, like `totals` below — consumers read it as `?? 0`. */
   waitingOn?: number;
+  /** Team mode: a worker's blocking questions and plans that were routed to its lead (counted here,
+   *  not in `awaitingInput`, because the lead answers them). 0 for every other session. */
+  waitingOnLead?: number;
   /** Real agent-turn count for the composer (NOT the number of user-message rounds). While running,
    *  the live count of the in-flight turn (from the running execution); while idle, the last run's
    *  final turn count (from the most recent non-thread execution on the session's channel). Null when

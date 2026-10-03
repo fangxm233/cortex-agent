@@ -82,6 +82,12 @@ describe('sessionStatusLine', () => {
     // An absent field (older server) must not invent a waiting state.
     expect(sessionStatusLine(sess({})).kind).toBe('idle');
   });
+
+  it('shows a worker blocked on its lead as waiting on the lead, even while its turn runs', () => {
+    expect(sessionStatusLine(sess({ running: true, waitingOnLead: 1 }), 'zh')).toEqual({ kind: 'waiting-external', text: '等待主会话' });
+    expect(sessionStatusLine(sess({ waitingOnLead: 1 }), 'en').text).toBe('Waiting on lead');
+    expect(sessionStatusLine(sess({ waitingOnLead: 1, awaitingInput: true })).kind).toBe('awaiting');
+  });
 });
 
 describe('buildSessionRows', () => {

@@ -30,6 +30,7 @@ const STATUS_TEXT: Record<Lang, {
   background: string;
   running: (turns: number | null) => string;
   waiting: (n: number) => string;
+  waitingLead: string;
   idle: string;
 }> = {
   en: {
@@ -37,6 +38,7 @@ const STATUS_TEXT: Record<Lang, {
     background: 'Running in background',
     running: (turns) => (turns != null ? `Running · ${turns} turns` : 'Running'),
     waiting: (n) => `Waiting on ${n} signal${n === 1 ? '' : 's'}`,
+    waitingLead: 'Waiting on lead',
     idle: 'Idle',
   },
   zh: {
@@ -44,6 +46,7 @@ const STATUS_TEXT: Record<Lang, {
     background: '后台运行',
     running: (turns) => (turns != null ? `运行中 · ${turns} 轮` : '运行中'),
     waiting: (n) => `等 ${n} 个信号`,
+    waitingLead: '等待主会话',
     idle: '空闲',
   },
 };
@@ -58,6 +61,7 @@ const STATUS_TEXT: Record<Lang, {
 export function sessionStatusLine(s: SessionInfo, lang: Lang = 'en'): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
   const t = STATUS_TEXT[lang];
   if (s.awaitingInput) return { kind: 'awaiting', text: t.awaiting };
+  if ((s.waitingOnLead ?? 0) > 0) return { kind: 'waiting-external', text: t.waitingLead };
   if (s.running) {
     return s.backgroundRunning
       ? { kind: 'background', text: t.background }

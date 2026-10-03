@@ -13,6 +13,7 @@ import { isRetiredWorker } from './worker-groups';
 export function workerDotStyle(s: SessionInfo): CSSProperties {
   const base: CSSProperties = { width: 6, height: 6, borderRadius: '50%', boxSizing: 'border-box', flex: 'none' };
   if (s.awaitingInput) return { ...base, background: 'var(--proto-amber)' };
+  if ((s.waitingOnLead ?? 0) > 0) return { ...base, border: '1.5px solid var(--proto-muted-3)' };
   if (s.running) return { ...base, background: 'var(--proto-accent)' };
   if ((s.waitingOn ?? 0) > 0) return { ...base, border: '1.5px solid var(--proto-muted-3)' };
   return { ...base, background: 'var(--proto-line-3)' };
