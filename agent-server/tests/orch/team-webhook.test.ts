@@ -62,6 +62,7 @@ function world(): World {
     activeProfile: () => 'lead-profile',
     interactions: { get: (id: string) => w.records.get(id) ?? null },
     answerQuestion: (id, answers) => { w.answered.push({ id, answers }); return 'resolved'; },
+    questionTexts: (id) => (id === 'ask-2' ? ['Which?', 'Why?'] : null),
     respondPlan: (id, approved, feedback) => { w.answered.push({ id, approved, feedback }); return 'already-resolved'; },
     // Dispatches mark a worker running for a while; the clock is pinned past that window here so the
     // tests below decide "running" explicitly.
@@ -192,4 +193,9 @@ test('answer only resolves requests raised by this lead’s own workers, by kind
   assert.equal(((await call(w, { action: 'answer', request_id: 'gone' })).data as any).outcome, 'not-found');
   assert.match((await call(w, { action: 'answer', request_id: 'plan-1' })).error!, /approved/);
   assert.match((await call(w, { action: 'answer', request_id: 'ask-1' })).error!, /answers required/);
+
+  w.records.set('ask-2', { id: 'ask-2', sessionId: 'w1', kind: 'ask-user', status: 'pending' });
+  const partial = await call(w, { action: 'answer', request_id: 'ask-2', answers: { 'which?': 'A' } });
+  assert.match(partial.error!, /exact question text; unanswered: "Which\?", "Why\?"/);
+  assert.equal(w.answered.length, 2, 'an incomplete answer resolves nothing');
 });

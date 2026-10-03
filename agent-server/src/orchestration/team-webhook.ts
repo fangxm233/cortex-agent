@@ -11,6 +11,7 @@ import { cancelChannelRuns } from './routing/commands/cancel.js';
 import { interactionRecords, type InteractionRecords } from './interactions/interaction-records.js';
 import { planApprovals } from './interactions/plan-approvals.js';
 import { answerQuestion } from './interactions/answer-question.js';
+import { getGroupByHookRequestId } from './interactions/ask-user-question.js';
 import { respondToPlan } from './interactions/plan-response.js';
 import {
   clearDispatch, describeTeam, formatAge, isWorkerBusy, noteDispatch, rosterLine, statusLabel,
@@ -37,6 +38,8 @@ export interface TeamWebhookDeps {
   activeProfile: (channel: string) => string | null;
   interactions: Pick<InteractionRecords, 'get'>;
   answerQuestion: (requestId: string, answers: Record<string, string>) => Outcome;
+  /** The question texts of a pending ask, or null when it has no live group. */
+  questionTexts: (requestId: string) => string[] | null;
   respondPlan: (requestId: string, approved: boolean, feedback: string) => Outcome;
   describeTeam: (leadSessionId: string) => Promise<WorkerView[]>;
   now: () => number;
@@ -55,6 +58,10 @@ const defaultDeps: TeamWebhookDeps = {
   activeProfile: (channel) => getActiveProfile(channel),
   interactions: interactionRecords,
   answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'agent'),
+  questionTexts: (requestId) => {
+    const group = getGroupByHookRequestId(requestId) as { questions?: Array<{ question: string }> } | null;
+    return group?.questions ? group.questions.map(q => q.question) : null;
+  },
   respondPlan: (requestId, approved, feedback) => respondToPlan(
     { planApprovals, interactionRecords }, requestId, approved, feedback, 'agent',
   ),
@@ -205,6 +212,10 @@ async function answer(lead: Session, data: Record<string, any>, deps: TeamWebhoo
       throw new TeamError('answers required for a question: an object keyed by the question text');
     }
     const normalized = Object.fromEntries(Object.entries(answers).map(([q, a]) => [q, String(a)]));
+    const missing = (deps.questionTexts(requestId) ?? []).filter(q => !(q in normalized));
+    if (missing.length > 0) {
+      throw new TeamError(`answers must be keyed by the exact question text; unanswered: ${missing.map(q => JSON.stringify(q)).join(', ')}`);
+    }
     outcome = deps.answerQuestion(requestId, normalized);
   } else {
     if (typeof data.approved !== 'boolean') throw new TeamError('approved (true/false) required for a plan');
