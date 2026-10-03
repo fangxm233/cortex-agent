@@ -6,6 +6,7 @@ import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
 export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
 export const PI_INTERACTION_BRIDGE_ENV = 'CORTEX_PI_INTERACTION_BRIDGE';
+export const PI_TEAM_LEAD_ENV = 'CORTEX_PI_TEAM_LEAD';
 
 export interface PIEnvOptions {
   sessionId?: string | null;
@@ -25,6 +26,8 @@ export interface PIEnvOptions {
   mcpToolAllowlist?: string[] | null;
   /** Trusted marker enabling the shared interaction MCP bridge. */
   enableInteractionBridge?: boolean;
+  /** Trusted marker loading the team-lead worker tools. */
+  enableTeamLead?: boolean;
   /** Explicit marker for the restricted PI subagent surface. */
   subagentMarker?: string | null;
 }
@@ -41,7 +44,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
   'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT',
-  PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV,
+  PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV,
   MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
@@ -90,6 +93,7 @@ export function buildPiEnv(
     env[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(options.mcpToolAllowlist);
   }
   if (options.enableInteractionBridge === true) env[PI_INTERACTION_BRIDGE_ENV] = '1';
+  if (options.enableTeamLead === true) env[PI_TEAM_LEAD_ENV] = '1';
   setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
   applyContext(env, options);
   return env;
@@ -211,6 +215,9 @@ export function buildSessionRequest(
     mcpToolAllowlist: spec.mcp.allowlist,
     enableInteractionBridge: composition === 'direct'
       && spec.flags.isUserInitiated === true
+      && marker === undefined,
+    enableTeamLead: composition === 'direct'
+      && spec.flags.teamLead === true
       && marker === undefined,
     subagentMarker: marker,
   }, spec.env.pinned);

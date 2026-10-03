@@ -11,6 +11,7 @@ export const MCP_BUNDLE_NAMES = [
   'cortex-slack',
   'cortex-feishu',
   'cortex-web',
+  'cortex-workers',
 ] as const;
 
 export type McpBundleName = typeof MCP_BUNDLE_NAMES[number];

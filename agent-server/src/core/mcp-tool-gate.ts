@@ -25,6 +25,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
   'cortex-slack': ['slack_send_file'],
   'cortex-feishu': ['feishu_send_file'],
   'cortex-web': ['send_file', 'send_view', 'send_decision'],
+  'cortex-workers': ['worker_spawn', 'worker_send', 'worker_list', 'worker_stop', 'worker_answer'],
   'cortex-benchmark-thread': ['thread_run'],
 };
 

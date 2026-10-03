@@ -51,6 +51,8 @@ export interface RunRequest {
     executionKind: 'local' | 'dispatch' | 'scheduled';
     isUserInitiated: boolean;
     commissionMode: boolean;
+    /** The session may lead a team (team mode): its engine also loads the worker tools. */
+    teamLead?: boolean;
   };
   policy: {
     background: 'none' | 'inline' | 'hold' | 'completion-only';

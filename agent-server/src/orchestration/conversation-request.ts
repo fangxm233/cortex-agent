@@ -50,6 +50,8 @@ export interface PrepareConversationRequestOptions {
   browserCdpEndpoint?: string | null;
   /** True once the session is bound to a landed commission; loads the commission skill bundle. */
   commissionMode?: boolean;
+  /** Team mode: the session may lead workers (worker tools, and the [Team] roster once it has any). */
+  teamLead?: boolean;
   /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
 }
@@ -334,6 +336,7 @@ export async function prepareConversationRequest(
       executionKind: 'local',
       isUserInitiated: true,
       commissionMode: opts.commissionMode ?? false,
+      ...(opts.teamLead ? { teamLead: true } : {}),
       scheduleTaskId: null,
     },
     policy,

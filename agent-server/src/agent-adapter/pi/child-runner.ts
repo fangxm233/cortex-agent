@@ -7,7 +7,7 @@ import type {
 } from '@core/agents/subagent/types.js';
 import { createChildSession, type ChildSessionFactory, type ChildSessionHandle } from './child-session.js';
 import { messageEndMessage, textFromMessage } from './child-events.js';
-import { PI_INTERACTION_BRIDGE_ENV } from './session-options.js';
+import { PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV } from './session-options.js';
 
 /** The parent's current model, offered when neither the task nor the role names one. */
 export interface PiModelFallback {
@@ -56,6 +56,7 @@ export function buildChildEnv(parentEnv: NodeJS.ProcessEnv, agentDir: string): N
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_TASK_ID;
   delete env[PI_INTERACTION_BRIDGE_ENV];
+  delete env[PI_TEAM_LEAD_ENV];
   return env;
 }
 
