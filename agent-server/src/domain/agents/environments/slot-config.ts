@@ -67,8 +67,6 @@ export function buildSlotConfig(
     skills: overrides.skills ?? def.skills,
     settingSources: overrides.settingSources ?? def.settingSources,
     projectContext: overrides.projectContext ?? def.projectContext,
-    stages: def.stages,
-    entryStage: def.entryStage,
   };
 }
 

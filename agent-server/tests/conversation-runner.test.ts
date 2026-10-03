@@ -48,8 +48,6 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
     outputStyle: null,
     tools: 'Read',
     pluginDirs: null,
-    stages: undefined,
-    entryStage: undefined,
     ...overrides,
   } as AgentSlotConfig;
 }
