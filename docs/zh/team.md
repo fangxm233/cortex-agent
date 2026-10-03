@@ -1,4 +1,4 @@
-# 团队模式
+# 团队模式 {#team-mode}
 
 团队模式让一个对话就能带一支团队。你只和一个会话对话，即**主会话（lead）**。它把工作交给若干持久的
 **worker** 会话，之后可以让它们接着干，替你回答它们的问题，并告诉你结果。你不用为了给某件事一份独立
@@ -7,7 +7,7 @@
 团队模式是实验性功能，默认关闭。在 **设置 → 高级 → 团队（实验性）** 中开启，或在 `settings.json`
 里设置 `teamEnabled`（`CORTEX_TEAM_ENABLED=1`）。
 
-## 主会话与 worker
+## 主会话与 worker {#leads-and-workers}
 
 团队模式开启后，每个网页会话都能当主会话。在真正创建 worker 之前，会话本身没有任何变化：没有 worker
 的会话看起来、用起来都和普通会话一样，唯一的区别是工具列表里多了一组 `worker_*` 工具。
@@ -22,7 +22,7 @@ Claude 主会话可以带 PI worker，反之亦然。PI 模型所属的 provider
 主会话按后续需要来选 worker 还是一次性 `agent`：可能需要后续接续、运行时间长、或可能要来回沟通的工作
 交给 worker；有边界的侦察或验证、结果马上就用的，交给 `agent`。
 
-## 工作如何流转
+## 工作如何流转 {#how-work-flows}
 
 ```
 你 ⇄ 主会话 ── worker_spawn / worker_send ───────────▶ worker
@@ -49,7 +49,7 @@ Claude 主会话可以带 PI worker，反之亦然。PI 模型所属的 provider
 worker 一行（状态、职责、上次汇报、上下文用量，以及你是否直接和它对话过）。worker 的第一轮开头有一个
 `[Worker]` 块，告诉它主会话是谁、它的回复会怎样被使用。
 
-## 工具
+## 工具 {#tools}
 
 主会话的工具来自 `cortex-workers` MCP bundle（见 [MCP](./mcp.md)）。
 
@@ -61,7 +61,7 @@ worker 一行（状态、职责、上次汇报、上下文用量，以及你是�
 | `worker_stop` | `worker`, `retire?` | 停止 worker 当前这一轮；`retire` 同时把它移出名单 |
 | `worker_answer` | `request_id`, `answers?` 或 `approved?` + `feedback?` | 回答 worker 的问题，或批准、驳回它的计划 |
 
-## 工作台中的呈现
+## 工作台中的呈现 {#in-the-workbench}
 
 - 侧栏把主会话的 worker 嵌套在它下面，用展开箭头和 worker 数量收起。主会话的状态点汇总它的 worker，已
   退役的 worker 排在最后并淡化显示。
@@ -73,7 +73,7 @@ worker 一行（状态、职责、上次汇报、上下文用量，以及你是�
 - 在 worker 的 transcript 中，来自主会话的消息显示为带「来自主会话」标签的用户消息。在主会话的
   transcript 中，汇报和请求显示为单行的「Worker 汇报」「Worker 请求」，可以展开看全文。
 
-## 限制
+## 限制 {#limits}
 
 - 一个主会话同时最多运行八个 worker。
 - 只有网页会话能当主会话。Slack、飞书和定时任务会话不加载 worker 工具。
