@@ -8,7 +8,6 @@ import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 export interface InteractionToolDeps {
   channel: string | null;
   sessionId: string | null;
-  threadId: string | null;
   webhookBaseUrl: string;
   httpPost: (url: string, body: any) => Promise<{ status: number; body: any }>;
 }
@@ -22,7 +21,6 @@ export function interactionDepsFor(ctx: CortexToolContext): InteractionToolDeps 
   return {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
-    threadId: ctx.threadId,
     webhookBaseUrl: ctx.webhookBaseUrl,
     httpPost: (url, body) => requestLoopbackJson('POST', url, body, webhookAuthHeaders(ctx)),
   };
@@ -90,7 +88,6 @@ export async function runPlanExit(
     channel: deps.channel,
     planContent,
     toolInput: { summary, plan_file_path: args.plan_file_path },
-    threadId: deps.threadId,
   };
 
   let resp: { status: number; body: any };

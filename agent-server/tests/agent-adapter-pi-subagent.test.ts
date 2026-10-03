@@ -113,8 +113,6 @@ function writeRole(
 /** The parent's env, carrying exactly the entries a child must lose plus one it must keep. */
 function parentEnv(agentDir: string): NodeJS.ProcessEnv {
   return {
-    CORTEX_THREAD_ID: 'thr_parent',
-    CORTEX_TASK_ID: 'task_parent',
     [PI_INTERACTION_BRIDGE_ENV]: '1',
     PI_CODING_AGENT_DIR: path.join(agentDir, 'not-the-child-dir'),
     CORTEX_PI_PARENT_MARKER: 'inherited',
@@ -270,13 +268,11 @@ test('single child runs on a nested session with the role scope, a stripped env,
     assert.equal(harness.sessions[0].prompts[0], 'Task: Find the adapter entry point.');
 
     // The child's env is the parent's, marked as a subagent, re-pointed at the agent dir, and
-    // stripped of the parent's thread scope and interaction bridge.
+    // stripped of the parent's interaction bridge.
     const childEnv = harness.childEnvs[0];
     assert.equal(childEnv.CORTEX_PI_SUBAGENT, '1');
     assert.equal(childEnv.PI_CODING_AGENT_DIR, harness.agentDir);
     assert.equal(childEnv.CORTEX_PI_PARENT_MARKER, 'inherited');
-    assert.equal(childEnv.CORTEX_THREAD_ID, undefined);
-    assert.equal(childEnv.CORTEX_TASK_ID, undefined);
     assert.equal(childEnv[PI_INTERACTION_BRIDGE_ENV], undefined);
 
     harness.sessions[0].finish('child answer', {

@@ -433,7 +433,6 @@ function buildAskBody(parsed: ParsedArgs, questions: any[]): Record<string, unkn
   return {
     ...(channel ? { channel } : {}),
     ...(sessionId ? { sessionId } : {}),
-    threadId: process.env.CORTEX_THREAD_ID ?? null,
     questions,
     ...(level ? { level } : {}),
     ...(parsed.dryRun ? { dryRun: true } : {}),

@@ -207,9 +207,6 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       path.join(tempDir, 'config', '.env'),
       path.join(tempDir, 'config', 'mcp-config.json'),
       path.join(tempDir, 'config', 'mcp-config-core.json'),
-      path.join(tempDir, 'config', 'mcp-config-tasks.json'),
-      path.join(tempDir, 'config', 'mcp-config-manager-qa.json'),
-      path.join(tempDir, 'config', 'mcp-config-thread.json'),
       path.join(tempDir, 'data', 'agent-state.json'),
       // DR-0017 D6 Phase 2.5: thread-templates is a directory (one file per entity)
       path.join(tempDir, 'config', 'thread-templates', 'templates', 'default.json'),
@@ -221,18 +218,9 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       assert.ok(existsSync(f), `Expected file to exist: ${f}`);
     }
 
-    const tasksConfig = JSON.parse(
-      readFileSync(path.join(tempDir, 'config', 'mcp-config-tasks.json'), 'utf-8'),
-    );
-    const managerQaConfig = JSON.parse(
-      readFileSync(path.join(tempDir, 'config', 'mcp-config-manager-qa.json'), 'utf-8'),
-    );
-    const threadConfig = JSON.parse(
-      readFileSync(path.join(tempDir, 'config', 'mcp-config-thread.json'), 'utf-8'),
-    );
-    assert.deepEqual(Object.keys(tasksConfig.mcpServers), ['cortex-tasks']);
-    assert.deepEqual(Object.keys(managerQaConfig.mcpServers), ['cortex-manager-qa']);
-    assert.deepEqual(Object.keys(threadConfig.mcpServers), ['cortex-core']);
+    for (const retired of ['mcp-config-tasks.json', 'mcp-config-manager-qa.json', 'mcp-config-thread.json']) {
+      assert.equal(existsSync(path.join(tempDir, 'config', retired)), false, retired);
+    }
 
     // Assert machines.json exists and contains local machine entry
     const machinesJsonPath = path.join(tempDir, 'config', 'machines.json');
@@ -257,9 +245,9 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
   try {
     // Init first, then remove one generated layer to prove startup recreates it.
     await cortexInit(tempDir, 'claude\nnone\nn\nn\nn\nn\n');
-    const managerQaConfigPath = path.join(tempDir, 'config', 'mcp-config-manager-qa.json');
-    rmSync(managerQaConfigPath);
-    assert.equal(existsSync(managerQaConfigPath), false);
+    const coreConfigPath = path.join(tempDir, 'config', 'mcp-config-core.json');
+    rmSync(coreConfigPath);
+    assert.equal(existsSync(coreConfigPath), false);
     const configHooksDir = path.join(tempDir, 'config', 'hooks');
     const hookScriptsDir = path.join(tempDir, 'hooks');
     mkdirSync(configHooksDir, { recursive: true });
@@ -328,9 +316,9 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
     assert.ok(ready, `Server did not emit readiness signal within 60s.\nstdout: ${stdout.slice(0, 2000)}\nstderr: ${stderr.slice(0, 2000)}`);
     assert.match(stdout, /Startup: mounted \d+ hooks \(\d+ cc \/ \d+ cortex\)/);
     assert.match(stderr, /\[hook-registry\] skipped zz-invalid\.json/);
-    assert.ok(existsSync(managerQaConfigPath), 'startup must recreate manager-Q&A MCP config');
-    const managerQaConfig = JSON.parse(readFileSync(managerQaConfigPath, 'utf-8'));
-    assert.deepEqual(Object.keys(managerQaConfig.mcpServers), ['cortex-manager-qa']);
+    assert.ok(existsSync(coreConfigPath), 'startup must recreate the core MCP config');
+    const coreConfig = JSON.parse(readFileSync(coreConfigPath, 'utf-8'));
+    assert.deepEqual(Object.keys(coreConfig.mcpServers), ['cortex-core']);
 
     const startPayload = await waitForPayload(startPayloadPath);
     assert.deepEqual(Object.keys(startPayload).sort(), ['pid', 'version']);

@@ -85,8 +85,6 @@ test('mapMcpContent: unknown type falls back to JSON', () => {
 
 // --- shouldLoadSlack: gate the cortex-slack server on Slack-originated sessions ---
 
-// --- shouldLoadThreadControl: gate lifecycle tools on thread context ---
-
 type BridgeEvent = 'before_agent_start' | 'session_shutdown';
 type BridgeHandler = (event: Record<string, never>, ctx: Record<string, never>) => Promise<void> | void;
 
@@ -140,7 +138,7 @@ function fakeHandle(
 
 function bridgeDeps(overrides: Partial<McpBridgeDeps>): McpBridgeDeps {
   return {
-    env: { CORTEX_THREAD_ID: 'thr_retry' },
+    env: { CORTEX_SESSION_ID: 'sess-retry' },
     reportFailure: () => undefined,
     spawnClient: async (state) => fakeHandle(state.name),
     ...overrides,
@@ -353,7 +351,6 @@ test('buildServerStates loads the shared interaction bridge only for eligible di
   const cases: Array<{ env: NodeJS.ProcessEnv; hasInteraction: boolean }> = [
     { env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: true },
     { env: { [PI_MCP_COMPOSITION_ENV]: 'direct' }, hasInteraction: false },
-    { env: { [PI_MCP_COMPOSITION_ENV]: 'thread-control', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: false },
     { env: { [PI_MCP_COMPOSITION_ENV]: 'none', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: false },
   ];
   for (const { env, hasInteraction } of cases) {
@@ -404,7 +401,7 @@ test('PI always gates out the MCP delegation pair so its native agent tool is th
   assert.equal(allowed.includes('agent'), false);
   assert.equal(allowed.includes('agent_stop'), false);
   assert.ok(allowed.includes('current_time'));
-  assert.ok(allowed.includes('task_status'));
+  assert.ok(allowed.includes('cost_query'));
 
   // And it survives when the interaction bridge widens the surface.
   const gated = coreEnv(buildServerStates({
@@ -438,15 +435,14 @@ test('eligible PI sessions register the three shared interaction tool names', as
 test('buildServerStates validates a tool gate against the composed built-in union', () => {
   assert.throws(() => buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
-    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait']),
-  }), /Unknown MCP tool.*thread_wait/);
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['curent_time']),
+  }), /Unknown MCP tool.*curent_time/);
 
   const states = buildServerStates({
-    [PI_MCP_COMPOSITION_ENV]: 'thread-control',
-    CORTEX_THREAD_ID: 'thr_fixture',
-    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'task_status']),
+    [PI_MCP_COMPOSITION_ENV]: 'direct',
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['current_time', 'cost_query']),
   });
-  assert.ok(selectedBundles(states).includes('cortex-thread'));
+  assert.deepEqual(selectedBundles(states), ['cortex-core', 'cortex-ext']);
 });
 
 test('buildServerStates appends namespaced plugin servers after the built-in direct set', () => {
@@ -458,9 +454,7 @@ test('buildServerStates appends namespaced plugin servers after the built-in dir
   assert.deepEqual(states.map(state => state.name), [
     'core', pluginServerStateName('portable-http'), pluginServerStateName('portable-sse'),
   ]);
-  assert.deepEqual(selectedBundles(states), [
-    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
-  ]);
+  assert.deepEqual(selectedBundles(states), ['cortex-core', 'cortex-ext']);
   const http = states[1];
   assert.ok(http.source.kind === 'plugin');
   assert.equal(http.source.config.name, 'portable-http');
@@ -624,7 +618,6 @@ test('subagent MCP bridge exposes only cortex-core', async () => {
   const deps = bridgeDeps({
     env: {
       CORTEX_PI_SUBAGENT: '1',
-      CORTEX_THREAD_ID: 'thr_parent',
       SLACK_CHANNEL: 'slack:C0123',
     },
     pluginServers: [

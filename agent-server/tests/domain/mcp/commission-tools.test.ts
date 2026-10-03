@@ -24,7 +24,6 @@ function makeDeps(overrides: Partial<InteractionToolDeps> = {}): InteractionTool
   return {
     channel: 'web:sess-1',
     sessionId: 'sess-1',
-    threadId: null,
     webhookBaseUrl: 'http://127.0.0.1:3001',
     httpPost: async () => ({ status: 200, body: {} }),
     ...overrides,

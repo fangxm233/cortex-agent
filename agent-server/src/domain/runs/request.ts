@@ -72,9 +72,6 @@ export interface RunRequest {
      *  default; `[]` loads none. */
     settingSources?: string[];
     mcpComposition: McpComposition;
-    /** Legacy thread-surface selector: only consulted when `mcpComposition` is undefined (the
-     *  thread path always resolves an explicit value). */
-    useCoreMcp?: boolean;
     mcpToolAllowlist?: string[];
     browserCdpEndpoint?: string | null;
     captureTranscripts: boolean;

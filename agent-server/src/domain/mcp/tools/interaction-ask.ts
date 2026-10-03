@@ -83,7 +83,6 @@ export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): 
     sessionId: deps.sessionId,
     channel: deps.channel,
     questions: normalizedQuestions,
-    threadId: deps.threadId,
     ...(level ? { level } : {}),
     ...(blocking ? {} : { blocking: false }),
   };

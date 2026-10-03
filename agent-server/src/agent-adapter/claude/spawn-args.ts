@@ -4,7 +4,6 @@ import {
   DEFAULT_TOOLS,
   EMPTY_MCP_CONFIG,
   MCP_CONFIG,
-  THREAD_MCP_CONFIG,
   INTERACTION_BRIDGE_TOOLS,
   subagentBridgeTools,
   INTERACTION_STRIP_TOOLS,
@@ -81,7 +80,6 @@ export function isStreamDeltasEnabled(): boolean {
 
 const MCP_CONFIGS: Record<McpComposition, readonly string[]> = {
   direct: [MCP_CONFIG],
-  'thread-control': [THREAD_MCP_CONFIG],
   none: [EMPTY_MCP_CONFIG],
 };
 
@@ -98,8 +96,7 @@ function resolveMcpConfigs(
   const configs = options.mcpConfigPaths
     ? [...options.mcpConfigPaths]
     : [...MCP_CONFIGS[composition]];
-  if (options.supplementalMcpConfigPath
-    && (composition === 'direct' || composition === 'thread-control')) {
+  if (options.supplementalMcpConfigPath && composition === 'direct') {
     configs.push(options.supplementalMcpConfigPath);
   }
   appendBrowserMcpConfig(configs, options, composition === 'direct');
@@ -129,12 +126,7 @@ function printModeArgs(options: ClaudeSpawnOptions): string[] {
 export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleName[] {
   const composition = options.mcpComposition ?? 'direct';
   if (composition === 'none') return [];
-  if (composition === 'thread-control') {
-    return ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread'];
-  }
-  const bundles: McpBundleName[] = [
-    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
-  ];
+  const bundles: McpBundleName[] = ['cortex-core', 'cortex-ext'];
   if (options.isUserInitiated) {
     bundles.push('cortex-interaction-bridge');
   }
@@ -284,7 +276,6 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
  *  Optional fields are omitted from env when undefined, so child processes see no key
  *  rather than an empty string. */
 export interface CortexAgentContext {
-  threadId?: string | null;
   profile?: string | null;
   project?: string | null;
   sessionName?: string | null;
@@ -292,24 +283,12 @@ export interface CortexAgentContext {
   trackSessionId?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
-  /** When true, load the restricted thread MCP composition. */
-  useCoreMcp?: boolean;
-  /** Recursion depth of the owning thread, surfaced as CORTEX_THREAD_DEPTH so the thread_start
-   *  MCP tool can forward it and the daemon-side depth guard can cap nested thread spawning. */
-  threadDepth?: number | null;
-  /** Owning dispatch task id/project (when the agent runs inside a task-dispatched thread),
-   *  surfaced as CORTEX_TASK_ID / CORTEX_TASK_PROJECT so `cortex-task spawn` can infer the
-   *  current task as the parent of a child task without the agent re-declaring it. */
-  taskId?: string | null;
-  taskProject?: string | null;
-  taskGeneration?: string | null;
 }
 
 /** Ambient Cortex context keys re-derived on every spawn, so a stale parent value can never leak
  *  in. CORTEX_EXECUTION_ID is deliberately absent: it is set from context but never reset. */
 const CORTEX_CONTEXT_RESET_KEYS = [
-  'CORTEX_THREAD_ID', 'CORTEX_PROFILE', 'CORTEX_PROJECT', 'CORTEX_SESSION_NAME',
-  'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT', 'CORTEX_TASK_GENERATION',
+  'CORTEX_PROFILE', 'CORTEX_PROJECT', 'CORTEX_SESSION_NAME',
 ] as const;
 
 function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null): void {
@@ -427,17 +406,11 @@ export function claudeRouteIdentity(route: ClaudeRouteInputs): string {
 }
 
 function cortexContextEnv(context?: CortexAgentContext): Record<string, string | undefined> {
-  const depth = context?.threadDepth;
   return {
-    CORTEX_THREAD_ID: context?.threadId,
-    CORTEX_THREAD_DEPTH: depth == null ? undefined : String(depth),
     CORTEX_PROFILE: context?.profile,
     CORTEX_PROJECT: context?.project,
     CORTEX_SESSION_NAME: context?.sessionName,
     CORTEX_EXECUTION_ID: context?.executionId,
-    CORTEX_TASK_ID: context?.taskId,
-    CORTEX_TASK_PROJECT: context?.taskProject,
-    CORTEX_TASK_GENERATION: context?.taskGeneration,
   };
 }
 

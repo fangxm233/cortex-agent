@@ -6,8 +6,7 @@ import path from 'node:path';
 
 import {
   buildFullConfig,
-  buildTasksConfig,
-  buildThreadConfig,
+  buildCoreConfig,
   buildInteractionConfig,
   materializeMcpToolAllowlistConfigs,
 } from '../../src/core/config-generator.js';
@@ -25,23 +24,9 @@ function expectedBundled(...bundles: string[]) {
   };
 }
 
-test('buildFullConfig: always-on direct servers, no cortex-thread', () => {
+test('buildFullConfig: the direct surface is the core and ext bundles', () => {
   assert.deepEqual(buildFullConfig('/test'), {
-    mcpServers: {
-      'cortex-core': expectedBundled(
-        'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
-      ),
-    },
-  });
-});
-
-test('buildThreadConfig: complete thread-control composition', () => {
-  assert.deepEqual(buildThreadConfig('/test'), {
-    mcpServers: {
-      'cortex-core': expectedBundled(
-        'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread',
-      ),
-    },
+    mcpServers: { 'cortex-core': expectedBundled('cortex-core', 'cortex-ext') },
   });
 });
 
@@ -51,15 +36,15 @@ test('buildInteractionConfig: interaction bridge only (no core/ext leak)', () =>
   });
 });
 
-const THREAD_BUNDLES = ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread'] as const;
+const DIRECT_BUNDLES = ['cortex-core', 'cortex-ext'] as const;
 
 test('materialization collapses Cortex entries and preserves user MCP entries', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
-  const threadPath = path.join(root, 'thread.json');
-  const tasksPath = path.join(root, 'tasks.json');
+  const fullPath = path.join(root, 'full.json');
+  const corePath = path.join(root, 'core.json');
   const userPath = path.join(root, 'user.json');
-  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
-  writeFileSync(tasksPath, JSON.stringify(buildTasksConfig('/test')));
+  writeFileSync(fullPath, JSON.stringify(buildFullConfig('/test')));
+  writeFileSync(corePath, JSON.stringify(buildCoreConfig('/test')));
   writeFileSync(userPath, JSON.stringify({
     mcpServers: {
       local_user: { command: '/opt/user-mcp', args: ['--serve'], env: { USER_KEY: 'value' } },
@@ -68,10 +53,10 @@ test('materialization collapses Cortex entries and preserves user MCP entries', 
   }));
 
   const generated = materializeMcpToolAllowlistConfigs(
-    [threadPath, tasksPath, userPath],
-    ['thread_wait', 'task_status', 'thread_wait'],
+    [fullPath, corePath, userPath],
+    ['current_time', 'cost_query', 'current_time'],
     path.join(root, 'generated'),
-    THREAD_BUNDLES,
+    DIRECT_BUNDLES,
   );
   assert.equal(generated.length, 1);
   assert.equal(statSync(path.dirname(generated[0])).mode & 0o777, 0o700);
@@ -80,11 +65,11 @@ test('materialization collapses Cortex entries and preserves user MCP entries', 
   assert.deepEqual(Object.keys(config.mcpServers).sort(), ['cortex-core', 'local_user', 'remote_user']);
   assert.equal(
     config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV],
-    JSON.stringify(['task_status', 'thread_wait']),
+    JSON.stringify(['cost_query', 'current_time']),
   );
   assert.equal(
     config.mcpServers['cortex-core'].args[1],
-    JSON.stringify(['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread']),
+    JSON.stringify(['cortex-core', 'cortex-ext']),
   );
   assert.deepEqual(config.mcpServers.local_user, {
     command: '/opt/user-mcp', args: ['--serve'], env: { USER_KEY: 'value' },
@@ -95,33 +80,44 @@ test('materialization collapses Cortex entries and preserves user MCP entries', 
 });
 
 test('materialization refuses an allowlist name that exists in no bundle at all', () => {
-  // Typo protection, and only that: nothing would ever register under `task_sttaus`, on any surface.
+  // Typo protection, and only that: nothing would ever register under `curent_time`, on any surface.
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
-  const threadPath = path.join(root, 'thread.json');
-  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
+  const fullPath = path.join(root, 'full.json');
+  writeFileSync(fullPath, JSON.stringify(buildFullConfig('/test')));
   assert.throws(
     () => materializeMcpToolAllowlistConfigs(
-      [threadPath], ['thread_wait', 'task_sttaus'], path.join(root, 'generated'), THREAD_BUNDLES,
+      [fullPath], ['current_time', 'curent_time'], path.join(root, 'generated'), DIRECT_BUNDLES,
     ),
-    /Unknown MCP tool.*task_sttaus/,
+    /Unknown MCP tool.*curent_time/,
   );
 });
 
+test('a retired tool name in an old allowlist is dropped, not rejected as a typo', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
+  const fullPath = path.join(root, 'full.json');
+  writeFileSync(fullPath, JSON.stringify(buildFullConfig('/test')));
+  const [generated] = materializeMcpToolAllowlistConfigs(
+    [fullPath], ['current_time', 'task_status', 'ask_manager'], path.join(root, 'generated'), DIRECT_BUNDLES,
+  );
+  const config = JSON.parse(readFileSync(generated, 'utf8'));
+  assert.equal(config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV], JSON.stringify(['current_time']));
+});
+
 test('an allowlist is an upper bound: a real tool this spawn does not compose is dropped', () => {
-  // `send_file` is a real tool of the `cortex-web` bundle. A thread step composes no such bundle,
+  // `send_file` is a real tool of the `cortex-web` bundle. A Slack session composes no such bundle,
   // so the tool is simply absent there — which must narrow the materialized list, not refuse the
   // spawn. Refusing would turn an agent's delivery preference into a rule about which surfaces it
   // is allowed to run on.
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
-  const threadPath = path.join(root, 'thread.json');
-  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
+  const fullPath = path.join(root, 'full.json');
+  writeFileSync(fullPath, JSON.stringify(buildFullConfig('/test')));
   const [generated] = materializeMcpToolAllowlistConfigs(
-    [threadPath], ['thread_wait', 'send_file'], path.join(root, 'generated'), THREAD_BUNDLES,
+    [fullPath], ['current_time', 'send_file'], path.join(root, 'generated'), DIRECT_BUNDLES,
   );
   const config = JSON.parse(readFileSync(generated, 'utf8'));
   assert.equal(
     config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV],
-    JSON.stringify(['thread_wait']),
+    JSON.stringify(['current_time']),
   );
 });
 
@@ -130,7 +126,7 @@ test('dynamic session bundles participate in allowlist validation and config ide
   const directPath = path.join(root, 'direct.json');
   const outputDir = path.join(root, 'generated');
   writeFileSync(directPath, JSON.stringify(buildFullConfig('/test')));
-  const directBundles = ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext'] as const;
+  const directBundles = DIRECT_BUNDLES;
   const interactionBundles = [...directBundles, 'cortex-interaction-bridge'] as const;
   const direct = materializeMcpToolAllowlistConfigs(
     [directPath], ['current_time'], outputDir, directBundles,
@@ -152,10 +148,7 @@ test('a delivery-only allowlist admits one interaction-bridge tool and no other'
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
   const directPath = path.join(root, 'direct.json');
   writeFileSync(directPath, JSON.stringify(buildFullConfig('/test')));
-  const bundles = [
-    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
-    'cortex-interaction-bridge', 'cortex-web',
-  ] as const;
+  const bundles = ['cortex-core', 'cortex-ext', 'cortex-interaction-bridge', 'cortex-web'] as const;
 
   const [generated] = materializeMcpToolAllowlistConfigs(
     [directPath], MINIMAL_DELIVERY_SURFACE, path.join(root, 'generated'), bundles,

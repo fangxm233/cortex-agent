@@ -47,8 +47,8 @@ describe('browser MCP is opt-in per session', () => {
   });
 
   it('refuses the browser layer outside a direct session', () => {
-    // Thread and dispatch workers run unattended; a shared browser there is a side channel.
-    for (const mcpComposition of ['thread-control', 'none'] as const) {
+    // An unattended run sharing one browser is a side channel.
+    for (const mcpComposition of ['none'] as const) {
       const args = adapterTest.computeSpawnArgs(engineSpecFixture({
         sessionId: 'c', sessionKey: 'k', resume: false, browserCdpEndpoint: ENDPOINT, mcpComposition,
       }));

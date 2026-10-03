@@ -9,7 +9,7 @@ import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 // the definition moved to core so `core/agents/*` can name a backend without importing up.
 import type { Backend } from '@core/types/agent-types.js';
 export type { Backend };
-export type McpComposition = 'direct' | 'thread-control' | 'none';
+export type McpComposition = 'direct' | 'none';
 
 /** One provider rate-limit window as the backend reported it. Declared structurally here rather
  *  than imported from `domain/costs`: the adapter's job ends at observing the window, and what a
@@ -40,7 +40,6 @@ export type RateLimitReporter = (
 
 /** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
 export interface CortexContextEnv {
-  threadId?: string | null;
   profile?: string | null;
   project?: string | null;
   sessionName?: string | null;
@@ -50,13 +49,6 @@ export interface CortexContextEnv {
   trackSessionId?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
-  /** When true, load core + tasks + manager-answer + thread MCP layers. */
-  useCoreMcp?: boolean;
-  threadDepth?: number | null;
-  /** Owning dispatch task identity surfaced through CORTEX_TASK_* variables. */
-  taskId?: string | null;
-  taskProject?: string | null;
-  taskGeneration?: string | null;
 }
 
 /**
@@ -99,12 +91,8 @@ export interface AgentUsageScope {
   mode?: string;
 }
 
-export function resolveMcpComposition(
-  explicit: McpComposition | undefined,
-  useCoreMcp: boolean | undefined,
-): McpComposition {
-  if (explicit !== undefined) return explicit;
-  return useCoreMcp === true ? 'thread-control' : 'direct';
+export function resolveMcpComposition(explicit: McpComposition | undefined): McpComposition {
+  return explicit ?? 'direct';
 }
 
 export interface UserMessage {

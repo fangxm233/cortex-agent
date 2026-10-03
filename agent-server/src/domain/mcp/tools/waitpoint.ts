@@ -20,7 +20,7 @@ async function proxy(ctx: CortexToolContext, action: string, payload: Record<str
   const { body } = await requestLoopbackJson(
     'POST',
     `${ctx.webhookBaseUrl}/webhook/waitpoint`,
-    { action, sessionId: ctx.sessionId, channel: ctx.channel, threadId: ctx.threadId, project: ctx.taskProject || ctx.project, ...payload },
+    { action, sessionId: ctx.sessionId, channel: ctx.channel, project: ctx.project, ...payload },
     webhookAuthHeaders(ctx),
   );
   if (!body.success) throw new Error(body.error || `waitpoint ${action} failed`);

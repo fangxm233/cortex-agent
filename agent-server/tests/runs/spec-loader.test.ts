@@ -27,10 +27,9 @@ test('bareSpec hands out a fresh object each time — callers put it on a reques
 
 // --- fromAgentSlot ---
 
-test('the composition is the caller\'s, not the slot\'s — a thread step and a conversation differ', () => {
+test('the composition is the caller\'s, not the slot\'s', () => {
   const config = slot({ mcpComposition: 'none' });
   assert.equal(fromAgentSlot(config, { mcpComposition: 'direct' }).mcp.composition, 'direct');
-  assert.equal(fromAgentSlot(config, { mcpComposition: 'thread-control' }).mcp.composition, 'thread-control');
 });
 
 test('the system prompt is expanded for system vars; the directive is left for prompt composition', () => {

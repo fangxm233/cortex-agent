@@ -4,7 +4,7 @@ import http from 'node:http';
 import { AddressInfo } from 'node:net';
 import { askUser } from '../defaults/hooks/cortex-hook-api.mjs';
 
-const ENV_KEYS = ['WEBHOOK_PORT', 'CORTEX_WEBHOOK_TOKEN', 'CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID', 'CORTEX_THREAD_ID'];
+const ENV_KEYS = ['WEBHOOK_PORT', 'CORTEX_WEBHOOK_TOKEN', 'CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID'];
 let savedEnv: Record<string, string | undefined> = {};
 
 beforeEach(() => {

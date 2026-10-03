@@ -21,7 +21,7 @@ import {
 } from '../src/agent-adapter/claude/mcp-config.js';
 import { buildHooksSettings } from '../src/agent-adapter/claude/hooks-builder.js';
 import {
-  buildFullConfig, buildThreadConfig, materializeMcpToolAllowlistConfigs,
+  buildFullConfig, materializeMcpToolAllowlistConfigs,
 } from '../src/core/config-generator.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
 import {
@@ -29,7 +29,6 @@ import {
   subagentBridgeTools,
   EMPTY_MCP_CONFIG,
   MCP_CONFIG,
-  THREAD_MCP_CONFIG,
   INTERACTION_BRIDGE_TOOLS,
 } from '../src/agent-adapter/claude/defaults.js';
 import {
@@ -179,7 +178,6 @@ function supplementalCompositionArgs(): Record<string, string[]> {
     direct: buildSupplementalArgs({
       mcpConfigPaths: ['/fixture/base-a.json', '/fixture/base-b.json'],
     }),
-    thread: buildSupplementalArgs({ mcpComposition: 'thread-control' }),
     none: buildSupplementalArgs({
       mcpComposition: 'none',
       mcpConfigPaths: ['/fixture/empty.json'],
@@ -191,10 +189,6 @@ function assertSupplementalCompositionPaths(args: Record<string, string[]>): voi
   assert.deepEqual(mcpConfigPaths(args.direct), [
     '/fixture/base-a.json',
     '/fixture/base-b.json',
-    '/fixture/supplemental.json',
-  ]);
-  assert.deepEqual(mcpConfigPaths(args.thread), [
-    THREAD_MCP_CONFIG,
     '/fixture/supplemental.json',
   ]);
   assert.deepEqual(mcpConfigPaths(args.none), ['/fixture/empty.json']);
@@ -235,17 +229,6 @@ test('buildSpawnArgs baseline — no optional flags', () => {
     '--session-id', 'uuid-aaa',
   ];
   assert.deepEqual(args, expected);
-});
-
-test('buildSpawnArgs thread session layers core, tasks, manager Q&A, and thread configs', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    needsResume: false,
-    sessionId: 'uuid-thread',
-    mcpComposition: 'thread-control',
-  });
-  assert.deepEqual(mcpConfigPaths(args), [THREAD_MCP_CONFIG]);
-  assert.ok(!args.includes(MCP_CONFIG));
 });
 
 test('buildSpawnArgs with full options — system-prompt, append, model, agent, plugin-dir (×2), outputStyle, resume', () => {
@@ -469,7 +452,7 @@ function materializedAllowlist(options: ClaudeSpawnOptions, sourceConfig: object
   return JSON.parse(config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV]);
 }
 
-test('a minimal-surface agent spawns on web, on Slack and on a thread step alike', () => {
+test('a minimal-surface agent spawns on web, on Slack and unattended alike', () => {
   const base = {
     tools: 'Read,Write,Edit', needsResume: false, mcpToolAllowlist: MINIMAL_DELIVERY_SURFACE,
   } as const;
@@ -493,13 +476,10 @@ test('a minimal-surface agent spawns on web, on Slack and on a thread step alike
     ['cortex_ask_user'],
   );
 
-  // A thread step composes neither the bridge nor the web bundle: nothing on the list exists, and
-  // the spawn is an ordinary spawn with an empty MCP surface rather than a crash.
+  // A spawn that is not user-initiated and not on the web composes neither the bridge nor the web
+  // bundle: nothing on the list exists, and the spawn has an empty MCP surface rather than a crash.
   assert.deepEqual(
-    materializedAllowlist(
-      { ...base, sessionId: 'uuid-step', mcpComposition: 'thread-control' },
-      buildThreadConfig('/test'),
-    ),
+    materializedAllowlist({ ...base, sessionId: 'uuid-step' }, buildFullConfig('/test')),
     [],
   );
 });
@@ -521,20 +501,6 @@ test('loadWebMcp selects Web tools without adding another config', () => {
   assert.ok(resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-web', loadWebMcp: true,
   }).includes('cortex-web'));
-});
-
-test('buildSpawnArgs loadWebMcp — thread-control composition suppresses the web layer', () => {
-  assert.ok(!resolveClaudeMcpBundles({
-    tools: null, needsResume: false, sessionId: 'uuid-web-thread',
-    mcpComposition: 'thread-control', loadWebMcp: true,
-  }).includes('cortex-web'));
-});
-
-test('buildSpawnArgs loadFeishuMcp — thread-control composition suppresses the feishu layer', () => {
-  assert.ok(!resolveClaudeMcpBundles({
-    tools: null, needsResume: false, sessionId: 'uuid-feishu-thread',
-    mcpComposition: 'thread-control', loadFeishuMcp: true,
-  }).includes('cortex-feishu'));
 });
 
 // --- buildSpawnArgs: token-level streaming (--include-partial-messages) ---
@@ -612,31 +578,6 @@ test('buildSpawnArgs print + isUserInitiated — layers interaction MCP config a
   }
   for (const tool of INTERACTION_BRIDGE_TOOLS) {
     assert.ok(tools.includes(tool), `bridge tool ${tool} appended`);
-  }
-});
-
-test('buildSpawnArgs print + isUserInitiated + thread-control gets no bridge', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-print-thread',
-    mcpComposition: 'thread-control',
-    isUserInitiated: true,
-  });
-  assert.deepEqual(mcpConfigPaths(args), [THREAD_MCP_CONFIG]);
-  assert.ok(!resolveClaudeMcpBundles({
-    tools: null, needsResume: false, sessionId: 'uuid-print-thread',
-    mcpComposition: 'thread-control', isUserInitiated: true,
-  }).includes('cortex-interaction-bridge'));
-  const tools = args[args.indexOf('--tools') + 1].split(',');
-  for (const tool of INTERACTION_BRIDGE_TOOLS) {
-    assert.ok(!tools.includes(tool), `thread session must not get bridge tool ${tool}`);
   }
 });
 
@@ -1032,42 +973,30 @@ test('buildClaudeEnv — unsetEnv runs after extraEnv, so an extraEnv-set key is
 test('buildClaudeEnv — unsetEnv applies to a pinnedEnv child and leaves CORTEX_* context intact', () => {
   const env = buildClaudeEnv(
     'C1', 'sid-1', null, null, undefined, undefined,
-    { threadId: 'thr_xyz' },
+    { project: 'atlas' },
     { PATH: '/usr/bin', ANTHROPIC_API_KEY: 'sk-ant-pinned' },
-    ['ANTHROPIC_API_KEY', 'CORTEX_THREAD_ID'],
+    ['ANTHROPIC_API_KEY', 'CORTEX_PROJECT'],
   );
   assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
   assert.equal(env.PATH, '/usr/bin');
   // Context keys are resolved after unsetEnv: the authoritative context still wins.
-  assert.equal(env.CORTEX_THREAD_ID, 'thr_xyz');
+  assert.equal(env.CORTEX_PROJECT, 'atlas');
 });
 
-// --- buildClaudeEnv: cortex context env vars (CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME) ---
+// --- buildClaudeEnv: cortex context env vars (CORTEX_PROFILE/PROJECT/SESSION_NAME) ---
 
-test('buildClaudeEnv — context.threadId/profile/project/sessionName surface as CORTEX_* env vars', () => {
+test('buildClaudeEnv — context profile/project/sessionName surface as CORTEX_* env vars', () => {
   const env = buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, {
-    threadId: 'thr_abc123',
     profile: 'fast-worker',
     project: 'cortex-self',
     sessionName: 'cortex-aaa111',
   });
-  assert.equal(env.CORTEX_THREAD_ID, 'thr_abc123');
   assert.equal(env.CORTEX_PROFILE, 'fast-worker');
   assert.equal(env.CORTEX_PROJECT, 'cortex-self');
   assert.equal(env.CORTEX_SESSION_NAME, 'cortex-aaa111');
   // Existing fields still intact
   assert.equal(env.SLACK_CHANNEL, 'C1');
   assert.equal(env.CORTEX_SESSION_ID, 'sid-1');
-});
-
-test('buildClaudeEnv — context.taskId/taskProject surface as CORTEX_TASK_ID/PROJECT', () => {
-  const env = buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, {
-    threadId: 'thr_abc',
-    taskId: 'a1b2',
-    taskProject: 'cortex-self',
-  });
-  assert.equal(env.CORTEX_TASK_ID, 'a1b2');
-  assert.equal(env.CORTEX_TASK_PROJECT, 'cortex-self');
 });
 
 // --- activePlanFiles helpers (encapsulation per Design Decision 3) ---

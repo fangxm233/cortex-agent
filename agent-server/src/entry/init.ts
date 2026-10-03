@@ -12,9 +12,6 @@ import {
   buildCoreConfig,
   buildEmptyConfig,
   buildFullConfig,
-  buildManagerQaConfig,
-  buildTasksConfig,
-  buildThreadConfig,
   buildInteractionConfig,
 } from '@core/config-generator.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
@@ -1376,9 +1373,6 @@ function writeMcpConfigs(configDir: string): void {
   const configs: Array<[string, object]> = [
     ['mcp-config.json', buildFullConfig(INSTALL_ROOT)],
     ['mcp-config-core.json', buildCoreConfig(INSTALL_ROOT)],
-    ['mcp-config-tasks.json', buildTasksConfig(INSTALL_ROOT)],
-    ['mcp-config-manager-qa.json', buildManagerQaConfig(INSTALL_ROOT)],
-    ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
     ['mcp-config-empty.json', buildEmptyConfig()],
     ['mcp-config-interaction.json', buildInteractionConfig(INSTALL_ROOT)],
   ];

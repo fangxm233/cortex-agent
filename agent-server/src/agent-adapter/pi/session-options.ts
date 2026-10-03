@@ -34,10 +34,8 @@ export interface PIEnvOptions {
 
 const RESET_CONTEXT_KEYS = [
   'SLACK_CHANNEL', 'FEISHU_CHANNEL',
-  'CORTEX_SESSION_ID', 'CORTEX_THREAD_ID', 'CORTEX_PROFILE',
+  'CORTEX_SESSION_ID', 'CORTEX_PROFILE',
   'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
-  'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
-  'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
   'CORTEX_WEBHOOK_BENCHMARK_ONLY',
@@ -55,15 +53,10 @@ function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
   setOptional(env, 'CORTEX_SESSION_ID', context?.trackSessionId ?? options.sessionId);
   setOptional(env, 'CORTEX_CALLBACK_SOURCE', options.callbackSource);
   setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
-  setOptional(env, 'CORTEX_THREAD_ID', context?.threadId);
   setOptional(env, 'CORTEX_PROFILE', context?.profile);
   setOptional(env, 'CORTEX_PROJECT', context?.project);
   setOptional(env, 'CORTEX_SESSION_NAME', context?.sessionName);
   setOptional(env, 'CORTEX_EXECUTION_ID', context?.executionId);
-  setOptional(env, 'CORTEX_THREAD_DEPTH', context?.threadDepth);
-  setOptional(env, 'CORTEX_TASK_ID', context?.taskId);
-  setOptional(env, 'CORTEX_TASK_PROJECT', context?.taskProject);
-  setOptional(env, 'CORTEX_TASK_GENERATION', context?.taskGeneration);
 }
 
 /**
@@ -159,11 +152,6 @@ function subagentMarker(spec: EngineSpec): string | undefined {
   return spec.env.sets?.CORTEX_PI_SUBAGENT === '1' ? '1' : undefined;
 }
 
-function allowsPluginMcp(composition: McpComposition, marker: string | undefined): boolean {
-  if (composition === 'direct') return true;
-  return composition === 'thread-control' && marker === undefined;
-}
-
 /**
  * Plugin MCP servers for this session. Browser control rides along like any other plugin server,
  * gated on `direct` for the same reason Claude gates it: an unattended worker sharing one browser
@@ -172,9 +160,8 @@ function allowsPluginMcp(composition: McpComposition, marker: string | undefined
 export function pluginMcpServers(
   spec: EngineSpec,
   composition: McpComposition,
-  marker: string | undefined,
 ): McpServerConfig[] {
-  if (!allowsPluginMcp(composition, marker)) return [];
+  if (composition !== 'direct') return [];
   const servers = [...(spec.mcp.servers ?? [])];
   if (spec.mcp.browserCdpEndpoint && composition === 'direct') {
     servers.push(browserMcpServer(spec.mcp.browserCdpEndpoint));
@@ -197,7 +184,7 @@ export function buildSessionRequest(
   spec: EngineSpec,
   inputs: SessionRequestInputs,
 ): PiSessionRequest {
-  const composition = resolveMcpComposition(spec.mcp.composition, spec.env.context?.useCoreMcp);
+  const composition = resolveMcpComposition(spec.mcp.composition);
   const marker = subagentMarker(spec);
   const env = buildPiEnv({
     sessionId: spec.resume.backendSessionId,
@@ -237,7 +224,7 @@ export function buildSessionRequest(
       : [...(spec.plugins.skillDirs ?? []), ...(spec.plugins.dirs ?? [])],
     disableHooks: spec.flags.disableHooks === true,
     reportsProviderQuota: !!spec.route.gatewayBaseUrl,
-    pluginMcpServers: pluginMcpServers(spec, composition, marker),
+    pluginMcpServers: pluginMcpServers(spec, composition),
     env,
     streamDeltas: inputs.streamDeltas,
   };

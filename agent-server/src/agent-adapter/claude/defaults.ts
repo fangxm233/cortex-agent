@@ -18,7 +18,6 @@ export const TUI_JSONL_BASE = path.join(os.homedir(), '.claude', 'projects');
 export const LOGS_DIR = path.join(DATA_DIR, 'logs', 'sessions');
 
 export const MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config.json');
-export const THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 export const EMPTY_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-empty.json');
 // User-customizable Claude settings live under DATA_DIR (init copies the seed from
 // defaults/.claude/settings.json on first run). The installed package's defaults/.claude/

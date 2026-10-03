@@ -33,7 +33,7 @@
     "CORTEX_BACKEND": "claude",
     "CORTEX_EXECUTION_ID": "exec-direct",
     "CORTEX_HOME": "/fixture/cortex-home",
-    "CORTEX_MCP_BUNDLES": "[\"cortex-core\",\"cortex-tasks\",\"cortex-manager-qa\",\"cortex-ext\"]",
+    "CORTEX_MCP_BUNDLES": "[\"cortex-core\",\"cortex-ext\"]",
     "CORTEX_PROFILE": "fixture-profile",
     "CORTEX_SESSION_ID": "tracked-direct",
     "DISABLE_AUTOUPDATER": "1",

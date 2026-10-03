@@ -48,13 +48,10 @@ export function selectPiModel(
   return {};
 }
 
-/** The child's env: the parent's, marked as a subagent and stripped of the thread scope and the
- *  interaction bridge, so the child's tool shims skip the Agent tool and its MCP bridge loads only
+/** The child's env: the parent's, marked as a subagent and stripped of the interaction bridge, so the child's tool shims skip the Agent tool and its MCP bridge loads only
  *  the core bundle. */
 export function buildChildEnv(parentEnv: NodeJS.ProcessEnv, agentDir: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...parentEnv, PI_CODING_AGENT_DIR: agentDir, CORTEX_PI_SUBAGENT: '1' };
-  delete env.CORTEX_THREAD_ID;
-  delete env.CORTEX_TASK_ID;
   delete env[PI_INTERACTION_BRIDGE_ENV];
   delete env[PI_TEAM_LEAD_ENV];
   return env;

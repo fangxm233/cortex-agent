@@ -107,7 +107,7 @@ interface ClaudeSessionOptions {
   extraOption?: Record<string, string>;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
   thinking?: string | null;
-  /** Cortex execution context surfaced to the MCP server child as CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME env vars.
+  /** Cortex execution context surfaced to the MCP server child as CORTEX_PROFILE/PROJECT/SESSION_NAME env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
   context?: CortexAgentContext;
   /** Pool hooks: the owner's eviction callbacks. See `ClaudeEngineOpenHooks`. */
@@ -680,7 +680,7 @@ function supplementalMcpConfig(
   composition: McpComposition,
 ): ReturnType<typeof writeClaudeSupplementalMcpConfig> | null {
   if (!spec.mcp.servers) return null;
-  if (composition !== 'direct' && composition !== 'thread-control') return null;
+  if (composition !== 'direct') return null;
   return writeClaudeSupplementalMcpConfig(spec.mcp.servers);
 }
 
@@ -742,7 +742,7 @@ function sessionRuntimeOptions(
 function sessionOptionsFromSpec(
   spec: EngineSpec,
 ): ClaudeSessionOptions & { sessionIdEffective: string } {
-  const composition = resolveMcpComposition(spec.mcp.composition, spec.env.context?.useCoreMcp);
+  const composition = resolveMcpComposition(spec.mcp.composition);
   return {
     sessionIdEffective: spec.resume.backendSessionId || crypto.randomUUID(),
     needsResume: spec.resume.resume,

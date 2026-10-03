@@ -30,7 +30,6 @@ export interface RunRequestFixtureInput extends Omit<EngineSpecFixtureInput, 'to
   taskProject?: string | null;
   taskGeneration?: string | null;
   executionId?: string | null;
-  useCoreMcp?: boolean;
   loadCortexRules?: boolean;
   recordCost?: boolean;
   commissionMode?: boolean;
@@ -150,7 +149,6 @@ export function runRequestFixture(
       // The flat bag's default: undefined meant "load the ambient rules".
       loadRules: partial.loadCortexRules ?? true,
       mcpComposition: partial.mcpComposition as RunRequest['policy']['mcpComposition'],
-      useCoreMcp: partial.useCoreMcp,
       mcpToolAllowlist: partial.mcpToolAllowlist,
       browserCdpEndpoint: partial.browserCdpEndpoint ?? null,
       captureTranscripts: partial.captureTranscriptLogs as boolean,

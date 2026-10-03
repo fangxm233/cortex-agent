@@ -11,10 +11,6 @@ export function shouldLoadWeb(channel: string | undefined): boolean {
   return !!channel && channel.startsWith('web:');
 }
 
-export function shouldLoadThreadControl(threadId: string | undefined): boolean {
-  return !!threadId;
-}
-
 type PiTextContent = { type: 'text'; text: string };
 type PiImageContent = { type: 'image'; data: string; mimeType: string };
 export type PiContent = PiTextContent | PiImageContent;

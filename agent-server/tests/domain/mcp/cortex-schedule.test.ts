@@ -7,7 +7,6 @@ const FULL_CTX: CortexContextInternal = {
   channel: 'C123',
   sessionId: 'sess-uuid-1',
   sessionName: 'cortex-abc111',
-  threadId: 'thr_xyz999',
   profile: 'fast-worker',
   project: 'cortex-self',
   backend: 'claude',

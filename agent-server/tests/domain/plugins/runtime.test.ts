@@ -137,7 +137,7 @@ function unmanagedRoot(harness: Harness, name: string): string {
 function resolveRuntime(
   harness: Harness,
   selectedPluginDirs: string[],
-  options: { backend?: 'claude' | 'pi'; mcpComposition?: 'direct' | 'thread-control' | 'none' } = {},
+  options: { backend?: 'claude' | 'pi'; mcpComposition?: 'direct' | 'none' } = {},
 ) {
   return resolvePluginRuntime({
     backend: options.backend ?? 'claude',
