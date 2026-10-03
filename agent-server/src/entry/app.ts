@@ -117,6 +117,7 @@ import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/eve
 import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
+import { installTeamDelivery } from '@orch/team-delivery.js';
 import { startDispatchReconciler } from '@orch/dispatch-reconciler.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outbound-queue.js';
@@ -857,6 +858,7 @@ process.on('SIGTERM', async () => {
 
   // S13: register hook-bridge event subscribers (bodies extracted to orch/routing/hook-bridge-subscribers.ts)
   registerHookBridgeSubscribers(bus, adapter, planApprovals);
+  installTeamDelivery(bus);
 
   // The same seam for PI's in-process `agent`: registering a background run reaches the delivery
   // route above, so the adapter declares the port (D10) and the composition root fills it.

@@ -9,9 +9,13 @@ import { interactionRecords as defaultInteractionRecords, type InteractionRecord
 import { resolveRequest as resolveHookRequest } from './hook-bridge.js';
 import { activeTurns } from '../turn/active-turns.js';
 import { deliverToSessionDetached } from '../session-gateway.js';
+import { notifyLeadOfWorkerRequest, type WorkerRequest } from '../team-delivery.js';
 import { t } from '@core/i18n.js';
 
 const log = createLogger('hook-bridge');
+
+/** Team mode: forward a worker's question or plan to its lead (a no-op for every other session). */
+export type WorkerRequestNotifier = (request: WorkerRequest) => Promise<unknown>;
 
 /** Delivery seam for a non-blocking ask's answer; production binds it to the session gateway. */
 export type UserMessageSender = (opts: { channel: string; text: string; adapter: PlatformAdapter }) => void;
@@ -45,6 +49,7 @@ export function registerHookBridgeSubscribers(
   planApprovals: PlanApprovals,
   interactions: InteractionRecords = defaultInteractionRecords,
   sendUserMessage: UserMessageSender = deliverAskUserAnswer,
+  notifyLead: WorkerRequestNotifier = notifyLeadOfWorkerRequest,
 ): void {
   bus.subscribe('ask-user.requested', async (e) => {
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
@@ -65,21 +70,25 @@ export function registerHookBridgeSubscribers(
       // the create() publishes session.interaction and the frontend renders the card
       // from the transcript (web-interactions-redesign).
       if (ev.channel.startsWith('web:')) {
+        const questions = group.questions.map((q: any) => ({
+          question: q.question,
+          header: q.header,
+          options: q.options || [],
+          multiSelect: !!q.multiSelect,
+        }));
         await interactions.create({
           id: ev.requestId,
           sessionId: ev.sessionId,
           channel: ev.channel,
           kind: 'ask-user',
           payload: {
-            questions: group.questions.map((q: any) => ({
-              question: q.question,
-              header: q.header,
-              options: q.options || [],
-              multiSelect: !!q.multiSelect,
-            })),
+            questions,
             ...(ev.level ? { level: ev.level } : {}),
             ...(nonBlocking ? { blocking: false } : {}),
           },
+        });
+        void notifyLead({
+          requestId: ev.requestId, sessionId: ev.sessionId, kind: 'ask-user', blocking: !nonBlocking, questions,
         });
         return;
       }
@@ -138,6 +147,10 @@ export function registerHookBridgeSubscribers(
             planContent: ev.planContent || '',
             planFilePath: ev.toolInput?.plan_file_path ?? null,
           },
+        });
+        void notifyLead({
+          requestId: ev.requestId, sessionId: ev.sessionId, kind: 'plan-approval', blocking: true,
+          planContent: ev.planContent || '', planFilePath: ev.toolInput?.plan_file_path ?? null,
         });
         return;
       }
