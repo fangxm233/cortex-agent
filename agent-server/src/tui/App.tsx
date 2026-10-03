@@ -160,7 +160,7 @@ export function App({
   }, [stdout]);
 
   // Active tab for dashboard
-  const [activeTab, setActiveTab] = useState('threads');
+  const [activeTab, setActiveTab] = useState('schedules');
 
   // Route non-mutate frames to the appropriate handler
   const routeFrame = useCallback((frame: TuiFrame) => {

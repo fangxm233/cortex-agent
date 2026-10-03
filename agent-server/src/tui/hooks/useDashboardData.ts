@@ -11,7 +11,7 @@ export interface TabData {
   lastUpdated: number | null;
 }
 
-export type TabName = 'threads' | 'tasks' | 'schedules' | 'executions' | 'cost';
+export type TabName = 'schedules' | 'executions' | 'cost';
 
 export interface DashState {
   tabs: Record<TabName, TabData>;
@@ -21,8 +21,6 @@ const INITIAL_TAB: TabData = { data: [], loading: false, error: null, lastUpdate
 
 export const EMPTY_DASH_STATE: DashState = {
   tabs: {
-    threads: { ...INITIAL_TAB },
-    tasks: { ...INITIAL_TAB },
     schedules: { ...INITIAL_TAB },
     executions: { ...INITIAL_TAB },
     cost: { ...INITIAL_TAB },
@@ -30,8 +28,6 @@ export const EMPTY_DASH_STATE: DashState = {
 };
 
 export const TAB_SCOPES: Record<TabName, { queryId: string; events: string[] }> = {
-  threads: { queryId: 'dash-threads', events: ['thread.created', 'thread.completed', 'thread.transitioned', 'thread.failed'] },
-  tasks: { queryId: 'dash-tasks', events: ['task.claimed', 'task.unclaimed', 'task.completed', 'task.dispatched', 'task.blocked', 'task.unblocked'] },
   schedules: { queryId: 'dash-schedules', events: ['scheduler.tick'] },
   executions: { queryId: 'dash-executions', events: ['agent.started', 'agent.completed', 'agent.failed', 'agent.superseded'] },
   cost: { queryId: 'dash-cost', events: ['agent.completed'] },

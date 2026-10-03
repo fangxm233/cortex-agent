@@ -2,8 +2,6 @@ import React, { useCallback, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { TAB_SCOPES } from '../hooks/useDashboardData.js';
 import type { TabName, DashState } from '../hooks/useDashboardData.js';
-import { DashboardThreadsTab } from './DashboardThreadsTab.js';
-import { DashboardTasksTab } from './DashboardTasksTab.js';
 import { DashboardSchedulesTab } from './DashboardSchedulesTab.js';
 import { DashboardExecutionsTab } from './DashboardExecutionsTab.js';
 import { DashboardCostTab } from './DashboardCostTab.js';
@@ -23,8 +21,6 @@ function tab(key: TabName): DashboardTabInfo {
 }
 
 export const DASHBOARD_TABS: DashboardTabInfo[] = [
-  tab('threads'),
-  tab('tasks'),
   tab('schedules'),
   tab('executions'),
   tab('cost'),
@@ -118,10 +114,6 @@ function TabContent({
   }, [dashState.tabs[tab].loading, tab, projectId]);
 
   switch (tab) {
-    case 'threads':
-      return <DashboardThreadsTab data={dashState.tabs.threads} mutate={mutate} active={active} />;
-    case 'tasks':
-      return <DashboardTasksTab data={dashState.tabs.tasks} mutate={mutate} projectId={projectId ?? undefined} active={active} />;
     case 'schedules':
       return <DashboardSchedulesTab data={dashState.tabs.schedules} mutate={mutate!} active={active} />;
     case 'executions':
