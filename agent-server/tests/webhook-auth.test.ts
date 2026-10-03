@@ -114,7 +114,7 @@ test('an oversized signal body is refused 413 without being buffered', async () 
 test('benchmark-only mode serves the benchmark-session route and refuses every other', async () => {
   process.env.CORTEX_WEBHOOK_BENCHMARK_ONLY = '1';
   try {
-    for (const url of ['/webhook/remote-command', '/webhook/thread-op', '/webhook/task-op', '/webhook/team']) {
+    for (const url of ['/webhook/remote-command', '/webhook/subagent', '/webhook/team']) {
       const refused = await drive({
         method: 'POST', url, headers: { 'x-cortex-token': TOKEN }, body: { action: 'list' },
       });

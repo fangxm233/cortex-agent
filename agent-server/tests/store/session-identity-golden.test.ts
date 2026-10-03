@@ -7,7 +7,6 @@ import path from 'node:path';
 import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '../../src/store/session-registry-repo.js';
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { seedTestProfiles } from '../_seed-profiles.js';
-import { registerThreadSession } from '../../src/domain/scheduling/jobs/register-thread-session.js';
 import { setSessionAsync } from '../../src/domain/sessions/session.js';
 import {
   getActiveProfile,
@@ -267,58 +266,6 @@ test('golden 8: switchSession replaces the header and resets turns', async () =>
   });
 });
 
-// ── 9. registerThreadSession: the registry put for a thread/scheduled session ──
-test('golden 9: registerThreadSession keeps track id as sessionId and backend id as backendSessionId', async () => {
-  const channel = 'thread:g9-channel';
-  const trackSid = 'track-sid-9';
-  const backendSid = 'backend-sid-9';
-
-  setActiveProfile('plan', channel); // the record carries the channel's profile — pin it explicitly
-  await registerThreadSession(channel, {
-    sessionName: 'cortex-thr-9',
-    result: { sessionId: backendSid } as any,
-    threadResult: { thread: { steps: [{ sessionName: 'cortex-step', sessionId: trackSid, agentSlotId: 'agent:coder' }] } },
-    project: 'projX',
-    label: 'nightly run label',
-    sessionOrigin: 'scheduled',
-    scheduleId: 'sched-9',
-  });
-
-  const record = await sessionStore.getById(trackSid); // registered under the track id, not the backend id
-  const snapshot = {
-    lookupBySessionId: await sessionStore.lookupBySessionId(trackSid),
-    lookupBackendId: await sessionStore.lookupBySessionId(backendSid), // no record under the backend id
-    record,
-    effectiveBackendSessionId: record ? effectiveBackendSessionId(record) : null,
-  };
-
-  assert.deepEqual(normalize(snapshot), {
-    lookupBySessionId: 'cortex-thr-9',
-    lookupBackendId: null,
-    record: {
-      name: 'cortex-thr-9',
-      sessionId: 'track-sid-9',
-      projectId: 'projX',
-      channel: 'thread:g9-channel',
-      backend: 'claude',
-      kind: 'scheduled',
-      origin: 'scheduled',
-      createdAt: '<ts>',
-      lastUsedAt: '<ts>',
-      label: 'nightly run label',
-      profileName: 'plan',
-      agentName: null,
-      backendSessionId: 'backend-sid-9',
-      scheduleId: 'sched-9',
-      browser: null,
-      commissionId: null,
-      commissionDraft: null,
-    },
-    effectiveBackendSessionId: 'backend-sid-9',
-  });
-});
-
-// ── 10. switchChannelProfile: getActiveSessionName + updateSession(profileName) + channelHasHistory ──
 test('golden 10: switchChannelProfile syncs the record on same-backend and refuses cross-backend with history', async () => {
   const channel = 'slack:g10-channel';
   const sid = 'sid-10';

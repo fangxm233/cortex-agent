@@ -92,20 +92,20 @@ Updated: YYYY-MM-DD
 <One paragraph: position on the roadmap + core focus + one-sentence situation call>
 
 ## In Flight & New Variables
-<<=5 items, each <=2 lines + pointer (task-id / EXP-NNN / commit). Write "none" if empty>
+<<=5 items, each <=2 lines + pointer (EXP-NNN / commit / file path). Write "none" if empty>
 
 ## Blockers & Pending Decisions
 <External blockers, decisions awaiting the user. Write "none" if empty>
 
 ## Next Step
-<The concrete next action, pointing to a TASKS.yaml task-id or a plan file>
+<The concrete next action, pointing to a roadmap.md milestone or a plan file>
 ```
 
-### experiments/ (required) — Experiment records (atomized, DR-0007)
+### experiments/ (required) — Experiment records (atomized)
 
 Create the `experiments/` directory. If the project has existing experiments, create individual `EXP-NNN.md` files with YAML frontmatter (see `.claude/rules/experiment-format.md` for format). Otherwise create an empty directory. Run `cd agent-server && node --import tsx src/memory-index-regen.ts <project>` to generate `index.md`.
 
-### knowledge/ (required) — Technical knowledge (atomized, DR-0007)
+### knowledge/ (required) — Technical knowledge (atomized)
 
 Create the `knowledge/` directory. Capture technical details as individual `K-NNN.md` files with YAML frontmatter:
 - Architecture details (modules, interfaces, data flow)

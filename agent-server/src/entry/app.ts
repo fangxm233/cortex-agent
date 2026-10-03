@@ -28,7 +28,6 @@ import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notic
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
 import { taskStore } from '@store/task-repo.js';
 import { taskMutator } from '@domain/tasks/mutator.js';
-import { recoverOrphanedClaims } from '@domain/tasks/claim-recovery.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
@@ -70,10 +69,9 @@ import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/edit-retry.js';
-import { initScheduledRunner, initAuthExpiryScan, createScheduler, setBus, cancelDispatchedTask } from '@domain/scheduling/runner.js';
+import { initScheduledRunner, initAuthExpiryScan, createScheduler, setBus } from '@domain/scheduling/runner.js';
 import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
-import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTasks, startWaitingManagerSweep } from '../orchestration/thread-callback.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
 import { respondToPlan } from '@orch/interactions/plan-response.js';
@@ -84,7 +82,6 @@ import { createUiUpdatePrompt } from '@orch/interactions/ui-update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
 import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds } from '@domain/costs/resume-registry.js';
-import { recordThreadResume } from '@domain/runs/observers/resume-recorder.js';
 import {
   dispatchPendingResumes,
   registerResumeWakeOnAgentSettle,
@@ -119,7 +116,6 @@ import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryW
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { installTeamDelivery } from '@orch/team-delivery.js';
-import { startDispatchReconciler } from '@orch/dispatch-reconciler.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
@@ -127,7 +123,6 @@ import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { deliverToSession, deliverToSessionDetached } from '@orch/session-gateway.js';
 import { setOrchestrationRuntime } from '@orch/runtime.js';
-import { openThreadRun, type ThreadRunSurfaceInput } from '@orch/thread-run/index.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
 import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
@@ -370,11 +365,10 @@ const oq = initOutboundQueue(adapter);
 
 // --- Init extracted modules ---
 initScheduledRunner(adapter);
-// The `domain/scheduling` → `orchestration` seams: task dispatch hands a ThreadRunInput over and
-// renders nothing itself, a schedule's fire hands its prompt to the session it opened as that
-// session's first turn, and the paths that fail before a run exists say their one line through
-// `notify`. All are injected here because domain may not import orchestration.
-jobCtx.runThreadOnSurface = (input: ThreadRunSurfaceInput) => openThreadRun({ ...input, adapter });
+// The `domain/scheduling` → `orchestration` seams: a schedule's fire hands its prompt to the
+// session it opened as that session's first turn, and a fire that fails before a session exists
+// says its one line through `notify`. Both are injected here because domain may not import
+// orchestration.
 jobCtx.notify = async (destination, text) => {
   const queue = getOutboundQueue();
   if (queue) { await durablePost(queue, adapter, destination, { text }); }
@@ -401,7 +395,6 @@ const commandRouter = new CommandActionRouter();
 
 const dispatchCommand = registerCommands({
   scheduler,
-  cancelDispatchedTask,
   getExecutionStatusReport: buildExecutionStatusReport,
   compactSessionByChannel: compactActiveSessionContext,
   commandRouter,
@@ -749,21 +742,10 @@ process.on('SIGTERM', async () => {
   await threadStore.cleanup();
   await executionRepo.archiveTerminal().catch((e) => log.error(`Execution archive failed: ${(e as Error).message}`));
 
-  // Crash-orphan claim recovery: a dispatch claim whose owner died with the server keeps the
-  // task invisible to the dispatcher forever (claimed → not actionable → never re-dispatched),
-  // stranding it and any manager suspended on it. Runs after markRunningAsFailedOnStartup so
-  // surviving waiting/rate_limited threads still protect their claims; tasks waiting on outside
-  // work (status pending) and manual claims are respected. Before scheduler.start
-  // so recovered tasks are back in the queue for the first dispatch cycle.
-  await recoverOrphanedClaims().catch((e) => log.error(`recoverOrphanedClaims failed: ${(e as Error).message}`));
-
-  // --- Rate-limit recovery (ordered; must run after threadStore.load) ---
-  // 1) hydrate the persisted resume queue. 2) Reconcile orphaned rate-limited threads: any thread
-  //    left in 'rate_limited' (markRunningAsFailedOnStartup deliberately spares them) that is not
-  //    represented in the queue — dropped by a prior dispatcher skip, or a queue/throttle desync
-  //    across restart — is re-queued (idempotent, dedupe by threadId). 3) Arm the throttle; its
-  //    restart-recovery may fire onResume synchronously, draining the (already-reconciled) queue.
-  //    4) Evaluate any remaining entries against the restored active-provider set.
+  // --- Rate-limit recovery (ordered) ---
+  // 1) Hydrate the persisted resume queue. 2) Arm the throttle; its restart-recovery may fire
+  //    onResume synchronously, draining the queue. 3) Evaluate any remaining entries against the
+  //    restored active-provider set.
   await initResumeRegistry({
     save: (entries) => providerStateRepo.setResumeQueue(entries),
     load: () => providerStateRepo.getResumeQueue(),
@@ -771,18 +753,6 @@ process.on('SIGTERM', async () => {
     const bound = await getSessionAsync(entry.channel);
     return bound && await sessionStore.getById(bound) ? bound : null;
   });
-  let reQueuedRateLimited = 0;
-  for (const t of threadStore.getAll()) {
-    if (t.status === 'rate_limited') {
-      recordThreadResume({
-        provider: t.metadata?.rateLimitProvider ?? null,
-        threadId: t.id, channel: t.channel,
-        userMessage: t.userMessage ?? '',
-      });
-      reQueuedRateLimited++;
-    }
-  }
-  if (reQueuedRateLimited > 0) log.info(`Reconciled ${reQueuedRateLimited} rate-limited thread(s) into the resume queue`);
   await initRateLimitThrottle(adapter, {
     save: (state) => providerStateRepo.setRateLimitThrottle(state),
     load: () => providerStateRepo.getRateLimitThrottle(),
@@ -874,25 +844,9 @@ process.on('SIGTERM', async () => {
   setPiBackgroundSubagentBridge({ startBackgroundSubagent, stopBackgroundSubagent });
 
   startMemoryWatcher();
-  startDispatchReconciler(getSettings().dispatchReconcilerEnabled);
 
-  // DR-0014: re-deliver child results that turned terminal while the server was down and
-  // DR-0014 §8: wake suspended manager threads on child-task terminal events, and let the
-  // dispatch path close the suspension race window without a domain→orchestration import.
-  registerTaskTreeSubscribers(bus);
-  jobCtx.onThreadSuspended = (threadId) => reconcileWaitingTasks(threadId);
-
-  // resume suspended parents. Runs last — needs jobCtx.adapter and the thread system ready.
-  // (markRunningAsFailedOnStartup above already failed all in-flight children, so every
-  // awaited child THREAD is terminal or missing by now; child TASKS are reconciled
-  // against disk and stay awaited while open.)
-  recoverWaitingThreads().catch((e) => log.error(`recoverWaitingThreads failed: ${(e as Error).message}`));
-
-  // Periodic disk-driven backstop: recover any manager left suspended on a child task that is
-  // already terminal on disk but whose event/settle delivery was lost to a race (2026-06-29).
-  startWaitingManagerSweep();
-  // Same shape, for waitpoints: drains the signal spool, ages out expired waitpoints and retries
-  // any wake whose delivery failed. Every in-memory fast path dies with the process; this does not.
+  // Waitpoints: drains the signal spool, ages out expired waitpoints and retries any wake whose
+  // delivery failed. Every in-memory fast path dies with the process; this does not.
   startWaitpointSweep();
   startBuiltinJobs(adapter);
 

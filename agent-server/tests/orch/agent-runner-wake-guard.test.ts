@@ -1,7 +1,6 @@
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { AgentRunner, type AgentRunnerCtx } from '../../src/orchestration/agent-runner.js';
-import { Orchestrator, type OrchMessageContext } from '../../src/orchestration/orchestrator.js';
 import { askManager, getAnswer, _testResetManagerQa } from '../../src/orchestration/manager-qa.js';
 import { buildDeliveryMessage, deliverToSession } from '../../src/orchestration/session-gateway.js';
 import { threadStore } from '../../src/store/thread-repo.js';
@@ -120,31 +119,6 @@ test('a human answer typed in the WEB chat box is consumed too (deliverToSession
   assert.equal(got.answered, true, 'a web-typed reply is a human reply');
   assert.equal(got.answer, 'Use strategy B.');
   assert.deepEqual(enqueued, [], 'consumed reply short-circuits normal turn handling');
-});
-
-test('a message addressed to a live thread never reaches the agent entry (so never the backstop)', async () => {
-  _testResetManagerQa();
-  const channel = `wg-ch-${seq++}`;
-  const qid = await armTopOfTreeQuestion(channel);
-
-  // The backstop lives inside agentRunner.route; the thread branch routes elsewhere, so this is
-  // an Orchestrator-level assertion — a message owned by a live thread never gets that far.
-  const routed: string[] = [];
-  const threaded: string[] = [];
-  const orch = new Orchestrator({
-    agentRunner: { async route(ctx: any) { routed.push(ctx.channel); } },
-    threadExecutor: { async route(ctx: any) { threaded.push(ctx.channel); } },
-  });
-  const ctx = {
-    ...routeCtx(channel, { text: 'Use strategy B.', senderId: 'U-human-1' }),
-    threadAddMatch: null, threadStartMatch: null,
-    existingThread: { id: 'thr-x' }, isActiveThread: true,
-  } as unknown as OrchMessageContext;
-  await orch.handleMessage(ctx);
-
-  assert.deepEqual(threaded, [channel], 'the thread branch owns it');
-  assert.deepEqual(routed, [], 'the agent entry (and its backstop) is never reached');
-  assert.equal(getAnswer(qid).answered, false, 'a thread turn was never a candidate answer');
 });
 
 test('the wake shape carries the shared synthetic sender id (guard/shape stay in sync)', () => {

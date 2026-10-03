@@ -3,11 +3,10 @@ export const commandsEn = {
   'cmd.cancel.nothingRunning': 'Nothing running to cancel.',
   'cmd.cancel.cancelledN': 'Cancelled ${n} execution(s).',
   'cmd.cancel.cancelledShort': 'Cancelled (${id})',
-  'cmd.cancel.threadCancelled': 'Thread `${id}` cancelled.',
-  'cmd.cancel.threadNotFound': 'No running thread `${id}` found to cancel.',
-  'cmd.cancel.dispatchUnavailable': 'Dispatched-task cancellation is not available in this process.',
+  'cmd.cancel.executionCancelled': 'Execution `${id}` cancelled.',
+  'cmd.cancel.executionNotFound': 'No running execution `${id}` found to cancel.',
   'cmd.cancel.cancelledSessionPreserved': 'Cancelled. Session preserved — next message will resume.',
-  'cmd.cancel.runningTasks': 'Running tasks (${n}):',
+  'cmd.cancel.runningExecutions': 'Running executions (${n}):',
   'cmd.cancel.cancelButton': 'Cancel ${id}',
 
   // --- compact ---
@@ -396,11 +395,10 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.cancel.nothingRunning': '没有正在运行的任务可取消。',
   'cmd.cancel.cancelledN': '已取消 ${n} 个执行。',
   'cmd.cancel.cancelledShort': '已取消（${id}）',
-  'cmd.cancel.threadCancelled': '线程 `${id}` 已取消。',
-  'cmd.cancel.threadNotFound': '未找到可取消的运行中线程 `${id}`。',
-  'cmd.cancel.dispatchUnavailable': '本进程不支持取消已派发任务。',
+  'cmd.cancel.executionCancelled': '执行 `${id}` 已取消。',
+  'cmd.cancel.executionNotFound': '未找到可取消的运行中执行 `${id}`。',
   'cmd.cancel.cancelledSessionPreserved': '已取消。会话已保留——下一条消息将继续。',
-  'cmd.cancel.runningTasks': '运行中的任务（${n}）：',
+  'cmd.cancel.runningExecutions': '运行中的执行（${n}）：',
   'cmd.cancel.cancelButton': '取消 ${id}',
 
   // --- compact ---

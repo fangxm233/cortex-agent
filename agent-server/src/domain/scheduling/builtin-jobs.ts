@@ -1,12 +1,9 @@
 import { createLogger } from '@core/log.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
-import { getDefaultProfileName } from '../agents/profile-manager.js';
 import { usageService } from '../costs/usage-service.js';
 import type { PlatformAdapter } from '../../platform/index.js';
 import { createBuiltinJobController, type BuiltinJobDefinition } from './builtin-job-controller.js';
 import { runMemoryIndexRegenJob } from './jobs/memory-index-regen.js';
-import { runTaskArchiveJob } from './jobs/task-archive.js';
-import { taskDispatchRunner } from './jobs/task-dispatch.js';
 
 const log = createLogger('builtin-jobs');
 let controller: ReturnType<typeof createBuiltinJobController> | null = null;
@@ -14,19 +11,9 @@ let controller: ReturnType<typeof createBuiltinJobController> | null = null;
 function buildJobs(adapter: PlatformAdapter): BuiltinJobDefinition[] {
   return [
     {
-      name: 'task-dispatch', enabledKey: 'taskDispatchEnabled',
-      intervalKey: 'taskDispatchIntervalMs', mode: 'detached',
-      run: () => { taskDispatchRunner({ channel: 'general', profileName: getDefaultProfileName() }); },
-    },
-    {
       name: 'provider-usage-collection', enabledKey: 'providerUsageCollectionEnabled',
       intervalKey: 'providerUsageCollectionIntervalMs', mode: 'serial',
       run: async () => { await usageService.collect(); },
-    },
-    {
-      name: 'task-archive', enabledKey: 'taskArchiveEnabled',
-      intervalKey: 'taskArchiveIntervalMs', mode: 'serial',
-      run: () => runTaskArchiveJob(adapter),
     },
     {
       name: 'memory-index-regen', enabledKey: 'memoryIndexRegenEnabled',

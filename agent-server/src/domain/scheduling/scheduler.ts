@@ -94,9 +94,7 @@ function computeTaskTiming(type: string, task: ScheduleTask): { nextRun?: number
   return {};
 }
 
-const BUILTIN_JOB_DISPATCH_TYPES = new Set([
-  'task-dispatch', 'task-archive', 'memory-index-regen',
-]);
+const BUILTIN_JOB_DISPATCH_TYPES = new Set(['memory-index-regen']);
 
 function validateTaskPatch(task: ScheduleTask, patch: Record<string, any>): void {
   const commonFields = new Set(['message', 'projectId', 'profile', 'dispatchType', 'preCheck']);

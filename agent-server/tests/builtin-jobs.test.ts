@@ -6,10 +6,6 @@ const builtinHarness = vi.hoisted(() => ({
   callbacks: new Set<(keys: string[]) => void>(),
   collect: vi.fn<() => Promise<unknown[]>>(),
   settings: {
-    taskDispatchEnabled: false,
-    taskDispatchIntervalMs: 30_000,
-    taskArchiveEnabled: false,
-    taskArchiveIntervalMs: 21_600_000,
     memoryIndexRegenEnabled: false,
     memoryIndexRegenIntervalMs: 86_400_000,
     providerUsageCollectionEnabled: true,

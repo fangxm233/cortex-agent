@@ -11,7 +11,7 @@ User-level memory directory. Stores user personal preferences and context across
 ## Rules
 
 - `USER.md` is maintained by the agent (`/user-learn` skill); the user corrects it by saying so in chat
-- Injected only into plain direct conversation turns (the thread-free chat path); multi-agent thread steps never carry the user profile
+- Injected into ordinary conversation sessions (on a session's first turn)
 - Injected by default; set environment variable `CORTEX_DISABLE_USER_CONTEXT=1` to disable
 - File hard limit 3KB, compress rather than grow when approaching the limit
 

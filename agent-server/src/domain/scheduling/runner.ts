@@ -24,5 +24,4 @@ export function createScheduler(): Scheduler {
   );
 }
 
-export { cancelDispatchedTask } from './jobs/task-dispatch.js';
 export { initAuthExpiryScan };

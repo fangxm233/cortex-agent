@@ -19,7 +19,7 @@ It answers exactly four questions: where are we, what is in flight, what is in t
 - **Update mode: overwrite-rewrite the snapshot**. Every "add a line" must be paired with a check for which existing lines it makes stale — delete those.
 - **Length limit: 80 lines AND 6KB, both hard**. Scan before writing: at >=60 lines or >=4KB, warn and trim proactively; over the limit, trim below it before the write is allowed.
 - **Each bullet <= 2 lines**. If it doesn't fit, the detail belongs elsewhere — keep one sentence + a pointer.
-- **Facts with a durable home appear only as pointers**: task-id / EXP-NNN / K-NNN / DR-NNNN / commit SHA / file path. The only content unique to STATUS is the one-sentence synthesis of the current situation.
+- **Facts with a durable home appear only as pointers**: EXP-NNN / K-NNN / DR-NNNN / commit SHA / file path. The only content unique to STATUS is the one-sentence synthesis of the current situation.
 
 ## Required Sections (in order)
 
@@ -35,13 +35,13 @@ Updated: YYYY-MM-DD
 <<=5 items, each <=2 lines + pointer. Only events that changed the situation:
 what got unblocked, what new constraint appeared, why the next step changed.
 Delete an item the moment it stops affecting decisions — its content already
-lives in tasks-archive/git/EXP, nothing to migrate. Write "none" if empty.>
+lives in git/EXP, nothing to migrate. Write "none" if empty.>
 
 ## Blockers & Pending Decisions
 <External blockers, decisions awaiting the user, traps a fresh session would hit. Write "none" if empty.>
 
 ## Next Step
-<The concrete next action, pointing to a TASKS.yaml task-id or a plan file>
+<The concrete next action, pointing to a roadmap.md milestone or a plan file>
 ```
 
 ## Update Triggers
@@ -52,7 +52,7 @@ Update on state change, not on task completion: phase advance/pause/pivot, a blo
 
 ## Prohibited Content
 
-- Task completion reports (test counts, verification steps, commit lists) → TASKS.yaml completion note / tasks-archive / task artifact
+- Task completion reports (test counts, verification steps, commit lists) → commit messages / the work's own artifact (report, plan file, EXP record)
 - Experiment data and conclusions → experiments/EXP-NNN.md
 - Settled knowledge / methodology → knowledge/K-NNN.md
 - Design decision trade-offs → decisions/DR-NNNN.md

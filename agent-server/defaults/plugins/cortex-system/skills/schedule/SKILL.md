@@ -4,7 +4,7 @@ description: "Use when create, list, or manage scheduled or recurring tasks"
 allowed-tools: Read, Write, Edit, Bash, mcp__cortex__cortex_context, mcp__cortex__cortex_schedule_add, mcp__cortex__cortex_schedule_list, mcp__cortex__cortex_schedule_get, mcp__cortex__cortex_schedule_remove, mcp__cortex__cortex_schedule_pause, mcp__cortex__cortex_schedule_resume
 metadata:
   author: "Cortex"
-  version: "1.1.0"
+  version: "1.2.0"
   date: "2026-04-27"
 ---
 
@@ -23,12 +23,11 @@ Scheduled tasks allow Cortex to automatically execute messages at set times — 
 - `weekly` — every week at a fixed day + time (`mon 21:00`)
 - `once` — run once after a delay, then auto-removed
 
-**Targets (where the fired task lands):**
-- `fresh` *(default)* — new isolated thread + new session (current behavior; safest for unrelated tasks)
-- `current-project` — spawn a fresh session in the project (default for project-addressed schedules)
-- `current-thread` — continue the current thread (only valid while it's running/waiting)
+**Targets (where the fired task lands):** every fire opens a new ordinary session, listed under its schedule in the sidebar.
+- `fresh` *(default)* — a new session with no project binding (safest for unrelated tasks)
+- `current-project` — a new session bound to the current project (default for project-addressed schedules); explicit form `{ kind: 'project', projectId }`
 
-`current-*` shorthand resolves to concrete IDs at create time, so `cortex_schedule_list` always shows real IDs.
+`current-project` resolves to a concrete project ID at create time, so `cortex_schedule_list` always shows real IDs.
 
 ---
 
@@ -38,7 +37,7 @@ When you (the LLM) need to add or manage schedules from inside an agent session,
 
 ```
 mcp__cortex__cortex_context()
-  → { sessionId, sessionName, threadId, profile, project, backend, ... }
+  → { sessionId, sessionName, profile, project, backend, ... }
 
 mcp__cortex__cortex_schedule_add({
   type: 'interval' | 'daily' | 'weekly' | 'once',
@@ -47,8 +46,7 @@ mcp__cortex__cortex_schedule_add({
   time?: '09:00',                            // for daily/weekly
   dayOfWeek?: 'mon' | 0-6,                   // for weekly
   delay?: '2h' | '90m',                      // for once
-  target?: 'fresh' | 'current-project' | 'current-thread' | { kind, ... },
-  fallback?: 'fresh' | 'skip' | 'wait',      // when target thread is gone at fire time
+  target?: 'fresh' | 'current-project' | { kind: 'project', projectId },
   profile?: 'fast-worker',
   channel?: 'C123',                          // override; defaults to current context
 })
@@ -63,17 +61,17 @@ mcp__cortex__cortex_schedule_resume({ id })
 
 > User: "Give me a status roundup of this project every morning at 9, in this channel"
 >
-> Call `mcp__cortex__cortex_schedule_add({ type: 'daily', time: '09:00', message: 'Review STATUS.md and the actionable task queue for this project, then post a short roundup', target: 'current-project' })` — done. No need to call `cortex_context` first; the shorthand resolves automatically.
+> Call `mcp__cortex__cortex_schedule_add({ type: 'daily', time: '09:00', message: 'Review STATUS.md and roadmap.md for this project, then post a short roundup', target: 'current-project' })` — done. No need to call `cortex_context` first; the shorthand resolves automatically.
 
-> User: "Report training status in this thread after 30 minutes"
+> User: "Report training status after 30 minutes"
 >
-> Call `mcp__cortex__cortex_schedule_add({ type: 'once', delay: '30m', message: 'Check training results on <machine> and report', target: 'current-thread' })` — the schedule continues the current thread (valid while it is running/waiting), so prior context is intact.
+> Call `mcp__cortex__cortex_schedule_add({ type: 'once', delay: '30m', message: 'Check training run <run-name> on <machine> (log at <path>) and report whether it is still healthy', target: 'current-project' })` — the fire opens a new session with no memory of this conversation, so put everything it needs (run name, machine, log path) into the message.
 
 > User: "Mine last week's sessions for lessons every Monday at 9 PM"
 >
 > Call `mcp__cortex__cortex_schedule_add({ type: 'weekly', dayOfWeek: 'mon', time: '21:00', message: 'Read this week\'s session logs and record any recurring failure or lesson worth keeping' })` — `target` defaults to `fresh`, which is the right choice for a standalone weekly job.
 
-If `current-thread` is requested but the context lacks the field, the tool throws — it does NOT silently fall back to fresh. Re-issue with `target: 'fresh'` if that's actually what you want.
+If `current-project` is requested but the current context has no project, the tool throws — it does NOT silently fall back to fresh. Re-issue with `target: 'fresh'` if that's actually what you want.
 
 ---
 

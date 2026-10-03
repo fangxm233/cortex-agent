@@ -115,7 +115,6 @@ function getCliCommands() {
     { name: 'daemon restart --force', description: 'Force restart — send SIGKILL immediately to app.js' },
     { name: 'daemon restart-self', description: 'Stop and restart the daemon process itself' },
     { name: 'restart', description: 'Legacy alias for daemon restart (touches $STORE_DIR/.restart)' },
-    { name: 'task', description: 'Task system CLI (delegate to cortex-task)' },
     { name: 'install latest', description: 'Install the latest version of Cortex from npm' },
     { name: 'config', description: 'Show resolved paths and initialization status' },
     { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },

@@ -529,11 +529,6 @@ async function runSetupGatewayCli(args: string[]): Promise<CliResult> {
   }
 }
 
-async function runTaskCli(args: string[]): Promise<CliResult> {
-  const { runCli: taskRunCli } = await import('@domain/tasks/system/task-cli.js');
-  return taskRunCli(args.length > 0 ? args : ['list']);
-}
-
 async function runInstallCli(args: string[]): Promise<CliResult> {
   const { runCli: installRunCli, getInstallHelp } = await import('@domain/system/install-cli.js');
   if (args.includes('--help') || args.includes('-h')) {
@@ -581,7 +576,6 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
   'setup-gateway': (args) => runSetupGatewayCli(args),
   ui: (args) => runUiCli(args),
   client: (args) => runClientCli(args),
-  task: (args) => runTaskCli(args),
   install: (args) => runInstallCli(args),
   start: () => ({ exitCode: 0, stdout: '', stderr: `'start' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js start` }),
   daemon: (args) => runDaemonCli(args),
@@ -625,7 +619,7 @@ function main(): void {
       console.log(getTuiHelp());
       process.exit(0);
     }
-    // Other subcommands (init, task, config, setup-gateway) handle --help internally via runCli()
+    // Other subcommands (init, config, setup-gateway) handle --help internally via runCli()
   }
 
   // Handle --version / -V for subcommands

@@ -21,7 +21,6 @@ import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 import { runRegistry } from '../src/core/run-registry.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
-import { threadStore } from '../src/store/thread-repo.js';
 
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
@@ -547,24 +546,21 @@ test('!schedule pause/resume/remove accepts backtick-wrapped 8-char hex schedule
 
 // existing tests
 
-test('!cancel <taskId> cancels a dispatched task via injected handler', async () => {
+test('!cancel <executionId> cancels that execution, and says so when nothing matches', async (t) => {
   const adapter = new MockAdapter();
-  const calls = [];
-  const dispatchCommand = createCommandDispatcher({
-    scheduler: null,
-    cancelDispatchedTask: async ({ taskId, channel }) => {
-      calls.push({ taskId, channel });
-      return { ok: true, message: 'cancelled abcd' };
-    },
-  });
+  let killed = false;
+  runRegistry.register({ threadId: null, channel: 'C1', agentSlotId: null, executionId: 'exec-by-id', kill: () => { killed = true; return true; }, backend: 'test' });
+  t.onTestFinished(() => { runRegistry.remove('exec-by-id'); });
 
-  const handled = dispatchCommand('!cancel abcd', 'C123', adapter);
-  assert.equal(handled, true);
-  await new Promise(resolve => setImmediate(resolve));
+  const dispatchCommand = createCommandDispatcher({ scheduler: null });
+  assert.equal(dispatchCommand('!cancel exec-by-id', 'C1', adapter), true);
+  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
+  assert.equal(killed, true);
+  assert.match(adapter.posted[0].content.text, /exec-by-id.*cancelled/i);
 
-  assert.deepEqual(calls, [{ taskId: 'abcd', channel: 'C123' }]);
-  assert.equal((adapter.posted[0].destination as { conduit: string }).conduit, 'C123');
-  assert.equal(adapter.posted[0].content.text, 'cancelled abcd');
+  assert.equal(dispatchCommand('!cancel exec-missing', 'C1', adapter), true);
+  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
+  assert.match(adapter.posted[1].content.text, /No running execution `exec-missing`/);
 });
 
 test('plain !cancel still cancels the current active process', async (t) => {
@@ -574,10 +570,7 @@ test('plain !cancel still cancels the current active process', async (t) => {
   // Simulate a running queue entry so cancel can clear it
   conduitQueues.set('C123', Promise.resolve());
   t.onTestFinished(() => { runRegistry.remove('exec-conv1'); conduitQueues.delete('C123'); });
-  const dispatchCommand = createCommandDispatcher({
-    scheduler: null,
-    cancelDispatchedTask: async () => ({ ok: false, message: 'should not be called' }),
-  });
+  const dispatchCommand = createCommandDispatcher({ scheduler: null });
 
   const handled = dispatchCommand('!cancel', 'C123', adapter);
   assert.equal(handled, true);
@@ -594,10 +587,7 @@ test('!cancel marks the execution record cancelled (not failed), idempotently', 
   runRegistry.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
   t.onTestFinished(() => { runRegistry.remove(rec.id); });
 
-  const dispatchCommand = createCommandDispatcher({
-    scheduler: null,
-    cancelDispatchedTask: async () => ({ ok: false, message: 'should not be called' }),
-  });
+  const dispatchCommand = createCommandDispatcher({ scheduler: null });
   dispatchCommand('!cancel', 'Ccancel', adapter);
   for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
 
@@ -630,45 +620,18 @@ test('!cancel --all kills all running executions for current channel, spares oth
   assert.match(adapter.posted[0].content.text, /Cancelled 1 execution/);
 });
 
-// ── !cancel <threadId> ─────────────────────────────────────────────────────
+// ── retired commands ───────────────────────────────────────────────────────
 
-test('!cancel <threadId> kills by threadId', async (t) => {
+test('!thread, !tasks and !dispatch are unknown commands', async () => {
   const adapter = new MockAdapter();
-  let killed = false;
-
-  runRegistry.register({ threadId: 'thr_a1b2c3d4', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killed = true; return true; }, backend: 'test' });
-  t.onTestFinished(() => { runRegistry.remove('exec-1'); });
-
-  const dispatchCommand = createCommandDispatcher({ scheduler: null, cancelDispatchedTask: null });
-  const handled = dispatchCommand('!cancel thr_a1b2c3d4', 'C1', adapter);
-  assert.equal(handled, true);
-  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
-
-  assert.equal(killed, true);
-  assert.match(adapter.posted[0].content.text, /thr_a1b2c3d4.*cancelled/i);
-  assert.equal(runRegistry.getByThreadId('thr_a1b2c3d4'), null);
-});
-
-// ── !thread cancel alias ───────────────────────────────────────────────────
-
-test('!thread cancel is alias for !cancel (kills by channel)', async (t) => {
-  const adapter = new MockAdapter();
-  let killed = false;
-  runRegistry.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv2', kill: () => { killed = true; return true; }, backend: 'test' });
-  conduitQueues.set('C123', Promise.resolve());
-  t.onTestFinished(() => { runRegistry.remove('exec-conv2'); conduitQueues.delete('C123'); });
-
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
-  const handled = dispatchCommand('!thread cancel', 'C123', adapter);
-  assert.equal(handled, true);
-  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
-
-  assert.equal(killed, true);
-  assert.equal(conduitQueues.has('C123'), false);
-  assert.match(adapter.posted[0].content.text, /Cancelled|cancel/i);
+  for (const cmd of ['!thread cancel', '!tasks', '!dispatch thr_1 --profile x']) {
+    assert.equal(dispatchCommand(cmd, 'C123', adapter), true);
+  }
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(adapter.posted.length, 3);
+  for (const post of adapter.posted) assert.match(post.content.text, /unknown command/i);
 });
-
-// ── !thread list --running ─────────────────────────────────────────────────
 
 test('!nvtop starts live GPU monitor with sparkline view and updates the same message', async (t) => {
   const intervals = withFakeIntervals(t);
@@ -731,37 +694,6 @@ test('!nvtop stop stops active monitor and reports when none is running', async 
 });
 
 
-// --- !dispatch command ---
-
-function makeDispatchThreadRecord(id: string, channel: string, overrides: Record<string, any> = {}): any {
-  const now = new Date().toISOString();
-  return {
-    id, channel,
-    projectId: 'test-proj',
-    templateName: null,
-    status: 'running',
-    platformThreadId: null,
-    userMessage: 'dispatch task',
-    userMessageTs: '111.000',
-    workspacePath: '',
-    artifactPath: '',
-    agents: { main: { slotId: 'main', profile: '__active__', sessionId: null, sessionName: null, status: 'idle', lastOutput: null, persistSession: false } },
-    activeAgent: 'main',
-    activeStage: null,
-    currentStepIndex: 0,
-    steps: [],
-    iterationCounts: {},
-    totalCostUsd: 0,
-    createdAt: now,
-    updatedAt: now,
-    endedAt: null,
-    error: null,
-    abortReason: null,
-    metadata: { trigger: 'task-dispatch', scheduleTaskId: 'sched-1', project: 'test-proj', profileOverride: 'default' },
-    ...overrides,
-  };
-}
-
 test('!compact is exact and delegates to the shared channel coordinator', async () => {
   const adapter = new MockAdapter();
   const calls: string[] = [];
@@ -780,25 +712,4 @@ test('!compact is exact and delegates to the shared channel coordinator', async 
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(calls, ['Ccompact'], 'arguments must not prefix-match the exact command');
   assert.match(adapter.posted[1].content.text, /unknown command/i);
-});
-
-test('!dispatch --profile updates profileOverride on running dispatch thread', async (t) => {
-  const threadId = threadStore.generateId();
-  const thread = makeDispatchThreadRecord(threadId, 'C123');
-  await threadStore.set(thread);
-  t.onTestFinished(() => threadStore.delete(threadId).catch(() => {}));
-
-  const adapter = new MockAdapter();
-  const dispatchCommand = createCommandDispatcher({ scheduler: null });
-
-  const handled = dispatchCommand(`!dispatch ${threadId} --profile execute`, 'C123', adapter);
-  assert.equal(handled, true);
-  // Drain microtask queue: dispatchCommand is fire-and-forget via catchHandlerError,
-  // and threadStore.mutate inside the handler awaits the persist queue.
-  for (let i = 0; i < 10; i++) {
-    await new Promise(resolve => setImmediate(resolve));
-  }
-
-  const updated = threadStore.get(threadId);
-  assert.equal(updated?.metadata?.profileOverride, 'execute');
 });

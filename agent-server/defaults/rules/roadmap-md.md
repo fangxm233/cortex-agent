@@ -51,5 +51,5 @@ Non-compliant:
 ## Prohibited Content
 
 - Current status → belongs in `STATUS.md`
-- Task list → belongs in `TASKS.yaml` (roadmap is milestone-level, not task-level)
+- Task list → the next concrete step belongs in `STATUS.md` (roadmap is milestone-level, not task-level)
 - Experiment details → belongs in `experiments/`

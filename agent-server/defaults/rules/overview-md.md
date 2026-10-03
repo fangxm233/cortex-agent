@@ -35,7 +35,7 @@ Cross-project global view: one-line status per project + current focus. Primary 
 
 ## Prohibited Content
 
-- Project task list → belongs in `projects/<name>/TASKS.yaml`
+- Project task list → next steps belong in `projects/<name>/STATUS.md`, milestones in `projects/<name>/roadmap.md`
 - Project current phase details → belongs in `projects/<name>/STATUS.md`
 - Experiment/knowledge entries → belongs in `projects/<name>/experiments|knowledge/`
 

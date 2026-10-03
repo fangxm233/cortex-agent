@@ -15,34 +15,12 @@ import { runRegistry } from '../../src/core/run-registry.js';
 const NOW = 1_000_000_000_000;
 
 function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
-  const calls = {
-    route: [] as any[], resume: [] as any[], built: [] as any[], settled: [] as string[],
-    requeued: [] as ResumeEntry[], taken: 0, active: [] as string[],
-  };
+  const calls = { route: [] as any[], taken: 0, active: [] as string[] };
   const deps = {
     takeReady: (active: string[]) => { calls.taken++; calls.active = active; return entries; },
     activeProviders: () => [],
     route: async (ctx: any) => { calls.route.push(ctx); },
-    // Stands in for ThreadRun: the run AND its tail (terminal render + settle) are one awaited
-    // call now, so the fake drives the input's own settle hook to keep the ordering observable.
-    resumeThread: async (input: any) => {
-      calls.resume.push({ threadId: input.threadId, opts: input });
-      await input.settle?.(input.threadId);
-    },
-    requeue: (entry: ResumeEntry) => { calls.requeued.push(entry); },
-    buildResumeInput: (thread: any) => {
-      calls.built.push(thread);
-      return {
-        threadId: thread.id, mode: { kind: 'resume-rate-limited' }, channel: thread.channel, adapter: {},
-        destination: { type: 'project-report', projectId: thread.projectId, trigger: 'rate-limit-resume', sessionId: '' },
-        threadAnchorId: null, statusMessage: null,
-        render: { kind: 'summary', blocks: null, startText: null }, interactive: false,
-        settle: async (threadId: string) => { calls.settled.push(threadId); },
-      };
-    },
-    getThread: (_id: string) => ({ id: _id, status: 'rate_limited', channel: 'C1', projectId: 'proj' }) as any,
     channelBusy: (_c: string) => false,
-    directSessionBusy: (_c: string) => false,
     acquireSessionUse: async (_sessionId: string) => () => {},
     delay: async (_ms: number) => {},
     ...overrides,
@@ -136,38 +114,11 @@ test('dispatcher asks the registry for entries ready against the active provider
   assert.equal(calls.route.length, 1);
 });
 
-test('thread entry resumes a rate_limited thread with rebuilt options',  async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps([
-    { kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW },
-  ]);
-  await dispatchPendingResumes(adapter as any, deps);
-
-  assert.equal(calls.resume.length, 1);
-  assert.equal(calls.resume[0].threadId, 'thr_a');
-  assert.equal(calls.resume[0].opts.destination.type, 'project-report');
-  assert.equal(calls.built.length, 1, 'options rebuilt from the thread record');
-  assert.deepEqual(calls.settled, ['thr_a'], 'settle fires exactly once for the resumed thread');
-  // Threads re-run their interrupted step from the original prompt — no reminder injected.
-  assert.equal(calls.route.length, 0);
-});
-
-test('a thread that is skipped by a guard is never settled', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    { getThread: (_id: string) => ({ id: _id, status: 'completed', channel: 'C2', projectId: 'proj' }) as any },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  assert.equal(calls.resume.length, 0, 'guarded thread is not resumed');
-  assert.equal(calls.settled.length, 0, 'guarded thread is not settled');
-});
-
 test('old entry is still dispatched (no staleness cutoff)', async () => {
   // Regression: a fixed max-age cutoff (formerly 6h) silently dropped entries whose rate-limit
   // window legitimately exceeded it — e.g. a seven_day limit whose resetsAt is 8-9h out. Once the
-  // window resets, the entry must be resumed regardless of how long it waited. Only live-state
-  // guards (busy channel, thread gone / no longer rate_limited) may skip it.
+  // window resets, the entry must be resumed regardless of how long it waited. Only the live-state
+  // guard (a busy channel) may skip it.
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const old = NOW - (30 * 60 * 60 * 1000); // 30h ago — would have been "stale" under the old cutoff
   const { deps, calls } = baseDeps([
@@ -187,31 +138,6 @@ test('direct entry on a busy channel is dropped', async () => {
   assert.equal(calls.route.length, 0);
 });
 
-test('thread entry is NOT skipped when only other threads hold the channel (channelBusy true, no direct session)', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    { channelBusy: (_c: string) => true, directSessionBusy: (_c: string) => false },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  assert.equal(calls.resume.length, 1, 'thread resumes despite a concurrent thread on the channel');
-});
-
-test('thread entry is requeued while a live direct session holds the channel', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const entry: ResumeEntry = {
-    kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW,
-  };
-  const { deps, calls } = baseDeps([entry], {
-    directSessionBusy: (_c: string) => true,
-  });
-
-  await dispatchPendingResumes(adapter as any, deps);
-
-  assert.equal(calls.resume.length, 0, 'thread avoids interleaving with an interactive turn');
-  assert.deepEqual(calls.requeued, [entry], 'busy thread remains durable for the idle wake');
-});
-
 /** Registers a background subagent child on `channel` the way a Claude child run does, and drops the
  *  stubbed busy checks so the dispatcher's real ones read the live registry. */
 function withChildOnChannel(deps: any, channel: string): () => void {
@@ -220,7 +146,6 @@ function withChildOnChannel(deps: any, channel: string): () => void {
     kind: 'local', kill: () => true, backend: 'claude', trackSessionId: null, subagent: true,
   });
   delete deps.channelBusy;
-  delete deps.directSessionBusy;
   return () => runRegistry.remove('resume-child');
 }
 
@@ -238,43 +163,6 @@ test('direct entry still resumes while only a background subagent of it is runni
   assert.equal(calls.route.length, 1, 'a child is not the conversation, so the channel is idle');
 });
 
-test('thread entry is not held back by a subagent child on the channel', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps([
-    { kind: 'thread', threadId: 'thr_a', channel: 'C-sub', userMessage: 'go', recordedAt: NOW },
-  ]);
-  const cleanup = withChildOnChannel(deps, 'C-sub');
-  try {
-    await dispatchPendingResumes(adapter as any, deps);
-  } finally {
-    cleanup();
-  }
-  assert.equal(calls.resume.length, 1);
-  assert.deepEqual(calls.requeued, []);
-});
-
-test('multiple rate-limited threads on the SAME channel all resume (no self-skip)', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps([
-    { kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 'a', recordedAt: NOW },
-    { kind: 'thread', threadId: 'thr_b', channel: 'C1', userMessage: 'b', recordedAt: NOW },
-    { kind: 'thread', threadId: 'thr_c', channel: 'C1', userMessage: 'c', recordedAt: NOW },
-  ]);
-  await dispatchPendingResumes(adapter as any, deps);
-  assert.equal(calls.resume.length, 3, 'all three threads on one channel resume concurrently');
-  assert.deepEqual(calls.resume.map((r: any) => r.threadId).sort(), ['thr_a', 'thr_b', 'thr_c']);
-});
-
-test('thread entry dropped when thread no longer exists', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'gone', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    { getThread: (_id: string) => null },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  assert.equal(calls.resume.length, 0);
-});
-
 test('disabled flag drains the queue without dispatching', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const prev = process.env.CORTEX_AUTO_RESUME;
@@ -290,97 +178,7 @@ test('disabled flag drains the queue without dispatching', async () => {
   resetSettingsForTests();
 });
 
-// --- Busy-gate bracket (2026-07-09 regression) ---
-// A rate-limit-resumed thread ran with NO trackPendingTask bracket, so the daemon's busy/idle
-// gate saw count=0 while the thread was mid-stream; a .restart trigger then fired immediately
-// and SIGKILLed app.ts, killing 3 streaming threads. The fire-and-forget thread resume must
-// hold the busy gate (+1 sync at fire, -1 after run AND settle), mirroring openThreadRunDetached.
-// The settle now lives INSIDE the awaited ThreadRun, so the bracket covers it by construction —
-// and the dispatcher must NOT use the detached form, which would take the gate a second time.
-
-/** Flush the fire-and-forget resume promise chain (resume → settle → finally). */
-const flushDetached = () => new Promise((r) => setImmediate(r));
-
-test('thread resume holds the busy gate across the run AND the settle', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const order: string[] = [];
-  const { deps } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    {
-      track: (d: number) => order.push(`track:${d}`),
-      resumeThread: async (input: any) => {
-        order.push(`resume:${input.threadId}`);
-        order.push(`settle:${input.threadId}`);
-      },
-    },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  await flushDetached();
-  assert.deepEqual(order, ['track:1', 'resume:thr_a', 'settle:thr_a', 'track:-1'],
-    '+1 fires synchronously before the run; -1 only after settle completes');
-});
-
-test('busy gate never leaks when the resumed run rejects', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const trackCalls: number[] = [];
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    {
-      track: (d: number) => trackCalls.push(d),
-      resumeThread: async () => { throw new Error('boom'); },
-    },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  await flushDetached();
-  assert.deepEqual(trackCalls, [1, -1], 'gate released exactly once despite the rejection');
-  assert.equal(calls.settled.length, 0, 'settle skipped on failure (unchanged behavior)');
-});
-
-test('guard-skipped thread never touches the busy gate', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const trackCalls: number[] = [];
-  const { deps } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    {
-      track: (d: number) => trackCalls.push(d),
-      getThread: (_id: string) => ({ id: _id, status: 'completed', channel: 'C2', projectId: 'proj' }) as any,
-    },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  await flushDetached();
-  assert.deepEqual(trackCalls, [], 'no +1/-1 for a thread that was never resumed');
-});
-
-test('direct resume does NOT double-track (agentRunner brackets internally)', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const trackCalls: number[] = [];
-  const { deps, calls } = baseDeps(
-    [{ kind: 'direct', channel: 'C1', userMessage: 'orig', recordedAt: NOW }],
-    { track: (d: number) => trackCalls.push(d) },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  await flushDetached();
-  assert.equal(calls.route.length, 1);
-  assert.deepEqual(trackCalls, [], 'direct path relies on agentRunner internal tracking');
-});
-
-test('multiple thread resumes hold and release the gate in balance', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  let count = 0; let peak = 0;
-  const { deps } = baseDeps([
-    { kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 'a', recordedAt: NOW },
-    { kind: 'thread', threadId: 'thr_b', channel: 'C1', userMessage: 'b', recordedAt: NOW },
-    { kind: 'thread', threadId: 'thr_c', channel: 'C1', userMessage: 'c', recordedAt: NOW },
-  ], {
-    track: (d: number) => { count += d; peak = Math.max(peak, count); },
-  });
-  await dispatchPendingResumes(adapter as any, deps);
-  await flushDetached();
-  assert.equal(count, 0, 'all +1s released');
-  assert.ok(peak >= 1, 'gate was actually held');
-});
-
-test('readiness drain is invoked exactly once per dispatch', async () => {
+test('readiness drain is invoked exactly once per dispatch, and a leftover thread entry is dropped', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const { deps, calls } = baseDeps([
     { kind: 'direct', channel: 'C1', userMessage: 'a', recordedAt: NOW },
@@ -389,5 +187,5 @@ test('readiness drain is invoked exactly once per dispatch', async () => {
   await dispatchPendingResumes(adapter as any, deps);
   assert.equal(calls.taken, 1);
   assert.equal(calls.route.length, 1);
-  assert.equal(calls.resume.length, 1);
+  assert.equal(calls.route[0].channel, 'C1');
 });
