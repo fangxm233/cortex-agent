@@ -96,7 +96,7 @@ function WaitDetails({ row, copy }: { row: WaitRailRow; copy: WaitRailChromeCopy
         <summary>{copy.rawSignals}<span className="wait-rail-log-count">{row.signals.length}</span></summary>
         <p className="wait-rail-note">{copy.externalNote}</p>
         {row.signals.length === 0 && <p className="wait-rail-empty">{copy.noSignals}</p>}
-        <ol className="wait-rail-signals">{row.signals.map((signal) => <RawSignal key={signal.key} signal={signal} copy={copy} />)}</ol>
+        <ol className="wait-rail-signals">{[...row.signals].reverse().map((signal) => <RawSignal key={signal.key} signal={signal} copy={copy} />)}</ol>
       </details>
     </div>
   );

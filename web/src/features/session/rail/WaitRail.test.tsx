@@ -215,6 +215,21 @@ describe('WaitRail', () => {
     expect(r.root.findAllByType('details').every((node) => !node.props.open)).toBe(true);
   });
 
+  it('shows raw history newest first without changing source or member order', () => {
+    store.set('cortex.waitRailOpen.s1', '1');
+    const signals: WaitpointInfo['signals'] = [
+      { at: T0, status: 'progress', member: 'a', message: 'first', source: 'http' },
+      { at: T0 + 1000, status: 'ok', member: 'b', message: 'second', source: 'http' },
+      { at: T0 + 1000, status: 'ok', member: 'a', message: 'latest', source: 'http' },
+    ];
+    state.waitpoints = [wp({ signals, quorum: { need: 3, got: 2, members: ['a', 'b', 'c'] } })];
+    const r = mount();
+    expect(r.root.findAllByType('pre').map((node) => node.props.children)).toEqual(['latest', 'second', 'first']);
+    expect(signals.map((signal) => signal.message)).toEqual(['first', 'second', 'latest']);
+    const members = r.root.findByType('tbody').findAllByType('tr');
+    expect(members.map((node) => node.findByType('th').props.children)).toEqual(['a', 'b', 'c']);
+  });
+
   it('uses Chinese chrome and separates mailbox history from the current fraction', () => {
     store.set('cortex.waitRailOpen.s1', '1');
     state.waitpoints = [wp({ maxSignals: 5, fires: 2,
