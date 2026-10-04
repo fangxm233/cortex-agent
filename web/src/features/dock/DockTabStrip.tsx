@@ -3,8 +3,7 @@ import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReduce
 import { useMotionMode, type MotionMode } from '@/theme';
 import { browserTabChip, browserTabForwardSource, currentUrl, type BrowserTabChip } from '@/features/browser/browser-target';
 import { attachmentFileExt } from '@/features/attachments/attachment-presentation';
-import { useBrowserCopy, type BrowserCopy } from '@/features/browser/browser-copy';
-import { useDockCopy } from './dock-copy';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { dockTabLabel, isFileTab, type DockState, type DockTab } from './dock-tabs';
 import './dock-chrome.css';
 
@@ -38,14 +37,14 @@ export function DockTabStrip(props: StripProps): JSX.Element {
 
 function TabScroller({ state, onAdd, onSelect, onClose, onReorder, reduceMotion }: StripProps & { reduceMotion: boolean }): JSX.Element {
   const tabs = state?.tabs ?? [];
-  const browser = useBrowserCopy();
+  const L = useVocabOptional();
   return (
     <Reorder.Group as="div" axis="x" values={tabs.map((tab) => tab.id)} onReorder={onReorder} layoutScroll className="dock-tab-scroll">
       <AnimatePresence initial={false} mode="popLayout">
         {tabs.map((tab) => <DockTabItem key={tab.id} tab={tab} active={tab.id === state?.activeId}
           draggable={tabs.length > 1} reduceMotion={reduceMotion} onSelect={onSelect} onClose={onClose} />)}
       </AnimatePresence>
-      <motion.button layout type="button" className="dock-control" data-add-tab="" title={browser.newTab} aria-label={browser.newTab} onClick={onAdd}>+</motion.button>
+      <motion.button layout type="button" className="dock-control" data-add-tab="" title={L.brNewTab} aria-label={L.brNewTab} onClick={onAdd}>+</motion.button>
     </Reorder.Group>
   );
 }
@@ -76,16 +75,16 @@ const DockTabItem = forwardRef<HTMLDivElement, DockTabItemProps>(function DockTa
 });
 
 function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemProps & { isPresent: boolean }): JSX.Element {
-  const browser = useBrowserCopy();
-  const closeTab = useDockCopy().closeTab;
-  const label = dockTabLabel(tab, browser.newTab);
+  const L = useVocabOptional();
+  const closeTab = L.dockCloseTab;
+  const label = dockTabLabel(tab, L.brNewTab);
   const source = isFileTab(tab) ? null : browserTabForwardSource(tab);
   const chip = tabChip(tab);
   return (
     <>
       <button type="button" className="dock-tab-select" aria-pressed={active} data-dock-tab={tab.id}
-        data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={tabTooltip(tab, label, source, browser)}>
-        {chip && <TabChip chip={chip} source={source} copy={browser} />}
+        data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={tabTooltip(tab, label, source, L)}>
+        {chip && <TabChip chip={chip} source={source} copy={L} />}
         <span style={TAB_LABEL_STYLE}>{label}</span>
       </button>
       <button type="button" className="dock-control dock-tab-close" disabled={!isPresent} data-close-tab={tab.id}
@@ -100,19 +99,19 @@ function tabChip(tab: DockTab): BrowserTabChip | null {
   return { text: attachmentFileExt(tab.item.name), kind: 'plain' };
 }
 
-function tabTooltip(tab: DockTab, label: string, source: string | null, copy: BrowserCopy): string {
+function tabTooltip(tab: DockTab, label: string, source: string | null, copy: Pick<Vocab, 'brForwardedFrom'>): string {
   if (isFileTab(tab)) return tab.item.path ?? label;
-  if (source) return `${label}\n${copy.forwardedFrom.replace('{source}', source)}`;
+  if (source) return `${label}\n${copy.brForwardedFrom.replace('{source}', source)}`;
   const url = currentUrl(tab.history);
   return url ?? label;
 }
 
 /** The forward chip keeps data-forward-source — provenance the address bar cannot show. */
-function TabChip({ chip, source, copy }: { chip: BrowserTabChip; source: string | null; copy: BrowserCopy }): JSX.Element {
+function TabChip({ chip, source, copy }: { chip: BrowserTabChip; source: string | null; copy: Pick<Vocab, 'brForwardedFrom'> }): JSX.Element {
   const forwarded = chip.kind === 'forward' && source !== null;
   return (
     <span {...(forwarded ? { 'data-forward-source': source } : {})}
-      title={forwarded ? copy.forwardedFrom.replace('{source}', source) : undefined}
+      title={forwarded ? copy.brForwardedFrom.replace('{source}', source) : undefined}
       style={forwarded ? TAB_CHIP_FORWARD_STYLE : TAB_CHIP_PLAIN_STYLE}>{chip.text}</span>
   );
 }

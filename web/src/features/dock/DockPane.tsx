@@ -4,7 +4,7 @@ import { splitFromDrag } from './dock-split';
 import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
 import { DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
-import { useDockCopy } from './dock-copy';
+import { useVocabOptional } from '@/i18n';
 import {
   isFileTab,
   syncBodyOrder,
@@ -31,7 +31,7 @@ export function DockPane(): JSX.Element | null {
   const { open, state, split, closeDock, select, close, reorder, openWeb, updateWeb, setSplit, registerHost } = useDock();
   const paneRef = useRef<HTMLDivElement | null>(null);
   const bodyOrder = useRef<string[]>([]);
-  const copy = useDockCopy();
+  const L = useVocabOptional();
 
   useEffect(() => registerHost(), [registerHost]);
 
@@ -74,7 +74,7 @@ export function DockPane(): JSX.Element | null {
       <div
         role="separator"
         aria-orientation="vertical"
-        title={copy.resize}
+        title={L.dockResize}
         onMouseDown={onResizeStart}
         style={{ position: 'absolute', left: -3, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 3 }}
       />
@@ -86,14 +86,14 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <button type="button" className="dock-control" data-close-dock="" title={copy.closeDock} aria-label={copy.closeDock} onClick={closeDock}>×</button>
+          <button type="button" className="dock-control" data-close-dock="" title={L.dockCloseDock} aria-label={L.dockCloseDock} onClick={closeDock}>×</button>
         }
       />
 
       {/* Chrome lets the workspace sheet show through; documents own their opaque fill. */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {state === null
-          ? <DockCentered>{copy.emptyHint}</DockCentered>
+          ? <DockCentered>{L.dockEmptyHint}</DockCentered>
           : bodyOrder.current.map((id) => (
             <DockTabBody key={id} state={state} id={id} onUpdateWeb={updateWeb} />
           ))}

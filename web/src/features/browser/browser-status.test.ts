@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { browserStartupPending } from './browser-status';
-import { BROWSER_COPY, forwardErrorText } from './browser-copy';
+import { en, zh } from '@/i18n';
+import { forwardErrorText } from './forward-error';
 import { ForwardError } from './forward';
 
 describe('browser startup hint', () => {
@@ -28,12 +29,12 @@ describe('browser startup hint', () => {
 
 describe('forwardErrorText', () => {
   it('localizes forward failures and passes server wording through', () => {
-    expect(forwardErrorText(new ForwardError('unavailable'), BROWSER_COPY.zh)).toBe('端口转发需要桌面应用。');
-    expect(forwardErrorText(new ForwardError('list-ports', 500), BROWSER_COPY.en)).toBe('Could not list server ports (500)');
-    expect(forwardErrorText(new Error('device offline'), BROWSER_COPY.zh)).toBe('device offline');
-    expect(forwardErrorText('forward_privileged_port', BROWSER_COPY.zh)).toBe('只能转发 1024 及以上的端口');
-    expect(forwardErrorText('forward_no_local_port: address in use', BROWSER_COPY.en))
+    expect(forwardErrorText(new ForwardError('unavailable'), zh)).toBe('端口转发需要桌面应用。');
+    expect(forwardErrorText(new ForwardError('list-ports', 500), en)).toBe('Could not list server ports (500)');
+    expect(forwardErrorText(new Error('device offline'), zh)).toBe('device offline');
+    expect(forwardErrorText('forward_privileged_port', zh)).toBe('只能转发 1024 及以上的端口');
+    expect(forwardErrorText('forward_no_local_port: address in use', en))
       .toBe('No local port is free for the forward (address in use)');
-    expect(forwardErrorText('relay closed', BROWSER_COPY.zh)).toBe('relay closed');
+    expect(forwardErrorText('relay closed', zh)).toBe('relay closed');
   });
 });

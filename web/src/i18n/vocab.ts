@@ -7,6 +7,8 @@ import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
 import { setupEn, setupZh } from './provider-setup-vocab';
 import { uiAuthEn, uiAuthZh } from './ui-auth-vocab';
+import { browserEn, browserZh } from './browser-vocab';
+import { dockEn, dockZh, mediaEn, mediaZh } from './media-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -24,6 +26,9 @@ export const en = {
   ...nativeShellEn,
   ...commonEn,
   ...timeEn,
+  ...browserEn,
+  ...mediaEn,
+  ...dockEn,
 };
 
 export type Vocab = typeof en;
@@ -40,4 +45,7 @@ export const zh: Record<keyof Vocab, string> = {
   ...nativeShellZh,
   ...commonZh,
   ...timeZh,
+  ...browserZh,
+  ...mediaZh,
+  ...dockZh,
 };
