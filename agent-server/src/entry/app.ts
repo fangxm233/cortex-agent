@@ -169,9 +169,11 @@ function retentionLiveness(): RetentionLivenessSnapshot {
   });
 }
 
-async function runRetentionSweep(retentionDays: number): Promise<void> {
+async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Promise<void> {
+  const startedAt = Date.now();
   const result = await runSessionRetentionSweep({
     retentionDays,
+    signal,
     registry: sessionStore,
     ledgerRepo: conversationLedger,
     historyRepo: conversationHistory,
@@ -187,8 +189,8 @@ async function runRetentionSweep(retentionDays: number): Promise<void> {
   });
   // Inbound platform attachments are read during the turn they arrive on; nothing links to them
   // afterwards, and before this sweep existed they accumulated in the workspace forever.
-  const attachmentsPruned = await pruneInboundAttachments(retentionDays);
-  log.info(`Retention sweep: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} attachments=${attachmentsPruned} errors=${result.errors.length}`);
+  const attachmentsPruned = result.stopped ? 0 : await pruneInboundAttachments(retentionDays);
+  log.info(`Retention sweep${result.stopped ? ' stopped early' : ''}: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} attachments=${attachmentsPruned} errors=${result.errors.length} in ${Date.now() - startedAt}ms`);
 }
 
 const retentionController = createSessionRetentionController({
@@ -741,7 +743,9 @@ process.on('SIGTERM', async () => {
     await dispatchPendingResumes(adapter);
   }
 
-  await retentionController.start();
+  // The first sweep runs in the background so boot never waits on it; the session registry
+  // serializes it against every other session mutation.
+  retentionController.start();
 
   // M1: Initialize project registry (scaffolds general/, scans PROJECTS_DIR, starts fs.watch watcher)
   await projectStore.initialize();

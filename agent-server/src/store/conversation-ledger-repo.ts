@@ -209,20 +209,7 @@ export class ConversationLedgerRepo {
   }
 
   async clearBySessionIds(sessionIds: Iterable<string>): Promise<number> {
-    const targets = new Set(sessionIds);
-    if (targets.size === 0) return 0;
-    const all = await this.registry.listConversations();
-    const channels = all
-      .filter(({ header }) => header.sessionId && targets.has(header.sessionId))
-      .map(({ channel }) => channel);
-    if (channels.length === 0) return 0;
-    await this.registry.batch(async (ops) => {
-      for (const channel of channels) {
-        await ops.clearConversation(channel);
-        await ops.clearTurns(channel);
-      }
-    });
-    return channels.length;
+    return this.registry.clearConversationsBySessionIds(sessionIds);
   }
 
   async switchSession(channel: string, opts: {

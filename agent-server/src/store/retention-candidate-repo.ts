@@ -36,7 +36,11 @@ export class RetentionCandidateRepo {
     return data.categories[category]?.[key] === stamp;
   }
 
+  /** Called for every scanned file, nearly all of which were never marked: check before `mutate`,
+   *  which always rewrites the file. */
   async clear(category: RetentionCandidateCategory, key: string): Promise<void> {
+    const current = await this.repo.read();
+    if (!(key in (current.categories[category] ?? {}))) return;
     await this.repo.mutate((data) => {
       const group = data.categories[category];
       if (!group || !(key in group)) return { next: data, result: undefined };

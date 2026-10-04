@@ -6,6 +6,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** Let a settled sweep promise run its continuation (loop exit, next-run scheduling). */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+}
+
 test('retention controller runs on start, every 6h from completion, debounces settings, and stops cleanly', async () => {
   vi.useFakeTimers();
   let unsubscribeCount = 0;
@@ -25,10 +30,10 @@ test('retention controller runs on start, every 6h from completion, debounces se
     },
   });
 
-  const startPromise = controller.start();
+  controller.start();
   assert.deepEqual(runs, [30]);
   resolveRun?.();
-  await startPromise;
+  await settle();
 
   vi.advanceTimersByTime(6 * 60 * 60 * 1000);
   await Promise.resolve();
@@ -75,7 +80,7 @@ test('retention controller queues latest retention days while a sweep is in flig
     },
   });
 
-  const startPromise = controller.start();
+  controller.start();
   assert.deepEqual(runs, [30]);
   retentionDays = 45;
   changeHandler?.(['sessionRetentionDays']);
@@ -86,8 +91,7 @@ test('retention controller queues latest retention days while a sweep is in flig
   assert.deepEqual(runs, [30]);
 
   release();
-  await startPromise;
-  await Promise.resolve();
+  await settle();
   assert.deepEqual(runs, [30, 60]);
 });
 
@@ -113,7 +117,8 @@ test('retention controller reports sweep errors and keeps scheduling future runs
     onError: (error) => { errors.push(error.message); },
   });
 
-  await controller.start();
+  controller.start();
+  await settle();
   assert.deepEqual(runs, [30]);
   assert.deepEqual(errors, ['boom']);
 
@@ -125,4 +130,54 @@ test('retention controller reports sweep errors and keeps scheduling future runs
   vi.advanceTimersByTime(300);
   await Promise.resolve();
   assert.deepEqual(runs, [30, 30, 30]);
+});
+
+test('retention controller start returns while the first sweep is still running', async () => {
+  let finished = false;
+  let release!: () => void;
+  const controller = createSessionRetentionController({
+    getRetentionDays: () => 30,
+    onSettingsChange: () => () => {},
+    runSweep: async () => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      finished = true;
+    },
+  });
+
+  assert.equal(controller.start(), undefined);
+  assert.equal(finished, false);
+  release();
+  await settle();
+  assert.equal(finished, true);
+  await controller.stop();
+});
+
+test('retention controller stop aborts the running sweep and waits only for it to return', async () => {
+  const signals: AbortSignal[] = [];
+  let batches = 0;
+  let returned = false;
+  const controller = createSessionRetentionController({
+    getRetentionDays: () => 30,
+    onSettingsChange: () => () => {},
+    // Never finishes on its own; checks the signal between batches like the real sweep.
+    runSweep: async (_days, signal) => {
+      signals.push(signal);
+      while (!signal.aborted) {
+        batches += 1;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      returned = true;
+    },
+  });
+
+  controller.start();
+  await new Promise<void>((resolve) => setTimeout(resolve, 20));
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].aborted, false);
+  const batchesBeforeStop = batches;
+
+  await controller.stop();
+  assert.equal(signals[0].aborted, true);
+  assert.equal(returned, true);
+  assert.ok(batches - batchesBeforeStop <= 1, 'stop waits for the current batch only');
 });

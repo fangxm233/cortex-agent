@@ -4,12 +4,15 @@ const SETTINGS_DEBOUNCE_MS = 300;
 export interface SessionRetentionControllerDeps {
   getRetentionDays: () => number;
   onSettingsChange: (callback: (changedKeys: string[]) => void) => () => void;
-  runSweep: (retentionDays: number) => Promise<void>;
+  /** `signal` aborts when the controller stops; the sweep should return at its next checkpoint. */
+  runSweep: (retentionDays: number, signal: AbortSignal) => Promise<void>;
   onError?: (error: Error) => void;
 }
 
 export interface SessionRetentionController {
-  start(): Promise<void>;
+  /** Subscribe and start the first sweep in the background — never waits for it. */
+  start(): void;
+  /** Abort the running sweep and wait for it to reach its next checkpoint. */
   stop(): Promise<void>;
 }
 
@@ -21,6 +24,7 @@ export function createSessionRetentionController(deps: SessionRetentionControlle
   let busy = false;
   let latestDays: number | null = null;
   let stopped = false;
+  let abort = new AbortController();
 
   function clearTimers(): void {
     if (timer) clearTimeout(timer);
@@ -42,7 +46,7 @@ export function createSessionRetentionController(deps: SessionRetentionControlle
         const current = nextDays;
         latestDays = null;
         try {
-          await deps.runSweep(current);
+          await deps.runSweep(current, abort.signal);
         } catch (error) {
           deps.onError?.(error as Error);
         }
@@ -76,14 +80,16 @@ export function createSessionRetentionController(deps: SessionRetentionControlle
   }
 
   return {
-    async start(): Promise<void> {
-      if (unsubscribe) return running ?? Promise.resolve();
+    start(): void {
+      if (unsubscribe) return;
       stopped = false;
+      abort = new AbortController();
       unsubscribe = deps.onSettingsChange(onSettingsChanged);
-      await queueSweep(deps.getRetentionDays());
+      void queueSweep(deps.getRetentionDays());
     },
     async stop(): Promise<void> {
       stopped = true;
+      abort.abort();
       unsubscribe?.();
       unsubscribe = null;
       clearTimers();

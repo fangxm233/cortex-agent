@@ -204,6 +204,7 @@ test('session store replacement failure cleans temporary files', async () => {
     conversations: new Map(),
     eventCount: 1,
     fileSize: 0,
+    compactedFileSize: 0,
   }), /directory|dir|eisdir|eperm|access/i);
 
   const leftovers = (await fs.readdir(path.dirname(targetDir)))
