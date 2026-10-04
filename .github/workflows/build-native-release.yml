@@ -302,7 +302,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager --install "ndk;27.2.12479018" "build-tools;34.0.0" "platforms;android-34" "cmake;3.22.1"
+          sdkmanager --install "ndk;27.2.12479018" "build-tools;37.0.0" "platforms;android-37.0" "platforms;android-36" "cmake;3.22.1"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
