@@ -34,7 +34,7 @@ describe('mobile chat presentation', () => {
   });
 
   it('gives only the small menus a backdrop sample', () => {
-    const copy = { menuSessionId: 'Session ID' } as MChatCopy;
+    const copy = { wbSessionId: 'Session ID' } as unknown as MChatCopy;
     const menus = [
       renderToStaticMarkup(<MoreMenu copy={copy} onClose={noop} onSessionId={noop} />),
       renderToStaticMarkup(<AttachMenu copy={copy} onClose={noop} onCamera={noop}

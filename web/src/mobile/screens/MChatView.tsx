@@ -8,7 +8,7 @@ import { SubagentTranscriptDetail } from '@/features/session/transcript/Subagent
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
-import { useVocab, useVocabOptional } from '@/i18n';
+import { fmt, useVocab, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
@@ -363,7 +363,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
                 {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
                 {isEditingRow && editCopy && (
-                  <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.editingBadge}</span>
+                  <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.chatEditingBadge}</span>
                 )}
                 {row.systemOrigin && (
                   <span data-bubble-label="" style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
@@ -402,7 +402,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
                     onClick={onShowOriginal ? () => onShowOriginal(row.edited!) : undefined}
                     style={{ font: `400 11px ${MONO}`, color: MC.muted, cursor: 'pointer' }}
                   >
-                    <span style={{ borderBottom: `1px dotted ${MC.muted}` }}>{editCopy.edited}</span>
+                    <span style={{ borderBottom: `1px dotted ${MC.muted}` }}>{editCopy.msgEdited}</span>
                   </span>
                 )}
               </div>
@@ -410,7 +410,10 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               {isEditingRow && editCopy && editing && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <span style={{ font: `600 11px ${MONO}`, color: 'var(--m-amber-ink)', background: MC.amberBg, padding: '2px 7px', borderRadius: 4 }}>
-                    {editCopy.willRewind(editing.replies, editing.toolCalls)}
+                    {fmt(editCopy.chatWillRewind, {
+                      replies: fmt(editing.replies === 1 ? editCopy.msgReplyOne : editCopy.msgReplyMany, { n: editing.replies }),
+                      tools: fmt(editing.toolCalls === 1 ? editCopy.msgToolCallOne : editCopy.msgToolCallMany, { n: editing.toolCalls }),
+                    })}
                   </span>
                 </div>
               )}
@@ -448,7 +451,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               {editCopy && regenIdx?.has(i) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `400 11px ${MONO}`, color: MC.muted, marginBottom: 4 }}>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
-                  {editCopy.regenNote}
+                  {editCopy.msgRegenNote}
                 </div>
               )}
               <MAssistantBlock text={row.text} preview={row.preview} streamKey={streamKey} />
@@ -567,7 +570,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
 
   return (
     <div
-      data-screen-label="1b 会话详情"
+      data-screen-label="1b chat detail"
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
     >
       <MChatHeader
@@ -605,8 +608,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             <MChatStream
               rows={props.rows}
               start={win.start}
-              copyLabel={copy.copy}
-              copiedLabel={copy.copied}
+              copyLabel={copy.cmCopy}
+              copiedLabel={copy.cmCopied}
               interactions={props.interactions}
               editCopy={props.editCopy}
               editing={props.editing}
@@ -623,7 +626,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         </div>
         <MComposer
           shellRef={composerRef}
-          placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh)}
+          placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? copy.chatAttachPlaceholder : copy.chatComposerPh)}
           value={props.composerValue}
           onChange={props.onComposerChange}
           onSend={props.onSend}
@@ -635,18 +638,18 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             <>
               <ComposerLeading onClick={props.onPlus} />
               {props.browserDevice && <BrowserChip device={props.browserDevice}
-                label={copy.attachBrowser} onClick={props.onOpenBrowser} />}
+                label={copy.chatAttachBrowser} onClick={props.onOpenBrowser} />}
               {props.commissionValue && <CommissionChip value={props.commissionValue}
-                text={props.commissionLabel || copy.attachCommission}
-                label={copy.attachCommission} onClick={props.onOpenCommission} />}
+                text={props.commissionLabel || copy.chatAttachCommission}
+                label={copy.chatAttachCommission} onClick={props.onOpenCommission} />}
             </>
           )}
           tools={<ComposerTools props={props} />}
           above={<ComposerAbove props={props} />}
           commandMenu={commandMenu}
           onPlus={props.onPlus}
-          lineUnit={copy.lineUnit}
-          charUnit={copy.charUnit}
+          lineUnit={copy.chatLineUnit}
+          charUnit={copy.chatCharUnit}
           tone={props.editing ? 'accent' : props.rejectBar ? 'amber' : 'default'}
         />
         {/* 7a long-press overlay — an absolute overlay of the BODY region, like the 2b editor above.
@@ -673,7 +676,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       )}
       {props.originalSheet && props.editCopy && (
         <MBottomSheet onClose={props.originalSheet.onClose}>
-          <div style={{ font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em', padding: '0 2px 8px' }}>{props.editCopy.original}</div>
+          <div style={{ font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em', padding: '0 2px 8px' }}>{props.editCopy.chatOriginalMessage}</div>
           <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px', fontSize: 13, lineHeight: 1.6, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '50vh', overflow: 'auto' }}>
             {props.originalSheet.text}
           </div>

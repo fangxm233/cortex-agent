@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
-import { useLangOptional } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, msgMenuSafeTop, MSG_MENU_SAFE_BOTTOM } from './m-chat-vm';
 import type { MChatEditCopy, MMsgMenu } from './MChatView.types';
@@ -113,8 +113,8 @@ function useMsgMenuTop(anchorTop: number | null | undefined): {
 function MessageMenuCard({ menu, copy }: { menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
   return (
     <div onClick={(event) => event.stopPropagation()} style={{ flex: 'none', width: 196, background: 'var(--material-overlay-bg)', border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden' }}>
-      <MsgMenuItem label={copy.menuCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
-      {menu.onEdit && <MsgMenuItem label={copy.menuEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
+      <MsgMenuItem label={copy.cmCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
+      {menu.onEdit && <MsgMenuItem label={copy.msgEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
     </div>
   );
 }
@@ -154,7 +154,7 @@ export function MsgActionMenu({ row, menu, copy }: {
 }
 
 export function EditBar({ title, onCancel }: { title: string; onCancel: () => void }): JSX.Element {
-  const cancelLabel = useLangOptional() === 'zh' ? '取消编辑' : 'Cancel edit';
+  const cancelLabel = useVocabOptional().chatCancelEdit;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--material-inset-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />

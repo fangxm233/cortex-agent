@@ -6,55 +6,18 @@ import type { ContextCompactAction } from '@/features/session/composer/ContextUs
 import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
+import type { Vocab } from '@/i18n';
 import type { TimeLang } from '@/i18n/time-format';
 import type {
   ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetVM,
 } from './m-chat-vm';
 
-export interface MChatCopy {
-  composerPh: string;
-  menuSessionId: string;
-  menuSessionStats: string;
-  sessionIdTitle: string;
-  sessionStatsTitle: string;
-  sessionStatsHint: string;
-  cortexIdLabel: string;
-  backendUuidLabel: string;
-  copy: string;
-  copied: string;
-  attachCamera: string;
-  attachLibrary: string;
-  attachFile: string;
-  attachBrowser: string;
-  attachCommission: string;
-  attachCommands: string;
-  attachPlaceholder: string;
-  profileTitle: string;
-  profileSubtitle: string;
-  profileCurrent: string;
-  profileFooter: string;
-  /** The environment sheet: its title, the "follow the host default" row and its sub-label, and
-   *  the `{backend}` template for an agent only a new conversation could take. */
-  selectionAgent: string;
-  selectionAgentDefault: string;
-  selectionAgentFollow: string;
-  selectionAgentCrossBackend: string;
-  /** Section headings and the "follow the profile" row of the engine sheet. */
-  selectionModel: string;
-  selectionThinking: string;
-  /** Heading of the billing-route section (anthropic `plan` vs `api`). */
-  selectionMode: string;
-  selectionFollow: string;
-  /** Root row that hands every override back to the profile at once. */
-  selectionFollowAll: string;
-  /** `{n}` / `{backend}` templates accounting for the rows the picker held back. */
-  selectionHiddenModels: string;
-  selectionHiddenProfiles: string;
-  selectionHiddenNoProfile: string;
-  selectionPending: string;
-  lineUnit: string;
-  charUnit: string;
-}
+/** The shared-vocab words the chat view and its sheets/menus render. */
+export type MChatCopy = Pick<Vocab,
+  | 'chatComposerPh' | 'wbSessionId' | 'wbSessionStats' | 'wbSessionStatsHint' | 'wbCortexId' | 'wbBackendUuid'
+  | 'cmCopy' | 'cmCopied' | 'chatAttachCamera' | 'chatAttachLibrary' | 'chatAttachFile' | 'chatAttachBrowser'
+  | 'chatAttachCommission' | 'chatAttachCommands' | 'chatAttachPlaceholder' | 'chatProfileTitle' | 'chatProfileSubtitle'
+  | 'chatProfileCurrent' | 'chatProfileFooter' | 'wbAgent' | 'wbModelsPending' | 'chatLineUnit' | 'chatCharUnit'>;
 
 export interface MChatInteractions {
   askState: (requestId: string) => AskAnswerState;
@@ -76,16 +39,10 @@ export interface MRejectBar {
   onCancel: () => void;
 }
 
-export interface MChatEditCopy {
-  menuCopy: string;
-  menuEdit: string;
-  editingBadge: string;
-  willRewind: (replies: number, toolCalls: number) => string;
-  editBarTitle: string;
-  edited: string;
-  original: string;
-  regenNote: string;
-}
+/** Message edit / rewind words (long-press menu, edit mode, edited badge, regen note). */
+export type MChatEditCopy = Pick<Vocab,
+  | 'cmCopy' | 'msgEdit' | 'chatEditingBadge' | 'chatWillRewind' | 'msgReplyOne' | 'msgReplyMany' | 'msgToolCallOne'
+  | 'msgToolCallMany' | 'chatEditBarTitle' | 'msgEdited' | 'chatOriginalMessage' | 'msgRegenNote'>;
 
 export interface MMsgMenu {
   rowIndex: number;

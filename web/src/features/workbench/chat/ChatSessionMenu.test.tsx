@@ -23,7 +23,7 @@ vi.mock('@/design/Modal', () => ({ Modal: ({ open, children, footer }: any) =>
 const first = { sessionId: 'stable-1', title: 'Display title', starred: false };
 const onId = vi.fn();
 const onStats = vi.fn();
-const copy = { menuSessionId: 'Session ID', menuSessionStats: 'Session stats' } as MChatCopy;
+const copy = { wbSessionId: 'Session ID', wbSessionStats: 'Session stats' } as unknown as MChatCopy;
 let renderer: ReactTestRenderer;
 let client: QueryClient;
 function Mobile({ session }: { session: MetadataSession | null }) {

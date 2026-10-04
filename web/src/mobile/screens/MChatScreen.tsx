@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useLang, useVocab } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { fmt, useLang, useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import {
   resolveTurns,
@@ -61,7 +60,7 @@ import {
   type AskCardModel,
   type PlanCardModel,
 } from '@/features/session/interaction/interaction-vm';
-import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
+import { MChatView, type MChatInteractions, type MRejectBar, type MMsgMenu, type MEditMode } from './MChatView';
 import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
 import {
   commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
@@ -86,118 +85,12 @@ import { attachmentSendAllowed, attachmentType } from '@/features/attachments/ty
 import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
-const COPY: { en: MChatCopy; zh: MChatCopy } = {
-  zh: {
-    composerPh: '输入消息，/ 调用命令',
-    menuSessionId: '会话 ID',
-    menuSessionStats: '会话统计',
-    sessionIdTitle: '会话 ID',
-    sessionStatsTitle: '会话统计',
-    sessionStatsHint: "时长与轮次仅计本会话；总花费包含子代理。",
-    cortexIdLabel: 'Cortex ID',
-    backendUuidLabel: '后端 UUID',
-    copy: '复制',
-    copied: '已复制',
-    attachCamera: '拍照',
-    attachLibrary: '照片图库',
-    attachFile: '选择文件',
-    attachBrowser: '浏览器',
-    attachCommission: '委托',
-    attachCommands: '命令',
-
-    attachPlaceholder: '补充说明…',
-    profileTitle: '配置',
-    profileSubtitle: '仅本会话',
-    profileCurrent: '当前',
-    profileFooter: '下轮生效，不影响正在运行的这一轮。',
-    selectionAgent: 'agent',
-    selectionAgentDefault: '默认',
-    selectionAgentFollow: '跟随全局默认',
-    selectionAgentCrossBackend: '仅限新对话 · {backend}',
-    selectionModel: '模型',
-    selectionThinking: '思考强度',
-    selectionMode: '计费路由',
-    selectionFollow: '跟随配置',
-    selectionFollowAll: '全部跟随配置',
-    selectionHiddenModels: '{n} 个模型本会话不可用',
-    selectionHiddenProfiles: '{n} 个配置本会话不可用',
-    selectionHiddenNoProfile: '{n} 个模型无可用配置',
-    selectionPending: '正在加载模型…',
-    lineUnit: '行',
-    charUnit: '字',
-  },
-  en: {
-    composerPh: 'Message, / for commands',
-    menuSessionId: 'Session ID',
-    menuSessionStats: 'Session stats',
-    sessionIdTitle: 'Session ID',
-    sessionStatsTitle: 'Session stats',
-    sessionStatsHint: "Time and turns count this session only; total cost includes subagents.",
-    cortexIdLabel: 'Cortex ID',
-    backendUuidLabel: 'Backend UUID',
-    copy: 'Copy',
-    copied: 'Copied',
-    attachCamera: 'Take photo',
-    attachLibrary: 'Photo library',
-    attachFile: 'Choose file',
-    attachBrowser: 'Browser',
-    attachCommission: 'Commission',
-    attachCommands: 'Commands',
-
-    attachPlaceholder: 'Add a note…',
-    profileTitle: 'Profile',
-    profileSubtitle: 'This session',
-    profileCurrent: 'current',
-    profileFooter: 'Applies from the next turn; a running turn is unaffected.',
-    selectionAgent: 'agent',
-    selectionAgentDefault: 'default',
-    selectionAgentFollow: 'follow the host default',
-    selectionAgentCrossBackend: 'new conversation only · {backend}',
-    selectionModel: 'model',
-    selectionThinking: 'thinking',
-    selectionMode: 'route',
-    selectionFollow: 'follow profile',
-    selectionFollowAll: 'follow the profile for everything',
-    selectionHiddenModels: '{n} models unavailable this session',
-    selectionHiddenProfiles: '{n} profiles unavailable this session',
-    selectionHiddenNoProfile: '{n} models have no profile',
-    selectionPending: 'loading models…',
-    lineUnit: 'lines',
-    charUnit: 'chars',
-  },
-};
-
-// sec-7 message edit + rewind copy (7a long-press menu · 7b edit mode · 已编辑/原消息 · regen note).
-const EDIT_COPY: { en: MChatEditCopy; zh: MChatEditCopy } = {
-  zh: {
-    menuCopy: '复制',
-    menuEdit: '编辑消息',
-    editingBadge: '编辑中',
-    willRewind: (replies, toolCalls) => `将被回退 · ${replies} 条回复 · ${toolCalls} 次工具调用`,
-    editBarTitle: '编辑消息 — 发送将回退后续回复',
-    edited: '已编辑',
-    original: '原消息',
-    regenNote: '由编辑重新生成',
-  },
-  en: {
-    menuCopy: 'Copy',
-    menuEdit: 'Edit message',
-    editingBadge: 'Editing',
-    willRewind: (replies, toolCalls) => `Will rewind · ${replies} repl${replies === 1 ? 'y' : 'ies'} · ${toolCalls} tool call${toolCalls === 1 ? '' : 's'}`,
-    editBarTitle: 'Editing message — send rewinds later replies',
-    edited: 'edited',
-    original: 'Original message',
-    regenNote: 'Regenerated from edit',
-  },
-};
-
 export function MChatScreen(): JSX.Element {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const lang = useLang();
   const vocab = useVocab();
-  const copy = pickCopy(lang, COPY);
   const { currentProjectId, setCurrentProject } = useCurrentProject();
   const { sessionId: routeParam } = useParams<{ sessionId: string }>();
   const isDraft = routeParam === 'new';
@@ -572,9 +465,7 @@ export function MChatScreen(): JSX.Element {
     if (sent.draftUploadId) draftUploadId.current = sent.draftUploadId;
     setText((current) => [sent.text, current].filter((v) => v.length > 0).join('\n'));
     attachmentUploads.mergeRestored(sent.attachments);
-    setSystemLines((prev) => [...prev, lang === 'zh'
-      ? `发送失败 · ${error.message} · 内容已退回输入框`
-      : `send failed · ${error.message} · text restored to the composer`]);
+    setSystemLines((prev) => [...prev, fmt(vocab.chatSendFailed, { error: error.message })]);
   };
 
   const slashProfiles = profileOptions.map(
@@ -718,9 +609,7 @@ export function MChatScreen(): JSX.Element {
     const from = selectionChipLabel(effective);
     // The line is written once the change has actually landed, so a refusal leaves no trace claiming
     // it did. The draft has nothing to refuse it, so it writes immediately.
-    const note = (): void => setSystemLines((prev) => [...prev, lang === 'zh'
-      ? `引擎切换 ${from} → ${label} · 下一轮生效`
-      : `engine ${from} → ${label} · takes effect next turn`]);
+    const note = (): void => setSystemLines((prev) => [...prev, fmt(vocab.chatEngineSwitched, { from, to: label })]);
     if (isDraft) {
       setDraftSelection((prev) => applyDraftSelection(prev, change));
       note();
@@ -755,7 +644,7 @@ export function MChatScreen(): JSX.Element {
   const runStatus = deriveSessionRunStatus({
     running: running || optimistic.pendingUser.length > 0, backgroundRunning, hasRun,
   });
-  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit, waitingOn: (n: number) => (lang === 'zh' ? `等 ${n} 个信号` : `waiting on ${n}`) };
+  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit, waitingOn: vocab.chatWaitingOn };
   const statusBrowserDevice = active?.browser?.device ?? draftBrowserDevice;
   const browserStarting = browserStartupPending({
     running: runStatus.active, backgroundRunning, device: statusBrowserDevice,
@@ -772,7 +661,7 @@ export function MChatScreen(): JSX.Element {
         pendingInteraction.detail.kind,
         pendingAskModel ? currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) : 0,
         pendingAskModel?.questions.length ?? 1,
-        lang,
+        vocab,
       )
     : browserStarting && statusBrowserDevice
       ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
@@ -793,37 +682,31 @@ export function MChatScreen(): JSX.Element {
   };
   const rejectBar: MRejectBar | undefined = rejectArmed && pendingPlanModel
     ? {
-        title: lang === 'zh'
-          ? `驳回「${pendingPlanModel.title}」— 说明原因后发送`
-          : `Rejecting "${pendingPlanModel.title}" — explain, then send`,
-        chips: lang === 'zh'
-          ? ['范围太大', '先做 dry-run', '成本超预期', '步骤顺序不对']
-          : ['Scope too big', 'Dry-run first', 'Over budget', 'Wrong step order'],
-        onChipTap: (chip) => setText((t) => (t ? `${t}${lang === 'zh' ? '；' : '; '}${chip}` : chip)),
+        title: fmt(vocab.chatRejectTitle, { title: pendingPlanModel.title }),
+        chips: [vocab.chatRejectChipScope, vocab.chatRejectChipDryRun, vocab.chatRejectChipBudget, vocab.chatRejectChipOrder],
+        onChipTap: (chip) => setText((t) => (t ? `${t}${vocab.chatRejectChipJoin}${chip}` : chip)),
         onCancel: () => setRejectingId(null),
       }
     : undefined;
   const composerPlaceholder = rejectArmed
-    ? (lang === 'zh' ? '说明驳回原因…' : 'Reason for rejecting…')
+    ? vocab.chatRejectPh
     : pendingAskModel
-      ? (lang === 'zh'
-          ? `点选项，或直接输入回答 Q${Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length)}…`
-          : `Tap an option, or type your answer to Q${Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length)}…`)
+      ? fmt(vocab.chatAskPh, {
+          n: Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length),
+        })
       : undefined;
   const title = isDraft
-    ? (lang === 'zh' ? '新会话' : 'New session')
+    ? vocab.newSession
     : (active ? sessionDisplayTitle(active, runTitle) : routeParam ?? '');
   // 8d hint above the composer: replying extracts the run into a normal session.
   const schedHint = isScheduledRun
-    ? (lang === 'zh'
-        ? '发送消息后提取为普通会话 · 定时任务下次运行不受影响'
-        : 'Replying converts this run into a normal session · the schedule\'s next run is unaffected')
+    ? vocab.chatScheduledHint
     : null;
   const attachmentsVM: PendingAttachmentVM[] = uploads.map((upload) => {
     const type = attachmentType(upload);
     return {
       id: upload.id,
-      name: upload.file?.name ?? upload.meta?.name ?? (lang === 'zh' ? '文件' : 'file'),
+      name: upload.file?.name ?? upload.meta?.name ?? vocab.chatFileFallback,
       progress: upload.progress,
       status: upload.status,
       type: type === 'image' || type === 'video' ? type : 'file',
@@ -853,7 +736,7 @@ export function MChatScreen(): JSX.Element {
         project={currentProjectId ?? undefined}
         rows={rows}
         loading={!!sessionId && transcriptQuery.isPending}
-        copy={copy}
+        copy={vocab}
         onBack={() => navigate('/m/sessions')}
         moreOpen={moreOpen}
         onMoreToggle={() => setMoreOpen((o) => !o)}
@@ -870,7 +753,7 @@ export function MChatScreen(): JSX.Element {
         systemLines={schedHint ? [...systemLines, schedHint] : systemLines}
         interactions={interactions}
         rejectBar={rejectBar}
-        editCopy={pickCopy(lang, EDIT_COPY)}
+        editCopy={vocab}
         msgMenu={msgMenu}
         onLongPress={(rowIndex, anchorTop) => { setMsgMenuAnchorTop(anchorTop); setMsgMenuIdx(rowIndex); }}
         editing={editing}
@@ -917,7 +800,7 @@ export function MChatScreen(): JSX.Element {
         } : undefined}
         onOpenSelection={() => setSelectionOpen(true)}
         agentChip={hasAgentChoice(agents)
-          ? { label: agentChip.name ?? copy.selectionAgentDefault, followingDefault: agentChip.followingDefault }
+          ? { label: agentChip.name ?? vocab.wbAgentDefault, followingDefault: agentChip.followingDefault }
           : null}
         onOpenAgent={() => setAgentOpen(true)}
         contextUsage={contextUsage}
@@ -946,15 +829,15 @@ export function MChatScreen(): JSX.Element {
                 hasHistory,
                 defaultProfile,
                 copy: {
-                  profile: copy.profileTitle,
-                  model: copy.selectionModel,
-                  thinking: copy.selectionThinking,
-                  mode: copy.selectionMode,
-                  followProfile: copy.selectionFollow,
-                  followAll: copy.selectionFollowAll,
-                  hiddenModels: copy.selectionHiddenModels,
-                  hiddenProfiles: copy.selectionHiddenProfiles,
-                  hiddenNoProfile: copy.selectionHiddenNoProfile,
+                  profile: vocab.chatProfileTitle,
+                  model: vocab.wbModel,
+                  thinking: vocab.wbThinking,
+                  mode: vocab.wbRoute,
+                  followProfile: vocab.wbFollowProfile,
+                  followAll: vocab.wbFollowAll,
+                  hiddenModels: vocab.wbHiddenModels,
+                  hiddenProfiles: vocab.wbHiddenProfiles,
+                  hiddenNoProfile: vocab.wbHiddenNoProfile,
                 },
               }),
               pending: catalogQuery.isLoading || (catalogQuery.data?.piPending ?? false),
@@ -973,12 +856,12 @@ export function MChatScreen(): JSX.Element {
                 currentBackend: effective.backend,
                 hasHistory,
                 copy: {
-                  agentDefault: copy.selectionAgentDefault,
-                  agentFollowDefault: copy.selectionAgentFollow,
-                  agentCrossBackend: copy.selectionAgentCrossBackend,
+                  agentDefault: vocab.wbAgentDefault,
+                  agentFollowDefault: vocab.wbAgentFollowDefault,
+                  agentCrossBackend: vocab.wbAgentCrossBackend,
                 },
               }),
-              title: copy.selectionAgent,
+              title: vocab.wbAgent,
               onClose: () => setAgentOpen(false),
               onPick: onPickSelection,
             }

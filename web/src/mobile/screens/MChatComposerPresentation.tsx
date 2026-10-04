@@ -3,7 +3,7 @@ import type { SlashSuggestion } from '@/features/session/composer/composer-slash
 import { TodoRail } from '@/features/session/rail/TodoRail';
 import { WaitRail } from '@/features/session/rail/WaitRail';
 import { PlusGlyph } from '@/design';
-import { useLangOptional, useVocabOptional } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 import { EditBar } from './MChatMessageActions';
@@ -69,18 +69,18 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
   // transcript; the small menu samples the route. Preserve composer clearance.
   return (
     <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 12, bottom: 'calc(124px + env(safe-area-inset-bottom))', width: 208, background: 'var(--material-overlay-bg)', backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter, border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden', zIndex: 6 }}>
-      <AttachMenuItem label={copy.attachCamera} onTap={onCamera} onClose={onClose} icon={<CameraIcon />} />
-      <AttachMenuItem label={copy.attachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
-      <AttachMenuItem label={copy.attachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
-      {browser && <AttachMenuItem label={copy.attachBrowser} onTap={browser.onOpen} onClose={onClose} icon={<BrowserIcon />} itemKey="browser" value={browser.device ?? undefined} />}
-      {commission && <AttachMenuItem label={copy.attachCommission} onTap={commission.onOpen} onClose={onClose} icon={<CommissionIcon />} itemKey="commission" value={commission.label ?? undefined} />}
-      <AttachMenuItem label={copy.attachCommands} onTap={onCommands} onClose={onClose} icon={<CommandsIcon />} itemKey="commands" last />
+      <AttachMenuItem label={copy.chatAttachCamera} onTap={onCamera} onClose={onClose} icon={<CameraIcon />} />
+      <AttachMenuItem label={copy.chatAttachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
+      <AttachMenuItem label={copy.chatAttachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
+      {browser && <AttachMenuItem label={copy.chatAttachBrowser} onTap={browser.onOpen} onClose={onClose} icon={<BrowserIcon />} itemKey="browser" value={browser.device ?? undefined} />}
+      {commission && <AttachMenuItem label={copy.chatAttachCommission} onTap={commission.onOpen} onClose={onClose} icon={<CommissionIcon />} itemKey="commission" value={commission.label ?? undefined} />}
+      <AttachMenuItem label={copy.chatAttachCommands} onTap={onCommands} onClose={onClose} icon={<CommandsIcon />} itemKey="commands" last />
     </div></>
   );
 }
 
 function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null {
-  const cancelLabel = useLangOptional() === 'zh' ? '取消驳回' : 'Cancel reject';
+  const cancelLabel = useVocabOptional().chatCancelReject;
   if (!props.rejectBar) return null;
   return (
     <>
@@ -95,7 +95,7 @@ function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null 
 
 export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element {
   let mode: ReactNode = <ComposerAttachmentStrip attachments={props.attachments} onRetry={props.onRetryAttachment} onRemove={props.onRemoveAttachment} />;
-  if (props.editing && props.editCopy) mode = <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />;
+  if (props.editing && props.editCopy) mode = <EditBar title={props.editCopy.chatEditBarTitle} onCancel={props.editing.onCancel} />;
   else if (props.rejectBar) mode = <RejectHeader props={props} />;
   return (
     <>
@@ -249,7 +249,7 @@ export function ComposerTools({ props }: { props: MChatViewProps }): JSX.Element
     <>
       {props.agentChip && props.onOpenAgent ? (
         <AgentChip
-          axis={props.copy.selectionAgent}
+          axis={props.copy.wbAgent}
           label={props.agentChip.label}
           followingDefault={props.agentChip.followingDefault}
           onClick={props.onOpenAgent}
