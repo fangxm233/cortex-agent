@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
-import { useLang, useVocab } from '@/i18n';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
+import { useVocab } from '@/i18n';
 import { SessionMetadata, type MetadataSession, type SessionMetadataActions } from '@/features/session/metadata/SessionMetadata';
 import { SessionMetadataMenuItems } from '@/features/session/metadata/SessionMetadataMenuItems';
 
@@ -34,11 +33,11 @@ function HeaderMenu({ actions, onSessionId }: {
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
-  const copy = workbenchCopy(useLang());
+  const L = useVocab();
   const close = () => setOpen(false);
   useMenuDismiss(open, close);
   return <span style={{ position: 'relative', display: 'inline-flex' }}>
-    <button type="button" className={MENU_FOCUS} data-chip="more" aria-label={copy.sessionMenu}
+    <button type="button" className={MENU_FOCUS} data-chip="more" aria-label={L.wbSessionMenu}
       aria-expanded={open} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}
       style={{ width: 28, height: 28, padding: 0, border: 0, borderRadius: 'var(--r-chip)',

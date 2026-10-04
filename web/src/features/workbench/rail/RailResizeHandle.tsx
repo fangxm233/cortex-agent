@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useLang } from '@/i18n';
+import { useVocab } from '@/i18n';
 import { RAIL_WIDTH_DEFAULT, RAIL_WIDTH_MAX, RAIL_WIDTH_MIN, clampRailWidth } from './rail-width';
 
 // The rail and the workspace are separate floating panes, so the divider fills the gutter between
@@ -8,17 +8,12 @@ import { RAIL_WIDTH_DEFAULT, RAIL_WIDTH_MAX, RAIL_WIDTH_MIN, clampRailWidth } fr
 // capture keeps the drag alive when the pointer crosses an embedded web page in the dock, which
 // would otherwise swallow the move events. Double-click restores the default width.
 
-const COPY = {
-  zh: '拖动调整侧栏宽度，双击恢复默认',
-  en: 'Drag to resize the sidebar, double-click to reset',
-};
-
 export function RailResizeHandle({ width, onResize }: {
   width: number;
   /** Every width the drag passes through; `done` marks the final one, which is the one to persist. */
   onResize: (width: number, done: boolean) => void;
 }): JSX.Element {
-  const label = useLang() === 'zh' ? COPY.zh : COPY.en;
+  const label = useVocab().wbRailResize;
   const drag = useRef<{ startX: number; startW: number; last: number } | null>(null);
   const [hover, setHover] = useState(false);
   const [active, setActive] = useState(false);

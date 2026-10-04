@@ -9,6 +9,8 @@ import { setupEn, setupZh } from './provider-setup-vocab';
 import { uiAuthEn, uiAuthZh } from './ui-auth-vocab';
 import { browserEn, browserZh } from './browser-vocab';
 import { dockEn, dockZh, mediaEn, mediaZh } from './media-vocab';
+import { paletteEn, paletteZh } from './workbench-vocab';
+import { workbenchEn, workbenchZh } from './workbench-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -29,6 +31,8 @@ export const en = {
   ...browserEn,
   ...mediaEn,
   ...dockEn,
+  ...paletteEn,
+  ...workbenchEn,
 };
 
 export type Vocab = typeof en;
@@ -48,4 +52,6 @@ export const zh: Record<keyof Vocab, string> = {
   ...browserZh,
   ...mediaZh,
   ...dockZh,
+  ...paletteZh,
+  ...workbenchZh,
 };

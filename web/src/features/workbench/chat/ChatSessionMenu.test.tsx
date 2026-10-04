@@ -13,7 +13,7 @@ vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: {
   rename: { mutationOptions: () => ({ mutationFn: rpc.rename }) },
   list: { queryFilter: () => ({ queryKey: ['sessions', 'list'] }) },
 } }) }));
-vi.mock('@/i18n', () => ({ useLang: () => rpc.lang, useVocab: () => ({ wbSessionId: 'Session ID' }) }));
+vi.mock('@/i18n', () => ({ useLang: () => rpc.lang, useVocab: () => ({ wbSessionId: 'Session ID', wbSessionMenu: 'Session menu' }) }));
 vi.mock('@/design/Modal', () => ({ Modal: ({ open, children, footer }: any) =>
   open ? <section role="dialog">{children}{footer}</section> : null }));
 

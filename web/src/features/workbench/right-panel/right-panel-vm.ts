@@ -1,7 +1,6 @@
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import type { TimeLang } from '@/i18n/time-format';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
+import type { Vocab } from '@/i18n';
 
 export interface Pill {
   bg: string;
@@ -37,9 +36,8 @@ export function onlineMachineCount(machines: MachineInfo[] | undefined): number 
  * Machine online status → status-pill colors + label.
  * Online maps to the done-green pair; offline to the default grey.
  */
-export function machinePill(online: boolean, lang: TimeLang): Pill {
-  const copy = workbenchCopy(lang);
+export function machinePill(online: boolean, L: Pick<Vocab, 'wbMachineOnline' | 'wbMachineOffline'>): Pill {
   return online
-    ? { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: copy.machineOnline }
-    : { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: copy.machineOffline };
+    ? { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: L.wbMachineOnline }
+    : { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: L.wbMachineOffline };
 }

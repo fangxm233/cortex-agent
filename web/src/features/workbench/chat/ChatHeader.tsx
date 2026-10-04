@@ -1,9 +1,8 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
-import { useLang, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 import { ChatSessionMenu } from './ChatSessionMenu';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { useDockIntake } from '@/design/dock-intake';
@@ -83,13 +82,13 @@ function NotesGlyph(): JSX.Element {
 // uses: this row also carries the title and the project chip, so the buttons give the width back.
 function BrowserIconButton(): JSX.Element | null {
   const { canDock, active, activeKind, openWeb } = useDockIntake();
-  const copy = workbenchCopy(useLang());
+  const L = useVocab();
   if (!canDock) return null;
   return (
     <HeaderIconButton
       attr={{ 'data-browser-button': '' }}
       active={active && activeKind === 'web'}
-      title={copy.openWebPage}
+      title={L.wbOpenWebPage}
       onClick={openWeb}
     >
       <GlobeGlyph />
