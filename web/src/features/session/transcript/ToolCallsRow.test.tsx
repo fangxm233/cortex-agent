@@ -141,8 +141,10 @@ describe('ToolCallsRow', () => {
     expect(renderer.root.findAllByType(DebugInspectButton)).toHaveLength(1);
     const thumbs = renderer.root.findAllByProps({ 'data-tool-image': true });
     expect(thumbs).toHaveLength(3);
-    expect(thumbs[0].props.style).toMatchObject({ height: 120, width: 'auto', borderRadius: 'var(--r-card)' });
-    expect(thumbs[0].findByType('img').props.src).toBe('blob:workspace/tool-images/s1/tu-a-0.png');
+    expect(thumbs[0].props.style).toMatchObject({ height: 'auto', width: 'auto', maxWidth: '100%', borderRadius: 'var(--r-card)' });
+    const img = thumbs[0].findByType('img');
+    expect(img.props.src).toBe('blob:workspace/tool-images/s1/tu-a-0.png');
+    expect(img.props.style).toMatchObject({ maxHeight: 120, maxWidth: '100%' });
     act(() => renderer.unmount());
   });
 

@@ -12,8 +12,10 @@ const PENDING_WIDTH = 160;
 const stripStyle: CSSProperties = {
   display: 'flex', flexWrap: 'wrap', gap: 6, padding: '2px 13px 10px',
 };
+// Its own aspect ratio, capped at the row height; an image wider than the panel shrinks to fit
+// rather than losing its edges.
 const imageStyle: CSSProperties = {
-  display: 'block', height: '100%', width: 'auto', maxWidth: '100%', objectFit: 'cover',
+  display: 'block', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: THUMB_HEIGHT,
 };
 
 function ToolImageThumb({ image }: { image: ToolCallImage }): JSX.Element {
@@ -29,14 +31,14 @@ function ToolImageThumb({ image }: { image: ToolCallImage }): JSX.Element {
   return (
     <div
       ref={hostRef} role="button" title={image.name} onClick={open} data-tool-image
-      style={{ ...thumbStageStyle(url, url ? 'auto' : PENDING_WIDTH, THUMB_HEIGHT), maxWidth: '100%' }}
+      style={{ ...thumbStageStyle(url, url ? 'auto' : PENDING_WIDTH, url ? 'auto' : THUMB_HEIGHT), maxWidth: '100%' }}
     >
       {url ? <img src={url} alt={image.name} style={imageStyle} /> : null}
     </div>
   );
 }
 
-/** The images one tool call returned, at a fixed row height and their own aspect ratio. */
+/** The images one tool call returned, at most a row high and at their own aspect ratio. */
 export function ToolCallImages({ images }: { images: ToolCallImage[] }): JSX.Element {
   return (
     <div style={stripStyle}>
