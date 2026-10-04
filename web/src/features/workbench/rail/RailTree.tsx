@@ -121,7 +121,7 @@ export interface RailTreeProps {
   /** Opens/closes one commission folder's session list. */
   onToggleCommission: (commissionId: string) => void;
   /** Opens/closes a lead session's worker list (team mode). */
-  onToggleWorkers?: (sessionId: string) => void;
+  onToggleWorkers?: (row: RailSessionRow) => void;
   /** Opens the commission board — the row is a board entry point, not a route. */
   onOpenCommission: (commissionId: string) => void;
   /** Starts another session on this commission, from the row that already names it. Absent when the
@@ -353,7 +353,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             data-lead-caret={row.sessionId}
             onClick={(e) => {
               e.stopPropagation();
-              props.onToggleWorkers?.(row.sessionId);
+              props.onToggleWorkers?.(row);
             }}
             style={{
               display: 'flex',

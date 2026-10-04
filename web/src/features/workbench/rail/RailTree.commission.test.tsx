@@ -246,7 +246,7 @@ describe('team lead rail row', () => {
     const stopPropagation = vi.fn();
     act(() => caret.props.onClick({ stopPropagation }));
     expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(onToggleWorkers).toHaveBeenCalledWith('lead');
+    expect(onToggleWorkers).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'lead' }));
     expect(onOpenSession).not.toHaveBeenCalled();
 
     const props = renderer.root.findByType(RailTree).props as RailTreeProps;

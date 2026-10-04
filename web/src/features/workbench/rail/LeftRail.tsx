@@ -364,6 +364,22 @@ export function LeftRail(): JSX.Element {
     navigate('/workbench');
   };
   const onOpenSession = (row: RailSessionRow) => openSession(row.projectId, row.sessionId);
+  // A selected worker holds its lead open (rail-tree), so collapsing it also moves the selection
+  // to the lead.
+  const onToggleWorkers = (row: RailSessionRow) => {
+    if (!row.workersExpanded || !row.workers?.some((w) => w.selected)) {
+      toggleWorkers(row.sessionId);
+      return;
+    }
+    setOpenLeads((prev) => {
+      if (!prev.has(row.sessionId)) return prev;
+      const next = new Set(prev);
+      next.delete(row.sessionId);
+      saveIdSet(LEADS_OPEN_KEY, next);
+      return next;
+    });
+    onOpenSession(row);
+  };
 
   // "+ New" (⌘N) enters draft mode (no server call) — the session is created lazily on first send.
   const newSessionIn = (projectId: string | null) => {
@@ -619,7 +635,7 @@ export function LeftRail(): JSX.Element {
             onToggleStars={toggleStars}
             onToggleCommissions={toggleCommissions}
             onToggleCommission={toggleCommission}
-            onToggleWorkers={toggleWorkers}
+            onToggleWorkers={onToggleWorkers}
             onOpenCommission={commissionBoard.openCommission}
             onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
             onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
