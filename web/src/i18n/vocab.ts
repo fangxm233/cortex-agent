@@ -9,14 +9,12 @@ import { setupEn, setupZh } from './provider-setup-vocab';
 import { uiAuthEn, uiAuthZh } from './ui-auth-vocab';
 import { browserEn, browserZh } from './browser-vocab';
 import { dockEn, dockZh, mediaEn, mediaZh } from './media-vocab';
-import { paletteEn, paletteZh } from './workbench-vocab';
-import { workbenchEn, workbenchZh } from './workbench-vocab';
-import { chatEn, chatZh } from './chat-vocab';
+import {
+  approvalsEn, approvalsZh, attachmentsEn, attachmentsZh, paletteEn, paletteZh, workbenchEn, workbenchZh,
+} from './workbench-vocab';
+import { chatEn, chatZh, messageEn, messageZh } from './chat-vocab';
 import { interactionEn, interactionZh } from './interaction-vocab';
-import { messageEn, messageZh } from './chat-vocab';
 import { railEn, railZh } from './rail-vocab';
-import { approvalsEn, approvalsZh } from './workbench-vocab';
-import { attachmentsEn, attachmentsZh } from './workbench-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
