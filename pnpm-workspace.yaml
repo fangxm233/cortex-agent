@@ -4,3 +4,15 @@ packages:
   - packages/*
   - web
   - desktop
+
+# dependency-cruiser parses TS sources and tsconfig through the classic TypeScript compiler API,
+# which TypeScript 7 no longer ships. It gets its own 5.9 copy, used only as a parser.
+packageExtensions:
+  dependency-cruiser:
+    dependencies:
+      typescript: ^5.9.3
+
+peerDependencyRules:
+  allowedVersions:
+    # Optional peer, used only by tsconfck's parseNative, which vite-tsconfig-paths never enables here.
+    tsconfck>typescript: '7'

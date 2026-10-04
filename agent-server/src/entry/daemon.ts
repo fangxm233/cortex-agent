@@ -47,7 +47,7 @@
  *
  *   Every step is paid on every rebuild, including web work that a server-only edit almost never
  *   changes, so the cost of each is kept down at the package level rather than by skipping steps
- *   here: both tsconfigs carry an incremental cache. The server's cache lives inside dist/ on
+ *   here: the server's tsconfig carries an incremental cache. That cache lives inside dist/ on
  *   purpose — tsc trusts its buildinfo over the filesystem, so a cache that outlived its output
  *   would let a deleted dist file stay deleted.
  *
