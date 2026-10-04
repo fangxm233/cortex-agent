@@ -15,7 +15,6 @@ export interface MSettingsCopy {
   machinesOk: string;
   desktopOnly: string;
   inspectOnly: string;
-  footerBrand: string;
   switchProfile: string;
 }
 
@@ -151,10 +150,10 @@ function UpdateRow(props: Pick<MSettingsViewProps, 'checkingUpdates' | 'onCheckU
   );
 }
 
-function Footer({ copy }: { copy: MSettingsCopy }) {
+function Footer() {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '2px 4px', font: `400 12px ${MONO}`, color: MC.faint }}>
-      <span>{copy.footerBrand}</span><span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP}</span>
+      <span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP}</span>
     </div>
   );
 }
@@ -172,7 +171,7 @@ export function MSettingsView(props: MSettingsViewProps) {
         <ProfileCard {...props} />
         <SettingsList {...props} />
         <UpdateRow checkingUpdates={props.checkingUpdates} onCheckUpdates={props.onCheckUpdates} />
-        <Footer copy={props.copy} />
+        <Footer />
       </MScrollBody>
     </MScreen>
   );

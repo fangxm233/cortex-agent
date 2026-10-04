@@ -309,7 +309,6 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
       ) : (
         <Pill bg={MC.runBg} fg={MC.run} text={copy.planPendingPill} />
       )}
-      <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>ExitPlanMode</span>
       {model.timeLabel && (
         <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
           {model.timeLabel}{approved ? ` ${copy.approvedBy}` : ''}

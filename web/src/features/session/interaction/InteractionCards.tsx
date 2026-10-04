@@ -322,7 +322,6 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
             <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: approved ? 'var(--proto-success-bg)' : 'var(--proto-gray)', color: approved ? 'var(--proto-success)' : 'var(--proto-muted)' }}>
               {approved ? copy.planApprovedPill : rejected ? copy.planRejectedPill : model.status}
             </span>
-            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>ExitPlanMode</span>
             {model.timeLabel && (
               <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
                 {model.timeLabel}{approved ? ` ${copy.approvedBy}` : ''}
@@ -365,7 +364,6 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
     <div style={{ ...cardMaterial, border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)' }}>
         <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--pill-running-fg)' }}>{copy.planPendingPill}</span>
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>ExitPlanMode</span>
         <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
           {copy.planTtl} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
         </span>

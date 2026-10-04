@@ -12,8 +12,6 @@ export interface MHooksCopy {
   title: string;
   /** Header trailing readout: `14/17 <enabledWord>`. */
   enabledWord: string;
-  /** Footer unit: `17 <countUnit>`. */
-  countUnit: string;
   group: Record<MHookGroupKey, string>;
   enabled: string;
   disabled: string;
@@ -44,7 +42,6 @@ export interface MHooksCopy {
     appliesAt: string;
   };
   applies: Record<MHookDetailVm['appliesAt'], string>;
-  sheetFooter: string;
 }
 
 const ID_STYLE: React.CSSProperties = { font: `600 12.5px ${MONO}`, color: MC.ink, overflowWrap: 'anywhere' };
@@ -225,7 +222,6 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
           </FieldRow>
         ))}
       </div>
-      <div style={{ fontSize: 12, color: MC.muted, padding: '12px 4px 0' }}>{copy.sheetFooter}</div>
     </MBottomSheet>
   );
 }
@@ -265,20 +261,8 @@ export function MHooksView({
           <GroupSection key={group.key} group={group} copy={copy} onOpenHook={onOpenHook} />
         ))}
         {vm.groups.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              padding: '2px 4px',
-              fontSize: 12,
-              color: MC.faint,
-            }}
-          >
-            <span>
-              {vm.total} {copy.countUnit}
-            </span>
-            <span style={{ marginLeft: 'auto', color: MC.muted }}>{copy.editDesktop}</span>
+          <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>
+            {copy.editDesktop}
           </div>
         )}
       </MScrollBody>

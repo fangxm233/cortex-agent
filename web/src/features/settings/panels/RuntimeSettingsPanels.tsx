@@ -74,7 +74,7 @@ export interface RuntimeSettingToggleRowProps {
   value: boolean;
   source: SettingSource | null;
   title: string;
-  desc: string;
+  desc?: string;
   pending: boolean;
   onToggle: (key: WritableBooleanSettingKey, nextValue: boolean) => void;
 }
@@ -105,7 +105,7 @@ function notifyRows(args: {
   return NOTIFY_SETTINGS.map((descriptor) => {
     const entry = args.settings[descriptor.setting];
     const suffix = descriptor.setting === 'turnNotify' && args.threshold !== undefined
-      ? ` · ${args.threshold}s`
+      ? ` ${args.threshold}s`
       : '';
     return (
       <RuntimeSettingToggleRow
@@ -114,7 +114,7 @@ function notifyRows(args: {
         value={typeof entry?.value === 'boolean' ? entry.value : false}
         source={typeof entry?.value === 'boolean' ? entry.source : null}
         title={args.L[descriptor.titleKey]}
-        desc={`${args.L[descriptor.descKey]}${suffix}`}
+        desc={descriptor.descKey && `${args.L[descriptor.descKey]}${suffix}`}
         pending={args.pending}
         onToggle={args.onToggle}
       />
@@ -260,10 +260,9 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
 }
 
 /** DEBUG is read from the process env, so the row reports presence instead of offering a control. */
-function ReadOnlyEnvRow({ snapshot, title, desc }: {
+function ReadOnlyEnvRow({ snapshot, title }: {
   snapshot: ConfigSnapshot;
   title: string;
-  desc: string;
 }) {
   const L = useVocab();
   const present = indexEnv(snapshot.env).DEBUG?.present === true;
@@ -273,7 +272,6 @@ function ReadOnlyEnvRow({ snapshot, title, desc }: {
       data-env-present={String(present)}
       data-writable="false"
       title={title}
-      desc={desc}
       control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
     />
   );
@@ -289,13 +287,13 @@ function advancedFlagRows(args: {
   return ADVANCED_FLAGS.map((flag) => {
     if (flag.kind === 'env') {
       return <ReadOnlyEnvRow key={flag.env} snapshot={args.snapshot}
-        title={args.L[flag.titleKey]} desc={args.L[flag.descKey]} />;
+        title={args.L[flag.titleKey]} />;
     }
     const entry = args.settings[flag.setting];
     return <RuntimeSettingToggleRow key={flag.setting} settingKey={flag.setting}
       value={typeof entry?.value === 'boolean' ? entry.value : false}
       source={typeof entry?.value === 'boolean' ? entry.source : null}
-      title={args.L[flag.titleKey]} desc={args.L[flag.descKey]}
+      title={args.L[flag.titleKey]} desc={flag.descKey && args.L[flag.descKey]}
       pending={args.pending} onToggle={args.onToggle} />;
   });
 }
@@ -346,7 +344,8 @@ function NumberSettingRow(props: {
       data-setting-key={props.descriptor.setting}
       data-setting-value={entry === undefined ? 'missing' : String(entry.value)}
       data-setting-source={entry?.source ?? 'missing'}
-      title={L[props.descriptor.titleKey]} desc={L[props.descriptor.descKey]}
+      title={L[props.descriptor.titleKey]}
+      desc={props.descriptor.descKey && L[props.descriptor.descKey]}
       control={
         <NumberControl descriptor={props.descriptor} draft={draft} canSave={canSave}
           withinRange={next.valid} onDraft={setDraft}
@@ -428,7 +427,6 @@ function BuiltinJobRow(props: {
       data-setting-key={props.descriptor.enabled}
       data-setting-value={enabledEntry ? String(enabled) : 'missing'}
       title={L[props.descriptor.titleKey]}
-      desc={L[props.descriptor.descKey]}
       control={
         <div style={CONTROL_STRIP_STYLE}>
           <DurationControl descriptor={props.descriptor} entry={intervalEntry}
@@ -465,7 +463,6 @@ function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
   return (
     <SRow
       title={L.stGpuMock}
-      desc={L.advMock}
       control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
     />
   );

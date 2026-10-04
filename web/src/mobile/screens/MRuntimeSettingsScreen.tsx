@@ -32,13 +32,14 @@ const UNIT_COPY = {
 
 function ToggleRow(props: {
   descriptor: SettingToggleDescriptor; settings: SettingsIndex; pending: boolean;
-  onToggle: RuntimeSettingWriter['onToggle'];
+  onToggle: RuntimeSettingWriter['onToggle']; descSuffix?: string;
 }) {
   const L = useVocab();
   const entry = props.settings[props.descriptor.setting];
   const value = typeof entry?.value === 'boolean' ? entry.value : false;
+  const descKey = props.descriptor.descKey;
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
-    sub={L[props.descriptor.descKey]}
+    sub={descKey && `${L[descKey]}${props.descSuffix ?? ''}`}
     trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]}
       disabled={!entry || props.pending} onChange={(next) => props.onToggle(props.descriptor.setting, next)} />} />;
 }
@@ -48,9 +49,12 @@ function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeS
   const settings = indexSettings(props.snapshot.settings);
   const slack = settings.adminChannel?.value;
   const feishu = settings.feishuAdminChannel?.value;
+  const threshold = settings.turnNotifyThresholdS?.value;
+  const thresholdSuffix = typeof threshold === 'number' ? ` ${threshold}s` : undefined;
   return <>
     <MSettingsCard>{NOTIFY_SETTINGS.map((descriptor) => <ToggleRow key={descriptor.setting}
-      descriptor={descriptor} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle} />)}</MSettingsCard>
+      descriptor={descriptor} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle}
+      descSuffix={descriptor.setting === 'turnNotify' ? thresholdSuffix : undefined} />)}</MSettingsCard>
     <MSettingsCard title={L.stNotifyRoutingTitle}>
       <MSettingsRow title="Slack" sub={hasAnyKey(props.snapshot.env, 'SLACK_') ? String(slack ?? '—') : '—'} />
       <MSettingsRow title={L.psFeishu} sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} last />
@@ -65,7 +69,6 @@ function EnvFlagRow(props: {
   const L = useVocab();
   const value = indexEnv(props.snapshot.env)[props.descriptor.env]?.present === true;
   return <MSettingsRow dataKey={props.descriptor.env} title={L[props.descriptor.titleKey]}
-    sub={L[props.descriptor.descKey]}
     trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]} disabled />} />;
 }
 
@@ -84,7 +87,7 @@ function NumberSettingRow(props: {
     && next.value !== current && !props.write.pending;
   const placeholderKey = props.descriptor.nullable?.placeholderKey;
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
-    sub={L[props.descriptor.descKey]} trailing={
+    sub={props.descriptor.descKey && L[props.descriptor.descKey]} trailing={
     <div className="mobile-settings-number-control">
       <input type="number" aria-label={L[props.descriptor.titleKey]} value={draft} onChange={(event) => setDraft(event.target.value)}
         min={props.descriptor.min} max={props.descriptor.max}
@@ -98,7 +101,7 @@ function NumberSettingRow(props: {
 function AdvancedReadOnly(props: { snapshot: ConfigSnapshot }) {
   const L = useVocab();
   const gpuMock = indexEnv(props.snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
-  return <MSettingsRow title={L.stGpuMock} sub={L.advMock} last
+  return <MSettingsRow title={L.stGpuMock} last
     trailing={<span style={MSET_KEY}>{gpuMock ? L.stSet : '—'}</span>} />;
 }
 
@@ -147,7 +150,7 @@ function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: Sett
   const interval = props.settings[props.descriptor.interval];
   const value = typeof enabled?.value === 'boolean' ? enabled.value : false;
   return <div style={{ borderBottom: '1px solid var(--m-divider)' }}>
-    <MSettingsRow title={L[props.descriptor.titleKey]} sub={L[props.descriptor.descKey]} last
+    <MSettingsRow title={L[props.descriptor.titleKey]} last
       trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]}
         disabled={!enabled || props.write.pending}
         onChange={(next) => props.write.onToggle(props.descriptor.enabled, next)} />} />
@@ -164,7 +167,6 @@ function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettin
       {BUILTIN_JOB_SETTINGS.map((descriptor) => <JobRow key={descriptor.enabled}
         descriptor={descriptor} settings={settings} write={props.write} />)}
     </MSettingsCard>
-    <div style={MSET_KEY}>settings · config.set</div>
   </>;
 }
 

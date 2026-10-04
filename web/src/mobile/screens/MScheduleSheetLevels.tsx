@@ -13,7 +13,6 @@ export interface MScheduleSheetCopy {
   paused: string;
   nextIn: string;
   allRuns: string;
-  runListHint: string;
   edit: string;
   markAllRead: string;
   /** Runs-table column captions (mono uppercase in en). */

@@ -15,9 +15,9 @@ import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 
 const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
   en: { title: 'Settings', daemon: 'Daemon', machinesOk: 'online', desktopOnly: 'Edit on desktop',
-    inspectOnly: 'View only', footerBrand: 'cortex mobile', switchProfile: 'Switch' },
+    inspectOnly: 'View only', switchProfile: 'Switch' },
   zh: { title: '设置', daemon: 'Daemon', machinesOk: '台在线', desktopOnly: '桌面编辑',
-    inspectOnly: '仅查看', footerBrand: 'cortex mobile', switchProfile: '切换' },
+    inspectOnly: '仅查看', switchProfile: '切换' },
 };
 
 const EMPTY_SNAPSHOT: ConfigSnapshot = {

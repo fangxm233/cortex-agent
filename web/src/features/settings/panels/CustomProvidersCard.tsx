@@ -110,7 +110,7 @@ function IdentityFields({ draft, creating, errors, set }: FieldsProps) {
           style={creating ? S_CONTROL_STYLE : S_CONTROL_DISABLED_STYLE}
         />
       </SFieldRow>
-      <SFieldRow label={L.cpvFieldApi} hint={L.cpvApiHint}>
+      <SFieldRow label={L.cpvFieldApi}>
         <Select popupClassName="settings-surface settings-select-popup"
           data-cpv-field="api"
           aria-label={L.cpvFieldApi}
@@ -128,7 +128,7 @@ function EndpointFields({ draft, errors, set }: Omit<FieldsProps, 'creating'>) {
   const L = useVocab();
   return (
     <>
-      <SFieldRow label={L.cpvFieldUrl} hint={fieldHint(L, errors, 'upstreamUrl', L.cpvUrlHint)} hintTone={fieldTone(errors, 'upstreamUrl')}>
+      <SFieldRow label={L.cpvFieldUrl} hint={fieldHint(L, errors, 'upstreamUrl')} hintTone={fieldTone(errors, 'upstreamUrl')}>
         <input
           data-cpv-field="url" value={draft.upstreamUrl}
           onChange={(e) => set({ upstreamUrl: e.target.value })}
