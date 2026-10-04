@@ -22,7 +22,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions { jvmTarget = "1.8" }
-    sourceSets.getByName("main").res.setSrcDirs(
+    val mainSourceSet: com.android.build.api.dsl.AndroidSourceSet = sourceSets.getByName("main")
+    mainSourceSet.res.setSrcDirs(
         listOf(layout.buildDirectory.dir("generated/cortexNotificationRes"))
     )
 }
