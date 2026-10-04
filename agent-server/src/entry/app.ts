@@ -32,6 +32,7 @@ import { cancelWaitpoint } from '@domain/waitpoints/service.js';
 import { recoverWaitpoints, startWaitpointSweep, stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
+import { startPlatformAdapters, type PlatformConnections } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
@@ -134,6 +135,9 @@ import { registerAuthWatch } from '@domain/auth/auth-watch.js';
 import { onLoginSuccess } from '@domain/auth/login-flow.js';
 import { syncGatewayFromBackends } from '@domain/auth/gateway-sync.js';
 import { createSessionRetentionController } from '@orch/session-retention-controller.js';
+
+// Static imports are evaluated before this line, so this is how long module loading took.
+const importsMs = Math.round(performance.now());
 
 loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
 await migrateEnvToSettings();
@@ -432,6 +436,7 @@ let _stopProfileWatcher: (() => void) | null = null;
 // demand behind CORTEX_UI_HTTP; app.ts only ever calls close(), so a structural type keeps the
 // composition root free of the transport's types (and of @trpc) on the static import graph.
 let _uiHttpServer: { close: () => Promise<void> } | null = null;
+let _platformConnections: PlatformConnections | null = null;
 
 // --- Graceful shutdown ---
 process.on('SIGTERM', async () => {
@@ -441,6 +446,7 @@ process.on('SIGTERM', async () => {
     reason: 'SIGTERM',
   }).catch(() => {});
   await stopBuiltinJobs();
+  await _platformConnections?.stop().catch(() => {});
   await retentionController.stop().catch(() => {});
   engines.closeAll(); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
@@ -669,20 +675,20 @@ process.on('SIGTERM', async () => {
     log.warn(`CORTEX_UI_HTTP is set but the Web UI transport failed to load: ${(e as Error).message}`);
   }
 
-  await adapter.start();
+  // Binds the TUI gateway; Slack/Feishu connect in the background with bounded retries, and a
+  // platform that fails or stalls ends in a system notice rather than a stalled boot. Nothing below
+  // needs their sockets: every outbound post, including the notices, goes through their HTTP APIs.
+  _platformConnections = await startPlatformAdapters(adapter);
 
   // Let the supervisor reach the operator through us — it has no platform adapter of its own.
   subscribeDaemonNotices(adapter);
 
-  try {
-    const notified = await sendStartupDmIfConfigured(adapter, {
-      machine: process.env.CORTEX_MACHINE,
-      restartReason: process.env.CORTEX_RESTART_REASON,
-    });
+  void sendStartupDmIfConfigured(adapter, {
+    machine: process.env.CORTEX_MACHINE,
+    restartReason: process.env.CORTEX_RESTART_REASON,
+  }).then((notified) => {
     if (!notified) log.info('Startup DM skipped: no admin channel configured.');
-  } catch (error) {
-    log.warn(`Failed to send startup DM: ${(error as Error).message}`);
-  }
+  }).catch((error) => log.warn(`Failed to send startup DM: ${(error as Error).message}`));
 
   // Recover unsent messages from WAL and start drain loop
   const recoveredCount = await oq.recover();
@@ -835,6 +841,7 @@ process.on('SIGTERM', async () => {
   }
   log.info(
     `Cortex agent is running (${adapter.name}) — profile: ${bootConfig.profileName}`
-    + ` · backend: ${bootConfig.profile.backend}`,
+    + ` · backend: ${bootConfig.profile.backend}`
+    + ` · boot ${Math.round(performance.now())}ms (imports ${importsMs}ms)`,
   );
 })();

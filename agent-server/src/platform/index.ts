@@ -40,4 +40,4 @@ export {
 } from './interactive-builder.js';
 export type { QuestionOption, QuestionRecord, QuestionGroup } from './interactive-builder.js';
 export { createAdapterFromEnv } from './adapters/index.js';
-export { extractTuiAdapter, setPlatformAdminChannel } from './adapters/composite-adapter.js';
+export { extractTuiAdapter, listPlatformAdapters, setPlatformAdminChannel } from './adapters/composite-adapter.js';

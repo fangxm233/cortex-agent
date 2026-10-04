@@ -148,6 +148,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `init.ts` | Interactive first-time initialization |
 | `startup-helpers.ts` | Cleanup logs, ensure MCP config |
 | `startup-notify.ts` | Send startup DM to admin channel |
+| `platform-connect.ts` | Start the platform adapters. The TUI gateway is bound before boot continues; Slack and Feishu connect in the background, so boot never waits on a network handshake (outbound posts use their HTTP APIs, not the socket). A failed connect is retried after 5 s, 30 s and 2 min, then reported as an error notice; a platform still connecting after 60 s is reported as a warning |
 
 ### Hot Rebuild: Published Progress and the Turn Hold
 

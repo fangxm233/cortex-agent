@@ -103,7 +103,7 @@ importers:
         version: 2.1.9(@types/node@25.9.4)
     optionalDependencies:
       '@larksuiteoapi/node-sdk':
-        specifier: ^1.60.0
+        specifier: ^1.68.0
         version: 1.68.0
       sharp:
         specifier: ^0.33.0

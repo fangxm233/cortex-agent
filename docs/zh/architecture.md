@@ -136,6 +136,7 @@ L5  entry/         → 所有层（组合根）
 | `init.ts` | 交互式首次初始化 |
 | `startup-helpers.ts` | 清理日志、确保 MCP 配置 |
 | `startup-notify.ts` | 向管理频道发送启动私信 |
+| `platform-connect.ts` | 启动各平台适配器。TUI 网关绑定完成后启动流程才继续；Slack 和飞书在后台连接，启动不等待网络握手（发出的消息走它们的 HTTP API，不依赖长连接）。连接失败会在 5 秒、30 秒、2 分钟后重试，仍失败则发出错误级系统通知；60 秒后仍在连接则发出警告通知 |
 
 ### 热重建：发布进度与 turn hold {#hot-rebuild-published-progress-and-the-turn-hold}
 
