@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { planFastInstall, applyFastInstall, replaceDirectory } from '../../src/entry/fast-install.js';
+import { fileURLToPath } from 'node:url';
+import {
+  planFastInstall,
+  applyFastInstall,
+  replaceDirectory,
+  checkFilesEntries,
+} from '../../src/entry/fast-install.js';
+
+const REPO_MANIFEST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../package.json');
 
 const FILES = [
   'dist/',
@@ -31,6 +39,7 @@ function makeTrees(overrides: { repoManifest?: object; installManifest?: object 
   fs.mkdirSync(path.join(repoDir, 'defaults'), { recursive: true });
   fs.mkdirSync(path.join(monorepoRoot, 'web', 'dist'), { recursive: true });
   fs.writeFileSync(path.join(repoDir, 'dist', 'entry', 'app.js'), 'new-build');
+  fs.writeFileSync(path.join(repoDir, 'dist', '.tsbuildinfo'), '{}');
   fs.writeFileSync(path.join(repoDir, 'defaults', 'seed.json'), '{"v":2}');
   fs.writeFileSync(path.join(monorepoRoot, 'web', 'dist', 'index.html'), '<new/>');
   fs.writeFileSync(
@@ -110,6 +119,38 @@ test('planFastInstall refuses when package.json files grew an entry it cannot sy
   const dirs = makeTrees({ repoManifest: { files: [...FILES, 'assets/'] } });
 
   assert.match(planFastInstall(dirs).blocked ?? '', /`files` changed/);
+});
+
+// A drift here does not fail anything visible: the daemon quietly falls back to pack + install -g,
+// which costs ~14s on every rebuild. So the real manifest is checked, not a fixture of it.
+test('the agent-server manifest passes the fast path\'s `files` check', () => {
+  const manifest = JSON.parse(fs.readFileSync(REPO_MANIFEST, 'utf8'));
+
+  assert.equal(checkFilesEntries(manifest.files).blocked, null);
+});
+
+test('planFastInstall accepts `!` entries and leaves the negated paths out of the sync', () => {
+  const dirs = makeTrees({ repoManifest: { files: [...FILES, '!dist/.tsbuildinfo'] } });
+
+  const plan = planFastInstall(dirs);
+  assert.equal(plan.blocked, null);
+  applyFastInstall(plan);
+
+  assert.equal(fs.readFileSync(path.join(dirs.installRoot, 'dist', 'entry', 'app.js'), 'utf8'), 'new-build');
+  assert.equal(fs.existsSync(path.join(dirs.installRoot, 'dist', '.tsbuildinfo')), false);
+});
+
+test('a `files` entry that negates a directory keeps the whole subtree out', () => {
+  assert.deepEqual(checkFilesEntries([...FILES, '!dist/hooks/', '!./defaults/tmp']).excluded, [
+    'dist/hooks',
+    'defaults/tmp',
+  ]);
+});
+
+test('planFastInstall refuses a glob negation it cannot reproduce', () => {
+  const dirs = makeTrees({ repoManifest: { files: [...FILES, '!dist/**/*.map'] } });
+
+  assert.match(planFastInstall(dirs).blocked ?? '', /unsupported `files` negation/);
 });
 
 test('planFastInstall refuses when a declared dependency was never installed', () => {

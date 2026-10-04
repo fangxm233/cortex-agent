@@ -17,9 +17,10 @@ import * as path from 'path';
  *  install scripts are deliberately not synced — they only change when dependencies change, which
  *  is exactly when the parity check below sends us down the full install path.
  *
- *  This is compared against the repo manifest on every run: if `files` grows an entry, the fast
- *  path disables itself until someone teaches it how to sync that entry. Fail closed, because the
- *  failure mode of guessing wrong is a silently stale install. */
+ *  This is compared against the repo manifest's positive entries on every run: if `files` grows an
+ *  entry, the fast path disables itself until someone teaches it how to sync that entry. Fail
+ *  closed, because the failure mode of guessing wrong is a silently stale install. `!` entries are
+ *  not compared — they only take paths out of the tarball, so the sync leaves them out too. */
 const EXPECTED_FILES = [
   'dist/',
   'defaults/',
@@ -34,10 +35,12 @@ const EXPECTED_FILES = [
 const DEPENDENCY_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies'];
 
 export interface SyncTarget {
-  /** Label used in logs. */
+  /** Label used in logs; also the target's path inside the package. */
   name: string;
   source: string;
   destination: string;
+  /** Paths under `source` that `files` negates, so they stay out of the install like a pack would. */
+  exclude: string[];
 }
 
 export interface FastInstallDirs {
@@ -69,6 +72,36 @@ function readManifest(file: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+const GLOB_CHARS = /[*?[\]{}]/;
+
+/**
+ * Check `files` against what this fast path can sync. Returns the package-relative paths the `!`
+ * entries exclude; a negation is accepted only as a literal path, because matching a glob the way
+ * npm-packlist does is not worth carrying here.
+ */
+export function checkFilesEntries(files: unknown): { blocked: string | null; excluded: string[] } {
+  const entries = Array.isArray(files) ? files.filter((entry): entry is string => typeof entry === 'string') : [];
+  const included = entries.filter((entry) => !entry.startsWith('!'));
+  if (JSON.stringify([...included].sort()) !== JSON.stringify([...EXPECTED_FILES].sort())) {
+    return { blocked: 'package.json `files` changed — update EXPECTED_FILES in fast-install.ts', excluded: [] };
+  }
+  const excluded: string[] = [];
+  for (const entry of entries.filter((e) => e.startsWith('!'))) {
+    if (GLOB_CHARS.test(entry)) {
+      return { blocked: `unsupported \`files\` negation: ${entry}`, excluded: [] };
+    }
+    excluded.push(path.posix.normalize(entry.slice(1)).replace(/^\.\/|\/$/g, ''));
+  }
+  return { blocked: null, excluded };
+}
+
+/** Absolute source paths a target must skip: the excluded package paths that fall inside it. */
+function excludedUnder(target: Omit<SyncTarget, 'exclude'>, excluded: string[]): string[] {
+  return excluded
+    .filter((entry) => entry.startsWith(`${target.name}/`))
+    .map((entry) => path.join(target.source, entry.slice(target.name.length + 1)));
 }
 
 /** Normalized dependency declaration, stable under key ordering. */
@@ -119,10 +152,8 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
   const installedManifest = readManifest(installedManifestPath);
   if (!installedManifest) return blockedPlan('no installed manifest — package was never installed');
 
-  const files = Array.isArray(repoManifest.files) ? (repoManifest.files as string[]) : [];
-  if (JSON.stringify([...files].sort()) !== JSON.stringify([...EXPECTED_FILES].sort())) {
-    return blockedPlan('package.json `files` changed — update EXPECTED_FILES in fast-install.ts');
-  }
+  const files = checkFilesEntries(repoManifest.files);
+  if (files.blocked) return blockedPlan(files.blocked);
 
   if (dependencyFingerprint(repoManifest) !== dependencyFingerprint(installedManifest)) {
     return blockedPlan('dependency closure changed');
@@ -139,7 +170,7 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
   const missing = declared.find((name) => !dependencyReachable(installRoot, name));
   if (missing) return blockedPlan(`installed dependency missing: ${missing}`);
 
-  const candidates: SyncTarget[] = [
+  const candidates: Omit<SyncTarget, 'exclude'>[] = [
     { name: 'dist', source: path.join(repoDir, 'dist'), destination: path.join(installRoot, 'dist') },
     { name: 'defaults', source: path.join(repoDir, 'defaults'), destination: path.join(installRoot, 'defaults') },
     {
@@ -149,7 +180,9 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
     },
   ];
 
-  const targets = candidates.filter((t) => fs.existsSync(t.source));
+  const targets = candidates
+    .filter((t) => fs.existsSync(t.source))
+    .map((t) => ({ ...t, exclude: excludedUnder(t, files.excluded) }));
   if (!targets.some((t) => t.name === 'dist')) {
     return blockedPlan(`no build output at ${path.join(repoDir, 'dist')}`);
   }
@@ -162,14 +195,17 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
  * rename(2) is atomic within a filesystem, so a concurrently spawned process sees either the old
  * tree or the new one — never the half-written state that a plain rm + copy exposes.
  */
-export function replaceDirectory(source: string, destination: string): void {
+export function replaceDirectory(source: string, destination: string, exclude: string[] = []): void {
   const suffix = `.cortex-fast-${process.pid}-${Date.now()}`;
   const staged = `${destination}${suffix}.new`;
   const previous = `${destination}${suffix}.old`;
   const hadPrevious = fs.existsSync(destination);
   try {
     fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.cpSync(source, staged, { recursive: true });
+    fs.cpSync(source, staged, {
+      recursive: true,
+      filter: (from) => !exclude.some((skip) => from === skip || from.startsWith(`${skip}${path.sep}`)),
+    });
     if (hadPrevious) fs.renameSync(destination, previous);
     fs.renameSync(staged, destination);
     if (hadPrevious) fs.rmSync(previous, { recursive: true, force: true });
@@ -186,7 +222,7 @@ export function replaceDirectory(source: string, destination: string): void {
  *  place, which keeps the parity check honest on the next attempt. */
 export function applyFastInstall(plan: FastInstallPlan): string[] {
   if (plan.blocked) throw new Error(`fast install blocked: ${plan.blocked}`);
-  for (const target of plan.targets) replaceDirectory(target.source, target.destination);
+  for (const target of plan.targets) replaceDirectory(target.source, target.destination, target.exclude);
   fs.copyFileSync(plan.manifestSource, plan.manifestDestination);
   return plan.targets.map((t) => t.name);
 }
