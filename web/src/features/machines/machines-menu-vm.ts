@@ -1,26 +1,9 @@
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { formatUsd } from '@/lib/format';
 
 export interface Pill {
   bg: string;
   fg: string;
   text: string;
-}
-
-export interface TodayBudget {
-  todayLabel: string;
-  limitLabel: string;
-  percent: number;
-}
-
-/** Project-scoped daily spend, limit, and clamped progress for the machines menu budget bar. */
-export function todayBudget(today: number | undefined, dailyLimit: number | undefined): TodayBudget {
-  const todayLabel = typeof today === 'number' ? formatUsd(today) : '—';
-  if (dailyLimit == null || dailyLimit <= 0) {
-    return { todayLabel, limitLabel: '—', percent: 0 };
-  }
-  const percent = Math.max(0, Math.min(100, ((today ?? 0) / dailyLimit) * 100));
-  return { todayLabel, limitLabel: formatUsd(dailyLimit), percent };
 }
 
 /** Count of machines currently online. */

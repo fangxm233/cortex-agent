@@ -4,12 +4,11 @@ import '@/design/content-surfaces.css';
 import { defineModal } from '@/design/modal-registry';
 import { useVocab } from '@/i18n';
 import { MachineList } from './MachineList';
-import { machinesChipLabel, type TodayBudget } from './machines-menu-vm';
+import { machinesChipLabel } from './machines-menu-vm';
 import { useMachinesResource } from './useMachinesResource';
-import { useTodayBudget } from './useTodayBudget';
 
 // The machines menu: a status chip in the top bar (online/total) that drops a glass sheet with
-// today's spend and the machine cards. Machines are window-scoped, so they live on the bar rather
+// the machine cards. Machines are window-scoped, so they live on the bar rather
 // than beside any one pane. The open flag is a registry key so View → Machines can open it too.
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -28,23 +27,10 @@ function RackGlyph() {
   );
 }
 
-function BudgetBar({ budget }: { budget: TodayBudget }) {
-  const L = useVocab();
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 18px 12px', flex: 'none' }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.today}</span>
-      <div style={{ flex: 1, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
-        <div style={{ width: `${budget.percent}%`, height: '100%', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent)' }} />
-      </div>
-      <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-ink)' }}>{budget.todayLabel} / {budget.limitLabel}</span>
-    </div>
-  );
-}
-
 function MenuHeader({ count, onManage }: { count: string; onManage: () => void }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 6px 18px', flex: 'none' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 10px 18px', flex: 'none' }}>
       <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.machines}</span>
       <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--material-control-bg)',
         boxShadow: 'var(--material-control-shadow)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{count}</span>
@@ -62,10 +48,8 @@ function MenuBody({ count, expanded, onToggle, onManage }: {
   onToggle: (name: string) => void;
   onManage: () => void;
 }) {
-  const budget = useTodayBudget();
   return <>
     <MenuHeader count={count} onManage={onManage} />
-    <BudgetBar budget={budget} />
     <MachineList expanded={expanded} onToggle={onToggle} />
   </>;
 }
