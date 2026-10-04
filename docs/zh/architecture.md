@@ -140,16 +140,20 @@ L5  entry/         → 所有层（组合根）
 ### 热重建：发布进度与 turn hold {#hot-rebuild-published-progress-and-the-turn-hold}
 
 设置了 `CORTEX_REPO` 之后，一次源码改动会让监督器重新构建各软件包、重新安装自身，并替换掉 app
-进程。有两个机制让这个过程既可见又安全。
+进程。构建分三条并发的 lane 进行。其中一条是有序的链 —— 先 `server`，再 `ui-contract`，最后
+`web-typecheck` —— 因为 ui-contract 重新导出 server 构建出的类型，而 web 的类型检查依赖 ui-contract
+的构建产物。另外两条 `web-bundle` 和 `web-depcruise` 只读 web 源码，一开始就与它并行。每条 lane 都会
+跑完，任何一步失败都会在安装之前终止这次重建，并发出一条点名所有失败步骤的通知。有两个机制让重建
+既可见又安全。
 
 **进度写在文件里，不在内存里。** 流水线在第一步之前就把完整计划写入
-`$STORE_DIR/daemon-rebuild.json` —— 这个 checkout 实际会跑的步骤（`server`、`ui-contract`、`web`，
-随后是 `install` 和 `restart`）、当前正在跑哪一步、每一步如何结束（`done`、`failed`、`skipped`），
+`$STORE_DIR/daemon-rebuild.json` —— 这个 checkout 实际会跑的步骤（上述构建步骤，随后是 `install`
+和 `restart`）、当前正在跑哪些步骤、每一步如何结束（`done`、`failed`、`skipped`），
 其中 `install` 步骤还记录它走的是快速 staged-rename 路径还是 `npm pack` + `npm install -g`。只能用
 文件：流水线的最后一个动作就是替换掉那个本该保存这份状态的进程，所以内存里的任何东西都无法告诉新的
 `app.js`，把它带到世上的那次重建做了什么。`system.daemonStatus` 读取这条记录、daemon 页面渲染它，
 重建进行中时每秒轮询一次。`daemonPid` 不属于当前存活监督器的 `running` 记录会被丢弃，而不是永远
-显示下去；终态记录则会保留，这样"上次重建在 `web` 失败"在重启之后依然读得到。终态有三种：
+显示下去；终态记录则会保留，这样"上次重建在 `web-typecheck` 失败"在重启之后依然读得到。终态有三种：
 `succeeded`、`aborted`、`deferred`。
 
 **流水线里危险的那一半会等 app 空闲。** 构建步骤只读仓库、写 `dist/`；而 `install` 会覆盖运行中

@@ -152,18 +152,23 @@ layer) is detailed in [hooks.md](./hooks.md).
 ### Hot Rebuild: Published Progress and the Turn Hold
 
 With `CORTEX_REPO` set, a source change makes the supervisor rebuild the packages, reinstall itself,
-and replace the app process. Two mechanisms make that visible and safe.
+and replace the app process. The build runs as three concurrent lanes. One is an ordered chain —
+`server`, then `ui-contract`, then `web-typecheck` — because ui-contract re-exports the server's built
+types and web typechecks against ui-contract's built output. The other two, `web-bundle` and
+`web-depcruise`, read only web sources and start at once beside it. Every lane runs to its end, and
+any failed step stops the rebuild before the install, with a notice naming each step that failed.
+Two mechanisms make the rebuild visible and safe.
 
 **Progress lives in a file, not in memory.** Before step one the pipeline writes its whole plan to
-`$STORE_DIR/daemon-rebuild.json` — the steps this checkout will run (`server`, `ui-contract`, `web`,
-then `install` and `restart`), which one is in flight, and how each ended (`done`, `failed`,
+`$STORE_DIR/daemon-rebuild.json` — the steps this checkout will run (the build steps above, then
+`install` and `restart`), which are in flight, and how each ended (`done`, `failed`,
 `skipped`), with the `install` step recording whether it took the fast staged-rename path or
 `npm pack` + `npm install -g`. A file is the only option: the pipeline's last act replaces the very
 process that would have held that state, so nothing in memory can tell the new `app.js` what the
 rebuild it was born from did. `system.daemonStatus` reads the record and the daemon page renders it,
 polling once per second while a rebuild runs. A `running` record whose `daemonPid` is not the live
 supervisor is dropped rather than shown forever; a terminal record is kept, so "the last rebuild
-failed at `web`" is still readable after the restart. The terminal statuses are `succeeded`,
+failed at `web-typecheck`" is still readable after the restart. The terminal statuses are `succeeded`,
 `aborted`, and `deferred`.
 
 **The dangerous half of the pipeline waits for an idle app.** The build steps read the repo and
