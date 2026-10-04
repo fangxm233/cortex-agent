@@ -7,6 +7,10 @@ import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
 import { setupEn, setupZh } from './provider-setup-vocab';
 import { uiAuthEn, uiAuthZh } from './ui-auth-vocab';
+import { daemonEn, daemonZh } from './daemon-vocab';
+import { machinesEn, machinesZh } from './machines-vocab';
+import { usageEn, usageZh } from './usage-vocab';
+import { settingsSystemEn, settingsSystemZh } from './settings-system-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -24,6 +28,10 @@ export const en = {
   ...nativeShellEn,
   ...commonEn,
   ...timeEn,
+  ...daemonEn,
+  ...machinesEn,
+  ...usageEn,
+  ...settingsSystemEn,
 };
 
 export type Vocab = typeof en;
@@ -40,4 +48,8 @@ export const zh: Record<keyof Vocab, string> = {
   ...nativeShellZh,
   ...commonZh,
   ...timeZh,
+  ...daemonZh,
+  ...machinesZh,
+  ...usageZh,
+  ...settingsSystemZh,
 };
