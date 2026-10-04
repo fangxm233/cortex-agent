@@ -190,7 +190,9 @@ To verify the install end-to-end, send the bot a DM. If you see no
 reply within ten seconds, check `$CORTEX_HOME/logs/` for connection
 errors — the most common ones are an invalid `xapp-` token (Socket
 Mode failing to connect) or the Messages Tab still being disabled
-(DMs silently ignored).
+(DMs silently ignored). Cortex connects to Slack in the background
+after it starts; a connection that keeps failing, or is still not up
+a minute after startup, also raises a system notice in the Web UI.
 
 ## Rotating or replacing a token
 

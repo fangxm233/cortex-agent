@@ -147,7 +147,7 @@ Cortex 附带的应用清单设置了 `socket_mode_enabled: true` 和 `interacti
 
 只要启用了 Messages Tab，私信无需邀请即可工作。
 
-要端到端验证安装，给机器人发一条私信。如果十秒钟内没有回复，检查 `$CORTEX_HOME/logs/` 中的连接错误——最常见的是无效的 `xapp-` 令牌（Socket Mode 连接失败）或 Messages Tab 仍然被禁用（私信被静默忽略）。
+要端到端验证安装，给机器人发一条私信。如果十秒钟内没有回复，检查 `$CORTEX_HOME/logs/` 中的连接错误——最常见的是无效的 `xapp-` 令牌（Socket Mode 连接失败）或 Messages Tab 仍然被禁用（私信被静默忽略）。Cortex 启动后在后台连接 Slack；连接反复失败、或启动一分钟后仍未连上时，Web UI 也会弹出系统通知。
 
 ## 轮换或替换令牌 {#rotating-or-replacing-a-token}
 
