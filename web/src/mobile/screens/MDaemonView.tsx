@@ -34,6 +34,7 @@ export interface MDaemonCopy {
   rebuildTriggerLabel: string;
   status: Record<ExecutionInfo['status'], string>;
   rebuildStatus: Record<DaemonRebuildVm['status'], string>;
+  restartTitle: string;
   softRestart: string;
   forceKill: string;
   holdHint: string;
@@ -356,7 +357,7 @@ export function MDaemonView({
         {/* Restart card — 软重启 (soft) + 强制终止 (hard, long-press 2s) → system.restart */}
         <MCard padding="12px 13px">
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{copy.softRestart}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{copy.restartTitle}</span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button
