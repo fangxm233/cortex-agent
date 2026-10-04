@@ -178,7 +178,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             controls
             autoPlay
             playsInline
-            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 'var(--r-card)', background: 'var(--media-stage-bg)' }}
+            style={{ maxWidth: '94vw', maxHeight: '84vh', background: 'var(--media-stage-bg)' }}
           />
         ) : (
           <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block' }}>
