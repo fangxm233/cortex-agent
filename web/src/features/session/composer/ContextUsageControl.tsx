@@ -3,31 +3,10 @@ import { MENU_FOCUS } from '@/design/MenuChrome';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { Button } from '@/design/Button';
 import { Modal } from '@/design/Modal';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { contextUsageViewModel } from './context-usage';
 
-type ContextLanguage = 'en' | 'zh';
 type ContextSurface = 'desktop' | 'mobile';
-
-const COPY = {
-  en: {
-    title: 'Context usage',
-    current: 'Current context', limit: 'Context limit', usage: 'Usage', tokens: 'tokens',
-    estimate: 'The backend reports this value as an estimate.',
-    waiting: 'Context usage becomes available after the next turn completes.',
-    compact: 'Compact', compacting: 'Compacting…', compacted: 'Context compacted.',
-    notNeeded: 'Nothing to compact.', running: 'Stop the current turn before compacting.',
-    noHistory: 'No conversation history to compact.',
-  },
-  zh: {
-    title: '上下文用量',
-    current: '当前上下文', limit: '上下文上限', usage: '使用率', tokens: 'tokens',
-    estimate: '此数值由后端估算。',
-    waiting: '下一次 turn 完成后将显示上下文用量。',
-    compact: '压缩', compacting: '压缩中…', compacted: '上下文已压缩。',
-    notNeeded: '当前没有可压缩内容。', running: '请先停止当前 turn，再压缩上下文。',
-    noHistory: '当前没有可压缩的会话历史。',
-  },
-} as const;
 
 export type ContextCompactDisabledReason = 'running' | 'no-history' | null;
 
@@ -42,29 +21,24 @@ export interface ContextCompactAction {
 
 export interface ContextUsageControlProps {
   usage: SessionContextUsage | null;
-  lang: ContextLanguage;
   compactAction?: ContextCompactAction;
 }
 
-export function contextUsageTitle(lang: ContextLanguage): string {
-  return COPY[lang].title;
-}
-
-export function ContextUsageControl({ usage, lang, compactAction }: ContextUsageControlProps): JSX.Element {
+export function ContextUsageControl({ usage, compactAction }: ContextUsageControlProps): JSX.Element {
+  const L = useVocabOptional();
   return (
     <Modal
-      title={contextUsageTitle(lang)}
+      title={L.chatCtxTitle}
       trigger={(
         <ContextUsageRing
           usage={usage}
           variant="desktop"
-          lang={lang}
           data-context-compact-enabled={compactAction ? 'true' : undefined}
         />
       )}
-      footer={compactAction ? <ContextCompactFooter action={compactAction} lang={lang} /> : undefined}
+      footer={compactAction ? <ContextCompactFooter action={compactAction} /> : undefined}
     >
-      <ContextUsageDetails usage={usage} lang={lang} />
+      <ContextUsageDetails usage={usage} />
     </Modal>
   );
 }
@@ -72,7 +46,6 @@ export function ContextUsageControl({ usage, lang, compactAction }: ContextUsage
 export interface ContextUsageRingProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   usage: SessionContextUsage | null;
   variant: ContextSurface;
-  lang: ContextLanguage;
 }
 
 const TRIGGER_STYLE: CSSProperties = { borderRadius: 'var(--r-pill)', border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
@@ -83,23 +56,23 @@ const TRIGGER_STYLE: CSSProperties = { borderRadius: 'var(--r-pill)', border: 0,
  *  (mobile makes it a 36px bare key on the floating header) — it is the button itself, so do not
  *  wrap it in one. */
 export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingProps>(function ContextUsageRing(
-  { usage, variant, lang, style, className, ...buttonProps },
+  { usage, variant, style, className, ...buttonProps },
   ref,
 ): JSX.Element {
-  const copy = COPY[lang];
+  const L = useVocabOptional();
   const vm = contextUsageViewModel(usage);
   const size = variant === 'desktop' ? 20 : 22;
   const stroke = 2.5;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const filled = circumference * ((vm.progress ?? 0) / 100);
-  const label = `${copy.usage}: ${vm.percentLabel}`;
+  const label = `${L.chatCtxUsage}: ${vm.percentLabel}`;
   return (
     <button {...buttonProps} ref={ref} className={`${MENU_FOCUS} ${className ?? ''}`} type="button" data-context-usage-ring={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={label} title={label} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"
-        aria-label={copy.usage}
+        aria-label={L.chatCtxUsage}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={vm.progress ?? undefined}
@@ -126,25 +99,23 @@ export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingPr
   );
 });
 
-function compactFeedback(action: ContextCompactAction, lang: ContextLanguage): string | null {
-  const copy = COPY[lang];
+function compactFeedback(action: ContextCompactAction, L: Vocab): string | null {
   if (action.error) return action.error;
-  if (action.status === 'compacted') return copy.compacted;
-  if (action.status === 'not-needed') return copy.notNeeded;
-  if (action.disabledReason === 'running') return copy.running;
-  if (action.disabledReason === 'no-history') return copy.noHistory;
+  if (action.status === 'compacted') return L.chatCtxCompacted;
+  if (action.status === 'not-needed') return L.chatCtxNotNeeded;
+  if (action.disabledReason === 'running') return L.chatCtxRunning;
+  if (action.disabledReason === 'no-history') return L.chatCtxNoHistory;
   return null;
 }
 
 export function ContextCompactFooter({
   action,
-  lang,
-}: { action: ContextCompactAction; lang: ContextLanguage }): JSX.Element {
-  const copy = COPY[lang];
+}: { action: ContextCompactAction }): JSX.Element {
+  const L = useVocabOptional();
   return (
     <>
       <span aria-live="polite" style={{ marginRight: 'auto', color: 'var(--proto-muted)', fontSize: 12 }}>
-        {compactFeedback(action, lang)}
+        {compactFeedback(action, L)}
       </span>
       <Button
         data-context-compact-action
@@ -153,21 +124,21 @@ export function ContextCompactFooter({
         disabled={action.pending || action.disabled}
         onClick={action.onCompact}
       >
-        {action.pending ? copy.compacting : copy.compact}
+        {action.pending ? L.chatCtxCompacting : L.chatCtxCompact}
       </Button>
     </>
   );
 }
 
-export function ContextUsageDetails({ usage, lang }: { usage: SessionContextUsage | null; lang: ContextLanguage }): JSX.Element {
-  const copy = COPY[lang];
+export function ContextUsageDetails({ usage }: { usage: SessionContextUsage | null }): JSX.Element {
+  const L = useVocabOptional();
   const vm = contextUsageViewModel(usage);
   const rows = [
-    [copy.current, vm.current === '—' ? vm.current : `${vm.current} ${copy.tokens}`],
-    [copy.limit, vm.maximum === '—' ? vm.maximum : `${vm.maximum} ${copy.tokens}`],
-    [copy.usage, vm.percentLabel],
+    [L.chatCtxCurrent, vm.current === '—' ? vm.current : `${vm.current} ${L.chatCtxTokens}`],
+    [L.chatCtxLimit, vm.maximum === '—' ? vm.maximum : `${vm.maximum} ${L.chatCtxTokens}`],
+    [L.chatCtxUsage, vm.percentLabel],
   ];
-  const note = usage ? (vm.estimated ? copy.estimate : null) : copy.waiting;
+  const note = usage ? (vm.estimated ? L.chatCtxEstimate : null) : L.chatCtxWaiting;
   return (
     <div data-context-usage-details style={{ display: 'grid', gap: 10 }}>
       {rows.map(([label, value]) => (

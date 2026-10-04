@@ -1,5 +1,5 @@
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
-import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
+import { ContextCompactFooter, ContextUsageDetails, type ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/session/list/session-id';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
@@ -9,6 +9,7 @@ import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from 
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 import { SelectionPane } from '@/design/SelectionPane';
+import { useVocabOptional } from '@/i18n';
 
 export function MoreMenu({ copy, onClose, onSessionId, onSessionStats, metadataItems }: {
   copy: MChatCopy;
@@ -105,18 +106,18 @@ export function SessionStatsSheet({ copy, rows, onClose }: {
   );
 }
 
-export function ContextUsageSheet({ usage, lang, compactAction, onClose }: {
+export function ContextUsageSheet({ usage, compactAction, onClose }: {
   usage: SessionContextUsage | null;
-  lang: 'en' | 'zh';
   compactAction?: ContextCompactAction;
   onClose: () => void;
 }): JSX.Element {
+  const L = useVocabOptional();
   return (
     <MBottomSheet onClose={onClose}>
       <div data-mobile-context-usage-sheet="true">
-        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 10px' }}>{contextUsageTitle(lang)}</div>
-        <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '12px 13px' }}><ContextUsageDetails usage={usage} lang={lang} /></div>
-        {compactAction ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px 0' }}><ContextCompactFooter action={compactAction} lang={lang} /></div> : null}
+        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 10px' }}>{L.chatCtxTitle}</div>
+        <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '12px 13px' }}><ContextUsageDetails usage={usage} /></div>
+        {compactAction ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px 0' }}><ContextCompactFooter action={compactAction} /></div> : null}
       </div>
     </MBottomSheet>
   );

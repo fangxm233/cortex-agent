@@ -366,7 +366,7 @@ export function Composer({
     compactDisabled: !compactAction || compactAction.disabled || compactAction.pending,
     settingsDisabled: hasPendingUploads,
   };
-  const slashList = buildSlashSuggestions(composer, slashProfiles, lang, slashAvailability);
+  const slashList = buildSlashSuggestions(composer, slashProfiles, L, slashAvailability);
 
   // ── Paste handler ──
   const onPaste = useCallback((e: React.ClipboardEvent): void => {

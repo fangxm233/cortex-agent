@@ -589,7 +589,7 @@ export function MChatScreen(): JSX.Element {
   };
   const slashSuggestions = editArmed || rejectArmed || pendingAskModel
     ? []
-    : buildSlashSuggestions(text, slashProfiles, lang, slashAvailability);
+    : buildSlashSuggestions(text, slashProfiles, vocab, slashAvailability);
   const slashHandlers: SlashActionHandlers = {
     onNew: () => navigate('/m/session/new'),
     onCancel: () => { if (running) onStop(); },
@@ -925,7 +925,6 @@ export function MChatScreen(): JSX.Element {
         onOpenAgent={() => setAgentOpen(true)}
         contextUsage={contextUsage}
         contextUsageSupported={!!active?.contextCompactionSupported}
-        contextUsageLang={lang}
         contextCompactAction={active?.contextCompactionSupported ? compactAction : undefined}
         contextUsageOpen={contextUsageOpen}
         onContextUsageOpen={() => setContextUsageOpen(true)}

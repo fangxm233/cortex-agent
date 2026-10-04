@@ -582,7 +582,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <ContextUsageRing
             usage={props.contextUsage ?? null}
             variant="mobile"
-            lang={props.contextUsageLang ?? 'en'}
             onClick={props.onContextUsageOpen}
             data-context-usage-position="chat-header"
             data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
@@ -720,7 +719,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       {props.contextUsageOpen && (props.contextUsageSupported || props.contextUsage != null) ? (
         <ContextUsageSheet
           usage={props.contextUsage ?? null}
-          lang={props.contextUsageLang ?? 'en'}
           compactAction={props.contextCompactAction}
           onClose={props.onContextUsageClose}
         />

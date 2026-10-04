@@ -199,7 +199,6 @@ export interface MChatViewProps {
   commissionSheet?: { items: CommissionSheetItem[]; title: string; onClose: () => void; onPick: (value: string | null) => void };
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
-  contextUsageLang?: 'en' | 'zh';
   contextCompactAction?: ContextCompactAction;
   contextUsageOpen: boolean;
   onContextUsageOpen: () => void;
