@@ -1,5 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { resetSettingsForTests } from '../../../src/core/settings.js';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
@@ -578,6 +579,31 @@ test('sessions.list unread: activity after lastReadAt → unread; read/never-tra
   assert.equal(byId['s1'], false, 'read after activity');
   assert.equal(byId['s2'], true, 'activity after read');
   assert.equal(byId['s3'], false, 'no lastReadAt → grandfathered read');
+});
+
+test.each(['0', '1'])('sessions.list excludes workers from unread with team mode %s', async (enabled) => {
+  const previous = process.env.CORTEX_TEAM_ENABLED;
+  process.env.CORTEX_TEAM_ENABLED = enabled;
+  resetSettingsForTests();
+  const base = { ...mockSessions[0], lastReadAt: '2026-04-01T00:00:00Z' };
+  const rows = [
+    base,
+    { ...base, sessionId: 'worker', teamLeadId: base.sessionId },
+    { ...base, sessionId: 'retired', teamLeadId: base.sessionId, workerRetiredAt: base.lastUsedAt },
+    { ...base, sessionId: 'unviewed', teamLeadId: base.sessionId, lastReadAt: null },
+  ];
+  const deps = makeDeps();
+  deps.sessionStore.listByOrigin = async () => rows as any;
+  try {
+    const result = await handleSessionsList(deps, { origin: 'direct' });
+    assert.deepEqual(result.map(s => [s.sessionId, s.unread]), [
+      ['s1', true], ['worker', false], ['retired', false], ['unviewed', false],
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env.CORTEX_TEAM_ENABLED;
+    else process.env.CORTEX_TEAM_ENABLED = previous;
+    resetSettingsForTests();
+  }
 });
 
 test('sessions.list unread: a never-viewed SCHEDULED session is unread (result attention dot)', async () => {
