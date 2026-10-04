@@ -39,7 +39,6 @@ function PlatformHeaderNotes({ platform }: { platform: PlatformSettingsSnapshot 
   const L = useVocab();
   return <>
     {platform.missing.length > 0 && <p style={PS_HINT_STYLE}>{L.psMissing}: {platform.missing.map(key => L[FIELD_LABELS[key]]).join(', ')}</p>}
-    <p style={PS_HINT_STYLE}>{L.psStatusHint}</p>
     {platform.pendingRestart && <div style={{ marginTop: 12 }}><SNotice tone="amber">{L.psPending}</SNotice></div>}
   </>;
 }

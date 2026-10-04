@@ -25,7 +25,6 @@ export interface MDaemonCopy {
   /** Label for the real lastRestart event row (e.g. `上次重启`). */
   lastRestartLabel: string;
   recentTitle: string;
-  recentGap: string;
   recentEmpty: string;
   /** Rebuild card title (e.g. 热重建). */
   rebuildTitle: string;
@@ -37,7 +36,6 @@ export interface MDaemonCopy {
   rebuildStatus: Record<DaemonRebuildVm['status'], string>;
   softRestart: string;
   forceKill: string;
-  softNote: string;
   holdHint: string;
   footerNote: string;
   sent: string;
@@ -324,9 +322,6 @@ export function MDaemonView({
             }}
           >
             <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{copy.recentTitle}</span>
-            <span style={{ marginLeft: 'auto', font: `400 12px ${MONO}`, color: MC.muted }}>
-              executions.list
-            </span>
           </div>
           {vm.lastRestart === null && vm.events.length === 0 ? (
             <div style={{ padding: '12px', fontSize: 12, color: MC.muted }}>
@@ -356,18 +351,12 @@ export function MDaemonView({
               ))}
             </div>
           )}
-          <div style={{ padding: '0 13px 12px', fontSize: 12, color: MC.muted }}>
-            {copy.recentGap}
-          </div>
         </MCard>
 
         {/* Restart card — 软重启 (soft) + 强制终止 (hard, long-press 2s) → system.restart */}
         <MCard padding="12px 13px">
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{copy.softRestart}</span>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted }}>
-              {copy.softNote}
-            </span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button

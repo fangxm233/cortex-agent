@@ -14,7 +14,6 @@ const COPY: { en: MHooksCopy; zh: MHooksCopy } = {
   en: {
     title: 'Hooks',
     enabledWord: 'enabled',
-    countUnit: 'hooks',
     group: {
       agent: 'AGENT EVENTS',
       cc: 'CLAUDE CODE EVENTS',
@@ -50,12 +49,10 @@ const COPY: { en: MHooksCopy; zh: MHooksCopy } = {
       appliesAt: 'Applies',
     },
     applies: { 'next-agent': 'Next agent start', 'server-restart': 'Server restart' },
-    sheetFooter: 'Read-only on mobile — edit on desktop',
   },
   zh: {
     title: '钩子',
     enabledWord: '已启用',
-    countUnit: '条钩子',
     group: {
       agent: 'AGENT 事件',
       cc: 'CLAUDE CODE 事件',
@@ -91,7 +88,6 @@ const COPY: { en: MHooksCopy; zh: MHooksCopy } = {
       appliesAt: '生效',
     },
     applies: { 'next-agent': '下次 agent 启动', 'server-restart': '需重启 server' },
-    sheetFooter: '移动端只读 — 编辑请到桌面端',
   },
 };
 

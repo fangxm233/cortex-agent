@@ -17,7 +17,6 @@ export interface MMachinesCopy {
   onlineWord: string;
   retry: string;
   logs: string;
-  registered: string;
   editDesktop: string;
   add: string;
   empty: string;
@@ -272,12 +271,9 @@ function OfflineCard({
 }
 
 // ── footer registry line (scheme L594) ──────────────────────────────────────────
-function RegistryFooter({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
+function RegistryFooter({ copy }: { copy: MMachinesCopy }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '2px 4px', fontSize: 12, color: MC.muted }}>
-      <span>{vm.total} {copy.registered}</span>
-      <span style={{ marginLeft: 'auto', color: MC.muted }}>{copy.editDesktop}</span>
-    </div>
+    <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>{copy.editDesktop}</div>
   );
 }
 
@@ -335,7 +331,7 @@ export function MMachinesView({
             background: MC.runBg, color: MC.run, fontSize: 11, fontWeight: 650 }}>
           {copy.add}
         </button>
-        {vm.cards.length > 0 && <RegistryFooter vm={vm} copy={copy} />}
+        {vm.cards.length > 0 && <RegistryFooter copy={copy} />}
       </MScrollBody>
     </MSettingsFrame>
   );

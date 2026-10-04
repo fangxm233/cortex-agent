@@ -111,4 +111,12 @@ describe('mobile runtime Advanced settings', () => {
     act(() => row.findByType('button').props.onClick());
     expect(adapter.onSet).toHaveBeenCalledWith('maxContextTokens', null);
   });
+
+  it('shows no config-key footer or default-only descriptions', () => {
+    const text = JSON.stringify(mountAdvanced().toJSON());
+    expect(text).not.toContain('config.set');
+    expect(text).not.toContain('daemon.log');
+    expect(text).not.toContain('nvidia-smi');
+    expect(text).toContain('500 MB');
+  });
 });

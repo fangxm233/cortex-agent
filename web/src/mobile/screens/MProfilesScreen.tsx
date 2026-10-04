@@ -126,7 +126,7 @@ function ProfileFields(props: {
   const listNote = () => {
     if (props.catalogPending) return L.pfCatalogPending;
     if (draft.backend === 'pi' && draft.provider.trim() === '') return L.pfPickProviderFirst;
-    return choices.route?.source === 'gateway' ? L.pfRouteNotLoggedIn : L.pfModelHint;
+    return choices.route?.source === 'gateway' ? L.pfRouteNotLoggedIn : undefined;
   };
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: 13 }}>
     <MSettingsField data-profile-field="name" label={L.pfFieldName} value={draft.name}
@@ -147,7 +147,7 @@ function ProfileFields(props: {
       custom={custom.model} onCustom={pickCustom('model')}
       onValueChange={(model) => set('model', model)} />
     <MProfileChoice field="mode" label={L.pfFieldMode} value={draft.mode}
-      options={choices.mode} emptyLabel={L.pfNotDeclared} hint={L.pfModeHint} error={error('mode')}
+      options={choices.mode} emptyLabel={L.pfNotDeclared} error={error('mode')}
       custom={custom.mode} onCustom={pickCustom('mode')}
       onValueChange={(mode) => set('mode', mode)} />
     <MSettingsSelect data-profile-field="thinking" label={L.pfFieldThinking} value={draft.thinking}

@@ -22,8 +22,7 @@ vi.mock('@/i18n', async (importOriginal) => {
 
 const copy: MSettingsCopy = {
   title: 'Settings', daemon: 'Daemon', machinesOk: 'online',
-  desktopOnly: 'Edit on desktop', inspectOnly: 'View only',
-  footerBrand: 'cortex mobile', switchProfile: 'Switch',
+  desktopOnly: 'Edit on desktop', inspectOnly: 'View only', switchProfile: 'Switch',
 };
 
 const vm: MSettingsVm = { profileName: 'default', profileModel: 'sonnet', profileThinking: 'high' };
@@ -62,5 +61,10 @@ describe('MSettingsView parity', () => {
     expect(onOpenSection).toHaveBeenCalledWith('budget');
     expect(renderer.root.findByProps({ 'data-settings-entry': 'environments' }).props.onClick).toBeUndefined();
     expect(renderer.root.findByProps({ 'data-settings-entry': 'plugins' }).props.onClick).toBeUndefined();
+  });
+  it('keeps the build stamp without a brand footer', () => {
+    const text = JSON.stringify(renderSettings().toJSON());
+    expect(text).toContain('build');
+    expect(text).not.toContain('cortex mobile');
   });
 });

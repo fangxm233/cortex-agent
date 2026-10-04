@@ -52,7 +52,7 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
 }) {
   const L = useVocab();
   const set = (patch: Partial<CustomProviderFormState>) => onChange({ ...draft, ...patch });
-  const hint = (field: keyof CustomProviderFormErrors, fallback: ReactNode) => {
+  const hint = (field: keyof CustomProviderFormErrors, fallback?: ReactNode) => {
     return customProviderFieldErrorCopy(errors[field], L) ?? fallback;
   };
   const savable = isCustomProviderFormValid(errors) && !pending;
@@ -72,7 +72,7 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
           style={{ ...CONTROL_STYLE, opacity: creating ? 1 : 0.55 }}
         />
       </Field>
-      <Field label={L.cpvFieldApi} hint={L.cpvApiHint}>
+      <Field label={L.cpvFieldApi}>
         <select
           data-cpv-field="api" value={draft.api}
           onChange={(e) => set({ api: e.target.value as CustomProviderApi })}
@@ -81,7 +81,7 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
           {CUSTOM_PROVIDER_API_OPTIONS.map((api) => <option key={api} value={api}>{api}</option>)}
         </select>
       </Field>
-      <Field label={L.cpvFieldUrl} hint={hint('upstreamUrl', L.cpvUrlHint)} danger={!!errors.upstreamUrl}>
+      <Field label={L.cpvFieldUrl} hint={hint('upstreamUrl')} danger={!!errors.upstreamUrl}>
         <input
           data-cpv-field="url" value={draft.upstreamUrl}
           onChange={(e) => set({ upstreamUrl: e.target.value })}

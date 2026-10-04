@@ -64,7 +64,7 @@ const copy: MUsageCopy = {
     save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
     throttleAt: 'Throttle at', throttleOff: 'No throttle',
     legacyFallbackTitle: 'Legacy fallback',
-    legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
+    legacyFallbackBody: 'Unset rows still use the old throttle policy.',
     clearLegacy: 'Clear legacy fallback',
     toggleLabel: 'Usage throttle {key}',
   },

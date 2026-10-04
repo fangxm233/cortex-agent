@@ -1,6 +1,6 @@
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
 import type { CSSProperties, ReactNode } from 'react';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
 import { SSegmented } from '@/features/settings/ui/settings-kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
@@ -235,11 +235,6 @@ export function MAppearanceView({
             onChange={onSetMotionMode}
           />
         </Card>
-
-        <div style={{ padding: '2px 4px', font: `400 12px ${MONO}`, color: MC.faint }}>
-          localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue ·
-          cortex.accent-intensity · cortex.glass · cortex.motion
-        </div>
       </MScrollBody>
     </MScreen>
   );

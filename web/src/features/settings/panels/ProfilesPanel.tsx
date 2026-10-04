@@ -359,7 +359,7 @@ function PreservedFields({ entry }: { entry: ConfigProfileEntry | null }) {
           <MonoKV k={L.pfFieldExtraEnv} value={envValue} />
           <MonoKV k={L.pfFieldFallback} value={fallbackValue} />
         </div>
-        <SNotice tone="muted">{L.pfExtraEnvNote} {L.pfFallbackNote}</SNotice>
+        <SNotice tone="muted">{L.pfExtraEnvNote}</SNotice>
       </div>
     </SSection>
   );
@@ -463,7 +463,7 @@ function ProfileEditor({
         </SFieldRow>
         <SFieldRow
           label={L.pfFieldModel}
-          hint={hint('model', listNote() ?? L.pfModelHint)}
+          hint={hint('model', listNote())}
           hintTone={tone('model')}
         >
           <ProfileChoice
@@ -476,7 +476,7 @@ function ProfileEditor({
             onValueChange={(model) => set({ model })}
           />
         </SFieldRow>
-        <SFieldRow label={L.pfFieldMode} hint={hint('mode', L.pfModeHint)} hintTone={tone('mode')}>
+        <SFieldRow label={L.pfFieldMode} hint={hint('mode')} hintTone={tone('mode')}>
           <ProfileChoice
             field="mode"
             label={L.pfFieldMode}

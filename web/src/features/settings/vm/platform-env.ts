@@ -73,55 +73,31 @@ export type WritableSettingKey = (typeof WRITABLE_SETTING_KEYS)[number];
 export interface SettingToggleDescriptor {
   setting: WritableBooleanSettingKey;
   titleKey: keyof Vocab;
-  descKey: keyof Vocab;
+  descKey?: keyof Vocab;
 }
 
 export const NOTIFY_SETTINGS: SettingToggleDescriptor[] = [
   { setting: 'turnNotify', titleKey: 'stNotifyTurnTitle', descKey: 'stNotifyTurnDesc' },
-  { setting: 'autoResume', titleKey: 'stNotifyResumeTitle', descKey: 'stNotifyResumeDesc' },
-  {
-    setting: 'notifyCompaction',
-    titleKey: 'stNotifyCompactionTitle',
-    descKey: 'stNotifyCompactionDesc',
-  },
+  { setting: 'autoResume', titleKey: 'stNotifyResumeTitle' },
+  { setting: 'notifyCompaction', titleKey: 'stNotifyCompactionTitle' },
 ];
 
 export type AdvancedFlag =
-  | { kind: 'env'; env: 'DEBUG'; titleKey: keyof Vocab; descKey: keyof Vocab }
+  | { kind: 'env'; env: 'DEBUG'; titleKey: keyof Vocab }
   | ({ kind: 'setting' } & SettingToggleDescriptor);
 
 export const ADVANCED_FLAGS: AdvancedFlag[] = [
-  { kind: 'env', env: 'DEBUG', titleKey: 'stAdvDebugTitle', descKey: 'stAdvDebugDesc' },
-  {
-    kind: 'setting',
-    setting: 'eventLog',
-    titleKey: 'stAdvEventLogTitle',
-    descKey: 'stAdvEventLogDesc',
-  },
+  { kind: 'env', env: 'DEBUG', titleKey: 'stAdvDebugTitle' },
+  { kind: 'setting', setting: 'eventLog', titleKey: 'stAdvEventLogTitle' },
   {
     kind: 'setting',
     setting: 'diskMonitor',
     titleKey: 'stAdvDiskMonitorTitle',
     descKey: 'stAdvDiskMonitorDesc',
   },
-  {
-    kind: 'setting',
-    setting: 'showToolCalls',
-    titleKey: 'stAdvToolCallsTitle',
-    descKey: 'stAdvToolCallsDesc',
-  },
-  {
-    kind: 'setting',
-    setting: 'disableUserContext',
-    titleKey: 'stAdvDisableUserTitle',
-    descKey: 'stAdvDisableUserDesc',
-  },
-  {
-    kind: 'setting',
-    setting: 'serverUpdateDisable',
-    titleKey: 'stAdvDisableUpdateTitle',
-    descKey: 'stAdvDisableUpdateDesc',
-  },
+  { kind: 'setting', setting: 'showToolCalls', titleKey: 'stAdvToolCallsTitle' },
+  { kind: 'setting', setting: 'disableUserContext', titleKey: 'stAdvDisableUserTitle' },
+  { kind: 'setting', setting: 'serverUpdateDisable', titleKey: 'stAdvDisableUpdateTitle' },
   {
     kind: 'setting',
     setting: 'commissionEnabled',
@@ -139,7 +115,7 @@ export const ADVANCED_FLAGS: AdvancedFlag[] = [
 export interface NumberSettingDescriptor {
   setting: WritableNumberSettingKey;
   titleKey: keyof Vocab;
-  descKey: keyof Vocab;
+  descKey?: keyof Vocab;
   /** Message shown when the draft is outside the accepted range. */
   invalidKey: keyof Vocab;
   /** Inclusive bounds of the accepted range, mirroring the server's own setting validator. */
@@ -153,7 +129,6 @@ export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
   {
     setting: 'sessionRetentionDays',
     titleKey: 'stAdvRetentionTitle',
-    descKey: 'stAdvRetentionDesc',
     invalidKey: 'stAdvRetentionInvalid',
     min: 1,
     max: MAX_SESSION_RETENTION_DAYS,
@@ -231,12 +206,11 @@ export interface BuiltinJobSettingDescriptor {
   enabled: WritableBooleanSettingKey;
   interval: WritableIntervalSettingKey;
   titleKey: keyof Vocab;
-  descKey: keyof Vocab;
 }
 
 export const BUILTIN_JOB_SETTINGS: BuiltinJobSettingDescriptor[] = [
   {
     enabled: 'memoryIndexRegenEnabled', interval: 'memoryIndexRegenIntervalMs',
-    titleKey: 'stBuiltinMemoryRegenTitle', descKey: 'stBuiltinMemoryRegenDesc',
+    titleKey: 'stBuiltinMemoryRegenTitle',
   },
 ];

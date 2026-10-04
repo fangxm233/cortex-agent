@@ -6,7 +6,7 @@ import { SButton, Toggle } from '@/features/settings/ui/settings-ui';
 const COPY = {
   en: {
     title: 'System notifications · this device',
-    note: 'Background replies and system notices. This device only.',
+    note: 'Background replies and system notices.',
     allow: 'Allow notifications',
     default: 'Not authorized', granted: 'Allowed',
     denied: 'Blocked — allow in browser settings',
@@ -16,7 +16,7 @@ const COPY = {
   },
   zh: {
     title: '系统通知 · 本设备',
-    note: '后台回复与系统消息，仅影响本设备。',
+    note: '后台回复与系统消息。',
     allow: '允许通知',
     default: '未授权', granted: '已允许',
     denied: '已阻止 — 请在浏览器设置中允许',
