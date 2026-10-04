@@ -187,6 +187,13 @@ export function numberSettingRangeLabel(descriptor: NumberSettingDescriptor): st
 export type DurationUnit = 'sec' | 'min' | 'hr';
 export interface DurationDraft { value: number; unit: DurationUnit }
 
+const DURATION_UNIT_KEYS: Record<DurationUnit, keyof Vocab> = { sec: 'setUnitSec', min: 'setUnitMin', hr: 'setUnitHr' };
+
+/** Interval-unit picker options; the values stay sec/min/hr. */
+export function durationUnits(L: Vocab): Array<{ value: DurationUnit; label: string }> {
+  return (['sec', 'min', 'hr'] as const).map((value) => ({ value, label: L[DURATION_UNIT_KEYS[value]] }));
+}
+
 const UNIT_MS: Record<DurationUnit, number> = { sec: 1_000, min: 60_000, hr: 3_600_000 };
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 

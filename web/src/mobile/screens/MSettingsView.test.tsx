@@ -1,6 +1,6 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MSettingsView, type MSettingsCopy } from './MSettingsView';
+import { MSettingsView } from './MSettingsView';
 import type { MSettingsVm } from './m-settings-vm';
 
 vi.mock('@/i18n', async (importOriginal) => {
@@ -8,6 +8,7 @@ vi.mock('@/i18n', async (importOriginal) => {
   return {
     ...actual,
     useVocab: () => ({
+      ...actual.en,
       stNavAppearance: 'Appearance', stNavPlatform: 'Platform', stNavAccounts: 'Accounts',
       stNavProfiles: 'Profiles', stNavBudget: 'Budget', stNavUsage: 'Usage',
       stNavMachines: 'Machines', stNavEnvironments: 'Environments', stNavPlugins: 'Plugins',
@@ -20,17 +21,12 @@ vi.mock('@/i18n', async (importOriginal) => {
   };
 });
 
-const copy: MSettingsCopy = {
-  title: 'Settings', daemon: 'Daemon', machinesOk: 'online',
-  desktopOnly: 'Edit on desktop', inspectOnly: 'View only', switchProfile: 'Switch',
-};
-
 const vm: MSettingsVm = { profileName: 'default', profileModel: 'sonnet', profileThinking: 'high' };
 
 function renderSettings(overrides: Partial<Parameters<typeof MSettingsView>[0]> = {}) {
   return create(
     <MSettingsView
-      vm={vm} copy={copy} onBack={() => {}} onOpenDaemon={() => {}}
+      vm={vm} onBack={() => {}} onOpenDaemon={() => {}}
       onlineMachines={2} connectionStatus="connected"
       onOpenSection={() => {}} checkingUpdates={false} onCheckUpdates={() => {}} {...overrides}
     />,

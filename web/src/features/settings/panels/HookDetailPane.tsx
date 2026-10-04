@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { HookDetail, HookScriptInfo, HooksTestReturn } from '@cortex-agent/ui-contract';
-import { useLang, useVocab, type Vocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import {
   MonoKV,
   SButton,
@@ -123,6 +123,7 @@ function TestStream({ label, text, tone }: { label: string; text: string; tone?:
 }
 
 function TestResult({ result }: { result: HooksTestReturn }) {
+  const L = useVocab();
   return (
     <div data-hook-test-result="" style={RESULT_CARD_STYLE}>
       <div style={{
@@ -133,7 +134,7 @@ function TestResult({ result }: { result: HooksTestReturn }) {
           data-hook-test-exit={result.exitCode === null ? '' : String(result.exitCode)}
           style={{ color: result.ok ? 'var(--proto-success)' : 'var(--proto-danger)', fontWeight: 700 }}
         >
-          exit {result.exitCode ?? '—'}
+          {L.hookTestExit} {result.exitCode ?? '—'}
         </span>
         {result.error !== null ? <span style={{ color: 'var(--proto-danger)' }}>{result.error}</span> : null}
       </div>
@@ -316,7 +317,7 @@ function CapabilityNotices({ hook, note }: { hook: HookDetail | null; note: Hook
 /** Structural facts the API never accepts as input, shown so the declaration reads whole. */
 function RegistryFacts({ hook }: { hook: HookDetail }) {
   const L = useVocab();
-  const minUnit = useLang() === 'zh' ? '分钟' : 'min';
+  const minUnit = L.setUnitMin;
   return (
     <>
       <SSectionLabel>{L.hkSecRegistry}</SSectionLabel>

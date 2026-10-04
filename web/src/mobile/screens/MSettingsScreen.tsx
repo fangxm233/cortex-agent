@@ -6,19 +6,10 @@ import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvi
 import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import type { SettingsSectionKey } from '@/features/settings/settings-nav';
-import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { pickCopy } from '@/mobile/ui/format';
 import { onlineMachineCount } from './m-project-vm';
 import { buildMSettingsVm } from './m-settings-vm';
-import { MSettingsView, type MSettingsCopy } from './MSettingsView';
-
-const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
-  en: { title: 'Settings', daemon: 'Daemon', machinesOk: 'online', desktopOnly: 'Edit on desktop',
-    inspectOnly: 'View only', switchProfile: 'Switch' },
-  zh: { title: '设置', daemon: 'Daemon', machinesOk: '台在线', desktopOnly: '桌面编辑',
-    inspectOnly: '仅查看', switchProfile: '切换' },
-};
+import { MSettingsView } from './MSettingsView';
 
 const EMPTY_SNAPSHOT: ConfigSnapshot = {
   budget: null, profiles: null, machines: [], mcp: null,
@@ -36,13 +27,12 @@ const SECTION_PATH: Record<SettingsSectionKey, string> = {
 export function MSettingsScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
-  const copy = pickCopy(useLang(), COPY);
   const connectionStatus = useConnectionStatus();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const machines = useMachinesResource();
   const updates = useManualUpdateCheck();
   const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT), [config.data]);
-  return <MSettingsView vm={vm} copy={copy} connectionStatus={connectionStatus}
+  return <MSettingsView vm={vm} connectionStatus={connectionStatus}
     onlineMachines={onlineMachineCount(machines.machines)}
     checkingUpdates={updates.busy} onCheckUpdates={() => void updates.check()}
     onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}

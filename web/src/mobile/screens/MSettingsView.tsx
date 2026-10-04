@@ -2,25 +2,15 @@ import type { ReactNode } from 'react';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
 import { getSettingsNav, type SettingsSectionKey } from '@/features/settings/settings-nav';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody } from './MSettingsControls';
 import type { MSettingsVm } from './m-settings-vm';
 
-export interface MSettingsCopy {
-  title: string;
-  daemon: string;
-  machinesOk: string;
-  desktopOnly: string;
-  inspectOnly: string;
-  switchProfile: string;
-}
-
 interface MSettingsViewProps {
   vm: MSettingsVm;
-  copy: MSettingsCopy;
   onBack: () => void;
   onOpenDaemon: () => void;
   onlineMachines: number;
@@ -44,7 +34,7 @@ function StatusBadge({ children }: { children: ReactNode }) {
   );
 }
 
-function DaemonRow(props: Pick<MSettingsViewProps, 'copy' | 'connectionStatus' | 'onOpenDaemon'>) {
+function DaemonRow(props: Pick<MSettingsViewProps, 'connectionStatus' | 'onOpenDaemon'>) {
   const L = useVocab();
   const dot = connectionDot(props.connectionStatus);
   return (
@@ -52,7 +42,7 @@ function DaemonRow(props: Pick<MSettingsViewProps, 'copy' | 'connectionStatus' |
       style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
         display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
       <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot.color }} />
-      <span style={TITLE}>{props.copy.daemon}</span>
+      <span style={TITLE}>{L.dmnTitle}</span>
       <span style={{ marginLeft: 'auto', fontSize: 12, color: dot.color }}>
         {L[connectionLabelKey(props.connectionStatus)]}
       </span>
@@ -83,27 +73,27 @@ function ProfileCard(props: MSettingsViewProps) {
           {summary && <span style={{ ...SUB, display: 'block' }}>{summary}</span>}
         </span>
         <span style={{ fontSize: 13, color: MC.run, maxWidth: '35%' }}>
-          {props.copy.switchProfile}
+          {L.setSwitchProfile}
         </span>
       </button>
     </MCard>
   );
 }
 
-function summaries(props: MSettingsViewProps): Partial<Record<SettingsSectionKey, string>> {
-  return { machines: `${props.onlineMachines} ${props.copy.machinesOk}` };
+function summaries(props: MSettingsViewProps, L: Vocab): Partial<Record<SettingsSectionKey, string>> {
+  return { machines: fmt(L.setMachinesOnline, { n: props.onlineMachines }) };
 }
 
 function SettingsRow(props: {
   section: SettingsSectionKey;
   label: string;
   summary?: string;
-  copy: MSettingsCopy;
   last: boolean;
   onOpen: (section: SettingsSectionKey) => void;
 }) {
+  const L = useVocab();
   const desktopOnly = DESKTOP_ONLY.has(props.section);
-  const badge = desktopOnly ? props.copy.desktopOnly : INSPECT_ONLY.has(props.section) ? props.copy.inspectOnly : null;
+  const badge = desktopOnly ? L.setEditOnDesktop : INSPECT_ONLY.has(props.section) ? L.setViewOnly : null;
   const onClick = desktopOnly ? undefined : () => props.onOpen(props.section);
   return (
     <button type="button" data-settings-entry={props.section} onClick={onClick}
@@ -124,12 +114,12 @@ function SettingsRow(props: {
 function SettingsList(props: MSettingsViewProps) {
   const L = useVocab();
   const nav = getSettingsNav(L).filter((entry) => entry.key !== 'profiles');
-  const sub = summaries(props);
+  const sub = summaries(props, L);
   return (
     <MCard padding={0} style={{ overflow: 'hidden' }}>
       {nav.map((entry, index) => (
         <SettingsRow key={entry.key} section={entry.key} label={entry.label}
-          summary={sub[entry.key]} copy={props.copy} last={index === nav.length - 1}
+          summary={sub[entry.key]} last={index === nav.length - 1}
           onOpen={props.onOpenSection} />
       ))}
     </MCard>
@@ -151,22 +141,24 @@ function UpdateRow(props: Pick<MSettingsViewProps, 'checkingUpdates' | 'onCheckU
 }
 
 function Footer() {
+  const L = useVocab();
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '2px 4px', font: `400 12px ${MONO}`, color: MC.faint }}>
-      <span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP}</span>
+      <span style={{ marginLeft: 'auto' }}>{L.dmnBuild} {BUILD_STAMP}</span>
     </div>
   );
 }
 
 export function MSettingsView(props: MSettingsViewProps) {
+  const L = useVocab();
   return (
     <MScreen label="1l Settings" header={
       <MDrillHeader onBack={props.onBack}>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{props.copy.title}</div>
+        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.settings}</div>
       </MDrillHeader>
     }>
       <MScrollBody>
-        <MCard padding={0}><DaemonRow copy={props.copy} connectionStatus={props.connectionStatus}
+        <MCard padding={0}><DaemonRow connectionStatus={props.connectionStatus}
           onOpenDaemon={props.onOpenDaemon} /></MCard>
         <ProfileCard {...props} />
         <SettingsList {...props} />
