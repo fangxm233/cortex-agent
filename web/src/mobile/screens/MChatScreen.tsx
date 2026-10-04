@@ -879,7 +879,7 @@ export function MChatScreen(): JSX.Element {
         streamKey={sessionId}
         sessionId={sessionId}
         todos={todos}
-        todoLang={lang}
+        railLang={lang}
         waitpoints={waitpoints}
         composerValue={text}
         onComposerChange={setText}

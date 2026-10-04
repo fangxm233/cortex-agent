@@ -6,7 +6,7 @@ import type { ContextCompactAction } from '@/features/session/composer/ContextUs
 import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
-import type { TodoRailLanguage } from '@/features/session/rail/TodoRail';
+import type { TimeLang } from '@/i18n/time-format';
 import type {
   ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetVM,
 } from './m-chat-vm';
@@ -158,7 +158,8 @@ export interface MChatViewProps {
   streamKey?: string;
   sessionId?: string;
   todos?: TodoSnapshot | null;
-  todoLang?: TodoRailLanguage;
+  /** Time-label language for the WaitRail's expiry spans. */
+  railLang?: TimeLang;
   /** What this session is waiting on from outside Cortex (WaitRail), supplied by the screen. */
   waitpoints?: SessionWaitpoints | null;
   composerValue: string;

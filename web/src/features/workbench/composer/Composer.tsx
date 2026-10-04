@@ -545,7 +545,7 @@ export function Composer({
           {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
               the highest-value line on this surface and belongs at the point of gaze; it renders
               nothing at all when the session has no task list. */}
-          {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} lang={lang} />}
+          {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} />}
 
           {/* What the session is waiting on from OUTSIDE Cortex. Directly above the input for the same
               reason the task list is: it answers "why is nothing happening right now". Renders nothing

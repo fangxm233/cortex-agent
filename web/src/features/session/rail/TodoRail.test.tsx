@@ -24,7 +24,7 @@ function renderExpanded() {
   });
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<TodoRail sessionId="session-1" todos={snapshot} lang="en" />);
+    renderer = create(<TodoRail sessionId="session-1" todos={snapshot} />);
   });
   return { renderer, setItem };
 }
