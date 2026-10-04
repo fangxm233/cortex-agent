@@ -48,7 +48,8 @@ both tools return an error instead of dispatching, and the lead tries again afte
 the worker's own background agents or waitpoints. Turns you start yourself by typing in a worker
 are not reported; the lead's roster marks that worker as one you have talked to. A server restart
 does not lose a report: one that ends while a restart is pending reaches the lead once the server
-is back.
+is back. A worker's finished turn raises no notification on the web page, the desktop app or
+Android; you hear about it when the lead's own turn ends. Retired workers stay silent too.
 
 **Questions and plans.** When a worker calls `cortex_ask_user`, submits a plan with
 `cortex_plan_exit`, or submits a commission contract, the request shows up as a card in the
@@ -103,4 +104,4 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
 - Workers live as long as their lead. Session retention removes a lead and its workers together.
 - With team mode off, leads lose the worker tools and the roster from their next turn, reports
   and request routing stop, and existing workers behave as ordinary sessions whose questions come
-  to you.
+  to you. Their finished turns still raise no notification.

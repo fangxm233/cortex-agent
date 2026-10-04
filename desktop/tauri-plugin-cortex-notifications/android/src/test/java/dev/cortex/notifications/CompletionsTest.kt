@@ -50,6 +50,19 @@ class CompletionsTest {
         assertEquals(1, scan(listOf(row("a"))).announce.size)
     }
 
+    @Test fun workerTurnsAreDecidedSilentlyWhileTheLeadStillAnnounces() {
+        val worker = Session("worker", "project", running = false, awaiting = false, name = "notify", worker = true)
+        listOf(worker, worker.copy(running = true), worker.copy(background = true)).forEach { info ->
+            val result = scan(listOf(row("w")), sessions = listOf(idle, info), lookup = { detail(session = "worker") })
+            assertTrue(info.toString(), result.announce.isEmpty())
+            assertEquals(info.toString(), listOf("w"), result.processed)
+        }
+        val both = scan(listOf(row("w"), row("a")), sessions = listOf(idle, worker),
+            lookup = { id -> detail(session = if (id == "w") "worker" else "one") })
+        assertEquals(listOf("one"), both.announce.map { it.sessionId })
+        assertEquals(setOf("w", "a"), both.processed.toSet())
+    }
+
     @Test fun executionsOutsideTheDirectSessionListNeverAnnounce() {
         val result = scan(listOf(row("a")), lookup = { detail(session = "thread-session") })
         assertTrue(result.announce.isEmpty())

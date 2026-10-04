@@ -50,7 +50,7 @@ internal fun JSONObject.optional(key: String): String? =
 
 internal data class Session(
     val id: String, val projectId: String?, val running: Boolean, val awaiting: Boolean,
-    val background: Boolean = false, val name: String? = null,
+    val background: Boolean = false, val name: String? = null, val worker: Boolean = false,
 )
 internal data class Alert(
     val key: String, val owner: String, val kind: String,
@@ -65,7 +65,8 @@ internal object Protocol {
         .map {
             Session(requiredId(it, "sessionId"), it.optional("projectId"),
                 boolean(it, "running"), boolean(it, "awaitingInput"),
-                it.optBoolean("backgroundRunning", false), it.optional("label") ?: it.optional("name"))
+                it.optBoolean("backgroundRunning", false), it.optional("label") ?: it.optional("name"),
+                it.optional("teamLeadId") != null)
         }.groupBy { it.id }.values.map { rows ->
             // Count IDs, not rows. An inactive duplicate must not hide another
             // row's live turn/background hold or pending interaction.

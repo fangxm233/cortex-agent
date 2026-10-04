@@ -10,6 +10,8 @@ import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';
 interface DirectEntry {
   name: string | null;
   projectId: string | null;
+  /** A team worker (active or retired): its turns reach the user through the lead, never on their own. */
+  silent: boolean;
 }
 
 interface DirectLookup {
@@ -23,7 +25,7 @@ interface BufferedTurnMessage {
   ts: string;
 }
 
-type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId'>;
+type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId' | 'teamLeadId'>;
 type Deliver = (item: NotificationItem) => void;
 type NextId = (prefix: 'dmn' | 'sysn') => string;
 
@@ -41,6 +43,7 @@ function toDirectMap(sessions: readonly DirectSession[] | undefined): Map<string
     map.set(session.sessionId, {
       name: session.label ?? session.name,
       projectId: session.projectId,
+      silent: !!session.teamLeadId,
     });
   }
   return map;
@@ -103,6 +106,7 @@ function consumeDmTurn(
   if (!entry) return { consumed: false, item: null };
   const message = buffer.get(sessionId)!;
   buffer.delete(sessionId);
+  if (entry.silent) return { consumed: true, item: null };
   return { consumed: true, item: buildNotification({
     id: nextId('dmn'), sessionId, sessionName: entry.name,
     projectId: entry.projectId, text: message.text, ts: message.ts, lang,

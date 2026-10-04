@@ -10,6 +10,7 @@ const harness = vi.hoisted(() => ({
     label: string | null;
     name: string | null;
     projectId: string | null;
+    teamLeadId?: string | null;
   }> | undefined,
   refetch: vi.fn(),
   dm: null as DmNotificationHandlers | null,
@@ -135,6 +136,33 @@ describe('useNotificationFeed', () => {
       sessionId: 'direct-1',
       projectId: 'atlas',
     });
+  });
+
+  it('keeps worker turns silent, active or retired, while the lead still notifies', async () => {
+    harness.sessions!.push(
+      { sessionId: 'worker-1', label: 'notify', name: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+      { sessionId: 'worker-2', label: 'old', name: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+    );
+    harness.refetch.mockResolvedValue({ data: [
+      ...harness.sessions!,
+      { sessionId: 'worker-new', label: 'new', name: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+    ] });
+    mountFeed({ isSessionOpen: () => false });
+
+    act(() => {
+      emitAssistant('worker-1', 'worker report');
+      endTurn('worker-1');
+      emitAssistant('worker-2', 'retired worker report');
+      endTurn('worker-2');
+      emitAssistant('worker-new', 'first turn before the list knew it');
+      endTurn('worker-new');
+      emitAssistant('direct-1', 'lead summary');
+      endTurn('direct-1');
+    });
+    await flush();
+
+    expect(published.map((item) => item.sessionId)).toEqual(['direct-1']);
+    expect(published[0]).toMatchObject({ title: 'Inbox', meta: 'lead summary' });
   });
 
   it('keeps a turn across an unready failed lookup and flushes when the query later fills', async () => {
