@@ -28,7 +28,7 @@ const CONFIG_POLL_MS = 20;
  *
  * This removes the old "read the config exactly once at mount" race: the tRPC client is never built
  * from a not-yet-injected config, so the SPA can't end up with a dead client while the shell chrome
- * (e.g. the mobile bottom Tab bar) still renders.
+ * (e.g. the mobile session list header) still renders.
  */
 function useShellConfig(): { config: ReturnType<typeof readDesktopConfig>; done: boolean } {
   const [state, setState] = useState(() => {

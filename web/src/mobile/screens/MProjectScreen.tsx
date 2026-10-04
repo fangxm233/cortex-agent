@@ -5,7 +5,6 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/session/list/session-groups';
-import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
 import type { UsageNavState } from './MUsageScreen';
@@ -18,6 +17,7 @@ import { NOTES_COPY } from '@/features/notes/notes-copy';
 import { useNotesResource } from '@/features/notes/useNotesResource';
 import { buildMNotesVm } from './m-notes-vm';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
+import { setProjectsPanel } from '@/mobile/mobile-navigation';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
@@ -97,12 +97,12 @@ function useRateLimitSheet() {
   return { rate, rateOpen, setRateOpen };
 }
 
+/** The Projects panel's content; the home screen hosting it keeps the session list live. */
 export function MProjectScreen() {
   const navigate = useNavigate();
   const lang = useLang();
   const { currentProjectId, setCurrentProject } = useCurrentProject();
   const projectId = currentProjectId ?? '';
-  useSessionsLiveSync();
   const queries = useProjectQueries(projectId);
   const { notes, busy: notesBusy, add: addNote } = useNotesResource(projectId);
   const notesVm = useMemo(() => buildMNotesVm(notes, Date.now(), lang), [notes, lang]);
@@ -118,7 +118,8 @@ export function MProjectScreen() {
   const { rate, rateOpen, setRateOpen } = useRateLimitSheet();
   const project = useNewProjectSheet(lang, navigate, setCurrentProject);
   const issues = useMemo(() => ({ count: queries.issues.length, previews: queries.issues.slice(0, 2).map((issue) => issue.title) }), [queries.issues]);
-  const onSwitch = (id: string) => { setCurrentProject(id); navigate('/m/sessions'); };
+  // Switching closes the panel onto the new project's sessions.
+  const onSwitch = (id: string) => { setCurrentProject(id); setProjectsPanel(false, navigate); };
   const viewProps: MProjectViewProps = {
     copy: pickCopy(lang, COPY), current, pendingApprovals: scopedApprovals + approvalCounts.global, globalPendingApprovals: approvalCounts.global, issues,
     notesVm, notesCopy: NOTES_COPY[lang], notesBusy, switchRows, rateLimitStatus: rate,

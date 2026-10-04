@@ -3,13 +3,12 @@ import { createPortal } from 'react-dom';
 
 const HostContext = createContext<HTMLElement | null>(null);
 
-/** Above the Tab bar (z 6) and screen chrome, below app-update frames and the toaster. */
+/** Above screen chrome, below app-update frames and the toaster. */
 const hostStyle: CSSProperties = { position: 'absolute', inset: 0, zIndex: 20, pointerEvents: 'none' };
 
 /**
  * Screens live inside the animated outlet's own stacking context, so nothing a screen renders can
- * rise above the Tab bar floating over it — a sheet opened on a Tab route had its bottom rows and
- * actions buried under the bar. Overlays portal into this shell-level layer instead.
+ * rise above shell-level chrome. Overlays portal into this shell-level layer instead.
  */
 export function MobileOverlayHost({ children }: { children: ReactNode }): JSX.Element {
   const [host, setHost] = useState<HTMLDivElement | null>(null);

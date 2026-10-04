@@ -1,5 +1,5 @@
 // Mobile 项目记忆 file viewer — /m/memory/file?path=<rel>. Read-only. Drilled from the 1j memory tree
-// (MMemoryScreen). NON-Tab drill page (the shell hides the Tab bar for /m/memory*). Real tRPC:
+// (MMemoryScreen). A drill page. Real tRPC:
 // `memory.file({ projectId, path })` scoped to the mobile current project; `path` comes from the
 // query string (may contain slashes, e.g. `experiments/EXP-001.md`). Back → the memory tree (1j).
 import { useMemo } from 'react';

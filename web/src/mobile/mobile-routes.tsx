@@ -9,7 +9,6 @@ import {
 import { MSessionListScreen } from './screens/MSessionListScreen';
 import { MChatScreen } from './screens/MChatScreen';
 import { MPlanReadScreen } from './screens/MPlanReadScreen';
-import { MProjectScreen } from './screens/MProjectScreen';
 import { MApprovalsScreen } from './screens/MApprovalsScreen';
 import { MIssuesScreen } from './screens/MIssuesScreen';
 import { MNotesScreen } from './screens/MNotesScreen';
@@ -29,8 +28,9 @@ import { MMcpScreen } from './screens/MMcpScreen';
 import { MAdvancedScreen, MNotificationsScreen } from './screens/MRuntimeSettingsScreen';
 
 const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
+  // One home screen: /m/project is the same list with the Projects panel open over it.
   sessions: <MSessionListScreen />,
-  project: <MProjectScreen />,
+  project: <MSessionListScreen />,
   session: <MChatScreen />,
   plan: <MPlanReadScreen />,
   approvals: <MApprovalsScreen />,

@@ -93,12 +93,18 @@ textarea::placeholder {
   }
 
   /* Mobile list screens scroll by touch and show no bar, so a mouse-driven narrow window does not
-     reserve the styled 8px lane either (the list would stop short of the header and Tab bar edges). */
+     reserve the styled 8px lane either (the list would stop short of the header edges). */
   [data-m-scroller] {
     scrollbar-width: none;
   }
   [data-m-scroller]::-webkit-scrollbar {
     display: none;
+  }
+  /* The home and its Projects panel scroll vertically and hand horizontal pans to the panel drag.
+     Each scroller re-enables panning for what it contains, so the rule names them as well. */
+  [data-m-drawer-host],
+  [data-m-drawer-host] [data-m-scroller] {
+    touch-action: pan-y;
   }
   .m-press {
     -webkit-tap-highlight-color: transparent;

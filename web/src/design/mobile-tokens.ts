@@ -44,11 +44,11 @@ export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
 /** Top edge of floating tab-screen chrome (the header pill), below the OS status bar. */
 export const M_FLOAT_TOP = 'calc(8px + env(safe-area-inset-top))';
-/** Bottom edge of the floating Tab bar, above the home indicator. */
-export const M_TABBAR_BOTTOM = 'max(26px, calc(10px + env(safe-area-inset-bottom)))';
-/** Horizontal page gutter shared by every floating layer on a tab screen (header pill, list, Tab bar). */
+/** Bottom edge of floating screen chrome (the new-session button), above the home indicator. */
+export const M_FLOAT_BOTTOM = 'max(26px, calc(10px + env(safe-area-inset-bottom)))';
+/** Horizontal page gutter shared by every floating layer on a tab screen (header, list, buttons). */
 export const M_GUTTER = 12;
-/** Tab-screen scroll padding: the list edges line up with the header pill and the Tab bar. */
+/** Tab-screen scroll padding: the list edges line up with the header. */
 export const M_TAB_BODY_PADDING = `12px ${M_GUTTER}px 0`;
 /** Figures inside list rows: body font with fixed-width digits (mono falls back per glyph next to CJK). */
 export const M_NUM = { fontVariantNumeric: 'tabular-nums' } as const;

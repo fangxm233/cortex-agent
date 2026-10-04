@@ -3,8 +3,10 @@ import {
   MOBILE_ROUTE_MANIFEST,
   MOBILE_ROUTE_REGISTRY,
   matchMobileRoute,
+  mobileHomeView,
   mobileRouteParentPath,
   mobileRoutePath,
+  mobileScreenKey,
 } from './mobile-route-manifest';
 
 describe('mobile route manifest', () => {
@@ -40,10 +42,21 @@ describe('mobile route manifest', () => {
     expect(mobileRouteParentPath(pathname)).toBe(parent);
   });
 
-  it('derives concrete paths and tab attribution from the same metadata', () => {
+  it('renders the session list and the Projects panel as one home screen', () => {
     expect(mobileRoutePath('project')).toBe('/m/project');
-    expect(MOBILE_ROUTE_REGISTRY.plan.tab).toBe('sessions');
-    expect(MOBILE_ROUTE_REGISTRY.settingsHooks.tab).toBe('project');
+    expect(mobileHomeView('/m/sessions')).toBe('list');
+    expect(mobileHomeView('/m/project/')).toBe('projects');
+    expect(mobileHomeView('/m/approvals')).toBeNull();
+    expect(mobileHomeView('/m/session/session-1')).toBeNull();
+    expect(mobileScreenKey('/m/project')).toBe('/m/sessions');
+    expect(mobileScreenKey('/m/sessions/')).toBe('/m/sessions');
+    expect(mobileScreenKey('/m/approvals/')).toBe('/m/approvals');
+  });
+
+  it('sends project screens back to the open panel, and the panel back to the list', () => {
+    expect(mobileRouteParentPath('/m/approvals')).toBe('/m/project');
+    expect(mobileRouteParentPath('/m/settings')).toBe('/m/project');
+    expect(mobileRouteParentPath('/m/project')).toBe('/m/sessions');
   });
 
   it('does not match unknown or partial dynamic routes', () => {

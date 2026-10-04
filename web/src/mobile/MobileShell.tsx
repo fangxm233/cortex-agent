@@ -1,14 +1,8 @@
 import { type CSSProperties, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
 import { AnimatedOutlet } from './MobileAnimatedOutlet';
-import { BottomTabBar } from './BottomTabBar';
 import { MobileOverlayHost } from '@/design/mobile-overlay-host';
-import { activeTabId, isTabRoute } from './mobile-tabs';
-import { M_TABBAR_BOTTOM } from '@/design/mobile-tokens';
-import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
+import { useMobileBackNavigation } from './mobile-navigation';
 import { ShellProviders } from '@/shell/ShellProviders';
 import { MNotificationMount } from './screens/MNotificationMount';
 import { MUpdateMount } from './screens/MUpdateMount';
@@ -24,43 +18,17 @@ const shellStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
-  // The shell is the mesh ground the whole app floats on; the Tab bar blurs it, screens sit on it.
+  // The shell is the mesh ground the whole app floats on; screens sit on it.
   background: 'var(--app-backdrop)',
 };
 
-type MobileVocab = ReturnType<typeof useVocab>;
-
-function MobileFrame({ pathname, vocab, needsYouCount, onTab }: {
-  pathname: string;
-  vocab: MobileVocab;
-  needsYouCount: number;
-  onTab: (path: string) => void;
-}) {
-  const onTabRoute = isTabRoute(pathname);
+function MobileFrame() {
   return (
-    <div
-      style={{
-        ...shellStyle,
-        // The Tab bar floats over the outlet, so screens cannot discover its height by layout.
-        // Publish it here; MScrollBody spends it as tail padding (0 off a Tab route).
-        '--m-tabbar-clearance': onTabRoute ? 'calc(88px + env(safe-area-inset-bottom))' : '0px',
-        // Where the Tab bar's lower edge sits; floating-header screens clip their scroller there so
-        // rows never show through the strip beneath the bar.
-        '--m-tabbar-bottom': onTabRoute ? M_TABBAR_BOTTOM : '0px',
-      } as CSSProperties}
-    >
+    <div style={shellStyle}>
       <MobileOverlayHost>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           <AnimatedOutlet />
         </div>
-        {onTabRoute && (
-          <BottomTabBar
-            vocab={vocab}
-            activeId={activeTabId(pathname)}
-            needsYouCount={needsYouCount}
-            onNavigate={onTab}
-          />
-        )}
       </MobileOverlayHost>
     </div>
   );
@@ -79,23 +47,13 @@ function MobileProviders({ children }: { children: ReactNode }) {
 }
 
 export function MobileShell() {
-  const vocab = useVocab();
   const location = useLocation();
   const navigate = useNavigate();
-  const trpc = useTRPC();
   useViewportHeight();
   useMobileBackNavigation(location.pathname, navigate);
-
-  const pendingApprovals = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
-  const needsYouCount = pendingApprovals.data?.length ?? 0;
   return (
     <MobileProviders>
-      <MobileFrame
-        pathname={location.pathname}
-        vocab={vocab}
-        needsYouCount={needsYouCount}
-        onTab={(path) => switchMobileTab(path, navigate)}
-      />
+      <MobileFrame />
     </MobileProviders>
   );
 }

@@ -135,7 +135,7 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 ## Android 界面 {#android-interface}
 
-Android 使用两个底部 Tab：Sessions 与 Project。会话聊天、计划阅读、审批、问题、笔记、记忆文件、机器、设置、hooks 与 daemon 状态以 drill-in 页面打开。Android 返回操作会先关闭 overlay，再沿应用导航栈返回。
+Android 首页是当前项目的会话列表。在列表任意位置向右滑动，项目面板会从左侧滑出，里面有当前项目的预算、审批、问题、笔记和记忆，可以切换到其他项目，还有用量和设置按钮。面板跟随手指移动，松手时按滑动的距离或速度决定展开还是收起；以竖直方向为主的滑动则照常滚动列表。向左滑、点击变暗的列表或按返回键都会关闭面板。左上角的 Cortex 标志也能打开面板，有待你处理的审批时，标志上会显示琥珀色的数量。会话聊天、计划阅读、审批、问题、笔记、记忆文件、机器、设置、hooks 与 daemon 状态以 drill-in 页面打开；从面板打开的页面返回时，会回到展开的面板。Android 返回操作会先关闭 overlay，再沿应用导航栈返回。
 
 授予通知权限后，**设置 → 通知 → 后台通知**可启用 Android 原生后台连接，页面切到后台后仍继续监听。一条静默常驻通知显示跨项目运行中的 direct session 数量，包含后台延续任务；数量为零时显示后台通知已连接，断线重连时明确显示状态暂不可用，不保留假实时数字。关闭这个本设备开关或断开服务器连接会停止服务并清理相关通知（`desktop/tauri-plugin-cortex-notifications/android/src/main/java/dev/cortex/notifications/NotificationService.kt`；`Reconciler.kt`）。
 

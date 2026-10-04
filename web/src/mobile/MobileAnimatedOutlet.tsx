@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useLocation, useNavigationType, useOutlet } from 'react-router-dom';
-import { isTabRootRoute, normalizeMobilePath } from './mobile-tabs';
+import { mobileHomeView, mobileScreenKey } from './mobile-route-manifest';
 import { MC } from './ui/kit';
 
 export interface Frame {
@@ -14,34 +14,39 @@ export type SlideDir = 'forward' | 'back';
 function planTransition(
   navType: NavType,
   reduceMotion: boolean,
-  betweenTabRoutes: boolean,
   returningToRetained: boolean,
 ): { animate: false } | { animate: true; dir: SlideDir } {
-  if (reduceMotion || betweenTabRoutes) return { animate: false };
+  if (reduceMotion) return { animate: false };
   if (returningToRetained) return { animate: true, dir: 'back' };
   if (navType === 'REPLACE') return { animate: false };
   return { animate: true, dir: navType === 'POP' ? 'back' : 'forward' };
 }
 
-function sameRoute(left: string, right: string): boolean {
-  return normalizeMobilePath(left) === normalizeMobilePath(right);
+function sameScreen(left: string, right: string): boolean {
+  return mobileScreenKey(left) === mobileScreenKey(right);
 }
 
+function isHome(key: string): boolean {
+  return mobileHomeView(key) !== null;
+}
+
+// The home screen stays mounted (hidden) while the user drills in from it, so coming back restores
+// its scroll position and Projects panel instead of rebuilding it.
 export function planFrameChange(
   current: Frame,
-  retainedTab: Frame | null,
+  retainedHome: Frame | null,
   destination: Frame,
-): { current: Frame; retainedTab: Frame | null; returningToRetained: boolean } {
-  if (retainedTab && sameRoute(retainedTab.key, destination.key)) {
-    return { current: retainedTab, retainedTab: null, returningToRetained: true };
+): { current: Frame; retainedHome: Frame | null; returningToRetained: boolean } {
+  if (retainedHome && sameScreen(retainedHome.key, destination.key)) {
+    return { current: retainedHome, retainedHome: null, returningToRetained: true };
   }
-  const startsDrillIn = isTabRootRoute(current.key) && !isTabRootRoute(destination.key);
+  const startsDrillIn = isHome(current.key) && !isHome(destination.key);
   if (startsDrillIn) {
-    return { current: destination, retainedTab: current, returningToRetained: false };
+    return { current: destination, retainedHome: current, returningToRetained: false };
   }
   return {
     current: destination,
-    retainedTab: isTabRootRoute(destination.key) ? null : retainedTab,
+    retainedHome: isHome(destination.key) ? null : retainedHome,
     returningToRetained: false,
   };
 }
@@ -86,23 +91,18 @@ const retainedStyle: CSSProperties = {
 };
 
 function useAnimatedFrames(pathname: string, navType: NavType, outlet: ReactNode) {
-  const [current, setCurrent] = useState<Frame>({ key: pathname, element: outlet });
-  const [retainedTab, setRetainedTab] = useState<Frame | null>(null);
+  const [current, setCurrent] = useState<Frame>({ key: mobileScreenKey(pathname), element: outlet });
+  const [retainedHome, setRetainedHome] = useState<Frame | null>(null);
   const [previous, setPrevious] = useState<Frame | null>(null);
   const [dir, setDir] = useState<SlideDir>('forward');
 
   useLayoutEffect(() => {
-    if (sameRoute(pathname, current.key)) return;
-    const destination = { key: pathname, element: outlet };
-    const change = planFrameChange(current, retainedTab, destination);
-    const betweenTabs = isTabRootRoute(current.key) && isTabRootRoute(pathname);
-    const plan = planTransition(
-      navType,
-      prefersReducedMotion(),
-      betweenTabs,
-      change.returningToRetained,
-    );
-    setRetainedTab(change.retainedTab);
+    // Opening or closing the Projects panel keeps the same home screen; only a new screen swaps.
+    if (sameScreen(pathname, current.key)) return;
+    const destination = { key: mobileScreenKey(pathname), element: outlet };
+    const change = planFrameChange(current, retainedHome, destination);
+    const plan = planTransition(navType, prefersReducedMotion(), change.returningToRetained);
+    setRetainedHome(change.retainedHome);
     setPrevious(plan.animate ? current : null);
     if (plan.animate) setDir(plan.dir);
     setCurrent(change.current);
@@ -110,7 +110,7 @@ function useAnimatedFrames(pathname: string, navType: NavType, outlet: ReactNode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  return { current, retainedTab, previous, dir, onSettled: () => setPrevious(null) };
+  return { current, retainedHome, previous, dir, onSettled: () => setPrevious(null) };
 }
 
 interface RouteLayerProps {
@@ -136,20 +136,20 @@ function RouteLayer({ frame, role, className, hidden, onAnimationEnd }: RouteLay
   );
 }
 
-export function AnimatedOutletLayers({ current, retainedTab, previous, dir, onSettled }: {
+export function AnimatedOutletLayers({ current, retainedHome, previous, dir, onSettled }: {
   current: Frame;
-  retainedTab: Frame | null;
+  retainedHome: Frame | null;
   previous: Frame | null;
   dir: SlideDir;
   onSettled: () => void;
 }) {
   const classes = slideAnimClasses(dir);
-  const showRetained = retainedTab
-    && retainedTab.key !== previous?.key
-    && retainedTab.key !== current.key;
+  const showRetained = retainedHome
+    && retainedHome.key !== previous?.key
+    && retainedHome.key !== current.key;
   return (
     <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
-      {showRetained && <RouteLayer key={retainedTab.key} frame={retainedTab} role="retained" hidden />}
+      {showRetained && <RouteLayer key={retainedHome.key} frame={retainedHome} role="retained" hidden />}
       {previous && (
         <RouteLayer key={previous.key} frame={previous} role="previous" className={classes.outgoing} />
       )}
