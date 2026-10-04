@@ -5,6 +5,7 @@ import * as fssync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SessionRegistryRepo, type Session } from '../../src/store/session-registry-repo.js';
+import { appendSessionRegistryEvents, loadSessionRegistryState } from '../../src/store/session-registry-journal.js';
 
 let tmpDir = '';
 let testId = 0;
@@ -400,4 +401,113 @@ test('retention keeps a stale worker while its lead lives and deletes fresh work
   await protectedLead.updateSession('cortex-w', { lastUsedAt: stale });
   assert.deepEqual(await protectedLead.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), ['l']), [],
     'an in-use lead keeps its workers');
+});
+
+/** A registry whose appends and compactions are counted; `compactAlways` forces a compaction
+ *  check to pass after every append. */
+function countingRepo(filePath: string, opts: { compactAlways?: boolean } = {}) {
+  const counts = { appends: 0, compactions: 0 };
+  const repo = new SessionRegistryRepo(filePath, {
+    writeAppend: async (handle, text) => {
+      counts.appends += 1;
+      await handle.writeFile(text, 'utf8');
+    },
+    ...(opts.compactAlways ? { shouldCompact: () => true } : {}),
+    onCompact: () => { counts.compactions += 1; },
+  });
+  return { repo, counts };
+}
+
+async function seedExpired(filePath: string, count: number, turnsPerSession = 0): Promise<string[]> {
+  const lines: string[] = [];
+  const ids: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const id = `sess-${i}`;
+    const channel = `web:${id}`;
+    ids.push(id);
+    lines.push(lineText({ v: 1, op: 'put', id, record: { ...baseSession(id), channel, lastUsedAt: '2020-01-01T00:00:00.000Z' } }));
+    lines.push(lineText({ v: 1, op: 'bind', channel, sessionId: id }));
+    lines.push(lineText({ v: 1, op: 'conversation', channel, kind: 'set', fields: { sessionId: id, sessionName: `cortex-${id}`, backend: 'claude', profileName: null, updatedAt: '2020-01-01T00:00:00.000Z' } }));
+    for (let t = 0; t < turnsPerSession; t += 1) {
+      lines.push(lineText({ v: 1, op: 'turn', channel, kind: 'begin', turn: {
+        turnIndex: t, userMessageTs: `M${t}`, userMessageText: 'hi', statusMessageTs: null, responseMessageTimestamps: [],
+        executionId: null, backupPath: null, status: 'completed', createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z',
+      } }));
+    }
+  }
+  await fs.writeFile(filePath, lines.join(''));
+  return ids;
+}
+
+test('beginDeleteExpired, the cleanup releases and commitDeletions each land as one append and one compaction check', async () => {
+  const { filePath } = nextPaths();
+  const ids = await seedExpired(filePath, 50, 2);
+  const { repo, counts } = countingRepo(filePath, { compactAlways: true });
+
+  const pending = await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
+  assert.equal(pending.length, 50);
+  assert.deepEqual(counts, { appends: 1, compactions: 1 });
+
+  assert.equal(await repo.unbindBySessionIds(ids), 50);
+  assert.equal(await repo.clearConversationsBySessionIds(ids), 50);
+  assert.deepEqual(counts, { appends: 3, compactions: 3 });
+  assert.equal(await repo.getBoundSessionId('web:sess-0'), null);
+  assert.deepEqual(await repo.getTurns('web:sess-0'), []);
+  assert.equal(await repo.getConversationHeader('web:sess-0'), null);
+
+  const committed = await repo.commitDeletions([...ids, 'not-pending', ids[0]]);
+  assert.deepEqual(committed, ids);
+  assert.deepEqual(counts, { appends: 4, compactions: 4 });
+  assert.deepEqual(await repo.listPendingDeletions(), []);
+  assert.deepEqual(await repo.commitDeletions(ids), [], 'a second commit is a no-op');
+  assert.equal(counts.appends, 4, 'and appends nothing');
+
+  const reopened = new SessionRegistryRepo(filePath);
+  assert.deepEqual(await reopened.listRecentSessions(100), []);
+  assert.deepEqual(await reopened.listPendingDeletions(), []);
+});
+
+test('a torn batch of delete commits replays its whole lines and leaves the rest pending', async () => {
+  const { filePath } = nextPaths();
+  const ids = await seedExpired(filePath, 5);
+  const repo = new SessionRegistryRepo(filePath, { shouldCompact: () => false });
+  await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
+
+  // A crash in the middle of one batched write: two whole commit lines, then a torn third.
+  const torn = [0, 1, 2].map(i => lineText({ v: 1, op: 'delete-commit', id: ids[i] })).join('');
+  await fs.appendFile(filePath, torn.slice(0, torn.length - 10));
+
+  const reopened = new SessionRegistryRepo(filePath);
+  assert.deepEqual(
+    (await reopened.listPendingDeletions()).map(entry => entry.session.sessionId).sort(),
+    ids.slice(2).sort(),
+  );
+  assert.deepEqual((await reopened.commitDeletions(ids)).sort(), ids.slice(2).sort());
+  assert.deepEqual(await new SessionRegistryRepo(filePath).listPendingDeletions(), []);
+});
+
+test('session registry does not compact on every append once its compacted state exceeds the base threshold', async () => {
+  const { filePath } = nextPaths();
+  // 20 live sessions with 40 turns each: the compacted journal has ~860 events, well above both
+  // 512 and four events per live session.
+  await seedExpired(filePath, 20, 40);
+  const { repo, counts } = countingRepo(filePath);
+  await repo.compactNow();
+  counts.compactions = 0;
+
+  for (let i = 0; i < 100; i += 1) await repo.markRead(`sess-${i % 20}`);
+  assert.equal(counts.appends, 100);
+  assert.equal(counts.compactions, 0);
+});
+
+test('a batch append rejects the same session twice before writing anything', async () => {
+  const { filePath } = nextPaths();
+  await seedExpired(filePath, 1);
+  const state = await loadSessionRegistryState(filePath);
+  const before = await fileText(filePath);
+  await assert.rejects(appendSessionRegistryEvents(filePath, state, [
+    { v: 1, op: 'patch', id: 'sess-0', name: 'cortex-sess-0', fields: { label: 'a' } },
+    { v: 1, op: 'patch', id: 'sess-0', name: 'cortex-sess-0', fields: { label: 'b' } },
+  ]), /twice/);
+  assert.equal(await fileText(filePath), before);
 });

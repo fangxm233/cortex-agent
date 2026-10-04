@@ -6,6 +6,7 @@ import { STORE_DIR } from '@core/paths.js';
 import type { SessionContextUsage } from '@core/types/agent-types.js';
 import {
   appendSessionRegistryEvent,
+  appendSessionRegistryEvents,
   compactSessionRegistry,
   createSessionRegistryState,
   deriveSessionOrigin,
@@ -21,6 +22,7 @@ import {
   type SessionPatchFields,
   type SessionPatchUnsetKey,
   type SessionRecord,
+  type SessionRegistryEvent,
   type SessionRegistryJournalOptions,
   type SessionRegistryState,
   type TurnRecord,
@@ -411,7 +413,24 @@ export class SessionRegistryRepo {
       const channels = Array.from(state.bindings)
         .filter(([, boundId]) => targets.has(boundId))
         .map(([channel]) => channel);
-      for (const channel of channels) await this.doUnbindChannel(state, channel);
+      await this.appendBatch(state, channels.map((channel): SessionRegistryEvent => ({ v: 1, op: 'unbind', channel })));
+      return channels.length;
+    });
+  }
+
+  /** Drop the conversation header and turns of every channel whose conversation names one of
+   *  `sessionIds`, in one append. Returns the number of channels cleared. */
+  async clearConversationsBySessionIds(sessionIds: Iterable<string>): Promise<number> {
+    const targets = new Set(sessionIds);
+    if (targets.size === 0) return 0;
+    return this.withState(async (state) => {
+      const channels = Array.from(state.conversations)
+        .filter(([, header]) => header.sessionId && targets.has(header.sessionId))
+        .map(([channel]) => channel);
+      await this.appendBatch(state, channels.flatMap((channel): SessionRegistryEvent[] => [
+        { v: 1, op: 'conversation', channel, kind: 'clear' },
+        { v: 1, op: 'turn', channel, kind: 'clear' },
+      ]));
       return channels.length;
     });
   }
@@ -574,7 +593,9 @@ export class SessionRegistryRepo {
     return this.withState(async (state) => {
       const blocked = new Set(protectedIds);
       const removed: PendingDeletion[] = [];
+      const intents: SessionRegistryEvent[] = [];
       const records = sortRecent(state.live.values());
+      const channelsBySession = conversationChannelsBySession(state);
       const expired = (record: SessionRecord): boolean => {
         const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
         return lastUsedAtMs !== null && lastUsedAtMs < toCutoffMs(cutoff);
@@ -593,27 +614,34 @@ export class SessionRegistryRepo {
         // Hand the callback the session's turns from the locked state directly — the ledger is now a
         // façade over THIS registry, so a callback that read it back would re-enter `withState` and
         // deadlock. (The old ledger was a separate store with its own lock.)
-        const cleanup = await prepareCleanup(cloneSession(record), collectSessionTurns(state, record.sessionId));
-        await appendSessionRegistryEvent(this.filePath, state, {
+        const turns = (channelsBySession.get(record.sessionId) ?? []).flatMap(channel => readTurns(state, channel));
+        const cleanup = await prepareCleanup(cloneSession(record), turns);
+        intents.push({
           v: 1,
           op: 'delete-intent',
           id: record.sessionId,
           record: toStoredRecord(cloneSession(record)),
           cleanup,
-        }, this.options);
-        await this.maybeCompact(state);
+        });
         removed.push({ session: cloneSession(record), cleanup });
       }
+      // All intents land durably before the caller starts any cleanup they describe.
+      await this.appendBatch(state, intents);
       return removed;
     });
   }
 
   async commitDeletion(sessionId: string): Promise<boolean> {
+    return (await this.commitDeletions([sessionId])).length > 0;
+  }
+
+  /** Commit several pending deletions with one append. Ids that are not pending are skipped;
+   *  returns the ids that were committed. */
+  async commitDeletions(sessionIds: Iterable<string>): Promise<string[]> {
     return this.withState(async (state) => {
-      if (!state.pending.has(sessionId)) return false;
-      await appendSessionRegistryEvent(this.filePath, state, { v: 1, op: 'delete-commit', id: sessionId }, this.options);
-      await this.maybeCompact(state);
-      return true;
+      const ids = [...new Set(sessionIds)].filter(id => state.pending.has(id));
+      await this.appendBatch(state, ids.map((id): SessionRegistryEvent => ({ v: 1, op: 'delete-commit', id })));
+      return ids;
     });
   }
 
@@ -696,6 +724,12 @@ export class SessionRegistryRepo {
     await this.maybeCompact(state);
   }
 
+  private async appendBatch(state: SessionRegistryState, events: SessionRegistryEvent[]): Promise<void> {
+    if (events.length === 0) return;
+    await appendSessionRegistryEvents(this.filePath, state, events, this.options);
+    await this.maybeCompact(state);
+  }
+
   private async maybeCompact(state: SessionRegistryState): Promise<void> {
     if (shouldCompactSessionRegistry(state, this.options)) {
       await compactSessionRegistry(this.filePath, state, this.options);
@@ -712,14 +746,17 @@ function readConversationHeader(state: SessionRegistryState, channel: string): C
   return header ? { ...header } : null;
 }
 
-/** Turns of every channel whose conversation header names `sessionId` — the same rows the ledger's
+/** sessionId → channels whose conversation header names it — the rows the ledger's
  *  `listBySessionIds` would surface, read straight from the (already-locked) state. */
-function collectSessionTurns(state: SessionRegistryState, sessionId: string): TurnRecord[] {
-  const turns: TurnRecord[] = [];
+function conversationChannelsBySession(state: SessionRegistryState): Map<string, string[]> {
+  const index = new Map<string, string[]>();
   for (const [channel, header] of state.conversations) {
-    if (header.sessionId === sessionId) turns.push(...readTurns(state, channel));
+    if (!header.sessionId) continue;
+    const channels = index.get(header.sessionId) ?? [];
+    channels.push(channel);
+    index.set(header.sessionId, channels);
   }
-  return turns;
+  return index;
 }
 
 function* filterLive(

@@ -7,6 +7,7 @@ import { STORE_DIR } from '@core/paths.js';
 const REGISTRY_VERSION = 1;
 const DEFAULT_YIELD_EVERY = 256;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
+const REPLACEMENT_CHUNK_CHARS = 1024 * 1024;
 const CHANNEL_REGISTRY_FILE = path.join(STORE_DIR, 'channel-registry.json');
 
 export type SessionOrigin = 'direct' | 'thread' | 'scheduled';
@@ -144,6 +145,8 @@ export interface SessionRegistryState {
   conversations: Map<string, ConversationHeader>;
   eventCount: number;
   fileSize: number;
+  /** Journal size right after the last compaction (0 until one runs this process). */
+  compactedFileSize: number;
 }
 
 export interface SessionRegistryJournalOptions {
@@ -165,6 +168,7 @@ export function createSessionRegistryState(): SessionRegistryState {
     conversations: new Map(),
     eventCount: 0,
     fileSize: 0,
+    compactedFileSize: 0,
   };
 }
 
@@ -192,9 +196,19 @@ export function shouldCompactSessionRegistry(
     liveCount: state.live.size,
   };
   if (options.shouldCompact) return options.shouldCompact(stats);
-  // Lowered from 2048 (B.T1): patch/turn ticks are cheap, so compact sooner to keep the tail small.
-  const threshold = Math.max(512, state.live.size * 4);
-  return state.fileSize > MAX_FILE_BYTES || state.eventCount > threshold;
+  // Both limits are relative to what a compaction would write back. An absolute limit that the
+  // compacted state itself exceeds (many turns per session, or a registry over MAX_FILE_BYTES)
+  // would make every later append rewrite the whole file.
+  const threshold = Math.max(512, state.live.size * 4, materializedEventCount(state) * 2);
+  const sizeLimit = Math.max(MAX_FILE_BYTES, state.compactedFileSize * 2);
+  return state.fileSize > sizeLimit || state.eventCount > threshold;
+}
+
+/** Number of events `compactSessionRegistry` would write for this state. */
+function materializedEventCount(state: SessionRegistryState): number {
+  let turns = 0;
+  for (const list of state.turns.values()) turns += list.length;
+  return state.live.size + state.pending.size + state.bindings.size + state.conversations.size + turns;
 }
 
 export async function loadSessionRegistryState(
@@ -212,11 +226,34 @@ export async function appendSessionRegistryEvent(
   event: SessionRegistryEvent,
   options: SessionRegistryJournalOptions = {},
 ): Promise<void> {
-  assertAppendableEvent(state, event);
-  const line = `${JSON.stringify(event)}\n`;
-  const fileSize = await appendLineWithRollback(filePath, line, options.writeAppend);
-  applyEvent(state, event);
-  state.eventCount += 1;
+  await appendSessionRegistryEvents(filePath, state, [event], options);
+}
+
+/**
+ * Append several events with one write and one fsync. Every event is validated against the state
+ * before the batch, so the events must not depend on each other: a session id may appear at most
+ * once (channel-scoped events carry no precondition and may repeat). A crash mid-write leaves a
+ * prefix of whole lines plus a torn tail that the next load truncates.
+ */
+export async function appendSessionRegistryEvents(
+  filePath: string,
+  state: SessionRegistryState,
+  events: SessionRegistryEvent[],
+  options: SessionRegistryJournalOptions = {},
+): Promise<void> {
+  if (events.length === 0) return;
+  const sessionIds = new Set<string>();
+  for (const event of events) {
+    if ('id' in event) {
+      if (sessionIds.has(event.id)) throw new Error(`Session appears twice in one append batch: ${event.id}`);
+      sessionIds.add(event.id);
+    }
+    assertAppendableEvent(state, event);
+  }
+  const text = events.map(event => `${JSON.stringify(event)}\n`).join('');
+  const fileSize = await appendLineWithRollback(filePath, text, options.writeAppend);
+  for (const event of events) applyEvent(state, event);
+  state.eventCount += events.length;
   state.fileSize = fileSize;
 }
 
@@ -229,6 +266,7 @@ export async function compactSessionRegistry(
   await replaceJournalFile(filePath, events);
   state.eventCount = events.length;
   state.fileSize = (await fsp.stat(filePath)).size;
+  state.compactedFileSize = state.fileSize;
   options.onCompact?.();
 }
 
@@ -885,7 +923,18 @@ async function replaceJournalFile(filePath: string, events: SessionRegistryEvent
 async function writeReplacementFile(tmp: string, events: SessionRegistryEvent[]): Promise<void> {
   const handle = await fsp.open(tmp, 'w');
   try {
-    for (const event of events) await handle.writeFile(`${JSON.stringify(event)}\n`, 'utf8');
+    let chunk: string[] = [];
+    let chunkBytes = 0;
+    for (const event of events) {
+      const line = `${JSON.stringify(event)}\n`;
+      chunk.push(line);
+      chunkBytes += line.length;
+      if (chunkBytes < REPLACEMENT_CHUNK_CHARS) continue;
+      await handle.writeFile(chunk.join(''), 'utf8');
+      chunk = [];
+      chunkBytes = 0;
+    }
+    if (chunk.length) await handle.writeFile(chunk.join(''), 'utf8');
     await handle.sync();
   } finally {
     await handle.close();
