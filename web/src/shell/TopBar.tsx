@@ -5,6 +5,7 @@ import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-pl
 import { useTheme, useSetTheme } from '@/theme';
 import { useSettings } from '@/features/settings/useSettings';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
+import { MachinesMenu } from '@/features/machines/MachinesMenu';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
 import { BrandBadge, GearIcon } from '@/features/workbench/rail/LeftRail';
@@ -23,7 +24,8 @@ export const TOP_BAR_HEIGHT = 44;
 const mono = "'IBM Plex Mono',monospace";
 
 // The bar is the app's one always-visible surface, so everything that must survive a collapsed rail
-// lives here: the brand block with its connectivity dot, the palette entry, theme, Usage and Settings.
+// lives here: the brand block with its connectivity dot, the palette entry, the machines menu, theme,
+// Usage and Settings.
 //
 // Everything here is window-scoped. Session-scoped controls (Browser, Notes, ⋯) stay in ChatHeader.
 
@@ -249,6 +251,7 @@ export function TopBar(): JSX.Element {
       <div className="shell-topbar-spacer" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none', paddingRight: 'var(--app-gutter)' }}>
+        <MachinesMenu onManage={() => openSettingsSection('machines')} />
         {/* Theme controls remain keyboard reachable when labels compact. The capsule also opts
             out of the native drag region so its gaps cannot begin a window drag. */}
         <div

@@ -6,6 +6,7 @@ import { ChatSessionMenu } from './ChatSessionMenu';
 import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
+import { NotesGlyph } from '@/features/notes/NotesGlyph';
 import { useDockIntake } from '@/design/dock-intake';
 import { useShellModals } from '@/shell/useShellModals';
 
@@ -66,15 +67,6 @@ function GlobeGlyph(): JSX.Element {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
       <circle cx="8" cy="8" r="6.3" />
       <path d="M1.7 8h12.6M8 1.7c-1.8 1.8-2.7 4-2.7 6.3s.9 4.5 2.7 6.3c1.8-1.8 2.7-4 2.7-6.3S9.8 3.5 8 1.7z" />
-    </svg>
-  );
-}
-
-function NotesGlyph(): JSX.Element {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 3h9l4 4v14H6z" />
-      <path d="M15 3v5h4M9 12h6M9 16h6" />
     </svg>
   );
 }

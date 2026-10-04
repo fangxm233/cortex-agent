@@ -1,20 +1,18 @@
 import { LeftRail } from '@/features/workbench/rail/LeftRail';
-import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
+import { NotesSheet } from '@/features/notes/NotesSheet';
 import { OverviewView } from './OverviewView';
 import { AppFrame } from '@/shell/AppFrame';
 import { WorkspacePanel } from '@/shell/GlassPanel';
 
-// Route /overview — the project Overview 6a as a center-column view inside the workbench frame
-// (task df67, plan §8.5). Reuses the 1:1 LeftRail (f528) + RightPanel (1e96); only the center pane
-// swaps to OverviewView, mirroring the prototype's `isOverview` state (rails persist). Frame flex is
-// identical to WorkbenchPage: 340px LeftRail / fluid center / 400px RightPanel.
+// Route /overview — the project Overview as a center-column view inside the workbench frame. Reuses
+// the LeftRail; only the workspace content swaps to OverviewView. The notes sheet floats over it.
 export function OverviewPage(): JSX.Element {
   return (
     <AppFrame>
       <LeftRail />
       <WorkspacePanel>
         <OverviewView />
-        <RightPanel />
+        <NotesSheet />
       </WorkspacePanel>
     </AppFrame>
   );

@@ -1,10 +1,8 @@
-// Workbench-local UI words that have no shared vocab key. Selected by lang so the hook-free
-// view-models (e.g. right-panel-vm) can use them too.
+// Workbench-local UI words that have no shared vocab key. Selected by lang so hook-free
+// view-models can use them too.
 import type { Lang } from '@/i18n';
 
 const WB_COPY_EN = {
-  machineOnline: 'Online',
-  machineOffline: 'Offline',
   openWebPage: 'Open a web page in the dock',
   sessionMenu: 'Session menu',
   noSession: 'No session',
@@ -20,8 +18,6 @@ export type WorkbenchCopy = typeof WB_COPY_EN;
 const WB_COPY: Record<Lang, WorkbenchCopy> = {
   en: WB_COPY_EN,
   zh: {
-    machineOnline: '在线',
-    machineOffline: '离线',
     openWebPage: '在停靠面板中打开网页',
     sessionMenu: '会话菜单',
     noSession: '无会话',

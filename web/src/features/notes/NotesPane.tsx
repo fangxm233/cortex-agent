@@ -136,7 +136,6 @@ function CompletedRow({ row, copy, busy, onReopen }: { row: NoteRowVm; copy: Not
 
 interface NotesPaneChromeProps {
   headerIcon?: ReactNode;
-  headerAction?: ReactNode;
   visible?: boolean;
 }
 
@@ -163,11 +162,10 @@ function usePaneEffects(targetId: string | null, onClose: () => void, visible: b
   }, [onClose, visible]);
 }
 
-function NotesPaneHeader({ copy, activeCount, headerIcon, headerAction, onClose }: {
+function NotesPaneHeader({ copy, activeCount, headerIcon, onClose }: {
   copy: NotesCopy;
   activeCount: number;
   headerIcon?: ReactNode;
-  headerAction?: ReactNode;
   onClose: () => void;
 }) {
   return (
@@ -176,7 +174,6 @@ function NotesPaneHeader({ copy, activeCount, headerIcon, headerAction, onClose 
       <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
       <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{activeCount}</span>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-        {headerAction}
         <button type="button" onClick={onClose} style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{copy.escape}</button>
       </div>
     </div>
@@ -188,10 +185,10 @@ export function NotesPaneView(props: NotesPaneViewProps) {
   usePaneEffects(props.targetId, props.onClose, props.visible !== false);
   const actions: PaneActions = props;
   return (
-    // No background and no shadow of its own: the drawer sheet this fills IS the surface, and a
-    // second fill on top would only mute its glass while the sheet's `--shadow-float` already lifts it.
+    // No background and no shadow of its own: the sheet this fills IS the surface, and a second
+    // fill on top would only mute its glass while the sheet's `--shadow-float` already lifts it.
     <aside className="content-surface" data-notes-pane="" style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <NotesPaneHeader copy={props.copy} activeCount={props.vm.activeCount} headerIcon={props.headerIcon} headerAction={props.headerAction} onClose={props.onClose} />
+      <NotesPaneHeader copy={props.copy} activeCount={props.vm.activeCount} headerIcon={props.headerIcon} onClose={props.onClose} />
       <AddInput copy={props.copy} busy={props.busy} onAdd={props.onAdd} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: '10px 14px 14px' }}>
         <div style={{ padding: '6px 2px 7px', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--proto-muted)' }}>{props.copy.todo} · {props.vm.activeCount}</div>

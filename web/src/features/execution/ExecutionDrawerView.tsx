@@ -4,7 +4,7 @@ import { useVocab } from '@/i18n';
 // Pure presentational chrome for the execution drawer (design 09-exec-logs, prototype.dc.html
 // L1544–1560) — hooks-free so it is render-testable and screenshottable in isolation. Exact inline
 // styles/px/hex/font from the prototype (the dark palette is not in the light proto.* tokens; raw
-// values are faithful per §8.3, matching the LeftRail/RightPanel precedent). Data wiring
+// values are faithful per §8.3, matching the LeftRail precedent). Data wiring
 // (executions.get / executions.cancel) lives in ExecutionDrawer's DrawerBody.
 
 export interface ExecutionDrawerViewProps {

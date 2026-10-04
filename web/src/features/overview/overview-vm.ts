@@ -8,8 +8,7 @@ import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/lib/time
 import { execStatusWord } from '@/features/execution/execution-drawer-view';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
-// task df67). No JSX, no hex outside the verbatim-prototype status-pill map. Precedent:
-// features/workbench/right-panel/right-panel-vm.ts.
+// task df67). No JSX, no hex outside the verbatim-prototype status-pill map.
 
 /** `$4.21` — two decimals, null/undefined → `$0.00`. */
 export function formatMoney(n: number | null | undefined): string {

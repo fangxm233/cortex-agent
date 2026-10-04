@@ -18,7 +18,7 @@ import {
 import { MarkdownView } from './MarkdownView';
 
 // MEMORY VIEWER 7b — 1:1 from prototype.dc.html L658–719. CENTER-pane view mounted in the
-// workbench frame (LeftRail + RightPanel persist, like Overview). Exact inline styles / px / hex /
+// workbench frame (LeftRail persists, like Overview). Exact inline styles / px / hex /
 // font / weight / EN copy reproduced; real fs-read data substituted via the existing memory.tree /
 // memory.file tRPC scopes. Aggregate +/− is real (git numstat). With diff ON, a per-line blame pane
 // shows the REAL commit hash + parsed task ref per line (memory.file.blame, git blame). When blame is

@@ -19,7 +19,9 @@ vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
 }));
 vi.mock('@/features/dock/DockProvider', () => ({ useDock: () => ({ open: true, canDock: true, toggleDock: vi.fn() }) }));
 vi.mock('@/theme/ThemeProvider', () => ({ useTheme: () => 'dark', useSetTheme: () => vi.fn() }));
-vi.mock('../PaneStateProvider', () => ({ usePaneState: () => ({ toggleRail: vi.fn(), togglePanel: vi.fn() }) }));
+vi.mock('../PaneStateProvider', () => ({ usePaneState: () => ({ toggleRail: vi.fn() }) }));
+const machines = vi.hoisted(() => ({ open: vi.fn(), close: vi.fn() }));
+vi.mock('@/features/machines/MachinesMenu', () => ({ useMachinesMenuActions: () => machines }));
 vi.mock('../useShellModals', () => ({ useShellModals: () => ({
   openNewProject: vi.fn(), openAbout: vi.fn(), openDaemonStatus: vi.fn(),
 }) }));
@@ -41,6 +43,22 @@ beforeEach(() => {
 afterEach(() => { act(() => renderer.unmount()); vi.unstubAllGlobals(); });
 
 describe('useAppMenus', () => {
+  it('offers notes and machines in the View menu', () => {
+    const view = menu.menus.find((group) => group.id === 'view')!;
+    const ids = view.items.flatMap((node) => (node.kind === 'item' ? [node.id] : []));
+    expect(ids).toEqual(expect.arrayContaining(['view.notes', 'view.machines']));
+    expect(ids).not.toContain('view.rightPanel');
+    const notes = view.items.find((node) => node.kind === 'item' && node.id === 'view.notes') as Extract<MenuNode, { kind: 'item' }>;
+    expect(notes.accelDisplayOnly).toBe(true);
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { dispatchEvent });
+    vi.stubGlobal('KeyboardEvent', class { constructor(type: string, init: object) { Object.assign(this, { type, ...init }); } });
+    notes.run();
+    expect(dispatchEvent.mock.calls[0][0]).toMatchObject({ type: 'keydown', key: 'N', shiftKey: true });
+    (view.items.find((node) => node.kind === 'item' && node.id === 'view.machines') as Extract<MenuNode, { kind: 'item' }>).run();
+    expect(machines.open).toHaveBeenCalledOnce();
+  });
+
   it('disables and relabels updates during the real command, including stale repeated actions', async () => {
     let finish!: (value: unknown) => void;
     const invoke = vi.fn(() => new Promise((resolve) => { finish = resolve; }));

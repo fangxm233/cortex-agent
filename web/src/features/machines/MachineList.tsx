@@ -1,19 +1,18 @@
-import { useState } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useLang, useVocab } from '@/i18n';
-import { useMachinesResource, type MachineDetailResource } from '@/features/machines/useMachinesResource';
+import { useMachinesResource, type MachineDetailResource } from './useMachinesResource';
 import {
   formatSince,
   type MachineGpuRow,
   type MachineMeter,
   type MachineRunRow,
-} from '@/features/machines/machine-detail-vm';
-import { machinePill } from './right-panel-vm';
+} from './machine-detail-vm';
+import { machinePill } from './machines-menu-vm';
 
-// Machines tab — 1:1 from prototype.dc.html L1237–1274. Collapsed cards show machines.list
-// (name / online pill / GPU ×N / live-runs). Expanding a card lazily fetches machines.detail: a live
-// probe of the device (GPU telemetry, host vitals) joined with its running dispatch executions.
-// The probe is an RPC round trip, so it only runs while a card is open and stops when it closes.
+// Machine cards for the top-bar machines menu. Collapsed cards show machines.list (name / online
+// pill / GPU ×N / live-runs). Expanding a card lazily fetches machines.detail: a live probe of the
+// device (GPU telemetry, host vitals) joined with its running dispatch executions. The probe is an
+// RPC round trip, so it only runs while the menu is open and the card is expanded.
 
 // Server-rack icon: two shelf rows with a status LED each (14×14 viewport, stroke 1.6).
 const MACHINE_ICON = (
@@ -172,14 +171,15 @@ function MachineDetailBody({ detail }: { detail: MachineDetailResource }) {
 }
 
 function MachineCardTitle({ machine, open }: { machine: MachineInfo; open: boolean }) {
-  const pill = machinePill(machine.online, useLang());
+  const L = useVocab();
+  const pill = machinePill(machine.online, { online: L.mOnline, offline: L.mOffline });
   const iconColor = machine.online ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
   return <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
     <span style={{ display: 'inline-flex', color: 'var(--proto-muted-3)' }}><Chevron open={open} /></span>
     <span style={{ display: 'inline-flex', color: iconColor }}>{MACHINE_ICON}</span>
     <span title={machine.name} style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{machine.name}</span>
     <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 11, fontWeight: 600, padding: '2px 8px',
-      borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.fg }}>{pill.text}</span>
+      borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.fg, textTransform: 'capitalize' }}>{pill.text}</span>
   </div>;
 }
 
@@ -199,7 +199,7 @@ function MachineCardMeta({ machine }: { machine: MachineInfo }) {
 function MachineCard({ machine, open, detail, onToggle }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
 }) {
-  // Glass-on-glass inside the drawer sheet: translucent fill, no filter of its own.
+  // Glass-on-glass inside the menu sheet: translucent fill, no filter of its own.
   return <div style={{ background: 'var(--material-card-bg)', border: 0, borderRadius: 'var(--r-card)',
     boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)' }}>
     <div role="button" aria-expanded={open} onClick={onToggle}
@@ -209,16 +209,6 @@ function MachineCard({ machine, open, detail, onToggle }: {
       <MachineCardMeta machine={machine} />
     </div>
     {open && detail && <MachineDetailBody detail={detail} />}
-  </div>;
-}
-
-// A group label, not a header bar: the machines section is a labelled card stack under the
-// drawer's tab strip.
-function MachinesHeader({ count }: { count: string }) {
-  const L = useVocab();
-  return <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em',
-    textTransform: 'uppercase', color: 'var(--proto-muted)', padding: '6px 6px', flex: 'none' }}>
-    {L.machines} · {count}
   </div>;
 }
 
@@ -235,7 +225,7 @@ function MachineListState({ loading, error, empty }: { loading: boolean; error: 
   </div>;
 }
 
-interface RightMachinesViewProps {
+interface MachineListViewProps {
   machines: MachineInfo[];
   loading: boolean;
   error: boolean;
@@ -244,28 +234,22 @@ interface RightMachinesViewProps {
   onToggle: (name: string) => void;
 }
 
-export function RightMachinesView(props: RightMachinesViewProps) {
-  const count = !props.loading && !props.error ? String(props.machines.length) : '—';
-  return <div style={{ flex: 1, minHeight: 0, padding: '0 12px 12px', display: 'flex',
-    flexDirection: 'column', overflow: 'auto', scrollbarGutter: 'stable' }}>
-    <MachinesHeader count={count} />
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {props.machines.map((machine) => <MachineCard key={machine.name} machine={machine}
-        open={props.expanded.has(machine.name)} detail={props.detailFor(machine.name)}
-        onToggle={() => props.onToggle(machine.name)} />)}
-      <MachineListState loading={props.loading} error={props.error} empty={props.machines.length === 0} />
-    </div>
+export function MachineListView(props: MachineListViewProps) {
+  return <div style={{ flex: 1, minHeight: 0, padding: '2px 12px 12px', display: 'flex',
+    flexDirection: 'column', gap: 6, overflow: 'auto', scrollbarGutter: 'stable' }}>
+    {props.machines.map((machine) => <MachineCard key={machine.name} machine={machine}
+      open={props.expanded.has(machine.name)} detail={props.detailFor(machine.name)}
+      onToggle={() => props.onToggle(machine.name)} />)}
+    <MachineListState loading={props.loading} error={props.error} empty={props.machines.length === 0} />
   </div>;
 }
 
-export function RightMachinesTab() {
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+/** Expansion lives with the caller so it survives the menu closing; probes run only while mounted. */
+export function MachineList({ expanded, onToggle }: {
+  expanded: ReadonlySet<string>;
+  onToggle: (name: string) => void;
+}) {
   const machines = useMachinesResource([...expanded]);
-  const toggle = (name: string) => setExpanded((current) => {
-    const next = new Set(current);
-    if (next.has(name)) next.delete(name); else next.add(name);
-    return next;
-  });
-  return <RightMachinesView machines={machines.machines} loading={machines.loading}
-    error={!!machines.error} expanded={expanded} detailFor={machines.detailFor} onToggle={toggle} />;
+  return <MachineListView machines={machines.machines} loading={machines.loading}
+    error={!!machines.error} expanded={expanded} detailFor={machines.detailFor} onToggle={onToggle} />;
 }

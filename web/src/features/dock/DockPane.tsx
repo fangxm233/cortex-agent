@@ -13,9 +13,8 @@ import {
   type WebDockTab,
 } from './dock-tabs';
 
-// THE DOCK PANE — mounted by the workbench frame as a flex sibling between CenterChat and
-// RightPanel, so opening it splits the center region into chat (left) | dock (right) instead of
-// covering the chat with a scrim. Its left edge is a drag divider (split ratio persisted).
+// THE DOCK PANE — mounted by the workbench frame as a flex sibling after CenterChat, so opening it
+// splits the center region into chat (left) | dock (right) instead of covering the chat with a scrim. Its left edge is a drag divider (split ratio persisted).
 //
 // EVERY tab body stays mounted; only the active one is displayed. That is what makes a switch
 // non-destructive — a web tab keeps its live document, scroll position and HMR connection, and a

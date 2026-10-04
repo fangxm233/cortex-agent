@@ -8,6 +8,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
 import { useDock } from '@/features/dock/DockProvider';
+import { useMachinesMenuActions } from '@/features/machines/MachinesMenu';
 import { useSetTheme, useTheme } from '@/theme/ThemeProvider';
 import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
@@ -55,6 +56,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
   const modals = useShellModals();
   const panes = usePaneState();
   const dock = useDock();
+  const machinesMenu = useMachinesMenuActions();
   const theme = useTheme();
   const setTheme = useSetTheme();
   const { currentProjectId } = useCurrentProject();
@@ -132,13 +134,15 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
           checked: !panes.railCollapsed, run: panes.toggleRail,
         },
         {
-          kind: 'item', id: 'view.rightPanel', label: L.mViewRightPanel, accel: 'mod+alt+b',
-          checked: !panes.panelCollapsed, run: panes.togglePanel,
-        },
-        {
           kind: 'item', id: 'view.dock', label: L.mViewDock, accel: 'mod+j',
           checked: dock.open, disabled: !dock.canDock, run: dock.toggleDock,
         },
+        {
+          // NotesProvider owns ⌘⇧N, so the item replays the key rather than binding it twice.
+          kind: 'item', id: 'view.notes', label: L.mViewNotes, accel: 'mod+shift+n', accelDisplayOnly: true,
+          run: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'N', metaKey: true, ctrlKey: true, shiftKey: true, bubbles: true })),
+        },
+        { kind: 'item', id: 'view.machines', label: L.mViewMachines, run: machinesMenu.open },
         separator,
         { kind: 'item', id: 'view.workbench', label: L.mViewWorkbench, run: () => navigate('/workbench') },
         { kind: 'item', id: 'view.overview', label: L.mViewOverview, run: () => navigate('/overview') },
@@ -180,7 +184,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
     };
 
     return [file, edit, view, help];
-  }, [L, navigate, toast, settings, scheduleModal, modals, panes, dock, theme, setTheme,
+  }, [L, navigate, toast, settings, scheduleModal, modals, panes, dock, machinesMenu, theme, setTheme,
     currentProjectId, selectedSessionId, setSelectedSession, windowActions, native, checkingUpdates, checkUpdates]);
 
   return { menus, windowActions };

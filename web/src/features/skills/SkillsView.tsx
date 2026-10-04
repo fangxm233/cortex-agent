@@ -4,7 +4,7 @@ import { useLang, useVocab, type Lang } from '@/i18n';
 import type { SkillGroup } from '@cortex-agent/ui-contract';
 
 // SKILLS BROWSER (plan §12 A item 2 / 8a) — CENTER-pane view mounted in the workbench frame
-// (LeftRail + RightPanel persist, like Overview and Memory). Renders real skills.list data
+// (LeftRail persists, like Overview and Memory). Renders real skills.list data
 // grouped by plugin. Neutral placeholder when loading or when no skills are found.
 // No fabricated data: every field rendered comes from a real skills.list response.
 

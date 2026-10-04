@@ -17,6 +17,7 @@ vi.mock('@/theme', () => ({ useTheme: () => 'light', useSetTheme: () => actions.
 vi.mock('@/features/settings/useSettings', () => ({
   useSettings: () => ({ open: actions.settings, openSection: actions.settingsSection }),
 }));
+vi.mock('@/features/machines/MachinesMenu', () => ({ MachinesMenu: () => null }));
 vi.mock('@/features/connection/ConnectionStatusProvider', () => ({ useConnectionStatus: () => 'connected' }));
 vi.mock('@/features/workbench/rail/LeftRail', () => ({
   BrandBadge: ({ label, onClick }: { label: string; onClick: () => void }) => <button aria-label={label} onClick={onClick} />,
