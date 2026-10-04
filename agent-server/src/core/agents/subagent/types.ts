@@ -1,4 +1,4 @@
-import type { Backend } from '@core/types/agent-types.js';
+import type { Backend, ToolResultImage } from '@core/types/agent-types.js';
 
 export type SubagentMode = 'single' | 'parallel' | 'chain';
 
@@ -24,6 +24,9 @@ export interface SubagentNotice {
   input?: unknown;
   ok?: boolean;
   content?: string;
+  /** `tool_result` only: inline images the child's tool returned. In memory only — see
+   *  `ToolResultImage`; `content` keeps describing them as text. */
+  images?: ToolResultImage[];
   text?: string;
   status?: SubagentEndStatus;
 }

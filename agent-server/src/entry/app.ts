@@ -41,6 +41,7 @@ import { createServerUpdateCoordinator } from '@domain/system/server-update-chec
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
+import { TOOL_IMAGES_DIR } from '@store/tool-image-files.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { teamOutboxRepo } from '@store/team-outbox-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
@@ -184,13 +185,14 @@ async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Pr
       piSessionsDir: path.join(DATA_DIR, 'logs', 'sessions-pi'),
       claudeCaptureDir: path.join(DATA_DIR, 'logs', 'sessions'),
       claudeProjectDir: getProjectDir(),
+      toolImagesDir: TOOL_IMAGES_DIR,
     },
     syncClaudeUserCleanupPeriodDays,
   });
   // Inbound platform attachments are read during the turn they arrive on; nothing links to them
   // afterwards, and before this sweep existed they accumulated in the workspace forever.
   const attachmentsPruned = result.stopped ? 0 : await pruneInboundAttachments(retentionDays);
-  log.info(`Retention sweep${result.stopped ? ' stopped early' : ''}: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} attachments=${attachmentsPruned} errors=${result.errors.length} in ${Date.now() - startedAt}ms`);
+  log.info(`Retention sweep${result.stopped ? ' stopped early' : ''}: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} toolImages=${result.toolImagesDeleted} attachments=${attachmentsPruned} errors=${result.errors.length} in ${Date.now() - startedAt}ms`);
 }
 
 const retentionController = createSessionRetentionController({

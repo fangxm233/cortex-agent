@@ -307,6 +307,43 @@ test('retention sweep deletes orphan history and PI transcript bundles only afte
   await assert.rejects(() => fs.stat(piBackup));
 });
 
+test('retention sweep removes tool-image directories of sessions that are gone, and only those', async () => {
+  const h = await makeHarness();
+  const toolImagesDir = path.join(h.root, 'tool-images');
+  await h.registry.registerSession('cortex-live', registerOpts('track-live'));
+  const dirs = ['track-live', 'track-gone', 'track-fresh'].map((name) => path.join(toolImagesDir, name));
+  for (const dir of dirs) {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, 'toolu-1-0.png'), 'png');
+  }
+  const oldTime = new Date('2025-01-01T00:00:00.000Z');
+  await fs.utimes(dirs[0], oldTime, oldTime);
+  await fs.utimes(dirs[1], oldTime, oldTime);
+
+  const result = await runSessionRetentionSweep({
+    retentionDays: 30,
+    now: () => Date.parse('2026-08-01T00:00:00.000Z'),
+    registry: h.registry,
+    ledgerRepo: h.ledger,
+    historyRepo: h.history,
+    candidateRepo: h.candidates,
+    liveness: {
+      protectedTrackSessionIds: [], protectedBackendSessionIds: [],
+      activeClaudeCapturePaths: [], activeClaudeCapturePairs: [],
+    },
+    paths: {
+      historyDir: h.historyDir, piSessionsDir: h.piDir, claudeCaptureDir: h.captureDir,
+      claudeProjectDir: h.claudeProjectDir, toolImagesDir,
+    },
+    syncClaudeUserCleanupPeriodDays: async () => ({ filePath: '/tmp/settings.json', changed: false }),
+  });
+
+  assert.equal(result.toolImagesDeleted, 1);
+  await assert.doesNotReject(() => fs.stat(dirs[0]), 'a live session keeps its images');
+  await assert.rejects(() => fs.stat(dirs[1]), 'an unregistered, old directory goes');
+  await assert.doesNotReject(() => fs.stat(dirs[2]), 'a directory written inside the window stays');
+});
+
 test('retention sweep isolates Claude helper and registry failures from capture cleanup', async () => {
   const h = await makeHarness();
   const staleStem = '2026-01-01T00-00-00Z';

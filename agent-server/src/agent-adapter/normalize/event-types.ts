@@ -1,4 +1,4 @@
-import type { ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+import type { ContextUsage, TodoSnapshot, ToolResultImage } from '@core/types/agent-types.js';
 
 export type { TodoItem, TodoSnapshot, TodoStatus } from '@core/types/agent-types.js';
 
@@ -130,7 +130,10 @@ export type NormalizedEvent =
       subagent?: ToolUseSubagent }
   | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string;
       /** Present only when the result belongs to a native subagent's own call. */
-      subagent?: ToolUseSubagent }
+      subagent?: ToolUseSubagent;
+      /** Inline images the tool returned. In memory only: `content` describes them as text, and
+       *  only the transcript sink persists the bytes (as files). */
+      images?: ToolResultImage[] }
   // Derived semantic event emitted ALONGSIDE the raw `tool_use` for a TodoWrite call, never
   // instead of it: the raw call is required-sink evidence (production-attempt-journal → ATIF
   // tool_calls) and dropping it would put a hole in the trajectory. Same family as

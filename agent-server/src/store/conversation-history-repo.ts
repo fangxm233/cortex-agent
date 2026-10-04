@@ -158,10 +158,12 @@ export interface HistoryEvent {
  *  never emitted as an event itself.
  *  `subagent-end` is the same kind of line for a different fact: one native subagent reached a
  *  terminal state. It carries no prose, so it becomes no event either — on read it lands in
- *  `SessionHistory.subagentEnds`, which is what seals that subagent's block. */
+ *  `SessionHistory.subagentEnds`, which is what seals that subagent's block.
+ *  `tool-images` names the files a tool call's returned images were written to; on read they
+ *  become that tool row's `attachments`. */
 export interface RawEvent {
   type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result' | 'decision-action'
-    | 'subagent-end';
+    | 'subagent-end' | 'tool-images';
   /** edit-marker lines only. */
   originalText?: string;
   /** edit-marker lines only. */
@@ -181,8 +183,9 @@ export interface RawEvent {
   subagentModel?: string;
   /** `subagent-end` lines only: the terminal state reached by `subagentId`. */
   subagentEnded?: SubagentEndStatus;
-  /** DEBUG-only correlation and lossless payload fields. */
+  /** Backend tool-use id: correlates a tool row with its result lines. */
   toolUseId?: string;
+  /** DEBUG-only lossless payload fields. */
   fullInput?: unknown;
   agentMessage?: string;
   isError?: boolean;
@@ -198,6 +201,8 @@ export interface RawEvent {
   ts: string;
   /** Optional file attachments (user events from web composer). */
   attachments?: AttachmentMeta[];
+  /** `tool-images` lines only: the files a tool call's images were written to. */
+  images?: AttachmentMeta[];
   decisions?: RawDecisionItem[];
   decisionId?: string;
   action?: DecisionActionKind;
@@ -625,6 +630,14 @@ export class ConversationHistoryRepo {
     });
   }
 
+  /** Record the image files one tool call returned; read-time correlation attaches them to the
+   *  tool row with the same `toolUseId`. */
+  appendToolImages(sessionId: string, opts: { toolUseId: string; images: AttachmentMeta[]; ts?: string }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'tool-images', toolUseId: opts.toolUseId, images: opts.images, ts: opts.ts ?? nowIso(),
+    });
+  }
+
   /** Append a full normalized tool result; read-time correlation keeps it on the tool row. */
   appendToolResult(sessionId: string, opts: { toolUseId: string; content: string; isError: boolean; ts?: string }): Promise<void> {
     return this.append(sessionId, {
@@ -754,6 +767,8 @@ export class ConversationHistoryRepo {
         try { event = JSON.parse(line) as RawEvent; } catch { continue; }
         if (event.toolUseId !== toolRef) continue;
         if (event.type === 'tool') {
+          // A tool row outside DEBUG carries its id but nothing DEBUG captured behind it.
+          if (event.fullInput === undefined) continue;
           chars += line.length;
           details = { ...(details ?? {}), toolRef, toolInput: event.fullInput };
         } else if (event.type === 'debug-tool-result') {

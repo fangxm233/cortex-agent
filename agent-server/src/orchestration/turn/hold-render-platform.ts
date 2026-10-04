@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 import type { OutputStream, PlatformAdapter, MessageRef } from '@platform/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
@@ -40,7 +40,7 @@ export interface PlatformHoldDeps {
   projectId: string;
   backend: string;
   onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  onToolResult?: ((toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]) => void) | null;
   onContextUsage?: ((usage: ContextUsage) => void) | null;
 }
 
@@ -90,8 +90,8 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
       deps.onToolUse?.(name, input, toolUseId);
     },
 
-    onToolResult(toolUseId: string, content: string, isError: boolean): void {
-      deps.onToolResult?.(toolUseId, content, isError);
+    onToolResult(toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]): void {
+      deps.onToolResult?.(toolUseId, content, isError, images);
     },
 
     onContext(usage: ContextUsage): void {

@@ -64,6 +64,7 @@ export function subagentNoticeEvents(notice: SubagentNotice): NormalizedEvent[] 
     return [{
       type: 'tool_result', toolUseId: notice.toolUseId!,
       ok: notice.ok !== false, content: notice.content ?? '', subagent,
+      ...(notice.images?.length ? { images: notice.images } : {}),
     }];
   }
   return [{ type: 'assistant_text', text: notice.text!, subagent }];

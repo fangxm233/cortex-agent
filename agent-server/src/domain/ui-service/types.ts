@@ -943,8 +943,9 @@ export interface TranscriptMessage {
   subtype?: string;
   /** Structured interaction entity (interaction rows with an id). Absent on legacy rows. */
   interaction?: TranscriptInteractionDetail;
-  /** File attachments: user uploads via the web composer (15a, user messages) OR agent-sent
-   *  files via the `send_file` MCP tool (20a, assistant messages). */
+  /** File attachments: user uploads via the web composer (15a, user messages), agent-sent
+   *  files via the `send_file` MCP tool (20a, assistant messages), or the images a tool call
+   *  returned to the model (tool messages). */
   attachments?: AttachmentMeta[];
   /** Agent-announced decisions via the `send_decision` MCP tool (assistant messages). */
   decisions?: DecisionItem[];

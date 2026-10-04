@@ -39,6 +39,29 @@ test('an image tool_result is described by mime and size, never serialized', (t)
   assert.ok(!results[0].includes('AAAA'), 'the payload must not reach the transcript');
 });
 
+test('image bytes reach the result callback separately; text-only results carry none', (t) => {
+  const s: any = _test.makeSessionForTest();
+  t.onTestFinished(() => s.close());
+  const calls: Array<{ content: string; images: unknown }> = [];
+  s.currentTurn = {
+    ...sessionCapturing([], t).currentTurn,
+    onToolResult: (_id: string, content: string, _isError: boolean, _subagent: unknown, images: unknown) => {
+      calls.push({ content, images });
+    },
+  };
+  s.handleLine(resultLine([
+    { type: 'text', text: 'Read image file' },
+    { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0K' } },
+    { type: 'image', source: { type: 'url', url: 'https://example.invalid/x.png' } },
+  ]));
+  s.handleLine(resultLine('plain output'));
+
+  assert.deepEqual(calls, [
+    { content: 'Read image file\n[image/png, 6 B]\n[image, https://example.invalid/x.png]', images: [{ mimeType: 'image/png', data: 'iVBORw0K' }] },
+    { content: 'plain output', images: undefined },
+  ]);
+});
+
 test('text blocks still pass through, and mix with a described image', (t) => {
   const results: string[] = [];
   const s = sessionCapturing(results, t);

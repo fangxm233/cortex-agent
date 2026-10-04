@@ -187,7 +187,8 @@ test('a tool call that lands after the parent turn ended keeps its full attribut
   assert.deepEqual(t.appended[0].subagent, {
     id: 'toolu_parent#0', type: 'general-purpose', description: 'scout the repo', model: 'sonnet',
   });
-  assert.equal(t.appended[0].toolUseId, undefined, 'no DEBUG-only fields with DEBUG off');
+  assert.equal(t.appended[0].toolUseId, 'toolu_parent#0:tu-1', 'the id always correlates the row');
+  assert.equal(t.appended[0].fullInput, undefined, 'no DEBUG-only fields with DEBUG off');
 
   assert.equal(t.published.length, 1);
   assert.equal(t.published[0].role, 'tool');

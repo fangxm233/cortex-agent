@@ -83,6 +83,11 @@ export function publishSessionDebugUpdated(p: { sessionId: string; channel: stri
   orchestrationBus()?.publish({ type: 'session.debug.updated', sessionId: p.sessionId, channel: p.channel });
 }
 
+/** Tell an open transcript to refetch: a tool call's images were filed onto its row. */
+export function publishSessionToolImages(p: { sessionId: string; channel: string }): void {
+  orchestrationBus()?.publish({ type: 'session.tool-images', sessionId: p.sessionId, channel: p.channel });
+}
+
 export function publishSessionMessage(p: SessionMessagePayload): void {
   orchestrationBus()?.publish({
     type: 'session.message',

@@ -1,5 +1,5 @@
 import type {
-  AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot,
+  AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot, ToolResultImage,
 } from '@core/types/agent-types.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 
@@ -38,6 +38,8 @@ export type RunEvent =
   | {
       type: 'tool_result'; toolUseId: string; ok: boolean; content: string;
       subagent?: ToolUseSubagent; phase: RunPhase;
+      /** See `NormalizedEvent` tool_result: in memory only, until the transcript sink files it. */
+      images?: ToolResultImage[];
     }
   | { type: 'todo_update'; toolUseId: string; snapshot: TodoSnapshot; phase: RunPhase }
   | ({ type: 'context_usage'; phase: RunPhase } & ContextUsage)

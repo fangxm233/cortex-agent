@@ -22,6 +22,39 @@ test('remote tool device metadata is derived narrowly and round-trips', async ()
   assert.equal(history?.events[0].toolDevice, 'hub');
 });
 
+test('tool-images lines fold onto their tool row in every read model, main agent and subagent alike', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-tool-images';
+  const image = (name: string) => ({ name, path: `workspace/tool-images/${sid}/${name}`, size: 4, mimeType: 'image/png', type: 'image' as const });
+  const child = { id: 'toolu_spawn', type: 'explore', description: 'look', model: 'sonnet' };
+  await repo.appendUser(sid, { text: 'look at these' });
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: '/a.png', toolUseId: 'toolu-a' });
+  await repo.appendTool(sid, { toolName: 'Bash', toolInput: 'ls', toolUseId: 'toolu-b' });
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: '/c.png', toolUseId: 'toolu-c', subagent: child });
+  await repo.appendToolImages(sid, { toolUseId: 'toolu-a', images: [image('toolu-a-0.png')] });
+  await repo.appendToolImages(sid, { toolUseId: 'toolu-c', images: [image('toolu-c-0.png'), image('toolu-c-1.png')] });
+  await repo.appendToolImages(sid, { toolUseId: 'toolu-unknown', images: [image('stray.png')] });
+
+  const full = await repo.getHistory(sid);
+  assert.equal(full!.events.length, 4, 'an image line is never a row of its own');
+  assert.deepEqual(full!.events[1].attachments, [image('toolu-a-0.png')]);
+  assert.equal(full!.events[2].attachments, undefined);
+  assert.equal(full!.events[1].debug, undefined, 'a non-DEBUG row carries no debug reference');
+
+  const compact = await repo.getCompactHistory(sid);
+  assert.deepEqual(compact!.events.find(e => e.toolInput === '/a.png')?.attachments, [image('toolu-a-0.png')]);
+  const detail = await repo.getSubagentHistory(sid, 'toolu_spawn');
+  assert.deepEqual(detail.events.map(e => e.attachments), [[image('toolu-c-0.png'), image('toolu-c-1.png')]]);
+
+  // A cursor taken before the images landed sees the tool row change.
+  const before = await repo.getCompactHistoryAt(sid);
+  await repo.appendToolImages(sid, { toolUseId: 'toolu-b', images: [image('toolu-b-0.png')] });
+  const after = await repo.getCompactHistoryAt(sid);
+  assert.notEqual(after.cursor, before.cursor);
+  assert.deepEqual(after.value!.events.find(e => e.toolInput === 'ls')?.attachments, [image('toolu-b-0.png')]);
+  assert.equal(await repo.getToolDebugDetails(sid, 'toolu-a'), null, 'no DEBUG details behind a plain row');
+});
+
 test('DEBUG prompt and tool metadata round-trip without replacing the compact transcript fields', async () => {
   const repo = new ConversationHistoryRepo();
   const sid = 'sess-debug';

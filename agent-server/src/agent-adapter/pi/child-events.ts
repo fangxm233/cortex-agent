@@ -1,5 +1,6 @@
 import type { ChildAccumulator, SubagentNotice } from '@core/agents/subagent/types.js';
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
+import { toolResultImages } from '../normalize/tool-result-images.js';
 
 /** The parent-side sink for a child's events. Absent (or throwing) simply costs attribution — the
  *  subagent still runs and its final output still returns through the tool result. */
@@ -50,9 +51,11 @@ export function noticesFor(
   if (type === 'tool_execution_end') {
     const id = event.toolCallId;
     if (typeof id !== 'string') return [];
+    const images = toolResultImages((event.result as { content?: unknown } | null | undefined)?.content);
     return [{
       ...base, kind: 'tool_result', toolUseId: `${ref}:${id}`,
       ok: event.isError !== true, content: toolResultText(event.result),
+      ...(images.length ? { images } : {}),
     }];
   }
   const message = messageEndMessage(event);

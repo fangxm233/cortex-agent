@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
@@ -182,7 +182,7 @@ export interface HoldRenderer {
   onWaiting(remaining: number): void | Promise<void>;
   onText(text: string, subagent?: ToolUseSubagent): void;
   onTool(name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent): void;
-  onToolResult(toolUseId: string, content: string, isError: boolean): void;
+  onToolResult(toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]): void;
   onContext(usage: ContextUsage): void;
   /** The authoritative end of one backgrounded subagent (web only — a status message has no row
    *  to correct). */
@@ -300,7 +300,7 @@ function backgroundHoldObserver(w: ObserverWiring): RunObserver {
           return;
         case 'tool_result':
           if (event.phase !== 'background') return;
-          renderer.onToolResult(event.toolUseId, event.content, !event.ok);
+          renderer.onToolResult(event.toolUseId, event.content, !event.ok, event.images);
           return;
         case 'subagent_end':
           if (event.phase !== 'background') return;

@@ -8,6 +8,7 @@ import type { ConversationHistoryRepo } from '@store/conversation-history-repo.j
 import type { RetentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { sessionTotalsCarry, type SessionTotalsCarryRepo } from '@store/session-totals-repo.js';
 import { activeSessionUseIds } from '@domain/sessions/session-use.js';
+import { toolImageSessionDir } from '@store/tool-image-files.js';
 import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-settings.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +29,8 @@ export interface SessionRetentionPaths {
   piSessionsDir: string;
   claudeCaptureDir: string;
   claudeProjectDir: string;
+  /** Root of the per-session tool-result image directories. Absent ⇒ not swept. */
+  toolImagesDir?: string;
 }
 
 export interface SessionRetentionDeps {
@@ -53,6 +56,7 @@ export interface SessionRetentionSweepResult {
   historyOrphanDeleted: number;
   piOrphanDeleted: number;
   claudeCaptureDeleted: number;
+  toolImagesDeleted: number;
   helperChanged: boolean;
   errors: string[];
   /** The signal aborted before the sweep finished. */
@@ -86,6 +90,7 @@ export async function runSessionRetentionSweep(deps: SessionRetentionDeps): Prom
     historyOrphanDeleted: 0,
     piOrphanDeleted: 0,
     claudeCaptureDeleted: 0,
+    toolImagesDeleted: 0,
     helperChanged: false,
     errors,
     stopped: false,
@@ -114,6 +119,7 @@ export async function runSessionRetentionSweep(deps: SessionRetentionDeps): Prom
   if (registryReadable) {
     result.historyOrphanDeleted = await deleteHistoryOrphans(deps, live.value, stillPending.value, cutoffMs, errors);
     result.piOrphanDeleted = await deletePiOrphans(deps, live.value, stillPending.value, protectedBackendIds, cutoffMs, errors);
+    result.toolImagesDeleted = await deleteToolImageOrphans(deps, live.value, stillPending.value, cutoffMs, errors);
   }
   result.claudeCaptureDeleted = await deleteClaudeCaptureLogs(deps, cutoffMs, errors);
   halted();
@@ -352,6 +358,44 @@ async function deleteHistoryOrphans(
       removed += 1;
     } catch (error) {
       errors.push(`history:${sessionId}: ${(error as Error).message}`);
+    }
+  }
+  return removed;
+}
+
+/** A session's tool-image directory outlives nothing: once the session is neither live nor pending
+ *  deletion its images have no transcript left to show them. The mtime guard mirrors the history
+ *  sweep — a directory written inside the retention window is never touched. */
+async function deleteToolImageOrphans(
+  deps: SessionRetentionDeps,
+  live: Session[],
+  pending: PendingDeletion[],
+  cutoffMs: number,
+  errors: string[],
+): Promise<number> {
+  const root = deps.paths.toolImagesDir;
+  if (!root) return 0;
+  const keep = new Set([...live, ...pending.map(entry => entry.session)]
+    .map(session => toolImageSessionDir(session.sessionId)));
+  let names: string[];
+  try {
+    names = await readDirSafe(root);
+  } catch (error) {
+    errors.push(`tool-images: ${(error as Error).message}`);
+    return 0;
+  }
+  let removed = 0;
+  for (const name of names) {
+    if (isStopped(deps)) break;
+    if (keep.has(name)) continue;
+    const dir = path.join(root, name);
+    try {
+      const entry = await safeLstat(dir);
+      if (!entry || !entry.isDirectory() || entry.mtimeMs >= cutoffMs) continue;
+      await fs.rm(dir, { recursive: true, force: true });
+      removed += 1;
+    } catch (error) {
+      errors.push(`tool-images:${name}: ${(error as Error).message}`);
     }
   }
   return removed;

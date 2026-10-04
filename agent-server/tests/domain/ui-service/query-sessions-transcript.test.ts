@@ -259,6 +259,30 @@ test('sessions.subagentTranscript returns exact-id rows and an empty detail when
   assert.deepEqual(empty, { sessionId: 'sess-subagent-detail', subagentId: 'missing', messages: [] });
 });
 
+test('tool rows carry the images their call returned, in the main and the subagent transcript', async () => {
+  const image = { name: 'toolu-1-0.png', path: 'workspace/tool-images/sess-img/toolu-1-0.png', size: 4, mimeType: 'image/png', type: 'image' as const };
+  const toolRow = {
+    type: 'tool', toolName: 'Read', toolInput: '/a.png', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0,
+    attachments: [image],
+  };
+  const deps = {
+    conversationHistory: {
+      getHistory: async () => ({
+        sessionId: 'sess-img',
+        events: [{ type: 'user', text: 'look', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 }, toolRow],
+      }),
+      getSubagentHistory: async (_sessionId: string, subagentId: string) => ({
+        sessionId: 'sess-img', subagentId, events: [{ ...toolRow, subagentId, elapsedMs: null }],
+      }),
+    },
+  } as unknown as UiServiceDeps;
+
+  const main = await handleSessionsTranscript(deps, { sessionId: 'sess-img' });
+  assert.deepEqual(main.turns[0].messages[1].attachments, [image]);
+  const detail = await handleSessionsSubagentTranscript(deps, { sessionId: 'sess-img', subagentId: 'child-1' } as any);
+  assert.deepEqual(detail.messages[0].attachments, [image]);
+});
+
 // ── Interaction entity materialization (web-interactions-redesign plan) ──────
 
 function makeInteractionDeps(history: SessionHistory, pendingIds: string[]): UiServiceDeps {

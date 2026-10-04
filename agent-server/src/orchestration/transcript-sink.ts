@@ -2,7 +2,7 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { sessionTodos } from '@core/session-todos.js';
 import type {
-  ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage, TodoSnapshot,
+  ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage, TodoSnapshot, ToolResultImage,
 } from '@core/types/agent-types.js';
 import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
 import type { SubagentRowRef } from '@store/conversation-history-repo.js';
@@ -18,8 +18,10 @@ import type { RunObserver } from '../domain/runs/request.js';
 import type { AgentRun } from '../domain/runs/run.js';
 import {
   publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionTodos,
+  publishSessionToolImages,
 } from './session-events.js';
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
+import { writeToolImages } from '@store/tool-image-files.js';
 
 const log = createLogger('transcript-sink');
 
@@ -46,8 +48,39 @@ export async function persistSessionContextUsage(
   deps.publish({ sessionId: input.sessionId, channel: input.channel, ...contextUsage });
 }
 
+/** The three steps that turn a tool result's in-memory images into transcript media. */
+export interface ToolImageDeps {
+  writeToolImages: (sessionId: string, toolUseId: string, images: ToolResultImage[]) => Promise<AttachmentMeta[]>;
+  appendToolImages: (sessionId: string, opts: Parameters<typeof conversationHistory.appendToolImages>[1]) => Promise<void>;
+  publishToolImages: typeof publishSessionToolImages;
+}
+
+const DEFAULT_TOOL_IMAGE_DEPS: ToolImageDeps = {
+  writeToolImages: (sessionId, toolUseId, images) => writeToolImages(sessionId, toolUseId, images),
+  appendToolImages: (sessionId, opts) => conversationHistory.appendToolImages(sessionId, opts),
+  publishToolImages: publishSessionToolImages,
+};
+
+/**
+ * Write one tool call's returned images to disk, record them against the call's row and tell open
+ * transcripts to refetch. Not DEBUG-gated: the images are the transcript's own media, unlike the
+ * result text. Fire-and-forget like every history write; the bytes are dropped once filed.
+ */
+export function recordToolImages(
+  sessionId: string, channel: string, toolUseId: string, images: ToolResultImage[] | undefined,
+  deps: ToolImageDeps = DEFAULT_TOOL_IMAGE_DEPS,
+): void {
+  if (!toolUseId || !images?.length) return;
+  recordHistory((async () => {
+    const files = await deps.writeToolImages(sessionId, toolUseId, images);
+    if (files.length === 0) return;
+    await deps.appendToolImages(sessionId, { toolUseId, images: files });
+    deps.publishToolImages({ sessionId, channel });
+  })());
+}
+
 /** Side-effect seams. Production callers omit these; the defaults bind the real store/publishers. */
-export interface TranscriptSinkDeps {
+export interface TranscriptSinkDeps extends ToolImageDeps {
   appendTool: (sessionId: string, opts: Parameters<typeof conversationHistory.appendTool>[1]) => Promise<void>;
   appendToolResult: (sessionId: string, opts: Parameters<typeof conversationHistory.appendToolResult>[1]) => Promise<void>;
   appendSubagentEnd: (sessionId: string, opts: Parameters<typeof conversationHistory.appendSubagentEnd>[1]) => Promise<void>;
@@ -60,6 +93,7 @@ export interface TranscriptSinkDeps {
 }
 
 const DEFAULT_DEPS: TranscriptSinkDeps = {
+  ...DEFAULT_TOOL_IMAGE_DEPS,
   appendTool: (sessionId, opts) => conversationHistory.appendTool(sessionId, opts),
   appendToolResult: (sessionId, opts) => conversationHistory.appendToolResult(sessionId, opts),
   appendSubagentEnd: (sessionId, opts) => conversationHistory.appendSubagentEnd(sessionId, opts),
@@ -78,7 +112,7 @@ export interface TranscriptSinkOptions {
   channel: string;
   /** Session name the context-usage store update is keyed on. */
   sessionName: string;
-  /** Whether to persist DEBUG-only tool details (toolUseId / fullInput / tool result). */
+  /** Whether to persist DEBUG-only tool details (fullInput / tool result text). */
   debug: boolean;
   /** Platform status/streaming callback for non-subagent assistant text. Subagent prose is
    *  withheld from chat surfaces and only persisted with its attribution. */
@@ -128,7 +162,8 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
         ts,
         ...(rowRef ? { subagent: rowRef } : {}),
         ...(subagentSpawns.length ? { subagentSpawns } : {}),
-        ...(debug ? { toolUseId, fullInput: input } : {}),
+        ...(toolUseId ? { toolUseId } : {}),
+        ...(debug ? { fullInput: input } : {}),
       }),
       debug ? () => deps.publishDebugUpdated({ sessionId, channel }) : undefined,
     );
@@ -198,6 +233,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
           persistToolUse(event.name, event.input, event.toolUseId, event.subagent);
           return;
         case 'tool_result':
+          recordToolImages(sessionId, channel, event.toolUseId, event.images, deps);
           if (!debug) return;
           recordHistory(
             deps.appendToolResult(sessionId, {
@@ -260,6 +296,8 @@ export interface InjectionLedgerDeps {
   appendToolResult?: (sessionId: string, opts: {
     toolUseId: string; content: string; isError: boolean;
   }) => void;
+  /** File a continuation tool result's images (see `recordToolImages`). */
+  recordToolImages?: (sessionId: string, channel: string, toolUseId: string, images: ToolResultImage[]) => void;
   publishMessage: (ev: {
     sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; ts: string;
     toolName?: string; toolInput?: string; toolDevice?: string; attachments?: AttachmentMeta[];
@@ -552,7 +590,8 @@ function handleContinuationTool(
     ...(toolDevice ? { toolDevice } : {}),
     ...(rowRef ? { subagent: rowRef } : {}),
     ...(subagentSpawns.length ? { subagentSpawns } : {}),
-    ...(deps.captureDebug ? { toolUseId, fullInput: input } : {}),
+    ...(toolUseId ? { toolUseId } : {}),
+    ...(deps.captureDebug ? { fullInput: input } : {}),
   });
   deps.publishMessage({
     sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
@@ -608,6 +647,7 @@ export function createInjectionObserver(
           return handleContinuationTool(deps, sessionId, channel, event.name, event.input, event.toolUseId, event.subagent);
         case 'tool_result':
           if (event.phase !== 'background' || !ownsRows()) return;
+          if (event.images?.length) deps.recordToolImages?.(sessionId, channel, event.toolUseId, event.images);
           if (deps.captureDebug) {
             deps.appendToolResult?.(sessionId, {
               toolUseId: event.toolUseId, content: event.content, isError: !event.ok,

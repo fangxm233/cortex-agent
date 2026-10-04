@@ -1,4 +1,4 @@
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 import type { ModelFallbackEvent } from './event-parser.js';
@@ -45,6 +45,7 @@ export interface ClaudeTurnCallbacks {
   onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   onToolResult?: ((
     toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+    images?: ToolResultImage[],
   ) => void) | null;
   onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onModelFallback?: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
@@ -88,10 +89,12 @@ export function claudeTurnCallbacks(push: (event: NormalizedEvent) => void): Cla
     },
     onToolResult: (
       toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+      images?: ToolResultImage[],
     ) =>
       push({
         type: 'tool_result', toolUseId, content, ok: !isError,
         ...(subagent ? { subagent } : {}),
+        ...(images?.length ? { images } : {}),
       }),
     onCompact: (info: { trigger: string; preTokens?: number }) =>
       push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),

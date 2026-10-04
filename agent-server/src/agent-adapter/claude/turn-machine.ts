@@ -7,8 +7,9 @@ import type {
   AgentCompactUsage, BackgroundTurnSink, InjectionAckSink, RateLimitObservation, RateLimitOrigin,
   UserMessage,
 } from '../types.js';
-import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, ReportedAccountingSnapshot, ToolResultImage } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../normalize/event-types.js';
+import { toolResultImages } from '../normalize/tool-result-images.js';
 import { CancelledError, LOGS_DIR } from './defaults.js';
 import {
   buildPrompt,
@@ -67,6 +68,7 @@ export interface PendingTurn {
   onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   onToolResult: ((
     toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+    images?: ToolResultImage[],
   ) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onModelFallback: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
@@ -395,8 +397,9 @@ export class ClaudeTurnMachine {
       ) => this.deliverContinuation(sink => sink.onAssistantText(text, model, subagent)),
       onToolUse: (name: string, input: any, id: string, subagent?: ToolUseSubagent) =>
         this.deliverContinuation(sink => sink.onToolUse?.(name, input, id, subagent)),
-      onToolResult: (id: string, content: string, isError: boolean, subagent?: ToolUseSubagent) =>
-        this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError, subagent)),
+      onToolResult: (
+        id: string, content: string, isError: boolean, subagent?: ToolUseSubagent, images?: ToolResultImage[],
+      ) => this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError, subagent, images)),
       onContextUsage: (usage: ContextUsage) =>
         this.deliverContinuation(sink => sink.onContextUsage?.(usage)),
       onModelFallback: null,
@@ -532,8 +535,12 @@ export class ClaudeTurnMachine {
     for (const block of content) {
       if (!block || block.type !== 'tool_result') continue;
       const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
-      try { turn.onToolResult(toolUseId, toolResultText(block), block.is_error === true, subagent); }
-      catch (e) { log.warn('onToolResult threw:', (e as Error).message); }
+      const images = toolResultImages(block.content);
+      try {
+        turn.onToolResult(
+          toolUseId, toolResultText(block), block.is_error === true, subagent, images.length ? images : undefined,
+        );
+      } catch (e) { log.warn('onToolResult threw:', (e as Error).message); }
     }
   }
 
@@ -560,9 +567,10 @@ export class ClaudeTurnMachine {
         this.deliverContinuation(s => s.onAssistantText(block.text, model, subagent));
       } else if (block.type === 'tool_result') {
         const id = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
-        this.deliverContinuation(
-          s => s.onToolResult?.(id, toolResultText(block), block.is_error === true, subagent),
-        );
+        const images = toolResultImages(block.content);
+        this.deliverContinuation(s => s.onToolResult?.(
+          id, toolResultText(block), block.is_error === true, subagent, images.length ? images : undefined,
+        ));
       }
     }
   }

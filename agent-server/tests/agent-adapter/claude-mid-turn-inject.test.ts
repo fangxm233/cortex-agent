@@ -367,8 +367,12 @@ test('print stream preserves complete tool input/result data and the real tool-u
   ]);
   assert.deepEqual(toolResults, [
     { type: 'tool_result', toolUseId: 'toolu-full', ok: false, content: 'line 1\nline 2', phase: 'foreground' },
-    // Mixed text+image blocks render as caption + image placeholder (see claude-tool-result-blocks.test.ts).
-    { type: 'tool_result', toolUseId: 'toolu-mixed', ok: true, content: 'caption\n[image/png, 2 B]', phase: 'foreground' },
+    // Mixed text+image blocks render as caption + image placeholder (see claude-tool-result-blocks.test.ts);
+    // the image bytes ride beside the text, never inside it.
+    {
+      type: 'tool_result', toolUseId: 'toolu-mixed', ok: true, content: 'caption\n[image/png, 2 B]', phase: 'foreground',
+      images: [{ mimeType: 'image/png', data: 'abc' }],
+    },
   ]);
 });
 

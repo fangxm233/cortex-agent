@@ -3,7 +3,7 @@ import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 
 // Re-exported so every `import { Backend } from '.../agent-adapter/types.js'` keeps working;
 // the definition moved to core so `core/agents/*` can name a backend without importing up.
@@ -165,6 +165,7 @@ export interface BackgroundTurnSink {
    *  when the result belongs to a native subagent's own call. */
   onToolResult?: (
     toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
+    images?: ToolResultImage[],
   ) => void;
   /** Optional exact context snapshot from the spontaneous provider call. */
   onContextUsage?: (usage: ContextUsage) => void;

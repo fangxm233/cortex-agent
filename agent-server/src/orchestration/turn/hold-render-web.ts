@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, ContextUsage, NoticeAction, ToolResultImage } from '@core/types/agent-types.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { t } from '../../core/i18n.js';
@@ -14,8 +14,8 @@ export interface WebHoldDeps {
   publishAssistant: (text: string, subagent?: ToolUseSubagent) => void;
   /** Append + publish a continuation tool call (history record + session.message). */
   publishTool: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void;
-  /** Persist a complete normalized continuation tool result in DEBUG mode. */
-  publishToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
+  /** Persist a continuation tool result: its images always, its text in DEBUG mode. */
+  publishToolResult?: (toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]) => void;
   /** Publish the authoritative end of one backgrounded subagent. Distinct from the hold's seal:
    *  several subagents can run under one hold and each ends alone. */
   publishSubagentEnd?: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void;
@@ -64,8 +64,8 @@ export function webHoldRenderer(deps: WebHoldDeps): HoldRenderer {
       deps.publishTool(name, input, toolUseId, subagent);
     },
 
-    onToolResult(toolUseId: string, content: string, isError: boolean): void {
-      deps.publishToolResult?.(toolUseId, content, isError);
+    onToolResult(toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]): void {
+      deps.publishToolResult?.(toolUseId, content, isError, images);
     },
 
     onContext(usage: ContextUsage): void {

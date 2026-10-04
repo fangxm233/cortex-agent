@@ -325,7 +325,8 @@ function messageFromEvent(
     ...(event.type === 'tool' && event.toolDevice ? { toolDevice: event.toolDevice } : {}),
     ts: event.ts,
     elapsedMs,
-    ...((event.type === 'user' || event.type === 'assistant') && event.attachments !== undefined ? { attachments: event.attachments } : {}),
+    // Tool rows carry the images the call returned (see `appendToolImages`).
+    ...((event.type === 'user' || event.type === 'assistant' || event.type === 'tool') && event.attachments !== undefined ? { attachments: event.attachments } : {}),
     ...(event.type === 'user' && event.systemOrigin !== undefined ? { systemOrigin: event.systemOrigin } : {}),
     ...(event.type === 'assistant' && event.decisions !== undefined ? { decisions: event.decisions } : {}),
     ...(event.type === 'assistant' && event.noticeLevel !== undefined ? { noticeLevel: event.noticeLevel } : {}),

@@ -92,7 +92,8 @@ test('tool_use appends a history row and publishes the tool message', () => {
   assert.equal(h.history[0].sessionId, SESSION);
   assert.equal(h.history[0].opts.toolName, 'Bash');
   assert.equal(h.history[0].opts.toolInput, 'ls');
-  assert.equal(h.history[0].opts.toolUseId, undefined, 'no DEBUG fields without debug');
+  assert.equal(h.history[0].opts.toolUseId, 'tu-1', 'the id always correlates the row');
+  assert.equal(h.history[0].opts.fullInput, undefined, 'no DEBUG fields without debug');
   assert.deepEqual(h.published, [{
     sessionId: SESSION, channel: CHANNEL, role: 'tool', text: '', toolName: 'Bash', toolInput: 'ls',
     ts: h.published[0].ts,
@@ -144,6 +145,51 @@ test('tool_result persists the full result and refreshes the transcript only in 
   }]);
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(on.debug, [{ sessionId: SESSION, channel: CHANNEL }]);
+});
+
+test('tool_result images are filed, recorded against the call and announced outside DEBUG too', async () => {
+  const writes: Array<{ sessionId: string; toolUseId: string; count: number }> = [];
+  const announced: Record<string, any>[] = [];
+  const file = { name: 'tu-img-0.png', path: `workspace/tool-images/${SESSION}/tu-img-0.png`, size: 3, mimeType: 'image/png', type: 'image' as const };
+  const h = harness({
+    deps: {
+      writeToolImages: async (sessionId, toolUseId, images) => {
+        writes.push({ sessionId, toolUseId, count: images.length });
+        return [file];
+      },
+      appendToolImages: async (sessionId, value) => { h.history.push({ method: 'toolImages', sessionId, opts: value as any }); },
+      publishToolImages: (payload) => { announced.push(payload); },
+    },
+  });
+  h.sink.onEvent({
+    type: 'tool_result', toolUseId: 'tu-img', ok: true, content: '[image/png, 3 B]', phase: 'foreground',
+    images: [{ mimeType: 'image/png', data: 'AAAA' }],
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(writes, [{ sessionId: SESSION, toolUseId: 'tu-img', count: 1 }]);
+  assert.deepEqual(h.history, [{ method: 'toolImages', sessionId: SESSION, opts: { toolUseId: 'tu-img', images: [file] } }],
+    'the image row is written; the result text stays DEBUG-only');
+  assert.deepEqual(announced, [{ sessionId: SESSION, channel: CHANNEL }]);
+  assert.deepEqual(h.debug, []);
+});
+
+test('tool_result images that yield no file record and announce nothing', async () => {
+  const announced: Record<string, any>[] = [];
+  const h = harness({
+    deps: {
+      writeToolImages: async () => [],
+      appendToolImages: async (sessionId, value) => { h.history.push({ method: 'toolImages', sessionId, opts: value as any }); },
+      publishToolImages: (payload) => { announced.push(payload); },
+    },
+  });
+  h.sink.onEvent({
+    type: 'tool_result', toolUseId: 'tu-x', ok: true, content: '', phase: 'foreground',
+    images: [{ mimeType: 'text/plain', data: 'AAAA' }],
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(h.history, []);
+  assert.deepEqual(announced, []);
 });
 
 // ── subagent_end ─────────────────────────────────────────────────────────────

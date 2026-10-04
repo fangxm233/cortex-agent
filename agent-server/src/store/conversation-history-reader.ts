@@ -129,6 +129,14 @@ function consumeDebugPrompt(state: ParseState, ev: RawEvent): void {
   touchEvent(state, state.lastUser);
 }
 
+function consumeToolImages(state: ParseState, ev: RawEvent): void {
+  const index = ev.toolUseId ? state.toolByUseId.get(ev.toolUseId) : undefined;
+  if (index === undefined || !ev.images?.length) return;
+  const tool = state.events[index];
+  tool.attachments = [...(tool.attachments ?? []), ...ev.images];
+  touchEvent(state, index);
+}
+
 function consumeDebugToolResult(state: ParseState, ev: RawEvent): void {
   const index = ev.toolUseId ? state.toolByUseId.get(ev.toolUseId) : undefined;
   if (index === undefined) return;
@@ -208,11 +216,14 @@ function pushAssistant(state: ParseState, ev: RawEvent): void {
  *  is the only place that still holds the row's own bytes, so stamping here is what lets every
  *  reader downstream trust the flag instead of re-deriving it from the parsed input. */
 function toolDebug(state: ParseState, ev: RawEvent, chars: number) {
-  const warned = ev.fullInput !== undefined && isOverDebugToolWarningChars(chars);
-  if (!ev.toolUseId && !warned && (!state.includeToolDebug || ev.fullInput === undefined)) return undefined;
+  // Every tool row carries its tool-use id (it is how result images find their row); only a row
+  // DEBUG actually captured has details behind that id worth a reference.
+  if (ev.fullInput === undefined) return undefined;
+  const warned = isOverDebugToolWarningChars(chars);
+  if (!ev.toolUseId && !warned && !state.includeToolDebug) return undefined;
   return {
     ...(ev.toolUseId ? { toolRef: ev.toolUseId } : {}),
-    ...(state.includeToolDebug && ev.fullInput !== undefined ? { toolInput: ev.fullInput } : {}),
+    ...(state.includeToolDebug ? { toolInput: ev.fullInput } : {}),
     ...(warned ? { overCharacterThreshold: true as const } : {}),
   };
 }
@@ -285,6 +296,7 @@ function consumeParsedEvent(state: ParseState, ev: RawEvent, chars: number): voi
   if (ev.type === 'decision-action') return consumeDecisionAction(state, ev);
   if (ev.type === 'debug-user-prompt') return consumeDebugPrompt(state, ev);
   if (ev.type === 'debug-tool-result') return consumeDebugToolResult(state, ev);
+  if (ev.type === 'tool-images') return consumeToolImages(state, ev);
   if (ev.type === 'user') return pushUser(state, ev);
   if (ev.type === 'assistant') return pushAssistant(state, ev);
   if (ev.type === 'tool') return pushTool(state, ev, chars);

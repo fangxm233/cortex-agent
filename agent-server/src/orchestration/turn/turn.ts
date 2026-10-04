@@ -1,7 +1,7 @@
 import * as crypto from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, IncomingMessage, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit } from '@platform/types.js';
-import type { AgentResult, ContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, SystemTurnOrigin, TodoSnapshot, ToolResultImage } from '@core/types/agent-types.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { renderTodoProgress } from '../../agent-adapter/normalize/todo.js';
@@ -32,7 +32,7 @@ import {
   publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered,
   publishSessionStatus, publishSessionTurn, publishSessionTurnCompleted,
 } from '../session-events.js';
-import { createTranscriptSink, persistSessionContextUsage, recordHistory } from '../transcript-sink.js';
+import { createTranscriptSink, persistSessionContextUsage, recordHistory, recordToolImages } from '../transcript-sink.js';
 import { createSessionDeltaStream } from '../delta-coalescer.js';
 import { tryInjectIntoLiveTurn, type MidTurnInjectDeps } from '../mid-turn-inject.js';
 import { commitPendingInjection } from '../pending-injection-recovery.js';
@@ -265,11 +265,16 @@ export class Turn {
     ): void => {
       sink.onEvent({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}), phase: 'foreground' });
     };
-    const persistToolResult = debugEnabled
-      ? (toolUseId: string, content: string, isError: boolean): void => {
-          sink.onEvent({ type: 'tool_result', toolUseId, ok: !isError, content, phase: 'foreground' });
-        }
-      : null;
+    // Always wired: the sink files a result's images regardless of DEBUG, and keeps the result
+    // text DEBUG-only itself.
+    const persistToolResult = (
+      toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[],
+    ): void => {
+      sink.onEvent({
+        type: 'tool_result', toolUseId, ok: !isError, content, phase: 'foreground',
+        ...(images?.length ? { images } : {}),
+      });
+    };
     // The authoritative end of one native subagent. Persisted as well as published: it is the only
     // evidence a later reader has that a subagent which ran BESIDE the main agent is over — the
     // event ordering in the transcript cannot express that, and a killed child leaves nothing else.
@@ -463,7 +468,7 @@ export class Turn {
               });
             },
             publishTool: persistToolUse,
-            publishToolResult: persistToolResult ?? undefined,
+            publishToolResult: persistToolResult,
             publishSubagentEnd: persistSubagentEnd,
             publishContextUsage: persistContinuationContext,
             // Notices carry the level/action the plain assistant path drops. The foreground turn's
@@ -785,6 +790,8 @@ export function buildInjectDeps(sessionName: string | null, channel: string, ada
       conversationHistory.appendToolResult(sessionId, o),
       () => publishSessionDebugUpdated({ sessionId, channel }),
     ),
+    recordToolImages: (sessionId, imageChannel, toolUseId, images) =>
+      recordToolImages(sessionId, imageChannel, toolUseId, images),
     publishMessage: publishSessionMessage,
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,

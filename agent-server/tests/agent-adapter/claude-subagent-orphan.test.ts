@@ -119,6 +119,26 @@ test('run: orphan subagent lines do not consume the armed continuation', async (
   await done;
 });
 
+test('run: an orphan subagent image result carries its bytes beside the described text', async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
+  session.handleLine(JSON.stringify({
+    type: 'user',
+    parent_tool_use_id: PARENT,
+    subagent_type: 'Explore',
+    message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_child02', content: [
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0K' } },
+    ] }] },
+  }));
+  await tick();
+  const result = events.find((e): e is Extract<RunEvent, { type: 'tool_result' }> =>
+    e.type === 'tool_result' && e.toolUseId === 'toolu_child02');
+  assert.equal(result?.content, '[image/png, 6 B]');
+  assert.deepEqual(result?.images, [{ mimeType: 'image/png', data: 'iVBORw0K' }]);
+  assert.equal(result?.subagent?.parentToolUseId, PARENT);
+  run.cancel();
+  await done;
+});
+
 test('subagentEndFor: task_started linkage turns a task_updated into a parent-keyed end signal', () => {
   const tracker = new BgTaskTracker();
   tracker.observe(JSON.parse(TASK_STARTED));

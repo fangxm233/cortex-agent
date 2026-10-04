@@ -58,6 +58,14 @@ export interface NoticeAction {
   kind: 'cancel-resume';
 }
 
+/** One image a tool returned to the model (`Read` on a picture, a screenshot tool), as base64.
+ *  Carried in memory on the tool-result event only, until the transcript sink writes it to disk —
+ *  no log, bus event or history line ever holds these bytes. */
+export interface ToolResultImage {
+  mimeType: string;
+  data: string;
+}
+
 /** A file attached to a chat message (uploaded, sent by the agent, or an inbound platform file).
  *  The message carries the server-side path so the agent can read it directly. */
 export interface AttachmentMeta {

@@ -413,6 +413,7 @@ function claudeNoticeObserver(request: SubagentRunRequest): RunObserver {
         send({
           ...base, model, kind: 'tool_result',
           toolUseId: `${ref}:${event.toolUseId}`, ok: event.ok, content: event.content,
+          ...(event.images?.length ? { images: event.images } : {}),
         });
       }
     },

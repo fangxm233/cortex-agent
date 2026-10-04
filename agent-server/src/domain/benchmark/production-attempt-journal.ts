@@ -223,6 +223,14 @@ function journalHeader(input: ProductionAttemptJournalInput) {
   };
 }
 
+/** Tool-result images are transcript media, not trajectory evidence: the journal keeps the text
+ *  `content` that already describes them and never the base64 itself. */
+function withoutImageBytes(event: NormalizedEvent): NormalizedEvent {
+  if (event.type !== 'tool_result' || !event.images) return event;
+  const { images: _images, ...rest } = event;
+  return rest;
+}
+
 function reportedModel(event: NormalizedEvent): string | null {
   if (!('model' in event)) return null;
   return typeof event.model === 'string' && event.model.length > 0 ? event.model : null;
@@ -247,7 +255,7 @@ class ProductionAttemptJournalSink implements EventObserver {
         provider: this.identity.provider,
         requestedModel: this.identity.requested_model,
         reportedModel: reportedModel(event),
-        event,
+        event: withoutImageBytes(event),
       });
     } catch (error) {
       this.writeFailure ??= error;

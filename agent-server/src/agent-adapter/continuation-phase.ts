@@ -392,10 +392,11 @@ export function sinkToRunEvents(emit: (event: RunEvent) => void): BackgroundEven
         ...(subagent !== undefined ? { subagent } : {}),
       });
     },
-    onToolResult: (toolUseId, content, isError, subagent) => {
+    onToolResult: (toolUseId, content, isError, subagent, images) => {
       emit({
         type: 'tool_result', toolUseId, ok: !isError, content, phase: 'background',
         ...(subagent !== undefined ? { subagent } : {}),
+        ...(images?.length ? { images } : {}),
       });
     },
     onContextUsage: (usage) => emit({ type: 'context_usage', ...usage, phase: 'background' }),

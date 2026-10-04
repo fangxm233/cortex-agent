@@ -1,5 +1,6 @@
-import type { ContextUsage } from '@core/types/agent-types.js';
+import type { ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
+import { isToolResultImage, toolResultImages } from '../normalize/tool-result-images.js';
 import { toCanonical } from '@core/tool-names.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
 import type { SubagentEndStatus, SubagentNotice } from '@core/agents/subagent/types.js';
@@ -182,6 +183,7 @@ function handleToolExecutionEnd(ev: Record<string, unknown>): NormalizedEvent[] 
   const result = ev['result'];
 
   let content = '';
+  let images: ToolResultImage[] = [];
   if (result && typeof result === 'object') {
     const resObj = result as Record<string, unknown>;
     const contentVal = resObj['content'];
@@ -190,12 +192,16 @@ function handleToolExecutionEnd(ev: Record<string, unknown>): NormalizedEvent[] 
         .filter((b) => asRecord(b)['type'] === 'text')
         .map((b) => String(asRecord(b)['text'] ?? ''))
         .join('');
+      images = toolResultImages(contentVal);
     } else if (typeof contentVal === 'string') {
       content = contentVal;
     }
   }
 
-  return [{ type: 'tool_result', toolUseId: toolCallId, ok: !isError, content }];
+  return [{
+    type: 'tool_result', toolUseId: toolCallId, ok: !isError, content,
+    ...(images.length ? { images } : {}),
+  }];
 }
 
 function emptyPendingCompletion(): PIPendingCompletion {
@@ -410,6 +416,8 @@ function subagentNoticeFrom(value: unknown): SubagentNotice | null {
     notice.toolUseId = parsed.toolUseId;
     notice.ok = parsed.ok !== false;
     notice.content = typeof parsed.content === 'string' ? parsed.content : '';
+    const images = Array.isArray(parsed.images) ? parsed.images.filter(isToolResultImage) : [];
+    if (images.length) notice.images = images;
     return notice;
   }
   if (kind === 'end') {

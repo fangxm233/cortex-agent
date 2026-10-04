@@ -61,6 +61,9 @@ export type CortexEvent =
   // Sensitive DEBUG data stays in the authoritative transcript query. This content-free hint only
   // asks an open client to refetch after prompt/result sidecars are durably appended.
   | { type: 'session.debug.updated';  ts: string; sessionId: string; channel: string }
+  // A tool call's returned images were filed and attached to its row. Content-free: clients
+  // refetch the transcript, which carries the attachment paths.
+  | { type: 'session.tool-images';    ts: string; sessionId: string; channel: string }
   // A session's commission binding changed WITHOUT a commission record changing — it entered or
   // left the drafting phase (DR-0037 v4). Content-free: clients refetch the session record, which
   // is what carries commissionDraft / commissionId.

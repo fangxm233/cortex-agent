@@ -6,6 +6,8 @@ import {
   createPIEventParserState,
   type PIEventParserState,
 } from '../src/agent-adapter/pi/event-parser.js';
+import { noticesFor } from '../src/agent-adapter/pi/child-events.js';
+import { subagentNoticeEvents } from '../src/core/agents/subagent/attribution.js';
 
 function freshState(): PIEventParserState {
   return createPIEventParserState();
@@ -176,6 +178,22 @@ test('tool_result: non-text blocks in array are skipped', () => {
   assert.equal((events[0] as any).content, 'result');
 });
 
+test('tool_result: inline images ride beside the text, in order', () => {
+  const state = freshState();
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [
+      { type: 'text', text: 'Read image file [image/png]' },
+      { type: 'image', data: 'iVBORw0K', mimeType: 'image/png' },
+      { type: 'image', data: '/9j/4AAQ', mimeType: 'image/jpeg' },
+    ] } }),
+    state,
+  );
+  assert.deepEqual(events, [{
+    type: 'tool_result', toolUseId: 'tc1', ok: true, content: 'Read image file [image/png]',
+    images: [{ mimeType: 'image/png', data: 'iVBORw0K' }, { mimeType: 'image/jpeg', data: '/9j/4AAQ' }],
+  }]);
+});
+
 test('tool_result: string content', () => {
   const state = freshState();
   const events = piEventToNormalized(
@@ -262,6 +280,29 @@ test('subagent tool_result: joins its call by id and keeps attribution', () => {
       description: 'Inspect the adapter', model: 'pi-model',
     },
   }]);
+});
+
+test('subagent tool_result: forwarded images survive, malformed ones are dropped', () => {
+  const state = freshState();
+  const events = piEventToNormalized(ev({
+    type: 'cortex_subagent_event',
+    notice: subagentNotice({
+      kind: 'tool_result', toolUseId: 'agent-call#1:c2', ok: true, content: '',
+      images: [{ mimeType: 'image/png', data: 'iVBORw0K' }, { mimeType: 'image/png' }, 'junk'],
+    }),
+  }), state);
+  assert.deepEqual((events[0] as any).images, [{ mimeType: 'image/png', data: 'iVBORw0K' }]);
+});
+
+test('subagent tool_result: a PI child read produces a notice carrying its image', () => {
+  const [notice] = noticesFor('agent-call#1', { description: 'look', subagent_type: 'explore' }, { model: 'm' } as any, {
+    type: 'tool_execution_end', toolCallId: 'c3', isError: false,
+    result: { content: [{ type: 'text', text: 'Read image file' }, { type: 'image', data: 'iVBORw0K', mimeType: 'image/png' }] },
+  });
+  assert.equal(notice.content, 'Read image file');
+  assert.deepEqual(notice.images, [{ mimeType: 'image/png', data: 'iVBORw0K' }]);
+  const [event] = subagentNoticeEvents(notice);
+  assert.deepEqual((event as any).images, [{ mimeType: 'image/png', data: 'iVBORw0K' }]);
 });
 
 // ---------------------------------------------------------------------------
