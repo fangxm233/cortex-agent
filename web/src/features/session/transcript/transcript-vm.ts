@@ -578,9 +578,24 @@ interface RowSink {
   toolBuf: ToolCallEntry[];
 }
 
-/** The image attachments a tool row's result carried, as the row renders them. */
-function toolCallImages(attachments: readonly Attachment[] | undefined): ToolCallImage[] | undefined {
-  const images = attachments?.filter((a) => a.type === 'image').map((a) => ({ name: a.name, path: a.path }));
+/** Tools whose input is the path of the file they read. */
+const FILE_READ_TOOLS = new Set(['Read', 'read', 'remote_read']);
+
+/** The file a read call named, when its input is a path; null for every other call, and for a path
+ *  the server cut short. */
+function readFileName(toolName: string | null | undefined, input: string | null | undefined): string | null {
+  const bare = toolName?.split('__').at(-1)?.split('.').at(-1) ?? '';
+  if (!FILE_READ_TOOLS.has(bare) || !input || input.endsWith('…')) return null;
+  const base = input.split(/[\\/]/).at(-1) ?? '';
+  return /.\.[A-Za-z0-9]+$/.test(base) ? base : null;
+}
+
+/** The image attachments a tool row's result carried, as the row renders them. A read call's image
+ *  goes by the file it read; anything else keeps the stored name. */
+function toolCallImages(m: TranscriptMessage): ToolCallImage[] | undefined {
+  const fileName = readFileName(m.toolName, m.toolInput);
+  const images = m.attachments?.filter((a) => a.type === 'image')
+    .map((a) => ({ name: fileName ?? a.name, path: a.path }));
   return images?.length ? images : undefined;
 }
 
@@ -853,7 +868,7 @@ export function buildTranscriptRows(
     if (m.type === 'tool') {
       if (block && !block.summary) block.row.toolCount += 1;
       const debug = m.debug;
-      const images = toolCallImages(m.attachments);
+      const images = toolCallImages(m);
       sink.toolBuf.push({
         kind: toolCallLabel(m.toolName ?? '', m.toolDevice),
         input: m.toolInput ?? '',

@@ -255,10 +255,10 @@ describe('buildTranscriptRows', () => {
       expect(plainFirst).toEqual([
         { kind: 'tools', count: 2, calls: [{ kind: 'Bash', input: 'ls' }, { kind: 'Grep', input: 'x' }] },
         { kind: 'tools', count: 2, calls: [
-          { kind: 'Read', input: '/a.png', images: [{ name: 'a-0.png', path: 'workspace/tool-images/s1/a-0.png' }] },
+          { kind: 'Read', input: '/a.png', images: [{ name: 'a.png', path: 'workspace/tool-images/s1/a-0.png' }] },
           { kind: 'Read', input: '/b.png', images: [
-            { name: 'b-0.png', path: 'workspace/tool-images/s1/b-0.png' },
-            { name: 'b-1.png', path: 'workspace/tool-images/s1/b-1.png' },
+            { name: 'b.png', path: 'workspace/tool-images/s1/b-0.png' },
+            { name: 'b.png', path: 'workspace/tool-images/s1/b-1.png' },
           ] },
         ] },
       ]);
@@ -280,6 +280,18 @@ describe('buildTranscriptRows', () => {
         user, tool('Read', '/a.pdf', [{ ...img('a.pdf'), type: 'file' }]),
       ] }]), []));
       expect(fileOnly[0].calls[0].images).toBeUndefined();
+    });
+
+    it("a read call's image goes by the file it read; anything else keeps the stored name", () => {
+      const names = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user,
+        tool('Read', '/work/cam 1.png', [img('toolu_1-0.png')]),
+        tool('read', 'shots\\arm.jpg', [img('call_2-0.jpg')]),
+        tool('mcp__cortex-core__remote_read', '/data/plot.png', [img('toolu_3-0.png')], { toolDevice: 'gpu' }),
+        tool('Read', `/long/${'x'.repeat(110)}…`, [img('toolu_4-0.png')]),
+        tool('mcp__shots__capture', 'https://example.com/c.png', [img('toolu_5-0.png')]),
+      ] }]), [])).flatMap((r) => r.calls.flatMap((c) => c.images?.map((i) => i.name) ?? []));
+      expect(names).toEqual(['cam 1.png', 'arm.jpg', 'plot.png', 'toolu_4-0.png', 'toolu_5-0.png']);
     });
 
     it('splits inside a subagent block the same way', () => {
