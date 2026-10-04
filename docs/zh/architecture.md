@@ -239,7 +239,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `agent-state.json` | 选定的 profile、默认智能体与频道级 override（由 `mode.json` 一次性迁移而来） |
 | `profiles.json` | 命名智能体配置列表 |
 | `schedules.json` | 持久化定时任务列表 |
-| `session-registry.jsonl` | 仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。事件：`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`；启动时通过流式回放重建 live/pending 状态。压缩保留 live 记录 + 绑定 + live 轮次（阈值 `max(512, live×4)` 个事件，16 MB 上限）。替代已退役的 `sessions.json` 与 `conversation-ledger.json`——一次性升级迁移会把它们重命名为 `*.pre-2026.9.14.bak` |
+| `session-registry.jsonl` | 仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。事件：`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`；启动时通过流式回放重建 live/pending 状态。压缩保留 live 记录 + 绑定 + live 轮次；当日志事件数超过 `max(512, live×4, 2×compacted)`（`compacted` 为一次压缩会写出的事件数），或文件同时超过 16 MB 与上次压缩后大小的两倍时触发。替代已退役的 `sessions.json` 与 `conversation-ledger.json`——一次性升级迁移会把它们重命名为 `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
 | `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |
 | `executions.json` | 统一执行注册表 |
@@ -252,7 +252,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 
 session registry 不再是一个可变的单 JSON blob。`session-registry-journal.ts` 维护一个仅追加 JSONL 文件：`put` 和 `delete-intent` 事件都携带完整 session record，最后再以 `delete-commit` 完成删除。delete intent 还会固化通过校验的 Claude turn-backup 清理 manifest，因此部分清理已经删除 ledger 后，下一轮重试仍然保有完整清理信息。启动时会先把遗留的 `session-registry.json` 迁移成 journal、为旧文件写备份、截断任何未结束的尾行，然后按行流式回放 journal，恢复内存中的 `live` 和 `pending` map。日志过大时，compaction 会重写最小快照：每个 live session 一条完整记录事件，每个 pending deletion 一条 `delete-intent` 事件。
 
-session retention 与 registry mutation 分开协调。`session-retention.ts` 在 app 启动时运行一次，之后由 `session-retention-controller.ts` 每 6 小时运行一次；`sessionRetentionDays` 热重载后还会经去抖立即再跑一轮。启动时会先等待已经 ready 的 provider resume dispatch，排队中的 direct resume 也会保留 stable tracking id 作为 liveness guard。这个协调器会重试 pending delete commit、为过期空闲 session 新建 registry delete intent、在 session/ledger/history 删除后提交清理、清理孤儿 `conversation-history`、清理孤儿 PI transcript bundle、清理非活跃 Claude capture 日志，并同步 Claude 用户 `cleanupPeriodDays`。
+session retention 与 registry mutation 分开协调。`session-retention-controller.ts` 在 app 启动时于后台启动一轮 `session-retention.ts` 清理——启动流程不等待它，session registry 自身的锁把它与其他 session 变更串行化——之后每 6 小时运行一次；`sessionRetentionDays` 热重载后还会经去抖立即再跑一轮。启动时的这一轮在已经 ready 的 provider resume dispatch 之后开始，排队中的 direct resume 也会保留 stable tracking id 作为 liveness guard。这个协调器会重试 pending delete commit，用一次追加为所有过期空闲 session 写入 registry delete intent，再按每批 100 个处理：各用一次追加释放它们的频道 binding 与 conversation，删除它们的文件，再用一次追加提交清理成功的 session。停止协调器会在批次之间中止清理，未提交的删除保持 pending，留给下一轮。它还会清理孤儿 `conversation-history`、清理孤儿 PI transcript bundle、清理非活跃 Claude capture 日志，并同步 Claude 用户 `cleanupPeriodDays`。
 
 ## 命名约定 {#naming-conventions}
 
