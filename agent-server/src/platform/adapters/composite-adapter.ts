@@ -414,6 +414,13 @@ export class CompositeAdapter implements PlatformAdapter {
   }
 }
 
+/** The individual platform adapters behind an adapter: a composite's sub-adapters, else itself. */
+export function listPlatformAdapters(adapter: PlatformAdapter): PlatformAdapter[] {
+  return adapter instanceof CompositeAdapter
+    ? ((adapter as any)._adapters as PlatformAdapter[]).slice()
+    : [adapter];
+}
+
 export type AdminChannelPlatform = 'slack' | 'feishu';
 
 export function setPlatformAdminChannel(
@@ -421,11 +428,8 @@ export function setPlatformAdminChannel(
   platform: AdminChannelPlatform,
   channel: string | null,
 ): void {
-  const adapters = adapter instanceof CompositeAdapter
-    ? (adapter as any)._adapters as PlatformAdapter[]
-    : [adapter];
   const names = platform === 'slack' ? new Set(['slack', 'mock']) : new Set(['feishu']);
-  for (const candidate of adapters) {
+  for (const candidate of listPlatformAdapters(adapter)) {
     if (names.has(candidate.name)) candidate.setAdminChannel?.(channel);
   }
 }

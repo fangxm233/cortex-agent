@@ -81,6 +81,8 @@ export class FeishuAdapter implements PlatformAdapter {
   // Unit tests instantiate the adapter without start()ing it, so building it
   // eagerly here would hang the test runner's event loop on exit.
   private wsClient: lark.WSClient | null = null;
+  /** Rejects the start() still waiting on the first handshake, so stop() never leaves it hanging. */
+  private abortStart: ((error: Error) => void) | null = null;
   private readonly domain: lark.Domain;
   private eventDispatcher: lark.EventDispatcher;
   private config: FeishuAdapterConfig;
@@ -160,24 +162,62 @@ export class FeishuAdapter implements PlatformAdapter {
 
   // --- Lifecycle ---
 
+  /** Resolves once the long connection's first handshake succeeds; rejects when the SDK gives up on
+   *  it (bad credentials, retries exhausted) or stop() runs first. The SDK's own `start()` returns
+   *  as soon as it begins connecting, so its callbacks are the only signal of either outcome. */
   async start(): Promise<void> {
+    this.stopWsClient();
+    let connected = false;
+    let settle!: { resolve: () => void; reject: (error: Error) => void };
+    const ready = new Promise<void>((resolve, reject) => { settle = { resolve, reject }; });
+    ready.catch(() => {});
     // Construct the WSClient here (not in the constructor): it opens a libuv
     // handle on creation, so deferring it until start() keeps adapter
     // instantiation side-effect-free (see wsClient field comment).
-    this.wsClient = new (sdk().WSClient)({
+    const client: lark.WSClient = new (sdk().WSClient)({
       appId: this.config.appId,
       appSecret: this.config.appSecret,
       domain: this.domain,
       loggerLevel: sdk().LoggerLevel.info,
+      onReady: () => {
+        // A handshake already in flight when stop() ran can still complete; drop that socket.
+        if (this.wsClient !== client) { client.close(); return; }
+        connected = true;
+        settle.resolve();
+      },
+      onError: (error: Error) => {
+        client.close();
+        if (this.wsClient !== client) return;
+        this.wsClient = null;
+        if (connected) log.error(`Feishu long connection lost and no longer retrying: ${error.message}`);
+        settle.reject(error);
+      },
     });
-    await this.wsClient.start({
-      eventDispatcher: this.eventDispatcher,
-    });
+    this.wsClient = client;
+    this.abortStart = settle.reject;
+    try {
+      await client.start({ eventDispatcher: this.eventDispatcher });
+      // The SDK validates the app id format and silently skips connecting when it fails.
+      if (this.wsClient === client && client.getConnectionStatus().state === 'idle') {
+        this.stopWsClient();
+        throw new Error(`Feishu long connection did not start (app id "${this.config.appId}" is malformed)`);
+      }
+      await ready;
+    } finally {
+      if (this.abortStart === settle.reject) this.abortStart = null;
+    }
   }
 
   async stop(): Promise<void> {
+    this.stopWsClient();
+  }
+
+  private stopWsClient(): void {
+    const abort = this.abortStart;
+    this.abortStart = null;
     this.wsClient?.close();
     this.wsClient = null;
+    abort?.(new Error('Feishu adapter stopped'));
   }
 
   // --- Event registration ---
