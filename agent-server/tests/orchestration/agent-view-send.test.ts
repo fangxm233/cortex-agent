@@ -9,6 +9,7 @@ import {
   viewFileName,
   MAX_INLINE_HTML_BYTES,
   VIEW_HEIGHT_DEFAULT,
+  VIEW_WIDTH_DEFAULT,
   type SendAgentViewDeps,
 } from '../../src/orchestration/agent-view-send.js';
 import type { SessionMessagePayload } from '../../src/orchestration/session-events.js';
@@ -48,6 +49,7 @@ test('inline html is stored under views/ and delivered as a `view` attachment', 
   assert.equal(meta.name, 'Sweep results', 'name carries the human title, not the storage filename');
   assert.match(meta.path, /^workspace\/outputs\/sess-1\/views\/sweep-results-\d{8}T\d{6}\.html$/);
   assert.equal(meta.height, VIEW_HEIGHT_DEFAULT);
+  assert.equal(meta.viewWidth, VIEW_WIDTH_DEFAULT, 'no width asked → the narrowest tier');
 
   assert.equal(h.written.length, 1);
   assert.equal(h.written[0].text, '<h1>hi</h1>');
@@ -97,6 +99,19 @@ test('exactly one of html / file_path, and a title, are required', async () => {
     /title/i,
   );
   assert.equal(h.appended.length, 0, 'nothing is recorded when validation fails');
+});
+
+test('the width tier rides on the persisted and published attachment', async () => {
+  const h = harness();
+  await sendAgentView({ sessionId: 's', title: 'Wide', html: '<p/>', width: 'full' }, h.deps);
+  assert.equal(h.appended[0].attachments[0].viewWidth, 'full');
+  assert.equal(h.published[0].attachments![0].viewWidth, 'full');
+
+  await assert.rejects(
+    () => sendAgentView({ sessionId: 's', title: 'Bad', html: '<p/>', width: 'huge' }, h.deps),
+    /narrow, wide, full/,
+  );
+  assert.equal(h.appended.length, 1, 'an unknown tier is refused before anything is recorded');
 });
 
 test('oversized inline html is refused with a pointer to file_path', async () => {

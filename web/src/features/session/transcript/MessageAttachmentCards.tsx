@@ -12,6 +12,7 @@ import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDockIntake } from '@/design/dock-intake';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from '@/features/attachments/attachment-presentation';
+import { viewGroupBox, widestViewWidth } from './view-width';
 
 const mono = "'IBM Plex Mono',monospace";
 const stageFallback = 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)';
@@ -305,9 +306,10 @@ export function AgentFileGroup({ attachments }: { attachments: Attachment[] }): 
   const views = attachments.filter((a) => a.type === 'view');
   const media = attachments.filter((a) => mediaKindOf(a.type) !== null);
   const files = attachments.filter((a) => a.type !== 'view' && mediaKindOf(a.type) === null);
-  const wide = views.length > 0;
+  const viewWidth = widestViewWidth(views);
+  const box: CSSProperties = viewWidth ? viewGroupBox(viewWidth) : { maxWidth: '75%' };
   return (
-    <div style={{ maxWidth: wide ? '92%' : '75%', width: wide ? '92%' : undefined, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10, marginInline: wide ? 'auto' : undefined }}>
+    <div style={{ ...box, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
       {media.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} />)}</div>}
       {views.map((a, i) => <AgentViewCard key={`view-${i}`} a={a} />)}
       {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}

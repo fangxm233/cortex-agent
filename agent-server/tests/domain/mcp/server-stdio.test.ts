@@ -174,12 +174,12 @@ test('built cortex-web exposes file, view and decision delivery to a web session
 
       const result = await client.callTool({
         name: 'send_view',
-        arguments: { title: 'Sweep results', html: '<h1>hi</h1>', caption: 'by seed', height: 420 },
+        arguments: { title: 'Sweep results', html: '<h1>hi</h1>', caption: 'by seed', height: 420, width: 'wide' },
       });
       assert.equal(result.isError ?? false, false);
       assert.deepEqual(received, [{
         sessionId: 'stdio-web-session', title: 'Sweep results',
-        html: '<h1>hi</h1>', caption: 'by seed', height: 420,
+        html: '<h1>hi</h1>', caption: 'by seed', height: 420, width: 'wide',
       }]);
     }, {
       WEBHOOK_PORT: String(port),

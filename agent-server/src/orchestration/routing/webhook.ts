@@ -253,14 +253,14 @@ function createWebhookHandler() {
     if (req.method === 'POST' && req.url === '/webhook/ui-view') {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
-        const { sessionId, title, html, filePath, caption, height } = data || {};
+        const { sessionId, title, html, filePath, caption, height, width } = data || {};
         if (!sessionId || !title) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: 'sessionId and title required' }));
           return;
         }
         try {
-          const meta = await sendAgentView({ sessionId, title, html, filePath, caption, height });
+          const meta = await sendAgentView({ sessionId, title, html, filePath, caption, height, width });
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, data: meta }));
         } catch (e) {

@@ -4,7 +4,11 @@ export interface AttachmentMeta {
   size: number;
   mimeType: string;
   type: 'image' | 'video' | 'file' | 'view';
+  /** Inline card width of a `view`; absent means `narrow`. */
+  viewWidth?: ViewWidth;
 }
+
+export type ViewWidth = 'narrow' | 'wide' | 'full';
 
 export type AttachmentUploadStatus = 'queued' | 'uploading' | 'done' | 'error';
 

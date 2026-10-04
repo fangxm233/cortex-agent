@@ -166,7 +166,7 @@ or Feishu-originated session never sees these tools.
 | Tool | Parameters | Description |
 |---|---|---|
 | `send_file` | `file_path` or `files[]` (`{file_path, file_name?}`), `file_name?`, `caption?`, `device?` | Send one file, or several as one grouped message with a single caption, into the chat as downloadable cards (images and video preview inline); with `device`, the files are read on that remote device |
-| `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?` | Render an HTML view inline in the chat as a live, interactive card |
+| `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?`, `width?` | Render an HTML view inline in the chat as a live, interactive card |
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
 
 All three tools proxy their payload to the daemon over the loopback webhook rather
@@ -187,6 +187,14 @@ data over https. That isolation is why the rendering intent is carried by the
 attachment bucket the server mints and never by a file extension — an `.html`
 file that a user uploads or that an agent sends with `send_file` opens as source
 text, not as a running document.
+
+`width` picks one of three inline card widths: `narrow` (the default) sits in the
+chat's text column, `wide` extends to about one and a half columns (up to
+1040px), and `full` spans the whole chat pane. `wide` and `full` shrink with
+the pane, so on a narrow window both end up as wide as the pane. The tier is
+stored with the message, so a view keeps its width across reloads. Only the
+inline card on the desktop chat honours it; the expanded and docked views and
+the mobile chat always fill the space they have.
 
 `send_decision` is non-blocking: the agent announces choices it made on the
 user's behalf and keeps working, rather than putting a question to the user the

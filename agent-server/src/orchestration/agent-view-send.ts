@@ -2,6 +2,7 @@ import { conversationHistory } from '@store/conversation-history-repo.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
 import { copyFileIntoOutputs, writeTextIntoOutputs, sanitizeDisplayFilename, type StoredOutput } from './outputs-store.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
+import type { ViewWidth } from '@core/types/agent-types.js';
 
 /** Views land one directory deeper than plain files so the two kinds never collide on name, and so
  *  "what did the agent render in this session" is answerable with a single `ls`. */
@@ -23,6 +24,16 @@ export const VIEW_HEIGHT_MAX = 900;
 export function clampViewHeight(height: number | undefined): number {
   if (height === undefined || !Number.isFinite(height)) return VIEW_HEIGHT_DEFAULT;
   return Math.min(VIEW_HEIGHT_MAX, Math.max(VIEW_HEIGHT_MIN, Math.round(height)));
+}
+
+/** Inline card width tiers, narrowest first. Absent means the narrowest — the card's original size. */
+export const VIEW_WIDTHS: readonly ViewWidth[] = ['narrow', 'wide', 'full'];
+export const VIEW_WIDTH_DEFAULT: ViewWidth = 'narrow';
+
+export function parseViewWidth(width: unknown): ViewWidth {
+  if (width === undefined || width === null) return VIEW_WIDTH_DEFAULT;
+  if ((VIEW_WIDTHS as readonly unknown[]).includes(width)) return width as ViewWidth;
+  throw new Error(`\`width\` must be one of ${VIEW_WIDTHS.join(', ')}`);
 }
 
 /** Derive an ASCII-ish, dated storage filename from the view title. The title is model output, so
@@ -48,6 +59,8 @@ export interface SendAgentViewArgs {
   caption?: string;
   /** First-paint height hint in px. */
   height?: number;
+  /** Inline card width tier; defaults to `narrow`. */
+  width?: string;
 }
 
 export interface SendAgentViewDeps {
@@ -85,6 +98,7 @@ export async function sendAgentView(args: SendAgentViewArgs, deps: SendAgentView
   }
   const title = args.title.trim();
   if (!title) throw new Error('`title` is required');
+  const viewWidth = parseViewWidth(args.width);
 
   let stored: StoredOutput;
   if (hasHtml) {
@@ -111,6 +125,7 @@ export async function sendAgentView(args: SendAgentViewArgs, deps: SendAgentView
     size: stored.size,
     mimeType: 'text/html',
     type: 'view',
+    viewWidth,
   };
   const ts = now();
   const channel = `web:${args.sessionId}`;

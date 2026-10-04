@@ -120,7 +120,7 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `we
 | 工具 | 参数 | 描述 |
 |---|---|---|
 | `send_file` | `file_path` 或 `files[]`（`{file_path, file_name?}`）、`file_name?`、`caption?`、`device?` | 把一个文件、或多个文件作为共用一条说明的同一条消息发进聊天，显示为可下载卡片（图片与视频内联预览）；带 `device` 时读取该远程设备上的文件 |
-| `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
+| `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?`、`width?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
 | `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
 
 这些工具都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
@@ -135,6 +135,11 @@ assistant 消息，并发布实时事件。跨线的只有路径——大文档�
 鉴权 token 和 Tauri IPC；但仍可通过 https 加载库和数据。正因为隔离靠的是这一层，
 "要不要渲染"由服务端铸造的附件类型决定，绝不由扩展名决定——用户上传的 `.html`、
 或 agent 用 `send_file` 发出的 `.html`，打开的都是源码而不是运行中的文档。
+
+`width` 在三档内联卡片宽度中选一档：`narrow`（默认）落在聊天正文栏内，`wide`
+约为一栏半（最宽 1040px），`full` 铺满整个聊天面板。`wide` 和 `full` 会随面板收窄，
+窗口较窄时两者都只有面板宽。档位随消息一起保存，刷新后宽度不变。只有桌面端聊天里的内联卡片
+使用它；展开、停靠视图与手机端聊天总是填满各自的可用空间。
 
 `send_decision` 不阻塞：agent 宣告替用户做出的选择后继续干活，而不是像
 `cortex_ask_user` 那样向用户提出一个问题。每条决策（单次最多 10 条，title ≤120 字符，其余字段 ≤1000）

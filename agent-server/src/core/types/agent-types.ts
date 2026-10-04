@@ -74,7 +74,14 @@ export interface AttachmentMeta {
    * `allow-same-origin` (see web/src/features/media/html-sandbox.ts).
    */
   type: 'image' | 'video' | 'file' | 'view';
+  /** Inline card width of a `view` attachment, chosen by the agent. Absent on other buckets and on
+   *  views recorded before the field existed — renderers treat absence as `narrow`. */
+  viewWidth?: ViewWidth;
 }
+
+/** `narrow` sits in the prose column, `wide` spans about one and a half columns, `full` spans the
+ *  whole chat pane. Only the inline card honours it; expanded and docked views fill their host. */
+export type ViewWidth = 'narrow' | 'wide' | 'full';
 
 /** Backend-neutral snapshot of the tokens currently occupying an agent's context window. */
 export interface ContextUsage {

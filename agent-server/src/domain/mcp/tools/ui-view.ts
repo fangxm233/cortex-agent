@@ -29,10 +29,13 @@ export function registerUiViewTools(server: McpServer, ctx: CortexToolContext): 
       file_path: z.string().optional().describe('Path to an .html file you already wrote. Mutually exclusive with html.'),
       caption: z.string().optional().describe('Optional one-line note shown above the view.'),
       height: z.number().optional().describe('First-paint height in px (160-900, default 360). The view auto-resizes after load.'),
+      width: z.enum(['narrow', 'wide', 'full']).optional().describe(
+        'Card width in the chat. "narrow" (default) fits the text column; "wide" is about 1.5x that, for dashboards and side-by-side charts; "full" spans the whole chat pane, for wide tables and timelines.',
+      ),
     },
     async (
-      { title, html, file_path, caption, height }:
-      { title: string; html?: string; file_path?: string; caption?: string; height?: number },
+      { title, html, file_path, caption, height, width }:
+      { title: string; html?: string; file_path?: string; caption?: string; height?: number; width?: 'narrow' | 'wide' | 'full' },
     ) => {
       try {
         const sessionId = webSessionId(ctx);
@@ -52,7 +55,7 @@ export function registerUiViewTools(server: McpServer, ctx: CortexToolContext): 
         const { body } = await requestLoopbackJson(
           'POST',
           `${ctx.webhookBaseUrl}/webhook/ui-view`,
-          { sessionId, title, html, filePath: resolved, caption, height },
+          { sessionId, title, html, filePath: resolved, caption, height, width },
           webhookAuthHeaders(ctx),
         );
         if (!body.success) throw new Error(body.error || 'send_view failed');
