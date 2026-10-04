@@ -1,6 +1,6 @@
 import { useLang } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
 import { sessionStamp } from '@/features/session/list/session-groups';

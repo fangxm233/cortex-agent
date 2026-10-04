@@ -6,7 +6,7 @@ import {
   type DaemonRebuildVm,
   type DaemonVm,
 } from '@/features/daemon/daemon-vm';
-import { relTime, type TimeLang } from '@/lib/time-format';
+import { relTime, type TimeLang } from '@/i18n/time-format';
 
 export type MDaemonProcess = DaemonProcessVm;
 

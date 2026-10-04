@@ -16,7 +16,7 @@ import {
   type ProjectAttentionBadgeTone,
 } from '@/features/session/list/project-menu';
 import { resolveRailOrder, type RailSortMode } from './rail-order';
-import { clockTime, relTime, type TimeLang } from '@/lib/time-format';
+import { clockTime, relTime, type TimeLang } from '@/i18n/time-format';
 
 // The rail is ONE flat list of project folders — every project is present, none is folded away
 // behind an "other projects" group. Projects with nothing in them sink to the bottom by activity

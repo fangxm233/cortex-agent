@@ -1,5 +1,5 @@
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
-import { formatSpan } from '@/lib/time-format';
+import { formatSpan } from '@/i18n/time-format';
 
 export type WaitRailLanguage = 'en' | 'zh';
 

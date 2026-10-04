@@ -1,6 +1,6 @@
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 import { workbenchCopy } from '@/features/workbench/workbench-copy';
 
 export interface Pill {

@@ -1,5 +1,5 @@
 import type { MachineDetail, MachineGpu, MachineLiveRun, MachineVitals } from '@cortex-agent/ui-contract';
-import { formatSpan, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
+import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 
 export interface MachineMeter {
   key: 'cpu' | 'mem' | 'disk';

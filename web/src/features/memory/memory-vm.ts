@@ -1,6 +1,6 @@
 import type { MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
 import type { MemoryTreeFacts } from './memory-tree';
-import { timeAgo, type TimeLang } from '@/lib/time-format';
+import { timeAgo, type TimeLang } from '@/i18n/time-format';
 
 // Pure view-model helpers for the memory viewer 7b center view (prototype.dc.html L658–719). No JSX,
 // no fabricated data. Project selection is owned separately by features/projects.

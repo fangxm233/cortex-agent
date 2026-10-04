@@ -2,7 +2,7 @@ import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { effectiveMs, sessionStamp } from './session-groups';
 import { formatUsd } from '@/lib/format';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 
 // Design 30a/8b: the SCHEDULED section shows ONE row per schedule (not per run). Rows union two
 // sources: live schedule records (schedules.list) and orphan run groups — sessions whose scheduleId

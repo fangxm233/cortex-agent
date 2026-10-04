@@ -17,7 +17,7 @@ import {
   type PendingUserMessage,
 } from '@/features/session/transcript/transcript-vm';
 import { mobileDivider } from '@/mobile/shared/mobile-session-vm';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 import type { SessionRunStatus } from '@/features/session/list/session-run-status';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 import { formatUsd } from '@/lib/format';

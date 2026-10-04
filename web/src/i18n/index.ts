@@ -5,3 +5,4 @@ export {
 export { LangServerSync } from './LangServerSync';
 export { pickVocab, resolveInitialLang, type Lang } from './lang';
 export { en, zh, type Vocab } from './vocab';
+export { fmt } from './fmt';

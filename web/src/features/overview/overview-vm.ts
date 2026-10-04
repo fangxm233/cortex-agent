@@ -4,7 +4,7 @@ import type {
   CostSummary,
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/lib/time-format';
+import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/i18n/time-format';
 import { execStatusWord } from '@/features/execution/execution-drawer-view';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,

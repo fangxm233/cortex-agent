@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
-import { clockTime } from '@/lib/time-format';
+import { clockTime } from '@/i18n/time-format';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
 // MessageStream: bare hover actions, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),

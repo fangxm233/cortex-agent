@@ -1,6 +1,6 @@
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { humanizeDelta } from '@/features/schedule/schedule-modal-vm';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 
 const DAY_SHORT: Record<TimeLang, string[]> = {
   en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],

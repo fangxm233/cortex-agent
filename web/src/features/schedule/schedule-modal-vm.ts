@@ -1,5 +1,5 @@
 import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
-import { formatSpan, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
+import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
 export type IntervalUnit = 'min' | 'hr';

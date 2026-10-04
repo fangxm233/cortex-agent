@@ -6,7 +6,7 @@ import { useLang, useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
 import { BUILD_STAMP } from '@/lib/build-info';
-import { dateTime } from '@/lib/time-format';
+import { dateTime } from '@/i18n/time-format';
 
 // Daemon status modal — 1:1 from scheme.dc.html #17a (L2376–2441).
 // Opened by clicking the daemon badge in the LeftRail header.

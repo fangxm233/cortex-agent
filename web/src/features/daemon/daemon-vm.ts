@@ -8,7 +8,7 @@ import type {
   SystemDaemonStatus,
 } from '@cortex-agent/ui-contract';
 import type { Tone } from '@/design/tone';
-import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
+import { formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 
 export interface DaemonProcessVm extends DaemonProcessInfo {
   tone: Tone;

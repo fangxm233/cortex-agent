@@ -1,4 +1,4 @@
-import { relTime, type TimeLang } from '@/lib/time-format';
+import { relTime, type TimeLang } from '@/i18n/time-format';
 import { pickVocab, useLang } from '@/i18n';
 import { MC } from '@/mobile/ui/kit';
 import { splitVisible, useToast, useToastItems, useAutoDismiss, type ToastItem } from '@/design';

@@ -1,6 +1,7 @@
 import { windowActionsEn, windowActionsZh } from './window-actions-vocab';
 import { nativeShellEn, nativeShellZh } from './native-shell-vocab';
 import { commonEn, commonZh } from './common-vocab';
+import { timeEn, timeZh } from './time-vocab';
 import { updateCheckEn, updateCheckZh } from './update-check-vocab';
 import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
@@ -22,6 +23,7 @@ export const en = {
   ...windowActionsEn,
   ...nativeShellEn,
   ...commonEn,
+  ...timeEn,
 };
 
 export type Vocab = typeof en;
@@ -37,4 +39,5 @@ export const zh: Record<keyof Vocab, string> = {
   ...windowActionsZh,
   ...nativeShellZh,
   ...commonZh,
+  ...timeZh,
 };

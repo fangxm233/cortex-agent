@@ -1,4 +1,4 @@
-import { clockTime, dayLabel, type TimeLang } from '@/lib/time-format';
+import { clockTime, dayLabel, type TimeLang } from '@/i18n/time-format';
 
 /**
  * Day-divider label for the mobile chat stream (scheme L2946 "今天 07:42"): Today / Yesterday for

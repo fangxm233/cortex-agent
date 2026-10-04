@@ -6,7 +6,7 @@
 //   • heartbeat → fmtConnected(lastHeartbeat) in the UI language; '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { formatSince } from '@/features/machines/machine-detail-vm';
-import { timeAgo, type TimeLang } from '@/lib/time-format';
+import { timeAgo, type TimeLang } from '@/i18n/time-format';
 
 export interface MMachineCard {
   name: string;

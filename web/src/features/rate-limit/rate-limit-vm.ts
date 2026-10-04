@@ -1,6 +1,6 @@
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
-import { formatSpanPrecise } from '@/lib/time-format';
+import { formatSpanPrecise } from '@/i18n/time-format';
 
 export interface RateLimitWindowView {
   type: string;
