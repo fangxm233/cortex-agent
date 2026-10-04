@@ -82,7 +82,7 @@ import { t, setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
-import { isMainModule, moduleDir } from '@core/utils.js';
+import { isMainModule, moduleDir, withServerNpmPrefix } from '@core/utils.js';
 import { DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/paths.js';
 import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
@@ -822,7 +822,7 @@ async function runRebuildPipeline(reason: string) {
 
     // Step 4: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
     // currently being unlinked.
-    const installCode = await spawnAsync('npm', ['install', '-g', tgzPath], { cwd: '/tmp' });
+    const installCode = await spawnAsync('npm', withServerNpmPrefix(['install', '-g', tgzPath]), { cwd: '/tmp' });
     if (installCode !== 0) {
       abortRebuild('install', `exit ${installCode}`, reason);
       return;

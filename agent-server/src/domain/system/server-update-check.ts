@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import { spawn } from 'node:child_process';
 import { ServerUpdateCoordinator } from './server-update-coordinator.js';
 import { runFile } from '@core/exec-async.js';
+import { withServerNpmPrefix } from '@core/utils.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
 import { reportServerUpdateFailed, reportServerUpdateInstalled } from './update-ui-state.js';
@@ -62,7 +63,7 @@ function describeInstallFailure(
 }
 
 function defaultSpawnInstall(): void {
-  const child = spawn('npm', ['install', '-g', '@cortex-agent/server@latest'], {
+  const child = spawn('npm', withServerNpmPrefix(['install', '-g', '@cortex-agent/server@latest']), {
     // Detached + unref'd as before: the package's postinstall touches $STORE_DIR/.restart and the
     // daemon respawns app.js, so the install has to outlive this process. Only stderr changes —
     // piping it is what lets the SPA dialog report a real failure instead of pretending success.

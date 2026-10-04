@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PROJECTS_DIR } from './paths.js';
+import { INSTALL_ROOT, PROJECTS_DIR } from './paths.js';
 
 /** Directories to skip during recursive filesystem scans */
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'tmp', 'logs', '__pycache__']);
@@ -120,9 +120,37 @@ function resolveNpmGlobalPrefix(binName: string, opts: {
   return null;
 }
 
-/** Append `--prefix <resolved>` to an npm argv when a prefix could be resolved. */
-function withNpmPrefix(args: string[], binName: string): string[] {
-  const prefix = resolveNpmGlobalPrefix(binName);
+/**
+ * The npm global prefix that owns a package installed at `installRoot`, read off the global
+ * layout itself: `<prefix>/lib/node_modules/<pkg>` (posix) or `<prefix>/node_modules/<pkg>`
+ * (Windows). Null when `installRoot` is not inside a global node_modules (repo checkout, npm link).
+ */
+function npmPrefixFromInstallRoot(
+  installRoot: string,
+  pkgName: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  const p = platform === 'win32' ? path.win32 : path.posix;
+  let dir = p.resolve(installRoot);
+  for (const seg of pkgName.split('/').reverse()) {
+    if (p.basename(dir) !== seg) return null;
+    dir = p.dirname(dir);
+  }
+  if (p.basename(dir) !== 'node_modules') return null;
+  const parent = p.dirname(dir);
+  if (platform === 'win32') return parent;
+  return p.basename(parent) === 'lib' ? p.dirname(parent) : null;
+}
+
+/**
+ * Pin an `npm install -g` of the server package to the prefix the running server is installed
+ * under, so an update replaces this install instead of landing in npm's configured prefix.
+ * Order: `CORTEX_NPM_PREFIX`, the running install root, the `cortex` binary on PATH, bare `-g`.
+ */
+function withServerNpmPrefix(args: string[], installRoot: string = INSTALL_ROOT): string[] {
+  const prefix = process.env.CORTEX_NPM_PREFIX?.trim()
+    || npmPrefixFromInstallRoot(installRoot, '@cortex-agent/server')
+    || resolveNpmGlobalPrefix('cortex');
   return prefix ? [...args, '--prefix', prefix] : args;
 }
 
@@ -135,4 +163,4 @@ function withNpmPrefix(args: string[], binName: string): string[] {
  */
 const GATEWAY_MANAGED_KEY_PLACEHOLDER = 'cortex-gateway-managed';
 
-export { SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, withNpmPrefix };
+export { SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, npmPrefixFromInstallRoot, withServerNpmPrefix };
