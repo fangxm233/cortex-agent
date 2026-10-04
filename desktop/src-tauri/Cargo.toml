@@ -2,7 +2,7 @@
 name = "cortex-desktop"
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.90"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,10 +13,10 @@ name = "cortex_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2.12.1", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -68,7 +68,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 [target.'cfg(not(target_os = "android"))'.dependencies]
 # The desktop Help menu explicitly opens DevTools, including release builds.
 # No remote-debugging listener is enabled. Android keeps its default feature set.
-tauri = { version = "2", features = ["devtools"] }
+tauri = { version = "2.12.1", features = ["devtools"] }
 # Port forwarding (desktop only — see src/forward.rs). tokio gives the local TcpListener and the
 # per-connection relay tasks; tokio-tungstenite dials the server's `/forward` WebSocket. rustls with
 # the **webpki roots** matches the OTA client's choice: the platform verifier needs an OS trust store

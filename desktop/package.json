@@ -10,9 +10,9 @@
     "test:onboarding": "node --test tests/onboarding.test.cjs"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2.12.1"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2"
+    "@tauri-apps/api": "^2.12.1"
   }
 }
