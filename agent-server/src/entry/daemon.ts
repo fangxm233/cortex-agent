@@ -29,8 +29,8 @@
  *
  * Source-watch rebuild loop:
  *   When CORTEX_REPO is set and ${CORTEX_REPO}/src exists, daemon watches
- *   src/**\/*.ts and on change runs: npm run build (server → ui-contract → web) → install into the
- *   install root → restart() the app.js child from the freshly installed dist. The daemon
+ *   src/**\/*.ts and on change runs: build the workspace packages (see `planRebuildLanes`) → install
+ *   into the install root → restart() the app.js child from the freshly installed dist. The daemon
  *   process itself does NOT reload — if you edit daemon.ts you must manually
  *   `cortex daemon` restart to pick up the new daemon code.
  *
@@ -39,19 +39,21 @@
  *   straight into the install root through staged renames, which takes seconds. When dependencies
  *   change, it falls back to npm pack → install -g so the vendored closure is rebuilt.
  *
- *   The build order is load-bearing, not cosmetic: ui-contract re-exports the server's dist
- *   types and web typechecks against ui-contract's built dist, so skipping the middle package
- *   makes web fail on every newly added server DTO.
+ *   The build runs as concurrent lanes. One lane is an ordered chain, and its order is
+ *   load-bearing: ui-contract re-exports the server's dist types and web typechecks against
+ *   ui-contract's built dist, so skipping the middle package makes web fail on every newly added
+ *   server DTO. Web's bundle and its dependency check read only web sources, so they start at t=0
+ *   beside that chain instead of waiting behind it.
  *
- *   Every step is paid on every rebuild, including a web build that a server-only edit almost
- *   never changes, so the cost of each is kept down at the package level rather than by skipping
- *   steps here: both tsconfigs carry an incremental cache, and web's `build` runs its typecheck
- *   and its bundle concurrently. The server's cache lives inside dist/ on purpose — tsc trusts
- *   its buildinfo over the filesystem, so a cache that outlived its output would let a deleted
- *   dist file stay deleted.
+ *   Every step is paid on every rebuild, including web work that a server-only edit almost never
+ *   changes, so the cost of each is kept down at the package level rather than by skipping steps
+ *   here: both tsconfigs carry an incremental cache. The server's cache lives inside dist/ on
+ *   purpose — tsc trusts its buildinfo over the filesystem, so a cache that outlived its output
+ *   would let a deleted dist file stay deleted.
  *
  *   Any step failing → log + notify the operator + skip (no restart), so an abort never looks
- *   like a no-op restart.
+ *   like a no-op restart. Lanes are not cancelled when a sibling fails: each runs to its end, so
+ *   the notice names every step that failed rather than whichever finished first.
  *
  *   busy/idle gating is checked twice, because only the tail of the pipeline is dangerous to a live
  *   turn. Once before the build, and again after it: the build takes minutes, so a turn can have
@@ -525,26 +527,31 @@ function spawnAsync(cmd: string, args: string[], opts: { cwd: string }): Promise
 }
 
 export interface RebuildStep {
-  /** Short stable name used in logs and in the abort notice. */
-  label: string;
+  /** The published progress step it runs as; also names it in logs and in the abort notice. */
+  label: RebuildStepName;
   cmd: string;
   args: string[];
   cwd: string;
 }
 
-/** Ordered `npm run build` steps for the hot-reload pipeline, skipping packages that are absent.
- *  Order is load-bearing: agent-server emits the dist types, ui-contract re-exports them, web
- *  typechecks against ui-contract's dist. */
-export function planRebuildSteps(dirs: {
+/** The hot-reload build as lanes that run concurrently, each an ordered list of `npm run` steps,
+ *  skipping packages that are absent. The first lane's order is load-bearing: agent-server emits the
+ *  dist types, ui-contract re-exports them, web typechecks against ui-contract's dist. Web's bundle
+ *  and dependency check read only web sources, so each gets a lane of its own. Together the web
+ *  steps are web's `build` script. */
+export function planRebuildLanes(dirs: {
   repoDir: string;
   uiContractDir?: string | null;
   webDir?: string | null;
-}): RebuildStep[] {
-  const build = (label: string, cwd: string): RebuildStep => ({ label, cmd: 'npm', args: ['run', 'build'], cwd });
-  const steps = [build('server', dirs.repoDir)];
-  if (dirs.uiContractDir) steps.push(build('ui-contract', dirs.uiContractDir));
-  if (dirs.webDir) steps.push(build('web', dirs.webDir));
-  return steps;
+}): RebuildStep[][] {
+  const run = (label: RebuildStepName, cwd: string, script: string): RebuildStep => (
+    { label, cmd: 'npm', args: ['run', script], cwd }
+  );
+  const types = [run('server', dirs.repoDir, 'build')];
+  if (dirs.uiContractDir) types.push(run('ui-contract', dirs.uiContractDir, 'build'));
+  if (!dirs.webDir) return [types];
+  types.push(run('web-typecheck', dirs.webDir, 'typecheck'));
+  return [types, [run('web-bundle', dirs.webDir, 'bundle')], [run('web-depcruise', dirs.webDir, 'depcruise')]];
 }
 
 /** The text shown to the operator when the pipeline stops early. Spells out the consequence
@@ -602,11 +609,11 @@ function setRebuildProgress(next: RebuildProgress): void {
   );
 }
 
-/** The steps a checkout will actually run, in order. Derived from `planRebuildSteps` so the build
- *  half cannot drift — a package that is absent is never published as pending — plus the two phases
- *  the build planner does not own. */
-export function planRebuildStepNames(dirs: Parameters<typeof planRebuildSteps>[0]): RebuildStepName[] {
-  const names = planRebuildSteps(dirs).map((step) => step.label as RebuildStepName);
+/** The steps a checkout will actually run, lane by lane. Derived from `planRebuildLanes` so the
+ *  build half cannot drift — a package that is absent is never published as pending — plus the two
+ *  phases the build planner does not own. */
+export function planRebuildStepNames(dirs: Parameters<typeof planRebuildLanes>[0]): RebuildStepName[] {
+  const names = planRebuildLanes(dirs).flat().map((step) => step.label);
   return [...names, 'install', 'restart'];
 }
 
@@ -639,10 +646,10 @@ function updateRebuildProgress(patch: (progress: RebuildProgress) => RebuildProg
 }
 
 /** Map an abort's step label onto the published step vocabulary. `tgz cleanup` and `pack` are
- *  phases of the same install step from the reader's point of view. */
+ *  phases of the same install step from the reader's point of view. Build steps are already
+ *  marked by the lane that ran them. */
 function progressStepFor(label: string): RebuildStepName | null {
-  if (label === 'server' || label === 'ui-contract' || label === 'web' || label === 'install') return label;
-  if (label === 'pack' || label === 'tgz cleanup') return 'install';
+  if (label === 'install' || label === 'pack' || label === 'tgz cleanup') return 'install';
   return null;
 }
 
@@ -662,28 +669,41 @@ function abortRebuild(step: string, detail: string, reason: string): void {
   notifyChild({ type: 'rebuild-aborted', text });
 }
 
-/** Run the ordered build steps. Returns false once any step fails (already reported). */
+/** Run one lane's steps in order, stopping at the first failure. Returns that failure, or null. */
+async function runBuildLane(lane: RebuildStep[]): Promise<{ label: string; detail: string } | null> {
+  for (const step of lane) {
+    updateRebuildProgress((progress) => startRebuildStep(progress, step.label));
+    const code = await spawnAsync(step.cmd, step.args, { cwd: step.cwd });
+    if (code !== 0) {
+      const detail = `exit ${code}`;
+      updateRebuildProgress((progress) => finishRebuildStep(progress, step.label, 'failed', detail));
+      return { label: step.label, detail };
+    }
+    updateRebuildProgress((progress) => finishRebuildStep(progress, step.label, 'done'));
+  }
+  return null;
+}
+
+/** Run the build lanes concurrently and wait for all of them. Returns false when any step failed
+ *  (already reported, naming every failed step). */
 async function runBuildSteps(reason: string): Promise<boolean> {
-  const steps = planRebuildSteps({
+  const lanes = planRebuildLanes({
     repoDir: CORTEX_REPO,
     uiContractDir: UI_CONTRACT_DIR && existsSync(UI_CONTRACT_DIR) ? UI_CONTRACT_DIR : null,
     webDir: WEB_DIR && existsSync(WEB_DIR) ? WEB_DIR : null,
   });
-  if (!steps.some(s => s.label === 'web')) {
+  if (!lanes.flat().some((step) => step.label === 'web-bundle')) {
     log.warn('WEB_DIR not found — skipping web build, pack will use stale web/dist if present');
   }
 
-  for (const step of steps) {
-    const tracked = progressStepFor(step.label);
-    if (tracked) updateRebuildProgress((progress) => startRebuildStep(progress, tracked));
-    const code = await spawnAsync(step.cmd, step.args, { cwd: step.cwd });
-    if (code !== 0) {
-      abortRebuild(step.label, `exit ${code}`, reason);
-      return false;
-    }
-    if (tracked) updateRebuildProgress((progress) => finishRebuildStep(progress, tracked, 'done'));
-  }
-  return true;
+  const failures = (await Promise.all(lanes.map(runBuildLane))).filter((failure) => failure !== null);
+  if (failures.length === 0) return true;
+  abortRebuild(
+    failures.map((failure) => failure.label).join(', '),
+    failures.map((failure) => failure.detail).join(', '),
+    reason,
+  );
+  return false;
 }
 
 /** Newest packed tarball in CORTEX_REPO, or an abort detail explaining why there is none. */
@@ -781,7 +801,8 @@ async function runRebuildPipeline(reason: string) {
       daemonPid: process.pid,
     }));
 
-    // Step 1: build the workspace packages in dependency order (server → ui-contract → web).
+    // Step 1: build the workspace packages (server → ui-contract → web typecheck, beside web's
+    // bundle and dependency check).
     if (!await runBuildSteps(reason)) return;
 
     // Second busy gate. The build above is minutes long and touches nothing the running child

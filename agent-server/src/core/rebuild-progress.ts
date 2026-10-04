@@ -8,7 +8,8 @@
 // (`entry/daemon-notice.ts`) because the turn gate needs them without waiting for a poll.
 //
 // Steps are planned up front and flipped in place, so the reader always knows the total and never
-// has to guess whether a missing step is pending or skipped.
+// has to guess whether a missing step is pending or skipped. Build steps run in concurrent lanes, so
+// several can be `running` at once; install and restart always run alone.
 //
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -21,7 +22,14 @@ export const REBUILD_PROGRESS_FILE = path.join(STORE_DIR, 'daemon-rebuild.json')
 
 /** The pipeline's fixed step vocabulary. `install` covers both install paths (fast sync vs
  *  pack + `npm install -g`); which one ran is in the step's `detail`. */
-export type RebuildStepName = 'server' | 'ui-contract' | 'web' | 'install' | 'restart';
+export type RebuildStepName =
+  | 'server'
+  | 'ui-contract'
+  | 'web-typecheck'
+  | 'web-bundle'
+  | 'web-depcruise'
+  | 'install'
+  | 'restart';
 
 export type RebuildStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
 
@@ -43,7 +51,8 @@ export interface RebuildProgress {
   status: RebuildStatus;
   /** What triggered the pipeline, verbatim from the watcher ('src change: core/foo.ts'). */
   reason: string;
-  /** The step in flight, or null once terminal. */
+  /** A step in flight, or null when none is. While build steps overlap this is one of them — the
+   *  per-step `status` is the full picture. */
   current: RebuildStepName | null;
   steps: RebuildStepState[];
   startedAt: string;
@@ -114,7 +123,8 @@ export function finishRebuildStep(
 ): RebuildProgress {
   const ts = now().toISOString();
   const next = patchStep(progress, name, { status, detail, endedAt: ts }, ts);
-  return { ...next, current: next.current === name ? null : next.current };
+  if (next.current !== name) return next;
+  return { ...next, current: next.steps.filter((step) => step.status === 'running').at(-1)?.name ?? null };
 }
 
 /** Terminal state. Any step still `pending` becomes `skipped`, so a reader never shows a step as

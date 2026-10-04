@@ -41,8 +41,8 @@ const REBUILDING: SystemDaemonStatus = {
   rebuild: {
     status: 'running',
     reason: 'src change: core/foo.ts',
-    current: 'web',
-    steps: [{ name: 'web', status: 'running', detail: null, startedAt: '2026-09-21T06:00:00.000Z', endedAt: null }],
+    current: 'web-typecheck',
+    steps: [{ name: 'web-typecheck', status: 'running', detail: null, startedAt: '2026-09-21T06:00:00.000Z', endedAt: null }],
     startedAt: '2026-09-21T06:00:00.000Z',
     updatedAt: '2026-09-21T06:00:00.000Z',
     endedAt: null,

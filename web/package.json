@@ -9,10 +9,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "//build": "Typecheck, boundary check and bundle run concurrently; any failing job fails the build. See scripts/build.mjs.",
+    "//build": "Runs typecheck, depcruise and bundle concurrently; any failing job fails the build. See scripts/build.mjs.",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --validate --ignore-known && node scripts/check-feature-cycles.mjs",
+    "bundle": "vite build",
     "lint": "pnpm run depcruise",
     "preview": "vite preview",
     "test": "vitest run"

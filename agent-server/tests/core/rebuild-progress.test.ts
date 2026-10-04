@@ -32,7 +32,7 @@ function fakeClock(startMs = Date.parse('2026-09-21T06:00:00.000Z')) {
   return () => { const at = new Date(ms); ms += 1000; return at; };
 }
 
-function plan(names: RebuildProgress['steps'][number]['name'][] = ['server', 'web', 'install', 'restart']) {
+function plan(names: RebuildProgress['steps'][number]['name'][] = ['server', 'web-typecheck', 'install', 'restart']) {
   return planRebuildProgress({ reason: 'src change: core/foo.ts', names, daemonPid: 4242, now: fakeClock() });
 }
 
@@ -42,7 +42,7 @@ test('a planned pipeline publishes every step up front so a reader knows the tot
   assert.equal(progress.current, null);
   assert.equal(progress.daemonPid, 4242);
   assert.deepEqual(progress.steps.map((s) => [s.name, s.status]), [
-    ['server', 'pending'], ['web', 'pending'], ['install', 'pending'], ['restart', 'pending'],
+    ['server', 'pending'], ['web-typecheck', 'pending'], ['install', 'pending'], ['restart', 'pending'],
   ]);
 });
 
@@ -58,6 +58,23 @@ test('starting and finishing a step moves only that step and tracks what is in f
   assert.equal(done.current, null, 'nothing is in flight between two steps');
   assert.equal(done.steps[0].status, 'done');
   assert.ok(done.steps[0].endedAt);
+});
+
+test('overlapping build steps keep one of them as current until the last one finishes', () => {
+  const clock = fakeClock();
+  const both = startRebuildStep(
+    startRebuildStep(plan(['server', 'web-bundle', 'install', 'restart']), 'server', clock),
+    'web-bundle',
+    clock,
+  );
+  assert.deepEqual(both.steps.map((s) => s.status), ['running', 'running', 'pending', 'pending']);
+
+  const bundled = finishRebuildStep(both, 'web-bundle', 'done', null, clock);
+  assert.equal(bundled.current, 'server', 'the server build is still in flight');
+
+  const serverFirst = finishRebuildStep(both, 'server', 'done', null, clock);
+  assert.equal(serverFirst.current, 'web-bundle');
+  assert.equal(finishRebuildStep(serverFirst, 'web-bundle', 'done', null, clock).current, null);
 });
 
 test('an install step carries which path ran, because the two cost very different time', () => {
@@ -92,7 +109,7 @@ test('a deferral settles without failing anything — it built, it just did not 
 
 test('a record survives a write/read round trip', () => {
   const file = tmpFile();
-  const progress = startRebuildStep(plan(), 'web');
+  const progress = startRebuildStep(plan(), 'web-typecheck');
   assert.equal(writeRebuildProgress(progress, file), true);
   assert.deepEqual(readRebuildProgress(file), progress);
 });

@@ -48,11 +48,11 @@ function runningRebuild(): DaemonRebuildProgress {
   return {
     status: 'running',
     reason: 'src change: core/foo.ts',
-    current: 'web',
+    current: 'web-typecheck',
     steps: [
       step('server', 'done', { from: 0, to: 4_000 }),
       step('ui-contract', 'done', { from: 4_000, to: 5_500 }),
-      step('web', 'running', { from: 5_500 }),
+      step('web-typecheck', 'running', { from: 5_500 }),
       step('install', 'pending'),
       step('restart', 'pending'),
     ],
@@ -94,7 +94,7 @@ describe('buildDaemonVm', () => {
     expect(rebuild.steps.map((s) => [s.name, s.status, s.tone, s.duration])).toEqual([
       ['server', 'done', 'done', '4.0s'],
       ['ui-contract', 'done', 'done', '1.5s'],
-      ['web', 'running', 'running', '6.5s'],
+      ['web-typecheck', 'running', 'running', '6.5s'],
       ['install', 'pending', 'waiting', null],
       ['restart', 'pending', 'waiting', null],
     ]);
@@ -110,7 +110,7 @@ describe('buildDaemonVm', () => {
       steps: [
         step('server', 'done', { from: 0, to: 4_000 }),
         step('ui-contract', 'failed', { from: 4_000, to: 4_800 }, 'exit 2'),
-        step('web', 'skipped'),
+        step('web-typecheck', 'skipped'),
         step('install', 'skipped'),
         step('restart', 'skipped'),
       ],
@@ -136,7 +136,7 @@ describe('buildDaemonVm', () => {
       steps: [
         step('server', 'done', { from: 0, to: 4_000 }),
         step('ui-contract', 'done', { from: 4_000, to: 5_000 }),
-        step('web', 'done', { from: 5_000, to: 9_000 }),
+        step('web-typecheck', 'done', { from: 5_000, to: 9_000 }),
         step('install', 'skipped'),
         step('restart', 'skipped'),
       ],

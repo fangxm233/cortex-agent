@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test } from 'vitest';
 import { AGENT_SERVER_DIR } from './module-loader.js';
 import {
-  planRebuildSteps,
+  planRebuildLanes,
   planRebuildStepNames,
   rebuildHoldsTurns,
 } from '../src/entry/daemon.js';
@@ -54,49 +56,64 @@ test('daemon module import is side-effect free', async () => {
   assert.equal(result.signal, null);
 });
 
-// --- Rebuild step order ---
+// --- Rebuild lanes ---
 //
 // Regression: web resolves @cortex-agent/ui-contract through that package's BUILT dist, and
 // ui-contract only re-exports server dist types. Skipping its build left web's `tsc --noEmit`
 // failing on every newly added server DTO, which aborted the pipeline before install+restart —
-// soft restart silently stopped working while the server kept running stale code.
+// soft restart silently stopped working while the server kept running stale code. Web's bundle and
+// dependency check read only web sources, so they do not wait behind that chain.
 
-test('planRebuildSteps builds ui-contract between server and web', () => {
-  const steps = planRebuildSteps({
+test('planRebuildLanes chains web typecheck behind ui-contract and server, beside bundle and depcruise', () => {
+  const lanes = planRebuildLanes({
     repoDir: '/repo/agent-server',
     uiContractDir: '/repo/packages/ui-contract',
     webDir: '/repo/web',
   });
 
-  assert.deepEqual(steps.map(s => s.label), ['server', 'ui-contract', 'web']);
-  assert.deepEqual(steps.map(s => s.cwd), [
-    '/repo/agent-server',
-    '/repo/packages/ui-contract',
-    '/repo/web',
+  assert.deepEqual(lanes.map((lane) => lane.map((step) => `${step.label}@${step.cwd}:${step.args.join(' ')}`)), [
+    [
+      'server@/repo/agent-server:run build',
+      'ui-contract@/repo/packages/ui-contract:run build',
+      'web-typecheck@/repo/web:run typecheck',
+    ],
+    ['web-bundle@/repo/web:run bundle'],
+    ['web-depcruise@/repo/web:run depcruise'],
   ]);
-  for (const step of steps) {
-    assert.equal(step.cmd, 'npm');
-    assert.deepEqual(step.args, ['run', 'build']);
-  }
+  for (const step of lanes.flat()) assert.equal(step.cmd, 'npm');
 });
 
-test('planRebuildSteps omits workspace packages that are absent', () => {
+test('planRebuildLanes omits workspace packages that are absent', () => {
   assert.deepEqual(
-    planRebuildSteps({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: '/repo/web' })
-      .map(s => s.label),
-    ['server', 'web'],
+    planRebuildLanes({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: '/repo/web' })
+      .map((lane) => lane.map((step) => step.label)),
+    [['server', 'web-typecheck'], ['web-bundle'], ['web-depcruise']],
   );
   assert.deepEqual(
-    planRebuildSteps({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null })
-      .map(s => s.label),
-    ['server'],
+    planRebuildLanes({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null })
+      .map((lane) => lane.map((step) => step.label)),
+    [['server']],
   );
+});
+
+// The lanes call web's scripts by name instead of its `build`; a renamed script would abort every
+// rebuild rather than fail a build anyone runs by hand.
+test('web defines every script the rebuild lanes call', () => {
+  const webDir = path.resolve(AGENT_SERVER_DIR, '..', 'web');
+  const scripts = JSON.parse(fs.readFileSync(path.join(webDir, 'package.json'), 'utf8')).scripts;
+  const called = planRebuildLanes({ repoDir: '/repo/agent-server', webDir })
+    .flat()
+    .filter((step) => step.cwd === webDir)
+    .map((step) => step.args[1]);
+
+  assert.deepEqual(called, ['typecheck', 'bundle', 'depcruise']);
+  for (const name of called) assert.ok(scripts[name], `web has a "${name}" script`);
 });
 
 // --- Published progress plan ---
 //
 // The daemon page renders "n of total steps", so the published plan must be the same list the
-// pipeline will actually walk. Deriving it from planRebuildSteps is what keeps the two in step; the
+// pipeline will actually walk. Deriving it from planRebuildLanes is what keeps the two in step; the
 // install and restart phases are appended because the build planner does not own them.
 
 test('planRebuildStepNames publishes the build steps it will run, then install and restart', () => {
@@ -106,7 +123,7 @@ test('planRebuildStepNames publishes the build steps it will run, then install a
       uiContractDir: '/repo/packages/ui-contract',
       webDir: '/repo/web',
     }),
-    ['server', 'ui-contract', 'web', 'install', 'restart'],
+    ['server', 'ui-contract', 'web-typecheck', 'web-bundle', 'web-depcruise', 'install', 'restart'],
   );
   assert.deepEqual(
     planRebuildStepNames({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null }),
@@ -127,7 +144,8 @@ test('the turn gate closes for install and restart, and for nothing before them'
 
   assert.equal(holds('server'), false, 'a build writes dist/ — a live turn is in no danger');
   assert.equal(holds('ui-contract'), false);
-  assert.equal(holds('web'), false);
+  assert.equal(holds('web-typecheck'), false);
+  assert.equal(holds('web-bundle'), false);
   assert.equal(holds('install'), true, 'the install overwrites the files app.js is running from');
   assert.equal(holds('restart'), true);
   assert.equal(holds(null), false, 'between two steps nothing is in flight');

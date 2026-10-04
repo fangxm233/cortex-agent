@@ -15,10 +15,10 @@ function progress(over: Partial<RebuildProgress> = {}): RebuildProgress {
   return {
     status: 'running',
     reason: 'src change: core/foo.ts',
-    current: 'web',
+    current: 'web-bundle',
     steps: [
       { name: 'server', status: 'done', detail: null, startedAt: null, endedAt: null },
-      { name: 'web', status: 'running', detail: null, startedAt: null, endedAt: null },
+      { name: 'web-bundle', status: 'running', detail: null, startedAt: null, endedAt: null },
     ],
     startedAt: '2026-09-21T06:00:00.000Z',
     updatedAt: '2026-09-21T06:00:05.000Z',
@@ -56,7 +56,7 @@ test('a running pipeline is reported while its own supervisor is alive', async (
 
   const status = await handleSystemDaemonStatus({});
   assert.equal(status.rebuild?.status, 'running');
-  assert.equal(status.rebuild?.current, 'web');
+  assert.equal(status.rebuild?.current, 'web-bundle');
 });
 
 test('a running record from a supervisor that is gone is dropped, not shown forever', async () => {
