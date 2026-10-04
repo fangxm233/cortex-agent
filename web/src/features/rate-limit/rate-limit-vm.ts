@@ -1,6 +1,8 @@
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
-import { formatSpanPrecise } from '@/lib/time-format';
+import { fmt } from '@/i18n/fmt';
+import { pickVocab } from '@/i18n/lang';
+import { formatSpanPrecise } from '@/i18n/time-format';
 
 export interface RateLimitWindowView {
   type: string;
@@ -36,8 +38,8 @@ export function formatRateLimitCountdown(seconds: number, lang: Lang): string {
 }
 
 function waitingLabel(sessions: number, lang: Lang): string {
-  if (lang === 'zh') return `${sessions} 个会话等待恢复`;
-  return `${sessions} ${sessions === 1 ? 'session' : 'sessions'} waiting`;
+  const L = pickVocab(lang);
+  return fmt(sessions === 1 ? L.rlWaitingOne : L.rlWaitingMany, { n: sessions });
 }
 
 type RawRateLimitWindow = SystemRateLimitStatus['providers'][number]['windows'][number];
@@ -77,8 +79,7 @@ function singleProviderLabel(provider: RateLimitProviderView): string {
 }
 
 function aggregateLabel(count: number, countdown: string, lang: Lang): string {
-  if (lang === 'zh') return `${count} 个 provider 限流 · 首个 ${countdown}`;
-  return `${count} providers limited · first ${countdown}`;
+  return fmt(pickVocab(lang).rlAggregate, { count, countdown });
 }
 
 export function buildRateLimitView(

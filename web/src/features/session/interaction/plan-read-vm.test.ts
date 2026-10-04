@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { en, zh } from '@/i18n';
 import { planMetaLine, planStatusLabel, readProgressPct } from './plan-read-vm';
 
 describe('plan read progress and status', () => {
@@ -10,9 +11,9 @@ describe('plan read progress and status', () => {
   });
 
   it('keeps localized status and metadata labels for the reader chrome', () => {
-    expect(planStatusLabel('pending', 'en')).toBe('pending');
-    expect(planStatusLabel('approved', 'zh')).toBe('已批准');
-    expect(planMetaLine('plans/demo.md', 12, 'pending', 'en')).toBe('plans/demo.md · 12 lines · pending');
-    expect(planMetaLine(null, 12, '待批', 'zh')).toBe('12 行 · 待批');
+    expect(planStatusLabel('pending', en)).toBe('pending');
+    expect(planStatusLabel('approved', zh)).toBe('已批准');
+    expect(planMetaLine('plans/demo.md', 12, 'pending', en)).toBe('plans/demo.md · 12 lines · pending');
+    expect(planMetaLine(null, 12, '待批', zh)).toBe('12 行 · 待批');
   });
 });

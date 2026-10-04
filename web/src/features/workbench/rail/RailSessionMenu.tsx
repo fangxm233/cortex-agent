@@ -1,8 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { MENU_FOCUS, MENU_SURFACE, MONO } from '@/design/MenuChrome';
-import { useLang } from '@/i18n';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
+import { useVocab } from '@/i18n';
 import { SessionMetadata, type SessionMetadataActions } from '@/features/session/metadata/SessionMetadata';
 import { SessionMetadataMenuItems } from '@/features/session/metadata/SessionMetadataMenuItems';
 import type { RailSessionRow } from './rail-tree';
@@ -65,7 +64,7 @@ function useRailMenuState() {
 
 export function RailSessionMenu({ row, hovered }: { row: RailSessionRow; hovered: boolean }): JSX.Element {
   const menu = useRailMenuState();
-  const label = `${workbenchCopy(useLang()).sessionMenu}: ${row.title}`;
+  const label = `${useVocab().wbSessionMenu}: ${row.title}`;
   return <span onClick={(event) => event.stopPropagation()}
     onKeyDown={(event) => event.stopPropagation()}
     onFocus={() => menu.setFocused(true)} onBlur={() => menu.setFocused(false)}

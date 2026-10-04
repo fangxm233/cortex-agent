@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { useLangOptional, type Lang } from '@/i18n';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { buildNotification, buildSystemNotice, type NotificationItem } from './notification-vm';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
@@ -95,7 +95,7 @@ interface DmConsumption {
 
 function consumeDmTurn(
   buffer: Map<string, BufferedTurnMessage>, directMap: Map<string, DirectEntry>,
-  isSessionOpen: (sessionId: string) => boolean, nextId: NextId, sessionId: string, lang: Lang,
+  isSessionOpen: (sessionId: string) => boolean, nextId: NextId, sessionId: string, L: Vocab,
 ): DmConsumption {
   if (!buffer.has(sessionId)) return { consumed: true, item: null };
   if (isSessionOpen(sessionId)) {
@@ -109,7 +109,7 @@ function consumeDmTurn(
   if (entry.silent) return { consumed: true, item: null };
   return { consumed: true, item: buildNotification({
     id: nextId('dmn'), sessionId, sessionName: entry.name,
-    projectId: entry.projectId, text: message.text, ts: message.ts, lang,
+    projectId: entry.projectId, text: message.text, ts: message.ts, L,
   }) };
 }
 
@@ -117,14 +117,14 @@ function useDmFeed(lookup: DirectLookup, isSessionOpen: (sessionId: string) => b
   nextId: NextId, deliver: Deliver): void {
   const buffer = useRef<Map<string, BufferedTurnMessage>>(new Map());
   const pendingEnds = useRef(new Set<string>());
-  const lang = useLangOptional();
+  const L = useVocabOptional();
   const flush = useCallback((sessionId: string, map = lookup.map) => {
-    const result = consumeDmTurn(buffer.current, map, isSessionOpen, nextId, sessionId, lang);
+    const result = consumeDmTurn(buffer.current, map, isSessionOpen, nextId, sessionId, L);
     if (!result.consumed) return false;
     pendingEnds.current.delete(sessionId);
     if (result.item) deliver(result.item);
     return true;
-  }, [deliver, isSessionOpen, lang, lookup.map, nextId]);
+  }, [deliver, isSessionOpen, L, lookup.map, nextId]);
   const onMessage = useCallback((message: DmAssistantMessage) => {
     buffer.current.set(message.sessionId, {
       text: message.text, ts: message.ts ?? new Date().toISOString(),
@@ -144,7 +144,7 @@ function useDmFeed(lookup: DirectLookup, isSessionOpen: (sessionId: string) => b
 }
 
 function useNoticeFeed(nextId: NextId, deliver: Deliver): void {
-  const lang = useLangOptional();
+  const L = useVocabOptional();
   const onNotice = useCallback((message: SystemNoticeMessage) => {
     deliver(buildSystemNotice({
       id: nextId('sysn'),
@@ -152,9 +152,9 @@ function useNoticeFeed(nextId: NextId, deliver: Deliver): void {
       text: message.text,
       title: message.title ?? undefined,
       ts: message.ts ?? undefined,
-      lang,
+      L,
     }));
-  }, [deliver, lang, nextId]);
+  }, [deliver, L, nextId]);
   useSystemNotices(onNotice);
 }
 

@@ -14,7 +14,7 @@ function List({ projectId, stars = true }: { projectId: string; stars?: boolean 
   return <MSessionListView rows={[row(`${projectId}-plain`)]}
     stars={{ projectId, rows: stars ? [row(`${projectId}-star`)] : [],
       expanded: !groups.collapsed.has(projectId), onToggle: () => groups.toggle(projectId) }}
-    copy={{ title: 'Sessions', empty: 'No sessions' }} presence="connected"
+    presence="connected"
     newLabel="New" onNew={() => {}} onOpen={onOpen} />;
 }
 
@@ -53,7 +53,7 @@ describe('mobile project Stars', () => {
 
   it('does not show the empty-list message while all rows are collapsed stars', () => {
     const tree = create(<MSessionListView rows={[]} stars={{ projectId: 'alpha', rows: [row('star')],
-      expanded: false, onToggle: () => {} }} copy={{ title: 'Sessions', empty: 'No sessions' }}
+      expanded: false, onToggle: () => {} }}
       presence="connected" newLabel="New" onNew={() => {}} onOpen={onOpen} />);
     expect(JSON.stringify(tree.toJSON())).not.toContain('No sessions');
     expect(sessionIds(tree)).toEqual([]);
@@ -64,7 +64,7 @@ describe('mobile project Stars', () => {
 describe('mobile team lead rows', () => {
   it('gives a lead its workers’ running state as a live row', () => {
     const lead: MSessionRow = { ...row('lead'), status: { kind: 'running', text: '1 worker running' } };
-    const tree = create(<MSessionListView rows={[lead, row('plain')]} copy={{ title: 'Sessions', empty: 'No sessions' }}
+    const tree = create(<MSessionListView rows={[lead, row('plain')]}
       presence="connected" newLabel="New" onNew={() => {}} onOpen={onOpen} />);
     expect(sessionIds(tree)).toEqual(['lead', 'plain']);
     const style = (id: string) => tree.root.findByProps({ 'data-session-id': id }).props.style;

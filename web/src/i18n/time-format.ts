@@ -1,3 +1,6 @@
+import { fmt } from './fmt';
+import { en, zh, type Vocab } from './vocab';
+
 // One vocabulary for every time label in the UI, in the UI language. English stays compact
 // (`12m`, `3h 5m`, `12m ago`); Chinese spells the units with no space (`12分钟`, `3小时5分`, `12分钟前`).
 
@@ -5,22 +8,16 @@ export type TimeLang = 'en' | 'zh';
 
 type Unit = 's' | 'm' | 'h' | 'd' | 'w';
 
-const UNIT: Record<TimeLang, Record<Unit, string>> = {
-  en: { s: 's', m: 'm', h: 'h', d: 'd', w: 'w' },
-  zh: { s: '秒', m: '分钟', h: '小时', d: '天', w: '周' },
-};
-
+const UNIT_KEY = { s: 'timeUnitS', m: 'timeUnitM', h: 'timeUnitH', d: 'timeUnitD', w: 'timeUnitW' } as const;
 // Two-part spans shorten the minute in Chinese: 3分20秒, 2小时5分, 2天3小时.
-const PRECISE_ZH: Record<'d' | 'h' | 'm' | 's', string> = { d: '天', h: '小时', m: '分', s: '秒' };
+const PRECISE_KEY = { d: 'timePreciseD', h: 'timePreciseH', m: 'timePreciseM', s: 'timePreciseS' } as const;
 
-const JUST_NOW: Record<TimeLang, string> = { en: 'just now', zh: '刚刚' };
-const NOW_COMPACT: Record<TimeLang, string> = { en: 'now', zh: '刚刚' };
-const YESTERDAY: Record<TimeLang, string> = { en: 'Yesterday', zh: '昨天' };
-const TODAY: Record<TimeLang, string> = { en: 'Today', zh: '今天' };
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function words(lang: TimeLang): Vocab {
+  return lang === 'zh' ? zh : en;
+}
 
 function unit(n: number, u: Unit, lang: TimeLang): string {
-  return `${n}${UNIT[lang][u]}`;
+  return `${n}${words(lang)[UNIT_KEY[u]]}`;
 }
 
 /** Largest whole unit of a span, seconds through days. */
@@ -54,8 +51,9 @@ export function formatSpanPrecise(ms: number, lang: TimeLang): string {
   const s = Math.floor(Math.max(0, ms) / 1000);
   if (s < 60) return unit(s, 's', lang);
   const [major, minor, mu, nu] = twoUnits(s);
-  if (lang === 'zh') return `${major}${PRECISE_ZH[mu]}${minor ? `${minor}${PRECISE_ZH[nu]}` : ''}`;
-  return minor ? `${major}${mu} ${minor}${nu}` : `${major}${mu}`;
+  const L = words(lang);
+  const majorText = `${major}${L[PRECISE_KEY[mu]]}`;
+  return minor ? fmt(L.timePrecise, { major: majorText, minor: `${minor}${L[PRECISE_KEY[nu]]}` }) : majorText;
 }
 
 function parse(at: string | number | null | undefined): number | null {
@@ -69,10 +67,11 @@ export function relTime(at: string | number | null | undefined, now: number, lan
   const t = parse(at);
   if (t == null) return '';
   const [n, u] = largest(now - t);
-  if (u === 's') return NOW_COMPACT[lang];
-  if (lang === 'zh' && u === 'd' && n === 1) return YESTERDAY.zh;
+  const L = words(lang);
+  if (u === 's') return L.timeNowCompact;
+  if (u === 'd' && n === 1) return L.timeRelOneDay;
   const [count, shown]: [number, Unit] = u === 'd' && n >= 7 ? [Math.floor(n / 7), 'w'] : [n, u];
-  return lang === 'zh' ? `${unit(count, shown, 'zh')}前` : unit(count, shown, 'en');
+  return fmt(L.timeRelCompact, { span: unit(count, shown, lang) });
 }
 
 /** How long ago, inside a sentence: `just now / 12m ago / 3h ago` · `刚刚 / 12分钟前 / 3小时前`. '' when unknown. */
@@ -80,16 +79,15 @@ export function timeAgo(at: string | number | null | undefined, now: number, lan
   const t = parse(at);
   if (t == null) return '';
   const [n, u] = largest(now - t);
-  if (u === 's') return JUST_NOW[lang];
-  return lang === 'zh' ? `${unit(n, u, 'zh')}前` : `${unit(n, u, 'en')} ago`;
+  if (u === 's') return words(lang).timeJustNow;
+  return fmt(words(lang).timeAgo, { span: unit(n, u, lang) });
 }
 
 /** How long until: `in 12m` · `12分钟后`. Callers decide what an instant already past reads as. */
 export function timeUntil(at: string | number | null | undefined, now: number, lang: TimeLang): string {
   const t = parse(at);
   if (t == null) return '';
-  const span = formatSpan(t - now, lang);
-  return lang === 'zh' ? `${span}后` : `in ${span}`;
+  return fmt(words(lang).timeUntil, { span: formatSpan(t - now, lang) });
 }
 
 function startOfDay(d: Date): number {
@@ -100,9 +98,10 @@ function startOfDay(d: Date): number {
 export function dayLabel(ts: string | number, now: Date, lang: TimeLang): string {
   const d = new Date(ts);
   const delta = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
-  if (delta <= 0) return TODAY[lang];
-  if (delta === 1) return YESTERDAY[lang];
-  return lang === 'zh' ? `${d.getMonth() + 1}月${d.getDate()}日` : `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  const L = words(lang);
+  if (delta <= 0) return L.timeToday;
+  if (delta === 1) return L.timeYesterday;
+  return fmt(L.timeMonthDay, { month: L.timeMonths.split(',')[d.getMonth()], day: d.getDate() });
 }
 
 function pad(n: number): string {

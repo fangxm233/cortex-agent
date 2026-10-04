@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
-import { clockTime } from '@/lib/time-format';
+import { fmt, type Vocab } from '@/i18n';
+import { clockTime } from '@/i18n/time-format';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
 // MessageStream: bare hover actions, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
@@ -10,38 +11,6 @@ import { clockTime } from '@/lib/time-format';
 // discarded lives in transcript-vm (`rewindStats`); these are presentation + local interaction only.
 
 const mono = "'IBM Plex Mono',monospace";
-
-export const M_EDIT_COPY = {
-  zh: {
-    copy: '复制',
-    copied: '已复制',
-    edit: '编辑消息',
-    editDisabled: '运行中不可编辑 — 暂停后可用',
-    cancel: '取消',
-    sendRewind: '发送并回退',
-    escHint: 'Esc 取消 · ⌘↩ 发送',
-    rewindNote: (replies: number, tools: number) => `发送后回退其后 ${replies} 条回复 · ${tools} 次工具调用作废`,
-    willRewind: '将被回退',
-    edited: '已编辑',
-    original: '原消息',
-    regenNote: '由编辑重新生成',
-  },
-  en: {
-    copy: 'Copy',
-    copied: 'Copied',
-    edit: 'Edit message',
-    editDisabled: 'Running — stop the turn to edit',
-    cancel: 'Cancel',
-    sendRewind: 'Send & rewind',
-    escHint: 'Esc cancel · ⌘↩ send',
-    rewindNote: (replies: number, tools: number) => `Rewinds ${replies} repl${replies === 1 ? 'y' : 'ies'} · ${tools} tool call${tools === 1 ? '' : 's'} discarded`,
-    willRewind: 'will rewind',
-    edited: 'edited',
-    original: 'Original',
-    regenNote: 'Regenerated from edit',
-  },
-};
-export type MEditCopy = typeof M_EDIT_COPY.zh;
 
 function CopyIcon(): JSX.Element {
   return (
@@ -83,7 +52,7 @@ function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 
  */
 export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = true, extraAction }: {
   text: string;
-  copy: MEditCopy;
+  copy: Vocab;
   /** Present → the edit button renders (user messages only). */
   onEdit?: () => void;
   editDisabled?: boolean;
@@ -97,14 +66,14 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>
-      {copied && <TipBubble text={copy.copied} />}
-      {editHover && editDisabled && <TipBubble text={copy.editDisabled} side="right" />}
+      {copied && <TipBubble text={copy.cmCopied} />}
+      {editHover && editDisabled && <TipBubble text={copy.msgEditDisabled} side="right" />}
       {showCopy && (
         <button
           type="button" className={MENU_FOCUS}
           role="button"
-          aria-label={copied ? copy.copied : copy.copy}
-          title={copied ? undefined : copy.copy}
+          aria-label={copied ? copy.cmCopied : copy.cmCopy}
+          title={copied ? undefined : copy.cmCopy}
           onClick={doCopy}
           style={{
             width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -120,8 +89,8 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
           type="button" className={MENU_FOCUS}
           role="button"
           disabled={editDisabled}
-          aria-label={editDisabled ? copy.editDisabled : copy.edit}
-          title={editDisabled ? undefined : copy.edit}
+          aria-label={editDisabled ? copy.msgEditDisabled : copy.msgEdit}
+          title={editDisabled ? undefined : copy.msgEdit}
           onMouseEnter={() => setEditHover(true)}
           onMouseLeave={() => setEditHover(false)}
           onClick={editDisabled ? undefined : onEdit}
@@ -145,7 +114,7 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
  */
 export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
   initialText: string;
-  copy: MEditCopy;
+  copy: Vocab;
   onCancel: () => void;
   onSubmit: (text: string) => void;
   busy: boolean;
@@ -195,7 +164,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
         }}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 9, borderTop: '1px solid var(--proto-line-2)' }}>
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{copy.escHint}</span>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{copy.msgEscHint}</span>
         <button
           type="button" className={MENU_FOCUS}
           role="button"
@@ -210,7 +179,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
           onClick={submit}
           style={{ border: 0, fontSize: 12, fontWeight: 600, color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', borderRadius: 'var(--r-control)', padding: '6px 13px', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.5 }}
         >
-          {copy.sendRewind}
+          {copy.msgSendRewind}
         </button>
       </div>
     </div>
@@ -218,22 +187,25 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
 }
 
 /** Amber discard note under the edit box (23a): 发送后回退其后 N 条回复 · M 次工具调用作废. */
-export function RewindNote({ replies, toolCalls, copy }: { replies: number; toolCalls: number; copy: MEditCopy }): JSX.Element {
+export function RewindNote({ replies, toolCalls, copy }: { replies: number; toolCalls: number; copy: Vocab }): JSX.Element {
   return (
     <div style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, font: `500 11px ${mono}`, color: 'var(--proto-amber-text)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
-      {copy.rewindNote(replies, toolCalls)}
+      {fmt(copy.msgRewindNote, {
+        replies: fmt(replies === 1 ? copy.msgReplyOne : copy.msgReplyMany, { n: replies }),
+        tools: fmt(toolCalls === 1 ? copy.msgToolCallOne : copy.msgToolCallMany, { n: toolCalls }),
+      })}
     </div>
   );
 }
 
 /** Dimmed to-be-rewound tail (23a right of the edit box): a「将被回退」badge over the 35%-opacity
  *  block of every row after the one being edited. */
-export function RewindTail({ children, copy }: { children: React.ReactNode; copy: MEditCopy }): JSX.Element {
+export function RewindTail({ children, copy }: { children: React.ReactNode; copy: Vocab }): JSX.Element {
   return (
     <div style={{ position: 'relative', marginTop: 6 }}>
       <span style={{ position: 'absolute', top: -4, right: 0, font: `600 11px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2px 7px', borderRadius: 'var(--r-chip)', zIndex: 1 }}>
-        {copy.willRewind}
+        {copy.msgWillRewind}
       </span>
       <div style={{ opacity: 0.35, display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 14, pointerEvents: 'none' }}>
         {children}
@@ -257,7 +229,7 @@ export function EditedBadge({ edited, ts, copy }: {
   edited: { originalText: string; originalTs: string };
   /** The edited (current) message's ts — stamps 已编辑 · HH:MM. */
   ts?: string;
-  copy: MEditCopy;
+  copy: Vocab;
 }): JSX.Element {
   const [hover, setHover] = useState(false);
   const editedAt = timeHHMM(ts);
@@ -281,25 +253,25 @@ export function EditedBadge({ edited, ts, copy }: {
           }}
         >
           <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', letterSpacing: '.05em', paddingBottom: 4 }}>
-            {copy.original}{originalAt ? ` · ${originalAt}` : ''}
+            {copy.msgOriginal}{originalAt ? ` · ${originalAt}` : ''}
           </div>
           <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
             {edited.originalText}
           </div>
         </div>
       )}
-      <span style={{ borderBottom: '1px dotted var(--proto-muted)' }}>{copy.edited}</span>
+      <span style={{ borderBottom: '1px dotted var(--proto-muted)' }}>{copy.msgEdited}</span>
       {editedAt && <span> · {editedAt}</span>}
     </div>
   );
 }
 
 /** 「由编辑重新生成」footnote atop the first regenerated reply after an edited message. */
-export function RegenNote({ copy }: { copy: MEditCopy }): JSX.Element {
+export function RegenNote({ copy }: { copy: Vocab }): JSX.Element {
   return (
     <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
-      {copy.regenNote}
+      {copy.msgRegenNote}
     </div>
   );
 }

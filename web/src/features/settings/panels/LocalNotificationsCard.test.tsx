@@ -5,7 +5,10 @@ vi.mock('@tauri-apps/plugin-notification', () => ({
   isPermissionGranted: async () => h.nativeGranted,
   requestPermission: h.nativeRequest,
 }));
-vi.mock('@/i18n', () => ({ useLang: () => h.lang }));
+vi.mock('@/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n')>();
+  return { ...actual, useVocab: () => actual.pickVocab(h.lang as 'en' | 'zh') };
+});
 import { LocalNotificationsCard } from './LocalNotificationsCard';
 const request = vi.fn(); let mounted: ReactTestRenderer;
 class FakeNotification {

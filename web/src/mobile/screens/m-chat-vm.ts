@@ -17,7 +17,8 @@ import {
   type PendingUserMessage,
 } from '@/features/session/transcript/transcript-vm';
 import { mobileDivider } from '@/mobile/shared/mobile-session-vm';
-import type { TimeLang } from '@/lib/time-format';
+import { fmt, type Vocab } from '@/i18n';
+import type { TimeLang } from '@/i18n/time-format';
 import type { SessionRunStatus } from '@/features/session/list/session-run-status';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 import { formatUsd } from '@/lib/format';
@@ -96,8 +97,8 @@ export interface ChatRunStatusCopy {
   background: string;
   idle: string;
   turnsUnit: string;
-  /** "waiting on N signals" — the caller localizes it; this module holds no literals of its own. */
-  waitingOn?: (n: number) => string;
+  /** "waiting on N signals" template (`{n}`) — the caller localizes it; this module holds no literals of its own. */
+  waitingOn?: string;
 }
 
 /**
@@ -124,7 +125,7 @@ export function chatHeaderStatus(
   const base = status.showMetrics
     ? [label, elapsed, turnsText, ...(status.showCost ? [cost == null ? DASH : formatUsd(cost)] : [])].join(' · ')
     : label;
-  const text = waitingOn > 0 && copy.waitingOn ? `${base} · ${copy.waitingOn(waitingOn)}` : base;
+  const text = waitingOn > 0 && copy.waitingOn ? `${base} · ${fmt(copy.waitingOn, { n: waitingOn })}` : base;
   return { running: status.active, tone: status.active ? 'running' : 'idle', text };
 }
 
@@ -137,17 +138,16 @@ export function interactionHeaderStatus(
   kind: 'ask-user' | 'plan-approval',
   answered: number,
   total: number,
-  lang: 'zh' | 'en',
+  L: Pick<Vocab, 'chatPlanPendingStatus' | 'chatAwaitingAnswerStatus'>,
 ): ChatHeaderStatus {
-  const zh = lang === 'zh';
   if (kind === 'plan-approval') {
-    return { running: false, tone: 'waiting', text: zh ? '计划待批 · Agent 已暂停' : 'plan pending · agent paused' };
+    return { running: false, tone: 'waiting', text: L.chatPlanPendingStatus };
   }
   const counter = total > 1 ? ` ${Math.min(answered + 1, total)}/${total}` : '';
   return {
     running: false,
     tone: 'waiting',
-    text: zh ? `等待你的回答${counter} · Agent 已暂停` : `awaiting your answer${counter} · agent paused`,
+    text: fmt(L.chatAwaitingAnswerStatus, { counter }),
   };
 }
 

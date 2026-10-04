@@ -4,8 +4,9 @@ import type {
   CostSummary,
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/lib/time-format';
+import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/i18n/time-format';
 import { execStatusWord } from '@/features/execution/execution-drawer-view';
+import { fmt, type Vocab } from '@/i18n';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
 // task df67). No JSX, no hex outside the verbatim-prototype status-pill map.
@@ -122,18 +123,17 @@ export function scheduleProfileLabel(s: ScheduleInfo): string {
 }
 
 /** `next in 19h` / `due` / `—` · `19小时后` / `到期` / `—`. */
-export function nextRunLabel(nextRun: string | null, now: number, lang: TimeLang): string {
+export function nextRunLabel(nextRun: string | null, now: number, lang: TimeLang, L: Vocab): string {
   if (!nextRun) return '—';
-  if (Date.parse(nextRun) - now <= 0) return lang === 'zh' ? '到期' : 'due';
-  const until = timeUntil(nextRun, now, lang);
-  return lang === 'zh' ? until : `next ${until}`;
+  if (Date.parse(nextRun) - now <= 0) return L.ovNextDue;
+  return fmt(L.ovNextIn, { until: timeUntil(nextRun, now, lang) });
 }
 
 /** `last 2h ago` / `never run` · `上次 2小时前` / `从未运行`. Outcome text ("✓ 3 papers") is not exposed — flagged. */
-export function lastRunLabel(lastRun: string | null, now: number, lang: TimeLang): string {
+export function lastRunLabel(lastRun: string | null, now: number, lang: TimeLang, L: Vocab): string {
   const ago = timeAgo(lastRun, now, lang);
-  if (!ago) return lang === 'zh' ? '从未运行' : 'never run';
-  return lang === 'zh' ? `上次 ${ago}` : `last ${ago}`;
+  if (!ago) return L.ovNeverRun;
+  return fmt(L.ovLastRun, { ago });
 }
 
 /** Real elapsed: durationMs when finished, else (now − startedAt) for a live run. */
@@ -148,8 +148,8 @@ export function formatDuration(ms: number | null, lang: TimeLang): string {
   return ms == null ? '—' : formatSpanPrecise(ms, lang);
 }
 
-export function execMachine(e: ExecutionInfo, lang: TimeLang): string {
-  return e.machine ?? (lang === 'zh' ? '本地' : 'local');
+export function execMachine(e: ExecutionInfo, L: Vocab): string {
+  return e.machine ?? L.ovMachineLocal;
 }
 
 export function execCost(cost: number | null): string {
@@ -164,8 +164,8 @@ export interface ExecPill {
 }
 
 /** Status → prototype pill tones (§5 state palette; verbatim hexes); the word follows the UI language. */
-export function execStatusPill(status: ExecutionInfo['status'], lang: TimeLang): ExecPill {
-  const word = (s: ExecutionInfo['status']) => execStatusWord(s, lang);
+export function execStatusPill(status: ExecutionInfo['status'], L: Vocab): ExecPill {
+  const word = (s: ExecutionInfo['status']) => execStatusWord(s, L);
   switch (status) {
     case 'running':
       return { text: word('running'), bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', dot: true };
@@ -185,9 +185,8 @@ export function execStatusPill(status: ExecutionInfo['status'], lang: TimeLang):
  * Best-effort summary. ExecutionInfo has no free-text summary field (the prototype's
  * "review step · thr_8f2c" is mock), so we surface the strongest identifier we have. Flagged.
  */
-export function execSummary(e: ExecutionInfo, lang: TimeLang): string {
-  const zh = lang === 'zh';
-  if (e.taskId) return zh ? `任务 ${e.taskId}` : `task ${e.taskId}`;
-  if (e.sessionId) return zh ? `会话 ${e.sessionId}` : `session ${e.sessionId}`;
-  return zh ? `${e.type} 执行` : `${e.type} execution`;
+export function execSummary(e: ExecutionInfo, L: Vocab): string {
+  if (e.taskId) return fmt(L.ovSummaryTask, { id: e.taskId });
+  if (e.sessionId) return fmt(L.ovSummarySession, { id: e.sessionId });
+  return fmt(L.ovSummaryExec, { type: e.type });
 }

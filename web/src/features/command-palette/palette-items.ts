@@ -143,3 +143,14 @@ export function selectPaletteRows(
     (r.label + ' ' + r.sub + ' ' + r.keywords.join(' ')).toLowerCase().includes(q);
   return [...nav, ...entities].filter(matches).slice(0, matchCap);
 }
+
+/** The localized kind tag (`PaletteRow.kbd` stays the stable tag); an unknown tag shows as-is. */
+export function paletteKindText(
+  kind: string,
+  L: Pick<Vocab, 'palKindCommand' | 'palKindSession' | 'palKindPage' | 'palKindModal'>,
+): string {
+  const kinds: Record<string, string> = {
+    command: L.palKindCommand, session: L.palKindSession, page: L.palKindPage, modal: L.palKindModal,
+  };
+  return kinds[kind] ?? kind;
+}

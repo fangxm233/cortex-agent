@@ -13,7 +13,7 @@
 // The scheme's `APR-0007` id and `ttl` are MOCKS: we render the real `id` and never render a ttl (no
 // source field). Framework-free so the DTO→value mapping is unit-tested in isolation.
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { relTime, type TimeLang } from '@/lib/time-format';
+import { relTime, type TimeLang } from '@/i18n/time-format';
 
 export interface MApprovalCard {
   /** Real stable id (a sha1-derived hash — the scheme's `APR-0007` is a mock). */

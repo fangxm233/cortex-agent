@@ -2,20 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useLang, useVocab } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import { unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
 import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { MScreen, MC } from '@/mobile/ui/kit';
-import { MSessionListView, type MSessionListCopy } from './MSessionListView';
-import { MScheduleSheet, type MScheduleSheetCopy } from './MScheduleSheet';
+import { MSessionListView } from './MSessionListView';
+import { MScheduleSheet } from './MScheduleSheet';
 import { buildProjectSessionList, type MSessionRow } from './m-session-list-vm';
 import { useStarredGroups } from '@/features/session/list/useStarredGroups';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
-import { PROJECT_SWITCH_COPY } from './MProjectSwitchRows';
 import { MProjectSwitchSheet } from './MProjectSwitchSheet';
 import { MNewProjectSheet, useNewProjectSheet } from './useMNewProjectSheet';
 import { MHomeDrawer } from './MHomeDrawer';
@@ -23,41 +21,7 @@ import { MProjectScreen } from './MProjectScreen';
 import { mobileHomeView } from '@/mobile/mobile-route-manifest';
 import { setProjectsPanel } from '@/mobile/mobile-navigation';
 
-const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
-  en: { title: 'Sessions', empty: 'No sessions yet' },
-  zh: { title: '会话', empty: '暂无会话' },
-};
-
-const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
-  en: {
-    title: 'Scheduled',
-    countUnit: '{n}',
-    once: 'once',
-    paused: 'paused',
-    nextIn: 'next in {d}',
-    allRuns: 'all {n} runs',
-    edit: 'Edit schedule',
-    markAllRead: 'mark {n} read',
-    colRun: 'RUN',
-    colFired: 'FIRED',
-    colCost: 'COST',
-  },
-  zh: {
-    title: '定时任务',
-    countUnit: '{n} 个',
-    once: '单次',
-    paused: '已暂停',
-    nextIn: '{d}后运行',
-    allRuns: '全部 {n} 次运行',
-    edit: '编辑调度',
-    markAllRead: '{n} 条标记已读',
-    colRun: '运行',
-    colFired: '触发',
-    colCost: '费用',
-  },
-};
-
-function useSessionListData(currentProjectId: string | null, lang: 'en' | 'zh') {
+function useSessionListData(currentProjectId: string | null, lang: 'en' | 'zh', L: Vocab) {
   const trpc = useTRPC();
   const team = useTeamEnabled();
   useSessionsLiveSync();
@@ -68,8 +32,8 @@ function useSessionListData(currentProjectId: string | null, lang: 'en' | 'zh') 
   );
   const list = useMemo(
     () => buildProjectSessionList(currentProjectId, sessionsQuery.data ?? [],
-      scheduledQuery.data ?? [], schedulesQuery.data ?? [], Date.now(), lang, team),
-    [currentProjectId, sessionsQuery.data, scheduledQuery.data, schedulesQuery.data, lang, team],
+      scheduledQuery.data ?? [], schedulesQuery.data ?? [], Date.now(), lang, L, team),
+    [currentProjectId, sessionsQuery.data, scheduledQuery.data, schedulesQuery.data, lang, L, team],
   );
   return { loading: sessionsQuery.isLoading, ...list };
 }
@@ -83,15 +47,14 @@ function useStarsProp(currentProjectId: string | null, starredRows: MSessionRow[
 
 type SessionSheet = 'schedule' | 'projects' | null;
 
-function useProjectSwitcher(lang: 'en' | 'zh', setSheet: (sheet: SessionSheet) => void) {
+function useProjectSwitcher(setSheet: (sheet: SessionSheet) => void) {
   const navigate = useNavigate();
   const { currentProjectId, setCurrentProject } = useCurrentProject();
-  const newProject = useNewProjectSheet(lang, navigate, setCurrentProject);
-  const copy = pickCopy(lang, PROJECT_SWITCH_COPY);
+  const newProject = useNewProjectSheet(navigate, setCurrentProject);
   const close = () => setSheet(null);
   const pick = (id: string) => { setCurrentProject(id); close(); };
   const createNew = () => { close(); newProject.show(); };
-  return { currentProjectId, newProject, copy, close, pick, createNew };
+  return { currentProjectId, newProject, close, pick, createNew };
 }
 
 function SessionListSheets({ sheet, setSheet, scheduleRows, switcher }: {
@@ -101,14 +64,13 @@ function SessionListSheets({ sheet, setSheet, scheduleRows, switcher }: {
   switcher: ReturnType<typeof useProjectSwitcher>;
 }) {
   const navigate = useNavigate();
-  const sheetCopy = pickCopy(useLang(), SHEET_COPY);
   const openRun = (id: string) => { setSheet(null); navigate(`/m/session/${id}`, { replace: true }); };
   return (
     <>
-      {sheet === 'schedule' && <MScheduleSheet rows={scheduleRows} copy={sheetCopy}
+      {sheet === 'schedule' && <MScheduleSheet rows={scheduleRows}
         onOpenSession={openRun} onClose={() => setSheet(null)} />}
       {sheet === 'projects' && <MProjectSwitchSheet currentProjectId={switcher.currentProjectId}
-        copy={switcher.copy} onPick={switcher.pick} onNewProject={switcher.createNew} onClose={switcher.close} />}
+        onPick={switcher.pick} onNewProject={switcher.createNew} onClose={switcher.close} />}
       <MNewProjectSheet project={switcher.newProject} />
     </>
   );
@@ -146,7 +108,7 @@ function usePendingApprovals(): number {
 }
 
 function ProjectsDrawer({ panel, children }: { panel: ReturnType<typeof useProjectsPanel>; children: ReactNode }) {
-  const label = pickCopy(useLang(), PANEL_LABEL);
+  const label = useVocab().projTitle;
   const mounted = usePanelMounted(panel.open);
   return (
     <MHomeDrawer open={panel.open} onOpenChange={panel.setOpen} panelLabel={label}
@@ -156,35 +118,32 @@ function ProjectsDrawer({ panel, children }: { panel: ReturnType<typeof useProje
   );
 }
 
-const PANEL_LABEL = { en: 'Projects', zh: '项目' };
-
 export function MSessionListScreen() {
   const navigate = useNavigate();
   const lang = useLang();
   const L = useVocab();
-  const copy = pickCopy(lang, COPY);
   const presence = useConnectionStatus();
   const [sheet, setSheet] = useState<SessionSheet>(null);
-  const switcher = useProjectSwitcher(lang, setSheet);
-  const { loading, rows, starredRows, scheduleRows } = useSessionListData(switcher.currentProjectId, lang);
+  const switcher = useProjectSwitcher(setSheet);
+  const { loading, rows, starredRows, scheduleRows } = useSessionListData(switcher.currentProjectId, lang, L);
   const stars = useStarsProp(switcher.currentProjectId, starredRows);
   const panel = useProjectsPanel();
   const needsYou = usePendingApprovals();
   if (loading) {
     return (
       <ProjectsDrawer panel={panel}>
-        <MScreen label="1a 会话列表">
-          <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
+        <MScreen label="1a sessions">
+          <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{L.slEmpty}</div>
         </MScreen>
       </ProjectsDrawer>
     );
   }
   const scheduled = scheduleRows.length > 0
     ? { unread: unreadScheduleCount(scheduleRows), onOpen: () => setSheet('schedule') } : undefined;
-  const project = { name: switcher.currentProjectId, switchLabel: switcher.copy.switchProject, onSwitch: () => setSheet('projects') };
+  const project = { name: switcher.currentProjectId, switchLabel: L.projSwitch, onSwitch: () => setSheet('projects') };
   return (
     <ProjectsDrawer panel={panel}>
-      <MSessionListView rows={rows} stars={stars} copy={copy} presence={presence} project={project}
+      <MSessionListView rows={rows} stars={stars} presence={presence} project={project}
         projects={{ needsYou, onOpen: () => panel.setOpen(true) }} newLabel={L.wbNewSession} scheduled={scheduled}
         onOpen={(id) => navigate(`/m/session/${id}`)} onNew={() => navigate('/m/session/new')} />
       <SessionListSheets sheet={sheet} setSheet={setSheet} scheduleRows={scheduleRows} switcher={switcher} />

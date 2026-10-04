@@ -8,11 +8,10 @@ import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
   TARGET_OPTIONS,
-  type IntervalUnit,
+  scheduleOptionLabel,
   type ScheduleEditableFields,
   type ScheduleForm,
   type SchedType,
-  type TargetChoice,
 } from './schedule-modal-vm';
 
 // New-schedule overlay (design 7c), rebuilt 1:1 from prototype.dc.html L1431-1459 (+ shared backdrop
@@ -33,22 +32,6 @@ const LABEL: CSSProperties = {
 // one cell. A select used to get a shorter, rounder box than the input beside it; sharing the cell
 // (and fixing its height rather than inferring one from padding) keeps the row aligned whatever the
 // control inside it is.
-// Option labels per UI language; the option VALUES stay the scheduler's own spellings.
-const OPTION_COPY: Record<'en' | 'zh', {
-  unit: Record<IntervalUnit, string>; target: Record<TargetChoice, string>; clock: string;
-}> = {
-  en: {
-    unit: { min: 'min', hr: 'hr' },
-    target: { 'current-channel': 'current-channel', fresh: 'fresh', project: 'project' },
-    clock: '24h',
-  },
-  zh: {
-    unit: { min: '分钟', hr: '小时' },
-    target: { 'current-channel': '当前频道', fresh: '新会话', project: '项目' },
-    clock: '24 小时制',
-  },
-};
-
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 const CELL_BOX: CSSProperties = {
   display: 'flex',
@@ -95,7 +78,6 @@ export interface ScheduleModalProps {
 export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
   const L = useVocab();
   const lang = useLang();
-  const optionCopy = OPTION_COPY[lang];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.defaultPrevented) onCancel();
@@ -248,7 +230,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
                         color: 'var(--proto-ink)',
                       }}
                     />
-                    <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{optionCopy.clock}</span>
+                    <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{L.schedClock24h}</span>
                   </div>
                 </>
               )}
@@ -278,7 +260,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
                       aria-label={L.scEvery}
                       value={form.intervalUnit}
                       disabled={!editableFields.interval}
-                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: optionCopy.unit[unit] }))}
+                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: scheduleOptionLabel(unit, L) }))}
                       onValueChange={(intervalUnit) => onChange({ intervalUnit })}
                       style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
                     />
@@ -309,7 +291,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
                       density="bare"
                       aria-label={L.scIn}
                       value={form.delayUnit}
-                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: optionCopy.unit[unit] }))}
+                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: scheduleOptionLabel(unit, L) }))}
                       onValueChange={(delayUnit) => onChange({ delayUnit })}
                       style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
                     />
@@ -399,7 +381,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
                   aria-label={L.scTarget}
                   value={form.target}
                   disabled={!editableFields.target}
-                  options={TARGET_OPTIONS.map((target) => ({ value: target, label: optionCopy.target[target] }))}
+                  options={TARGET_OPTIONS.map((target) => ({ value: target, label: scheduleOptionLabel(target, L) }))}
                   onValueChange={(target) => onChange({ target })}
                   style={{
                     ...bareSelectStyle('11.5px system-ui, sans-serif'),

@@ -1,5 +1,5 @@
 // Only real path/size/modified fields are surfaced; desktop-only diff/blame data stays omitted.
-import { relTime, type TimeLang } from '@/lib/time-format';
+import { relTime, type TimeLang } from '@/i18n/time-format';
 import { formatBytes as formatSharedBytes } from '@/lib/format';
 
 /** Last path segment (the filename), e.g. `experiments/EXP-001.md` → `EXP-001.md`. */

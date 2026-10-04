@@ -7,20 +7,23 @@ import { MChatSessionMenu } from '@/mobile/screens/MChatSessionMenu';
 import type { MChatCopy } from '@/mobile/screens/MChatView.types';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 
-const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), lang: 'en' }));
+const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), lang: 'en' as 'en' | 'zh' }));
 vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: {
   setStarred: { mutationOptions: () => ({ mutationFn: rpc.star }) },
   rename: { mutationOptions: () => ({ mutationFn: rpc.rename }) },
   list: { queryFilter: () => ({ queryKey: ['sessions', 'list'] }) },
 } }) }));
-vi.mock('@/i18n', () => ({ useLang: () => rpc.lang, useVocab: () => ({ wbSessionId: 'Session ID' }) }));
+vi.mock('@/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n')>();
+  return { ...actual, useLang: () => rpc.lang, useVocab: () => actual.pickVocab(rpc.lang) };
+});
 vi.mock('@/design/Modal', () => ({ Modal: ({ open, children, footer }: any) =>
   open ? <section role="dialog">{children}{footer}</section> : null }));
 
 const first = { sessionId: 'stable-1', title: 'Display title', starred: false };
 const onId = vi.fn();
 const onStats = vi.fn();
-const copy = { menuSessionId: 'Session ID', menuSessionStats: 'Session stats' } as MChatCopy;
+const copy = { wbSessionId: 'Session ID', wbSessionStats: 'Session stats' } as unknown as MChatCopy;
 let renderer: ReactTestRenderer;
 let client: QueryClient;
 function Mobile({ session }: { session: MetadataSession | null }) {

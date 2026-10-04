@@ -1,7 +1,7 @@
 import type { SessionTotals } from '@cortex-agent/ui-contract';
 import { formatElapsed } from '@/features/session/transcript/transcript-vm';
 import { formatUsd } from '@/lib/format';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 
 // The composer status line has always answered "what is happening right now": the CURRENT turn's
 // elapsed time, and the LAST run's turns and cost. That is the wrong number for "what has this

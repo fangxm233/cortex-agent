@@ -1,19 +1,10 @@
 import { type ReactNode } from 'react';
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
-import { useLangOptional } from '@/i18n';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
-
-export interface MIssuesCopy {
-  title: string;
-  del: string;
-  handle: string;
-  empty: string;
-  footer: string;
-}
 
 export interface MIssuesViewProps {
   cards: IssueDetailVm[];
-  copy: MIssuesCopy;
   /** Which card is expanded (defaults to the first upstream); null when the list is empty. */
   expandedId: string | null;
   busy: boolean;
@@ -25,7 +16,6 @@ export interface MIssuesViewProps {
 
 export function MIssuesView({
   cards,
-  copy,
   expandedId,
   busy,
   onBack,
@@ -33,6 +23,7 @@ export function MIssuesView({
   onDelete,
   onHandle,
 }: MIssuesViewProps) {
+  const copy = useVocabOptional();
   return (
     <MScreen
       label="24c Issues"
@@ -41,7 +32,7 @@ export function MIssuesView({
           <div
             style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', flex: 'none' }}
           >
-            {copy.title}
+            {copy.issuesTitle}
           </div>
           {cards.length > 0 && (
             <span
@@ -63,7 +54,7 @@ export function MIssuesView({
       <MScrollBody gap={10}>
         {cards.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
-            {copy.empty}
+            {copy.isEmptyTitle}
           </div>
         )}
         {cards.map((card) =>
@@ -90,7 +81,7 @@ export function MIssuesView({
               padding: '10px 0 12px',
             }}
           >
-            <span style={{ fontSize: 11, color: MC.muted }}>{copy.footer}</span>
+            <span style={{ fontSize: 11, color: MC.muted }}>{copy.isFootNote}</span>
           </div>
         )}
       </MScrollBody>
@@ -107,12 +98,12 @@ function ExpandedCard({
   onHandle,
 }: {
   card: IssueDetailVm;
-  copy: MIssuesCopy;
+  copy: Vocab;
   busy: boolean;
   onDelete: (id: string) => void;
   onHandle: (id: string) => void;
 }) {
-  const fieldSep = useLangOptional() === 'zh' ? '：' : ': ';
+  const fieldSep = copy.issueFieldSep;
   return (
     <MCard
       tone="blue"
@@ -143,10 +134,10 @@ function ExpandedCard({
       {/* decision buttons (24c: 删除 104px danger outline + 处理 flex accent, 44px touch) */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
         <DecisionButton kind="danger-outline" busy={busy} onClick={() => onDelete(card.id)} width={104}>
-          {copy.del}
+          {copy.isDelete}
         </DecisionButton>
         <DecisionButton kind="accent" busy={busy} onClick={() => onHandle(card.id)}>
-          {copy.handle}
+          {copy.isHandle}
         </DecisionButton>
       </div>
     </MCard>

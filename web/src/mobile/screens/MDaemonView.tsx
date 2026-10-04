@@ -9,43 +9,16 @@ import type { Tone } from '@/design/tone';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 import { connectionLabelKey, type ConnectionStatus } from '@/features/connection/connection-status';
 import { mConnTone, mConnPulse } from './m-connection';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 
-export interface MDaemonCopy {
-  title: string;
-  // Header pill: live UI<->server connectivity labels.
-  connConnected: string;
-  connConnecting: string;
-  connReconnecting: string;
-  connDisconnected: string;
-  schedules: (n: number) => string;
-  /** Mono label prefix for the uptime metric (`uptime` / `运行时长`). */
-  uptimeLabel: string;
-  /** Honest placeholder for any null DTO metric. */
-  dash: string;
-  /** Label for the real lastRestart event row (e.g. `上次重启`). */
-  lastRestartLabel: string;
-  recentTitle: string;
-  recentEmpty: string;
-  /** Rebuild card title (e.g. 热重建). */
-  rebuildTitle: string;
-  /** Step counter under the title: how many planned steps are finished. */
-  rebuildProgress: (done: number, total: number) => string;
-  /** Label for the line carrying what triggered the rebuild. */
-  rebuildTriggerLabel: string;
-  status: Record<ExecutionInfo['status'], string>;
-  rebuildStatus: Record<DaemonRebuildVm['status'], string>;
-  restartTitle: string;
-  softRestart: string;
-  forceKill: string;
-  holdHint: string;
-  footerNote: string;
-  sent: string;
-  failed: string;
-  /** Disconnect action label (e.g. 断开连接) — clears saved creds + returns to the login screen. */
-  disconnect: string;
-  /** Sub-line under the disconnect button explaining what it does. */
-  disconnectNote: string;
-}
+const EXECUTION_STATUS_KEYS: Record<ExecutionInfo['status'], keyof Vocab> = {
+  running: 'dmnStatusRunning', completed: 'dmnStatusCompleted', failed: 'dmnStatusFailed',
+  cancelled: 'dmnStatusCancelled', stale: 'dmnStatusStale',
+};
+const REBUILD_STATUS_KEYS: Record<DaemonRebuildVm['status'], keyof Vocab> = {
+  running: 'dmnStatusRunning', succeeded: 'dmnStatusSucceeded', aborted: 'dmnStatusAborted', deferred: 'dmnStatusDeferred',
+};
+const DASH = '—';
 
 // Dot color stays mobile-specific while status semantics come from the canonical daemon tone.
 function dotColor(tone: Tone): string {
@@ -56,7 +29,9 @@ function dotColor(tone: Tone): string {
 }
 
 // ── Rebuild card: the supervisor's pipeline, one row per planned step ──────────
-function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemonCopy }) {
+function RebuildCard({ rebuild }: { rebuild: DaemonRebuildVm }) {
+  const L = useVocab();
+  const statusKey = REBUILD_STATUS_KEYS[rebuild.status];
   return (
     <MCard padding={0} style={{ overflow: 'hidden' }}>
       <div
@@ -69,12 +44,12 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
         }}
       >
         <MDot color={dotColor(rebuildStatusTone(rebuild.status))} />
-        <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{copy.rebuildTitle}</span>
+        <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{L.dmRebuild}</span>
         <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>
-          {copy.rebuildProgress(rebuild.completed, rebuild.total)} · {rebuild.elapsed}
+          {fmt(L.dmnRebuildProgress, { done: rebuild.completed, total: rebuild.total })} · {rebuild.elapsed}
         </span>
         <span style={{ marginLeft: 'auto' }}>
-          <MPill tone={rebuildStatusTone(rebuild.status)}>{copy.rebuildStatus[rebuild.status] ?? rebuild.status}</MPill>
+          <MPill tone={rebuildStatusTone(rebuild.status)}>{statusKey ? L[statusKey] : rebuild.status}</MPill>
         </span>
       </div>
       <div
@@ -91,12 +66,12 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
             <MDot color={dotColor(step.tone)} size={5} />
             <span style={{ color: step.status === 'pending' ? MC.faint : MC.sub }}>{step.name}</span>
             {step.detail && <span style={{ color: MC.faint }}>({step.detail})</span>}
-            <span style={{ marginLeft: 'auto', color: MC.faint }}>{step.duration ?? copy.dash}</span>
+            <span style={{ marginLeft: 'auto', color: MC.faint }}>{step.duration ?? DASH}</span>
           </div>
         ))}
       </div>
       <div style={{ padding: '0 13px 12px', fontSize: 12, color: MC.muted, wordBreak: 'break-word' }}>
-        {copy.rebuildTriggerLabel} {rebuild.reason}
+        {L.dmnRebuildTrigger} {rebuild.reason}
         {rebuild.detail ? ` · ${rebuild.detail}` : ''}
       </div>
     </MCard>
@@ -104,8 +79,9 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
 }
 
 // ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime sub-line ──
-function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCopy; border: boolean }) {
-  const dash = copy.dash;
+function ProcRow({ proc, border }: { proc: MDaemonProcess; border: boolean }) {
+  const L = useVocab();
+  const dash = DASH;
   return (
     <div
       style={{
@@ -122,12 +98,12 @@ function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCo
           <span style={{ fontSize: 13, color: MC.muted }}>{proc.label}</span>
         )}
         <span style={{ marginLeft: 'auto', font: `400 12px ${MONO}`, color: MC.muted }}>
-          pid {proc.pid ?? dash}
+          {L.dmPid} {proc.pid ?? dash}
           {proc.port != null ? ` · :${proc.port}` : ''}
         </span>
       </div>
       <div style={{ font: `400 12px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
-        {copy.uptimeLabel} {proc.uptime ?? dash}
+        {L.mUptime} {proc.uptime ?? dash}
       </div>
     </div>
   );
@@ -241,12 +217,13 @@ const OUTLINE_BTN: CSSProperties = {
   cursor: 'pointer',
 };
 
-function EventRow({ ev, copy }: { ev: MDaemonEvent; copy: MDaemonCopy }) {
+function EventRow({ ev }: { ev: MDaemonEvent }) {
+  const L = useVocab();
   return (
     <div style={{ display: 'flex', gap: 8 }}>
       <span style={{ color: MC.faint, flex: 'none' }}>{ev.time}</span>
       <span style={{ color: ev.tone === 'fail' ? MC.amberText : MC.sub }}>
-        {ev.ref} · {copy.status[ev.status]}
+        {ev.ref} · {L[EXECUTION_STATUS_KEYS[ev.status]]}
       </span>
     </div>
   );
@@ -254,7 +231,6 @@ function EventRow({ ev, copy }: { ev: MDaemonEvent; copy: MDaemonCopy }) {
 
 export function MDaemonView({
   vm,
-  copy,
   connStatus,
   restartState,
   showDisconnect,
@@ -264,7 +240,6 @@ export function MDaemonView({
   onDisconnect,
 }: {
   vm: MDaemonVm;
-  copy: MDaemonCopy;
   connStatus: ConnectionStatus;
   restartState: DaemonRestartState;
   /** Show the disconnect action — only in a native shell that has saved creds to clear. */
@@ -274,16 +249,17 @@ export function MDaemonView({
   onHardRestart: () => void;
   onDisconnect: () => void;
 }) {
+  const L = useVocab();
   const pending = restartState === 'pending';
   return (
-    <MScreen label="1r Daemon 状态" header={<MDrillHeader onBack={onBack}>
+    <MScreen label="1r daemon" header={<MDrillHeader onBack={onBack}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
-            {copy.title}
+            {L.dmnTitle}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             {mConnPulse(connStatus) && <MDot color={MC.amber} />}
-            <MPill tone={mConnTone(connStatus)}>{copy[connectionLabelKey(connStatus)]}</MPill>
+            <MPill tone={mConnTone(connStatus)}>{L[connectionLabelKey(connStatus)]}</MPill>
           </span>
         </div>
       </MDrillHeader>}>
@@ -291,7 +267,7 @@ export function MDaemonView({
         {/* Process card — REAL rows from system.daemonStatus (dot=status, pid/port/uptime) + real counts */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>
           {vm.processes.map((proc, i) => (
-            <ProcRow key={proc.name} proc={proc} copy={copy} border={i < vm.processes.length - 1} />
+            <ProcRow key={proc.name} proc={proc} border={i < vm.processes.length - 1} />
           ))}
           <div
             style={{
@@ -305,12 +281,12 @@ export function MDaemonView({
               borderTop: `1px solid ${MC.divider}`,
             }}
           >
-            <span>{copy.schedules(vm.scheduleCount)}</span>
+            <span>{fmt(L.dmnSchedules, { n: vm.scheduleCount })}</span>
           </div>
         </MCard>
 
         {/* Hot rebuild — the supervisor's own pipeline (absent on a plain install) */}
-        {vm.rebuild && <RebuildCard rebuild={vm.rebuild} copy={copy} />}
+        {vm.rebuild && <RebuildCard rebuild={vm.rebuild} />}
 
         {/* Recent activity — repurposed from executions.list; honestly NOT the daemon event log (GAP) */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>
@@ -322,11 +298,11 @@ export function MDaemonView({
               borderBottom: `1px solid ${MC.divider}`,
             }}
           >
-            <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{copy.recentTitle}</span>
+            <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{L.dmnRecentTitle}</span>
           </div>
           {vm.lastRestart === null && vm.events.length === 0 ? (
             <div style={{ padding: '12px', fontSize: 12, color: MC.muted }}>
-              {copy.recentEmpty}
+              {L.dmnRecentEmpty}
             </div>
           ) : (
             <div
@@ -343,12 +319,12 @@ export function MDaemonView({
                 <div style={{ display: 'flex', gap: 8 }}>
                   <span style={{ color: MC.faint, flex: 'none' }}>{vm.lastRestart.time}</span>
                   <span style={{ color: MC.sub }}>
-                    {copy.lastRestartLabel}
+                    {L.dmnLastRestart}
                   </span>
                 </div>
               )}
               {vm.events.map((ev) => (
-                <EventRow key={ev.id} ev={ev} copy={copy} />
+                <EventRow key={ev.id} ev={ev} />
               ))}
             </div>
           )}
@@ -357,7 +333,7 @@ export function MDaemonView({
         {/* Restart card — 软重启 (soft) + 强制终止 (hard, long-press 2s) → system.restart */}
         <MCard padding="12px 13px">
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{copy.restartTitle}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{L.dmnRestartTitle}</span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button
@@ -366,24 +342,24 @@ export function MDaemonView({
               onClick={onSoftRestart}
               style={{ ...OUTLINE_BTN, opacity: pending ? 0.5 : 1, cursor: pending ? 'default' : 'pointer' }}
             >
-              {copy.softRestart}
+              {L.dmSoftRestart}
             </button>
             <HoldButton
-              label={copy.forceKill}
-              hint={copy.holdHint}
+              label={L.dmnForceKill}
+              hint={L.dmnHoldHint}
               disabled={pending}
               onConfirm={onHardRestart}
             />
           </div>
-          <div style={{ fontSize: 12, color: MC.muted, marginTop: 8 }}>{copy.footerNote}</div>
+          <div style={{ fontSize: 12, color: MC.muted, marginTop: 8 }}>{L.dmnFooterNote}</div>
           {restartState === 'success' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
               <MDot color={MC.done} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: MC.done }}>{copy.sent}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: MC.done }}>{L.dmRestartSent}</span>
             </div>
           )}
           {restartState === 'error' && (
-            <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MC.fail }}>{copy.failed}</div>
+            <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MC.fail }}>{L.dmRestartFailed}</div>
           )}
         </MCard>
 
@@ -394,10 +370,10 @@ export function MDaemonView({
         {showDisconnect && (
           <MCard padding="12px 13px">
             <button type="button" onClick={onDisconnect} style={{ ...OUTLINE_BTN, width: '100%' }}>
-              {copy.disconnect}
+              {L.dmDisconnect}
             </button>
             <div style={{ fontSize: 12, color: MC.muted, marginTop: 8, textAlign: 'center' }}>
-              {copy.disconnectNote}
+              {L.dmnDisconnectNote}
             </div>
           </MCard>
         )}

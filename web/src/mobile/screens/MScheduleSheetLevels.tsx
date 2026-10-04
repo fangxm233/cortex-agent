@@ -1,25 +1,10 @@
-import { useLang } from '@/i18n';
+import { fmt, useLang, type Vocab } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
 import { sessionStamp } from '@/features/session/list/session-groups';
 import { formatUsd } from '@/lib/format';
-
-export interface MScheduleSheetCopy {
-  title: string;
-  countUnit: string;
-  once: string;
-  paused: string;
-  nextIn: string;
-  allRuns: string;
-  edit: string;
-  markAllRead: string;
-  /** Runs-table column captions (mono uppercase in en). */
-  colRun: string;
-  colFired: string;
-  colCost: string;
-}
 
 function ClockIcon({ size, color }: { size: number; color: string }) {
   return (
@@ -38,17 +23,17 @@ function RunSubline({ sub }: { sub: SublineValue }) {
   return <>{sub.stamp}{sub.cost && <> · {sub.cost}</>}</>;
 }
 
-function PendingSubline({ sub, copy }: { sub: SublineValue; copy: MScheduleSheetCopy }) {
+function PendingSubline({ sub, copy }: { sub: SublineValue; copy: Vocab }) {
   if (sub.kind !== 'pending') return null;
-  return <>{sub.cadence}{sub.nextDelta && <> · {copy.nextIn.replace('{d}', sub.nextDelta)}</>}</>;
+  return <>{sub.cadence}{sub.nextDelta && <> · {fmt(copy.schedNextIn, { d: sub.nextDelta })}</>}</>;
 }
 
-function PausedSubline({ sub, copy }: { sub: SublineValue; copy: MScheduleSheetCopy }) {
+function PausedSubline({ sub, copy }: { sub: SublineValue; copy: Vocab }) {
   if (sub.kind !== 'paused') return null;
-  return <>{sub.cadence} · <span style={{ color: MC.amberText }}>{copy.paused}</span></>;
+  return <>{sub.cadence} · <span style={{ color: MC.amberText }}>{copy.wbSchedPausedPill}</span></>;
 }
 
-function Subline({ row, copy, now }: { row: ScheduleRow; copy: MScheduleSheetCopy; now: number }) {
+function Subline({ row, copy, now }: { row: ScheduleRow; copy: Vocab; now: number }) {
   const lang = useLang();
   const sub = scheduleSubline(row, now, lang);
   return (
@@ -60,15 +45,15 @@ function Subline({ row, copy, now }: { row: ScheduleRow; copy: MScheduleSheetCop
   );
 }
 
-function ListHeader({ rows, copy }: { rows: ScheduleRow[]; copy: MScheduleSheetCopy }) {
+function ListHeader({ rows, copy }: { rows: ScheduleRow[]; copy: Vocab }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 10px' }}>
       <ClockIcon size={14} color={MC.run} />
       <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
-        {copy.title}
+        {copy.schedSheetTitle}
       </span>
       <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
-        {copy.countUnit.replace('{n}', String(rows.length))}
+        {fmt(copy.schedSheetCount, { n: rows.length })}
       </span>
     </div>
   );
@@ -82,10 +67,10 @@ function scheduleRowStyle(last: boolean): React.CSSProperties {
   };
 }
 
-function ScheduleRowMeta({ row, copy }: { row: ScheduleRow; copy: MScheduleSheetCopy }) {
+function ScheduleRowMeta({ row, copy }: { row: ScheduleRow; copy: Vocab }) {
   return <>
     <span style={{ font: `500 11px ${MONO}`, color: MC.muted, flex: 'none' }}>
-      {row.kind === 'repeat' ? `×${row.runs.length}` : copy.once}
+      {row.kind === 'repeat' ? `×${row.runs.length}` : copy.scTypeOnce}
     </span>
     {row.unread && <span style={{ width: 7, height: 7, borderRadius: '50%', background: MC.run, flex: 'none' }} />}
     <span style={{ fontSize: 13, color: MC.muted, flex: 'none' }}>›</span>
@@ -93,7 +78,7 @@ function ScheduleRowMeta({ row, copy }: { row: ScheduleRow; copy: MScheduleSheet
 }
 
 function ScheduleRowView({ row, copy, now, last, onRow }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; now: number; last: boolean;
+  row: ScheduleRow; copy: Vocab; now: number; last: boolean;
   onRow: (row: ScheduleRow) => void;
 }) {
   return (
@@ -106,7 +91,7 @@ function ScheduleRowView({ row, copy, now, last, onRow }: {
 }
 
 function ScheduleRowText({ row, copy, now }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; now: number;
+  row: ScheduleRow; copy: Vocab; now: number;
 }) {
   return (
     <div style={{ minWidth: 0, flex: 1 }}>
@@ -121,7 +106,7 @@ function ScheduleRowText({ row, copy, now }: {
 }
 
 function ScheduleRows({ rows, copy, now, onRow }: {
-  rows: ScheduleRow[]; copy: MScheduleSheetCopy; now: number;
+  rows: ScheduleRow[]; copy: Vocab; now: number;
   onRow: (row: ScheduleRow) => void;
 }) {
   return (
@@ -133,25 +118,25 @@ function ScheduleRows({ rows, copy, now, onRow }: {
 }
 
 export function ListLevel({ rows, copy, now, onRow }: {
-  rows: ScheduleRow[]; copy: MScheduleSheetCopy; now: number;
+  rows: ScheduleRow[]; copy: Vocab; now: number;
   onRow: (row: ScheduleRow) => void;
 }) {
   return <><ListHeader rows={rows} copy={copy} />
     <ScheduleRows rows={rows} copy={copy} now={now} onRow={onRow} /></>;
 }
 
-function runsSubline(row: ScheduleRow, copy: MScheduleSheetCopy, now: number, lang: TimeLang): string | null {
+function runsSubline(row: ScheduleRow, copy: Vocab, now: number, lang: TimeLang): string | null {
   const schedule = row.schedule;
   if (!schedule) return null;
   const delta = nextRunDelta(schedule.nextRun, now, lang);
   const suffix = schedule.paused
-    ? ` · ${copy.paused}`
-    : delta ? ` · ${copy.nextIn.replace('{d}', delta)}` : '';
+    ? ` · ${copy.wbSchedPausedPill}`
+    : delta ? ` · ${fmt(copy.schedNextIn, { d: delta })}` : '';
   return cadenceLabel(schedule, lang) + suffix;
 }
 
 function RunsHeader({ row, copy, now, onBack }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; now: number; onBack: () => void;
+  row: ScheduleRow; copy: Vocab; now: number; onBack: () => void;
 }) {
   const lang = useLang();
   const subline = runsSubline(row, copy, now, lang);
@@ -169,11 +154,11 @@ function RunsHeader({ row, copy, now, onBack }: {
   );
 }
 
-function RunsCaptions({ copy }: { copy: MScheduleSheetCopy }) {
+function RunsCaptions({ copy }: { copy: Vocab }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 70px', gap: 10,
       padding: '4px 15px 6px', font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em' }}>
-      <span>{copy.colRun}</span><span>{copy.colFired}</span><span style={{ textAlign: 'right' }}>{copy.colCost}</span>
+      <span>{copy.schedColRun}</span><span>{copy.schedColFired}</span><span style={{ textAlign: 'right' }}>{copy.schedColCost}</span>
     </div>
   );
 }
@@ -231,7 +216,7 @@ function RunsList({ row, now, onOpenRun }: {
 /** Takes the hint's slot while this schedule still has unread runs — clearing them beats
  *  re-reading a static hint. */
 function MarkAllReadAction({ unreadIds, copy, pending, onMarkAllRead }: {
-  unreadIds: string[]; copy: MScheduleSheetCopy; pending: boolean;
+  unreadIds: string[]; copy: Vocab; pending: boolean;
   onMarkAllRead: (sessionIds: string[]) => void;
 }) {
   return (
@@ -240,24 +225,24 @@ function MarkAllReadAction({ unreadIds, copy, pending, onMarkAllRead }: {
       style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: MC.run,
         fontSize: 11.5, fontWeight: 600, cursor: pending ? 'default' : 'pointer',
         opacity: pending ? 0.5 : 1, padding: 0 }}>
-      {copy.markAllRead.replace('{n}', String(unreadIds.length))}
+      {fmt(copy.schedMarkRead, { n: unreadIds.length })}
     </button>
   );
 }
 
 function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; onEdit?: () => void;
+  row: ScheduleRow; copy: Vocab; onEdit?: () => void;
   onMarkAllRead?: (sessionIds: string[]) => void; markAllPending?: boolean;
 }) {
   const unreadIds = unreadRunIds(row);
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', padding: '10px 4px 0', gap: 10 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>
-        {copy.allRuns.replace('{n}', String(row.runs.length))}
+        {fmt(copy.schedAllRuns, { n: row.runs.length })}
       </span>
       {onEdit && <button type="button" data-action="edit-schedule" onClick={onEdit}
         style={{ border: 0, background: 'transparent', color: MC.run, fontSize: 11.5,
-          fontWeight: 600, cursor: 'pointer' }}>{copy.edit}</button>}
+          fontWeight: 600, cursor: 'pointer' }}>{copy.scEditSchedule}</button>}
       {onMarkAllRead && unreadIds.length > 0 ? (
         <MarkAllReadAction unreadIds={unreadIds} copy={copy} pending={markAllPending}
           onMarkAllRead={onMarkAllRead} />
@@ -268,7 +253,7 @@ function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }
 
 export function RunsLevel({ row, copy, now, onBack, onOpenRun, onEdit, onMarkAllRead,
   markAllPending }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; now: number; onBack: () => void;
+  row: ScheduleRow; copy: Vocab; now: number; onBack: () => void;
   onOpenRun: (sessionId: string) => void; onEdit?: () => void;
   onMarkAllRead?: (sessionIds: string[]) => void; markAllPending?: boolean;
 }) {

@@ -1,5 +1,5 @@
 import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
-import { relTime, type TimeLang } from '@/lib/time-format';
+import { relTime, type TimeLang } from '@/i18n/time-format';
 
 export interface MMemoryFileRow {
   /** Real filename (e.g. AGENTS.md). */

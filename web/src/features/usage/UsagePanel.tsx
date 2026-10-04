@@ -1,6 +1,6 @@
 import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { useLang, useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import {
   SButton,
   SCard,
@@ -212,9 +212,8 @@ function PolicySummary(props: { policy: UsageWindowPolicyView; open: boolean; on
 
 function PolicyEditor(props: PolicyEditorProps) {
   const L = useVocab();
-  const lang = useLang();
   const key = usagePolicyTargetKey(props.policy.target);
-  const toggleLabel = lang === 'zh' ? `限流开关 ${key}` : `Usage throttle ${key}`;
+  const toggleLabel = fmt(L.usageThrottleToggle, { key });
   const pending = props.isPolicySaving(props.policy.target);
   const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(props.policy);
   const state = policyActionState(props.controlsState !== 'ready', pending, parsedThreshold, props.policy);

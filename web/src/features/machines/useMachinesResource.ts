@@ -6,7 +6,7 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
-import type { TimeLang } from '@/lib/time-format';
+import type { TimeLang } from '@/i18n/time-format';
 import { buildMachineDetailVm, formatUptime, type MachineDetailVm } from './machine-detail-vm';
 
 const ROSTER_REFRESH_MS = 10_000;

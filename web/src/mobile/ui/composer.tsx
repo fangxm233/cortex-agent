@@ -1,14 +1,7 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from '@/design/mobile-tokens';
-import { useLangOptional, useVocabOptional } from '@/i18n';
-import { pickCopy } from './format';
-
-// Composer-only words; the shared ones (Send/Stop/Attach/Expand/Collapse) come from the vocab.
-const COPY = {
-  en: { slashCommand: 'Slash command', lineUnit: 'lines', charUnit: 'chars' },
-  zh: { slashCommand: '斜杠命令', lineUnit: '行', charUnit: '字' },
-};
+import { useVocabOptional } from '@/i18n';
 
 export function composerLineCount(value: string): number {
   return value === '' ? 1 : value.split('\n').length;
@@ -309,13 +302,12 @@ function FullscreenTools({ props, insertSlash }: {
 }): JSX.Element {
   const running = props.running ?? false;
   const vocab = useVocabOptional();
-  const copy = pickCopy(useLangOptional(), COPY);
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderTop: `1px solid ${MC.divider}` }}>
       <button type="button" aria-label={vocab.cmAttach} onClick={props.onPlus} style={fullscreenToolStyle}><PlusGlyph /></button>
-      <button type="button" aria-label={copy.slashCommand} onClick={insertSlash} style={{ ...fullscreenToolStyle, font: `600 13px ${MONO}` }}>/</button>
+      <button type="button" aria-label={vocab.chatSlashCommand} onClick={insertSlash} style={{ ...fullscreenToolStyle, font: `600 13px ${MONO}` }}>/</button>
       <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', font: `400 11px ${MONO}`, color: MC.muted }}>
-        {composerCountLabel(props.value, props.lineUnit ?? copy.lineUnit, props.charUnit ?? copy.charUnit)}
+        {composerCountLabel(props.value, props.lineUnit ?? vocab.chatLineUnit, props.charUnit ?? vocab.chatCharUnit)}
       </span>
       {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={34} />}
       <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={38} />

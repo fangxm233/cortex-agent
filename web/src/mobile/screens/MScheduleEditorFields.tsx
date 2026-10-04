@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react';
-import { useLangOptional, useVocab } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { useVocab } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
   SCHED_TYPES,
   TARGET_OPTIONS,
+  scheduleOptionLabel,
   visibleFields,
   type ScheduleEditableFields,
   type ScheduleEditorMode,
@@ -26,17 +26,6 @@ const field: CSSProperties = {
 const pair: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 };
 
 type Vocab = ReturnType<typeof useVocab>;
-
-// Option words for the unit / target enums; en keeps the familiar tokens.
-const OPTION_COPY: { en: Record<string, string>; zh: Record<string, string> } = {
-  en: { min: 'min', hr: 'hr', 'current-channel': 'current channel', fresh: 'fresh', project: 'project' },
-  zh: { min: '分钟', hr: '小时', 'current-channel': '当前频道', fresh: '新会话', project: '项目' },
-};
-
-function useOptionWord(): (token: string) => string {
-  const words = pickCopy(useLangOptional(), OPTION_COPY);
-  return (token) => words[token] ?? token;
-}
 
 export interface MScheduleEditorProps {
   form: ScheduleForm;
@@ -111,7 +100,6 @@ function TimeField({ copy, form, editableFields, onChange }: FieldsProps) {
 }
 
 function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
-  const word = useOptionWord();
   if (!visibleFields(form.type).interval) return null;
   return (
     <div>
@@ -122,7 +110,7 @@ function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
           onChange={(event) => onChange({ intervalValue: Number(event.target.value) })} />
         <select style={field} value={form.intervalUnit} disabled={!editableFields.interval}
           onChange={(event) => onChange({ intervalUnit: event.target.value as ScheduleForm['intervalUnit'] })}>
-          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{word(unit)}</option>)}
+          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{scheduleOptionLabel(unit, copy)}</option>)}
         </select>
       </div>
     </div>
@@ -130,7 +118,6 @@ function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
 }
 
 function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
-  const word = useOptionWord();
   if (!visibleFields(form.type).delay || !editableFields.delay) return null;
   return (
     <div data-schedule-delay>
@@ -140,7 +127,7 @@ function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
           onChange={(event) => onChange({ delayValue: Number(event.target.value) })} />
         <select style={field} value={form.delayUnit}
           onChange={(event) => onChange({ delayUnit: event.target.value as ScheduleForm['delayUnit'] })}>
-          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{word(unit)}</option>)}
+          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{scheduleOptionLabel(unit, copy)}</option>)}
         </select>
       </div>
     </div>
@@ -196,14 +183,13 @@ function MessageField({ copy, form, editableFields, onChange }: FieldsProps) {
 }
 
 function RoutingFields({ copy, form, mode, editableFields, onChange }: FieldsProps) {
-  const word = useOptionWord();
   return (
     <div style={{ opacity: mode === 'edit' ? 0.6 : 1 }}>
       <label>
         <span style={label}>{copy.scTarget}</span>
         <select style={field} value={form.target} disabled={!editableFields.target}
           onChange={(event) => onChange({ target: event.target.value as ScheduleForm['target'] })}>
-          {TARGET_OPTIONS.map((target) => <option key={target} value={target}>{word(target)}</option>)}
+          {TARGET_OPTIONS.map((target) => <option key={target} value={target}>{scheduleOptionLabel(target, copy)}</option>)}
         </select>
       </label>
     </div>

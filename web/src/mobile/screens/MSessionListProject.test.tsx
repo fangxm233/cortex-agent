@@ -2,7 +2,6 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MSessionListView } from './MSessionListView';
 import { MProjectSwitchSheetView } from './MProjectSwitchSheet';
-import { PROJECT_SWITCH_COPY } from './MProjectSwitchRows';
 import type { MProjectSwitchRow } from './m-project-vm';
 
 vi.mock('@/mobile/ui/kit', async (load) => ({
@@ -11,7 +10,6 @@ vi.mock('@/mobile/ui/kit', async (load) => ({
 }));
 
 const noop = () => {};
-const copy = { title: 'Sessions', empty: 'Empty' };
 const projectRow = (id: string): MProjectSwitchRow => ({
   id, initials: id.slice(0, 2).toUpperCase(), todayCost: null, badgeCount: 0, badgeTone: 'unread',
 });
@@ -19,7 +17,7 @@ const projectRow = (id: string): MProjectSwitchRow => ({
 describe('mobile session list project title', () => {
   it('titles the list with the current project and opens the switcher from it', () => {
     const onSwitch = vi.fn();
-    const tree = create(<MSessionListView rows={[]} copy={copy} presence="connected" newLabel="New"
+    const tree = create(<MSessionListView rows={[]} presence="connected" newLabel="New"
       project={{ name: 'dex-hand', switchLabel: 'Switch project', onSwitch }} onOpen={noop} onNew={noop} />);
     const title = tree.root.findByProps({ 'aria-label': 'Switch project: dex-hand' });
     expect(JSON.stringify(tree.toJSON())).not.toContain('"Sessions"');
@@ -29,7 +27,7 @@ describe('mobile session list project title', () => {
   });
 
   it('falls back to the list title while the project is unresolved', () => {
-    const tree = create(<MSessionListView rows={[]} copy={copy} presence="connected" newLabel="New"
+    const tree = create(<MSessionListView rows={[]} presence="connected" newLabel="New"
       project={{ name: null, switchLabel: 'Switch project', onSwitch: noop }} onOpen={noop} onNew={noop} />);
     expect(tree.root.findByProps({ 'aria-label': 'Switch project: Sessions' })).toBeTruthy();
     tree.unmount();
@@ -39,7 +37,7 @@ describe('mobile session list project title', () => {
     const onPick = vi.fn();
     const onClose = vi.fn();
     const onNewProject = vi.fn();
-    const tree = create(<MProjectSwitchSheetView copy={PROJECT_SWITCH_COPY.en} current={projectRow('general')}
+    const tree = create(<MProjectSwitchSheetView current={projectRow('general')}
       others={[projectRow('dex-hand'), projectRow('cortex-self')]} onPick={onPick} onNewProject={onNewProject} onClose={onClose} />);
     const rows = tree.root.findAll((node) => node.type === 'div' && node.props['data-project-id']);
     expect(rows.map((row) => row.props['data-project-id'])).toEqual(['general', 'dex-hand', 'cortex-self']);

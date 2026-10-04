@@ -3,101 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { HooksOverview } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { useVocab } from '@/i18n';
 import { MC } from '@/mobile/ui/kit';
 import { MSettingsPage } from './MSettingsControls';
-import { MHooksView, type MHooksCopy } from './MHooksView';
+import { MHooksView } from './MHooksView';
 import { buildMHooksVm } from './m-hooks-vm';
-
-const COPY: { en: MHooksCopy; zh: MHooksCopy } = {
-  en: {
-    title: 'Hooks',
-    enabledWord: 'enabled',
-    group: {
-      agent: 'AGENT EVENTS',
-      cc: 'CLAUDE CODE EVENTS',
-      pi: 'PI EVENTS',
-      cortex: 'CORTEX BUS EVENTS',
-      other: 'OTHER EVENTS',
-    },
-    enabled: 'Enabled',
-    disabled: 'Disabled',
-    scriptMissing: 'script missing',
-    empty: 'No mounted hooks',
-    editDesktop: 'Edit on desktop',
-    none: '—',
-    secondUnit: 's',
-    minuteUnit: 'min',
-    field: {
-      event: 'Event',
-      matcher: 'Matcher',
-      filters: 'Filters',
-      script: 'Script',
-      command: 'Command',
-      run: 'Run',
-      timeout: 'Timeout',
-      backends: 'Backends',
-      requiresTool: 'Requires tool',
-      result: 'Result',
-      blocking: 'Blocking',
-      source: 'Source',
-      version: 'Version',
-      fileName: 'File',
-      order: 'Load order',
-      mountsOn: 'Mounts on',
-      appliesAt: 'Applies',
-    },
-    applies: { 'next-agent': 'Next agent start', 'server-restart': 'Server restart' },
-  },
-  zh: {
-    title: '钩子',
-    enabledWord: '已启用',
-    group: {
-      agent: 'AGENT 事件',
-      cc: 'CLAUDE CODE 事件',
-      pi: 'PI 事件',
-      cortex: 'CORTEX 总线事件',
-      other: '其他事件',
-    },
-    enabled: '已启用',
-    disabled: '已停用',
-    scriptMissing: '脚本缺失',
-    empty: '暂无已挂载钩子',
-    editDesktop: '桌面编辑',
-    none: '—',
-    secondUnit: '秒',
-    minuteUnit: '分钟',
-    field: {
-      event: '事件',
-      matcher: '匹配',
-      filters: '过滤条件',
-      script: '脚本',
-      command: '命令',
-      run: '执行',
-      timeout: '超时',
-      backends: '后端',
-      requiresTool: '限定工具',
-      result: '结果',
-      blocking: '阻塞',
-      source: '来源',
-      version: '版本',
-      fileName: '文件',
-      order: '加载顺序',
-      mountsOn: '挂载到',
-      appliesAt: '生效',
-    },
-    applies: { 'next-agent': '下次 agent 启动', 'server-restart': '需重启 server' },
-  },
-};
 
 const EMPTY_OVERVIEW: HooksOverview = { hooks: [], scripts: [], hooksDir: '' };
 
 export function MHooksScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
-  const lang = useLang();
-  const copy = pickCopy(lang, COPY);
+  const L = useVocab();
 
   const hooksQuery = useQuery(trpc.hooks.list.queryOptions({}));
   const vm = useMemo(() => buildMHooksVm(hooksQuery.data ?? EMPTY_OVERVIEW), [hooksQuery.data]);
@@ -113,13 +30,12 @@ export function MHooksScreen() {
   return (
     <>
       {hooksQuery.isLoading ? (
-        <MSettingsPage title={copy.title} onBack={() => navigate('/m/settings')}>
-          <div style={{ color: MC.muted, fontSize: 13 }}>{copy.title}</div>
+        <MSettingsPage title={L.stNavHooks} onBack={() => navigate('/m/settings')}>
+          <div style={{ color: MC.muted, fontSize: 13 }}>{L.stNavHooks}</div>
         </MSettingsPage>
       ) : (
         <MHooksView
           vm={vm}
-          copy={copy}
           sheetRow={sheetRow}
           onBack={() => navigate('/m/settings')}
           onOpenHook={setOpenKey}

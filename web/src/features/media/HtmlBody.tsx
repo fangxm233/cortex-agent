@@ -3,7 +3,7 @@ import { useTheme } from '@/theme';
 import type { DocItem } from './preview-item';
 import { useViewHeight } from './useViewHeight';
 import { useWorkspaceText } from './useWorkspaceText';
-import { useMediaCopy } from './media-copy';
+import { useVocabOptional } from '@/i18n';
 import {
   VIEW_SANDBOX, VIEW_HEIGHT_DEFAULT, wrapViewDocument,
 } from './html-sandbox';
@@ -29,7 +29,7 @@ export interface HtmlBodyProps {
 
 export function HtmlBody({ item, mode = 'expanded' }: HtmlBodyProps): JSX.Element {
   const theme = useTheme();
-  const copy = useMediaCopy();
+  const L = useVocabOptional();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const { text: html, state } = useWorkspaceText(item.path, VIEW_SIZE_LIMIT);
 
@@ -57,9 +57,9 @@ export function HtmlBody({ item, mode = 'expanded' }: HtmlBodyProps): JSX.Elemen
   if (state !== 'ok' || srcDoc === null) {
     return (
       <Placeholder height={inline ? VIEW_HEIGHT_DEFAULT : undefined}>
-        {state === 'loading' && copy.viewLoading}
-        {state === 'failed' && copy.loadFailed.replace('{name}', item.name)}
-        {state === 'toolarge' && copy.viewTooLarge}
+        {state === 'loading' && L.mediaViewLoading}
+        {state === 'failed' && L.cmLoadFailed.replace('{name}', item.name)}
+        {state === 'toolarge' && L.mediaViewTooLarge}
       </Placeholder>
     );
   }

@@ -1,4 +1,4 @@
-import { relTime, type TimeLang } from '@/lib/time-format';
+import { relTime, type TimeLang } from '@/i18n/time-format';
 import type { Tone } from './tone';
 
 // Pure queue logic for the ONE on-screen bubble stack (design §5 + scheme 18a). Framework-agnostic

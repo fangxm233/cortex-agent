@@ -2,7 +2,6 @@ import { useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { ChatHeader } from './ChatHeader';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
@@ -154,15 +153,15 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const runTitle = useMemo(() => {
     if (!isScheduledRun || !active?.scheduleId) return null;
     const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(activeSchedule, runs, active.sessionId, lang);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data, lang]);
+    return scheduledRunTitle(activeSchedule, runs, active.sessionId, L);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data, L]);
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   const title = isDraft
     ? L.wbNewConversation
     : active
       ? sessionDisplayTitle(active, runTitle)
-      : workbenchCopy(lang).noSession;
+      : L.wbNoSession;
 
   const transcriptQuery = useTranscriptQuery(sessionId);
 
@@ -356,7 +355,6 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
             <ContextUsageControl
               usage={contextUsage}
-              lang={lang}
               compactAction={active?.contextCompactionSupported ? compactAction : undefined}
             />
           ) : undefined}

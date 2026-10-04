@@ -1,9 +1,8 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
-import { useLang, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 import { ChatSessionMenu } from './ChatSessionMenu';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { NotesGlyph } from '@/features/notes/NotesGlyph';
@@ -75,13 +74,13 @@ function GlobeGlyph(): JSX.Element {
 // uses: this row also carries the title and the project chip, so the buttons give the width back.
 function BrowserIconButton(): JSX.Element | null {
   const { canDock, active, activeKind, openWeb } = useDockIntake();
-  const copy = workbenchCopy(useLang());
+  const L = useVocab();
   if (!canDock) return null;
   return (
     <HeaderIconButton
       attr={{ 'data-browser-button': '' }}
       active={active && activeKind === 'web'}
-      title={copy.openWebPage}
+      title={L.wbOpenWebPage}
       onClick={openWeb}
     >
       <GlobeGlyph />
@@ -148,6 +147,7 @@ export function ChatHeader({
   metadataSession: MetadataSession | null;
   parent?: ChatHeaderParent | null;
 }): JSX.Element {
+  const L = useVocab();
   const notes = useNotes();
   // Edit → Copy session ID and this menu both reach the same modal, so its open flag lives in
   // the shell modal registry (shell/useShellModals). The modal itself stays here: it needs the ids from this subtree.
@@ -215,7 +215,7 @@ export function ChatHeader({
           <HeaderIconButton
             attr={{ 'data-notes-button': '' }}
             active={notes.isOpen}
-            title={`${notes.copy.title} · ⌘⇧N`}
+            title={`${L.noteTitle} · ⌘⇧N`}
             onClick={() => notes.isOpen ? notes.close() : notes.open()}
           >
             <NotesGlyph />

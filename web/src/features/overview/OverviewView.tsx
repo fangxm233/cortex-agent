@@ -192,7 +192,6 @@ export function OverviewView(): JSX.Element {
           <NotesButton
             count={notes.vm.activeCount}
             active={notes.isOpen}
-            copy={notes.copy}
             onClick={() => notes.isOpen ? notes.close() : notes.open()}
           />
           {/* Adjust budget — no budget-mutate scope, inert (GAP, Stage 7) */}
@@ -337,7 +336,6 @@ export function OverviewView(): JSX.Element {
 
         <NotesOverviewCard
           vm={notes.vm}
-          copy={notes.copy}
           onOpen={notes.open}
           onAdd={notes.add}
         />
@@ -502,8 +500,8 @@ export function OverviewView(): JSX.Element {
                 <div className="overview-schedule-meta" style={{ display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 18 }}>
                   <span>
                     {s.paused
-                      ? `${lastRunLabel(s.lastRun, now, lang)}`
-                      : `${nextRunLabel(s.nextRun, now, lang)} · ${lastRunLabel(s.lastRun, now, lang)}`}
+                      ? `${lastRunLabel(s.lastRun, now, lang, L)}`
+                      : `${nextRunLabel(s.nextRun, now, lang, L)} · ${lastRunLabel(s.lastRun, now, lang, L)}`}
                   </span>
                   {/* Real agent profile from ScheduleInfo.profile (schedule config source). Omitted
                       when the schedule has no recorded profile — honest placeholder, no fabrication. */}
@@ -582,7 +580,7 @@ export function OverviewView(): JSX.Element {
             <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-muted)' }}>{L.ovNoExecutions}</div>
           )}
           {executions.map((x: ExecutionInfo) => {
-            const pill = execStatusPill(x.status, lang);
+            const pill = execStatusPill(x.status, L);
             return (
               <div
                 key={x.id}
@@ -609,9 +607,9 @@ export function OverviewView(): JSX.Element {
                   {x.id}
                 </span>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 12 }}>
-                  {execSummary(x, lang)}
+                  {execSummary(x, L)}
                 </span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x, lang)}</span>
+                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x, L)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now), lang)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>

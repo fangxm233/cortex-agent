@@ -16,9 +16,9 @@ const { AttachMenu } = await import('./MChatComposerPresentation');
 afterEach(() => { vi.unstubAllGlobals(); });
 
 const menuCopy = {
-  menuSessionId: 'Session ID', attachCamera: 'Take photo', attachLibrary: 'Photo library',
-  attachFile: 'Choose file', attachCommands: 'Commands',
-} as MChatCopy;
+  wbSessionId: 'Session ID', chatAttachCamera: 'Take photo', chatAttachLibrary: 'Photo library',
+  chatAttachFile: 'Choose file', chatAttachCommands: 'Commands',
+} as unknown as MChatCopy;
 const floatingMenus = [
   { name: 'More', render: (onClose: () => void) => <MoreMenu copy={menuCopy} onClose={onClose} onSessionId={vi.fn()} /> },
   { name: 'Attach', render: (onClose: () => void) => <AttachMenu copy={menuCopy} onClose={onClose} onCamera={vi.fn()} onLibrary={vi.fn()} onFile={vi.fn()} onCommands={vi.fn()} /> },
@@ -73,8 +73,8 @@ describe.each(floatingMenus)('$name menu dismissal', ({ render }) => {
 // next facet can be chosen in the same visit.
 
 const selectionCopy = {
-  profileTitle: 'Engine', profileSubtitle: 'this session', profileCurrent: 'current',
-  profileFooter: 'next turns only', selectionPending: 'loading models…',
+  chatProfileTitle: 'Engine', chatProfileSubtitle: 'this session', chatProfileCurrent: 'current',
+  chatProfileFooter: 'next turns only', wbModelsPending: 'loading models…',
 } as unknown as MChatCopy;
 
 const vm: SelectionSheetVM = {

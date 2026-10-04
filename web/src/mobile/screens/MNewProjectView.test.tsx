@@ -8,12 +8,6 @@ vi.mock('@/mobile/ui/kit', () => ({
 
 import { MNewProjectView } from './MNewProjectView';
 
-const copy = {
-  title: 'New project',
-  placeholder: 'Project name',
-  create: 'Create and start a chat',
-};
-
 describe('MNewProjectView', () => {
   it('disables duplicate submits while creation is pending', () => {
     const renderer = create(
@@ -22,7 +16,6 @@ describe('MNewProjectView', () => {
         onNameChange={vi.fn()}
         onCreate={vi.fn()}
         onClose={vi.fn()}
-        copy={copy}
         error={null}
         pending
       />,

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useLang, useVocab, type Lang } from '@/i18n';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 import type { SkillGroup } from '@cortex-agent/ui-contract';
 
 // SKILLS BROWSER (plan §12 A item 2 / 8a) — CENTER-pane view mounted in the workbench frame
@@ -35,20 +35,17 @@ function SkillChip({ name }: { name: string }): JSX.Element {
 }
 
 // Skill / group counters — English pluralizes, Chinese does not.
-const COUNT_COPY: Record<Lang, { skills: (n: number) => string; summary: (skills: number, groups: number) => string }> = {
-  en: {
-    skills: (n) => `${n} ${n === 1 ? 'skill' : 'skills'}`,
-    summary: (skills, groups) => `${skills} skill${skills !== 1 ? 's' : ''} across ${groups} group${groups !== 1 ? 's' : ''}`,
-  },
-  zh: {
-    skills: (n) => `${n} 个技能`,
-    summary: (skills, groups) => `${groups} 个分组，共 ${skills} 个技能`,
-  },
-};
+function skillCount(L: Vocab, n: number): string {
+  return fmt(n === 1 ? L.skillCountOne : L.skillCountMany, { n });
+}
+
+function skillSummary(L: Vocab, skills: number, groups: number): string {
+  const groupCount = fmt(groups === 1 ? L.skillGroupCountOne : L.skillGroupCountMany, { n: groups });
+  return fmt(L.skillSummary, { skills: skillCount(L, skills), groups: groupCount });
+}
 
 function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
   const L = useVocab();
-  const count = COUNT_COPY[useLang()];
   const label = group.plugin ?? L.skUserSkills;
   return (
     <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)' }}>
@@ -75,7 +72,7 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
             textTransform: 'none',
           }}
         >
-          {count.skills(group.skills.length)}
+          {skillCount(L, group.skills.length)}
         </span>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
@@ -90,7 +87,6 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
 export function SkillsView(): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
-  const count = COUNT_COPY[useLang()];
   const { data, isLoading, isError } = useQuery(trpc.skills.list.queryOptions({}));
 
   const groups = data ?? [];
@@ -123,7 +119,7 @@ export function SkillsView(): JSX.Element {
             ? L.skScanning
             : isError
               ? L.skLoadError
-              : count.summary(totalSkills, groups.length)}
+              : skillSummary(L, totalSkills, groups.length)}
         </div>
       </div>
 

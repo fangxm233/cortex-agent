@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { teamContext } from '@/features/team/worker-groups';
 import { buildProjectSessionList, buildSessionRows, sessionStatusLine } from './m-session-list-vm';
+import { en, zh } from '@/i18n';
 
 // Neutral placeholder sessions (守则11 — no real project names / ids).
 function sess(over: Partial<SessionInfo>): SessionInfo {
@@ -75,8 +76,8 @@ describe('sessionStatusLine', () => {
 
   it('separates "idle" from "idle but waiting on an external signal"', () => {
     expect(sessionStatusLine(sess({ waitingOn: 2 })).kind).toBe('waiting-external');
-    expect(sessionStatusLine(sess({ waitingOn: 2 }), 'zh').text).toBe('等 2 个信号');
-    expect(sessionStatusLine(sess({ waitingOn: 2 }), 'en').text).toBe('Waiting on 2 signals');
+    expect(sessionStatusLine(sess({ waitingOn: 2 }), zh).text).toBe('等 2 个信号');
+    expect(sessionStatusLine(sess({ waitingOn: 2 }), en).text).toBe('Waiting on 2 signals');
     // Ranked below everything live and below a pending user action — it asks nothing of the user.
     expect(sessionStatusLine(sess({ waitingOn: 2, running: true })).kind).toBe('running');
     expect(sessionStatusLine(sess({ waitingOn: 2, awaitingInput: true })).kind).toBe('awaiting');
@@ -85,8 +86,8 @@ describe('sessionStatusLine', () => {
   });
 
   it('shows a worker blocked on its lead as waiting on the lead, even while its turn runs', () => {
-    expect(sessionStatusLine(sess({ running: true, waitingOnLead: 1 }), 'zh')).toEqual({ kind: 'waiting-external', text: '等待主会话' });
-    expect(sessionStatusLine(sess({ waitingOnLead: 1 }), 'en').text).toBe('Waiting on lead');
+    expect(sessionStatusLine(sess({ running: true, waitingOnLead: 1 }), zh)).toEqual({ kind: 'waiting-external', text: '等待主会话' });
+    expect(sessionStatusLine(sess({ waitingOnLead: 1 }), en).text).toBe('Waiting on lead');
     expect(sessionStatusLine(sess({ waitingOnLead: 1, awaitingInput: true })).kind).toBe('awaiting');
   });
 });
@@ -120,8 +121,8 @@ describe('buildSessionRows', () => {
 
   it('labels status and relative time in the UI language', () => {
     const row = sess({ running: true, numTurns: 3, lastUsedAt: '2026-07-15T08:00:00Z' });
-    expect(buildSessionRows([row], now, 'en')[0]).toMatchObject({ time: '4h', status: { text: 'Running · 3 turns' } });
-    expect(buildSessionRows([row], now, 'zh')[0]).toMatchObject({ time: '4小时前', status: { text: '运行中 · 3 轮' } });
+    expect(buildSessionRows([row], now, 'en', en)[0]).toMatchObject({ time: '4h', status: { text: 'Running · 3 turns' } });
+    expect(buildSessionRows([row], now, 'zh', zh)[0]).toMatchObject({ time: '4小时前', status: { text: '运行中 · 3 轮' } });
   });
 });
 
@@ -134,44 +135,44 @@ describe('team workers in the session list', () => {
   const now = Date.parse('2026-07-15T12:00:00Z');
 
   it('leaves out workers whose lead is listed, keeps orphans as rows', () => {
-    const rows = buildSessionRows([active, lead, retired, orphan], now, 'en', true);
+    const rows = buildSessionRows([active, lead, retired, orphan], now, 'en', en, true);
     expect(rows.map(r => r.id)).toEqual(['lead', 'orphan']);
     expect(rows[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
   });
 
   it('shows an idle lead as running while a worker runs, and counts them', () => {
     const second = sess({ sessionId: 'w-2', teamLeadId: 'lead', workerName: 'd', running: true });
-    const one = buildSessionRows([lead, { ...active, running: true }], now, 'en', true);
+    const one = buildSessionRows([lead, { ...active, running: true }], now, 'en', en, true);
     expect(one[0].status).toEqual({ kind: 'running', text: '1 worker running' });
-    const two = buildSessionRows([lead, { ...active, running: true }, second], now, 'zh', true);
+    const two = buildSessionRows([lead, { ...active, running: true }, second], now, 'zh', zh, true);
     expect(two[0].status).toEqual({ kind: 'running', text: '2 个 worker 运行中' });
   });
 
   it('keeps the lead’s own line within a tier, and puts a worker blocked on the user above a run', () => {
     const runningLead = { ...lead, running: true, numTurns: 4 };
-    expect(buildSessionRows([runningLead, { ...active, running: true }], now, 'en', true)[0].status)
+    expect(buildSessionRows([runningLead, { ...active, running: true }], now, 'en', en, true)[0].status)
       .toEqual({ kind: 'running', text: 'Running · 4 turns' });
-    expect(buildSessionRows([runningLead, { ...active, awaitingInput: true }], now, 'en', true)[0].status)
+    expect(buildSessionRows([runningLead, { ...active, awaitingInput: true }], now, 'en', en, true)[0].status)
       .toEqual({ kind: 'awaiting', text: 'A worker needs your input' });
-    expect(buildSessionRows([{ ...lead, awaitingInput: true }, { ...active, awaitingInput: true }], now, 'en', true)[0].status)
+    expect(buildSessionRows([{ ...lead, awaitingInput: true }, { ...active, awaitingInput: true }], now, 'en', en, true)[0].status)
       .toEqual({ kind: 'awaiting', text: 'Needs your input' });
   });
 
   it('shows a waiting worker as a wait on the lead, not as a run', () => {
     const onLead = { ...active, running: true, waitingOnLead: 1 };
-    expect(buildSessionRows([lead, onLead], now, 'en', true)[0].status)
+    expect(buildSessionRows([lead, onLead], now, 'en', en, true)[0].status)
       .toEqual({ kind: 'waiting-external', text: '1 worker waiting' });
   });
 
   it('rolls up unread from workers, but nothing from retired ones, which the lead’s chat does not offer', () => {
-    expect(buildSessionRows([lead, { ...active, unread: true }], now, 'en', true)[0].unread).toBe(true);
+    expect(buildSessionRows([lead, { ...active, unread: true }], now, 'en', en, true)[0].unread).toBe(true);
     const dormant = { ...retired, unread: true, running: true };
-    expect(buildSessionRows([lead, dormant], now, 'en', true)[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
+    expect(buildSessionRows([lead, dormant], now, 'en', en, true)[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
   });
 
   it('keeps a starred lead’s workers off both lists and rolls them onto the starred row', () => {
     const starredLead = { ...lead, starred: true };
-    const list = buildProjectSessionList('nimbus', [starredLead, { ...active, running: true }, retired, orphan], [], [], now, 'en', true);
+    const list = buildProjectSessionList('nimbus', [starredLead, { ...active, running: true }, retired, orphan], [], [], now, 'en', en, true);
     expect(list.starredRows.map(r => r.id)).toEqual(['lead']);
     expect(list.starredRows[0].status).toEqual({ kind: 'running', text: '1 worker running' });
     expect(list.rows.map(r => r.id)).toEqual(['orphan']);
@@ -179,18 +180,18 @@ describe('team workers in the session list', () => {
 
   it('still hands the hidden workers to the lead’s chat for its worker strip', () => {
     const sessions = [lead, active, retired];
-    expect(buildProjectSessionList('nimbus', sessions, [], [], now, 'en', true).rows.map(r => r.id)).toEqual(['lead']);
+    expect(buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, true).rows.map(r => r.id)).toEqual(['lead']);
     expect(teamContext(true, lead, sessions).workers.map(w => w.sessionId)).toEqual(['w-active', 'w-retired']);
   });
 
   it('is the plain flat list when team mode is off', () => {
     const sessions = [active, lead, retired, orphan];
-    const off = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', false);
+    const off = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, false);
     const plain = buildProjectSessionList('nimbus',
-      sessions.map(s => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null })), [], [], now, 'en');
+      sessions.map(s => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null })), [], [], now, 'en', en);
     expect(off).toEqual(plain);
     expect(off.rows.map(r => r.id)).toEqual(['w-retired', 'lead', 'orphan', 'w-active']);
-    const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', true);
+    const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, true);
     expect(on.rows.map(r => r.id)).toEqual(['lead', 'orphan']);
   });
 });

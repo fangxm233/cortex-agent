@@ -8,6 +8,7 @@ import { orderSessions } from '@/features/session/list/session-groups';
 import { groupWorkers, isRetiredWorker } from '@/features/team/worker-groups';
 import { sessionRollup, workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 import { relTime } from '@/mobile/ui/format';
+import { en, fmt, type Vocab } from '@/i18n';
 
 type Lang = 'en' | 'zh';
 
@@ -22,40 +23,10 @@ export interface MSessionRow {
   status: MSessionStatus;
 }
 
-const STATUS_TEXT: Record<Lang, {
-  awaiting: string;
-  background: string;
-  running: (turns: number | null) => string;
-  waiting: (n: number) => string;
-  waitingLead: string;
-  idle: string;
-  workerAwaiting: string;
-  workersRunning: (n: number) => string;
-  workersWaiting: (n: number) => string;
-}> = {
-  en: {
-    awaiting: 'Needs your input',
-    background: 'Running in background',
-    running: (turns) => (turns != null ? `Running · ${turns} turns` : 'Running'),
-    waiting: (n) => `Waiting on ${n} signal${n === 1 ? '' : 's'}`,
-    waitingLead: 'Waiting on lead',
-    idle: 'Idle',
-    workerAwaiting: 'A worker needs your input',
-    workersRunning: (n) => `${n} worker${n === 1 ? '' : 's'} running`,
-    workersWaiting: (n) => `${n} worker${n === 1 ? '' : 's'} waiting`,
-  },
-  zh: {
-    awaiting: '等待操作',
-    background: '后台运行',
-    running: (turns) => (turns != null ? `运行中 · ${turns} 轮` : '运行中'),
-    waiting: (n) => `等 ${n} 个信号`,
-    waitingLead: '等待主会话',
-    idle: '空闲',
-    workerAwaiting: 'Worker 等待操作',
-    workersRunning: (n) => `${n} 个 worker 运行中`,
-    workersWaiting: (n) => `${n} 个 worker 等待中`,
-  },
-};
+// English pluralizes the count; Chinese uses one form.
+function plural(L: Vocab, n: number, one: keyof Vocab, many: keyof Vocab): string {
+  return fmt(n === 1 ? L[one] : L[many], { n });
+}
 
 /**
  * The status-line for a session row. Awaiting user action (pending ask-user / plan approval) wins
@@ -64,26 +35,25 @@ const STATUS_TEXT: Record<Lang, {
  * session still expecting a waitpoint signal gets a hollow ring. Per-session cost has no DTO source
  * (SessionInfo carries none), so it is deliberately omitted.
  */
-export function sessionStatusLine(s: SessionInfo, lang: Lang = 'en'): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
-  const t = STATUS_TEXT[lang];
-  if (s.awaitingInput) return { kind: 'awaiting', text: t.awaiting };
-  if ((s.waitingOnLead ?? 0) > 0) return { kind: 'waiting-external', text: t.waitingLead };
+export function sessionStatusLine(s: SessionInfo, L: Vocab = en): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
+  if (s.awaitingInput) return { kind: 'awaiting', text: L.slAwaiting };
+  if ((s.waitingOnLead ?? 0) > 0) return { kind: 'waiting-external', text: L.slWaitingLead };
   if (s.running) {
-    return s.backgroundRunning
-      ? { kind: 'background', text: t.background }
-      : { kind: 'running', text: t.running(s.numTurns) };
+    if (s.backgroundRunning) return { kind: 'background', text: L.slBackground };
+    return { kind: 'running', text: s.numTurns != null ? fmt(L.slRunningTurns, { n: s.numTurns }) : L.slRunning };
   }
-  if ((s.waitingOn ?? 0) > 0) return { kind: 'waiting-external', text: t.waiting(s.waitingOn ?? 0) };
-  return { kind: 'idle', text: t.idle };
+  const waitingOn = s.waitingOn ?? 0;
+  if (waitingOn > 0) return { kind: 'waiting-external', text: plural(L, waitingOn, 'slWaitingOne', 'slWaitingMany') };
+  return { kind: 'idle', text: L.slIdle };
 }
 
-function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
+function toRow(s: SessionInfo, now: number, lang: Lang, L: Vocab): MSessionRow {
   return {
     id: s.sessionId,
     title: s.label || s.name || s.sessionId,
     time: relTime(s.lastUsedAt || s.createdAt, now, lang),
     unread: s.unread,
-    status: sessionStatusLine(s, lang),
+    status: sessionStatusLine(s, L),
   };
 }
 
@@ -92,20 +62,19 @@ function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
  * user first, then the lead's own run, then its workers' runs, then waits. The lead's own line wins
  * within each tier, since it says more.
  */
-function leadStatusLine(own: MSessionStatus, workers: WorkerRollup[], lang: Lang): MSessionStatus {
-  const t = STATUS_TEXT[lang];
+function leadStatusLine(own: MSessionStatus, workers: WorkerRollup[], L: Vocab): MSessionStatus {
   const up = workerRollup(workers);
   if (own.kind === 'awaiting') return own;
-  if (up.awaitingInput) return { kind: 'awaiting', text: t.workerAwaiting };
+  if (up.awaitingInput) return { kind: 'awaiting', text: L.slWorkerAwaiting };
   if (own.kind === 'running' || own.kind === 'background') return own;
-  if (up.running) return { kind: 'running', text: t.workersRunning(workers.filter((w) => w.running).length) };
+  if (up.running) return { kind: 'running', text: plural(L, workers.filter((w) => w.running).length, 'slWorkersRunningOne', 'slWorkersRunningMany') };
   if (own.kind === 'waiting-external') return own;
-  if (up.waitingOn) return { kind: 'waiting-external', text: t.workersWaiting(workers.filter((w) => w.waitingOn).length) };
+  if (up.waitingOn) return { kind: 'waiting-external', text: plural(L, workers.filter((w) => w.waitingOn).length, 'slWorkersWaitingOne', 'slWorkersWaitingMany') };
   return own;
 }
 
-function toLeadRow(s: SessionInfo, workers: SessionInfo[], now: number, lang: Lang): MSessionRow {
-  const row = toRow(s, now, lang);
+function toLeadRow(s: SessionInfo, workers: SessionInfo[], now: number, lang: Lang, L: Vocab): MSessionRow {
+  const row = toRow(s, now, lang, L);
   // The workers the lead's chat offers (its worker strip leaves retired ones out): whatever the
   // row signals, the user can reach from there.
   const team = workers.filter((w) => !isRetiredWorker(w)).map(sessionRollup);
@@ -113,18 +82,18 @@ function toLeadRow(s: SessionInfo, workers: SessionInfo[], now: number, lang: La
   return {
     ...row,
     unread: row.unread || workerRollup(team).unread,
-    status: leadStatusLine(row.status, team, lang),
+    status: leadStatusLine(row.status, team, L),
   };
 }
 
 /** Scope before partitioning: Stars never aggregate sessions from different projects. */
 export function buildProjectSessionList(
   projectId: string | null, direct: SessionInfo[], scheduled: SessionInfo[],
-  schedules: ScheduleInfo[], now: number = Date.now(), lang: Lang = 'en', team = false,
+  schedules: ScheduleInfo[], now: number = Date.now(), lang: Lang = 'en', L: Vocab = en, team = false,
 ) {
   // While project selection is unresolved, retain the existing flat list, not a global Stars group.
   if (projectId === null) return {
-    rows: buildSessionRows(direct, now, lang, team), starredRows: [],
+    rows: buildSessionRows(direct, now, lang, L, team), starredRows: [],
     scheduleRows: buildScheduleRows(schedules, scheduled),
   };
   const own = (session: SessionInfo) => session.projectId === projectId;
@@ -133,8 +102,8 @@ export function buildProjectSessionList(
   // workers into the plain list.
   const listed = [...partition.starred, ...partition.direct];
   return {
-    rows: buildSessionRows(partition.direct, now, lang, team, listed),
-    starredRows: buildSessionRows(partition.starred, now, lang, team, listed),
+    rows: buildSessionRows(partition.direct, now, lang, L, team, listed),
+    starredRows: buildSessionRows(partition.starred, now, lang, L, team, listed),
     scheduleRows: buildScheduleRows(schedules.filter(s => s.projectId === projectId), partition.scheduled),
   };
 }
@@ -144,12 +113,12 @@ export function buildProjectSessionList(
  *  lead's chat — and the lead's row carries their running, waiting and unread state; a worker whose
  *  lead is not on the screen stays a row. */
 export function buildSessionRows(
-  sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en', team = false,
+  sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en', L: Vocab = en, team = false,
   listed: SessionInfo[] = sessions,
 ): MSessionRow[] {
-  if (!team) return orderSessions(sessions).map((s) => toRow(s, now, lang));
+  if (!team) return orderSessions(sessions).map((s) => toRow(s, now, lang, L));
   const { top, workers } = groupWorkers(listed);
   const shown = new Set(top.map((s) => s.sessionId));
   return orderSessions(sessions.filter((s) => shown.has(s.sessionId)))
-    .map((s) => toLeadRow(s, workers.get(s.sessionId) ?? [], now, lang));
+    .map((s) => toLeadRow(s, workers.get(s.sessionId) ?? [], now, lang, L));
 }

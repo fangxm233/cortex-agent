@@ -1,5 +1,5 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { clockTime } from '@/lib/time-format';
+import { clockTime } from '@/i18n/time-format';
 
 // Pure session display helpers shared by the rail, schedule runs and the mobile screens. All time
 // reasoning is local calendar day / wall-clock.

@@ -6,43 +6,17 @@ import {
 } from '@/mobile/ui/kit';
 import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
   MSettingsSurfaceCard as MCard, MSettingsSheet as MBottomSheet, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
+import { useVocab, type Vocab } from '@/i18n';
 import type { MHooksVm, MHookGroup, MHookRow, MHookGroupKey, MHookDetailVm } from './m-hooks-vm';
 
-export interface MHooksCopy {
-  title: string;
-  /** Header trailing readout: `14/17 <enabledWord>`. */
-  enabledWord: string;
-  group: Record<MHookGroupKey, string>;
-  enabled: string;
-  disabled: string;
-  scriptMissing: string;
-  empty: string;
-  editDesktop: string;
-  /** Placeholder for a declared-but-absent value. */
-  none: string;
-  secondUnit: string;
-  minuteUnit: string;
-  field: {
-    event: string;
-    matcher: string;
-    filters: string;
-    script: string;
-    command: string;
-    run: string;
-    timeout: string;
-    backends: string;
-    requiresTool: string;
-    result: string;
-    blocking: string;
-    source: string;
-    version: string;
-    fileName: string;
-    order: string;
-    mountsOn: string;
-    appliesAt: string;
-  };
-  applies: Record<MHookDetailVm['appliesAt'], string>;
-}
+const GROUP_KEYS: Record<MHookGroupKey, keyof Vocab> = {
+  agent: 'hookGroupAgent', cc: 'hookGroupCc', pi: 'hookGroupPi', cortex: 'hookGroupCortex', other: 'hookGroupOther',
+};
+const APPLIES_KEYS: Record<MHookDetailVm['appliesAt'], keyof Vocab> = {
+  'next-agent': 'hookAppliesNextAgent', 'server-restart': 'hookAppliesRestart',
+};
+/** Placeholder for a declared-but-absent value. */
+const NONE = '—';
 
 const ID_STYLE: React.CSSProperties = { font: `600 12.5px ${MONO}`, color: MC.ink, overflowWrap: 'anywhere' };
 const META_STYLE: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
@@ -61,7 +35,7 @@ function MountBadges({ targets }: { targets: MHookRow['mountsOn'] }) {
 }
 
 // ── one hook row — tapping it opens the read-only declaration sheet ─────────────
-function HookRow({ row, copy, onOpen }: { row: MHookRow; copy: MHooksCopy; onOpen: (key: string) => void }) {
+function HookRow({ row, L, onOpen }: { row: MHookRow; L: Vocab; onOpen: (key: string) => void }) {
   return (
     <MCard onClick={() => onOpen(row.key)}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -72,7 +46,7 @@ function HookRow({ row, copy, onOpen }: { row: MHookRow; copy: MHooksCopy; onOpe
           </div>
         </div>
         <span style={{ flex: 'none' }}>
-          <MPill tone={row.enabled ? 'done' : 'cancelled'}>{row.enabled ? copy.enabled : copy.disabled}</MPill>
+          <MPill tone={row.enabled ? 'done' : 'cancelled'}>{row.enabled ? L.stHookEnabled : L.stHookDisabled}</MPill>
         </span>
       </div>
       {(row.mountsOn.length > 0 || row.scriptMissing) && (
@@ -82,7 +56,7 @@ function HookRow({ row, copy, onOpen }: { row: MHookRow; copy: MHooksCopy; onOpe
               condition on this read-only surface that deserves an alarm colour. */}
           {row.scriptMissing && (
             <span style={{ marginLeft: 'auto', flex: 'none' }}>
-              <MPill tone="failed">{copy.scriptMissing}</MPill>
+              <MPill tone="failed">{L.hookScriptMissing}</MPill>
             </span>
           )}
         </div>
@@ -93,20 +67,20 @@ function HookRow({ row, copy, onOpen }: { row: MHookRow; copy: MHooksCopy; onOpe
 
 function GroupSection({
   group,
-  copy,
+  L,
   onOpenHook,
 }: {
   group: MHookGroup;
-  copy: MHooksCopy;
+  L: Vocab;
   onOpenHook: (key: string) => void;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <MGroupLabel>
-        {copy.group[group.key]} · {group.rows.length}
+        {L[GROUP_KEYS[group.key]]} · {group.rows.length}
       </MGroupLabel>
       {group.rows.map((row) => (
-        <HookRow key={row.key} row={row} copy={copy} onOpen={onOpenHook} />
+        <HookRow key={row.key} row={row} L={L} onOpen={onOpenHook} />
       ))}
     </div>
   );
@@ -137,13 +111,13 @@ function FieldRow({ label, children, divider = true }: { label: string; children
  * always shown — a gap there is real information. Optional declaration fields are shown only when the
  * entry actually declares them, so a sparse entry does not read as a column of dashes.
  */
-function declarationRows(detail: MHookDetailVm, copy: MHooksCopy): { label: string; value: ReactNode }[] {
-  const rows: { label: string; value: ReactNode }[] = [{ label: copy.field.event, value: detail.event }];
+function declarationRows(detail: MHookDetailVm, L: Vocab): { label: string; value: ReactNode }[] {
+  const rows: { label: string; value: ReactNode }[] = [{ label: L.hookFieldEvent, value: detail.event }];
 
-  if (detail.matcher?.kind === 'regex') rows.push({ label: copy.field.matcher, value: detail.matcher.value });
+  if (detail.matcher?.kind === 'regex') rows.push({ label: L.hookFieldMatcher, value: detail.matcher.value });
   if (detail.matcher?.kind === 'filters') {
     rows.push({
-      label: copy.field.filters,
+      label: L.hookFieldFilters,
       value: (
         <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {detail.matcher.entries.map((e) => (
@@ -156,16 +130,16 @@ function declarationRows(detail: MHookDetailVm, copy: MHooksCopy): { label: stri
     });
   }
 
-  if (detail.run.kind === 'none') rows.push({ label: copy.field.run, value: copy.none });
+  if (detail.run.kind === 'none') rows.push({ label: L.hookFieldRun, value: NONE });
   else {
     rows.push({
-      label: detail.run.kind === 'script' ? copy.field.script : copy.field.command,
+      label: detail.run.kind === 'script' ? L.hookFieldScript : L.hookFieldCommand,
       value: (
         <>
           {detail.run.value}
           {detail.run.missing && (
             <span style={{ marginLeft: 6 }}>
-              <MPill tone="failed">{copy.scriptMissing}</MPill>
+              <MPill tone="failed">{L.hookScriptMissing}</MPill>
             </span>
           )}
         </>
@@ -173,31 +147,31 @@ function declarationRows(detail: MHookDetailVm, copy: MHooksCopy): { label: stri
     });
   }
   if (detail.timeoutSec !== null) {
-    rows.push({ label: copy.field.timeout, value: `${detail.timeoutSec}${copy.secondUnit}` });
+    rows.push({ label: L.hookFieldTimeout, value: `${detail.timeoutSec}${L.timeUnitS}` });
   }
 
-  if (detail.backends !== null) rows.push({ label: copy.field.backends, value: detail.backends.join(', ') });
-  if (detail.requiresTool !== null) rows.push({ label: copy.field.requiresTool, value: detail.requiresTool });
-  if (detail.result !== null) rows.push({ label: copy.field.result, value: detail.result });
+  if (detail.backends !== null) rows.push({ label: L.hookFieldBackends, value: detail.backends.join(', ') });
+  if (detail.requiresTool !== null) rows.push({ label: L.hookFieldRequiresTool, value: detail.requiresTool });
+  if (detail.result !== null) rows.push({ label: L.hookFieldResult, value: detail.result });
   if (detail.blocking !== null) {
     rows.push({
-      label: copy.field.blocking,
-      value: `${detail.blocking.mode} · ${detail.blocking.ttlMin}${copy.minuteUnit}`,
+      label: L.hookFieldBlocking,
+      value: `${detail.blocking.mode} · ${detail.blocking.ttlMin}${L.setUnitMin}`,
     });
   }
 
-  rows.push({ label: copy.field.mountsOn, value: <MountBadges targets={detail.mountsOn} /> });
-  rows.push({ label: copy.field.appliesAt, value: copy.applies[detail.appliesAt] });
-  rows.push({ label: copy.field.source, value: detail.source });
-  if (detail.version !== null) rows.push({ label: copy.field.version, value: detail.version });
-  if (detail.fileName !== null) rows.push({ label: copy.field.fileName, value: detail.fileName });
-  rows.push({ label: copy.field.order, value: String(detail.order) });
+  rows.push({ label: L.hookFieldMountsOn, value: <MountBadges targets={detail.mountsOn} /> });
+  rows.push({ label: L.hookFieldApplies, value: L[APPLIES_KEYS[detail.appliesAt]] });
+  rows.push({ label: L.hookFieldSource, value: detail.source });
+  if (detail.version !== null) rows.push({ label: L.hookFieldVersion, value: detail.version });
+  if (detail.fileName !== null) rows.push({ label: L.hookFieldFile, value: detail.fileName });
+  rows.push({ label: L.hookFieldOrder, value: String(detail.order) });
 
   return rows;
 }
 
-function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksCopy; onClose: () => void }) {
-  const rows = declarationRows(row.detail, copy);
+function DeclarationSheet({ row, L, onClose }: { row: MHookRow; L: Vocab; onClose: () => void }) {
+  const rows = declarationRows(row.detail, L);
   return (
     <MBottomSheet onClose={onClose}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 10px' }}>
@@ -205,7 +179,7 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
           {row.id}
         </span>
         <span style={{ marginLeft: 'auto', flex: 'none' }}>
-          <MPill tone={row.enabled ? 'done' : 'cancelled'}>{row.enabled ? copy.enabled : copy.disabled}</MPill>
+          <MPill tone={row.enabled ? 'done' : 'cancelled'}>{row.enabled ? L.stHookEnabled : L.stHookDisabled}</MPill>
         </span>
       </div>
       <div
@@ -228,45 +202,44 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
 
 export function MHooksView({
   vm,
-  copy,
   sheetRow,
   onBack,
   onOpenHook,
   onCloseSheet,
 }: {
   vm: MHooksVm;
-  copy: MHooksCopy;
   /** The row whose declaration sheet is open; null while the list is plain. */
   sheetRow: MHookRow | null;
   onBack: () => void;
   onOpenHook: (key: string) => void;
   onCloseSheet: () => void;
 }) {
+  const L = useVocab();
   return (
     <MSettingsFrame label="Settings · Hooks" header={<MDrillHeader
         onBack={onBack}
         trailing={
           <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>
-            {vm.enabledCount}/{vm.total} {copy.enabledWord}
+            {vm.enabledCount}/{vm.total} {L.hookEnabledWord}
           </span>
         }
       >
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{copy.title}</div>
+        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{L.stNavHooks}</div>
       </MDrillHeader>}>
       <MScrollBody>
         {vm.groups.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{L.hookEmpty}</div>
         )}
         {vm.groups.map((group) => (
-          <GroupSection key={group.key} group={group} copy={copy} onOpenHook={onOpenHook} />
+          <GroupSection key={group.key} group={group} L={L} onOpenHook={onOpenHook} />
         ))}
         {vm.groups.length > 0 && (
           <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>
-            {copy.editDesktop}
+            {L.setEditOnDesktop}
           </div>
         )}
       </MScrollBody>
-      {sheetRow && <DeclarationSheet row={sheetRow} copy={copy} onClose={onCloseSheet} />}
+      {sheetRow && <DeclarationSheet row={sheetRow} L={L} onClose={onCloseSheet} />}
     </MSettingsFrame>
   );
 }

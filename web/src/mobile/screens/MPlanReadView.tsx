@@ -5,56 +5,15 @@ import { MC, MONO } from '@/mobile/ui/kit';
 import type { PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import { readProgressPct, planStatusLabel, planMetaLine } from '@/features/session/interaction/plan-read-vm';
 
-export interface MPlanReadCopy {
-  lang: 'zh' | 'en';
-  pendingPill: string;
-  approvedStamp: string;
-  rejectedStamp: string;
-  cancelledStamp: string;
-  expiredStamp: string;
-  approve: string;
-  reject: string;
-  approvedBy: string;
-  feedbackLabel: string;
-}
-
-export const M_PLAN_READ_COPY: { zh: MPlanReadCopy; en: MPlanReadCopy } = {
-  zh: {
-    lang: 'zh',
-    pendingPill: '计划待批',
-    approvedStamp: '✓ 计划已批准',
-    rejectedStamp: '已驳回',
-    cancelledStamp: '已取消',
-    expiredStamp: '已过期',
-    approve: '批准并执行',
-    reject: '驳回并反馈',
-    approvedBy: '由你批准',
-    feedbackLabel: '驳回反馈',
-  },
-  en: {
-    lang: 'en',
-    pendingPill: 'Plan pending',
-    approvedStamp: '✓ Plan approved',
-    rejectedStamp: 'Rejected',
-    cancelledStamp: 'Cancelled',
-    expiredStamp: 'Expired',
-    approve: 'Approve & run',
-    reject: 'Reject with note',
-    approvedBy: 'approved by you',
-    feedbackLabel: 'Reject feedback',
-  },
-};
-
 export interface MPlanReadViewProps {
   model: PlanCardModel;
-  copy: MPlanReadCopy;
   onBack: () => void;
   onApprove: () => void;
   /** 驳回并反馈 — routes back to the chat armed in 5a reject mode. */
   onReject: () => void;
 }
 
-export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPlanReadViewProps): JSX.Element {
+export function MPlanReadView({ model, onBack, onApprove, onReject }: MPlanReadViewProps): JSX.Element {
   const pending = model.status === 'pending';
   const vocab = useVocabOptional();
   // Furthest-seen reading progress, displayed in the header progress bar.
@@ -67,17 +26,17 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
     setPct((prev) => Math.max(prev, p));
   };
 
-  const statusLabel = planStatusLabel(model.status, copy.lang);
+  const statusLabel = planStatusLabel(model.status, vocab);
 
   const stamp =
-    model.status === 'approved' ? { text: `${copy.approvedStamp}${model.timeLabel ? ` · ${model.timeLabel} ${copy.approvedBy}` : ''}`, fg: MC.done, bg: MC.doneBg }
-    : model.status === 'rejected' ? { text: `${copy.rejectedStamp}${model.timeLabel ? ` · ${model.timeLabel}` : ''}`, fg: MC.grayInk, bg: MC.gray }
-    : model.status === 'cancelled' ? { text: copy.cancelledStamp, fg: MC.grayInk, bg: MC.gray }
-    : { text: copy.expiredStamp, fg: MC.grayInk, bg: MC.gray };
+    model.status === 'approved' ? { text: `${vocab.ixPlanApprovedPill}${model.timeLabel ? ` · ${model.timeLabel} ${vocab.ixApprovedBy}` : ''}`, fg: MC.done, bg: MC.doneBg }
+    : model.status === 'rejected' ? { text: `${vocab.ixPlanRejectedPill}${model.timeLabel ? ` · ${model.timeLabel}` : ''}`, fg: MC.grayInk, bg: MC.gray }
+    : model.status === 'cancelled' ? { text: vocab.ixCancelled, fg: MC.grayInk, bg: MC.gray }
+    : { text: vocab.ixExpired, fg: MC.grayInk, bg: MC.gray };
 
   return (
     <div
-      data-screen-label="6b 计划全文阅读页"
+      data-screen-label="6b plan read"
       style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}
     >
       {/* header — back · title · meta · status pill · progress bar (scheme L136-146) */}
@@ -94,11 +53,11 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
             <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {planMetaLine(model.filePath, model.lineCount, statusLabel, copy.lang)}
+              {planMetaLine(model.filePath, model.lineCount, statusLabel, vocab)}
             </div>
           </div>
           {pending ? (
-            <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.pendingPill}</span>
+            <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{vocab.ixPlanPending}</span>
           ) : (
             <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
           )}
@@ -120,7 +79,7 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
           </div>
           {model.status === 'rejected' && model.feedback && (
             <div style={{ marginTop: 16, border: `1px solid ${MC.amberBorder}`, background: MC.amberCard, borderRadius: 'var(--r-control)', padding: '10px 13px' }}>
-              <div style={{ font: `600 11px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{copy.feedbackLabel}</div>
+              <div style={{ font: `600 11px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{vocab.ixRejectFeedback}</div>
               <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
             </div>
           )}
@@ -138,14 +97,14 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
               onClick={onReject}
               style={{ flex: 1, height: 48, borderRadius: 'var(--r-card)', border: '1.5px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
             >
-              {copy.reject}
+              {vocab.ixRejectNote}
             </button>
             <button
               type="button"
               onClick={onApprove}
               style={{ flex: 1.3, height: 48, borderRadius: 'var(--r-control)', background: MC.inkSolid, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.approve}</span>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{vocab.ixApproveRun}</span>
             </button>
           </div>
         ) : (

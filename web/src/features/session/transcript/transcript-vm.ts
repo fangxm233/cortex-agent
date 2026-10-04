@@ -10,7 +10,7 @@ import type {
   TranscriptSubagentSummary,
 } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
-import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
+import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real

@@ -1,21 +1,7 @@
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';
+import { MApprovalsView } from './MApprovalsView';
 import type { MApprovalsVm } from './m-approvals-vm';
-
-const copy: MApprovalsCopy = {
-  title: 'Approvals',
-  toProcess: 'pending',
-  tier: 'Approval',
-  from: 'from',
-  paused: 'waiting for your decision',
-  approve: 'Approve',
-  reject: 'Reject with feedback',
-  feedbackPlaceholder: 'Optional feedback',
-  seeDiff: 'tap for diff ›',
-  empty: 'No pending approvals',
-  globalGroup: 'GLOBAL',
-};
 
 const vm: MApprovalsVm = {
   pendingCount: 1,
@@ -44,7 +30,6 @@ describe('MApprovalsView', () => {
     const renderer = create(
       <MApprovalsView
         vm={vm}
-        copy={copy}
         expandedId="apr-1"
         feedback="  reduce scope  "
         busy={false}
