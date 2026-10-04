@@ -1,5 +1,5 @@
-// 1j 项目记忆 — the current project's memory tree, drilled from the project page (scheme 1e→1j). NON-Tab
-// drill page (the shell hides the Tab bar for /m/memory). READ-ONLY. Real tRPC: `memory.tree({ projectId })`
+// 1j 项目记忆 — the current project's memory tree, drilled from the project panel (scheme 1e→1j). A
+// drill page. READ-ONLY. Real tRPC: `memory.tree({ projectId })`
 // scoped to the mobile current project. Back → the project page (1e). Files tap through to the read-only
 // file viewer (/m/memory/file); memory dirs are accordions whose open-state is owned here. Writes to
 // behavioral content (rules/skills) still go through approval (agent-only).

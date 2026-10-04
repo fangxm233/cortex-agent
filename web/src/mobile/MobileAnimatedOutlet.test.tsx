@@ -8,7 +8,7 @@ describe('route layer stacking', () => {
   const markup = () => renderToStaticMarkup(
     <AnimatedOutletLayers
       current={frame('/m/session/chat-1')}
-      retainedTab={null}
+      retainedHome={null}
       previous={null}
       dir="forward"
       onSettled={() => {}}
@@ -29,60 +29,40 @@ describe('route layer stacking', () => {
 });
 
 describe('planFrameChange', () => {
-  it('retains the originating tab root while drilling into its detail stack', () => {
+  it('retains the home while drilling into its detail stack', () => {
     const root = frame('/m/sessions');
     const chat = frame('/m/session/chat-1');
     const plan = frame('/m/session/chat-1/plan/plan-1');
 
     const first = planFrameChange(root, null, chat);
-    expect(first).toEqual({ current: chat, retainedTab: root, returningToRetained: false });
+    expect(first).toEqual({ current: chat, retainedHome: root, returningToRetained: false });
     expect(planFrameChange(chat, root, plan)).toEqual({
       current: plan,
-      retainedTab: root,
+      retainedHome: root,
       returningToRetained: false,
     });
   });
 
-  it('reuses the exact retained frame when returning to the tab root', () => {
-    const root = frame('/m/project');
+  it('returns to the exact retained home, panel open or closed', () => {
+    const root = frame('/m/sessions');
     const detail = frame('/m/approvals');
-    const freshRoot = frame('/m/project');
 
-    const result = planFrameChange(detail, root, freshRoot);
-    expect(result.current).toBe(root);
-    expect(result).toEqual({ current: root, retainedTab: null, returningToRetained: true });
+    for (const destination of ['/m/project', '/m/sessions', '/m/project/']) {
+      const result = planFrameChange(detail, root, frame(destination));
+      expect(result.current).toBe(root);
+      expect(result).toEqual({ current: root, retainedHome: null, returningToRetained: true });
+    }
   });
 
-  it('keeps the actual source tab through cross-linked drill-in screens', () => {
-    const projectRoot = frame('/m/project');
+  it('keeps the retained home through cross-linked drill-in screens', () => {
+    const root = frame('/m/sessions');
     const approvals = frame('/m/approvals');
     const chat = frame('/m/session/chat-1');
 
-    expect(planFrameChange(approvals, projectRoot, chat)).toEqual({
+    expect(planFrameChange(approvals, root, chat)).toEqual({
       current: chat,
-      retainedTab: projectRoot,
+      retainedHome: root,
       returningToRetained: false,
     });
-  });
-
-  it('clears the retained frame only when switching to another tab root', () => {
-    const projectRoot = frame('/m/project');
-    const approvals = frame('/m/approvals');
-    const sessionRoot = frame('/m/sessions');
-
-    expect(planFrameChange(approvals, projectRoot, sessionRoot)).toEqual({
-      current: sessionRoot,
-      retainedTab: null,
-      returningToRetained: false,
-    });
-  });
-
-  it('reuses a retained root when the destination has a trailing slash', () => {
-    const root = frame('/m/project');
-    const detail = frame('/m/approvals');
-    const result = planFrameChange(detail, root, frame('/m/project/'));
-
-    expect(result.current).toBe(root);
-    expect(result.returningToRetained).toBe(true);
   });
 });

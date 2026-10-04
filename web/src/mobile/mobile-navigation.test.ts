@@ -3,7 +3,7 @@ import {
   hasRouterHistory,
   resolveMobileBack,
   runMobileBack,
-  switchMobileTab,
+  setProjectsPanel,
 } from './mobile-navigation';
 
 describe('resolveMobileBack', () => {
@@ -11,12 +11,17 @@ describe('resolveMobileBack', () => {
     expect(resolveMobileBack('/m/project', true)).toEqual({ kind: 'history' });
   });
 
-  it.each(['/m/sessions', '/m/project', '/m/project/'])(
-    'exits from tab root %s instead of traversing history',
+  it.each(['/m/sessions', '/m/sessions/'])(
+    'exits from the home %s instead of traversing history',
     (pathname) => {
-      expect(resolveMobileBack(pathname, false)).toEqual({ kind: 'exit' });
+      expect(resolveMobileBack(pathname, false, true)).toEqual({ kind: 'exit' });
     },
   );
+
+  it.each([true, false])('closes the open Projects panel first (history available: %s)', (canGoBack) => {
+    expect(resolveMobileBack('/m/project', false, canGoBack)).toEqual({ kind: 'navigate', to: '/m/sessions' });
+    expect(resolveMobileBack('/m/project/', false, canGoBack)).toEqual({ kind: 'navigate', to: '/m/sessions' });
+  });
 
   it('pops the in-app drill stack when the WebView can go back', () => {
     expect(resolveMobileBack('/m/approvals', false, true)).toEqual({ kind: 'history' });
@@ -67,17 +72,21 @@ describe('hasRouterHistory', () => {
 });
 
 describe('mobile navigation side effects', () => {
-  it('uses replace navigation for semantic back and bottom-tab switches', async () => {
+  it('uses replace navigation for semantic back and the Projects panel', async () => {
     const navigate = vi.fn();
-    await runMobileBack('/m/session/chat-1', false, false, {
-      historyBack: vi.fn(),
-      exit: vi.fn(),
-      navigate,
-    });
-    switchMobileTab('/m/project', navigate);
+    const deps = { historyBack: vi.fn(), exit: vi.fn(), navigate };
+    await runMobileBack('/m/session/chat-1', false, false, deps);
+    setProjectsPanel(true, navigate);
+    setProjectsPanel(false, navigate);
+    await runMobileBack('/m/project', false, true, deps);
 
-    expect(navigate).toHaveBeenNthCalledWith(1, '/m/sessions', { replace: true });
-    expect(navigate).toHaveBeenNthCalledWith(2, '/m/project', { replace: true });
+    expect(navigate.mock.calls).toEqual([
+      ['/m/sessions', { replace: true }],
+      ['/m/project', { replace: true }],
+      ['/m/sessions', { replace: true }],
+      ['/m/sessions', { replace: true }],
+    ]);
+    expect(deps.historyBack).not.toHaveBeenCalled();
   });
 
   it('routes overlay and root actions to their native effects only', async () => {

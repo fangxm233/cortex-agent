@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MOBILE_ROUTE_MANIFEST } from './mobile-route-manifest';
 import { mobileRoutes } from './mobile-routes';
@@ -8,5 +9,11 @@ describe('mobile routes', () => {
     expect(routes.map((route) => route.path).filter(Boolean))
       .toEqual(MOBILE_ROUTE_MANIFEST.map((route) => route.path));
     expect(routes.every((route) => route.element)).toBe(true);
+  });
+
+  it('renders the session list and the open Projects panel with the one home screen', () => {
+    const routes = mobileRoutes[0]?.children ?? [];
+    const element = (path: string) => routes.find((route) => route.path === path)?.element as ReactElement;
+    expect(element('/m/project').type).toBe(element('/m/sessions').type);
   });
 });

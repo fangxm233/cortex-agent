@@ -1,40 +1,31 @@
 import { generatePath, matchPath, type Params } from 'react-router-dom';
 
-export type MobileTabId = 'sessions' | 'project';
+/** What the home screen shows: the session list alone, or with the Projects panel open over it. */
+export type MobileHomeView = 'list' | 'projects';
 
 const ROUTES = [
-  { id: 'sessions', path: '/m/sessions', tab: 'sessions', tabRoot: true },
-  { id: 'project', path: '/m/project', tab: 'project', tabRoot: true },
-  { id: 'session', path: '/m/session/:sessionId', tab: 'sessions', parent: 'sessions' },
-  {
-    id: 'plan',
-    path: '/m/session/:sessionId/plan/:requestId',
-    tab: 'sessions',
-    parent: 'session',
-  },
-  { id: 'approvals', path: '/m/approvals', tab: 'project', parent: 'project' },
-  { id: 'issues', path: '/m/issues', tab: 'project', parent: 'project' },
-  { id: 'notes', path: '/m/notes', tab: 'project', parent: 'project' },
-  { id: 'memory', path: '/m/memory', tab: 'project', parent: 'project' },
-  { id: 'memoryFile', path: '/m/memory/file', tab: 'project', parent: 'memory' },
-  { id: 'machines', path: '/m/machines', tab: 'project', parent: 'project' },
-  { id: 'settings', path: '/m/settings', tab: 'project', parent: 'project' },
-  { id: 'settingsAccounts', path: '/m/settings/accounts', tab: 'project', parent: 'settings' },
-  { id: 'settingsAppearance', path: '/m/settings/appearance', tab: 'project', parent: 'settings' },
-  { id: 'settingsPlatform', path: '/m/settings/platform', tab: 'project', parent: 'settings' },
-  { id: 'settingsProfiles', path: '/m/settings/profiles', tab: 'project', parent: 'settings' },
-  { id: 'settingsBudget', path: '/m/settings/budget', tab: 'project', parent: 'settings' },
-  { id: 'settingsMcp', path: '/m/settings/mcp', tab: 'project', parent: 'settings' },
-  {
-    id: 'settingsNotifications',
-    path: '/m/settings/notifications',
-    tab: 'project',
-    parent: 'settings',
-  },
-  { id: 'settingsAdvanced', path: '/m/settings/advanced', tab: 'project', parent: 'settings' },
-  { id: 'settingsHooks', path: '/m/settings/hooks', tab: 'project', parent: 'settings' },
-  { id: 'settingsUsage', path: '/m/settings/usage', tab: 'project', parent: 'settings' },
-  { id: 'daemon', path: '/m/daemon', tab: 'project', parent: 'settings' },
+  { id: 'sessions', path: '/m/sessions', home: 'list' },
+  { id: 'project', path: '/m/project', home: 'projects', parent: 'sessions' },
+  { id: 'session', path: '/m/session/:sessionId', parent: 'sessions' },
+  { id: 'plan', path: '/m/session/:sessionId/plan/:requestId', parent: 'session' },
+  { id: 'approvals', path: '/m/approvals', parent: 'project' },
+  { id: 'issues', path: '/m/issues', parent: 'project' },
+  { id: 'notes', path: '/m/notes', parent: 'project' },
+  { id: 'memory', path: '/m/memory', parent: 'project' },
+  { id: 'memoryFile', path: '/m/memory/file', parent: 'memory' },
+  { id: 'machines', path: '/m/machines', parent: 'project' },
+  { id: 'settings', path: '/m/settings', parent: 'project' },
+  { id: 'settingsAccounts', path: '/m/settings/accounts', parent: 'settings' },
+  { id: 'settingsAppearance', path: '/m/settings/appearance', parent: 'settings' },
+  { id: 'settingsPlatform', path: '/m/settings/platform', parent: 'settings' },
+  { id: 'settingsProfiles', path: '/m/settings/profiles', parent: 'settings' },
+  { id: 'settingsBudget', path: '/m/settings/budget', parent: 'settings' },
+  { id: 'settingsMcp', path: '/m/settings/mcp', parent: 'settings' },
+  { id: 'settingsNotifications', path: '/m/settings/notifications', parent: 'settings' },
+  { id: 'settingsAdvanced', path: '/m/settings/advanced', parent: 'settings' },
+  { id: 'settingsHooks', path: '/m/settings/hooks', parent: 'settings' },
+  { id: 'settingsUsage', path: '/m/settings/usage', parent: 'settings' },
+  { id: 'daemon', path: '/m/daemon', parent: 'settings' },
 ] as const;
 
 export type MobileRouteId = (typeof ROUTES)[number]['id'];
@@ -42,9 +33,9 @@ export type MobileRouteId = (typeof ROUTES)[number]['id'];
 export interface MobileRouteDefinition {
   id: MobileRouteId;
   path: string;
-  tab: MobileTabId;
   parent?: MobileRouteId;
-  tabRoot?: true;
+  /** Rendered by the one home screen, which stays mounted while the user drills in from it. */
+  home?: MobileHomeView;
 }
 
 export interface MobileRouteMatch {
@@ -80,4 +71,14 @@ export function mobileRouteParentPath(pathname: string): string | undefined {
   const parentId = match?.route.parent;
   if (!match || !parentId) return undefined;
   return generatePath(MOBILE_ROUTE_REGISTRY[parentId].path, match.params);
+}
+
+/** The home view a path selects, or null for any screen outside the home. */
+export function mobileHomeView(pathname: string): MobileHomeView | null {
+  return matchMobileRoute(pathname)?.route.home ?? null;
+}
+
+/** Screen identity: every home route maps to one key, so opening the panel never swaps screens. */
+export function mobileScreenKey(pathname: string): string {
+  return mobileHomeView(pathname) ? MOBILE_ROUTE_REGISTRY.sessions.path : normalizeMobilePath(pathname);
 }

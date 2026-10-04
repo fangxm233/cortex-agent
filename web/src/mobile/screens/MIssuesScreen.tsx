@@ -1,5 +1,5 @@
 // 24c 移动端 Issues — the project issue list, drilled from the 项目 page's Issues card (24a → 24c).
-// A non-Tab drill page (the shell hides the Tab bar); back returns to the project page. Wired to the
+// A drill page; back returns to the project panel. Wired to the
 // REAL `issues.*` ui-service scope: `issues.list({projectId})` feeds the list; `issues.delete`
 // removes the entry from the project's ISSUES.md; `issues.handle` creates a NEW direct session
 // carrying the issue full text (then removes the entry) and this screen drills straight into the

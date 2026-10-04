@@ -1,5 +1,5 @@
-// 1f 审批 — the approval queue, drilled from the project page's amber bar (scheme 1e→1f). A non-Tab
-// drill page (the shell hides the Tab bar for /m/approvals); back returns to the project page. Wired to
+// 1f 审批 — the approval queue, drilled from the project panel's amber bar (scheme 1e→1f). A drill
+// page; back returns to the project panel. Wired to
 // the REAL `approvals.*` ui-service scope: `approvals.list({status:'pending'})` feeds the queue, and
 // `approvals.approve` / `approvals.reject` flip the target entry's Status line in PENDING_APPROVALS.md
 // (the mutate never runs the underlying op) → the list re-invalidates. The first pending card is

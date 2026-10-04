@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
@@ -18,6 +18,10 @@ import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { PROJECT_SWITCH_COPY } from './MProjectSwitchRows';
 import { MProjectSwitchSheet } from './MProjectSwitchSheet';
 import { MNewProjectSheet, useNewProjectSheet } from './useMNewProjectSheet';
+import { MHomeDrawer } from './MHomeDrawer';
+import { MProjectScreen } from './MProjectScreen';
+import { mobileHomeView } from '@/mobile/mobile-route-manifest';
+import { setProjectsPanel } from '@/mobile/mobile-navigation';
 
 const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
   en: { title: 'Sessions', empty: 'No sessions yet' },
@@ -112,6 +116,50 @@ function SessionListSheets({ sheet, setSheet, scheduleRows, switcher }: {
   );
 }
 
+// The home stays mounted under the screens opened from it, so it keeps the panel state of the last
+// home route it showed rather than closing the panel behind a drill-in.
+function useProjectsPanel() {
+  const navigate = useNavigate();
+  const view = mobileHomeView(useLocation().pathname);
+  const lastOpen = useRef(view === 'projects');
+  if (view !== null) lastOpen.current = view === 'projects';
+  const setOpen = useCallback((open: boolean) => setProjectsPanel(open, navigate), [navigate]);
+  return { open: lastOpen.current, setOpen };
+}
+
+// The panel's content is built shortly after the list, so the first swipe drags a ready panel.
+function usePanelMounted(open: boolean): boolean {
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (mounted) return;
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setMounted(true), 300);
+    return () => window.clearTimeout(timer);
+  }, [mounted, open]);
+  return mounted || open;
+}
+
+function usePendingApprovals(): number {
+  const trpc = useTRPC();
+  return useQuery(trpc.approvals.list.queryOptions({ status: 'pending' })).data?.length ?? 0;
+}
+
+function ProjectsDrawer({ panel, children }: { panel: ReturnType<typeof useProjectsPanel>; children: ReactNode }) {
+  const label = pickCopy(useLang(), PANEL_LABEL);
+  const mounted = usePanelMounted(panel.open);
+  return (
+    <MHomeDrawer open={panel.open} onOpenChange={panel.setOpen} panelLabel={label}
+      panel={mounted ? <MProjectScreen /> : null}>
+      {children}
+    </MHomeDrawer>
+  );
+}
+
+const PANEL_LABEL = { en: 'Projects', zh: '项目' };
+
 export function MSessionListScreen() {
   const navigate = useNavigate();
   const lang = useLang();
@@ -122,22 +170,26 @@ export function MSessionListScreen() {
   const switcher = useProjectSwitcher(lang, setSheet);
   const { loading, rows, starredRows, scheduleRows } = useSessionListData(switcher.currentProjectId, lang);
   const stars = useStarsProp(switcher.currentProjectId, starredRows);
+  const panel = useProjectsPanel();
+  const needsYou = usePendingApprovals();
   if (loading) {
     return (
-      <MScreen label="1a 会话列表">
-        <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
-      </MScreen>
+      <ProjectsDrawer panel={panel}>
+        <MScreen label="1a 会话列表">
+          <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
+        </MScreen>
+      </ProjectsDrawer>
     );
   }
   const scheduled = scheduleRows.length > 0
     ? { unread: unreadScheduleCount(scheduleRows), onOpen: () => setSheet('schedule') } : undefined;
   const project = { name: switcher.currentProjectId, switchLabel: switcher.copy.switchProject, onSwitch: () => setSheet('projects') };
   return (
-    <>
+    <ProjectsDrawer panel={panel}>
       <MSessionListView rows={rows} stars={stars} copy={copy} presence={presence} project={project}
-        newLabel={L.wbNewSession} scheduled={scheduled}
+        projects={{ needsYou, onOpen: () => panel.setOpen(true) }} newLabel={L.wbNewSession} scheduled={scheduled}
         onOpen={(id) => navigate(`/m/session/${id}`)} onNew={() => navigate('/m/session/new')} />
       <SessionListSheets sheet={sheet} setSheet={setSheet} scheduleRows={scheduleRows} switcher={switcher} />
-    </>
+    </ProjectsDrawer>
   );
 }

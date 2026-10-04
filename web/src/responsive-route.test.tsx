@@ -21,7 +21,6 @@ vi.mock('@/features/workbench/WorkbenchPage', () => ({ WorkbenchPage: () => <spa
 vi.mock('@/features/overview/OverviewPage', () => ({ OverviewPage: () => <span>overview</span> }));
 vi.mock('@/features/provider-setup/ProviderSetupPage', () => ({ ProviderSetupPage: () => <span>setup</span> }));
 vi.mock('@/mobile/screens/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
-vi.mock('@/mobile/screens/MProjectScreen', () => ({ MProjectScreen: () => <span>project</span> }));
 vi.mock('@/mobile/screens/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));
 // Capture the real combined route table, replacing only rendered pages with probes.
 import './router';
@@ -60,6 +59,8 @@ describe('responsive routes', () => {
   it.each([
     ['/', true, '/m/sessions', 'sessions'],
     ['/workbench', true, '/m/sessions', 'sessions'],
+    ['/m/project', true, '/m/project', 'sessions'],
+    ['/overview', true, '/m/project', 'sessions'],
     ['/m/session/s1?view=chat#latest', true, '/m/session/s1', 'chat'],
     ['/m/session/s1', false, '/workbench', 'workbench'],
     ['/unknown', true, '/m/sessions', 'sessions'],

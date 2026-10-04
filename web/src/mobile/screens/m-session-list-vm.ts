@@ -129,20 +129,27 @@ export function buildProjectSessionList(
   };
   const own = (session: SessionInfo) => session.projectId === projectId;
   const partition = partitionStarredSessions(direct.filter(own), scheduled.filter(own));
+  // Workers nest under their lead across both lists, so starring a lead does not spill its
+  // workers into the plain list.
+  const listed = [...partition.starred, ...partition.direct];
   return {
-    rows: buildSessionRows(partition.direct, now, lang, team),
-    starredRows: buildSessionRows(partition.starred, now, lang),
+    rows: buildSessionRows(partition.direct, now, lang, team, listed),
+    starredRows: buildSessionRows(partition.starred, now, lang, team, listed),
     scheduleRows: buildScheduleRows(schedules.filter(s => s.projectId === projectId), partition.scheduled),
   };
 }
 
-/** Rows for the 会话 list, in desktop rail-folder order. In team mode the workers whose lead is in
- *  the same list are left out — they are opened from the lead's chat — and the lead's row carries
- *  their running, waiting and unread state; a worker whose lead is not in the list stays a row. */
+/** Rows for the 会话 list, in desktop rail-folder order. In team mode the workers whose lead is on
+ *  the screen (`listed`, by default the rows themselves) are left out — they are opened from the
+ *  lead's chat — and the lead's row carries their running, waiting and unread state; a worker whose
+ *  lead is not on the screen stays a row. */
 export function buildSessionRows(
   sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en', team = false,
+  listed: SessionInfo[] = sessions,
 ): MSessionRow[] {
   if (!team) return orderSessions(sessions).map((s) => toRow(s, now, lang));
-  const { top, workers } = groupWorkers(sessions);
-  return orderSessions(top).map((s) => toLeadRow(s, workers.get(s.sessionId) ?? [], now, lang));
+  const { top, workers } = groupWorkers(listed);
+  const shown = new Set(top.map((s) => s.sessionId));
+  return orderSessions(sessions.filter((s) => shown.has(s.sessionId)))
+    .map((s) => toLeadRow(s, workers.get(s.sessionId) ?? [], now, lang));
 }

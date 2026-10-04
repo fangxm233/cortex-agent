@@ -1,12 +1,12 @@
 //
-// Pure — no data, no tRPC. The full-bleed shell (MobileShell) owns the viewport + floating Tab bar;
-// a screen renders <MScreen> with its own header, scroll body, and optional footer.
+// Pure — no data, no tRPC. The full-bleed shell (MobileShell) owns the viewport; a screen renders
+// <MScreen> with its own header, scroll body, and optional footer.
 import { Children, Fragment, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
 import type { Tone } from '@/design/tone';
 import { MC, M_GUTTER } from '@/design/mobile-tokens';
 import { useVocabOptional } from '@/i18n';
 
-export { MC, MONO, M_TABBAR_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
+export { MC, MONO, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
 // MBottomSheet lives in design/ (both chromes use it); the mobile screens keep importing it from
 // the kit they compose everything else from.
 export { MBottomSheet } from '@/design';
@@ -103,14 +103,7 @@ export function MScreen({
       <div
         data-m-scroller=""
         onScroll={floating ? onScroll : undefined}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: 'auto',
-          // Floating chrome: rows vanish at the Tab bar's bottom edge instead of showing, unblurred,
-          // over the home indicator. The header bar runs to the top edge and blurs what passes under it.
-          clipPath: floating ? 'inset(0 0 var(--m-tabbar-bottom, 0px) 0)' : undefined,
-        }}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
       >
         {children}
       </div>
@@ -302,14 +295,8 @@ export function MScrollBody({
       {/* Top gutter under a floating header (`--m-header-clearance`, published by MScreen; 0 elsewhere). */}
       <div style={{ height: 'var(--m-header-clearance, 0px)', flex: 'none', marginBottom: -gap }} />
       {children}
-      {/* Bottom gutter: the home-indicator inset plus, on a Tab route, the room the floating Tab bar
-          takes out of the viewport (`--m-tabbar-clearance`, published by MobileShell; 0 elsewhere). */}
-      <div
-        style={{
-          height: 'calc(20px + env(safe-area-inset-bottom) + var(--m-tabbar-clearance, 0px))',
-          flex: 'none',
-        }}
-      />
+      {/* Bottom gutter: rows scroll clear of the home indicator. */}
+      <div style={{ height: 'calc(20px + env(safe-area-inset-bottom))', flex: 'none' }} />
     </div>
   );
 }
@@ -439,7 +426,7 @@ export function MGroupLabel({ children, style }: { children: ReactNode; style?: 
 }
 
 // ── MGroup — a run of rows laid straight on the mesh, split by inset hairlines ─────────
-// No pane of its own: only the header and the Tab bar float, so a list never reads as a stack of
+// No pane of its own: only the header floats, so a list never reads as a stack of
 // boxes. `inset` is where a divider starts (the row text x), so dividers never run under a glyph.
 export function MGroup({
   children,

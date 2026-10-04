@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
-import { mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';
-import { isTabRootRoute } from './mobile-tabs';
+import { mobileHomeView, mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';
 
 export type MobileNavigate = (to: string, options?: { replace: boolean }) => void;
 export type MobileBackAction =
@@ -19,7 +18,10 @@ export function resolveMobileBack(
   canGoBack = false,
 ): MobileBackAction {
   if (overlayActive) return { kind: 'history' };
-  if (isTabRootRoute(pathname)) return { kind: 'exit' };
+  const home = mobileHomeView(pathname);
+  if (home === 'list') return { kind: 'exit' };
+  // The open Projects panel closes in place, whatever history led here.
+  if (home === 'projects') return { kind: 'navigate', to: mobileRoutePath('sessions') };
   if (canGoBack) return { kind: 'history' };
   return { kind: 'navigate', to: parentPath(pathname) };
 }
@@ -49,8 +51,9 @@ export async function runMobileBack(
   deps.navigate(action.to, { replace: true });
 }
 
-export function switchMobileTab(path: string, navigate: MobileNavigate): void {
-  navigate(path, { replace: true });
+/** Open or close the home's Projects panel. Replace, so the panel never adds a history entry. */
+export function setProjectsPanel(open: boolean, navigate: MobileNavigate): void {
+  navigate(mobileRoutePath(open ? 'project' : 'sessions'), { replace: true });
 }
 
 function nativeCanGoBack(payload: unknown): boolean {

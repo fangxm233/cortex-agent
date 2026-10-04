@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
+import { teamContext } from '@/features/team/worker-groups';
 import { buildProjectSessionList, buildSessionRows, sessionStatusLine } from './m-session-list-vm';
 
 // Neutral placeholder sessions (守则11 — no real project names / ids).
@@ -166,6 +167,20 @@ describe('team workers in the session list', () => {
     expect(buildSessionRows([lead, { ...active, unread: true }], now, 'en', true)[0].unread).toBe(true);
     const dormant = { ...retired, unread: true, running: true };
     expect(buildSessionRows([lead, dormant], now, 'en', true)[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
+  });
+
+  it('keeps a starred lead’s workers off both lists and rolls them onto the starred row', () => {
+    const starredLead = { ...lead, starred: true };
+    const list = buildProjectSessionList('nimbus', [starredLead, { ...active, running: true }, retired, orphan], [], [], now, 'en', true);
+    expect(list.starredRows.map(r => r.id)).toEqual(['lead']);
+    expect(list.starredRows[0].status).toEqual({ kind: 'running', text: '1 worker running' });
+    expect(list.rows.map(r => r.id)).toEqual(['orphan']);
+  });
+
+  it('still hands the hidden workers to the lead’s chat for its worker strip', () => {
+    const sessions = [lead, active, retired];
+    expect(buildProjectSessionList('nimbus', sessions, [], [], now, 'en', true).rows.map(r => r.id)).toEqual(['lead']);
+    expect(teamContext(true, lead, sessions).workers.map(w => w.sessionId)).toEqual(['w-active', 'w-retired']);
   });
 
   it('is the plain flat list when team mode is off', () => {
