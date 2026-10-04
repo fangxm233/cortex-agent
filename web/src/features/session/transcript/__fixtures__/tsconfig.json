@@ -1,6 +1,5 @@
 {
   "extends": "../../../../../tsconfig.json",
-  "compilerOptions": { "incremental": false },
   "include": [
     "*.tsx",
     "../SubagentTranscriptDetail.live.test.tsx",

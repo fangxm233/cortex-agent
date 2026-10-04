@@ -45,8 +45,8 @@
  *
  *   Every step is paid on every rebuild, including a web build that a server-only edit almost
  *   never changes, so the cost of each is kept down at the package level rather than by skipping
- *   steps here: both tsconfigs carry an incremental cache, and web's `build` runs its typecheck
- *   and its bundle concurrently. The server's cache lives inside dist/ on purpose — tsc trusts
+ *   steps here: the server's tsconfig carries an incremental cache, and web's `build` runs its
+ *   typecheck and its bundle concurrently. That cache lives inside dist/ on purpose — tsc trusts
  *   its buildinfo over the filesystem, so a cache that outlived its output would let a deleted
  *   dist file stay deleted.
  *
