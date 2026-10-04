@@ -3,7 +3,7 @@ import { extractTuiAdapter, listPlatformAdapters } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { t } from '@core/i18n.js';
-import { emitSystemNotice } from '@domain/system/system-notice.js';
+import { emitSystemNotice, type SystemNoticeInput } from '@domain/system/system-notice.js';
 
 const log = createLogger('platform');
 
@@ -15,8 +15,8 @@ export interface PlatformConnectOptions {
   retryDelaysMs?: readonly number[];
   /** Warn once when a platform has neither connected nor failed by then. */
   slowConnectMs?: number;
-  /** Called once for a platform still unconnected after its last attempt. Defaults to an error notice. */
-  onGiveUp?: (platform: string, error: Error) => void;
+  /** Where connection trouble is reported. Defaults to the system notice (admin channel + Web toast). */
+  notify?: (notice: SystemNoticeInput) => void;
 }
 
 export interface PlatformConnections {
@@ -35,7 +35,9 @@ function platformLabel(name: string): string {
 /** Start every platform adapter behind `adapter`. Local listeners (the TUI gateway) are bound before
  *  this resolves; chat platforms connect over the network in the background, because nothing at boot
  *  needs their sockets — outbound posts go through the platforms' HTTP APIs. A platform whose connect
- *  keeps failing is retried a bounded number of times, then reported through `onGiveUp`. */
+ *  keeps failing is retried a bounded number of times, then reported as an error. One whose SDK keeps
+ *  retrying on its own (Slack while the network is down, Feishu for an unknown app) never fails, so it
+ *  is reported as a warning once it has been connecting for `slowConnectMs`. */
 export async function startPlatformAdapters(
   adapter: PlatformAdapter,
   opts: PlatformConnectOptions = {},
@@ -46,21 +48,21 @@ export async function startPlatformAdapters(
 
   const retryDelays = opts.retryDelaysMs ?? RETRY_DELAYS_MS;
   const slowConnectMs = opts.slowConnectMs ?? SLOW_CONNECT_MS;
-  const onGiveUp = opts.onGiveUp ?? ((platform: string, error: Error) => {
-    void emitSystemNotice(adapter, {
-      level: 'error',
-      title: platformLabel(platform),
-      text: t('notice.platform.connectFailed', { platform: platformLabel(platform), error: error.message }),
-    });
-  });
+  const notify = opts.notify ?? ((notice: SystemNoticeInput) => { void emitSystemNotice(adapter, notice); });
   const abort = new AbortController();
   const { signal } = abort;
 
   async function connect(platform: PlatformAdapter): Promise<void> {
     const startedAt = performance.now();
+    const label = platformLabel(platform.name);
     let failures = 0;
+    let reportedSlow = false;
     const slow = setTimeout(() => {
-      if (!signal.aborted && failures === 0) log.warn(`${platform.name}: still connecting after ${Math.round(slowConnectMs / 1000)}s`);
+      if (signal.aborted || failures > 0) return;
+      const seconds = Math.round(slowConnectMs / 1000);
+      log.warn(`${platform.name}: still connecting after ${seconds}s`);
+      reportedSlow = true;
+      notify({ level: 'warning', title: label, text: t('notice.platform.stillConnecting', { platform: label, seconds }) });
     }, slowConnectMs);
     slow.unref();
     try {
@@ -70,6 +72,7 @@ export async function startPlatformAdapters(
           // Stopped while the handshake was in flight: the connection it produced belongs to no one.
           if (signal.aborted) { await platform.stop().catch(() => {}); return; }
           log.info(`${platform.name}: connected in ${Math.round(performance.now() - startedAt)}ms`);
+          if (reportedSlow) notify({ level: 'info', title: label, text: t('notice.platform.connected', { platform: label }) });
           return;
         } catch (error) {
           if (signal.aborted) return;
@@ -77,7 +80,7 @@ export async function startPlatformAdapters(
           failures += 1;
           if (failures > retryDelays.length) {
             log.error(`${platform.name}: failed to connect after ${failures} attempt${failures === 1 ? '' : 's'}: ${err.message}`);
-            onGiveUp(platform.name, err);
+            notify({ level: 'error', title: label, text: t('notice.platform.connectFailed', { platform: label, error: err.message }) });
             return;
           }
           const wait = retryDelays[failures - 1];

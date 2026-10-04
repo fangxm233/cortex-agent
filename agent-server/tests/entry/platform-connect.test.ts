@@ -5,6 +5,7 @@ import { CompositeAdapter } from '../../src/platform/adapters/composite-adapter.
 import { TuiGatewayAdapter } from '../../src/platform/adapters/tui/index.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { setLocale } from '../../src/core/i18n.js';
+import type { SystemNoticeInput } from '../../src/domain/system/system-notice.js';
 
 interface Deferred { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void }
 
@@ -39,8 +40,8 @@ function fakeTui() {
   return { tui, isStarted: () => started };
 }
 
-function never(): never {
-  throw new Error('unexpected give-up');
+function never(notice: SystemNoticeInput): never {
+  throw new Error(`unexpected notice: ${notice.text}`);
 }
 
 test('boot waits for the TUI gateway but not for a chat platform still connecting', async () => {
@@ -48,7 +49,7 @@ test('boot waits for the TUI gateway but not for a chat platform still connectin
   const slack = fakePlatform('slack', [handshake]);
   const { tui, isStarted } = fakeTui();
 
-  const connections = await startPlatformAdapters(new CompositeAdapter([slack.adapter, tui]), { onGiveUp: never });
+  const connections = await startPlatformAdapters(new CompositeAdapter([slack.adapter, tui]), { notify: never });
 
   assert.equal(isStarted(), true);
   assert.deepEqual(slack.calls, ['start']);
@@ -64,38 +65,57 @@ test('boot waits for the TUI gateway but not for a chat platform still connectin
 
 test('a failed connect is retried after resetting the platform, and stops once it connects', async () => {
   const feishu = fakePlatform('feishu', [new Error('busy'), new Error('busy'), 'ok']);
-  const connections = await startPlatformAdapters(feishu.adapter, { retryDelaysMs: [1, 1, 1], onGiveUp: never });
+  const connections = await startPlatformAdapters(feishu.adapter, { retryDelaysMs: [1, 1, 1], notify: never });
   await connections.settled;
   assert.deepEqual(feishu.calls, ['start', 'stop', 'start', 'stop', 'start']);
 });
 
-test('a platform that never connects is reported once after its last attempt', async () => {
+test('a platform that never connects is reported once, as an error, after its last attempt', async () => {
+  setLocale('en');
   const slack = fakePlatform('slack', [new Error('invalid_auth'), new Error('invalid_auth'), new Error('invalid_auth')]);
-  const reports: Array<[string, string]> = [];
+  const notices: SystemNoticeInput[] = [];
   const connections = await startPlatformAdapters(slack.adapter, {
     retryDelaysMs: [1, 1],
-    onGiveUp: (platform, error) => { reports.push([platform, error.message]); },
+    notify: (notice) => { notices.push(notice); },
   });
   await connections.settled;
   assert.deepEqual(slack.calls, ['start', 'stop', 'start', 'stop', 'start']);
-  assert.deepEqual(reports, [['slack', 'invalid_auth']]);
+  assert.deepEqual(notices, [{
+    level: 'error',
+    title: 'Slack',
+    text: "Slack failed to connect: invalid_auth. Cortex won't receive Slack messages until it restarts.",
+  }]);
 });
 
-test('the default report is an error notice naming the platform', async () => {
+test('by default the report goes out as a system notice through the adapter', async () => {
   setLocale('en');
-  const slack = fakePlatform('slack', [new Error('invalid_auth')]);
-  const connections = await startPlatformAdapters(slack.adapter, { retryDelaysMs: [] });
+  const feishu = fakePlatform('feishu', [new Error('bad app')]);
+  const connections = await startPlatformAdapters(feishu.adapter, { retryDelaysMs: [] });
   await connections.settled;
   await new Promise((resolve) => setImmediate(resolve));
-  const notice = slack.adapter.posted.find((post) => post.destination.type === 'system-notice');
-  assert.ok(notice, 'expected a system notice');
-  assert.match(notice.content.text ?? '', /^Slack failed to connect: invalid_auth\. Cortex won't receive Slack messages until it restarts\.$/);
+  const notice = feishu.adapter.posted.find((post) => post.destination.type === 'system-notice');
+  assert.match(notice?.content.text ?? '', /^Feishu failed to connect: bad app\./);
+});
+
+test('a platform still connecting after the slow threshold is warned about once, then confirmed', async () => {
+  setLocale('en');
+  const handshake = deferred();
+  const slack = fakePlatform('slack', [handshake]);
+  const notices: SystemNoticeInput[] = [];
+  const connections = await startPlatformAdapters(slack.adapter, { slowConnectMs: 5, notify: (notice) => { notices.push(notice); } });
+  while (notices.length === 0) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(notices[0].level, 'warning');
+  assert.match(notices[0].text, /^Slack hasn't connected after 0s and is still retrying\./);
+
+  handshake.resolve();
+  await connections.settled;
+  assert.deepEqual(notices.slice(1), [{ level: 'info', title: 'Slack', text: 'Slack connected.' }]);
 });
 
 test('stop() during a handshake closes the connection it later produces and never retries', async () => {
   const handshake = deferred();
   const slack = fakePlatform('slack', [handshake]);
-  const connections = await startPlatformAdapters(slack.adapter, { retryDelaysMs: [1], onGiveUp: never });
+  const connections = await startPlatformAdapters(slack.adapter, { retryDelaysMs: [1], notify: never });
 
   await connections.stop();
   assert.deepEqual(slack.calls, ['start', 'stop']);
@@ -108,7 +128,7 @@ test('stop() during a handshake closes the connection it later produces and neve
 test('stop() during a handshake that then fails neither retries nor reports', async () => {
   const handshake = deferred();
   const feishu = fakePlatform('feishu', [handshake]);
-  const connections = await startPlatformAdapters(feishu.adapter, { retryDelaysMs: [1], onGiveUp: never });
+  const connections = await startPlatformAdapters(feishu.adapter, { retryDelaysMs: [1], notify: never });
 
   await connections.stop();
   handshake.reject(new Error('Feishu adapter stopped'));
@@ -118,7 +138,7 @@ test('stop() during a handshake that then fails neither retries nor reports', as
 
 test('stop() during the wait before a retry cancels the retry', async () => {
   const slack = fakePlatform('slack', [new Error('busy')]);
-  const connections = await startPlatformAdapters(slack.adapter, { retryDelaysMs: [60_000], onGiveUp: never });
+  const connections = await startPlatformAdapters(slack.adapter, { retryDelaysMs: [60_000], notify: never });
   while (!slack.calls.includes('stop')) await new Promise((resolve) => setImmediate(resolve));
 
   await connections.stop();

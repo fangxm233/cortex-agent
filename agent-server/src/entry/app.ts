@@ -676,7 +676,7 @@ process.on('SIGTERM', async () => {
   }
 
   // Binds the TUI gateway; Slack/Feishu connect in the background with bounded retries, and a
-  // platform that never connects ends in an error notice rather than a crashed server. Nothing below
+  // platform that fails or stalls ends in a system notice rather than a stalled boot. Nothing below
   // needs their sockets: every outbound post, including the notices, goes through their HTTP APIs.
   _platformConnections = await startPlatformAdapters(adapter);
 
