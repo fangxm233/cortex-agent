@@ -8,20 +8,14 @@ import {
 } from '@/features/schedule/useScheduleEditorController';
 import { useScheduleEditorToasts } from '@/features/schedule/useScheduleEditorToasts';
 import { MScheduleEditor } from './MScheduleEditor';
-import {
-  ListLevel,
-  RunsLevel,
-  type MScheduleSheetCopy,
-} from './MScheduleSheetLevels';
-
-export type { MScheduleSheetCopy } from './MScheduleSheetLevels';
+import { useVocabOptional, type Vocab } from '@/i18n';
+import { ListLevel, RunsLevel } from './MScheduleSheetLevels';
 
 type BaseSheetLevel = { kind: 'list' } | { kind: 'runs'; scheduleId: string };
 type SheetLevel = BaseSheetLevel | { kind: 'editor'; returnTo: BaseSheetLevel };
 
 interface MScheduleSheetViewProps {
   rows: ScheduleRow[];
-  copy: MScheduleSheetCopy;
   editor: ScheduleEditorController;
   onOpenSession: (sessionId: string) => void;
   onClose: () => void;
@@ -33,7 +27,6 @@ interface MScheduleSheetViewProps {
 
 interface MScheduleSheetProps {
   rows: ScheduleRow[];
-  copy: MScheduleSheetCopy;
   onOpenSession: (sessionId: string) => void;
   onClose: () => void;
 }
@@ -86,7 +79,7 @@ function currentRunsRow(rows: ScheduleRow[], level: SheetLevel): ScheduleRow | n
 
 function RunsSheetLevel({ row, copy, now, back, onOpenSession, openEditor, onMarkAllRead,
   markAllPending }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; now: number; back: () => void;
+  row: ScheduleRow; copy: Vocab; now: number; back: () => void;
   onOpenSession: (sessionId: string) => void;
   openEditor: ReturnType<typeof useSheetLevel>['openEditor'];
   onMarkAllRead?: (sessionIds: string[]) => void; markAllPending?: boolean;
@@ -111,7 +104,7 @@ function editorLevelContent(level: SheetLevel, editor: ScheduleEditorController,
 
 function SheetLevelContent({ rows, copy, editor, level, runsRow, now, back,
   onOpenSession, onRow, openEditor, submit, onMarkAllRead, markAllPending }: MScheduleSheetViewProps & {
-  level: SheetLevel; runsRow: ScheduleRow | null; now: number; back: () => void;
+  copy: Vocab; level: SheetLevel; runsRow: ScheduleRow | null; now: number; back: () => void;
   onRow: (row: ScheduleRow) => void; openEditor: ReturnType<typeof useSheetLevel>['openEditor'];
   submit: () => void;
 }) {
@@ -124,6 +117,7 @@ function SheetLevelContent({ rows, copy, editor, level, runsRow, now, back,
 }
 
 export function MScheduleSheetView(props: MScheduleSheetViewProps) {
+  const copy = useVocabOptional();
   const { rows, editor, onOpenSession, onClose } = props;
   const navigation = useSheetLevel(editor);
   const runsRow = currentRunsRow(rows, navigation.level);
@@ -133,7 +127,7 @@ export function MScheduleSheetView(props: MScheduleSheetViewProps) {
   const onBack = navigation.level.kind === 'list' ? undefined : navigation.back;
   return (
     <MBottomSheet onClose={closeSheet} onBack={onBack}>
-      <SheetLevelContent {...props} level={navigation.level} runsRow={runsRow}
+      <SheetLevelContent {...props} copy={copy} level={navigation.level} runsRow={runsRow}
         now={props.now ?? Date.now()} back={navigation.back} onRow={onRow}
         openEditor={navigation.openEditor} submit={submit} />
     </MBottomSheet>

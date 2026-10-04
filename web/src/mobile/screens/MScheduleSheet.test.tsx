@@ -16,7 +16,7 @@ vi.mock('@/mobile/ui/kit', async () => ({
   ),
 }));
 
-import { MScheduleSheetView, type MScheduleSheetCopy } from './MScheduleSheet';
+import { MScheduleSheetView } from './MScheduleSheet';
 
 function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
@@ -36,12 +36,6 @@ function run(p: Partial<SessionInfo> = {}): SessionInfo {
     unread: false, ...p, commissionId: p.commissionId ?? null, teamLeadId: p.teamLeadId ?? null, workerName: p.workerName ?? null, workerRetiredAt: p.workerRetiredAt ?? null,
   };
 }
-
-const copy: MScheduleSheetCopy = {
-  title: 'Scheduled', countUnit: '{n}', once: 'once', paused: 'paused', nextIn: 'next in {d}',
-  allRuns: 'all {n} runs', edit: 'Edit schedule',
-  markAllRead: 'mark {n} read', colRun: 'RUN', colFired: 'FIRED', colCost: 'COST',
-};
 
 function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {
   return {
@@ -74,7 +68,7 @@ function mount(rows: ReturnType<typeof buildScheduleRows>, editor: ScheduleEdito
   act(() => {
     renderer = create(
       <LangProvider>
-        <MScheduleSheetView rows={rows} copy={copy} editor={editor} onOpenSession={vi.fn()} onClose={onClose} now={Date.now()} {...extra} />
+        <MScheduleSheetView rows={rows} editor={editor} onOpenSession={vi.fn()} onClose={onClose} now={Date.now()} {...extra} />
       </LangProvider>,
     );
   });

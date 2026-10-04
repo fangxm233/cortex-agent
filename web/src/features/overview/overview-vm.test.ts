@@ -10,6 +10,7 @@ import {
   execStatusPill,
   execSummary,
 } from './overview-vm';
+import { en, zh } from '@/i18n';
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
   id: 'exec_1',
@@ -118,17 +119,17 @@ describe('schedule run labels', () => {
   it('follows the UI language', () => {
     const next = '2026-09-27T07:00:00Z';
     const last = '2026-09-26T10:00:00Z';
-    expect([nextRunLabel(next, now, 'en'), lastRunLabel(last, now, 'en')]).toEqual(['next in 19h', 'last 2h ago']);
-    expect([nextRunLabel(next, now, 'zh'), lastRunLabel(last, now, 'zh')]).toEqual(['19小时后', '上次 2小时前']);
-    expect([nextRunLabel(last, now, 'zh'), nextRunLabel(null, now, 'zh'), lastRunLabel(null, now, 'zh')]).toEqual(['到期', '—', '从未运行']);
-    expect([nextRunLabel(last, now, 'en'), lastRunLabel(null, now, 'en')]).toEqual(['due', 'never run']);
+    expect([nextRunLabel(next, now, 'en', en), lastRunLabel(last, now, 'en', en)]).toEqual(['next in 19h', 'last 2h ago']);
+    expect([nextRunLabel(next, now, 'zh', zh), lastRunLabel(last, now, 'zh', zh)]).toEqual(['19小时后', '上次 2小时前']);
+    expect([nextRunLabel(last, now, 'zh', zh), nextRunLabel(null, now, 'zh', zh), lastRunLabel(null, now, 'zh', zh)]).toEqual(['到期', '—', '从未运行']);
+    expect([nextRunLabel(last, now, 'en', en), lastRunLabel(null, now, 'en', en)]).toEqual(['due', 'never run']);
   });
 });
 
 describe('execution row copy', () => {
   it('follows the UI language for the status pill and summary', () => {
-    expect(execStatusPill('completed', 'en').text).toBe('done');
-    expect(execStatusPill('completed', 'zh').text).toBe('完成');
-    expect(execSummary(exec({ taskId: 'T-1' }), 'zh')).toBe('任务 T-1');
+    expect(execStatusPill('completed', en).text).toBe('done');
+    expect(execStatusPill('completed', zh).text).toBe('完成');
+    expect(execSummary(exec({ taskId: 'T-1' }), zh)).toBe('任务 T-1');
   });
 });

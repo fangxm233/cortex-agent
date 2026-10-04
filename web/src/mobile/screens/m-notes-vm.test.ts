@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
 import { buildMNotesVm } from './m-notes-vm';
+import { zh } from '@/i18n';
 
 function note(id: string, completed = false): NoteInfo {
   return {
@@ -15,7 +16,7 @@ function note(id: string, completed = false): NoteInfo {
 
 describe('buildMNotesVm', () => {
   it('counts only active notes and limits the project-card preview to two', () => {
-    const vm = buildMNotesVm([note('a'), note('b'), note('c'), note('done', true)], Date.parse('2026-07-29T18:00:00Z'), 'zh');
+    const vm = buildMNotesVm([note('a'), note('b'), note('c'), note('done', true)], Date.parse('2026-07-29T18:00:00Z'), zh);
     expect(vm.activeCount).toBe(3);
     expect(vm.completedCount).toBe(1);
     expect(vm.previews.map((row) => row.id)).toEqual(['a', 'b']);

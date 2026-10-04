@@ -1,5 +1,6 @@
 import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
+import type { Vocab } from '@/i18n';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
 export type IntervalUnit = 'min' | 'hr';
@@ -13,6 +14,19 @@ export const INTERVAL_UNITS: IntervalUnit[] = ['min', 'hr'];
 export const TARGET_OPTIONS: TargetChoice[] = ['current-channel', 'fresh', 'project'];
 
 export const DAY_OPTIONS: number[] = [0, 1, 2, 3, 4, 5, 6];
+
+// Display words for the unit / target options; the option VALUES stay the scheduler's own spellings.
+const OPTION_LABEL_KEY = {
+  min: 'schedUnitMin',
+  hr: 'schedUnitHr',
+  'current-channel': 'schedTargetCurrentChannel',
+  fresh: 'schedTargetFresh',
+  project: 'schedTargetProject',
+} as const satisfies Record<IntervalUnit | TargetChoice, keyof Vocab>;
+
+export function scheduleOptionLabel(option: IntervalUnit | TargetChoice, L: Vocab): string {
+  return L[OPTION_LABEL_KEY[option]];
+}
 
 // PROFILE options are the real agent profiles, sourced from `config.get` (ConfigSnapshot.profiles —
 // read from ~/.cortex/config/profiles.json, redacted to names). `profile` is optional in

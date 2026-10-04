@@ -1,20 +1,9 @@
 import type { CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
-import { useLangOptional } from '@/i18n';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { MC, M_NUM } from '@/mobile/ui/kit';
 import { formatMoney } from '@/features/overview/overview-vm';
 import type { MProjectSwitchRow } from './m-project-vm';
-
-export interface MProjectSwitchCopy {
-  switchProject: string;
-  today: string;
-  newProject: string;
-}
-
-export const PROJECT_SWITCH_COPY: { en: MProjectSwitchCopy; zh: MProjectSwitchCopy } = {
-  en: { switchProject: 'Switch project', today: 'today', newProject: 'New project' },
-  zh: { switchProject: '切换项目', today: '今日', newProject: '新建项目' },
-};
 
 const ROW: CSSProperties = { padding: '10px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 };
 
@@ -46,19 +35,19 @@ export function Initials({ text, accent, large = false }: { text: string; accent
   );
 }
 
-function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: MProjectSwitchCopy }) {
+function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: Vocab }) {
   // Honest sub-line: `今日 $x`, omitted entirely when the project has no cost bucket.
   if (row.todayCost == null) return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
-      <span>{copy.today} {formatMoney(row.todayCost)}</span>
+      <span>{copy.usageToday} {formatMoney(row.todayCost)}</span>
     </div>
   );
 }
 
 // One attention badge: unread + awaiting-input sessions + pending approvals; any action turns it amber.
 function AttentionBadge({ row }: { row: MProjectSwitchRow }) {
-  const label = useLangOptional() === 'zh' ? '项目待处理' : 'project attention';
+  const label = useVocabOptional().projAttention;
   if (row.badgeCount <= 0) return null;
   return (
     <span
@@ -74,12 +63,12 @@ const CURRENT_MARK = <span aria-hidden="true" style={{ fontSize: 15, fontWeight:
 const CHEVRON = <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, color: MC.faint, flex: 'none' }}>›</span>;
 
 /** A project row; `current` marks the active project (accent initials + check) in the switcher sheet. */
-export function SwitchRow({ row, copy, current = false, onSwitch }: {
+export function SwitchRow({ row, current = false, onSwitch }: {
   row: MProjectSwitchRow;
-  copy: MProjectSwitchCopy;
   current?: boolean;
   onSwitch: (id: string) => void;
 }) {
+  const copy = useVocabOptional();
   return (
     <div className="m-press" data-project-id={row.id} aria-current={current || undefined} onClick={() => onSwitch(row.id)} style={ROW}>
       <Initials text={row.initials} accent={current} />
@@ -93,7 +82,8 @@ export function SwitchRow({ row, copy, current = false, onSwitch }: {
   );
 }
 
-export function NewProjectRow({ copy, onClick }: { copy: MProjectSwitchCopy; onClick: () => void }) {
+export function NewProjectRow({ onClick }: { onClick: () => void }) {
+  const copy = useVocabOptional();
   return (
     <div className="m-press" onClick={onClick} style={{ ...ROW, color: MC.run }}>
       <span style={{ width: 34, height: 34, borderRadius: 10, background: MC.runBg, display: 'grid', placeItems: 'center', flex: 'none' }}>

@@ -1,33 +1,14 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { CostSummary } from '@cortex-agent/ui-contract';
-import { useVocabOptional } from '@/i18n';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { MScreen, MTabHeader, MScrollBody, MGroup, MGroupLabel, MC, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
 import type { MProjectSwitchRow } from './m-project-vm';
 import { MobileRateLimitStatus, type RateLimitView } from '@/features/rate-limit';
-import type { NotesCopy } from '@/features/notes/notes-copy';
 import type { MNotesVm } from './m-notes-vm';
 import { MNotesProjectCard } from './MNotesProjectCard';
-import { Initials, NewProjectRow, SwitchRow, type MProjectSwitchCopy } from './MProjectSwitchRows';
-
-export interface MProjectCopy extends MProjectSwitchCopy {
-  title: string;
-  current: string;
-  needsYou: string;
-  perDay: string;
-  week: string;
-  month: string;
-  forecastToday: string;
-  approvals: string;
-  pending: string;
-  globalPending: string;
-  handle: string;
-  memory: string;
-  usage: string;
-  settings: string;
-  issuesTitle: string;
-}
+import { Initials, NewProjectRow, SwitchRow } from './MProjectSwitchRows';
 
 export interface MProjectIssues {
   /** ISSUES.md entry count for the current project (card hidden at 0 — design sec-24 24a). */
@@ -47,7 +28,6 @@ export interface MProjectCurrent {
 }
 
 export interface MProjectViewProps {
-  copy: MProjectCopy;
   current: MProjectCurrent | null;
   /** Amber-bar count = current project's pending approvals + unattributed (全局) entries. */
   pendingApprovals: number;
@@ -56,7 +36,6 @@ export interface MProjectViewProps {
   /** Current project's ISSUES.md entries (24a card, hidden at 0 — issues never enter 需要你). */
   issues: MProjectIssues;
   notesVm: MNotesVm;
-  notesCopy: NotesCopy;
   notesBusy: boolean;
   switchRows: MProjectSwitchRow[];
   rateLimitStatus: RateLimitView | null;
@@ -135,7 +114,7 @@ const CHEVRON = <span aria-hidden="true" style={{ marginLeft: 'auto', fontSize: 
 
 const ROW: CSSProperties = { padding: '12px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0 };
 
-function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: MProjectCopy }) {
+function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: Vocab }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <Initials text={current.initials} accent large />
@@ -143,34 +122,34 @@ function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: MProje
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
           <span style={{ fontSize: 11, fontWeight: 650, padding: '1px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>
-            {copy.current}
+            {copy.projCurrent}
           </span>
         </div>
         {/* Phase/milestone (Phase 2 · M2.3) have no DTO source → omitted (never fabricated). */}
         <div style={{ fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
-          {current.needsYou} {copy.needsYou}
+          {current.needsYou} {copy.projNeedsYou}
         </div>
       </div>
     </div>
   );
 }
 
-function Budget({ cost, copy }: { cost: CostSummary; copy: MProjectCopy }) {
+function Budget({ cost, copy }: { cost: CostSummary; copy: Vocab }) {
   const pct = budgetPercent(cost.today, cost.dailyBudget);
   return (
     <div style={{ marginTop: 16, ...M_NUM }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{ fontSize: 26, fontWeight: 650, color: MC.ink, letterSpacing: '-.02em' }}>{formatMoney(cost.today)}</span>
-        <span style={{ fontSize: 12, color: MC.muted }}>/ {formatMoney(cost.dailyBudget)} {copy.perDay}</span>
+        <span style={{ fontSize: 12, color: MC.muted }}>/ {formatMoney(cost.dailyBudget)} {copy.projPerDay}</span>
       </div>
       <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 8 }}>
         <div style={{ width: `${pct ?? 0}%`, height: '100%', borderRadius: 'var(--r-pill)', background: MC.run }} />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px 14px', flexWrap: 'wrap', marginTop: 8, fontSize: 12, color: MC.muted }}>
-        <span>{copy.week} <b style={{ fontWeight: 600, color: MC.body }}>{formatMoney(cost.week)}</b></span>
-        <span>{copy.month} <b style={{ fontWeight: 600, color: MC.body }}>{formatMoney(cost.month)}</b></span>
+        <span>{copy.projWeek} <b style={{ fontWeight: 600, color: MC.body }}>{formatMoney(cost.week)}</b></span>
+        <span>{copy.projMonth} <b style={{ fontWeight: 600, color: MC.body }}>{formatMoney(cost.month)}</b></span>
         <span style={{ marginLeft: 'auto', color: 'var(--proto-amber-text)' }}>
-          {copy.forecastToday} {formatMoney(cost.forecastToday)}
+          {copy.projForecast} {formatMoney(cost.forecastToday)}
         </span>
       </div>
     </div>
@@ -178,7 +157,7 @@ function Budget({ cost, copy }: { cost: CostSummary; copy: MProjectCopy }) {
 }
 
 // The current project leads the page flat on the mesh: identity, then today's spend against budget.
-function CurrentProject({ current, copy }: { current: MProjectCurrent; copy: MProjectCopy }) {
+function CurrentProject({ current, copy }: { current: MProjectCurrent; copy: Vocab }) {
   return (
     <div style={{ padding: '4px 14px 2px' }}>
       <CurrentHead current={current} copy={copy} />
@@ -198,7 +177,7 @@ function ApprovalBar({
 }: {
   pending: number;
   globalPending: number;
-  copy: MProjectCopy;
+  copy: Vocab;
   onClick: () => void;
 }) {
   return (
@@ -209,15 +188,15 @@ function ApprovalBar({
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-amber-fg)', ...M_NUM }}>
-          {copy.approvals} · {pending} {copy.pending}
+          {copy.approvals} · {pending} {copy.projPending}
         </div>
         {globalPending > 0 && (
           <div style={{ fontSize: 12, color: MC.amberText, marginTop: 1, ...M_NUM }}>
-            {globalPending} {copy.globalPending}
+            {globalPending} {copy.projGlobal}
           </div>
         )}
       </div>
-      <span style={{ fontSize: 13, fontWeight: 600, color: MC.amberInk, flex: 'none' }}>{copy.handle} ›</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: MC.amberInk, flex: 'none' }}>{copy.projReview} ›</span>
     </div>
   );
 }
@@ -228,7 +207,7 @@ function CountTag({ n }: { n: number }) {
 
 // Issues row (design sec-24 24a, mobile column): neutral — deliberately NOT amber and NOT part of
 // the 需要你 bar (issues never block anything). First titles + `+ N more`; hidden at 0 by the parent.
-function IssuesRow({ issues, copy, onClick }: { issues: MProjectIssues; copy: MProjectCopy; onClick: () => void }) {
+function IssuesRow({ issues, copy, onClick }: { issues: MProjectIssues; copy: Vocab; onClick: () => void }) {
   const more = issues.count - issues.previews.length;
   const vocab = useVocabOptional();
   return (
@@ -260,44 +239,47 @@ function LinkRow({ label, onClick }: { label: string; onClick: () => void }) {
 // Project-scoped zone only: current project → approvals (scoped) → issues / notes / memory.
 // Global entries (machines / settings) live behind the header gear — no mixed-scope rows here.
 function PrimaryProjectSection({ props }: { props: MProjectViewProps }) {
-  const { copy, current, pendingApprovals, globalPendingApprovals, issues } = props;
+  const copy = useVocabOptional();
+  const { current, pendingApprovals, globalPendingApprovals, issues } = props;
   return (
     <>
       {current && <CurrentProject current={current} copy={copy} />}
       {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} globalPending={globalPendingApprovals} copy={copy} onClick={props.onApprovals} />}
       <MGroup style={{ marginTop: 14 }}>
         {issues.count > 0 && <IssuesRow issues={issues} copy={copy} onClick={props.onIssues} />}
-        <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
-        <LinkRow label={copy.memory} onClick={props.onMemory} />
+        <MNotesProjectCard vm={props.notesVm} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
+        <LinkRow label={copy.projectMemory} onClick={props.onMemory} />
       </MGroup>
     </>
   );
 }
 
 function ProjectSwitchSection({ props }: { props: MProjectViewProps }) {
+  const copy = useVocabOptional();
   return (
     <section style={{ marginTop: 22 }}>
-      {props.switchRows.length > 0 && <MGroupLabel>{props.copy.switchProject}</MGroupLabel>}
+      {props.switchRows.length > 0 && <MGroupLabel>{copy.projSwitch}</MGroupLabel>}
       <MGroup inset={58}>
-        {props.switchRows.map((row) => <SwitchRow key={row.id} row={row} copy={props.copy} onSwitch={props.onSwitch} />)}
-        <NewProjectRow copy={props.copy} onClick={props.onNewProject} />
+        {props.switchRows.map((row) => <SwitchRow key={row.id} row={row} onSwitch={props.onSwitch} />)}
+        <NewProjectRow onClick={props.onNewProject} />
       </MGroup>
     </section>
   );
 }
 
 export function MProjectView(props: MProjectViewProps) {
+  const copy = useVocabOptional();
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
       <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
       <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
-        <UsageKey label={props.copy.usage} onClick={props.onUsage} />
-        <SettingsGear label={props.copy.settings} onClick={props.onSettings} />
+        <UsageKey label={copy.stNavUsage} onClick={props.onUsage} />
+        <SettingsGear label={copy.settings} onClick={props.onSettings} />
       </div>
     </div>
   );
   return (
-    <MScreen label="1e 项目" floatingHeader header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
+    <MScreen label="1e projects" floatingHeader header={<MTabHeader title={copy.projTitle} trailing={trailing} />}>
       <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
         <PrimaryProjectSection props={props} />
         <ProjectSwitchSection props={props} />

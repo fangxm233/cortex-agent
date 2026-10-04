@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLangOptional } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { canCreateProject, projectCreateErrorMessage, PROJECT_CREATE_FAILED } from './new-project';
+import { canCreateProject, projectCreateErrorMessage } from './new-project';
 
 export interface CreateProjectController {
   createProject: (name: string) => Promise<string | null>;
@@ -19,7 +19,8 @@ export function useCreateProject({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const fallbackError = PROJECT_CREATE_FAILED[useLangOptional()];
+  // Shown when the backend rejects a create without a message of its own.
+  const fallbackError = useVocabOptional().npCreateFailed;
   const mutation = useMutation(trpc.projects.create.mutationOptions({}));
 
   const clearError = useCallback(() => setError(null), []);

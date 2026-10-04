@@ -156,6 +156,7 @@ export function ChatHeader({
   metadataSession: MetadataSession | null;
   parent?: ChatHeaderParent | null;
 }): JSX.Element {
+  const L = useVocab();
   const notes = useNotes();
   // Edit → Copy session ID and this menu both reach the same modal, so its open flag lives in
   // the shell modal registry (shell/useShellModals). The modal itself stays here: it needs the ids from this subtree.
@@ -223,7 +224,7 @@ export function ChatHeader({
           <HeaderIconButton
             attr={{ 'data-notes-button': '' }}
             active={notes.isOpen}
-            title={`${notes.copy.title} · ⌘⇧N`}
+            title={`${L.noteTitle} · ⌘⇧N`}
             onClick={() => notes.isOpen ? notes.close() : notes.open()}
           >
             <NotesGlyph />

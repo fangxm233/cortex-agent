@@ -8,15 +8,13 @@ import {
   type ReactNode,
 } from 'react';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
-import { useLang } from '@/i18n';
+import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
-import { NOTES_COPY, type NotesCopy } from './notes-copy';
 import { buildNotesVm, isNotesShortcut, type NotesVm } from './notes-vm';
 import { useNotesResource } from './useNotesResource';
 
 interface NotesContextValue {
-  copy: NotesCopy;
   vm: NotesVm;
   isOpen: boolean;
   targetId: string | null;
@@ -53,15 +51,15 @@ function useNotesDrawer(projectId: string) {
 }
 
 export function NotesProvider({ children }: { children: ReactNode }) {
-  const lang = useLang();
+  const L = useVocab();
   const { currentProjectId } = useCurrentProject();
   const { prefillDraft } = useSelectedSession();
   const projectId = currentProjectId ?? '';
   const drawer = useNotesDrawer(projectId);
   const resource = useNotesResource(projectId);
-  const vm = useMemo(() => buildNotesVm(resource.notes, Date.now(), lang), [resource.notes, lang]);
+  const vm = useMemo(() => buildNotesVm(resource.notes, Date.now(), L), [resource.notes, L]);
   const value = useMemo<NotesContextValue>(() => ({
-    copy: NOTES_COPY[lang], vm, ...drawer,
+    vm, ...drawer,
     busy: resource.busy,
     add: resource.add,
     update: resource.update,
@@ -69,7 +67,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     remove: resource.delete,
     clearCompleted: resource.clearCompleted,
     handoff: (text) => { prefillDraft(text); drawer.close(); },
-  }), [lang, vm, drawer, resource, prefillDraft]);
+  }), [vm, drawer, resource, prefillDraft]);
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
 }
 

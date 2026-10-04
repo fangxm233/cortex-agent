@@ -2,10 +2,9 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MC, MCard, MGroupLabel, MPill, MScreen, MScrollBody, MTabHeader } from '../ui/kit';
 import type { MSessionRow } from './m-session-list-vm';
-import { MSessionListView, type MSessionListCopy } from './MSessionListView';
+import { MSessionListView } from './MSessionListView';
 
 const noop = () => {};
-const sessionCopy: MSessionListCopy = { title: 'Sessions', empty: 'Empty' };
 const sessionRow = (id: string, title: string): MSessionRow => ({
   id, title, time: '3h', unread: false, status: { kind: 'idle', text: '' },
 });
@@ -26,7 +25,7 @@ describe('mobile presentation', () => {
 
   it('keeps only the title header and scheduled entry above sessions, new session in thumb reach', () => {
     const onNew = () => {};
-    const tree = create(<MSessionListView rows={[]} copy={sessionCopy} presence="connected"
+    const tree = create(<MSessionListView rows={[]} presence="connected"
       newLabel="New" scheduled={{ unread: 2, onOpen: noop }} onOpen={noop} onNew={onNew} />);
     const screen = tree.root.findByType(MScreen);
     expect(screen.findByType(MTabHeader).props.title).toBe('Sessions');
@@ -38,7 +37,7 @@ describe('mobile presentation', () => {
 
   it('opens the Projects panel from the brand mark, which carries the amber pending count', () => {
     const onProjects = vi.fn();
-    const view = (needsYou: number) => create(<MSessionListView rows={[]} copy={sessionCopy} presence="connected"
+    const view = (needsYou: number) => create(<MSessionListView rows={[]} presence="connected"
       projects={{ needsYou, onOpen: onProjects }} newLabel="New" onOpen={noop} onNew={noop} />);
     const pending = view(3);
     const button = pending.root.findByProps({ 'data-projects-button': '' });
@@ -57,7 +56,7 @@ describe('mobile presentation', () => {
 
   it('lays sessions out as one divided list under a header that frosts only once scrolled', () => {
     const tree = create(<MSessionListView rows={[sessionRow('a', 'First'), sessionRow('b', 'Second')]}
-      copy={sessionCopy} presence="connected" newLabel="New" onOpen={noop} onNew={noop} />);
+      presence="connected" newLabel="New" onOpen={noop} onNew={noop} />);
     const body = tree.root.findByType(MScrollBody);
     const bodyJson = JSON.stringify(body.findAllByType('div').map((node) => node.props.style));
     expect(bodyJson).not.toContain('backdropFilter');
