@@ -47,6 +47,8 @@ internal object Completions {
     private fun verdict(detail: ExecutionDetail?, sessions: Map<String, Session>): Verdict {
         if (detail == null) return RETRY
         val session = finishedTurn(detail)?.let { sessions[it] } ?: return SILENT
+        // A team worker reports to its lead; the lead's own turn is the one announced.
+        if (session.worker) return SILENT
         if (session.running || session.awaiting || session.background) return RETRY
         return Verdict(true, Completion(session.id, detail.projectId ?: session.projectId, session.name))
     }
