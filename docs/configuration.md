@@ -506,7 +506,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `injectWaitMaxS` | number | `600` | Upper bound, in seconds, on how long an injected mid-turn message waits for a reply before the busy gate is released. Prevents a wedged process from holding the daemon restart gate forever | `CORTEX_INJECT_WAIT_MAX_S` |
 | `memoryIndexRegenEnabled` | boolean | `true` | Run the built-in experiment/knowledge/pattern index rebuild. Switching from `false` to `true` runs it immediately | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
-| `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator starts a sweep in the background at daemon startup (boot does not wait for it), runs every 6 hours, and runs again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
+| `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator starts a sweep in the background at daemon startup (boot does not wait for it), runs every 6 hours, and runs again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, orphan tool-image directories, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
 | `piCompactReserveTokens` | number | `16384` | PI backend only: the context headroom PI keeps in reserve, in tokens. PI compacts once the context passes `contextWindow - reserveTokens` — both between turns and, since PI 0.84.4, *inside* a running turn at a tool-batch boundary — so a larger reserve compacts earlier and leaves more working room in a long tool-driven turn. A whole number from `1024` through `131072`. Cortex mirrors it into the private PI agent dir's `settings.json`, which is the only way in: PI exposes no setter for it | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
 | `maxContextTokens` | number \| null | `null` | Cap on every model's usable context window, in tokens, for both backends: the usable window is the smaller of the model's own window and this value, and each backend compacts before reaching it. A whole number from `100000` through `1000000` (Claude Code's own accepted range), or `null` to leave every model at its own window. Claude receives it as `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, which outranks any `autoCompactWindow` in Claude's settings files; PI compacts at `cap - piCompactReserveTokens` once a model's window exceeds the cap. Context-usage percentages use the capped window | — |
 | `uiCorsOrigins` | string[] | `[]` | Origins that receive CORS headers from the Web UI HTTP host. See [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS` (comma-separated) |
@@ -562,11 +562,14 @@ follow a new value at once. Claude takes it when its CLI process starts, so it
 reaches the next Claude session; a pinned CLI compatibility trial never
 receives it.
 
-The retention coordinator has five housekeeping surfaces on that clock: live
+The retention coordinator has six housekeeping surfaces on that clock: live
 session-registry expiry (via `delete-intent` then `delete-commit`), orphan
 `data/conversation-history/*.jsonl`, orphan PI transcript bundles under
-`logs/sessions-pi/`, orphan Claude capture files under `logs/sessions/`, and
-the synced Claude user `cleanupPeriodDays` helper. Orphan history and PI files
+`logs/sessions-pi/`, orphan Claude capture files under `logs/sessions/`, orphan
+per-session image directories under `tmp/tool-images/`, and the synced Claude
+user `cleanupPeriodDays` helper. An image directory goes once its session is
+neither live nor pending deletion and nothing in it changed inside the
+retention window. Orphan history and PI files
 use a two-sweep confirmation before deletion. Active direct sessions, running
 executions, pending interaction/bg-held sessions, live PI
 backend session ids, and active Claude capture pairs are protected.

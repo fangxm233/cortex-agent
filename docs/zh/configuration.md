@@ -406,7 +406,7 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `injectWaitMaxS` | number | `600` | 一条中途注入的消息等待回复的时长上限（秒），超过即释放 busy 闸门。防止卡死的进程永久占住守护进程的重启闸门 | `CORTEX_INJECT_WAIT_MAX_S` |
 | `memoryIndexRegenEnabled` | boolean | `true` | 运行内置实验、知识和模式索引重建；从 `false` 切换为 `true` 时立即执行一次 | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的执行间隔，单位为整数毫秒 | — |
-| `sessionRetentionDays` | number | `30` | 以天为单位的整型保留窗口，必须落在安全范围 `1` 到 `104249991`。保留协调器会在 daemon 启动时于后台启动一轮清理（启动流程不等待它完成），之后每 6 小时运行一次，并在该键热重载后立即再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/活跃 capture | — |
+| `sessionRetentionDays` | number | `30` | 以天为单位的整型保留窗口，必须落在安全范围 `1` 到 `104249991`。保留协调器会在 daemon 启动时于后台启动一轮清理（启动流程不等待它完成），之后每 6 小时运行一次，并在该键热重载后立即再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志、孤儿工具图片目录，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/活跃 capture | — |
 | `piCompactReserveTokens` | number | `16384` | 仅 PI 后端：PI 预留的上下文余量，单位 token。上下文超过 `窗口 - reserveTokens` 时 PI 就压缩 —— turn 之间会压，PI 0.84.4 起也会**在 turn 进行中**于工具批次边界压 —— 所以余量越大压缩越早，长 turn 里留下的可用空间越多。取值为 `1024` 到 `131072` 之间的整数。Cortex 把它写进私有 PI agent 目录的 `settings.json`，这也是唯一的入口：PI 没有为它提供 setter | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
 | `maxContextTokens` | number \| null | `null` | 两个后端共用的上下文窗口上限，单位 token：可用窗口取模型自身窗口与该值中较小的一个，各后端在到达它之前压缩。取值为 `100000` 到 `1000000` 之间的整数（即 Claude Code 自身接受的范围），或 `null` 表示每个模型使用自身窗口。Claude 以 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 接收它，优先级高于 Claude 设置文件里的 `autoCompactWindow`；模型窗口超过上限时，PI 在 `上限 - piCompactReserveTokens` 处压缩。上下文占用百分比按截断后的窗口计算 | — |
 | `uiCorsOrigins` | string[] | `[]` | Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS`（逗号分隔） |
@@ -425,7 +425,7 @@ Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`aut
 
 `maxContextTokens` 也在这张卡片里。输入框接受 `100000`–`1000000`；清空后保存为 `null`，即每个模型使用自身窗口。PI 每次判断是否压缩时都会读取这个上限，所以运行中的 PI 会话会立即遵循新值；Claude 在 CLI 进程启动时读取它，所以新值作用于下一个 Claude 会话。固定环境的 CLI 兼容性试运行不会收到它。
 
-这个保留时钟覆盖五类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件，以及同步后的 Claude 用户 `cleanupPeriodDays` helper。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution、待响应 interaction/bg-held session、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都会被保护。
+这个保留时钟覆盖六类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件、`tmp/tool-images/` 下按会话存放的孤儿图片目录，以及同步后的 Claude 用户 `cleanupPeriodDays` helper。会话既不在用、也不在待删除列表中，且目录在保留窗口内没有变动时，其图片目录会被删除。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution、待响应 interaction/bg-held session、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都会被保护。
 
 registry 过期删除会把所有过期 session 的 delete intent 合并为一次 journal 追加，再以每批 100 个 session 清理并提交，每批无论包含多少 session 都只需三次 registry 追加。daemon 关闭时，正在进行的清理会在批次之间停下；尚未提交删除的 session 保持 pending，由下一轮清理优先完成。
 
