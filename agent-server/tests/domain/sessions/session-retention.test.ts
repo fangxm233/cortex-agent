@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { SessionRegistryRepo, type Session } from '../../../src/store/session-registry-repo.js';
+import { SessionRegistryRepo, sessionStore, type Session, type SessionRegistryRepoOptions } from '../../../src/store/session-registry-repo.js';
+import { acquireSessionUse } from '../../../src/domain/sessions/session-use.js';
 import { ConversationLedgerRepo } from '../../../src/store/conversation-ledger-repo.js';
 import { ConversationHistoryRepo } from '../../../src/store/conversation-history-repo.js';
 import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-repo.js';
@@ -23,7 +24,7 @@ function registerOpts(id: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-async function makeHarness() {
+async function makeHarness(registryOptions: SessionRegistryRepoOptions = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-retention-'));
   const storeDir = path.join(root, 'store');
   const historyDir = path.join(root, 'conversation-history');
@@ -39,7 +40,7 @@ async function makeHarness() {
   ]);
   // One registry owns identity now; the ledger is a façade over the same registry (as production
   // wires conversationLedger onto sessionStore).
-  const registry = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'));
+  const registry = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'), registryOptions);
   return {
     root,
     storeDir,
@@ -558,4 +559,173 @@ test('retention liveness protects exactly the ids a live execution carries', () 
 
   assert.deepEqual(snapshot.protectedTrackSessionIds, []);
   assert.deepEqual(new Set(snapshot.protectedBackendSessionIds), new Set(['backend-real']));
+});
+
+type Harness = Awaited<ReturnType<typeof makeHarness>>;
+
+const OLD = '2020-01-01T00:00:00.000Z';
+
+/** Write `count` expired sessions straight into the journal (one bind, one conversation, one turn
+ *  each), with a history file per session; every third session is PI with a transcript bundle, the
+ *  rest Claude with one trusted turn backup. */
+async function seedExpiredSessions(h: Harness, count: number, extra: (i: number) => Record<string, unknown> = () => ({})) {
+  const lines: string[] = [];
+  const ids: string[] = [];
+  const files: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const id = `track-${i}`;
+    const backendId = `backend-${i}`;
+    const channel = `web:${id}`;
+    const backend = i % 3 === 0 ? 'pi' : 'claude';
+    ids.push(id);
+    const backupPath = backend === 'claude' ? path.join(h.claudeProjectDir, `${backendId}.jsonl.turn-0.bak`) : null;
+    lines.push(JSON.stringify({ v: 1, op: 'put', id, record: {
+      name: `cortex-${id}`, sessionId: id, projectId: 'proj', channel, backend, kind: 'local', origin: 'direct',
+      createdAt: OLD, lastUsedAt: OLD, label: null, profileName: null, backendSessionId: backendId, scheduleId: null,
+      ...extra(i),
+    } }));
+    lines.push(JSON.stringify({ v: 1, op: 'bind', channel, sessionId: id }));
+    lines.push(JSON.stringify({ v: 1, op: 'conversation', channel, kind: 'set', fields: {
+      sessionId: id, sessionName: `cortex-${id}`, backend, profileName: null, updatedAt: OLD,
+    } }));
+    lines.push(JSON.stringify({ v: 1, op: 'turn', channel, kind: 'begin', turn: {
+      turnIndex: 0, userMessageTs: 'M0', userMessageText: 'old', statusMessageTs: null, responseMessageTimestamps: [],
+      executionId: null, backupPath, status: 'completed', createdAt: OLD, updatedAt: OLD,
+    } }));
+    const owned = [path.join(h.historyDir, `${id}.jsonl`)];
+    if (backupPath) owned.push(backupPath);
+    if (backend === 'pi') owned.push(path.join(h.piDir, `${backendId}.jsonl`), path.join(h.piDir, `${backendId}.jsonl.turn-1.bak`));
+    files.push(...owned);
+  }
+  await fs.writeFile(path.join(h.storeDir, 'session-registry.jsonl'), `${lines.join('\n')}\n`);
+  await Promise.all(files.map(filePath => fs.writeFile(filePath, '{}\n')));
+  return { ids };
+}
+
+function sweepDeps(h: Harness, overrides: Partial<Parameters<typeof runSessionRetentionSweep>[0]> = {}) {
+  return {
+    retentionDays: 30,
+    now: () => Date.parse('2026-08-01T00:00:00.000Z'),
+    registry: h.registry,
+    ledgerRepo: h.ledger,
+    historyRepo: h.history,
+    candidateRepo: h.candidates,
+    sessionTotals: new SessionTotalsCarryRepo(path.join(h.root, 'session-totals.json')),
+    liveness: { protectedTrackSessionIds: [], protectedBackendSessionIds: [], activeClaudeCapturePaths: [], activeClaudeCapturePairs: [] },
+    paths: { historyDir: h.historyDir, piSessionsDir: h.piDir, claudeCaptureDir: h.captureDir, claudeProjectDir: h.claudeProjectDir },
+    syncClaudeUserCleanupPeriodDays: async () => ({ filePath: '/tmp/settings.json', changed: false }),
+    ...overrides,
+  };
+}
+
+async function exists(filePath: string): Promise<boolean> {
+  return fs.stat(filePath).then(() => true, () => false);
+}
+
+test('retention sweep commits a large expiry in a bounded number of registry appends', async () => {
+  let appends = 0;
+  const h = await makeHarness({
+    writeAppend: async (handle, text) => { appends += 1; await handle.writeFile(text, 'utf8'); },
+  });
+  const { ids } = await seedExpiredSessions(h, 250);
+
+  const result = await runSessionRetentionSweep(sweepDeps(h));
+
+  assert.equal(result.registryCommitted, 250);
+  assert.deepEqual(result.errors, []);
+  // One intent append, then per batch of 100: unbind, conversation clear, commit.
+  assert.ok(appends <= 1 + 3 * 3, `registry appends: ${appends}`);
+  assert.deepEqual(await h.registry.listRecentSessions(1000), []);
+  assert.deepEqual(await h.registry.listPendingDeletions(), []);
+  assert.deepEqual(await fs.readdir(h.historyDir), []);
+  assert.deepEqual(await fs.readdir(h.piDir), []);
+  assert.deepEqual(await fs.readdir(h.claudeProjectDir), []);
+  assert.equal(await h.registry.getBoundSessionId(`web:${ids[0]}`), null);
+});
+
+test('retention sweep stops between batches and the next sweep retries what was left pending', async () => {
+  const h = await makeHarness();
+  const { ids } = await seedExpiredSessions(h, 250);
+  const abort = new AbortController();
+  const commitDeletions = h.registry.commitDeletions.bind(h.registry);
+  h.registry.commitDeletions = async (sessionIds) => {
+    const committed = await commitDeletions(sessionIds);
+    abort.abort();
+    return committed;
+  };
+
+  const first = await runSessionRetentionSweep(sweepDeps(h, { signal: abort.signal }));
+
+  assert.equal(first.stopped, true);
+  assert.equal(first.registryCommitted, 100);
+  const pending = await h.registry.listPendingDeletions();
+  assert.equal(pending.length, 150);
+  assert.equal((await fs.readdir(h.historyDir)).length, 150, 'the unstarted batches keep their files');
+
+  // A restart reads the same journal; the next sweep finishes the leftovers through the retry path.
+  const restarted = { ...h, registry: new SessionRegistryRepo(path.join(h.storeDir, 'session-registry.jsonl')) };
+  restarted.ledger = new ConversationLedgerRepo(restarted.registry);
+  assert.equal((await restarted.registry.listPendingDeletions()).length, 150);
+  const second = await runSessionRetentionSweep(sweepDeps(restarted));
+
+  assert.equal(second.stopped, false);
+  assert.equal(second.registryCommitted, 150);
+  assert.deepEqual(await restarted.registry.listPendingDeletions(), []);
+  assert.deepEqual(await restarted.registry.listRecentSessions(1000), []);
+  assert.deepEqual(await fs.readdir(h.historyDir), []);
+  assert.deepEqual(await fs.readdir(h.piDir), []);
+  assert.equal(await restarted.registry.getBoundSessionId(`web:${ids[249]}`), null);
+});
+
+test('retention sweep recovers a batch whose cleanup ran but whose commit never landed', async () => {
+  const h = await makeHarness();
+  await seedExpiredSessions(h, 30);
+  h.registry.commitDeletions = async () => { throw new Error('crash before commit'); };
+
+  const first = await runSessionRetentionSweep(sweepDeps(h));
+
+  assert.equal(first.registryCommitted, 0);
+  assert.ok(first.errors.some(entry => entry.includes('crash before commit')));
+  assert.deepEqual(await fs.readdir(h.historyDir), [], 'cleanup already ran');
+  const restarted = { ...h, registry: new SessionRegistryRepo(path.join(h.storeDir, 'session-registry.jsonl')) };
+  restarted.ledger = new ConversationLedgerRepo(restarted.registry);
+  assert.equal((await restarted.registry.listPendingDeletions()).length, 30, 'intents survive the restart');
+
+  const second = await runSessionRetentionSweep(sweepDeps(restarted));
+
+  assert.equal(second.registryCommitted, 30);
+  assert.deepEqual(second.errors, []);
+  assert.deepEqual(await restarted.registry.listPendingDeletions(), []);
+});
+
+test('retention sweep keeps liveness-protected, leased and dependent sessions across batches', async () => {
+  const h = await makeHarness();
+  // track-1 leads track-2 (a worker); track-150 is held by a live execution; track-200 has a lease.
+  await seedExpiredSessions(h, 250, i => (i === 2 ? { teamLeadId: 'track-1', workerName: 'w' } : {}));
+  await sessionStore.registerSession('cortex-leased', {
+    sessionId: 'track-200', channel: 'web:track-200', backend: 'claude', kind: 'local', projectId: 'proj',
+  });
+  const release = await acquireSessionUse('track-200');
+  assert.ok(release);
+
+  try {
+    const result = await runSessionRetentionSweep(sweepDeps(h, {
+      liveness: {
+        protectedTrackSessionIds: ['track-1', 'track-150'],
+        protectedBackendSessionIds: [],
+        activeClaudeCapturePaths: [],
+        activeClaudeCapturePairs: [],
+      },
+    }));
+
+    assert.equal(result.registryCommitted, 246);
+    const survivors = (await h.registry.listRecentSessions(1000)).map(session => session.sessionId).sort();
+    assert.deepEqual(survivors, ['track-1', 'track-150', 'track-2', 'track-200']);
+    for (const id of survivors) {
+      assert.ok(await exists(path.join(h.historyDir, `${id}.jsonl`)), `${id} keeps its history`);
+      assert.equal(await h.registry.getBoundSessionId(`web:${id}`), id, `${id} keeps its binding`);
+    }
+  } finally {
+    release();
+  }
 });

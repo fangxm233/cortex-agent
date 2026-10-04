@@ -12,6 +12,8 @@ import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-sett
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CAPTURE_PREFIX = 'claude-output-';
+/** Pending deletions cleaned and committed per registry append; also the stop-check granularity. */
+const DELETE_BATCH_SIZE = 100;
 const log = createLogger('session-retention');
 
 export interface RetentionLivenessSnapshot {
@@ -41,6 +43,9 @@ export interface SessionRetentionDeps {
   liveness: RetentionLivenessSnapshot;
   paths: SessionRetentionPaths;
   syncClaudeUserCleanupPeriodDays: (days: number) => Promise<ClaudeUserSettingsSyncResult>;
+  /** Aborting stops the sweep at the next batch or file; whatever was not committed stays pending
+   *  and is retried by the next sweep. */
+  signal?: AbortSignal;
 }
 
 export interface SessionRetentionSweepResult {
@@ -50,6 +55,8 @@ export interface SessionRetentionSweepResult {
   claudeCaptureDeleted: number;
   helperChanged: boolean;
   errors: string[];
+  /** The signal aborted before the sweep finished. */
+  stopped: boolean;
 }
 
 interface PiBundle {
@@ -74,36 +81,47 @@ export async function runSessionRetentionSweep(deps: SessionRetentionDeps): Prom
   const now = deps.now ?? Date.now;
   const cutoffMs = now() - deps.retentionDays * DAY_MS;
 
-  const helper = await safeClaudeSync(deps, errors);
-  const committed = await retryPendingDeletes(deps, errors);
+  const result: SessionRetentionSweepResult = {
+    registryCommitted: 0,
+    historyOrphanDeleted: 0,
+    piOrphanDeleted: 0,
+    claudeCaptureDeleted: 0,
+    helperChanged: false,
+    errors,
+    stopped: false,
+  };
+  const halted = (): boolean => {
+    result.stopped = isStopped(deps);
+    return result.stopped;
+  };
+
+  result.helperChanged = (await safeClaudeSync(deps, errors)).changed;
+  if (halted()) return result;
+  result.registryCommitted += await retryPendingDeletes(deps, errors);
+  if (halted()) return result;
   // This is the ONE place that must protect in-use sessions: the store's `beginDeleteExpired` no
   // longer keeps a use counter, so the runtime lease set (`@domain/sessions/session-use.ts`) is
   // unioned into the protected ids here before any delete-intent is written.
   const protectedTracks = new Set([...deps.liveness.protectedTrackSessionIds, ...activeSessionUseIds()]);
   const pending = await safeRegistryBeginDeleteExpired(deps, cutoffMs, protectedTracks, errors);
-  const newlyCommitted = await commitDeletes(deps, pending, errors);
-  const registryCommitted = committed + newlyCommitted;
+  result.registryCommitted += await commitDeletes(deps, pending, errors);
+  if (halted()) return result;
 
   const live = await safeRegistryListRecentSessions(deps, errors);
   const stillPending = await safeRegistryListPendingDeletions(deps, errors);
   const registryReadable = live.ok && stillPending.ok;
   const protectedBackendIds = new Set(deps.liveness.protectedBackendSessionIds);
-  const historyOrphanDeleted = registryReadable
-    ? await deleteHistoryOrphans(deps, live.value, stillPending.value, cutoffMs, errors)
-    : 0;
-  const piOrphanDeleted = registryReadable
-    ? await deletePiOrphans(deps, live.value, stillPending.value, protectedBackendIds, cutoffMs, errors)
-    : 0;
-  const claudeCaptureDeleted = await deleteClaudeCaptureLogs(deps, cutoffMs, errors);
+  if (registryReadable) {
+    result.historyOrphanDeleted = await deleteHistoryOrphans(deps, live.value, stillPending.value, cutoffMs, errors);
+    result.piOrphanDeleted = await deletePiOrphans(deps, live.value, stillPending.value, protectedBackendIds, cutoffMs, errors);
+  }
+  result.claudeCaptureDeleted = await deleteClaudeCaptureLogs(deps, cutoffMs, errors);
+  halted();
+  return result;
+}
 
-  return {
-    registryCommitted,
-    historyOrphanDeleted,
-    piOrphanDeleted,
-    claudeCaptureDeleted,
-    helperChanged: helper.changed,
-    errors,
-  };
+function isStopped(deps: SessionRetentionDeps): boolean {
+  return deps.signal?.aborted === true;
 }
 
 async function retryPendingDeletes(deps: SessionRetentionDeps, errors: string[]): Promise<number> {
@@ -166,21 +184,72 @@ async function safeRegistryListPendingDeletions(
   }
 }
 
+/**
+ * Crash-safety order, per batch: the delete intents are already durable; registry-side cleanup
+ * (bindings, conversation + turns) lands in one append; per-session files are removed; only the
+ * sessions whose cleanup fully succeeded are committed in one append. Every step is idempotent, so
+ * a crash or stop anywhere leaves intents that the next sweep's retry finishes.
+ */
 async function commitDeletes(
   deps: SessionRetentionDeps,
   entries: PendingDeletion[],
   errors: string[],
 ): Promise<number> {
   let committed = 0;
+  for (let start = 0; start < entries.length && !isStopped(deps); start += DELETE_BATCH_SIZE) {
+    committed += await commitDeleteBatch(deps, entries.slice(start, start + DELETE_BATCH_SIZE), errors);
+  }
+  return committed;
+}
+
+async function commitDeleteBatch(
+  deps: SessionRetentionDeps,
+  entries: PendingDeletion[],
+  errors: string[],
+): Promise<number> {
+  const ids = entries.map(entry => entry.session.sessionId);
+  try {
+    await deps.registry.unbindBySessionIds(ids);
+    await deps.ledgerRepo.clearBySessionIds(ids);
+  } catch (error) {
+    errors.push(`registry cleanup (${ids.length} sessions): ${(error as Error).message}`);
+    return 0;
+  }
+  const piBundles = await piBundleIndexFor(deps, entries, errors);
+  const cleaned: string[] = [];
   for (const entry of entries) {
     try {
-      await cleanupPendingDelete(deps, entry);
-      if (await deps.registry.commitDeletion(entry.session.sessionId)) committed += 1;
+      await cleanupSessionFiles(deps, entry, piBundles);
+      cleaned.push(entry.session.sessionId);
     } catch (error) {
       errors.push(`${entry.session.sessionId}: ${(error as Error).message}`);
     }
   }
-  return committed;
+  if (cleaned.length === 0) return 0;
+  try {
+    // Otherwise the carry would outlive every session it describes and grow without bound.
+    await (deps.sessionTotals ?? sessionTotalsCarry).forget(cleaned);
+    return (await deps.registry.commitDeletions(cleaned)).length;
+  } catch (error) {
+    errors.push(`registry commit (${cleaned.length} sessions): ${(error as Error).message}`);
+    return 0;
+  }
+}
+
+/** One directory listing per batch instead of one per PI session. `null` when the listing failed:
+ *  the batch's PI sessions then stay pending. */
+async function piBundleIndexFor(
+  deps: SessionRetentionDeps,
+  entries: PendingDeletion[],
+  errors: string[],
+): Promise<Map<string, string[]> | null> {
+  if (!entries.some(entry => entry.session.backend === 'pi')) return new Map();
+  try {
+    return await collectPiBundleIndex(deps.paths.piSessionsDir);
+  } catch (error) {
+    errors.push(`pi-bundles: ${(error as Error).message}`);
+    return null;
+  }
 }
 
 async function prepareDeleteCleanup(
@@ -197,16 +266,17 @@ async function prepareDeleteCleanup(
   };
 }
 
-async function cleanupPendingDelete(deps: SessionRetentionDeps, entry: PendingDeletion): Promise<void> {
+async function cleanupSessionFiles(
+  deps: SessionRetentionDeps,
+  entry: PendingDeletion,
+  piBundles: Map<string, string[]> | null,
+): Promise<void> {
   const session = entry.session;
   const backendId = effectiveBackendSessionId(session);
-  await deps.registry.unbindBySessionIds([session.sessionId]);
-  await deps.ledgerRepo.clearBySessionIds([session.sessionId]);
   await deps.historyRepo.clearBySessionIds([session.sessionId]);
-  // Otherwise the carry would outlive every session it describes and grow without bound.
-  await (deps.sessionTotals ?? sessionTotalsCarry).forget([session.sessionId]);
   if (backendId && session.backend === 'pi') {
-    await deleteFiles(await collectPiBundleFiles(deps.paths.piSessionsDir, backendId));
+    if (!piBundles) throw new Error('PI transcript directory could not be listed');
+    await deleteFiles(piBundles.get(backendId) ?? []);
   }
   await deleteFiles(entry.cleanup.claudeBackupPaths);
 }
@@ -260,6 +330,7 @@ async function deleteHistoryOrphans(
   const files = await listFiles(deps.paths.historyDir, '.jsonl');
   let removed = 0;
   for (const filePath of files) {
+    if (isStopped(deps)) break;
     const sessionId = path.basename(filePath, '.jsonl');
     try {
       if (protectedIds.has(sessionId)) {
@@ -302,6 +373,7 @@ async function deletePiOrphans(
   const bundles = await collectPiBundles(deps.paths.piSessionsDir);
   let removed = 0;
   for (const bundle of bundles) {
+    if (isStopped(deps)) break;
     try {
       if (tracked.has(bundle.backendSessionId) || protectedBackendIds.has(bundle.backendSessionId)) {
         await deps.candidateRepo.clear('pi', bundle.backendSessionId);
@@ -330,6 +402,7 @@ async function deleteClaudeCaptureLogs(deps: SessionRetentionDeps, cutoffMs: num
   const groups = await collectCaptureGroups(deps.paths.claudeCaptureDir);
   let removed = 0;
   for (const group of groups) {
+    if (isStopped(deps)) break;
     try {
       if (group.newestMtimeMs >= cutoffMs || activePairs.has(group.pairKey)) continue;
       if (group.files.some((filePath) => activePaths.has(path.resolve(filePath)))) continue;
@@ -341,12 +414,8 @@ async function deleteClaudeCaptureLogs(deps: SessionRetentionDeps, cutoffMs: num
   return removed;
 }
 
-async function collectPiBundleFiles(piDir: string, backendSessionId: string): Promise<string[]> {
-  const bundles = await collectPiBundles(piDir);
-  return bundles.find((bundle) => bundle.backendSessionId === backendSessionId)?.files ?? [];
-}
-
-async function collectPiBundles(piDir: string): Promise<PiBundle[]> {
+/** backend session id → its transcript files (primary + turn backups). */
+async function collectPiBundleIndex(piDir: string): Promise<Map<string, string[]>> {
   const names = await readDirSafe(piDir);
   const byId = new Map<string, string[]>();
   for (const name of names) {
@@ -357,6 +426,11 @@ async function collectPiBundles(piDir: string): Promise<PiBundle[]> {
     files.push(filePath);
     byId.set(backendSessionId, files);
   }
+  return byId;
+}
+
+async function collectPiBundles(piDir: string): Promise<PiBundle[]> {
+  const byId = await collectPiBundleIndex(piDir);
   const bundles: PiBundle[] = [];
   for (const [backendSessionId, files] of byId) {
     bundles.push({
