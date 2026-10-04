@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import '@/design/content-surfaces.css';
-import type { NotesCopy } from './notes-copy';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import type { NoteRowVm, NotesVm } from './notes-vm';
 
-function QuickInput({ copy, onAdd }: { copy: NotesCopy; onAdd: (text: string) => Promise<unknown> }) {
+function QuickInput({ copy, onAdd }: { copy: Vocab; onAdd: (text: string) => Promise<unknown> }) {
   const [text, setText] = useState('');
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -20,11 +20,11 @@ function QuickInput({ copy, onAdd }: { copy: NotesCopy; onAdd: (text: string) =>
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder={copy.inputPlaceholder}
-          aria-label={copy.inputPlaceholder}
+          placeholder={copy.noteInputPlaceholder}
+          aria-label={copy.noteInputPlaceholder}
           style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 11.5, color: 'var(--proto-ink)' }}
         />
-        <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '1px 5px' }}>{copy.enter}</span>
+        <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '1px 5px' }}>↵</span>
       </div>
     </form>
   );
@@ -44,29 +44,28 @@ function PreviewRow({ row, onOpen }: { row: NoteRowVm; onOpen: (id: string) => v
 
 export function NotesOverviewCard({
   vm,
-  copy,
   onOpen,
   onAdd,
 }: {
   vm: NotesVm;
-  copy: NotesCopy;
   onOpen: (id?: string) => void;
   onAdd: (text: string) => Promise<unknown>;
 }) {
+  const copy = useVocabOptional();
   return (
     <div className="content-surface" data-notes-overview-card="" onClick={() => onOpen()} style={{ background: 'var(--material-card-bg)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-card-shadow)', cursor: 'pointer', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
-        <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
+        <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.noteTitle}</span>
       </div>
       <QuickInput copy={copy} onAdd={onAdd} />
       <div style={{ padding: '2px 14px 6px' }}>
         {vm.previews.map((row) => <PreviewRow key={row.id} row={row} onOpen={onOpen} />)}
-        {vm.activeCount === 0 && <div style={{ padding: '12px 0', color: 'var(--proto-muted)', fontSize: 11 }}>{copy.empty}</div>}
+        {vm.activeCount === 0 && <div style={{ padding: '12px 0', color: 'var(--proto-muted)', fontSize: 11 }}>{copy.noteEmpty}</div>}
       </div>
       <button type="button" className="content-text-action" onClick={(event) => { event.stopPropagation(); onOpen(); }}
         style={{ width: '100%', borderTop: '1px solid var(--proto-line-2)', padding: '9px 14px', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)' }}>
-        <span>{copy.viewAll} {vm.activeCount} ›</span>
-        <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{copy.completed} {vm.completedCount}</span>
+        <span>{copy.noteViewAll} {vm.activeCount} ›</span>
+        <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{copy.noteCompleted} {vm.completedCount}</span>
       </button>
     </div>
   );

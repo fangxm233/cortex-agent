@@ -3,20 +3,8 @@ import { PlusGlyph } from '@/design';
 import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { MScreen, MTabHeader, type MTabTitleMenu, MScrollBody, MGroup, MEmpty, MC, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
-import { useLangOptional } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { fmt, useVocabOptional } from '@/i18n';
 import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
-
-// Accessible names for the list chrome; `{n}` is the unread-schedule / pending-approval count.
-const A11Y = {
-  en: { scheduled: 'Scheduled', unreadScheduled: '{n} unread scheduled', unread: 'unread', projects: 'Projects', projectsNeedYou: 'Projects, {n} need you' },
-  zh: { scheduled: '定时任务', unreadScheduled: '{n} 个未读定时任务', unread: '未读', projects: '项目', projectsNeedYou: '项目，{n} 项需要你' },
-};
-
-export interface MSessionListCopy {
-  title: string;
-  empty: string;
-}
 
 function isLive(status: MSessionStatus): boolean {
   // A turn or a background task is actually advancing. `awaiting` is blocked ON the user, so it
@@ -70,9 +58,9 @@ function BrandTile({ presence }: { presence: ConnectionStatus }) {
 // The brand mark opens the Projects panel, which also slides in on a rightward swipe. Pending
 // approvals ride on it as the amber「需要你」count, so they stay in sight on the home screen.
 function ProjectsButton({ presence, projects }: { presence: ConnectionStatus; projects: MSessionListProjects }) {
-  const a11y = pickCopy(useLangOptional(), A11Y);
+  const L = useVocabOptional();
   const count = projects.needsYou;
-  const label = count > 0 ? a11y.projectsNeedYou.replace('{n}', String(count)) : a11y.projects;
+  const label = count > 0 ? fmt(L.slProjectsNeedYou, { n: count }) : L.projTitle;
   return (
     <button type="button" aria-label={label} data-projects-button="" onClick={projects.onOpen} style={PROJECTS_BUTTON}>
       <BrandTile presence={presence} />
@@ -98,12 +86,12 @@ const NEEDS_YOU_BADGE: CSSProperties = {
 // the frame); unread schedules ride as a badge (blue — failed runs have no data source, so the badge
 // never turns red here).
 function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => void }) {
-  const a11y = pickCopy(useLangOptional(), A11Y);
+  const L = useVocabOptional();
   return (
     <div style={{ position: 'relative', flex: 'none' }}>
       <button
         type="button"
-        aria-label={a11y.scheduled}
+        aria-label={L.schedSheetTitle}
         onClick={onClick}
         style={{
           width: 44,
@@ -125,7 +113,7 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
       </button>
       {unread > 0 && (
         <span
-          aria-label={a11y.unreadScheduled.replace('{n}', String(unread))}
+          aria-label={fmt(L.slUnreadScheduled, { n: unread })}
           style={{
             position: 'absolute',
             top: 4,
@@ -178,11 +166,11 @@ function StatusLine({ status }: { status: MSessionStatus }) {
 // Time on the title line; an unread session adds the accent dot after it (mirrors the desktop rail's
 // unread marker, cleared by useMarkSessionRead once the chat opens).
 function RowMeta({ row, twoLine }: { row: MSessionRow; twoLine: boolean }) {
-  const a11y = pickCopy(useLangOptional(), A11Y);
+  const L = useVocabOptional();
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, alignSelf: twoLine ? 'flex-start' : 'center', paddingTop: twoLine ? 2 : 0 }}>
       <span style={{ fontSize: 12, color: row.unread ? 'var(--proto-accent)' : MC.muted, ...M_NUM }}>{row.time}</span>
-      {row.unread && <span aria-label={a11y.unread} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
+      {row.unread && <span aria-label={L.slUnread} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
     </div>
   );
 }
@@ -295,10 +283,9 @@ export interface MSessionListProject {
   onSwitch: () => void;
 }
 
-export function MSessionListView({ rows, stars, copy, presence, project, projects, newLabel, scheduled, onOpen, onNew }: {
+export function MSessionListView({ rows, stars, presence, project, projects, newLabel, scheduled, onOpen, onNew }: {
   rows: MSessionRow[];
   stars?: MSessionListStars;
-  copy: MSessionListCopy;
   /** Live link state → the brand tile's presence dot. */
   presence: ConnectionStatus;
   project?: MSessionListProject;
@@ -310,15 +297,16 @@ export function MSessionListView({ rows, stars, copy, presence, project, project
   onOpen: (id: string) => void;
   onNew: () => void;
 }) {
+  const L = useVocabOptional();
   const fab = (
     <button type="button" aria-label={newLabel} title={newLabel} onClick={onNew} style={FAB_STYLE}>
       <PlusGlyph size={20} strokeWidth={2} />
     </button>
   );
   return (
-    <MScreen label="1a 会话列表" floatingHeader overlay={fab}
-      header={<SessionListHeader title={copy.title} presence={presence} project={project} projects={projects} scheduled={scheduled} />}>
-      <SessionListBody rows={rows} stars={stars} empty={copy.empty} onOpen={onOpen} />
+    <MScreen label="1a sessions" floatingHeader overlay={fab}
+      header={<SessionListHeader title={L.sessions} presence={presence} project={project} projects={projects} scheduled={scheduled} />}>
+      <SessionListBody rows={rows} stars={stars} empty={L.slEmpty} onOpen={onOpen} />
     </MScreen>
   );
 }

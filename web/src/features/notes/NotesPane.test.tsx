@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { NotesPaneView } from './NotesPane';
-import { NOTES_COPY } from './notes-copy';
+import { en } from '@/i18n';
 import { buildNotesVm } from './notes-vm';
 
 vi.mock('./NotesProvider', () => ({ useNotes: () => ({}) }));
@@ -9,10 +9,10 @@ vi.mock('./NotesProvider', () => ({ useNotes: () => ({}) }));
 it('retains completed text, timestamp and reopen action without dimming the row', () => {
   const iso = '2030-01-01T12:00:00Z';
   const vm = buildNotesVm([{ id: 'example', text: 'Completed example', completed: true,
-    createdAt: iso, updatedAt: iso, completedAt: iso }], Date.parse(iso), 'en');
+    createdAt: iso, updatedAt: iso, completedAt: iso }], Date.parse(iso), en);
   const noop = () => {};
   const mutation = async () => {};
-  const html = renderToStaticMarkup(<NotesPaneView vm={vm} copy={NOTES_COPY.en}
+  const html = renderToStaticMarkup(<NotesPaneView vm={vm}
     busy={false} targetId={null} onSelect={noop} onClose={noop} onHandoff={noop}
     onAdd={mutation} onUpdate={mutation} onSetCompleted={mutation}
     onDelete={mutation} onClearCompleted={mutation} />);

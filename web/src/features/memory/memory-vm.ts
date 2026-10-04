@@ -1,6 +1,7 @@
 import type { MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
 import type { MemoryTreeFacts } from './memory-tree';
 import { timeAgo, type TimeLang } from '@/i18n/time-format';
+import { fmt, type Vocab } from '@/i18n';
 
 // Pure view-model helpers for the memory viewer 7b center view (prototype.dc.html L658–719). No JSX,
 // no fabricated data. Project selection is owned separately by features/projects.
@@ -58,10 +59,10 @@ export function buildTreeRows(facts: MemoryTreeFacts, selectedPath: string | nul
 }
 
 /** `updated 2m ago` · `2分钟前更新` from an ISO timestamp; `updated —` · `更新时间 —` when missing/unparseable. */
-export function relTimeAgo(iso: string | null | undefined, now: number, lang: TimeLang): string {
+export function relTimeAgo(iso: string | null | undefined, now: number, lang: TimeLang, L: Vocab): string {
   const ago = timeAgo(iso, now, lang);
-  if (!ago) return lang === 'zh' ? '更新时间 —' : 'updated —';
-  return lang === 'zh' ? `${ago}更新` : `updated ${ago}`;
+  if (!ago) return L.memUpdatedUnknown;
+  return fmt(L.memUpdatedAgo, { ago });
 }
 
 export interface DiffToggleStyle {
@@ -75,11 +76,10 @@ export interface DiffToggleStyle {
  * The diff-toggle pill's two visual states, verbatim from the prototype bindings (L2376/L2776):
  * ON → filled blue "Viewing diff"; OFF → light-outline "Diff hidden".
  */
-export function diffToggle(on: boolean, lang: TimeLang): DiffToggleStyle {
-  const zh = lang === 'zh';
+export function diffToggle(on: boolean, L: Vocab): DiffToggleStyle {
   return on
-    ? { label: zh ? '正在查看 diff' : 'Viewing diff', color: 'var(--ink-solid-fg)', bg: 'var(--proto-accent)', border: 'var(--proto-accent)' }
-    : { label: zh ? 'diff 已隐藏' : 'Diff hidden', color: 'var(--proto-accent)', bg: 'var(--glass-2)', border: 'var(--proto-accent-border)' };
+    ? { label: L.memDiffViewing, color: 'var(--ink-solid-fg)', bg: 'var(--proto-accent)', border: 'var(--proto-accent)' }
+    : { label: L.memDiffHidden, color: 'var(--proto-accent)', bg: 'var(--glass-2)', border: 'var(--proto-accent-border)' };
 }
 
 export interface LineDiffLabel {

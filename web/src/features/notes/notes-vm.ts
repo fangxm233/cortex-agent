@@ -1,4 +1,7 @@
 import type { NoteInfo } from '@cortex-agent/ui-contract';
+import { fmt, type Vocab } from '@/i18n';
+
+export type NotesTimeWords = Pick<Vocab, 'noteYesterday' | 'noteDaysAgo'>;
 
 export interface NoteRowVm extends NoteInfo {
   timeLabel: string;
@@ -20,9 +23,9 @@ interface ShortcutLike {
   altKey: boolean;
 }
 
-function relativeDayLabel(days: number, lang: 'en' | 'zh'): string {
-  if (days === 1) return lang === 'zh' ? '昨天' : 'yesterday';
-  return lang === 'zh' ? `${Math.max(2, days)}天前` : `${Math.max(2, days)}d`;
+function relativeDayLabel(days: number, L: NotesTimeWords): string {
+  if (days === 1) return L.noteYesterday;
+  return fmt(L.noteDaysAgo, { n: Math.max(2, days) });
 }
 
 function isSameLocalDay(left: Date, right: Date): boolean {
@@ -37,21 +40,21 @@ function localClockLabel(date: Date): string {
   return `${hours}:${minutes}`;
 }
 
-export function formatNoteTime(iso: string, now: number, lang: 'en' | 'zh'): string {
+export function formatNoteTime(iso: string, now: number, L: NotesTimeWords): string {
   const timestamp = Date.parse(iso);
   if (Number.isNaN(timestamp)) return '—';
   const created = new Date(timestamp);
   if (isSameLocalDay(created, new Date(now))) return localClockLabel(created);
   const days = Math.max(1, Math.floor((now - timestamp) / 86_400_000));
-  return relativeDayLabel(days, lang);
+  return relativeDayLabel(days, L);
 }
 
-function toRow(note: NoteInfo, now: number, lang: 'en' | 'zh'): NoteRowVm {
-  return { ...note, timeLabel: formatNoteTime(note.createdAt, now, lang) };
+function toRow(note: NoteInfo, now: number, L: NotesTimeWords): NoteRowVm {
+  return { ...note, timeLabel: formatNoteTime(note.createdAt, now, L) };
 }
 
-export function buildNotesVm(notes: NoteInfo[], now: number, lang: 'en' | 'zh'): NotesVm {
-  const rows = notes.map((note) => toRow(note, now, lang));
+export function buildNotesVm(notes: NoteInfo[], now: number, L: NotesTimeWords): NotesVm {
+  const rows = notes.map((note) => toRow(note, now, L));
   const active = rows.filter((note) => !note.completed);
   const completed = rows.filter((note) => note.completed);
   return {

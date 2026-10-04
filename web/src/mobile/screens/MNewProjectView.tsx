@@ -1,18 +1,12 @@
 import { MBottomSheet, MC } from '@/mobile/ui/kit';
 import { canCreateProject } from '@/features/projects/new-project';
-
-export interface MNewProjectCopy {
-  title: string;
-  placeholder: string;
-  create: string;
-}
+import { useVocabOptional } from '@/i18n';
 
 export function MNewProjectView({
   name,
   onNameChange,
   onCreate,
   onClose,
-  copy,
   error,
   pending,
 }: {
@@ -20,10 +14,10 @@ export function MNewProjectView({
   onNameChange: (v: string) => void;
   onCreate: () => void;
   onClose: () => void;
-  copy: MNewProjectCopy;
   error: string | null;
   pending: boolean;
 }) {
+  const copy = useVocabOptional();
   const creatable = canCreateProject(name);
   const submittable = creatable && !pending;
   return (
@@ -31,7 +25,7 @@ export function MNewProjectView({
       {/* title row (L511) */}
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 12px' }}>
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
-          {copy.title}
+          {copy.newProject}
         </span>
       </div>
 
@@ -42,7 +36,7 @@ export function MNewProjectView({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && submittable) onCreate();
         }}
-        placeholder={copy.placeholder}
+        placeholder={copy.npNamePlaceholder}
         autoFocus
         style={{
           width: '100%',
@@ -91,7 +85,7 @@ export function MNewProjectView({
           cursor: submittable ? 'pointer' : 'default',
         }}
       >
-        {copy.create}
+        {copy.npCreateAndChat}
       </button>
     </MBottomSheet>
   );

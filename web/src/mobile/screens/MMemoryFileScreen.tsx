@@ -7,29 +7,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { MMemoryFileView, type MMemoryFileCopy, type MMemoryFileStatus } from './MMemoryFileView';
+import { MMemoryFileView, type MMemoryFileStatus } from './MMemoryFileView';
 import { fileBasename, fileMetaLine } from './m-memory-file-vm';
-
-const COPY: { en: MMemoryFileCopy; zh: MMemoryFileCopy } = {
-  en: {
-    loading: 'Loading file…',
-    error: "Couldn't read this file",
-    empty: '(empty file)',
-  },
-  zh: {
-    loading: '正在加载文件…',
-    error: '无法读取该文件',
-    empty: '（空文件）',
-  },
-};
 
 export function MMemoryFileScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const lang = useLang();
-  const copy = pickCopy(lang, COPY);
   const now = Date.now();
   const [params] = useSearchParams();
   const path = params.get('path') ?? '';
@@ -58,7 +43,6 @@ export function MMemoryFileScreen() {
       metaLine={metaLine}
       content={file?.content ?? ''}
       status={status}
-      copy={copy}
       onBack={() => navigate('/m/memory')}
     />
   );

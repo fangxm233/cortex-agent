@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import type { NotesCopy } from '@/features/notes/notes-copy';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 import type { NoteRowVm } from '@/features/notes/notes-vm';
 import type { MNotesVm } from './m-notes-vm';
@@ -59,7 +59,7 @@ function NoteCircle({ completed, busy, onClick }: { completed: boolean; busy: bo
   );
 }
 
-function EditNote({ row, copy, busy, onSave, onCancel }: { row: NoteRowVm; copy: NotesCopy; busy: boolean; onSave: (text: string) => Promise<unknown>; onCancel: () => void }) {
+function EditNote({ row, copy, busy, onSave, onCancel }: { row: NoteRowVm; copy: Vocab; busy: boolean; onSave: (text: string) => Promise<unknown>; onCancel: () => void }) {
   const [text, setText] = useState(row.text);
   const save = async () => {
     const value = text.trim();
@@ -71,23 +71,23 @@ function EditNote({ row, copy, busy, onSave, onCancel }: { row: NoteRowVm; copy:
     <div style={{ border: `1px solid ${MC.runBorder}`, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: 13 }}>
       <input value={text} onChange={(event) => setText(event.target.value)} autoFocus style={{ width: '100%', boxSizing: 'border-box', height: 40, borderRadius: 'var(--r-control)', border: `1.5px solid ${MC.hairline}`, padding: '0 12px', fontSize: 16, color: MC.ink, background: 'var(--material-inset-bg)' }} />
       <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-        <button type="button" disabled={busy} onClick={() => void save()} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.run, color: MC.inkSolidFg, fontSize: 13, fontWeight: 600 }}>{copy.save}</button>
+        <button type="button" disabled={busy} onClick={() => void save()} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.run, color: MC.inkSolidFg, fontSize: 13, fontWeight: 600 }}>{copy.noteSave}</button>
         <button type="button" disabled={busy} onClick={onCancel} style={{ width: 76, height: 40, border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>{copy.cancel}</button>
       </div>
     </div>
   );
 }
 
-function MobileRowActions({ row, copy, busy, actions, onEdit }: { row: NoteRowVm; copy: NotesCopy; busy: boolean; actions: MNotesActions; onEdit: () => void }) {
+function MobileRowActions({ row, copy, busy, actions, onEdit }: { row: NoteRowVm; copy: Vocab; busy: boolean; actions: MNotesActions; onEdit: () => void }) {
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
-      <button type="button" disabled={busy} onClick={() => actions.onHandoff(row.text)} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.run, color: MC.inkSolidFg, fontSize: 13, fontWeight: 600 }}>{copy.handoff}</button>
-      <button type="button" disabled={busy} onClick={onEdit} style={{ width: 76, height: 40, borderRadius: 'var(--r-control)', border: `1.5px solid ${MC.hairline}`, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>{copy.edit}</button>
+      <button type="button" disabled={busy} onClick={() => actions.onHandoff(row.text)} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.run, color: MC.inkSolidFg, fontSize: 13, fontWeight: 600 }}>{copy.noteHandoff}</button>
+      <button type="button" disabled={busy} onClick={onEdit} style={{ width: 76, height: 40, borderRadius: 'var(--r-control)', border: `1.5px solid ${MC.hairline}`, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>{copy.noteEdit}</button>
     </div>
   );
 }
 
-function ActiveRow({ row, copy, busy, actionOpen, swipeOpen, actions, onActions, onSwipe, onEdit }: { row: NoteRowVm; copy: NotesCopy; busy: boolean; actionOpen: boolean; swipeOpen: boolean; actions: MNotesActions; onActions: (id: string | null) => void; onSwipe: (id: string | null) => void; onEdit: () => void }) {
+function ActiveRow({ row, copy, busy, actionOpen, swipeOpen, actions, onActions, onSwipe, onEdit }: { row: NoteRowVm; copy: Vocab; busy: boolean; actionOpen: boolean; swipeOpen: boolean; actions: MNotesActions; onActions: (id: string | null) => void; onSwipe: (id: string | null) => void; onEdit: () => void }) {
   const { offset, ...gestureHandlers } = useRowGesture(
     row.id,
     swipeOpen,
@@ -122,7 +122,7 @@ function CompletedRow({ row, busy, onReopen }: { row: NoteRowVm; busy: boolean; 
   );
 }
 
-function FixedComposer({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean; onAdd: (text: string) => Promise<unknown> }) {
+function FixedComposer({ copy, busy, onAdd }: { copy: Vocab; busy: boolean; onAdd: (text: string) => Promise<unknown> }) {
   const [text, setText] = useState('');
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -135,7 +135,7 @@ function FixedComposer({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean; 
     <form data-notes-fixed-composer="" onSubmit={submit} style={{ flex: 'none', borderTop: `1px solid ${MC.divider}`, background: MC.card, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px calc(10px + env(safe-area-inset-bottom))' }}>
       <div style={{ flex: 1, minWidth: 0, height: 44, borderRadius: 'var(--r-control)', border: `1.5px solid ${MC.hairline}`, background: 'var(--material-inset-bg)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 14px', boxSizing: 'border-box' }}>
         <span style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${MC.hairline}`, boxSizing: 'border-box' }} />
-        <input value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.inputPlaceholder} aria-label={copy.inputPlaceholder} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 16, color: MC.ink }} />
+        <input value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.noteInputPlaceholder} aria-label={copy.noteInputPlaceholder} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 16, color: MC.ink }} />
       </div>
       <button type="submit" disabled={busy || !text.trim()} style={{ width: 44, height: 44, borderRadius: 'var(--r-card)', border: 0, background: MC.run, color: MC.inkSolidFg, fontSize: 17, opacity: busy || !text.trim() ? 0.45 : 1 }}>↑</button>
     </form>
@@ -144,13 +144,13 @@ function FixedComposer({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean; 
 
 export interface MNotesViewProps extends MNotesActions {
   vm: MNotesVm;
-  copy: NotesCopy;
   busy: boolean;
   onBack: () => void;
   onClearCompleted: () => Promise<unknown>;
 }
 
 export function MNotesView(props: MNotesViewProps) {
+  const copy = useVocabOptional();
   const [actionId, setActionId] = useState<string | null>(null);
   const [swipeId, setSwipeId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -158,17 +158,17 @@ export function MNotesView(props: MNotesViewProps) {
   const actions: MNotesActions = props;
   return (
     <MScreen
-      label="26c 移动端笔记"
-      header={<MDrillHeader onBack={props.onBack}><span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{props.copy.title}</span><span style={{ font: `600 11px ${MONO}`, color: MC.sub, background: MC.hairline, padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{props.vm.activeCount}</span></MDrillHeader>}
-      footer={<FixedComposer copy={props.copy} busy={props.busy} onAdd={props.onAdd} />}
+      label="26c notes"
+      header={<MDrillHeader onBack={props.onBack}><span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{copy.noteTitle}</span><span style={{ font: `600 11px ${MONO}`, color: MC.sub, background: MC.hairline, padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{props.vm.activeCount}</span></MDrillHeader>}
+      footer={<FixedComposer copy={copy} busy={props.busy} onAdd={props.onAdd} />}
     >
       <MScrollBody gap={9}>
         {props.vm.active.map((row) => editingId === row.id
-          ? <EditNote key={row.id} row={row} copy={props.copy} busy={props.busy} onSave={(text) => props.onUpdate(row.id, text)} onCancel={() => setEditingId(null)} />
-          : <ActiveRow key={row.id} row={row} copy={props.copy} busy={props.busy} actionOpen={actionId === row.id} swipeOpen={swipeId === row.id} actions={actions} onActions={setActionId} onSwipe={setSwipeId} onEdit={() => setEditingId(row.id)} />)}
+          ? <EditNote key={row.id} row={row} copy={copy} busy={props.busy} onSave={(text) => props.onUpdate(row.id, text)} onCancel={() => setEditingId(null)} />
+          : <ActiveRow key={row.id} row={row} copy={copy} busy={props.busy} actionOpen={actionId === row.id} swipeOpen={swipeId === row.id} actions={actions} onActions={setActionId} onSwipe={setSwipeId} onEdit={() => setEditingId(row.id)} />)}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 0' }}>
-          <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, padding: 0, background: 'transparent', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: MC.muted }}>{props.copy.completed} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
-          {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: `color-mix(in srgb, var(--proto-danger), ${MC.ink} 15%)`, fontSize: 11, fontWeight: 600 }}>{props.copy.clear}</button>}
+          <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, padding: 0, background: 'transparent', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: MC.muted }}>{copy.noteCompleted} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
+          {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: `color-mix(in srgb, var(--proto-danger), ${MC.ink} 15%)`, fontSize: 11, fontWeight: 600 }}>{copy.noteClear}</button>}
         </div>
         {completedOpen && props.vm.completed.map((row) => <CompletedRow key={row.id} row={row} busy={props.busy} onReopen={() => void props.onSetCompleted(row.id, false)} />)}
       </MScrollBody>

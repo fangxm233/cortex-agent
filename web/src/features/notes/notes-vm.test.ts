@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
 import { buildNotesVm, isNotesShortcut } from './notes-vm';
+import { en } from '@/i18n';
 
 const NOW = Date.parse('2026-07-29T18:00:00.000Z');
 
@@ -21,7 +22,7 @@ describe('buildNotesVm', () => {
       note('a', false, '2026-07-29T17:41:00.000Z'),
       note('b', false, '2026-07-28T17:41:00.000Z'),
       note('c', true, '2026-07-27T17:41:00.000Z'),
-    ], NOW, 'en');
+    ], NOW, en);
     expect(vm.active.map((row) => row.id)).toEqual(['a', 'b']);
     expect(vm.completed.map((row) => row.id)).toEqual(['c']);
     expect(vm.activeCount).toBe(2);

@@ -19,6 +19,8 @@ import { daemonEn, daemonZh } from './daemon-vocab';
 import { machinesEn, machinesZh } from './machines-vocab';
 import { usageEn, usageZh } from './usage-vocab';
 import { settingsSystemEn, settingsSystemZh } from './settings-system-vocab';
+import { projectEn, projectZh } from './project-vocab';
+import { contentEn, contentZh } from './content-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -51,6 +53,8 @@ export const en = {
   ...machinesEn,
   ...usageEn,
   ...settingsSystemEn,
+  ...projectEn,
+  ...contentEn,
 };
 
 export type Vocab = typeof en;
@@ -82,4 +86,6 @@ export const zh: Record<keyof Vocab, string> = {
   ...machinesZh,
   ...usageZh,
   ...settingsSystemZh,
+  ...projectZh,
+  ...contentZh,
 };

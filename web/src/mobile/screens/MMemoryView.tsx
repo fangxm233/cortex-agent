@@ -1,18 +1,7 @@
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScreen, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
+import { fmt, useVocabOptional, type Vocab } from '@/i18n';
 import type { MMemoryVm, MMemoryFileRow, MMemoryDirCard } from './m-memory-vm';
-
-export interface MMemoryCopy {
-  title: string;
-  /** `核心` — the top-level files group label. */
-  core: string;
-  /** Header unit: `memory/ · N {filesUnit}` (zh `个文件` / en `files`). */
-  filesUnit: string;
-  /** Muted label shown when an expanded dir has no entries (zh `空` / en `Empty`). */
-  emptyDir: string;
-  footer: string;
-  empty: string;
-}
 
 // The scheme's file-doc svg (1j L536): 12px, 1.5 stroke, muted (var(--proto-muted-2)).
 function DocIcon() {
@@ -99,7 +88,7 @@ function DirAccordion({
   onOpen,
 }: {
   dir: MMemoryDirCard;
-  copy: MMemoryCopy;
+  copy: Vocab;
   open: boolean;
   onToggle: (name: string) => void;
   onOpen: (path: string) => void;
@@ -128,7 +117,7 @@ function DirAccordion({
       </div>
       {open &&
         (dir.entries.length === 0 ? (
-          <div style={{ padding: '10px 13px', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.emptyDir}</div>
+          <div style={{ padding: '10px 13px', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.memEmptyDir}</div>
         ) : (
           dir.entries.map((row, i) => (
             <FileRow key={row.path} row={row} last={i === dir.entries.length - 1} onOpen={onOpen} />
@@ -140,14 +129,12 @@ function DirAccordion({
 
 export function MMemoryView({
   vm,
-  copy,
   openDirs,
   onToggleDir,
   onBack,
   onOpenFile,
 }: {
   vm: MMemoryVm;
-  copy: MMemoryCopy;
   /** Names of the currently-expanded dir accordions (container-owned). */
   openDirs: ReadonlySet<string>;
   /** Toggle a dir accordion open/closed by name. */
@@ -156,33 +143,34 @@ export function MMemoryView({
   /** Open a file's read-only viewer. `path` is the project-root-relative path (memory.file arg). */
   onOpenFile: (path: string) => void;
 }) {
+  const copy = useVocabOptional();
   const header = (
     <MDrillHeader
       onBack={onBack}
       trailing={
         <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
-          memory/ · {vm.fileCount} {copy.filesUnit}
+          {fmt(copy.memTreeCount, { n: vm.fileCount })}
         </span>
       }
     >
       <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
-        {copy.title}
+        {copy.projectMemory}
       </div>
     </MDrillHeader>
   );
   return (
-    <MScreen label="1j 项目记忆" header={header}>
+    <MScreen label="1j memory" header={header}>
       <MScrollBody gap={10}>
         {vm.isEmpty ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
-            {copy.empty}
+            {copy.memEmpty}
           </div>
         ) : (
           <>
             {vm.core.length > 0 && (
               <Card>
                 <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
-                  <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.core}</span>
+                  <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.memCore}</span>
                 </div>
                 {vm.core.map((row, i) => (
                   <FileRow key={row.path} row={row} last={i === vm.core.length - 1} onOpen={onOpenFile} />
@@ -199,7 +187,7 @@ export function MMemoryView({
                 onOpen={onOpenFile}
               />
             ))}
-            <div style={{ font: `400 11px ${MONO}`, color: MC.muted, padding: '0 4px' }}>{copy.footer}</div>
+            <div style={{ font: `400 11px ${MONO}`, color: MC.muted, padding: '0 4px' }}>{copy.memFooter}</div>
           </>
         )}
       </MScrollBody>

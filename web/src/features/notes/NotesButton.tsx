@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
-import type { NotesCopy } from './notes-copy';
+import { useVocabOptional } from '@/i18n';
 
 function buttonStyle(active: boolean): CSSProperties {
   return {
@@ -28,12 +28,12 @@ function NotesIcon() {
   );
 }
 
-export function NotesButton({ count, active, copy, onClick }: {
+export function NotesButton({ count, active, onClick }: {
   count: number;
   active: boolean;
-  copy: NotesCopy;
   onClick: () => void;
 }) {
+  const copy = useVocabOptional();
   return (
     <button
       className="content-surface"
@@ -41,11 +41,11 @@ export function NotesButton({ count, active, copy, onClick }: {
       data-notes-button=""
       aria-pressed={active}
       onClick={onClick}
-      title={`${copy.title} · ⌘⇧N`}
+      title={`${copy.noteTitle} · ⌘⇧N`}
       style={buttonStyle(active)}
     >
       <NotesIcon />
-      <span style={{ fontSize: 11, fontWeight: 600 }}>{copy.title}</span>
+      <span style={{ fontSize: 11, fontWeight: 600 }}>{copy.noteTitle}</span>
       <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>{count}</span>
     </button>
   );

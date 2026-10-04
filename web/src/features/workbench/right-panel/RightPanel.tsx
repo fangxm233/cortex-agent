@@ -172,7 +172,7 @@ export function RightPanel(): JSX.Element {
     if (notes.isOpen) setCollapsed(false);
   }, [notes.isOpen, setCollapsed]);
   const active: PanelTarget = notes.isOpen ? 'notes' : 'machines';
-  const labels: PanelLabels = { machines: L.machines, notes: notes.copy.title };
+  const labels: PanelLabels = { machines: L.machines, notes: L.noteTitle };
   // The rail badges and its budget meter stay on screen while the drawer is shut, so the panel's
   // data is read here rather than inside the drawer body that consumes the rest of it.
   const data = useRightPanelData();
