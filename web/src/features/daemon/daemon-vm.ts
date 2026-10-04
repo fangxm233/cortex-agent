@@ -8,6 +8,7 @@ import type {
   SystemDaemonStatus,
 } from '@cortex-agent/ui-contract';
 import type { Tone } from '@/design/tone';
+import { pickVocab } from '@/i18n/lang';
 import { formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 
 export interface DaemonProcessVm extends DaemonProcessInfo {
@@ -70,7 +71,7 @@ export function rebuildStatusTone(status: DaemonRebuildStatus): Tone {
  *  work in minutes. A rebuild is a ten-second-to-two-minute affair, so this is the whole range. */
 function formatSpan(ms: number, lang: TimeLang): string {
   const safe = Number.isFinite(ms) && ms > 0 ? ms : 0;
-  if (safe < 10_000) return `${(safe / 1000).toFixed(1)}${lang === 'zh' ? '秒' : 's'}`;
+  if (safe < 10_000) return `${(safe / 1000).toFixed(1)}${pickVocab(lang).timeUnitS}`;
   return formatSpanPrecise(Math.round(safe / 1000) * 1000, lang);
 }
 

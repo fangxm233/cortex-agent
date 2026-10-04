@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { LangProvider } from '@/i18n';
 import { RailRateLimitStatus } from './RateLimitStatus';
 import type { RateLimitView } from './rate-limit-vm';
 
@@ -28,7 +29,7 @@ describe('RailRateLimitStatus', () => {
   // If the trigger component drops unknown props, the popover can never open.
   // The aria/data attributes are the statically-renderable face of that same spread.
   it('forwards Radix trigger props onto the banner button', () => {
-    const html = renderToStaticMarkup(<RailRateLimitStatus status={status()} />);
+    const html = renderToStaticMarkup(<LangProvider><RailRateLimitStatus status={status()} /></LangProvider>);
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('data-state="closed"');
     expect(html).toContain('aria-expanded="false"');

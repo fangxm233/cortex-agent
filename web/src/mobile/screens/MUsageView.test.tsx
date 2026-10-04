@@ -2,7 +2,8 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProviderRateLimits, SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { buildUsageView } from '@/features/usage';
-import { MUsageView, type MUsageCopy } from './MUsageView';
+import { LangProvider } from '@/i18n';
+import { MUsageView } from './MUsageView';
 
 const NOW = 1_800_000_000;
 const status: SystemUsageStatus = [
@@ -52,33 +53,15 @@ const policies: ProviderRateLimits = {
   'openai-codex': { windows: [{ type: 'codex_primary', enabled: true, threshold: 0.91 }] },
 };
 
-const copy: MUsageCopy = {
-  title: 'Usage', refresh: 'Refresh', refreshing: 'Refreshing…',
-  loading: 'Loading usage…', loadError: 'Failed to load usage',
-  refreshError: 'Refresh failed', empty: 'No usage data', quota: 'Quota',
-  neverObserved: 'Never observed',
-  unavailable: 'Unavailable', gatewaySpend: 'Gateway spend', today: 'Today', month: 'Month',
-  observed: 'Observed', ago: '{d} ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
-  policy: {
-    title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
-    save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
-    throttleAt: 'Throttle at', throttleOff: 'No throttle',
-    legacyFallbackTitle: 'Legacy fallback',
-    legacyFallbackBody: 'Unset rows still use the old throttle policy.',
-    clearLegacy: 'Clear legacy fallback',
-    toggleLabel: 'Usage throttle {key}',
-  },
-};
-
 function targetKey(provider: string, windowType?: string, windowLabel?: string | null): string {
   return [provider, windowType ?? '', windowLabel ?? ''].join('::');
 }
 
 function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
   return (
+    <LangProvider>
     <MUsageView
       view={buildUsageView(status, policies, NOW, 'en')}
-      copy={copy}
       isLoading={false}
       queryError={null}
       refreshError={null}
@@ -91,6 +74,7 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
       onSavePolicy={() => {}}
       {...overrides}
     />
+    </LangProvider>
   );
 }
 

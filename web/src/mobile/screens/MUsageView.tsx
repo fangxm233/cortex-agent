@@ -11,45 +11,10 @@ import type {
 } from '@/features/usage';
 import { usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
+import { useVocab, type Vocab } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsToggle } from './MSettingsControls';
-
-export interface MUsageCopy {
-  title: string;
-  refresh: string;
-  refreshing: string;
-  loading: string;
-  loadError: string;
-  refreshError: string;
-  empty: string;
-  quota: string;
-  neverObserved: string;
-  unavailable: string;
-  gatewaySpend: string;
-  today: string;
-  month: string;
-  observed: string;
-  ago: string;
-  resetsIn: string;
-  resetElapsed: string;
-  policy: {
-    title: string;
-    enabled: string;
-    disabled: string;
-    threshold: string;
-    save: string;
-    saving: string;
-    resetDefault: string;
-    throttleAt: string;
-    throttleOff: string;
-    legacyFallbackTitle: string;
-    legacyFallbackBody: string;
-    clearLegacy: string;
-    /** Accessible name of a row's on/off toggle; `{key}` is the policy target key. */
-    toggleLabel: string;
-  };
-}
 
 const META: CSSProperties = { fontSize: 12, color: MC.muted };
 const LABEL: CSSProperties = { fontSize: 13, fontWeight: 600, color: MC.muted };
@@ -68,12 +33,12 @@ function isoTime(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString();
 }
 
-function Observation({ provider, copy }: { provider: ProviderUsageView; copy: MUsageCopy }) {
+function Observation({ provider, L }: { provider: ProviderUsageView; L: Vocab }) {
   if (provider.observedAt === null || provider.observedAgo === null) return null;
   const timestamp = isoTime(provider.observedAt);
   return (
     <span style={META}>
-      {copy.observed}{' '}<time dateTime={timestamp} title={timestamp}>{copy.ago.replace('{d}', provider.observedAgo)}</time>
+      {L.usageObserved}{' '}<time dateTime={timestamp} title={timestamp}>{L.usageAgo.replace('{d}', provider.observedAgo)}</time>
     </span>
   );
 }
@@ -127,7 +92,7 @@ interface PolicyThresholdButtonsProps {
   resetDisabled: boolean;
   pending: boolean;
   parsedThreshold: number | null;
-  copy: MUsageCopy;
+  L: Vocab;
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
 }
 
@@ -147,7 +112,7 @@ function PolicySaveButton(props: PolicyThresholdButtonsProps) {
         opacity: props.saveDisabled ? 0.45 : 1, cursor: props.saveDisabled ? 'default' : 'pointer',
       }}
     >
-      {props.pending ? props.copy.policy.saving : props.copy.policy.save}
+      {props.pending ? props.L.usagePolicySaving : props.L.usagePolicySave}
     </button>
   );
 }
@@ -174,7 +139,7 @@ function PolicyResetButton(props: PolicyThresholdButtonsProps) {
   return (
     <button
       type="button" data-usage-threshold-reset={usagePolicyTargetKey(props.policy.target)}
-      aria-label={props.copy.policy.resetDefault} title={props.copy.policy.resetDefault}
+      aria-label={props.L.usagePolicyResetDefault} title={props.L.usagePolicyResetDefault}
       disabled={props.resetDisabled}
       onClick={() => props.onSavePolicy(props.policy.target, { enabled: true, thresholdPercent: null })}
       style={{
@@ -191,7 +156,7 @@ function PolicyResetButton(props: PolicyThresholdButtonsProps) {
 
 interface PolicyEditorProps {
   policy: UsageWindowPolicyView;
-  copy: MUsageCopy;
+  L: Vocab;
   policyControlsState: UsagePolicyControlsState;
   isPolicySaving: (target: UsagePolicyTarget) => boolean;
   getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
@@ -203,20 +168,20 @@ function PolicyEditor(props: PolicyEditorProps) {
   const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(props.policy);
   const state = policyActionState(props.policyControlsState !== 'ready', pending, parsedThreshold, props.policy);
   const buttons: PolicyThresholdButtonsProps = {
-    policy: props.policy, pending, parsedThreshold, copy: props.copy,
+    policy: props.policy, pending, parsedThreshold, L: props.L,
     saveDisabled: state.saveDisabled, resetDisabled: state.resetDisabled,
     onSavePolicy: props.onSavePolicy,
   };
   return (
     <div data-usage-policy-controls={usagePolicyTargetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
       <PolicyToggle
-        target={props.policy.target} label={props.copy.policy.toggleLabel} enabled={props.policy.enabled} disabled={state.disabled}
+        target={props.policy.target} label={props.L.usageThrottleToggle} enabled={props.policy.enabled} disabled={state.disabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
           enabled: !props.policy.enabled, thresholdPercent: props.policy.thresholdPercent,
         })}
       />
-      <span style={{ ...META, marginLeft: 'auto' }}>{props.copy.policy.threshold}</span>
-      <PolicyThresholdInput target={props.policy.target} label={props.copy.policy.threshold} value={draft}
+      <span style={{ ...META, marginLeft: 'auto' }}>{props.L.usagePolicyThreshold}</span>
+      <PolicyThresholdInput target={props.policy.target} label={props.L.usagePolicyThreshold} value={draft}
         disabled={state.disabled} onChange={setDraft} onSubmit={() => saveThreshold(buttons)} />
       <PolicySaveButton {...buttons} />
       <PolicyResetButton {...buttons} />
@@ -225,19 +190,19 @@ function PolicyEditor(props: PolicyEditorProps) {
 }
 
 /** The collapsed throttle summary; it opens the editor below the reset line. */
-function PolicySummary(props: { policy: UsageWindowPolicyView; copy: MUsageCopy; open: boolean; onToggle: () => void }) {
-  const { policy, copy } = props;
+function PolicySummary(props: { policy: UsageWindowPolicyView; L: Vocab; open: boolean; onToggle: () => void }) {
+  const { policy, L } = props;
   return (
     <button
       type="button" data-usage-policy-expand={usagePolicyTargetKey(policy.target)} aria-expanded={props.open}
-      aria-label={copy.policy.title} onClick={props.onToggle}
+      aria-label={L.usagePolicyTitle} onClick={props.onToggle}
       style={{
         ...META, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
         border: 0, background: 'transparent', padding: '4px 0 4px 8px', cursor: 'pointer',
         color: props.open ? MC.ink : policy.enabled ? MC.sub : MC.muted,
       }}
     >
-      {policy.enabled ? `${copy.policy.throttleAt} ${policy.thresholdPercent}%` : copy.policy.throttleOff}
+      {policy.enabled ? `${L.usageThrottleAt} ${policy.thresholdPercent}%` : L.usageThrottleOff}
       <ChevronIcon open={props.open} />
     </button>
   );
@@ -255,7 +220,7 @@ function WindowPolicy(props: PolicyEditorProps & { reset: string | null }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
         {props.reset ? <span style={META}>{props.reset}</span> : null}
-        <PolicySummary policy={policy} copy={props.copy} open={open} onToggle={() => setExpanded(!open)} />
+        <PolicySummary policy={policy} L={props.L} open={open} onToggle={() => setExpanded(!open)} />
       </div>
       {open ? <PolicyEditor {...props} /> : null}
       {error ? <div data-usage-policy-error={usagePolicyTargetKey(policy.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
@@ -283,13 +248,13 @@ function WindowMeter({ window }: { window: UsageWindowView }) {
 
 function WindowRow(props: WindowRowProps) {
   const reset = props.window.resetElapsed
-    ? props.copy.resetElapsed
-    : props.window.resetIn === null ? null : `${props.copy.resetsIn} ${props.window.resetIn}`;
+    ? props.L.usageResetElapsed
+    : props.window.resetIn === null ? null : `${props.L.usageMobileResetsIn} ${props.window.resetIn}`;
   return (
     <div data-usage-window={props.window.type} style={{ padding: '9px 0', borderTop: `1px solid ${MC.divider}` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
-        <span style={{ marginLeft: 'auto', font: `600 13px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.copy.unavailable}</span>
+        <span style={{ marginLeft: 'auto', font: `600 13px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.L.usageUnavailable}</span>
       </div>
       <WindowMeter window={props.window} />
       {props.window.policy
@@ -301,7 +266,7 @@ function WindowRow(props: WindowRowProps) {
 
 interface LegacyFallbackNoticeProps {
   fallback: ProviderLegacyFallbackView;
-  copy: MUsageCopy;
+  L: Vocab;
   isPolicySaving: (target: UsagePolicyTarget) => boolean;
   getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
@@ -310,11 +275,11 @@ interface LegacyFallbackNoticeProps {
 function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
   const pending = props.isPolicySaving(props.fallback.target);
   const error = props.getPolicyError(props.fallback.target);
-  const state = props.fallback.enabled ? props.copy.policy.enabled : props.copy.policy.disabled;
+  const state = props.fallback.enabled ? props.L.usagePolicyEnabled : props.L.usagePolicyDisabled;
   return (
     <div data-usage-legacy-fallback={props.fallback.target.provider} style={{ marginTop: 10, border: `1px solid ${MC.divider}`, borderRadius: 'var(--r-chip)', padding: '8px 10px' }}>
-      <div style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{props.copy.policy.legacyFallbackTitle}</div>
-      <div style={{ ...META, marginTop: 3 }}>{props.copy.policy.legacyFallbackBody}</div>
+      <div style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{props.L.usagePolicyLegacyTitle}</div>
+      <div style={{ ...META, marginTop: 3 }}>{props.L.usagePolicyLegacyBody}</div>
       <div style={{ ...META, marginTop: 3 }}>{`${state} · ${props.fallback.thresholdPercent}%`}</div>
       <button
         type="button"
@@ -327,7 +292,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
           opacity: pending ? 0.45 : 1, cursor: pending ? 'default' : 'pointer',
         }}
       >
-        {pending ? props.copy.policy.saving : props.copy.policy.clearLegacy}
+        {pending ? props.L.usagePolicySaving : props.L.usagePolicyClearLegacy}
       </button>
       {error ? <div data-usage-policy-error={usagePolicyTargetKey(props.fallback.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
     </div>
@@ -342,15 +307,15 @@ function QuotaBlock(props: QuotaBlockProps) {
   if (props.provider.quotaState === 'unsupported') return null;
   return (
     <section data-usage-quota={props.provider.provider} data-usage-quota-state={props.provider.quotaState} style={{ padding: '10px 13px' }}>
-      <div style={LABEL}>{props.copy.quota}</div>
+      <div style={LABEL}>{props.L.usageMobileQuota}</div>
       {props.provider.quotaState === 'available'
         ? props.provider.windows.map((window) => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} {...props} />)
-        : <div style={{ marginTop: 8, fontSize: 12, color: MC.muted }}>{props.copy.neverObserved}</div>}
+        : <div style={{ marginTop: 8, fontSize: 12, color: MC.muted }}>{props.L.usageMobileNeverObserved}</div>}
       {props.provider.legacyFallback
         ? (
           <LegacyFallbackNotice
             fallback={props.provider.legacyFallback}
-            copy={props.copy}
+            L={props.L}
             isPolicySaving={props.isPolicySaving}
             getPolicyError={props.getPolicyError}
             onSavePolicy={props.onSavePolicy}
@@ -361,14 +326,14 @@ function QuotaBlock(props: QuotaBlockProps) {
   );
 }
 
-function SpendBlock({ provider, copy }: { provider: ProviderUsageView; copy: MUsageCopy }) {
+function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) {
   if (!provider.spend) return null;
   return (
     <section data-usage-spend={provider.provider} style={{ borderTop: `1px solid ${MC.divider}`, padding: '10px 13px' }}>
-      <div style={LABEL}>{copy.gatewaySpend}</div>
+      <div style={LABEL}>{L.usageMobileGatewaySpend}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
-        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.today} <small>{copy.today}</small></span>
-        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.month} <small>{copy.month}</small></span>
+        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.today} <small>{L.usageMobileToday}</small></span>
+        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.month} <small>{L.usageMobileMonth}</small></span>
       </div>
     </section>
   );
@@ -376,13 +341,13 @@ function SpendBlock({ provider, copy }: { provider: ProviderUsageView; copy: MUs
 
 function ProviderCard(props: {
   provider: ProviderUsageView;
-  copy: MUsageCopy;
+  L: Vocab;
   policyControlsState: UsagePolicyControlsState;
   isPolicySaving: (target: UsagePolicyTarget) => boolean;
   getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
 }) {
-  const { provider, copy } = props;
+  const { provider, L } = props;
   return (
     <MCard padding={0}>
       <div
@@ -394,11 +359,11 @@ function ProviderCard(props: {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
           <span style={META}>{provider.modes.join(' · ')}</span>
-          <Observation provider={provider} copy={copy} />
+          <Observation provider={provider} L={L} />
         </div>
       </div>
-      <QuotaBlock provider={provider} copy={copy} policyControlsState={props.policyControlsState} isPolicySaving={props.isPolicySaving} getPolicyError={props.getPolicyError} onSavePolicy={props.onSavePolicy} />
-      <SpendBlock provider={provider} copy={copy} />
+      <QuotaBlock provider={provider} L={L} policyControlsState={props.policyControlsState} isPolicySaving={props.isPolicySaving} getPolicyError={props.getPolicyError} onSavePolicy={props.onSavePolicy} />
+      <SpendBlock provider={provider} L={L} />
       {provider.note ? <div style={{ ...META, padding: '0 13px 10px' }}>{provider.note}</div> : null}
     </MCard>
   );
@@ -409,7 +374,7 @@ function ErrorFeedback({ label, error }: { label: string; error: { message: stri
   return <div role="alert" style={{ color: MC.fail, fontSize: 12 }}>{label}: {error.message}</div>;
 }
 
-function RefreshButton({ copy, pending, onRefresh }: { copy: MUsageCopy; pending: boolean; onRefresh: () => void }) {
+function RefreshButton({ L, pending, onRefresh }: { L: Vocab; pending: boolean; onRefresh: () => void }) {
   return (
     <button
       type="button"
@@ -418,14 +383,13 @@ function RefreshButton({ copy, pending, onRefresh }: { copy: MUsageCopy; pending
       onClick={onRefresh}
       style={{ border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg, color: MC.run, fontSize: 10.5, fontWeight: 650 }}
     >
-      {pending ? copy.refreshing : copy.refresh}
+      {pending ? L.usageRefreshing : L.usageRefresh}
     </button>
   );
 }
 
 interface MUsageViewProps {
   view: UsageView;
-  copy: MUsageCopy;
   isLoading: boolean;
   queryError: { message: string } | null;
   refreshError: { message: string } | null;
@@ -440,25 +404,26 @@ interface MUsageViewProps {
 
 export function MUsageView(props: MUsageViewProps) {
   const {
-    view, copy, isLoading, queryError, refreshError, isRefreshing,
+    view, isLoading, queryError, refreshError, isRefreshing,
     policyControlsState, isPolicySaving, getPolicyError, onBack, onRefresh, onSavePolicy,
   } = props;
+  const L = useVocab();
   const hasProviders = view.providers.length > 0;
   const header = (
-    <MDrillHeader onBack={onBack} trailing={<RefreshButton copy={copy} pending={isRefreshing} onRefresh={onRefresh} />}>
-      <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{copy.title}</div>
+    <MDrillHeader onBack={onBack} trailing={<RefreshButton L={L} pending={isRefreshing} onRefresh={onRefresh} />}>
+      <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.stNavUsage}</div>
     </MDrillHeader>
   );
   return (
-    <MScreen label="1l-u 用量" header={header}>
+    <MScreen label="1l-u usage" header={header}>
       <MScrollBody>
-        {isLoading && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{copy.loading}</div> : null}
-        <ErrorFeedback label={copy.loadError} error={queryError} />
-        <ErrorFeedback label={copy.refreshError} error={refreshError} />
-        {!isLoading && !queryError && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{copy.empty}</div> : null}
+        {isLoading && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{L.usageLoading}</div> : null}
+        <ErrorFeedback label={L.usageLoadError} error={queryError} />
+        <ErrorFeedback label={L.usageRefreshError} error={refreshError} />
+        {!isLoading && !queryError && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{L.usageMobileEmpty}</div> : null}
         {view.providers.map((provider) => (
           <ProviderCard
-            key={provider.key} provider={provider} copy={copy}
+            key={provider.key} provider={provider} L={L}
             policyControlsState={policyControlsState} isPolicySaving={isPolicySaving}
             getPolicyError={getPolicyError} onSavePolicy={onSavePolicy}
           />

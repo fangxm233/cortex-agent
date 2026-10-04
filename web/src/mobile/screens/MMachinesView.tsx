@@ -4,30 +4,7 @@ import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScro
   MSettingsSurfaceCard as MCard } from './MSettingsControls';
 import type { MachineDetailVm, MachineGpuRow, MachineRunRow } from '@/features/machines/machine-detail-vm';
 import type { MMachinesVm, MMachineCard } from './m-machines-vm';
-
-export interface MMachinesCopy {
-  title: string;
-  online: string;
-  offline: string;
-  hb: string;
-  lastHb: string;
-  gpu: string;
-  running: string;
-  daemon: string;
-  onlineWord: string;
-  retry: string;
-  logs: string;
-  editDesktop: string;
-  add: string;
-  empty: string;
-  probing: string;
-  probeFailed: string;
-  noGpu: string;
-  offlineNoTelemetry: string;
-  up: string;
-  uptime: string;
-  path: string;
-}
+import { useVocab, type Vocab } from '@/i18n';
 
 /** Probe state for the single expanded card. `vm` is present only once a response arrived. */
 export interface MMachineDetailPanel {
@@ -40,11 +17,11 @@ export interface MMachineDetailPanel {
 const META: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted };
 
 // ── header trailing: daemon · N/M 在线 (real online/total; scheme L564) ──────────
-function DaemonStatus({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
+function DaemonStatus({ vm, L }: { vm: MMachinesVm; L: Vocab }) {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: `color-mix(in srgb, ${MC.done}, ${MC.ink} 15%)` }}>
       <MDot color={MC.done} size={6} />
-      {copy.daemon} · {vm.onlineCount}/{vm.total} {copy.onlineWord}
+      {L.machDaemon} · {vm.onlineCount}/{vm.total} {L.mOnline}
     </span>
   );
 }
@@ -103,10 +80,10 @@ function Notice({ text, tone }: { text: string; tone?: 'fail' }) {
 }
 
 /** Static facts from machines.list — shown whether or not a probe succeeded. */
-function CardStatics({ card, copy, uptime }: { card: MMachineCard; copy: MMachinesCopy; uptime: string }) {
+function CardStatics({ card, L, uptime }: { card: MMachineCard; L: Vocab; uptime: string }) {
   const parts: string[] = [];
-  if (card.connectedFor) parts.push(`${copy.up} ${card.connectedFor}`);
-  if (uptime) parts.push(`${copy.uptime} ${uptime}`);
+  if (card.connectedFor) parts.push(`${L.mConnectedFor} ${card.connectedFor}`);
+  if (uptime) parts.push(`${L.mUptime} ${uptime}`);
   if (card.sshConfigured) parts.push('ssh ✓');
   if (card.capabilities.length > 0) parts.push(card.capabilities.join(','));
   return (
@@ -114,20 +91,20 @@ function CardStatics({ card, copy, uptime }: { card: MMachineCard; copy: MMachin
       <div style={{ ...META, color: MC.muted }}>{parts.join(' · ')}</div>
       {card.cortexPath && (
         <div style={{ ...META, color: MC.muted, overflowWrap: 'anywhere' }}>
-          {copy.path} {card.cortexPath}
+          {L.mPath} {card.cortexPath}
         </div>
       )}
     </div>
   );
 }
 
-function ProbePanel({ panel, copy }: { panel: MMachineDetailPanel; copy: MMachinesCopy }) {
-  if (panel.status === 'probing') return <Notice text={copy.probing} />;
-  if (panel.status === 'error' || !panel.vm) return <Notice text={copy.probeFailed} tone="fail" />;
+function ProbePanel({ panel, L }: { panel: MMachineDetailPanel; L: Vocab }) {
+  if (panel.status === 'probing') return <Notice text={L.mProbing} />;
+  if (panel.status === 'error' || !panel.vm) return <Notice text={L.mProbeFailed} tone="fail" />;
   const { meters, gpus, liveRuns, probeError } = panel.vm;
   return (
     <>
-      {probeError && <Notice text={`${copy.probeFailed}: ${probeError}`} tone="fail" />}
+      {probeError && <Notice text={`${L.mProbeFailed}: ${probeError}`} tone="fail" />}
       {meters.length > 0 && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
           {meters.map((meter) => (
@@ -142,7 +119,7 @@ function ProbePanel({ panel, copy }: { panel: MMachineDetailPanel; copy: MMachin
       {gpus.map((gpu) => (
         <GpuLine key={gpu.index} gpu={gpu} />
       ))}
-      {!probeError && gpus.length === 0 && <Notice text={copy.noGpu} />}
+      {!probeError && gpus.length === 0 && <Notice text={L.mNoGpuReported} />}
       {liveRuns.map((run) => (
         <RunLine key={run.key} run={run} />
       ))}
@@ -153,13 +130,13 @@ function ProbePanel({ panel, copy }: { panel: MMachineDetailPanel; copy: MMachin
 // ── online machine card (scheme L567-581): header section · expand panel ────────
 function OnlineCard({
   card,
-  copy,
+  L,
   expanded,
   panel,
   onToggle,
 }: {
   card: MMachineCard;
-  copy: MMachinesCopy;
+  L: Vocab;
   expanded: boolean;
   panel: MMachineDetailPanel | null;
   onToggle: (name: string) => void;
@@ -176,14 +153,14 @@ function OnlineCard({
           <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{card.name}</span>
           <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
           <span style={{ marginLeft: 'auto', flex: 'none' }}>
-            <MPill tone="done">{copy.online}</MPill>
+            <MPill tone="done">{L.machOnline}</MPill>
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...META, marginTop: 4 }}>
           <span>
-            {copy.hb} {card.heartbeat}
-            {card.gpuCount !== null && card.gpuCount > 0 && ` · ${card.gpuCount} ${copy.gpu}`}
-            {card.liveRuns > 0 && ` · ${card.liveRuns} ${copy.running}`}
+            {L.machHeartbeat} {card.heartbeat}
+            {card.gpuCount !== null && card.gpuCount > 0 && ` · ${card.gpuCount} ${L.mGpu}`}
+            {card.liveRuns > 0 && ` · ${card.liveRuns} ${L.machRunning}`}
           </span>
           {card.liveRuns > 0 && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
@@ -194,8 +171,8 @@ function OnlineCard({
 
         {expanded && (
           <>
-            {panel ? <ProbePanel panel={panel} copy={copy} /> : <Notice text={copy.probing} />}
-            <CardStatics card={card} copy={copy} uptime={panel?.uptime ?? ''} />
+            {panel ? <ProbePanel panel={panel} L={L} /> : <Notice text={L.mProbing} />}
+            <CardStatics card={card} L={L} uptime={panel?.uptime ?? ''} />
           </>
         )}
       </div>
@@ -232,12 +209,12 @@ function InertButton({ children }: { children: ReactNode }) {
 // ── offline machine card (scheme L586-593): fail-toned, retry/logs buttons ───────
 function OfflineCard({
   card,
-  copy,
+  L,
   expanded,
   onToggle,
 }: {
   card: MMachineCard;
-  copy: MMachinesCopy;
+  L: Vocab;
   expanded: boolean;
   onToggle: (name: string) => void;
 }) {
@@ -248,38 +225,37 @@ function OfflineCard({
           <span style={{ font: `600 13px ${MONO}`, color: MC.sub }}>{card.name}</span>
           <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
           <span style={{ marginLeft: 'auto', flex: 'none' }}>
-            <MPill tone="failed">{copy.offline}</MPill>
+            <MPill tone="failed">{L.machOffline}</MPill>
           </span>
         </div>
         <div style={{ ...META, marginTop: 4 }}>
-          {copy.lastHb} {card.heartbeat}
+          {L.machLastHeartbeat} {card.heartbeat}
         </div>
         {/* An offline machine is never probed — say so rather than showing an empty telemetry frame. */}
         {expanded && (
           <>
-            <Notice text={copy.offlineNoTelemetry} />
-            <CardStatics card={card} copy={copy} uptime="" />
+            <Notice text={L.mOfflineNoTelemetry} />
+            <CardStatics card={card} L={L} uptime="" />
           </>
         )}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <InertButton>{copy.retry}</InertButton>
-        <InertButton>{copy.logs}</InertButton>
+        <InertButton>{L.machRetry}</InertButton>
+        <InertButton>{L.machLogs}</InertButton>
       </div>
     </MCard>
   );
 }
 
 // ── footer registry line (scheme L594) ──────────────────────────────────────────
-function RegistryFooter({ copy }: { copy: MMachinesCopy }) {
+function RegistryFooter({ L }: { L: Vocab }) {
   return (
-    <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>{copy.editDesktop}</div>
+    <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>{L.setEditOnDesktop}</div>
   );
 }
 
 export function MMachinesView({
   vm,
-  copy,
   onBack,
   expanded,
   onToggle,
@@ -288,7 +264,6 @@ export function MMachinesView({
   addDisabled,
 }: {
   vm: MMachinesVm;
-  copy: MMachinesCopy;
   onBack: () => void;
   /** Name of the single expanded card; null when all are collapsed. */
   expanded: string | null;
@@ -298,20 +273,21 @@ export function MMachinesView({
   onAdd: () => void;
   addDisabled: boolean;
 }) {
+  const L = useVocab();
   return (
-    <MSettingsFrame label="Settings · Machines" header={<MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} copy={copy} />}>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{copy.title}</div>
+    <MSettingsFrame label="Settings · Machines" header={<MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} L={L} />}>
+        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{L.stNavMachines}</div>
       </MDrillHeader>}>
       <MScrollBody>
         {vm.cards.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{L.machEmpty}</div>
         )}
         {vm.cards.map((card) =>
           card.online ? (
             <OnlineCard
               key={card.name}
               card={card}
-              copy={copy}
+              L={L}
               expanded={expanded === card.name}
               panel={expanded === card.name ? panel : null}
               onToggle={onToggle}
@@ -320,7 +296,7 @@ export function MMachinesView({
             <OfflineCard
               key={card.name}
               card={card}
-              copy={copy}
+              L={L}
               expanded={expanded === card.name}
               onToggle={onToggle}
             />
@@ -329,9 +305,9 @@ export function MMachinesView({
         <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
           style={{ border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-chip)', padding: '9px 12px',
             background: MC.runBg, color: MC.run, fontSize: 11, fontWeight: 650 }}>
-          {copy.add}
+          {L.machAdd}
         </button>
-        {vm.cards.length > 0 && <RegistryFooter copy={copy} />}
+        {vm.cards.length > 0 && <RegistryFooter L={L} />}
       </MScrollBody>
     </MSettingsFrame>
   );

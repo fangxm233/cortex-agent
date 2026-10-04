@@ -8,6 +8,9 @@ import type {
   UsageWindow,
 } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
+import { fmt } from '@/i18n/fmt';
+import { pickVocab } from '@/i18n/lang';
+import type { Vocab } from '@/i18n/vocab';
 import { formatUsd } from '@/lib/format';
 
 export type UsageQuotaState = 'available' | 'never' | 'unsupported';
@@ -76,21 +79,12 @@ export interface UsageView {
   providers: ProviderUsageView[];
 }
 
-const WINDOW_LABELS: Record<Lang, Record<string, string>> = {
-  en: {
-    five_hour: '5 hours',
-    seven_day: '7 days',
-    seven_day_overage_included: '7 days (incl. overage)',
-    codex_primary: 'Primary',
-    codex_secondary: 'Secondary',
-  },
-  zh: {
-    five_hour: '5 小时',
-    seven_day: '7 天',
-    seven_day_overage_included: '7 天（含超额）',
-    codex_primary: '主窗口',
-    codex_secondary: '次窗口',
-  },
+const WINDOW_LABEL_KEYS: Record<string, keyof Vocab> = {
+  five_hour: 'usageWindowFiveHour',
+  seven_day: 'usageWindowSevenDay',
+  seven_day_overage_included: 'usageWindowSevenDayOverage',
+  codex_primary: 'usageWindowCodexPrimary',
+  codex_secondary: 'usageWindowCodexSecondary',
 };
 
 /**
@@ -104,7 +98,7 @@ const PROVIDER_ORDER: Record<string, number> = {
 };
 
 const WEEKLY_WINDOW_TYPES = new Set(['seven_day', 'seven_day_overage_included']);
-const RENDERABLE_WINDOW_TYPES = new Set(Object.keys(WINDOW_LABELS.en));
+const RENDERABLE_WINDOW_TYPES = new Set(Object.keys(WINDOW_LABEL_KEYS));
 
 function target(provider: string, windowType?: string | null, windowLabel?: string | null): UsagePolicyTarget {
   return { provider, windowType: windowType ?? null, windowLabel: windowLabel ?? null };
@@ -194,16 +188,17 @@ function durationParts(seconds: number): [number, number, number] {
 
 export function formatUsageDuration(seconds: number, lang: Lang): string {
   const [days, hours, minutes] = durationParts(seconds);
-  const units = lang === 'zh' ? ['天', '小时', '分钟'] : ['d', 'h', 'm'];
-  const gap = lang === 'zh' ? '' : ' ';
-  if (days > 0) return hours > 0 ? `${days}${units[0]}${gap}${hours}${units[1]}` : `${days}${units[0]}`;
-  if (hours > 0) return minutes > 0 ? `${hours}${units[1]}${gap}${minutes}${units[2]}` : `${hours}${units[1]}`;
-  return `${minutes}${units[2]}`;
+  const L = pickVocab(lang);
+  const d = `${days}${L.timeUnitD}`, h = `${hours}${L.timeUnitH}`, m = `${minutes}${L.timeUnitM}`;
+  if (days > 0) return hours > 0 ? fmt(L.timePrecise, { major: d, minor: h }) : d;
+  if (hours > 0) return minutes > 0 ? fmt(L.timePrecise, { major: h, minor: m }) : h;
+  return m;
 }
 
 function windowLabel(window: UsageWindow, lang: Lang): string {
   if (window.label) return window.label;
-  return WINDOW_LABELS[lang][window.type] ?? window.type.replaceAll('_', ' ');
+  const key = Object.hasOwn(WINDOW_LABEL_KEYS, window.type) ? WINDOW_LABEL_KEYS[window.type] : undefined;
+  return key ? pickVocab(lang)[key] : window.type.replaceAll('_', ' ');
 }
 
 function utilizationLabel(utilization: number | null): string | null {

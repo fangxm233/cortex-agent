@@ -1,5 +1,7 @@
 import type { MachineDetail, MachineGpu, MachineLiveRun, MachineVitals } from '@cortex-agent/ui-contract';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
+import { fmt } from '@/i18n/fmt';
+import { pickVocab } from '@/i18n/lang';
 
 export interface MachineMeter {
   key: 'cpu' | 'mem' | 'disk';
@@ -83,16 +85,17 @@ export function formatSince(iso: string | null, lang: TimeLang, now: number = Da
 
 function buildMeters(vitals: MachineVitals | null, lang: TimeLang): MachineMeter[] {
   if (!vitals) return [];
+  const L = pickVocab(lang);
   const meters: MachineMeter[] = [];
   const { cpuCores, loadAvg1, memUsedMb, memTotalMb, diskFreeGb, diskTotalGb } = vitals;
   if (cpuCores !== null && loadAvg1 !== null) {
     meters.push({ key: 'cpu', label: 'CPU', percent: pct(loadAvg1, cpuCores), text: `${loadAvg1.toFixed(2)} / ${cpuCores}` });
   }
   if (memUsedMb !== null && memTotalMb !== null) {
-    meters.push({ key: 'mem', label: lang === 'zh' ? '内存' : 'RAM', percent: pct(memUsedMb, memTotalMb), text: `${gb(memUsedMb)} / ${gb(memTotalMb)} GB` });
+    meters.push({ key: 'mem', label: L.machRam, percent: pct(memUsedMb, memTotalMb), text: `${gb(memUsedMb)} / ${gb(memTotalMb)} GB` });
   }
   if (diskFreeGb !== null && diskTotalGb !== null) {
-    meters.push({ key: 'disk', label: lang === 'zh' ? '磁盘' : 'DISK', percent: pct(diskTotalGb - diskFreeGb, diskTotalGb), text: lang === 'zh' ? `剩余 ${diskFreeGb.toFixed(1)} GB` : `${diskFreeGb.toFixed(1)} GB free` });
+    meters.push({ key: 'disk', label: L.machDisk, percent: pct(diskTotalGb - diskFreeGb, diskTotalGb), text: fmt(L.machDiskFree, { n: diskFreeGb.toFixed(1) }) });
   }
   return meters;
 }

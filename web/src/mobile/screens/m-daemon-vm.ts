@@ -6,6 +6,8 @@ import {
   type DaemonRebuildVm,
   type DaemonVm,
 } from '@/features/daemon/daemon-vm';
+import { pickVocab } from '@/i18n/lang';
+import type { Vocab } from '@/i18n/vocab';
 import { relTime, type TimeLang } from '@/i18n/time-format';
 
 export type MDaemonProcess = DaemonProcessVm;
@@ -55,11 +57,13 @@ function fallbackProcesses(facts: DaemonVm, ok: boolean): MDaemonProcess[] {
   return [process('cortex-server'), process('cortex-daemon')];
 }
 
-const EXECUTION_TYPE_ZH: Record<ExecutionInfo['type'], string> = { local: '本地', dispatch: '派发' };
+const EXECUTION_TYPE_KEYS: Record<ExecutionInfo['type'], keyof Vocab> = { local: 'dmnLocal', dispatch: 'dmnExecDispatch' };
 
 function mapEvents(executions: ExecutionInfo[], now: number, lang: TimeLang): MDaemonEvent[] {
+  const L = pickVocab(lang);
   return executions.slice(0, MAX_EVENTS).map((execution) => {
-    const type = lang === 'zh' ? EXECUTION_TYPE_ZH[execution.type] ?? execution.type : execution.type;
+    const key = EXECUTION_TYPE_KEYS[execution.type];
+    const type = key ? L[key] : execution.type;
     return {
       id: execution.id,
       time: relTime(execution.startedAt, now, lang),
