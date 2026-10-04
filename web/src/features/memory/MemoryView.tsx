@@ -171,7 +171,7 @@ export function MemoryView(): JSX.Element {
   const file = fileQuery.data;
 
   const rows = buildTreeRows(treeFacts, effectivePath);
-  const dt = diffToggle(diffOn, lang);
+  const dt = diffToggle(diffOn, L);
   // Real per-file git line counts (memory.file.lineDiff); null → honest placeholder (never fabricated).
   const lineDiff = formatLineDiff(file?.lineDiff);
   // Real per-line git blame (memory.file.blame); null → honest placeholder (no per-line highlight).
@@ -253,7 +253,7 @@ export function MemoryView(): JSX.Element {
             }}
           >
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
-            <span style={{ fontSize: 11, color: 'var(--proto-accent-strong)' }}>{relTimeAgo(file?.modifiedAt, now, lang)}</span>
+            <span style={{ fontSize: 11, color: 'var(--proto-accent-strong)' }}>{relTimeAgo(file?.modifiedAt, now, lang, L)}</span>
             {/* Line-level +/− is REAL (git numstat vs HEAD). When the backend can't resolve it
                 (no git / not a repo / binary) lineDiff is null → honest placeholder, never fabricated.
                 Task ref + commit hash still have no backend scope → not shown (not fabricated). */}

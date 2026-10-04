@@ -10,37 +10,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
 import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
 import { buildIssuePrompt, toIssueDetail } from '@/features/issues/issues-vm';
-import { MIssuesView, type MIssuesCopy } from './MIssuesView';
-
-const COPY: { en: MIssuesCopy; zh: MIssuesCopy } = {
-  en: {
-    title: 'Issues',
-    del: 'Delete',
-    handle: 'Handle',
-    empty: 'No issues',
-    footer: 'Handle opens a new session and removes the issue; Delete removes it directly.',
-  },
-  zh: {
-    title: '问题',
-    del: '删除',
-    handle: '处理',
-    empty: '没有问题',
-    footer: '处理会新建会话并移除此问题；删除会直接移除。',
-  },
-};
+import { MIssuesView } from './MIssuesView';
 
 export function MIssuesScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const lang = useLang();
-  const copy = pickCopy(lang, COPY);
+  const L = useVocab();
   const { currentProjectId } = useCurrentProject();
 
   const listQuery = useQuery({
@@ -63,7 +44,6 @@ export function MIssuesScreen() {
   return (
     <MIssuesView
       cards={cards}
-      copy={copy}
       expandedId={expandedId}
       busy={busy}
       onBack={() => navigate('/m/project')}
@@ -74,7 +54,7 @@ export function MIssuesScreen() {
         const entry = entries.find((e) => e.id === id);
         if (!entry) return;
         // Pre-fill the new-session draft composer with the issue prompt (editable before send).
-        const prompt = buildIssuePrompt(currentProjectId, entry, lang);
+        const prompt = buildIssuePrompt(currentProjectId, entry, L);
         const key = draftStorageKey({ isDraft: true, projectId: currentProjectId });
         saveDraft(key, { text: prompt, attachments: [] });
         // Navigate to the draft chat screen.

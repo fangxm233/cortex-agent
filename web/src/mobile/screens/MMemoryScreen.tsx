@@ -7,38 +7,18 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
+import { useLang, useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { deriveMemoryTreeFacts } from '@/features/memory/memory-tree';
 import { MScreen, MC } from '@/mobile/ui/kit';
-import { MMemoryView, type MMemoryCopy } from './MMemoryView';
+import { MMemoryView } from './MMemoryView';
 import { buildMMemoryVm } from './m-memory-vm';
-
-const COPY: { en: MMemoryCopy; zh: MMemoryCopy } = {
-  en: {
-    title: 'Project memory',
-    core: 'Core',
-    filesUnit: 'files',
-    emptyDir: 'Empty',
-    footer: 'Read-only; rule and skill changes require approval.',
-    empty: 'No project memory yet',
-  },
-  zh: {
-    title: '项目记忆',
-    core: '核心',
-    filesUnit: '个文件',
-    emptyDir: '空',
-    footer: '只读预览；规则和技能修改需审批。',
-    empty: '暂无项目记忆',
-  },
-};
 
 export function MMemoryScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const lang = useLang();
-  const copy = pickCopy(lang, COPY);
+  const L = useVocab();
   const now = Date.now();
   const { currentProjectId } = useCurrentProject();
 
@@ -60,13 +40,12 @@ export function MMemoryScreen() {
   }, []);
 
   return (
-    <MScreen label="1j 项目记忆">
+    <MScreen label="1j memory">
       {treeQuery.isLoading ? (
-        <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
+        <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{L.memEmpty}</div>
       ) : (
         <MMemoryView
           vm={vm}
-          copy={copy}
           openDirs={openDirs}
           onToggleDir={toggleDir}
           onBack={() => navigate('/m/project')}

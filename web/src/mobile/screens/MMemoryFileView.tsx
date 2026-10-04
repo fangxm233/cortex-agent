@@ -1,11 +1,6 @@
 import { ChatMarkdown } from '@/design/ChatMarkdown';
+import { useVocabOptional } from '@/i18n';
 import { MDrillHeader, MC, MONO } from '@/mobile/ui/kit';
-
-export interface MMemoryFileCopy {
-  loading: string;
-  error: string;
-  empty: string;
-}
 
 export type MMemoryFileStatus = 'loading' | 'error' | 'ready' | 'empty';
 
@@ -14,19 +9,18 @@ export function MMemoryFileView({
   metaLine,
   content,
   status,
-  copy,
   onBack,
 }: {
   basename: string;
   metaLine: string;
   content: string;
   status: MMemoryFileStatus;
-  copy: MMemoryFileCopy;
   onBack: () => void;
 }) {
+  const copy = useVocabOptional();
   return (
     <div
-      data-screen-label="1j 项目记忆 · 文件"
+      data-screen-label="1j memory file"
       style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
     >
       <MDrillHeader onBack={onBack}>
@@ -63,13 +57,13 @@ export function MMemoryFileView({
       {/* white reading surface — real file markdown (read-only) */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--proto-card)' }}>
         {status === 'loading' && (
-          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.loading}</div>
+          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.memLoadingFile}</div>
         )}
         {status === 'error' && (
-          <div style={{ padding: 16, fontSize: 12.5, color: MC.fail }}>{copy.error}</div>
+          <div style={{ padding: 16, fontSize: 12.5, color: MC.fail }}>{copy.memFileReadError}</div>
         )}
         {status === 'empty' && (
-          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.empty}</div>
+          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.memFileEmpty}</div>
         )}
         {status === 'ready' && (
           <div
