@@ -40,6 +40,11 @@ export const chatEn = {
   chatDayFri: 'Fri',
   chatDaySat: 'Sat',
   chatRunTitle: '{message} · run #{n}',
+  navRail: 'Message navigation',
+  navJump: 'Jump to this message',
+  navAttachments: '+{n} more',
+  chatDetailLoading: 'Loading detail…',
+  chatDetailFailed: 'Failed to load detail.',
 };
 export const chatZh: Record<keyof typeof chatEn, string> = {
   chatCtxTitle: '上下文用量',
@@ -82,6 +87,11 @@ export const chatZh: Record<keyof typeof chatEn, string> = {
   chatDayFri: '五',
   chatDaySat: '六',
   chatRunTitle: '{message} · 第 {n} 次运行',
+  navRail: '消息导航',
+  navJump: '跳转到这条消息',
+  navAttachments: '+{n} 个附件',
+  chatDetailLoading: '加载详情中…',
+  chatDetailFailed: '详情加载失败。',
 };
 
 // Message edit / rewind chrome under transcript bubbles.

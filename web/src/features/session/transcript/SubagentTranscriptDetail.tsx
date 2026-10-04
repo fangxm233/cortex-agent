@@ -1,7 +1,7 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useQuery } from '@tanstack/react-query';
-import { useLang } from '@/i18n';
+import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import type { TranscriptMessage } from '@cortex-agent/ui-contract';
 import { buildTranscriptRows, type ChatRow } from './transcript-vm';
@@ -57,7 +57,7 @@ export function SubagentTranscriptDetail({ sessionId, subagentId, fallbackRows =
   render: (rows: ChatRow[]) => ReactNode;
 }): JSX.Element | null {
   const trpc = useTRPC();
-  const lang = useLang();
+  const L = useVocab();
 
   useEffect(() => registerActiveSubagentTranscript(sessionId, subagentId), [sessionId, subagentId]);
 
@@ -73,21 +73,21 @@ export function SubagentTranscriptDetail({ sessionId, subagentId, fallbackRows =
 
   if (query.isPending && fallbackRows.length > 0) return <>{render(fallbackRows)}</>;
   if (query.isPending) {
-    return <StatusLine>{lang === 'zh' ? '加载详情中…' : 'Loading detail…'}</StatusLine>;
+    return <StatusLine>{L.chatDetailLoading}</StatusLine>;
   }
   if (query.isError) {
     return (
       <>
         {fallbackRows.length > 0 ? render(fallbackRows) : null}
         <StatusLine>
-          {lang === 'zh' ? '详情加载失败。' : 'Failed to load detail.'}{' '}
+          {L.chatDetailFailed}{' '}
           <button
             type="button"
             className={MENU_FOCUS}
             onClick={() => { void query.refetch(); }}
             style={{ border: 0, padding: 0, background: 'transparent', color: 'var(--proto-accent)', cursor: 'pointer' }}
           >
-            {lang === 'zh' ? '重试' : 'Retry'}
+            {L.cmRetry}
           </button>
         </StatusLine>
       </>

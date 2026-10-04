@@ -1,26 +1,10 @@
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
-
-export interface MApprovalsCopy {
-  title: string;
-  toProcess: string;
-  /** Static tier label prefix — joined with the real operation as `{tier} · {operation}`. */
-  tier: string;
-  from: string;
-  paused: string;
-  approve: string;
-  reject: string;
-  feedbackPlaceholder: string;
-  seeDiff: string;
-  empty: string;
-  /** Group label for entries with no project attribution (projectId null). */
-  globalGroup: string;
-}
 
 export interface MApprovalsViewProps {
   vm: MApprovalsVm;
-  copy: MApprovalsCopy;
   /** Which card is expanded (defaults to the first pending id upstream); null when none pending. */
   expandedId: string | null;
   feedback: string;
@@ -34,7 +18,6 @@ export interface MApprovalsViewProps {
 
 export function MApprovalsView({
   vm,
-  copy,
   expandedId,
   feedback,
   busy,
@@ -44,18 +27,19 @@ export function MApprovalsView({
   onApprove,
   onReject,
 }: MApprovalsViewProps) {
+  const copy = useVocabOptional();
   return (
     <MScreen
-      label="1f 审批"
+      label="1f approvals"
       header={
         <MDrillHeader onBack={onBack}>
           <div
             style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', flex: 'none' }}
           >
-            {copy.title}
+            {copy.approvals}
           </div>
           <MPill tone="waiting">
-            {vm.pendingCount} {copy.toProcess}
+            {vm.pendingCount} {copy.apprToProcess}
           </MPill>
         </MDrillHeader>
       }
@@ -63,13 +47,13 @@ export function MApprovalsView({
       <MScrollBody gap={10}>
         {vm.cards.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
-            {copy.empty}
+            {copy.apprEmpty}
           </div>
         )}
         {/* Project groups (current → 全局 → others) — each labelled with its real projectId. */}
         {vm.groups.map((group) => (
           <div key={group.projectId ?? '__global__'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <GroupDivider label={group.projectId ?? copy.globalGroup} />
+            <GroupDivider label={group.projectId ?? copy.apprGlobalGroup} />
             {group.cards.map((card) =>
               card.id === expandedId ? (
                 <ExpandedCard
@@ -106,7 +90,7 @@ function GroupDivider({ label }: { label: string }) {
 }
 
 // The amber tier pill — static label `审批` joined with the real operation (scheme L368).
-function TierPill({ copy, operation }: { copy: MApprovalsCopy; operation: string }) {
+function TierPill({ copy, operation }: { copy: Vocab; operation: string }) {
   return (
     <span
       style={{
@@ -122,7 +106,7 @@ function TierPill({ copy, operation }: { copy: MApprovalsCopy; operation: string
         textOverflow: 'ellipsis',
       }}
     >
-      {copy.tier} · {operation}
+      {copy.apprTier} · {operation}
     </span>
   );
 }
@@ -138,7 +122,7 @@ function ExpandedCard({
   onReject,
 }: {
   card: MApprovalCard;
-  copy: MApprovalsCopy;
+  copy: Vocab;
   feedback: string;
   busy: boolean;
   onFeedback: (value: string) => void;
@@ -205,12 +189,12 @@ function ExpandedCard({
         <div style={{ fontSize: 12, lineHeight: 1.55, color: MC.sub, marginTop: 4 }}>
           {card.provenance && (
             <>
-              {copy.from}{' '}
+              {copy.apFrom}{' '}
               <span style={{ font: `400 11px ${MONO}`, color: MC.run }}>{card.provenance}</span>
               {' · '}
             </>
           )}
-          {copy.paused}
+          {copy.apprPaused}
         </div>
         <textarea
           data-approval-feedback={true}
@@ -218,8 +202,8 @@ function ExpandedCard({
           disabled={busy}
           rows={2}
           onChange={(event) => onFeedback(event.target.value)}
-          placeholder={copy.feedbackPlaceholder}
-          aria-label={copy.feedbackPlaceholder}
+          placeholder={copy.apprFeedbackPlaceholder}
+          aria-label={copy.apprFeedbackPlaceholder}
           style={{
             width: '100%',
             minHeight: 58,
@@ -241,7 +225,7 @@ function ExpandedCard({
       {/* decision buttons follow the desktop order: reject, then approve */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
         <DecisionButton kind="outline" busy={busy} onClick={() => onReject(card.id, feedback)}>
-          {copy.reject}
+          {copy.apprRejectFeedback}
         </DecisionButton>
         <DecisionButton kind="ink" busy={busy} onClick={() => onApprove(card.id)}>
           {copy.approve}
@@ -299,10 +283,10 @@ function CollapsedCard({
   onExpand,
 }: {
   card: MApprovalCard;
-  copy: MApprovalsCopy;
+  copy: Vocab;
   onExpand: (id: string) => void;
 }) {
-  const sub = [card.id, card.provenance ? `${copy.from} ${card.provenance}` : null, copy.seeDiff]
+  const sub = [card.id, card.provenance ? `${copy.apFrom} ${card.provenance}` : null, copy.apprSeeDiff]
     .filter(Boolean)
     .join(' · ');
   return (

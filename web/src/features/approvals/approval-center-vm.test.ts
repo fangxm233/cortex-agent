@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
+import { en, zh } from '@/i18n';
 import { defaultSelectedId, pendingLabel, statusPill } from './approval-center-vm';
 
 function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
@@ -37,9 +38,9 @@ describe('defaultSelectedId', () => {
 
 describe('approval copy language', () => {
   it('renders pills and the pending count in the UI language', () => {
-    expect(statusPill('approved', 'en').text).toBe('✓ approved');
-    expect(statusPill('approved', 'zh').text).toBe('✓ 已批准');
-    expect(pendingLabel(2, 'en')).toBe('2 approvals pending');
-    expect(pendingLabel(2, 'zh')).toBe('2 条待审批');
+    expect(statusPill('approved', en).text).toBe('✓ approved');
+    expect(statusPill('approved', zh).text).toBe('✓ 已批准');
+    expect(pendingLabel(2, en)).toBe('2 approvals pending');
+    expect(pendingLabel(2, zh)).toBe('2 条待审批');
   });
 });

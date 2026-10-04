@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useLang, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import {
   defaultSelectedId,
   pendingLabel,
@@ -53,14 +53,13 @@ interface ApprovalCenterViewProps {
 
 function ApprovalCenterView(props: ApprovalCenterViewProps) {
   const L = useVocab();
-  const lang = useLang();
   const { entries, selectedId, armed, feedback, pending } = props;
   const count = entries.length;
   const hasItems = count > 0;
   // The displayed entry is the source of truth for the footer actions, so Approve/Reject always act
   // on what the user sees. The container already defaulted the selection to the first entry.
   const selected = entries.find((e) => e.id === selectedId) ?? null;
-  const detail = selected ? toDetail(selected, lang) : null;
+  const detail = selected ? toDetail(selected, L) : null;
 
   return (
     <>
@@ -141,7 +140,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                 }}
               />
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-amber-fg)'  }}>
-                {pendingLabel(count, lang)}
+                {pendingLabel(count, L)}
               </span>
             </span>
           )}
