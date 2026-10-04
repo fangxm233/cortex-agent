@@ -230,8 +230,8 @@ export function MChatScreen(): JSX.Element {
     if (!isScheduledRun || !active?.scheduleId) return null;
     const sched = (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null;
     const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(sched, runs, active.sessionId, lang);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data, lang]);
+    return scheduledRunTitle(sched, runs, active.sessionId, vocab);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data, vocab]);
 
   const transcriptQuery = useTranscriptQuery(sessionId);
   // This visible transcript alone opts into deltas; transcript snapshots self-heal missed delivery.

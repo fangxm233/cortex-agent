@@ -153,8 +153,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const runTitle = useMemo(() => {
     if (!isScheduledRun || !active?.scheduleId) return null;
     const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(activeSchedule, runs, active.sessionId, lang);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data, lang]);
+    return scheduledRunTitle(activeSchedule, runs, active.sessionId, L);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data, L]);
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   const title = isDraft
