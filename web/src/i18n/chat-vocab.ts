@@ -18,6 +18,14 @@ export const chatEn = {
   chatSlashCompact: 'Compact this session',
   chatSlashProfile: 'Switch this session profile',
   chatSlashSettings: 'Open settings',
+  chatStar: 'Star',
+  chatUnstar: 'Unstar',
+  chatTitleLabel: 'Session title',
+  chatSave: 'Save',
+  chatSaving: 'Saving…',
+  chatInvalidTitle: 'Enter a title of 1–60 characters.',
+  chatUpdateFailed: 'Could not update the session.',
+  chatStars: 'Stars',
 };
 export const chatZh: Record<keyof typeof chatEn, string> = {
   chatCtxTitle: '上下文用量',
@@ -38,4 +46,12 @@ export const chatZh: Record<keyof typeof chatEn, string> = {
   chatSlashCompact: '压缩此会话',
   chatSlashProfile: '切换此会话的配置',
   chatSlashSettings: '打开设置',
+  chatStar: '添加星标',
+  chatUnstar: '取消星标',
+  chatTitleLabel: '会话标题',
+  chatSave: '保存',
+  chatSaving: '保存中…',
+  chatInvalidTitle: '请输入 1–60 个字符的标题。',
+  chatUpdateFailed: '无法更新会话。',
+  chatStars: '星标',
 };
