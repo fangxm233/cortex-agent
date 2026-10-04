@@ -12,6 +12,7 @@ import type {
 import type { Vocab } from '@/i18n';
 import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
+import type { ToolCallImage } from '@/features/session/composer/chat-content';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
 // `sessions.transcript` DTO (+ a live `session.message` tail) into the prototype's exact message-row
@@ -173,6 +174,14 @@ export interface DebugToolDetail {
   overCharacterThreshold?: true;
 }
 
+export interface ToolCallEntry {
+  kind: string;
+  input: string;
+  /** The images the call's result carried; absent for every other call. */
+  images?: ToolCallImage[];
+  debug?: DebugToolDetail;
+}
+
 export type ChatRow =
   | { kind: 'divider'; text: string }
   // `turnIndex` is the rewind anchor (sessions.rewind) — absent on live-tail rows (not editable
@@ -184,7 +193,9 @@ export type ChatRow =
   // user bubble: the stream renders it as a one-line hint, it offers no copy/edit/rewind (there is
   // no human message to rewind to) and it raises no nav-rail mark.
   | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; systemOrigin?: SystemTurnOrigin; debug?: { agentMessage: string } }
-  | { kind: 'tools'; count: number; calls: { kind: string; input: string; debug?: DebugToolDetail }[] }
+  // `count` is the number of calls. A run of consecutive calls splits into at most two rows: the
+  // calls whose result carried images, and the rest — see `flushTools`.
+  | { kind: 'tools'; count: number; calls: ToolCallEntry[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   // `preview` marks the ONE row that is the block being written right now (the token-level
   // accumulation), as opposed to a message the backend has committed. `streaming` cannot express
@@ -564,7 +575,13 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
  *  each open subagent block has one. */
 interface RowSink {
   rows: ChatRow[];
-  toolBuf: { kind: string; input: string; debug?: DebugToolDetail }[];
+  toolBuf: ToolCallEntry[];
+}
+
+/** The image attachments a tool row's result carried, as the row renders them. */
+function toolCallImages(attachments: readonly Attachment[] | undefined): ToolCallImage[] | undefined {
+  const images = attachments?.filter((a) => a.type === 'image').map((a) => ({ name: a.name, path: a.path }));
+  return images?.length ? images : undefined;
 }
 
 /** Both spellings ship: `Agent` in current backends, `Task` historically and in session JSONL. */
@@ -698,9 +715,18 @@ export function buildTranscriptRows(
     liveOpen?: boolean;
   }>();
 
+  /**
+   * A run of consecutive calls becomes one row, except that the calls whose result carried images
+   * are pulled out into a row of their own. The two rows keep the order of their first calls.
+   */
   const flushTools = (sink: RowSink): void => {
     if (sink.toolBuf.length === 0) return;
-    sink.rows.push({ kind: 'tools', count: sink.toolBuf.length, calls: sink.toolBuf });
+    const withImages = sink.toolBuf.filter((call) => call.images);
+    const plain = sink.toolBuf.filter((call) => !call.images);
+    const groups = sink.toolBuf[0].images ? [withImages, plain] : [plain, withImages];
+    for (const calls of groups) {
+      if (calls.length > 0) sink.rows.push({ kind: 'tools', count: calls.length, calls });
+    }
     sink.toolBuf = [];
   };
   const flushAll = (): void => {
@@ -827,9 +853,11 @@ export function buildTranscriptRows(
     if (m.type === 'tool') {
       if (block && !block.summary) block.row.toolCount += 1;
       const debug = m.debug;
+      const images = toolCallImages(m.attachments);
       sink.toolBuf.push({
         kind: toolCallLabel(m.toolName ?? '', m.toolDevice),
         input: m.toolInput ?? '',
+        ...(images ? { images } : {}),
         ...(debug && (debug.toolRef || debug.toolInput !== undefined || debug.toolResult !== undefined)
           ? { debug: {
               ...(debug.toolRef ? { toolRef: debug.toolRef } : {}),

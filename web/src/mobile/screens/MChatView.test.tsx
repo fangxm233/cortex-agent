@@ -340,6 +340,24 @@ describe('MChatStream subagent prompt', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
+  it('hands a tool row\'s images to the touch tool row, inside a subagent block too', () => {
+    const images = [{ name: 'tu-0.png', path: 'workspace/tool-images/s1/tu-0.png' }];
+    const rows: ChatRow[] = [
+      { kind: 'tools', count: 1, calls: [{ kind: 'Read', input: '/a.png', images }] },
+      {
+        kind: 'subagent', id: 'tu_img', agentType: 'explore', description: 'look', prompt: null, model: null,
+        status: 'done', toolCount: 1, children: [{ kind: 'tools', count: 1, calls: [{ kind: 'Read', input: '/b.png', images }] }],
+      },
+    ];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<LangProvider><MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" /></LangProvider>);
+    });
+    act(() => renderer.root.findAllByProps({ role: 'button' }).at(-1)!.props.onClick());
+    const passed = renderer.root.findAllByType(ToolCallsRow).map((row) => row.props.calls[0].images);
+    expect(passed).toEqual([images, images]);
+  });
+
   it('loads lazy detail only after expand and keeps the mobile body to tools plus assistant prose', () => {
     const rows: ChatRow[] = [{
       kind: 'subagent', id: 'tu_lazy', agentType: 'explore', description: 'Inspect mobile',

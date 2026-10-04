@@ -81,6 +81,8 @@ export const chatEn = {
   chatAwaitingAnswerStatus: 'awaiting your answer{counter} · agent paused',
   chatCancelReject: 'Cancel reject',
   chatCancelEdit: 'Cancel edit',
+  chatToolImagesOne: 'Read {n} image',
+  chatToolImagesMany: 'Read {n} images',
 };
 export const chatZh: Record<keyof typeof chatEn, string> = {
   chatCtxTitle: '上下文用量',
@@ -164,6 +166,8 @@ export const chatZh: Record<keyof typeof chatEn, string> = {
   chatAwaitingAnswerStatus: '等待你的回答{counter} · Agent 已暂停',
   chatCancelReject: '取消驳回',
   chatCancelEdit: '取消编辑',
+  chatToolImagesOne: '读取了 {n} 张图片',
+  chatToolImagesMany: '读取了 {n} 张图片',
 };
 
 // Message edit / rewind chrome under transcript bubbles.

@@ -1,9 +1,10 @@
-import { useRef, useState, type CSSProperties, type MouseEvent, type Ref } from 'react';
+import { useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type Ref } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from '@/features/session/composer/chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
+import { ToolCallImages } from './ToolCallImages';
 import { toolCallOverflowText } from './tool-call-overflow';
 import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflow';
 
@@ -46,6 +47,7 @@ const expandedCallStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
   padding: '6px 13px', borderTop: '1px solid var(--proto-line-2)',
 };
+const callDividerStyle: CSSProperties = { borderTop: '1px solid var(--proto-line-2)' };
 const kindStyle: CSSProperties = {
   font: `600 11px ${mono}`, color: 'var(--proto-muted)',
   background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '1.5px 7px',
@@ -108,10 +110,7 @@ function ToolChip({ call }: { call: ToolCall }): JSX.Element {
   );
 }
 
-// The summary row is the same in both states — expanding flips its caret and hangs a panel under
-// it rather than replacing it, so the chips stay readable while the detail is open.
-function ToolCallsSummaryRow({ calls, text, expanded, hover, touch, onToggle, onHover, buttonRef }: {
-  calls: ToolCall[];
+interface SummaryProps {
   text: string;
   expanded: boolean;
   hover: boolean;
@@ -119,28 +118,42 @@ function ToolCallsSummaryRow({ calls, text, expanded, hover, touch, onToggle, on
   onToggle: () => void;
   onHover: (hovered: boolean) => void;
   buttonRef: Ref<HTMLButtonElement>;
+}
+
+// The summary row is the same in both states — expanding flips its caret and hangs a panel under
+// it rather than replacing it, so the chips stay readable while the detail is open.
+function SummaryButton({ text, expanded, hover, touch, onToggle, onHover, buttonRef, children }: SummaryProps & {
+  children?: ReactNode;
 }): JSX.Element {
-  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.kind), COLLAPSED_GAP);
-  const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <div>
       <button ref={buttonRef} type="button" className={MENU_FOCUS} aria-expanded={expanded} onClick={onToggle} onMouseEnter={touch ? undefined : () => onHover(true)} onMouseLeave={touch ? undefined : () => onHover(false)} style={collapsedRowStyle(hover, touch)}>
         <span style={{ fontSize: 9, color: 'var(--proto-muted)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
         <span style={{ flex: 'none' }}>{text}</span>
-        <span ref={containerRef} style={collapsedCallsStyle}>
-          {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
-          {overflowText ? <span style={overflowStyle}>{overflowText}</span> : null}
-          <span ref={measureRef} aria-hidden="true" style={measureStyle}>
-            {calls.slice(0, TOOL_CALL_MEASURE_CAP).map((call, index) => <ToolChip key={index} call={call} />)}
-            <span style={overflowStyle}>+{calls.length}</span>
-          </span>
-        </span>
+        {children}
       </button>
     </div>
   );
 }
 
-function ExpandedToolCall({ call, first, touch, onInspect }: {
+function ToolCallsSummaryRow({ calls, ...summary }: SummaryProps & { calls: ToolCall[] }): JSX.Element {
+  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.kind), COLLAPSED_GAP);
+  const overflowText = toolCallOverflowText(layout.hiddenCount);
+  return (
+    <SummaryButton {...summary}>
+      <span ref={containerRef} style={collapsedCallsStyle}>
+        {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
+        {overflowText ? <span style={overflowStyle}>{overflowText}</span> : null}
+        <span ref={measureRef} aria-hidden="true" style={measureStyle}>
+          {calls.slice(0, TOOL_CALL_MEASURE_CAP).map((call, index) => <ToolChip key={index} call={call} />)}
+          <span style={overflowStyle}>+{calls.length}</span>
+        </span>
+      </span>
+    </SummaryButton>
+  );
+}
+
+function ExpandedCallLine({ call, first, touch, onInspect }: {
   call: ToolCall;
   first: boolean;
   touch: boolean;
@@ -153,6 +166,29 @@ function ExpandedToolCall({ call, first, touch, onInspect }: {
       {call.debug ? <DebugInspectButton compact hoverGroup="tool-call" visible={touch} onClick={(event) => onInspect(event, call)} /> : null}
     </div>
   );
+}
+
+/** One call in the open panel; a call that returned images hangs them under its line. */
+function ExpandedToolCall({ call, first, touch, onInspect }: {
+  call: ToolCall;
+  first: boolean;
+  touch: boolean;
+  onInspect: Inspect;
+}): JSX.Element {
+  if (!call.images?.length) return <ExpandedCallLine call={call} first={first} touch={touch} onInspect={onInspect} />;
+  return (
+    <div style={first ? undefined : callDividerStyle}>
+      <ExpandedCallLine call={call} first touch={touch} onInspect={onInspect} />
+      <ToolCallImages images={call.images} />
+    </div>
+  );
+}
+
+/** Images read across the row's calls; a row is an image row when every call returned some. */
+function imageCount(calls: ToolCall[]): number {
+  return calls.every((call) => call.images?.length)
+    ? calls.reduce((total, call) => total + call.images!.length, 0)
+    : 0;
 }
 
 function ExpandedToolCalls({ calls, selected, touch, onInspect, onClose, onCollapse }: {
@@ -185,7 +221,10 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
   const [selected, setSelected] = useState<DebugDetail | null>(null);
-  const text = calls.length > 1 ? `${calls.length} ${L.toolCallsUnit}` : `1 ${L.toolCallUnit}`;
+  const images = imageCount(calls);
+  const text = images > 0
+    ? fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images })
+    : calls.length > 1 ? `${calls.length} ${L.toolCallsUnit}` : `1 ${L.toolCallUnit}`;
   const inspect: Inspect = (event, call) => {
     event.stopPropagation();
     const detail = detailFor(call);
@@ -202,7 +241,9 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
   const collapse = (): void => { setExpanded(false); buttonRef.current?.focus(); };
   return (
     <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: touch ? touchMargin(expanded) : '-8px 0' }}>
-      <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />
+      {images > 0
+        ? <SummaryButton text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />
+        : <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />}
       {expanded ? <ExpandedToolCalls calls={calls} selected={selected} touch={touch} onInspect={inspect} onClose={() => setSelected(null)} onCollapse={collapse} /> : null}
     </div>
   );

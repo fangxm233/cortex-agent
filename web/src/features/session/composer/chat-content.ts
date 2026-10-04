@@ -1,8 +1,16 @@
 import type { Vocab } from '@/i18n';
 
+/** An image a tool call returned to the model, filed under the session's workspace. */
+export interface ToolCallImage {
+  name: string;
+  path: string;
+}
+
 export interface ToolCall {
   kind: string;
   input: string;
+  /** Present only when the call's result carried images; such calls render in their own row. */
+  images?: ToolCallImage[];
   debug?: {
     toolRef?: string;
     toolInput?: unknown;

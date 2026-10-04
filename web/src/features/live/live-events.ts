@@ -47,6 +47,8 @@ export const SESSION_LIVE_EVENTS = [
   'session.decision',
   'session.rewound',
   'session.debug.updated',
+  // A tool call's returned images were filed onto its row: refetch to pick them up.
+  'session.tool-images',
 ] as const;
 
 /**

@@ -338,4 +338,17 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
       unregister();
     }
   });
+
+  it('refetches the transcript and open subagent details when a call\'s images were filed', () => {
+    const unregister = registerActiveSubagentTranscript('s1', 'child-1');
+    try {
+      act(() => {
+        harness.liveHandler?.({ type: 'session.tool-images', payload: { sessionId: 's1' } });
+      });
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1' } });
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1', subagentId: 'child-1' } });
+    } finally {
+      unregister();
+    }
+  });
 });

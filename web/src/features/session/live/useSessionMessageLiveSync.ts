@@ -319,9 +319,9 @@ export function useSessionMessageLiveSync(
         invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;
       }
-      // Full prompt/tool results never ride SSE. This content-free hint fires only after the
-      // DEBUG sidecar is durable, so the authoritative query can safely reveal the inspector data.
-      if (raw.type === 'session.debug.updated') {
+      // Full prompt/tool results never ride SSE. These content-free hints fire only after the DEBUG
+      // sidecar or a call's returned images are durable; the authoritative query then carries them.
+      if (raw.type === 'session.debug.updated' || raw.type === 'session.tool-images') {
         invalidateTranscriptQuery(queryClient, trpc, sessionId);
         invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;

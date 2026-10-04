@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
+import { useNearViewport } from '@/features/media/useNearViewport';
+import { stageFallback, thumbStageStyle } from '@/features/media/thumb-stage';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
@@ -15,7 +17,6 @@ import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from '@/
 import { viewGroupBox, widestViewWidth } from './view-width';
 
 const mono = "'IBM Plex Mono',monospace";
-const stageFallback = 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)';
 
 const mediaNameStyle: CSSProperties = {
   position: 'absolute', left: 6, bottom: 5, font: `500 11px ${mono}`, color: 'var(--proto-muted)',
@@ -27,15 +28,6 @@ const smallPlayStyle: CSSProperties = {
   height: 26, borderRadius: '50%', background: 'var(--media-control-bg-strong)', color: 'var(--ink-solid-fg)',
   fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 2, boxSizing: 'border-box',
 };
-
-function thumbStageStyle(url: string | null, width: number, height: number): CSSProperties {
-  return {
-    position: 'relative', width, height, borderRadius: 'var(--r-card)',
-    boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
-    background: url ? 'var(--media-stage-bg)' : stageFallback, boxSizing: 'border-box', flex: 'none',
-    overflow: 'hidden', cursor: 'pointer',
-  };
-}
 
 function ThumbBody({ url, kind, name }: {
   url: string | null;
@@ -170,21 +162,6 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
       </span>
     </div>
   );
-}
-
-function useNearViewport(hostRef: React.RefObject<HTMLDivElement>): boolean {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const element = hostRef.current;
-    if (!element || visible) return;
-    if (typeof IntersectionObserver !== 'function') { setVisible(true); return; }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) { setVisible(true); observer.disconnect(); }
-    }, { rootMargin: '400px' });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [hostRef, visible]);
-  return visible;
 }
 
 type ViewAction = () => void;

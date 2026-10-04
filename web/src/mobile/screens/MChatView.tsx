@@ -179,7 +179,11 @@ function MToolCallsRow({ row, sessionId }: {
   row: Extract<ChatRow, { kind: 'tools' }>;
   sessionId?: string;
 }): JSX.Element {
-  const calls = row.calls.map((call) => ({ kind: call.kind, input: call.input, ...(call.debug ? { debug: call.debug } : {}) }));
+  const calls = row.calls.map((call) => ({
+    kind: call.kind, input: call.input,
+    ...(call.images ? { images: call.images } : {}),
+    ...(call.debug ? { debug: call.debug } : {}),
+  }));
   return <ToolCallsRow calls={calls} sessionId={sessionId} touch />;
 }
 

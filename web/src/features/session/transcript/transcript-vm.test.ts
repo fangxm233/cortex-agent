@@ -239,6 +239,70 @@ describe('buildTranscriptRows', () => {
     });
   });
 
+  describe('calls whose result carried images', () => {
+    const img = (name: string) => ({ name, path: `workspace/tool-images/s1/${name}`, size: 4, mimeType: 'image/png', type: 'image' as 'image' | 'file' });
+    const tool = (toolName: string, toolInput: string, attachments?: ReturnType<typeof img>[], extra: Record<string, unknown> = {}) => ({
+      type: 'tool' as const, text: null, toolName, toolInput, ts: T, elapsedMs: 0,
+      ...(attachments ? { attachments } : {}), ...extra,
+    });
+    const user = { type: 'user' as const, text: 'go', toolName: null, toolInput: null, ts: T, elapsedMs: null };
+    const toolRows = (rows: ChatRow[]) => rows.filter((r): r is Extract<ChatRow, { kind: 'tools' }> => r.kind === 'tools');
+
+    it('split out of a run into one image row, the two rows ordered by their first call', () => {
+      const plainFirst = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user, tool('Bash', 'ls'), tool('Read', '/a.png', [img('a-0.png')]), tool('Grep', 'x'), tool('Read', '/b.png', [img('b-0.png'), img('b-1.png')]),
+      ] }]), []));
+      expect(plainFirst).toEqual([
+        { kind: 'tools', count: 2, calls: [{ kind: 'Bash', input: 'ls' }, { kind: 'Grep', input: 'x' }] },
+        { kind: 'tools', count: 2, calls: [
+          { kind: 'Read', input: '/a.png', images: [{ name: 'a-0.png', path: 'workspace/tool-images/s1/a-0.png' }] },
+          { kind: 'Read', input: '/b.png', images: [
+            { name: 'b-0.png', path: 'workspace/tool-images/s1/b-0.png' },
+            { name: 'b-1.png', path: 'workspace/tool-images/s1/b-1.png' },
+          ] },
+        ] },
+      ]);
+
+      const imageFirst = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user, tool('Read', '/a.png', [img('a-0.png')]), tool('Bash', 'ls'),
+      ] }]), []));
+      expect(imageFirst.map((r) => r.calls.map((c) => c.kind))).toEqual([['Read'], ['Bash']]);
+    });
+
+    it('a run of image reads alone is one row; non-image attachments do not count', () => {
+      const onlyImages = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user, tool('Read', '/a.png', [img('a-0.png')]), tool('Read', '/b.png', [img('b-0.png')]),
+      ] }]), []));
+      expect(onlyImages).toHaveLength(1);
+      expect(onlyImages[0].count).toBe(2);
+
+      const fileOnly = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user, tool('Read', '/a.pdf', [{ ...img('a.pdf'), type: 'file' }]),
+      ] }]), []));
+      expect(fileOnly[0].calls[0].images).toBeUndefined();
+    });
+
+    it('splits inside a subagent block the same way', () => {
+      const rows = buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user,
+        tool('Agent', 'look', undefined, { subagentSpawns: [{ id: 'sub-1', type: 'explore', description: 'look' }] }),
+        tool('Read', '/a.png', [img('a-0.png')], { subagentId: 'sub-1' }),
+        tool('Bash', 'ls', undefined, { subagentId: 'sub-1' }),
+      ] }]), [], { running: true });
+      const block = rows.find((r): r is Extract<ChatRow, { kind: 'subagent' }> => r.kind === 'subagent');
+      expect(toolRows(block!.children).map((r) => r.calls.map((c) => c.kind))).toEqual([['Read'], ['Bash']]);
+    });
+
+    it('the refetched row with images wins over the live call that arrived without them', () => {
+      const live: LiveSessionMessage[] = [{ sessionId: 's1', role: 'tool', text: '', toolName: 'Read', toolInput: '/a.png', ts: T }];
+      const before = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [user] }]), live));
+      expect(before[0].calls[0].images).toBeUndefined();
+      const after = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [user, tool('Read', '/a.png', [img('a-0.png')])] }]), live));
+      expect(after).toHaveLength(1);
+      expect(after[0].calls[0].images).toHaveLength(1);
+    });
+  });
+
   it('preserves DEBUG agent messages and complete per-tool input/results on their rows', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [
