@@ -21,13 +21,13 @@ const noop = () => {};
 describe('mobile Usage entry', () => {
   it('puts a Usage key directly before the settings gear', () => {
     const onUsage = vi.fn();
-    const tree = create(<MProjectView
+    const tree = create(<LangProvider><MProjectView
       copy={{ title: 'Project', usage: 'Usage', settings: 'Settings' } as MProjectCopy}
       current={null} pendingApprovals={0} globalPendingApprovals={0} issues={{ count: 0, previews: [] }}
       notesVm={buildMNotesVm([], Date.now(), 'en')} notesCopy={NOTES_COPY.en} notesBusy={false}
       switchRows={[]} rateLimitStatus={null} onOpenRateLimit={noop} onIssues={noop} onNotes={noop}
       onAddNote={async () => undefined} onApprovals={noop} onMemory={noop} onUsage={onUsage}
-      onSettings={noop} onSwitch={noop} onNewProject={noop} />);
+      onSettings={noop} onSwitch={noop} onNewProject={noop} /></LangProvider>);
     const labels = tree.root.findAll((node) => node.type === 'button' && node.props['aria-label'])
       .map((node) => node.props['aria-label']);
     expect(labels.indexOf('Usage')).toBe(labels.indexOf('Settings') - 1);

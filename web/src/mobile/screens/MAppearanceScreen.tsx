@@ -9,61 +9,7 @@ import {
   useActivePreset, useApplyPreset, useResetPalette,
   useTheme, useSetTheme,
 } from '@/theme';
-import { pickCopy } from '@/mobile/ui/format';
-import { MAppearanceView, type MAppearanceCopy } from './MAppearanceView';
-
-const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
-  en: {
-    title: 'Appearance',
-    language: 'Language',
-    languageHint: "Used for the UI and Cortex's replies.",
-    languageEnvPinned: 'Pinned by CORTEX_LANG; reverts to it after a server restart.',
-    theme: 'Theme', themeLight: 'Light', themeDark: 'Dark', themeSystem: 'System',
-    palette: {
-      presets: 'Presets', custom: 'custom', reset: 'Reset',
-      background: 'Background', foreground: 'Foreground',
-      hue: 'Hue', tint: 'Tint', lightness: 'Light', contrast: 'Contrast',
-      presetNames: {
-        default: 'Default', graphite: 'Graphite', sepia: 'Sepia', indigo: 'Indigo',
-        forest: 'Forest', rose: 'Rose', deep: 'Deep',
-      },
-    },
-    accent: 'Accent color', accentDefault: 'Default indigo', accentBlue: 'Blue', accentTeal: 'Teal',
-    accentViolet: 'Violet', accentRose: 'Rose', accentOrange: 'Orange',
-    accentCustom: 'Custom accent hue', accentReset: 'Reset',
-    accentIntensity: 'Intensity', accentIntensitySoft: 'Soft',
-    accentIntensityNormal: 'Normal', accentIntensityVivid: 'Vivid',
-    glass: 'Glass',
-    glassHint: 'Pick Off if scrolling feels slow — every surface turns solid.',
-    glassOff: 'Off', glassSubtle: 'Subtle', glassMedium: 'Medium', glassStrong: 'Strong',
-    motion: 'Motion', motionSystem: 'System', motionFull: 'Full', motionReduced: 'Reduced',
-  },
-  zh: {
-    title: '外观',
-    language: '语言',
-    languageHint: '用于界面和 Cortex 的回复。',
-    languageEnvPinned: '已由 CORTEX_LANG 固定，服务端重启后恢复为该值。',
-    theme: '主题', themeLight: '浅色', themeDark: '深色', themeSystem: '跟随系统',
-    palette: {
-      presets: '预设', custom: '自定义', reset: '恢复默认',
-      background: '背景', foreground: '前景',
-      hue: '色相', tint: '着色', lightness: '明度', contrast: '对比',
-      presetNames: {
-        default: '默认', graphite: '石墨', sepia: '暖褐', indigo: '靛青',
-        forest: '森林', rose: '玫瑰', deep: '深邃',
-      },
-    },
-    accent: '强调色', accentDefault: '默认靛蓝', accentBlue: '蓝色', accentTeal: '青色',
-    accentViolet: '紫色', accentRose: '玫红', accentOrange: '橙色',
-    accentCustom: '自定义强调色色相', accentReset: '恢复默认',
-    accentIntensity: '浓度', accentIntensitySoft: '柔和',
-    accentIntensityNormal: '标准', accentIntensityVivid: '鲜明',
-    glass: '毛玻璃',
-    glassHint: '滚动卡顿时选“关闭”，所有表面变为不透明。',
-    glassOff: '关闭', glassSubtle: '轻微', glassMedium: '适中', glassStrong: '强烈',
-    motion: '动效', motionSystem: '跟随系统', motionFull: '完整', motionReduced: '减弱',
-  },
-};
+import { MAppearanceView } from './MAppearanceView';
 
 export function MAppearanceScreen() {
   const navigate = useNavigate();
@@ -87,7 +33,6 @@ export function MAppearanceScreen() {
   const setMotionMode = useSetMotionMode();
   return (
     <MAppearanceView
-      copy={pickCopy(lang, COPY)}
       lang={lang}
       langSource={langSource}
       onSetLang={setLang}

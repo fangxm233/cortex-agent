@@ -1,5 +1,5 @@
 import type { EnvironmentDetail, EnvironmentEntry } from '@cortex-agent/ui-contract';
-import type { Lang } from '@/i18n';
+import { en, type Vocab } from '@/i18n/vocab';
 
 /** Mirrors the server's environment name pattern so a doomed name is caught before a trip. */
 export const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -55,27 +55,15 @@ export interface ParsedEditor {
   parseError: string | null;
 }
 
-const EDITOR_ERRORS = {
-  en: {
-    bodyEmpty: 'Body is empty',
-    bodyNotObject: 'Body must be a JSON object',
-    nameRequired: 'Name is required',
-    nameInvalid: "Name must start with a letter or digit and contain only letters, digits, '-' and '_'",
-  },
-  zh: {
-    bodyEmpty: '内容为空',
-    bodyNotObject: '内容必须是 JSON 对象',
-    nameRequired: '名称不能为空',
-    nameInvalid: "名称须以字母或数字开头，且只能包含字母、数字、'-' 和 '_'",
-  },
-} as const;
+/** The vocab words the editor checks report; English by default (non-UI callers and tests). */
+export type EditorErrorVocab = Pick<Vocab, 'setEnvBodyEmpty' | 'setEnvBodyNotObject' | 'setEnvNameRequired' | 'setEnvNameInvalid'>;
 
-export function parseEditor(text: string, lang: Lang = 'en'): ParsedEditor {
-  if (text.trim() === '') return { body: null, parseError: EDITOR_ERRORS[lang].bodyEmpty };
+export function parseEditor(text: string, L: EditorErrorVocab = en): ParsedEditor {
+  if (text.trim() === '') return { body: null, parseError: L.setEnvBodyEmpty };
   try {
     const parsed = JSON.parse(text);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { body: null, parseError: EDITOR_ERRORS[lang].bodyNotObject };
+      return { body: null, parseError: L.setEnvBodyNotObject };
     }
     return { body: parsed as Record<string, unknown>, parseError: null };
   } catch (error) {
@@ -88,9 +76,9 @@ export function isDirty(text: string, loaded: string): boolean {
   return text !== loaded;
 }
 
-export function validateName(name: string, lang: Lang = 'en'): string | null {
-  if (name.trim() === '') return EDITOR_ERRORS[lang].nameRequired;
-  if (!ENVIRONMENT_NAME_PATTERN.test(name)) return EDITOR_ERRORS[lang].nameInvalid;
+export function validateName(name: string, L: EditorErrorVocab = en): string | null {
+  if (name.trim() === '') return L.setEnvNameRequired;
+  if (!ENVIRONMENT_NAME_PATTERN.test(name)) return L.setEnvNameInvalid;
   return null;
 }
 

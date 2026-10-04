@@ -1,43 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
-import { useLang } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
-import { MUsageView, type MUsageCopy } from './MUsageView';
-
-const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
-  en: {
-    title: 'Usage', refresh: 'Refresh', refreshing: 'Refreshing…', loading: 'Loading usage…',
-    loadError: 'Failed to load usage', refreshError: 'Refresh failed', empty: 'No usage data',
-    quota: 'Quota', neverObserved: 'Never observed',
-    unavailable: 'Unavailable', gatewaySpend: 'Gateway spend', today: 'Today', month: 'Month',
-    observed: 'Observed', ago: '{d} ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
-    policy: {
-      title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
-      save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
-      throttleAt: 'Throttle at', throttleOff: 'No throttle',
-      legacyFallbackTitle: 'Legacy fallback',
-      legacyFallbackBody: 'Unset rows still use the old throttle policy.',
-      clearLegacy: 'Clear legacy fallback',
-      toggleLabel: 'Usage throttle {key}',
-    },
-  },
-  zh: {
-    title: '用量', refresh: '刷新', refreshing: '刷新中…', loading: '正在加载用量…',
-    loadError: '加载用量失败', refreshError: '刷新失败', empty: '暂无用量数据',
-    quota: '配额', neverObserved: '尚未观测',
-    unavailable: '不可用', gatewaySpend: '网关消费额', today: '今日', month: '本月',
-    observed: '观测于', ago: '{d}前', resetsIn: '重置还需', resetElapsed: '重置时间已过',
-    policy: {
-      title: '限流阈值', enabled: '启用', disabled: '关闭', threshold: '阈值',
-      save: '保存', saving: '保存中…', resetDefault: '恢复默认',
-      throttleAt: '限流', throttleOff: '不限流',
-      legacyFallbackTitle: '旧版兜底',
-      legacyFallbackBody: '未设置的行仍按旧限流策略执行。',
-      clearLegacy: '清除旧版兜底',
-      toggleLabel: '限流开关 {key}',
-    },
-  },
-};
+import { MUsageView } from './MUsageView';
 
 // Usage is reachable both from its Settings row and from the Project header's Usage key; back
 // returns to whichever opened it.
@@ -46,12 +9,10 @@ export interface UsageNavState { from?: 'project' }
 export function MUsageScreen() {
   const navigate = useNavigate();
   const fromProject = (useLocation().state as UsageNavState | null)?.from === 'project';
-  const copy = pickCopy(useLang(), COPY);
   const usage = useUsage();
   return (
       <MUsageView
         view={usage.view}
-        copy={copy}
         isLoading={usage.isLoading}
         queryError={usage.queryError}
         refreshError={usage.refreshError}

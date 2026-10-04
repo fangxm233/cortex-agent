@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import type { Tone } from '@/design/tone';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { rebuildStatusTone } from '@/features/daemon/daemon-vm';
-import { useLang, useVocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
 import { BUILD_STAMP } from '@/lib/build-info';
@@ -61,23 +61,16 @@ const STATUS_PILL_STYLE: CSSProperties = {
   borderRadius: 'var(--r-pill)',
 };
 
-// Daemon-specific words; process / rebuild status values from the server map through `status`,
-// anything unlisted is shown as sent.
-const DAEMON_COPY = {
-  en: {
-    local: 'local', build: 'build', loadFailed: 'Failed to load daemon status',
-    status: { running: 'running', stopped: 'stopped', unknown: 'unknown', succeeded: 'succeeded', aborted: 'aborted', deferred: 'deferred' } as Record<string, string>,
-  },
-  zh: {
-    local: '本地', build: '构建', loadFailed: '无法加载守护进程状态',
-    status: { running: '运行中', stopped: '已停止', unknown: '未知', succeeded: '成功', aborted: '已中止', deferred: '已推迟' } as Record<string, string>,
-  },
+// Process / rebuild status values from the server map through these vocab keys; anything unlisted
+// is shown as sent.
+const STATUS_KEYS: Record<string, keyof Vocab> = {
+  running: 'dmnStatusRunning', stopped: 'dmnStatusStopped', unknown: 'dmnStatusUnknown',
+  succeeded: 'dmnStatusSucceeded', aborted: 'dmnStatusAborted', deferred: 'dmnStatusDeferred',
 };
 
 export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
   const L = useVocab();
-  const copy = DAEMON_COPY[useLang()];
-  const statusWord = (status: string) => copy.status[status] ?? status;
+  const statusWord = (status: string) => (Object.hasOwn(STATUS_KEYS, status) ? L[STATUS_KEYS[status]] : status);
   const [confirmHard, setConfirmHard] = useState(false);
   const daemon = useDaemonResource({ enabled: open });
   const { processes, lastRestart, rebuild } = daemon.facts;
@@ -160,7 +153,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                 marginTop: 1,
               }}
             >
-              {copy.local} · {copy.build} {BUILD_STAMP}
+              {L.dmnLocal} · {L.dmnBuild} {BUILD_STAMP}
             </div>
           </div>
           <span
@@ -195,7 +188,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           )}
           {daemon.error && (
             <div style={{ fontSize: 12, color: 'var(--proto-danger)', textAlign: 'center', padding: 20 }}>
-              {copy.loadFailed}
+              {L.dmnLoadFailed}
             </div>
           )}
 

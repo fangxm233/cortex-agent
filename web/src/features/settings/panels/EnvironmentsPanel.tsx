@@ -2,7 +2,7 @@ import '@/features/settings/ui/desktop-panels.css';
 import { useEffect, useState } from 'react';
 import type { EnvironmentDetail, EnvironmentEntry, EnvironmentIssue } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useLang, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import { SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
 import { useEnvironmentsController } from '@/features/settings/controllers/useEnvironmentsController';
 import {
@@ -195,7 +195,6 @@ export function EnvironmentsPanelView(props: EnvironmentsPanelViewProps) {
 
 export function EnvironmentsPanel({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const L = useVocab();
-  const lang = useLang();
   const { toast } = useToast();
 
   const [creating, setCreating] = useState(false);
@@ -280,7 +279,7 @@ export function EnvironmentsPanel({ onDirtyChange }: { onDirtyChange?: (dirty: b
   };
 
   const parsedOrToast = () => {
-    const parsed = parseEditor(currentText, lang);
+    const parsed = parseEditor(currentText, L);
     if (parsed.body === null) toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
     return parsed.body;
   };

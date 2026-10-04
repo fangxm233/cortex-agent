@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthAccountStatus, ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import { ProviderSetupController, readyProfiles, orderedProviders, setupErrorText } from './provider-setup';
+import { en, zh } from '@/i18n';
 
 const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => ({
   backend: 'pi', provider: 'openai', label: 'OpenAI', state: 'logged-in',
@@ -125,16 +126,16 @@ describe('provider onboarding', () => {
 
 describe('setupErrorText', () => {
   it('localizes setup codes and leaves raw detail alone', () => {
-    expect(setupErrorText('not-installed', 'zh')).toBe('Claude Code 仍未安装');
-    expect(setupErrorText('no-endpoints', 'zh')).toBe('no-endpoints');
+    expect(setupErrorText('not-installed', zh)).toBe('Claude Code 仍未安装');
+    expect(setupErrorText('no-endpoints', zh)).toBe('no-endpoints');
   });
   it('localizes native Claude setup codes and keeps their detail', () => {
-    expect(setupErrorText('claude_local_required', 'zh')).toContain('本机 Cortex 设置连接');
-    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', 'zh'))
+    expect(setupErrorText('claude_local_required', zh)).toContain('本机 Cortex 设置连接');
+    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', zh))
       .toBe('Claude Code 安装失败 (exit 1: npm ERR! 404)');
-    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', 'en'))
+    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', en))
       .toBe('Claude Code installation failed (exit 1: npm ERR! 404)');
-    expect(setupErrorText('Claude Code installation failed (exit 1)', 'zh')).toBe('Claude Code installation failed (exit 1)');
-    expect(setupErrorText('unknown_code: x', 'zh')).toBe('unknown_code: x');
+    expect(setupErrorText('Claude Code installation failed (exit 1)', zh)).toBe('Claude Code installation failed (exit 1)');
+    expect(setupErrorText('unknown_code: x', zh)).toBe('unknown_code: x');
   });
 });

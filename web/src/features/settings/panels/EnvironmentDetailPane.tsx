@@ -1,6 +1,6 @@
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import type { EnvironmentDetail, EnvironmentIssue } from '@cortex-agent/ui-contract';
-import { useLang, useVocab, type Vocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import {
   SButton,
   SCount,
@@ -319,15 +319,15 @@ function DetailBody(props: EnvironmentDetailPaneProps & {
   dirty: boolean;
   issues: { errors: EnvironmentIssue[]; warnings: EnvironmentIssue[] };
 }) {
-  const lang = useLang();
+  const L = useVocab();
   return (
     <div className="settings-detail-fields" style={PANE_BODY_STYLE}>
       <DetailNotices
-        nameError={props.creating ? validateName(props.draftName, lang) : null}
+        nameError={props.creating ? validateName(props.draftName, L) : null}
         forkWarn={!props.creating && props.dirty && forksFromDefaults(props.detail)}
       />
       {props.tab === 'body' ? (
-        <BodyTab text={props.text} parseError={parseEditor(props.text, lang).parseError} onText={props.onText} />
+        <BodyTab text={props.text} parseError={parseEditor(props.text, L).parseError} onText={props.onText} />
       ) : null}
       {props.tab === 'validation' ? <ValidationTab issues={props.issues} /> : null}
       {props.tab === 'plugins' && showsPluginTab(props.creating) ? (

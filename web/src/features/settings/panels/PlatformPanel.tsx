@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import type { ConfigSnapshot, PlatformSettingsSnapshot, PlatformSettingsPatch } from '@cortex-agent/ui-contract';
-import { useLang, useVocab, type Vocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import { apiBase } from '@/lib/desktop-config';
 import { PlatformConnectionFields } from './PlatformConnectionFields';
 import { PlatformRuntimeFields, type PlatformRuntimePatch } from './PlatformRuntimeFields';
@@ -45,7 +45,7 @@ function PlatformHeaderNotes({ platform }: { platform: PlatformSettingsSnapshot 
 
 function PlatformHeader({ platform }: { platform: PlatformSettingsSnapshot }) {
   const L = useVocab();
-  const feishuGlyph = useLang() === 'zh' ? '飞' : 'F';
+  const feishuGlyph = L.setFeishuGlyph;
   const title = platform.platform === 'feishu' ? L.psFeishu : L.psSlack;
   const status = statusPill(platform, L);
   const guide = platform.platform === 'feishu' ? 'https://open.feishu.cn/document/develop-an-echo-bot/introduction'

@@ -3,7 +3,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { preventSelectOutsideInteraction } from '@/design/select-outside-interaction';
@@ -226,7 +226,7 @@ function SettingsNav(props: SettingsNavProps) {
         ))}
       </div>
       <div className="settings-nav-build" style={{ padding: '10px 10px 0', font: `400 11px ${MONO}`, color: 'var(--proto-muted-2)', flex: 'none' }}>
-        Cortex · {BUILD_STAMP}
+        {fmt(L.setNavBuild, { build: BUILD_STAMP })}
       </div>
     </div>
   );

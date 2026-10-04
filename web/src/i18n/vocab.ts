@@ -15,6 +15,10 @@ import {
 import { chatEn, chatZh, messageEn, messageZh } from './chat-vocab';
 import { interactionEn, interactionZh } from './interaction-vocab';
 import { railEn, railZh } from './rail-vocab';
+import { daemonEn, daemonZh } from './daemon-vocab';
+import { machinesEn, machinesZh } from './machines-vocab';
+import { usageEn, usageZh } from './usage-vocab';
+import { settingsSystemEn, settingsSystemZh } from './settings-system-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -43,6 +47,10 @@ export const en = {
   ...railEn,
   ...approvalsEn,
   ...attachmentsEn,
+  ...daemonEn,
+  ...machinesEn,
+  ...usageEn,
+  ...settingsSystemEn,
 };
 
 export type Vocab = typeof en;
@@ -70,4 +78,8 @@ export const zh: Record<keyof Vocab, string> = {
   ...railZh,
   ...approvalsZh,
   ...attachmentsZh,
+  ...daemonZh,
+  ...machinesZh,
+  ...usageZh,
+  ...settingsSystemZh,
 };

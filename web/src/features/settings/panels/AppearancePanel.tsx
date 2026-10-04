@@ -100,7 +100,8 @@ function ThemeSection() {
 
 // ── Colour ──────────────────────────────────────────────────────────────────
 
-function usePaletteCopy(): PaletteControlsCopy {
+/** Palette control labels, shared with the mobile Appearance screen. */
+export function usePaletteCopy(): PaletteControlsCopy {
   const L = useVocab();
   return {
     presets: L.stPalettePresets, custom: L.stPaletteCustom, reset: L.stPaletteReset,
@@ -115,7 +116,8 @@ function usePaletteCopy(): PaletteControlsCopy {
   };
 }
 
-function useAccentCopy(): AccentPickerCopy {
+/** Accent picker labels, shared with the mobile Appearance screen. */
+export function useAccentCopy(): AccentPickerCopy {
   const L = useVocab();
   return {
     label: L.stAccentLabel, default: L.stAccentDefault, blue: L.stAccentBlue,

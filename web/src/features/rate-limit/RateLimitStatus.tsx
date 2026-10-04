@@ -5,15 +5,11 @@ import { useTRPC } from '@/lib/trpc';
 import { Popover } from '@/design/Popover';
 import { MBottomSheet } from '@/design';
 import { MC, MONO } from '@/design/mobile-tokens';
-import type { Lang } from '@/i18n';
+import { useVocab } from '@/i18n';
 import type { RateLimitProviderView, RateLimitView } from './rate-limit-vm';
 
 interface StatusProps {
   status: RateLimitView | null;
-}
-
-function statusAriaLabel(lang: Lang): string {
-  return lang === 'zh' ? '限流状态' : 'Rate limit status';
 }
 
 // Radix Popover.Trigger (asChild) injects its interaction props (onClick, aria-*, data-state)
@@ -24,15 +20,16 @@ function statusAriaLabel(lang: Lang): string {
 // carrying the waiting tokens, which is what distinguishes "wait it out" from "act on it".
 const RailBannerTrigger = forwardRef<
   HTMLButtonElement,
-  { label: string; lang: Lang } & ButtonHTMLAttributes<HTMLButtonElement>
->(function RailBannerTrigger({ label, lang, ...triggerProps }, ref) {
+  { label: string } & ButtonHTMLAttributes<HTMLButtonElement>
+>(function RailBannerTrigger({ label, ...triggerProps }, ref) {
+  const L = useVocab();
   return (
     <button
       ref={ref}
       type="button"
       {...triggerProps}
       className={`content-surface ${triggerProps.className ?? ''}`}
-      aria-label={statusAriaLabel(lang)}
+      aria-label={L.rlStatusAria}
       title={label}
       style={{
         width: '100%',
@@ -71,7 +68,7 @@ const RailBannerTrigger = forwardRef<
 export function RailRateLimitStatus({ status }: StatusProps): JSX.Element | null {
   if (!status) return null;
   return (
-    <Popover trigger={<RailBannerTrigger label={status.label} lang={status.lang} />} side="top" align="center">
+    <Popover trigger={<RailBannerTrigger label={status.label} />} side="top" align="center">
       <RateLimitDetails status={status} />
     </Popover>
   );
@@ -81,12 +78,13 @@ export function MobileRateLimitStatus({
   status,
   onOpen,
 }: StatusProps & { onOpen: () => void }): JSX.Element | null {
+  const L = useVocab();
   if (!status) return null;
   return (
     <button
       type="button"
       className="content-surface"
-      aria-label={statusAriaLabel(status.lang)}
+      aria-label={L.rlStatusAria}
       title={status.label}
       onClick={onOpen}
       style={{
@@ -108,17 +106,6 @@ export function MobileRateLimitStatus({
   );
 }
 
-function detailsCopy(status: RateLimitView): { title: string; recovers: string } {
-  return status.lang === 'zh'
-    ? { title: '限流详情', recovers: '后恢复' }
-    : { title: 'Rate limits', recovers: 'to reset' };
-}
-
-function clearButtonCopy(lang: Lang, busy: boolean): string {
-  if (lang === 'zh') return busy ? '清除中…' : '立即清除';
-  return busy ? 'Clearing…' : 'Clear now';
-}
-
 function clearButtonStyle(mobile: boolean, busy: boolean): CSSProperties {
   const border = mobile ? MC.amberBorder : 'var(--pill-waiting-bg)';
   return {
@@ -130,7 +117,8 @@ function clearButtonStyle(mobile: boolean, busy: boolean): CSSProperties {
 }
 
 /** Lifts the provider's throttle early via system.clearRateLimit; refreshes the status query. */
-function ClearRateLimitButton({ provider, lang, mobile = false }: { provider: string; lang: Lang; mobile?: boolean }): JSX.Element {
+function ClearRateLimitButton({ provider, mobile = false }: { provider: string; mobile?: boolean }): JSX.Element {
+  const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const clearMut = useMutation(trpc.system.clearRateLimit.mutationOptions({
@@ -140,11 +128,11 @@ function ClearRateLimitButton({ provider, lang, mobile = false }: { provider: st
   return (
     <button
       type="button" disabled={busy}
-      title={lang === 'zh' ? '立即结束此限流，恢复等待中的工作' : 'Lift this rate limit now and resume paused work'}
+      title={L.rlClearTitle}
       onClick={() => clearMut.mutate({ provider })}
       style={clearButtonStyle(mobile, busy)}
     >
-      {clearButtonCopy(lang, busy)}
+      {busy ? L.rlClearing : L.rlClear}
     </button>
   );
 }
@@ -164,9 +152,10 @@ function ProviderWindows(props: { provider: RateLimitProviderView; recovers: str
 }
 
 function ProviderDetails(props: {
-  provider: RateLimitProviderView; index: number; status: RateLimitView; mobile: boolean;
+  provider: RateLimitProviderView; index: number; mobile: boolean;
 }) {
-  const { provider, index, status, mobile } = props;
+  const { provider, index, mobile } = props;
+  const L = useVocab();
   const muted = mobile ? MC.muted : 'var(--proto-muted)';
   const line = mobile ? MC.hairline : 'var(--proto-line)';
   const amber = mobile ? MC.amberText : 'var(--pill-waiting-fg)';
@@ -175,24 +164,24 @@ function ProviderDetails(props: {
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700 }}>{provider.displayName}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ClearRateLimitButton provider={provider.provider} lang={status.lang} mobile={mobile} />
+          <ClearRateLimitButton provider={provider.provider} mobile={mobile} />
           <span style={{ font: `600 11px ${MONO}`, color: amber }}>{provider.recoveryCountdown}</span>
         </span>
       </div>
       <div style={{ marginTop: 4, color: muted, font: `500 11px ${MONO}` }}>{provider.waitingLabel}</div>
-      <ProviderWindows provider={provider} recovers={detailsCopy(status).recovers} muted={muted} />
+      <ProviderWindows provider={provider} recovers={L.rlRecovers} muted={muted} />
     </div>
   );
 }
 
 export function RateLimitDetails({ status, mobile = false }: { status: RateLimitView; mobile?: boolean }): JSX.Element {
-  const copy = detailsCopy(status);
+  const L = useVocab();
   const ink = mobile ? MC.ink : 'var(--proto-ink)';
   return (
     <div className="content-surface" style={{ minWidth: mobile ? 0 : 230, color: ink }}>
-      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{copy.title}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{L.rlDetailsTitle}</div>
       {status.providers.map((provider, index) => (
-        <ProviderDetails key={provider.provider} provider={provider} index={index} status={status} mobile={mobile} />
+        <ProviderDetails key={provider.provider} provider={provider} index={index} mobile={mobile} />
       ))}
     </div>
   );

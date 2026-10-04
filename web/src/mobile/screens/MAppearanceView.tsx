@@ -4,58 +4,19 @@ import { MC } from '@/mobile/ui/kit';
 import { SSegmented } from '@/features/settings/ui/settings-kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
-import type { Lang, LangSource } from '@/i18n';
+import { useVocab, type Lang, type LangSource } from '@/i18n';
+import { useAccentCopy, usePaletteCopy } from '@/features/settings/panels/AppearancePanel';
 import {
   AccentPicker,
   PaletteControls,
   type AccentHue,
   type AccentIntensity,
-  type AccentPickerCopy,
   type GlassLevel,
   type MotionMode,
   type Palette,
-  type PaletteControlsCopy,
   type PaletteKey,
   type Theme,
 } from '@/theme';
-
-export interface MAppearanceCopy {
-  title: string;
-  language: string;
-  /** Says the switch also changes the language Cortex writes in — not just this UI. */
-  languageHint: string;
-  /** Shown instead of the plain hint when CORTEX_LANG pins the language server-side. */
-  languageEnvPinned: string;
-  theme: string;
-  themeLight: string;
-  themeDark: string;
-  themeSystem: string;
-  palette: PaletteControlsCopy;
-  accent: string;
-  accentDefault: string;
-  accentBlue: string;
-  accentTeal: string;
-  accentViolet: string;
-  accentRose: string;
-  accentOrange: string;
-  accentCustom: string;
-  accentReset: string;
-  accentIntensity: string;
-  accentIntensitySoft: string;
-  accentIntensityNormal: string;
-  accentIntensityVivid: string;
-  glass: string;
-  /** Says what the levels actually change, and that Off is the one to pick when scrolling drags. */
-  glassHint: string;
-  glassOff: string;
-  glassSubtle: string;
-  glassMedium: string;
-  glassStrong: string;
-  motion: string;
-  motionSystem: string;
-  motionFull: string;
-  motionReduced: string;
-}
 
 function Card({ children }: { children: ReactNode }) {
   return (
@@ -100,19 +61,14 @@ function ChoiceRow<T extends string>({ title, hint, divider, ...segment }: {
 }
 
 // The swatch strip plus hue slider needs the full row width, so it stacks instead of sitting inline.
-function AccentRow({ copy, hue, onChange }: {
-  copy: MAppearanceCopy;
+function AccentRow({ hue, onChange }: {
   hue: AccentHue;
   onChange: (hue: AccentHue) => void;
 }) {
-  const pickerCopy: AccentPickerCopy = {
-    label: copy.accent, default: copy.accentDefault, blue: copy.accentBlue,
-    teal: copy.accentTeal, violet: copy.accentViolet, rose: copy.accentRose,
-    orange: copy.accentOrange, custom: copy.accentCustom, reset: copy.accentReset,
-  };
+  const pickerCopy = useAccentCopy();
   return (
     <div style={{ ...rowStyle(true), display: 'block' }}>
-      <div style={TITLE}>{copy.accent}</div>
+      <div style={TITLE}>{pickerCopy.label}</div>
       <div style={{ marginTop: 9 }}>
         <AccentPicker hue={hue} copy={pickerCopy} onChange={onChange} compact />
       </div>
@@ -121,7 +77,6 @@ function AccentRow({ copy, hue, onChange }: {
 }
 
 export function MAppearanceView({
-  copy,
   lang,
   langSource,
   onSetLang,
@@ -142,7 +97,6 @@ export function MAppearanceView({
   onSetMotionMode,
   onBack,
 }: {
-  copy: MAppearanceCopy;
   lang: Lang;
   /** 'env' means CORTEX_LANG re-wins on the next server restart; anything else is a real choice. */
   langSource?: LangSource;
@@ -164,13 +118,15 @@ export function MAppearanceView({
   onSetMotionMode: (mode: MotionMode) => void;
   onBack: () => void;
 }) {
+  const L = useVocab();
+  const paletteCopy = usePaletteCopy();
   return (
     <MScreen
-      label="1l-ap 外观"
+      label="1l-ap appearance"
       header={
         <MDrillHeader onBack={onBack}>
           <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
-            {copy.title}
+            {L.stNavAppearance}
           </div>
         </MDrillHeader>
       }
@@ -178,17 +134,17 @@ export function MAppearanceView({
       <MScrollBody>
         <Card>
           <ChoiceRow
-            divider title={copy.language} ariaLabel={copy.language} value={lang}
-            hint={langSource === 'env' ? copy.languageEnvPinned : copy.languageHint}
+            divider title={L.stLangLabel} ariaLabel={L.stLangLabel} value={lang}
+            hint={langSource === 'env' ? L.stLangEnvPinned : L.stLangHint}
             options={[{ id: 'en', label: 'EN' }, { id: 'zh', label: '中' }] as const}
             onChange={onSetLang}
           />
           <ChoiceRow
-            divider={false} title={copy.theme} ariaLabel={copy.theme} value={theme}
+            divider={false} title={L.stThemeLabel} ariaLabel={L.stThemeLabel} value={theme}
             options={[
-              { id: 'light', label: copy.themeLight },
-              { id: 'dark', label: copy.themeDark },
-              { id: 'system', label: copy.themeSystem },
+              { id: 'light', label: L.stThemeLight },
+              { id: 'dark', label: L.stThemeDark },
+              { id: 'system', label: L.stThemeSystem },
             ] as const}
             onChange={onSetTheme}
           />
@@ -197,18 +153,18 @@ export function MAppearanceView({
         <Card>
           <div style={{ ...rowStyle(true), display: 'block' }}>
             <PaletteControls
-              palette={palette} copy={copy.palette} activePreset={activePreset}
+              palette={palette} copy={paletteCopy} activePreset={activePreset}
               onPickPreset={onPickPreset} onChange={onSetPaletteValue} onReset={onResetPalette}
             />
           </div>
-          <AccentRow copy={copy} hue={accentHue} onChange={onSetAccentHue} />
+          <AccentRow hue={accentHue} onChange={onSetAccentHue} />
           <ChoiceRow
-            divider={false} title={copy.accentIntensity} ariaLabel={copy.accentIntensity}
+            divider={false} title={L.appearIntensity} ariaLabel={L.appearIntensity}
             value={accentIntensity}
             options={[
-              { id: 'soft', label: copy.accentIntensitySoft },
-              { id: 'normal', label: copy.accentIntensityNormal },
-              { id: 'vivid', label: copy.accentIntensityVivid },
+              { id: 'soft', label: L.stAccentIntensitySoft },
+              { id: 'normal', label: L.stAccentIntensityNormal },
+              { id: 'vivid', label: L.stAccentIntensityVivid },
             ] as const}
             onChange={onSetAccentIntensity}
           />
@@ -216,21 +172,21 @@ export function MAppearanceView({
 
         <Card>
           <ChoiceRow
-            divider title={copy.glass} hint={copy.glassHint} ariaLabel={copy.glass} value={glass}
+            divider title={L.stGlassLabel} hint={L.stGlassHint} ariaLabel={L.stGlassLabel} value={glass}
             options={[
-              { id: 'off', label: copy.glassOff },
-              { id: 'subtle', label: copy.glassSubtle },
-              { id: 'medium', label: copy.glassMedium },
-              { id: 'strong', label: copy.glassStrong },
+              { id: 'off', label: L.stGlassOff },
+              { id: 'subtle', label: L.stGlassSubtle },
+              { id: 'medium', label: L.stGlassMedium },
+              { id: 'strong', label: L.stGlassStrong },
             ] as const}
             onChange={onSetGlass}
           />
           <ChoiceRow
-            divider={false} title={copy.motion} ariaLabel={copy.motion} value={motionMode}
+            divider={false} title={L.stMotionLabel} ariaLabel={L.stMotionLabel} value={motionMode}
             options={[
-              { id: 'system', label: copy.motionSystem },
-              { id: 'full', label: copy.motionFull },
-              { id: 'reduced', label: copy.motionReduced },
+              { id: 'system', label: L.stMotionSystem },
+              { id: 'full', label: L.stMotionFull },
+              { id: 'reduced', label: L.stMotionReduced },
             ] as const}
             onChange={onSetMotionMode}
           />

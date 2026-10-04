@@ -123,10 +123,8 @@ function ToastBubble({ item, onDismiss }: BubbleProps) {
   );
 }
 
-const OVERFLOW_HINT = { en: 'more · click to expand', zh: '更多 · 点击展开' };
-
 function OverflowControl({ count, onExpand }: { count: number; onExpand: () => void }) {
-  const hint = OVERFLOW_HINT[useLangOptional()];
+  const hint = useVocabOptional().toastOverflowHint;
   return (
     <button type="button" onClick={onExpand} className={[
       'pointer-events-auto flex items-center gap-[7px] rounded-full px-[12px] py-[5px]', SHELL_CLASS,
