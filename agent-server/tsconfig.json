@@ -17,15 +17,14 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "@core/*":     ["src/core/*"],
-      "@store/*":    ["src/store/*"],
-      "@events/*":   ["src/events/*"],
-      "@domain/*":   ["src/domain/*"],
-      "@platform/*": ["src/platform/*"],
-      "@orch/*":     ["src/orchestration/*"],
-      "@entry/*":    ["src/entry/*"]
+      "@core/*":     ["./src/core/*"],
+      "@store/*":    ["./src/store/*"],
+      "@events/*":   ["./src/events/*"],
+      "@domain/*":   ["./src/domain/*"],
+      "@platform/*": ["./src/platform/*"],
+      "@orch/*":     ["./src/orchestration/*"],
+      "@entry/*":    ["./src/entry/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]

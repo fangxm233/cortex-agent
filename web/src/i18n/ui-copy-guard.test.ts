@@ -2,9 +2,10 @@
 // rejects local { en, zh } copy tables, language branches that pick strings, CJK literals, and
 // English JSX text / visible attribute literals that are not in the short allowlist below.
 // UI_COPY_SCOPE=features/foo,mobile/screens narrows the scan to path prefixes under src/.
+// Parses with TypeScript 5.9 (the `typescript-5` alias): TypeScript 7 ships no JS compiler API.
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import ts from 'typescript-5';
 import { describe, expect, it } from 'vitest';
 
 const SRC = path.resolve(import.meta.dirname, '..');
