@@ -10,7 +10,8 @@ import type {
 } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import {
-  createPIEventParserState, piContextUsageFromStats, piEventToNormalized, type PIEventParserState,
+  createPIEventParserState, piContextUsageFromStats, piEventToNormalized, withoutUnseenImages,
+  type PIEventParserState,
 } from './event-parser.js';
 import type { PiSessionRequest } from './session-options.js';
 import type { PiRawEvent, PiRuntimeFactory, PiRuntimeHandle } from './runtime.js';
@@ -346,7 +347,8 @@ export class PISession {
     this.resetIdleTimer();
     this.bumpTurnIdleTimer();
     this.observeLoop(event);
-    for (const evt of piEventToNormalized(event, this.parserState)) {
+    const seen = withoutUnseenImages(event, this.handle?.session.model);
+    for (const evt of piEventToNormalized(seen, this.parserState)) {
       const output = this.processPendingTurnEvent(evt);
       if (output !== null) this.emitWithContext(output);
     }

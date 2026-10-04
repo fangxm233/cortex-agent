@@ -20,7 +20,7 @@ export interface ChildSessionRequest {
   extensions: InlineExtension[];
 }
 
-export type ChildAgentSession = Pick<AgentSession, 'prompt' | 'subscribe' | 'abort'>;
+export type ChildAgentSession = Pick<AgentSession, 'prompt' | 'subscribe' | 'abort'> & Partial<Pick<AgentSession, 'model'>>;
 
 export interface ChildSessionHandle {
   session: ChildAgentSession;

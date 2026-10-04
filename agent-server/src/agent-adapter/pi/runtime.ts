@@ -26,7 +26,7 @@ export type PiRawEvent = Record<string, unknown> & { type: string };
  *  The optional members are only inspected by the SDK smoke runner, so a fake may omit them. */
 export type PiAgentSessionLike = Pick<
   AgentSession, 'sessionId' | 'sessionFile' | 'isStreaming' | 'prompt' | 'steer' | 'abort' | 'compact' | 'getSessionStats'
-> & Partial<Pick<AgentSession, 'agent' | 'settingsManager' | 'getContextUsage' | 'isCompacting'>>;
+> & Partial<Pick<AgentSession, 'agent' | 'settingsManager' | 'getContextUsage' | 'isCompacting' | 'model'>>;
 
 export interface PiRuntimeHandle {
   readonly session: PiAgentSessionLike;

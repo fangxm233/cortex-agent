@@ -7,6 +7,7 @@ import type {
 } from '@core/agents/subagent/types.js';
 import { createChildSession, type ChildSessionFactory, type ChildSessionHandle } from './child-session.js';
 import { messageEndMessage, textFromMessage } from './child-events.js';
+import { withoutUnseenImages } from './event-parser.js';
 import { PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV } from './session-options.js';
 
 /** The parent's current model, offered when neither the task nor the role names one. */
@@ -97,7 +98,8 @@ async function collectChild(
   if (signal?.aborted) throw new Error('Subagent was aborted.');
   const accumulator: ChildAccumulator = { output: '', usage: emptyUsage() };
   const unsubscribe = handle.session.subscribe((event) => {
-    processEvent(accumulator, event as unknown as Record<string, unknown>, forward);
+    const raw = event as unknown as Record<string, unknown>;
+    processEvent(accumulator, withoutUnseenImages(raw, handle.session.model), forward);
   });
   const onAbort = (): void => { void handle.session.abort().catch(() => undefined); };
   signal?.addEventListener('abort', onAbort, { once: true });

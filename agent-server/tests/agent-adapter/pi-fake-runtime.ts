@@ -25,6 +25,8 @@ export interface FakeRuntimeOptions {
   /** Keep every prompt() pending in `heldPrompts` until the test settles it (mirrors PI, whose
    *  prompt() resolves only when the run is over). */
   holdPrompts?: boolean;
+  /** The session's current model, as `AgentSession.model` reports it; unset reads as unknown. */
+  model?: PiAgentSessionLike['model'];
 }
 
 export interface HeldPrompt {
@@ -85,6 +87,7 @@ export class FakeRuntime implements PiRuntimeHandle {
       get sessionId() { return self.sessionId; },
       get sessionFile() { return self.sessionFile; },
       get isStreaming() { return self.isStreaming; },
+      model: options.model,
       prompt: (text, options) => {
         self.record({ kind: 'prompt', text, options });
         const rejection = self.promptRejections.shift();

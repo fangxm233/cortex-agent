@@ -204,6 +204,22 @@ function handleToolExecutionEnd(ev: Record<string, unknown>): NormalizedEvent[] 
   }];
 }
 
+/**
+ * PI leaves a tool result's images out of the request when the model takes no image input, so the
+ * model never saw them and the transcript must not show them either. Returns `event` itself unless
+ * it is such a tool result; `model` is the session's current model (it can change mid-session).
+ */
+export function withoutUnseenImages(
+  event: Record<string, unknown>,
+  model: { input?: readonly string[] } | undefined,
+): Record<string, unknown> {
+  if (event['type'] !== 'tool_execution_end' || !model?.input || model.input.includes('image')) return event;
+  const result = asRecord(event['result']);
+  const content = result['content'];
+  if (!Array.isArray(content) || !content.some((b) => asRecord(b)['type'] === 'image')) return event;
+  return { ...event, result: { ...result, content: content.filter((b) => asRecord(b)['type'] !== 'image') } };
+}
+
 function emptyPendingCompletion(): PIPendingCompletion {
   return { numTurns: 0, totalCostUsd: null, error: null };
 }
