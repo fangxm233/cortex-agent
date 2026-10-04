@@ -20,7 +20,7 @@ import { emitSystemNotice } from './system-notice.js';
 const HOLD_LEASE_MS = 5 * 60_000;
 
 export interface RebuildHold {
-  /** The pipeline step in flight ('web', 'install', 'restart'), when the supervisor named one. */
+  /** The pipeline step in flight ('web-bundle', 'install', 'restart'), when the supervisor named one. */
   phase: string | null;
 }
 
