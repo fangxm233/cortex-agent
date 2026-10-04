@@ -4,7 +4,10 @@ import { StarredSessionGroup } from './StarredSessionGroup';
 import { useStarredGroups } from './useStarredGroups';
 
 let lang: 'en' | 'zh' = 'en';
-vi.mock('@/i18n', () => ({ useLangOptional: () => lang }));
+vi.mock('@/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n')>();
+  return { ...actual, useLangOptional: () => lang, useVocabOptional: () => actual.pickVocab(lang) };
+});
 afterEach(() => { vi.unstubAllGlobals(); lang = 'en'; });
 
 function Groups() {

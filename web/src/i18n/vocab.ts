@@ -7,6 +7,14 @@ import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
 import { setupEn, setupZh } from './provider-setup-vocab';
 import { uiAuthEn, uiAuthZh } from './ui-auth-vocab';
+import { browserEn, browserZh } from './browser-vocab';
+import { dockEn, dockZh, mediaEn, mediaZh } from './media-vocab';
+import {
+  approvalsEn, approvalsZh, attachmentsEn, attachmentsZh, paletteEn, paletteZh, workbenchEn, workbenchZh,
+} from './workbench-vocab';
+import { chatEn, chatZh, messageEn, messageZh } from './chat-vocab';
+import { interactionEn, interactionZh } from './interaction-vocab';
+import { railEn, railZh } from './rail-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -24,6 +32,17 @@ export const en = {
   ...nativeShellEn,
   ...commonEn,
   ...timeEn,
+  ...browserEn,
+  ...mediaEn,
+  ...dockEn,
+  ...paletteEn,
+  ...workbenchEn,
+  ...chatEn,
+  ...interactionEn,
+  ...messageEn,
+  ...railEn,
+  ...approvalsEn,
+  ...attachmentsEn,
 };
 
 export type Vocab = typeof en;
@@ -40,4 +59,15 @@ export const zh: Record<keyof Vocab, string> = {
   ...nativeShellZh,
   ...commonZh,
   ...timeZh,
+  ...browserZh,
+  ...mediaZh,
+  ...dockZh,
+  ...paletteZh,
+  ...workbenchZh,
+  ...chatZh,
+  ...interactionZh,
+  ...messageZh,
+  ...railZh,
+  ...approvalsZh,
+  ...attachmentsZh,
 };

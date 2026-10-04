@@ -1,6 +1,5 @@
 import { Modal } from '@/design/Modal';
 import { useLang, useVocab } from '@/i18n';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { runOrdinals, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
 import { sessionStamp } from '@/features/session/list/session-groups';
@@ -40,7 +39,6 @@ export function RunListModal({
 }): JSX.Element {
   const L = useVocab();
   const lang = useLang();
-  const copy = workbenchCopy(lang);
   const now = Date.now();
   const ordinals = runOrdinals(row.runs);
   const unreadIds = unreadRunIds(row);
@@ -117,9 +115,9 @@ export function RunListModal({
         </div>
         {/* Column captions: mono uppercase in English, plain words in Chinese. */}
         <div style={{ ...GRID, background: 'transparent', padding: '8px 18px 6px', font: `600 11px ${mono}`, color: 'var(--proto-muted)' , letterSpacing: '.05em', flex: 'none' }}>
-          <span>{copy.runCaption}</span>
-          <span>{copy.firedCaption}</span>
-          <span style={{ textAlign: 'right' }}>{copy.costCaption}</span>
+          <span>{L.wbRunCaption}</span>
+          <span>{L.wbFiredCaption}</span>
+          <span style={{ textAlign: 'right' }}>{L.wbCostCaption}</span>
         </div>
         <div style={{ background: 'transparent', overflowY: 'auto', scrollbarGutter: 'stable', minHeight: 0 }}>
           {row.runs.map((r, i) => {

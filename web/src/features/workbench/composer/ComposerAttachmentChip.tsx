@@ -1,7 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
-import { useLang, useVocab, type Vocab } from '@/i18n';
-import { workbenchCopy } from '@/features/workbench/workbench-copy';
+import { useVocab, type Vocab } from '@/i18n';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { docKindOf } from '@/features/media/doc-kind';
@@ -97,8 +96,8 @@ function MediaContent({ a, model }: { a: AttachmentUploadItem; model: ChipModel 
 }
 
 function UploadState({ a, onRetry }: { a: AttachmentUploadItem; onRetry: (id: string) => void }): JSX.Element | null {
-  const copy = workbenchCopy(useLang());
-  if (a.status === 'queued') return <span style={uploadOverlayStyle}>{copy.attachQueued}</span>;
+  const L = useVocab();
+  if (a.status === 'queued') return <span style={uploadOverlayStyle}>{L.wbAttachQueued}</span>;
   if (a.status === 'uploading') {
     return (
       <>
@@ -108,7 +107,7 @@ function UploadState({ a, onRetry }: { a: AttachmentUploadItem; onRetry: (id: st
     );
   }
   if (a.status !== 'error') return null;
-  return <button type="button" className={MENU_FOCUS} onClick={(event) => { event.stopPropagation(); onRetry(a.id); }} style={errorOverlayStyle}>{copy.attachRetry}</button>;
+  return <button type="button" className={MENU_FOCUS} onClick={(event) => { event.stopPropagation(); onRetry(a.id); }} style={errorOverlayStyle}>{L.wbAttachRetry}</button>;
 }
 
 function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {

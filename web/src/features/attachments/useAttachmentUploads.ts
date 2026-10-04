@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
-import { useLangOptional } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { AttachmentUploadStore, type AttachmentStoreOptions } from './attachment-upload-store';
 import { completedAttachmentMetas, type AttachmentMeta, type AttachmentUploadItem } from './types';
 
@@ -18,13 +18,13 @@ export interface AttachmentUploadController {
 export type UseAttachmentUploadsOptions = AttachmentStoreOptions;
 
 export function useAttachmentUploads(input: UseAttachmentUploadsOptions): AttachmentUploadController {
-  const lang = useLangOptional();
-  const options = { ...input, lang: input.lang ?? lang };
+  const vocab = useVocabOptional();
+  const options = { ...input, vocab: input.vocab ?? vocab };
   const storeRef = useRef<AttachmentUploadStore>();
   if (!storeRef.current) storeRef.current = new AttachmentUploadStore(options);
   const store = storeRef.current;
   const items = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  useLayoutEffect(() => store.bind(options), [options.bucket, options.concurrency, options.fetchPreview, options.lang, options.scope, options.transport, store]);
+  useLayoutEffect(() => store.bind(options), [options.bucket, options.concurrency, options.fetchPreview, options.vocab, options.scope, options.transport, store]);
   useEffect(() => { store.loadPreviews(items); }, [items, store]);
   useEffect(() => {
     store.cancelDisposal();

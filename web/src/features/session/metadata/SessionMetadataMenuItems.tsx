@@ -1,15 +1,14 @@
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
-import { useLang } from '@/i18n';
-import { metadataCopy } from './metadata-copy';
+import { useVocab } from '@/i18n';
 import type { SessionMetadataActions } from './useSessionMetadata';
 
 export function SessionMetadataMenuItems({ actions, onClose, touch = false }: {
   actions: SessionMetadataActions; onClose: () => void; touch?: boolean;
 }): JSX.Element {
-  const copy = metadataCopy(useLang());
+  const L = useVocab();
   const items = [
-    { label: actions.starred ? copy.unstar : copy.star, action: actions.toggleStar },
-    { label: copy.rename, action: actions.openRename },
+    { label: actions.starred ? L.chatUnstar : L.chatStar, action: actions.toggleStar },
+    { label: L.rename, action: actions.openRename },
   ];
   return <>{items.map(({ label, action }) => <button key={label} type="button"
     className={MENU_FOCUS} disabled={actions.disabled}

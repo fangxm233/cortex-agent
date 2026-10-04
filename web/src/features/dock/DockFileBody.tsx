@@ -6,8 +6,7 @@ import type { MediaItem } from '@/features/media/preview-item';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { useMediaSrc } from '@/features/media/useMediaSrc';
 import { useZoom } from '@/features/media/useZoom';
-import { useMediaCopy } from '@/features/media/media-copy';
-import { useDockCopy } from './dock-copy';
+import { useVocabOptional } from '@/i18n';
 import { FileBar, FileBarToggle } from './FileBar';
 import { isDocItem, type FileItem } from './dock-tabs';
 
@@ -23,8 +22,7 @@ const mono = "'IBM Plex Mono',monospace";
 
 export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
   const dl = useDownloadFile();
-  const media = useMediaCopy();
-  const copy = useDockCopy();
+  const L = useVocabOptional();
   const [source, setSource] = useState(false);
   const path = item.path;
   const download = path ? () => dl(path, item.name) : undefined;
@@ -36,7 +34,7 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
         <PdfBody
           item={item}
           actions={download && (
-            <button type="button" data-file-download="" title={media.download} aria-label={media.download} onClick={download} style={PAGER_BUTTON_STYLE}>↓</button>
+            <button type="button" data-file-download="" title={L.cmDownload} aria-label={L.cmDownload} onClick={download} style={PAGER_BUTTON_STYLE}>↓</button>
           )}
         />
       </div>
@@ -50,8 +48,8 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
           {markdown && (
             <FileBarToggle
               on={source}
-              label={source ? copy.rendered : copy.source}
-              title={source ? copy.showRendered : copy.showSource}
+              label={source ? L.dockRendered : L.wbViewSource}
+              title={source ? L.dockShowRendered : L.dockShowSource}
               onClick={() => setSource((on) => !on)}
               data-file-source-toggle=""
             />
@@ -70,11 +68,11 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
 /** Full-size image / video inside the docked pane (wheel + pinch zoom, like the lightbox). */
 function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
   const { src, failed } = useMediaSrc(item);
-  const copy = useMediaCopy();
+  const L = useVocabOptional();
   const { containerRef, contentRef, style: zoomStyle } = useZoom({ mode: 'transform', maxScale: 8 });
 
-  if (failed) return <DockCentered failed>{copy.loadFailed.replace('{name}', item.name)}</DockCentered>;
-  if (!src) return <DockCentered>{copy.loading}</DockCentered>;
+  if (failed) return <DockCentered failed>{L.cmLoadFailed.replace('{name}', item.name)}</DockCentered>;
+  if (!src) return <DockCentered>{L.cmLoading}</DockCentered>;
 
   return (
     <div

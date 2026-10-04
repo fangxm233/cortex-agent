@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { zh } from '@/i18n';
 import type {
   ConfigAgentEntry, ConfigProfileEntry, ModelCatalogSnapshot, SessionTranscript,
 } from '@cortex-agent/ui-contract';
@@ -29,7 +30,7 @@ const profiles: ConfigProfileEntry[] = [
 
 describe('interactionHeaderStatus', () => {
   it('marks pending interactions as waiting and paused', () => {
-    const s = interactionHeaderStatus('plan-approval', 0, 1, 'zh');
+    const s = interactionHeaderStatus('plan-approval', 0, 1, zh);
     expect(s.tone).toBe('waiting');
     expect(s.running).toBe(false);
   });

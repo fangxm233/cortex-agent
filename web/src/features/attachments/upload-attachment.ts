@@ -1,4 +1,4 @@
-import type { Lang } from '@/i18n';
+import { en, type Vocab } from '@/i18n/vocab';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import type { AttachmentMeta } from './types';
 
@@ -6,27 +6,28 @@ const UPLOAD_PATH = '/api/attachments/upload';
 
 type UploadErrorCode = 'too-large' | 'failed' | 'network' | 'cancelled';
 
-const UPLOAD_ERROR_COPY: Record<Lang, Record<UploadErrorCode, string>> = {
-  en: { 'too-large': 'File too large', failed: 'Upload failed', network: 'Network error', cancelled: 'Upload cancelled' },
-  zh: { 'too-large': '文件太大', failed: '上传失败', network: '网络错误', cancelled: '已取消上传' },
-};
+const UPLOAD_ERROR_KEY = {
+  'too-large': 'attTooLarge', failed: 'attUploadFailed', network: 'attNetworkError', cancelled: 'attUploadCancelled',
+} as const satisfies Record<UploadErrorCode, keyof Vocab>;
+
+export type UploadErrorVocab = Pick<Vocab, (typeof UPLOAD_ERROR_KEY)[UploadErrorCode]>;
 
 /** A failure this module words itself; `uploadErrorText` localizes it. Server messages stay plain Errors. */
 export class AttachmentUploadError extends Error {
   constructor(readonly code: UploadErrorCode, readonly status?: number) {
-    super(uploadErrorWording(code, 'en', status));
+    super(uploadErrorWording(code, en, status));
   }
 }
 
-function uploadErrorWording(code: UploadErrorCode, lang: Lang, status?: number): string {
-  const text = UPLOAD_ERROR_COPY[lang][code];
+function uploadErrorWording(code: UploadErrorCode, L: UploadErrorVocab, status?: number): string {
+  const text = L[UPLOAD_ERROR_KEY[code]];
   return status === undefined ? text : `${text} (${status})`;
 }
 
 /** The chip's error line in the UI language; raw server detail passes through unchanged. */
-export function uploadErrorText(error: unknown, lang: Lang): string {
-  if (error instanceof AttachmentUploadError) return uploadErrorWording(error.code, lang, error.status);
-  return error instanceof Error ? error.message : uploadErrorWording('failed', lang);
+export function uploadErrorText(error: unknown, L: UploadErrorVocab): string {
+  if (error instanceof AttachmentUploadError) return uploadErrorWording(error.code, L, error.status);
+  return error instanceof Error ? error.message : uploadErrorWording('failed', L);
 }
 
 function uploadHeaders(file: File, bucket: string): Record<string, string> {

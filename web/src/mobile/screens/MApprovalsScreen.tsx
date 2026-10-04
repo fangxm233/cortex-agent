@@ -7,42 +7,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLang } from '@/i18n';
-import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
 import { useApprovalQueue } from '@/features/approvals/useApprovalQueue';
-import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';
+import { MApprovalsView } from './MApprovalsView';
 import { buildMApprovalsVm } from './m-approvals-vm';
 import { notificationTargetId } from './m-notification-routing';
-
-const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
-  en: {
-    title: 'Approvals',
-    toProcess: 'pending',
-    tier: 'Approval',
-    from: 'from',
-    paused: 'waiting for your decision',
-    approve: 'Approve',
-    reject: 'Reject with feedback',
-    feedbackPlaceholder: 'Optional feedback',
-    seeDiff: 'tap for diff ›',
-    empty: 'No pending approvals',
-    globalGroup: 'GLOBAL',
-  },
-  zh: {
-    title: '审批',
-    toProcess: '待处理',
-    tier: '审批',
-    from: '来自',
-    paused: '等待你的决定',
-    approve: '批准',
-    reject: '拒绝并反馈',
-    feedbackPlaceholder: '可选反馈',
-    seeDiff: '点开看 diff ›',
-    empty: '没有待处理的审批',
-    globalGroup: '全局',
-  },
-};
 
 // Expansion and feedback belong to the mobile surface, not the shared queue.
 function useRouteExpansion(cards: ReturnType<typeof buildMApprovalsVm>['cards']) {
@@ -69,7 +39,6 @@ function useRouteExpansion(cards: ReturnType<typeof buildMApprovalsVm>['cards'])
 export function MApprovalsScreen() {
   const navigate = useNavigate();
   const lang = useLang();
-  const copy = pickCopy(lang, COPY);
   const queue = useApprovalQueue();
   const { currentProjectId } = useCurrentProject();
   const vm = useMemo(
@@ -78,7 +47,7 @@ export function MApprovalsScreen() {
   );
   const selection = useRouteExpansion(vm.cards);
   return <MApprovalsView
-    vm={vm} copy={copy} expandedId={selection.expandedId} feedback={selection.feedback}
+    vm={vm} expandedId={selection.expandedId} feedback={selection.feedback}
     busy={queue.isPending} onBack={() => navigate('/m/project')}
     onExpand={selection.expand} onFeedback={selection.setFeedback}
     onApprove={(id) => selection.settle(queue.approve(id))}

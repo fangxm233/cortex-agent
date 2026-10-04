@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MENU_SURFACE } from '@/design/MenuChrome';
-import { useLang } from '@/i18n';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 import { attachmentFileExt, attachmentTypeColor } from '@/features/attachments/attachment-presentation';
 import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-nav';
 
@@ -35,12 +35,6 @@ const CARD_W = 360;
 const CARD_GAP = 8;
 /** Below two prompts there is nothing to navigate between. */
 const MIN_MARKS = 2;
-
-export const NAV_COPY = {
-  zh: { rail: '消息导航', jump: '跳转到这条消息', attachments: (n: number) => `+${n} 个附件` },
-  en: { rail: 'Message navigation', jump: 'Jump to this message', attachments: (n: number) => `+${n} more` },
-};
-export type NavCopy = typeof NAV_COPY.zh;
 
 /** The mark the pointer (or keyboard focus) has settled on: `index` drives the magnification, `row`
  *  names the message to preview, and `centre` is that tick's middle in rail coordinates for the
@@ -77,7 +71,7 @@ function AttachmentChip({ a }: { a: NavMarkAttachment }): JSX.Element {
 }
 
 /** The title anchors the preview; all body lines retain readable contrast. */
-function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Element {
+function PreviewCard({ mark, copy }: { mark: NavMark; copy: Vocab }): JSX.Element {
   const extra = mark.attachments.length - 2;
   return (
     <>
@@ -108,7 +102,7 @@ function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Elem
             <AttachmentChip key={i} a={a} />
           ))}
           {extra > 0 && (
-            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{copy.attachments(extra)}</span>
+            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{fmt(copy.navAttachments, { n: extra })}</span>
           )}
         </div>
       )}
@@ -122,8 +116,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
   activeRows: number[];
   onJump: (row: number) => void;
 }): JSX.Element | null {
-  const lang = useLang();
-  const copy = lang === 'zh' ? NAV_COPY.zh : NAV_COPY.en;
+  const copy = useVocab();
   const rootRef = useRef<HTMLElement | null>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -194,7 +187,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
   return (
     <nav
       ref={mountRoot}
-      aria-label={copy.rail}
+      aria-label={copy.navRail}
       style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: RAIL_W, zIndex: 2, pointerEvents: 'none' }}
     >
       <div
@@ -219,8 +212,8 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
                 key={m.row}
                 type="button"
                 data-nav-tick={m.row}
-                aria-label={m.title || copy.jump}
-                title={m.title || copy.jump}
+                aria-label={m.title || copy.navJump}
+                title={m.title || copy.navJump}
                 onFocus={(e) => {
                   const box = e.currentTarget.getBoundingClientRect();
                   probeAt(box.top + box.height / 2);

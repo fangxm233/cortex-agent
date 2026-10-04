@@ -1,17 +1,11 @@
 import type { TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
+import { useVocabOptional } from '@/i18n';
 import { todoRailViewModel, type TodoRowViewModel } from './todo-vm';
 import { collapseOnKeyDown, railSurface, useExpanded } from './rail-surface';
 
 const MONO = "'IBM Plex Mono',monospace";
 /** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
 const EXPANDED_MAX_HEIGHT = '40vh';
-
-const COPY = {
-  en: { label: 'Task list', empty: 'No active task' },
-  zh: { label: '任务清单', empty: '暂无进行中的任务' },
-} as const;
-
-export type TodoRailLanguage = keyof typeof COPY;
 
 function StatusDot({ status, allDone }: { status: TodoStatus; allDone: boolean }): JSX.Element {
   const base = { width: 14, height: 14, borderRadius: '50%', flex: 'none' as const, boxSizing: 'border-box' as const };
@@ -77,7 +71,6 @@ function TodoRow({ row }: { row: TodoRowViewModel }): JSX.Element {
 export interface TodoRailProps {
   sessionId: string;
   todos: TodoSnapshot | null;
-  lang: TodoRailLanguage;
   /** Hung over the scrolling transcript (mobile), so it takes the composer's frosted chrome. */
   floating?: boolean;
 }
@@ -87,11 +80,11 @@ export interface TodoRailProps {
  * every session permanent vertical space directly above the input for a feature most turns never
  * use.
  */
-export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailProps): JSX.Element | null {
+export function TodoRail({ sessionId, todos, floating = false }: TodoRailProps): JSX.Element | null {
   const [open, toggle] = useExpanded(`cortex.todoRailOpen.${sessionId}`);
   const vm = todoRailViewModel(todos);
   if (!vm) return null;
-  const L = COPY[lang];
+  const L = useVocabOptional();
   const accent = vm.allDone ? 'var(--proto-success)' : 'var(--proto-accent)';
 
   return (
@@ -102,7 +95,7 @@ export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailP
       role={open ? 'button' : undefined}
       tabIndex={open ? 0 : undefined}
       aria-expanded={open ? true : undefined}
-      aria-label={open ? L.label : undefined}
+      aria-label={open ? L.todoLabel : undefined}
       style={{ ...railSurface(floating), cursor: open ? 'pointer' : undefined }}
     >
       {!open && (
@@ -110,7 +103,7 @@ export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailP
           type="button"
           onClick={toggle}
           aria-expanded={false}
-          aria-label={L.label}
+          aria-label={L.todoLabel}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -138,7 +131,7 @@ export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailP
               minWidth: 0,
             }}
           >
-            {vm.activeLabel ?? L.empty}
+            {vm.activeLabel ?? L.todoEmpty}
           </span>
           <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 9, color: 'var(--proto-muted-2)' }}>
             ▸

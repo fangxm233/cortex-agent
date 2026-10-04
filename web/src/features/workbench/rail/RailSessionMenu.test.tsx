@@ -11,7 +11,10 @@ vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: {
   rename: { mutationOptions: () => ({ mutationFn: rpc.rename }) },
   list: { queryFilter: () => ({ queryKey: ['sessions', 'list'] }) },
 } }) }));
-vi.mock('@/i18n', () => ({ useLang: () => 'en' }));
+vi.mock('@/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n')>();
+  return { ...actual, useLang: () => 'en', useVocab: () => actual.en };
+});
 vi.mock('@radix-ui/react-popover', () => ({
   Root: ({ children }: any) => children,
   Trigger: ({ children }: any) => children,

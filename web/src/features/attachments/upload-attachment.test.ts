@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { en, zh } from '@/i18n';
 import { AttachmentUploadError, uploadAttachment, uploadErrorText } from './upload-attachment';
 import type { AttachmentMeta } from './types';
 
@@ -104,8 +105,8 @@ describe('uploadAttachment', () => {
 
 describe('uploadErrorText', () => {
   it('localizes its own failures and passes server wording through', () => {
-    expect(uploadErrorText(new AttachmentUploadError('failed', 502), 'zh')).toBe('上传失败 (502)');
-    expect(uploadErrorText(new AttachmentUploadError('too-large'), 'en')).toBe('File too large');
-    expect(uploadErrorText(new Error('quota exceeded'), 'zh')).toBe('quota exceeded');
+    expect(uploadErrorText(new AttachmentUploadError('failed', 502), zh)).toBe('上传失败 (502)');
+    expect(uploadErrorText(new AttachmentUploadError('too-large'), en)).toBe('File too large');
+    expect(uploadErrorText(new Error('quota exceeded'), zh)).toBe('quota exceeded');
   });
 });

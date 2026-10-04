@@ -3,6 +3,7 @@ import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { effectiveMs, sessionStamp } from './session-groups';
 import { formatUsd } from '@/lib/format';
 import type { TimeLang } from '@/i18n/time-format';
+import { fmt, type Vocab } from '@/i18n';
 
 // Design 30a/8b: the SCHEDULED section shows ONE row per schedule (not per run). Rows union two
 // sources: live schedule records (schedules.list) and orphan run groups — sessions whose scheduleId
@@ -134,12 +135,12 @@ export function scheduledRunTitle(
   schedule: ScheduleInfo | null | undefined,
   runs: SessionInfo[],
   sessionId: string,
-  lang: TimeLang,
+  L: Pick<Vocab, 'chatRunTitle'>,
 ): string | null {
   if (!schedule) return null;
   const n = runOrdinals(runs).get(sessionId);
   if (n == null) return null;
-  return lang === 'zh' ? `${schedule.message} · 第 ${n} 次运行` : `${schedule.message} · run #${n}`;
+  return fmt(L.chatRunTitle, { message: schedule.message, n });
 }
 
 /** Session ids behind the run list's「mark all read」: this row's unread runs, nothing else —

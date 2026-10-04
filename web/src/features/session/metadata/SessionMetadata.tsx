@@ -1,8 +1,7 @@
 import { useId, type CSSProperties, type ReactNode } from 'react';
 import { Button } from '@/design/Button';
 import { Modal } from '@/design/Modal';
-import { useLang } from '@/i18n';
-import { metadataCopy } from './metadata-copy';
+import { useVocab } from '@/i18n';
 import { useSessionMetadata, validSessionTitle, type MetadataSession, type SessionMetadataActions } from './useSessionMetadata';
 
 export type { MetadataSession, SessionMetadataActions } from './useSessionMetadata';
@@ -17,23 +16,23 @@ const TITLE_INPUT_STYLE: CSSProperties = {
 };
 
 function RenameDialog({ actions }: { actions: SessionMetadataActions }): JSX.Element {
-  const copy = metadataCopy(useLang());
+  const L = useVocab();
   const id = useId();
   const valid = validSessionTitle(actions.draft);
-  return <Modal title={copy.rename} description={copy.invalidTitle} open={actions.renameOpen}
+  return <Modal title={L.rename} description={L.chatInvalidTitle} open={actions.renameOpen}
     onOpenChange={(open) => { if (!open) actions.closeRename(); }} showClose={false}>
     <form onSubmit={(event) => { event.preventDefault(); actions.saveRename(); }}>
-      <label htmlFor={id} className="block mb-1g">{copy.title}</label>
+      <label htmlFor={id} className="block mb-1g">{L.chatTitleLabel}</label>
       <input id={id} autoFocus value={actions.draft} disabled={actions.pending}
         aria-invalid={!valid} aria-describedby={!valid ? `${id}-validation` : undefined}
         onChange={(event) => actions.setDraft(event.target.value)}
         style={TITLE_INPUT_STYLE} />
-      {!valid && <p id={`${id}-validation`} className="mt-1g text-state-fail">{copy.invalidTitle}</p>}
+      {!valid && <p id={`${id}-validation`} className="mt-1g text-state-fail">{L.chatInvalidTitle}</p>}
       {actions.error && <p role="alert" className="mt-1g text-state-fail">{actions.error}</p>}
       <div className="flex justify-end gap-1g mt-2g">
-        <Button disabled={actions.pending} onClick={actions.closeRename}>{copy.cancel}</Button>
+        <Button disabled={actions.pending} onClick={actions.closeRename}>{L.cancel}</Button>
         <Button type="submit" variant="primary" disabled={actions.pending || !valid}>
-          {actions.pending ? copy.saving : copy.save}
+          {actions.pending ? L.chatSaving : L.chatSave}
         </Button>
       </div>
     </form>
@@ -41,14 +40,14 @@ function RenameDialog({ actions }: { actions: SessionMetadataActions }): JSX.Ele
 }
 
 function MetadataState({ session, children }: Props): JSX.Element {
-  const copy = metadataCopy(useLang());
-  const actions = useSessionMetadata(session, copy.failed);
+  const L = useVocab();
+  const actions = useSessionMetadata(session, L.chatUpdateFailed);
   return <>
     {children(actions)}
     {actions.renameOpen && <RenameDialog actions={actions} />}
-    {actions.error && !actions.renameOpen && <Modal title={copy.failed} open
+    {actions.error && !actions.renameOpen && <Modal title={L.chatUpdateFailed} open
       onOpenChange={(open) => { if (!open) actions.clearError(); }} showClose={false}
-      footer={<Button onClick={actions.clearError}>{copy.close}</Button>}>
+      footer={<Button onClick={actions.clearError}>{L.cmClose}</Button>}>
       <p role="alert">{actions.error}</p>
     </Modal>}
   </>;

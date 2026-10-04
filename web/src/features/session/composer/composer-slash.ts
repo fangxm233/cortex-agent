@@ -1,7 +1,4 @@
-import type { Lang } from '@/i18n';
-import { SLASH_COMMANDS } from './chat-content';
-
-const PROFILE_DESC = SLASH_COMMANDS.find((item) => item.cmd === '/profile')!.desc;
+import { SLASH_COMMANDS, type SlashVocab } from './chat-content';
 
 export interface SlashProfileOption {
   name: string;
@@ -112,12 +109,12 @@ function resolveProfile(parsed: ParsedSlash, profiles: SlashProfileOption[]): Sl
   return { kind: 'action', action: { type: 'profile', profileName: profile.name } };
 }
 
-function profileSuggestions(query: string, profiles: SlashProfileOption[], lang: Lang): SlashSuggestion[] {
+function profileSuggestions(query: string, profiles: SlashProfileOption[], L: SlashVocab): SlashSuggestion[] {
   return profiles
     .filter((profile) => profile.name.toLowerCase().startsWith(query))
     .map((profile) => ({
       command: `/profile ${profile.name}`,
-      description: profile.detail ?? PROFILE_DESC[lang],
+      description: profile.detail ?? L.chatSlashProfile,
       action: { type: 'profile' as const, profileName: profile.name },
       disabled: profile.disabled ?? false,
     }));
@@ -126,20 +123,20 @@ function profileSuggestions(query: string, profiles: SlashProfileOption[], lang:
 export function buildSlashSuggestions(
   text: string,
   profiles: SlashProfileOption[],
-  lang: Lang,
+  L: SlashVocab,
   availability: SlashAvailability = {},
 ): SlashSuggestion[] {
   const parsed = parseSlashInput(text);
   if (!parsed) return [];
   if (parsed.command === 'profile' && parsed.hasArgsSeparator) {
-    return profileSuggestions(parsed.args.toLowerCase(), profiles, lang);
+    return profileSuggestions(parsed.args.toLowerCase(), profiles, L);
   }
   if (parsed.hasArgsSeparator) return [];
   return SLASH_COMMANDS
     .filter((item) => item.cmd.slice(1).startsWith(parsed.command))
     .map((item) => ({
       command: item.cmd,
-      description: item.desc[lang],
+      description: L[item.desc],
       action: item.cmd === '/profile' ? null : actionFor(item.cmd.slice(1)),
       disabled: item.cmd === '/profile'
         ? false
