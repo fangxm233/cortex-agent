@@ -67,7 +67,6 @@ import {
   commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
   useSessionCommission,
 } from '@/features/commission/CommissionOptIn';
-import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useTeamContext } from '@/features/team/useTeamContext';
@@ -298,7 +297,7 @@ export function MChatScreen(): JSX.Element {
     ? askCardModel(pendingInteraction.detail, pendingInteraction.ts)
     : null;
   const pendingPlanModel = pendingInteraction?.detail.kind === 'plan-approval'
-    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts, lang)
+    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts, vocab)
     : null;
 
   // Session-local progressive answers per ask card (5b: 答一题进一题, the entity resolves once
@@ -780,9 +779,7 @@ export function MChatScreen(): JSX.Element {
       : { ...runStatusAt(null), ...(clockLive ? { liveText: (now: number) => runStatusAt(now).text } : {}) };
 
   // ── interaction props for the view ──
-  const intCopy = pickCopy(lang, M_INT_COPY);
   const interactions: MChatInteractions = {
-    copy: intCopy,
     askState: askStateOf,
     onAskPick,
     onAskToggle,

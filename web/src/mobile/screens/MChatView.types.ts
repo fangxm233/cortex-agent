@@ -7,7 +7,6 @@ import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/ses
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
 import type { TodoRailLanguage } from '@/features/session/rail/TodoRail';
-import type { MIntCopy } from './MInteractionCards';
 import type {
   ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetVM,
 } from './m-chat-vm';
@@ -58,7 +57,6 @@ export interface MChatCopy {
 }
 
 export interface MChatInteractions {
-  copy: MIntCopy;
   askState: (requestId: string) => AskAnswerState;
   onAskPick: (model: AskCardModel, label: string) => void;
   onAskToggle: (model: AskCardModel, label: string) => void;

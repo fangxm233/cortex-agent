@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { MComposer, ComposerFullscreen } from '../ui/composer';
-import { MPlanCard, M_INT_COPY } from './MInteractionCards';
+import { en } from '@/i18n';
+import { MPlanCard } from './MInteractionCards';
 import { MoreMenu } from './MChatSheets';
 import { AttachMenu } from './MChatComposerPresentation';
 import { MNotificationToaster } from './MNotificationToaster';
@@ -16,7 +17,7 @@ const plan: PlanCardModel = {
 };
 
 function planMarkup(model = plan, dimmed = false) {
-  return renderToStaticMarkup(<MPlanCard model={model} copy={M_INT_COPY.en} dimmed={dimmed}
+  return renderToStaticMarkup(<MPlanCard model={model} copy={en} dimmed={dimmed}
     onApprove={noop} onRejectStart={noop} onOpenRead={noop} />);
 }
 

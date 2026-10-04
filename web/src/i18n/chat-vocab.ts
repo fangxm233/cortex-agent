@@ -83,3 +83,35 @@ export const chatZh: Record<keyof typeof chatEn, string> = {
   chatDaySat: '六',
   chatRunTitle: '{message} · 第 {n} 次运行',
 };
+
+// Message edit / rewind chrome under transcript bubbles.
+export const messageEn = {
+  msgEdit: 'Edit message',
+  msgEditDisabled: 'Running — stop the turn to edit',
+  msgSendRewind: 'Send & rewind',
+  msgEscHint: 'Esc cancel · ⌘↩ send',
+  msgRewindNote: 'Rewinds {replies} · {tools} discarded',
+  msgReplyOne: '{n} reply',
+  msgReplyMany: '{n} replies',
+  msgToolCallOne: '{n} tool call',
+  msgToolCallMany: '{n} tool calls',
+  msgWillRewind: 'will rewind',
+  msgEdited: 'edited',
+  msgOriginal: 'Original',
+  msgRegenNote: 'Regenerated from edit',
+};
+export const messageZh: Record<keyof typeof messageEn, string> = {
+  msgEdit: '编辑消息',
+  msgEditDisabled: '运行中不可编辑 — 暂停后可用',
+  msgSendRewind: '发送并回退',
+  msgEscHint: 'Esc 取消 · ⌘↩ 发送',
+  msgRewindNote: '发送后回退其后 {replies} · {tools}作废',
+  msgReplyOne: '{n} 条回复',
+  msgReplyMany: '{n} 条回复',
+  msgToolCallOne: '{n} 次工具调用',
+  msgToolCallMany: '{n} 次工具调用',
+  msgWillRewind: '将被回退',
+  msgEdited: '已编辑',
+  msgOriginal: '原消息',
+  msgRegenNote: '由编辑重新生成',
+};

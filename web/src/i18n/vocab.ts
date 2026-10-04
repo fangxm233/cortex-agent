@@ -12,6 +12,8 @@ import { dockEn, dockZh, mediaEn, mediaZh } from './media-vocab';
 import { paletteEn, paletteZh } from './workbench-vocab';
 import { workbenchEn, workbenchZh } from './workbench-vocab';
 import { chatEn, chatZh } from './chat-vocab';
+import { interactionEn, interactionZh } from './interaction-vocab';
+import { messageEn, messageZh } from './chat-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -35,6 +37,8 @@ export const en = {
   ...paletteEn,
   ...workbenchEn,
   ...chatEn,
+  ...interactionEn,
+  ...messageEn,
 };
 
 export type Vocab = typeof en;
@@ -57,4 +61,6 @@ export const zh: Record<keyof Vocab, string> = {
   ...paletteZh,
   ...workbenchZh,
   ...chatZh,
+  ...interactionZh,
+  ...messageZh,
 };

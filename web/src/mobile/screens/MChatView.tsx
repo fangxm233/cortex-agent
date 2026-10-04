@@ -8,11 +8,11 @@ import { SubagentTranscriptDetail } from '@/features/session/transcript/Subagent
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
-import { useLangOptional, useVocab, useVocabOptional } from '@/i18n';
+import { useVocab, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
-import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
+import { MAskCard, MPlanCard } from './MInteractionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
 import {
@@ -216,9 +216,8 @@ function MAssistantBlock({ text, preview, streamKey }: {
  *  — pending actionable, resolved sealed in place; expired/cancelled + legacy rows render a
  *  one-line summary. Without handlers the cards render inert. */
 function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 'interaction' }>; interactions?: MChatInteractions }): JSX.Element {
-  const fallbackLang = useLangOptional();
-  const v = interactionView(row, fallbackLang);
-  const copy = interactions?.copy ?? M_INT_COPY[fallbackLang];
+  const copy = useVocabOptional();
+  const v = interactionView(row, copy);
   if (v.kind === 'ask') {
     const m = v.model;
     return (

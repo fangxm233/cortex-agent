@@ -7,8 +7,11 @@
 // payload/result or the row's real ts.
 
 import type { TranscriptInteractionDetail, SessionTranscript } from '@cortex-agent/ui-contract';
-import type { Lang } from '@/i18n';
-import { INTERACTION_SUMMARY_COPY } from './interaction-copy';
+import type { Vocab } from '@/i18n';
+
+/** Words the summary rows and the untitled-plan fallback need. */
+export type InteractionSummaryVocab = Pick<Vocab,
+  'ixPlan' | 'ixPlanApproved' | 'ixPlanRejected' | 'ixAnswered' | 'ixCancelled' | 'ixPlanExpired' | 'ixExpired'>;
 
 // ── TTL / time ────────────────────────────────────────────────────────────────
 
@@ -216,7 +219,7 @@ export interface PlanCardModel {
   timeLabel: string | null;
 }
 
-export function planTitle(planContent: string, planFilePath: string | null | undefined, lang: Lang): string {
+export function planTitle(planContent: string, planFilePath: string | null | undefined, L: Pick<Vocab, 'ixPlan'>): string {
   for (const raw of planContent.split('\n')) {
     const line = raw.trim();
     if (!line) continue;
@@ -227,16 +230,16 @@ export function planTitle(planContent: string, planFilePath: string | null | und
     const base = planFilePath.split('/').pop();
     if (base) return base;
   }
-  return INTERACTION_SUMMARY_COPY[lang].plan;
+  return L.ixPlan;
 }
 
-export function planCardModel(detail: TranscriptInteractionDetail, ts: string | null | undefined, lang: Lang): PlanCardModel {
+export function planCardModel(detail: TranscriptInteractionDetail, ts: string | null | undefined, L: Pick<Vocab, 'ixPlan'>): PlanCardModel {
   const planContent = detail.payload.planContent ?? '';
   const filePath = detail.payload.planFilePath ?? null;
   return {
     requestId: detail.id,
     status: detail.status,
-    title: planTitle(planContent, filePath, lang),
+    title: planTitle(planContent, filePath, L),
     filePath,
     lineCount: planContent ? planContent.split('\n').length : 0,
     planContent,
@@ -261,22 +264,20 @@ export type InteractionView =
   | { kind: 'plan'; model: PlanCardModel }
   | { kind: 'summary'; tone: 'done' | 'rejected' | 'inactive'; label: string; text: string };
 
-function summaryLabel(status: string, kind: string, lang: Lang): { tone: 'done' | 'rejected' | 'inactive'; label: string } {
-  const c = INTERACTION_SUMMARY_COPY[lang];
+function summaryLabel(status: string, kind: string, c: InteractionSummaryVocab): { tone: 'done' | 'rejected' | 'inactive'; label: string } {
   switch (status) {
-    case 'approved': return { tone: 'done', label: c.planApproved };
-    case 'rejected': return { tone: 'rejected', label: c.planRejected };
-    case 'answered': return { tone: 'done', label: c.answered };
-    case 'cancelled': return { tone: 'inactive', label: c.cancelled };
-    default: return { tone: 'inactive', label: kind === 'plan-approval' ? c.planExpired : c.expired };
+    case 'approved': return { tone: 'done', label: c.ixPlanApproved };
+    case 'rejected': return { tone: 'rejected', label: c.ixPlanRejected };
+    case 'answered': return { tone: 'done', label: c.ixAnswered };
+    case 'cancelled': return { tone: 'inactive', label: c.ixCancelled };
+    default: return { tone: 'inactive', label: kind === 'plan-approval' ? c.ixPlanExpired : c.ixExpired };
   }
 }
 
 /** Legacy rows (no detail): keep the old subtype-driven summary rendering. */
-function legacyView(row: InteractionRowInput, lang: Lang): InteractionView {
-  const c = INTERACTION_SUMMARY_COPY[lang];
+function legacyView(row: InteractionRowInput, c: InteractionSummaryVocab): InteractionView {
   const tone = row.subtype === 'plan-rejected' ? 'rejected' : 'done';
-  const label = row.subtype === 'plan-approved' ? c.planApproved : row.subtype === 'plan-rejected' ? c.planRejected : c.answered;
+  const label = row.subtype === 'plan-approved' ? c.ixPlanApproved : row.subtype === 'plan-rejected' ? c.ixPlanRejected : c.ixAnswered;
   return { kind: 'summary', tone, label, text: row.text };
 }
 
@@ -286,23 +287,23 @@ function legacyView(row: InteractionRowInput, lang: Lang): InteractionView {
  * inactive one-line summaries (no sealed-state design exists for them). Legacy rows (no
  * detail) keep the old summary shape.
  */
-export function interactionView(row: InteractionRowInput, lang: Lang): InteractionView {
+export function interactionView(row: InteractionRowInput, L: InteractionSummaryVocab): InteractionView {
   const d = row.detail;
-  if (!d) return legacyView(row, lang);
+  if (!d) return legacyView(row, L);
 
   if (d.status === 'expired' || d.status === 'cancelled') {
-    const { tone, label } = summaryLabel(d.status, d.kind, lang);
+    const { tone, label } = summaryLabel(d.status, d.kind, L);
     return { kind: 'summary', tone, label, text: row.text };
   }
 
   if (d.kind === 'ask-user') {
     const model = askCardModel(d, row.ts);
     if (model) return { kind: 'ask', model };
-    const { tone, label } = summaryLabel(d.status, d.kind, lang);
+    const { tone, label } = summaryLabel(d.status, d.kind, L);
     return { kind: 'summary', tone, label, text: row.text };
   }
 
-  return { kind: 'plan', model: planCardModel(d, row.ts, lang) };
+  return { kind: 'plan', model: planCardModel(d, row.ts, L) };
 }
 
 // ── transcript lookup (reading page 6b / desktop overlay) ─────────────────────

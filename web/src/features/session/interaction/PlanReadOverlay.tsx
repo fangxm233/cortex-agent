@@ -2,22 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { PlanCardModel } from './interaction-vm';
 import { readProgressPct, planStatusLabel, planMetaLine } from './plan-read-vm';
-import type { DIntCopy } from './InteractionCards';
+import type { Vocab } from '@/i18n';
 
 const mono = "'IBM Plex Mono',monospace";
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 
 export interface PlanReadOverlayProps {
   model: PlanCardModel;
-  copy: DIntCopy;
-  lang: 'zh' | 'en';
+  copy: Vocab;
   onClose: () => void;
   onApprove: () => void;
   /** 请求修改 — closes the overlay and opens the card's feedback box (13c middle column). */
   onRequestChanges: () => void;
 }
 
-export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onRequestChanges }: PlanReadOverlayProps): JSX.Element {
+export function PlanReadOverlay({ model, copy, onClose, onApprove, onRequestChanges }: PlanReadOverlayProps): JSX.Element {
   const pending = model.status === 'pending';
   const [pct, setPct] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -35,12 +34,12 @@ export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onReque
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const statusLabel = planStatusLabel(model.status, lang);
+  const statusLabel = planStatusLabel(model.status, copy);
   const stamp =
     model.status === 'approved'
-      ? { text: `${copy.planApprovedPill}${model.timeLabel ? ` · ${model.timeLabel} ${copy.approvedBy}` : ''}`, fg: 'var(--proto-success)', bg: 'var(--proto-success-bg)' }
+      ? { text: `${copy.ixPlanApprovedPill}${model.timeLabel ? ` · ${model.timeLabel} ${copy.ixApprovedBy}` : ''}`, fg: 'var(--proto-success)', bg: 'var(--proto-success-bg)' }
       : model.status === 'rejected'
-        ? { text: `${copy.planRejectedPill}${model.timeLabel ? ` · ${model.timeLabel}` : ''}`, fg: 'var(--proto-muted)', bg: 'var(--proto-gray)' }
+        ? { text: `${copy.ixPlanRejectedPill}${model.timeLabel ? ` · ${model.timeLabel}` : ''}`, fg: 'var(--proto-muted)', bg: 'var(--proto-gray)' }
         : { text: statusLabel, fg: 'var(--proto-muted)' , bg: 'var(--proto-gray)' };
 
   return (
@@ -60,18 +59,18 @@ export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onReque
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)', letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
               <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {planMetaLine(model.filePath, model.lineCount, statusLabel, lang)}
+                {planMetaLine(model.filePath, model.lineCount, statusLabel, copy)}
               </div>
             </div>
             {pending ? (
-              <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-amber-fg)' , background: 'var(--pill-waiting-bg)', padding: '2.5px 9px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.planPendingPill}</span>
+              <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-amber-fg)' , background: 'var(--pill-waiting-bg)', padding: '2.5px 9px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.ixPlanPendingPill}</span>
             ) : (
               <span style={{ font: `600 11px ${mono}`, color: stamp.fg, background: stamp.bg, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
             )}
             <button
               type="button"
               className={focusClass}
-              aria-label={copy.close}
+              aria-label={copy.cmClose}
               onClick={onClose}
               style={{ width: 26, height: 26, borderRadius: 'var(--r-chip)', border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, cursor: 'pointer', flex: 'none' }}
             >
@@ -94,7 +93,7 @@ export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onReque
             </div>
             {model.status === 'rejected' && model.feedback && (
               <div style={{ marginTop: 16, border: '1px solid var(--proto-amber-border)', background: 'var(--proto-amber-bg)', borderRadius: 'var(--r-card)', padding: '10px 13px' }}>
-                <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-amber-text)' , paddingBottom: 4 }}>{copy.feedbackHint.split(' · ')[0]}</div>
+                <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-amber-text)' , paddingBottom: 4 }}>{copy.ixFeedbackRequired}</div>
                 <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
               </div>
             )}
@@ -113,7 +112,7 @@ export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onReque
                 onClick={onRequestChanges}
                 style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-ink)', padding: '7px 14px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
               >
-                {copy.requestChanges}
+                {copy.ixRequestChanges}
               </button>
               <button
                 type="button"
@@ -121,7 +120,7 @@ export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onReque
                 onClick={onApprove}
                 style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '8px 18px', color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
               >
-                <span>{copy.approvePlan}</span>
+                <span>{copy.ixApprovePlan}</span>
               </button>
             </div>
           ) : (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLang, useVocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
 import { ChatNavRail } from './ChatNavRail';
@@ -12,14 +12,14 @@ import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/at
 import { AgentFileGroup, AttachmentCard } from './MessageAttachmentCards';
 import { interactionView, emptyDeskAsk, type DeskAskState } from '@/features/session/interaction/interaction-vm';
 import type { InteractionActions } from '@/features/session/interaction/useInteractionActions';
-import { DeskAskCard, DeskPlanCard, D_INT_COPY } from '@/features/session/interaction/InteractionCards';
+import { DeskAskCard, DeskPlanCard } from '@/features/session/interaction/InteractionCards';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
 import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
-import { M_EDIT_COPY, MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
+import { MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote } from './MessageEdit';
 import { ChatNotice } from './ChatNotice';
 import { useTranscriptWindow } from './useTranscriptWindow';
 
@@ -84,7 +84,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   anchor?: number;
   edited?: { originalText: string; originalTs: string };
   /** Present → the sec-23 hover copy/edit affordances render. */
-  editCopy?: MEditCopy;
+  editCopy?: Vocab;
   /** Present → the pill carries the edit button (rewind-capable rows only). */
   onStartEdit?: () => void;
   editDisabled?: boolean;
@@ -284,7 +284,7 @@ function SystemHintRow({ origin, text, ts, pending, debug, expandable = false }:
   );
 }
 
-function TurnCopyAction({ text, copy }: { text?: string; copy?: MEditCopy }): JSX.Element | null {
+function TurnCopyAction({ text, copy }: { text?: string; copy?: Vocab }): JSX.Element | null {
   if (!text || !copy) return null;
   return (
     <div
@@ -303,7 +303,7 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
   /** Decisions announced with this row (send_decision) — cards hang under the text. */
   decisions?: DecisionItem[];
   /** Shared copy labels for regenerated notes and the optional whole-turn copy action. */
-  editCopy?: MEditCopy;
+  editCopy?: Vocab;
   /** Present only on the final assistant row in a turn. */
   copyText?: string;
   /** True → the「由编辑重新生成」footnote renders atop this block. */
@@ -352,12 +352,11 @@ export function InteractionRowCard({ row, actions }: {
   row: Extract<ChatRow, { kind: 'interaction' }>;
   actions?: InteractionActions;
 }): JSX.Element {
-  const lang = useLang();
-  const copy = lang === 'zh' ? D_INT_COPY.zh : D_INT_COPY.en;
+  const copy = useVocab();
   const [askState, setAskState] = useState<DeskAskState>(emptyDeskAsk);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [readOpen, setReadOpen] = useState(false);
-  const v = interactionView(row, lang);
+  const v = interactionView(row, copy);
 
   if (v.kind === 'ask') {
     const m = v.model;
@@ -393,7 +392,6 @@ export function InteractionRowCard({ row, actions }: {
           <PlanReadOverlay
             model={m}
             copy={copy}
-            lang={lang}
             onClose={() => setReadOpen(false)}
             onApprove={() => {
               actions?.approvePlan(m.requestId);
@@ -414,7 +412,7 @@ export function InteractionRowCard({ row, actions }: {
 function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor }: {
   row: ChatRow;
   interactionActions?: InteractionActions;
-  editCopy?: MEditCopy;
+  editCopy?: Vocab;
   assistantCopyText?: string;
   onStartEdit?: () => void;
   editDisabled?: boolean;
@@ -522,8 +520,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   anchors?: boolean;
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
   start?: number }): JSX.Element {
-  const lang = useLang();
-  const editCopy = lang === 'zh' ? M_EDIT_COPY.zh : M_EDIT_COPY.en;
+  const editCopy = useVocab();
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
   // shape enough that the anchor no longer matches (guard inside the render below).
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -583,7 +580,7 @@ function EditingRows({ rows, editingIdx, from, edit, editCopy, plainRows, onDone
   editingIdx: number;
   from: number;
   edit: MessageEditCtx;
-  editCopy: MEditCopy;
+  editCopy: Vocab;
   plainRows: (from: number, to?: number) => JSX.Element[];
   onDone: () => void;
 }): JSX.Element {

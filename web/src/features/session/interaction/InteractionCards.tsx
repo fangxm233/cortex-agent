@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fmt, type Vocab } from '@/i18n';
 import { noticeTone } from '@/features/session/transcript/ChatNotice';
 import {
   type AskCardModel,
@@ -11,6 +12,7 @@ import {
   deskBuildAnswers,
   formatTtl,
 } from './interaction-vm';
+import { planStatusLabel } from './plan-read-vm';
 import { useTtlSeconds } from './useInteractionTtl';
 
 const cardMaterial = { background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)' };
@@ -19,101 +21,13 @@ const controlMaterial = { background: 'var(--material-control-bg)', boxShadow: '
 const mono = "'IBM Plex Mono',monospace";
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 
-export interface DIntCopy {
-  askPill: string;
-  askAnsweredPill: string;
-  askTag: (multi: boolean) => string;
-  otherChip: string;
-  otherPlaceholder: string;
-  askFootnote: string;
-  submit: string;
-  ttlPrefix: string;
-  planPendingPill: string;
-  planApprovedPill: string;
-  planRejectedPill: string;
-  planTtl: string;
-  approvedBy: string;
-  fileSub: string;
-  readLink: string;
-  requestChanges: string;
-  approvePlan: string;
-  feedbackHint: string;
-  feedbackPlaceholder: string;
-  cancel: string;
-  confirmReturn: string;
-  approvedFoot: string;
-  viewPlan: string;
-  viewOriginalPlan: string;
-  lineCount: (n: number) => string;
-  close: string;
-}
-
-export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
-  zh: {
-    askPill: '需要你拍板',
-    askAnsweredPill: '已回答',
-    askTag: (m) => (m ? '多选' : '单选'),
-    otherChip: '其他…',
-    otherPlaceholder: '补充你的答案…',
-    askFootnote: 'Agent 暂停中 · 提交后继续',
-    submit: '提交回答',
-    ttlPrefix: '阻塞中 · TTL',
-    planPendingPill: 'PLAN · 等待批准',
-    planApprovedPill: '✓ 计划已批准',
-    planRejectedPill: '已驳回',
-    planTtl: 'Agent 暂停中 · TTL',
-    approvedBy: '由你批准',
-    fileSub: '已写入 · 批准前建议通读全文',
-    readLink: '阅读 ›',
-    requestChanges: '请求修改',
-    approvePlan: '批准计划',
-    feedbackHint: '反馈必填 · 确认后退回重新规划',
-    feedbackPlaceholder: '说明需要修改什么…',
-    cancel: '取消',
-    confirmReturn: '确认退回',
-    approvedFoot: '· Agent 继续执行',
-    viewPlan: '查看计划 ›',
-    viewOriginalPlan: '查看原计划 ›',
-    lineCount: (n) => `${n} 行`,
-    close: '关闭',
-  },
-  en: {
-    askPill: 'Your call',
-    askAnsweredPill: 'Answered',
-    askTag: (m) => (m ? 'multi' : 'single'),
-    otherChip: 'Other…',
-    otherPlaceholder: 'Type your answer…',
-    askFootnote: 'Agent paused · continues after submit',
-    submit: 'Submit answers',
-    ttlPrefix: 'Blocking · TTL',
-    planPendingPill: 'PLAN · awaiting approval',
-    planApprovedPill: '✓ Plan approved',
-    planRejectedPill: 'Rejected',
-    planTtl: 'Agent paused · TTL',
-    approvedBy: 'approved by you',
-    fileSub: 'written · read the full plan before approving',
-    readLink: 'Read ›',
-    requestChanges: 'Request changes',
-    approvePlan: 'Approve plan',
-    feedbackHint: 'Feedback required · confirming returns it for replanning',
-    feedbackPlaceholder: 'What needs to change…',
-    cancel: 'Cancel',
-    confirmReturn: 'Confirm return',
-    approvedFoot: '· agent continues',
-    viewPlan: 'View plan ›',
-    viewOriginalPlan: 'View original plan ›',
-    lineCount: (n) => `${n} lines`,
-    close: 'Close',
-  },
-};
-
 // ── 13b AskUserQuestion ───────────────────────────────────────────────────────
 
 export interface DeskAskCardProps {
   model: AskCardModel;
   /** Controlled 13b answer state (picks / 其他 text) — owned by InteractionRowCard. */
   state: DeskAskState;
-  copy: DIntCopy;
+  copy: Vocab;
   onState: (next: DeskAskState) => void;
   onSubmit: (answers: Record<string, string>) => void;
   busy: boolean;
@@ -130,8 +44,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
       <div style={{ ...cardMaterial, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', padding: '13px 16px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
           <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>?</span>
-          <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', color: 'var(--proto-muted)' }}>{copy.askAnsweredPill}</span>
-          <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>AskUserQuestion</span>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', color: 'var(--proto-muted)' }}>{copy.ixAnswered}</span>
           {model.timeLabel && <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{model.timeLabel}</span>}
         </div>
         <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -158,10 +71,9 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
         <span style={{ width: 18, height: 18, borderRadius: '50%', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>{tone ? tone.icon : '?'}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--pill-running-fg)' }}>{copy.askPill}</span>
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>AskUserQuestion</span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--pill-running-fg)' }}>{copy.ixAskPill}</span>
         <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-          {copy.ttlPrefix} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
+          {copy.ixTtlPrefix} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
         </span>
       </div>
 
@@ -172,7 +84,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
           <div key={q.question} style={{ marginTop: qi === 0 ? 10 : 13 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{q.question}</span>
-              <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1px 6px', borderRadius: 'var(--r-chip)', flex: 'none'  }}>{copy.askTag(q.multiSelect)}</span>
+              <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1px 6px', borderRadius: 'var(--r-chip)', flex: 'none'  }}>{(q.multiSelect ? copy.ixMulti : copy.ixSingle)}</span>
             </div>
             <div style={{ display: 'flex', gap: 7, marginTop: 8, flexWrap: 'wrap' }}>
               {q.options.map((o) => {
@@ -219,17 +131,17 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                   cursor: 'pointer',
                 }}
               >
-                {q.multiSelect ? (otherOn ? '☑' : '☐') : otherOn ? '●' : '○'} {copy.otherChip}
+                {q.multiSelect ? (otherOn ? '☑' : '☐') : otherOn ? '●' : '○'} {copy.ixOtherChip}
               </button>
             </div>
             {/* 其他… free-text — expands only while selected (13b) */}
             {otherOn && (
               <input
                 className={focusClass}
-                aria-label={copy.otherPlaceholder}
+                aria-label={copy.ixOtherPlaceholder}
                 value={state.otherText[qi] ?? ''}
                 onChange={(e) => onState(deskSetOtherText(state, qi, e.target.value))}
-                placeholder={copy.otherPlaceholder}
+                placeholder={copy.ixOtherPlaceholder}
                 style={{
                   marginTop: 7,
                   width: '100%',
@@ -248,7 +160,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
       })}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 13 }}>
-        <span style={{ fontSize: 11, color: 'var(--proto-muted)', flex: 1, lineHeight: 1.5 }}>{copy.askFootnote}</span>
+        <span style={{ fontSize: 11, color: 'var(--proto-muted)', flex: 1, lineHeight: 1.5 }}>{copy.ixAskFootnote}</span>
         <button
           type="button"
           className={focusClass}
@@ -265,7 +177,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
             cursor: canSubmit ? 'pointer' : 'not-allowed',
           }}
         >
-          {copy.submit}
+          {copy.ixSubmit}
         </button>
       </div>
     </div>
@@ -276,7 +188,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
 
 export interface DeskPlanCardProps {
   model: PlanCardModel;
-  copy: DIntCopy;
+  copy: Vocab;
   /** Controlled 请求修改 state — the feedback box shows only after the button (13c middle). */
   feedbackOpen: boolean;
   onFeedbackOpen: (open: boolean) => void;
@@ -306,10 +218,10 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         <path d="M5 6.5h4M5 9h4" />
       </svg>
       <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', font: `500 11px ${mono}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? copy.lineCount(model.lineCount)}</span>
-        <span style={{ display: 'block', fontSize: 11, color: 'var(--proto-muted)', marginTop: 2 }}>{copy.fileSub}</span>
+        <span style={{ display: 'block', font: `500 11px ${mono}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? fmt(copy.cmLines, { n: model.lineCount })}</span>
+        <span style={{ display: 'block', fontSize: 11, color: 'var(--proto-muted)', marginTop: 2 }}>{copy.ixFileSub}</span>
       </span>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none' }}>{copy.readLink}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none' }}>{copy.ixReadLink}</span>
     </button>
   ) : null;
 
@@ -320,11 +232,11 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         <div style={{ ...cardMaterial, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)' }}>
             <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: approved ? 'var(--proto-success-bg)' : 'var(--proto-gray)', color: approved ? 'var(--proto-success)' : 'var(--proto-muted)' }}>
-              {approved ? copy.planApprovedPill : rejected ? copy.planRejectedPill : model.status}
+              {approved ? copy.ixPlanApprovedPill : rejected ? copy.ixPlanRejectedPill : planStatusLabel(model.status, copy)}
             </span>
             {model.timeLabel && (
               <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-                {model.timeLabel}{approved ? ` ${copy.approvedBy}` : ''}
+                {model.timeLabel}{approved ? ` ${copy.ixApprovedBy}` : ''}
               </span>
             )}
           </div>
@@ -343,9 +255,9 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderTop: '1px solid var(--proto-line-2)', font: `400 11px ${mono}`, color: 'var(--proto-muted)', flexWrap: 'wrap' }}>
             {model.filePath && <span style={{ color: 'var(--proto-accent)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.filePath}</span>}
-            <span>{approved ? copy.approvedFoot : ''}</span>
+            <span>{approved ? copy.ixApprovedFoot : ''}</span>
             <button type="button" className={focusClass} onClick={onOpenRead} style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontWeight: 600, cursor: 'pointer', flex: 'none', borderRadius: 'var(--r-control)' }}>
-              {rejected ? copy.viewOriginalPlan : copy.viewPlan}
+              {rejected ? copy.ixViewOriginalPlan : copy.ixViewPlan}
             </button>
           </div>
         </div>
@@ -363,9 +275,9 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
   return (
     <div style={{ ...cardMaterial, border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--pill-running-fg)' }}>{copy.planPendingPill}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--pill-running-fg)' }}>{copy.ixPlanPendingPill}</span>
         <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-          {copy.planTtl} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
+          {copy.ixPlanTtl} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
         </span>
       </div>
       <div style={{ padding: '12px 16px 13px' }}>
@@ -376,10 +288,10 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         <div style={{ padding: '0 16px 11px' }}>
           <textarea
             className={focusClass}
-            aria-label={copy.feedbackHint}
+            aria-label={copy.ixFeedbackHint}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder={copy.feedbackPlaceholder}
+            placeholder={copy.ixFeedbackPlaceholder}
             rows={2}
             style={{
               width: '100%',
@@ -399,7 +311,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '11px 16px', borderTop: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 11, color: 'var(--proto-muted)', flex: 1, lineHeight: 1.5 }}>
-          {feedbackOpen ? copy.feedbackHint : ''}
+          {feedbackOpen ? copy.ixFeedbackHint : ''}
         </span>
         {feedbackOpen ? (
           <>
@@ -418,7 +330,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               onClick={canReturn ? () => onReject(feedback.trim()) : undefined}
               style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: canReturn ? 'var(--ink-solid-fg)' : 'var(--proto-muted)', background: canReturn ? 'var(--proto-ink)' : 'var(--proto-gray)', flex: 'none', cursor: canReturn ? 'pointer' : 'not-allowed' }}
             >
-              {copy.confirmReturn}
+              {copy.ixConfirmReturn}
             </button>
           </>
         ) : (
@@ -429,7 +341,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               onClick={() => onFeedbackOpen(true)}
               style={{ ...controlMaterial, fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
             >
-              {copy.requestChanges}
+              {copy.ixRequestChanges}
             </button>
             <button
               type="button"
@@ -438,7 +350,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               onClick={busy ? undefined : onApprove}
               style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: busy ? 'var(--proto-muted)' : 'var(--ink-solid-fg)', background: busy ? 'var(--proto-gray)' : 'var(--proto-ink)', flex: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
             >
-              {copy.approvePlan}
+              {copy.ixApprovePlan}
             </button>
           </>
         )}
