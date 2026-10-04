@@ -330,7 +330,7 @@ export function LeftRail(): JSX.Element {
   }, [filter, tree.projects, setProjectOrder]);
 
   // The tree's notion of "current" is the project owning the selected session. Push it into the
-  // shared context so the right panel, notes and issues follow the chat without the user ever
+  // shared context so the budget bar, notes and issues follow the chat without the user ever
   // switching project explicitly.
   useEffect(() => {
     if (tree.currentProjectId && tree.currentProjectId !== currentProjectId) {

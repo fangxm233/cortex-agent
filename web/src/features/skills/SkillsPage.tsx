@@ -1,19 +1,18 @@
 import { LeftRail } from '@/features/workbench/rail/LeftRail';
-import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
+import { NotesSheet } from '@/features/notes/NotesSheet';
 import { SkillsView } from './SkillsView';
 import { AppFrame } from '@/shell/AppFrame';
 import { WorkspacePanel } from '@/shell/GlassPanel';
 
-// Route /skills — desktop Skills browser (plan §12 A item 2 / 8a). Reuses the 1:1 LeftRail +
-// RightPanel; only the center pane renders SkillsView. Frame flex identical to WorkbenchPage /
-// OverviewPage / MemoryPage: 340px LeftRail / fluid center / 400px RightPanel.
+// Route /skills — desktop Skills browser. Reuses the LeftRail; only the workspace content renders
+// SkillsView. The notes sheet floats over it.
 export function SkillsPage(): JSX.Element {
   return (
     <AppFrame>
       <LeftRail />
       <WorkspacePanel>
         <SkillsView />
-        <RightPanel />
+        <NotesSheet />
       </WorkspacePanel>
     </AppFrame>
   );

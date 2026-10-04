@@ -16,10 +16,8 @@ export const paletteZh: Record<keyof typeof paletteEn, string> = {
   palKindModal: '弹窗',
 };
 
-// Workbench chrome: right-panel machine pills, chat header, rail menus, run list, composer chips.
+// Workbench chrome: chat header, rail menus, run list, composer chips.
 export const workbenchEn = {
-  wbMachineOnline: 'Online',
-  wbMachineOffline: 'Offline',
   wbOpenWebPage: 'Open a web page in the dock',
   wbSessionMenu: 'Session menu',
   wbNoSession: 'No session',
@@ -31,8 +29,6 @@ export const workbenchEn = {
   wbRailResize: 'Drag to resize the sidebar, double-click to reset',
 };
 export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
-  wbMachineOnline: '在线',
-  wbMachineOffline: '离线',
   wbOpenWebPage: '在停靠面板中打开网页',
   wbSessionMenu: '会话菜单',
   wbNoSession: '无会话',

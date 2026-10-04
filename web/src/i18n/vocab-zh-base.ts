@@ -103,6 +103,7 @@ export const zhBase = {
   mNoMachines: '暂无机器',
   mLiveRuns: '运行',
   mGpu: 'GPU',
+  mManageMachines: '管理',
 
   // ── Machine card expand: live probe (machines.detail) ──
   mProbing: '探测中…',
@@ -662,7 +663,8 @@ export const zhBase = {
   mEditPalette: '命令面板',
   mEditCopySessionId: '复制会话 ID',
   mViewLeftRail: '侧栏',
-  mViewRightPanel: '右侧面板',
+  mViewNotes: '笔记',
+  mViewMachines: '机器',
   mViewDock: '停靠面板',
   mViewWorkbench: '工作台',
   mViewOverview: '总览',

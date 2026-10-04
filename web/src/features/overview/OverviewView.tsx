@@ -86,7 +86,7 @@ export function OverviewView(): JSX.Element {
   const now = Date.now();
 
   // Active project = the shared cross-pane current project (task 569c) — the same value the LeftRail
-  // switcher writes and the RightPanel cost bar reads. Using it here (instead of re-deriving the
+  // switcher writes and the machines menu budget bar reads. Using it here (instead of re-deriving the
   // most-recent-session project) fixes the overview showing a different project than the one selected
   // in the rail.
   const { currentProjectId: activeProjectId } = useCurrentProject();

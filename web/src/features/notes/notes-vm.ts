@@ -69,3 +69,33 @@ export function buildNotesVm(notes: NoteInfo[], now: number, L: NotesTimeWords):
 export function isNotesShortcut(event: ShortcutLike): boolean {
   return (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 'n';
 }
+
+export const NOTES_SHEET_WIDTH = 380;
+const SHEET_GAP = 8;
+const SHEET_EDGE = 12;
+
+interface Box {
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+}
+
+export interface NotesSheetPlacement {
+  top: number;
+  right: number;
+}
+
+/** The pane's top-right corner, for pages whose header has no notes button. */
+export const NOTES_SHEET_CORNER: NotesSheetPlacement = { top: 56, right: SHEET_EDGE };
+
+/**
+ * Where the notes sheet hangs inside its pane: under the button that toggles it, right edges
+ * aligned, kept a margin inside the pane. A page without the button gets the top-right corner.
+ */
+export function notesSheetPlacement(pane: Box, trigger: Box | null): NotesSheetPlacement {
+  if (!trigger) return NOTES_SHEET_CORNER;
+  const maxRight = Math.max(SHEET_EDGE, pane.width - NOTES_SHEET_WIDTH - SHEET_EDGE);
+  const right = Math.min(maxRight, Math.max(SHEET_EDGE, pane.right - trigger.right));
+  return { top: Math.round(trigger.bottom - pane.top + SHEET_GAP), right: Math.round(right) };
+}

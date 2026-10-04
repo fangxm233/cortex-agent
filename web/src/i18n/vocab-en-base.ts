@@ -103,6 +103,7 @@ export const enBase = {
   mNoMachines: 'No machines configured',
   mLiveRuns: 'live',
   mGpu: 'GPU',
+  mManageMachines: 'Manage',
 
   // ── Machine card expand: live probe (machines.detail) ──
   mProbing: 'Probing…',
@@ -666,7 +667,8 @@ export const enBase = {
   mEditPalette: 'Command palette',
   mEditCopySessionId: 'Copy session ID',
   mViewLeftRail: 'Sidebar',
-  mViewRightPanel: 'Right panel',
+  mViewNotes: 'Notes',
+  mViewMachines: 'Machines',
   mViewDock: 'Dock pane',
   mViewWorkbench: 'Workbench',
   mViewOverview: 'Overview',
