@@ -19,6 +19,7 @@ import {
   type CommissionPromptContext,
 } from '@domain/commissions/commission-context.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
+import { CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { getSettings } from '@core/settings.js';
@@ -338,6 +339,7 @@ export async function prepareConversationRequest(
     }),
     // Commission sessions additionally get the contract + ledger index + protocol block, once per
     // binding rather than once per session (see resolveConversationCommission).
+    transcriptDir: isFreshSession ? CONVERSATION_HISTORY_DIR : null,
     commission: await resolveConversationCommission(sessionId, { isFreshSession }),
     // Team mode: the lead's roster every turn while it has workers, a worker's orientation once.
     ...(await resolveConversationTeam(sessionId, { teamLead: opts.teamLead, isFreshSession })),

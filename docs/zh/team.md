@@ -52,6 +52,9 @@ worker 同样保持静默。
 worker 一行（状态、职责、上次汇报、上下文用量，以及你是否直接和它对话过）。worker 的第一轮开头有一个
 `[Worker]` 块，告诉它主会话是谁、它的回复会怎样被使用。
 
+**轨迹。** 每个会话的第一轮都会告知所有会话 transcript 的存放目录（`<sessionId>.jsonl`）。汇报不够用时，
+主会话可以按 `worker_list` 给出的 session id 到这里读 worker 的完整轨迹。
+
 ## 工具 {#tools}
 
 主会话的工具来自 `cortex-workers` MCP bundle（见 [MCP](./mcp.md)）。

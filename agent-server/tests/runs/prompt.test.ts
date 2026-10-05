@@ -37,18 +37,19 @@ test('an absent template means the input verbatim', () => {
   assert.equal(composeUserPrompt({ promptTemplate: null }, 'hello'), 'hello');
 });
 
-test('prefix order is user profile, directive, project, commission, preamble', () => {
+test('prefix order is user profile, directive, project, transcripts, commission, preamble', () => {
   const prompt = composeUserPrompt(
     { directive: 'DIRECTIVE', promptTemplate: '{{input}}' },
     'BODY',
     {
       userContext: '[User Context]\nprofile\n[/User Context]',
       project: { id: 'cortex', contextDir: '/ctx/cortex' },
+      transcriptDir: '/data/conversation-history',
       commission: { phase: 'draft', dir: '/d' },
       preamble: 'PREAMBLE',
     },
   );
-  const order = ['[User Context]', 'DIRECTIVE', '[Session Project]', '[Commission]', 'PREAMBLE', 'BODY']
+  const order = ['[User Context]', 'DIRECTIVE', '[Session Project]', '[Session Transcripts]', '[Commission]', 'PREAMBLE', 'BODY']
     .map((needle) => prompt.indexOf(needle));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), prompt);
   assert.ok(order.every((i) => i >= 0), prompt);

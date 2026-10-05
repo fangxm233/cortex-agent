@@ -20,7 +20,8 @@ import type { AttachmentMeta, ChatNoticeLevel, NoticeAction, SystemTurnOrigin } 
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
-const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
+/** Where every session's transcript lives, one `<sessionId>.jsonl` per session. */
+export const CONVERSATION_HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
 // --- Types ---
 
@@ -376,7 +377,7 @@ export class ConversationHistoryRepo {
   private readonly compactHistoryAccumulatorReader: NonNullable<ConversationHistoryRepoOptions['compactHistoryAccumulatorReader']>;
 
   constructor(
-    private readonly historyDir: string = HISTORY_DIR,
+    private readonly historyDir: string = CONVERSATION_HISTORY_DIR,
     options: ConversationHistoryRepoOptions = {},
   ) {
     this.compactCacheEntryLimit = options.compactCacheEntries ?? DEFAULT_COMPACT_CACHE_ENTRIES;

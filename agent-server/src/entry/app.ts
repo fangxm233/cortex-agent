@@ -41,7 +41,7 @@ import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { conversationHistory } from '@store/conversation-history-repo.js';
+import { conversationHistory, CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { TOOL_IMAGES_DIR } from '@store/tool-image-files.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { teamOutboxRepo } from '@store/team-outbox-repo.js';
@@ -185,7 +185,7 @@ async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Pr
     candidateRepo: retentionCandidateRepo,
     liveness: retentionLiveness(),
     paths: {
-      historyDir: path.join(STORE_DIR, 'conversation-history'),
+      historyDir: CONVERSATION_HISTORY_DIR,
       piSessionsDir: path.join(DATA_DIR, 'logs', 'sessions-pi'),
       claudeCaptureDir: path.join(DATA_DIR, 'logs', 'sessions'),
       claudeProjectDir: getProjectDir(),

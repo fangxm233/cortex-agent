@@ -63,6 +63,10 @@ a few working rules and one line per worker (status, brief, last report, context
 whether you have talked to it). A worker's first turn opens with a `[Worker]` block telling it
 who its lead is and how its replies are used.
 
+**Transcripts.** Every session's first turn names the directory holding all session transcripts
+(`<sessionId>.jsonl`). When a report is not enough, the lead can read a worker's full transcript
+there, using the session id that `worker_list` shows.
+
 ## Tools
 
 The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md)).

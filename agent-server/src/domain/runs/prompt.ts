@@ -51,6 +51,8 @@ export interface UserPromptOptions {
   userContext?: string | null;
   /** Names the project a session is bound to, so the agent knows where its findings belong. */
   project?: { id: string; contextDir: string } | null;
+  /** The conversation-history directory, so the agent can find any session's transcript. */
+  transcriptDir?: string | null;
   /** Index + protocol for a commission-bound session (DR-0037). */
   commission?: CommissionPromptContext | null;
   /** Team mode, lead side: one roster line per active worker. */
@@ -76,8 +78,8 @@ export interface UserPromptOptions {
  * Assemble one turn's user prompt: the agent's template rendered over the turn's variables, with
  * the ambient blocks the session needs in front of it.
  *
- * Prefix order is fixed — user profile, agent directive, session project, commission, team or
- * worker, control-plane preamble — and every block is optional. A caller that passes none (and no lead/appendix) gets the
+ * Prefix order is fixed — user profile, agent directive, session project, transcript location,
+ * commission, team or worker, control-plane preamble — and every block is optional. A caller that passes none (and no lead/appendix) gets the
  * rendered template alone, trimmed.
  */
 export function composeUserPrompt(
@@ -102,6 +104,7 @@ export function composeUserPrompt(
     if (opts.userContext) prefixes.push(opts.userContext);
     if (spec.directive) prefixes.push(resolveSystemVars(spec.directive));
     if (opts.project) prefixes.push(buildProjectBlock(opts.project));
+    if (opts.transcriptDir) prefixes.push(buildTranscriptBlock(opts.transcriptDir));
     if (opts.commission) prefixes.push(buildCommissionBlock(opts.commission));
     if (opts.team) prefixes.push(buildTeamBlock(opts.team.roster));
     if (opts.worker) prefixes.push(buildWorkerBlock(opts.worker));
@@ -128,6 +131,10 @@ function buildProjectBlock(project: { id: string; contextDir: string }): string 
     + `Project context directory: ${project.contextDir}\n`
     + `Treat messages in this session as pertaining to this project unless stated otherwise, `
     + `and record project-related findings and status updates there.`;
+}
+
+function buildTranscriptBlock(dir: string): string {
+  return `[Session Transcripts] The full transcript of any Cortex session is at ${dir}/<sessionId>.jsonl.`;
 }
 
 /** The lead's standing rules plus its live roster, re-sent every turn while it has workers. */
