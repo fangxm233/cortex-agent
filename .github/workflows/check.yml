@@ -1,0 +1,51 @@
+name: Check
+
+# Fast static checks on every push to main and every pull request: types, layer rules and the
+# desktop native command contract. The full test suites stay local.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4   # version comes from package.json `packageManager`
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Server typecheck and dependency rules
+        run: |
+          pnpm -C agent-server typecheck
+          pnpm -C agent-server depcruise
+
+      - name: Web typecheck and dependency rules
+        # The web types come from the built server and UI contract.
+        run: |
+          pnpm --filter '@cortex-agent/ui-contract...' run build
+          pnpm -C web typecheck
+          pnpm -C web depcruise
+
+      - name: Native command contract
+        run: pnpm -C web exec vitest run src/lib/native-bridge.contract.test.ts
