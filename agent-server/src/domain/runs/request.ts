@@ -48,6 +48,11 @@ export interface RunRequest {
     commissionMode: boolean;
     /** The session may lead a team (team mode): its engine also loads the worker tools. */
     teamLead?: boolean;
+    /** The trigger the engine's route is attributed to, when it is not `trigger`. The route (the
+     *  gateway URL names the trigger) is fixed when the process spawns, so a surface that opens a
+     *  turn or runs a command on a session's live engine keeps the session's own trigger here, and
+     *  records itself in `trigger`. */
+    routeTrigger?: string;
   };
   policy: {
     background: 'none' | 'hold';

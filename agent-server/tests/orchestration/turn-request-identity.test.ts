@@ -1,7 +1,9 @@
 // Every surface that opens a turn on a session's live engine — a user message, an edit retry, an
-// ask-user answer — must ask for the same engine. The pool compares the spec identity and respawns
-// on any difference, so a surface that built its own spec used to kill the session's process and
-// resume it without the agent's plugins, tools or worker tools for that turn.
+// ask-user answer — and manual compaction, which runs a command on it, must ask for the same engine.
+// The pool compares the spec identity and respawns on any difference, so a surface that built its
+// own spec used to kill the session's process and resume it without the agent's plugins, tools or
+// worker tools. The spec is built the way the run builds it, route included, with the gateway up:
+// the gateway route names the run's project and trigger, and the route is part of the identity.
 import { beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -46,6 +48,13 @@ import { sessionStore, type Session } from '../../src/store/session-registry-rep
 import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import * as sessions from '../../src/domain/sessions/session.js';
 import { buildEngineSpec } from '../../src/domain/runs/engine-spec.js';
+import { requestRoute } from '../../src/domain/runs/config-resolver.js';
+import { planAttempts } from '../../src/domain/runs/fallback.js';
+import { engines } from '../../src/domain/runs/engines.js';
+import type { RunRequest } from '../../src/domain/runs/request.js';
+import { _testSetHealthy } from '../../src/domain/costs/gateway-manager.js';
+import type { EngineSession, EngineSpec } from '../../src/agent-adapter/types.js';
+import { compactSessionContext } from '../../src/orchestration/session-compact.js';
 import { claudeSpecIdentity } from '../../src/agent-adapter/claude/adapter.js';
 import type { TurnInput } from '../../src/orchestration/turn/turn.js';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
@@ -64,6 +73,7 @@ const SESSION: Session = {
 
 beforeAll(() => {
   seedTestProfiles();
+  _testSetHealthy(true);
   fs.writeFileSync(path.join(CONFIG_DIR, 'settings.json'), JSON.stringify({ teamEnabled: true }));
   resetSettingsForTests();
 });
@@ -77,9 +87,15 @@ beforeEach(() => {
   vi.spyOn(sessions, 'getSessionAsync').mockResolvedValue(SESSION.sessionId);
 });
 
+/** The spec the run opens a request's first attempt under. */
+function runSpec(request: RunRequest): EngineSpec {
+  const attempt = planAttempts(request.profile)[0];
+  return buildEngineSpec(request, attempt, { route: requestRoute(request, attempt) });
+}
+
 async function identityOf(input: TurnInput): Promise<string> {
   const { request } = await input.prepareRequest(input.session);
-  return claudeSpecIdentity(buildEngineSpec(request, request.profile));
+  return claudeSpecIdentity(runSpec(request));
 }
 
 async function userTurnIdentity(): Promise<string> {
@@ -119,4 +135,23 @@ test('an ask-user answer asks for the same engine as a user turn', async () => {
     responseText: 'answer',
   });
   expect(await identityOf(captured.at(-1)!)).toBe(userTurn);
+});
+
+test('manual compaction asks for the same engine as a user turn', async () => {
+  const userTurn = await userTurnIdentity();
+  const acquired: EngineSpec[] = [];
+  const engine = {
+    compact: async () => ({
+      status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null, contextUsage: null, usage: null,
+    }),
+  } as unknown as EngineSession;
+  vi.spyOn(engines, 'acquire').mockImplementation(((spec: EngineSpec) => {
+    acquired.push(spec);
+    return engine;
+  }) as never);
+  const outcome = await compactSessionContext(SESSION.sessionId);
+  expect(outcome.ok).toBe(true);
+  expect(acquired).toHaveLength(1);
+  expect(acquired[0].resume.backendSessionId).toBe(SESSION.backendSessionId);
+  expect(claudeSpecIdentity(acquired[0])).toBe(userTurn);
 });

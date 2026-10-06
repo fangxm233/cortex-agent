@@ -6,14 +6,12 @@ import {
   sessionStore,
   type Session,
 } from '@store/session-registry-repo.js';
-import {
-  compactAgentContext,
-  isSessionCompactionSupported,
-  type CompactAgentRequest,
-} from '@domain/runs/compact.js';
-import type { AgentCompactResult } from '../agent-adapter/types.js';
+import { compactAgentContext, isSessionCompactionSupported } from '@domain/runs/compact.js';
+import type { AgentCompactResult, Backend } from '../agent-adapter/types.js';
 import { conduitQueues, enqueueAndWait } from './conduit-queue.js';
+import { conversationEngineRequest } from './conversation-request.js';
 import { publishSessionContextCompacted } from './session-events.js';
+import { withTurnBrowser } from './turn/turn-prep.js';
 
 export type CompactSessionOutcome =
   | { ok: true; status: 'compacted' | 'not-needed'; contextUsage: SessionContextUsage | null }
@@ -23,20 +21,9 @@ export type CompactActiveSessionOutcome =
   | CompactSessionOutcome
   | { ok: false; reason: 'no-session' };
 
-interface CompactSessionRecord {
-  name: string;
-  sessionId: string;
-  backendSessionId?: string | null;
-  projectId: string;
-  channel: string;
-  backend: string;
-  profileName: string | null;
-  contextUsage?: SessionContextUsage;
-}
-
 export interface CompactSessionDeps {
   sessions: {
-    getById(sessionId: string): Promise<CompactSessionRecord | null>;
+    getById(sessionId: string): Promise<Session | null>;
     updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void>;
     /** Compaction removes the already-delivered [Commission] block from backend history, so the
      *  delivery marker has to go with it or the block is never seen again (DR-0037 v4). */
@@ -50,7 +37,8 @@ export interface CompactSessionDeps {
     run<T>(channel: string, fn: () => Promise<T>): Promise<T>;
   };
   supports(session: { backend: string; profileName: string | null }): boolean;
-  compactAgent(request: CompactAgentRequest): Promise<AgentCompactResult>;
+  /** Compact the session's live engine, which holds `backendSessionId`. */
+  compactAgent(session: Session, backendSessionId: string): Promise<AgentCompactResult>;
   publish(event: {
     sessionId: string;
     channel: string;
@@ -68,29 +56,37 @@ const defaultDeps: CompactSessionDeps = {
     run: enqueueAndWait,
   },
   supports: isSessionCompactionSupported,
-  compactAgent: compactAgentContext,
+  compactAgent: compactLiveEngine,
   publish: publishSessionContextCompacted,
   now: () => new Date().toISOString(),
 };
 
-function compactRequest(session: CompactSessionRecord, backendSessionId: string): CompactAgentRequest {
-  return {
-    sessionId: session.sessionId,
-    backend: session.backend as CompactAgentRequest['backend'],
-    backendSessionId,
-    channel: session.channel,
-    profileName: session.profileName,
-    projectId: session.projectId,
-    sessionName: session.name,
-  };
+/**
+ * Compaction asks the pool for the session's engine exactly as the session's next turn would: the
+ * same request (agent, profile, policy, route) and the same browser, held for the command. Anything
+ * else is a different identity, and the pool would respawn the process — compacting a fresh one
+ * and leaving the next turn to respawn it again.
+ */
+function compactLiveEngine(session: Session, backendSessionId: string): Promise<AgentCompactResult> {
+  const { backend, channel } = session;
+  return withTurnBrowser({ backend, browser: session.browser ?? null }, (cdpEndpoint) => compactAgentContext({
+    backend: backend as Backend,
+    request: conversationEngineRequest({
+      ids: {
+        sessionId: session.sessionId, backendSessionId, sessionName: session.name,
+        projectId: session.projectId ?? 'general',
+      },
+      channel, session, browserCdpEndpoint: cdpEndpoint, trigger: 'manual-compact',
+    }),
+  }));
 }
 
-function currentUsage(session: CompactSessionRecord): SessionContextUsage | null {
+function currentUsage(session: Session): SessionContextUsage | null {
   return session.contextUsage ?? null;
 }
 
 async function applyCompactResult(
-  session: CompactSessionRecord,
+  session: Session,
   result: AgentCompactResult,
   deps: CompactSessionDeps,
 ): Promise<CompactSessionOutcome> {
@@ -131,12 +127,12 @@ export async function compactSessionContext(
   // is what serializes two compactions). The registry used to be asked twice under two names.
   const busy = deps.engineBusy(session) || deps.queue.has(session.channel);
   if (busy) return { ok: false, reason: 'running' };
-  const backendSessionId = effectiveBackendSessionId(session as Session);
+  const backendSessionId = effectiveBackendSessionId(session);
   if (!backendSessionId) {
     return { ok: true, status: 'not-needed', contextUsage: currentUsage(session) };
   }
   return deps.queue.run(session.channel, async () => {
-    const result = await deps.compactAgent(compactRequest(session, backendSessionId));
+    const result = await deps.compactAgent(session, backendSessionId);
     return applyCompactResult(session, result, deps);
   });
 }

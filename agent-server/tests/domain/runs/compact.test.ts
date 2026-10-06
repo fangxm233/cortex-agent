@@ -4,27 +4,43 @@ import {
   compactAgentContext,
   isSessionCompactionSupported,
   type CompactAgentDeps,
+  type CompactAgentTarget,
 } from '../../../src/domain/runs/compact.js';
+import { bareSpec } from '../../../src/domain/runs/spec-loader.js';
 import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { makeFakeRuntimeFactory } from '../../agent-adapter/pi-fake-runtime.js';
 import { piPool } from '../../agent-adapter/pi-pool-fixture.js';
-
-const REQUEST = {
-  sessionId: 'track-1',
-  backend: 'pi' as const,
-  backendSessionId: 'backend-1',
-  channel: 'web:track-1',
-  profileName: 'deepseek',
-  projectId: 'nimbus',
-  sessionName: 'cortex-a1b2c3',
-};
 
 function profile(overrides: Record<string, unknown> = {}): any {
   return {
     name: 'deepseek', backend: 'pi', model: 'deepseek-chat', mode: 'deepseek', provider: 'anthropic',
     fallback: [], extraEnv: {}, extraOption: {}, thinking: null,
     ...overrides,
+  };
+}
+
+/** What the orchestration hands compaction: the request the session's next turn would run under. */
+function target(profileOverrides: Record<string, unknown> = {}): CompactAgentTarget {
+  return {
+    backend: 'pi',
+    request: {
+      runId: 'compact-run',
+      session: {
+        sessionId: 'track-1', backendSessionId: 'backend-1', engineKey: 'web:track-1', sessionName: 'cortex-a1b2c3',
+      },
+      profile: profile(profileOverrides),
+      spec: bareSpec(),
+      prompt: { text: '' },
+      context: {
+        channel: 'web:track-1', project: 'nimbus', trigger: 'manual-compact', routeTrigger: 'user',
+        executionKind: 'local', isUserInitiated: true, commissionMode: false,
+      },
+      policy: {
+        background: 'none', recordCost: false, hooks: true, loadRules: true, mcpComposition: 'direct',
+        captureTranscripts: true,
+      },
+    },
   };
 }
 
@@ -56,21 +72,20 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
   const calls: any[] = [];
   let acquiredSpec: EngineSpec | undefined;
   const deps: CompactAgentDeps = {
-    resolveProfile: () => profile(),
     acquireEngine: (spec) => {
       acquiredSpec = spec;
       calls.push(['acquire']);
       return pool.open(spec);
     },
-    configureMode: (mode, metadata) => {
-      calls.push(['mode', mode, metadata]);
+    route: (request, attempt) => {
+      calls.push(['route', attempt.mode, request.context.routeTrigger]);
       return { ANTHROPIC_BASE_URL: 'http://gateway', ANTHROPIC_API_KEY: null };
     },
     recordCost: async (entry) => { calls.push(['cost', entry]); },
   };
 
   try {
-    const result = await compactAgentContext(REQUEST, deps);
+    const result = await compactAgentContext(target(), deps);
     assert.equal(result.status, 'compacted');
 
     // The pool was asked for the SAME session the channel's next turn resumes into: same engine
@@ -80,6 +95,8 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
     assert.equal(acquiredSpec!.engineKey, 'web:track-1');
     assert.equal(acquiredSpec!.context.channel, 'web:track-1');
     assert.equal(acquiredSpec!.route.anthropicBaseUrl, 'http://gateway');
+    // The route is asked for the profile's first attempt, as the run would open it.
+    assert.deepEqual(calls.filter((entry) => entry[0] === 'route'), [['route', 'deepseek', 'user']]);
     assert.deepEqual(acquiredSpec!.env.unsets, ['ANTHROPIC_API_KEY']);
 
     // Compaction is a backend command, not a turn: the scripted session sees compact() and never
@@ -109,11 +126,10 @@ test('compactAgentContext rejects a profile whose backend is not the session’s
   let acquired = false;
   await assert.rejects(
     () => compactAgentContext(
-      { ...REQUEST, backend: 'pi', profileName: 'wrong' },
+      target({ backend: 'claude' }),
       {
-        resolveProfile: () => profile({ backend: 'claude' }),
         acquireEngine: () => { acquired = true; throw new Error('must not acquire'); },
-        configureMode: () => ({}),
+        route: () => ({}),
         recordCost: async () => {},
       },
     ),

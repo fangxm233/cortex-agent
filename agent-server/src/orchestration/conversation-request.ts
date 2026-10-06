@@ -333,26 +333,54 @@ async function composeConversationPrompt(
   return `${formatAttachmentFailures(opts.failedFiles ?? [])}${composed}`;
 }
 
-/** Assemble the `RunRequest` for one turn on a session's live engine (see the options' doc). */
-export async function prepareConversationRequest(
-  opts: PrepareConversationRequestOptions,
-): Promise<PreparedRequest> {
+/** The options that decide a turn's engine: whose session, on which channel, with which browser,
+ *  opened by which surface. A command on the live engine (compaction) has exactly these. */
+export type ConversationEngineOptions = Pick<
+  PrepareConversationRequestOptions, 'ids' | 'channel' | 'session' | 'browserCdpEndpoint' | 'trigger'
+>;
+
+interface ConversationShape {
+  /** The turn's request with an empty prompt. */
+  request: RunRequest;
+  agentConfig: ResolvedEnvironment;
+  commissionEnabled: boolean;
+  teamLead: boolean;
+}
+
+/** How a turn on the session is attributed and which engine-side features it carries. */
+function conversationContext(
+  opts: ConversationEngineOptions,
+  state: { commissionEnabled: boolean; teamLead: boolean },
+): RunRequest['context'] {
+  const own = conversationTrigger(opts.session);
+  return {
+    channel: opts.channel,
+    // Cost/execution go to the session's bound project, never a re-derivation from the text.
+    project: opts.ids.projectId,
+    // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
+    // to, so it pauses and resumes on a rate limit exactly like one.
+    isUserInitiated: true,
+    // Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
+    commissionMode: state.commissionEnabled && !!opts.session?.commissionId,
+    ...(state.teamLead ? { teamLead: true } : {}),
+    ...own,
+    // Another surface records itself as the trigger, but the route keeps the session's own: the
+    // live engine was spawned on it, and a different route would respawn it for this one turn.
+    ...(opts.trigger ? { trigger: opts.trigger, routeTrigger: own.trigger } : {}),
+  };
+}
+
+/** Everything about a turn's request except what it says. */
+function conversationShape(opts: ConversationEngineOptions): ConversationShape {
   const { session, channel } = opts;
   const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
   const policy = conversationRunPolicy(agentConfig, { channel, browserCdpEndpoint: opts.browserCdpEndpoint });
-  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition });
   // settings.commissionEnabled is the global switch for the feature. With it off, a session that
   // was bound while it was on reverts to an ordinary session: no commission skill, no contract
   // block, and the commission tools refuse.
   const commissionEnabled = getSettings().commissionEnabled;
   // Team mode: this session may lead workers, so its engine loads the worker tools.
   const teamLead = isTeamLead(session);
-  const prompt = await composeConversationPrompt(
-    opts, { config: agentConfig, spec }, { commissionEnabled, teamLead },
-  );
-  const files = opts.files ?? [];
-  const backendPrompt = buildBackendPrompt(prompt, files);
-  opts.onPromptBuilt?.(backendPrompt);
   const request: RunRequest = {
     runId: randomUUID(),
     session: {
@@ -364,25 +392,38 @@ export async function prepareConversationRequest(
       engineKey: channel,
     },
     profile: conversationProfile(channel, agentConfig),
-    spec,
-    prompt: { text: prompt, attachments: files.map(attachmentOf) },
-    context: {
-      channel,
-      // Cost/execution go to the session's bound project, never a re-derivation from the text.
-      project: opts.ids.projectId,
-      // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
-      // to, so it pauses and resumes on a rate limit exactly like one.
-      isUserInitiated: true,
-      // Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
-      commissionMode: commissionEnabled && !!session?.commissionId,
-      ...(teamLead ? { teamLead: true } : {}),
-      ...conversationTrigger(session),
-      ...(opts.trigger ? { trigger: opts.trigger } : {}),
-    },
+    spec: fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition }),
+    prompt: { text: '' },
+    context: conversationContext(opts, { commissionEnabled, teamLead }),
     policy,
   };
   attachBenchmarkEvidence(request);
+  return { request, agentConfig, commissionEnabled, teamLead };
+}
+
+/** Assemble the `RunRequest` for one turn on a session's live engine (see the options' doc). */
+export async function prepareConversationRequest(
+  opts: PrepareConversationRequestOptions,
+): Promise<PreparedRequest> {
+  const { request, agentConfig, commissionEnabled, teamLead } = conversationShape(opts);
+  const prompt = await composeConversationPrompt(
+    opts, { config: agentConfig, spec: request.spec }, { commissionEnabled, teamLead },
+  );
+  const files = opts.files ?? [];
+  const backendPrompt = buildBackendPrompt(prompt, files);
+  opts.onPromptBuilt?.(backendPrompt);
+  request.prompt = { text: prompt, attachments: files.map(attachmentOf) };
   return { request, backendPrompt };
+}
+
+/**
+ * The request a command on a session's live engine runs under: the request the session's next turn
+ * would run under, without a prompt. The pool compares identities, so this is the only way such a
+ * command is handed the session's own engine rather than a respawned one. Composes no prompt, and
+ * so delivers no ambient block (the [Commission] marker is left alone).
+ */
+export function conversationEngineRequest(opts: ConversationEngineOptions): RunRequest {
+  return conversationShape(opts).request;
 }
 
 function attachmentOf(file: DownloadedFile): { mimeType: string; path: string; name: string } {

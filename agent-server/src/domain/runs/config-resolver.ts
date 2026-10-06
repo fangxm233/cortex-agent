@@ -5,6 +5,7 @@ import {
   getDefaultProfileName, resolveModeForProvider, resolveProfileConfig,
   type ResolvedProfileConfig, type RunAttemptConfig,
 } from '../agents/profile-manager.js';
+import type { RunRequest } from './request.js';
 
 export interface RunConfigQuery {
   /** Conduit the run belongs to. Absent for runs with no channel (a scheduled job's first turn). */
@@ -134,6 +135,16 @@ export function resolveRunRoute(
   return resolveModeEnv(
     attempt.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
   );
+}
+
+/** The route one attempt of `request` runs under — the run's own choice, and what a command on the
+ *  same engine has to ask for to be handed that engine. */
+export function requestRoute(
+  request: { context: Pick<RunRequest['context'], 'project' | 'trigger' | 'routeTrigger'> },
+  attempt: { mode?: RunAttemptConfig['mode'] },
+): ModeEnv {
+  const { project, trigger, routeTrigger } = request.context;
+  return resolveRunRoute(attempt, { project, trigger: routeTrigger ?? trigger });
 }
 
 /** The backend a channel's next run will use. Replaces `getActiveBackend()` on the run path. */

@@ -7,21 +7,23 @@
 import type { Backend, EngineSession, EngineSpec } from '../../agent-adapter/types.js';
 import type { AgentCompactResult } from '../../agent-adapter/types.js';
 import { recordCost } from '../costs/cost-tracker.js';
-import { resolveModeEnv, type ModeEnv } from './mode-env.js';
-import { resolveProfileConfig, type ResolvedProfileConfig } from '../agents/profile-manager.js';
+import type { ModeEnv } from './mode-env.js';
+import {
+  resolveProfileConfig, type ResolvedProfileConfig, type RunAttemptConfig,
+} from '../agents/profile-manager.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';
-import { bareSpec } from './spec-loader.js';
+import { requestRoute } from './config-resolver.js';
+import { planAttempts } from './fallback.js';
 import type { RunRequest } from './request.js';
 
-export interface CompactAgentRequest {
-  sessionId: string;
+/** What compaction runs against. */
+export interface CompactAgentTarget {
+  /** The request the session's next turn would run under, prompt aside. The pool hands back the
+   *  session's live engine only for a request that asks for it exactly. */
+  request: RunRequest;
+  /** The session's backend; a profile that would run another one is refused. */
   backend: Backend;
-  backendSessionId: string;
-  channel: string;
-  profileName: string | null;
-  projectId: string;
-  sessionName: string;
 }
 
 interface CompactCostEntry {
@@ -38,18 +40,17 @@ interface CompactCostEntry {
 }
 
 export interface CompactAgentDeps {
-  resolveProfile: (profileName: string | null) => ResolvedProfileConfig;
   /** The pooled session for the spec. Compaction runs on it and leaves it pooled — it is the same
    *  session the channel's next turn will resume into, not a throwaway process. */
   acquireEngine: (spec: EngineSpec) => EngineSession;
-  configureMode: (mode: string, metadata?: Record<string, string>) => ModeEnv;
+  /** The route the run would open this attempt of the request under. */
+  route: (request: RunRequest, attempt: RunAttemptConfig) => ModeEnv;
   recordCost: (entry: CompactCostEntry) => Promise<void>;
 }
 
 const compactAgentDeps: CompactAgentDeps = {
-  resolveProfile: resolveProfileConfig,
   acquireEngine: (spec) => engines.acquire(spec),
-  configureMode: resolveModeEnv,
+  route: requestRoute,
   recordCost,
 };
 
@@ -58,9 +59,11 @@ function supportsCompactProfile(backend: string, profile: ResolvedProfileConfig)
   return profile.backend === backend && (backend === 'claude' || backend === 'pi');
 }
 
+/** The cheap gate a surface asks before offering compaction, on the profile the registry recorded.
+ *  `compactAgentContext` checks the profile the session's turns actually resolve to. */
 export function isSessionCompactionSupported(
   session: { backend: string; profileName: string | null },
-  resolve: CompactAgentDeps['resolveProfile'] = resolveProfileConfig,
+  resolve: (profileName: string | null) => ResolvedProfileConfig = resolveProfileConfig,
 ): boolean {
   try {
     return supportsCompactProfile(session.backend, resolve(session.profileName));
@@ -69,53 +72,17 @@ export function isSessionCompactionSupported(
   }
 }
 
-/**
- * The engine spec compaction targets. It must name the SAME engine key and resume target the
- * channel's turns use, or the pool hands back a different session and compaction runs against a
- * transcript nobody is reading.
- */
-function compactRequest(request: CompactAgentRequest, profile: ResolvedProfileConfig): RunRequest {
-  return {
-    runId: `compact-${request.sessionId}`,
-    session: {
-      sessionId: request.sessionId,
-      backendSessionId: request.backendSessionId,
-      engineKey: request.channel,
-      sessionName: request.sessionName,
-    },
-    profile,
-    spec: bareSpec(),
-    prompt: { text: '' },
-    context: {
-      channel: request.channel,
-      project: request.projectId,
-      trigger: 'manual-compact',
-      executionKind: 'local',
-      isUserInitiated: true,
-      commissionMode: false,
-    },
-    policy: {
-      background: 'none',
-      recordCost: false,
-      hooks: true,
-      loadRules: true,
-      mcpComposition: 'direct',
-      captureTranscripts: true,
-    },
-  };
-}
-
 function compactCostEntry(
-  request: CompactAgentRequest,
-  profile: ResolvedProfileConfig,
+  target: CompactAgentTarget,
   result: AgentCompactResult,
 ): CompactCostEntry | null {
   if (!result.usage) return null;
+  const { profile, context } = target.request;
   return {
-    project: request.projectId,
-    trigger: 'manual-compact',
+    project: context.project,
+    trigger: context.trigger,
     cost_usd: result.usage.costUsd,
-    backend: request.backend,
+    backend: target.backend,
     mode: profile.mode || 'api',
     source: 'estimate',
     input_tokens: result.usage.inputTokens,
@@ -126,22 +93,21 @@ function compactCostEntry(
 }
 
 export async function compactAgentContext(
-  request: CompactAgentRequest,
+  target: CompactAgentTarget,
   deps: CompactAgentDeps = compactAgentDeps,
 ): Promise<AgentCompactResult> {
-  const profile = deps.resolveProfile(request.profileName);
-  if (!supportsCompactProfile(request.backend, profile)) {
-    throw new Error(`${request.backend} profile does not support manual context compaction`);
+  const { request, backend } = target;
+  if (!supportsCompactProfile(backend, request.profile)) {
+    throw new Error(`${backend} profile does not support manual context compaction`);
   }
-  const route = deps.configureMode(profile.mode || 'api', {
-    project: request.projectId,
-    trigger: 'manual-compact',
-  });
+  // The run's first attempt: the engine the session's turns open (a fallback attempt starts a
+  // fresh conversation, so it is never the one holding the context to compact).
+  const attempt = planAttempts(request.profile)[0];
   const engine = deps.acquireEngine(
-    buildEngineSpec(compactRequest(request, profile), profile, { route }),
+    buildEngineSpec(request, attempt, { route: deps.route(request, attempt) }),
   );
   const result = await engine.compact();
-  const cost = compactCostEntry(request, profile, result);
+  const cost = compactCostEntry(target, result);
   if (cost) await deps.recordCost(cost);
   return result;
 }

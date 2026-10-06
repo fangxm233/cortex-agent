@@ -15,7 +15,7 @@ import {
   attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt, planAttempts,
   attemptLabel,
 } from './fallback.js';
-import { resolveRunRoute } from './config-resolver.js';
+import { requestRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
 import { startAttempt, type RunAttempt } from './attempt.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
@@ -282,10 +282,7 @@ export class AgentRunImpl implements AgentRun {
   /** The route (base URL + credentials) this attempt runs under. Per-attempt, because a fallback
    *  may be a different mode entirely. */
   private routeFor(attempt: RunAttemptConfig): ModeEnv {
-    return resolveRunRoute(attempt, {
-      project: this.request.context.project,
-      trigger: this.request.context.trigger,
-    });
+    return requestRoute(this.request, attempt);
   }
 
   /** The chain moved on. Report it on the stream; the surface renders the notice. */

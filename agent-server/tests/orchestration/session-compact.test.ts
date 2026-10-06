@@ -44,8 +44,8 @@ function makeDeps(log: Log, overrides: Partial<CompactSessionDeps> = {}): Compac
       run: async (_channel, fn) => fn(),
     },
     supports: () => true,
-    compactAgent: async (request) => {
-      log.compact.push(request);
+    compactAgent: async (session, backendSessionId) => {
+      log.compact.push({ sessionId: session.sessionId, backendSessionId });
       return {
         status: 'compacted', tokensBefore: 120000, estimatedTokensAfter: 18000,
         contextUsage: { usedTokens: 19000, contextWindow: 200000, percent: 9.5, accuracy: 'estimate' },
@@ -116,8 +116,8 @@ test('a second compact sees the first queue reservation and returns running', as
         try { return await fn(); } finally { queued = false; }
       },
     },
-    compactAgent: async (request) => {
-      log.compact.push(request);
+    compactAgent: async (session, backendSessionId) => {
+      log.compact.push({ sessionId: session.sessionId, backendSessionId });
       started();
       await blocked;
       return {
@@ -143,10 +143,7 @@ test('successful PI compact persists post stats and publishes semantic session e
     updatedAt: '2026-07-28T01:00:00.000Z',
   };
   assert.deepEqual(result, { ok: true, status: 'compacted', contextUsage });
-  assert.deepEqual(log.compact, [{
-    sessionId: 'track-1', backend: 'pi', backendSessionId: 'backend-1', channel: 'web:track-1',
-    profileName: 'deepseek', projectId: 'nimbus', sessionName: 'cortex-a1b2c3',
-  }]);
+  assert.deepEqual(log.compact, [{ sessionId: 'track-1', backendSessionId: 'backend-1' }]);
   assert.deepEqual(log.snapshots, [{ sessionId: 'track-1', usage: contextUsage }]);
   assert.deepEqual(log.events, [{
     sessionId: 'track-1', channel: 'web:track-1', status: 'compacted', contextUsage,
