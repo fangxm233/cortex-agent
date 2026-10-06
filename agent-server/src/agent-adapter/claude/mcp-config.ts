@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createLogger } from '@core/log.js';
 import { DATA_DIR } from '@core/paths.js';
-import { ensurePrivateRuntimeDirectory } from '../mcp-private-dir.js';
+import { ensurePrivateDirectory, physicalUnder } from '@core/private-dir.js';
 import type { McpServerConfig } from '../types.js';
 
 const log = createLogger('claude-mcp-config');
@@ -101,7 +101,7 @@ function writePrivateAtomic(filePath: string, text: string): void {
 }
 
 function privateContentFile(directory: string, text: string, label: string): string {
-  ensurePrivateRuntimeDirectory(directory, label);
+  ensurePrivateDirectory(directory, label);
   const filePath = path.join(directory, `${sha256(text)}.json`);
   if (fs.existsSync(filePath)) {
     validateExistingFile(filePath, text);
@@ -151,8 +151,8 @@ export function writeClaudeSupplementalMcpConfig(
   mcpServers: readonly McpServerConfig[],
   options: ClaudeSupplementalMcpConfigOptions = {},
 ): ClaudeSupplementalMcpConfig {
-  const runtimeDir = path.resolve(options.runtimeDir ?? path.join(DATA_DIR, 'data', 'plugin-runtime'));
-  ensurePrivateRuntimeDirectory(runtimeDir, 'Claude MCP runtime');
+  const runtimeDir = physicalUnder(DATA_DIR, options.runtimeDir ?? path.join(DATA_DIR, 'data', 'plugin-runtime'));
+  ensurePrivateDirectory(runtimeDir, 'Claude MCP runtime');
   const text = claudeSupplementalMcpConfigJson(runtimeServers(mcpServers, runtimeDir));
   const identity = sha256(text);
   const directory = path.join(runtimeDir, 'claude-mcp');

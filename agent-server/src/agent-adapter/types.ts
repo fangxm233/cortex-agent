@@ -63,7 +63,9 @@ export interface EngineSpec {
   model: { id?: string; provider?: string; thinking?: string; maxOutputTokens?: number };
   prompt: { system?: string; append?: string };
   tools: { canonical?: string[]; rawClaude?: string };
-  plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string };
+  plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string;
+             /** Selected skills/MCP servers that failed to materialize; for the user, not the engine. */
+             warnings?: string[] };
   mcp: { composition?: McpComposition; servers?: McpServerConfig[]; allowlist?: string[];
          configPaths?: string[]; browserCdpEndpoint?: string };
   env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;

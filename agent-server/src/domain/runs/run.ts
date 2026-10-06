@@ -4,7 +4,7 @@ import type { RunRegistry } from '@core/run-registry.js';
 import { remainingBg } from '../../agent-adapter/bg-wait.js';
 import { mergeContinuation } from '../../agent-adapter/continuation-phase.js';
 import { CAPABILITIES_BY_BACKEND, Capability } from '../../agent-adapter/capabilities.js';
-import type { UserMessage } from '../../agent-adapter/types.js';
+import type { EngineSpec, UserMessage } from '../../agent-adapter/types.js';
 import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
@@ -22,6 +22,9 @@ import { startAttempt, type RunAttempt } from './attempt.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
 
 const log = createLogger('run');
+
+/** How many plugin skip reasons a notice lists before summarizing the rest. */
+const PLUGIN_WARNINGS_SHOWN = 3;
 
 /** How a run ends. `rate-limited` stays its own outcome; the execution record files it as a failure
  *  that names the rate limit (`executions/registry.ts` teardownExecution). */
@@ -148,6 +151,7 @@ export class AgentRunImpl implements AgentRun {
   /** Mirrors the old dispatcher's `active`: once the foreground turn is over, the run stops
    *  synthesizing notices about itself — the background phase is not a new turn to announce. */
   private noticesActive = true;
+  private pluginWarningsAnnounced = false;
 
   private current: RunAttempt | null = null;
   private started = false;
@@ -265,6 +269,7 @@ export class AgentRunImpl implements AgentRun {
     }
     this.current = current;
     this.registerAttempt(current);
+    this.announcePluginWarnings(current.spec);
 
     try {
       const result = await current.foreground;
@@ -493,6 +498,23 @@ export class AgentRunImpl implements AgentRun {
         break;
     }
     this.absorb(event);
+  }
+
+  /**
+   * Selected plugin skills or MCP servers that could not be materialized for this spawn. The turn
+   * runs without them, which looks healthy unless someone says so. Once per run, web surfaces only
+   * (Slack/Feishu have no notice lines), like the other synthesized notices.
+   */
+  private announcePluginWarnings(spec: EngineSpec): void {
+    const warnings = spec.plugins.warnings;
+    if (!warnings?.length || this.pluginWarningsAnnounced || !this.noticesActive) return;
+    if (!this.request.context.channel?.startsWith('web:')) return;
+    this.pluginWarningsAnnounced = true;
+    const shown = warnings.slice(0, PLUGIN_WARNINGS_SHOWN).join('\n');
+    const more = warnings.length - PLUGIN_WARNINGS_SHOWN;
+    this.notices.observe(t('notify.pluginsUnavailable', {
+      detail: more > 0 ? `${shown}\n${t('notify.pluginsUnavailableMore', { n: more })}` : shown,
+    }), undefined, 'warning');
   }
 
   /**

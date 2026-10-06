@@ -5,6 +5,7 @@ import { createLogger } from '@core/log.js';
 import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
 import type { Backend, McpComposition, McpServerConfig } from '../../agent-adapter/types.js';
 import { atomicWriteSync } from '../../core/atomic-write.js';
+import { ensurePrivateDirectory, physicalUnder } from '@core/private-dir.js';
 import { loadPluginCatalog } from './catalog.js';
 import { pluginMcpRuntime, portableNamespace, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
 import { realPath } from './fs-helpers.js';
@@ -30,6 +31,9 @@ export interface ResolvedPluginRuntime {
   pluginSkillDirs?: string[];
   mcpServers?: McpServerConfig[];
   pluginCapabilityFingerprint?: string;
+  /** Selected skills or MCP servers that failed to materialize and are missing from this spawn.
+   *  Present only when something was dropped; the run tells the user, not just the log. */
+  warnings?: string[];
 }
 
 interface CatalogRootInfo {
@@ -56,6 +60,13 @@ interface PortableRuntimeDetail {
 }
 
 const log = createLogger('plugin-runtime');
+
+/** A selected skill or MCP server that will be missing from the spawn. Logged, and collected for
+ *  the run to surface: a session that silently starts without its skills looks healthy. */
+function reportSkip(warnings: string[], message: string): void {
+  log.warn(message);
+  warnings.push(message);
+}
 
 type SelectedRuntimeItem =
   | { kind: 'portable'; id: string }
@@ -175,6 +186,7 @@ function serverConfig(entry: PluginCatalogEntry, server: PluginMcpServer): McpSe
 function portableSkill(
   selection: PortableSelection,
   skill: PluginCatalogEntry['skills'][number],
+  warnings: string[],
 ): PortableSkillDetail | null {
   try {
     const source = path.join(selection.root.real, skill.dir);
@@ -182,14 +194,14 @@ function portableSkill(
     const tree = buildProjectedSkillTree(selection.root.real, target);
     return { name: skill.name, target, contentSha256: tree.sha256, tree };
   } catch (error) {
-    log.warn(`Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
+    reportSkip(warnings, `Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
     return null;
   }
 }
 
-function portableSkills(selection: PortableSelection): PortableSkillDetail[] {
+function portableSkills(selection: PortableSelection, warnings: string[]): PortableSkillDetail[] {
   return selection.entry.skills.flatMap((skill) => {
-    const detail = portableSkill(selection, skill);
+    const detail = portableSkill(selection, skill, warnings);
     return detail ? [detail] : [];
   });
 }
@@ -209,27 +221,6 @@ function projectionManifest(entry: PluginCatalogEntry): string {
     ...(version ? { version } : {}),
     ...(entry.manifest.description ? { description: entry.manifest.description } : {}),
   }, null, 2)}\n`;
-}
-
-function assertNoSymlinkAncestors(directory: string, label: string): void {
-  let current = path.resolve(directory);
-  while (true) {
-    if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) {
-      throw new Error(`${label} has a symlink ancestor: ${current}`);
-    }
-    const parent = path.dirname(current);
-    if (parent === current) return;
-    current = parent;
-  }
-}
-
-function ensurePrivateDirectory(directory: string, label: string): void {
-  const resolved = path.resolve(directory);
-  assertNoSymlinkAncestors(resolved, label);
-  fs.mkdirSync(resolved, { recursive: true, mode: 0o700 });
-  assertNoSymlinkAncestors(resolved, label);
-  if (fs.realpathSync(resolved) !== resolved) throw new Error(`${label} is not physical: ${resolved}`);
-  fs.chmodSync(resolved, 0o700);
 }
 
 function exactDirEntries(directory: string): string[] {
@@ -392,11 +383,12 @@ function materializedSkill(
   skill: PortableSkillDetail,
   runtimeDir: string,
   backend: Backend,
+  warnings: string[],
 ): PortableSkillDetail | null {
   try {
     return { ...skill, target: ensureSkillSnapshot(selection, skill, runtimeDir, backend) };
   } catch (error) {
-    log.warn(`Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
+    reportSkip(warnings, `Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
     return null;
   }
 }
@@ -406,9 +398,10 @@ function materializedSkills(
   skills: PortableSkillDetail[],
   runtimeDir: string,
   backend: Backend,
+  warnings: string[],
 ): PortableSkillDetail[] {
   return skills.flatMap((skill) => {
-    const detail = materializedSkill(selection, skill, runtimeDir, backend);
+    const detail = materializedSkill(selection, skill, runtimeDir, backend, warnings);
     return detail ? [detail] : [];
   });
 }
@@ -439,12 +432,13 @@ function optionalProjection(
   skills: PortableSkillDetail[],
   runtimeDir: string,
   backend: Backend,
+  warnings: string[],
 ): string | null {
   if (skills.length === 0) return null;
   try {
     return ensurePortableProjection(selection, skills, runtimeDir, backend);
   } catch (error) {
-    log.warn(`Skipping portable skills for '${selection.entry.id}': ${(error as Error).message}`);
+    reportSkip(warnings, `Skipping portable skills for '${selection.entry.id}': ${(error as Error).message}`);
     skills.splice(0);
     return null;
   }
@@ -453,11 +447,12 @@ function optionalProjection(
 function optionalServerConfig(
   entry: PluginCatalogEntry,
   server: PluginMcpServer,
+  warnings: string[],
 ): McpServerConfig[] {
   try {
     return [serverConfig(entry, server)];
   } catch (error) {
-    log.warn(`Skipping portable MCP '${entry.id}/${server.name}': ${(error as Error).message}`);
+    reportSkip(warnings, `Skipping portable MCP '${entry.id}/${server.name}': ${(error as Error).message}`);
     return [];
   }
 }
@@ -468,17 +463,18 @@ function portableRuntimeDetail(
   runtimeDir: string,
   includePortableMcp: boolean,
   claims: SkillClaims,
+  warnings: string[],
 ): PortableRuntimeDetail {
   const skills = materializedSkills(
-    selection, claimPortableSkills(selection, portableSkills(selection), claims), runtimeDir, backend,
+    selection, claimPortableSkills(selection, portableSkills(selection, warnings), claims), runtimeDir, backend, warnings,
   );
   return {
     skills,
     projectionDir: backend === 'claude'
-      ? optionalProjection(selection, skills, runtimeDir, backend)
+      ? optionalProjection(selection, skills, runtimeDir, backend, warnings)
       : null,
     mcpServers: includePortableMcp
-      ? selection.entry.mcp.servers.flatMap((server) => optionalServerConfig(selection.entry, server))
+      ? selection.entry.mcp.servers.flatMap((server) => optionalServerConfig(selection.entry, server, warnings))
       : [],
   };
 }
@@ -641,19 +637,20 @@ function collectPortableDetails(
   backend: Backend,
   runtimeDir: string,
   includePortableMcp: boolean,
-): { details: Map<string, PortableRuntimeDetail>; skillClaims: SkillClaims } {
+): { details: Map<string, PortableRuntimeDetail>; skillClaims: SkillClaims; warnings: string[] } {
   const details = new Map<string, PortableRuntimeDetail>();
   const namespaces = new Map<string, string>();
   const claims: SkillClaims = new Map();
   const mcpNames = new Set<string>();
+  const warnings: string[] = [];
   for (const [id, selection] of portableSelections) {
     if (!claimNamespace(namespaces, selection)) continue;
-    const detail = portableRuntimeDetail(selection, backend, runtimeDir, includePortableMcp, claims);
+    const detail = portableRuntimeDetail(selection, backend, runtimeDir, includePortableMcp, claims, warnings);
     releaseUnusedClaims(claims, id, detail.skills);
     assertUniqueMcpNames(detail, mcpNames);
     details.set(id, detail);
   }
-  return { details, skillClaims: claims };
+  return { details, skillClaims: claims, warnings };
 }
 
 /** A legacy plugin is handed to the backend as a whole directory, so a single skill cannot be
@@ -722,17 +719,22 @@ function resolvedRuntime(
 export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): ResolvedPluginRuntime {
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
   const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
-  const runtimeDir = path.resolve(options.runtimeDir ?? path.join(dataDir, 'data', 'plugin-runtime'));
+  // Everything this writes (snapshots, projections, PLUGIN_DATA) sits under the data dir, which may
+  // itself be reached through a symlink — a relocated CORTEX_HOME. Anchor on its real path so only
+  // a symlink BELOW it is refused.
+  const physicalDataDir = physicalUnder(dataDir, dataDir);
+  const runtimeDir = physicalUnder(dataDir, options.runtimeDir ?? path.join(dataDir, 'data', 'plugin-runtime'));
   const selectedPluginDirs = (options.selectedPluginDirs ?? []).filter(
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
   if (selectedPluginDirs.length === 0) return {};
-  const entries = loadPluginCatalog({ pluginsDir, dataDir });
+  const entries = loadPluginCatalog({ pluginsDir, dataDir: physicalDataDir });
   const classified = classifySelections(entries, catalogRoots(pluginsDir, entries), dataDir, selectedPluginDirs);
   if (classified.items.length === 0) return {};
   const portable = collectPortableDetails(
     classified.portableSelections, options.backend, runtimeDir, portableMcpEnabled(options.mcpComposition),
   );
   warnLegacySkillCollisions(portable.skillClaims, classified.selectedLegacySkills);
-  return resolvedRuntime(options.backend, classified.items, portable.details);
+  const resolved = resolvedRuntime(options.backend, classified.items, portable.details);
+  return portable.warnings.length > 0 ? { ...resolved, warnings: portable.warnings } : resolved;
 }

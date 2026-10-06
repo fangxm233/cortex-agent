@@ -23,6 +23,8 @@ export const statusEn = {
   'notify.contextCompacted': 'Context auto-compacted.',
   'notify.agentFallback': 'Model fallback: ${from} → ${to}.',
   'notify.backendSessionReset': 'Previous backend session was unavailable; started a fresh session.',
+  'notify.pluginsUnavailable': 'Some plugin skills or MCP servers could not be loaded and are missing from this turn:\n${detail}',
+  'notify.pluginsUnavailableMore': '…and ${n} more.',
   'notify.rateLimitAutoResume': 'Rate limited — this chat will resume automatically when the limit resets.',
   // --- Authentication-required notification ---
   'notify.authRequired.title': 'Authentication required',
@@ -76,6 +78,8 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.contextCompacted': '上下文已自动压缩。',
   'notify.agentFallback': '模型回退：${from} → ${to}。',
   'notify.backendSessionReset': '之前的后端会话不可用，已启动新会话。',
+  'notify.pluginsUnavailable': '部分插件技能或 MCP server 未能加载，本轮不可用：\n${detail}',
+  'notify.pluginsUnavailableMore': '……另有 ${n} 项。',
   'notify.rateLimitAutoResume': '触发限流，解除后此对话将自动续跑。',
   // --- Authentication-required notification ---
   'notify.authRequired.title': '需要重新认证',

@@ -20,7 +20,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
-import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 
 import { startAttempt } from '../src/domain/runs/attempt.js';
 import { AgentRunImpl } from '../src/domain/runs/run.js';
@@ -31,6 +31,8 @@ import type { AwaitBackground } from '../src/agent-adapter/continuation-phase.js
 import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
 import { isRetryableResult } from '../src/domain/runs/fallback.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
+import { DATA_DIR, PLUGINS_DIR } from '../src/core/paths.js';
+import { AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL } from '../src/domain/plugins/agent-plugins-v1.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { costRepo } from '../src/store/cost-repo.js';
 import { RunRegistry } from '../src/core/run-registry.js';
@@ -367,6 +369,49 @@ test('run: changed PI identity on resume emits one warning, same/fresh starts em
   assert.deepEqual(await collect('backend-same', 'backend-same'), []);
   assert.deepEqual(await collect(null, 'backend-new'), []);
   assert.deepEqual(await collect('backend-old', 'backend-new', 'slack:C1'), []);
+});
+
+test('run: selected plugin skills that could not be materialized are announced once, on web only', async (t) => {
+  const previousLocale = getLocale();
+  t.onTestFinished(() => setLocale(previousLocale));
+  setLocale('en');
+  // A symlink BELOW the data dir is refused, so the selected skill cannot be snapshotted.
+  const runtimeDir = pathJoin(DATA_DIR, 'data', 'plugin-runtime');
+  const aside = `${runtimeDir}.aside`;
+  if (existsSync(runtimeDir)) renameSync(runtimeDir, aside);
+  const elsewhere = mkdtempSync(pathJoin(tmpdir(), 'plugin-runtime-elsewhere-'));
+  mkdirSync(pathJoin(DATA_DIR, 'data'), { recursive: true });
+  symlinkSync(elsewhere, runtimeDir, 'dir');
+  const pluginRoot = pathJoin(PLUGINS_DIR, 'notice-pack');
+  mkdirSync(pathJoin(pluginRoot, 'skills', 'notice-skill'), { recursive: true });
+  writeFileSync(pathJoin(pluginRoot, 'plugin.json'), JSON.stringify({ $schema: AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL, name: 'notice-pack' }));
+  writeFileSync(pathJoin(pluginRoot, 'skills', 'notice-skill', 'SKILL.md'), '---\nname: notice-skill\ndescription: x\n---\n');
+  t.onTestFinished(() => {
+    unlinkSync(runtimeDir);
+    if (existsSync(aside)) renameSync(aside, runtimeDir);
+    rmSync(elsewhere, { recursive: true, force: true });
+    rmSync(pluginRoot, { recursive: true, force: true });
+  });
+  const { makeFakeRuntimeFactory } = await import('./agent-adapter/pi-fake-runtime.js');
+
+  const collect = async (channel: string) => {
+    fixtures.current = makeFakeRuntimeFactory({ sessionId: `s-plugins-${channel}` });
+    const request = runRequestFixture({ channel, sessionKey: `plugins-${channel}`, pluginDirs: ['plugins/notice-pack'] }, PI);
+    const seen = collector();
+    const run = openRun(request, [seen.observer]);
+    const runtime = await fixtures.current.runtime(0);
+    await runtime.nextCall('prompt');
+    runtime.emitAgentStart();
+    runtime.emitAgentEnd();
+    await run.settled;
+    return notices(seen.events);
+  };
+
+  const web = await collect('web:plugins');
+  assert.equal(web.length, 1);
+  assert.equal(web[0].level, 'warning');
+  assert.match(web[0].text, /^Some plugin skills or MCP servers could not be loaded[^\n]*\nSkipping portable skill 'notice-pack\/notice-skill': .*symlink/);
+  assert.deepEqual(await collect('slack:C1'), []);
 });
 
 // ── tool events, FIFO and deltas ─────────────────────────────────────────

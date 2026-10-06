@@ -747,6 +747,61 @@ test('rejects symlinked runtimeDir ancestry before writing a Claude projection',
   assert.equal(fs.existsSync(path.join(physical, 'plugin-runtime', 'claude')), false);
 });
 
+function symlinkedHome(): { alias: string; physical: string } {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'portable-home-link-'));
+  cleanup.push(root);
+  const physical = path.join(root, 'physical-home');
+  const alias = path.join(root, 'home-alias');
+  fs.mkdirSync(path.join(physical, 'plugins'), { recursive: true });
+  fs.symlinkSync(physical, alias, 'dir');
+  return { alias, physical };
+}
+
+test('a symlinked data dir (relocated CORTEX_HOME) still projects skills and MCP, at the real path', () => {
+  const { alias, physical } = symlinkedHome();
+  const harness: Harness = {
+    dataDir: alias, pluginsDir: path.join(alias, 'plugins'),
+    physicalPluginsDir: path.join(physical, 'plugins'), runtimeDir: '',
+  };
+  portablePlugin(harness, {
+    id: 'portable-home', skills: [{ name: 'home-skill' }],
+    mcpServers: { local: { type: 'stdio', command: './bin/server', env: { DATA: '${PLUGIN_DATA}/state' } } },
+  });
+  const resolve = (backend: 'claude' | 'pi') => resolvePluginRuntime({
+    backend, selectedPluginDirs: ['plugins/portable-home'], mcpComposition: 'direct',
+    dataDir: alias, pluginsDir: path.join(alias, 'plugins'),
+  });
+
+  const claude = resolve('claude');
+  assert.equal(claude.warnings, undefined);
+  assert.equal(claude.pluginDirs?.length, 1);
+  assert.ok(claude.pluginDirs?.[0].startsWith(path.join(physical, 'data', 'plugin-runtime')));
+  assert.equal(claude.mcpServers?.length, 1);
+  const pi = resolve('pi');
+  assert.equal(pi.pluginSkillDirs?.length, 1);
+});
+
+test('a symlink below the data dir is still refused, and the run is told what went missing', () => {
+  const { alias, physical } = symlinkedHome();
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'portable-runtime-elsewhere-'));
+  cleanup.push(elsewhere);
+  fs.mkdirSync(path.join(physical, 'data'), { recursive: true });
+  fs.symlinkSync(elsewhere, path.join(physical, 'data', 'plugin-runtime'), 'dir');
+  const harness: Harness = {
+    dataDir: alias, pluginsDir: path.join(alias, 'plugins'),
+    physicalPluginsDir: path.join(physical, 'plugins'), runtimeDir: '',
+  };
+  portablePlugin(harness, { id: 'portable-home', skills: [{ name: 'home-skill' }] });
+
+  const resolved = resolvePluginRuntime({
+    backend: 'claude', selectedPluginDirs: ['plugins/portable-home'], mcpComposition: 'direct',
+    dataDir: alias, pluginsDir: path.join(alias, 'plugins'),
+  });
+  assert.equal(resolved.pluginDirs, undefined);
+  assert.ok(resolved.warnings?.some((warning) => /portable-home\/home-skill.*symlink/.test(warning)), String(resolved.warnings));
+  assert.deepEqual(fs.readdirSync(elsewhere), []);
+});
+
 test('Claude projection temp and final basenames stay bounded for long plugin ids', () => {
   const harness = makeHarness();
   const id = `portable-${'x'.repeat(180)}`;

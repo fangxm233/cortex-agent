@@ -143,7 +143,7 @@ function pluginFields(
   request: RunRequest,
   attempt: RunAttemptConfig,
   mcpComposition: McpComposition,
-): Pick<EngineSpec['plugins'], 'dirs' | 'skillDirs' | 'fingerprint'> & Pick<EngineSpec['mcp'], 'servers'> {
+): EngineSpec['plugins'] & Pick<EngineSpec['mcp'], 'servers'> {
   const selectedPluginDirs = filterScopedPlugins(request.spec.pluginDirs, {
     channel: request.context.channel,
     commissionMode: request.context.commissionMode,
@@ -157,6 +157,7 @@ function pluginFields(
     skillDirs: runtime.pluginSkillDirs,
     servers: runtime.mcpServers,
     fingerprint: runtime.pluginCapabilityFingerprint,
+    ...(runtime.warnings ? { warnings: runtime.warnings } : {}),
   };
 }
 
@@ -257,6 +258,7 @@ export function buildEngineSpec(
       dirs: plugins.dirs,
       skillDirs: plugins.skillDirs,
       fingerprint: plugins.fingerprint,
+      ...(plugins.warnings ? { warnings: plugins.warnings } : {}),
     },
     mcp: {
       ...policy.mcp,
