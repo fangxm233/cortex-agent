@@ -84,6 +84,9 @@ function SkillRow(props: {
   onDelete: () => void;
 }) {
   const L = useVocab();
+  // A shipped skill moved or deleted here is restored by the next plugin update.
+  const locked = props.skill.managed;
+  const lockedTitle = locked ? L.plManagedSkillLocked : undefined;
   return (
     <div data-plugin-skill={props.skill.name} style={ROW}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -93,10 +96,10 @@ function SkillRow(props: {
           <SButton tone="neutral" data-action="skill-open" onClick={props.onToggle}>
             {props.open ? L.plSkillClose : L.plSkillOpen}
           </SButton>
-          <SButton tone="neutral" data-action="skill-move" disabled={props.busy} onClick={props.onMove}>
+          <SButton tone="neutral" data-action="skill-move" disabled={props.busy || locked} title={lockedTitle} onClick={props.onMove}>
             {L.plSkillRename}
           </SButton>
-          <SButton tone="danger" data-action="skill-delete" disabled={props.busy} onClick={props.onDelete}>
+          <SButton tone="danger" data-action="skill-delete" disabled={props.busy || locked} title={lockedTitle} onClick={props.onDelete}>
             {L.plSkillDelete}
           </SButton>
         </div>

@@ -117,7 +117,7 @@ function listData(): PluginsListReturn {
     plugins: [
       plugin('alpha'),
       plugin('legacy', { kind: 'legacy', skills: [] }),
-      plugin('shipped', { origin: 'managed' }),
+      plugin('shipped', { origin: 'managed', skills: [{ name: 'schedule', description: 'Shipped.', managed: true }] }),
     ],
     targets: [],
   };
@@ -256,6 +256,24 @@ describe('skill editing', () => {
 
     await click(byAction(renderer, 'skill-delete-confirm'));
     expect(payloadOf(adapter.skillRemove)).toEqual({ pluginId: 'alpha', skill: 'review' });
+    await cleanup(renderer, queryClient);
+  });
+});
+
+describe('shipped skills', () => {
+  it('cannot be moved or deleted, and the buttons say why', async () => {
+    const queryClient = testQueryClient();
+    const renderer = mount(queryClient);
+    await ready(renderer);
+    await click(renderer.root.findByProps({ 'data-plugin-item': 'shipped' }));
+    await openTab(renderer, 'skills');
+
+    for (const action of ['skill-move', 'skill-delete']) {
+      const button = byAction(renderer, action);
+      expect(button.props.disabled).toBe(true);
+      expect(String(button.props.title)).toMatch(/cannot be moved or deleted/);
+    }
+    expect(renderer.root.findAllByProps({ 'data-plugin-managed-note': '' })).not.toHaveLength(0);
     await cleanup(renderer, queryClient);
   });
 });

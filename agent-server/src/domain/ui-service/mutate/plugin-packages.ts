@@ -11,7 +11,7 @@ import {
   writeSkillSource,
 } from '@domain/plugins/authoring.js';
 import { readMcpDrafts } from '../query/plugin-source.js';
-import { pluginOrigin, readPluginCatalogSnapshot } from '../plugins-shared.js';
+import { isManagedSkill, pluginOrigin, readPluginCatalogSnapshot } from '../plugins-shared.js';
 import { handlePluginsList } from '../query/plugins.js';
 import { fail, toErr } from './errors.js';
 import type {
@@ -50,11 +50,20 @@ export async function handlePluginsSkillCreate(
   });
 }
 
+/** plugin-sync rewrites every shipped file on the next version bump and never deletes, so a
+ *  shipped skill moved or removed here comes back at its old address — next to the moved copy. */
+function refuseManagedSkill(pluginId: string, skill: string): void {
+  if (isManagedSkill(pluginId, skill)) {
+    throw fail('invalid-args', t('ui.plugin.skillManaged', { id: `${pluginId}/${skill}` }));
+  }
+}
+
 export async function handlePluginsSkillMove(
   _deps: UiServiceDeps,
   args: MutateArgs<'plugins.skillMove'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
+    refuseManagedSkill(args.pluginId, args.skill);
     moveSkill(
       { pluginId: args.pluginId, skill: args.skill },
       { pluginId: args.toPluginId, skill: args.toSkill },
@@ -68,6 +77,7 @@ export async function handlePluginsSkillRemove(
   args: MutateArgs<'plugins.skillRemove'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
+    refuseManagedSkill(args.pluginId, args.skill);
     removeSkill(args.pluginId, args.skill);
     return { pluginId: args.pluginId, skill: args.skill };
   });

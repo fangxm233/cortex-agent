@@ -213,6 +213,24 @@ test('removes a skill directory and nothing above it', async () => {
   assert.ok(existsSync(path.join(PLUGINS_DIR, 'alpha', 'plugin.json')));
 });
 
+test('refuses to move or remove a skill Cortex ships, since the next update restores it', async () => {
+  // `cortex-system/schedule` ships in defaults/plugins, so plugin-sync rewrites it on a version bump.
+  seedPlugin('cortex-system', ['schedule', 'notes']);
+  const skillDir = path.join(PLUGINS_DIR, 'cortex-system', 'skills', 'schedule');
+
+  const moved = err(await handlePluginsSkillMove(deps(), {
+    pluginId: 'cortex-system', skill: 'schedule', toPluginId: 'beta', toSkill: 'schedule',
+  }));
+  assert.equal(moved.code, 'invalid-args');
+  assert.match(moved.message, /cortex-system\/schedule/);
+  assert.equal(err(await handlePluginsSkillRemove(deps(), { pluginId: 'cortex-system', skill: 'schedule' })).code, 'invalid-args');
+  assert.ok(existsSync(skillDir));
+  assert.equal(existsSync(path.join(PLUGINS_DIR, 'beta', 'skills', 'schedule')), false);
+
+  // A skill the operator added inside a shipped plugin is theirs to move and delete.
+  ok(await handlePluginsSkillRemove(deps(), { pluginId: 'cortex-system', skill: 'notes' }));
+});
+
 test('creates a portable plugin and refuses a duplicate id', async () => {
   ok(await handlePluginsCreate(deps(), { id: 'gamma', description: 'local pack' }));
 

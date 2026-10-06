@@ -75,6 +75,7 @@ export const uimsgEn = {
   // plugins
   'ui.plugin.unassignable': 'Unassignable plugin ids: ${ids}',
   'ui.plugin.managed': '\'${id}\' is shipped by Cortex and would be redeployed on the next update',
+  'ui.plugin.skillManaged': '\'${id}\' is shipped by Cortex and would be restored on the next update, so it cannot be moved or deleted',
   'ui.plugin.stillAssigned': '\'${id}\' is still assigned to: ${targets}',
   'ui.plugin.unknown': 'Unknown plugin: \'${id}\'',
   'ui.plugin.alreadyPortable': '\'${id}\' is already portable',
@@ -156,6 +157,7 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.profile.lastOne': '不能删除 profiles.json 中的最后一个 Profile。',
   'ui.plugin.unassignable': '以下插件无法分配：${ids}',
   'ui.plugin.managed': '「${id}」随 Cortex 发布，下次更新时会被重新部署。',
+  'ui.plugin.skillManaged': '「${id}」随 Cortex 发布，下次更新时会被恢复，因此不能移动或删除。',
   'ui.plugin.stillAssigned': '「${id}」仍被分配给：${targets}',
   'ui.plugin.unknown': '未知插件：「${id}」',
   'ui.plugin.alreadyPortable': '「${id}」已经是可移植插件。',
