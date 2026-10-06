@@ -477,6 +477,7 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
   client: (args) => runClientCli(args),
   install: (args) => runInstallCli(args),
   schedule: async (args) => (await import('./schedule-cli.js')).runScheduleCli(args),
+  memory: async (args) => (await import('./memory-cli.js')).runMemoryCli(args),
   start: () => ({ exitCode: 0, stdout: '', stderr: `'start' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js start` }),
   daemon: (args) => runDaemonCli(args),
 };

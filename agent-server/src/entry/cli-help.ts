@@ -103,6 +103,30 @@ export function getClientHelp(): string {
   });
 }
 
+export function getMemoryHelp(): string {
+  return formatHelp({
+    name: 'cortex memory',
+    description: 'Project memory under $CORTEX_HOME/context/projects (experiments/, knowledge/, patterns/).\n'
+      + 'regen rewrites only the generated index.md files; the EXP/K/PAT files are never modified. Output is JSON.',
+    usage: 'cortex memory <command> [--project <name>]... [options]',
+    commands: [
+      { name: 'regen', description: 'Rebuild experiments/knowledge/patterns index.md from frontmatter and the access log' },
+      { name: 'consolidate', description: 'Report contradictions, stale entries, anti-pattern signals and consolidation candidates' },
+    ],
+    options: [
+      { flag: '--project <name>', description: 'Limit to one project; repeat for several', default: 'every project with memory directories' },
+      { flag: '--text', description: 'consolidate: print a human-readable summary instead of JSON' },
+      { flag: '--help, -h', description: 'Show this help' },
+    ],
+    examples: [
+      { description: 'Rebuild every index', command: 'cortex memory regen' },
+      { description: 'Rebuild one project\'s indexes', command: 'cortex memory regen --project wm-align' },
+      { description: 'Lifecycle report for all projects', command: 'cortex memory consolidate --text' },
+      { description: 'Lifecycle report as JSON for one project', command: 'cortex memory consolidate --project wm-align' },
+    ],
+  });
+}
+
 export function getScheduleHelp(): string {
   return formatHelp({
     name: 'cortex schedule',
@@ -165,6 +189,7 @@ function getCliCommands() {
     { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
     { name: 'client remove', description: 'Unregister a remote machine and uninstall its cortex-client' },
     { name: 'schedule', description: 'List, add, edit, pause, resume and remove scheduled tasks' },
+    { name: 'memory', description: 'Rebuild project memory indexes; report knowledge lifecycle findings' },
     { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
   ];
 }
@@ -182,6 +207,7 @@ function getCliExamples() {
     { description: 'Enable the local Web UI endpoint', command: 'cortex ui enable' },
     { description: 'Remove a remote machine and its client', command: 'cortex client remove --device trainer' },
     { description: 'List scheduled tasks', command: 'cortex schedule list' },
+    { description: 'Rebuild every project memory index', command: 'cortex memory regen' },
     { description: 'Start the server', command: 'cortex start' },
     { description: 'Stop the daemon', command: 'cortex daemon stop' },
     { description: 'Check daemon status', command: 'cortex daemon status' },
