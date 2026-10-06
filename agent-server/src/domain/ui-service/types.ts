@@ -707,11 +707,13 @@ export interface ExecutionInfo {
 // Superset of ExecutionInfo's identifying fields plus nested lifecycle / metrics / text.
 export interface ExecutionDetailInfo {
   id: string;
+  /** Android shells up to 2026.10.6 require this field (and `threadId`) when parsing the detail;
+   *  newer shells read only status, sessionId and projectId. */
   kind: string;
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'stale';
   projectId: string | null;
   sessionId: string | null;
-  /** Always null. Kept so released mobile clients that still read it keep parsing the detail. */
+  /** Always null. Kept for the released Android shells noted on `kind`. */
   threadId: null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
   metrics: { costUsd: number | null; numTurns: number | null; durationS: number | null };
