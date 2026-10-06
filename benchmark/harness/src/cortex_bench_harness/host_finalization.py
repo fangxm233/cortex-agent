@@ -24,9 +24,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .container_boundary import CONTAINER_BOUNDARY_ATTESTATION_FILENAME
+from .launcher.production_arms import ProductionArmError
 from .launcher.production_home import (
     CONTAINER_HOME_DIR,
     LAUNCH_ATTESTATION_FILENAME,
+    ProductionHomeError,
     committed_input_bundle_files,
 )
 from .launcher.production_session import SESSION_OUTCOME_FILENAME
@@ -516,10 +518,14 @@ def _config_bundle_record(attestation: Mapping[str, object] | None) -> dict[str,
     if attestation is None:
         return {"canonical_sha256": absent, "file_count": absent, "files": absent}
     key = _attested_arm(attestation, "key")
-    try:
-        files: object = list(committed_input_bundle_files(str(key)))
-    except Exception:
-        files = _unavailable("committed_input_bundle_unreadable")
+    files: object
+    if key is None:
+        files = _unavailable("launch_attestation_names_no_bundle")
+    else:
+        try:
+            files = list(committed_input_bundle_files(key))
+        except (ProductionArmError, ProductionHomeError, OSError):
+            files = _unavailable("committed_input_bundle_unreadable")
     return {
         "canonical_sha256": _field(attestation, "pre_boot_input_bundle_sha256"),
         "file_count": _field(attestation, "input_bundle_file_count"),

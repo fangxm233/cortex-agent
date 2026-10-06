@@ -1608,6 +1608,42 @@ def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(
     assert recorded["files"] == unavailable("committed_input_bundle_unreadable")
 
 
+def test_an_attestation_naming_no_bundle_key_is_recorded_as_such_without_a_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing key used to be looked up as the bundle named "None", and the failed lookup was
+    then recorded as an unreadable bundle."""
+    bundle = production_arm_bundle("direct-pi-deepseek")
+    logs_dir = tmp_path / "agent"
+    (tmp_path / "verifier").mkdir()
+    npm_artifact = tmp_path / "server.tgz"
+    write_npm_artifact(npm_artifact, agent_prompt_members(bundle))
+    logs_dir.mkdir(parents=True)
+    (logs_dir / "instruction.md").write_text("Solve the task.\n", encoding="utf-8")
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    attestation = launch_attestation(npm_artifact)
+    attestation["arm_bundle"] = {"profile_name": "retired", "environment": "retired"}
+    write_json(artifact_dir / "cortex-bench-launch-attestation.json", attestation)
+    write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
+    revocation = production_proxy_outputs(artifact_dir)
+    looked_up: list[str] = []
+    monkeypatch.setattr(
+        finalization, "committed_input_bundle_files",
+        lambda key: looked_up.append(key) or ())
+
+    result = finalize_host_trial(
+        logs_dir=logs_dir, verifier_dir=tmp_path / "verifier", artifact_dir=artifact_dir,
+        root_run_id=ROOT_RUN_ID, trial_id=TRIAL_ID, arm=production_arm(),
+        npm_artifact=npm_artifact, bundle_root=BUNDLE_ROOT, revocation=revocation,
+        scan_policy=production_scan_policy(), container_logs_dir=Path("/logs/agent"),
+    )
+
+    recorded = json.loads(result.path.read_bytes())["launch"]["config_bundle"]
+    assert recorded["files"] == unavailable("launch_attestation_names_no_bundle")
+    assert looked_up == []
+
+
 @pytest.mark.parametrize("bundle", PRODUCTION_ARM_BUNDLES, ids=lambda item: item.key)
 def test_the_committed_config_bundle_list_is_read_never_derived(
     bundle: ProductionArmBundle,
