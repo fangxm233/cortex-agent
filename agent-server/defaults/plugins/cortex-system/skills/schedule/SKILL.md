@@ -1,196 +1,90 @@
 ---
 name: schedule
 description: "Use when create, list, or manage scheduled or recurring tasks"
-allowed-tools: Read, Write, Edit, Bash, mcp__cortex__cortex_context, mcp__cortex__cortex_schedule_add, mcp__cortex__cortex_schedule_list, mcp__cortex__cortex_schedule_get, mcp__cortex__cortex_schedule_remove, mcp__cortex__cortex_schedule_pause, mcp__cortex__cortex_schedule_resume
+allowed-tools: Read, Bash, mcp__cortex-core__cortex_context, mcp__cortex-core__cortex_schedule_add, mcp__cortex-core__cortex_schedule_list, mcp__cortex-core__cortex_schedule_get, mcp__cortex-core__cortex_schedule_remove, mcp__cortex-core__cortex_schedule_pause, mcp__cortex-core__cortex_schedule_resume
 metadata:
   author: "Cortex"
-  version: "1.2.0"
-  date: "2026-04-27"
+  version: "2.0.0"
+  date: "2026-10-05"
 ---
 
 # Schedule
 
-You are Cortex, managing the scheduled task system.
+You are Cortex, managing scheduled tasks.
 
 ## Arguments
 $ARGUMENTS
 
-Scheduled tasks allow Cortex to automatically execute messages at set times — like a recurring GPU check, daily standup, or delayed reminder. Tasks persist in `agent-server/schedules.json` and survive daemon restarts.
+A scheduled task sends a message to Cortex at set times — a recurring GPU check, a daily roundup, a delayed reminder. Each fire opens a new session in the schedule's project and sends it the message with a `[Scheduled Task]` prefix. That session knows nothing about the conversation that created the schedule, so the message must be self-contained: name the run, machine, log path or file it should look at.
 
-**Task types:**
-- `interval` — repeat every N duration (30s / 5m / 2h / 1d)
-- `daily` — every day at a fixed time (HH:MM, 24-hour)
-- `weekly` — every week at a fixed day + time (`mon 21:00`)
-- `once` — run once after a delay, then auto-removed
+Every schedule has:
 
-**Targets (where the fired task lands):** every fire opens a new ordinary session, listed under its schedule in the sidebar.
-- `fresh` *(default)* — a new session with no project binding (safest for unrelated tasks)
-- `current-project` — a new session bound to the current project (default for project-addressed schedules); explicit form `{ kind: 'project', projectId }`
+- **type** — `interval` (every N: `30s`, `5m`, `2h`, `1d`), `daily` (`HH:MM`, 24-hour), `weekly` (day + `HH:MM`), or `once` (after a delay; removed after it fires)
+- **projectId** — the project the fired session runs in (`general` when none is given)
+- **profile** — the agent profile it runs under (the default profile when none is given)
+- **preCheck** *(optional)* — a shell command run before each fire; a non-zero exit skips that fire
 
-`current-project` resolves to a concrete project ID at create time, so `cortex_schedule_list` always shows real IDs.
+Durations always carry a unit (`90m`, not `90`). Schedules live in `$CORTEX_HOME/data/schedules.json`; a running daemon picks up every change within a second, so never restart it and never edit the file by hand.
 
----
-
-## Preferred Path — MCP Tools (LLM-driven)
-
-When you (the LLM) need to add or manage schedules from inside an agent session, use these MCP tools — they're more reliable than shelling out to `bin/schedule` (no quoting issues, no working-dir confusion):
+## MCP tools (inside an agent session)
 
 ```
-mcp__cortex__cortex_context()
-  → { sessionId, sessionName, profile, project, backend, ... }
-
-mcp__cortex__cortex_schedule_add({
+mcp__cortex-core__cortex_schedule_add({
   type: 'interval' | 'daily' | 'weekly' | 'once',
-  message: 'prompt to fire',
-  interval?: '30m' | '2h' | ...,            // for interval
-  time?: '09:00',                            // for daily/weekly
-  dayOfWeek?: 'mon' | 0-6,                   // for weekly
-  delay?: '2h' | '90m',                      // for once
-  target?: 'fresh' | 'current-project' | { kind: 'project', projectId },
+  message: 'self-contained prompt',
+  interval?: '30m',            // interval
+  time?: '09:00',              // daily, weekly
+  dayOfWeek?: 'mon' | 0-6,     // weekly (0 = Sun)
+  delay?: '2h',                // once
+  projectId?: 'nimbus',
+  target?: 'current-project',  // same as projectId = this session's project
   profile?: 'fast-worker',
-  channel?: 'C123',                          // override; defaults to current context
+  preCheck?: 'test -f /tmp/run.done',
 })
-mcp__cortex__cortex_schedule_list({ limit? })
-mcp__cortex__cortex_schedule_get({ id })
-mcp__cortex__cortex_schedule_remove({ id })
-mcp__cortex__cortex_schedule_pause({ id })   // recurring only
-mcp__cortex__cortex_schedule_resume({ id })
+mcp__cortex-core__cortex_schedule_list({ limit? })
+mcp__cortex-core__cortex_schedule_get({ id })
+mcp__cortex-core__cortex_schedule_pause({ id })    // recurring only
+mcp__cortex-core__cortex_schedule_resume({ id })   // recurring only
+mcp__cortex-core__cortex_schedule_remove({ id })
 ```
 
-**Worked examples:**
+The project is resolved in this order: `projectId`, then `target: 'current-project'`, then the project the current channel belongs to, then `general`. `current-project` fails when the session has no project; pass `projectId` or leave both out instead.
 
-> User: "Give me a status roundup of this project every morning at 9, in this channel"
->
-> Call `mcp__cortex__cortex_schedule_add({ type: 'daily', time: '09:00', message: 'Review STATUS.md and roadmap.md for this project, then post a short roundup', target: 'current-project' })` — done. No need to call `cortex_context` first; the shorthand resolves automatically.
+To change an existing schedule's timing, message, project or profile, use `cortex schedule edit` below.
 
-> User: "Report training status after 30 minutes"
->
-> Call `mcp__cortex__cortex_schedule_add({ type: 'once', delay: '30m', message: 'Check training run <run-name> on <machine> (log at <path>) and report whether it is still healthy', target: 'current-project' })` — the fire opens a new session with no memory of this conversation, so put everything it needs (run name, machine, log path) into the message.
+## `cortex schedule` (shell)
 
-> User: "Mine last week's sessions for lessons every Monday at 9 PM"
->
-> Call `mcp__cortex__cortex_schedule_add({ type: 'weekly', dayOfWeek: 'mon', time: '21:00', message: 'Read this week\'s session logs and record any recurring failure or lesson worth keeping' })` — `target` defaults to `fresh`, which is the right choice for a standalone weekly job.
-
-If `current-project` is requested but the current context has no project, the tool throws — it does NOT silently fall back to fresh. Re-issue with `target: 'fresh'` if that's actually what you want.
-
----
-
-## Canonical CLI Usage
-
-The canonical CLI usage is:
+Use it for edits, for scripts, and outside an agent session. Every command prints JSON with `ok`, the schedule id and ISO timestamps; invalid input exits 1 with the valid values.
 
 ```bash
-npx tsx agent-server/src/schedule-cli.ts --help
-npx tsx agent-server/src/schedule-cli.ts list
-npx tsx agent-server/src/schedule-cli.ts get <id>
-npx tsx agent-server/src/schedule-cli.ts set interval <id> <duration|ms>
-npx tsx agent-server/src/schedule-cli.ts edit|update <id> [--message <text>] [--profile <name>] [--channel <name>] [--time <HH:MM>] [--day <0-6|sun|mon|tue|wed|thu|fri|sat>] [--run-at <epoch-ms>] [--interval <duration|ms>]
-npx tsx agent-server/src/schedule-cli.ts pause <id>
-npx tsx agent-server/src/schedule-cli.ts resume <id>
-npx tsx agent-server/src/schedule-cli.ts remove <id> [--dry-run]
-npx tsx agent-server/src/schedule-cli.ts add interval <duration|ms> <message>
-npx tsx agent-server/src/schedule-cli.ts add daily <HH:MM> <message>
-npx tsx agent-server/src/schedule-cli.ts add weekly <day> <HH:MM> <message>
-npx tsx agent-server/src/schedule-cli.ts add once <duration|ms> <message>
-# Flag-mode add (alternative):
-npx tsx agent-server/src/schedule-cli.ts add --type interval --interval 30m --message "Check GPU status"
-npx tsx agent-server/src/schedule-cli.ts add --type daily --time 09:00 --message "Daily standup" --channel slack
+cortex schedule list [--project <id>]
+cortex schedule get <id>
+cortex schedule add --type interval --interval 30m --message "..." [--project <id>] [--profile <name>] [--pre-check "<cmd>"] [--idempotency-key <key>]
+cortex schedule add --type daily --time 09:00 --message "..."
+cortex schedule add --type weekly --day mon --time 21:00 --message "..."
+cortex schedule add --type once --delay 2h --message -        # message from stdin
+cortex schedule edit <id> [--message ...] [--project ...] [--profile ...] [--pre-check ...] [--interval ... | --time ... | --day ... | --delay ...]
+cortex schedule pause <id>
+cortex schedule resume <id>
+cortex schedule remove <id> [--dry-run]
 ```
 
-**New CLI features:**
-- `--help`: Full usage reference with copyable examples
-- `remove --dry-run`: Preview which task would be removed without deleting
-- Flag-mode `add`: All parameters via explicit flags (backward-compatible with positional mode)
-- Error messages list valid values (e.g., unknown type → shows `interval, daily, weekly, once`)
+`edit` accepts only the timing flags of the schedule's own type; `--delay` on a `once` schedule moves it to that long from now. With `--idempotency-key`, retrying an `add` returns the schedule already created under that key. `remove` of an unknown id succeeds with `"removed": false`. `cortex schedule --help` lists every flag with examples.
 
-Use the CLI when the MCP tools above are unavailable (e.g. running outside an agent session, terminal scripting, debugging).
+## Workflow
 
----
+1. **List** (no arguments, or "show my schedules"): call `cortex_schedule_list` and summarize id, type, timing, project, next run and paused state.
+2. **Add**: turn the request into type, timing, project and a self-contained message, then call `cortex_schedule_add`. For example:
+   - "Check GPU status every 30 minutes" → interval `30m`, "Run nvidia-smi on lab2 and report a one-line summary of GPU use"
+   - "Roundup of this project every morning at 9" → daily `09:00`, `target: 'current-project'`, "Review STATUS.md and roadmap.md for this project and post a short roundup"
+   - "Mine last week's sessions every Monday at 9 PM" → weekly `mon` `21:00`, "Read this week's session logs and record any recurring failure or lesson worth keeping"
+   - "Report on training in 2 hours" → once `2h`, `target: 'current-project'`, "Check training run r42 on lab2 (log at /data/r42/train.log) and report whether it is still healthy"
+3. **Change, pause, resume, remove**: find the id with `cortex_schedule_list` when the user did not give it, then use the matching tool or `cortex schedule edit`.
+4. **Report**: state what changed, the schedule id, and when it fires next.
 
-## Step 1: Read Current State
-
-Read current schedule state via the canonical schedule CLI from the current repo root (for example `npx tsx agent-server/src/schedule-cli.ts list`). If the file is missing or empty, treat as `{ "tasks": [] }`.
-
----
-
-## Step 2: Determine Action
-
-Parse `$ARGUMENTS` to choose a path:
-
-### Path A — List / No Arguments
-
-Use the canonical schedule CLI to list tasks and return its JSON output directly: `npx tsx agent-server/src/schedule-cli.ts list`.
-
-If there are no tasks, the JSON result should be `{ "tasks": [] }`.
-
-Stop after sending — no restart needed.
-
----
-
-### Path B — Add a Task
-
-Interpret the user's natural language description to determine:
-- **type**: interval / daily / weekly / once
-- **timing**: duration string, HH:MM time, or `<day> HH:MM`
-- **message**: a self-contained instruction Cortex will execute when the task fires
-
-**Interpretation examples:**
-- "Check GPU status every 30 minutes" → interval, 30m, "Check GPU status (nvidia-smi) and report a one-line summary"
-- "Generate a daily project report every morning at 9" → daily, 09:00, "Generate a brief daily status report for all active projects"
-- "Do retrospection every Monday at 9 PM" → weekly, mon 21:00, "Mine this week's session logs for recurring failures and lessons worth keeping"
-- "Remind me to check training results in 2 hours" → once, 2h, "Check training results on <machine> and report to user"
-
-**Compute the new task object** using the canonical schedule CLI add command. The CLI currently defaults `channel` to `cli` unless an explicit channel override is provided.
-
-Examples:
-- `npx tsx agent-server/src/schedule-cli.ts add interval 30m "Check GPU status on <machine> (nvidia-smi) and report a one-line summary"`
-- `npx tsx agent-server/src/schedule-cli.ts add daily 09:00 "Generate a brief daily status report for all active projects"`
-- `npx tsx agent-server/src/schedule-cli.ts add weekly mon 21:00 "Mine this week's session logs for recurring failures and lessons worth keeping"`
-- `npx tsx agent-server/src/schedule-cli.ts add once 2h "Check training results on <machine> and report to user"`
-
-Confirm the plan in the output before writing, showing:
-- Task type and timing
-- The message that will execute
-- When it will first fire
-
-Then write the file and proceed to Step 3.
-
----
-
-### Path C — Remove a Task
-
-Find the task with the matching id via the canonical schedule CLI and remove it with `npx tsx agent-server/src/schedule-cli.ts remove <id>`.
-
-If not found, output: `:x: Task \`<id>\` not found.`
-
-Proceed to Step 3 if a task was removed.
-
----
-
-## Step 3: Report Result
-
-The scheduler automatically watches `agent-server/schedules.json` for changes and hot-reloads timers — no daemon restart needed.
-
-Output a confirmation:
-
-**After add:**
 ```
-Scheduled: every 30m — "Check GPU status on <machine>"
-id: `a1b2c3d4` | first run: in 30m
+Scheduled: every 30m — "Run nvidia-smi on lab2 and report a one-line summary"
+id: `a1b2c3d4` | project: nimbus | first run: 14:30
 ```
 
-**After remove:**
-```
-Removed task `a1b2c3d4`.
-```
-
----
-
-## Notes
-
-- `channel` follows the canonical CLI behavior: if no explicit override is provided, new tasks default to `cli`
-- Task messages should be self-contained: Cortex will receive them with the prefix `[Scheduled Task]` and must be able to act without prior context
-- For daily tasks, `nextRun` = current epoch ms + ms until next HH:MM occurrence (if time has passed today, add 24h)
-- For weekly tasks, store both `dayOfWeek` (`0=Sun ... 6=Sat`) and `time`, and compute `nextRun` from the next matching occurrence
-- Inside this skill, prefer the canonical schedule CLI / scheduler API path rather than editing `agent-server/schedules.json` directly. The user-facing `!schedule` command remains a separate shortcut handled by the command layer.
-- Do not restart the daemon after schedule changes — the scheduler hot-reloads `agent-server/schedules.json`
+Users can also manage schedules from chat with `!schedule` and from the Schedules panel in the web app.
