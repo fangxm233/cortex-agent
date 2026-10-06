@@ -43,7 +43,7 @@
   ],
   "observed": [
     {
-      "claim": "Claude Code 2.1.232 accepts a loopback ANTHROPIC_BASE_URL and sends POST /v1/messages?beta=true.",
+      "claim": "Claude Code 2.1.291 accepts a loopback ANTHROPIC_BASE_URL and sends POST /v1/messages?beta=true.",
       "evidence": [
         "wire-capture.json#/runs/sonnet_success/requests/0/path",
         "wire-capture.json#/runs/sonnet_success/requests/0/query"

@@ -12,7 +12,7 @@ from current_vendor_cli import installed_cli, isolated_or_rerun
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures/vendor-wire/claude-code"
 PIN_PATH = FIXTURE_DIR / "pin.json"
 CAPTURE_PATH = FIXTURE_DIR / "wire-capture.json"
-EXPECTED_VERSION = "2.1.232"
+EXPECTED_VERSION = "2.1.291"
 
 
 def load(path: Path) -> dict[str, object]:
@@ -24,18 +24,18 @@ def test_pin_fixes_host_artifact_and_harbor_version_contract() -> None:
     assert pin["artifact"] == {
         "distribution": "native",
         "platform": "linux-x64",
-        "sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
-        "size_bytes": 323021104,
+        "sha256": "078fad28d0297c9a25d306b635b2d8816c6839347520f29eb54ffea5d56142fb",
+        "size_bytes": 249642168,
         "version": EXPECTED_VERSION,
     }
     assert load(CAPTURE_PATH)["artifact_sha256"] == pin["artifact"]["sha256"]
-    assert pin["host_observation"]["stdout"] == "2.1.232 (Claude Code)"
+    assert pin["host_observation"]["stdout"] == f"{EXPECTED_VERSION} (Claude Code)"
     assert pin["host_observation"]["matches_manifest"] is True
     assert pin["harbor_version_check"]["command"].endswith("claude --version")
     assert pin["harbor_version_check"]["comparison"] == "installed_version == requested_version"
 
 
-@pytest.mark.parametrize("version", ("2.1.232", "9.0.0"))
+@pytest.mark.parametrize("version", (EXPECTED_VERSION, "9.0.0"))
 def test_current_capture_records_executed_version_and_artifact(
     version: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -48,6 +48,7 @@ def test_current_capture_records_executed_version_and_artifact(
     monkeypatch.setattr(capture.subprocess, "run", lambda *_args, **_kwargs: completed)
     monkeypatch.setattr(capture, "require_isolated_network", lambda: None)
     monkeypatch.setattr(capture, "_capture_run", lambda *_args: {})
+    monkeypatch.setattr(capture, "_request_model", lambda *_args: "fixture-model")
     monkeypatch.setattr(capture, "_capture_proxy_run", lambda *_args: {})
     monkeypatch.setattr(capture, "_containment", lambda _runs: {})
     monkeypatch.setattr(capture, "_observed_models", lambda _runs: {})
@@ -75,8 +76,8 @@ def test_connect_audit_preserves_ipv4_and_ipv6_destinations(tmp_path: Path) -> N
 def assert_current_wire_contract(document: dict) -> None:
     # Deliberate current aliases, not values learned from this run or historical equality.
     assert document["observed_model_identifiers"] == {
-        "haiku": "claude-haiku-4-5-20251001", "opus": "claude-opus-5",
-        "sonnet": "claude-sonnet-5", "subagent-haiku": "claude-haiku-4-5-20251001",
+        "haiku": "claude-haiku-4-5-20251001", "opus": "claude-opus-5-5",
+        "sonnet": "claude-sonnet-5-5", "subagent-haiku": "claude-haiku-4-5-20251001",
     }
     assert document["containment"]["real_home_mounted"] is False
     assert document["containment"]["non_loopback_connects"] == []
@@ -97,16 +98,17 @@ def assert_current_wire_contract(document: dict) -> None:
 
 
 def assert_current_request_models(name: str, run: dict) -> None:
-    sonnet, opus, haiku = "claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5-20251001"
+    sonnet, opus, haiku = "claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"
     expected = {
-        "sonnet_success": [sonnet], "sonnet_error": [sonnet],
+        # 2.1.291 sends a request rejected with HTTP 400 three times before reporting the error.
+        "sonnet_success": [sonnet], "sonnet_error": [sonnet] * 3,
         "opus_success": [opus], "haiku_success": [haiku],
         "oauth_env_local_error": [], "subagent_haiku_success": [sonnet, haiku, sonnet],
         "trial_proxy_bearer_substitution": [sonnet],
     }
     assert [request["body"]["model"] for request in run["requests"]] == expected[name]
-    # Claude 2.1.263 still uses these caps; future changes require wire review.
-    caps = {sonnet: 64000, opus: 64000, haiku: 32000}
+    # Claude 2.1.291 uses these caps; future changes require wire review.
+    caps = {sonnet: 128000, opus: 128000, haiku: 32000}
     assert [request["body"]["max_tokens"] for request in run["requests"]] == [
         caps[model] for model in expected[name]
     ]
