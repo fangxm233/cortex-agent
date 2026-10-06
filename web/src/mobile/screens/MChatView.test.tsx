@@ -230,10 +230,6 @@ describe('MChatView send controls', () => {
   });
 });
 
-// The 7a action overlay used to be told only WHICH row was held, so it rendered at a fixed offset
-// from the top of the screen and the floated copy of the bubble appeared far from the finger. The
-// press now reports where the bubble is; this pins that half of the contract (the placement maths
-// itself lives in m-chat-vm `msgMenuGroupTop`).
 describe('MChatStream assistant turn copy', () => {
   it('renders one button per turn and copies all assistant text in that turn', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);

@@ -4,6 +4,7 @@ import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, msgMenuSafeTop, MSG_MENU_SAFE_BOTTOM } from './m-chat-vm';
 import type { MMsgMenu } from './MChatView.types';
+import { HEADER_BOTTOM_VAR } from './useHeaderClearance';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 export function longPressHandlers(fire: (anchorTop: number) => void): {
@@ -78,6 +79,15 @@ function HeldBubbleCopy({ isUser, text }: { isUser: boolean; text: string }): JS
   return <div style={{ ...shared, maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 'var(--r-card)', lineHeight: 1.6 }}>{text}</div>;
 }
 
+/** The floating header stack's bottom edge (team row included), as the chat screen measured and
+ *  published it (useHeaderClearance). Read off this overlay, so it is this screen's own value even
+ *  while another chat screen animates out. The overlay spans the body region, whose top is the
+ *  screen's top — the frame the value is measured in. */
+function headerStackBottom(overlay: HTMLElement): number | undefined {
+  const value = parseFloat(getComputedStyle(overlay).getPropertyValue(HEADER_BOTTOM_VAR));
+  return Number.isFinite(value) ? value : undefined;
+}
+
 function useMsgMenuTop(anchorTop: number | null | undefined): {
   overlayRef: React.RefObject<HTMLDivElement>;
   groupRef: React.RefObject<HTMLDivElement>;
@@ -93,10 +103,8 @@ function useMsgMenuTop(anchorTop: number | null | undefined): {
     const group = groupRef.current;
     if (!overlay || !group) return;
     const box = overlay.getBoundingClientRect();
-    // The header floats over this same box and its top is a safe-area inset, so its clearance can
-    // only be measured, never computed.
-    const header = document.querySelector('[data-chat-header]')?.getBoundingClientRect();
-    const headerClearance = header ? header.bottom - box.top + 8 : undefined;
+    const bottom = headerStackBottom(overlay);
+    const headerClearance = bottom == null ? undefined : bottom + 8;
     setSafeTop(msgMenuSafeTop(headerClearance));
     setTop(msgMenuGroupTop({ anchorTop: anchorTop ?? null, overlayTop: box.top, overlayHeight: box.height, groupHeight: group.getBoundingClientRect().height, safeTop: headerClearance }));
   }, [anchorTop]);

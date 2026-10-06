@@ -345,8 +345,9 @@ export function buildAgentSheet(input: {
 // ── 7a long-press action overlay placement ──
 // The overlay covers the chat BODY frame (transcript + composer), which runs the full height of the
 // screen because the header floats over it rather than sitting above it in flow. The band the menu
-// must not cross is therefore the header pill's bottom edge, which only the DOM knows (its top is a
-// safe-area inset) — callers measure it and pass it as `safeTop`; this constant is just the floor.
+// must not cross is therefore the floating header stack's bottom edge (pill plus team row), which
+// only the DOM knows (its top is a safe-area inset) — the screen measures it, the overlay passes it
+// as `safeTop`; this constant is just the floor.
 /** Minimum inset from the top of that frame the floated group may not cross. */
 export const MSG_MENU_SAFE_TOP = 12;
 /** Inset from the bottom of that frame — keeps the menu off the screen edge. */
