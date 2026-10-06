@@ -200,6 +200,8 @@ test('the recipe for a multi-member waitpoint names the member in every form', (
   const recipe = buildSignalRecipe('wp_1', 's', 3001, null, ['arm2', 'arm6']);
   assert.match(recipe.cli, /--member MEMBER /);
   assert.match(recipe.attach_to_pid, /--member MEMBER /);
+  assert.match(recipe.attach_to_pid, /kill -0 PID /);
+  assert.equal(/[<>]PID|PID[<>]/.test(recipe.attach_to_pid), false, 'no angle-bracket placeholder to misparse as redirection');
   assert.match(recipe.curl, /"member":"MEMBER"/);
   assert.match(recipe.shell, /"member":"MEMBER"/);
   assert.match(recipe.member_note ?? '', /arm2, arm6/);

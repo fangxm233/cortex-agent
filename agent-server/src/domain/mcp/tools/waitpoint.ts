@@ -12,7 +12,8 @@ interface SignalRecipe {
   curl: string;
   shell: string;
   /** For a job that is ALREADY running: nothing can be appended to its command line any more, so
-   *  watch its pid from the side. The only form that works when the waitpoint is armed too late. */
+   *  watch its pid from the side (replace `PID`). The only form that works when the waitpoint is
+   *  armed too late. */
   attach_to_pid: string;
   /** Present when members were declared: every line above carries a `MEMBER` placeholder. */
   member_note?: string;
@@ -70,8 +71,10 @@ export function buildSignalRecipe(
   ].join('\n');
   // On a device the daemon cannot be reached over HTTP at all, so the file drop is the only
   // form that works there; on this machine the CLI is shorter and reports failures immediately.
-  const attachToPid = `(while kill -0 <PID> 2>/dev/null; do sleep 5; done; `
-    + `cortex-signal ${memberFlag}--status ok --message "pid <PID> exited") &`;
+  // `PID` is a bare word for the same reason as `MEMBER`: `<PID>` pasted unreplaced is a pair of
+  // redirections that would create stray files.
+  const attachToPid = `(while kill -0 PID 2>/dev/null; do sleep 5; done; `
+    + `cortex-signal ${memberFlag}--status ok --message "pid PID exited") &`;
   return {
     recommended: device ? 'shell' : 'cli', env, cli, curl, shell, attach_to_pid: attachToPid,
     ...(member ? { member_note: `Replace MEMBER with the job's own name, one of: ${members.join(', ')}.` } : {}),
@@ -104,7 +107,8 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
       label: z.string().describe('Short human name, e.g. "arm2 training". Appears in the wake message.'),
       intent: z.string().describe('Briefly state what you are waiting for and what to do next.'),
       members: z.array(z.string()).optional().describe(
-        'Names of the jobs you expect to report, e.g. ["arm2","arm6","arm8"]. Each one signals with its own name.',
+        'Names of the jobs you expect to report, e.g. ["arm2","arm6","arm8"]. Each one signals with its own name; '
+        + 'a signal naming no member, or one not on this list, is refused.',
       ),
       quorum: z.union([z.number(), z.literal('all')]).optional().describe(
         'How many terminal signals resolve this waitpoint. Defaults to "all" when members are given, else 1.',
