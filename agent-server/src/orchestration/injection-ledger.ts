@@ -15,7 +15,7 @@ import type { RunEvent } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';
 import type { AgentRun } from '../domain/runs/run.js';
 import type { publishSessionMessage } from './session-events.js';
-import { createTranscriptSink, type TranscriptSinkDeps } from './transcript-sink.js';
+import { createTranscriptSink, isBackgroundRowEvent, type TranscriptSinkDeps } from './transcript-sink.js';
 
 const log = createLogger('injection-ledger');
 
@@ -265,11 +265,6 @@ async function handleContinuationResult(
   disposeIfIdle(channel);
 }
 
-/** The background-phase events that become rows of the injected turn's transcript. */
-const CONTINUATION_ROW_EVENTS: ReadonlySet<RunEvent['type']> = new Set<RunEvent['type']>([
-  'assistant_text', 'tool_use', 'tool_result', 'todo_update', 'subagent_end', 'context_usage',
-]);
-
 interface ContinuationWriter {
   deps: InjectionLedgerDeps;
   sessionId: string;
@@ -300,10 +295,6 @@ function writeContinuationRow(w: ContinuationWriter, event: RunEvent): void | Pr
   }
   if (event.type === 'context_usage' && !w.deps.sessionName) return;
   return w.transcript.onEvent(event);
-}
-
-function isContinuationRow(event: RunEvent): boolean {
-  return CONTINUATION_ROW_EVENTS.has(event.type) && 'phase' in event && event.phase === 'background';
 }
 
 /**
@@ -341,7 +332,7 @@ export function createInjectionObserver(
         case 'background_result':
           return handleContinuationResult(deps, stateFor(channel), sessionId, channel);
         default:
-          if (!isContinuationRow(event) || !ownsRows()) return;
+          if (!isBackgroundRowEvent(event) || !ownsRows()) return;
           return writeContinuationRow(writer, event);
       }
     },

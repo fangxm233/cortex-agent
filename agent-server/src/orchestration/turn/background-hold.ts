@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
+import type { AgentResult } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
@@ -10,6 +10,7 @@ import { sessionHolds, type SessionHoldHandles } from '@core/session-holds.js';
 import { isBgContinuationEnabled, remainingBg } from '../../agent-adapter/bg-wait.js';
 import { trackPendingTask } from '../busy-tracker.js';
 import { publishSessionStatus } from '../session-events.js';
+import { isBackgroundRowEvent } from '../transcript-sink.js';
 
 const log = createLogger('background-hold');
 
@@ -175,18 +176,18 @@ export interface HoldTotals {
 /**
  * One surface's rendering of a held turn. Everything below is "event → surface"; no member decides
  * anything about the hold's lifetime, and none of them publishes session status (the hold does).
+ * The transcript rows are not the renderer's either: the hold writes every background row through
+ * the turn's transcript sink.
  */
 export interface HoldRenderer {
   /** Background work outstanding: at install, and again on every chained continuation. Awaited at
    *  install only, so the first waiting line is on screen before the hold is reported as taken. */
   onWaiting(remaining: number): void | Promise<void>;
-  onText(text: string, subagent?: ToolUseSubagent): void;
-  onTool(name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent): void;
-  onToolResult(toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]): void;
-  onContext(usage: ContextUsage): void;
-  /** The authoritative end of one backgrounded subagent (web only — a status message has no row
-   *  to correct). */
-  onSubagentEnd?(parentToolUseId: string, status: 'completed' | 'failed' | 'killed'): void;
+  /** The surface side of continuation prose. Returning `'held'` keeps it out of the transcript:
+   *  the renderer then decides at the seal whether and how it is written. */
+  onText(text: string, subagent?: ToolUseSubagent): 'held' | void;
+  /** The surface side of a continuation tool call (the platform tool trace). */
+  onTool?(name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent): void;
   onSealed(kind: SealedVerdict, totals: HoldTotals): void;
 }
 
@@ -205,6 +206,8 @@ export interface BackgroundContinuationOptions {
   /** The turn's execution, excluded from the seal's "anything else still live" test. */
   executionId?: string | null;
   renderer: HoldRenderer;
+  /** The turn's transcript sink. Every background row goes through it, as the turn's own rows do. */
+  transcript: RunObserver;
   track?: (delta: number) => void;
 }
 
@@ -274,65 +277,55 @@ export async function holdBackgroundContinuation(
   // This surface both streams and persists the background turn, so it owns those rows; any other
   // observer watching the same run (today: the mid-turn injection ledger) must not write them again.
   run.claimBackgroundTranscript();
-  run.subscribe(backgroundHoldObserver({ renderer, hold, settle }));
+  run.subscribe(backgroundHoldObserver({ renderer, transcript: opts.transcript, hold, settle }));
   return hold;
 }
 
 interface ObserverWiring {
   renderer: HoldRenderer;
+  transcript: RunObserver;
   hold: SessionHold;
   settle: (kind: SealedVerdict, cont: AgentResult | null) => void;
 }
 
-/** Pure dispatch: background-phase events → verdicts and renderer calls. */
+/** A background row: the surface renders it first, then the transcript sink writes it. */
+function forwardRow(w: ObserverWiring, event: RunEvent): void | Promise<void> {
+  if (event.type === 'assistant_text' && w.renderer.onText(event.text, event.subagent) === 'held') return;
+  if (event.type === 'tool_use') w.renderer.onTool?.(event.name, event.input, event.toolUseId ?? '', event.subagent);
+  return w.transcript.onEvent(event);
+}
+
+function onContinuationResult(w: ObserverWiring, cont: AgentResult): void {
+  if (cont.backgroundInterrupted) { w.settle('interrupted', cont); return; }
+  if (cont.rateLimited) { w.settle('rate-limited', cont); return; }
+  const left = remainingBg(cont);
+  if (left > 0) {
+    // Chained: the run re-arms its own bound, so keep rendering the waiting state and keep the
+    // hold. `reassert` is a no-op once the wait is over.
+    void w.renderer.onWaiting(left);
+    w.hold.reassert();
+  } else {
+    w.settle('complete', cont);
+  }
+}
+
+/** Pure dispatch: background-phase events → transcript rows, verdicts and renderer calls. */
 function backgroundHoldObserver(w: ObserverWiring): RunObserver {
-  const { renderer, hold } = w;
   return {
-    onEvent(event: RunEvent): void {
+    onEvent(event: RunEvent): void | Promise<void> {
+      if (isBackgroundRowEvent(event)) return forwardRow(w, event);
       switch (event.type) {
-        case 'assistant_text':
-          if (event.phase !== 'background') return;
-          renderer.onText(event.text, event.subagent);
+        case 'background_result':
+          onContinuationResult(w, event.result);
           return;
-        case 'tool_use':
-          if (event.phase !== 'background') return;
-          renderer.onTool(event.name, event.input, event.toolUseId ?? '', event.subagent);
-          return;
-        case 'tool_result':
-          if (event.phase !== 'background') return;
-          renderer.onToolResult(event.toolUseId, event.content, !event.ok, event.images);
-          return;
-        case 'subagent_end':
-          if (event.phase !== 'background') return;
-          renderer.onSubagentEnd?.(event.parentToolUseId, event.status);
-          return;
-        case 'context_usage':
-          if (event.phase !== 'background') return;
-          renderer.onContext(event);
-          return;
-        case 'background_result': {
-          const cont = event.result;
-          if (cont.backgroundInterrupted) { w.settle('interrupted', cont); return; }
-          if (cont.rateLimited) { w.settle('rate-limited', cont); return; }
-          const left = remainingBg(cont);
-          if (left > 0) {
-            // Chained: the run re-arms its own bound, so keep rendering the waiting state and keep
-            // the hold. `reassert` is a no-op once the wait is over.
-            void renderer.onWaiting(left);
-            hold.reassert();
-          } else {
-            w.settle('complete', cont);
-          }
-          return;
-        }
         case 'background_timeout':
           // Release the bracket first, then report the verdict — the order the guard this replaced
           // used, and the one that keeps a deferred restart from firing inside the seal.
-          hold.releaseWait();
+          w.hold.releaseWait();
           w.settle(event.reason === 'grace' ? 'grace' : 'max-wait', null);
           return;
         case 'phase':
-          if (event.phase === 'done') hold.releaseWait();
+          if (event.phase === 'done') w.hold.releaseWait();
           return;
         default:
           return;

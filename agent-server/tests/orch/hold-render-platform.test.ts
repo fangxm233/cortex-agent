@@ -8,6 +8,7 @@ import { holdBackgroundContinuation } from '../../src/orchestration/turn/backgro
 import { platformHoldRenderer } from '../../src/orchestration/turn/hold-render-platform.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
+import { ToolTrace } from '../../src/platform/tool-trace.js';
 import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 import { costRepo } from '../../src/domain/costs/cost-tracker.js';
@@ -51,6 +52,16 @@ function harness() {
     observer!.onEvent(event);
   };
   const contexts: number[] = [];
+  // The turn's transcript sink: the hold forwards every background row to it unchanged.
+  const forwarded: RunEvent[] = [];
+  const transcript: RunObserver = {
+    onEvent(event: RunEvent): void {
+      forwarded.push(event);
+      if (event.type === 'context_usage') contexts.push(event.contextWindow);
+    },
+  };
+  // The turn's tool trace, as `buildAgentCallbacks` wires it when tool calls are shown.
+  const trace = new ToolTrace(stream);
   const args = {
     channel: 'slack:D1', executionId: `exec-bg-${statusSeq}`,
     trackSessionId: `session-bg-${statusSeq}`,
@@ -63,6 +74,7 @@ function harness() {
     // The busy bracket itself is `background-hold.test.ts`'s; muted here so the status rendering
     // does not signal the supervisor over IPC.
     track: () => {},
+    transcript,
     renderer: platformHoldRenderer({
       adapter: adapter as any, statusMsg: statusMsg as any, channel: args.channel, stream,
       ownedCallback: onAssistantMessage,
@@ -70,13 +82,12 @@ function harness() {
       trackSessionId: args.trackSessionId, startTime: Date.now(), baseResult: result as any,
       userMessageTs: null, executionId: args.executionId, trigger: 'user',
       projectId: 'cortex-self', backend: 'claude',
-      onToolUse: null, onToolResult: null,
-      onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
+      onToolUse: (name, input, toolUseId, subagent) => trace.onToolUse(name, input, subagent, toolUseId),
     }),
   });
   const lastStatus = () => (adapter.updated.at(-1)?.content?.text ?? '') as string;
   return {
-    adapter, args, contexts, lastStatus, stream, emit, hold, onAssistantMessage,
+    adapter, args, contexts, forwarded, lastStatus, stream, emit, hold, onAssistantMessage,
     held: () => observer !== null,
     claimedTranscript: () => claimed,
     result: (r: Record<string, unknown>) => emit({ type: 'background_result', result: r as any }),
@@ -107,7 +118,7 @@ test('undelivered-only completions hold the status waiting and subscribe to the 
     type: 'context_usage', phase: 'background',
     usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
   });
-  assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the turn\'s persistence callback');
+  assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the turn\'s transcript sink');
 
   // The (late) notification arrives and the continuation turn completes.
   h.result(baseResult({
@@ -153,6 +164,33 @@ test('background prose merges into the originating reply; a subagent\'s notes an
   assert.match(merged, /the build finished/, 'the continuation answer merges into the same reply');
   assert.doesNotMatch(merged, /inner working notes/, "a subagent's prose stays out of the chat reply");
   assert.doesNotMatch(merged, /already ended/, 'foreground-phase events are not the hold\'s business');
+  assert.deepEqual(
+    h.forwarded.map((e) => e.type === 'assistant_text' && e.text),
+    ['the build finished', 'inner working notes'],
+    'both background texts are transcript rows; the foreground one is not the hold\'s',
+  );
+});
+
+test('a background subagent\'s tool call counts on the subagent trace line, attributed in the transcript', async () => {
+  const h = harness();
+  await h.hold(baseResult({ pendingBackgroundTasks: 1 }));
+  const subagent = { parentToolUseId: 'toolu_bg', type: 'Explore', description: 'survey' };
+
+  h.emit({ type: 'tool_use', phase: 'background', name: 'Grep', input: { pattern: 'x' }, toolUseId: 'toolu_c1', subagent });
+  h.emit({ type: 'tool_use', phase: 'background', name: 'Read', input: { file_path: '/a/b/c.ts' }, toolUseId: 'toolu_c2', subagent });
+  h.emit({ type: 'subagent_end', phase: 'background', parentToolUseId: 'toolu_bg', status: 'completed' });
+
+  const trace = h.stream.segments.map((seg) => `${seg.kind}: ${seg.text}`);
+  assert.deepEqual(trace, [
+    'mutable-open: 🔧 Agent ×1 · survey 1',
+    'mutable-update: 🔧 Agent ×1 · survey 2',
+  ], 'one subagent line counting both calls, not the main agent\'s own Grep/Read lines');
+  assert.deepEqual(
+    h.forwarded.map((e) => e.type),
+    ['tool_use', 'tool_use', 'subagent_end'],
+    'the calls and the subagent end are transcript rows',
+  );
+  assert.deepEqual((h.forwarded[0] as any).subagent, subagent);
 });
 
 test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async () => {

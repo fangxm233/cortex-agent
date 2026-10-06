@@ -1,7 +1,7 @@
 import * as crypto from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, IncomingMessage, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit } from '@platform/types.js';
-import type { AgentResult, ContextUsage, SystemTurnOrigin, TodoSnapshot, ToolResultImage } from '@core/types/agent-types.js';
+import type { AgentResult, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { renderTodoProgress } from '../../agent-adapter/normalize/todo.js';
@@ -253,54 +253,24 @@ export class Turn {
           flushDelta: (blockId) => deltaStream?.flush(blockId),
         })
       // A turn with no session record has nothing to persist against (an edit-retry on a channel
-      // that never opened one). It still streams its prose to the platform, which is all the
-      // pre-Turn edit-retry observer did.
+      // that never opened one). It still streams its foreground prose to the platform, which is
+      // all the pre-Turn edit-retry observer did; a hold streams background prose itself.
       : {
           onEvent(event: RunEvent): void {
-            if (event.type === 'assistant_text' && !event.subagent) callbacks.onAssistantMsg(event.text);
+            if (event.type === 'assistant_text' && event.phase === 'foreground' && !event.subagent) {
+              callbacks.onAssistantMsg(event.text);
+            }
           },
         };
-    const persistToolUse = (
-      name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent,
-    ): void => {
-      sink.onEvent({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}), phase: 'foreground' });
-    };
-    // Always wired: the sink files a result's images regardless of DEBUG, and keeps the result
-    // text DEBUG-only itself.
-    const persistToolResult = (
-      toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[],
-    ): void => {
-      sink.onEvent({
-        type: 'tool_result', toolUseId, ok: !isError, content, phase: 'foreground',
-        ...(images?.length ? { images } : {}),
-      });
-    };
-    // The authoritative end of one native subagent. Persisted as well as published: it is the only
-    // evidence a later reader has that a subagent which ran BESIDE the main agent is over — the
-    // event ordering in the transcript cannot express that, and a killed child leaves nothing else.
-    // Fires both in-turn (the child finished while its parent turn was still open) and from the
-    // background hold (it finished after the turn ended).
-    const persistSubagentEnd = (
-      parentToolUseId: string, status: 'completed' | 'failed' | 'killed',
-    ): void => {
-      sink.onEvent({ type: 'subagent_end', parentToolUseId, status, phase: 'foreground' });
-    };
-    const persistContext = (usage: ContextUsage): void | Promise<void> =>
-      sink.onEvent({ type: 'context_usage', ...usage, phase: 'foreground' });
-    const persistContinuationContext = (usage: ContextUsage): void => {
-      void Promise.resolve(persistContext(usage)).catch((error) => {
-        log.warn('continuation context persistence failed:', (error as Error).message);
-      });
-    };
     // 5e. The conversation path's one foreground observer. Background-phase events are deliberately
-    //     NOT forwarded to the sink: the background hold's renderer owns background persistence
-    //     (`turn/background-hold.ts`), so forwarding them here would double-append the transcript.
+    //     NOT forwarded to the sink here: the background hold forwards them (`turn/background-hold.ts`),
+    //     so forwarding them here too would double-append the transcript.
     const foregroundObserver: RunObserver = {
       onEvent: (event: RunEvent): void | Promise<void> => {
         switch (event.type) {
           case 'tool_use':
             if (event.phase !== 'foreground') return;
-            // Platform tool trace first, then the sink — the order the old composeToolUse bridge had.
+            // Platform tool trace first, then the sink — the background hold keeps the same order.
             callbacks.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
             return sink.onEvent(event);
           case 'assistant_delta':
@@ -444,10 +414,9 @@ export class Turn {
               // Continuation cost is attributed to the session's bound project (threaded from the
               // caller), NOT re-derived from the message text.
               backend: resolveBackendForChannel(channel),
-              onToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
-              onToolResult: persistToolResult,
-              onContextUsage: persistContinuationContext,
+              onToolUse: callbacks.onToolUse,
             }),
+            transcript: sink,
           })
           : null,
       });
@@ -457,20 +426,7 @@ export class Turn {
       // already published and the continuation streams as new messages.
       if (holdKind === 'web' && sessionId) {
         await this.installHold({
-          result, run, renderer: webHoldRenderer({
-            // Through the same sink as every other row, tagged `background`: it applies the in-turn
-            // rules (a subagent's prose is persisted WITH its attribution rather than reading as
-            // the agent's own answer arriving a turn late) and, because the phase says background,
-            // it does NOT stream the text to the platform callback — this surface publishes it.
-            publishAssistant: (text, subagent) => {
-              sink.onEvent({
-                type: 'assistant_text', text, phase: 'background', ...(subagent ? { subagent } : {}),
-              });
-            },
-            publishTool: persistToolUse,
-            publishToolResult: persistToolResult,
-            publishSubagentEnd: persistSubagentEnd,
-            publishContextUsage: persistContinuationContext,
+          result, run, transcript: sink, renderer: webHoldRenderer({
             // Notices carry the level/action the plain assistant path drops. The foreground turn's
             // AttemptNoticeTracker has already retired by now, so without this a continuation that
             // hits the provider limit is queued for resume with nothing said about it in the chat.
@@ -542,9 +498,10 @@ export class Turn {
     result: AgentResult;
     run: AgentRun;
     renderer: HoldRenderer;
+    transcript: RunObserver;
   }): Promise<boolean> {
     const hold = await holdBackgroundContinuation({
-      run: args.run, result: args.result, channel: this.channel,
+      run: args.run, result: args.result, channel: this.channel, transcript: args.transcript,
       sessionId: this.sessionId, userMessage: this.input.user.text,
       // A run keeps its execution registered for the whole of its background phase, so the hold's
       // own run must not veto its own idle publish.
@@ -792,20 +749,5 @@ export function buildInjectDeps(sessionName: string | null, adapter: PlatformAda
     track: trackPendingTask,
     captureDebug: isDebugMode(),
     now: () => new Date().toISOString(),
-  };
-}
-
-// --- Small shared helpers --------------------------------------------------------------------------
-
-/** Compose an optional onToolUse callback with a required one so both fire on each tool_use event. */
-function composeToolUse(
-  a: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
-  b: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void,
-): (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void {
-  // `a` is null when the platform tool trace is off.
-  if (!a) return b;
-  return (name, input, toolUseId, subagent) => {
-    a(name, input, toolUseId, subagent);
-    b(name, input, toolUseId, subagent);
   };
 }

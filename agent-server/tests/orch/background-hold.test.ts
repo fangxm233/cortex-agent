@@ -141,6 +141,7 @@ async function platformHold(channel = 'slack:D-hold') {
     run: held.run, channel, sessionId, userMessage: 'run it in background',
     result: { pendingBackgroundTasks: 1, total_cost_usd: 0.02, num_turns: 3 } as any,
     track: () => {},
+    transcript: { onEvent: () => {} },
     renderer: platformHoldRenderer({
       adapter: adapter as any, statusMsg: statusMsg as any, channel, stream, ownedCallback,
       sessionName: 'cortex-test', sessionId: 'backend-1', trackSessionId: sessionId,

@@ -121,6 +121,16 @@ export interface TranscriptSinkOptions {
   deps?: Partial<TranscriptSinkDeps>;
 }
 
+/** The event kinds this sink writes as transcript rows (context usage is stored beside them). */
+const ROW_EVENT_TYPES: ReadonlySet<RunEvent['type']> = new Set<RunEvent['type']>([
+  'assistant_text', 'tool_use', 'tool_result', 'todo_update', 'subagent_end', 'context_usage',
+]);
+
+/** A background-phase event this sink would write: what a hold or the injection ledger forwards. */
+export function isBackgroundRowEvent(event: RunEvent): boolean {
+  return ROW_EVENT_TYPES.has(event.type) && 'phase' in event && event.phase === 'background';
+}
+
 /** Fire-and-forget history append; never let a logging write break the turn. */
 export function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
   void p.then(() => onPersisted?.()).catch((e) => log.error('conversation-history write failed:', (e as Error).message));
@@ -171,6 +181,9 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     });
   }
 
+  /** The authoritative end of one native subagent, persisted as well as published: the event order
+   *  cannot say that a subagent running beside the main agent is over, and a killed child leaves
+   *  nothing else. Arrives in-turn and from a background hold alike. */
   function persistSubagentEnd(
     parentToolUseId: string, status: 'completed' | 'failed' | 'killed',
   ): void {
@@ -244,7 +257,8 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
         case 'todo_update':
           deps.setTodos(sessionId, event.snapshot);
           deps.publishTodos({ sessionId, channel, snapshot: event.snapshot });
-          opts.onTodoUpdate?.(event.snapshot);
+          // The platform status line belongs to the foreground turn; a held turn shows its own.
+          if (event.phase === 'foreground') opts.onTodoUpdate?.(event.snapshot);
           return;
         case 'assistant_text':
           persistAssistant(

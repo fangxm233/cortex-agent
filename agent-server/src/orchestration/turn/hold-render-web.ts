@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { ChatNoticeLevel, ContextUsage, NoticeAction, ToolResultImage } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { isApiRateLimitError } from '@domain/runs/retryable-errors.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { t } from '../../core/i18n.js';
@@ -8,22 +8,8 @@ import type { HoldRenderer, HoldTotals, SealedVerdict } from './background-hold.
 const log = createLogger('hold-render-web');
 
 export interface WebHoldDeps {
-  /** Append + publish a continuation assistant message (history record + session.message).
-   *  `subagent` is set when a native subagent produced the text — without it the transcript
-   *  cannot tell a subagent's working notes from the agent's own answer. */
-  publishAssistant: (text: string, subagent?: ToolUseSubagent) => void;
-  /** Append + publish a continuation tool call (history record + session.message). */
-  publishTool: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void;
-  /** Persist a continuation tool result: its images always, its text in DEBUG mode. */
-  publishToolResult?: (toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]) => void;
-  /** Publish the authoritative end of one backgrounded subagent. Distinct from the hold's seal:
-   *  several subagents can run under one hold and each ends alone. */
-  publishSubagentEnd?: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void;
-  /** Persist and publish an exact continuation context snapshot. */
-  publishContextUsage?: (usage: ContextUsage) => void;
-  /** Append + publish a continuation NOTICE row (level + optional action), the fields the plain
-   *  assistant path drops, so a held API error renders as an error card and a resumable rate limit
-   *  carries its resume affordance. */
+  /** Append + publish a continuation NOTICE row (level + optional action), so a held API error
+   *  renders as an error card and a resumable rate limit carries its resume affordance. */
   publishNotice: (text: string, level: ChatNoticeLevel, action?: NoticeAction) => void;
 }
 
@@ -49,33 +35,13 @@ export function webHoldRenderer(deps: WebHoldDeps): HoldRenderer {
     // The web surface has no waiting line: the held state IS the session.status the hold publishes.
     onWaiting(): void {},
 
-    onText(text: string, subagent?: ToolUseSubagent): void {
-      if (!text) return;
+    onText(text: string, subagent?: ToolUseSubagent): 'held' | void {
       // Only the agent's own stream is held: a subagent's card keeps its attribution and the
       // subagent, not the session, owns that failure.
       if (!subagent && text.startsWith('API Error:') && isApiRateLimitError(text)) {
         heldApiError = text;
-        return;
+        return 'held';
       }
-      deps.publishAssistant(text, subagent);
-    },
-
-    onTool(name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent): void {
-      deps.publishTool(name, input, toolUseId, subagent);
-    },
-
-    onToolResult(toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]): void {
-      deps.publishToolResult?.(toolUseId, content, isError, images);
-    },
-
-    onContext(usage: ContextUsage): void {
-      deps.publishContextUsage?.(usage);
-    },
-
-    onSubagentEnd(parentToolUseId: string, status: 'completed' | 'failed' | 'killed'): void {
-      // Not routed through publishAssistant/publishTool: this is a state correction for a subagent
-      // block, carrying no prose that belongs in the transcript.
-      deps.publishSubagentEnd?.(parentToolUseId, status);
     },
 
     onSealed(kind: SealedVerdict, totals: HoldTotals): void {

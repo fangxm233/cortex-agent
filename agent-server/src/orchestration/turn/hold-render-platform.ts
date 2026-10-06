@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
+import type { AgentResult } from '@core/types/agent-types.js';
 import type { OutputStream, PlatformAdapter, MessageRef } from '@platform/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
@@ -39,9 +39,8 @@ export interface PlatformHoldDeps {
   trigger: string;
   projectId: string;
   backend: string;
-  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]) => void) | null;
-  onContextUsage?: ((usage: ContextUsage) => void) | null;
+  /** The turn's tool trace, when it is on. */
+  onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
 }
 
 /**
@@ -86,16 +85,8 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
       deps.stream.emitText(text);
     },
 
-    onTool(name: string, input: unknown, toolUseId: string): void {
-      deps.onToolUse?.(name, input, toolUseId);
-    },
-
-    onToolResult(toolUseId: string, content: string, isError: boolean, images?: ToolResultImage[]): void {
-      deps.onToolResult?.(toolUseId, content, isError, images);
-    },
-
-    onContext(usage: ContextUsage): void {
-      deps.onContextUsage?.(usage);
+    onTool(name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent): void {
+      deps.onToolUse?.(name, input, toolUseId, subagent);
     },
 
     onSealed(kind: SealedVerdict, totals: HoldTotals): void {

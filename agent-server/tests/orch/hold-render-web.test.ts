@@ -59,6 +59,17 @@ function makeHarness() {
     subscribe(o: RunObserver): () => void { observer = o; return () => { observer = null; }; },
   };
 
+  // The turn's transcript sink: the hold forwards every background row to it unchanged.
+  const forwarded: RunEvent[] = [];
+  const transcript: RunObserver = {
+    onEvent(event: RunEvent): void {
+      forwarded.push(event);
+      if (event.type === 'assistant_text') assistants.push({ text: event.text, subagent: event.subagent });
+      if (event.type === 'tool_use') tools.push({ name: event.name, input: event.input, subagent: event.subagent });
+      if (event.type === 'context_usage') contexts.push(event.contextWindow);
+    },
+  };
+
   const install = async (result: any): Promise<boolean> => !!await holdBackgroundContinuation({
     result,
     run,
@@ -66,10 +77,8 @@ function makeHarness() {
     sessionId,
     userMessage: 'do the long thing',
     track: (d) => track.push(d),
+    transcript,
     renderer: webHoldRenderer({
-      publishAssistant: (text, subagent) => assistants.push({ text, subagent }),
-      publishTool: (name, input, _id, subagent) => tools.push({ name, input, subagent }),
-      publishContextUsage: (usage) => contexts.push(usage.contextWindow),
       publishNotice: (text, level, action) => { notices.push({ text, level, action }); },
     }),
   });
@@ -80,7 +89,7 @@ function makeHarness() {
   };
 
   return {
-    statuses, assistants, tools, contexts, rateLimits, notices, track, sessionId,
+    statuses, assistants, tools, contexts, rateLimits, notices, track, sessionId, forwarded,
     install, emit,
     setResumable: (value: boolean) => { resumable = value; },
     get subscribed() { return observer !== null; },
@@ -128,14 +137,15 @@ test('hold: continuation with 0 remaining → seal (running:false, busy -1)', as
   assert.deepEqual(h.track, [+1, -1], 'busy bracket balanced');
 });
 
-test('hold: continuation assistant text, tool call, and context stream as session events', async () => {
+test('hold: continuation assistant text, tool call, and context reach the transcript sink', async () => {
   const h = makeHarness();
   await h.install({ pendingBackgroundTasks: 1 });
   h.text('background done: OK');
   h.text('');
   h.tool('Bash', { command: 'echo hi' });
   h.ctx({ usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact' });
-  assert.deepEqual(h.assistants.map((a) => a.text), ['background done: OK'], 'empty text is dropped');
+  // Forwarded as-is: the sink, not the hold, writes no row for empty text.
+  assert.deepEqual(h.assistants.map((a) => a.text), ['background done: OK', '']);
   assert.deepEqual(h.tools, [{ name: 'Bash', input: { command: 'echo hi' }, subagent: undefined }]);
   assert.deepEqual(h.contexts, [1_000_000]);
 });
@@ -344,4 +354,19 @@ test('hold: a background subagent\'s output keeps its attribution', async () => 
     { text: 'the agent speaking for itself', subagent: undefined },
   ]);
   assert.deepEqual(h.tools, [{ name: 'Grep', input: { pattern: 'x' }, subagent }]);
+});
+
+test('hold: background rows reach the transcript sink unchanged — blockId, notices and todos included', async () => {
+  const h = makeHarness();
+  await h.install({ pendingBackgroundTasks: 1 });
+  const events: RunEvent[] = [
+    { type: 'assistant_text', phase: 'background', text: 'done', blockId: 'blk-1' },
+    { type: 'assistant_text', phase: 'background', text: 'compacted', noticeLevel: 'info' },
+    { type: 'todo_update', phase: 'background', toolUseId: 'toolu_todo', snapshot: { items: [], total: 0, completed: 0, activeLabel: null, updatedAt: 1 } },
+    { type: 'subagent_end', phase: 'background', parentToolUseId: 'toolu_bg', status: 'killed' },
+    { type: 'tool_result', phase: 'background', toolUseId: 'toolu_1', ok: true, content: 'out', images: [{ mimeType: 'image/png', data: 'AAAA' }] },
+  ];
+  for (const event of events) h.emit(event);
+  assert.equal(h.forwarded.length, events.length);
+  events.forEach((event, i) => assert.equal(h.forwarded[i], event, `event ${i} forwarded as the same object`));
 });
