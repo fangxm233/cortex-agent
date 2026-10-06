@@ -6,8 +6,6 @@ import { DATA_DIR, PLUGINS_DIR } from '../src/core/paths.js';
 import {
   clearSkillScanCache,
   getDisplaySkillGroups,
-  getKnownSkillNames,
-  normalizeSkillCommandPrefix,
 } from '../src/domain/memory/skill-scanner.js';
 
 const USER_SKILLS = path.join(DATA_DIR, '.claude', 'skills');
@@ -45,40 +43,4 @@ test('getDisplaySkillGroups returns plugin-grouped skill catalog', () => {
     { plugin: 'cortex-common', skills: ['solution-design'] },
     { plugin: 'superpowers', skills: ['brainstorming', 'using-superpowers'] },
   ]);
-});
-
-test('getKnownSkillNames recognizes both bare and plugin-namespaced forms', () => {
-  const known = getKnownSkillNames();
-
-  assert.ok(known.has('code-standards'));
-  assert.ok(known.has('cortex-coder:code-standards'));
-  assert.ok(known.has('solution-design'));
-  assert.ok(known.has('cortex-common:solution-design'));
-  assert.ok(known.has('personal-review'));
-  assert.ok(known.has('superpowers:brainstorming'));
-  assert.ok(known.has('superpowers:using-superpowers'));
-});
-
-test('normalizeSkillCommandPrefix prefixes `/` for bare and namespaced skill invocations', () => {
-  assert.equal(
-    normalizeSkillCommandPrefix('code-standards please review the bridge'),
-    '/code-standards please review the bridge',
-  );
-  assert.equal(
-    normalizeSkillCommandPrefix('cortex-coder:code-standards please review the bridge'),
-    '/cortex-coder:code-standards please review the bridge',
-  );
-  assert.equal(normalizeSkillCommandPrefix('personal-review this'), '/personal-review this');
-  assert.equal(
-    normalizeSkillCommandPrefix('/code-standards already slashed'),
-    '/code-standards already slashed',
-  );
-  assert.equal(
-    normalizeSkillCommandPrefix('!status is unrelated'),
-    '!status is unrelated',
-  );
-  assert.equal(
-    normalizeSkillCommandPrefix('definitely-not-a-skill foo'),
-    'definitely-not-a-skill foo',
-  );
 });

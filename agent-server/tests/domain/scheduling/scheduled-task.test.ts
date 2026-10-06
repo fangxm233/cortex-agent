@@ -16,6 +16,10 @@ writeFileSync(path.join(HOME, 'config', 'profiles.json'), JSON.stringify({
     sonnet: { model: 'claude-sonnet-5', backend: 'claude', mode: 'plan' },
   },
 }));
+// An installed skill whose name is an ordinary English word: a prompt starting with it is prose.
+mkdirSync(path.join(HOME, 'plugins', 'cortex-maintain', 'skills', 'release'), { recursive: true });
+writeFileSync(path.join(HOME, 'plugins', 'cortex-maintain', 'skills', 'release', 'SKILL.md'),
+  '---\nname: release\ndescription: Cut a release\n---\n');
 
 const running: Array<{ status: string; kind: string | null; scheduleTaskId?: string | null }> = [];
 vi.mock('../../../src/domain/executions/registry.js', () => ({
@@ -95,6 +99,12 @@ test('a fire opens a scheduled session on its own web channel and delivers the p
   expect(deliver).toHaveBeenCalledTimes(1);
   expect(deliver).toHaveBeenCalledWith({ channel, text: '[Scheduled Task] summarize new arxiv papers' });
   expect(notify).not.toHaveBeenCalled();
+});
+
+test('a prompt whose first word names an installed skill is delivered verbatim', async () => {
+  const { sessionId, deps } = makeDeps();
+  await fireScheduledTask(fire({ scheduleTaskId: 'sch-skill-word', message: 'release the build tonight' }), deps);
+  expect(deliver).toHaveBeenCalledWith({ channel: `web:${sessionId}`, text: 'release the build tonight' });
 });
 
 test('a schedule bound to an unknown project lands in general', async () => {

@@ -13,8 +13,6 @@ const PLUGINS_ROOT = PLUGINS_DIR;
 
 let cachedDisplayGroups = [];
 let cachedDisplayGroupsAt = 0;
-let cachedKnownNames = new Set();
-let cachedKnownNamesAt = 0;
 
 function listSubdirectories(dir) {
   if (!existsSync(dir)) return [];
@@ -80,40 +78,9 @@ function getDisplaySkillGroups() {
   return groups;
 }
 
-function getKnownSkillNames() {
-  const now = Date.now();
-  if (now - cachedKnownNamesAt < SKILL_SCAN_CACHE_MS) return cachedKnownNames;
-
-  const names = new Set();
-  for (const name of collectSkillNamesFromRoot(CLAUDE_SKILL_ROOT)) names.add(name);
-  for (const { plugin, skills } of collectPluginSkillGroups()) {
-    for (const skill of skills) {
-      names.add(skill);
-      names.add(`${plugin}:${skill}`);
-    }
-  }
-  cachedKnownNames = names;
-  cachedKnownNamesAt = now;
-  return names;
-}
-
-function normalizeSkillCommandPrefix(messageText) {
-  if (typeof messageText !== 'string') return '';
-  const trimmedStart = messageText.trimStart();
-  if (!trimmedStart) return messageText;
-  if (trimmedStart.startsWith('/') || trimmedStart.startsWith('!')) return messageText;
-
-  const firstToken = trimmedStart.match(/^(\S+)/)?.[1];
-  if (!firstToken) return messageText;
-
-  if (!getKnownSkillNames().has(firstToken.toLowerCase())) return messageText;
-  return `/${trimmedStart}`;
-}
-
 /** Reset the in-process scan cache. Use only in tests that create/delete skill files mid-run. */
 function clearSkillScanCache(): void {
   cachedDisplayGroupsAt = 0;
-  cachedKnownNamesAt = 0;
 }
 
-export { getKnownSkillNames, getDisplaySkillGroups, normalizeSkillCommandPrefix, clearSkillScanCache };
+export { getDisplaySkillGroups, clearSkillScanCache };

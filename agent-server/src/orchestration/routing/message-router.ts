@@ -1,5 +1,4 @@
 import type { PlatformAdapter, IncomingMessage, MessageEditContext } from '@platform/index.js';
-import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
 import { createLogger } from '@core/log.js';
 import { extractForwardedContent } from '../status-helpers.js';
 
@@ -54,9 +53,8 @@ function buildAgentMessage(
   userMessage: string,
   forwardedContent: ReturnType<typeof extractForwardedContent>,
 ): string {
-  const agentMessage = normalizeSkillCommandPrefix(userMessage);
-  if (!forwardedContent) return agentMessage;
-  const fallback = agentMessage || 'The user forwarded the above message to you.';
+  if (!forwardedContent) return userMessage;
+  const fallback = userMessage || 'The user forwarded the above message to you.';
   return `[Forwarded message]\n${forwardedContent}\n[End forwarded message]\n\n${fallback}`;
 }
 

@@ -1,7 +1,11 @@
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { PLUGINS_DIR } from '../src/core/paths.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { registerMessageHandler, type MessageHandlerDeps } from '../src/orchestration/routing/message-router.js';
+import { orchestrator } from '../src/orchestration/orchestrator.js';
 import type { MessageEditContext } from '../src/platform/types.js';
 
 interface DispatchCall {
@@ -130,4 +134,20 @@ test('handleMessageEdit is NOT invoked on plain message events (short-circuited 
 
   await adapter.simulateMessage('C1', '!status', { senderId: 'U1' });
   assert.equal(editCalls.length, 0);
+});
+
+test('a message whose first word names an installed skill reaches the agent unchanged', async () => {
+  const skillDir = path.join(PLUGINS_DIR, 'cortex-maintain', 'skills', 'release');
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '---\nname: release\ndescription: Cut a release\n---\n');
+  const handle = vi.spyOn(orchestrator, 'handleMessage').mockResolvedValue(undefined);
+  try {
+    const adapter = new MockAdapter();
+    registerMessageHandler(adapter, buildDeps().deps);
+    await adapter.simulateMessage('C1', 'release the build tonight', { senderId: 'U1' });
+    assert.equal(handle.mock.calls.length, 1);
+    assert.equal(handle.mock.calls[0][0].agentMessage, 'release the build tonight');
+  } finally {
+    handle.mockRestore();
+  }
 });

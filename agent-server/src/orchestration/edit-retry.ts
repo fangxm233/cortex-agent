@@ -7,7 +7,6 @@ import { getSessionAsync } from '@domain/sessions/session.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { sessionStore, effectiveBackendSessionId, type Session } from '@store/session-registry-repo.js';
 import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
-import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
 import {
   buildUserProcessingMessage, writeStatus, buildStatusActionBlocks, initStatusBlocks,
 } from './status-helpers.js';
@@ -80,7 +79,6 @@ export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
   const { channel, text, adapter, statusMsg, startTime, sessionId, session, sessionName } = args;
   const leased = await leaseRetrySession(args);
   if (!leased) return;
-  const agentMessage = normalizeSkillCommandPrefix(text || '');
   const backendSessionId = session ? effectiveBackendSessionId(session) : null;
   const projectId = session?.projectId ?? 'general';
   const backend = resolveBackendForChannel(channel);
@@ -96,7 +94,7 @@ export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
     startTime,
     // The retry replays a message a human wrote, on the session's live engine: a user turn.
     prepareRequest: (ids) => prepareConversationRequest({
-      ids, channel, session, userMessage: agentMessage,
+      ids, channel, session, userMessage: text || '',
       browserCdpEndpoint: cdpEndpoint, trigger: 'edit-retry',
     }),
   }));

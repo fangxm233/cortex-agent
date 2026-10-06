@@ -9,7 +9,6 @@ import { getDefaultProfileName } from '../../agents/profile-manager.js';
 import { projectStore } from '@domain/projects/index.js';
 import { createDirectSession, type CreateDirectSessionDeps } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
-import { normalizeSkillCommandPrefix } from '../../memory/skill-scanner.js';
 import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../run-guards.js';
 import { allConfigsRateLimited } from '../../runs/fallback.js';
 import type { Destination } from '@platform/index.js';
@@ -79,12 +78,7 @@ export async function fireScheduledTask(
   const schedKey = `sched:${scheduleTaskId || projectId}`;
   if (!passScheduledGuards(schedKey, scheduleTaskId)) return;
 
-  const normalizedMessage = normalizeSkillCommandPrefix(message);
-  if (normalizedMessage !== message) {
-    log.info('Auto-prefixed skill command:', normalizedMessage.substring(0, 80));
-  }
-
-  if (!isValidDispatchPrompt(normalizedMessage)) {
+  if (!isValidDispatchPrompt(message)) {
     log.warn(`Guard dropped null/empty prompt for schedule ${scheduleTaskId} (project=${projectId}, profile=${profileName}): "${message?.substring(0, 60) || String(message)}"`);
     return;
   }
@@ -96,7 +90,7 @@ export async function fireScheduledTask(
 
   scheduledTaskActive.add(schedKey);
   try {
-    await openScheduledRun({ normalizedMessage, message, projectId, scheduleTaskId, profileName }, deps);
+    await openScheduledRun({ message, projectId, scheduleTaskId, profileName }, deps);
   } catch (error) {
     // Nothing ran, so the notice is the only trace this fire leaves.
     log.error(`Scheduled task ${scheduleTaskId} setup failed:`, (error as Error).message);
@@ -110,8 +104,8 @@ export async function fireScheduledTask(
 }
 
 async function openScheduledRun(
-  { normalizedMessage, message, projectId, scheduleTaskId, profileName }: {
-    normalizedMessage: string; message: string; projectId: string; scheduleTaskId: string; profileName: string;
+  { message, projectId, scheduleTaskId, profileName }: {
+    message: string; projectId: string; scheduleTaskId: string; profileName: string;
   },
   deps: ScheduledRunDeps,
 ): Promise<void> {
@@ -136,5 +130,5 @@ async function openScheduledRun(
     label: message.substring(0, 60) || null,
   });
   log.info(`Schedule ${scheduleTaskId} opened session ${created.sessionName} (${created.sessionId})`);
-  await deliver({ channel: created.channel, text: normalizedMessage });
+  await deliver({ channel: created.channel, text: message });
 }
