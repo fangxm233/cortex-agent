@@ -1,391 +1,169 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
+import { useNavigate, useParams } from 'react-router-dom';
 import { fmt, useLang, useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import {
-  resolveTurns,
-  currentTurnClock,
-  turnClockElapsedMs,
-  formatElapsed,
-  rewindStats,
-} from '@/features/session/transcript/transcript-vm';
-import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
-import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
-import { useOptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
-import { useSessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
-import { useTranscriptQuery } from '@/features/session/transcript/useTranscriptQuery';
-import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
-import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
-import { useMarkSessionRead } from '@/features/session/live/useMarkSessionRead';
-import { useSessionCompact } from '@/features/session/live/useSessionCompact';
-import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
-import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
+import { useAllSessions } from '@/features/projects/useProjectSessions';
+import { useChatSession } from '@/features/session/chat/useChatSession';
+import { useComposerSend } from '@/features/session/chat/useComposerSend';
+import { runStatusLine } from '@/features/session/chat/run-status-line';
+import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
+import { useDraftSelection } from '@/features/session/state/useDraftSelection';
+import type { PendingCreatedSession } from '@/features/session/state/selected-session';
 import { sessionSpanMs, sessionStatsView } from '@/features/session/list/session-stats';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
-import {
-  agentChipParts, buildAgentOptions, buildProfileOptions, effectiveSelection, hasAgentChoice,
-  profileChange, selectionChipParts,
-} from '@/features/session/list/selection-menu';
-import {
-  buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
-  type SlashAction, type SlashActionHandlers, type SlashSuggestion,
-} from '@/features/session/composer/composer-slash';
-import {
-  applyDraftSelection, EMPTY_DRAFT_SELECTION, resolveTransitionAgent, resolveTransitionSelection,
-  seedDraftSelection,
-  type DraftSelection, type PendingCreatedSession, type SelectionChange,
-} from '@/features/session/state/selected-session';
-
-import {
-  draftStorageKey,
-  loadDraft,
-  saveDraft,
-  clearDraft,
-  mergeRestoredDraft,
-  type ComposerDraft,
-} from '@/features/session/composer/composer-draft';
-import {
-  askCardModel,
-  planCardModel,
-  emptyAskAnswers,
-  currentQuestionIndex,
-  commitAnswer,
-  toggleSelected,
-  confirmSelected,
-  askComplete,
-  mergedAnswers,
-  type AskAnswerState,
-  type AskCardModel,
-  type PlanCardModel,
-} from '@/features/session/interaction/interaction-vm';
-import { MChatView, type MChatInteractions, type MRejectBar, type MMsgMenu, type MEditMode } from './MChatView';
+import { agentChipParts, hasAgentChoice, selectionChipParts } from '@/features/session/list/selection-menu';
 import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
 import {
   commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
   useSessionCommission,
 } from '@/features/commission/CommissionOptIn';
-import type { RejectPlanNavState } from './MPlanReadScreen';
-import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useTeamContext } from '@/features/team/useTeamContext';
+import { attachmentType } from '@/features/attachments/types';
+import { MChatView } from './MChatView';
 import {
-  buildMobileChatRows,
-  chatHeaderStatus,
-  interactionHeaderStatus,
-  effectiveProfileName,
-  selectionChipLabel,
-  buildAgentSheet,
-  buildSelectionSheet,
-  type SelectionSheetRow,
-  type PendingAttachmentVM,
+  buildMobileChatRows, selectionChipLabel, buildAgentSheet, buildSelectionSheet,
+  type ChatHeaderStatus, type SelectionSheetRow, type PendingAttachmentVM,
 } from './m-chat-vm';
-import { usePersistedMobileChatDraft } from './m-chat-attachments';
-import { attachmentSendAllowed, attachmentType } from '@/features/attachments/types';
-import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
-const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
+import { useMobileInteractions } from './m-chat-interactions';
+import { useMobileMessageEdit } from './m-chat-edit';
 
-export function MChatScreen(): JSX.Element {
-  const trpc = useTRPC();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const lang = useLang();
-  const vocab = useVocab();
-  const { currentProjectId, setCurrentProject } = useCurrentProject();
+const DRAFT_PATH = '/m/session/new';
+
+/** The open session: looked up across every project — the session decides the project, not the
+ *  other way round — and among scheduled runs too, which open on the same page. */
+function useRouteSession() {
   const { sessionId: routeParam } = useParams<{ sessionId: string }>();
   const isDraft = routeParam === 'new';
-
-  // Looked up across every project: the open session decides the project, not the other way round.
   const sessionsQuery = useAllSessions('direct');
-  // Scheduled runs open on the same page (scheme-mobile 8d) — the Scheduled sheet navigates here,
-  // so the active-session membership must include them.
   const scheduledSessionsQuery = useAllSessions('scheduled');
   const active = useMemo(() => {
     const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
     return list.find((s) => s.sessionId === routeParam) ?? null;
   }, [sessionsQuery.data, scheduledSessionsQuery.data, routeParam]);
+  const { currentProjectId, setCurrentProject } = useCurrentProject();
   const activeProjectId = isDraft ? null : active?.projectId ?? null;
-  // Team mode: a worker's header names its lead; a lead shows its workers under the header.
-  const team = useTeamContext(isDraft ? null : active, sessionsQuery.data);
   useEffect(() => {
     if (activeProjectId && activeProjectId !== currentProjectId) setCurrentProject(activeProjectId);
   }, [activeProjectId, currentProjectId, setCurrentProject]);
-  const sessionId = isDraft ? '' : (active?.sessionId ?? routeParam ?? '');
-  // Un-adopted scheduled run (8d): title「schedule 名 · run #n」+ reply-adopts hint; replying
-  // converts it to a normal session server-side (nothing special to send).
-  const isScheduledRun = active?.origin === 'scheduled';
-  const schedulesQuery = useQuery({
-    ...trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
-    enabled: !!active?.scheduleId,
-  });
-  const runTitle = useMemo(() => {
-    if (!isScheduledRun || !active?.scheduleId) return null;
-    const sched = (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null;
-    const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(sched, runs, active.sessionId, vocab);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data, vocab]);
-
-  const transcriptQuery = useTranscriptQuery(sessionId);
-  // This visible transcript alone opts into deltas; transcript snapshots self-heal missed delivery.
-  const {
-    liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns, contextUsage, todos,
-    streamingText, pendingUser,
-  } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
-    deltas: true,
-    transcript: transcriptQuery.data ?? null,
-    contextUsage: active?.contextUsage ?? null,
-    todos: active?.todos ?? null,
-  });
-  // A sent message shows in the stream on the frame it is sent (same reconciliation the desktop
-  // chat uses), instead of vanishing until the server echoes it back.
-  const optimistic = useOptimisticUserMessages({
-    sessionId,
+  return {
+    routeParam,
     isDraft,
-    projectId: currentProjectId ?? 'general',
-    transcript: transcriptQuery.data ?? null,
-    liveTail,
-    pendingUser,
-    getMessageSnapshot,
+    active: isDraft ? null : active,
+    sessionId: isDraft ? '' : (active?.sessionId ?? routeParam ?? ''),
+    projectId: currentProjectId,
+    directSessions: sessionsQuery.data,
+    scheduledSessions: scheduledSessionsQuery.data,
+  };
+}
+
+/** A created session's own row lands in sessions.list a moment after the send; until it does, the
+ *  engine chip keeps saying what the draft was created with. */
+function usePendingCreatedSession(activeSessionId: string | undefined, isDraft: boolean, sessionId: string) {
+  const [pending, setPending] = useState<PendingCreatedSession | null>(null);
+  useEffect(() => {
+    if (!pending) return;
+    const authoritativeArrived = activeSessionId === pending.sessionId;
+    const movedElsewhere = !isDraft && sessionId !== pending.sessionId;
+    if (authoritativeArrived || movedElsewhere) setPending(null);
+  }, [activeSessionId, isDraft, pending, sessionId]);
+  return [pending, setPending] as const;
+}
+
+export function MChatScreen(): JSX.Element {
+  const navigate = useNavigate();
+  const lang = useLang();
+  const vocab = useVocab();
+  const route = useRouteSession();
+  const { isDraft, active, sessionId } = route;
+  // Team mode: a worker's header names its lead; a lead shows its workers under the header.
+  const team = useTeamContext(active, route.directSessions);
+  const chat = useChatSession(sessionId, active, {
+    isDraft, projectId: route.projectId ?? 'general', scheduledRuns: route.scheduledSessions,
   });
-  const compactAction = useSessionCompact(sessionId, {
-    running,
-    hasBackendHistory: !!active?.backendSessionId,
-  });
-  // Interaction cards are transcript rows (web-interactions-redesign); this hook only supplies
-  // the answer/approve/reject actions.
-  const interactionActions = useInteractionActions(sessionId);
-  // Unread write side (mirrors desktop CenterChat): viewing a session stamps it read (debounced,
-  // visibility-gated), re-arming on live activity so a reply landing under the user's eyes never
-  // stays unread. onSuccess invalidates sessions.list → clears the marker + project switcher badge.
-  useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
-  const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildMobileChatRows(transcript, liveTail, {
-      streaming, running, streamingText, pendingUser: optimistic.pendingUser,
-      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun, lang,
+    () => buildMobileChatRows(chat.transcript, chat.liveTail, {
+      streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText,
+      pendingUser: chat.pendingUser, stripScheduledPrefix: !!active?.scheduleId || chat.isScheduledRun, lang,
     }),
-    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun, lang],
-  );
-  const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
-  // Current turn's clock; the header line ticks it itself while the turn runs.
-  const turnClock = useMemo(
-    () => currentTurnClock(transcriptQuery.data, liveTail),
-    [transcriptQuery.data, liveTail],
+    [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.pendingUser,
+      active?.scheduleId, chat.isScheduledRun, lang],
   );
 
-  // ── pending interaction (scheme 4/5/6: cards + header override + composer routing) ──
-  // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
-  // is still working and the user must stay free to type anything. Its card still renders inline
-  // in the stream and stays tappable there.
-  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId, active?.waitingOn ?? 0);
-  const pendingInteraction = useMemo(() => {
-    for (const r of rows) {
-      if (r.kind !== 'interaction' || r.detail?.status !== 'pending') continue;
-      if (r.detail.kind === 'ask-user' && r.detail.payload.blocking === false) continue;
-      return { detail: r.detail, ts: r.ts ?? null };
-    }
-    return null;
-  }, [rows]);
-  const pendingAskModel = pendingInteraction?.detail.kind === 'ask-user'
-    ? askCardModel(pendingInteraction.detail, pendingInteraction.ts)
-    : null;
-  const pendingPlanModel = pendingInteraction?.detail.kind === 'plan-approval'
-    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts, vocab)
-    : null;
+  const [systemLines, setSystemLines] = useState<string[]>([]);
+  const addSystemLine = (line: string): void => setSystemLines((prev) => [...prev, line]);
 
-  // Session-local progressive answers per ask card (5b: 答一题进一题, the entity resolves once
-  // when the LAST question is answered).
-  const [askStates, setAskStates] = useState<Record<string, AskAnswerState>>({});
-  const askStateOf = (id: string): AskAnswerState => askStates[id] ?? emptyAskAnswers;
-  const commitAndMaybeSubmit = (model: AskCardModel, next: AskAnswerState): void => {
-    setAskStates((prev) => ({ ...prev, [model.requestId]: next }));
-    if (askComplete(model, next)) interactionActions.answerQuestion(model.requestId, mergedAnswers(model, next));
+  // ── engine + environment (1p) ──
+  const [draftSelection, setDraftSelection] = useDraftSelection(isDraft);
+  const [pendingCreatedSession, setPendingCreatedSession] = usePendingCreatedSession(active?.sessionId, isDraft, sessionId);
+  const selection = useSessionSelection({
+    sessionId, isDraft, hasHistory: chat.hasHistory,
+    currentProfile: active?.profileName ?? null,
+    currentOverride: active?.selectionOverride ?? null,
+    currentAgent: active?.agentName,
+    draftSelection, setDraftSelection, pendingCreatedSession,
+  });
+  // The line is written once the change has actually landed, so a refusal leaves no trace claiming
+  // it did. The draft has nothing to refuse it, so it writes immediately.
+  const noteSwitch = (to: string) => {
+    const from = selectionChipLabel(selection.effective);
+    return () => addSystemLine(fmt(vocab.chatEngineSwitched, { from, to }));
   };
-  const onAskPick = (model: AskCardModel, label: string): void => {
-    const st = askStateOf(model.requestId);
-    const q = model.questions[currentQuestionIndex(model, st)];
-    if (q) commitAndMaybeSubmit(model, commitAnswer(st, q.question, label));
-  };
-  const onAskToggle = (model: AskCardModel, label: string): void => {
-    setAskStates((prev) => ({ ...prev, [model.requestId]: toggleSelected(askStateOf(model.requestId), label) }));
-  };
-  const onAskConfirmMulti = (model: AskCardModel): void => {
-    const st = askStateOf(model.requestId);
-    const q = model.questions[currentQuestionIndex(model, st)];
-    if (q && st.selected.length > 0) commitAndMaybeSubmit(model, confirmSelected(st, q.question));
-  };
+  const onPickSelection = (row: SelectionSheetRow): void => selection.apply(row.change, noteSwitch(row.label));
 
-  // 5a reject mode — armed by the card's 驳回并反馈 or by the reading page's router state.
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const location = useLocation();
-  useEffect(() => {
-    const st = location.state as RejectPlanNavState | null;
-    if (st?.rejectPlan) {
-      setRejectingId(st.rejectPlan);
-      navigate(location.pathname, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
-  // Auto-disarm when the plan resolves elsewhere (Slack / desktop / timeout).
-  const pendingPlanId = pendingPlanModel?.requestId ?? null;
-  useEffect(() => {
-    if (rejectingId && rejectingId !== pendingPlanId) setRejectingId(null);
-  }, [rejectingId, pendingPlanId]);
-
-  const onOpenRead = (m: PlanCardModel): void => navigate(`/m/session/${sessionId}/plan/${m.requestId}`);
-
-  // ── profiles (1p) ──
-  const configQuery = useQuery(trpc.config.get.queryOptions({}));
-  const profiles = configQuery.data?.profiles?.profiles ?? [];
-  const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
-  const [selectionOpen, setSelectionOpen] = useState(false);
-  // The environment is its own axis, so it is its own sheet — opened from its own capsule.
-  const [agentOpen, setAgentOpen] = useState(false);
-  // Only fetched once the sheet is opened: on a cold PI host the catalog costs a provider scan, and
-  // the chip itself reads the profile. See domain/ui-service/query/models.
-  const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: selectionOpen }));
-  const [draftSelection, setDraftSelection] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
-  // Same seed as the desktop composer (SelectedSessionProvider): a new conversation opens on the
-  // last engine chosen on this host, profile included. Without it a mobile draft stayed at
-  // `profileName: null` and the created session had no profile of its own to come back to.
-  useEffect(() => {
-    if (!isDraft || draftSelection.profileName || draftSelection.override || draftSelection.agentName) return;
-    const snapshot = configQuery.data?.profiles;
-    if (!snapshot) return;
-    const seeded = seedDraftSelection(
-      configQuery.data?.selectionDefault, snapshot.profiles, snapshot.defaultProfile,
-    );
-    if (seeded) setDraftSelection(seeded);
-  }, [isDraft, draftSelection.profileName, draftSelection.override, draftSelection.agentName,
-    configQuery.data]);
-  // Browser control is chosen on the draft only: the agent's tool set is fixed when its process
-  // spawns, so a live session can report it but never change it.
+  // Browser control and commission mode are chosen on the draft only: both decide what the agent's
+  // process spawns with, so a live session can report them but never change them.
   const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
   const [browserSheetOpen, setBrowserSheetOpen] = useState(false);
   const browserOptions = useBrowserDeviceOptions(browserSheetOpen);
-  // Commission mode, same creation-time rule as the browser and for the same reason: it decides
-  // which plan tools and which skill the process spawns with.
   const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
-  // The sheet's titles are gone once it closes, so the chip needs the chosen commission's title
-  // fetched back — otherwise it would fall back to the bare id.
+  // The sheet's titles are gone once it closes, so the chip needs the chosen commission's title back.
   const draftCommissionTitle = useCommissionTitle(draftCommission);
   const [commissionSheetOpen, setCommissionSheetOpen] = useState(false);
   const commissionOptions = useCommissionOptions(commissionSheetOpen);
   const sessionCommission = useSessionCommission(active);
-  // settings.commissionEnabled — the feature's kill switch. With it off a draft composer offers no
-  // entry point; a live session's read-only capsule is unaffected.
+  // settings.commissionEnabled — with it off a draft offers no entry point; a live session's
+  // read-only capsule is unaffected.
   const commissionEnabled = useCommissionEnabled();
-  const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
-  const transition = resolveTransitionSelection(
-    { profileName: active?.profileName, override: active?.selectionOverride },
-    pendingCreatedSession,
-    sessionId,
-  );
-  const effectiveProfile = effectiveProfileName(
-    isDraft ? draftSelection.profileName : transition.profileName,
-    profiles,
-    defaultProfile,
-  );
-  const selectionOverride = isDraft ? draftSelection.override : transition.override;
-  // The environment axis, resolved the same way: the row answers for itself once it exists.
-  const agents = configQuery.data?.agents ?? [];
-  const agentName = (isDraft
-    ? draftSelection.agentName
-    : resolveTransitionAgent(active?.agentName, pendingCreatedSession, sessionId)) ?? null;
-  // The profile is the base; the session's own model/thinking choice sits on top of it. One shared
-  // resolver with the desktop composer, so the two surfaces cannot disagree about what will run.
-  const effective = effectiveSelection(profiles, effectiveProfile, selectionOverride);
-  const chipParts = selectionChipParts(effective);
-  const hasHistory = transcript.turns.length > 0 || liveTail.length > 0;
-  const profileOptions = buildProfileOptions(profiles, effectiveProfile, {
-    currentBackend: effective.backend, hasHistory,
-  });
-  // What the environment capsule says, through the same arithmetic the desktop chip runs.
-  const agentChip = agentChipParts(
-    buildAgentOptions(agents, profiles, {
-      agentName, currentBackend: effective.backend, hasHistory,
-    }),
-    agentName,
-  );
 
-  useEffect(() => {
-    if (!pendingCreatedSession) return;
-    const authoritativeArrived = active?.sessionId === pendingCreatedSession.sessionId;
-    const movedElsewhere = !isDraft && sessionId !== pendingCreatedSession.sessionId;
-    if (authoritativeArrived || movedElsewhere) setPendingCreatedSession(null);
-  }, [active?.sessionId, isDraft, pendingCreatedSession, sessionId]);
-
-  // ── mutations ──
-  const sendMut = useMutation(trpc.sessions.send.mutationOptions());
-  // The created session is adopted in the send's onAccepted, not here: promoting the optimistic row
-  // onto the new session id and navigating to it must land in one render, or the row blinks out
-  // while the draft scope is already gone.
-  const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
-  const setSelectionMut = useMutation(
-    trpc.sessions.setSelection.mutationOptions({
-      onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
-    }),
-  );
-  const setAgentMut = useMutation(
-    trpc.sessions.setAgent.mutationOptions({
-      onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
-    }),
-  );
-  // Stop: cancel the agent(s) running on this session's channel (reuses the desktop Composer's
-  // sessions.cancel path). `running` collapses to idle as the live stream quiets.
-  const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
-  const onStop = (): void => {
-    if (!sessionId || cancelMut.isPending) return;
-    cancelMut.mutate({ sessionId });
-  };
-  // sec-7 message edit + rewind: submit fires the real `sessions.rewind` mutation; the transcript +
-  // rail refetch on settle (and again on the `session.rewound` event / regeneration stream).
-  const rewindMut = useMutation(trpc.sessions.rewind.mutationOptions({
-    onSettled: () => {
-      if (!sessionId) return;
-      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
-      queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-      invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
+  const composer = useComposerSend({
+    sessionId, isDraft, projectId: route.projectId ?? 'general',
+    optimistic: chat.optimistic, running: chat.running, compactAction: chat.compactAction,
+    creation: {
+      selection: draftSelection,
+      browserDevice: draftBrowserDevice,
+      commission: commissionEnabled ? commissionRequestOf(draftCommission) : null,
     },
-  }));
+    slash: {
+      profileOptions: selection.profileOptions,
+      onNew: () => navigate(DRAFT_PATH),
+      onProfile: (name) => selection.pickProfile(name, noteSwitch(name)),
+      onSettings: () => navigate('/m/settings'),
+    },
+    onCreated: (createdId) => {
+      setPendingCreatedSession({
+        sessionId: createdId,
+        profileName: draftSelection.profileName,
+        override: draftSelection.override,
+        agentName: draftSelection.agentName ?? null,
+      });
+      navigate(`/m/session/${createdId}`, { replace: true });
+    },
+    onSendFailed: (error) => addSystemLine(fmt(vocab.chatSendFailed, { error: error.message })),
+    onSlashFeedback: (key) => { if (key) addSystemLine(vocab[key]); },
+  });
+  const { text, setText, uploads } = composer;
 
   // ── local UI state ──
-  const [text, setText] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
   const [sessionStatsOpen, setSessionStatsOpen] = useState(false);
   useEffect(() => {
     setMoreOpen(false); setSessionIdOpen(false); setSessionStatsOpen(false);
   }, [sessionId]);
-  // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
-  const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
-  // Where the held bubble was when the press fired — the 7a overlay floats its copy there.
-  const [msgMenuAnchorTop, setMsgMenuAnchorTop] = useState<number | null>(null);
-  const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
   const [originalSheet, setOriginalSheet] = useState<{ text: string } | null>(null);
-  // Composer text before the edit hijacked it — restored on × cancel (原样退出).
-  const preEditText = useRef('');
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [contextUsageOpen, setContextUsageOpen] = useState(false);
-  const [systemLines, setSystemLines] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const draftKey = draftStorageKey({ isDraft, sessionId, projectId: currentProjectId });
-  const draftUploadId = useRef<string | null>(null);
-  const uploadIdentityRef = useRef<string | null>(null);
-  if (uploadIdentityRef.current !== draftKey) {
-    uploadIdentityRef.current = draftKey;
-    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? crypto.randomUUID()) : null;
-  }
-  const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
-  const attachmentUploads = useAttachmentUploads({ scope: draftKey, bucket: uploadSessionId });
-  const uploads = attachmentUploads.items;
-  const draftKeyRef = useRef<string | null | undefined>(undefined);
-  usePersistedMobileChatDraft({
-    draftKey, isDraft, text, uploads, setText,
-    replaceRestored: attachmentUploads.replaceRestored, draftUploadId, draftKeyRef,
-  });
-  const addFiles = attachmentUploads.addFiles;
-
   const pickFiles = (accept: string, capture?: string): void => {
     const el = fileInputRef.current;
     if (!el) return;
@@ -395,241 +173,26 @@ export function MChatScreen(): JSX.Element {
     el.click();
   };
 
-  const doneMetas = attachmentUploads.completed;
-  const attachmentsReady = !attachmentUploads.hasNonDone;
-  const hasText = !!text.trim();
-
-  // ── sec-7 edit mode (7b) ──
-  const editingRow = editingRowIdx != null ? rows[editingRowIdx] : null;
-  const editArmed = !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
-  const cancelEdit = (): void => {
-    setEditingRowIdx(null);
-    setText(preEditText.current);
-    preEditText.current = '';
-  };
-  const startEdit = (rowIndex: number): void => {
-    const r = rows[rowIndex];
-    if (!r || r.kind !== 'user' || r.turnIndex === undefined || running) return;
-    preEditText.current = text;
-    setRejectingId(null);
-    setEditingRowIdx(rowIndex);
-    setText(r.text);
-  };
-  // Disarm when the anchored row stops being an editable user row (transcript reshaped) or a turn
-  // starts running (a scheduled/other-client message landed).
-  useEffect(() => {
-    if (editingRowIdx == null) return;
-    const r = rows[editingRowIdx];
-    const valid = !!r && r.kind === 'user' && r.turnIndex !== undefined;
-    if (!valid || running) cancelEdit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, running, editingRowIdx]);
-  const editing: MEditMode | null = editArmed
-    ? { rowIndex: editingRowIdx!, ...rewindStats(rows, editingRowIdx!), onCancel: cancelEdit }
-    : null;
-
-  // ── sec-7 long-press menu (7a) ──
-  const heldRow = msgMenuIdx != null ? rows[msgMenuIdx] : null;
-  const msgMenu: MMsgMenu | null =
-    heldRow && (heldRow.kind === 'user' || heldRow.kind === 'assistant')
-      ? {
-          rowIndex: msgMenuIdx!,
-          anchorTop: msgMenuAnchorTop,
-          onCopy: () => { void navigator.clipboard?.writeText(heldRow.text).catch(() => {}); },
-          ...(heldRow.kind === 'user' && heldRow.turnIndex !== undefined
-            ? { onEdit: () => startEdit(msgMenuIdx!), editDisabled: running || rewindMut.isPending }
-            : {}),
-          onClose: () => setMsgMenuIdx(null),
-        }
-      : null;
-
-  // 5a reject / 5b free-text answer: the composer routes to the interaction, text required.
-  const rejectArmed = !editArmed && !!rejectingId && rejectingId === pendingPlanId;
-  const interactionMode = rejectArmed || !!pendingAskModel;
-  const sendEnabled = editArmed
-    ? hasText && attachmentsReady && !rewindMut.isPending
-    : interactionMode
-      ? hasText && attachmentsReady && !interactionActions.busy
-      : attachmentSendAllowed(text, uploads) && (!!sessionId || isDraft)
-        && !sendMut.isPending && !createAndSendMut.isPending;
-
-  // A rejected send clears the composer optimistically too, so its content has to come back rather
-  // than disappear with the row. Still on the same scope → merge it into the live composer (text
-  // typed while the send was in flight is kept, below the restored text); moved on → merge it into
-  // that scope's stored draft so it is there when the user returns.
-  const restoreRejectedSend = (sent: ComposerDraft, sentKey: string | null, error: Error): void => {
-    if (draftKeyRef.current !== sentKey) {
-      saveDraft(sentKey, mergeRestoredDraft(loadDraft(sentKey) ?? { text: '', attachments: [] }, sent));
-      return;
-    }
-    if (sent.draftUploadId) draftUploadId.current = sent.draftUploadId;
-    setText((current) => [sent.text, current].filter((v) => v.length > 0).join('\n'));
-    attachmentUploads.mergeRestored(sent.attachments);
-    setSystemLines((prev) => [...prev, fmt(vocab.chatSendFailed, { error: error.message })]);
-  };
-
-  const slashProfiles = profileOptions.map(
-    (profile) => ({ name: profile.name, detail: profile.sub, disabled: profile.disabled }),
-  );
-  const slashAvailability = {
-    newDisabled: attachmentUploads.hasNonDone,
-    cancelDisabled: !running || cancelMut.isPending,
-    compactDisabled: !active?.contextCompactionSupported || compactAction.disabled || compactAction.pending,
-    settingsDisabled: attachmentUploads.hasNonDone,
-  };
-  const slashSuggestions = editArmed || rejectArmed || pendingAskModel
-    ? []
-    : buildSlashSuggestions(text, slashProfiles, vocab, slashAvailability);
-  const slashHandlers: SlashActionHandlers = {
-    onNew: () => navigate('/m/session/new'),
-    onCancel: () => { if (running) onStop(); },
-    onCompact: compactAction.onCompact,
-    onProfile: (name) => applySelection(profileChange(profileOptions, effective, name), name),
-    onSettings: () => navigate('/m/settings'),
-  };
-  const consumeSlashText = (): void => {
-    saveDraft(draftKey, {
-      text: '', attachments: doneMetas,
-      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-    });
-    setText('');
-  };
-  const executeSlashAction = (action: SlashAction): void => {
-    consumeSlashText();
-    runSlashAction(action, slashHandlers);
-  };
-  const handleSlashInput = (value: string): boolean => {
-    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability);
-    if (resolution.kind === 'none') return false;
-    if (resolution.kind === 'action') executeSlashAction(resolution.action);
-    const feedbackKey = slashFeedbackKey(resolution);
-    if (feedbackKey) setSystemLines((prev) => [...prev, vocab[feedbackKey]]);
-    return true;
-  };
-  const onSlashPick = (suggestion: SlashSuggestion): void => {
-    if (suggestion.disabled) return;
-    if (suggestion.action) executeSlashAction(suggestion.action);
-    else setText(`${suggestion.command} `);
-  };
-
+  // ── edit (7b) and interaction routing (5a/5b) both take the composer over before a send ──
+  const edit = useMobileMessageEdit({
+    rows, running: chat.running, text, setText, rewind: chat.rewind, onStart: () => routing.disarmReject(),
+  });
+  const routing = useMobileInteractions({
+    rows, sessionId, actions: chat.interactionActions, editing: edit.armed, setText,
+  });
+  const typed = !!text.trim() && !uploads.hasNonDone;
+  const sendEnabled = edit.armed
+    ? typed && !chat.rewind.pending
+    : routing.rejectArmed || routing.answering
+      ? typed && !chat.interactionActions.busy
+      : composer.canSend;
   const onSend = (): void => {
-    const t = text.trim();
-    // 7b — send = rewind to the edited turn and regenerate with the new text.
-    if (editArmed) {
-      if (!sendEnabled) return;
-      const er = editingRow as Extract<typeof rows[number], { kind: 'user' }>;
-      rewindMut.mutate({ sessionId, turnIndex: er.turnIndex!, text: t });
-      setEditingRowIdx(null);
-      setText(preEditText.current);
-      preEditText.current = '';
-      return;
-    }
-    // 5a — send = reject with the typed feedback (required).
-    if (rejectArmed) {
-      if (!sendEnabled) return;
-      interactionActions.rejectPlan(rejectingId!, t);
-      setRejectingId(null);
-      setText('');
-      return;
-    }
-    // 5b — typed text answers the CURRENT question of the pending ask card.
-    if (pendingAskModel) {
-      if (!sendEnabled) return;
-      const st = askStateOf(pendingAskModel.requestId);
-      const q = pendingAskModel.questions[currentQuestionIndex(pendingAskModel, st)];
-      if (q) commitAndMaybeSubmit(pendingAskModel, commitAnswer(st, q.question, t));
-      setText('');
-      return;
-    }
-    if (handleSlashInput(t)) return;
+    if (!edit.armed && !routing.rejectArmed && !routing.answering) { composer.submit(); return; }
     if (!sendEnabled) return;
-    // The row is enqueued before the mutation is awaited, so the message is on screen on the same
-    // frame the composer clears — the send no longer looks dropped while the server round-trips.
-    const sent: ComposerDraft = {
-      text: t,
-      attachments: doneMetas,
-      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-    };
-    const sentKey = draftKey;
-    const mutation = runOptimisticMutation<
-      { sessionId: string; acceptedAt: string } | { accepted: boolean; acceptedAt: string }
-    >({
-      message: optimistic.prepare(t, doneMetas),
-      mutate: () => isDraft
-        ? createAndSendMut.mutateAsync({
-            projectId: currentProjectId ?? 'general',
-            profileName: draftSelection.profileName ?? undefined,
-            ...(draftSelection.override ? { selection: draftSelection.override } : {}),
-            ...(draftSelection.agentName ? { agentName: draftSelection.agentName } : {}),
-            text: t,
-            draftUploadId: sent.draftUploadId,
-            ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
-            ...(commissionEnabled && commissionRequestOf(draftCommission)
-              ? { commission: commissionRequestOf(draftCommission) } : {}),
-            ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
-          } as never)
-        : sendMut.mutateAsync({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never),
-      onEnqueue: optimistic.enqueue,
-      onAccepted: (entry, data) => {
-        if (!('sessionId' in data)) {
-          optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt });
-          return;
-        }
-        optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
-        draftUploadId.current = null;
-        setPendingCreatedSession({
-          sessionId: data.sessionId,
-          profileName: draftSelection.profileName,
-          override: draftSelection.override,
-          agentName: draftSelection.agentName ?? null,
-        });
-        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-        navigate(`/m/session/${data.sessionId}`, { replace: true });
-      },
-      onRejected: (entry) => optimistic.reject(entry.clientId),
-    });
-    // Draft consumed optimistically; rejected sends restore against the same upload bucket.
-    clearDraft(draftKey);
-    setText('');
-    attachmentUploads.reset();
-    void mutation.then((result) => {
-      if (!result.ok && result.restore) restoreRejectedSend(sent, sentKey, result.error);
-    });
+    if (edit.armed) edit.submit(text.trim());
+    else routing.submit(text.trim());
   };
 
-  // The sheet owns its own dismissal now — a pick inside a pane returns to its root and stays open,
-  // a profile pick closes it — so this only sends what was chosen.
-  function onPickSelection(row: SelectionSheetRow): void {
-    applySelection(row.change, row.label);
-  }
-
-  /** Send an engine change and, once it has landed, note it in the stream. */
-  function applySelection(change: SelectionChange | null, label: string): void {
-    if (!change) return;
-    const from = selectionChipLabel(effective);
-    // The line is written once the change has actually landed, so a refusal leaves no trace claiming
-    // it did. The draft has nothing to refuse it, so it writes immediately.
-    const note = (): void => setSystemLines((prev) => [...prev, fmt(vocab.chatEngineSwitched, { from, to: label })]);
-    if (isDraft) {
-      setDraftSelection((prev) => applyDraftSelection(prev, change));
-      note();
-      return;
-    }
-    if (!sessionId) return;
-    // Two axes, two endpoints — the server keeps the environment and the engine apart, and so must
-    // the client. `undefined` is how "follow the host default" is said over the wire.
-    const { agentName: pickedAgent, ...engine } = change;
-    if (pickedAgent !== undefined) {
-      setAgentMut.mutate({ sessionId, agentName: pickedAgent ?? undefined }, { onSuccess: note });
-    }
-    if (Object.keys(engine).length > 0) {
-      setSelectionMut.mutate({ sessionId, ...engine }, { onSuccess: note });
-    }
-  }
-
-  // Shared facts classify foreground/background/idle/fresh; mobile maps its own copy. Interaction
-  // remains the highest-priority override, followed by browser startup, then the ordinary run line.
-  const cost = active?.costUsd ?? null;
   // Whole-session totals — the ⋯ menu's「会话统计」sheet. Same vm as desktop; only `summary` goes
   // unused here, because the mobile header line has no room for a second segment.
   const sessionStats = useMemo(
@@ -640,69 +203,24 @@ export function MChatScreen(): JSX.Element {
     }, lang),
     [active?.totals, active?.createdAt, active?.lastUsedAt, vocab, lang],
   );
-  const hasRun = !isDraft && turns != null;
-  const runStatus = deriveSessionRunStatus({
-    running: running || optimistic.pendingUser.length > 0, backgroundRunning, hasRun,
-  });
-  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit, waitingOn: vocab.chatWaitingOn };
-  const statusBrowserDevice = active?.browser?.device ?? draftBrowserDevice;
-  const browserStarting = browserStartupPending({
-    running: runStatus.active, backgroundRunning, device: statusBrowserDevice,
-    turnProgressStarted: liveTurns !== null || streaming,
-  });
-  // `now` is passed only while the turn runs; the header line then ticks the clock itself.
-  const runStatusAt = (now: number | null) => chatHeaderStatus(
-    runStatus, turns, formatElapsed(turnClockElapsedMs(turnClock, now), lang), cost, statusCopy,
-    active?.waitingOn ?? 0,
-  );
-  const clockLive = running && runStatus.showMetrics && turnClock != null;
-  const status = pendingInteraction
-    ? interactionHeaderStatus(
-        pendingInteraction.detail.kind,
-        pendingAskModel ? currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) : 0,
-        pendingAskModel?.questions.length ?? 1,
-        vocab,
-      )
-    : browserStarting && statusBrowserDevice
-      ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
-      : { ...runStatusAt(null), ...(clockLive ? { liveText: (now: number) => runStatusAt(now).text } : {}) };
-
-  // ── interaction props for the view ──
-  const interactions: MChatInteractions = {
-    askState: askStateOf,
-    onAskPick,
-    onAskToggle,
-    onAskConfirmMulti,
-    rejectingId: rejectArmed ? rejectingId : null,
-    onApprove: (m) => interactionActions.approvePlan(m.requestId),
-    onRejectStart: (m) => setRejectingId(m.requestId),
-    onOpenRead,
-    onCancelResume: interactionActions.cancelResume,
-    resumeCancelled: interactionActions.resumeCancelled,
-  };
-  const rejectBar: MRejectBar | undefined = rejectArmed && pendingPlanModel
-    ? {
-        title: fmt(vocab.chatRejectTitle, { title: pendingPlanModel.title }),
-        chips: [vocab.chatRejectChipScope, vocab.chatRejectChipDryRun, vocab.chatRejectChipBudget, vocab.chatRejectChipOrder],
-        onChipTap: (chip) => setText((t) => (t ? `${t}${vocab.chatRejectChipJoin}${chip}` : chip)),
-        onCancel: () => setRejectingId(null),
-      }
-    : undefined;
-  const composerPlaceholder = rejectArmed
-    ? vocab.chatRejectPh
-    : pendingAskModel
-      ? fmt(vocab.chatAskPh, {
-          n: Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length),
-        })
-      : undefined;
+  // A pending interaction outranks everything; then the shared run line (browser start-up first).
+  const runLine = runStatusLine({
+    isDraft, running: chat.running, backgroundRunning: chat.backgroundRunning,
+    starting: chat.pendingUser.length > 0, turns: chat.turns, cost: active?.costUsd ?? null,
+    turnClock: chat.turnClock, waitingOn: active?.waitingOn ?? 0,
+    browserDevice: active?.browser?.device ?? draftBrowserDevice,
+    turnProgressStarted: chat.liveTurns !== null || chat.streaming,
+  }, vocab, lang);
+  const status: ChatHeaderStatus = routing.headerStatus
+    ?? { running: runLine.active, tone: runLine.active ? 'running' : 'idle', text: runLine.text, liveText: runLine.liveText };
   const title = isDraft
     ? vocab.newSession
-    : (active ? sessionDisplayTitle(active, runTitle) : routeParam ?? '');
+    : (active ? sessionDisplayTitle(active, chat.runTitle) : route.routeParam ?? '');
   // 8d hint above the composer: replying extracts the run into a normal session.
-  const schedHint = isScheduledRun
-    ? vocab.chatScheduledHint
-    : null;
-  const attachmentsVM: PendingAttachmentVM[] = uploads.map((upload) => {
+  const schedHint = chat.isScheduledRun ? vocab.chatScheduledHint : null;
+  const chipParts = selectionChipParts(selection.effective);
+  const agentChip = agentChipParts(selection.agentOptions, selection.agentName);
+  const attachmentsVM: PendingAttachmentVM[] = uploads.items.map((upload) => {
     const type = attachmentType(upload);
     return {
       id: upload.id,
@@ -722,7 +240,7 @@ export function MChatScreen(): JSX.Element {
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          if (e.target.files && e.target.files.length > 0) addFiles(e.target.files);
+          if (e.target.files && e.target.files.length > 0) uploads.addFiles(e.target.files);
           e.target.value = '';
         }}
       />
@@ -733,9 +251,9 @@ export function MChatScreen(): JSX.Element {
         onOpenWorker={(id) => navigate(`/m/session/${id}`)}
         metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
         status={status}
-        project={currentProjectId ?? undefined}
+        project={route.projectId ?? undefined}
         rows={rows}
-        loading={!!sessionId && transcriptQuery.isPending}
+        loading={!!sessionId && chat.transcriptPending}
         copy={vocab}
         onBack={() => navigate('/m/sessions')}
         moreOpen={moreOpen}
@@ -751,28 +269,28 @@ export function MChatScreen(): JSX.Element {
         cortexId={active?.name ?? null}
         backendUuid={active?.backendSessionId ?? null}
         systemLines={schedHint ? [...systemLines, schedHint] : systemLines}
-        interactions={interactions}
-        rejectBar={rejectBar}
+        interactions={routing.interactions}
+        rejectBar={routing.rejectBar}
         editCopy={vocab}
-        msgMenu={msgMenu}
-        onLongPress={(rowIndex, anchorTop) => { setMsgMenuAnchorTop(anchorTop); setMsgMenuIdx(rowIndex); }}
-        editing={editing}
+        msgMenu={edit.msgMenu}
+        onLongPress={edit.hold}
+        editing={edit.editing}
         onShowOriginal={(edited) => setOriginalSheet({ text: edited.originalText })}
         originalSheet={originalSheet ? { text: originalSheet.text, onClose: () => setOriginalSheet(null) } : null}
         streamKey={sessionId}
         sessionId={sessionId}
-        todos={todos}
+        todos={chat.todos}
         railLang={lang}
-        waitpoints={waitpoints}
+        waitpoints={chat.waitpoints}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}
-        slashSuggestions={slashSuggestions}
-        onSlashPick={onSlashPick}
+        slashSuggestions={edit.armed || routing.rejectArmed || routing.answering ? [] : composer.slashSuggestions}
+        onSlashPick={(suggestion) => { composer.pickSlash(suggestion); }}
         sendEnabled={sendEnabled}
-        composerPlaceholder={composerPlaceholder}
-        onStop={onStop}
-        stopEnabled={!cancelMut.isPending}
+        composerPlaceholder={routing.placeholder}
+        onStop={composer.stop}
+        stopEnabled={!composer.stopPending}
         selectionChipLabel={chipParts.main}
         selectionChipSub={chipParts.sub}
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
@@ -798,20 +316,20 @@ export function MChatScreen(): JSX.Element {
           onClose: () => setCommissionSheetOpen(false),
           onPick: (value: string | null) => { setDraftCommission(value); setCommissionSheetOpen(false); },
         } : undefined}
-        onOpenSelection={() => setSelectionOpen(true)}
-        agentChip={hasAgentChoice(agents)
+        onOpenSelection={() => selection.setOpen(true)}
+        agentChip={hasAgentChoice(selection.agents)
           ? { label: agentChip.name ?? vocab.wbAgentDefault, followingDefault: agentChip.followingDefault }
           : null}
-        onOpenAgent={() => setAgentOpen(true)}
-        contextUsage={contextUsage}
+        onOpenAgent={() => selection.setAgentOpen(true)}
+        contextUsage={chat.contextUsage}
         contextUsageSupported={!!active?.contextCompactionSupported}
-        contextCompactAction={active?.contextCompactionSupported ? compactAction : undefined}
+        contextCompactAction={chat.compactAction}
         contextUsageOpen={contextUsageOpen}
         onContextUsageOpen={() => setContextUsageOpen(true)}
         onContextUsageClose={() => setContextUsageOpen(false)}
         attachments={attachmentsVM}
-        onRemoveAttachment={attachmentUploads.remove}
-        onRetryAttachment={attachmentUploads.retry}
+        onRemoveAttachment={uploads.remove}
+        onRetryAttachment={uploads.retry}
         onPlus={() => setAttachMenuOpen((o) => !o)}
         attachMenuOpen={attachMenuOpen}
         onAttachClose={() => setAttachMenuOpen(false)}
@@ -819,15 +337,15 @@ export function MChatScreen(): JSX.Element {
         onLibrary={() => pickFiles('image/*,video/*')}
         onFile={() => pickFiles('*/*')}
         selectionSheet={
-          selectionOpen
+          selection.open
             ? {
               vm: buildSelectionSheet({
-                profiles,
-                catalog: catalogQuery.data,
-                effective,
-                override: selectionOverride,
-                hasHistory,
-                defaultProfile,
+                profiles: selection.profiles,
+                catalog: selection.catalog,
+                effective: selection.effective,
+                override: selection.override,
+                hasHistory: selection.hasHistory,
+                defaultProfile: selection.defaultProfile,
                 copy: {
                   profile: vocab.chatProfileTitle,
                   model: vocab.wbModel,
@@ -840,21 +358,21 @@ export function MChatScreen(): JSX.Element {
                   hiddenNoProfile: vocab.wbHiddenNoProfile,
                 },
               }),
-              pending: catalogQuery.isLoading || (catalogQuery.data?.piPending ?? false),
-              onClose: () => setSelectionOpen(false),
+              pending: selection.catalogLoading || !selection.modelsReady,
+              onClose: () => selection.setOpen(false),
               onPick: onPickSelection,
             }
             : undefined
         }
         agentSheet={
-          agentOpen && hasAgentChoice(agents)
+          selection.agentOpen && hasAgentChoice(selection.agents)
             ? {
               rows: buildAgentSheet({
-                agents,
-                profiles,
-                agentName,
-                currentBackend: effective.backend,
-                hasHistory,
+                agents: selection.agents,
+                profiles: selection.profiles,
+                agentName: selection.agentName,
+                currentBackend: selection.effective.backend,
+                hasHistory: selection.hasHistory,
                 copy: {
                   agentDefault: vocab.wbAgentDefault,
                   agentFollowDefault: vocab.wbAgentFollowDefault,
@@ -862,7 +380,7 @@ export function MChatScreen(): JSX.Element {
                 },
               }),
               title: vocab.wbAgent,
-              onClose: () => setAgentOpen(false),
+              onClose: () => selection.setAgentOpen(false),
               onPick: onPickSelection,
             }
             : undefined

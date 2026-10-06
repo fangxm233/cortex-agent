@@ -19,9 +19,7 @@ import {
 import { mobileDivider } from '@/mobile/shared/mobile-session-vm';
 import { fmt, type Vocab } from '@/i18n';
 import type { TimeLang } from '@/i18n/time-format';
-import type { SessionRunStatus } from '@/features/session/list/session-run-status';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
-import { formatUsd } from '@/lib/format';
 
 /** What the mobile chat's rows are built from beyond the fetched transcript + live tail. */
 export interface MobileChatRowOpts {
@@ -73,12 +71,8 @@ export function buildMobileChatRows(
 export interface ChatHeaderStatus {
   running: boolean;
   /**
-   * Header status line, mirroring the desktop composer from shared locale-free status facts:
-   *   • foreground/background → localized label + elapsed + turns (cost is not final mid-run)
-   *   • idle after a turn     → localized idle + elapsed + turns + cost
-   *   • fresh / never-run     → bare localized idle
-   * `turns`/`cost` render as `—` when unknown.
-   * A pending interaction overrides the whole line (interactionHeaderStatus, scheme §5/§6):
+   * Header status line: the shared run line (`runStatusLine`), the same text the desktop composer
+   * prints. A pending interaction overrides the whole line (interactionHeaderStatus, scheme §5/§6):
    *   • plan  → `计划待批 · Agent 已暂停`
    *   • ask   → `等待你的回答 k/n · Agent 已暂停`
    */
@@ -88,45 +82,6 @@ export interface ChatHeaderStatus {
   liveText?: (now: number) => string;
   /** Header dot: running = blue · waiting = amber (pending interaction) · idle = grey. */
   tone: 'running' | 'idle' | 'waiting';
-}
-
-const DASH = '—';
-
-export interface ChatRunStatusCopy {
-  foreground: string;
-  background: string;
-  idle: string;
-  turnsUnit: string;
-  /** "waiting on N signals" template (`{n}`) — the caller localizes it; this module holds no literals of its own. */
-  waitingOn?: string;
-}
-
-/**
- * Maps the shared locale-free session facts into mobile copy. The screen retains ownership of
- * interaction/browser priority while this formatter owns only the ordinary progressive run line.
- */
-export function chatHeaderStatus(
-  status: SessionRunStatus,
-  turns: number | null,
-  elapsed: string,
-  cost: number | null,
-  copy: ChatRunStatusCopy,
-  /** Armed waitpoints (SessionInfo.waitingOn). Appended, never substituted: an idle session that is
-   *  waiting for a machine is still idle, but it must not read as "nothing is happening". Tone stays
-   *  neutral — amber belongs to a pending user action alone. */
-  waitingOn = 0,
-): ChatHeaderStatus {
-  const turnsText = turns == null ? DASH : `${turns} ${copy.turnsUnit}`;
-  const label = status.phase === 'background'
-    ? copy.background
-    : status.phase === 'foreground'
-      ? copy.foreground
-      : copy.idle;
-  const base = status.showMetrics
-    ? [label, elapsed, turnsText, ...(status.showCost ? [cost == null ? DASH : formatUsd(cost)] : [])].join(' · ')
-    : label;
-  const text = waitingOn > 0 && copy.waitingOn ? `${base} · ${fmt(copy.waitingOn, { n: waitingOn })}` : base;
-  return { running: status.active, tone: status.active ? 'running' : 'idle', text };
 }
 
 /**
@@ -149,15 +104,6 @@ export function interactionHeaderStatus(
     tone: 'waiting',
     text: fmt(L.chatAwaitingAnswerStatus, { counter }),
   };
-}
-
-/** The session's effective profile: explicit session profile, else config default, else first, else —. */
-export function effectiveProfileName(
-  profileName: string | null | undefined,
-  profiles: ConfigProfileEntry[],
-  defaultProfile: string | null,
-): string {
-  return profileName ?? defaultProfile ?? profiles[0]?.name ?? '—';
 }
 
 /** Composer engine-chip label: what the next turn will run — the model, and the level if one is set.

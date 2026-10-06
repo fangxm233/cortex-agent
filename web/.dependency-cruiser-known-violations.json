@@ -409,41 +409,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/chat/CenterChat.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/workbench/composer/Composer.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/workbench/composer/SessionSelector.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -478,23 +444,6 @@
   {
     "type": "dependency",
     "from": "src/mobile/screens/MBudgetScreen.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/mobile/screens/MChatScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [

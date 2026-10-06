@@ -6,7 +6,6 @@ import type {
 import { effectiveSelection } from '@/features/session/list/selection-menu';
 import {
   interactionHeaderStatus,
-  effectiveProfileName,
   buildAgentSheet,
   buildSelectionSheet,
   buildMobileChatRows,
@@ -33,17 +32,6 @@ describe('interactionHeaderStatus', () => {
     const s = interactionHeaderStatus('plan-approval', 0, 1, zh);
     expect(s.tone).toBe('waiting');
     expect(s.running).toBe(false);
-  });
-});
-
-describe('effectiveProfileName', () => {
-  it('prefers the session profile', () => {
-    expect(effectiveProfileName('cheap', profiles, 'default')).toBe('cheap');
-  });
-  it('falls back to the config default, then the first profile, then —', () => {
-    expect(effectiveProfileName(null, profiles, 'default')).toBe('default');
-    expect(effectiveProfileName(null, profiles, null)).toBe('default');
-    expect(effectiveProfileName(null, [], null)).toBe('—');
   });
 });
 

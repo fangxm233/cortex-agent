@@ -443,6 +443,21 @@ describe('mobile UI slash shortcuts', () => {
     expect(harness.sendMutateAsync).not.toHaveBeenCalled();
   });
 
+  it('offers /profile only what the engine picker offers this conversation', () => {
+    harness.transcripts.s1 = {
+      sessionId: 's1',
+      turns: [{ messages: [{ type: 'user', text: 'earlier', createdAt: '2026-05-01T00:00:00Z' }] }],
+      pendingUserMessages: [],
+    };
+    mounted = mountChat();
+    act(() => { view(mounted!).props.onComposerChange('/profile '); });
+    const offered = view(mounted).props.slashSuggestions.map((s: { command: string }) => s.command);
+    expect(offered).toContain('/profile execute');
+    // A live conversation cannot change backend, so the picker holds the other one back — and so
+    // does the command.
+    expect(offered).not.toContain('/profile ds');
+  });
+
   it('uses a slash-selected profile when the draft session is created', () => {
     harness.routeParam = 'new';
     harness.sessions = [];
