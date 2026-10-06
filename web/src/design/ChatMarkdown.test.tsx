@@ -63,3 +63,18 @@ describe('ChatMarkdown code blocks', () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe('ChatMarkdown links', () => {
+  it('renders only safe hrefs as anchors', () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown text={'[ok](https://example.org) [bad](javascript:alert(1)) [rel](./a.md) [data](data:text/html,x)'} />,
+    );
+
+    expect(html).toContain('href="https://example.org"');
+    expect(html).toContain('href="./a.md"');
+    expect(html).not.toMatch(/href="(javascript|data):/i);
+    expect(html.match(/<a /g)).toHaveLength(2);
+    expect(html).toContain('bad');
+    expect(html).toContain('data');
+  });
+});

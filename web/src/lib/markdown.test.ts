@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitFrontmatter, parseInline, parseBlocks } from './markdown';
+import { splitFrontmatter, parseInline, parseBlocks, safeLinkHref } from './markdown';
 
 describe('splitFrontmatter', () => {
   it('returns null frontmatter when the file has no leading fence', () => {
@@ -186,5 +186,49 @@ describe('parseBlocks', () => {
     const blocks = parseBlocks('> quoted\n\n---');
     expect(blocks[0]).toMatchObject({ type: 'blockquote' });
     expect(blocks[1]).toMatchObject({ type: 'hr' });
+  });
+});
+
+describe('link scheme filter', () => {
+  it.each([
+    'https://example.org/a?b=c#d',
+    'http://example.org',
+    'HTTPS://EXAMPLE.ORG',
+    'mailto:someone@example.org',
+    './experiments/EXP-012.md',
+    'experiments/EXP-012.md',
+    '../notes.md',
+    '/abs/path.md',
+    '#section',
+    '?tab=1',
+    '//example.org/x',
+    'docs/a:b.md',
+  ])('keeps %s', (href) => {
+    expect(safeLinkHref(href)).toBe(href);
+    expect(parseInline(`[x](${href})`)).toEqual([{ type: 'link', text: 'x', href }]);
+  });
+
+  it.each([
+    'javascript:alert%281%29',
+    'JaVaScRiPt:alert%281%29',
+    ' javascript:alert%281%29',
+    'java\tscript:alert%281%29',
+    'java\nscript:alert%281%29',
+    'java\u0000script:alert%281%29',
+    '\u0001javascript:alert%281%29',
+    '&#106;avascript:alert%281%29',
+    '&#x6A;avascript:alert%281%29',
+    '&#106avascript:alert%281%29',
+    'jav&#x09;ascript:alert%281%29',
+    'javascript&colon;alert%281%29',
+    'javascript&#58;alert%281%29',
+    'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==',
+    'DATA:text/html,<script>alert%281%29</script>',
+    'vbscript:msgbox%281%29',
+    'file:///etc/passwd',
+    'blob:https://example.org/uuid',
+  ])('renders %j as plain text', (href) => {
+    expect(safeLinkHref(href)).toBeNull();
+    expect(parseInline(`see [click me](${href}) now`)).toEqual([{ type: 'text', text: 'see click me now' }]);
   });
 });

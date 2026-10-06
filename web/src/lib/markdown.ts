@@ -85,11 +85,41 @@ type InlineGroups = Record<string, string | undefined>;
 type InlineFactory = (groups: InlineGroups) => InlineNode;
 interface InlineSpan { index: number; length: number; node: InlineNode }
 
+const SAFE_LINK_SCHEMES = new Set(['http', 'https', 'mailto']);
+const NAMED_URL_ENTITIES: Record<string, string> = { colon: ':', tab: '\t', newline: '\n', nbsp: ' ' };
+
+function decodeUrlEntities(value: string): string {
+  return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);?/gi, (match, body: string) => {
+    if (body[0] !== '#') return NAMED_URL_ENTITIES[body.toLowerCase()] ?? match;
+    const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
+  });
+}
+
+/**
+ * The href a Markdown link may carry, or null when it must render as plain text. Markdown here is
+ * untrusted (model output, workspace files), so only http(s), mailto and scheme-less references
+ * (relative paths, `#anchors`, `?query`, `//host`) pass. The scheme is read the way a browser would
+ * find one, and then some: entities decoded and every whitespace/control character dropped, so
+ * `java&#x09;script:` or ` JaVaScRiPt:` cannot slip through as a "relative" link.
+ */
+export function safeLinkHref(href: string): string | null {
+  const normalized = decodeUrlEntities(href).replace(/[\u0000- \u007f-\u009f\s]+/g, '');
+  const scheme = /^([^/?#]*?):/.exec(normalized);
+  if (scheme && !SAFE_LINK_SCHEMES.has(scheme[1].toLowerCase())) return null;
+  return href.trim();
+}
+
+function linkNode(text: string, rawHref: string): InlineNode {
+  const href = safeLinkHref(rawHref);
+  return href === null ? { type: 'text', text } : { type: 'link', text, href };
+}
+
 const INLINE_FACTORIES: Record<InlineKind, InlineFactory> = {
   bold: (groups) => ({ type: 'bold', text: groups.bold!.slice(2, -2) }),
   code: (groups) => ({ type: 'code', text: groups.codeText! }),
   image: (groups) => ({ type: 'image', alt: groups.alt ?? '', src: groups.src! }),
-  link: (groups) => ({ type: 'link', text: groups.linkText!, href: groups.href! }),
+  link: (groups) => linkNode(groups.linkText!, groups.href!),
   italicStar: (groups) => ({ type: 'italic', text: groups.italicStar!.slice(1, -1) }),
   italicUnderscore: (groups) => ({ type: 'italic', text: groups.italicUnderscore!.slice(1, -1) }),
 };
