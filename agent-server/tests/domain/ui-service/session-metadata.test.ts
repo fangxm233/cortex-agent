@@ -5,13 +5,13 @@ import { TRPCError } from '@trpc/server';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import { createCallerFactory } from '../../../src/domain/ui-service/trpc.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
-import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 function setup(found = true) {
   const setStarred = vi.fn(async (sessionId: string, starred: boolean) => found ? { sessionId, starred } : null);
   const rename = vi.fn(async (sessionId: string, label: string) => found ? { sessionId, label } : null);
   const publish = vi.fn();
-  const deps = { sessionStore: { setStarred, rename }, bus: Object.assign(new EventBus(), { publish }) } as unknown as UiServiceDeps;
+  const deps = makeUiDeps({ sessionStore: { setStarred, rename }, bus: Object.assign(new EventBus(), { publish }) } as unknown as UiDepsOverrides);
   const service = createUiService(deps);
   return { caller: createCallerFactory(createAppRouter(service))({}), service, setStarred, rename, publish };
 }
@@ -67,16 +67,6 @@ test('direct service calls also validate and trim metadata', async () => {
   assert.equal(setStarred.mock.calls.length, 0);
   assert.deepEqual(await service.mutate('sessions.rename', { sessionId: 'id', label: '  Title  ' }),
     { ok: true, data: { sessionId: 'id', label: 'Title' } });
-});
-
-test('read-only fixtures cannot report successful metadata writes', async () => {
-  const service = createUiService({ sessionStore: {}, bus: new EventBus() } as unknown as UiServiceDeps);
-  const rename = await service.mutate('sessions.rename', { sessionId: 'id', label: 'Title' });
-  const star = await service.mutate('sessions.setStarred', { sessionId: 'id', starred: true });
-  assert.equal(rename.ok, false);
-  assert.equal(star.ok, false);
-  if (!rename.ok) assert.equal(rename.code, 'not-available');
-  if (!star.ok) assert.equal(star.code, 'not-available');
 });
 
 test('storage failures remain errors rather than successful metadata responses', async () => {

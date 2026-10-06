@@ -103,7 +103,6 @@ export async function handleWaitpointsList(
   deps: UiServiceDeps,
   params: QueryParams<'waitpoints.list'>,
 ): Promise<WaitpointInfo[]> {
-  if (!deps.waitpointRegistry) return [];
   const sessionId = String(params.sessionId || '');
   if (!sessionId) return [];
 

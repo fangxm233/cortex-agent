@@ -2,12 +2,13 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAnswerQuestion, handleRespondPlan } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 function makeDeps(outcome: 'resolved' | 'already-resolved' | 'not-found'): UiServiceDeps {
-  return {
+  return makeUiDeps({
     answerQuestion: (_id: string, _answers: Record<string, string>) => outcome,
     respondPlan: (_id: string, _approved: boolean, _feedback?: string) => outcome,
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 }
 
 test('answerQuestion resolved → ok with outcome resolved', async () => {
@@ -32,8 +33,3 @@ test('missing requestId → invalid-args', async () => {
   if (!res.ok) assert.equal(res.code, 'invalid-args');
 });
 
-test('unwired deps → not-available', async () => {
-  const res = await handleAnswerQuestion({} as UiServiceDeps, { requestId: 'r1', answers: {} });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-available');
-});

@@ -25,6 +25,7 @@ import { profileRepo } from '../src/store/profile-repo.js';
 import { handleSessionsTranscript, handleSessionsSubagentTranscript } from '../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../src/domain/ui-service/types.js';
 import { transcriptHttp } from './subagent-transcript-http-fixture.js';
+import { makeUiDeps, type UiDepsOverrides } from './domain/ui-service/ui-deps-fixture.js';
 
 // Only child execution and final external delivery are fake. The webhook, daemon runner,
 // native tool/bridge, notice parsers, registry, writer, store and UI query/service are real.
@@ -133,7 +134,7 @@ function childRunEvent(event: any) {
 }
 
 function queryDeps(repo = conversationHistory): UiServiceDeps {
-  return { conversationHistory: repo, bus, getSubagentChildStatuses } as unknown as UiServiceDeps;
+  return makeUiDeps({ conversationHistory: repo, bus, getSubagentChildStatuses } as UiDepsOverrides);
 }
 
 function drain(run: EngineRun) {

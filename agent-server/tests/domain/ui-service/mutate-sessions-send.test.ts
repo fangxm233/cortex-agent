@@ -3,15 +3,16 @@ import assert from 'node:assert/strict';
 import { handleSendSession } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { Session } from '../../../src/store/session-registry-repo.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 interface SendCall { channel: string; text: string; attachments?: unknown }
 
 function makeDeps(session: Session | null, sink: SendCall[], extra: Partial<UiServiceDeps> = {}): UiServiceDeps {
-  return {
+  return makeUiDeps({
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
     sendSessionMessage: (opts) => { sink.push({ channel: opts.channel, text: opts.text, attachments: opts.attachments }); },
     ...extra,
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 }
 
 const session = (channel: string): Session => ({
@@ -75,14 +76,6 @@ test('sessions.send on a scheduled session adopts it first and routes to the ado
   assert.deepEqual(adopted, ['sess-2'], 'conversion runs before the send');
   assert.equal(sink.length, 1);
   assert.equal(sink[0].channel, 'web:sess-2', 'send goes to the adopted web channel, not the project channel');
-});
-
-test('sessions.send on a scheduled session is not-available when adoption is not wired', async () => {
-  const sink: SendCall[] = [];
-  const res = await handleSendSession(makeDeps(scheduledSession(), sink), { sessionId: 'sess-2', text: 'hi' });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-available');
-  assert.equal(sink.length, 0, 'no send is dispatched to the shared project channel');
 });
 
 test('sessions.send maps a failed admission touch to not-found without sending', async () => {

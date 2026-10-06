@@ -39,7 +39,6 @@ export const uiextraEn = {
   'ux.env.mainUndeletable': "The '${name}' environment is the default and cannot be deleted",
 
   // ── Machines panel (ui-service/query/machine-detail) ──
-  'ux.machine.probeUnavailable': 'Probe transport unavailable',
 
   // ── Usage panel notes (domain/costs/usage-service) ──
   'ux.usage.costUnreadable': 'gateway ${period} cost was unreadable',
@@ -88,7 +87,6 @@ export const uiextraZh: Record<keyof typeof uiextraEn, string> = {
   'ux.tpl.notValid': "执行环境 '${name}' 无效：${issues}",
   'ux.env.mainUndeletable': "'${name}' 是默认环境，不能删除",
 
-  'ux.machine.probeUnavailable': '探测通道不可用',
 
   'ux.usage.costUnreadable': '无法读取网关 ${period} 的费用',
   'ux.usage.costUnreadableCarried': '无法读取网关 ${period} 的费用，显示上次已知的数值',

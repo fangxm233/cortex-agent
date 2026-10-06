@@ -16,12 +16,9 @@ test('sessions.compact returns the shared coordinator success payload', async ()
   assert.deepEqual(result, { ok: true, data: { status: 'compacted', contextUsage: null } });
 });
 
-test('sessions.compact maps missing session and unwired coordinator', async () => {
+test('sessions.compact maps a missing session to not-found', async () => {
   const missing = await handleCompactSession({ sessionStore: { getById: async () => null } } as any, { sessionId: 'ghost' });
   assert.deepEqual(missing, { ok: false, code: 'not-found', message: 'Session not found: ghost' });
-
-  const unwired = await handleCompactSession({ sessionStore: { getById: async () => SESSION } } as any, { sessionId: 'track-1' });
-  assert.deepEqual(unwired, { ok: false, code: 'not-available', message: 'Session compaction is not available' });
 });
 
 test('sessions.compact maps coordinator busy and unsupported outcomes', async () => {

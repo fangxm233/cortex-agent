@@ -11,9 +11,6 @@ export async function handleSetStarred(
 ): Promise<Result<SessionsSetStarredReturn>> {
   const parsed = sessionsSetStarredInput.safeParse(args);
   if (!parsed.success) return { ok: false, code: 'invalid-args', message: parsed.error.message };
-  if (!deps.sessionStore.setStarred) {
-    return { ok: false, code: 'not-available', message: t('ui.session.metadataUnavailable') };
-  }
   const { sessionId, starred } = parsed.data;
   const session = await deps.sessionStore.setStarred(sessionId, starred);
   if (!session) return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: sessionId }) };
@@ -26,9 +23,6 @@ export async function handleRenameSession(
 ): Promise<Result<SessionsRenameReturn>> {
   const parsed = sessionsRenameInput.safeParse(args);
   if (!parsed.success) return { ok: false, code: 'invalid-args', message: parsed.error.message };
-  if (!deps.sessionStore.rename) {
-    return { ok: false, code: 'not-available', message: t('ui.session.metadataUnavailable') };
-  }
   const { sessionId, label } = parsed.data;
   const session = await deps.sessionStore.rename(sessionId, label);
   if (!session) return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: sessionId }) };

@@ -11,7 +11,7 @@ import {
 } from '../../../src/domain/ui-service/query/commissions.js';
 import { handleCommissionClose } from '../../../src/domain/ui-service/mutate/commissions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-import { makeUiDeps } from './ui-deps-fixture.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 import type { CommissionRecord } from '../../../src/store/commission-repo.js';
 
 const T0 = Date.UTC(2026, 7, 28, 10, 0, 0);
@@ -23,7 +23,7 @@ function record(overrides: Partial<CommissionRecord> = {}): CommissionRecord {
   };
 }
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
+function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
   return makeUiDeps(overrides);
 }
 

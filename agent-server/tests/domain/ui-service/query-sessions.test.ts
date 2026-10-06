@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { resetSettingsForTests } from '../../../src/core/settings.js';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-import { makeUiDeps } from './ui-deps-fixture.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 const mockSessions = [
   { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
@@ -11,7 +11,7 @@ const mockSessions = [
   { sessionId: 's3', name: 'cortex-ghi', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', profileName: 'pi' },
 ];
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
+function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
   return makeUiDeps({
     projectStore: {
       list: () => [
@@ -656,6 +656,17 @@ test('sessions.list titles a label-less session from its first user message, kee
   assert.equal(result.find((s) => s.sessionId === 's2')!.label, 'help me set up the ablation sweep');
   // s1 already had a label → not overwritten
   assert.equal(result.find((s) => s.sessionId === 's1')!.label, 'dev');
+});
+
+test('sessions.list titles through the history store as a method call (the real repo reads this)', async () => {
+  const deps = makeDeps({
+    conversationHistory: {
+      titles: new Map([['s2', 'opening words']]),
+      async getFirstUserText(this: { titles: Map<string, string> }, id: string) { return this.titles.get(id) ?? null; },
+    } as any,
+  });
+  const result = await handleSessionsList(deps, {});
+  assert.equal(result.find((s) => s.sessionId === 's2')!.label, 'opening words');
 });
 
 test('sessions.transcript maps agent-sent file attachments onto assistant messages (20a)', async () => {

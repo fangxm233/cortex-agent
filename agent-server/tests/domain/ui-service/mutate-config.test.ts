@@ -1,5 +1,4 @@
 import { test } from 'vitest';
-import { EventBus } from '../../../src/events/event-bus.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';

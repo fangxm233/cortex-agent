@@ -93,7 +93,6 @@ export async function handleSessionsList(
   // a 300-session list resolve (and revalidate) profiles.json 300 times per request.
   const compactionByProfile = new Map<string, boolean>();
   const supportsCompaction = (session: { backend: string; profileName: string | null }): boolean => {
-    if (!deps.supportsSessionCompaction) return false;
     const key = `${session.backend}\u0000${session.profileName ?? ''}`;
     const known = compactionByProfile.get(key);
     if (known !== undefined) return known;
@@ -119,8 +118,8 @@ export async function handleSessionsList(
 
   // Armed waitpoints, fetched once for the whole page (the repo read is an in-memory cache hit).
   // Counted per session by the shared ownership rule so `waitingOn` and `waitpoints.list` can never
-  // disagree. Absent dep (fixtures / TUI) ⇒ every session reports 0.
-  const armedWaitpoints = deps.waitpointRegistry ? await deps.waitpointRegistry.listArmed() : [];
+  // disagree.
+  const armedWaitpoints = await deps.waitpointRegistry.listArmed();
   const waitingOnBySession = countWaitingOn(
     armedWaitpoints,
     sessions.map((s: any) => ({ sessionId: s.sessionId, channel: s.channel ?? null })),
@@ -151,9 +150,9 @@ export async function handleSessionsList(
     // Awaiting user action: the session is blocked on a pending ask-user question or plan approval
     // (keyed by the session's channel). This is the ONLY signal that turns the rail dot amber —
     // running/background stay blue. A non-blocking ask does not stall the session, so it stays
-    // blue too. Absent deps (fixtures/TUI) ⇒ false.
-    const blockedAsk = deps.getPendingAskUser?.(s.channel)?.blocking === true;
-    const blockedPlan = !!deps.getPendingPlan?.(s.channel);
+    // blue too.
+    const blockedAsk = deps.getPendingAskUser(s.channel)?.blocking === true;
+    const blockedPlan = !!deps.getPendingPlan(s.channel);
     const routedToLead = isTeamWorker(s) && routedLeads.has(s.teamLeadId);
     const awaitingInput = !routedToLead && (blockedAsk || blockedPlan);
     const waitingOnLead = routedToLead ? Number(blockedAsk) + Number(blockedPlan) : 0;
@@ -185,10 +184,10 @@ export async function handleSessionsList(
       agentName: s.agentName ?? null,
       // The other half of "what will the next turn run": the profile alone would misreport every
       // session whose model or thinking level the user picked in the composer.
-      selectionOverride: deps.getChannelSelectionOverride?.(s.channel) ?? null,
+      selectionOverride: deps.getChannelSelectionOverride(s.channel) ?? null,
       browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
-      todos: deps.getSessionTodos?.(s.sessionId) ?? null,
+      todos: deps.getSessionTodos(s.sessionId) ?? null,
       contextCompactionSupported: supportsCompaction({ backend: s.backend, profileName: s.profileName ?? null }),
       running,
       backgroundRunning: bgHeld,
@@ -215,17 +214,14 @@ export async function handleSessionsList(
   // opening text instead of the opaque `cortex-XXXX` name. Read-only + bounded (only for sessions
   // with no persisted label, capped) so a large unscoped list stays cheap; new sessions already get a
   // persisted label at their first turn (agent-runner.ensureSessionLabel).
-  const getFirstUserText = deps.conversationHistory.getFirstUserText;
-  if (getFirstUserText) {
-    const LABEL_DERIVE_CAP = 80;
-    let derived = 0;
-    for (const info of infos) {
-      if (derived >= LABEL_DERIVE_CAP) break;
-      if (info.label && info.label.trim()) continue;
-      derived++;
-      const first = await getFirstUserText(info.sessionId).catch(() => null);
-      if (first) info.label = first.length > 60 ? first.slice(0, 60) : first;
-    }
+  const LABEL_DERIVE_CAP = 80;
+  let derived = 0;
+  for (const info of infos) {
+    if (derived >= LABEL_DERIVE_CAP) break;
+    if (info.label && info.label.trim()) continue;
+    derived++;
+    const first = await deps.conversationHistory.getFirstUserText(info.sessionId).catch(() => null);
+    if (first) info.label = first.length > 60 ? first.slice(0, 60) : first;
   }
 
   return infos;
@@ -262,7 +258,7 @@ async function pendingUserSnapshot(
   deps: UiServiceDeps,
   sessionId: string,
 ): Promise<NonNullable<SessionTranscript['pendingUserMessages']>> {
-  const records = await deps.pendingInjections?.listBySession(sessionId) ?? [];
+  const records = await deps.pendingInjections.listBySession(sessionId);
   return records.map((record) => ({
     id: record.id,
     text: record.text,
@@ -288,7 +284,7 @@ function nextPreviousMs(event: EventWithElapsed): number | null {
 function interactionParts(deps: UiServiceDeps, event: EventWithElapsed) {
   if (event.type !== 'interaction' || !event.id) return { interaction: undefined, subtype: event.subtype };
   const currentMs = Date.parse(event.ts);
-  const live = deps.isInteractionPending?.(event.id) ?? false;
+  const live = deps.isInteractionPending(event.id);
   const age = Number.isFinite(currentMs) ? Date.now() - currentMs : Infinity;
   const status = event.status === 'pending' && (!live || age > INTERACTION_TTL_MS)
     ? 'expired'
@@ -460,10 +456,10 @@ function authoritativeSubagentSummaries(
   sessionId: string,
   summaries: NonNullable<SessionTranscript['subagentSummaries']>,
 ): NonNullable<SessionTranscript['subagentSummaries']> {
-  const statuses = deps.getSubagentChildStatuses?.(sessionId);
+  const statuses = deps.getSubagentChildStatuses(sessionId);
   return summaries.map(summary => {
     if (summary.status && summary.status !== 'running') return { ...summary };
-    const status = statuses?.get(summary.id);
+    const status = statuses.get(summary.id);
     return status ? { ...summary, status, structurallyOpen: status === 'running' } : { ...summary };
   });
 }
@@ -513,7 +509,7 @@ export async function handleSessionsDebugDetails(
   deps: UiServiceDeps,
   params: QueryParams<'sessions.debugDetails'>,
 ): Promise<TranscriptDebugDetails | null> {
-  if (!isDebugMode() || !deps.conversationHistory.getToolDebugDetails) return null;
+  if (!isDebugMode()) return null;
   // The store stamps `overCharacterThreshold` while it reads the rows, so there is nothing left
   // to derive here.
   return await deps.conversationHistory.getToolDebugDetails(params.sessionId, params.ref);
@@ -528,7 +524,7 @@ export async function handleSessionsPendingInteraction(
 ): Promise<SessionsPendingInteraction> {
   const channel = `web:${params.sessionId}`;
   return {
-    askUser: deps.getPendingAskUser?.(channel) ?? null,
-    plan: deps.getPendingPlan?.(channel) ?? null,
+    askUser: deps.getPendingAskUser(channel),
+    plan: deps.getPendingPlan(channel),
   };
 }

@@ -8,7 +8,7 @@ import {
 } from '../../../src/domain/ui-service/query/waitpoints.js';
 import { handleCancelWaitpoint } from '../../../src/domain/ui-service/mutate/waitpoints.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-import { makeUiDeps } from './ui-deps-fixture.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 import type { Waitpoint } from '../../../src/store/waitpoint-repo.js';
 
 const T0 = Date.UTC(2026, 8, 18, 10, 0, 0);
@@ -37,7 +37,7 @@ function wp(overrides: Partial<Waitpoint> = {}): Waitpoint {
   };
 }
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
+function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
   return makeUiDeps(overrides);
 }
 
@@ -184,8 +184,3 @@ test('cancelling an unknown waitpoint is a not-found', async () => {
   assert.equal((res as any).code, 'not-found');
 });
 
-test('without the waitpoint dep cancel fails cleanly', async () => {
-  const res = await handleCancelWaitpoint(makeDeps(), { waitpointId: 'wp_x' });
-  assert.equal(res.ok, false);
-  assert.equal((res as any).code, 'not-available');
-});

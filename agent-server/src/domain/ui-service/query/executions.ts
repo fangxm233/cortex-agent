@@ -65,7 +65,7 @@ export async function handleExecutionsGet(
     id: e.id,
     type: e.kind === 'dispatch' ? 'dispatch' : 'local',
     kind: e.kind,
-    status: e.status,
+    status: e.status as ExecutionDetailInfo['status'],
     projectId: e.project ?? null,
     sessionId: e.session?.sessionId ?? null,
     threadId: null,

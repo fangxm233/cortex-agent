@@ -124,7 +124,7 @@ export async function handleSystemCheckUpdate(
 ): Promise<Result<SystemUpdateCheckResult>> {
   const failed: SystemUpdateCheckResult = { status: 'error', reason: 'check_failed' };
   try {
-    return { ok: true, data: await deps.checkServerUpdate?.() ?? failed };
+    return { ok: true, data: await deps.checkServerUpdate() };
   } catch {
     return { ok: true, data: failed };
   }

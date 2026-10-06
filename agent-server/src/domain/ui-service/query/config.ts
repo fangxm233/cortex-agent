@@ -202,5 +202,5 @@ export async function handleConfigGet(deps: UiServiceDeps, _params: QueryParams<
   const snapshot = await readConfigSnapshot(
     CONFIG_DIR, getSettingsSnapshot(), { value: getLocale(), source: langSource() },
   );
-  return { ...snapshot, selectionDefault: deps.getSelectionDefault?.() ?? null };
+  return { ...snapshot, selectionDefault: deps.getSelectionDefault() ?? null };
 }

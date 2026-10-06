@@ -7,10 +7,10 @@ import {
   handleUpdateSchedule,
 } from '../../../src/domain/ui-service/mutate/schedules.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-import { makeUiDeps } from './ui-deps-fixture.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 import type { ScheduleTask } from '../../../src/store/schedule-repo.js';
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
+function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
   return makeUiDeps(overrides);
 }
 

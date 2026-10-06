@@ -5,9 +5,6 @@ export async function handleCancelWaitpoint(
   deps: UiServiceDeps,
   args: MutateArgs<'waitpoints.cancel'>,
 ): Promise<Result<WaitpointsCancelReturn>> {
-  if (!deps.waitpointRegistry) {
-    return { ok: false, code: 'not-available', message: t('ui.waitpoint.unavailable') };
-  }
   try {
     const outcome = await deps.waitpointRegistry.cancel(args.waitpointId);
     if (!outcome.cancelled && !outcome.state) {

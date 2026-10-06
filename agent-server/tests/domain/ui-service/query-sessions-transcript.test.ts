@@ -7,11 +7,12 @@ import {
 } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { SessionHistory } from '../../../src/store/conversation-history-repo.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 function makeDeps(history: SessionHistory | null): UiServiceDeps {
-  return {
+  return makeUiDeps({
     conversationHistory: { getHistory: async () => history },
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 }
 
 test('compact authority overlays snapshots without mutating cached history or inventing children', async () => {
@@ -20,18 +21,16 @@ test('compact authority overlays snapshots without mutating cached history or in
     Object.freeze({ id: 'ended', toolCount: 0, hasDetails: false, structurallyOpen: false, status: 'killed' as const }),
     Object.freeze({ id: 'legacy', toolCount: 0, hasDetails: false, structurallyOpen: false }),
   ]);
-  const deps = {
+  const deps = makeUiDeps({
     conversationHistory: { getCompactHistoryAt: async () => ({ value: { events: [], subagentSummaries: summaries }, cursor: 'e1:0' }) },
     getSubagentChildStatuses: (sessionId: string) => sessionId === 'owner'
       ? new Map([['quiet', 'running'], ['ended', 'running'], ['unanchored', 'running']]) : new Map(),
-  } as unknown as UiServiceDeps;
+  } as unknown as UiDepsOverrides);
   const read = (sessionId: string) => handleSessionsTranscript(deps, { sessionId, compactSubagents: true });
   assert.deepEqual((await read('owner')).subagentSummaries, [
     { ...summaries[0], structurallyOpen: true, status: 'running' }, summaries[1], summaries[2],
   ]);
   assert.deepEqual((await read('other')).subagentSummaries, summaries);
-  delete deps.getSubagentChildStatuses;
-  assert.deepEqual((await read('owner')).subagentSummaries, summaries, 'missing registry preserves conservative history');
 });
 
 test('sessions.transcript exposes debug metadata and forwards the folded large-tool warning', async (t) => {
@@ -97,12 +96,12 @@ test('sessions.debugDetails fetches one full tool payload only while DEBUG is en
     toolRef: 'toolu_1', toolInput: { command: 'echo full' },
     toolResult: { content: 'full output', isError: false },
   };
-  const deps = {
+  const deps = makeUiDeps({
     conversationHistory: {
       getHistory: async () => null,
       getToolDebugDetails: async () => details,
     },
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 
   delete process.env.DEBUG;
   assert.equal(await handleSessionsDebugDetails(deps, { sessionId: 's', ref: 'toolu_1' }), null);
@@ -202,13 +201,13 @@ test('sessions.transcript stays full by default and compact opt-in always return
     committedSourceIds: [],
     subagentSummaries: [{ id: 'child-1', type: 'explore', description: 'Inspect renderers', toolCount: 0, hasDetails: true, structurallyOpen: false }],
   };
-  const deps = {
+  const deps = makeUiDeps({
     conversationHistory: {
       getHistory: async () => fullHistory,
       getCompactHistoryAt: async () => ({ value: compactHistory, cursor: 'e1:0' }),
     },
     pendingInjections: { listBySession: async () => [] },
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 
   const full = await handleSessionsTranscript(deps, { sessionId: 'sess-compact-query' });
   assert.equal(full.subagentSummaries, undefined);
@@ -218,18 +217,18 @@ test('sessions.transcript stays full by default and compact opt-in always return
   assert.deepEqual(compact.subagentSummaries, compactHistory.subagentSummaries);
   assert.equal(compact.turns[0].messages.length, 3);
 
-  const emptyCompact = await handleSessionsTranscript({
+  const emptyCompact = await handleSessionsTranscript(makeUiDeps({
     conversationHistory: {
       getHistory: async () => null,
       getCompactHistoryAt: async () => ({ value: null, cursor: 'e1:0' }),
     },
     pendingInjections: { listBySession: async () => [] },
-  } as unknown as UiServiceDeps, { sessionId: 'empty-compact', compactSubagents: true } as any);
+  } as UiDepsOverrides), { sessionId: 'empty-compact', compactSubagents: true } as any);
   assert.deepEqual(emptyCompact.subagentSummaries, []);
 });
 
 test('sessions.subagentTranscript returns exact-id rows and an empty detail when the id has no rows', async () => {
-  const deps = {
+  const deps = makeUiDeps({
     conversationHistory: {
       getHistory: async () => null,
       getSubagentHistory: async (_sessionId: string, subagentId: string) => ({
@@ -240,7 +239,7 @@ test('sessions.subagentTranscript returns exact-id rows and an empty detail when
           : [],
       }),
     },
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 
   const detail = await handleSessionsSubagentTranscript(deps, {
     sessionId: 'sess-subagent-detail',
@@ -265,7 +264,7 @@ test('tool rows carry the images their call returned, in the main and the subage
     type: 'tool', toolName: 'Read', toolInput: '/a.png', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0,
     attachments: [image],
   };
-  const deps = {
+  const deps = makeUiDeps({
     conversationHistory: {
       getHistory: async () => ({
         sessionId: 'sess-img',
@@ -275,7 +274,7 @@ test('tool rows carry the images their call returned, in the main and the subage
         sessionId: 'sess-img', subagentId, events: [{ ...toolRow, subagentId, elapsedMs: null }],
       }),
     },
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 
   const main = await handleSessionsTranscript(deps, { sessionId: 'sess-img' });
   assert.deepEqual(main.turns[0].messages[1].attachments, [image]);
@@ -286,10 +285,10 @@ test('tool rows carry the images their call returned, in the main and the subage
 // ── Interaction entity materialization (web-interactions-redesign plan) ──────
 
 function makeInteractionDeps(history: SessionHistory, pendingIds: string[]): UiServiceDeps {
-  return {
+  return makeUiDeps({
     conversationHistory: { getHistory: async () => history },
     isInteractionPending: (id: string) => pendingIds.includes(id),
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 }
 
 const QUESTIONS = [{ question: 'A or B?', header: 'Q', options: [{ label: 'A' }], multiSelect: false }];
@@ -382,7 +381,7 @@ type CompactFixture = {
 };
 
 function makeCursorDeps(model: () => { compact: CompactFixture; cursor: string }): UiServiceDeps {
-  return {
+  return makeUiDeps({
     conversationHistory: {
       getHistory: async () => null,
       getCompactHistoryAt: async () => {
@@ -390,7 +389,7 @@ function makeCursorDeps(model: () => { compact: CompactFixture; cursor: string }
         return { value: { sessionId: 'sess-delta', committedSourceIds: [], subagentSummaries: [], ...compact }, cursor };
       },
     },
-  } as unknown as UiServiceDeps;
+  } as unknown as UiDepsOverrides);
 }
 
 test('sessions.transcript answers a matching cursor with only the rows that changed', async () => {

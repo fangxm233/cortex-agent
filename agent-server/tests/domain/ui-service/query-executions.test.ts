@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { handleExecutionsGet, handleExecutionsList } from '../../../src/domain/ui-service/query/executions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps } from './ui-deps-fixture.js';
+import type { ExecutionRecord } from '../../../src/store/execution-repo.js';
 
 const now = Date.now();
 const mockExecutions = [
@@ -32,7 +33,7 @@ const mockExecutions = [
     metrics: { costUsd: null, numTurns: null, durationS: null },
     text: { label: null, finalOutput: null, error: 'something broke' },
   },
-];
+] as unknown as ExecutionRecord[];
 
 function makeDeps(): UiServiceDeps {
   return makeUiDeps({

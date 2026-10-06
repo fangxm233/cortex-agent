@@ -35,11 +35,8 @@ export async function handleMachineDetail(
     return emptyDetail(params.machine, false, liveRuns, null);
   }
 
-  const probe = deps.clientRegistry.probeMachine;
-  if (!probe) return emptyDetail(params.machine, true, liveRuns, t('ux.machine.probeUnavailable'));
-
   try {
-    const raw = await probe(params.machine, buildProbeCommand(entry.cortexPath), PROBE_TIMEOUT_MS);
+    const raw = await deps.clientRegistry.probeMachine(params.machine, buildProbeCommand(entry.cortexPath), PROBE_TIMEOUT_MS);
     const { vitals, gpus } = parseMachineProbe(raw);
     return {
       name: params.machine,

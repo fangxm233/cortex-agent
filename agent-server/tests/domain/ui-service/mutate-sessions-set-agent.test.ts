@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { handleSetAgent } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { Session } from '../../../src/store/session-registry-repo.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 // The web twin of `!agent <name>`: resolve session→channel, delegate to the ONE switch rule, and
 // map its refusals the way `sessions.setProfile` maps its own.
@@ -11,10 +12,10 @@ type SwitchOutcome = Awaited<ReturnType<NonNullable<UiServiceDeps['switchSession
 type SwitchCall = { channel: string; name: string | null };
 
 function makeDeps(session: Session | null, outcome: SwitchOutcome, sink: SwitchCall[]): UiServiceDeps {
-  return {
+  return makeUiDeps({
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
     switchSessionAgent: async (opts: SwitchCall) => { sink.push(opts); return outcome; },
-  } as unknown as UiServiceDeps;
+  } as UiDepsOverrides);
 }
 
 const session = (channel: string): Session => ({
@@ -80,11 +81,3 @@ test('sessions.setAgent maps a cross-backend block to backend-locked (CONFLICT)'
   }
 });
 
-test('a server without the agent-switch dependency says so rather than failing silently', async () => {
-  const deps = {
-    sessionStore: { getById: async () => session('web:sess-1') },
-  } as unknown as UiServiceDeps;
-  const res = await handleSetAgent(deps, { sessionId: 'sess-1', agentName: 'nimbus' });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-available');
-});

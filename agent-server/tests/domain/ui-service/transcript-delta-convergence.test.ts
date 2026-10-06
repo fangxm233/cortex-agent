@@ -4,7 +4,8 @@ import path from 'node:path';
 import { STORE_DIR } from '../../../src/core/paths.js';
 import { ConversationHistoryRepo } from '../../../src/store/conversation-history-repo.js';
 import { handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
-import type { SessionTranscript, TranscriptMessage, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import type { SessionTranscript, TranscriptMessage } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 const DIR = path.join(STORE_DIR, 'transcript-delta-tests');
 
@@ -28,7 +29,7 @@ test('quiet child authority converges across human turns, cold reads and runtime
   const repo = new ConversationHistoryRepo(DIR);
   const sid = 'sess-child-authority';
   const states = new Map<string, 'running' | 'completed' | 'failed' | 'killed'>([['a', 'running'], ['b', 'completed']]);
-  const deps = { conversationHistory: repo, getSubagentChildStatuses: () => new Map(states) } as unknown as UiServiceDeps;
+  const deps = makeUiDeps({ conversationHistory: repo, getSubagentChildStatuses: () => new Map(states) } as UiDepsOverrides);
   const read = (since?: string) => handleSessionsTranscript(deps, { sessionId: sid, compactSubagents: true, since });
   await repo.clear(sid);
   await repo.appendUser(sid, { text: 'start' });
@@ -71,7 +72,7 @@ test('quiet child authority converges across human turns, cold reads and runtime
 test('replaying deltas converges on exactly the whole transcript, append after append', async () => {
   const repo = new ConversationHistoryRepo(DIR);
   const sid = 'sess-delta-convergence';
-  const deps = { conversationHistory: repo } as unknown as UiServiceDeps;
+  const deps = makeUiDeps({ conversationHistory: repo } as UiDepsOverrides);
   const read = (since?: string) =>
     handleSessionsTranscript(deps, { sessionId: sid, compactSubagents: true, ...(since ? { since } : {}) });
 

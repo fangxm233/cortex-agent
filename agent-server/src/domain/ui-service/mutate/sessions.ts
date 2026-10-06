@@ -139,7 +139,7 @@ export async function handleSendSession(
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: t('ui.session.textOrAttachments') };
   }
-  if (deps.sessionStore.touchSessionUse && !(await deps.sessionStore.touchSessionUse(args.sessionId))) {
+  if (!(await deps.sessionStore.touchSessionUse(args.sessionId))) {
     return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   const session = await deps.sessionStore.getById(args.sessionId);
@@ -150,9 +150,6 @@ export async function handleSendSession(
   // registry channel is the shared project channel, which a web send must never target.
   let channel = session.channel;
   if (session.kind === 'scheduled') {
-    if (!deps.adoptScheduledSession) {
-      return { ok: false, code: 'not-available', message: t('ui.session.scheduledReplyUnavailable') };
-    }
     const adopted = await deps.adoptScheduledSession({ sessionId: args.sessionId });
     if (!adopted) {
       return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
@@ -193,9 +190,6 @@ export async function handleCompactSession(
   if (!session) {
     return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
-  if (!deps.compactSession) {
-    return { ok: false, code: 'not-available', message: t('ui.session.compactUnavailable') };
-  }
   const outcome = await deps.compactSession({ sessionId: args.sessionId });
   if (!('reason' in outcome)) {
     return { ok: true, data: { status: outcome.status, contextUsage: outcome.contextUsage } };
@@ -223,7 +217,7 @@ export async function handleMarkReadSession(
   if (!session) {
     return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
-  await deps.sessionStore.markRead?.(args.sessionId);
+  await deps.sessionStore.markRead(args.sessionId);
   return { ok: true, data: undefined };
 }
 
@@ -238,7 +232,7 @@ export async function handleMarkManyReadSessions(
   for (const sessionId of new Set(args.sessionIds)) {
     const session = await deps.sessionStore.getById(sessionId);
     if (!session) continue;
-    await deps.sessionStore.markRead?.(sessionId);
+    await deps.sessionStore.markRead(sessionId);
     marked += 1;
   }
   return { ok: true, data: { marked } };
@@ -280,7 +274,7 @@ export async function handleCreateAndSend(
   // If the client uploaded files under a draft upload id, move them to the real
   // session's attachment directory and update path references.
   let attachments: AttachmentMeta[] = args.attachments ?? [];
-  if (args.draftUploadId && attachments.length > 0 && deps.moveDraftAttachments) {
+  if (args.draftUploadId && attachments.length > 0) {
     attachments = await deps.moveDraftAttachments({
       draftUploadId: args.draftUploadId,
       sessionId,
@@ -343,9 +337,6 @@ export async function handleSetAgent(
   if (!session) {
     return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
-  if (!deps.switchSessionAgent) {
-    return { ok: false, code: 'not-available', message: t('ui.session.agentUnavailable') };
-  }
   const name = args.agentName ?? null;
   const res = await deps.switchSessionAgent({ channel: session.channel, name });
   if (!res.ok) {
@@ -384,9 +375,6 @@ export async function handleSetSelection(
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
     return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
-  }
-  if (!deps.applySessionSelection) {
-    return { ok: false, code: 'not-available', message: t('ui.session.modelUnavailable') };
   }
   // Wire shape → domain shape: the client states the whole selection, the domain takes a patch, so
   // a field the client left out is an explicit "back to the profile's value".
@@ -464,9 +452,6 @@ export async function handleRewindSession(
   if (!args.text.trim()) {
     return { ok: false, code: 'invalid-args', message: t('ui.session.editEmpty') };
   }
-  if (!deps.rewindSession) {
-    return { ok: false, code: 'not-available', message: 'rewindSession not wired' };
-  }
   const res = await deps.rewindSession({
     sessionId: args.sessionId,
     channel: session.channel,
@@ -490,9 +475,6 @@ export async function handleAnswerQuestion(
   deps: UiServiceDeps,
   args: MutateArgs<'sessions.answerQuestion'>,
 ): Promise<Result<SessionsInteractionMutateReturn>> {
-  if (!deps.answerQuestion) {
-    return { ok: false, code: 'not-available', message: 'answerQuestion not wired' };
-  }
   if (!args.requestId) {
     return { ok: false, code: 'invalid-args', message: 'requestId required' };
   }
@@ -534,9 +516,6 @@ export async function handleRespondDecision(
   const message = (args.message ?? '').trim();
   if (args.action !== 'approve' && !message) {
     return { ok: false, code: 'invalid-args', message: t('ui.session.decisionMessageRequired', { action: args.action }) };
-  }
-  if (!deps.conversationHistory.appendDecisionAction) {
-    return { ok: false, code: 'not-available', message: 'appendDecisionAction not wired' };
   }
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -586,9 +565,6 @@ export async function handleRespondPlan(
   deps: UiServiceDeps,
   args: MutateArgs<'sessions.respondPlan'>,
 ): Promise<Result<SessionsInteractionMutateReturn>> {
-  if (!deps.respondPlan) {
-    return { ok: false, code: 'not-available', message: 'respondPlan not wired' };
-  }
   if (!args.requestId) {
     return { ok: false, code: 'invalid-args', message: 'requestId required' };
   }

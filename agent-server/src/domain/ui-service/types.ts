@@ -50,6 +50,7 @@ import type {
 import type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
+import type { ExecutionRecord } from '@store/execution-repo.js';
 import type { Waitpoint } from '@store/waitpoint-repo.js';
 import type { SessionTotals } from '@store/session-totals.js';
 export type { SessionTotals } from '@store/session-totals.js';
@@ -1796,7 +1797,7 @@ export interface UiService {
 
 export interface UiServiceDeps {
   /** Shared with background timers; bounded discovery, never waits for update consent. */
-  checkServerUpdate?: () => Promise<SystemUpdateCheckResult>;
+  checkServerUpdate: () => Promise<SystemUpdateCheckResult>;
   /** Optional seams for deterministic authentication dispatch tests. */
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
@@ -1818,29 +1819,27 @@ export interface UiServiceDeps {
     listResumable(projectId?: string): Promise<Session[]>;
     getById(sessionId: string): Promise<Session | null>;
     /** Admission-only liveness touch for fire-and-forget send. Updates lastUsedAt and returns false
-     *  when the session is already pending deletion or missing. Optional for legacy fixtures. */
-    touchSessionUse?(sessionId: string): Promise<boolean>;
-    /** Stamp lastReadAt=now (unread tracking; backs `sessions.markRead`). Optional so existing
-     *  facade/test fixtures need not provide it (the handler no-ops when absent). */
-    markRead?(sessionId: string): Promise<void>;
-    /** Atomic metadata-only writes. Optional for read-only/legacy fixtures, not silent no-ops. */
-    setStarred?(sessionId: string, starred: boolean): Promise<Session | null>;
-    rename?(sessionId: string, label: string): Promise<Session | null>;
+     *  when the session is already pending deletion or missing. */
+    touchSessionUse(sessionId: string): Promise<boolean>;
+    /** Stamp lastReadAt=now (unread tracking; backs `sessions.markRead`). */
+    markRead(sessionId: string): Promise<void>;
+    /** Atomic metadata-only writes. */
+    setStarred(sessionId: string, starred: boolean): Promise<Session | null>;
+    rename(sessionId: string, label: string): Promise<Session | null>;
   };
   /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
    *  the two fields the answer depends on so the list can answer it once per distinct profile
    *  instead of once per row. */
-  supportsSessionCompaction?: (session: Pick<Session, 'backend' | 'profileName'>) => boolean;
-  /** Latest task-list snapshot for a session (in-memory registry). Optional so facade/test
-   *  fixtures need not provide it — absent means the session reports no task list. */
-  getSessionTodos?: (sessionId: string) => TodoSnapshot | null;
+  supportsSessionCompaction: (session: Pick<Session, 'backend' | 'profileName'>) => boolean;
+  /** Latest task-list snapshot for a session (in-memory registry). */
+  getSessionTodos: (sessionId: string) => TodoSnapshot | null;
   /** Idle-only manual context compaction, injected at the entry layer. */
-  compactSession?: (opts: { sessionId: string }) => Promise<
+  compactSession: (opts: { sessionId: string }) => Promise<
     | { ok: true; status: 'compacted' | 'not-needed'; contextUsage: SessionContextUsage | null }
     | { ok: false; reason: 'not-found' | 'unsupported' | 'running' }
   >;
   /** Snapshot of started Cortex-managed children only; native CLI tasks use their own tracker. */
-  getSubagentChildStatuses?: (sessionId: string) => ReadonlyMap<string, NonNullable<TranscriptSubagentSummary['status']>>;
+  getSubagentChildStatuses: (sessionId: string) => ReadonlyMap<string, NonNullable<TranscriptSubagentSummary['status']>>;
   /** Backend-independent conversation history — read source for `sessions.transcript` (S4 chat). */
   conversationHistory: {
     getHistory(
@@ -1853,19 +1852,17 @@ export interface UiServiceDeps {
       cursor: string;
     }>;
     getSubagentHistory(sessionId: string, subagentId: string): Promise<import('@store/conversation-history-repo.js').SubagentConversationHistory>;
-    getToolDebugDetails?(
+    getToolDebugDetails(
       sessionId: string,
       toolRef: string,
     ): Promise<TranscriptDebugDetails | null>;
-    /** First user message text — used to title a label-less session in `sessions.list`. Optional so
-     *  facade/test fixtures need not provide it (the handler skips titling when absent). */
-    getFirstUserText?(sessionId: string): Promise<string | null>;
-    /** Append-only decision-action line (`sessions.respondDecision`). Optional so read-only
-     *  fixtures need not provide it — the handler reports not-available when absent. */
-    appendDecisionAction?(sessionId: string, opts: { decisionId: string; action: DecisionActionKind; message?: string; ts?: string }): Promise<void>;
+    /** First user message text — used to title a label-less session in `sessions.list`. */
+    getFirstUserText(sessionId: string): Promise<string | null>;
+    /** Append-only decision-action line (`sessions.respondDecision`). */
+    appendDecisionAction(sessionId: string, opts: { decisionId: string; action: DecisionActionKind; message?: string; ts?: string }): Promise<void>;
   };
   /** Durable active pending-injection snapshot joined into `sessions.transcript`. */
-  pendingInjections?: {
+  pendingInjections: {
     listBySession(sessionId: string): Promise<{
       id: string;
       text: string;
@@ -1896,10 +1893,9 @@ export interface UiServiceDeps {
    * Message edit + rewind: roll the session back to `turnIndex` and re-send the edited text
    * (orchestration `rewindWebSession` — ledger rollback + backend backup restore + pooled-CLI
    * close + display-history truncate + resend). Wired in the entry layer (app.ts) so the
-   * ui-service domain never imports orchestration. Optional so test fixtures need not provide it
-   * (the handler returns not-available when absent).
+   * ui-service domain never imports orchestration.
    */
-  rewindSession?: (opts: { sessionId: string; channel: string; turnIndex: number; text: string }) => Promise<{ ok: true } | { ok: false; reason: 'running' | 'not-found' }>;
+  rewindSession: (opts: { sessionId: string; channel: string; turnIndex: number; text: string }) => Promise<{ ok: true } | { ok: false; reason: 'running' | 'not-found' }>;
   /**
    * Create a fresh, live user-initiated (origin='direct') session for the workbench and return its
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
@@ -1911,15 +1907,14 @@ export interface UiServiceDeps {
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
    * conversation; the next fire starts a fresh session). Injected in the entry layer (app.ts) to
    * the domain `adoptScheduledSession` primitive. Returns the adopted channel, or null when the
-   * session is unknown. Optional — the send handler returns not-available when absent.
+   * session is unknown.
    */
-  adoptScheduledSession?: (opts: { sessionId: string }) => Promise<{ channel: string } | null>;
+  adoptScheduledSession: (opts: { sessionId: string }) => Promise<{ channel: string } | null>;
   /**
    * Move files uploaded under a draft upload id to the real session's attachment directory
    * and return updated AttachmentMeta with corrected paths. No-op when draftUploadId is null.
-   * Optional — only needed by sessions.createAndSend; absent in test fixtures.
    */
-  moveDraftAttachments?: (opts: { draftUploadId: string | null; sessionId: string; attachments: AttachmentMeta[] }) => Promise<AttachmentMeta[]>;
+  moveDraftAttachments: (opts: { draftUploadId: string | null; sessionId: string; attachments: AttachmentMeta[] }) => Promise<AttachmentMeta[]>;
   /**
    * Switch the active agent profile for a session's channel under the shared profile-switch rule
    * (same `switchChannelProfile` the Slack/Feishu `!profile` command uses). Wired in the entry layer
@@ -1941,7 +1936,7 @@ export interface UiServiceDeps {
    * null name clears the channel's selection. Wired in the entry layer (app.ts) for the same reason
    * as the profile switch above: the ui-service domain never imports domain/agents.
    */
-  switchSessionAgent?: (opts: { channel: string; name: string | null }) => Promise<{
+  switchSessionAgent: (opts: { channel: string; name: string | null }) => Promise<{
     ok: boolean;
     agentName: string | null;
     /** The profile the agent will run under, for display. */
@@ -1957,7 +1952,7 @@ export interface UiServiceDeps {
    * ui-service domain never imports domain/agents. Returns the effective selection, or a structured
    * refusal the handler maps to a Result code.
    */
-  applySessionSelection?: (opts: {
+  applySessionSelection: (opts: {
     channel: string;
     profileName?: string;
     model?: string | null;
@@ -1984,10 +1979,10 @@ export interface UiServiceDeps {
   }>;
   /** What a session selected on top of its profile, by channel — the read half of
    *  `applySessionSelection`, used to render `sessions.list`. Injected for the same reason. */
-  getChannelSelectionOverride?: (channel: string) => SessionSelectionOverride | null;
+  getChannelSelectionOverride: (channel: string) => SessionSelectionOverride | null;
   /** The last composer pick on this host, which a draft conversation starts from. Injected for the
    *  same reason as the two above. */
-  getSelectionDefault?: () => ConfigSelectionDefault | null;
+  getSelectionDefault: () => ConfigSelectionDefault | null;
   scheduler: {
     list(): Promise<ScheduleTask[]>;
     get(id: string): Promise<ScheduleTask | null>;
@@ -2014,16 +2009,14 @@ export interface UiServiceDeps {
     update(id: string, patch: Record<string, unknown>): Promise<ScheduleTask | null>;
   };
   executionRegistry: {
-    getExecution(id: string): any | null;
-    getAll(): any[];
-    cancelExecution(id: string, metrics?: any): any | null;
+    getExecution(id: string): ExecutionRecord | null;
+    getAll(): ExecutionRecord[];
+    cancelExecution(id: string): ExecutionRecord | null;
   };
   /** Waitpoint seam (`waitpoints.*` ops and SessionInfo.waitingOn). Injected at the entry layer so
-   *  the ui-service domain never reaches into the waitpoint store itself. Optional on purpose:
-   *  absent ⇒ no waitpoints and `waitingOn: 0`, so every existing fixture keeps working unchanged.
-   *  Only `armed` records are ever listed — settled ones have already announced themselves in the
-   *  session transcript. */
-  waitpointRegistry?: {
+   *  the ui-service domain never reaches into the waitpoint store itself. Only `armed` records are
+   *  ever listed — settled ones have already announced themselves in the session transcript. */
+  waitpointRegistry: {
     listArmed(): Promise<Waitpoint[]>;
     cancel(id: string): Promise<{ cancelled: boolean; state?: string }>;
   };
@@ -2064,11 +2057,9 @@ export interface UiServiceDeps {
     }>;
     /**
      * Run a read-only shell probe on a connected device and return its stdout (machines.detail).
-     * Optional so servers/tests without the remote transport degrade to a reported probeError
-     * rather than fabricating empty telemetry. The command is built server-side — callers never
-     * forward user input into it.
+     * The command is built server-side — callers never forward user input into it.
      */
-    probeMachine?(device: string, command: string, timeoutMs: number): Promise<string>;
+    probeMachine(device: string, command: string, timeoutMs: number): Promise<string>;
   };
   bus: EventBus;
   adapter: PlatformAdapter;
@@ -2076,12 +2067,12 @@ export interface UiServiceDeps {
    * Return the pending ask-user question group for a channel, if any (web UI pending query).
    * Reads from the in-memory pendingAskUserQuestionGroups Map.
    */
-  getPendingAskUser?: (channel: string) => { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[]; blocking: boolean } | null;
+  getPendingAskUser: (channel: string) => { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[]; blocking: boolean } | null;
   /**
    * Return the pending plan approval for a channel, if any (web UI pending query).
    * Reads from the in-memory planApprovals Map.
    */
-  getPendingPlan?: (channel: string) => { requestId: string; planContent: string; planFilePath: string | null } | null;
+  getPendingPlan: (channel: string) => { requestId: string; planContent: string; planFilePath: string | null } | null;
   /**
    * Resolve a pending ask-user-question interaction (web UI path). The injected impl (app.ts)
    * looks up the hook group, collects answers, updates the interaction entity, and calls
@@ -2089,17 +2080,17 @@ export interface UiServiceDeps {
    * Three-way outcome: 'resolved' | 'already-resolved' (another client won the race) |
    * 'not-found' (no such interaction).
    */
-  answerQuestion?: (requestId: string, answers: Record<string, string>) => 'resolved' | 'already-resolved' | 'not-found';
+  answerQuestion: (requestId: string, answers: Record<string, string>) => 'resolved' | 'already-resolved' | 'not-found';
   /**
    * Resolve a pending plan-approval interaction (web UI path). Same three-way outcome as
    * answerQuestion; the impl calls planApprovals.resolve/reject + entity resolve +
    * resolveHookRequest.
    */
-  respondPlan?: (requestId: string, approved: boolean, feedback?: string) => 'resolved' | 'already-resolved' | 'not-found';
+  respondPlan: (requestId: string, approved: boolean, feedback?: string) => 'resolved' | 'already-resolved' | 'not-found';
   /**
    * Liveness signal for transcript materialization: true only while the interaction is a live,
    * un-expired pending entry in the in-process index. After a restart the index is empty, so
    * still-`pending` persisted rows derive to `expired` at read time.
    */
-  isInteractionPending?: (id: string) => boolean;
+  isInteractionPending: (id: string) => boolean;
 }
