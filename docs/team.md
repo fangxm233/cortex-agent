@@ -59,9 +59,9 @@ with `cortex_ask_user` when it is unsure what you would want. You can answer on 
 yourself; whichever answer arrives first is the one the worker gets.
 
 **Roster.** While a lead has active workers, each of its turns opens with a short `[Team]` block:
-a few working rules and one line per worker (status, brief, last report, context usage, and
-whether you have talked to it). A worker's first turn opens with a `[Worker]` block telling it
-who its lead is and how its replies are used.
+a few working rules and one line per worker (status, brief, last report, and whether you have
+talked to it). A worker's first turn opens with a `[Worker]` block telling it who its lead is and
+how its replies are used.
 
 **Transcripts.** Every session's first turn names the directory holding all session transcripts
 (`<sessionId>.jsonl`). When a report is not enough, the lead can read a worker's full transcript

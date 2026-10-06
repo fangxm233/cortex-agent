@@ -22,7 +22,7 @@ const WORKER = { sessionId: 'worker', name: 'cortex-w', channel: 'web:worker', o
 function view(extra: Partial<WorkerView> = {}): WorkerView {
   return {
     name: 'alpha', sessionId: 'worker', channel: 'web:worker', status: 'idle', waitingOn: [], brief: null,
-    lastReport: null, contextPercent: 42, userTouched: false, retired: false, ...extra,
+    lastReport: null, userTouched: false, retired: false, ...extra,
   };
 }
 
@@ -70,7 +70,7 @@ test('a lead-started worker turn is reported to the lead with a status line and 
   assert.equal(delivered.length, 1);
   assert.equal(delivered[0].channel, 'web:lead');
   assert.equal(delivered[0].origin, 'worker-result');
-  assert.equal(delivered[0].text, '[Worker alpha · completed]\nstatus idle · ctx 42%\n\nDone. Output in out/report.md');
+  assert.equal(delivered[0].text, '[Worker alpha · completed]\nstatus idle\n\nDone. Output in out/report.md');
 });
 
 test('turns started by anything but the human are reported, including failures and stops', async () => {

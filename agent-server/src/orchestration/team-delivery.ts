@@ -90,9 +90,7 @@ async function workerAndLead(
 /** The status line every report and notice carries: a message injected into a running lead turn
  *  skips prompt assembly, so the roster line has to travel with it. */
 function statusLine(view: WorkerView): string {
-  const parts = [`status ${statusLabel(view)}`];
-  if (view.contextPercent !== null) parts.push(`ctx ${view.contextPercent}%`);
-  return parts.join(' · ');
+  return `status ${statusLabel(view)}`;
 }
 
 function cap(text: string, max: number, note: string): string {

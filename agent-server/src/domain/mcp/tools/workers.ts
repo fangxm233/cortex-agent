@@ -91,7 +91,7 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 
   server.tool(
     'worker_list',
-    'Without arguments: your workers with status, brief, last report time and context usage. With a '
+    'Without arguments: your workers with status, brief and last report time. With a '
     + 'worker name: that worker in detail, including its full last report. You do not need this to '
     + 'learn that a worker finished; reports arrive on their own.',
     { worker: z.string().optional().describe('A worker name for its detail view.') },

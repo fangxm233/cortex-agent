@@ -257,7 +257,6 @@ function describeOne(view: WorkerView, selection: ChannelSelection, now: number)
     `Model: ${modelLabel(selection)}`,
   ];
   if (view.brief) lines.push(`Brief: ${view.brief}`);
-  if (view.contextPercent !== null) lines.push(`Context: ${view.contextPercent}%`);
   if (view.userTouched) lines.push('The user has talked to this worker directly since you last engaged it.');
   if (view.lastReport) {
     lines.push('', `Last report (${view.lastReport.status}, ${formatAge(now - view.lastReport.at)}):`,

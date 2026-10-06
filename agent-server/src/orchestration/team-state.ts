@@ -32,7 +32,6 @@ export interface WorkerView {
   waitingOn: string[];
   brief: string | null;
   lastReport: WorkerReport | null;
-  contextPercent: number | null;
   userTouched: boolean;
   retired: boolean;
 }
@@ -137,7 +136,6 @@ export async function describeWorker(worker: Session, deps: WorkerViewDeps = def
     waitingOn,
     brief: briefs.get(worker.sessionId) ?? null,
     lastReport,
-    contextPercent: typeof worker.contextUsage?.percent === 'number' ? Math.round(worker.contextUsage.percent) : null,
     userTouched: userTouched.has(worker.sessionId),
     retired,
   };
@@ -169,12 +167,11 @@ export function statusLabel(view: WorkerView): string {
   return view.status === 'waiting' ? `waiting(${view.waitingOn.join(', ')})` : view.status;
 }
 
-/** One compact roster line: name · status · last report · ctx · user-touched — brief. */
+/** One compact roster line: name · status · last report · user-touched — brief. */
 export function rosterLine(view: WorkerView, now = Date.now()): string {
   const parts = [view.name, statusLabel(view)];
   if (view.lastReport) parts.push(`last report ${formatAge(now - view.lastReport.at)}`);
   else parts.push('no report yet');
-  if (view.contextPercent !== null) parts.push(`ctx ${view.contextPercent}%`);
   if (view.userTouched) parts.push('user talked to it directly');
   return `- ${parts.join(' · ')}${view.brief ? ` — ${view.brief}` : ''}`;
 }
