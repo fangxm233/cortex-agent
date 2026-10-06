@@ -77,9 +77,10 @@ function unavailablePi(): PiRuntimeLoadResult {
 }
 
 function claudeStatusOptions(root: string, mode: 'api' | 'plan'): GetAuthStatusOptions {
-  const claudeCredentialsPath = path.join(root, '.claude', '.credentials.json');
+  const claudeConfigDir = path.join(root, '.claude');
+  const claudeCredentialsPath = path.join(claudeConfigDir, '.credentials.json');
   return {
-    claudeCredentialsPath,
+    claudeConfigDir,
     piAuthPath: path.join(root, '.pi', 'agent', 'auth.json'),
     loadPiRuntime: async () => unavailablePi(),
     getClaudeMode: () => mode,
@@ -153,7 +154,7 @@ function piStatusOptions(
   loader: PiFixture['loader'],
 ): GetAuthStatusOptions {
   return {
-    claudeCredentialsPath: path.join(path.dirname(authPath), 'missing-claude.json'),
+    claudeConfigDir: path.join(path.dirname(authPath), 'missing-claude'),
     readClaudeAuthStatus: async () => ({
       loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
     }),
@@ -429,7 +430,7 @@ test('Claude CLI logout clears its credential and the legacy Cortex token', asyn
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-mixed-oauth-'));
   const options = claudeStatusOptions(root, 'plan');
-  const credentialsPath = options.claudeCredentialsPath!;
+  const credentialsPath = path.join(options.claudeConfigDir!, '.credentials.json');
   writeFile(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
   } }));
@@ -459,7 +460,7 @@ test('Claude credentials.json-only OAuth delegates logout to the official CLI', 
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-external-'));
   const options = claudeStatusOptions(root, 'plan');
-  const credentialsPath = options.claudeCredentialsPath!;
+  const credentialsPath = path.join(options.claudeConfigDir!, '.credentials.json');
   writeFile(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
   } }));

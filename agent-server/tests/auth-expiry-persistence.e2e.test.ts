@@ -70,7 +70,7 @@ function writeClaudeSubscription(): string {
 async function readRealSnapshot(credentialsPath: string): Promise<AuthStatusSnapshot> {
   return getAuthStatus({
     now: () => new Date(NOW_MS),
-    claudeCredentialsPath: credentialsPath,
+    claudeConfigDir: path.dirname(credentialsPath),
     piAuthPath: path.join(TEST_HOME, '.pi', 'agent', 'auth.json'),
     loadPiRuntime: async () => unavailablePi(),
     getActiveBackend: () => 'claude',

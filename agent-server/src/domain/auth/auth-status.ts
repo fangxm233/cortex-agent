@@ -1,9 +1,7 @@
 // Known P1 limitation: API mode reflects only the saved local key. A healthy gateway may carry
 // upstream credentials while this snapshot reports the API-key slot as logged out.
 
-import { readFileSync } from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import { readClaudeStore } from '@core/claude-credentials.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { resolveRunConfig } from '../runs/config-resolver.js';
@@ -85,7 +83,6 @@ interface ActiveProfileReference {
 export interface GetAuthStatusOptions {
   now?: () => Date;
   claudeConfigDir?: string;
-  claudeCredentialsPath?: string;
   piAuthPath?: string;
   loadPiRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
   getSavedApiEnv?: () => {
@@ -104,11 +101,6 @@ export interface GetAuthStatusOptions {
 interface ClaudeOAuthMetadata {
   expiresAt: number | null;
   refreshExpiresAt: number | null;
-}
-
-interface ClaudeCredentialRead {
-  kind: 'present' | 'missing' | 'invalid';
-  oauth: ClaudeOAuthMetadata | null;
 }
 
 interface InUseAccounts {
@@ -130,26 +122,9 @@ function validEpoch(value: unknown): number | null {
   return Number.isNaN(new Date(value).getTime()) ? null : value;
 }
 
-function readClaudeOAuth(filePath: string): ClaudeCredentialRead {
-  try {
-    const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>;
-    const raw = parsed.claudeAiOauth;
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { kind: 'missing', oauth: null };
-    const credential = raw as Record<string, unknown>;
-    const hasToken = [credential.accessToken, credential.refreshToken]
-      .some(value => typeof value === 'string' && value.length > 0);
-    if (!hasToken) return { kind: 'missing', oauth: null };
-    return {
-      kind: 'present',
-      oauth: {
-        expiresAt: validEpoch(credential.expiresAt),
-        refreshExpiresAt: validEpoch(credential.refreshTokenExpiresAt),
-      },
-    };
-  } catch (error) {
-    const kind = (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'invalid';
-    return { kind, oauth: null };
-  }
+function readClaudeOAuth(claudeConfigDir: string | undefined): ClaudeOAuthMetadata | null {
+  const store = readClaudeStore({ claudeConfigDir });
+  return store ? { expiresAt: store.expiresAt, refreshExpiresAt: store.refreshExpiresAt } : null;
 }
 
 function stateFromExpiry(nowMs: number, expiries: Array<number | null>): AuthAccountState {
@@ -248,7 +223,7 @@ function emptyClaudeAccount(
 }
 
 function buildClaudeAccount(
-  credentialRead: ClaudeCredentialRead,
+  oauth: ClaudeOAuthMetadata | null,
   apiKey: string | undefined,
   cliLoggedIn: boolean | null,
   legacyToken: string | undefined,
@@ -257,7 +232,7 @@ function buildClaudeAccount(
   inUse: boolean,
 ): AuthAccountStatus {
   const credentials = claudeCredentials(
-    credentialRead.oauth, apiKey, cliLoggedIn === true, legacyToken, nowMs,
+    oauth, apiKey, cliLoggedIn === true, legacyToken, nowMs,
   );
   if (mode === 'api') {
     const current = credentials.find(item => item.authType === 'api_key');
@@ -472,12 +447,6 @@ async function resolveClaudeLogin(options: GetAuthStatusOptions): Promise<boolea
 
 export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise<AuthStatusSnapshot> {
   const now = (options.now ?? (() => new Date()))();
-  const home = os.homedir();
-  const claudeConfigDir = options.claudeConfigDir
-    ?? process.env.CLAUDE_CONFIG_DIR
-    ?? path.join(home, '.claude');
-  const claudePath = options.claudeCredentialsPath
-    ?? path.join(claudeConfigDir, '.credentials.json');
   const piAuthPath = options.piAuthPath ?? piUserAuthPath();
   const usage = collectInUse(options);
   const apiEnv = { ...(options.getSavedApiEnv ?? readSavedApiEnv)() };
@@ -486,7 +455,7 @@ export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise
     resolveClaudeLogin(options), loader({ authPath: piAuthPath }),
   ]);
   const claude = buildClaudeAccount(
-    readClaudeOAuth(claudePath), apiEnv.ANTHROPIC_API_KEY, cliLoggedIn,
+    readClaudeOAuth(options.claudeConfigDir), apiEnv.ANTHROPIC_API_KEY, cliLoggedIn,
     apiEnv.CLAUDE_CODE_OAUTH_TOKEN,
     (options.getClaudeMode ?? defaultClaudeMode)(), now.getTime(), usage.claude,
   );

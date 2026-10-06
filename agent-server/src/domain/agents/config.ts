@@ -1,11 +1,12 @@
 import { readFileSync } from 'fs';
-import { parse as parseDotenv } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
-import * as os from 'node:os';
 import * as path from 'path';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { CONFIG_DIR } from '@core/paths.js';
-import { claudeOwnsOAuthCredential } from '@core/claude-credentials.js';
+import {
+  apiKeyValue, claudeOwnsOAuthCredential, credentialValue, readDotenvCredentials,
+  type DotenvCredentials,
+} from '@core/claude-credentials.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
 import { classifyAuthError } from '../auth/auth-events.js';
@@ -22,12 +23,7 @@ const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const DEFAULT_CLAUDE_MODE = 'plan';
 const DEFAULT_CLAUDE_MODEL = 'opus';
 
-export interface ApiEnv {
-  ANTHROPIC_API_KEY: string | undefined;
-  ANTHROPIC_BASE_URL: string | undefined;
-  CLAUDE_CODE_OAUTH_TOKEN: string | undefined;
-  CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: string | undefined;
-}
+export type ApiEnv = DotenvCredentials;
 
 // Per-request mode URL: encodes mode in URL path so gateway resolves endpoints per-request
 // instead of relying on global POST /mode state (eliminates race conditions)
@@ -41,49 +37,15 @@ export function gatewayModeUrl(mode: string, metadata?: Record<string, string>):
   return `${GATEWAY_URL}/m/${mode}/anthropic`;
 }
 
-function normalizeEnvValue(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return undefined;
-  return trimmed;
-}
-
-function normalizeApiKey(value: unknown): string | undefined {
-  const key = normalizeEnvValue(value);
-  return key === GATEWAY_MANAGED_KEY_PLACEHOLDER ? undefined : key;
-}
-
-function readApiEnvFromDotenvFile(): ApiEnv {
-  try {
-    const parsed = parseDotenv(readFileSync(ENV_FILE, 'utf8'));
-    const oauthToken = normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN);
-    return {
-      ANTHROPIC_API_KEY: normalizeApiKey(parsed.ANTHROPIC_API_KEY),
-      ANTHROPIC_BASE_URL: normalizeEnvValue(parsed.ANTHROPIC_BASE_URL),
-      CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
-      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: oauthToken
-        ? normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT)
-        : undefined,
-    };
-  } catch {
-    return {
-      ANTHROPIC_API_KEY: undefined,
-      ANTHROPIC_BASE_URL: undefined,
-      CLAUDE_CODE_OAUTH_TOKEN: undefined,
-      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: undefined,
-    };
-  }
-}
-
 function captureApiEnvSnapshot(): ApiEnv {
-  const fileEnv = readApiEnvFromDotenvFile();
-  const processOauthToken = normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN);
+  const fileEnv = readDotenvCredentials();
+  const processOauthToken = credentialValue(process.env.CLAUDE_CODE_OAUTH_TOKEN);
   const oauthToken = processOauthToken || fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
   const expiryMatchesToken = oauthToken !== undefined
     && oauthToken === fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
   return {
-    ANTHROPIC_API_KEY: normalizeApiKey(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
-    ANTHROPIC_BASE_URL: normalizeEnvValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
+    ANTHROPIC_API_KEY: apiKeyValue(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
+    ANTHROPIC_BASE_URL: credentialValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
     CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
     CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiryMatchesToken
       ? fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
@@ -105,7 +67,7 @@ export function getSavedApiEnv(): ApiEnv {
 }
 
 function requireAnthropicApiKey(value: string): string {
-  const key = normalizeApiKey(value);
+  const key = apiKeyValue(value);
   if (!key || /[\s"\\]/.test(key)) throw new Error('Enter a valid Anthropic API key.');
   return key;
 }
@@ -167,21 +129,6 @@ export async function removeClaudeCodeOAuthToken(): Promise<void> {
 }
 
 /**
- * Does Claude Code hold its own OAuth credential here?
- *
- * Delegated to `core/claude-credentials`, which knows that the store is platform-dependent: the
- * plaintext file on Linux and Windows, the login keychain on macOS. Reading only the file — as
- * this did — answers "not logged in" on every Mac, and the arbitration below then projects a
- * static .env token over a live credential, which is the exact shadowing its comment forbids.
- */
-function hasClaudeOwnedOAuthCredential(): boolean {
-  const home = process.env.HOME || os.homedir();
-  return claudeOwnsOAuthCredential({
-    claudeConfigDir: process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude'),
-  });
-}
-
-/**
  * Which OAuth token the daemon may hold. Two stores can answer — `CONFIG_DIR/.env` and
  * `~/.claude/.credentials.json` — and the two old writers disagreed: `applySavedApiEnv`
  * projected the .env copy unconditionally while `applySavedOAuthToken` deleted it as soon as
@@ -194,7 +141,7 @@ function hasClaudeOwnedOAuthCredential(): boolean {
  * nothing, never an override.
  */
 function savedOAuthToken(saved: ApiEnv): string | null {
-  if (hasClaudeOwnedOAuthCredential()) return null;
+  if (claudeOwnsOAuthCredential()) return null;
   return saved.CLAUDE_CODE_OAUTH_TOKEN ?? null;
 }
 
@@ -495,7 +442,7 @@ function assignEnvVar(name: string, value: string | null | undefined): void {
  * What stays global is what other processes read out of this env: the aistatus gateway child
  * resolves `keys: ['$ANTHROPIC_API_KEY']` from it, and Claude spawns re-admit an ambient
  * CLAUDE_CODE_OAUTH_TOKEN. Both therefore see a real credential or none — never the gateway
- * placeholder, which normalizeApiKey has already dropped from the saved snapshot.
+ * placeholder, which apiKeyValue has already dropped from the saved snapshot.
  */
 export function applyAuthEnv(): void {
   const saved = getSavedApiEnv();

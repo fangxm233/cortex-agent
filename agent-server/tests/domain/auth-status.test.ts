@@ -125,7 +125,7 @@ function baseStatusOptions(
 ) {
   return {
     now: () => new Date(NOW_MS),
-    claudeCredentialsPath,
+    claudeConfigDir: path.dirname(claudeCredentialsPath),
     piAuthPath: fixture.authPath,
     loadPiRuntime: async () => piRuntime,
     getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: '\uE104\uE105', ANTHROPIC_BASE_URL: undefined }),
@@ -425,7 +425,7 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
     assert.equal(apiAccount.state, 'logged-out');
     assert.deepEqual(apiAccount.credentials.map(item => item.authType), ['oauth']);
     const planAccount = account(await getAuthStatus({
-      ...options, claudeCredentialsPath: path.join(fixture.root, 'missing'), getClaudeMode: () => 'plan',
+      ...options, claudeConfigDir: path.join(fixture.root, 'missing'), getClaudeMode: () => 'plan',
       readClaudeAuthStatus: async () => ({
         loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
       }),

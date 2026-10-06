@@ -52,13 +52,34 @@ function readFileOrNull(read: (p: string) => string, filePath: string): string |
   }
 }
 
-function realKey(value: string | undefined | null): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed === GATEWAY_MANAGED_KEY_PLACEHOLDER) return null;
+function fileReader(deps: ClaudeCredentialDeps): (p: string) => string {
+  return deps.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
+}
+
+/** A credential value as a store holds it: blank, `undefined` and `null` strings mean "unset". */
+export function credentialValue(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return undefined;
   return trimmed;
 }
 
-function dotenvValues(read: (p: string) => string): Record<string, string> {
+/** A real Anthropic API key — the gateway-managed placeholder is not one. */
+export function apiKeyValue(value: unknown): string | undefined {
+  const key = credentialValue(value);
+  return key === GATEWAY_MANAGED_KEY_PLACEHOLDER ? undefined : key;
+}
+
+/** The Anthropic credentials saved in CONFIG_DIR/.env. */
+export interface DotenvCredentials {
+  ANTHROPIC_API_KEY: string | undefined;
+  ANTHROPIC_BASE_URL: string | undefined;
+  CLAUDE_CODE_OAUTH_TOKEN: string | undefined;
+  /** Only ever set alongside the token it describes. */
+  CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: string | undefined;
+}
+
+function parseDotenvFile(read: (p: string) => string): Record<string, string> {
   const raw = readFileOrNull(read, path.join(CONFIG_DIR, '.env'));
   if (raw === null) return {};
   try {
@@ -68,6 +89,21 @@ function dotenvValues(read: (p: string) => string): Record<string, string> {
   }
 }
 
+/** The only reader of CONFIG_DIR/.env's Anthropic credentials. A missing or unreadable file
+ *  is an empty store. */
+export function readDotenvCredentials(deps: ClaudeCredentialDeps = {}): DotenvCredentials {
+  const parsed = parseDotenvFile(fileReader(deps));
+  const oauthToken = credentialValue(parsed.CLAUDE_CODE_OAUTH_TOKEN);
+  return {
+    ANTHROPIC_API_KEY: apiKeyValue(parsed.ANTHROPIC_API_KEY),
+    ANTHROPIC_BASE_URL: credentialValue(parsed.ANTHROPIC_BASE_URL),
+    CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: oauthToken
+      ? credentialValue(parsed.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT)
+      : undefined,
+  };
+}
+
 /**
  * The real Anthropic API key: process.env first (ignoring the gateway-managed placeholder), then
  * CONFIG_DIR/.env — the canonical key location (docs/configuration.md). CLI processes (cortex init /
@@ -75,8 +111,7 @@ function dotenvValues(read: (p: string) => string): Record<string, string> {
  */
 export function resolveAnthropicApiKey(deps: ClaudeCredentialDeps = {}): string | null {
   const env = deps.env ?? process.env;
-  const read = deps.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
-  return realKey(env.ANTHROPIC_API_KEY) ?? realKey(dotenvValues(read).ANTHROPIC_API_KEY);
+  return apiKeyValue(env.ANTHROPIC_API_KEY) ?? readDotenvCredentials(deps).ANTHROPIC_API_KEY ?? null;
 }
 
 function apiKeyHeaders(key: string): Record<string, string> {
@@ -93,59 +128,91 @@ function oauthHeaders(token: string): Record<string, string> {
 
 export function claudeConfigDir(deps: ClaudeCredentialDeps = {}): string {
   const env = deps.env ?? process.env;
-  return deps.claudeConfigDir ?? env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
+  return deps.claudeConfigDir ?? (env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'));
 }
 
 export function claudeCredentialsPath(deps: ClaudeCredentialDeps = {}): string {
   return path.join(claudeConfigDir(deps), '.credentials.json');
 }
 
-/** The OAuth access token Claude Code holds in its plaintext store, or null when there is none,
- *  the file is unreadable, or the token has already expired. */
-function claudeStoreToken(deps: ClaudeCredentialDeps): string | null {
-  const read = deps.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
-  const raw = readFileOrNull(read, claudeCredentialsPath(deps));
+/** What Claude Code's plaintext store holds. Epochs are milliseconds; null when absent. */
+export interface ClaudeStoreCredential {
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: number | null;
+  refreshExpiresAt: number | null;
+}
+
+function stringField(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function epochField(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Number.isNaN(new Date(value).getTime()) ? null : value;
+}
+
+/** The only reader of Claude Code's plaintext store (`.credentials.json`). null when the file is
+ *  missing, unreadable or corrupt, or holds neither an access nor a refresh token. The macOS
+ *  keychain is never read here — see the convention at the top. */
+export function readClaudeStore(deps: ClaudeCredentialDeps = {}): ClaudeStoreCredential | null {
+  const raw = readFileOrNull(fileReader(deps), claudeCredentialsPath(deps));
   if (raw === null) return null;
+  let oauth: unknown;
   try {
-    const oauth = (JSON.parse(raw) as { claudeAiOauth?: Record<string, unknown> }).claudeAiOauth;
-    const token = typeof oauth?.accessToken === 'string' ? oauth.accessToken.trim() : '';
-    if (!token) return null;
-    const expiresAt = oauth?.expiresAt;
-    const now = (deps.now ?? Date.now)();
-    if (typeof expiresAt === 'number' && Number.isFinite(expiresAt)
-      && expiresAt - EXPIRY_SKEW_MS <= now) return null;
-    return token;
+    oauth = (JSON.parse(raw) as { claudeAiOauth?: unknown } | null)?.claudeAiOauth;
   } catch {
     return null;
   }
+  if (!oauth || typeof oauth !== 'object' || Array.isArray(oauth)) return null;
+  const fields = oauth as Record<string, unknown>;
+  const store: ClaudeStoreCredential = {
+    accessToken: stringField(fields.accessToken),
+    refreshToken: stringField(fields.refreshToken),
+    expiresAt: epochField(fields.expiresAt),
+    refreshExpiresAt: epochField(fields.refreshTokenExpiresAt),
+  };
+  return store.accessToken || store.refreshToken ? store : null;
+}
+
+/** The access token from Claude's plaintext store, or null when there is none or it has already
+ *  expired. */
+function claudeStoreToken(deps: ClaudeCredentialDeps): string | null {
+  const store = readClaudeStore(deps);
+  if (!store?.accessToken) return null;
+  const now = (deps.now ?? Date.now)();
+  if (store.expiresAt !== null && store.expiresAt - EXPIRY_SKEW_MS <= now) return null;
+  return store.accessToken;
 }
 
 /**
- * The credential the daemon may authenticate an Anthropic call with, in the order the rest of the
- * server already resolves credentials (the API key as resolveAnthropicApiKey finds it, then OAuth
- * tokens, then Claude's own store). null means "this host cannot make a server-side Anthropic call" — never an error: every
- * caller has a static fallback, and a host with no key is a supported configuration.
+ * The credential the daemon may authenticate an Anthropic call with: an API key (env, then .env),
+ * then Claude's own store, then an OAuth token from the env or .env. Claude's store outranks the
+ * static token for the same reason `applyAuthEnv` lets it win — it is the credential `claude login`
+ * writes and refreshes, while the .env copy is a token nobody rotates. null means "this host cannot
+ * make a server-side Anthropic call" — never an error: every caller has a static fallback, and a
+ * host with no key is a supported configuration.
  */
 export function resolveClaudeCredential(deps: ClaudeCredentialDeps = {}): ClaudeCredential | null {
   const env = deps.env ?? process.env;
-  const read = deps.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
 
-  const envKey = realKey(env.ANTHROPIC_API_KEY);
+  const envKey = apiKeyValue(env.ANTHROPIC_API_KEY);
   if (envKey) return { headers: apiKeyHeaders(envKey), source: 'env-api-key' };
 
-  const saved = dotenvValues(read);
-  const fileKey = realKey(saved.ANTHROPIC_API_KEY);
-  if (fileKey) return { headers: apiKeyHeaders(fileKey), source: 'dotenv-api-key' };
-
-  const envToken = env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
-  if (envToken) return { headers: oauthHeaders(envToken), source: 'env-oauth-token' };
-
-  const savedToken = saved.CLAUDE_CODE_OAUTH_TOKEN?.trim();
-  if (savedToken) return { headers: oauthHeaders(savedToken), source: 'dotenv-oauth-token' };
+  const saved = readDotenvCredentials(deps);
+  if (saved.ANTHROPIC_API_KEY) {
+    return { headers: apiKeyHeaders(saved.ANTHROPIC_API_KEY), source: 'dotenv-api-key' };
+  }
 
   const storeToken = claudeStoreToken(deps);
   if (storeToken) return { headers: oauthHeaders(storeToken), source: 'claude-credentials' };
 
+  const envToken = credentialValue(env.CLAUDE_CODE_OAUTH_TOKEN);
+  if (envToken) return { headers: oauthHeaders(envToken), source: 'env-oauth-token' };
+
+  if (saved.CLAUDE_CODE_OAUTH_TOKEN) {
+    return { headers: oauthHeaders(saved.CLAUDE_CODE_OAUTH_TOKEN), source: 'dotenv-oauth-token' };
+  }
   return null;
 }
 
@@ -185,15 +252,7 @@ function probeKeychainItem(service: string): boolean {
  * shadow a live credential there.
  */
 export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): boolean {
-  const read = deps.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
-  const raw = readFileOrNull(read, claudeCredentialsPath(deps));
-  if (raw !== null) {
-    try {
-      const oauth = (JSON.parse(raw) as { claudeAiOauth?: Record<string, unknown> }).claudeAiOauth;
-      if (typeof oauth?.accessToken === 'string' && oauth.accessToken.length > 0) return true;
-      if (typeof oauth?.refreshToken === 'string' && oauth.refreshToken.length > 0) return true;
-    } catch { /* corrupt file — fall through to the keychain */ }
-  }
+  if (readClaudeStore(deps)) return true;
   const platform = deps.platform ?? process.platform;
   if (platform !== 'darwin') return false;
   const probe = deps.probeKeychain ?? probeKeychainItem;

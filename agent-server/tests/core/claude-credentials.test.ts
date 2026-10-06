@@ -58,6 +58,34 @@ test("Claude's own store answers last, as a Bearer token with the oauth beta", (
   assert.equal(credential?.headers['anthropic-beta'], 'oauth-2025-04-20');
 });
 
+test("Claude's own store outranks an OAuth token from the env or .env", () => {
+  const credential = resolveClaudeCredential({
+    env: { CLAUDE_CODE_OAUTH_TOKEN: 'env-token' },
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({
+      [DOTENV]: 'CLAUDE_CODE_OAUTH_TOKEN=dotenv-token\n',
+      [CREDENTIALS]: oauthFile({ expiresAt: 4_000_000_000_000 }),
+    }),
+    now: () => 1_000,
+  });
+  assert.equal(credential?.source, 'claude-credentials');
+  assert.equal(credential?.headers.authorization, 'Bearer store-token');
+});
+
+test('a .env OAuth token is the fallback when the store has no usable token', () => {
+  const credential = resolveClaudeCredential({
+    env: {},
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({
+      [DOTENV]: 'CLAUDE_CODE_OAUTH_TOKEN=dotenv-token\n',
+      [CREDENTIALS]: oauthFile({ expiresAt: 1_000 }),
+    }),
+    now: () => 2_000_000,
+  });
+  assert.equal(credential?.source, 'dotenv-oauth-token');
+  assert.equal(credential?.headers.authorization, 'Bearer dotenv-token');
+});
+
 test('an expired access token is not a credential — only Claude Code can refresh it', () => {
   const credential = resolveClaudeCredential({
     env: {},
