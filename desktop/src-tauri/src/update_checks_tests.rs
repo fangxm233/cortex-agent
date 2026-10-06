@@ -453,7 +453,8 @@ fn report_wire_schema_has_lowercase_statuses_and_no_internal_shell_fields() {
     assert_eq!(
         json["shell"],
         serde_json::json!({"status": "available", "update": {
-            "version": "2026.9.2", "releaseUrl": null, "notes": null, "size": 9, "kind": "deb"
+            "version": "2026.9.2", "releaseUrl": null, "notes": null, "size": 9, "kind": "deb",
+            "apply": "prompt"
         }})
     );
 }
