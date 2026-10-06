@@ -73,13 +73,21 @@ function classifyMime(mimeType: string): 'image' | 'video' | 'file' {
 type UploadOutcome = { kind: 'stored'; size: number } | { kind: 'too-large' } | { kind: 'failed'; error: Error };
 
 /**
- * Stream the request body into `destPath`, stopping at `maxBytes`. On overflow the partial file is
- * removed and the request is left FLOWING (the caller drains it) — destroying it here would destroy
- * the socket, and the client would never see the 413.
+ * Stream the request body into `destPath`, stopping at `maxBytes`. The file is created exclusively
+ * up front, so a failure only ever removes a file this upload created. On any failure the request
+ * is left FLOWING for the caller to answer — destroying it would destroy the socket, and the
+ * client would see a reset instead of the status.
  */
-function receiveUpload(req: IncomingMessage, destPath: string, maxBytes: number): Promise<UploadOutcome> {
+async function receiveUpload(req: IncomingMessage, destPath: string, maxBytes: number): Promise<UploadOutcome> {
+  let handle: fs.promises.FileHandle;
+  try {
+    handle = await fs.promises.open(destPath, 'wx');
+  } catch (error) {
+    req.resume();
+    return { kind: 'failed', error: error as Error };
+  }
+  const out = handle.createWriteStream();
   return new Promise((resolve) => {
-    const out = fs.createWriteStream(destPath, { flags: 'wx' });
     let size = 0;
     let settled = false;
     const settle = (outcome: UploadOutcome): void => {
@@ -90,6 +98,7 @@ function receiveUpload(req: IncomingMessage, destPath: string, maxBytes: number)
       if (outcome.kind !== 'stored') {
         out.destroy();
         fs.promises.unlink(destPath).catch(() => {});
+        req.resume();
       }
       resolve(outcome);
     };
@@ -98,7 +107,7 @@ function receiveUpload(req: IncomingMessage, destPath: string, maxBytes: number)
       if (size > maxBytes) return settle({ kind: 'too-large' });
       if (!out.write(chunk)) {
         req.pause();
-        out.once('drain', () => req.resume());
+        out.once('drain', () => { if (!settled) req.resume(); });
       }
     };
     const onEnd = (): void => { out.end(); };

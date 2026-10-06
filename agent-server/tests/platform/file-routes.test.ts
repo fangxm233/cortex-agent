@@ -1,7 +1,7 @@
 import { describe, test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -143,6 +143,21 @@ describe('upload', () => {
     assert.equal(res.status, 413);
     assert.equal(JSON.parse(res.body).code, 'too-large');
     assert.deepEqual(readdirSync(path.join(attachments, 'too-big-streamed')), [], 'partial file removed');
+  });
+});
+
+describe('upload failure', () => {
+  test('a storage error is answered, not left hanging or reset', async () => {
+    const dir = path.join(attachments, 'read-only');
+    mkdirSync(dir);
+    chmodSync(dir, 0o500);
+    try {
+      const res = await upload('read-only', Array.from({ length: 4 }, () => Buffer.alloc(512, 3)), {}, 5);
+      assert.equal(res.status, 500);
+      assert.equal(JSON.parse(res.body).code, 'upload-failed');
+    } finally {
+      chmodSync(dir, 0o700);
+    }
   });
 });
 
