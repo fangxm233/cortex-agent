@@ -4,34 +4,38 @@
 # then reads Harbor's result and the host envelope into one terminal outcome. Reporting remains
 # delegated to the comparison builder.
 #
-# Resume classifies every existing root BEFORE anything is armed. Terminal success, failure, and
-# security failure are read without writing the root again. A harness-incomplete root is refused
-# wholesale because it cannot be trusted or overwritten. At suite scale, naming every incomplete
-# root in one refusal avoids one campaign run per root.
+# RESUME. Every existing root is classified BEFORE anything is armed. A terminal root -- success,
+# failure or security failure, anything that published an outer envelope -- is read without being
+# written again, so a re-run spends nothing on it. A harness-incomplete root (a trial that died
+# before it could publish) is moved aside to a sibling named `<trial>.harness-incomplete-<UTC>` --
+# renamed, never deleted, since it is the only evidence of what that attempt spent -- and only
+# that trial is armed again. `--dry-run` makes the same classification and reports it.
 #
 # CONCURRENCY. Worker `k` holds network slot `k` for the whole campaign and pulls plans off a
 # shared queue in declared order. A slot owns one subnet, one gateway and one container address, so
 # at most one trial ever uses an address and there is no allocator to race. Outcomes are recorded
 # by trial id and re-emitted in DECLARED order, so the result document and the comparison report
 # stay byte-deterministic under any interleaving; each outcome carries its own start and finish
-# instants, because declared order is no longer the order things happened in.
+# instants, because declared order is no longer the order things happened in. Docker calls block
+# for up to 30 s, so they run in a worker thread rather than on the loop every trial shares.
 #
 # FAILURE. A trial that fails is a fact about that trial: it is recorded with its reason and the
-# campaign continues, because one flake must not cost eighty-eight other measurements. What stops
-# a campaign is a host-level fault — a Docker network that leaked, or a slot whose subnet cannot be
-# created — and even then in-flight trials are left to reach their own bounded end, since that is
-# what runs the ordered teardown that revokes their credential routes and proves the revocation.
+# campaign continues, because one flake must not cost eighty-eight other measurements -- and that
+# includes a defect in this driver while it handles one trial. What stops a campaign is a
+# host-level fault -- a Docker network that leaked, or a slot whose subnet cannot be created --
+# and even then in-flight trials are left to reach their own bounded end, since that is what runs
+# the ordered teardown that revokes their credential routes and proves the revocation.
 
 import argparse
 import asyncio
+import contextlib
 import hashlib
 import json
-import os
-import subprocess
 import sys
 import time
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .campaign_config import (
@@ -44,16 +48,14 @@ from .campaign_config import (
 from .campaign_progress import PROGRESS_FILENAME, CampaignProgress, _timestamp
 from .external_corpus import ExternalCorpusError, stage_task_input
 from .host_finalization import OUTER_ENVELOPE_FILENAME
+from .launcher import codex_preflight
+from .launcher.codex_preflight import CodexPreflightRefused
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
-from .launcher.credential_capabilities import (
-    CODEX_CLI_CAPABILITY_KEY,
-    PI_OPENAI_CODEX_CAPABILITY_KEY,
-    capability_key_for,
-)
+from .launcher.host_credential_vault import HOST_TOKEN_HOLDERS
 from .launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from .launcher.trial_admission import create_harbor_trial
 from .launcher.trial_admission_io import cpuset_for_slot
-from .proxy.adapters.openai_codex_responses import extract_access_expiry_ms
+from .launcher.trial_proxy import CapabilityStateRefused, require_capability_admission
 from .result_summary import (
     PROXY_EXPORT_FILENAME,
     RESULT_SUMMARY_FILENAME,
@@ -66,6 +68,12 @@ from .outcome import (
     SCORE_UNAVAILABLE,
     TrialOutcomeReader,
 )
+from .trial_network import (
+    NETWORK_CREATE_TIMEOUT_MS,
+    TrialNetworkError,
+    create_trial_network,
+    remove_trial_network,
+)
 
 CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/6"
 CAMPAIGN_RESULT_FILENAME = "campaign-result.json"
@@ -76,16 +84,20 @@ TRIAL_RAN = "ran"
 TRIAL_SKIPPED = "skipped"
 TRIAL_FAILED = "failed"
 TRIAL_NOT_ARMED = "not-armed"
-CODEX_CLOCK_SKEW_MARGIN_MS = 60_000
-NETWORK_CREATE_TIMEOUT_MS = 30_000
+MOVED_ASIDE_MARKER = "harness-incomplete"
+# Every blocking host call a trial makes from the event loop goes through this, so a Docker CLI
+# that takes its full timeout stalls one trial rather than every trial in flight.
+_off_loop = asyncio.to_thread
 
 EPILOG = """Examples:
   cortex-bench run --config benchmark/campaigns/zero-paid-dry-run.yaml
   cortex-bench run --config campaign.yaml --dry-run
   cat campaign.yaml | cortex-bench run --config -
 
-A campaign is resumable: re-running the same config reads every terminal trial root,
-including failures, so a retry arms nothing and spends nothing.
+A campaign is resumable. Re-running the same config reads every terminal trial root, including
+failures that published an outer envelope, and arms nothing for them. A trial root left
+harness-incomplete is moved aside to <trial>.harness-incomplete-<UTC> (never deleted) and only that
+trial is armed again. --dry-run reports which of the three each trial would get.
 """
 RUN_DESCRIPTION = """Run one campaign: every declared trial is armed through the production
 trial path, up to `concurrency` of them at a time, each on its own slot of the declared address
@@ -104,6 +116,10 @@ class HostFaultError(CampaignError):
     leaked Docker network or an unusable slot subnet is a fact about the machine every remaining
     trial would run on.
     """
+
+
+class TrialNetworkUnavailable(HostFaultError):
+    """A trial's network could not be created, so nothing of that trial was armed."""
 
 
 class TrialCleanupError(HostFaultError):
@@ -138,6 +154,8 @@ class TrialOutcome:
     state: str
     requests: int | None = None
     metered_requests: int | None = None
+    #: Whether anything of this trial was armed, and so whether it may have spent. A trial refused
+    #: before its network existed, or never reached, spent nothing.
     armed: bool = False
     envelope: Mapping[str, object] | None = None
     envelope_path: Path | None = None
@@ -149,6 +167,8 @@ class TrialOutcome:
     slot: int | None = None
     started_at: str | None = None
     finished_at: str | None = None
+    #: The harness-incomplete root an earlier run left, which this run moved aside.
+    moved_aside: Mapping[str, object] | None = None
 
     def as_dict(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -172,6 +192,8 @@ class TrialOutcome:
             record["score_status"] = self.score_status
         if self.reason is not None:
             record["reason"] = self.reason
+        if self.moved_aside is not None:
+            record["moved_aside"] = dict(self.moved_aside)
         # The schedule, not the declaration: trials are reported in declared order, so without
         # these three a reader cannot tell which of them actually overlapped.
         for field in ("slot", "started_at", "finished_at"):
@@ -179,6 +201,54 @@ class TrialOutcome:
             if value is not None:
                 record[field] = value
         return record
+
+
+@dataclass(frozen=True)
+class _Resume:
+    """What the campaign does with one declared trial, decided before anything is armed."""
+
+    plan: TrialPlan
+    #: A terminal root, read as it is and never armed again.
+    terminal: TrialOutcome | None = None
+    #: Why an existing root is harness-incomplete: it is moved aside and the trial armed again.
+    incomplete: str | None = None
+
+    @property
+    def arms(self) -> bool:
+        return self.terminal is None
+
+
+@dataclass(frozen=True)
+class _Preflight:
+    """The credential checks a campaign passes before it arms anything."""
+
+    refusal: str | None = None
+    codex_trials: int = 0
+    codex_expires_at_ms: int | None = None
+    codex_can_refresh: bool = False
+
+    def report(self) -> dict[str, object]:
+        report: dict[str, object] = {
+            "status": "refused" if self.refusal else "passed",
+            "codex_trials": self.codex_trials,
+        }
+        if self.refusal:
+            report["reason"] = self.refusal
+        if self.codex_expires_at_ms is not None:
+            report["codex_access_expires_at"] = datetime.fromtimestamp(
+                self.codex_expires_at_ms / 1000, UTC).isoformat().replace("+00:00", "Z")
+            report["codex_can_refresh"] = self.codex_can_refresh
+        return report
+
+
+@dataclass(frozen=True)
+class _CodexAccess:
+    """What each Codex route is armed with: the host token's expiry, and the handle of the shared
+    token holder when the campaign can refresh."""
+
+    expires_at_ms: int
+    can_refresh: bool
+    token_holder: str | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -199,7 +269,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--dry-run", action="store_true",
-        help="Validate the config and report the trials that would be armed, arming none",
+        help=("Validate the config, run the credential preflight, and report what the run would "
+              "do with each trial root, arming and writing nothing"),
     )
     return parser
 
@@ -214,12 +285,17 @@ def read_campaign_config(source: str) -> CampaignConfig:
 
 def run(arguments: argparse.Namespace) -> dict[str, object]:
     config = read_campaign_config(arguments.config)
-    plans = config.trials()
+    resumes = _resume(config, config.trials())
+    preflight = _preflight(config, [resume.plan for resume in resumes if resume.arms])
     if arguments.dry_run:
-        return _dry_run_document(config, plans)
+        return _dry_run_document(config, resumes, preflight)
+    if preflight.refusal is not None:
+        raise CampaignError(preflight.refusal)
     started_at = _timestamp()
     task_inputs = _stage_task_inputs(config)
-    outcomes, fault = asyncio.run(_run_campaign(config, plans, task_inputs))
+    moved = _move_incomplete_roots_aside(config, resumes)
+    with _codex_access(config, preflight) as codex:
+        outcomes, fault = asyncio.run(_run_campaign(config, resumes, moved, task_inputs, codex))
     report_path, report_sha256 = _write_comparison_report(config, outcomes)
     failed = sum(outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED) for outcome in outcomes)
     document: dict[str, object] = {
@@ -272,10 +348,12 @@ def _stage_task_inputs(config: CampaignConfig) -> dict[str, Path]:
 
 
 async def _run_campaign(
-    config: CampaignConfig, plans: Sequence[TrialPlan], task_inputs: Mapping[str, Path],
+    config: CampaignConfig, resumes: Sequence[_Resume],
+    moved: Mapping[str, Mapping[str, object]], task_inputs: Mapping[str, Path],
+    codex: _CodexAccess | None,
 ) -> tuple[list[TrialOutcome], HostFaultError | None]:
-    """Resume what already ran, then run the rest `concurrency` at a time."""
-    schedule = _Schedule(config, plans, task_inputs)
+    """Report what already ran, then run the rest `concurrency` at a time."""
+    schedule = _Schedule(config, resumes, moved, task_inputs, codex)
     workers = [
         asyncio.create_task(schedule.work(slot))
         for slot in range(min(config.concurrency, schedule.pending))
@@ -294,25 +372,26 @@ class _Schedule:
     """
 
     def __init__(
-        self, config: CampaignConfig, plans: Sequence[TrialPlan],
-        task_inputs: Mapping[str, Path],
+        self, config: CampaignConfig, resumes: Sequence[_Resume],
+        moved: Mapping[str, Mapping[str, object]], task_inputs: Mapping[str, Path],
+        codex: _CodexAccess | None,
     ) -> None:
         self._config = config
-        self._plans = tuple(plans)
+        self._plans = tuple(resume.plan for resume in resumes)
+        self._moved = dict(moved)
         self._task_inputs = dict(task_inputs)
+        self._codex = codex
         self._recorded: dict[str, TrialOutcome] = {}
         self._queue: asyncio.Queue[TrialPlan] = asyncio.Queue()
         self.fault: HostFaultError | None = None
         self._progress = CampaignProgress(
             config.trials_dir / PROGRESS_FILENAME, config.campaign, _timestamp())
-        partitioned = _partition(config, self._plans)
-        pending = tuple(plan for plan, resumed in partitioned if resumed is None)
-        self._access_expires_at_ms = _codex_preflight(config, pending)
-        for plan, resumed in partitioned:
+        for resume in resumes:
+            plan = resume.plan
             self._progress.declare(
-                plan.trial_id, plan.task.task_id, plan.arm_name, resumed is not None)
-            if resumed is not None:
-                self._recorded[plan.trial_id] = resumed
+                plan.trial_id, plan.task.task_id, plan.arm_name, not resume.arms)
+            if resume.terminal is not None:
+                self._recorded[plan.trial_id] = resume.terminal
             else:
                 self._queue.put_nowait(plan)
         self._progress.flush()
@@ -323,9 +402,14 @@ class _Schedule:
 
     def outcomes(self) -> list[TrialOutcome]:
         """Declared order, whatever order the workers finished in."""
-        return [
+        outcomes = [
             self._recorded.get(plan.trial_id, TrialOutcome(plan=plan, state=TRIAL_NOT_ARMED))
             for plan in self._plans
+        ]
+        return [
+            replace(outcome, moved_aside=self._moved[outcome.plan.trial_id])
+            if outcome.plan.trial_id in self._moved else outcome
+            for outcome in outcomes
         ]
 
     async def work(self, slot_index: int) -> None:
@@ -335,218 +419,192 @@ class _Schedule:
                 plan = self._queue.get_nowait()
             except asyncio.QueueEmpty:
                 return
-            self._recorded[plan.trial_id] = await self._run_trial(plan, slot)
-
-    async def _run_trial(self, plan: TrialPlan, slot: NetworkSlot) -> TrialOutcome:
-        started_at = _timestamp()
-        self._progress.started(plan.trial_id, slot.index, started_at)
-        return self._record(await self._trial(plan, slot, started_at))
+            started_at = _timestamp()
+            try:
+                self._progress.started(plan.trial_id, slot.index, started_at)
+                outcome = await self._trial(plan, slot, started_at)
+            except Exception as error:
+                # A defect in this driver while it handled one trial is that trial's failure. It
+                # must not unwind the worker, which would cancel the other trials mid-teardown.
+                outcome = self._failed(
+                    plan, slot, CampaignError(
+                        f"trial {plan.trial_id} failed in the campaign driver: {error!r}"),
+                    started_at, armed=True)
+            self._recorded[plan.trial_id] = self._record(outcome)
 
     async def _trial(
         self, plan: TrialPlan, slot: NetworkSlot, started_at: str,
     ) -> TrialOutcome:
-        trial_root = self._config.trials_dir / plan.trial_id
-        refusal = _codex_trial_refusal(self._config, plan, self._access_expires_at_ms)
+        refusal = _codex_trial_refusal(self._config, plan, self._codex)
         if refusal is not None:
-            return self._failed(
-                plan, slot, CampaignError(refusal), started_at, trial_root)
+            return self._failed(plan, slot, CampaignError(refusal), started_at, armed=False)
         try:
             await _arm_trial(
-                self._config, plan, slot, self._access_expires_at_ms,
-                self._task_inputs[plan.task.task_id])
+                self._config, plan, slot, self._codex, self._task_inputs[plan.task.task_id])
+        except TrialNetworkUnavailable as error:
+            self.fault = self.fault or error
+            return self._failed(plan, slot, error, started_at, armed=False)
         except HostFaultError as error:
             # The machine, not the trial: stop the other workers before they arm anything else.
             self.fault = self.fault or error
-            return self._failed(plan, slot, error, started_at, trial_root)
+            return self._failed(plan, slot, error, started_at, armed=True)
         except CampaignError as error:
-            return self._failed(plan, slot, error, started_at, trial_root)
+            return self._failed(plan, slot, error, started_at, armed=True)
         return _read_outcome(
-            plan, trial_root, TRIAL_RAN, slot=slot.index, started_at=started_at,
-            finished_at=_timestamp())
+            plan, self._config.trials_dir / plan.trial_id, TRIAL_RAN, slot=slot.index,
+            started_at=started_at, finished_at=_timestamp())
 
     def _record(self, outcome: TrialOutcome) -> TrialOutcome:
-        self._progress.finished(
-            outcome.plan.trial_id,
-            failed=outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED),
-            score_status=outcome.score_status, reason=outcome.reason,
-            finished_at=outcome.finished_at or _timestamp(),
-        )
+        try:
+            self._progress.finished(
+                outcome.plan.trial_id,
+                failed=outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED),
+                score_status=outcome.score_status, reason=outcome.reason,
+                finished_at=outcome.finished_at or _timestamp(),
+            )
+        except Exception:
+            # The progress file is a view for a human; the outcome is the record.
+            pass
         return outcome
 
     def _failed(
         self, plan: TrialPlan, slot: NetworkSlot, error: Exception, started_at: str,
-        trial_root: Path,
+        *, armed: bool,
     ) -> TrialOutcome:
         """A trial that failed still spent whatever its proxy metered before it failed."""
+        trial_root = self._config.trials_dir / plan.trial_id
         return TrialOutcome(
             plan=plan, state=TRIAL_FAILED, outcome_state=HARNESS_INCOMPLETE,
             verifier_rewards=None, score_status=SCORE_UNAVAILABLE,
             reason=str(error), slot=slot.index, started_at=started_at,
-            finished_at=_timestamp(), armed=True,
-            metered_requests=_metered_requests(trial_root))
+            finished_at=_timestamp(), armed=armed,
+            metered_requests=_metered_requests(trial_root) if armed else None)
 
 
-def _partition(
-    config: CampaignConfig, plans: Sequence[TrialPlan],
-) -> list[tuple[TrialPlan, TrialOutcome | None]]:
-    """Decide resume-or-arm for every trial before any of them is armed.
-
-    Refusing every unfinished root at once matters at suite scale: an operator learns which roots
-    to move aside in one message, rather than one campaign run per root.
-    """
-    partitioned: list[tuple[TrialPlan, TrialOutcome | None]] = []
-    unfinished: list[tuple[Path, str | None]] = []
+def _resume(config: CampaignConfig, plans: Sequence[TrialPlan]) -> list[_Resume]:
+    """Classify every declared trial's existing root, reading and writing nothing else."""
+    resumes: list[_Resume] = []
     for plan in plans:
         trial_root = config.trials_dir / plan.trial_id
-        if not trial_root.exists():
-            partitioned.append((plan, None))
+        if not (trial_root.exists() or trial_root.is_symlink()):
+            resumes.append(_Resume(plan))
             continue
         outcome = _read_outcome(plan, trial_root, TRIAL_SKIPPED)
         if outcome.outcome_state == HARNESS_INCOMPLETE:
-            unfinished.append((trial_root, outcome.reason))
-            continue
-        partitioned.append((plan, outcome))
-    if unfinished:
-        details = ", ".join(f"{root} ({reason})" for root, reason in unfinished)
-        raise CampaignError(
-            f"{len(unfinished)} trial root(s) are harness-incomplete: {details}. "
-            "Move them aside to re-run those trials; this driver never overwrites one")
-    return partitioned
+            resumes.append(_Resume(plan, incomplete=outcome.reason or "harness-incomplete"))
+        else:
+            resumes.append(_Resume(plan, terminal=outcome))
+    return resumes
 
 
-def _codex_preflight(
-    config: CampaignConfig, pending: Sequence[TrialPlan],
-) -> int | None:
-    """Validate the Codex arms and read the host token's expiry, without bounding the campaign.
+def _move_incomplete_roots_aside(
+    config: CampaignConfig, resumes: Sequence[_Resume],
+) -> dict[str, dict[str, object]]:
+    """Rename every harness-incomplete root out of its trial's way, before anything is armed.
 
-    This used to be a WAVE gate: every pending trial had to be Codex, they all had to fit in one
-    concurrent wave, and one access token had to outlive the whole wave. That made sense when the
-    proxy could not refresh -- the token was a fixed budget of wall-clock time, so the campaign
-    had to fit inside it. It also made a 623-trial campaign impossible to express: 623 trials do
-    not fit in a wave of eight, so zero routes were armed.
-
-    A refreshing route has no such budget, so the wave rules are gone. What is left is the part
-    that was always about correctness rather than scheduling: an arm that names Codex must name
-    the exact registered capability, and the token this host holds must be readable. Whether it
-    will still be valid when a particular trial starts is that trial's question, asked in
-    `_codex_trial_refusal` at the moment it is armed.
+    Renamed and never deleted: the root is the only record of what that attempt metered. A root
+    that cannot be moved stops the campaign here, while nothing has been armed yet.
     """
-    codex = _codex_plans(pending)
+    moved: dict[str, dict[str, object]] = {}
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    for resume in resumes:
+        if resume.incomplete is None:
+            continue
+        trial_root = config.trials_dir / resume.plan.trial_id
+        metered = _metered_requests(trial_root)
+        try:
+            target = _move_aside(trial_root, stamp)
+        except OSError as error:
+            raise CampaignError(
+                f"cannot move harness-incomplete trial root {trial_root} aside: {error}"
+            ) from error
+        moved[resume.plan.trial_id] = {
+            "path": str(target), "reason": resume.incomplete, "metered_requests": metered,
+        }
+    return moved
+
+
+def _move_aside(trial_root: Path, stamp: str) -> Path:
+    base = f"{trial_root.name}.{MOVED_ASIDE_MARKER}-{stamp}"
+    target = trial_root.with_name(base)
+    attempt = 1
+    while target.exists() or target.is_symlink():
+        attempt += 1
+        target = trial_root.with_name(f"{base}-{attempt}")
+    trial_root.rename(target)
+    return target
+
+
+def _preflight(config: CampaignConfig, pending: Sequence[TrialPlan]) -> _Preflight:
+    """Admit every pending arm's credential capability exactly as the trial path will, then ask
+    whether the host's Codex token can carry the Codex trials among them.
+
+    The token's lifetime no longer bounds the campaign as a whole: a refreshing route has no
+    wall-clock budget, and a non-refreshing trial is checked against the token at the moment it
+    would be armed (`_codex_trial_refusal`), so the trials before it keep their results.
+    """
+    arms = {plan.arm_name: plan.arm for plan in pending}
+    for name, arm in arms.items():
+        try:
+            require_capability_admission(arm, paid_run=config.paid)
+        except (CapabilityStateRefused, LookupError, ValueError) as error:
+            return _Preflight(refusal=f"arm {name} cannot be admitted: {error}")
+    codex = [plan for plan in pending if codex_preflight.runs_on_codex_token(plan.arm)]
     if not codex:
-        return None
-    credential_name = str(config.proxy["credential_env"])
-    credential = os.environ.get(credential_name)
-    if not credential:
-        raise CampaignError(f"host credential {credential_name} is not set for Codex preflight")
+        return _Preflight()
+    can_refresh = codex_preflight.can_refresh(config.proxy)
     try:
-        expiry_ms = extract_access_expiry_ms(credential)
+        expires_at_ms = codex_preflight.access_expiry_ms(config.proxy, now_ms=_now_ms())
+    except CodexPreflightRefused as error:
+        return _Preflight(
+            refusal=str(error), codex_trials=len(codex), codex_can_refresh=can_refresh)
+    return _Preflight(
+        codex_trials=len(codex), codex_expires_at_ms=expires_at_ms,
+        codex_can_refresh=can_refresh)
+
+
+@contextlib.contextmanager
+def _codex_access(
+    config: CampaignConfig, preflight: _Preflight,
+) -> Iterator[_CodexAccess | None]:
+    """The Codex routes' shared access for the length of the campaign, cleared when it ends."""
+    if preflight.codex_expires_at_ms is None:
+        yield None
+        return
+    if not preflight.codex_can_refresh:
+        yield _CodexAccess(preflight.codex_expires_at_ms, can_refresh=False)
+        return
+    try:
+        holder = codex_preflight.shared_token_holder(
+            config.proxy, expires_at_ms=preflight.codex_expires_at_ms)
     except ValueError as error:
-        raise CampaignError(f"Codex token expiry preflight refused the campaign: {error}") from error
-    if expiry_ms <= _now_ms() and not _codex_can_refresh(config):
-        raise CampaignError(
-            "Codex token is expired and this campaign declares no OAuth refresh material; "
-            "no route was armed and no refresh was attempted")
-    return expiry_ms
-
-
-def _codex_can_refresh(config: CampaignConfig) -> bool:
-    """Whether the armed route can mint itself a new access token when this one expires."""
-    return all(
-        field in config.proxy
-        for field in ("refresh_credential_env", "token_endpoint_url", "oauth_client_id")
-    )
+        raise CampaignError(f"Codex token holder could not be built: {error}") from error
+    handle = HOST_TOKEN_HOLDERS.register(holder)
+    try:
+        yield _CodexAccess(preflight.codex_expires_at_ms, can_refresh=True, token_holder=handle)
+    finally:
+        HOST_TOKEN_HOLDERS.release(handle)
 
 
 def _codex_trial_refusal(
-    config: CampaignConfig, plan: TrialPlan, expires_at_ms: int | None,
+    config: CampaignConfig, plan: TrialPlan, codex: _CodexAccess | None,
 ) -> str | None:
     """Why this one trial cannot be armed on the current token, or None.
 
     A trial is refused rather than the campaign, so the trials that already ran keep their
     results and a re-run after the operator refreshes the token arms only what is left.
     """
-    if expires_at_ms is None or _codex_can_refresh(config) or not _codex_plans([plan]):
+    if codex is None or codex.can_refresh or not codex_preflight.runs_on_codex_token(plan.arm):
         return None
-    now_ms = _now_ms()
-    required_ms = _codex_required_expiry_ms(config, plan, now_ms)
-    if expires_at_ms >= required_ms:
-        return None
+    return codex_preflight.trial_refusal(
+        codex.expires_at_ms, now_ms=_now_ms(), window_ms=_trial_window_ms(config, plan))
+
+
+def _trial_window_ms(config: CampaignConfig, plan: TrialPlan) -> int:
+    """From network creation to the end of teardown: how long one trial holds its route."""
     return (
-        "Codex access token expires in "
-        f"{max(expires_at_ms - now_ms, 0) // 1000}s, which does not cover this trial's setup, "
-        f"lease, teardown and clock skew ({(required_ms - now_ms) // 1000}s). Refresh the host "
-        "token and re-run: this trial was not armed and spent nothing")
-
-
-def _codex_plans(pending: Sequence[TrialPlan]) -> tuple[TrialPlan, ...]:
-    codex: list[TrialPlan] = []
-    for plan in pending:
-        if _is_native_codex_plan(plan):
-            _validate_native_codex_plan(plan)
-            codex.append(plan)
-            continue
-        if _is_pi_openai_codex_plan(plan):
-            _validate_pi_openai_codex_plan(plan)
-            codex.append(plan)
-    return tuple(codex)
-
-
-def _is_native_codex_plan(plan: TrialPlan) -> bool:
-    vendor_agent = plan.arm.get("vendor_agent")
-    capability_id = str(plan.arm["credential_capability"])
-    return vendor_agent == "codex" or capability_id == "codex-subscription"
-
-
-def _validate_native_codex_plan(plan: TrialPlan) -> None:
-    capability_id = str(plan.arm["credential_capability"])
-    if plan.arm.get("vendor_agent") != "codex" or capability_id != "codex-subscription":
-        raise CampaignError(
-            "Codex vendor arms must name the exact codex-subscription capability")
-    try:
-        key = capability_key_for(capability_id)
-    except LookupError as error:
-        raise CampaignError("the exact codex-subscription capability is not registered") from error
-    if key != CODEX_CLI_CAPABILITY_KEY or plan.arm.get("provider") != key.provider:
-        raise CampaignError("Codex vendor arm differs from the exact registered capability key")
-
-
-def _is_pi_openai_codex_plan(plan: TrialPlan) -> bool:
-    capability_id = str(plan.arm["credential_capability"])
-    provider = plan.arm.get("provider")
-    return (
-        capability_id == "pi-openai-codex-oauth"
-        or (plan.arm.get("vendor_agent") == "pi" and provider == "openai-codex")
-        or (plan.arm.get("backend") == "pi" and provider == "openai-codex")
-    )
-
-
-def _validate_pi_openai_codex_plan(plan: TrialPlan) -> None:
-    capability_id = str(plan.arm["credential_capability"])
-    provider = plan.arm.get("provider")
-    if not (
-        (plan.arm.get("vendor_agent") == "pi" and provider == "openai-codex")
-        or (plan.arm.get("backend") == "pi" and provider == "openai-codex")
-    ):
-        raise CampaignError(
-            "PI OpenAI Codex preflight requires a vendor PI arm or Cortex backend PI arm")
-    if capability_id != "pi-openai-codex-oauth":
-        raise CampaignError(
-            "PI OpenAI Codex arms must name the exact pi-openai-codex-oauth capability")
-    try:
-        key = capability_key_for(capability_id)
-    except LookupError as error:
-        raise CampaignError(
-            "the exact pi-openai-codex-oauth capability is not registered") from error
-    if key != PI_OPENAI_CODEX_CAPABILITY_KEY or provider != key.provider:
-        raise CampaignError(
-            "PI OpenAI Codex arm differs from the exact registered capability key")
-
-
-def _codex_required_expiry_ms(config: CampaignConfig, plan: TrialPlan, now_ms: int) -> int:
-    return (
-        now_ms + NETWORK_CREATE_TIMEOUT_MS
-        + SETUP_TIMEOUT_MS + _declared_lease_ms(config, plan) + TEARDOWN_GRACE_MS
-        + CODEX_CLOCK_SKEW_MARGIN_MS
+        NETWORK_CREATE_TIMEOUT_MS + SETUP_TIMEOUT_MS + _declared_lease_ms(config, plan)
+        + TEARDOWN_GRACE_MS
     )
 
 
@@ -564,19 +622,21 @@ def _now_ms() -> int:
 
 async def _arm_trial(
     config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot,
-    access_expires_at_ms: int | None, task_path: Path,
+    codex: _CodexAccess | None, task_path: Path,
 ) -> None:
-    """One trial, through the production trial path and nothing else."""
-    network_id = ""
+    """One trial, through the production trial path and nothing else, on its own network.
+
+    The network is removed whatever became of the trial, cancellation included.
+    """
+    network_id = await _off_loop(_create_trial_network, config, plan, slot)
     trial_error: CampaignError | None = None
     try:
-        network_id = _create_trial_network(config, plan, slot)
         trial = await create_harbor_trial(
             arm=dict(plan.arm), task_path=task_path,
             trials_dir=config.trials_dir,
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
-            trial_proxy=_slot_proxy(config, slot, access_expires_at_ms),
+            trial_proxy=_slot_proxy(config, slot, codex),
             agent_timeout_seconds=config.timeouts.get("agent_seconds"),
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
             network=config.network,
@@ -584,13 +644,12 @@ async def _arm_trial(
             cpuset=cpuset_for_slot(slot.index, config.concurrency),
         )
         await trial.run()
-    except HostFaultError:
-        raise
     except CampaignError as error:
         trial_error = error
     except Exception as error:
         trial_error = _failed_trial_error(config, plan, error)
-    _cleanup_trial_network(network_id, trial_error)
+    finally:
+        await _cleanup_trial_network(network_id, trial_error)
     if trial_error is not None:
         raise trial_error
 
@@ -598,6 +657,8 @@ async def _arm_trial(
 def _failed_trial_error(
     config: CampaignConfig, plan: TrialPlan, error: Exception,
 ) -> CampaignError:
+    """A trial whose run raised publishes nothing gradable: its envelope, if one was written, is
+    removed so that a re-run reads the root as harness-incomplete and arms the trial again."""
     trial_error = CampaignError(f"trial {plan.trial_id} failed: {error}")
     trial_error.__cause__ = error
     marker = config.trials_dir / plan.trial_id / "artifacts" / OUTER_ENVELOPE_FILENAME
@@ -610,25 +671,28 @@ def _failed_trial_error(
 
 
 def _slot_proxy(
-    config: CampaignConfig, slot: NetworkSlot, access_expires_at_ms: int | None,
+    config: CampaignConfig, slot: NetworkSlot, codex: _CodexAccess | None,
 ) -> dict[str, object]:
     proxy = config.slot_proxy(slot)
-    if access_expires_at_ms is not None:
-        proxy["access_expires_at_ms"] = access_expires_at_ms
+    if codex is not None:
+        proxy["access_expires_at_ms"] = codex.expires_at_ms
+        if codex.token_holder is not None:
+            proxy["oauth_token_holder"] = codex.token_holder
     return proxy
 
 
-def _cleanup_trial_network(
+async def _cleanup_trial_network(
     network_id: str, trial_error: CampaignError | None,
 ) -> None:
-    if not network_id:
-        return
     try:
-        _remove_trial_network(network_id)
+        await _off_loop(_remove_trial_network, network_id)
     except Exception as cleanup_error:
         if trial_error is not None:
             raise TrialCleanupError(trial_error, cleanup_error) from trial_error
-        raise
+        if isinstance(cleanup_error, CampaignError):
+            raise
+        raise HostFaultError(
+            f"could not remove Docker network {network_id}: {cleanup_error}") from cleanup_error
 
 
 def _create_trial_network(
@@ -640,31 +704,22 @@ def _create_trial_network(
     machine and its address space, and every later trial on that slot would meet it again.
     """
     name = f"{plan.trial_id}__env_default"
-    command = [
-        "docker", "network", "create", "--driver", "bridge",
-        "--subnet", slot.subnet, "--gateway", slot.gateway, name,
-    ]
-    result = subprocess.run(
-        command, capture_output=True, text=True,
-        timeout=NETWORK_CREATE_TIMEOUT_MS / 1000,
-    )
-    if result.returncode != 0 or not result.stdout.strip():
-        raise HostFaultError(
+    try:
+        return create_trial_network(name, slot.subnet, slot.gateway)
+    except TrialNetworkError as error:
+        raise TrialNetworkUnavailable(
             f"trial {plan.trial_id} could not create Docker network {name} on slot "
-            f"{slot.index} ({slot.subnet}): "
-            f"{result.stderr.strip() or result.stdout.strip()}")
-    return result.stdout.strip()
+            f"{slot.index} ({slot.subnet}): {error}") from error
 
 
 def _remove_trial_network(network_id: str) -> None:
     """Host-level on failure: an un-removed network is leaked host state, and its subnet is a
     slot the campaign can no longer use."""
-    result = subprocess.run(
-        ["docker", "network", "rm", network_id], capture_output=True, text=True, timeout=30)
-    if result.returncode != 0:
+    try:
+        remove_trial_network(network_id)
+    except TrialNetworkError as error:
         raise HostFaultError(
-            f"could not remove Docker network {network_id}: "
-            f"{result.stderr.strip() or result.stdout.strip()}")
+            f"could not remove Docker network {network_id}: {error}") from error
 
 
 def _read_outcome(
@@ -800,27 +855,49 @@ def _cortex_telemetry(outcome: TrialOutcome) -> Mapping[str, object] | None:
 
 
 def _dry_run_document(
-    config: CampaignConfig, plans: Sequence[TrialPlan],
+    config: CampaignConfig, resumes: Sequence[_Resume], preflight: _Preflight,
 ) -> dict[str, object]:
+    """What `run` would do with every trial root, decided by the same reads, writing nothing."""
     return {
-        "ok": True, "dry_run": True, "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
+        "ok": preflight.refusal is None, "dry_run": True,
+        "schema_version": CAMPAIGN_RESULT_SCHEMA_VERSION,
         "campaign": config.campaign, "paid": config.paid,
         "trials_dir": str(config.trials_dir),
         "concurrency": config.concurrency,
+        "preflight": preflight.report(),
         "slots": [
             {"slot": slot.index, "subnet": slot.subnet, "gateway": slot.gateway,
              "container_ip": slot.container_ip}
             for slot in (config.slot(index) for index in range(config.concurrency))
         ],
         "report_path": str(config.trials_dir / COMPARISON_REPORT_FILENAME),
-        "trials": [
-            {"trial_id": plan.trial_id, "arm": plan.arm_name,
-             "task_id": plan.task.task_id,
-             "state": "would-skip" if (config.trials_dir / plan.trial_id).exists()
-                      else "would-arm"}
-            for plan in plans
-        ],
+        "trials": [_dry_run_trial(config, resume, preflight) for resume in resumes],
     }
+
+
+def _dry_run_trial(
+    config: CampaignConfig, resume: _Resume, preflight: _Preflight,
+) -> dict[str, object]:
+    plan = resume.plan
+    record: dict[str, object] = {
+        "trial_id": plan.trial_id, "arm": plan.arm_name, "task_id": plan.task.task_id,
+    }
+    if resume.terminal is not None:
+        record["state"] = "would-skip"
+        record["outcome_state"] = resume.terminal.outcome_state
+        return record
+    if resume.incomplete is not None:
+        record["state"] = "would-move-aside-and-rearm"
+        record["reason"] = resume.incomplete
+    else:
+        record["state"] = "would-arm"
+    codex = None if preflight.codex_expires_at_ms is None else _CodexAccess(
+        preflight.codex_expires_at_ms, can_refresh=preflight.codex_can_refresh)
+    refusal = _codex_trial_refusal(config, plan, codex)
+    if refusal is not None:
+        # Asked again when the trial is reached; this is the answer if it were reached now.
+        record["codex_refusal_now"] = refusal
+    return record
 
 
 def _write_delivery_artifacts(

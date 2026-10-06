@@ -10,7 +10,7 @@
 # the sanitized, publishable projections are the campaign result and the result summary.
 #
 # It is a VIEW, never the source of truth. Resume decisions are made from the trial roots
-# themselves (`_partition`), because a root is the thing a trial actually produced; deleting this
+# themselves (`campaign._resume`), because a root is the thing a trial actually produced; deleting this
 # file loses observability and nothing else.
 
 import json

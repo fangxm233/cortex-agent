@@ -14,6 +14,7 @@ import pytest
 import yaml
 
 from cortex_bench_harness import campaign
+from cortex_bench_harness.launcher import codex_preflight
 from cortex_bench_harness.launcher.production_arms import require_production_arm
 from cortex_bench_harness.launcher.production_session import (
     SERVER_READY_TIMEOUT_SECONDS,
@@ -36,6 +37,8 @@ from cortex_bench_harness.launcher.capability_ceilings import load_capability_ce
 from cortex_bench_harness.launcher.comparison_report import (
     COMPARISON_REPORT_SCHEMA_VERSION,
 )
+from cortex_bench_harness.launcher.host_credential_vault import HOST_TOKEN_HOLDERS
+from cortex_bench_harness.trial_network import TrialNetworkError
 from cortex_bench_harness.launcher.trial_admission import build_harbor_trial_config
 from cortex_bench_harness.launcher.trial_proxy import (
     parse_trial_proxy_spec,
@@ -245,7 +248,7 @@ def required_codex_expiry_ms() -> int:
     return (
         CODEX_NOW_MS + 3 * campaign.NETWORK_CREATE_TIMEOUT_MS
         + SETUP_TIMEOUT_MS + 1_800_000 + TEARDOWN_GRACE_MS
-        + campaign.CODEX_CLOCK_SKEW_MARGIN_MS
+        + codex_preflight.CLOCK_SKEW_MARGIN_MS
     )
 
 
@@ -400,6 +403,10 @@ class RecordingTrial:
         return result
 
 
+async def run_inline(function, *arguments):
+    return function(*arguments)
+
+
 class RecordingTrialPath:
     """Stands in for `create_harbor_trial`, including its fresh-root reservation.
 
@@ -433,6 +440,9 @@ class RecordingTrialPath:
         monkeypatch.setattr(campaign, "create_harbor_trial", self._create)
         monkeypatch.setattr(campaign, "_create_trial_network", lambda *_: "network-fixture")
         monkeypatch.setattr(campaign, "_remove_trial_network", lambda *_: None)
+        # The fake network calls return at once, so they run inline: a thread hop per call would
+        # only make the recorded interleaving depend on thread timing.
+        monkeypatch.setattr(campaign, "_off_loop", run_inline)
         return self
 
     @property
@@ -902,6 +912,9 @@ def test_a_token_too_short_for_a_trial_refuses_that_trial_and_arms_no_route(
     assert [trial["state"] for trial in document["trials"]] == ["failed"] * 3
     assert all(
         "does not cover this trial" in str(trial["reason"]) for trial in document["trials"])
+    # Refused before anything was armed, so nothing can be missing from the spend total.
+    assert document["provider_requests"] == 0
+    assert document["provider_requests_complete"] is True
 
 
 def test_a_campaign_that_can_refresh_arms_a_trial_the_token_would_not_cover(
@@ -924,6 +937,36 @@ def test_a_campaign_that_can_refresh_arms_a_trial_the_token_would_not_cover(
 
     assert status == 0
     assert len(recorder.armed) == 3
+    # One host-side holder for the whole campaign, so a refresh token one trial rotated is the
+    # one the next trial presents; the handle is a name, and the campaign drops it at the end.
+    handles = {call["trial_proxy"]["oauth_token_holder"] for call in recorder.calls}
+    assert len(handles) == 1
+    (handle,) = handles
+    assert "refresh-token-value" not in handle
+    with pytest.raises(LookupError):
+        HOST_TOKEN_HOLDERS.get(handle)
+
+
+def test_a_refreshing_campaign_whose_host_holds_no_refresh_token_arms_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(CODEX_NOW_MS + 60_000))
+    monkeypatch.delenv("CORTEX_BENCH_TEST_REFRESH", raising=False)
+    document = codex_campaign_document(tmp_path)
+    document["proxy"] = {
+        **document["proxy"],
+        "refresh_credential_env": "CORTEX_BENCH_TEST_REFRESH",
+        "token_endpoint_url": "https://auth.openai.com/oauth/token",
+        "oauth_client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+    }
+
+    status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
+
+    assert status == 1
+    assert "CORTEX_BENCH_TEST_REFRESH" in failure_document(capsys)["error"]
+    assert recorder.calls == []
 
 
 def test_expired_codex_token_is_refused_before_native_refresh_or_route_arming(
@@ -969,7 +1012,9 @@ def test_codex_vendor_arm_must_name_the_exact_codex_capability_before_arming(
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
 
     assert status == 1
-    assert "exact codex-subscription capability" in failure_document(capsys)["error"]
+    error = failure_document(capsys)["error"]
+    assert "arm pure-codex cannot be admitted" in error
+    assert "differs from credential capability key" in error
     assert recorder.armed == []
 
 
@@ -983,7 +1028,9 @@ def test_vendor_pi_openai_codex_arm_must_name_the_exact_pi_capability_before_arm
     status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
 
     assert status == 1
-    assert "exact pi-openai-codex-oauth capability" in failure_document(capsys)["error"]
+    error = failure_document(capsys)["error"]
+    assert "arm pure-pi-codex cannot be admitted" in error
+    assert "differs from credential capability key" in error
     assert recorder.armed == []
 
 
@@ -1380,6 +1427,88 @@ def test_a_leaked_docker_network_stops_the_campaign_and_is_reported(
         "failed", "not-armed", "not-armed", "not-armed"]
 
 
+def test_a_network_docker_would_not_create_stops_the_campaign_with_nothing_armed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No network, no trial: nothing reached a provider, so the spend total is still whole."""
+    create_network = campaign._create_trial_network
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
+    monkeypatch.setattr(campaign, "_create_trial_network", create_network)
+    monkeypatch.setattr(
+        campaign, "create_trial_network",
+        lambda *_: (_ for _ in ()).throw(TrialNetworkError("Pool overlaps with other one")))
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1
+    assert result["state"] == "stopped-after-host-fault"
+    assert "Pool overlaps" in str(result["fault"])
+    assert recorder.armed == []
+    first = result["trials"][0]
+    assert first["state"] == "failed" and "metered_requests" not in first
+    assert result["provider_requests_complete"] is True, (
+        "a trial that never got a network was never armed and cannot leave a hole in the total")
+
+
+def test_a_driver_defect_on_one_trial_is_that_trials_failure_and_the_rest_still_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A worker that raised used to unwind the gather and cancel the trials still in flight."""
+    broken = "camp-01-task-one-cortex-b"
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
+    removals: list[str] = []
+    monkeypatch.setattr(campaign, "_remove_trial_network", removals.append)
+    read_outcome = campaign._read_outcome
+
+    def flaky_read(plan: object, *arguments: object, **keywords: object) -> object:
+        if plan.trial_id == broken and keywords.get("started_at") is not None:
+            raise KeyError("a field the reader did not expect")
+        return read_outcome(plan, *arguments, **keywords)
+
+    monkeypatch.setattr(campaign, "_read_outcome", flaky_read)
+    document = campaign_document(tmp_path, concurrency=2)
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 1
+    assert result["state"] == "completed"
+    states = {trial["trial_id"]: trial["state"] for trial in result["trials"]}
+    assert states.pop(broken) == "failed"
+    assert set(states.values()) == {"ran"}
+    reason = next(trial["reason"] for trial in result["trials"] if trial["trial_id"] == broken)
+    assert "failed in the campaign driver" in reason and "KeyError" in reason
+    assert len(recorder.armed) == 4
+    assert len(removals) == 4, "every network was removed, the broken trial's included"
+
+
+def test_docker_network_calls_run_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`docker network create` can block for its whole timeout; on the loop it would stall every
+    in-flight trial's proxy and lease for that long."""
+    import threading
+
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
+    monkeypatch.setattr(campaign, "_off_loop", asyncio.to_thread)
+    threads: list[tuple[str, bool]] = []
+
+    def create(config: object, plan: object, slot: object) -> str:
+        threads.append(("create", threading.current_thread() is threading.main_thread()))
+        return f"network-{plan.trial_id}"
+
+    def remove(network_id: str) -> None:
+        threads.append(("remove", threading.current_thread() is threading.main_thread()))
+
+    monkeypatch.setattr(campaign, "_create_trial_network", create)
+    monkeypatch.setattr(campaign, "_remove_trial_network", remove)
+
+    status, _, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0
+    assert threads == [("create", False), ("remove", False)] * 4
+
+
 def test_a_host_fault_still_publishes_the_report_of_what_did_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1596,16 +1725,19 @@ def test_re_running_a_finished_campaign_arms_nothing_and_is_idempotent(
 def test_an_envelope_from_another_trial_is_not_counted_as_this_one(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    RecordingTrialPath().install(monkeypatch)
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
     trials_dir = tmp_path / "trials"
+    trial_id = "camp-01-task-one-cortex-a"
     write_envelope(
-        trials_dir, "camp-01-task-one-cortex-a",
-        envelope_document("camp-01-task-two-cortex-b", "cortex-b", 1))
+        trials_dir, trial_id, envelope_document("camp-01-task-two-cortex-b", "cortex-b", 50))
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 1
-    assert "camp-01-task-one-cortex-a" in failure_document(capsys)["error"]
+    assert status == 0
+    assert trial_id in recorder.armed, "the foreign root was moved aside and the trial re-run"
+    moved = result["trials"][0]["moved_aside"]
+    assert "camp-01-task-two-cortex-b" in moved["reason"]
+    assert result["provider_requests"] == 4, "the foreign envelope's 50 requests are not counted"
 
 
 def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
@@ -1838,77 +1970,157 @@ def test_untrustworthy_security_evidence_never_exposes_a_score(
     assert "grader_admission" not in first
 
 
-def test_a_partial_outer_envelope_is_rejected_before_any_new_route_is_armed(
+@pytest.mark.parametrize("damage", ["no-publication", "type-confused-publication"])
+def test_a_partial_outer_envelope_is_moved_aside_before_any_route_is_armed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    damage: str,
 ) -> None:
-    recorder = RecordingTrialPath().install(monkeypatch)
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
     trials_dir = tmp_path / "trials"
     trial_id = "camp-01-task-one-cortex-a"
     partial = envelope_document(trial_id, "cortex-a", 1)
-    del partial["publication"]
+    if damage == "no-publication":
+        del partial["publication"]
+    else:
+        partial["publication"]["atomic"] = 1
+        partial["publication"]["post_publication_reread"] = 1
     write_envelope(trials_dir, trial_id, partial)
     write_result(trials_dir, trial_id)
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 1
-    assert "harness-incomplete" in failure_document(capsys)["error"]
-    assert recorder.armed == []
+    assert status == 0
+    assert "publication marker" in result["trials"][0]["moved_aside"]["reason"]
+    assert recorder.armed[0] == trial_id
+    assert result["trials"][0]["state"] == "ran"
 
 
-def test_a_type_confused_publication_marker_is_rejected_before_arming(
+def test_an_unfinished_root_is_moved_aside_never_deleted_and_only_its_trial_rearmed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    recorder = RecordingTrialPath().install(monkeypatch)
+    """The CLI promises a resumable campaign. A root a trial left harness-incomplete used to
+    refuse the whole re-run; it is now renamed out of the way -- it is the only record of what
+    that attempt metered -- and only that trial is armed again."""
     trials_dir = tmp_path / "trials"
-    trial_id = "camp-01-task-one-cortex-a"
-    partial = envelope_document(trial_id, "cortex-a", 1)
-    partial["publication"]["atomic"] = 1
-    partial["publication"]["post_publication_reread"] = 1
-    write_envelope(trials_dir, trial_id, partial)
-    write_result(trials_dir, trial_id)
-
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
-
-    assert status == 1
-    assert "publication marker" in failure_document(capsys)["error"]
-    assert recorder.armed == []
-
-
-def test_an_existing_trial_root_without_a_published_envelope_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    recorder = RecordingTrialPath().install(monkeypatch)
-    incomplete = tmp_path / "trials" / "camp-01-task-one-cortex-a"
+    publish_envelope(trials_dir, "camp-01-task-one-cortex-a", "cortex-a", 7)
+    incomplete = trials_dir / "camp-01-task-one-cortex-b"
     incomplete.mkdir(parents=True)
     (incomplete / "partial.log").write_text("half a trial", encoding="utf-8")
+    write_proxy_export(trials_dir, "camp-01-task-one-cortex-b", 5)
+    recorder = RecordingTrialPath(default_requests=1).install(monkeypatch)
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    error = failure_document(capsys)
-    assert status == 1
-    assert error["ok"] is False
-    assert "camp-01-task-one-cortex-a" in error["error"]
-    assert (incomplete / "partial.log").read_text(encoding="utf-8") == "half a trial"
-    assert recorder.armed == [], "the refusal comes before anything is armed or spent"
+    assert status == 0
+    assert recorder.armed == [
+        "camp-01-task-one-cortex-b", "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
+    ], "the terminal root is read, the unfinished one re-armed"
+    (moved,) = trials_dir.glob("camp-01-task-one-cortex-b.harness-incomplete-*")
+    assert (moved / "partial.log").read_text(encoding="utf-8") == "half a trial"
+    record = result["trials"][1]
+    assert record["state"] == "ran"
+    assert record["moved_aside"] == {
+        "path": str(moved), "reason": record["moved_aside"]["reason"], "metered_requests": 5,
+    }
+    assert "outer envelope" in record["moved_aside"]["reason"]
+    assert result["trials"][0]["state"] == "skipped"
 
 
-def test_every_unfinished_root_is_named_in_one_refusal(
+def test_a_trial_that_failed_mid_run_is_rearmed_by_the_next_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """At suite scale, learning which roots to move aside one campaign run at a time is its own
-    failure: the resume decision is made for every trial before any of them is armed."""
+    """The case the old refusal made unrecoverable: a trial raised, its envelope was withdrawn,
+    and every later re-run of the campaign was refused over that one root."""
+    config_path = write_campaign(tmp_path)
+    failed = "camp-01-task-two-cortex-a"
+    RecordingTrialPath(default_requests=1, failures=(failed,)).install(monkeypatch)
+    first_status, first, _ = run_cli(capsys, "run", "--config", str(config_path))
+
+    second_path = RecordingTrialPath(default_requests=1).install(monkeypatch)
+    second_status, second, _ = run_cli(capsys, "run", "--config", str(config_path))
+
+    assert (first_status, second_status) == (1, 0)
+    assert second_path.armed == [failed]
+    assert [trial["state"] for trial in second["trials"]] == [
+        "skipped", "skipped", "ran", "skipped"]
+    assert second["trials"][2]["moved_aside"]["path"].startswith(
+        str(tmp_path / "trials" / f"{failed}.harness-incomplete-"))
+
+
+def test_a_terminal_failure_is_read_on_rerun_and_never_rearmed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = write_campaign(tmp_path)
+    scored_zero = "camp-01-task-one-cortex-a"
+    RecordingTrialPath(results={scored_zero: RecordingResult(
+        exception_info=RuntimeError("verifier crashed"))}).install(monkeypatch)
+    run_cli(capsys, "run", "--config", str(config_path))
+
+    rerun = RecordingTrialPath().install(monkeypatch)
+    _, result, _ = run_cli(capsys, "run", "--config", str(config_path))
+
+    assert rerun.armed == []
+    assert result["trials"][0]["state"] == "failed"
+    assert "moved_aside" not in result["trials"][0]
+
+
+def test_a_dry_run_reports_what_the_real_run_would_do_with_each_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    trials_dir = tmp_path / "trials"
+    publish_envelope(trials_dir, "camp-01-task-one-cortex-a", "cortex-a", 7)
+    (trials_dir / "camp-01-task-one-cortex-b").mkdir(parents=True)
+    recorder = RecordingTrialPath().install(monkeypatch)
+    before = sorted(path.name for path in trials_dir.iterdir())
+
+    status, result, _ = run_cli(
+        capsys, "run", "--config", str(write_campaign(tmp_path)), "--dry-run")
+
+    assert status == 0
+    assert recorder.events == []
+    assert sorted(path.name for path in trials_dir.iterdir()) == before, "nothing was moved"
+    states = [trial["state"] for trial in result["trials"]]
+    assert states == ["would-skip", "would-move-aside-and-rearm", "would-arm", "would-arm"]
+    assert result["trials"][0]["outcome_state"] == "terminal-success"
+    assert "outer envelope" in result["trials"][1]["reason"]
+    assert result["preflight"] == {"status": "passed", "codex_trials": 0}
+
+
+def test_a_dry_run_runs_the_codex_preflight_and_reports_its_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The real run would refuse an expired token before arming anything; the dry run says so
+    instead of planning three trials that would never start."""
     RecordingTrialPath().install(monkeypatch)
-    unfinished = ["camp-01-task-one-cortex-b", "camp-01-task-two-cortex-a"]
-    for trial_id in unfinished:
-        (tmp_path / "trials" / trial_id).mkdir(parents=True)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(CODEX_NOW_MS - 1000))
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path))])
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path))), "--dry-run")
 
-    error = failure_document(capsys)
     assert status == 1
-    assert all(trial_id in error["error"] for trial_id in unfinished)
-    assert "2 trial root(s)" in error["error"]
+    assert result["ok"] is False
+    assert result["preflight"]["status"] == "refused"
+    assert "expired" in result["preflight"]["reason"]
+    assert result["preflight"]["codex_trials"] == 3
+
+
+def test_a_dry_run_names_a_codex_trial_the_current_token_would_not_cover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(CODEX_NOW_MS + 60_000))
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path))), "--dry-run")
+
+    assert status == 0
+    assert result["preflight"]["status"] == "passed"
+    assert result["preflight"]["codex_can_refresh"] is False
+    assert all(
+        "does not cover this trial" in trial["codex_refusal_now"]
+        for trial in result["trials"])
 
 
 # --- the comparison report ----------------------------------------------------------------------
@@ -2074,7 +2286,7 @@ def test_committed_vendor_shapes_persist_all_three_delivery_artifacts(
     source["campaign"] = f"delivery-{vendor_agent}"
     config_copy = write_campaign(tmp_path, source)
     RecordingTrialPath(default_requests=1).install(monkeypatch)
-    monkeypatch.setattr(campaign, "_codex_preflight", lambda *_: None)
+    monkeypatch.setattr(campaign, "_preflight", lambda *_: campaign._Preflight())
 
     status, result, stderr = run_cli(capsys, "run", "--config", str(config_copy))
 
