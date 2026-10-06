@@ -2,7 +2,7 @@
 // `NativeCommandMap` here, and the window capability. Tauri answers an unregistered or ungranted
 // command with a rejected promise that `safeInvoke` swallows, so drift only shows up as a dead
 // button on a device. This test parses all three and keeps them in step.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript-5';
 import { describe, expect, it } from 'vitest';
@@ -35,14 +35,6 @@ function bridgeCommands(): string[] {
   });
 }
 
-/** Commands the pre-SPA onboarding pages (desktop/ui) invoke directly, while those pages exist. */
-function onboardingCommands(): string[] {
-  const dir = path.join(DESKTOP, 'ui');
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((file) => file.endsWith('.js')).flatMap((file) =>
-    [...read(dir, file).matchAll(/invoke\(\s*'([a-z_]+)'/g)].map((match) => match[1]!));
-}
-
 function pluginDefaults(plugin: string): string[] {
   const toml = read(DESKTOP, `tauri-plugin-${plugin}`, 'permissions/default.toml');
   const list = /\[default\][\s\S]*?permissions\s*=\s*\[([^\]]*)\]/.exec(toml)?.[1] ?? '';
@@ -65,9 +57,8 @@ describe('native command contract', () => {
     expect(appCommands.filter((command) => !shell.includes(command))).toEqual([]);
   });
 
-  it('declares every registered app command in the SPA or the onboarding pages', () => {
-    const callers = new Set([...appCommands, ...onboardingCommands()]);
-    expect(shell.filter((command) => !callers.has(command))).toEqual([]);
+  it('declares every registered app command in the SPA', () => {
+    expect(shell.filter((command) => !appCommands.includes(command))).toEqual([]);
   });
 
   it('grants every plugin command the SPA declares', () => {
