@@ -130,7 +130,7 @@ export async function runCommissionStart(
     COMMISSION_START_PROTOCOL,
     draftLocationLine(body.dir),
     body.alreadyDrafting ? '(This session was already drafting; the directory above is unchanged.)' : null,
-    reasoning ? `(Reasoning recorded: ${reasoning})` : null,
+    reasoning ? `(Reasoning recorded in audit.jsonl of the draft directory: ${reasoning})` : null,
   ].filter(Boolean).join('\n\n'));
 }
 

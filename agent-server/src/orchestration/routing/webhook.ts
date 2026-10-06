@@ -14,7 +14,7 @@ import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
-import { enterCommissionDraft } from '@domain/commissions/commission-draft.js';
+import { enterCommissionDraft, recordCommissionStart } from '@domain/commissions/commission-draft.js';
 import { publishSessionCommission } from '../session-events.js';
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
 import { orchestrationBus } from '../runtime.js';
@@ -247,6 +247,11 @@ async function handleCommissionStart(data: any, res: Res): Promise<void> {
   try {
     const result = await enterCommissionDraft(sessionId);
     if (result.ok === false) { sendJson(res, 200, { error: result.error }); return; }
+    const reasoning = typeof data?.reasoning === 'string' ? data.reasoning.trim() : '';
+    if (reasoning) {
+      await recordCommissionStart(result.dir, { sessionId, reasoning })
+        .catch((e) => log.warn(`commission start: could not record the reasoning: ${(e as Error).message}`));
+    }
     if (!result.alreadyDrafting && typeof data?.channel === 'string' && data.channel) {
       publishSessionCommission({ sessionId, channel: data.channel });
     }

@@ -92,6 +92,20 @@ test('an ordinary session can put itself into the drafting phase', async () => {
   assert.deepEqual(events.at(-1), { type: 'session.commission', sessionId: s.sessionId, channel: s.channel, ts: events.at(-1)!.ts });
 });
 
+test('the reasoning for entering the mode is recorded in the draft directory', async () => {
+  const s = await liveSession();
+  const res = await drive({ sessionId: s.sessionId, channel: s.channel, reasoning: 'spans several days of migration work' });
+  const audit = fs.readFileSync(path.join(res.body.dir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].kind, 'start');
+  assert.equal(audit[0].sessionId, s.sessionId);
+  assert.equal(audit[0].reasoning, 'spans several days of migration work');
+
+  const quiet = await liveSession();
+  const none = await drive({ sessionId: quiet.sessionId, channel: quiet.channel });
+  assert.equal(fs.existsSync(path.join(none.body.dir, 'audit.jsonl')), false, 'nothing to record, nothing written');
+});
+
 test('calling it again is idempotent and publishes nothing new', async () => {
   const s = await liveSession();
   await drive({ sessionId: s.sessionId, channel: s.channel });

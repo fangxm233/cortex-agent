@@ -155,3 +155,20 @@ export async function leaveCommissionDraft(
     return { ok: true, removed: false };
   }
 }
+
+/** Append why a session entered commission mode to `audit.jsonl` in its draft directory. The file
+ *  moves with the directory when the contract lands, so the commission keeps the record of how it
+ *  began — the `reasoning` cortex_commission_start promises to record. */
+export async function recordCommissionStart(
+  dir: string,
+  entry: { sessionId: string; reasoning: string; at?: number },
+  deps: { append?: (file: string, line: string) => Promise<void> } = {},
+): Promise<void> {
+  const line = JSON.stringify({
+    v: 1, kind: 'start', ts: new Date(entry.at ?? Date.now()).toISOString(),
+    sessionId: entry.sessionId, reasoning: entry.reasoning,
+  });
+  await (deps.append ?? ((file: string, text: string) => fs.promises.appendFile(file, text, 'utf8')))(
+    path.join(dir, 'audit.jsonl'), `${line}\n`,
+  );
+}
