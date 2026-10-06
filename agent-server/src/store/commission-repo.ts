@@ -71,6 +71,15 @@ export class CommissionRepo {
     });
   }
 
+  /** Drop a record. Only finalize's rollback uses it: a commission that never got its session. */
+  async remove(id: string): Promise<boolean> {
+    return this._repo.mutate((data) => {
+      const before = data.commissions.length;
+      data.commissions = data.commissions.filter(c => c.id !== id);
+      return { next: data, result: data.commissions.length !== before };
+    });
+  }
+
   async update(id: string, fn: (record: CommissionRecord) => void): Promise<CommissionRecord | null> {
     return this._repo.mutate((data) => {
       const record = data.commissions.find(c => c.id === id);

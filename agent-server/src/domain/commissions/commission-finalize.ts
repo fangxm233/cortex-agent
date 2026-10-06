@@ -26,6 +26,7 @@ export interface CommissionFinalizeDeps {
   resolveRoot?: (projectId: string) => string | null;
   findBySlug?: (projectId: string, slug: string) => Promise<unknown | null>;
   addCommission?: (record: CommissionRecord) => Promise<void>;
+  removeCommission?: (id: string) => Promise<unknown>;
   bindSession?: (sessionId: string, commissionId: string) => Promise<unknown>;
   now?: () => number;
 }
@@ -96,9 +97,35 @@ async function scaffoldCommissionDir(dir: string): Promise<void> {
   await fsp.writeFile(path.join(dir, 'decisions.jsonl'), '', { flag: 'wx' }).catch(() => {});
 }
 
+/** Undo a finalize whose registration failed after the rename, so the session is back to drafting
+ *  in a directory that exists and the same submit can simply be retried. Returns what to tell the
+ *  agent about where things now stand. */
+async function rollBackFinalize(
+  step: { registeredId: string | null; draftDir: string; targetDir: string },
+  deps: CommissionFinalizeDeps,
+): Promise<string> {
+  if (step.registeredId) {
+    try {
+      await (deps.removeCommission ?? ((id: string) => commissionRepo.remove(id)))(step.registeredId);
+    } catch (e) {
+      // The record stays and points at targetDir, so leave the directory where it now matches it.
+      return `the half-registered commission ${step.registeredId} could not be withdrawn either (${(e as Error).message}); `
+        + `its directory is ${step.targetDir} — ask the user to join or close it from the commission board`;
+    }
+  }
+  try {
+    await fsp.rename(step.targetDir, step.draftDir);
+    return `the draft directory is back at ${step.draftDir}, so the same submit can be retried`;
+  } catch (e) {
+    return `the draft could not be moved back (${(e as Error).message}): its files are now in ${step.targetDir}; `
+      + `move them back to ${step.draftDir} before retrying`;
+  }
+}
+
 /** Land an approved commission: rename `_draft-*` → slug, register the record, bind the
- *  originating session, scaffold assets/ + decisions.jsonl. Registry/bind failures after the
- *  rename surface as exceptions (rare local-fs races) rather than half-rollbacks. */
+ *  originating session, scaffold assets/ + decisions.jsonl. A registry or bind failure after the
+ *  rename is rolled back (record withdrawn, directory renamed back) and reported, never thrown —
+ *  the agent has to be able to retry from the state it is told about. */
 export async function finalizeCommission(
   args: CommissionFinalizeArgs,
   deps: CommissionFinalizeDeps = {},
@@ -109,15 +136,22 @@ export async function finalizeCommission(
   try {
     await fsp.rename(draftDir, targetDir);
   } catch (e) {
-    return fail(`failed to move draft into place: ${(e as Error).message}`);
+    return fail(`failed to move draft into place: ${(e as Error).message}; the draft directory is unchanged`);
   }
-  await scaffoldCommissionDir(targetDir);
   const now = (deps.now ?? Date.now)();
   const id = newCommissionId();
   const title = (args.title ?? args.name).trim() || args.name;
-  await (deps.addCommission ?? ((r: CommissionRecord) => commissionRepo.add(r)))({
-    id, projectId, slug, title, status: 'active', createdAt: now, updatedAt: now,
-  });
-  await (deps.bindSession ?? ((s: string, c: string) => sessionStore.bindCommission(s, c)))(args.sessionId!, id);
+  let registeredId: string | null = null;
+  try {
+    await (deps.addCommission ?? ((r: CommissionRecord) => commissionRepo.add(r)))({
+      id, projectId, slug, title, status: 'active', createdAt: now, updatedAt: now,
+    });
+    registeredId = id;
+    await (deps.bindSession ?? ((s: string, c: string) => sessionStore.bindCommission(s, c)))(args.sessionId!, id);
+  } catch (e) {
+    const where = await rollBackFinalize({ registeredId, draftDir, targetDir }, deps);
+    return fail(`registering the commission failed (${(e as Error).message}); ${where}`);
+  }
+  await scaffoldCommissionDir(targetDir);
   return { ok: true, commissionId: id, projectId, slug, dir: targetDir };
 }

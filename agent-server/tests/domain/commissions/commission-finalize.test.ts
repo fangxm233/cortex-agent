@@ -151,3 +151,55 @@ test('refuses a contract from another session\'s draft directory', async () => {
   if (result.ok) return;
   assert.match(result.error, /this session drafts in _draft-cortex-other/);
 });
+
+// --- a registration failure after the rename -----------------------------------------------------
+
+test('a failed registration puts the draft back so the same submit can be retried', async () => {
+  const h = await harness();
+  let fail = true;
+  const deps: CommissionFinalizeDeps = {
+    ...h.deps,
+    addCommission: async (r) => { if (fail) throw new Error('registry write failed'); h.added.push(r); },
+  };
+  const args = { sessionId: 'sess-1', name: 'Ship It', contractPath: h.contractPath };
+
+  const first = await finalizeCommission(args, deps);
+  assert.equal(first.ok, false);
+  assert.match((first as any).error, /registry write failed/);
+  assert.match((first as any).error, /back at .*_draft-cortex-abc.*retried/);
+  assert.ok(fs.existsSync(h.contractPath), 'the draft is where the session expects it');
+  assert.ok(!fs.existsSync(path.join(h.root, 'ship-it')));
+  assert.deepEqual(h.bound, []);
+
+  fail = false;
+  const second = await finalizeCommission(args, deps);
+  assert.ok(second.ok, JSON.stringify(second));
+});
+
+test('a failed bind withdraws the record it just added before putting the draft back', async () => {
+  const h = await harness();
+  const removed: string[] = [];
+  const deps: CommissionFinalizeDeps = {
+    ...h.deps,
+    bindSession: async () => { throw new Error('session store busy'); },
+    removeCommission: async (id) => { removed.push(id); },
+  };
+  const result = await finalizeCommission({ sessionId: 'sess-1', name: 'Ship It', contractPath: h.contractPath }, deps);
+  assert.equal(result.ok, false);
+  assert.match((result as any).error, /session store busy/);
+  assert.deepEqual(removed, [h.added[0].id], 'no half-registered commission is left behind');
+  assert.ok(fs.existsSync(h.contractPath));
+});
+
+test('a rollback that cannot withdraw the record says where the commission now lives', async () => {
+  const h = await harness();
+  const deps: CommissionFinalizeDeps = {
+    ...h.deps,
+    bindSession: async () => { throw new Error('session store busy'); },
+    removeCommission: async () => { throw new Error('registry gone'); },
+  };
+  const result = await finalizeCommission({ sessionId: 'sess-1', name: 'Ship It', contractPath: h.contractPath }, deps);
+  assert.equal(result.ok, false);
+  assert.match((result as any).error, /could not be withdrawn.*ship-it.*commission board/);
+  assert.ok(fs.existsSync(path.join(h.root, 'ship-it', 'contract.md')), 'left where the record points');
+});

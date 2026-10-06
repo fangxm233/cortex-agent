@@ -32,12 +32,19 @@ test('resolves identity and directory for an active commission, without carrying
 
 test('a drafting session resolves to its draft directory, with no contract or ledger yet', async () => {
   const { loadCommissionDraftContext } = await import('../../../src/domain/commissions/commission-context.js');
+  const present = { resolveRoot: () => '/ctx/proj/commissions', exists: () => true };
   assert.deepEqual(
-    loadCommissionDraftContext('proj', '_draft-cortex-4c80d3', { resolveRoot: () => '/ctx/proj/commissions' }),
+    loadCommissionDraftContext('proj', '_draft-cortex-4c80d3', present),
     { phase: 'draft', dir: '/ctx/proj/commissions/_draft-cortex-4c80d3' },
   );
   // A project with no context directory cannot hold a commission — inject nothing rather than throw.
   assert.equal(loadCommissionDraftContext('proj', '_draft-x', { resolveRoot: () => null }), null);
+  // A draft directory that has gone (a finalize that renamed it and then failed) is not offered to
+  // the agent as a place to write.
+  assert.equal(
+    loadCommissionDraftContext('proj', '_draft-x', { resolveRoot: () => '/ctx/proj/commissions', exists: () => false }),
+    null,
+  );
 });
 
 test('a missing or empty ledger is reported as absent, not fatal', async () => {

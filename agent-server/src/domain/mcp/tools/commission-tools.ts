@@ -158,7 +158,7 @@ function formatOutcome(body: any): CallToolResultShape {
   }
   const fin = body?.commission;
   if (!fin?.ok) {
-    return errorResult(`Contract approved, but commission finalize failed: ${fin?.error ?? 'unknown error'}. The draft directory is unchanged — fix the issue and call the tool again (the user will be asked again).`);
+    return errorResult(`Contract approved, but commission finalize failed: ${fin?.error ?? 'unknown error'}. Once the draft is in place, call the tool again (the user will be asked again).`);
   }
   return okResult(`Contract approved. Commission "${fin.slug}" (${fin.commissionId}) is registered and this session is bound to it.${reason}\n`
     + `Commission directory: ${fin.dir}\n\n`

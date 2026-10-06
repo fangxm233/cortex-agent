@@ -288,7 +288,10 @@ async function approvePlan(data: any, res: Res): Promise<void> {
   const resolvedPlan = resolvePlanContent(sessionId, planContent);
   const result = await registerPlanApproval(crypto.randomUUID(), channel, sessionId, resolvedPlan, toolInput || {}, dryRun === true);
   const approved = (result as { approved?: boolean } | undefined)?.approved === true;
-  const finalized = commissionArgs && approved ? await finalizeCommission(commissionArgs) : null;
+  // A finalize that throws must still answer the agent with something it can act on, not a 500.
+  const finalized = commissionArgs && approved
+    ? await finalizeCommission(commissionArgs).catch((e: Error) => ({ ok: false as const, error: e.message }))
+    : null;
   if (finalized && finalized.ok === true) {
     orchestrationBus()?.publish({ type: 'commission.updated', commissionId: finalized.commissionId, projectId: finalized.projectId });
   }

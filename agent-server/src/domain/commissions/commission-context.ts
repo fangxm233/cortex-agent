@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { commissionRepo } from '@store/commission-repo.js';
@@ -67,13 +68,16 @@ export async function loadCommissionPromptContext(
 }
 
 /** Locate the draft directory the server created at session-creation time. Best-effort like its
- *  sibling: a draft whose directory has gone missing injects nothing rather than failing the turn. */
+ *  sibling: a draft whose directory has gone missing injects nothing rather than pointing the agent
+ *  at a path it cannot write to. */
 export function loadCommissionDraftContext(
   projectId: string,
   draftDir: string,
-  deps: { resolveRoot?: (projectId: string) => string | null } = {},
+  deps: { resolveRoot?: (projectId: string) => string | null; exists?: (dir: string) => boolean } = {},
 ): DraftCommissionContext | null {
   const root = (deps.resolveRoot ?? commissionsRoot)(projectId);
   if (!root) return null;
-  return { phase: 'draft', dir: path.join(root, draftDir) };
+  const dir = path.join(root, draftDir);
+  if (!(deps.exists ?? fs.existsSync)(dir)) return null;
+  return { phase: 'draft', dir };
 }
