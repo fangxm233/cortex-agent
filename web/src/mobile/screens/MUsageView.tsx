@@ -104,7 +104,7 @@ function saveThreshold(props: PolicyThresholdButtonsProps): void {
 function PolicySaveButton(props: PolicyThresholdButtonsProps) {
   return (
     <MButton
-      compact variant="accent" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)}
+      compact variant="accent-outline" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)}
       disabled={props.saveDisabled} onClick={() => saveThreshold(props)}
     >
       {props.pending ? props.L.usagePolicySaving : props.L.usagePolicySave}

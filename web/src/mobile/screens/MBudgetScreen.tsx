@@ -39,7 +39,7 @@ function BudgetLimitsEditor(props: {
       onChange={(event) => setDaily(event.target.value)} />
     <MSettingsField label={L.stMonthly} inputMode="decimal" value={monthly}
       onChange={(event) => setMonthly(event.target.value)} />
-    <MButton compact variant="accent" disabled={!value || clean || props.pending}
+    <MButton compact variant="accent-outline" disabled={!value || clean || props.pending}
       onClick={() => { if (value) props.onSave(value); }}>{L.stApply}</MButton>
   </div>;
 }

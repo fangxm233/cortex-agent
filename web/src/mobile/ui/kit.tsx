@@ -354,16 +354,18 @@ export function MCard({
 }
 
 // ── MButton — the 44px action key ──────────────────────────────────────────────────────────────
-// Filled (`accent`, `ink`) for the one decision a card asks for, outlined for the rest. `compact`
-// is for actions that sit inside a row: chip corners and tighter padding, same touch height.
-export type MButtonVariant = 'accent' | 'ink' | 'outline' | 'danger-outline';
+// Filled (`accent`, `ink`) for the one decision a card asks for, outlined for the rest; settings
+// actions take the accent outline. `compact` is for actions that sit inside a row: chip corners
+// and tighter padding, same touch height.
+export type MButtonVariant = 'accent' | 'ink' | 'outline' | 'accent-outline' | 'danger-outline';
 const M_BUTTON_TONE: Record<MButtonVariant, { bg: string; fg: string; line?: string }> = {
   accent: { bg: MC.run, fg: 'var(--ink-solid-fg)' },
   ink: { bg: MC.inkSolid, fg: MC.inkSolidFg },
   outline: { bg: 'var(--material-control-bg)', fg: MC.ink, line: 'var(--proto-line-3)' },
+  'accent-outline': { bg: 'var(--material-control-bg)', fg: MC.run, line: MC.run },
   'danger-outline': { bg: 'var(--material-control-bg)', fg: 'var(--proto-danger)', line: 'var(--proto-danger-bg)' },
 };
-const M_BUTTON_FULL = { padding: '0 16px', fontSize: 14, borderRadius: 'var(--r-control)', lineWidth: 1.5 };
+const M_BUTTON_FULL = { padding: '0 8px', fontSize: 14, borderRadius: 'var(--r-control)', lineWidth: 1.5 };
 const M_BUTTON_COMPACT = { padding: '0 12px', fontSize: 13, borderRadius: 'var(--r-chip)', lineWidth: 1 };
 export interface MButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: MButtonVariant;

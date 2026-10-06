@@ -50,7 +50,7 @@ function MProfileChoice(props: {
           label={props.label} value={props.value} hint={props.hint} error={props.error}
           onChange={(event) => props.onValueChange(event.target.value)} />
       </div>
-      {props.options.length > 0 && <MButton compact onClick={() => props.onCustom(false)}>
+      {props.options.length > 0 && <MButton compact variant="accent-outline" onClick={() => props.onCustom(false)}>
         {L.pfPickFromList}</MButton>}
     </div>;
   }
@@ -73,9 +73,9 @@ function ProfileRow(props: {
   const sub = [props.profile.model, props.profile.backend, props.profile.thinking].filter(Boolean).join(' · ');
   return <MSettingsRow stacked title={props.profile.name} sub={sub} trailing={
     <div className="mobile-settings-actions" data-profile-actions={props.profile.name}>
-      {!props.current && <MButton compact disabled={props.defaultPending} onClick={props.onDefault}>{L.default}</MButton>}
-      <MButton compact disabled={props.editPending} onClick={props.onEdit}>{L.pfEdit}</MButton>
-      <MButton compact disabled={props.editPending} onClick={props.onDuplicate}>{L.pfDuplicate}</MButton>
+      {!props.current && <MButton compact variant="accent-outline" disabled={props.defaultPending} onClick={props.onDefault}>{L.default}</MButton>}
+      <MButton compact variant="accent-outline" disabled={props.editPending} onClick={props.onEdit}>{L.pfEdit}</MButton>
+      <MButton compact variant="accent-outline" disabled={props.editPending} onClick={props.onDuplicate}>{L.pfDuplicate}</MButton>
       <MButton compact variant="danger-outline" disabled={props.current || props.removePending} onClick={props.onDelete}>{L.pfDelete}</MButton>
     </div>} />;
 }
@@ -99,7 +99,7 @@ function ExtraOptions(props: {
       <MButton compact variant="danger-outline" onClick={() => props.onChange({ ...props.draft,
         extraOption: props.draft.extraOption.filter((_, rowIndex) => rowIndex !== index) })}>×</MButton>
     </div>)}
-    <MButton compact onClick={() => props.onChange({ ...props.draft,
+    <MButton compact variant="accent-outline" onClick={() => props.onChange({ ...props.draft,
       extraOption: [...props.draft.extraOption, { key: '', value: '' }] })}>{L.pfAddOption}</MButton>
     <MSettingsFeedback error={props.error} />
   </div>;
@@ -177,8 +177,8 @@ export function MProfileEditor(props: {
       catalogPending={props.catalogPending} onChange={props.onChange}
       onBackendChange={props.onBackendChange} onProviderChange={props.onProviderChange} />
     <div className="mobile-settings-actions" style={{ padding: '0 13px 13px' }}>
-      <MButton compact onClick={props.onCancel}>{L.cancel}</MButton>
-      <MButton compact variant="accent" disabled={!isProfileFormValid(props.errors) || props.pending} onClick={props.onSave}>{L.pfSave}</MButton>
+      <MButton compact variant="accent-outline" onClick={props.onCancel}>{L.cancel}</MButton>
+      <MButton compact variant="accent-outline" disabled={!isProfileFormValid(props.errors) || props.pending} onClick={props.onSave}>{L.pfSave}</MButton>
     </div>
   </MSettingsCard>;
 }
@@ -194,7 +194,7 @@ export function MProfilesView(props: { controller: ProfilesController; onBack: (
     mode: profiles.creating ? 'create' as const : 'update' as const, draft: profiles.draft,
   } : null;
   return <MSettingsPage title={L.stNavProfiles} onBack={props.onBack}
-    trailing={<MButton compact onClick={profiles.openCreate}>{L.pfNew}</MButton>}>
+    trailing={<MButton compact variant="accent-outline" onClick={profiles.openCreate}>{L.pfNew}</MButton>}>
     {editor && <MProfileEditor
       // A fresh editor per target: the "typed, not picked" flags belong to one editing session.
       key={profiles.creating ? 'create' : profiles.editingName ?? 'none'}

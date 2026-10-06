@@ -41,7 +41,7 @@ function ActionButton({ children, target, action, disabled, onClick }: {
 }) {
   return (
     <MButton
-      compact variant={action === 'logout' ? 'danger-outline' : 'outline'}
+      compact variant={action === 'logout' ? 'danger-outline' : 'accent-outline'}
       data-auth-action={action} data-backend={target.backend}
       data-provider={target.provider} data-auth-type={target.authType}
       disabled={disabled} onClick={() => onClick(target)}
