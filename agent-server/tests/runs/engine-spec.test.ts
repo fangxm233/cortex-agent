@@ -71,7 +71,7 @@ const cases: Case[] = [
       flags: {
         disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
         streamDeltas: undefined, captureTranscripts: undefined,
-        preserveUnreportedAccounting: undefined, isUserInitiated: false,
+        isUserInitiated: false,
       },
       context: { channel: 'general', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
@@ -120,7 +120,7 @@ const cases: Case[] = [
       flags: {
         disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
         streamDeltas: undefined, captureTranscripts: undefined,
-        preserveUnreportedAccounting: undefined, isUserInitiated: false,
+        isUserInitiated: false,
       },
       context: { channel: 'pi-channel', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
@@ -144,7 +144,6 @@ const cases: Case[] = [
       disableHooks: true,
       streamDeltas: false,
       captureTranscriptLogs: false,
-      preserveUnreportedAccounting: true,
       cliPath: '/fixture/bin/claude',
     },
     config: FIXTURE_CONFIG,
@@ -177,7 +176,7 @@ const cases: Case[] = [
       flags: {
         disableHooks: true, disableSkills: undefined, settingSources: undefined,
         streamDeltas: false, captureTranscripts: false,
-        preserveUnreportedAccounting: true, isUserInitiated: false,
+        isUserInitiated: false,
       },
       context: { channel: 'subagent-channel', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
@@ -243,7 +242,7 @@ const cases: Case[] = [
       flags: {
         disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
         streamDeltas: undefined, captureTranscripts: undefined,
-        preserveUnreportedAccounting: undefined, isUserInitiated: true,
+        isUserInitiated: true,
       },
       context: { channel: 'web:browser-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
       extraOption: { foo: 'bar' },

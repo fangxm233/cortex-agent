@@ -40,7 +40,6 @@ export interface EngineSpecFixtureInput {
   disableHooks?: boolean;
   streamDeltas?: boolean;
   captureTranscriptLogs?: boolean;
-  preserveUnreportedAccounting?: boolean;
   isUserInitiated?: boolean;
   channel?: string;
   callbackSource?: string;
@@ -109,7 +108,6 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
       disableHooks: partial.disableHooks,
       streamDeltas: partial.streamDeltas,
       captureTranscripts: partial.captureTranscriptLogs,
-      preserveUnreportedAccounting: partial.preserveUnreportedAccounting,
       isUserInitiated: partial.isUserInitiated ?? false,
     },
     context: {

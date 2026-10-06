@@ -277,13 +277,11 @@ export interface ClaudeTestEngine {
 /**
  * The shared seam the three Claude run-phase suites drive. It goes through the pool fixture
  * (`claudePool`) rather than `new SessionEngines`; the adapter spawns a passive fake child, so the
- * test owns the stream line by line. `preserveUnreportedAccounting` is the one engine-spec flag the
- * run-phase tests vary (the CLI's one-shot accounting contract).
+ * test owns the stream line by line.
  */
 export function openClaudeTestEngine(
   opts: {
     model?: string | null;
-    preserveUnreportedAccounting?: boolean;
     onRateLimit?: (info: RateLimitObservation) => void | Promise<void>;
   } = {},
 ): ClaudeTestEngine {
@@ -300,7 +298,6 @@ export function openClaudeTestEngine(
     resume: false,
     captureTranscriptLogs: false,
     model: opts.model ?? undefined,
-    preserveUnreportedAccounting: opts.preserveUnreportedAccounting === true,
     processSpawner: (() => ({ process: fakeClaudeChild() })) as any,
   });
   const engine = pool.open(spec);

@@ -117,7 +117,6 @@ export function pushDerivedTurnEvents(
   push: (event: NormalizedEvent) => void,
   result: AgentResult,
   accountingSource: ClaudeTurnAccountingSource,
-  preserveUnreportedAccounting: boolean,
 ): void {
   // Derived events, in order, before the terminating turn_complete.
   if (result.planFilePath) {
@@ -132,39 +131,29 @@ export function pushDerivedTurnEvents(
     push({ type: 'rate_limit', raw: { message: result.rateLimitMessage } });
   }
   // Emit cost_record from the resolved turn, not mutable session accounting.
-  const preserveReportedness = preserveUnreportedAccounting;
   const accounting = result.reportedAccounting;
-  const hasReportableAccounting = preserveReportedness
-    ? result.costReported === true || accounting?.usageReported === true
-    : result.total_cost_usd != null || accountingSource.lastTokenUsage !== null;
-  if (hasReportableAccounting) {
+  if (result.total_cost_usd != null || accountingSource.lastTokenUsage !== null) {
     const legacyUsage = accountingSource.lastTokenUsage;
     const exactPrompt = promptAccounting(legacyUsage);
     push({
       type: 'cost_record', provider: 'anthropic',
-      model: (preserveReportedness ? accounting?.model : accountingSource.lastModelName)
-        || accountingSource.modelName || 'unknown',
-      tokens_in: preserveReportedness
-        ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
-      tokens_out: preserveReportedness
-        ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
-      prompt_tokens: preserveReportedness
-        ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
-      cached_tokens: preserveReportedness
-        ? accounting?.cachedTokens ?? null : exactPrompt.cachedTokens,
+      model: accountingSource.lastModelName || accountingSource.modelName || 'unknown',
+      tokens_in: exactPrompt.promptTokens,
+      tokens_out: legacyUsage?.output ?? 0,
+      prompt_tokens: exactPrompt.promptTokens,
+      cached_tokens: exactPrompt.cachedTokens,
       input_tokens: accounting?.inputTokens ?? null,
       output_tokens: accounting?.outputTokens ?? null,
       cache_read_tokens: accounting?.cacheReadTokens ?? null,
       cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
       provider_requests: Number.isSafeInteger(result.num_turns)
         && Number(result.num_turns) > 0 ? result.num_turns : null,
-      cost_usd: preserveReportedness && result.costReported !== true
-        ? null : result.total_cost_usd ?? null,
+      cost_usd: result.total_cost_usd ?? null,
     });
   }
   push({
     type: 'turn_complete',
-    numTurns: preserveReportedness ? result.num_turns : result.num_turns ?? 0,
+    numTurns: result.num_turns ?? 0,
     totalCostUsd: result.total_cost_usd ?? null,
   });
 }

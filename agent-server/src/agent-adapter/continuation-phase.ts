@@ -58,12 +58,8 @@ export interface ContinuationPhasePort {
 export function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentResult {
   const bothCostNull = acc.total_cost_usd == null && cont.total_cost_usd == null;
   const bothTurnsNull = acc.num_turns == null && cont.num_turns == null;
-  const costReported = acc.costReported === undefined && cont.costReported === undefined
-    ? undefined
-    : acc.costReported === true || cont.costReported === true;
   return {
     ...acc,
-    costReported,
     total_cost_usd: bothCostNull ? null : (acc.total_cost_usd ?? 0) + (cont.total_cost_usd ?? 0),
     num_turns: bothTurnsNull ? null : (acc.num_turns ?? 0) + (cont.num_turns ?? 0),
     finalOutput: cont.finalOutput || acc.finalOutput,
@@ -77,7 +73,7 @@ export function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentRes
 /** The `cost_record` a continuation turn reports, or null when it reported no accounting. */
 function continuationCostRecord(result: AgentResult): RunEvent | null {
   const accounting = result.reportedAccounting;
-  if (result.costReported !== true && accounting?.usageReported !== true) return null;
+  if (accounting?.usageReported !== true) return null;
   return {
     type: 'cost_record', provider: 'anthropic', model: accounting?.model ?? 'unknown',
     tokens_in: accounting?.promptTokens ?? null,
@@ -90,7 +86,7 @@ function continuationCostRecord(result: AgentResult): RunEvent | null {
     cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
     provider_requests: Number.isSafeInteger(result.num_turns)
       && Number(result.num_turns) > 0 ? result.num_turns : null,
-    cost_usd: result.costReported === false ? null : result.total_cost_usd,
+    cost_usd: result.total_cost_usd,
   };
 }
 

@@ -143,14 +143,6 @@ export function runRequestFixture(
       browserCdpEndpoint: partial.browserCdpEndpoint ?? null,
       captureTranscripts: partial.captureTranscriptLogs as boolean,
     },
-    ...(partial.preserveUnreportedAccounting !== undefined
-      ? {
-        benchmark: {
-          evidenceContext: null, identityDirective: '',
-          preserveUnreportedAccounting: partial.preserveUnreportedAccounting,
-        },
-      }
-      : {}),
     isolation: {
       spawner: partial.processSpawner,
       cliPath: partial.cliPath,

@@ -208,7 +208,6 @@ function makeRequest(
   request.benchmark = {
     evidenceContext: opts.evidenceContext,
     identityDirective: opts.identityDirective ?? 'Act as the resolved role.',
-    preserveUnreportedAccounting: false,
   };
   request.policy.background = 'none';
   return request;

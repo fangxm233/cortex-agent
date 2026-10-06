@@ -71,7 +71,6 @@ export interface RunRequest {
   benchmark?: {
     evidenceContext: ProductionBenchmarkEvidenceContext | null;
     identityDirective: string;
-    preserveUnreportedAccounting: boolean;
   };
   /**
    * How this run reaches its backend, when that is not simply "the installed CLI, this env".

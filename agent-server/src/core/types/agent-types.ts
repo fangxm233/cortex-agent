@@ -152,8 +152,6 @@ export interface ReportedAccountingSnapshot {
 export interface AgentResult {
   sessionId: string | null;
   total_cost_usd: number | null;
-  /** Present only when a provenance-sensitive caller needs reported zero distinguished from absent cost. */
-  costReported?: boolean;
   /** Immutable result-event accounting used by provenance-sensitive event serialization. */
   reportedAccounting?: ReportedAccountingSnapshot;
   num_turns: number | null;

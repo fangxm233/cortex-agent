@@ -175,7 +175,6 @@ function runAttempt(
     benchmark: {
       evidenceContext: input.context ?? null,
       identityDirective: 'Resolved directive',
-      preserveUnreportedAccounting: false,
     },
   };
   const handle = startAttempt({

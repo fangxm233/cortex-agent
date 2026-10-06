@@ -123,7 +123,7 @@ test('undelivered-only completions hold the status waiting and subscribe to the 
   // The (late) notification arrives and the continuation turn completes.
   h.result(baseResult({
     pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0,
-    total_cost_usd: 0.01, costReported: true, num_turns: 1,
+    total_cost_usd: 0.01, num_turns: 1,
     reportedAccounting: {
       usageReported: true, inputTokens: 0, outputTokens: 2,
       cacheReadTokens: 0, cacheCreationTokens: 3,

@@ -183,9 +183,7 @@ export class ClaudeEngineSession implements EngineSession {
         attachments: prompt.attachments,
         ...claudeTurnCallbacks(push),
       });
-      pushDerivedTurnEvents(
-        push, base, this.session, this.spec.flags.preserveUnreportedAccounting === true,
-      );
+      pushDerivedTurnEvents(push, base, this.session);
     } catch (err: any) {
       // Same suppression as `spawn().send()`: a cancelled turn is not an error worth surfacing.
       if (!err?.cancelled) {

@@ -396,6 +396,5 @@ function attachBenchmarkEvidence(request: RunRequest): void {
   request.benchmark = {
     evidenceContext,
     identityDirective: request.spec.directive ? resolveSystemVars(request.spec.directive) : '',
-    preserveUnreportedAccounting: false,
   };
 }

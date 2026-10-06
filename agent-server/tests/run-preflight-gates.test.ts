@@ -85,7 +85,7 @@ test('evidence-enabled preflight rate limit creates no attempt evidence and keep
           cli_version: 'claude-fixture-1', max_output_tokens: null,
         },
       },
-      identityDirective: '', preserveUnreportedAccounting: false,
+      identityDirective: '',
     },
   }), []);
 

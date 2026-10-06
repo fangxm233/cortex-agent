@@ -97,7 +97,6 @@ interface ClaudeSessionOptions {
   settingSources?: string[];
   streamDeltas?: boolean;
   captureTranscriptLogs?: boolean;
-  preserveUnreportedAccounting?: boolean;
   processSpawner?: AgentProcessSpawner;
   /** Optional absolute Claude CLI path. */
   cliPath?: string;
@@ -287,7 +286,6 @@ class ClaudeSession implements TurnHost {
   private settingSources: string[] | undefined;
   private streamDeltas: boolean | undefined;
   captureTranscriptLogs!: boolean;
-  preserveUnreportedAccounting!: boolean;
   private processSpawner!: AgentProcessSpawner | undefined;
   private cliPath!: string | undefined;
   private pinnedEnv!: NodeJS.ProcessEnv | undefined;
@@ -351,7 +349,6 @@ class ClaudeSession implements TurnHost {
 
   private initializeExecutionOptions(options: ClaudeSessionOptions): void {
     this.captureTranscriptLogs = options.captureTranscriptLogs !== false;
-    this.preserveUnreportedAccounting = options.preserveUnreportedAccounting === true;
     this.processSpawner = options.processSpawner;
     this.cliPath = options.cliPath;
     this.pinnedEnv = options.pinnedEnv;
@@ -730,7 +727,6 @@ function sessionRuntimeOptions(
     settingSources: spec.flags.settingSources,
     streamDeltas: spec.flags.streamDeltas,
     captureTranscriptLogs: spec.flags.captureTranscripts,
-    preserveUnreportedAccounting: spec.flags.preserveUnreportedAccounting,
     processSpawner: spec.process.spawner,
     cliPath: spec.process.cliPath,
     pinnedEnv: spec.env.pinned,
@@ -914,7 +910,6 @@ function makeSessionForTest(
   turns.streamDeltaState = createStreamDeltaState();
   turns.contextUsageTracker = new ClaudeContextUsageTracker(modelName, autoCompactWindow);
   turns.backgroundTurnSink = null;
-  turns.pendingContinuationDeliveries = [];
   turns.pendingInjections = [];
   turns.injectionAck = null;
   turns.injectionContinuationArmed = false;
@@ -922,7 +917,6 @@ function makeSessionForTest(
   s.idleTimer = null;
   s.turnIdleTimer = null;
   turns.cumulativeCostUsd = 0;
-  s.preserveUnreportedAccounting = false;
   turns.lastTokenUsage = null;
   turns.lastModelName = null;
   s.alive = true;

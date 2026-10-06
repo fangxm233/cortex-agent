@@ -161,7 +161,6 @@ function makeRequest(
   request.benchmark = {
     evidenceContext: opts.evidenceContext === undefined ? activeEvidence : opts.evidenceContext,
     identityDirective: 'Directive for the session',
-    preserveUnreportedAccounting: false,
   };
   request.policy.background = 'none';
   return request;

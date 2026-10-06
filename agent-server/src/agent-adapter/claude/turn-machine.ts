@@ -184,7 +184,6 @@ export interface TurnHost {
   readonly sessionId: string;
   readonly channel: string;
   readonly captureTranscriptLogs: boolean;
-  readonly preserveUnreportedAccounting: boolean;
   readonly anthropicBaseUrl: string | undefined;
   /** Hand a provider rate-limit window to whoever owns throttle policy. Deliberately NOT a turn
    *  event: the CLI emits `rate_limit_event` with no turn in flight (between turns, and during a
@@ -214,8 +213,6 @@ export class ClaudeTurnMachine {
   bgTracker = new BgTaskTracker();
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
   backgroundTurnSink: BackgroundTurnSink | null = null;
-  /** One-shot events that arrived before completion-only waiting installed its sink. */
-  private pendingContinuationDeliveries: ContinuationDelivery[] = [];
   /** Messages injected into an in-flight turn that the CLI has not echoed back yet, in write
    *  order. Each is popped by its `--replay-user-messages` echo (the delivery ack). */
   private pendingInjections: { prompt: string; text: string }[] = [];
@@ -308,10 +305,7 @@ export class ClaudeTurnMachine {
 
   private deliverContinuation(delivery: ContinuationDelivery): void {
     const sink = this.backgroundTurnSink;
-    if (!sink) {
-      if (this.host.preserveUnreportedAccounting) this.pendingContinuationDeliveries.push(delivery);
-      return;
-    }
+    if (!sink) return;
     try { delivery(sink); }
     catch (error) { log.warn('background-turn sink threw:', (error as Error).message); }
   }
@@ -320,8 +314,6 @@ export class ClaudeTurnMachine {
    *  as the pooled session, until close()/kill(). */
   setBackgroundTurnSink(sink: BackgroundTurnSink): void {
     this.backgroundTurnSink = sink;
-    const pending = this.pendingContinuationDeliveries.splice(0);
-    for (const delivery of pending) this.deliverContinuation(delivery);
   }
 
   /** Register/replace the injection delivery-ack sink. Lifetime mirrors backgroundTurnSink. */
@@ -456,12 +448,11 @@ export class ClaudeTurnMachine {
   }
 
   private captureTurnAccounting(data: any): number {
-    const missingToken = this.host.preserveUnreportedAccounting ? null : 0;
     this.lastTokenUsage = data.usage ? {
-      input: data.usage.input_tokens ?? missingToken,
-      output: data.usage.output_tokens ?? missingToken,
-      cacheCreation: data.usage.cache_creation_input_tokens ?? missingToken,
-      cacheRead: data.usage.cache_read_input_tokens ?? missingToken,
+      input: data.usage.input_tokens ?? 0,
+      output: data.usage.output_tokens ?? 0,
+      cacheCreation: data.usage.cache_creation_input_tokens ?? 0,
+      cacheRead: data.usage.cache_read_input_tokens ?? 0,
     } : null;
     const models = data.modelUsage ? Object.keys(data.modelUsage) : [];
     this.lastModelName = models[0] ?? null;
@@ -493,9 +484,6 @@ export class ClaudeTurnMachine {
     if (result.resolved) {
       const value = result.value as AgentResult;
       value.reportedAccounting = this.reportedAccounting(data);
-      if (this.host.preserveUnreportedAccounting) {
-        value.costReported = data.total_cost_usd != null;
-      }
       value.pendingBackgroundTasks = this.bgTracker.pendingCount;
       // A background notification observed during this turn whose own turn has not opened yet
       // (it landed while the model was producing this turn's final text) is one more delivery
@@ -753,8 +741,7 @@ export class ClaudeTurnMachine {
       // finished (bgTracker armed) or an injected message was consumed after this turn's result
       // Both make the CLI open a turn of its own — open a synthetic turn for it so its
       // output is routed (to backgroundTurnSink) instead of being dropped.
-      const canCaptureContinuation = this.backgroundTurnSink || this.host.preserveUnreportedAccounting;
-      if (!this.currentTurn && canCaptureContinuation && data.type === 'assistant'
+      if (!this.currentTurn && this.backgroundTurnSink && data.type === 'assistant'
           && (this.injectionContinuationArmed || routeLine(this.bgTracker, data) === 'open-continuation')) {
         const fromInjection = this.injectionContinuationArmed;
         this.injectionContinuationArmed = false;

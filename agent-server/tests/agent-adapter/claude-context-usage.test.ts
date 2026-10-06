@@ -343,7 +343,6 @@ describe('ClaudeSession context usage wiring', () => {
   test('preserves cache-inclusive prompt and cached token accounting', (t) => {
     const session: any = _test.makeSessionForTest('claude-sonnet-4-6');
     t.onTestFinished(() => session.close());
-    session.preserveUnreportedAccounting = true;
     let resolved: any = null;
     session.currentTurn = fakeTurn({ resolve: (value: any) => { resolved = value; } });
 

@@ -45,13 +45,9 @@ function engineRun(
   opts: {
     awaitBackground?: 'none' | 'hold';
     model?: string | null;
-    preserveUnreportedAccounting?: boolean;
   } = {},
 ) {
-  const { engine, session, close } = openClaudeTestEngine({
-    model: opts.model,
-    preserveUnreportedAccounting: opts.preserveUnreportedAccounting,
-  });
+  const { engine, session, close } = openClaudeTestEngine({ model: opts.model });
   t.onTestFinished(close);
   const run = engine.run({ text: 'go' }, { awaitBackground: opts.awaitBackground ?? 'hold' });
   const { events, done } = collectRun(run);
@@ -72,45 +68,8 @@ test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) 
   assert.equal(cap.value.pendingBackgroundTasks, 1, 'result reports 1 pending background task');
 });
 
-// The engine installs its own background-turn sink when `run()` opens, but a one-shot CLI can deliver
-// a continuation before that: the session buffers it (`preserveUnreportedAccounting`) and the phase
-// replays it once it starts. This is the same fact the old `setBackgroundTurnSink` buffering test
-// asserted, observed through the run stream the engine actually installs.
-test('run: one-shot buffers a continuation until the run installs its sink', async (t) => {
-  const { engine, session, close } = openClaudeTestEngine({ preserveUnreportedAccounting: true });
-  t.onTestFinished(close);
-
-  // The continuation lands before `run()`: text and result are buffered on the session.
-  session.handleLine(TASK_STARTED);
-  session.handleLine(TASK_NOTIFICATION);
-  session.handleLine(ASSISTANT_CONT);
-  session.handleLine(RESULT_CONT);
-  // A second task keeps the run's background phase open so the buffered result is replayed.
-  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'second' }));
-
-  const run = engine.run({ text: 'go' }, { awaitBackground: 'hold' });
-  const { events, done } = collectRun(run);
-  session.handleLine(JSON.stringify({
-    type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
-    total_cost_usd: 0.05, num_turns: 1,
-  }));
-
-  const settled = await run.settled;
-  await done;
-  assert.equal(settled.costReported, true);
-  const texts = events
-    .filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text')
-    .map((e) => e.text);
-  assert.deepEqual(texts, ['Background task done: DONE'], 'the buffered continuation text is delivered');
-  const results = backgroundResults(events);
-  assert.equal(results.length, 1, 'the buffered continuation result is delivered');
-  assert.equal(results[0].result.costReported, true);
-});
-
 test('run: absent middle cost preserves the cumulative cursor across chained continuations', async (t) => {
-  const { session, run } = engineRun(t, {
-    awaitBackground: 'hold', preserveUnreportedAccounting: true,
-  });
+  const { session, run } = engineRun(t, { awaitBackground: 'hold' });
 
   session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'first' }));
   session.handleLine(JSON.stringify({
@@ -134,7 +93,6 @@ test('run: absent middle cost preserves the cumulative cursor across chained con
 
   const merged = await run.settled;
   assert.equal(merged.total_cost_usd, 0.1);
-  assert.equal(merged.costReported, true);
 });
 
 test('run: spontaneous continuation normalizes a temporary 429 into a rate-limited background result', async (t) => {
