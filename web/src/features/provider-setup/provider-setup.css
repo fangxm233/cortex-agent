@@ -11,8 +11,11 @@
 .provider-setup :where(button, input, select):focus-visible { outline: 2px solid var(--proto-accent); outline-offset: 3px; }
 .provider-setup svg { flex: none; }
 .provider-setup .setup-header {
-  height: 56px; flex: none; display: flex; align-items: center; gap: 12px;
-  padding: 0 28px; background: var(--material-card-bg); border-bottom: 1px solid var(--proto-line);
+  /* box-sizing is border-box, so the inset is part of the height: on Android the bar runs under the
+     status bar, and without it the brand and toggles would straddle the bar's bottom border. */
+  height: 56px; height: calc(56px + env(safe-area-inset-top)); flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 0 28px; padding-top: env(safe-area-inset-top);
+  background: var(--material-card-bg); border-bottom: 1px solid var(--proto-line);
 }
 .provider-setup .setup-header[data-caption='custom'] { padding-right: 0; }
 /* macOS: the traffic lights are centred on the 44px workspace bar, so this bar matches it. */

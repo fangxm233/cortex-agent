@@ -3,11 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "copy-connect": "node -e \"require('fs').mkdirSync('../web/dist',{recursive:true})\"",
-    "dev": "npm run copy-connect && tauri dev",
-    "build": "npm run copy-connect && tauri build",
-    "tauri": "tauri",
-    "test:onboarding": "node --test tests/onboarding.test.cjs"
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.1"

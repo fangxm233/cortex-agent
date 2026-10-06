@@ -6,6 +6,7 @@ import { updateCheckEn, updateCheckZh } from './update-check-vocab';
 import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
 import { setupEn, setupZh } from './provider-setup-vocab';
+import { onboardingEn, onboardingZh } from './onboarding-vocab';
 import { uiAuthEn, uiAuthZh } from './ui-auth-vocab';
 import { browserEn, browserZh } from './browser-vocab';
 import { dockEn, dockZh, mediaEn, mediaZh } from './media-vocab';
@@ -31,6 +32,7 @@ export const en = {
   ...pluginEn,
   ...enExtra,
   ...setupEn,
+  ...onboardingEn,
   ...platformEn,
   ...updateCheckEn,
   ...uiAuthEn,
@@ -64,6 +66,7 @@ export const zh: Record<keyof Vocab, string> = {
   ...pluginZh,
   ...zhExtra,
   ...setupZh,
+  ...onboardingZh,
   ...platformZh,
   ...updateCheckZh,
   ...uiAuthZh,

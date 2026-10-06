@@ -27,7 +27,7 @@ const SETUP_ERROR_KEYS: Record<SetupErrorCode, keyof Vocab> = {
   'invalid-status': 'setupErrInvalidStatus', 'not-installed': 'setupErrNotInstalled',
   'not-configured': 'setupErrNotConfigured',
 };
-// Codes the native Claude Code commands return (desktop/src-tauri/src/setup_claude.rs), as
+// Codes the native Claude Code commands return (desktop/src-tauri/src/setup/claude.rs), as
 // `code` or `code: detail`; the detail is shown after the sentence.
 const NATIVE_ERROR_KEYS: Record<string, keyof Vocab> = {
   claude_android_unsupported: 'setupNativeAndroidUnsupported',

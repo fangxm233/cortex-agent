@@ -1,8 +1,8 @@
 // The daemon interfaces (desktop DaemonStatusModal, mobile MDaemonView) offer a "断开连接"/Disconnect
 // action that clears the saved credentials (key/token) and returns to the connect (login) screen.
 // This is the SPA-side counterpart of the shell's `disconnect` Tauri command (clears the OS keychain /
-// app-private store + AppState — see desktop/src-tauri/src/connection.rs) plus the navigation the injected
-// "Switch" button used to own.
+// app-private store + AppState — see desktop/src-tauri/src/connection.rs) plus the navigation back to
+// the connect screen.
 //
 // Off-shell (plain browser / ui-http) there is no native store to clear and no connect screen to
 // return to, so `disconnectShell` is a no-op.
@@ -11,10 +11,16 @@ import { safeInvoke } from './native-bridge';
 
 /**
  * The connect (login) screen the native shell serves. A RELATIVE path so it resolves against the live
- * `cortexui://localhost` origin on BOTH desktop and Android — the shell serves an embedded copy of
- * `connect.html` there, alongside the OTA-updated SPA versions.
+ * `cortexui://localhost` origin on BOTH desktop and Android. Without a server the shell answers it
+ * with the SPA bundled in the app, which boots its onboarding there (`isConnectScreen`); shells
+ * from before that serve their own page at the same path.
  */
 export const CONNECT_SCREEN_PATH = 'connect.html';
+
+/** True when this document is the native shell's connect screen rather than the workbench. */
+export function isConnectScreen(): boolean {
+  return isNativeShell() && globalThis.location?.pathname.endsWith(`/${CONNECT_SCREEN_PATH}`) === true;
+}
 
 /**
  * Pure orchestration of a disconnect: clear the stored credentials via `invoke('disconnect')`, then

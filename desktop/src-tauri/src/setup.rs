@@ -254,8 +254,8 @@ pub fn start_local_daemon(
 // ─── Tauri commands ────────────────────────────────────────────────────────
 //
 // Errors reaching the wizard are `CODE` or `CODE: detail`, in the upper-case style of the codes the
-// page already raises itself (NODE_REQUIRED, EACCES): desktop/ui/setup.js words the code in the UI
-// language and shows the detail — usually the raw process output — under it.
+// page already raises itself (NODE_REQUIRED, EACCES): web/src/features/provider-setup/local-setup.ts
+// words the code in the UI language and shows the detail — usually the raw process output — under it.
 
 /// What the machine already has, as the wizard's first screen renders it.
 #[derive(Debug, Default, Serialize)]

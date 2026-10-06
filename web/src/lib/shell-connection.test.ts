@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { runDisconnect, CONNECT_SCREEN_PATH } from './shell-connection';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { runDisconnect, CONNECT_SCREEN_PATH, isConnectScreen } from './shell-connection';
 
 describe('runDisconnect', () => {
   it('clears credentials via invoke("disconnect") then navigates to the connect screen', async () => {
@@ -36,5 +36,18 @@ describe('runDisconnect', () => {
     await runDisconnect({ invoke: undefined, navigate });
 
     expect(navigate).toHaveBeenCalledWith(CONNECT_SCREEN_PATH);
+  });
+});
+
+describe('isConnectScreen', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('is the connect.html document of a native shell only', () => {
+    vi.stubGlobal('location', { pathname: '/connect.html' });
+    expect(isConnectScreen()).toBe(false);
+    vi.stubGlobal('__CORTEX_MOBILE__', true);
+    expect(isConnectScreen()).toBe(true);
+    vi.stubGlobal('location', { pathname: '/index.html' });
+    expect(isConnectScreen()).toBe(false);
   });
 });

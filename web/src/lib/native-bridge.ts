@@ -49,6 +49,29 @@ export interface NativeNotificationAction {
   approvalId?: string;
 }
 
+/** `setup_probe`: what the machine already has (desktop/src-tauri/src/setup.rs `SetupProbe`). */
+export interface NativeSetupProbe {
+  node: string | null;
+  nodeOk: boolean;
+  npm: string | null;
+  git: string | null;
+  cortexBin: string | null;
+  serverVersion: string | null;
+  serverOk: boolean;
+  homeExists: boolean;
+  hostname: string | null;
+  os: string;
+}
+
+/** The `cortex init --answers` document the local setup sends. */
+export interface NativeSetupAnswers {
+  lang: string;
+  machineName: string;
+  backends: string[];
+  installService: boolean;
+  port: number;
+}
+
 export interface DesktopNotificationAction {
   actionId: string;
   serverUrl: string;
@@ -78,7 +101,24 @@ interface NativeCommandMap {
   };
   'plugin:cortex-notifications|ack_action': { args: { actionId: string }; result: unknown };
   'plugin:cortex-notifications|visible_session': { args: { sessionId: string }; result: unknown };
+  get_connection_config: { args: undefined; result: { serverUrl: string | null; token: string | null } };
+  connect: {
+    args: { serverUrl: string; token: string; local?: { cortexBin: string } };
+    result: unknown;
+  };
   disconnect: { args: undefined; result: unknown };
+  // Local install (desktop only). `run` tags the `setup-log` lines the command streams.
+  setup_probe: { args: undefined; result: NativeSetupProbe };
+  setup_install_server: {
+    args: { run: string }; result: { cortexBin: string; serverVersion: string | null };
+  };
+  setup_run_init: {
+    args: { run: string; bin: string; answers: NativeSetupAnswers };
+    result: { version: string | null; clientToken: string | null; uiUrl: string | null };
+  };
+  setup_enable_ui: { args: { run: string; bin: string; port: number }; result: { url: string; token: string } };
+  setup_start_daemon: { args: { run: string; bin: string; url: string; token: string }; result: boolean };
+  setup_enable_autostart: { args: { run: string }; result: boolean };
   check_for_updates: { args: undefined; result: NativeCheckReport };
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };
@@ -167,6 +207,16 @@ export async function safeInvoke<K extends NativeCommand>(
   } catch (error) {
     return { ok: false, reason: 'failed', error };
   }
+}
+
+/** `safeInvoke` for callers that treat any failure as an error: rejects with the native error. */
+export async function invokeNative<K extends NativeCommand>(
+  command: K,
+  ...[args]: CommandArgs<K>
+): Promise<CommandResult<K>> {
+  const result = await safeInvoke(command, ...([args] as CommandArgs<K>));
+  if (result.ok) return result.value;
+  throw result.reason === 'failed' ? result.error : new Error('native-unavailable');
 }
 
 function idempotent(unsubscribe: NativeUnlisten): NativeUnsubscribe {

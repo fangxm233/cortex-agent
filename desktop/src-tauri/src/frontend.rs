@@ -7,69 +7,52 @@ const INDEX: &str = "index.html";
 /// (seed and OTA-downloaded versions alike) so browser-origin state stays stable across updates.
 pub const SCHEME: &str = "cortexui";
 
-/// Resolve the directory the frontend is currently served from, newest wins:
-///   1. `CORTEX_FRONTEND_DIR` env override (dev/testing — point straight at web/dist).
+/// `CORTEX_FRONTEND_DIR` (dev/testing — point straight at web/dist), when it holds a frontend.
+fn dev_override() -> Option<PathBuf> {
+    let dir = PathBuf::from(std::env::var_os("CORTEX_FRONTEND_DIR")?);
+    dir.join(INDEX).is_file().then_some(dir)
+}
+
+/// The frontend shipped with this build on desktop: `<resourceDir>/frontend-seed`.
+fn bundled_dir(app: &tauri::AppHandle) -> PathBuf {
+    app.path()
+        .resource_dir()
+        .map(|res| res.join("frontend-seed"))
+        // A path that won't exist → the resolver 404s cleanly instead of panicking.
+        .unwrap_or_else(|_| PathBuf::from("frontend-seed"))
+}
+
+/// Resolve the directory the connected frontend is served from, newest wins:
+///   1. `CORTEX_FRONTEND_DIR` env override.
 ///   2. The OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater).
 ///   3. The bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline).
 /// A candidate counts only when it contains index.html, so a half-populated dir never wins.
 ///
-/// Both platforms serve over `cortexui://` from disk. On Android the `resource_dir/frontend-seed`
-/// fallback is never actually reached because the embedded seed is materialized into `ui/current`
-/// before the window opens (see `seed::ensure_seed`); it stays here only as a harmless last resort.
+/// On Android the `resource_dir/frontend-seed` fallback is never actually reached because the
+/// embedded seed is materialized into `ui/current` before the window opens (see
+/// `seed::ensure_seed`); it stays here only as a harmless last resort.
 pub fn active_dir(app: &tauri::AppHandle) -> PathBuf {
-    if let Ok(dir) = std::env::var("CORTEX_FRONTEND_DIR") {
-        let p = PathBuf::from(dir);
-        if p.join("index.html").is_file() {
-            return p;
-        }
-    }
-    if let Ok(data) = app.path().app_data_dir() {
-        let current = data.join("ui").join("current");
-        if current.join("index.html").is_file() {
-            return current;
-        }
-    }
-    if let Ok(res) = app.path().resource_dir() {
-        return res.join("frontend-seed");
-    }
-    // Last resort: a path that won't exist → the resolver 404s cleanly instead of panicking.
-    PathBuf::from("frontend-seed")
+    dev_override()
+        .or_else(|| {
+            let current = app.path().app_data_dir().ok()?.join("ui").join("current");
+            current.join(INDEX).is_file().then_some(current)
+        })
+        .unwrap_or_else(|| bundled_dir(app))
 }
 
-/// Binary-embedded shell pages stay reachable regardless of seed/OTA state. Their source keeps the
-/// same `/theme.css` link used in dev; the embedded response replaces that link with the canonical
-/// palette so a missing or older OTA bundle cannot leave shell pages unstyled. Normal SPA requests
-/// still resolve `theme.css` from the active frontend directory, preserving OTA token updates.
-const EMBEDDED_ASSETS: &[(&str, &str)] = &[
-    ("connect.html", include_str!("../../ui/connect.html")),
-    ("setup.html", include_str!("../../ui/setup.html")),
-    ("shell.css", include_str!("../../ui/shell.css")),
-    ("shell.js", include_str!("../../ui/shell.js")),
-    ("connect.js", include_str!("../../ui/connect.js")),
-    ("setup-flow.js", include_str!("../../ui/setup-flow.js")),
-    ("setup.js", include_str!("../../ui/setup.js")),
-];
-const THEME_LINK: &str = r#"<link rel="stylesheet" href="/theme.css">"#;
-const SHARED_THEME: &str = include_str!("../../../web/public/theme.css");
-
-fn inject_shell_theme(page: &str) -> Vec<u8> {
-    page.replacen(THEME_LINK, &format!("<style>{SHARED_THEME}</style>"), 1)
-        .into_bytes()
-}
-
-/// Serve a binary-embedded shell page before consulting the active frontend directory.
-pub fn resolve_embedded(raw_url: &str) -> Option<ResolvedAsset> {
-    let rel = sanitize_request_path(raw_url)?;
-    let (path, body) = EMBEDDED_ASSETS.iter().find(|(name, _)| *name == rel)?;
-    Some(ResolvedAsset {
-        status: 200,
-        mime: content_type(path),
-        body: if path.ends_with(".html") {
-            inject_shell_theme(body)
-        } else {
-            body.as_bytes().to_vec()
-        },
-    })
+/// Resolve a request against the frontend this build ships with (the seed), never an OTA bundle.
+///
+/// The shell serves it while it has no server: its connect and setup screens then always match this
+/// shell's native commands, whatever frontend an earlier (possibly older) server left in
+/// `ui/current`. Android reads the copy embedded in the binary; desktop the bundled resources.
+pub fn resolve_seed(app: &tauri::AppHandle, raw_url: &str) -> ResolvedAsset {
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        resolve_with(raw_url, |rel| crate::seed::read(rel).map(<[u8]>::to_vec))
+    }
+    #[cfg(not(target_os = "android"))]
+    resolve_asset(&dev_override().unwrap_or_else(|| bundled_dir(app)), raw_url)
 }
 
 /// The outcome of resolving one asset request: an HTTP-like status, a MIME type, and the body bytes.
@@ -172,42 +155,32 @@ pub fn sanitize_request_path(raw_url: &str) -> Option<String> {
 }
 
 /// Resolve an asset request against `root`, with SPA fallback to index.html for unknown routes.
+pub fn resolve_asset(root: &Path, raw_url: &str) -> ResolvedAsset {
+    resolve_with(raw_url, |rel| {
+        let target = root.join(rel);
+        if target.is_file() { std::fs::read(target).ok() } else { None }
+    })
+}
+
+/// Resolve an asset request through `read` (root-relative path → bytes, None when absent):
 /// - malformed / traversal  → 400
 /// - existing file          → 200 + its bytes + MIME
 /// - unknown route          → 200 + index.html (SPA client-side routing)
 /// - index.html also absent → 404
-pub fn resolve_asset(root: &Path, raw_url: &str) -> ResolvedAsset {
-    let rel = match sanitize_request_path(raw_url) {
-        Some(r) => r,
-        None => {
-            return ResolvedAsset {
-                status: 400,
-                mime: "text/plain; charset=utf-8",
-                body: b"Bad request".to_vec(),
-            }
-        }
+pub fn resolve_with(raw_url: &str, read: impl Fn(&str) -> Option<Vec<u8>>) -> ResolvedAsset {
+    let Some(rel) = sanitize_request_path(raw_url) else {
+        return ResolvedAsset {
+            status: 400,
+            mime: "text/plain; charset=utf-8",
+            body: b"Bad request".to_vec(),
+        };
     };
-
-    let target = root.join(&rel);
-    if let Ok(meta) = std::fs::metadata(&target) {
-        if meta.is_file() {
-            if let Ok(bytes) = std::fs::read(&target) {
-                return ResolvedAsset {
-                    status: 200,
-                    mime: content_type(&rel),
-                    body: bytes,
-                };
-            }
-        }
+    if let Some(body) = read(&rel) {
+        return ResolvedAsset { status: 200, mime: content_type(&rel), body };
     }
-
-    match std::fs::read(root.join(INDEX)) {
-        Ok(bytes) => ResolvedAsset {
-            status: 200,
-            mime: content_type(INDEX),
-            body: bytes,
-        },
-        Err(_) => ResolvedAsset {
+    match read(INDEX) {
+        Some(body) => ResolvedAsset { status: 200, mime: content_type(INDEX), body },
+        None => ResolvedAsset {
             status: 404,
             mime: "text/plain; charset=utf-8",
             body: b"Not found".to_vec(),
@@ -312,54 +285,17 @@ mod tests {
     }
 
     #[test]
-    fn resolve_embedded_serves_connect_html_regardless_of_dir() {
-        // connect.html is served from the binary, so it does not depend on any on-disk frontend dir.
-        for url in [
-            "cortexui://localhost/connect.html",
-            "http://cortexui.localhost/connect.html",
-            "/connect.html?x=1",
-        ] {
-            let r = super::resolve_embedded(url).expect("connect.html must resolve from embed");
-            assert_eq!(r.status, 200);
-            assert_eq!(r.mime, "text/html; charset=utf-8");
-            let html = String::from_utf8(r.body).unwrap();
-            assert!(html.contains("--browser-theme-color"));
-            assert!(!html.contains(THEME_LINK));
-        }
-    }
-
-    #[test]
-    fn resolve_embedded_serves_the_setup_wizard() {
-        // The wizard is a shell page too — it must be reachable before any frontend exists on disk.
-        let r = super::resolve_embedded("cortexui://localhost/setup.html")
-            .expect("setup.html must resolve from embed");
-        assert_eq!(r.status, 200);
-        assert_eq!(r.mime, "text/html; charset=utf-8");
-        assert!(!r.body.is_empty());
-    }
-
-    #[test]
-    fn resolve_embedded_serves_setup_dependencies_without_a_server() {
-        for name in [
-            "shell.css",
-            "shell.js",
-            "connect.js",
-            "setup-flow.js",
-            "setup.js",
-        ] {
-            let asset = resolve_embedded(&format!("cortexui://localhost/{name}")).unwrap();
-            assert_eq!(asset.status, 200);
-            assert_eq!(asset.mime, content_type(name));
-            assert!(!asset.body.is_empty());
-        }
-    }
-
-    #[test]
-    fn resolve_embedded_ignores_non_connect_paths() {
-        assert!(super::resolve_embedded("cortexui://localhost/index.html").is_none());
-        assert!(super::resolve_embedded("cortexui://localhost/").is_none());
-        assert!(super::resolve_embedded("/assets/app.js").is_none());
-        assert!(super::resolve_embedded("/theme.css").is_none());
+    fn the_connect_screen_is_the_seed_spa() {
+        // The window opens connect.html while disconnected; the seed has no such file, so the SPA
+        // answers it and boots its onboarding there.
+        let seed = |rel: &str| crate::seed::read(rel).map(<[u8]>::to_vec);
+        let page = resolve_with("cortexui://localhost/connect.html?launch", seed);
+        assert_eq!(page.status, 200);
+        assert_eq!(page.mime, "text/html; charset=utf-8");
+        assert_eq!(page.body, crate::seed::read("index.html").unwrap());
+        let theme = resolve_with("http://cortexui.localhost/theme.css", seed);
+        assert_eq!(theme.mime, "text/css; charset=utf-8");
+        assert!(String::from_utf8(theme.body).unwrap().contains("--browser-theme-color"));
     }
 
     #[test]

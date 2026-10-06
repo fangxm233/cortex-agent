@@ -167,19 +167,20 @@ pub fn run() {
         });
     }
 
-    // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend
-    // directory (env override → OTA-downloaded current → bundled seed), so the frontend can be
-    // swapped by the updater. resolve_asset applies the SPA fallback + traversal guard + MIME. On
-    // Android `ui/current` is seeded from the embedded copy before the window opens (see setup).
+    // Both platforms serve the SPA over the custom `cortexui://` scheme. Once connected, from the
+    // active frontend directory (env override → OTA-downloaded current → bundled seed), so the
+    // updater can swap it; until then, from the seed this shell was built with, whose connect and
+    // setup screens match its commands (frontend::resolve_seed). The resolvers apply the SPA
+    // fallback + traversal guard + MIME.
     builder = builder.register_uri_scheme_protocol(frontend::SCHEME, |ctx, request| {
         let uri = request.uri().to_string();
-        // connect.html is a shell-local page not shipped in the server OTA bundle. Serve it from the
-        // binary-embedded copy first so the connection screen is always reachable, even when the
-        // active frontend dir is an OTA bundle that lacks it (otherwise it SPA-falls-back to the
-        // workbench with no server config → blank "can't connect"). All other paths fall through to
-        // the normal on-disk resolver.
-        let asset = frontend::resolve_embedded(&uri)
-            .unwrap_or_else(|| frontend::resolve_asset(&frontend::active_dir(ctx.app_handle()), &uri));
+        let app = ctx.app_handle();
+        let connected = connection::has_credentials(&app.state::<AppState>().config.lock().unwrap());
+        let asset = if connected {
+            frontend::resolve_asset(&frontend::active_dir(app), &uri)
+        } else {
+            frontend::resolve_seed(app, &uri)
+        };
         tauri::http::Response::builder()
             .status(asset.status)
             .header(tauri::http::header::CONTENT_TYPE, asset.mime)

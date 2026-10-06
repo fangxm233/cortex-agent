@@ -5,6 +5,11 @@ use std::{io, path::Path};
 static SEED: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../web/dist");
 const BRIDGE_MARKER: &str = "name=\"cortex-native-notifications\"";
 
+/// One file of the embedded frontend, by root-relative path.
+pub fn read(rel: &str) -> Option<&'static [u8]> {
+    SEED.get_file(rel).map(|file| file.contents())
+}
+
 pub fn ensure_seed(dest: &Path) -> io::Result<bool> {
     let index = SEED.get_file("index.html")
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Bundled frontend missing"))?;
