@@ -23,7 +23,7 @@ $CORTEX_HOME/
 │   ├── mcp-config-interaction.json # Shared interaction layer
 │   └── hooks/                    # Hook registry — one JSON declaration per hook
 ├── data/
-│   ├── mode.json                 # Current runtime mode and profile
+│   ├── agent-state.json          # Selected profile, default agent, per-channel overrides
 │   ├── schedules.json            # Persistent schedule list
 │   ├── executions.json           # Unified execution registry
 │   ├── costs.jsonl               # 90-day rolling cost records
@@ -750,7 +750,7 @@ polling mode as it uses with filesystem events.
 | `budget.json` | Budget limits | `$CORTEX_HOME/config/budget.json` |
 | `mcp-config.json` | MCP server config | `$CORTEX_HOME/config/mcp-config.json` |
 | `.claude/settings.json` | Claude Code hooks/permissions (not the Cortex settings file) | `$CORTEX_HOME/.claude/settings.json` |
-| `mode.json` | Runtime mode | `$CORTEX_HOME/data/mode.json` |
+| `agent-state.json` | Selected profile, default agent, per-channel overrides | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | Schedules | `$CORTEX_HOME/data/schedules.json` |
 | `session-registry.jsonl` | Append-only session registry journal | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | Two-sweep orphan cleanup candidates | `$CORTEX_HOME/data/retention-candidates.json` |

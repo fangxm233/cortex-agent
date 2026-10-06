@@ -28,7 +28,7 @@ Server lifecycle and initialization CLI.
 Initialize `CORTEX_HOME`. The interactive wizard uses bundled PI by default
 without a backend-selection prompt, collects platform (Slack / Feishu),
 machine, usage-reporting, and service settings, writes `.env`, copies default
-configs, and generates `mcp-config.json` and `mode.json`.
+configs, and generates `mcp-config.json` and `agent-state.json`.
 
 After writing configs, it detects local provider credentials and offers
 login, rescan, continue with configured providers, or a warned skip. Login
@@ -43,7 +43,7 @@ They report credential status and can finish with provider setup incomplete.
 Options:
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex/`)
 - `--gateway-config-dir <path>` — gateway config output directory (default: `~/.aistatus/`)
-- `--force` — overwrite existing configs (`.env`, `budget.json`, `mode.json`, etc.)
+- `--force` — overwrite existing configs (`.env`, `budget.json`, `agent-state.json`, etc.)
 - `--answers <file>` — read answers from a JSON document without prompting. Omitted fields use defaults; `{}` creates a single-machine installation using PI, with provider login still required if no credentials are detected. Used by the desktop installer. An explicit `backends` array retains its selection and installation semantics (`claude`, `pi`, or both); an explicit empty array retains the Claude fallback.
 - `--json` — emit newline-delimited progress events on stdout and move human-readable output to stderr. The final event reports the home directory, the version, the client token, and the local Web UI URL.
 
@@ -114,7 +114,7 @@ this is a no-op beyond creating the file.
 
 Print resolved paths and initialization status. Shows `INSTALL_ROOT`,
 all data directories, and whether `.env`, `mcp-config.json`, and
-`mode.json` exist.
+`agent-state.json` exist.
 
 **`cortex doctor [--fix] [--json]`**
 
@@ -125,7 +125,7 @@ The default run is read-only and safe at any time. It inspects four areas:
   binary (`claude` / `pi`), and whether the daemon is running.
 - Backend install / login — data directories exist and are writable, `.env`
   is present, the WebSocket/webhook auth tokens are set, `ANTHROPIC_API_KEY`
-  status, and that `mode.json`, `profiles.json`, and `mcp-config.json` are
+  status, and that `agent-state.json`, `profiles.json`, and `mcp-config.json` are
   present and valid. It also smoke-tests the installed PI runtime and its
   `login` export, then summarizes expired or logged-out in-use providers from
   the credential-free backend auth snapshot. These two checks warn rather than

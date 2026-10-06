@@ -22,7 +22,7 @@ $CORTEX_HOME/
 │   ├── mcp-config-interaction.json # 共享交互分层
 │   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
-│   ├── mode.json                 # 当前运行时模式和配置
+│   ├── agent-state.json          # 选定的 profile、默认智能体、频道级 override
 │   ├── schedules.json            # 持久化的定时任务列表
 │   ├── executions.json           # 统一执行注册表
 │   ├── costs.jsonl               # 90 天滚动费用记录
@@ -515,7 +515,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `budget.json` | 预算限制 | `$CORTEX_HOME/config/budget.json` |
 | `mcp-config.json` | MCP 服务器配置 | `$CORTEX_HOME/config/mcp-config.json` |
 | `.claude/settings.json` | Claude Code 钩子/权限（不是 Cortex 的设置文件） | `$CORTEX_HOME/.claude/settings.json` |
-| `mode.json` | 运行时模式 | `$CORTEX_HOME/data/mode.json` |
+| `agent-state.json` | 选定的 profile、默认智能体、频道级 override | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | 定时任务 | `$CORTEX_HOME/data/schedules.json` |
 | `session-registry.jsonl` | 仅追加的 session registry 日志 | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | 两轮确认的孤儿清理候选表 | `$CORTEX_HOME/data/retention-candidates.json` |

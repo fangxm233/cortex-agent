@@ -439,7 +439,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── environments/           # execution environments: main.json, creative.json
 │   └── hooks/                  # hook registry — one JSON declaration per hook
 ├── data/
-│   ├── mode.json               # current mode + active profile
+│   ├── agent-state.json        # active profile, default agent, channel overrides
 │   └── schedules.json          # seeded built-in schedules
 ├── context/                    # the project log lives here
 │   ├── AGENTS.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
@@ -453,7 +453,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 
 You should **not** need to edit any of these by hand for normal use.
 `cortex init --force` regenerates the auto-generated ones
-(`mcp-config*.json`, `machines.json`, `mode.json`) while preserving
+(`mcp-config*.json`, `machines.json`, `agent-state.json`) while preserving
 your `.env`, profiles, and content files.
 
 `~/.aistatus/` separately holds:

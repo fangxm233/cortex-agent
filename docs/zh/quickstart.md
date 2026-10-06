@@ -326,7 +326,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── environments/           # 执行环境：main.json、creative.json
 │   └── hooks/                  # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
-│   ├── mode.json               # 当前模式 + 活跃配置
+│   ├── agent-state.json        # 活跃 profile、默认智能体、频道级 override
 │   └── schedules.json          # 初始化的内置定时任务
 ├── context/                    # 项目日志存放在这里
 │   ├── AGENTS.md、projects/、decisions/、scans/、ideas/、retrospectives/、user/
@@ -338,7 +338,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 └── logs/                       # 守护进程 + LLM 日志
 ```
 
-正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重新生成自动生成的文件（`mcp-config*.json`、`machines.json`、`mode.json`），同时保留你的 `.env`、配置和内容文件。
+正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重新生成自动生成的文件（`mcp-config*.json`、`machines.json`、`agent-state.json`），同时保留你的 `.env`、配置和内容文件。
 
 `~/.aistatus/` 单独存放：
 

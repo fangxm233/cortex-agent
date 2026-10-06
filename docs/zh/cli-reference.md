@@ -26,7 +26,7 @@ cortex <command> [options]
 
 **`cortex init [--home <path>] [--gateway-config-dir <path>] [--force] [--answers <file>] [--json]`**
 
-初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config.json` 和 `mode.json`。
+初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config.json` 和 `agent-state.json`。
 
 写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由与 Profile。检测不会发起付费推理请求，也不验证模型是否可调用。
 
@@ -35,7 +35,7 @@ cortex <command> [options]
 选项：
 - `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex/`）
 - `--gateway-config-dir <path>` — 网关配置输出目录（默认：`~/.aistatus/`）
-- `--force` — 覆盖已有配置（`.env`、`budget.json`、`mode.json` 等）
+- `--force` — 覆盖已有配置（`.env`、`budget.json`、`agent-state.json` 等）
 - `--answers <file>` — 从 JSON 文档读取回答，不进行交互提问。省略的字段使用默认值；`{}` 创建使用 PI 的单机安装，若未检测到凭据，仍需登录 Provider。桌面安装器使用此选项。显式 `backends` 数组保留指定的后端选择与安装语义（`claude`、`pi` 或两者）；显式空数组保留回退到 Claude 的行为。
 - `--json` — 在 stdout 输出按行分隔的 JSON 进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。
 
@@ -78,7 +78,7 @@ Fork `dist/entry/daemon.js` 作为子进程，继承 stdio。守护进程包装 
 
 **`cortex config`**
 
-打印解析后的路径和初始化状态。显示 `INSTALL_ROOT`、所有数据目录，以及 `.env`、`mcp-config.json` 和 `mode.json` 是否存在。
+打印解析后的路径和初始化状态。显示 `INSTALL_ROOT`、所有数据目录，以及 `.env`、`mcp-config.json` 和 `agent-state.json` 是否存在。
 
 **`cortex doctor [--fix] [--json]`**
 
