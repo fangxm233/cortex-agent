@@ -1,5 +1,6 @@
 import type { AgentResult } from '@core/types/agent-types.js';
 import { ContinuationPhase } from '../continuation-phase.js';
+import { deferredResult, EngineInjections } from '../engine-injections.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type { EngineRunOptions } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
@@ -44,20 +45,6 @@ export interface ClaudeEngineSessionHost extends ClaudeTurnAccountingSource {
   isAlive(): boolean;
 }
 
-/** One injection Cortex accepted into the current run, awaiting Claude's delivery/refusal ack. */
-interface PendingInjection {
-  id: string;
-  text: string;
-}
-
-/** The pending injection whose text matches, removed FIFO; undefined for an unmatched ack.
- *  Same pattern as `pi/engine.ts:takePending`. */
-function takePending(pending: PendingInjection[], text: string): PendingInjection | undefined {
-  const index = pending.findIndex((entry) => entry.text === text);
-  if (index === -1) return undefined;
-  return pending.splice(index, 1)[0];
-}
-
 /**
  * Claude's `EngineSession`. `run()` opens a RunEvent stream over a pooled `ClaudeSession`; the
  * turn's normalized events arrive through the callback bag
@@ -72,10 +59,8 @@ export class ClaudeEngineSession implements EngineSession {
   readonly identity: string;
   private readonly session: ClaudeEngineSessionHost;
   private readonly spec: EngineSpec;
-  /** The run currently owning the session's single injection-ack slot (Claude serves one turn at a
-   *  time). `steer()` targets it for id correlation and immediate refusals. */
-  private active: { queue: RunEventQueue; pending: PendingInjection[]; phase: ContinuationPhase | null } | null = null;
-  private injectionSeq = 0;
+  /** Injection into the live run; Claude serves one turn at a time. */
+  private readonly injections: EngineInjections;
   /** Only the first run of a session emits `session_started`, matching `spawn()`'s `started` flag. */
   private started = false;
   /** `identity` is passed in rather than computed here: it is derived from `adapter.ts`'s private
@@ -85,6 +70,7 @@ export class ClaudeEngineSession implements EngineSession {
     this.session = session;
     this.spec = spec;
     this.identity = identity;
+    this.injections = new EngineInjections(session, 'claude-run-inj');
   }
 
   get backendSessionId(): string | null {
@@ -93,31 +79,9 @@ export class ClaudeEngineSession implements EngineSession {
 
   run(prompt: UserMessage, opts: EngineRunOptions): EngineRun {
     const queue = new RunEventQueue();
-    const pending: PendingInjection[] = [];
-    const active = { queue, pending, phase: null as ContinuationPhase | null };
-    this.active = active;
-    // The ack sink is a single session-level slot. The engine is pooled, but the underlying
-    // ClaudeSession still serves one run at a time, so the run that installs the sink owns it.
-    // Acks travel through the phase rather than straight to the queue: they release the obligation
-    // an accepted injection creates (see ContinuationPhase.noteInjectionAccepted).
-    this.session.setInjectionAckSink({
-      onDelivered: ({ text, foldedIntoTurn }) => {
-        const entry = takePending(pending, text);
-        const event = {
-          type: 'injection_delivered', injectionId: entry?.id ?? this.nextInjectionId(), foldedIntoTurn,
-        } as const;
-        if (active.phase) active.phase.ingest(event);
-        else queue.push(event);
-      },
-      onUndelivered: ({ text }) => {
-        const entry = takePending(pending, text);
-        const event = {
-          type: 'injection_rejected', injectionId: entry?.id ?? this.nextInjectionId(), reason: 'undelivered',
-        } as const;
-        if (active.phase) active.phase.ingest(event);
-        else queue.push(event);
-      },
-    });
+    // The engine is pooled, but the underlying ClaudeSession still serves one run at a time, so
+    // the run that starts owns the session's ack slot.
+    const injections = this.injections.beginRun(queue);
     if (!this.started) {
       // Claude has no turn-stream `session_started`; synthesize it exactly as `spawn().send()` does.
       queue.push(toRunEvent({ type: 'session_started', sessionId: this.session.sessionId }, 'foreground'));
@@ -135,7 +99,7 @@ export class ClaudeEngineSession implements EngineSession {
       settleRun: (result) => { settled.resolve(result); deferred.resolve(result); },
       close: () => queue.close(),
     });
-    active.phase = phase;
+    injections.attachPhase(phase);
     this.session.setBackgroundTurnSink(phase.sink());
 
     // `turn_complete` is the callback stream's terminal marker, not a result: the engine pushes the
@@ -201,25 +165,13 @@ export class ClaudeEngineSession implements EngineSession {
   }
 
   steer(msg: UserMessage, callerInjectionId?: string): { accepted: boolean; injectionId?: string } {
-    const injectionId = callerInjectionId ?? this.nextInjectionId();
-    const accepted = this.session.injectUserMessage(msg);
-    if (accepted) this.active?.phase?.noteInjectionAccepted();
-    if (!accepted) {
-      // A refused injection never reaches Claude's ack queue, so surface the rejection from here.
-      this.active?.queue.push({ type: 'injection_rejected', injectionId, reason: 'refused' });
-      return { accepted: false, injectionId };
-    }
-    this.active?.pending.push({ id: injectionId, text: msg.text });
-    return { accepted: true, injectionId };
+    return this.injections.steer(msg, callerInjectionId);
   }
 
   /** Push an out-of-band event into the live run's stream (a native subagent's rows, which keep
    *  arriving after the parent turn closed). False when no run is consuming events. */
   ingestExternal(event: RunEvent): boolean {
-    const queue = this.active?.queue;
-    if (!queue) return false;
-    queue.push(event);
-    return true;
+    return this.injections.pushOutOfBand(event);
   }
 
   /** Claude exposes no extension-UI response channel (`AgentRun.respondToDialog` returns false for
@@ -244,15 +196,4 @@ export class ClaudeEngineSession implements EngineSession {
   isAlive(): boolean {
     return this.session.isAlive();
   }
-
-  private nextInjectionId(): string {
-    return `claude-run-inj-${++this.injectionSeq}`;
-  }
-}
-
-function deferredResult(): { promise: Promise<AgentResult>; resolve: (r: AgentResult) => void; reject: (e: unknown) => void } {
-  let resolve!: (r: AgentResult) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<AgentResult>((res, rej) => { resolve = res; reject = rej; });
-  return { promise, resolve, reject };
 }

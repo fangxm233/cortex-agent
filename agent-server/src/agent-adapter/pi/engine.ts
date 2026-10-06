@@ -1,5 +1,6 @@
 import type { AgentResult } from '@core/types/agent-types.js';
 import { ContinuationPhase } from '../continuation-phase.js';
+import { deferredResult, EngineInjections } from '../engine-injections.js';
 import type { EngineRunOptions } from '../types.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type {
@@ -24,19 +25,6 @@ function errorValue(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-/** One injection Cortex accepted into the current run, awaiting PI's delivery/refusal ack. */
-interface PendingInjection {
-  id: string;
-  text: string;
-}
-
-/** The pending injection whose text matches, removed FIFO; undefined for an unmatched ack. */
-function takePending(pending: PendingInjection[], text: string): PendingInjection | undefined {
-  const index = pending.findIndex((entry) => entry.text === text);
-  if (index === -1) return undefined;
-  return pending.splice(index, 1)[0];
-}
-
 /**
  * PI's `EngineSession`. `run()` opens a RunEvent stream over the same `PISession`, `steer()` is an
  * injection and `cancel()` ends a run through `closeTurnStreamFor`, never the pooled session.
@@ -50,10 +38,8 @@ export class PIEngineSession implements EngineSession {
   private readonly session: PISession;
   private readonly onEvict: ((session: PIEngineSession) => void) | undefined;
   private readonly resolveSessionPath: ((sessionId: string) => string | null) | undefined;
-  /** The run currently owning the session's single injection-ack slot (PI serves one turn at a
-   *  time). `steer()` targets it for id correlation and immediate refusals. */
-  private active: { queue: RunEventQueue; pending: PendingInjection[]; phase: ContinuationPhase | null } | null = null;
-  private injectionSeq = 0;
+  /** Injection into the live run; PI serves one turn at a time. */
+  private readonly injections: EngineInjections;
   constructor(
     session: PISession,
     request: PiSessionRequest,
@@ -63,6 +49,7 @@ export class PIEngineSession implements EngineSession {
     this.identity = sessionIdentity(request);
     this.onEvict = hooks.onEvict;
     this.resolveSessionPath = hooks.resolveSessionPath;
+    this.injections = new EngineInjections(session, 'pi-run-inj');
   }
 
   get backendSessionId(): string | null {
@@ -72,28 +59,8 @@ export class PIEngineSession implements EngineSession {
   run(prompt: UserMessage, opts: EngineRunOptions): EngineRun {
     const stream = this.session.openTurnStream();
     const queue = new RunEventQueue();
-    const pending: PendingInjection[] = [];
-    const active = { queue, pending, phase: null as ContinuationPhase | null };
-    this.active = active;
     // The ack sink is session-scoped; PI serves one turn at a time, so the live run owns it.
-    this.session.setInjectionAckSink({
-      onDelivered: ({ text, foldedIntoTurn }) => {
-        const entry = takePending(pending, text);
-        const event = {
-          type: 'injection_delivered', injectionId: entry?.id ?? this.nextInjectionId(), foldedIntoTurn,
-        } as const;
-        if (active.phase) active.phase.ingest(event);
-        else queue.push(event);
-      },
-      onUndelivered: ({ text }) => {
-        const entry = takePending(pending, text);
-        const event = {
-          type: 'injection_rejected', injectionId: entry?.id ?? this.nextInjectionId(), reason: 'undelivered',
-        } as const;
-        if (active.phase) active.phase.ingest(event);
-        else queue.push(event);
-      },
-    });
+    const injections = this.injections.beginRun(queue);
     const result = this.sendTurn(prompt);
     // The caller observes rejection through `EngineRun.result`; this only prevents an unhandled
     // rejection when a consumer reads `events` without awaiting `result`.
@@ -110,7 +77,7 @@ export class PIEngineSession implements EngineSession {
       settleRun: (result_) => { settled.resolve(result_); deferred.resolve(result_); },
       close: () => queue.close(),
     });
-    active.phase = phase;
+    injections.attachPhase(phase);
     // A failed foreground turn fails the WHOLE run: `settled` has to carry the same rejection, or a
     // terminal tally awaiting it hangs instead of reporting the failure.
     deferred.promise.catch((error) => settled.reject(error));
@@ -203,16 +170,7 @@ export class PIEngineSession implements EngineSession {
   }
 
   steer(msg: UserMessage, callerInjectionId?: string): { accepted: boolean; injectionId?: string } {
-    const injectionId = callerInjectionId ?? this.nextInjectionId();
-    const accepted = this.session.injectUserMessage(msg);
-    if (accepted) this.active?.phase?.noteInjectionAccepted();
-    if (!accepted) {
-      // A refused injection never reaches PI's ack queue, so surface the rejection from here.
-      this.active?.queue.push({ type: 'injection_rejected', injectionId, reason: 'refused' });
-      return { accepted: false, injectionId };
-    }
-    this.active?.pending.push({ id: injectionId, text: msg.text });
-    return { accepted: true, injectionId };
+    return this.injections.steer(msg, callerInjectionId);
   }
 
   respondToDialog(dialogId: string, payload: Record<string, unknown>): boolean {
@@ -223,10 +181,7 @@ export class PIEngineSession implements EngineSession {
    *  never delivers rows for a turn that has already closed, so this is a formality for the
    *  contract's sake — it still must not pretend to have a consumer it does not have. */
   ingestExternal(event: RunEvent): boolean {
-    const queue = this.active?.queue;
-    if (!queue) return false;
-    queue.push(event);
-    return true;
+    return this.injections.pushOutOfBand(event);
   }
 
   compact(): Promise<AgentCompactResult> {
@@ -255,15 +210,4 @@ export class PIEngineSession implements EngineSession {
     if (result.ok) this.session.currentSessionId = sessionId;
     return result;
   }
-
-  private nextInjectionId(): string {
-    return `pi-run-inj-${++this.injectionSeq}`;
-  }
-}
-
-function deferredResult(): { promise: Promise<AgentResult>; resolve: (r: AgentResult) => void; reject: (e: unknown) => void } {
-  let resolve!: (r: AgentResult) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<AgentResult>((res, rej) => { resolve = res; reject = rej; });
-  return { promise, resolve, reject };
 }
