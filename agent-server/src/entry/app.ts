@@ -59,10 +59,9 @@ import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/edit-retry.js';
-import { initScheduledRunner, initAuthExpiryScan, createScheduler, setBus } from '@domain/scheduling/runner.js';
+import { configureScheduledJobs, initAuthExpiryScan, createScheduler } from '@domain/scheduling/runner.js';
 import { startBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
@@ -312,7 +311,7 @@ const adapter: PlatformAdapter = createHotReloadingAdapter();
 // The one orchestration seam: orchestration reaches outward through an adapter and a bus it
 // cannot construct, and is entered from places (a webhook, a scheduled job, a background run
 // settling hours later) that hold neither. Everything under `orchestration/` reads them from
-// here; `jobCtx.adapter/bus` below stays, but only for `domain/scheduling`'s own jobs.
+// here; the scheduled-jobs context below stays, but only for `domain/scheduling`'s own jobs.
 setOrchestrationRuntime({ adapter, bus });
 registerResumeWakeOnAgentSettle(bus, adapter);
 
@@ -344,20 +343,18 @@ setMachineReloadListener(() => {
 const oq = initOutboundQueue(adapter);
 
 // --- Init extracted modules ---
-initScheduledRunner(adapter);
-// The `domain/scheduling` → `orchestration` seams: a schedule's fire hands its prompt to the
-// session it opened as that session's first turn, and a fire that fails before a session exists
-// says its one line through `notify`. Both are injected here because domain may not import
-// orchestration.
-jobCtx.notify = async (destination, text) => {
-  const queue = getOutboundQueue();
-  if (queue) { await durablePost(queue, adapter, destination, { text }); }
-  else { await adapter.postMessage(destination, { text }); }
-};
-jobCtx.deliverScheduledTurn = ({ channel, text }) => deliverToSession({
-  channel, text, origin: 'scheduled', tag: 'sched', adapter,
+configureScheduledJobs({
+  adapter,
+  bus,
+  notify: async (destination, text) => {
+    const queue = getOutboundQueue();
+    if (queue) { await durablePost(queue, adapter, destination, { text }); }
+    else { await adapter.postMessage(destination, { text }); }
+  },
+  deliverScheduledTurn: ({ channel, text }) => deliverToSession({
+    channel, text, origin: 'scheduled', tag: 'sched', adapter,
+  }),
 });
-setBus(bus);
 registerAuthWatch(bus, adapter, {
   buildPlatformAction: buildAuthRequiredLoginAction,
 });
