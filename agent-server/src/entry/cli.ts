@@ -4,6 +4,7 @@ import * as net from 'net';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { isMainModule } from '@core/utils.js';
+import { formatDuration } from '@core/format-duration.js';
 import {
   INSTALL_ROOT, DATA_DIR, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
 } from '@core/paths.js';
@@ -187,16 +188,6 @@ async function stopDaemonInternal(): Promise<CliResult> {
 // ─── Daemon status ────────────────────────────────────────────────
 
 /** Format a duration in milliseconds as a human-readable string. */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
-  if (minutes > 0) return `${minutes}m ${secs}s`;
-  return `${secs}s`;
-}
-
 /** Get the uptime of a process from /proc/<pid>/stat. Returns 'unknown' on non-Linux or failure. */
 function getProcessUptime(pid: number): string {
   try {

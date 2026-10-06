@@ -3,9 +3,10 @@ import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import type { Scheduler, ScheduleTask } from '@domain/scheduling/scheduler.js';
 import {
-  formatDuration, isScheduleType, normalizeScheduleSpec, ScheduleSpecError,
+  isScheduleType, normalizeScheduleSpec, ScheduleSpecError,
   type ScheduleSpec, type ScheduleSpecInput, type ScheduleType,
 } from '@domain/scheduling/schedule-spec.js';
+import { formatDuration } from '@core/format-duration.js';
 import { listProfiles, resolveProfile, getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { channelToProjectId } from '@store/schedule-repo.js';
 import { Icons } from '../../../core/icons.js';

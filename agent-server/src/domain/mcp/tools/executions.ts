@@ -1,12 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { executionRepo, type ExecutionRecord } from '@store/execution-repo.js';
-
-function formatDuration(ms: number): string {
-  if (ms < 60000) return `${(ms / 1000).toFixed(0)}s`;
-  if (ms < 3600000) return `${(ms / 60000).toFixed(1)}m`;
-  return `${(ms / 3600000).toFixed(1)}h`;
-}
+import { formatDuration } from '@core/format-duration.js';
 
 function formatRecord(r: ExecutionRecord, now: number, detail = false): string {
   const startMs = r.runtime?.startedAt ? new Date(r.runtime.startedAt).getTime() : 0;

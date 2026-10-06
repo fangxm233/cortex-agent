@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE } from '@core/paths.js';
 import { readRebuildProgress } from '@core/rebuild-progress.js';
+import { formatDuration } from '@core/format-duration.js';
 import { isProcessAlive, readPidFile } from '@core/singleton-lock.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
@@ -19,16 +20,6 @@ import type {
 } from '../types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
-
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
-  if (minutes > 0) return `${minutes}m ${secs}s`;
-  return `${secs}s`;
-}
 
 function getProcessUptime(pid: number): string | null {
   try {

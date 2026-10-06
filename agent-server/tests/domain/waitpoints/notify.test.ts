@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { WaitpointRepo, type Waitpoint } from '../../../src/store/waitpoint-repo.js';
 import { applySignal, createWaitpoint, expireDueWaitpoints, type WaitpointServiceDeps } from '../../../src/domain/waitpoints/service.js';
-import { buildExpiryNotice, buildSignalNotice, formatDuration } from '../../../src/domain/waitpoints/notices.js';
+import { buildExpiryNotice, buildSignalNotice } from '../../../src/domain/waitpoints/notices.js';
 import {
   deliverPendingWaitpoints,
   deliverWakeTurn,
@@ -65,14 +65,6 @@ function harness(): Harness {
 function owner() { return { sessionId: 'sess-1', channel: 'web:chan-1' }; }
 
 // ── notice text ────────────────────────────────────────────────
-
-test('formatDuration renders the units a wait actually spans', () => {
-  assert.equal(formatDuration(45_000), '45s');
-  assert.equal(formatDuration(90_000), '1m 30s');
-  assert.equal(formatDuration(3_600_000), '1h');
-  assert.equal(formatDuration(22_320_000), '6h 12m');
-  assert.equal(formatDuration(200_000_000), '2d 7h');
-});
 
 test('a single-signal notice restates the intent and frames the payload as data', async () => {
   const h = harness();

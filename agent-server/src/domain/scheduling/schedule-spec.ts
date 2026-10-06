@@ -64,14 +64,6 @@ export function parseDuration(str: string | null | undefined): number | null {
   return Math.round(parseFloat(match[1]) * DURATION_UNIT_MS[match[2].toLowerCase()]);
 }
 
-export function formatDuration(ms: number): string {
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
-  const [unitMs, unit] = ms < 86_400_000 ? [3_600_000, 'h'] : [86_400_000, 'd'];
-  const value = ms / unitMs;
-  return Number.isInteger(value) ? `${value}${unit}` : `${value.toFixed(1)}${unit}`;
-}
-
 /** A positive duration: a unit string, or a number of milliseconds. A bare digit string is
  *  rejected so "30" is never silently read as 30 ms. */
 export function parseDurationMs(value: string | number | undefined, field: string): number {

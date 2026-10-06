@@ -1,19 +1,9 @@
 import type { Waitpoint, WaitpointSignal } from '@store/waitpoint-repo.js';
+import { formatDuration } from '@core/format-duration.js';
 
 /** Rendered payload ceiling. The per-signal values are already clipped by the service; this bounds
  *  the *assembled* notice so a large quorum cannot add up to an oversized turn. */
 const NOTICE_DATA_BUDGET = 8000;
-
-export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return 'unknown';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m${s % 60 ? ` ${s % 60}s` : ''}`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h${m % 60 ? ` ${m % 60}m` : ''}`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
-}
 
 function describeSignal(signal: WaitpointSignal): string {
   const who = signal.member ? `${signal.member} ` : '';
