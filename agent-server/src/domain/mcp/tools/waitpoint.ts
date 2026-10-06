@@ -14,7 +14,7 @@ interface SignalRecipe {
   /** For a job that is ALREADY running: nothing can be appended to its command line any more, so
    *  watch its pid from the side. The only form that works when the waitpoint is armed too late. */
   attach_to_pid: string;
-  /** Present when members were declared: every line above carries a `<MEMBER>` placeholder. */
+  /** Present when members were declared: every line above carries a `MEMBER` placeholder. */
   member_note?: string;
 }
 
@@ -52,7 +52,9 @@ export function buildSignalRecipe(
   device: string | null,
   members: string[] = [],
 ): SignalRecipe {
-  const member = members.length > 0 ? '<MEMBER>' : null;
+  // A bare word, not `<MEMBER>`: pasted unreplaced, angle brackets are shell redirections, while a
+  // word is just a member name the server refuses with a clear error.
+  const member = members.length > 0 ? 'MEMBER' : null;
   const env = `export CORTEX_SIGNAL_ID=${id} CORTEX_SIGNAL_SECRET=${secret}`;
   const memberFlag = member ? `--member ${member} ` : '';
   const memberField = member ? `"member":"${member}",` : '';
@@ -72,7 +74,7 @@ export function buildSignalRecipe(
     + `cortex-signal ${memberFlag}--status ok --message "pid <PID> exited") &`;
   return {
     recommended: device ? 'shell' : 'cli', env, cli, curl, shell, attach_to_pid: attachToPid,
-    ...(member ? { member_note: `Replace <MEMBER> with the job's own name, one of: ${members.join(', ')}.` } : {}),
+    ...(member ? { member_note: `Replace MEMBER with the job's own name, one of: ${members.join(', ')}.` } : {}),
   };
 }
 

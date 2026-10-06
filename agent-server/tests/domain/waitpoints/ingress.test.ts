@@ -198,10 +198,10 @@ test('the shell recipe run twice from one shell lands two signals, not one', asy
 
 test('the recipe for a multi-member waitpoint names the member in every form', () => {
   const recipe = buildSignalRecipe('wp_1', 's', 3001, null, ['arm2', 'arm6']);
-  assert.match(recipe.cli, /--member <MEMBER>/);
-  assert.match(recipe.attach_to_pid, /--member <MEMBER>/);
-  assert.match(recipe.curl, /"member":"<MEMBER>"/);
-  assert.match(recipe.shell, /"member":"<MEMBER>"/);
+  assert.match(recipe.cli, /--member MEMBER /);
+  assert.match(recipe.attach_to_pid, /--member MEMBER /);
+  assert.match(recipe.curl, /"member":"MEMBER"/);
+  assert.match(recipe.shell, /"member":"MEMBER"/);
   assert.match(recipe.member_note ?? '', /arm2, arm6/);
   assert.equal(buildSignalRecipe('wp_1', 's', 3001, null).member_note, undefined);
 });
