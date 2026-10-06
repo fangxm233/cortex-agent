@@ -4,6 +4,8 @@
 // own spec used to kill the session's process and resume it without the agent's plugins, tools or
 // worker tools. The spec is built the way the run builds it, route included, with the gateway up:
 // the gateway route names the run's project and trigger, and the route is part of the identity.
+// The session's profile has a fallback on another mode, so a turn the primary could not serve leaves
+// a fallback engine live — and compaction must find that one too.
 import { beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -61,7 +63,8 @@ import { AgentRunner } from '../../src/orchestration/agent-runner.js';
 import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
 import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
 import { MockAdapter } from '../../src/platform/testing.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { TEST_PROFILES } from '../_seed-profiles.js';
+import { profileRepo } from '../../src/store/profile-repo.js';
 
 const CHANNEL = 'web:lead';
 const SESSION: Session = {
@@ -72,7 +75,13 @@ const SESSION: Session = {
 } as Session;
 
 beforeAll(() => {
-  seedTestProfiles();
+  const fallback = [{ model: 'claude-sonnet-4-6', mode: 'api' }];
+  const { plan, scan } = TEST_PROFILES.profiles;
+  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+    ...TEST_PROFILES,
+    profiles: { ...TEST_PROFILES.profiles, plan: { ...plan, fallback }, scan: { ...scan, fallback } },
+  }));
+  profileRepo.invalidate();
   _testSetHealthy(true);
   fs.writeFileSync(path.join(CONFIG_DIR, 'settings.json'), JSON.stringify({ teamEnabled: true }));
   resetSettingsForTests();
@@ -87,10 +96,11 @@ beforeEach(() => {
   vi.spyOn(sessions, 'getSessionAsync').mockResolvedValue(SESSION.sessionId);
 });
 
-/** The spec the run opens a request's first attempt under. */
-function runSpec(request: RunRequest): EngineSpec {
-  const attempt = planAttempts(request.profile)[0];
-  return buildEngineSpec(request, attempt, { route: requestRoute(request, attempt) });
+/** The spec the run opens one attempt of a request under; a fallback starts a fresh conversation. */
+function runSpec(request: RunRequest, index = 0): EngineSpec {
+  const attempt = planAttempts(request.profile)[index];
+  const opened = index === 0 ? request : { ...request, session: { ...request.session, backendSessionId: null } };
+  return buildEngineSpec(opened, attempt, { route: requestRoute(opened, attempt) });
 }
 
 async function identityOf(input: TurnInput): Promise<string> {
@@ -137,21 +147,44 @@ test('an ask-user answer asks for the same engine as a user turn', async () => {
   expect(await identityOf(captured.at(-1)!)).toBe(userTurn);
 });
 
-test('manual compaction asks for the same engine as a user turn', async () => {
-  const userTurn = await userTurnIdentity();
+/** Compact the session against a pool holding `live` (or nothing), returning the specs asked for. */
+async function compactAgainst(live: EngineSession | null): Promise<EngineSpec[]> {
   const acquired: EngineSpec[] = [];
-  const engine = {
+  const engine = live ?? {
     compact: async () => ({
       status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null, contextUsage: null, usage: null,
     }),
   } as unknown as EngineSession;
+  vi.spyOn(engines, 'get').mockReturnValue((live ?? undefined) as never);
   vi.spyOn(engines, 'acquire').mockImplementation(((spec: EngineSpec) => {
     acquired.push(spec);
     return engine;
   }) as never);
   const outcome = await compactSessionContext(SESSION.sessionId);
   expect(outcome.ok).toBe(true);
+  return acquired;
+}
+
+test('manual compaction asks for the same engine as a user turn', async () => {
+  const userTurn = await userTurnIdentity();
+  const acquired = await compactAgainst(null);
   expect(acquired).toHaveLength(1);
   expect(acquired[0].resume.backendSessionId).toBe(SESSION.backendSessionId);
   expect(claudeSpecIdentity(acquired[0])).toBe(userTurn);
+});
+
+test('manual compaction asks for the fallback engine the session\'s last turn left live', async () => {
+  const userTurn = await userTurnIdentity();
+  const { request } = await captured.at(-1)!.prepareRequest(captured.at(-1)!.session);
+  const fallbackTurn = claudeSpecIdentity(runSpec(request, 1));
+  expect(fallbackTurn).not.toBe(userTurn);
+  const live = {
+    backend: 'claude', identity: fallbackTurn, backendSessionId: SESSION.backendSessionId, isAlive: () => true,
+    compact: async () => ({
+      status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null, contextUsage: null, usage: null,
+    }),
+  } as unknown as EngineSession;
+  const acquired = await compactAgainst(live);
+  expect(acquired).toHaveLength(1);
+  expect(claudeSpecIdentity(acquired[0])).toBe(fallbackTurn);
 });

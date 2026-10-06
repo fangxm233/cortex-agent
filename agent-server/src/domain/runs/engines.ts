@@ -47,6 +47,32 @@ export class SessionEngines {
     return spec.backend.kind === 'pi' ? this.acquirePi(spec) : this.acquireClaude(spec);
   }
 
+  /** Whether `acquire(spec)` would hand back the engine pooled under the spec's key rather than
+   *  retire it. Read-only: a command that targets a session's live engine asks this of each spec it
+   *  could build, so finding the live one never costs the session its process. */
+  reuses(spec: EngineSpec): boolean {
+    const existing = this.get(spec.engineKey);
+    if (!existing) return false;
+    return spec.backend.kind === 'pi'
+      ? !!this.pi && this.piReusable(this.pi, spec, existing)
+      : !!this.claude && this.claudeReusable(this.claude, spec, existing);
+  }
+
+  /** PI's reuse clause: alive, and opened from the exact same configuration. */
+  private piReusable(pi: PIAdapter, spec: EngineSpec, existing: EngineSession): boolean {
+    return existing.isAlive() && existing.identity === pi.specIdentity(spec);
+  }
+
+  /** Claude's reuse clause: alive, compatible, and — when the spec resumes — already on the
+   *  transcript it resumes. `specIdentity` serializes the spawn compatibility, so string equality is
+   *  the compatibility check; the resume clause has no PI equivalent and compares the spec's resume
+   *  target against the session's **live** `sessionId`. */
+  private claudeReusable(claude: ClaudeAdapter, spec: EngineSpec, existing: EngineSession): boolean {
+    if (!existing.isAlive() || existing.identity !== claude.specIdentity(spec)) return false;
+    const resume = claude.claudeResumeTarget(spec);
+    return !resume.needsResume || existing.backendSessionId === resume.sessionId;
+  }
+
   /** Reuse the pooled PI session when it is alive and was opened from the exact same
    *  configuration; otherwise retire it (fire-and-forget close, same log line) and open a new one.
    *  A live session cannot be re-pointed at a different model, tool surface or MCP set. */
@@ -54,9 +80,8 @@ export class SessionEngines {
     const pi = this.pi;
     if (!pi) throw new Error('SessionEngines has no PI engine adapter configured');
     const key = spec.engineKey;
-    const identity = pi.specIdentity(spec);
     const existing = this.sessions.get(key) as PIEngineSession | undefined;
-    if (existing && existing.isAlive() && existing.identity === identity) return existing;
+    if (existing && this.piReusable(pi, spec, existing)) return existing;
     if (existing) {
       piLog.info(
         `PI session ${key} retired (${existing.isAlive() ? 'spawn config changed' : 'session gone'});`
@@ -82,22 +107,16 @@ export class SessionEngines {
   }
 
   /**
-   * Claude's pool read: the old Claude pool predicate moved off `ClaudeSession`.
-   * `specIdentity` serializes the spawn compatibility, so string equality is the compatibility
-   * check; the fourth clause has no PI equivalent and compares the spec's resume target
-   * against the session's **live** `sessionId`. Claude's retire path logs nothing and does not
-   * check `isAlive()` before closing (`close()` itself is a no-op once dead); keep both as they are.
+   * Claude's pool read: reuse when {@link claudeReusable} holds, otherwise retire and open fresh.
+   * Claude's retire path logs nothing and does not check `isAlive()` before closing (`close()`
+   * itself is a no-op once dead); keep both as they are.
    */
   private acquireClaude(spec: EngineSpec): ClaudeEngineSession {
     const claude = this.claude;
     if (!claude) throw new Error('SessionEngines has no Claude engine adapter configured');
     const key = spec.engineKey;
-    const identity = claude.specIdentity(spec);
-    const resume = claude.claudeResumeTarget(spec);
     let session = this.sessions.get(key) as ClaudeEngineSession | undefined;
-    const incompatible = session && session.identity !== identity;
-    if (!session || !session.isAlive() || incompatible
-        || (resume.needsResume && session.backendSessionId !== resume.sessionId)) {
+    if (!session || !this.claudeReusable(claude, spec, session)) {
       if (session) void session.close();
       this.sessions.delete(key);
       let engine!: ClaudeEngineSession;

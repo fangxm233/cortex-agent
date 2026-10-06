@@ -1,8 +1,9 @@
 //
-// Compaction is not a run: nothing is asked, no turn is opened, no attempt chain applies. It is a
+// Compaction is not a run: nothing is asked, no turn is opened, no attempt chain is walked. It is a
 // command sent to the engine session a channel is already resuming into — which is why it runs on
 // the POOLED session and leaves it pooled, rather than spawning a throwaway that would discard the
-// warmed process the next turn wants.
+// warmed process the next turn wants. That session is whichever attempt of the profile the last
+// turn ran on: a turn the primary could not serve leaves a fallback's engine live.
 
 import type { Backend, EngineSession, EngineSpec } from '../../agent-adapter/types.js';
 import type { AgentCompactResult } from '../../agent-adapter/types.js';
@@ -43,6 +44,8 @@ export interface CompactAgentDeps {
   /** The pooled session for the spec. Compaction runs on it and leaves it pooled — it is the same
    *  session the channel's next turn will resume into, not a throwaway process. */
   acquireEngine: (spec: EngineSpec) => EngineSession;
+  /** Whether the pool would hand back its live engine for the spec rather than open a new one. */
+  isPooled: (spec: EngineSpec) => boolean;
   /** The route the run would open this attempt of the request under. */
   route: (request: RunRequest, attempt: RunAttemptConfig) => ModeEnv;
   recordCost: (entry: CompactCostEntry) => Promise<void>;
@@ -50,6 +53,7 @@ export interface CompactAgentDeps {
 
 const compactAgentDeps: CompactAgentDeps = {
   acquireEngine: (spec) => engines.acquire(spec),
+  isPooled: (spec) => engines.reuses(spec),
   route: requestRoute,
   recordCost,
 };
@@ -74,22 +78,46 @@ export function isSessionCompactionSupported(
 
 function compactCostEntry(
   target: CompactAgentTarget,
+  attempt: RunAttemptConfig,
   result: AgentCompactResult,
 ): CompactCostEntry | null {
   if (!result.usage) return null;
-  const { profile, context } = target.request;
+  const { context } = target.request;
   return {
     project: context.project,
     trigger: context.trigger,
     cost_usd: result.usage.costUsd,
     backend: target.backend,
-    mode: profile.mode || 'api',
+    mode: attempt.mode || 'api',
     source: 'estimate',
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,
-    ...(profile.provider ? { provider: profile.provider } : {}),
-    ...(profile.model ? { model: profile.model } : {}),
+    ...(attempt.provider ? { provider: attempt.provider } : {}),
+    ...(attempt.model ? { model: attempt.model } : {}),
   };
+}
+
+/** The engine spec of the attempt whose engine is live — the primary's when none is. Only attempts
+ *  on the session's backend count: an engine of another backend holds another conversation. Every
+ *  attempt is asked for with the session's resume target: a fallback's turn started a fresh
+ *  conversation and the session recorded its id, so that target names the live engine's transcript
+ *  whichever attempt opened it. */
+function liveAttemptSpec(
+  target: CompactAgentTarget, deps: CompactAgentDeps,
+): { attempt: RunAttemptConfig; spec: EngineSpec } {
+  const { request, backend } = target;
+  const specOf = (attempt: RunAttemptConfig) => ({
+    attempt, spec: buildEngineSpec(request, attempt, { route: deps.route(request, attempt) }),
+  });
+  const [primary, ...fallbacks] = planAttempts(request.profile);
+  const first = specOf(primary);
+  if (deps.isPooled(first.spec)) return first;
+  for (const attempt of fallbacks) {
+    if (attempt.backend !== backend) continue;
+    const candidate = specOf(attempt);
+    if (deps.isPooled(candidate.spec)) return candidate;
+  }
+  return first;
 }
 
 export async function compactAgentContext(
@@ -100,14 +128,10 @@ export async function compactAgentContext(
   if (!supportsCompactProfile(backend, request.profile)) {
     throw new Error(`${backend} profile does not support manual context compaction`);
   }
-  // The run's first attempt: the engine the session's turns open (a fallback attempt starts a
-  // fresh conversation, so it is never the one holding the context to compact).
-  const attempt = planAttempts(request.profile)[0];
-  const engine = deps.acquireEngine(
-    buildEngineSpec(request, attempt, { route: deps.route(request, attempt) }),
-  );
+  const { attempt, spec } = liveAttemptSpec(target, deps);
+  const engine = deps.acquireEngine(spec);
   const result = await engine.compact();
-  const cost = compactCostEntry(target, result);
+  const cost = compactCostEntry(target, attempt, result);
   if (cost) await deps.recordCost(cost);
   return result;
 }

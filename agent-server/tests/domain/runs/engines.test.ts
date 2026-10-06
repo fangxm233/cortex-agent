@@ -63,3 +63,18 @@ test('registerSessionPath survives being detached from the instance', () => {
   const target = path.join(adapter.sessionDir, 'detached.jsonl');
   assert.doesNotThrow(() => register('detached', target));
 });
+
+// A command that targets a session's live engine (manual compaction) asks the pool which of the
+// specs it could build is the one already running, so it never retires that engine to find out.
+test('reuses answers what acquire would do, without retiring or opening anything', async () => {
+  const { engines } = fixture();
+  const spec = piSpec({ sessionId: null, sessionKey: 'live', resume: false });
+  const changed = piSpec({ sessionId: null, sessionKey: 'live', resume: false, model: 'other-model' });
+  assert.equal(engines.reuses(spec), false, 'nothing pooled under the key yet');
+  const live = engines.acquire(spec);
+  assert.equal(engines.reuses(spec), true);
+  assert.equal(engines.reuses(changed), false);
+  assert.equal(engines.get('live'), live, 'asking about a changed spec leaves the live engine pooled');
+  await engines.close('live');
+  assert.equal(engines.reuses(spec), false, 'a closed engine is not reused');
+});
