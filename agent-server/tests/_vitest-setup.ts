@@ -37,8 +37,10 @@ process.env.CORTEX_HOME = home;
 // Same isolation, for the OTHER config root the server reads: without this, anything resolving a
 // Claude user setting (resolveAutoCompactWindow, auth probes) falls through to the developer's real
 // ~/.claude/settings.json, so a machine with `autoCompactWindow` set fails tests that assert
-// reported context windows. Tests that need a populated dir set the variable themselves.
-process.env.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR ?? path.join(home, '.claude');
+// reported context windows. Always overwritten, never inherited: a dev shell that exports
+// CLAUDE_CONFIG_DIR would otherwise hand its real dir to every test. Tests that need a populated
+// dir set the variable themselves.
+process.env.CLAUDE_CONFIG_DIR = path.join(home, '.claude');
 // Keep the temp dirs the test files allocate themselves inside the run-scoped root too.
 redirectTmpdir();
 // atomicWrite tripwire keys off NODE_TEST_CONTEXT; node:test set it implicitly,
