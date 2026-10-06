@@ -22,8 +22,7 @@ function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
     id: 'sch-1', type: 'once', message: 'ship report', projectId: 'nimbus', profile: 'review',
     nextRun: '2030-01-01T08:00:00.000Z', lastRun: null, paused: false, pausedBy: null,
-    intervalMs: null, time: null, dayOfWeek: null,
-    target: { kind: 'project', projectId: 'nimbus' }, ...p,
+    intervalMs: null, time: null, dayOfWeek: null, ...p,
   } as ScheduleInfo;
 }
 
@@ -44,13 +43,13 @@ function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {
       message: formSchedule.message,
       profile: formSchedule.profile ?? '',
       time: '09:00', dayOfWeek: 1, intervalValue: 30, intervalUnit: 'min',
-      delayValue: 10, delayUnit: 'min', target: 'project', projectId: formSchedule.projectId,
+      delayValue: 10, delayUnit: 'min', projectId: formSchedule.projectId,
     },
     mode: 'edit',
     profileOptions: ['review'],
     editableFields: {
       type: false, time: false, interval: false, dayOfWeek: false, delay: false,
-      target: false, message: true, profile: true, projectId: true,
+      message: true, profile: true, projectId: true,
     },
     valid: true,
     pending: false,

@@ -53,17 +53,10 @@ describe('buildScheduleAddArgs', () => {
     const args = buildScheduleAddArgs(form({ type: 'once', delayValue: 10, delayUnit: 'min', message: 'x' }));
     expect(args.delay).toBe(10 * 60_000);
   });
-  it('current-channel target → omit target (no constructible channel)', () => {
-    const args = buildScheduleAddArgs(form({ target: 'current-channel', message: 'x' }));
-    expect(args.target).toBeUndefined();
-  });
-  it('fresh target → {kind:fresh}', () => {
-    const args = buildScheduleAddArgs(form({ target: 'fresh', message: 'x' }));
-    expect(args.target).toEqual({ kind: 'fresh' });
-  });
-  it('project target → {kind:project, projectId}', () => {
-    const args = buildScheduleAddArgs(form({ target: 'project', projectId: 'nimbus', message: 'x' }));
-    expect(args.target).toEqual({ kind: 'project', projectId: 'nimbus' });
+  it('binds the schedule to the form project', () => {
+    const args = buildScheduleAddArgs(form({ projectId: 'nimbus', message: 'x' }));
+    expect(args.projectId).toBe('nimbus');
+    expect(args).not.toHaveProperty('target');
   });
   it('omits projectId/profile when absent', () => {
     const args = buildScheduleAddArgs(form({ projectId: null, profile: '', message: 'x' }));
@@ -101,7 +94,6 @@ describe('editableScheduleFields', () => {
     expect(editableScheduleFields('edit', 'once')).toMatchObject({
       type: false,
       delay: false,
-      target: false,
       message: true,
       profile: true,
     });
@@ -149,20 +141,19 @@ function sched(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
     id: 'sch1', type: 'daily', message: 'scan arXiv', projectId: 'nimbus', profile: 'claude-haiku',
     nextRun: null, lastRun: null, paused: false, pausedBy: null,
-    intervalMs: null, time: '07:30', dayOfWeek: null, target: null,
+    intervalMs: null, time: '07:30', dayOfWeek: null,
     ...p,
   } as ScheduleInfo;
 }
 
 describe('formFromSchedule', () => {
-  it('prefills a daily schedule (null target → current-channel)', () => {
+  it('prefills a daily schedule', () => {
     const f = formFromSchedule(sched());
     expect(f.type).toBe('daily');
     expect(f.message).toBe('scan arXiv');
     expect(f.profile).toBe('claude-haiku');
     expect(f.time).toBe('07:30');
     expect(f.projectId).toBe('nimbus');
-    expect(f.target).toBe('current-channel');
   });
 
   it('decomposes intervalMs into value+unit (whole hours prefer hr)', () => {
@@ -174,12 +165,8 @@ describe('formFromSchedule', () => {
     });
   });
 
-  it('prefills weekly dayOfWeek and maps the persisted target', () => {
-    const f = formFromSchedule(sched({
-      type: 'weekly', dayOfWeek: 3, target: { kind: 'project', projectId: 'nimbus' },
-    }));
-    expect(f.dayOfWeek).toBe(3);
-    expect(f.target).toBe('project');
+  it('prefills weekly dayOfWeek', () => {
+    expect(formFromSchedule(sched({ type: 'weekly', dayOfWeek: 3 })).dayOfWeek).toBe(3);
   });
 
   it('maps a null profile to an empty form value (never fabricates one)', () => {

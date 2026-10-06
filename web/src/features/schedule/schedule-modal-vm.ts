@@ -4,27 +4,19 @@ import type { Vocab } from '@/i18n';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
 export type IntervalUnit = 'min' | 'hr';
-// Only target kinds the browser can actually construct. `current-channel` (the prototype default)
-// and an explicit thread/channel target have no source in the web contract → not offered / omitted
-// (flagged data gap); the scheduler applies its own default when `target` is absent.
-export type TargetChoice = 'current-channel' | 'fresh' | 'project';
 
 export const SCHED_TYPES: SchedType[] = ['interval', 'daily', 'weekly', 'once'];
 export const INTERVAL_UNITS: IntervalUnit[] = ['min', 'hr'];
-export const TARGET_OPTIONS: TargetChoice[] = ['current-channel', 'fresh', 'project'];
 
 export const DAY_OPTIONS: number[] = [0, 1, 2, 3, 4, 5, 6];
 
-// Display words for the unit / target options; the option VALUES stay the scheduler's own spellings.
+// Display words for the unit options; the option VALUES stay the scheduler's own spellings.
 const OPTION_LABEL_KEY = {
   min: 'schedUnitMin',
   hr: 'schedUnitHr',
-  'current-channel': 'schedTargetCurrentChannel',
-  fresh: 'schedTargetFresh',
-  project: 'schedTargetProject',
-} as const satisfies Record<IntervalUnit | TargetChoice, keyof Vocab>;
+} as const satisfies Record<IntervalUnit, keyof Vocab>;
 
-export function scheduleOptionLabel(option: IntervalUnit | TargetChoice, L: Vocab): string {
+export function scheduleOptionLabel(option: IntervalUnit, L: Vocab): string {
   return L[OPTION_LABEL_KEY[option]];
 }
 
@@ -53,7 +45,6 @@ export interface ScheduleForm {
   intervalUnit: IntervalUnit;
   delayValue: number; // once
   delayUnit: IntervalUnit;
-  target: TargetChoice;
   projectId: string | null;
 }
 
@@ -68,7 +59,6 @@ export function defaultScheduleForm(projectId: string | null): ScheduleForm {
     intervalUnit: 'min',
     delayValue: 10,
     delayUnit: 'min',
-    target: 'current-channel',
     projectId,
   };
 }
@@ -88,7 +78,6 @@ export interface ScheduleEditableFields extends FieldVisibility {
   message: boolean;
   profile: boolean;
   projectId: boolean;
-  target: boolean;
 }
 
 export function visibleFields(type: SchedType): FieldVisibility {
@@ -114,7 +103,6 @@ export function editableScheduleFields(
     message: true,
     profile: true,
     projectId: true,
-    target: !editing,
   };
 }
 
@@ -153,12 +141,6 @@ export function unitToMs(value: number, unit: IntervalUnit): number {
 
 const TIME_RE = /^\d{2}:\d{2}$/;
 
-function buildTarget(choice: TargetChoice, projectId: string | null): MutateArgs<'schedules.add'>['target'] {
-  if (choice === 'fresh') return { kind: 'fresh' };
-  if (choice === 'project') return { kind: 'project', projectId: projectId ?? 'general' };
-  return undefined; // current-channel → let the scheduler default (no constructible channel here)
-}
-
 export function buildScheduleAddArgs(form: ScheduleForm): MutateArgs<'schedules.add'> {
   const args: MutateArgs<'schedules.add'> = {
     type: form.type,
@@ -171,17 +153,12 @@ export function buildScheduleAddArgs(form: ScheduleForm): MutateArgs<'schedules.
   if (form.type === 'daily' || form.type === 'weekly') args.time = form.time;
   if (form.type === 'weekly') args.dayOfWeek = form.dayOfWeek;
   if (form.type === 'once') args.delay = unitToMs(form.delayValue, form.delayUnit);
-
-  const target = buildTarget(form.target, form.projectId);
-  if (target) args.target = target;
-
   return args;
 }
 
 // ── Edit mode (design 27b「Edit schedule ↗」) ────────────────────────────────
 // The schedule's type is immutable and `schedules.update` patches only message/projectId/profile +
-// the type's own timing fields — target and a once-schedule's runAt are not patchable, so the form's
-// target is prefill-only in edit mode (the modal renders it disabled).
+// the type's own timing fields — a once-schedule's runAt is not patchable.
 
 /** Prefill the form from a persisted schedule. Missing fields fall back to the create defaults so
  *  every control stays controlled; the profile falls back to '' (never a fabricated name). */
@@ -198,7 +175,6 @@ export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
     dayOfWeek: s.dayOfWeek ?? base.dayOfWeek,
     intervalValue: ms > 0 ? (wholeHours ? ms / 3_600_000 : Math.round(ms / 60_000)) : base.intervalValue,
     intervalUnit: wholeHours ? 'hr' : 'min',
-    target: s.target?.kind === 'fresh' ? 'fresh' : s.target?.kind === 'project' ? 'project' : 'current-channel',
   };
 }
 

@@ -56,7 +56,6 @@ function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
     intervalMs: null,
     time: null,
     dayOfWeek: null,
-    target: { kind: 'project', projectId: 'nimbus' },
     ...p,
   } as ScheduleInfo;
 }
@@ -205,20 +204,19 @@ describe('useScheduleEditorController', () => {
     act(() => controller?.openEdit(realSchedule));
     expect(controller?.mode).toBe('edit');
     expect(controller?.form).toMatchObject({
-      type: 'once', message: 'ship report', profile: 'review', target: 'project',
+      type: 'once', message: 'ship report', profile: 'review',
     });
     expect(controller?.editableFields).toMatchObject({
-      type: false, delay: false, target: false, message: true, profile: true,
+      type: false, delay: false, message: true, profile: true,
     });
 
     act(() => controller?.onChange({
       type: 'weekly',
       delayValue: 999,
-      target: 'fresh',
       message: '  updated  ',
     }));
     expect(controller?.form).toMatchObject({
-      type: 'once', delayValue: 10, target: 'project', message: '  updated  ',
+      type: 'once', delayValue: 10, message: '  updated  ',
     });
 
     await act(async () => { expect(await controller?.submit()).toBe(true); });

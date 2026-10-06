@@ -5,7 +5,6 @@ import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
   SCHED_TYPES,
-  TARGET_OPTIONS,
   scheduleOptionLabel,
   visibleFields,
   type ScheduleEditableFields,
@@ -182,20 +181,6 @@ function MessageField({ copy, form, editableFields, onChange }: FieldsProps) {
   );
 }
 
-function RoutingFields({ copy, form, mode, editableFields, onChange }: FieldsProps) {
-  return (
-    <div style={{ opacity: mode === 'edit' ? 0.6 : 1 }}>
-      <label>
-        <span style={label}>{copy.scTarget}</span>
-        <select style={field} value={form.target} disabled={!editableFields.target}
-          onChange={(event) => onChange({ target: event.target.value as ScheduleForm['target'] })}>
-          {TARGET_OPTIONS.map((target) => <option key={target} value={target}>{scheduleOptionLabel(target, copy)}</option>)}
-        </select>
-      </label>
-    </div>
-  );
-}
-
 function SubmitFields({ copy, mode, valid, pending, error, onSubmit }: FieldsProps) {
   return (
     <>
@@ -221,7 +206,6 @@ export function EditorFields(props: FieldsProps) {
       <DayField {...props} />
       <ProfileField {...props} />
       <MessageField {...props} />
-      <RoutingFields {...props} />
       <SubmitFields {...props} />
     </div>
   );

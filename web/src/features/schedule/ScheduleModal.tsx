@@ -7,7 +7,6 @@ import {
   SCHED_TYPES,
   DAY_OPTIONS,
   INTERVAL_UNITS,
-  TARGET_OPTIONS,
   scheduleOptionLabel,
   type ScheduleEditableFields,
   type ScheduleForm,
@@ -17,7 +16,7 @@ import {
 // New-schedule overlay (design 7c), rebuilt 1:1 from prototype.dc.html L1431-1459 (+ shared backdrop
 // L1291-1292). Exact inline styles / px / hex / font-size / weight / EN copy from the source; the
 // prototype's static mock is made interactive: TYPE drives which field cell shows, MESSAGE is
-// editable, PROFILE/TARGET/DAY/unit are real controls, and Create schedule fires the real
+// editable, PROFILE/DAY/unit are real controls, and Create schedule fires the real
 // `schedules.add` mutation (owned by useScheduleEditorController). The DAILY state is the visual-diff bar
 // (proto-shot 13); interval/weekly/once reuse the identical cell chrome, swapping the visible field.
 
@@ -367,29 +366,6 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
                 fontFamily: 'inherit',
               }}
             />
-          </div>
-
-          {/* TARGET (prototype L1449-1452) — not patchable via schedules.update, so edit mode shows
-              it read-only (prefill from the persisted record). */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-            <div>
-              <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
-              <div style={CELL_BOX}>
-                <Select
-                  data-schedule-select="target"
-                  density="bare"
-                  aria-label={L.scTarget}
-                  value={form.target}
-                  disabled={!editableFields.target}
-                  options={TARGET_OPTIONS.map((target) => ({ value: target, label: scheduleOptionLabel(target, L) }))}
-                  onValueChange={(target) => onChange({ target })}
-                  style={{
-                    ...bareSelectStyle('11.5px system-ui, sans-serif'),
-                    cursor: editableFields.target ? 'pointer' : 'not-allowed',
-                  }}
-                />
-              </div>
-            </div>
           </div>
         </div>
 

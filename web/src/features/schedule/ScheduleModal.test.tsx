@@ -66,8 +66,7 @@ describe('ScheduleModal custom selections', () => {
     expect(type.props.disabled).toBe(true);
     expect(type.props.style.opacity).toBeUndefined();
     expect(type.props.className).toContain('focus-visible:outline');
-    const target = renderer.root.findByProps({ 'data-schedule-select': 'target' });
-    expect(target.props.disabled).toBe(true);
+    expect(renderer.root.findAllByProps({ 'data-schedule-select': 'target' })).toHaveLength(0);
     expect(renderer.root.findByProps({ role: 'dialog' }).props.style).toMatchObject({
       width: 560, maxWidth: 'calc(100vw - 40px)', backdropFilter: 'var(--glass-filter)',
       background: 'var(--material-overlay-bg)', boxShadow: 'var(--material-overlay-shadow)',
@@ -75,18 +74,16 @@ describe('ScheduleModal custom selections', () => {
     expect(renderer.root.findAll(node => node.props.style?.background === 'var(--proto-card)')).toHaveLength(0);
   });
 
-  it('emits typed patches for interval, profile and target fields', () => {
+  it('emits typed patches for interval and profile fields', () => {
     const onChange = vi.fn();
     const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const };
     const renderer = mount(form, onChange);
     pick(renderer, 'intervalUnit', 'hr');
     pick(renderer, 'profile', 'review');
-    pick(renderer, 'target', 'project');
 
     expect(onChange.mock.calls.map(([patch]) => patch)).toEqual([
       { intervalUnit: 'hr' },
       { profile: 'review' },
-      { target: 'project' },
     ]);
   });
 

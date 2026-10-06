@@ -51,7 +51,6 @@ function mkSched(p: Partial<ScheduleInfo> & { id: string }): ScheduleInfo {
     intervalMs: p.intervalMs ?? null,
     time: p.time ?? '07:30',
     dayOfWeek: p.dayOfWeek ?? null,
-    target: p.target ?? null,
   } as ScheduleInfo;
 }
 

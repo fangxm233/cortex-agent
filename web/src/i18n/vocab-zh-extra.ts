@@ -167,7 +167,6 @@ export const zhExtra = {
   scProfile: '配置',
   scMessage: '消息',
   scMessagePh: '检查所有机器的 GPU 状态并发一句话摘要。',
-  scTarget: '目标',
   scNextRun: '下次运行',
   scFooterIn: '还有',
   scCreateSchedule: '创建调度',

@@ -167,7 +167,6 @@ export const enExtra = {
   scProfile: 'PROFILE',
   scMessage: 'MESSAGE',
   scMessagePh: 'Check GPU status on all machines and post a one-line summary.',
-  scTarget: 'TARGET',
   scNextRun: 'next run',
   scFooterIn: 'in',
   scCreateSchedule: 'Create schedule',

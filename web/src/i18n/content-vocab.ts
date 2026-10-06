@@ -43,9 +43,6 @@ export const contentEn = {
   schedColCost: 'COST',
   schedUnitMin: 'min',
   schedUnitHr: 'hr',
-  schedTargetCurrentChannel: 'current-channel',
-  schedTargetFresh: 'fresh',
-  schedTargetProject: 'project',
   schedClock24h: '24h',
 };
 export const contentZh: Record<keyof typeof contentEn, string> = {
@@ -90,8 +87,5 @@ export const contentZh: Record<keyof typeof contentEn, string> = {
   schedColCost: '费用',
   schedUnitMin: '分钟',
   schedUnitHr: '小时',
-  schedTargetCurrentChannel: '当前频道',
-  schedTargetFresh: '新会话',
-  schedTargetProject: '项目',
   schedClock24h: '24 小时制',
 };
