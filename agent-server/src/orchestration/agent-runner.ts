@@ -8,10 +8,8 @@ import { sessionStore, effectiveBackendSessionId } from '@store/session-registry
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
-import { isTeamLead } from '@domain/sessions/team.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
-import { getSettings } from '@core/settings.js';
 import { publishSessionDebugUpdated } from './session-events.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
 import { runRegistry } from '@core/run-registry.js';
@@ -19,7 +17,7 @@ import { prepareConversationRequest } from './conversation-request.js';
 import { openTurn, buildInjectDeps } from './turn/turn.js';
 import { recordHistory } from './transcript-sink.js';
 import {
-  acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
+  acquireSessionUseLease, collectTurnFiles, withTurnBrowser, type SessionUseLease,
 } from './turn/turn-prep.js';
 import { downloadMessageFiles, type InboundFiles } from './routing/file-handler.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
@@ -174,12 +172,6 @@ export class AgentRunner {
   /**
    * Resolve what a turn needs but is not part of it — the files, the session record (found or
    * created) with its use lease, the browser the session opted into — and open the turn.
-   *
-   * `sessionId` here is the STABLE tracking id: the registry binds channel → track id (not the
-   * backend id), and everything downstream (publish / history / status / Destination) keys on it.
-   * The backend resume target is resolved separately. A channel with no bound session yet (fresh
-   * Slack/Feishu/etc.) mints + registers + binds a track id up front, unifying it with the web path
-   * (createDirectSession pre-registers) so publish/history always have a stable key.
    */
   private async _executeReal(
     ctx: AgentRunnerCtx,
@@ -190,90 +182,76 @@ export class AgentRunner {
     const turnFiles = await collectTurnFiles(message, loadPlatformFiles);
     const startTime = Date.now();
     const backend = resolveBackendForChannel(channel);
-    let sessionId = await getSessionAsync(channel);
-    let sessionName: string;
-    let backendSessionId: string | null;
-    let projectId: string;
-    let sessionLease: SessionUseLease | null = null;
-    /** Opt-in browser access, read off the session record (plan/embedded-browser.md §17). */
-    let sessionBrowser: { device: string } | null = null;
-    /** Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
-     *  Drafting is not tracked here: the drill needs no plugin, and the [Commission] block reads the
-     *  session record itself (see resolveConversationCommission). */
-    let sessionCommissionId: string | null = null;
-    /** Team mode: this session may lead workers, so its engine loads the worker tools. */
-    let teamLead = false;
-    if (sessionId) {
-      sessionLease = await acquireSessionUseLease(sessionId);
-      if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
-      sessionName = sessionLease.session.name;
-      backendSessionId = effectiveBackendSessionId(sessionLease.session);
-      projectId = sessionLease.session.projectId ?? 'general';
-      sessionBrowser = sessionLease.session.browser ?? null;
-      // settings.commissionEnabled is the global switch for the feature. With it off, a session
-      // that was bound while it was on reverts to an ordinary session: no commission skill, no
-      // contract block, and the commission tools refuse.
-      const commissionOn = getSettings().commissionEnabled;
-      sessionCommissionId = commissionOn ? sessionLease.session.commissionId ?? null : null;
-      teamLead = isTeamLead(sessionLease.session);
-    } else {
-      sessionId = crypto.randomUUID();
-      projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
-      sessionName = await registerNamedSession(sessionStore, {
-        sessionId, channel, backend,
-        label: userMessage?.substring(0, 60) ?? null,
-        profileName: getActiveProfile(channel), projectId,
-      });
-      await setSessionAsync(channel, sessionId); // bind channel → track id
-      sessionLease = await acquireSessionUseLease(sessionId);
-      if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
-      backendSessionId = null; // fresh: the backend self-assigns its id on this first turn
-    }
-    const browser = await acquireTurnBrowser({ backend, browser: sessionBrowser });
-    const debugEnabled = isDebugMode();
-    const trackSessionId = sessionId;
-    try {
-      await openTurn({
-        channel, adapter, threadAnchorId,
-        session: { sessionId, sessionName, backendSessionId, projectId, lease: sessionLease },
-        user: {
-          text: userMessage || '',
-          attachments: mergeAttachments(message.webAttachments, turnFiles.platformAttachments),
-          ...(message.systemOrigin ? { systemOrigin: message.systemOrigin } : {}),
-        },
-        ledger: { userMessageTs: message.ref.messageId },
-        trigger: 'user',
-        origin: turnOrigin(message),
-        startTime,
-        mutationRelease,
-        // The default agent's spec plus the first-turn ambient blocks — the assembly half of what
-        // `runConversation` used to do inline (conversation-request.ts).
-        prepareRequest: (ids) => prepareConversationRequest({
-          ids: {
-            sessionId: ids.sessionId ?? '',
-            backendSessionId: ids.backendSessionId,
-            sessionName: ids.sessionName ?? '',
-            projectId: ids.projectId,
-          },
-          channel,
-          userMessage: agentMessage,
-          files: turnFiles.files,
-          failedFiles: turnFiles.failures,
-          browserCdpEndpoint: browser.cdpEndpoint,
-          commissionMode: !!sessionCommissionId,
-          teamLead,
-          onPromptBuilt: debugEnabled ? (prompt: string) => {
-            recordHistory(
-              conversationHistory.appendUserPrompt(trackSessionId, { agentMessage: prompt }),
-              () => publishSessionDebugUpdated({ sessionId: trackSessionId, channel }),
-            );
-          } : null,
-        }),
-      });
-    } finally {
-      releaseTurnBrowser(browser.held);
-    }
+    const { lease, backendSessionId } = await bindTurnSession(ctx, backend);
+    const session = lease.session;
+    await withTurnBrowser({ backend, browser: session.browser ?? null }, (cdpEndpoint) => openTurn({
+      channel, adapter, threadAnchorId,
+      session: {
+        sessionId: session.sessionId, sessionName: session.name, backendSessionId,
+        projectId: session.projectId ?? 'general', lease,
+      },
+      user: {
+        text: userMessage || '',
+        attachments: mergeAttachments(message.webAttachments, turnFiles.platformAttachments),
+        ...(message.systemOrigin ? { systemOrigin: message.systemOrigin } : {}),
+      },
+      ledger: { userMessageTs: message.ref.messageId },
+      trigger: 'user',
+      origin: turnOrigin(message),
+      startTime,
+      mutationRelease,
+      prepareRequest: (turnIds) => prepareConversationRequest({
+        ids: turnIds, channel, session, userMessage: agentMessage,
+        files: turnFiles.files, failedFiles: turnFiles.failures,
+        browserCdpEndpoint: cdpEndpoint, onPromptBuilt: debugPromptRecorder(session.sessionId, channel),
+      }),
+    }));
   }
+}
+
+/** In debug mode, the backend-ready prompt of each turn is kept in the session's history. */
+function debugPromptRecorder(sessionId: string, channel: string): ((prompt: string) => void) | null {
+  if (!isDebugMode()) return null;
+  return (prompt) => recordHistory(
+    conversationHistory.appendUserPrompt(sessionId, { agentMessage: prompt }),
+    () => publishSessionDebugUpdated({ sessionId, channel }),
+  );
+}
+
+/**
+ * The session this turn runs on, with its use lease.
+ *
+ * The id is the STABLE tracking id: the registry binds channel → track id (not the backend id), and
+ * everything downstream (publish / history / status / Destination) keys on it. The backend resume
+ * target is resolved separately. A channel with no bound session yet (fresh Slack/Feishu/etc.)
+ * mints + registers + binds a track id up front, unifying it with the web path
+ * (createDirectSession pre-registers) so publish/history always have a stable key.
+ */
+async function bindTurnSession(
+  ctx: AgentRunnerCtx,
+  backend: string,
+): Promise<{ lease: SessionUseLease; backendSessionId: string | null }> {
+  const bound = await getSessionAsync(ctx.channel);
+  if (bound) {
+    const lease = await leaseSession(bound);
+    return { lease, backendSessionId: effectiveBackendSessionId(lease.session) };
+  }
+  const sessionId = crypto.randomUUID();
+  await registerNamedSession(sessionStore, {
+    sessionId, channel: ctx.channel, backend,
+    label: ctx.userMessage?.substring(0, 60) ?? null,
+    profileName: getActiveProfile(ctx.channel),
+    projectId: (await ctx.adapter.resolveInboundProject(ctx.channel)) ?? 'general',
+  });
+  await setSessionAsync(ctx.channel, sessionId);
+  // Fresh: the backend self-assigns its id on this first turn.
+  return { lease: await leaseSession(sessionId), backendSessionId: null };
+}
+
+async function leaseSession(sessionId: string): Promise<SessionUseLease> {
+  const lease = await acquireSessionUseLease(sessionId);
+  if (!lease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
+  return lease;
 }
 
 export const agentRunner = new AgentRunner();

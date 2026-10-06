@@ -114,13 +114,9 @@ function runTurn(opts: {
     ledger: null,
     trigger: 'user',
     prepareRequest: (ids) => prepareConversationRequest({
-      ids: {
-        sessionId: ids.sessionId ?? '',
-        backendSessionId: ids.backendSessionId,
-        sessionName: ids.sessionName ?? '',
-        projectId: ids.projectId,
-      },
+      ids,
       channel,
+      session: null,
       userMessage: 'hello',
       files: opts.files ?? [],
       onPromptBuilt: opts.onPromptBuilt ?? null,

@@ -74,7 +74,7 @@ export async function collectTurnFiles(
  * release. A browser that cannot start degrades the turn to "no browser tools" instead of failing
  * it — the session is still worth running.
  */
-export async function acquireTurnBrowser(args: {
+async function acquireTurnBrowser(args: {
   backend: string;
   browser: { device: string } | null;
 }): Promise<{ held: string | null; cdpEndpoint: string | null }> {
@@ -100,7 +100,21 @@ export async function acquireTurnBrowser(args: {
 }
 
 /** Release whatever {@link acquireTurnBrowser} took. No-op when it took nothing. */
-export function releaseTurnBrowser(held: string | null): void {
+function releaseTurnBrowser(held: string | null): void {
   if (held === BROWSER_DEVICE_SERVER) releaseBrowser();
   else if (held) releaseDeviceBrowser(held);
+}
+
+/** Run one turn holding the browser its session opted into (`session.browser`), released when the
+ *  turn is over. The turn receives the CDP endpoint, or null when it runs without one. */
+export async function withTurnBrowser<T>(
+  args: { backend: string; browser: { device: string } | null },
+  turn: (cdpEndpoint: string | null) => Promise<T>,
+): Promise<T> {
+  const browser = await acquireTurnBrowser(args);
+  try {
+    return await turn(browser.cdpEndpoint);
+  } finally {
+    releaseTurnBrowser(browser.held);
+  }
 }

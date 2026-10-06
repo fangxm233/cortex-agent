@@ -16,15 +16,25 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
+    getDefaultAgent: () => 'main',
     getActiveProfile: () => 'default',
     resolveBackendForChannel: () => 'claude',
+  };
+});
+
+// Both surfaces open the session's agent; a scoped run's skeleton home has no environments.
+vi.mock('@domain/agents/environments/index.js', async (importOriginal) => {
+  const orig = await importOriginal<Record<string, unknown>>();
+  return {
+    ...orig,
+    resolveAgentSlotConfigByName: (name: string) => ({ slotId: name, profile: '__active__', persistSession: true }),
   };
 });
 
 import type { RunAttempt, StartAttemptInput } from '../../src/domain/runs/attempt.js';
 import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
 import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
-import { sessionStore } from '../../src/store/session-registry-repo.js';
+import { sessionStore, type Session } from '../../src/store/session-registry-repo.js';
 import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
@@ -63,18 +73,22 @@ function rejectedAttempt(backendSessionId: string, error: Error): RunAttempt {
   return makeSyntheticAttempt({ backendSessionId, foreground: promise });
 }
 
+function sessionRecord(trackSessionId: string): Session {
+  return {
+    name: `cortex-${trackSessionId}`, sessionId: trackSessionId, projectId: 'proj',
+    channel: `web:${trackSessionId}`, backend: 'claude', kind: 'local', origin: 'direct',
+    createdAt: '2020-01-01T00:00:00.000Z', lastUsedAt: '2020-01-01T00:00:00.000Z',
+    label: null, profileName: null, backendSessionId: `backend-${trackSessionId}`,
+  };
+}
+
 function installLeaseOrder(trackSessionId: string, events: string[]): void {
   vi.spyOn(sessionUse, 'acquireSessionUse').mockImplementation(async (id) => {
     assert.equal(id, trackSessionId);
     events.push('acquire');
     return () => { events.push('release'); };
   });
-  vi.spyOn(sessionStore, 'getById').mockResolvedValue({
-    name: `cortex-${trackSessionId}`, sessionId: trackSessionId, projectId: 'proj',
-    channel: `web:${trackSessionId}`, backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: '2020-01-01T00:00:00.000Z', lastUsedAt: '2020-01-01T00:00:00.000Z',
-    label: null, profileName: null, backendSessionId: `backend-${trackSessionId}`,
-  });
+  vi.spyOn(sessionStore, 'getById').mockResolvedValue(sessionRecord(trackSessionId));
   vi.spyOn(executionRegistry, 'startLocalExecution').mockReturnValue({ id: `exec-${trackSessionId}` } as any);
   vi.spyOn(runRegistry, 'register').mockImplementation(() => { events.push('register'); return `rk-${trackSessionId}`; });
   vi.spyOn(runRegistry, 'complete').mockImplementation(() => true);
@@ -111,8 +125,8 @@ test('edit retry hands its session lease to the registered execution without a g
   await runRetryAgent({
     channel: 'web:track-retry', text: 'edited', adapter: new MockAdapter() as any,
     statusMsg: { conduit: 'web:track-retry', messageId: 'status' }, startTime: Date.now(),
-    sessionId: 'track-retry', backendSessionId: 'backend-track-retry', sessionName: 'cortex-track-retry',
-    projectId: 'proj', userMessageTs: 'M1', retryPrefix: '',
+    sessionId: 'track-retry', session: sessionRecord('track-retry'), sessionName: 'cortex-track-retry',
+    userMessageTs: 'M1', retryPrefix: '',
     turnTrackingToken: 'token' as any,
   });
 

@@ -1,10 +1,8 @@
-//
-
 import { randomUUID } from 'node:crypto';
 import type { DownloadedFile } from '@platform/index.js';
 import type { AttachmentFailure } from './routing/file-handler.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
-import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
+import { getDefaultProfileName, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { FALLBACK_ENVIRONMENT, resolveAgentSlotConfigByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
@@ -20,7 +18,7 @@ import {
 } from '@domain/commissions/commission-context.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
-import { isTeamWorker } from '@domain/sessions/team.js';
+import { isTeamLead, isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
@@ -29,34 +27,41 @@ import {
   buildPrompt as buildAgentPrompt, formatAttachmentFailures,
 } from '../agent-adapter/normalize/prompt-builder.js';
 
-/** The ids the caller has already resolved for this turn. Mirrors the plan's `prepareRequest(ids)`
- *  shape: everything else on {@link PrepareConversationRequestOptions} is per-surface turn input. */
+/** The ids the caller has already resolved for this turn — the Turn's own `TurnSessionIds`. */
 export interface ConversationSessionIds {
-  /** Stable Cortex tracking id for this session (UI identity, execution-record + publish key). */
-  sessionId: string;
+  /** Stable Cortex tracking id for this session (UI identity, execution-record + publish key).
+   *  Null only on the degenerate edit retry of a channel that has no session. */
+  sessionId: string | null;
   /** Backend resume target (the backend CLI's own session id), or null for a fresh session. */
   backendSessionId: string | null;
   /** Resolved session name for this turn. */
-  sessionName: string;
+  sessionName: string | null;
   /** The project this session is bound to (from the session registry record). */
   projectId: string;
 }
 
+/**
+ * One turn on a session's live engine. Every surface that opens such a turn — a user message, an
+ * edit retry, an ask-user answer — builds its request here, because the pool respawns the engine
+ * when two requests disagree on anything that decides it (agent tools and plugins, worker tools,
+ * the commission skill, the browser, the interaction bridge).
+ */
 export interface PrepareConversationRequestOptions {
   ids: ConversationSessionIds;
   channel: string;
-  /** The raw user message (without the default agent's directive). */
+  /** The session record, read once by the caller for the whole turn; null when there is none. */
+  session: Session | null;
+  /** The text the agent answers (without the default agent's directive). */
   userMessage: string;
-  files: DownloadedFile[];
+  files?: DownloadedFile[];
   /** Attachments the platform refused to hand over; named in the prompt so the agent cannot
    *  answer as though the user had sent nothing. */
   failedFiles?: AttachmentFailure[];
   /** CDP endpoint of the browser this session opted into, or null for the usual no-browser session. */
   browserCdpEndpoint?: string | null;
-  /** True once the session is bound to a landed commission; loads the commission skill bundle. */
-  commissionMode?: boolean;
-  /** Team mode: the session may lead workers (worker tools, and the [Team] roster once it has any). */
-  teamLead?: boolean;
+  /** Execution trigger of a surface other than a plain message (`edit-retry`, `ask-user-question`).
+   *  Absent ⇒ the session's own (see {@link conversationTrigger}). */
+  trigger?: string;
   /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
 }
@@ -67,13 +72,8 @@ export interface PreparedRequest {
   backendPrompt: string;
 }
 
-function buildBackendPrompt(
-  prompt: string, files: DownloadedFile[], failures: AttachmentFailure[] = [],
-): string {
-  const attachments = files.map((file) => ({
-    mimeType: file.mimetype, path: file.localPath, name: file.name,
-  }));
-  return buildAgentPrompt(prompt, attachments, failures);
+function buildBackendPrompt(prompt: string, files: DownloadedFile[]): string {
+  return buildAgentPrompt(prompt, files.map(attachmentOf));
 }
 
 /**
@@ -165,18 +165,8 @@ export function resolveConversationAgent(
   throw new Error(`Unknown default agent: ${FALLBACK_ENVIRONMENT}`);
 }
 
-/** The parts of the session record a turn's request reads. Best-effort: a registry read that fails
- *  leaves the channel's selection to answer for the agent and runs the turn as an ordinary one,
- *  which is what a session with no choice of its own would produce. */
-type SessionRunFacts = Pick<Session, 'agentName' | 'origin' | 'scheduleId'>;
-
-async function readSessionRunFacts(sessionId: string): Promise<SessionRunFacts | null> {
-  try {
-    return await sessionStore.getById(sessionId);
-  } catch {
-    return null;
-  }
-}
+/** The parts of the session record that decide how a turn is attributed. */
+type SessionRunFacts = Pick<Session, 'origin' | 'scheduleId'>;
 
 /**
  * How a turn is attributed. A schedule's run — a session its fire opened, not yet adopted by a reply
@@ -203,6 +193,10 @@ export function commissionBindingKey(
   return null;
 }
 
+type CommissionSessionFields = Pick<
+  Session, 'sessionId' | 'commissionId' | 'commissionDraft' | 'projectId' | 'commissionBlockFor'
+>;
+
 /**
  * Load the [Commission] injection payload for this turn, or null when nothing needs delivering.
  *
@@ -215,53 +209,52 @@ export function commissionBindingKey(
  * binding was delivered, and a turn injects when the current binding differs from it.
  *
  * `isFreshSession` still forces delivery: a spawn that died before writing history leaves the
- * marker set against a conversation that does not contain the block.
+ * marker set against a conversation that does not contain the block. `enabled` is the global
+ * feature switch: off means no contract block reaches any prompt, matching the skill gate and the
+ * refusal in the commission tools.
  *
  * Best-effort throughout: any failure injects nothing rather than failing the turn.
  */
 export async function resolveConversationCommission(
-  trackSessionId: string,
-  args: { isFreshSession?: boolean } = {},
+  session: CommissionSessionFields | null,
+  args: { isFreshSession?: boolean; enabled: boolean },
   deps: {
-    getSession?: (id: string) => Promise<{
-      commissionId?: string | null; commissionDraft?: string | null; projectId?: string | null;
-      commissionBlockFor?: string | null;
-    } | null>;
     load?: typeof loadCommissionPromptContext;
     loadDraft?: typeof loadCommissionDraftContext;
     markDelivered?: (sessionId: string, key: string) => Promise<unknown>;
-    enabled?: () => boolean;
   } = {},
 ): Promise<CommissionPromptContext | null> {
   try {
-    // Global feature switch. Off means no contract block reaches any prompt, matching the skill
-    // gate in agent-runner and the refusal in the commission tools.
-    if (!(deps.enabled ?? (() => getSettings().commissionEnabled))()) return null;
-    const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
-    const session = await getSession(trackSessionId);
-    const key = commissionBindingKey(session ?? null);
-    if (!key) return null;
-    if (!args.isFreshSession && key === session?.commissionBlockFor) return null;
-
-    const context = session?.commissionId
-      ? await (deps.load ?? loadCommissionPromptContext)(session.commissionId)
-      // A session still drafting has no commission id yet — it is the FIRST session of the
-      // commission, and the one that most needs to be told what it is here to do.
-      : (session?.commissionDraft && session.projectId
-        ? (deps.loadDraft ?? loadCommissionDraftContext)(session.projectId, session.commissionDraft)
-        : null);
+    const key = commissionBindingKey(session);
+    if (!args.enabled || !session || !key) return null;
+    if (!args.isFreshSession && key === session.commissionBlockFor) return null;
+    const context = await loadCommissionContext(session, deps);
     // Nothing loadable (contract still empty, directory gone) — leave the marker alone so the next
     // turn tries again rather than recording a delivery that never happened.
     if (!context) return null;
-
     const mark = deps.markDelivered
       ?? ((id: string, value: string) => sessionStore.markCommissionBlockDelivered(id, value));
-    await mark(trackSessionId, key);
+    await mark(session.sessionId, key);
     return context;
   } catch {
     return null;
   }
 }
+
+async function loadCommissionContext(
+  session: CommissionSessionFields,
+  deps: { load?: typeof loadCommissionPromptContext; loadDraft?: typeof loadCommissionDraftContext },
+): Promise<CommissionPromptContext | null> {
+  if (session.commissionId) return (deps.load ?? loadCommissionPromptContext)(session.commissionId);
+  // A session still drafting has no commission id yet — it is the FIRST session of the
+  // commission, and the one that most needs to be told what it is here to do.
+  if (session.commissionDraft && session.projectId) {
+    return (deps.loadDraft ?? loadCommissionDraftContext)(session.projectId, session.commissionDraft);
+  }
+  return null;
+}
+
+type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName' | 'name'>;
 
 /**
  * The team-mode blocks for this turn. A lead with at least one active worker gets the [Team]
@@ -270,143 +263,139 @@ export async function resolveConversationCommission(
  * Best-effort: a failure injects nothing.
  */
 export async function resolveConversationTeam(
-  trackSessionId: string,
+  session: TeamSessionFields | null,
   args: { teamLead?: boolean; isFreshSession?: boolean },
   deps: {
-    getSession?: (id: string) => Promise<Pick<Session, 'teamLeadId' | 'workerName' | 'name' | 'label'> | null>;
+    getSession?: (id: string) => Promise<Pick<Session, 'name' | 'label'> | null>;
     describeTeam?: (leadSessionId: string) => Promise<WorkerView[]>;
     now?: () => number;
   } = {},
 ): Promise<{ team: { roster: string[] } | null; worker: { name: string; lead: string } | null }> {
   const none = { team: null, worker: null };
   try {
+    if (!session) return none;
     if (args.teamLead) {
-      const team = (await (deps.describeTeam ?? describeTeam)(trackSessionId)).filter(v => !v.retired);
+      const team = (await (deps.describeTeam ?? describeTeam)(session.sessionId)).filter(v => !v.retired);
       if (team.length === 0) return none;
       const now = (deps.now ?? Date.now)();
       return { team: { roster: team.map(v => rosterLine(v, now)) }, worker: null };
     }
-    if (!args.isFreshSession) return none;
+    if (!args.isFreshSession || !isTeamWorker(session)) return none;
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
-    const session = await getSession(trackSessionId);
-    if (!isTeamWorker(session)) return none;
-    const lead = await getSession(session!.teamLeadId!);
+    const lead = await getSession(session.teamLeadId!);
     if (!lead) return none;
-    return { team: null, worker: { name: session!.workerName ?? session!.name, lead: lead.label ?? lead.name } };
+    return { team: null, worker: { name: session.workerName ?? session.name, lead: lead.label ?? lead.name } };
   } catch {
     return none;
   }
 }
 
-/**
- * Assemble the `RunRequest` for a single plain user-conversation turn against the active default
- * agent — no thread, no workspace, no artifact. The thread path's decisions are mirrored field for
- * field (channel session reuse, no core MCP, a user-initiated single step) so a plain turn and a
- * one-step thread behave the same.
- */
-export async function prepareConversationRequest(
-  opts: PrepareConversationRequestOptions,
-): Promise<PreparedRequest> {
-  const { sessionId, backendSessionId, sessionName, projectId } = opts.ids;
-  const session = await readSessionRunFacts(sessionId);
-  const { agentConfig } = resolveConversationAgent([
-    session?.agentName ?? null,
-    getDefaultAgent(opts.channel),
-  ]);
-
-  // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
-  // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
-  const isFreshSession = backendSessionId === null;
-  // A thread-free conversation runs on the direct MCP surface — there is no thread to control —
-  // unless the agent declared a narrower one, which it owns on every path it runs.
-  const policy = conversationRunPolicy(agentConfig, {
-    channel: opts.channel, browserCdpEndpoint: opts.browserCdpEndpoint,
-  });
-  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition });
-
-  // A plain conversation turn is thread-free: no artifact, no previous step, no control-plane
-  // preamble. Everything it does carry is a first-turn ambient block, and the two prompt-shaping
-  // fields come from the very spec the run is opened with — one description of the agent, not two.
-  const composedPrompt = composeUserPrompt(spec, opts.userMessage, {
-    userContext: userProfileBlock(isFreshSession),
-    // Web UI direct sessions are bound to a project at create time; tell the agent which one
-    // on the session's first turn (see resolveConversationProject for the exact gating).
-    project: resolveConversationProject({
-      channel: opts.channel,
-      projectId,
-      isFreshSession,
-      projectContext: agentConfig.projectContext,
-    }),
-    // Commission sessions additionally get the contract + ledger index + protocol block, once per
-    // binding rather than once per session (see resolveConversationCommission).
-    transcriptDir: isFreshSession ? CONVERSATION_HISTORY_DIR : null,
-    commission: await resolveConversationCommission(sessionId, { isFreshSession }),
-    // Team mode: the lead's roster every turn while it has workers, a worker's orientation once.
-    ...(await resolveConversationTeam(sessionId, { teamLead: opts.teamLead, isFreshSession })),
-  });
-  // The backend composes the real prompt from `prompt.text` + `prompt.attachments`, so a download
-  // failure has to ride the TEXT to reach the model — `backendPrompt` below is the debug echo.
-  const prompt = `${formatAttachmentFailures(opts.failedFiles ?? [])}${composedPrompt}`;
-  const backendPrompt = buildBackendPrompt(prompt, opts.files);
-  opts.onPromptBuilt?.(backendPrompt);
-  // Attribute cost/execution to the session's bound project (from the registry record), NOT a
-  // re-derivation from the message text. A session created under project X stays project X even if
-  // no message ever mentions X literally (that mismatch previously dumped everything into 'general').
-  const project = projectId;
-
+/** The profile a turn runs on: the agent's own, or the channel's when it says `__active__`. */
+function conversationProfile(channel: string, agentConfig: AgentSlotConfig): ResolvedProfileConfig {
   // D5: one resolution for name, profile and the channel's `!model` override. A hardcoded agent
   // profile is an explicit override; `__active__` means "whatever this channel resolves to".
   const runConfig = resolveRunConfig({
-    channel: opts.channel,
+    channel,
     override: agentConfig.profile === '__active__' ? null : agentConfig.profile,
   });
+  if (runConfig.resolved) return effectiveProfile(runConfig);
   // An unknown name here is not the user naming a bad profile — it is a channel profile that was
   // renamed or deleted since it was persisted, so the turn falls back to the default rather than
   // dying. (Named-profile errors surface through `!profile`, which validates before it writes.)
-  const profileName = runConfig.resolved ? runConfig.profileName : getDefaultProfileName();
-  const profile = runConfig.resolved
-    ? effectiveProfile(runConfig)
-    : effectiveProfile({ ...resolveRunConfig({ channel: opts.channel, override: profileName }) });
+  return effectiveProfile(resolveRunConfig({ channel, override: getDefaultProfileName() }));
+}
 
+/** The user prompt with the ambient blocks this turn owes the session. */
+async function composeConversationPrompt(
+  opts: PrepareConversationRequestOptions,
+  agent: { config: AgentSlotConfig; spec: AgentSpec },
+  state: { commissionEnabled: boolean; teamLead: boolean },
+): Promise<string> {
+  const { backendSessionId, projectId } = opts.ids;
+  // USER.md, the project and the transcript location go out on a session's FIRST turn only (no
+  // backend session yet): resume keeps them in history, so re-sending them just wastes tokens.
+  const isFreshSession = backendSessionId === null;
+  const composed = composeUserPrompt(agent.spec, opts.userMessage, {
+    userContext: userProfileBlock(isFreshSession),
+    project: resolveConversationProject({
+      channel: opts.channel, projectId, isFreshSession, projectContext: agent.config.projectContext,
+    }),
+    transcriptDir: isFreshSession ? CONVERSATION_HISTORY_DIR : null,
+    // Once per commission binding rather than once per session (see resolveConversationCommission).
+    commission: await resolveConversationCommission(opts.session, {
+      isFreshSession, enabled: state.commissionEnabled,
+    }),
+    // Team mode: the lead's roster every turn while it has workers, a worker's orientation once.
+    ...(await resolveConversationTeam(opts.session, { teamLead: state.teamLead, isFreshSession })),
+  });
+  // The backend composes the real prompt from `prompt.text` + `prompt.attachments`, so a download
+  // failure has to ride the TEXT to reach the model — `backendPrompt` is the debug echo.
+  return `${formatAttachmentFailures(opts.failedFiles ?? [])}${composed}`;
+}
+
+/** Assemble the `RunRequest` for one turn on a session's live engine (see the options' doc). */
+export async function prepareConversationRequest(
+  opts: PrepareConversationRequestOptions,
+): Promise<PreparedRequest> {
+  const { session, channel } = opts;
+  const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
+  const policy = conversationRunPolicy(agentConfig, { channel, browserCdpEndpoint: opts.browserCdpEndpoint });
+  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition });
+  // settings.commissionEnabled is the global switch for the feature. With it off, a session that
+  // was bound while it was on reverts to an ordinary session: no commission skill, no contract
+  // block, and the commission tools refuse.
+  const commissionEnabled = getSettings().commissionEnabled;
+  // Team mode: this session may lead workers, so its engine loads the worker tools.
+  const teamLead = isTeamLead(session);
+  const prompt = await composeConversationPrompt(
+    opts, { config: agentConfig, spec }, { commissionEnabled, teamLead },
+  );
+  const files = opts.files ?? [];
+  const backendPrompt = buildBackendPrompt(prompt, files);
+  opts.onPromptBuilt?.(backendPrompt);
   const request: RunRequest = {
     runId: randomUUID(),
     session: {
-      sessionId,
-      backendSessionId,
+      sessionId: opts.ids.sessionId,
+      backendSessionId: opts.ids.backendSessionId,
+      sessionName: opts.ids.sessionName,
       // Hazard (a): the pool key must stay the channel, byte-identical to what every interactive
       // turn has opened its engine under — changing it would silently re-pool every live session.
-      engineKey: opts.channel,
-      sessionName,
+      engineKey: channel,
     },
-    profile,
+    profile: conversationProfile(channel, agentConfig),
     spec,
-    prompt: {
-      text: prompt,
-      attachments: (opts.files || []).map((file) => ({
-        mimeType: file.mimetype, path: file.localPath, name: file.name,
-      })),
-    },
+    prompt: { text: prompt, attachments: files.map(attachmentOf) },
     context: {
-      channel: opts.channel,
-      project,
+      channel,
+      // Cost/execution go to the session's bound project, never a re-derivation from the text.
+      project: opts.ids.projectId,
       // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
       // to, so it pauses and resumes on a rate limit exactly like one.
       isUserInitiated: true,
-      commissionMode: opts.commissionMode ?? false,
-      ...(opts.teamLead ? { teamLead: true } : {}),
+      // Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
+      commissionMode: commissionEnabled && !!session?.commissionId,
+      ...(teamLead ? { teamLead: true } : {}),
       ...conversationTrigger(session),
+      ...(opts.trigger ? { trigger: opts.trigger } : {}),
     },
     policy,
   };
-  // A production benchmark session: every run it opens is an attempt the trial's evidence records.
-  const evidenceContext = sessionEvidenceContext(sessionId);
-  if (evidenceContext) {
-    request.benchmark = {
-      evidenceContext,
-      identityDirective: spec.directive ? resolveSystemVars(spec.directive) : '',
-      preserveUnreportedAccounting: false,
-    };
-  }
-
+  attachBenchmarkEvidence(request);
   return { request, backendPrompt };
+}
+
+function attachmentOf(file: DownloadedFile): { mimeType: string; path: string; name: string } {
+  return { mimeType: file.mimetype, path: file.localPath, name: file.name };
+}
+
+/** A production benchmark session: every run it opens is an attempt the trial's evidence records. */
+function attachBenchmarkEvidence(request: RunRequest): void {
+  const evidenceContext = request.session.sessionId ? sessionEvidenceContext(request.session.sessionId) : null;
+  if (!evidenceContext) return;
+  request.benchmark = {
+    evidenceContext,
+    identityDirective: request.spec.directive ? resolveSystemVars(request.spec.directive) : '',
+    preserveUnreportedAccounting: false,
+  };
 }
