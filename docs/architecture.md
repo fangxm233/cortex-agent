@@ -14,10 +14,10 @@ Cortex consists of two npm packages plus a set of plugins:
 
 ## Agent-Server Architecture: Six Layers
 
-The agent-server code at `agent-server/src/` is organized into six strict layers (L0 through L5). Each layer may only import from lower-numbered layers. This constraint is **enforced at test time** by `agent-server/.dependency-cruiser.cjs` — the `depcruise` rule runs as part of `npm test` and fails the build on any violation.
+The agent-server code at `agent-server/src/` is organized into six strict layers (L0 through L5). Each layer may only import from lower-numbered layers at runtime; type-only imports may cross layers. This constraint is **enforced at test time** by `agent-server/.dependency-cruiser.cjs` — the `depcruise` rule runs as part of `npm test` and fails the build on any runtime violation.
 
 ```
-L0  core/          → (no dependencies)
+L0  core/          → (no runtime dependencies)
 L1  store/         → core
 L2  events/        → core
 L3  domain/        → core, store, events
@@ -30,14 +30,14 @@ Two additional directories sit outside the layer hierarchy because they are impo
 - **`agent-adapter/`** — the two-LLM-backend abstraction (Claude Code and PI)
 - **`platform/`** — the messaging platform abstraction (Slack)
 
-### Layer 0: `core/` — Zero-Dependency Foundation
+### Layer 0: `core/` — Shared Kernel
 
-The foundation layer. Contains only pure TypeScript with no runtime dependencies on other layers.
+The shared kernel every other layer builds on: types, path constants, settings, and the in-memory run and session state. It has no runtime imports of other layers; it may import their types, which is how core types such as the hook bus entry or the environment definition refer to shapes owned elsewhere.
 
 | File | Purpose |
 |------|---------|
 | `paths.ts` | Canonical path constants: `INSTALL_ROOT`, `DATA_DIR` (`~/.cortex/`), `CONFIG_DIR`, `STORE_DIR`, `CONTEXT_DIR`, `PROJECTS_DIR`, `WORKSPACE_DIR`, `PLUGINS_DIR`, `PROMPTS_DIR`, `HOOKS_DIR`, `LOGS_DIR` |
-| `utils.ts` | Re-exports path constants plus utility functions: `chunkText`, `formatDurationCompact`, `todayISO`, `listProjectDirs`, `readableTimestamp` |
+| `utils.ts` | Utility functions: `chunkText`, `formatDurationCompact`, `todayISO`, `listProjectDirs`, `readableTimestamp` |
 | `async-mutex.ts` | `AsyncMutex` class — promise-based mutex for serializing async disk writes. Used throughout the store layer to prevent concurrent file corruption |
 | `log.ts` | `createLogger(tag)` — console + daily-rolling file sink with 14-day retention |
 | `cli-utils.ts` | `formatHelp`, `formatError`, `readStdinSync`, `cliError` — shared CLI formatting |

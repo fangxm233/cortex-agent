@@ -15,10 +15,10 @@ Cortex 由两个 npm 包和一组插件组成：
 
 ## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
 
-`agent-server/src/` 中的 agent-server 代码组织为六个严格层次（L0 到 L5）。每层只能从更低编号的层导入。此约束由 `agent-server/.dependency-cruiser.cjs` **在测试时强制执行**——`depcruise` 规则作为 `npm test` 的一部分运行，任何违规都会导致构建失败。
+`agent-server/src/` 中的 agent-server 代码组织为六个严格层次（L0 到 L5）。运行时每层只能从更低编号的层导入；仅类型导入可以跨层。此约束由 `agent-server/.dependency-cruiser.cjs` **在测试时强制执行**——`depcruise` 规则作为 `npm test` 的一部分运行，任何运行时违规都会导致构建失败。
 
 ```
-L0  core/          → （无依赖）
+L0  core/          → （无运行时依赖）
 L1  store/         → core
 L2  events/        → core
 L3  domain/        → core、store、events
@@ -31,14 +31,14 @@ L5  entry/         → 所有层（组合根）
 - **`agent-adapter/`** — 两个 LLM 后端的抽象（Claude Code 和 PI）
 - **`platform/`** — 消息平台抽象（Slack）
 
-### 第 0 层：`core/` — 零依赖基础 {#layer-0-core-zero-dependency-foundation}
+### 第 0 层：`core/` — 共享内核 {#layer-0-core-shared-kernel}
 
-基础层。仅包含纯 TypeScript，不依赖其他层的运行时。
+其他各层共同依赖的共享内核：类型、路径常量、设置，以及内存中的运行与会话状态。它不在运行时导入其他层；可以导入它们的类型，hook bus 条目、环境定义这类 core 类型就是这样引用归属别处的结构。
 
 | 文件 | 用途 |
 |------|---------|
 | `paths.ts` | 规范路径常量：`INSTALL_ROOT`、`DATA_DIR`（`~/.cortex/`）、`CONFIG_DIR`、`STORE_DIR`、`CONTEXT_DIR`、`PROJECTS_DIR`、`WORKSPACE_DIR`、`PLUGINS_DIR`、`PROMPTS_DIR`、`HOOKS_DIR`、`LOGS_DIR` |
-| `utils.ts` | 重新导出路径常量及工具函数：`chunkText`、`formatDurationCompact`、`todayISO`、`listProjectDirs`、`readableTimestamp` |
+| `utils.ts` | 工具函数：`chunkText`、`formatDurationCompact`、`todayISO`、`listProjectDirs`、`readableTimestamp` |
 | `async-mutex.ts` | `AsyncMutex` 类——基于 Promise 的互斥锁，用于序列化异步磁盘写入。在整个存储层中使用，防止并发文件损坏 |
 | `log.ts` | `createLogger(tag)` — 控制台 + 按日滚动文件输出，保留 14 天 |
 | `cli-utils.ts` | `formatHelp`、`formatError`、`readStdinSync`、`cliError` — 共享 CLI 格式化 |
