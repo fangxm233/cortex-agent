@@ -37,6 +37,7 @@ vi.mock('@tauri-apps/plugin-notification', () => ({
 type OsNotifyModule = typeof import('./os-notify');
 let osNotificationSpec: OsNotifyModule['osNotificationSpec'];
 let ensureOsNotifyPermission: OsNotifyModule['ensureOsNotifyPermission'];
+let requestOsNotifyPermission: OsNotifyModule['requestOsNotifyPermission'];
 let sendOsNotification: OsNotifyModule['sendOsNotification'];
 let onOsNotificationAction: OsNotifyModule['onOsNotificationAction'];
 
@@ -69,6 +70,7 @@ beforeEach(async () => {
   ({
     osNotificationSpec,
     ensureOsNotifyPermission,
+    requestOsNotifyPermission,
     sendOsNotification,
     onOsNotificationAction,
   } = await import('./os-notify'));
@@ -174,6 +176,19 @@ describe('native shell', () => {
     await ensureOsNotifyPermission();
     await sendOsNotification(osNotificationSpec(item()));
     expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks again on a user-initiated request after a denied automatic prompt, and caches the answer', async () => {
+    h.native = true; h.granted = false; h.permissionState = 'denied';
+    const spy = vi.spyOn(await import('@tauri-apps/plugin-notification'), 'requestPermission');
+    expect(await ensureOsNotifyPermission()).toBe(false);
+    expect(await requestOsNotifyPermission({ userInitiated: false })).toBe('default');
+    expect(spy).toHaveBeenCalledOnce();
+    h.permissionState = 'granted';
+    expect(await requestOsNotifyPermission({ userInitiated: true })).toBe('granted');
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(await sendOsNotification(osNotificationSpec(item()))).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('returns false when the plugin throws on send', async () => {

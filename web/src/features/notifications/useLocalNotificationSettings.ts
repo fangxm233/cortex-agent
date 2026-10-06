@@ -1,21 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { browserPermission, requestBrowserPermission, type BrowserPermission } from './browser-notifications';
-import { refreshOsNotifyPermission } from './os-notify';
+import { refreshOsNotifyPermission, requestOsNotifyPermission } from './os-notify';
 import { setLocalNotificationsEnabled, useLocalNotificationsEnabled } from './local-notification-state';
 
 async function readPermission(): Promise<BrowserPermission> {
   if (!isDesktopShell()) return browserPermission();
   return await refreshOsNotifyPermission() ? 'granted' : 'default';
 }
-async function requestPermission(): Promise<BrowserPermission> {
-  if (!isDesktopShell()) return requestBrowserPermission();
-  try {
-    const plugin = await import('@tauri-apps/plugin-notification');
-    const permission = await plugin.requestPermission();
-    await refreshOsNotifyPermission();
-    return permission;
-  } catch { return 'denied'; }
+function requestPermission(): Promise<BrowserPermission> {
+  return isDesktopShell() ? requestOsNotifyPermission({ userInitiated: true }) : requestBrowserPermission();
 }
 
 function usePermissionStatus() {

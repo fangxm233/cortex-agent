@@ -38,16 +38,26 @@ export async function refreshOsNotifyPermission(): Promise<boolean> {
   return permissionGranted;
 }
 
+export type OsNotifyPermission = 'granted' | 'denied' | 'default';
+
+async function askOs(): Promise<OsNotifyPermission> {
+  rememberPrompt();
+  try {
+    const { requestPermission } = await import('@tauri-apps/plugin-notification');
+    const permission = await requestPermission();
+    permissionGranted = permission === 'granted';
+    return permission;
+  } catch {
+    permissionGranted = false;
+    return 'denied';
+  }
+}
+
 async function requestOnce(): Promise<boolean> {
   if (await refreshOsNotifyPermission()) return true;
   if (wasPrompted()) return false;
   if (isMobileShell() && typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
-  rememberPrompt();
-  try {
-    const { requestPermission } = await import('@tauri-apps/plugin-notification');
-    permissionGranted = (await requestPermission()) === 'granted';
-  } catch { permissionGranted = false; }
-  return permissionGranted;
+  return await askOs() === 'granted';
 }
 
 export async function ensureOsNotifyPermission(): Promise<boolean> {
@@ -56,6 +66,18 @@ export async function ensureOsNotifyPermission(): Promise<boolean> {
   if (permissionGranted !== null) return permissionGranted;
   permissionRequest = requestOnce().finally(() => { permissionRequest = undefined; });
   return permissionRequest;
+}
+
+/**
+ * The one way to show the OS permission dialog. An automatic request asks at most once per install
+ * (ensureOsNotifyPermission); a user-initiated one (the settings "Allow" button) always asks, after
+ * any automatic request already in flight has settled.
+ */
+export async function requestOsNotifyPermission({ userInitiated }: { userInitiated: boolean }): Promise<OsNotifyPermission> {
+  if (!userInitiated) return await ensureOsNotifyPermission() ? 'granted' : 'default';
+  if (!isNativeShell()) return 'denied';
+  if (permissionRequest && await permissionRequest) return 'granted';
+  return askOs();
 }
 
 export async function sendOsNotification(spec: OsNotificationSpec, data?: Record<string, string>): Promise<boolean> {

@@ -1,8 +1,8 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const h = vi.hoisted(() => ({ lang: 'en', nativeGranted: false, nativeRequest: vi.fn() }));
+const h = vi.hoisted(() => ({ lang: 'en', nativeGranted: false, nativeReads: 0, nativeRequest: vi.fn() }));
 vi.mock('@tauri-apps/plugin-notification', () => ({
-  isPermissionGranted: async () => h.nativeGranted,
+  isPermissionGranted: async () => { h.nativeReads++; return h.nativeGranted; },
   requestPermission: h.nativeRequest,
 }));
 vi.mock('@/i18n', async (importOriginal) => {
@@ -56,6 +56,9 @@ it('reads desktop permission without requesting and offers explicit authorizatio
   h.nativeGranted = false;
   h.nativeRequest.mockImplementation(async () => { h.nativeGranted = true; return 'granted'; });
   await mount();
+  // Let the mount-time permission read land first: two concurrent first imports of a mocked module
+  // can resolve to the real one under vitest.
+  await act(async () => { await vi.waitFor(() => expect(h.nativeReads).toBeGreaterThan(0)); });
   expect(h.nativeRequest).not.toHaveBeenCalled();
   expect(JSON.stringify(mounted.toJSON())).toContain('Not authorized');
   await act(async () => {
