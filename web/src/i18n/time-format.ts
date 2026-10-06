@@ -56,6 +56,11 @@ export function formatSpanPrecise(ms: number, lang: TimeLang): string {
   return minor ? fmt(L.timePrecise, { major: majorText, minor: `${minor}${L[PRECISE_KEY[nu]]}` }) : majorText;
 }
 
+/** formatSpanPrecise, or `—` for an unknown span (never fabricated). */
+export function formatSpanOrDash(ms: number | null, lang: TimeLang): string {
+  return ms == null ? '—' : formatSpanPrecise(ms, lang);
+}
+
 function parse(at: string | number | null | undefined): number | null {
   if (at == null || at === '') return null;
   const t = typeof at === 'number' ? at : Date.parse(at);

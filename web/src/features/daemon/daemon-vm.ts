@@ -69,7 +69,7 @@ export function rebuildStatusTone(status: DaemonRebuildStatus): Tone {
 
 /** Compact duration: sub-minute work reads in seconds (one decimal while it is short), longer
  *  work in minutes. A rebuild is a ten-second-to-two-minute affair, so this is the whole range. */
-function formatSpan(ms: number, lang: TimeLang): string {
+function rebuildSpan(ms: number, lang: TimeLang): string {
   const safe = Number.isFinite(ms) && ms > 0 ? ms : 0;
   if (safe < 10_000) return `${(safe / 1000).toFixed(1)}${pickVocab(lang).timeUnitS}`;
   return formatSpanPrecise(Math.round(safe / 1000) * 1000, lang);
@@ -80,7 +80,7 @@ function spanBetween(from: string | null, to: string | null, now: number, lang: 
   const start = Date.parse(from);
   if (Number.isNaN(start)) return null;
   const end = to ? Date.parse(to) : now;
-  return formatSpan((Number.isNaN(end) ? now : end) - start, lang);
+  return rebuildSpan((Number.isNaN(end) ? now : end) - start, lang);
 }
 
 function stepVm(step: DaemonRebuildStep, now: number, lang: TimeLang): DaemonRebuildStepVm {
@@ -101,7 +101,7 @@ function rebuildVm(progress: DaemonRebuildProgress, now: number, lang: TimeLang)
     steps,
     completed: steps.filter((step) => step.status === 'done').length,
     total: steps.length,
-    elapsed: spanBetween(progress.startedAt, progress.endedAt, now, lang) ?? formatSpan(0, lang),
+    elapsed: spanBetween(progress.startedAt, progress.endedAt, now, lang) ?? rebuildSpan(0, lang),
     detail: progress.detail,
   };
 }

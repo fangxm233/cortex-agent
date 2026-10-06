@@ -4,7 +4,7 @@ import type {
   CostSummary,
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/i18n/time-format';
+import { timeAgo, timeUntil, type TimeLang } from '@/i18n/time-format';
 import { execStatusWord } from '@/features/execution/execution-drawer-view';
 import { fmt, type Vocab } from '@/i18n';
 
@@ -141,11 +141,6 @@ export function execDurationMs(e: ExecutionInfo, now: number): number | null {
   if (typeof e.durationMs === 'number') return e.durationMs;
   if (e.startedAt) return Math.max(0, now - Date.parse(e.startedAt));
   return null;
-}
-
-/** `5h 51m` / `2m 10s` / `45s` / `—` · `5小时51分` / `2分10秒` / `45秒`. */
-export function formatDuration(ms: number | null, lang: TimeLang): string {
-  return ms == null ? '—' : formatSpanPrecise(ms, lang);
 }
 
 export function execMachine(e: ExecutionInfo, L: Vocab): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayLabel, formatSpan, formatSpanPrecise, relTime, timeAgo, timeUntil } from './time-format';
+import { dayLabel, formatSpan, formatSpanOrDash, formatSpanPrecise, relTime, timeAgo, timeUntil } from './time-format';
 
 const now = Date.parse('2026-07-15T12:00:00Z');
 const ago = (ms: number) => new Date(now - ms).toISOString();
@@ -42,6 +42,7 @@ describe('time-format', () => {
     expect(formatSpanPrecise(2 * HOUR, 'en')).toBe('2h');
     expect(formatSpanPrecise(2 * DAY + 3 * HOUR + 20 * MIN, 'en')).toBe('2d 3h');
     expect(formatSpanPrecise(2 * DAY + 3 * HOUR, 'zh')).toBe('2天3小时');
+    expect([formatSpanOrDash(200_000, 'en'), formatSpanOrDash(null, 'zh')]).toEqual(['3m 20s', '—']);
   });
 
   it('names calendar days', () => {

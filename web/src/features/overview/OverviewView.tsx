@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
+import { formatSpanOrDash } from '@/i18n/time-format';
 import { useExecutionDrawer } from '@/features/execution/useExecutionDrawer';
 import { useScheduleModal } from '@/features/schedule/useScheduleModal';
 import { cadenceLabel } from '@/features/session/list/scheduled-chat';
@@ -19,7 +20,6 @@ import {
   nextRunLabel,
   lastRunLabel,
   execDurationMs,
-  formatDuration,
   execMachine,
   execCost,
   execStatusPill,
@@ -609,7 +609,7 @@ export function OverviewView(): JSX.Element {
                   {execSummary(x, L)}
                 </span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x, L)}</span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now), lang)}</span>
+                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatSpanOrDash(execDurationMs(x, now), lang)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.color }}>
