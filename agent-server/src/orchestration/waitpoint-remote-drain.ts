@@ -6,12 +6,14 @@
 //
 //         Read-then-apply-then-remove, in that order. A crash between apply and remove replays the
 //         file on the next tick, where the filename-as-dedupe-key drops it. The reverse order would
-//         lose signals instead, which is the failure that matters.
+//         lose signals instead, which is the failure that matters. What happens to each file is the
+//         local spool's table (`SPOOL_DISPOSITION`): an unusable one is parked under `bad/` on the
+//         device, exactly as it would be here.
 
 import { createLogger } from '@core/log.js';
 import { waitpointRepo, type WaitpointRepo } from '@store/waitpoint-repo.js';
 import { isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
-import { ingestSignal, productionIngestDeps, toSignalInput, type IngestDeps } from './waitpoint-ingress.js';
+import { ingestSpoolEntry, productionIngestDeps, type IngestDeps } from './waitpoint-ingress.js';
 
 const log = createLogger('waitpoint-drain');
 
@@ -103,38 +105,32 @@ async function drainOneDevice(device: string, deps: RemoteDrainDeps): Promise<nu
   const entries = parseSpoolBatch(stdout);
   if (entries.length === 0) return 0;
 
-  const done: string[] = [];
+  const remove: string[] = [];
+  const park: string[] = [];
   let applied = 0;
   for (const entry of entries) {
-    let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(entry.body);
-      if (typeof payload !== 'object' || payload === null) throw new Error('not an object');
-    } catch {
-      // Leave it on the device rather than deleting evidence of a malformed writer; the name is
-      // logged so it can be found. It will be re-read, and re-skipped, each tick.
-      log.warn(`${device}: spool entry ${entry.name} is not JSON; leaving it in place`);
-      continue;
-    }
-    const outcome = await ingestSignal(
-      toSignalInput(payload, `spool:${device}:${entry.name}`, `device:${device}`),
-      deps.ingest,
+    const { disposition, outcome } = await ingestSpoolEntry(
+      entry.body, `spool:${device}:${entry.name}`, `device:${device}`, deps.ingest,
     );
-    if (outcome.kind === 'rate-limited') continue;
-    if (outcome.kind === 'bad-secret') {
-      log.warn(`${device}: spool entry ${entry.name} has a bad secret; leaving it in place`);
-      continue;
-    }
-    done.push(entry.name);
-    if (outcome.kind === 'accepted') applied += 1;
+    if (disposition === 'remove') remove.push(entry.name);
+    else if (disposition === 'quarantine') park.push(entry.name);
+    if (outcome?.kind === 'accepted') applied += 1;
   }
 
-  if (done.length > 0) {
-    // Names are validated against SAFE_NAME above, so single-quoting is sufficient and there is
-    // nothing left that could close the quote.
-    const args = done.map((n) => `'${n}'`).join(' ');
-    await deps.runBash(device, `cd ${REMOTE_SPOOL} && rm -f -- ${args}`, 15_000)
-      .catch((e) => log.error(`${device}: failed to clear ${done.length} drained signal(s): ${(e as Error).message}`));
+  // Names are validated against SAFE_NAME above, so single-quoting is sufficient and there is
+  // nothing left that could close the quote.
+  const quoted = (names: string[]) => names.map((n) => `'${n}'`).join(' ');
+  if (remove.length > 0) {
+    await deps.runBash(device, `cd ${REMOTE_SPOOL} && rm -f -- ${quoted(remove)}`, 15_000)
+      .catch((e) => log.error(`${device}: failed to clear ${remove.length} drained signal(s): ${(e as Error).message}`));
+  }
+  if (park.length > 0) {
+    log.warn(`${device}: ${park.length} unusable spool entr${park.length === 1 ? 'y' : 'ies'} parked under signals/bad/: ${park.join(', ')}`);
+    await deps.runBash(
+      device,
+      `cd ${REMOTE_SPOOL} && mkdir -p bad && for f in ${quoted(park)}; do mv -f -- "$f" "bad/$(date +%s)-$f"; done`,
+      15_000,
+    ).catch((e) => log.error(`${device}: failed to park ${park.length} spool entr(ies): ${(e as Error).message}`));
   }
   return applied;
 }

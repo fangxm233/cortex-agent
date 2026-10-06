@@ -33,7 +33,13 @@ export const SPOOL_FILE_MAX_BYTES = 64 * 1024;
 
 // --- anti-enumeration ---
 
-/** Failed lookups allowed per minute across all callers, before every miss is refused unread. */
+/**
+ * Failed lookups (unknown id or bad secret) allowed per minute across all callers. Past it, every
+ * further miss is answered `rate-limited` instead of `not-found`/`bad-secret`, so a scan can no
+ * longer tell a live id from a dead one. The budget is charged after the lookup on purpose: refusing
+ * before it would let anyone flooding the loopback port block every legitimate signal as well, and
+ * the lookup itself is an in-memory read.
+ */
 const MISS_BUDGET_PER_MINUTE = 60;
 let missWindowStart = 0;
 let missCount = 0;
@@ -104,11 +110,52 @@ export async function ingestSignal(
   return outcome;
 }
 
+// --- spool disposition ---
+
+/** What a drain does with a spool file once it has been read. One table for the local and the
+ *  device drain, so the same outcome is never handled two different ways. */
+export type SpoolDisposition = 'remove' | 'quarantine' | 'keep';
+
+const SPOOL_DISPOSITION: Record<ApplySignalOutcome['kind'], SpoolDisposition> = {
+  accepted: 'remove',
+  // A replay of a file whose delete was lost: the filename is the dedupe key.
+  duplicate: 'remove',
+  // Late but authentic. Nothing will ever want it again.
+  'already-resolved': 'remove',
+  // These will never succeed. Parked rather than deleted so a broken writer can be found, and
+  // never re-read, so they do not keep charging the miss budget every tick.
+  'not-found': 'quarantine',
+  'bad-secret': 'quarantine',
+  'unknown-member': 'quarantine',
+  // The global miss budget is spent; nothing was looked up. Try again next tick.
+  'rate-limited': 'keep',
+};
+
+/** Parse and apply one spool file. A body that is not a JSON object is quarantined unread. */
+export async function ingestSpoolEntry(
+  body: string,
+  dedupeKey: string,
+  source: string,
+  deps: IngestDeps = productionIngestDeps,
+): Promise<{ disposition: SpoolDisposition; outcome: ApplySignalOutcome | null }> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    return { disposition: 'quarantine', outcome: null };
+  }
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return { disposition: 'quarantine', outcome: null };
+  }
+  const outcome = await ingestSignal(toSignalInput(payload as Record<string, unknown>, dedupeKey, source), deps);
+  return { disposition: SPOOL_DISPOSITION[outcome.kind], outcome };
+}
+
 // --- local spool ---
 
 interface SpoolEntry {
   file: string;
-  payload: Record<string, unknown>;
+  body: string;
 }
 
 async function readSpoolDir(dir: string, badDir: string): Promise<SpoolEntry[]> {
@@ -129,15 +176,9 @@ async function readSpoolDir(dir: string, badDir: string): Promise<SpoolEntry[]> 
         await quarantine(full, name, badDir);
         continue;
       }
-      const parsed = JSON.parse(await fs.readFile(full, 'utf8'));
-      if (typeof parsed !== 'object' || parsed === null) {
-        await quarantine(full, name, badDir);
-        continue;
-      }
-      entries.push({ file: name, payload: parsed as Record<string, unknown> });
+      entries.push({ file: name, body: await fs.readFile(full, 'utf8') });
     } catch {
-      // A half-written file is normal: writers are told to write `.tmp` then rename, but a
-      // truncated or malformed one must not stall the whole batch. Park it and move on.
+      // An unreadable file must not stall the whole batch. Park it and move on.
       await quarantine(full, name, badDir);
     }
   }
@@ -155,11 +196,8 @@ async function quarantine(fullPath: string, name: string, badDir: string): Promi
 }
 
 /**
- * Apply every spool file on this machine and delete the ones that landed.
- *
- * A file is removed only after its signal was accepted or was already resolved; anything still
- * addressable to a live waitpoint is left for the next tick. The filename doubles as the dedupe
- * key, so re-reading a file whose delete was lost is harmless.
+ * Apply every spool file on this machine and dispose of each by its outcome (`SPOOL_DISPOSITION`).
+ * The filename doubles as the dedupe key, so re-reading a file whose delete was lost is harmless.
  */
 export async function drainLocalSpool(
   deps: IngestDeps = productionIngestDeps,
@@ -169,14 +207,11 @@ export async function drainLocalSpool(
   const entries = await readSpoolDir(dir, badDir);
   let applied = 0;
   for (const entry of entries) {
-    const outcome = await ingestSignal(toSignalInput(entry.payload, `spool:${entry.file}`, 'spool'), deps);
-    if (outcome.kind === 'not-found' || outcome.kind === 'bad-secret') {
-      await quarantine(path.join(dir, entry.file), entry.file, badDir);
-      continue;
-    }
-    if (outcome.kind === 'rate-limited') continue;
-    await fs.unlink(path.join(dir, entry.file)).catch(() => {});
-    if (outcome.kind === 'accepted') applied += 1;
+    const full = path.join(dir, entry.file);
+    const { disposition, outcome } = await ingestSpoolEntry(entry.body, `spool:${entry.file}`, 'spool', deps);
+    if (disposition === 'quarantine') await quarantine(full, entry.file, badDir);
+    else if (disposition === 'remove') await fs.unlink(full).catch(() => {});
+    if (outcome?.kind === 'accepted') applied += 1;
   }
   return applied;
 }

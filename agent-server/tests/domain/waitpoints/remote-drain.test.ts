@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
 import { createWaitpoint, type WaitpointServiceDeps } from '../../../src/domain/waitpoints/service.js';
-import { resetSignalIngressState, type IngestDeps } from '../../../src/orchestration/waitpoint-ingress.js';
+import { drainLocalSpool, resetSignalIngressState, type IngestDeps } from '../../../src/orchestration/waitpoint-ingress.js';
 import { resetWaitpointTimers } from '../../../src/orchestration/waitpoint-notifier.js';
 import {
   drainDeviceSpools, listDevicesWithArmedWaitpoints, parseSpoolBatch, type RemoteDrainDeps,
@@ -144,7 +144,7 @@ test('offline devices are skipped and their files keep until they reconnect', as
   assert.equal(h.deviceFiles.size, 1);
 });
 
-test('a malformed or unauthorised entry is left on the device and does not stop the batch', async () => {
+test('a malformed, unauthorised or unknown entry is parked under bad/ and never re-read', async () => {
   const h = harness();
   const { waitpoint, secret } = await createWaitpoint(
     { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
@@ -152,17 +152,40 @@ test('a malformed or unauthorised entry is left on the device and does not stop 
   );
   h.deviceFiles.set('broken.json', '{not json');
   h.deviceFiles.set('wrong-secret.json', JSON.stringify({ id: waitpoint.id, secret: 'nope' }));
+  h.deviceFiles.set('stranger.json', JSON.stringify({ id: 'wp_gone', secret: 'x' }));
   h.deviceFiles.set('good.json', JSON.stringify({ id: waitpoint.id, secret, status: 'ok' }));
 
   assert.equal(await drainDeviceSpools(h.deps), 1);
-  assert.deepEqual([...h.deviceFiles.keys()].sort(), ['broken.json', 'wrong-secret.json']);
+  assert.equal(h.deviceFiles.size, 0);
+  const park = h.commands.find((c) => c.command.includes('mkdir -p bad'))!;
+  assert.ok(park, 'unusable files are moved, not deleted');
+  for (const name of ['broken.json', 'wrong-secret.json', 'stranger.json']) assert.match(park.command, new RegExp(`'${name}'`));
+  assert.equal(park.command.includes("'good.json'"), false);
+  const remove = h.commands.find((c) => c.command.includes('rm -f'))!;
+  assert.match(remove.command, /'good\.json'/);
+
+  // Nothing is left to re-read, so the next tick charges no miss for them.
+  const before = h.commands.length;
+  assert.equal(await drainDeviceSpools(h.deps), 0);
+  assert.equal(h.commands.length, before + 1, 'one read, nothing to dispose of');
 });
 
-test('an unknown waitpoint is cleared rather than left to be re-read forever', async () => {
+test('the local and device drains dispose of the same outcome the same way', async () => {
   const h = harness();
-  h.deviceFiles.set('stranger.json', JSON.stringify({ id: 'wp_gone', secret: 'x' }));
-  assert.equal(await drainDeviceSpools(h.deps), 0);
-  assert.equal(h.deviceFiles.size, 0);
+  const { waitpoint, secret } = await createWaitpoint(
+    { label: 'pair', intent: 'x', owner: owner(), quorum: { need: 'all', members: ['a', 'b'] }, emitFrom: { kind: 'device', device: 'cluster' } },
+    h.service,
+  );
+  const typo = JSON.stringify({ id: waitpoint.id, secret, member: 'c' });
+  h.deviceFiles.set('typo.json', typo);
+  await drainDeviceSpools(h.deps);
+  assert.ok(h.commands.some((c) => c.command.includes('mkdir -p bad') && c.command.includes("'typo.json'")));
+
+  const spool = await fs.mkdtemp(path.join(tmpDir, 'local-'));
+  await fs.writeFile(path.join(spool, 'typo.json'), typo);
+  await drainLocalSpool(h.ingest, spool);
+  assert.equal((await fs.readdir(path.join(spool, 'bad'))).length, 1);
+  assert.equal((await h.repo.get(waitpoint.id))!.signals.length, 0);
 });
 
 test('a device failing outright does not stop the other devices in the same pass', async () => {
