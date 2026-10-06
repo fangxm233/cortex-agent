@@ -5,7 +5,6 @@ export const enBase = {
   machines: 'Machines',
   today: 'Today',
   active: 'Active',
-  recentDay: 'Last 1 day',
   history: 'History',
   open: 'Open',
   resume: 'Resume',
@@ -18,27 +17,23 @@ export const enBase = {
   adjustBudget: 'Adjust budget',
   approvals: 'Approvals',
   cmdkPh: 'Jump to session / file…',
-  openOverview: 'Open project overview',
   switchProject: 'SWITCH PROJECT',
   newProject: 'New project',
   synced: 'synced 2s ago',
   approvalPending: 'approval pending',
   approvalsPending: 'approvals pending',
-  autoAttached: 'auto-attached',
   warnNote: "Warning notifications are not available yet.",
   obNote: 'Not currently enforced',
   default: 'default',
   month: 'this month',
   mHeartbeat: 'heartbeat',
   aprEmptyTitle: 'All clear',
-  aprEmptyDesc: 'New approvals appear here and as cards in chat',
   issuesTitle: 'Issues',
   issuesStat: 'issues',
   isListLabel: 'ISSUES',
   isRecorded: 'recorded',
   isEmptyTitle: 'No issues',
   isEmptyDesc: 'Issues agents register during runs appear here',
-  isNoStatusNote: 'No status column — listed = pending; handle / delete to leave',
   isFootNote: "Handle opens a new session and removes the issue; Delete removes it directly.",
   isDescLabel: 'Description',
   isDelete: 'Delete',
@@ -47,17 +42,13 @@ export const enBase = {
   isViewAll: 'View all',
   isToastHandled: 'Session created for this issue',
   isToastDeleted: 'Issue deleted',
-  whyApproval: 'Why approval',
   rejectFeedback: 'Reject — feedback',
   denyConfirm: 'Confirm reject',
   rename: 'Rename',
   delete: 'Delete',
-  profNote: 'read on every spawn',
 
   // ── Group B: status-pill labels (prototype pill()) ──
   pillRunning: 'Running',
-  pillGated: 'Gated',
-  pillPaused: 'Paused',
   pillBackground: 'Background',
 
   // ── Group C: mobile shell chrome supplement ──
@@ -69,20 +60,12 @@ export const enBase = {
   more: 'More',
   project: 'Project',
 
-  // ── Group D: mobile approval screen 10e chrome ──
-  toProcess: 'to process',
-  weekProcessed: 'Processed this week',
-  slackSynced: 'Slack sync available',
-
   // ── Group E: mobile session screen 5a (scheme.dc.html L2932-3003, task c880) ──
   toolCallsUnit: 'tool calls',
   toolCallUnit: 'tool call',
   subagentFallbackLabel: 'subagent',
   subagentPromptLabel: 'Prompt',
   subagentRunning: 'running',
-  needsApproval: 'Approval required',
-  dayToday: 'Today',
-  dayYesterday: 'Yesterday',
 
   // ── Group H: mobile 10f project Overview (scheme L3249–3298, task 82ff) ──
   budgetPerDay: 'budget',
@@ -90,12 +73,10 @@ export const enBase = {
   thisWeek: 'this week',
   forecastToday: 'forecast today',
   projectMemory: 'Project memory',
-  viewAll: 'All',
   scheduleCard: 'Schedules',
   newSchedule: 'New',
   execFlow: 'Executions',
   paused: 'Paused',
-  execCountUnit: 'today',
 
   // ── Group I: mobile machines screen (plan §12 A item 1, 12c) ──
   mOnline: 'online',
@@ -116,8 +97,6 @@ export const enBase = {
   mUptime: 'uptime',
 
   // ── Group J: desktop i18n migration (workbench / tasks / overview / settings) ──
-  wbToday: 'today',
-  wbDaemon: 'daemon',
   // Daemon/connection badge (LeftRail header) — live UI↔server connectivity.
   connConnected: 'connected',
   connConnecting: 'connecting',
@@ -175,20 +154,10 @@ export const enBase = {
   wbDropFilesSingular: 'Drop file to attach',
   wbDropFilesPlural: 'Drop {n} files to attach',
   wbBrowser: 'browser',
-  wbBrowserOff: 'Give this session browser control (Chrome on the server). Only new sessions can opt in.',
-  wbBrowserOn: 'This session controls Chrome on the server — take it over from your desktop session to log in.',
-  wbBrowserFixed: 'This session was created with browser control. It cannot be changed — the tool set is fixed when the agent starts.',
   wbBrowserOffOption: 'Off',
   wbBrowserThisHost: 'this host',
-  wbBrowserRunning: 'Chrome is running',
   wbBrowserStarting: 'Starting Chrome on {device} and connecting browser tools…',
-  wbBrowserStopped: 'Chrome starts on demand',
-  wbBrowserAttached: 'it opens on the server\u2019s desktop{where} \u2014 connect to that desktop to take it over and log in.',
-  wbBrowserVirtual: 'it opens on a virtual display \u2014 nobody can watch it without a VNC bridge, so logins must already be in the profile.',
-  wbBrowserHeadless: 'it runs headless \u2014 the agent can browse, but you cannot take it over to log in.',
-  wbAttachPath: '→ workspace/attachments/',
   wbFileDownload: 'Download',
-  wbFileCopyPath: 'Copy path',
   wbFileOpen: 'open',
   wbFileDownloadAll: 'download all',
   wbFileFiles: 'files',
@@ -225,7 +194,6 @@ export const enBase = {
   wbDropAddMoreN: 'Drop to add {n} more',
   wbSessionToday: 'TODAY',
   wbSessionYesterday: 'YESTERDAY',
-  wbSessionEarlier: 'EARLIER',
 
   // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: 'all {n} runs',
@@ -270,7 +238,6 @@ export const enBase = {
   wbCommissionAbandonTitle: 'Abandon this commission?',
   wbCommissionCloseNote: 'Closing note (optional)',
   wbCommissionClosedNote: 'Closing note',
-  wbCommissionReopenHint: 'Closed commissions stay readable; their sessions keep working.',
   wbCommissionMissing: 'This commission no longer exists.',
   wbCommissionMode: 'commission',
   wbCommissionOffOption: 'Off',
@@ -283,7 +250,6 @@ export const enBase = {
   wbSortActivity: 'Recent activity',
   wbSortManual: 'Manual',
   wbReorderProject: 'Drag to reorder',
-  wbCost: 'Cost',
 
   // ── Session ID (⋯ header menu → modal) ──
   wbSessionId: 'Session ID',
@@ -326,18 +292,14 @@ export const enBase = {
   dmDisconnectDesc: 'Clear the saved server & token and return to the login screen',
   dmRebuild: 'rebuild',
 
-  rpNoMachinesHint: 'Connected machines (atlas, nimbus…) appear here once registered in machines.json.',
   rpLoadingMachines: 'Loading machines…',
   rpFailedLoadMachines: 'Failed to load machines.',
   ovLast14Days: 'Last 14 days',
   ovAvg: 'avg',
-  ovGitBacked: 'git-backed',
   ovOpenMemoryViewer: 'Open memory viewer',
-  ovMemoryDesc: 'Mission · roadmap · STATUS + experiments / knowledge / patterns / decisions.',
   ovWhereItGoes: 'Where it goes',
   ovNoSpend: 'No spend recorded this week.',
   ovNoSchedules: 'No schedules for this project.',
-  ovExecSubtitle: 'every execution, auditable',
   ovColId: 'ID',
   ovColSummary: 'SUMMARY',
   ovColMachine: 'MACHINE',
@@ -348,7 +310,6 @@ export const enBase = {
   ovLogs: 'Logs',
   stConfigured: 'configured',
   stNotConfigured: 'not configured',
-  stReconnect: 'Reconnect',
   stDefaultProfile: 'default profile',
   stProfReadNote: 'Used for new agent sessions',
   stColName: 'NAME',
@@ -415,11 +376,7 @@ export const enBase = {
   stMachineLocal: '— local',
   stLogs: 'Logs',
   stAddMachine: '+ Add machine',
-  stEntry: 'entry',
-  stEntries: 'entries',
-  stOpenEditor: 'Open editor ↗',
   stNoEnvironments: 'No environments yet',
-  stNone: 'none',
   stServers: 'Servers',
   stNoServers: 'No MCP servers configured',
   stNotifyTurnTitle: 'Post a new message after a long task finishes',
@@ -569,8 +526,6 @@ export const enBase = {
   stGroupResources: 'Resources',
   stGroupSystem: 'System',
 
-  // ── Settings section meta subs ──
-
   // ── Appearance / theme control ──
   stThemeLabel: 'Theme',
   stThemeLight: 'Light',
@@ -651,7 +606,6 @@ export const enBase = {
   mFileNewSession: 'New session',
   mFileNewProject: 'New project',
   mFileNewSchedule: 'New schedule',
-  mFileReveal: 'Reveal project folder',
   mFileSettings: 'Settings',
   mFileDisconnect: 'Disconnect',
   mFileQuit: 'Quit',
@@ -670,7 +624,6 @@ export const enBase = {
   mViewWorkbench: 'Workbench',
   mViewOverview: 'Overview',
   mViewMemory: 'Memory',
-  mViewSkills: 'Skills',
   mViewAppearance: 'Appearance',
   mViewThemeLight: 'Light',
   mViewThemeDark: 'Dark',
@@ -698,6 +651,5 @@ export const enBase = {
   winMaximize: 'Maximize',
   winRestore: 'Restore',
   winClose: 'Close',
-  upToDate: 'Already up to date',
 
 };

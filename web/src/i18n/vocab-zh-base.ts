@@ -5,7 +5,6 @@ export const zhBase = {
   machines: '机器',
   today: '今日',
   active: '活跃',
-  recentDay: '近 1 天',
   history: '历史',
   open: '打开',
   resume: '恢复',
@@ -18,27 +17,23 @@ export const zhBase = {
   adjustBudget: '调整预算',
   approvals: '审批',
   cmdkPh: '跳转到会话 / 文件…',
-  openOverview: '打开项目 Overview',
   switchProject: '切换项目',
   newProject: '新建项目',
   synced: '2 秒前同步',
   approvalPending: '项待审批',
   approvalsPending: '项待审批',
-  autoAttached: '自动附带',
   warnNote: "暂不支持预算警告通知。",
   obNote: '当前未强制执行',
   default: '默认',
   month: '本月',
   mHeartbeat: '心跳',
   aprEmptyTitle: '队列已清空',
-  aprEmptyDesc: '新审批会出现在这里，并同步为 chat 里的审批卡',
   issuesTitle: '问题',
   issuesStat: '个问题',
   isListLabel: 'ISSUES',
   isRecorded: '记录于',
   isEmptyTitle: '没有问题',
   isEmptyDesc: 'agent 运行中登记的问题会出现在这里',
-  isNoStatusNote: '无状态列 — 在列表即待处理；处理 / 删除 即离场',
   isFootNote: "处理会新建会话并移除此问题；删除会直接移除。",
   isDescLabel: '描述',
   isDelete: '删除',
@@ -47,17 +42,13 @@ export const zhBase = {
   isViewAll: '查看全部',
   isToastHandled: '已创建处理会话',
   isToastDeleted: '已删除问题',
-  whyApproval: '为什么需要审批',
   rejectFeedback: '拒绝并反馈',
   denyConfirm: '确认拒绝',
   rename: '重命名',
   delete: '删除',
-  profNote: '每次启动现读',
 
   // ── Group B: status-pill labels (prototype pill()) ──
   pillRunning: '运行中',
-  pillGated: '等审批',
-  pillPaused: '已暂停',
   pillBackground: '后台运行',
 
   // ── Group C: mobile shell chrome supplement ──
@@ -69,20 +60,12 @@ export const zhBase = {
   more: '更多',
   project: '项目',
 
-  // ── Group D: mobile approval screen 10e chrome ──
-  toProcess: '待处理',
-  weekProcessed: '本周已处理',
-  slackSynced: 'Slack 同步可用',
-
   // ── Group E: mobile session screen 5a (scheme.dc.html L2932-3003, task c880) ──
   toolCallsUnit: '次工具调用',
   toolCallUnit: '次工具调用',
   subagentFallbackLabel: '子 agent',
   subagentPromptLabel: '完整 Prompt',
   subagentRunning: '运行中',
-  needsApproval: '需要审批',
-  dayToday: '今天',
-  dayYesterday: '昨天',
 
   // ── Group H: mobile 10f project Overview (scheme L3249–3298, task 82ff) ──
   budgetPerDay: '预算',
@@ -90,12 +73,10 @@ export const zhBase = {
   thisWeek: '本周',
   forecastToday: '预测今日',
   projectMemory: '项目记忆',
-  viewAll: '全部',
   scheduleCard: '调度',
   newSchedule: '新建',
   execFlow: '执行流水',
   paused: '已暂停',
-  execCountUnit: '今日',
 
   // ── Group I: mobile machines screen (plan §12 A item 1, 12c) ──
   mOnline: '在线',
@@ -116,8 +97,6 @@ export const zhBase = {
   mUptime: '运行时长',
 
   // ── Group J: desktop i18n migration ──
-  wbToday: '今日',
-  wbDaemon: '守护进程',
   // Daemon/connection badge (LeftRail header) — live UI↔server connectivity.
   connConnected: '已连接',
   connConnecting: '连接中',
@@ -171,20 +150,10 @@ export const zhBase = {
   wbDropFilesSingular: '拖入文件以添加附件',
   wbDropFilesPlural: '拖入 {n} 个文件以添加附件',
   wbBrowser: '浏览器',
-  wbBrowserOff: '让这个会话可以操作浏览器（服务器上的 Chrome）。只有新会话能开启。',
-  wbBrowserOn: '这个会话可以操作服务器上的 Chrome —— 需要登录时从你的桌面接管它。',
-  wbBrowserFixed: '这个会话是带浏览器建的。不能改 —— 工具集在 agent 启动时就固定了。',
   wbBrowserOffOption: '关闭',
   wbBrowserThisHost: '本机',
-  wbBrowserRunning: 'Chrome 正在运行',
   wbBrowserStarting: '正在启动 {device} 上的 Chrome 并连接浏览器工具…',
-  wbBrowserStopped: 'Chrome 按需启动',
-  wbBrowserAttached: '它开在服务器的桌面{where} \u2014\u2014 连过去接管它就能登录。',
-  wbBrowserVirtual: '它开在虚拟显示口 \u2014\u2014 没有 VNC 桥接就看不到，所以登录状态得事先在 profile 里。',
-  wbBrowserHeadless: '它以 headless 运行 \u2014\u2014 agent 能浏览，但你无法接管去登录。',
-  wbAttachPath: '→ workspace/attachments/',
   wbFileDownload: '下载',
-  wbFileCopyPath: '复制路径',
   wbFileOpen: '打开',
   wbFileDownloadAll: '全部下载',
   wbFileFiles: '个文件',
@@ -221,7 +190,6 @@ export const zhBase = {
   wbDropAddMoreN: '拖入以添加 {n} 个更多',
   wbSessionToday: '今天',
   wbSessionYesterday: '昨天',
-  wbSessionEarlier: '更早',
 
   // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: '全部 {n} runs',
@@ -266,7 +234,6 @@ export const zhBase = {
   wbCommissionAbandonTitle: '确认放弃此委托？',
   wbCommissionCloseNote: '结束说明（可选）',
   wbCommissionClosedNote: '结束说明',
-  wbCommissionReopenHint: '已结束的委托仍可查看，其会话不受影响。',
   wbCommissionMissing: '该委托已不存在。',
   wbCommissionMode: '委托',
   wbCommissionOffOption: '关闭',
@@ -279,7 +246,6 @@ export const zhBase = {
   wbSortActivity: '最近活动',
   wbSortManual: '手动',
   wbReorderProject: '拖动排序',
-  wbCost: '成本',
 
   // ── Session ID (⋯ header menu → modal) ──
   wbSessionId: '会话 ID',
@@ -322,18 +288,14 @@ export const zhBase = {
   dmDisconnectDesc: '清除已保存的服务器与令牌，返回登录页',
   dmRebuild: '热重建',
 
-  rpNoMachinesHint: '已连接的机器（atlas、nimbus…）在 machines.json 中注册后将显示在此处。',
   rpLoadingMachines: '正在加载机器…',
   rpFailedLoadMachines: '加载机器失败。',
   ovLast14Days: '最近 14 天',
   ovAvg: '平均',
-  ovGitBacked: 'Git 托管',
   ovOpenMemoryViewer: '打开记忆查看器',
-  ovMemoryDesc: '使命 · 路线图 · STATUS + 实验 / 知识 / 模式 / 决策',
   ovWhereItGoes: '花在哪里',
   ovNoSpend: '本周暂无支出记录',
   ovNoSchedules: '本项目暂无调度',
-  ovExecSubtitle: '每次执行均可审计',
   ovColId: 'ID',
   ovColSummary: '摘要',
   ovColMachine: '机器',
@@ -344,7 +306,6 @@ export const zhBase = {
   ovLogs: '日志',
   stConfigured: '已配置',
   stNotConfigured: '未配置',
-  stReconnect: '重新连接',
   stDefaultProfile: '默认配置',
   stProfReadNote: '用于新的 agent 会话',
   stColName: '名称',
@@ -411,11 +372,7 @@ export const zhBase = {
   stMachineLocal: '— 本地',
   stLogs: '日志',
   stAddMachine: '+ 添加机器',
-  stEntry: '条',
-  stEntries: '条',
-  stOpenEditor: '打开编辑器 ↗',
   stNoEnvironments: '暂无环境',
-  stNone: '无',
   stServers: '服务器',
   stNoServers: '暂无 MCP 服务器',
   stNotifyTurnTitle: '长任务完成后发新消息',
@@ -565,8 +522,6 @@ export const zhBase = {
   stGroupResources: '资源',
   stGroupSystem: '系统',
 
-  // ── Settings section meta subs ──
-
   // ── Appearance / theme control ──
   stThemeLabel: '主题',
   stThemeLight: '浅色',
@@ -647,7 +602,6 @@ export const zhBase = {
   mFileNewSession: '新建会话',
   mFileNewProject: '新建项目',
   mFileNewSchedule: '新建定时任务',
-  mFileReveal: '打开项目文件夹',
   mFileSettings: '设置',
   mFileDisconnect: '断开连接',
   mFileQuit: '退出',
@@ -666,7 +620,6 @@ export const zhBase = {
   mViewWorkbench: '工作台',
   mViewOverview: '总览',
   mViewMemory: '记忆',
-  mViewSkills: '技能',
   mViewAppearance: '外观',
   mViewThemeLight: '浅色',
   mViewThemeDark: '深色',
@@ -694,6 +647,5 @@ export const zhBase = {
   winMaximize: '最大化',
   winRestore: '还原',
   winClose: '关闭',
-  upToDate: '已是最新版本',
 
 };
