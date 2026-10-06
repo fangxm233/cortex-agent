@@ -8,8 +8,8 @@ import { addSchedule, pauseSchedule, resumeSchedule, updateSchedule } from '@dom
 import { getScheduleHelp } from './cli-help.js';
 
 // `cortex schedule` writes schedules.json through the same schedule-ops the MCP schedule tools use.
-// A running daemon re-reads the file when it changes and re-arms what changed; its own writes re-read
-// the file first (sharedFile), so a CLI change is never overwritten by the daemon's cached copy.
+// A running daemon re-reads the file when it changes and re-arms what changed. Every writer (daemon,
+// MCP tools, this CLI) holds the schedules.json lock across its read-modify-write, so none loses another's change.
 
 const COMMANDS = ['list', 'get', 'add', 'edit', 'pause', 'resume', 'remove'] as const;
 type Command = typeof COMMANDS[number];

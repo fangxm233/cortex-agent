@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { atomicWrite } from './atomic-write.js';
+import { withFileLock } from './file-lock.js';
 
 const log = createLogger('json-repository');
 
@@ -14,8 +15,8 @@ export interface JsonRepoOptions<T> {
   /** Serialize without pretty-printing. For multi-MB stores the indentation costs ~40% extra
    *  stringify CPU on every write (synchronous, blocks the event loop) — opt in for those. */
   compact?: boolean;
-  /** Other processes write this file too: mutate() re-reads it from disk instead of trusting the
-   *  cache, so their writes are not overwritten with a stale copy. */
+  /** Other processes write this file too: mutate() holds a cross-process lock (core/file-lock) and
+   *  re-reads the file inside it instead of trusting the cache, so no writer's update is lost. */
   sharedFile?: boolean;
 }
 
@@ -75,46 +76,50 @@ export class JsonRepository<T> {
 
   /**
    * Return the current value.
-   * Cache hit: zero I/O. Cache miss: reads file, parses JSON, applies migrate if present.
-   * Missing file returns and caches defaultValue().
+   * Cache hit: zero I/O. Cache miss: reads file, parses JSON, applies migrate if present, and
+   * persists a migration that changed the shape. Missing file returns and caches defaultValue().
    */
   async read(): Promise<T> {
     if (this.cache !== null) return this.cache;
-    await this.ensureSwept();
+    // A shared file is swept only under its lock: another process may have a tmp in flight.
+    if (!this.opts.sharedFile) await this.ensureSwept();
+    const { value, migrated } = await this.load();
+    if (!migrated) return (this.cache = value);
+    if (this.opts.sharedFile) return this.mutate((cur) => ({ next: cur, result: cur }));
+    await this.write(value);
+    return value;
+  }
+
+  /** Read and parse the file without touching the cache. */
+  private async load(): Promise<{ value: T; migrated: boolean }> {
     try {
-      const raw = await fs.readFile(this.opts.filePath, 'utf8');
-      const parsed = JSON.parse(raw) as unknown;
-      if (this.opts.migrate) {
-        const migrated = this.opts.migrate(parsed);
-        // Persist migrated data back to disk so the new shape survives
-        // across restarts even when no mutate() follows.
-        if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
-          await atomicWrite(this.opts.filePath, this.serialize(migrated));
-        }
-        this.cache = migrated;
-      } else {
-        this.cache = parsed as T;
-      }
+      return this.parse(await fs.readFile(this.opts.filePath, 'utf8'));
     } catch (err: any) {
-      if (err.code === 'ENOENT') {
-        this.cache = this.opts.defaultValue();
-      } else if (err instanceof SyntaxError) {
-        // Corrupt JSON — preserve the original bytes under a .corrupt.<ts> sibling
-        // so they remain recoverable, warn loudly, then fall back to defaults.
-        // Subsequent writes will atomically replace filePath; the .corrupt.* file stays put.
-        const backupPath = `${this.opts.filePath}.corrupt.${Date.now()}`;
-        try {
-          await fs.copyFile(this.opts.filePath, backupPath);
-          log.warn(`Corrupt JSON in ${this.opts.filePath} (${err.message}); backed up to ${backupPath}, resetting to defaults.`);
-        } catch (copyErr: any) {
-          log.warn(`Corrupt JSON in ${this.opts.filePath} (${err.message}); failed to back up (${copyErr?.message ?? copyErr}); resetting to defaults.`);
-        }
-        this.cache = this.opts.defaultValue();
-      } else {
-        throw err;
-      }
+      if (err.code === 'ENOENT') return { value: this.opts.defaultValue(), migrated: false };
+      if (err instanceof SyntaxError) return { value: await this.recoverCorrupt(err), migrated: false };
+      throw err;
     }
-    return this.cache!;
+  }
+
+  private parse(raw: string): { value: T; migrated: boolean } {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!this.opts.migrate) return { value: parsed as T, migrated: false };
+    const value = this.opts.migrate(parsed);
+    return { value, migrated: JSON.stringify(parsed) !== JSON.stringify(value) };
+  }
+
+  /** Corrupt JSON: preserve the original bytes under a .corrupt.<ts> sibling so they remain
+   *  recoverable, warn loudly, then fall back to defaults. Subsequent writes atomically replace
+   *  filePath; the .corrupt.* file stays put. */
+  private async recoverCorrupt(err: SyntaxError): Promise<T> {
+    const backupPath = `${this.opts.filePath}.corrupt.${Date.now()}`;
+    try {
+      await fs.copyFile(this.opts.filePath, backupPath);
+      log.warn(`Corrupt JSON in ${this.opts.filePath} (${err.message}); backed up to ${backupPath}, resetting to defaults.`);
+    } catch (copyErr: any) {
+      log.warn(`Corrupt JSON in ${this.opts.filePath} (${err.message}); failed to back up (${copyErr?.message ?? copyErr}); resetting to defaults.`);
+    }
+    return this.opts.defaultValue();
   }
 
   /**
@@ -145,15 +150,21 @@ export class JsonRepository<T> {
    * Mutex-serialized read-modify-write.
    * `fn` receives the current value and must return `{ next, result }`.
    * Returns the `result` value from `fn`.
+   * A sharedFile repo also holds the file's cross-process lock for the whole cycle and re-reads the
+   * file inside it, so a concurrent writer in another process is neither overwritten nor lost.
    */
   async mutate<R>(fn: (cur: T) => { next: T; result: R }): Promise<R> {
-    return this.mutex.run(async () => {
-      if (this.opts.sharedFile) this.cache = null;
-      const cur = await this.read();
+    return this.mutex.run(() => this.underFileLock(async () => {
+      await this.ensureSwept();
+      const cur = this.cache !== null && !this.opts.sharedFile ? this.cache : (await this.load()).value;
       const { next, result } = fn(cur);
       await this.write(next);
       return result;
-    });
+    }));
+  }
+
+  private underFileLock<R>(op: () => Promise<R>): Promise<R> {
+    return this.opts.sharedFile ? withFileLock(this.opts.filePath, op) : op();
   }
 
   /** Drop the in-memory cache so the next read() fetches from disk. */
