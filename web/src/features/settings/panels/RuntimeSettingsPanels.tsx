@@ -3,7 +3,9 @@ import { LocalNotificationsCard } from './LocalNotificationsCard';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { Select, relativeAge } from '@/design';
 import { useLang, useVocab, type Vocab } from '@/i18n';
-import { useNoticeHistory } from '@/features/notifications/useNoticeHistory';
+import {
+  noticeHistoryCaption, noticeHistoryNote, useNoticeHistory,
+} from '@/features/notifications/useNoticeHistory';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import {
   ROW_STYLE,
@@ -204,17 +206,15 @@ function NoticeNote({ text }: { text: string }) {
  *  from its in-memory ring via `system.notices` and kept live by the `system.notice` event. */
 function RecentNotifications() {
   const L = useVocab();
-  const { entries, cap, loading, error } = useNoticeHistory();
-  const right = cap > 0
-    ? L.stRecentNotifRight.replace('{n}', String(cap))
-    : L.stRecentNotifRightUnknown;
+  const history = useNoticeHistory();
+  const note = noticeHistoryNote(L, history);
   return (
-    <SSection label={L.stRecentNotifications} action={<span style={MONO_VALUE_STYLE}>{right}</span>}>
+    <SSection label={L.stRecentNotifications}
+      action={<span style={MONO_VALUE_STYLE}>{noticeHistoryCaption(L, history)}</span>}>
       <SRowGroup>
-        {error ? <NoticeNote text={L.stRecentNotifError} /> : null}
-        {!error && loading ? <NoticeNote text={L.stRecentNotifLoading} /> : null}
-        {!error && !loading && entries.length === 0 ? <NoticeNote text={L.stRecentNotifEmpty} /> : null}
-        {!error && entries.map((entry) => <NoticeRow key={entry.id} entry={entry} />)}
+        {note !== null
+          ? <NoticeNote text={note} />
+          : history.entries.map((entry) => <NoticeRow key={entry.id} entry={entry} />)}
       </SRowGroup>
     </SSection>
   );

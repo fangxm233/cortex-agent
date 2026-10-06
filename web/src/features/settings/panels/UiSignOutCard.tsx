@@ -1,31 +1,11 @@
-import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
-import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
-import { probeUiSession, uiLogout } from '@/lib/ui-session';
+import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
 import { SLinkAction, SRow, SRowGroup } from '@/features/settings/ui/settings-ui';
 
 export function UiSignOutCard() {
   const L = useVocab();
-  const [offered, setOffered] = useState(false);
-  const browserMode = !isNativeShell() && !readDesktopConfig();
-
-  useEffect(() => {
-    if (!browserMode) return;
-    let alive = true;
-    probeUiSession()
-      .then((s) => { if (alive) setOffered(s.tokenLogin); })
-      .catch(() => { /* unreachable server — the gate reports that, this card just stays hidden */ });
-    return () => { alive = false; };
-  }, [browserMode]);
-
+  const { offered, signOut } = useUiSignOut();
   if (!offered) return null;
-
-  // Reload rather than route: the session is gone, so the gate must re-decide from scratch what
-  // this browser is allowed to see (a Cloudflare Access user, for instance, stays signed in).
-  const signOut = async () => {
-    await uiLogout();
-    window.location.reload();
-  };
 
   // The action is the whole row: there is no second line of copy for it to sit beside.
   return (

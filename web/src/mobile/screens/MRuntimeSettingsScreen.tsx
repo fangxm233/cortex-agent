@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotificationsCard';
 import { useNavigate } from 'react-router-dom';
-import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
-import { MButton } from '@/mobile/ui/kit';
+import type { ConfigSettingEntry, ConfigSnapshot, SystemNoticeEntry } from '@cortex-agent/ui-contract';
+import { relativeAge } from '@/design';
+import { useLang, useVocab } from '@/i18n';
+import { MButton, MC } from '@/mobile/ui/kit';
+import {
+  noticeHistoryCaption, noticeHistoryNote, useNoticeHistory,
+} from '@/features/notifications/useNoticeHistory';
 import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
+import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
@@ -18,7 +23,7 @@ import {
   type RuntimeSettingWriter,
 } from '@/features/settings/controllers/runtime-settings-writer';
 import {
-  MSET_KEY, MSettingsCard, MSettingsField, MSettingsQueryPage,
+  MSET_KEY, MSET_SUB, MSET_TITLE, MSettingsCard, MSettingsField, MSettingsQueryPage,
   MSettingsRow, MSettingsSelect, MSettingsToggle,
 } from './MSettingsControls';
 
@@ -36,6 +41,39 @@ function ToggleRow(props: {
       disabled={!entry || props.pending} onChange={(next) => props.onToggle(props.descriptor.setting, next)} />} />;
 }
 
+const NOTICE_COLOR: Record<SystemNoticeEntry['level'], string> = {
+  info: MC.run, warning: MC.amber, error: MC.fail,
+};
+
+function NoticeRow({ entry, last }: { entry: SystemNoticeEntry; last: boolean }) {
+  const lang = useLang();
+  return <div data-notice-row={entry.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 12,
+    borderBottom: last ? undefined : `1px solid ${MC.divider}` }}>
+    <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', marginTop: 5,
+      background: NOTICE_COLOR[entry.level] }} />
+    <div style={{ minWidth: 0, flex: 1 }}>
+      {entry.title && <div style={MSET_TITLE}>{entry.title}</div>}
+      <div style={{ ...MSET_SUB, marginTop: entry.title ? 4 : 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+        {entry.text}
+      </div>
+    </div>
+    <span style={{ fontSize: 12, color: MC.faint, flex: 'none' }}>{relativeAge(entry.ts, lang)}</span>
+  </div>;
+}
+
+/** The system notices the server broadcast, from the same history the desktop panel reads. */
+function RecentNotificationsCard() {
+  const L = useVocab();
+  const history = useNoticeHistory();
+  const note = noticeHistoryNote(L, history);
+  return <MSettingsCard title={L.stRecentNotifications} note={noticeHistoryCaption(L, history)}>
+    {note !== null
+      ? <div style={{ ...MSET_SUB, marginTop: 0, padding: 12 }}>{note}</div>
+      : history.entries.map((entry, index) => <NoticeRow key={entry.id} entry={entry}
+        last={index === history.entries.length - 1} />)}
+  </MSettingsCard>;
+}
+
 function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const L = useVocab();
   const settings = indexSettings(props.snapshot.settings);
@@ -51,6 +89,7 @@ function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeS
       <MSettingsRow title="Slack" sub={hasAnyKey(props.snapshot.env, 'SLACK_') ? String(slack ?? '—') : '—'} />
       <MSettingsRow title={L.psFeishu} sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} last />
     </MSettingsCard>
+    <RecentNotificationsCard />
   </>;
 }
 
@@ -149,6 +188,17 @@ function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: Sett
   </div>;
 }
 
+/** Shown only where desktop shows it: a plain browser signed in with the UI token. */
+function SignOutCard() {
+  const L = useVocab();
+  const { offered, signOut } = useUiSignOut();
+  if (!offered) return null;
+  return <MSettingsCard><div style={{ padding: '11px 13px' }}>
+    <MButton variant="danger-outline" data-ui-sign-out style={{ width: '100%' }}
+      onClick={() => void signOut()}>{L.uiLogoutAction}</MButton>
+  </div></MSettingsCard>;
+}
+
 function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const L = useVocab();
   const settings = indexSettings(props.snapshot.settings);
@@ -158,6 +208,7 @@ function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettin
       {BUILTIN_JOB_SETTINGS.map((descriptor) => <JobRow key={descriptor.enabled}
         descriptor={descriptor} settings={settings} write={props.write} />)}
     </MSettingsCard>
+    <SignOutCard />
   </>;
 }
 

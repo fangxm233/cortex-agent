@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SystemNoticeEntry } from '@cortex-agent/ui-contract';
+import { fmt, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { useSystemNotices } from './useSystemNotices';
 
@@ -40,4 +41,17 @@ export function useNoticeHistory(): NoticeHistory {
     loading: query.isLoading,
     error: query.isError,
   };
+}
+
+/** The one line that stands in for the list — a failed read, the first load or an empty ring —
+ *  or null when there are entries to show. */
+export function noticeHistoryNote(L: Vocab, history: NoticeHistory): string | null {
+  if (history.error) return L.stRecentNotifError;
+  if (history.loading) return L.stRecentNotifLoading;
+  return history.entries.length === 0 ? L.stRecentNotifEmpty : null;
+}
+
+/** How many notices the list can hold, when the server says. */
+export function noticeHistoryCaption(L: Vocab, history: NoticeHistory): string {
+  return history.cap > 0 ? fmt(L.stRecentNotifRight, { n: history.cap }) : L.stRecentNotifRightUnknown;
 }

@@ -1,14 +1,36 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const adapter = vi.hoisted(() => ({
   onSet: vi.fn(),
   onToggle: vi.fn(),
   snapshot: null as ConfigSnapshot | null,
+  native: false,
+  tokenLogin: true,
+  logout: vi.fn(),
+  history: { entries: [] as SystemNoticeEntry[], cap: 0, loading: false, error: false },
 }));
+
+vi.mock('@/lib/desktop-config', () => ({
+  isNativeShell: () => adapter.native,
+  readDesktopConfig: () => null,
+}));
+
+vi.mock('@/lib/ui-session', () => ({
+  probeUiSession: async () => ({ authenticated: true, tokenLogin: adapter.tokenLogin }),
+  uiLogout: adapter.logout,
+}));
+
+vi.mock('@/features/notifications/useNoticeHistory', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/features/notifications/useNoticeHistory')>(),
+  useNoticeHistory: () => adapter.history,
+}));
+
+vi.mock('./MNativeNotificationsCard', () => ({ MNativeNotificationsCard: () => null }));
+vi.mock('@/features/settings/panels/LocalNotificationsCard', () => ({ LocalNotificationsCard: () => null }));
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: adapter.snapshot, isLoading: false, isError: false }),
@@ -26,7 +48,8 @@ vi.mock('@/features/settings/controllers/runtime-settings-writer', () => ({
   }),
 }));
 
-import { MAdvancedScreen } from './MRuntimeSettingsScreen';
+import { en } from '@/i18n/vocab';
+import { MAdvancedScreen, MNotificationsScreen } from './MRuntimeSettingsScreen';
 
 const snapshot: ConfigSnapshot = {
   budget: null,
@@ -66,6 +89,9 @@ describe('mobile runtime Advanced settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     adapter.snapshot = snapshot;
+    adapter.native = false;
+    adapter.tokenLogin = true;
+    adapter.history = { entries: [], cap: 0, loading: false, error: false };
   });
 
   it('writes retention by its descriptor key and rejects unsafe integer drafts', () => {
@@ -118,5 +144,54 @@ describe('mobile runtime Advanced settings', () => {
     expect(text).not.toContain('daemon.log');
     expect(text).not.toContain('nvidia-smi');
     expect(text).toContain('500 MB');
+  });
+
+  it('offers sign-out in a browser signed in with the UI token', async () => {
+    const renderer = mountAdvanced();
+    await act(async () => { await Promise.resolve(); });
+    const button = renderer.root.findByProps({ 'data-ui-sign-out': true });
+    expect(button.props.children).toBe(en.uiLogoutAction);
+  });
+
+  it.each([
+    ['the native app', true, true],
+    ['a browser without token login', false, false],
+  ])('hides sign-out in %s', async (_label, native, tokenLogin) => {
+    adapter.native = native;
+    adapter.tokenLogin = tokenLogin;
+    const renderer = mountAdvanced();
+    await act(async () => { await Promise.resolve(); });
+    expect(renderer.root.findAllByProps({ 'data-ui-sign-out': true })).toHaveLength(0);
+  });
+});
+
+describe('mobile Notifications recent notices', () => {
+  function mountNotifications(): ReactTestRenderer {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<MemoryRouter><LangProvider><MNotificationsScreen /></LangProvider></MemoryRouter>);
+    });
+    return renderer;
+  }
+
+  beforeEach(() => {
+    adapter.snapshot = snapshot;
+  });
+
+  it('lists the notices the server broadcast', () => {
+    adapter.history = {
+      cap: 50, loading: false, error: false,
+      entries: [{ id: 'n1', ts: new Date().toISOString(), level: 'warning', title: 'Disk low', text: '410 MB free' }],
+    };
+    const text = JSON.stringify(mountNotifications().toJSON());
+    expect(text).toContain(en.stRecentNotifications);
+    expect(text).toContain('Disk low');
+    expect(text).toContain('410 MB free');
+  });
+
+  it('says so when the notice history cannot be read', () => {
+    adapter.history = { cap: 0, loading: false, error: true, entries: [] };
+    const text = JSON.stringify(mountNotifications().toJSON());
+    expect(text).toContain(en.stRecentNotifError);
   });
 });
