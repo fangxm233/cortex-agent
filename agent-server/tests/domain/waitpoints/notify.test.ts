@@ -8,6 +8,7 @@ import { applySignal, createWaitpoint, expireDueWaitpoints, type WaitpointServic
 import { buildExpiryNotice, buildSignalNotice, formatDuration } from '../../../src/domain/waitpoints/notices.js';
 import {
   deliverPendingWaitpoints,
+  deliverWakeTurn,
   notifyWaitpointExpiry,
   resetWaitpointTimers,
   scheduleWaitpointDelivery,
@@ -169,6 +170,35 @@ test('a failed delivery keeps the pending bit so the next sweep retries it', asy
   assert.equal(await deliverPendingWaitpoints(h.notifier), 1);
   assert.equal(h.sent.length, 1);
   assert.equal((await h.repo.get(waitpoint.id))!.delivery.attempts, 2);
+});
+
+test('a wake refused by a supervisor rebuild stays pending instead of being stamped delivered', async () => {
+  const h = harness();
+  const { waitpoint, secret } = await createWaitpoint({ label: 'arm2', intent: 'training', owner: owner() }, h.service);
+  await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.service);
+
+  // The gateway as the runner behaves under a rebuild hold: it hands the message back through
+  // onRebuildHold when the sender offers one, and otherwise posts a refusal and returns normally.
+  let holding = true;
+  const gateway = async (opts: { onRebuildHold?: () => Promise<void> | void; text: string }) => {
+    if (holding) { if (opts.onRebuildHold) await opts.onRebuildHold(); return; }
+    h.sent.push({ channel: 'web:chan-1', text: opts.text, tag: waitpoint.id });
+  };
+  const notifier: WaitpointNotifierDeps = {
+    ...h.notifier,
+    deliver: (channel, text, tag) => deliverWakeTurn(channel, text, tag, gateway as any),
+  };
+
+  assert.equal(await deliverPendingWaitpoints(notifier), 0);
+  const held = (await h.repo.get(waitpoint.id))!;
+  assert.equal(held.delivery.pending, true, 'the sweep must retry it once the hold lifts');
+  assert.match(held.delivery.lastError ?? '', /rebuild/);
+  assert.equal(held.signals.every((s) => !s.deliveredAt), true, 'nothing was delivered yet');
+
+  holding = false;
+  assert.equal(await deliverPendingWaitpoints(notifier), 1);
+  assert.equal(h.sent.length, 1);
+  assert.equal((await h.repo.get(waitpoint.id))!.delivery.pending, false);
 });
 
 test('a burst inside the coalesce window becomes exactly one wake carrying every member', async () => {

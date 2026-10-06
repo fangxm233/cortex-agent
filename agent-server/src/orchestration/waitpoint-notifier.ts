@@ -1,21 +1,37 @@
 import { createLogger } from '@core/log.js';
 import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
 import { buildExpiryNotice, buildSignalNotice } from '@domain/waitpoints/notices.js';
-import { deliverToSession } from './session-gateway.js';
+import { deliverToSession, type DeliverToSessionOptions } from './session-gateway.js';
 
 const log = createLogger('waitpoint-notifier');
 
 export interface WaitpointNotifierDeps {
   repo: Pick<typeof waitpointRepo, 'get' | 'list' | 'update'>;
+  /** Resolves once the wake turn is admitted; throws when it was not, so the wake stays pending. */
   deliver: (channel: string, text: string, tag: string) => Promise<void>;
   now: () => number;
 }
 
+/**
+ * Open the wake turn. A supervisor rebuild refuses new turns, and without `onRebuildHold` the
+ * runner would answer that with a "dropped" notice and return normally — the wake would then be
+ * stamped delivered and never retried. Throwing instead puts `delivery.pending` back, and the sweep
+ * delivers it once the hold lifts (or after the restart, from disk).
+ */
+export async function deliverWakeTurn(
+  channel: string,
+  text: string,
+  tag: string,
+  gateway: (opts: DeliverToSessionOptions) => Promise<void> = deliverToSession,
+): Promise<void> {
+  let held = false;
+  await gateway({ channel, text, origin: 'external-signal', tag, onRebuildHold: () => { held = true; } });
+  if (held) throw new Error('refused by a supervisor rebuild; retrying once it is over');
+}
+
 export const productionNotifierDeps: WaitpointNotifierDeps = {
   repo: waitpointRepo,
-  deliver: async (channel, text, tag) => {
-    await deliverToSession({ channel, text, origin: 'external-signal', tag });
-  },
+  deliver: (channel, text, tag) => deliverWakeTurn(channel, text, tag),
   now: () => Date.now(),
 };
 
