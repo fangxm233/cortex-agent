@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';
+import type { UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';
 import { Modal, Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -31,9 +31,7 @@ function SkillEditor(props: {
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const query = useQuery<PluginsSkillFile>(
-    trpc.plugins.skillFile.queryOptions({ pluginId: props.pluginId, skill: props.skill }) as never,
-  );
+  const query = useQuery(trpc.plugins.skillFile.queryOptions({ pluginId: props.pluginId, skill: props.skill }));
   // `saved` is what this editor believes is on disk. It advances on a successful write rather than
   // waiting for the refetch, so the Save button settles immediately instead of staying lit.
   const [state, setState] = useState<{ draft: string; saved: string; baseHash: string } | null>(null);

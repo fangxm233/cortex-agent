@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PluginsMcpRead, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
+import type { UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -141,9 +141,7 @@ function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAu
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const query = useQuery<PluginsMcpRead>(
-    trpc.plugins.mcpRead.queryOptions({ pluginId: props.plugin.id }) as never,
-  );
+  const query = useQuery(trpc.plugins.mcpRead.queryOptions({ pluginId: props.plugin.id }));
   const [drafts, setDrafts] = useState<McpServerDraft[] | null>(null);
   const [nextId, setNextId] = useState(0);
 

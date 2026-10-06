@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
+import { useServerSetting } from '@/lib/useServerSetting';
 
 /**
  * The global commission feature switch (`settings.commissionEnabled`, on by default — it is the
@@ -14,9 +15,7 @@ import { useTRPC } from '@/lib/trpc';
  * the UI answer is only ever about what is offered, never about what is permitted.
  */
 export function useCommissionEnabled(): boolean {
-  const trpc = useTRPC();
-  const query = useQuery(trpc.config.get.queryOptions({}));
-  return query.data?.settings?.some((s) => s.key === 'commissionEnabled' && s.value === true) ?? false;
+  return useServerSetting('commissionEnabled') === true;
 }
 
 /** What the composer sends with sessions.create / createAndSend. null is "not a commission". */

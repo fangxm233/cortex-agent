@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry, MutateArgs } from '@cortex-agent/ui-contract';
+import type { PluginAssignmentTarget, UiPluginCatalogEntry, MutateArgs } from '@cortex-agent/ui-contract';
 import { Modal, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { trpcErrorCode, useTRPC } from '@/lib/trpc';
@@ -85,7 +85,7 @@ function selectionState(
 
 async function refreshCatalog(args: RefreshArgs, preserveDraft: boolean): Promise<void> {
   await args.queryClient.invalidateQueries(args.trpc.plugins.list.queryFilter({}));
-  const fresh = await args.queryClient.fetchQuery<PluginsListReturn>(args.trpc.plugins.list.queryOptions({}) as never);
+  const fresh = await args.queryClient.fetchQuery(args.trpc.plugins.list.queryOptions({}));
   const next = selectionState(fresh.targets, args.scope, args.key, preserveDraft ? args.draft : null);
   args.setSelectedKey(targetKeyOf(next.target));
   args.setDraft(next.draft);
@@ -265,8 +265,8 @@ function usePluginAssignProps(props: PluginAssignPanelProps): PluginAssignViewPr
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const listQuery = useQuery<PluginsListReturn>(trpc.plugins.list.queryOptions({}) as never);
-  const assign = useMutation<unknown, Error, MutateArgs<'plugins.assign'>>(trpc.plugins.assign.mutationOptions() as never);
+  const listQuery = useQuery(trpc.plugins.list.queryOptions({}));
+  const assign = useMutation(trpc.plugins.assign.mutationOptions());
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<PluginsPanelDraft | null>(null);
   const [ack, setAck] = useState<AckState | null>(null);

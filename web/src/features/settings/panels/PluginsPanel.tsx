@@ -1,7 +1,7 @@
 import '@/features/settings/ui/desktop-panels.css';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
+import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -330,7 +330,7 @@ export function PluginsPanelView(props: PluginsPanelViewProps) {
 
 export function PluginsPanel() {
   const trpc = useTRPC();
-  const listQuery = useQuery<PluginsListReturn>(trpc.plugins.list.queryOptions({}) as never);
+  const listQuery = useQuery(trpc.plugins.list.queryOptions({}));
   const actions = usePluginAuthoring();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
