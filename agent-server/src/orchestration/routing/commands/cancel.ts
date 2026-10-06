@@ -11,10 +11,9 @@ import { stopSubagentRunsForSession } from '@domain/agents/subagent/registry.js'
 import { conduitQueues } from '../../conduit-queue.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 
-/** Cancel one live execution: tear it down as 'cancelled'.
- *  teardownExecution sets the persistent record cancelled BEFORE killing the handle, so
- *  the kill-error path's failExecution is a terminal no-op — and it publishes a balanced terminal
- *  event so agent.started is not left dangling.
+/** Cancel one live execution. The run cancels itself (`stopLiveExecution`): it seals as
+ *  'cancelled' before the killed backend's rejection can fail it, and its terminal handler closes
+ *  the record with what the turn had already spent and publishes the balanced terminal event.
  *
  *  NOTE: this must NOT touch the channel→session binding. A pre-decoupling version rebound the
  *  channel to `exec.sessionId` (the BACKEND CLI's own id) "to preserve the session" — but the
@@ -23,11 +22,7 @@ import * as executionRegistry from '@domain/executions/registry.js';
  *  persistence on an interrupted turn is handled by the Turn's settle-time backstop instead
  *  (`turn/turn.ts` → `resume-target-sink.ts`). */
 async function cancelLive(exec: RunningExecution): Promise<void> {
-  if (exec.executionId) {
-    executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
-  } else {
-    runRegistry.killById(exec.registryKey);
-  }
+  executionRegistry.stopLiveExecution(exec);
 }
 
 /** Cancel one live execution by id (the Web UI "Kill run", ui-service `executions.cancel`, wired

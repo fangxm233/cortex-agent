@@ -35,12 +35,8 @@ export function startRun(request: RunRequest, observers: RunObserver[]): AgentRu
     startedAt,
     onTerminal: ({ status, result, error, durationS }) => {
       executionRegistry.teardownExecution({
-        executionId: execution.id,
-        status: status === 'cancelled' ? 'cancelled' : status === 'completed' ? 'completed' : 'failed',
-        result,
-        error: error
-          ? { message: error.message }
-          : status === 'rate-limited' ? { message: 'Rate limited' } : null,
+        executionId: execution.id, status, result,
+        error: error ? { message: error.message } : null,
         durationS,
       });
       runRegistry.remove(execution.id);

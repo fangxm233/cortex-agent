@@ -234,8 +234,8 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
     return;
   }
   if (exec.trackSessionId) await setSessionAsync(exec.channel ?? channel, exec.trackSessionId).catch(() => {});
-  // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
-  executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
+  // The run cancels itself and closes its record with what it had spent (stopLiveExecution).
+  executionRegistry.stopLiveExecution(exec);
   conduitQueues.delete(exec.channel ?? channel);
   if (ctx.messageRef) {
     await _adapter.updateMessage(ctx.messageRef, {

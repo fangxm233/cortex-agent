@@ -529,6 +529,43 @@ test('cancel() kills the process, closes the record and reaches the cancelled te
   assert.equal((seen.events.at(-1) as Extract<RunEvent, { type: 'phase' }>).phase, 'done');
 });
 
+test('Stop during a held turn closes the record cancelled with the spend so far', async () => {
+  const { run, session } = await startHeldRun('running');
+  // A chained continuation: more work queued, so the run stays in its background phase.
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(taskStarted('bg-2'));
+  session.handleLine(assistantLine('chained'));
+  session.handleLine(resultLine({ result: 'chained', num_turns: 2, total_cost_usd: 0.25 }));
+  await tick();
+  assert.equal(run.phase, 'background');
+
+  // The Stop paths (Web Stop, !cancel, the status Cancel button) go through the registry entry.
+  executionRegistry.stopLiveExecution(runRegistry.getById(run.executionId)!);
+  await run.settled.catch(() => undefined);
+
+  const record = executionRegistry.getExecution(run.executionId)!;
+  assert.equal(record.status, 'cancelled');
+  assert.equal(record.metrics.numTurns, 1 + 2, 'foreground turn plus the continuation');
+  assert.ok(Math.abs((record.metrics.costUsd ?? 0) - 0.25) < 1e-9, 'foreground 0.1 + continuation 0.15');
+  assert.ok((record.metrics.durationS ?? 0) > 0, 'the real duration, not a placeholder');
+});
+
+test('the live turn count adds each continuation to the foreground turn', async () => {
+  const { run, session } = await startHeldRun('running');
+  assert.equal(run.numTurns, 1);
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(taskStarted('bg-2'));
+  session.handleLine(assistantLine('chained'));
+  session.handleLine(resultLine({ result: 'chained', num_turns: 2, total_cost_usd: 0.2 }));
+  await tick();
+
+  assert.equal(run.phase, 'background');
+  assert.equal(run.numTurns, 3, 'not the continuation\'s own count');
+  assert.equal(runRegistry.getById(run.executionId)?.numTurns, 3);
+  run.cancel('user');
+  await run.settled.catch(() => undefined);
+});
+
 // ── observer safety ──────────────────────────────────────────────────────
 
 test('a throwing observer is logged and the run still completes', async () => {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { RunRegistry } from '@core/run-registry.js';
 import { remainingBg } from '../../agent-adapter/bg-wait.js';
+import { mergeContinuation } from '../../agent-adapter/continuation-phase.js';
 import { CAPABILITIES_BY_BACKEND, Capability } from '../../agent-adapter/capabilities.js';
 import type { UserMessage } from '../../agent-adapter/types.js';
 import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
@@ -22,9 +23,12 @@ import type { RunObserver, RunRequest, RunResult } from './request.js';
 
 const log = createLogger('run');
 
-/** The run lifecycle. `starting → running → (background) → completed | failed | cancelled | rate-limited`. */
-export type RunStatus =
-  | 'starting' | 'running' | 'background' | 'completed' | 'failed' | 'cancelled' | 'rate-limited';
+/** How a run ends. `rate-limited` stays its own outcome; the execution record files it as a failure
+ *  that names the rate limit (`executions/registry.ts` teardownExecution). */
+export type TerminalRunStatus = 'completed' | 'failed' | 'cancelled' | 'rate-limited';
+
+/** The run lifecycle. `running → (background) → completed | failed | cancelled | rate-limited`. */
+export type RunStatus = 'running' | 'background' | TerminalRunStatus;
 
 /** The one ownership object for a run (plan §3.3). */
 export interface AgentRun {
@@ -76,7 +80,9 @@ export interface AgentRun {
 
 /** What the run reports back to `startRun` when it reaches a terminal state. */
 export interface RunTerminalInfo {
-  status: RunStatus;
+  status: TerminalRunStatus;
+  /** What the run had produced when it ended — the foreground turn plus every continuation that
+   *  settled, also on a cancelled or failed run, so the spend already incurred is not lost. */
   result: RunResult | null;
   error?: Error;
   durationS: number;
@@ -120,14 +126,14 @@ export class AgentRunImpl implements AgentRun {
   /** Reporting model of the latest assistant event, restamped onto the synthesized notices. */
   private lastAssistantModel: string | null = null;
   private backgroundTranscriptOwnedValue = false;
-  private statusValue: RunStatus = 'starting';
+  private statusValue: RunStatus = 'running';
   private phaseValue: RunPhase = 'foreground';
   private numTurnsValue: number | null = null;
   private backendSessionIdValue: string | null;
   private foregroundResult: RunResult | null = null;
-  /** Fanned out only so a surface can tell "the engine is still streaming" from "nothing happened
-   *  yet"; the authoritative numbers come from the attempt handle's `settled`. */
-  private lastBackgroundResult: RunResult | null = null;
+  /** Continuation results seen so far. The live tally and a run that ends before its attempt
+   *  settles (Stop, failure) read them; a settled attempt reports its own merged result. */
+  private readonly continuations: RunResult[] = [];
 
   private readonly observers: RunObserver[];
   private readonly registry: RunRegistry;
@@ -199,7 +205,6 @@ export class AgentRunImpl implements AgentRun {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.statusValue = 'running';
     void this.walkChain();
   }
 
@@ -541,8 +546,7 @@ export class AgentRunImpl implements AgentRun {
         this.setNumTurns(event.numTurns);
         break;
       case 'background_result':
-        this.lastBackgroundResult = event.result;
-        this.absorbResultCounts(event.result);
+        this.absorbContinuation(event.result);
         break;
       default:
         break;
@@ -560,12 +564,29 @@ export class AgentRunImpl implements AgentRun {
     if (result.sessionId) this.backendSessionIdValue = result.sessionId;
   }
 
+  /** A continuation reports its own turns and cost, not the run's: add it to the tally the way the
+   *  engine does (`mergeContinuation`). An interrupted continuation adds nothing, as there. */
+  private absorbContinuation(result: RunResult): void {
+    if (result.backgroundInterrupted) return;
+    this.continuations.push(result);
+    const tally = this.tally();
+    if (tally) this.absorbResultCounts(tally);
+  }
+
+  /** The foreground turn plus every continuation so far; null before the foreground settled. A
+   *  continuation can reach the stream before the foreground await resumes, so the fold is taken
+   *  over the whole list rather than kept incrementally. */
+  private tally(): RunResult | null {
+    if (!this.foregroundResult) return null;
+    return this.continuations.reduce(mergeContinuation, this.foregroundResult);
+  }
+
   // ── terminal transitions ───────────────────────────────────────────────
 
   private onForegroundResult(result: RunResult): void {
     if (this.terminal) return;
     this.foregroundResult = result;
-    this.absorbResultCounts(result);
+    this.absorbResultCounts(this.tally() ?? result);
     this.resultDeferred.resolve(result);
     this.fanOut({ type: 'foreground_result', result });
     if (this.terminal) return;
@@ -604,14 +625,14 @@ export class AgentRunImpl implements AgentRun {
     this.finishTerminal('failed', null, failure);
   }
 
-  private finishTerminal(status: RunStatus, result: RunResult | null, error?: Error): void {
+  private finishTerminal(status: TerminalRunStatus, result: RunResult | null, error?: Error): void {
     if (this.terminal) return;
     this.terminal = true;
     this.statusValue = status;
     this.phaseValue = 'done';
     this.fanOut({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
     const durationS = (Date.now() - this.startedAt) / 1000;
-    const terminalResult = result ?? this.lastBackgroundResult ?? this.foregroundResult;
+    const terminalResult = result ?? this.tally();
     try {
       this.onTerminal({ status, result: terminalResult, error, durationS });
     } catch (terminalError) {

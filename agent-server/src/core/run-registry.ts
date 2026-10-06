@@ -23,6 +23,8 @@ export interface SteerableRun {
   /** Answer an in-flight backend dialog (PI extension UI). False when no live dialog waits on
    *  `id`; the caller then falls through to its webhook path. */
   respondToDialog(id: string, payload: Record<string, unknown>): boolean;
+  /** End the run. Its own terminal handler closes the execution record. */
+  cancel?(reason: 'user' | 'supersede' | 'shutdown'): void;
 }
 
 export interface RunningExecution {
