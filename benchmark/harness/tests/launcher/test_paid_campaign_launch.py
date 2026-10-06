@@ -459,7 +459,11 @@ def test_the_committed_document_preflights_whatever_state_its_roots_are_in(
     gateway: Path, clean_environment: dict[str, str], hermetic_campaign: Path,
     capsys: pytest.CaptureFixture[str], existing: bool,
 ) -> None:
-    """The declared plan stays fixed whether its isolated trial roots exist or not."""
+    """The declared plan stays fixed whether its isolated trial roots exist or not.
+
+    An empty root is what a trial that died before publishing leaves; the run moves it aside and
+    arms that trial again, and the dry-run has to say so rather than promise a skip.
+    """
     config = launcher.load_campaign_config(hermetic_campaign)
     if existing:
         for plan in config.trials():
@@ -476,7 +480,11 @@ def test_the_committed_document_preflights_whatever_state_its_roots_are_in(
     assert [trial["trial_id"] for trial in document["dry_run"]["trials"]] == [
         plan.trial_id for plan in committed_config().trials()]
     assert {trial["state"] for trial in document["dry_run"]["trials"]} == {
-        "would-skip" if existing else "would-arm"}
+        "would-move-aside-and-rearm" if existing else "would-arm"}
+    if existing:
+        assert all(
+            (config.trials_dir / plan.trial_id).is_dir() for plan in config.trials()), (
+            "a dry-run moves nothing")
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert "CORTEX_BENCH_DEEPSEEK_CREDENTIAL" not in os.environ
 
@@ -545,6 +553,35 @@ def test_run_hands_a_codex_campaign_the_access_token_and_then_clears_it(
     assert FAKE_CODEX_TOKEN not in captured.out + captured.err
     assert str(codex_auth) not in captured.out + captured.err
     assert_codex_run_report(captured.err)
+
+
+@pytest.mark.parametrize("expired", [False, True])
+def test_preflight_judges_the_codex_token_the_run_would_carry(
+    gateway: Path, clean_environment: dict[str, str], capsys: pytest.CaptureFixture[str],
+    tmp_path: Path, expired: bool,
+) -> None:
+    """The dry-run's Codex preflight used to read an environment the launcher had not exported
+    yet; it now sees the token from the auth file, and a refusal there refuses the preflight."""
+    config_path = stage_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["native"])
+    token = codex_token(exp_seconds=1_000_000_000) if expired else FAKE_CODEX_TOKEN
+    auth = tmp_path / "auth.json"
+    auth.write_text(json.dumps({"tokens": {"access_token": token}}), encoding="utf-8")
+
+    code = launcher.main([
+        "--config", str(config_path), "--gateway", str(gateway), "--codex-auth", str(auth),
+    ])
+
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    preflight = document["dry_run"]["preflight"]
+    if expired:
+        assert (code, document["ok"], preflight["status"]) == (1, False, "refused")
+        assert "expired" in preflight["reason"]
+    else:
+        assert (code, document["ok"], preflight["status"]) == (0, True, "passed"), preflight
+        assert preflight["codex_trials"] == len(document["dry_run"]["trials"])
+    assert all(name not in os.environ for name in CODEX_REQUIRED_REFERENCES)
+    assert token not in captured.out + captured.err
 
 
 def assert_codex_run_report(payload: str) -> None:

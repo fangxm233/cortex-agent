@@ -265,7 +265,7 @@ def _last_json(text: str) -> dict[str, object] | None:
 def log_paths(config: CampaignConfig) -> tuple[Path, Path]:
     """Logs under the campaign's own trials_dir, in a directory no trial id can collide with.
 
-    `_partition` classifies trial roots by exact trial id, so a `_launch` sibling is invisible to
+    `campaign._resume` classifies trial roots by exact trial id, so a `_launch` sibling is invisible to
     it; keeping the logs here means the run and its output are found in one place.
     """
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

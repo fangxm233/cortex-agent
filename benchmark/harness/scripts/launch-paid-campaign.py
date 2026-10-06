@@ -38,7 +38,9 @@
 #
 # `--preflight` is the whole procedure minus the trials: it loads the credential, resolves the five
 # references, parses the scan policy, verifies both artifacts against current source and dry-runs
-# the campaign, arming nothing and paying nothing.
+# the campaign, arming nothing and paying nothing. The dry-run sees the references the run would,
+# so its Codex token preflight judges the token the run would carry; a refusal there is a refused
+# preflight (exit 1), not a plan that would stop at its first trial.
 # `--run` writes the campaign's own JSON result to stdout and this redacted report to stderr.
 # Wrap the `--run` line only — never pass a reference through a launcher's environment flag.
 #
@@ -47,12 +49,13 @@
 # and was killed at 31 minutes when that session ended.
 
 import argparse
+import contextlib
 import json
 import os
 import secrets
 import socket
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -449,16 +452,27 @@ def launch(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     if arguments.mode == "preflight":
         # The public dry-run, through the same CLI entry the run uses, so the procedure is proven
         # end to end without arming a trial or reading the provider.
-        planned = campaign.run(
-            argparse.Namespace(config=arguments.config, dry_run=True))
-        return report(
-            config, environment, "preflight", gateway_path, artifacts, planned), 0
-    os.environ.update(environment.values)
-    try:
+        with _exported(environment):
+            planned = campaign.run(
+                argparse.Namespace(config=arguments.config, dry_run=True))
+        document = report(config, environment, "preflight", gateway_path, artifacts, planned)
+        if planned.get("ok") is not True:
+            document["ok"] = False
+            return document, 1
+        return document, 0
+    with _exported(environment):
         print(json.dumps(
             report(config, environment, "run", gateway_path, artifacts), sort_keys=True),
             file=sys.stderr)
         return {}, campaign.main(["run", "--config", arguments.config])
+
+
+@contextlib.contextmanager
+def _exported(environment: LaunchEnvironment) -> Iterator[None]:
+    """The resolved references in this process's environment for exactly as long as needed."""
+    os.environ.update(environment.values)
+    try:
+        yield
     finally:
         for name in environment.values:
             os.environ.pop(name, None)
