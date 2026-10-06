@@ -27,7 +27,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install mkdocs mkdocs-material mkdocs-static-i18n
+        run: pip install mkdocs==1.6.1 mkdocs-material==9.7.7 mkdocs-static-i18n==1.3.1
 
       - name: Build site
         run: mkdocs build
