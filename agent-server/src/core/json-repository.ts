@@ -16,13 +16,33 @@ export interface JsonRepoOptions<T> {
   compact?: boolean;
 }
 
+interface Flushable {
+  flush(): Promise<void>;
+}
+
+/** Everything the graceful shutdown drains: every JsonRepository, plus the stores that keep
+ *  in-flight writes of their own outside one. */
+const flushables = new Set<Flushable>();
+
+/** Register a store whose pending writes a JsonRepository flush does not cover. */
+export function registerFlushable(store: Flushable): void {
+  flushables.add(store);
+}
+
+/** Drain every registered store's in-flight writes (SIGTERM, before exit). */
+export async function flushAllRepositories(): Promise<void> {
+  await Promise.allSettled([...flushables].map((store) => store.flush()));
+}
+
 export class JsonRepository<T> {
   private cache: T | null = null;
   private readonly mutex = new AsyncMutex();
   /** Fires the first-call orphan sweep exactly once per instance, on the first I/O op. */
   private sweepPromise: Promise<void> | null = null;
 
-  constructor(private readonly opts: JsonRepoOptions<T>) {}
+  constructor(private readonly opts: JsonRepoOptions<T>) {
+    flushables.add(this);
+  }
 
   /**
    * Delete any `<basename>.tmp.*` siblings of filePath.

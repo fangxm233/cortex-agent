@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { readFileSync, statSync } from 'fs';
 import { appendFile, mkdir } from 'fs/promises';
-import { JsonRepository } from '@core/json-repository.js';
+import { JsonRepository, registerFlushable } from '@core/json-repository.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { STORE_DIR } from '@core/paths.js';
@@ -412,5 +412,6 @@ class ExecutionRepo {
 // ── Singleton ──────────────────────────────────────────────────────
 
 export const executionRepo = new ExecutionRepo();
+registerFlushable(executionRepo);
 
 export { ExecutionRepo };

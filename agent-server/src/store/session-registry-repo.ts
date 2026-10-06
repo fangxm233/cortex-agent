@@ -26,6 +26,7 @@ import {
   type SessionRegistryState,
   type TurnRecord,
 } from './session-registry-journal.js';
+import { registerFlushable } from '@core/json-repository.js';
 
 export const REGISTRY_FILE = path.join(STORE_DIR, 'session-registry.jsonl');
 
@@ -767,3 +768,4 @@ function* filterLive(
 }
 
 export const sessionStore = new SessionRegistryRepo();
+registerFlushable(sessionStore);

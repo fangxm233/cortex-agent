@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { JsonRepository } from '../../src/core/json-repository.js';
+import { JsonRepository, flushAllRepositories, registerFlushable } from '../../src/core/json-repository.js';
 import { atomicWrite } from '../../src/core/atomic-write.js';
 
 // ── Shared tmp directory ───────────────────────────────────────
@@ -174,6 +174,27 @@ test('flush - FIFO: resolves only after every pending mutate has finished (and i
   // Each mutate's rename has landed: final on-disk value == N increments.
   const onDisk = JSON.parse(await fs.readFile(filePath, 'utf8'));
   assert.equal(onDisk.v, N, 'all N writes persisted before flush resolved');
+});
+
+test('flushAllRepositories - flushes every JsonRepository instance', async () => {
+  const repos = ['a', 'b'].map((name) => new JsonRepository<{ v: number }>({
+    filePath: path.join(tmpDir, `flush-all-${name}.json`),
+    defaultValue: () => ({ v: 0 }),
+  }));
+  const flushed: number[] = [];
+  repos.forEach((repo, i) => {
+    const original = repo.flush.bind(repo);
+    repo.flush = async () => { await original(); flushed.push(i); };
+  });
+  await flushAllRepositories();
+  assert.deepEqual(flushed.sort(), [0, 1]);
+});
+
+test('flushAllRepositories - also drains stores registered with registerFlushable', async () => {
+  let drained = false;
+  registerFlushable({ flush: async () => { await new Promise((r) => setTimeout(r, 5)); drained = true; } });
+  await flushAllRepositories();
+  assert.equal(drained, true);
 });
 
 // ── Group 5: existing tests ─────────────────────────────────────

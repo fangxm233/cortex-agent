@@ -19,6 +19,7 @@ import {
 import type { AttachmentMeta, ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
+import { registerFlushable } from '@core/json-repository.js';
 
 /** Where every session's transcript lives, one `<sessionId>.jsonl` per session. */
 export const CONVERSATION_HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
@@ -885,3 +886,4 @@ export class ConversationHistoryRepo {
 }
 
 export const conversationHistory = new ConversationHistoryRepo();
+registerFlushable(conversationHistory);

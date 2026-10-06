@@ -1,6 +1,6 @@
 import * as path from 'path';
 import fs from 'node:fs/promises';
-import { JsonRepository } from '@core/json-repository.js';
+import { JsonRepository, registerFlushable } from '@core/json-repository.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { STORE_DIR, CONFIG_DIR } from '@core/paths.js';
@@ -265,3 +265,4 @@ export class CostRepo {
 }
 
 export const costRepo = new CostRepo();
+registerFlushable(costRepo);

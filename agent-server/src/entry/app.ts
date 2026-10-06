@@ -12,10 +12,11 @@ import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { startClientHotReloadJob, startStoreArchiveJob } from '@entry/boot-jobs.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
 import { moveDraftAttachments } from '@entry/draft-attachments.js';
-import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/paths.js';
+import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, CONTEXT_DIR } from '@core/paths.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
+import { flushAllRepositories } from '@core/json-repository.js';
 import { engines } from '@domain/runs/engines.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
@@ -26,7 +27,6 @@ import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
 import { cancelChannelRuns, cancelLiveExecution } from '@orch/routing/commands/cancel.js';
-import { projectDirRepo } from '@store/project-dir-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
 import { recoverWaitpoints, startWaitpointSweep, stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
@@ -45,7 +45,6 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { TOOL_IMAGES_DIR } from '@store/tool-image-files.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
-import { teamOutboxRepo } from '@store/team-outbox-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
@@ -95,7 +94,6 @@ import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
-import { costRepo } from '@store/cost-repo.js';
 import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
@@ -474,7 +472,7 @@ process.on('SIGTERM', async () => {
   // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
   // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
   try {
-    await Promise.allSettled([bus.close(), oq.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), teamOutboxRepo.flush(), executionRepo.flush(), projectDirRepo.flush(), waitpointRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), sessionStore.flush()]);
+    await Promise.allSettled([bus.close(), oq.flush(), flushAllRepositories()]);
   } catch {}
   await stopGateway(); process.exit(0);
 });
