@@ -220,7 +220,6 @@ class RecordingHandle:
         self.calls.append("export")
         return {"schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID}
 
-    @property
     def final_accounting_export(self) -> dict[str, object]:
         self.calls.append("freeze_handlers")
         return self.accounting_export

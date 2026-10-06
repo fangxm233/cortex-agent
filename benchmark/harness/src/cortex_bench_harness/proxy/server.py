@@ -652,20 +652,12 @@ class TrialProxyHandle:
             lease_echo=self.lease_echo_record,
         )
 
-    @property
     def final_accounting_export(self) -> dict[str, object]:
+        """Quiesce the route, then read the export from counters no handler can still move."""
         with self._stop_lock:
             if self._stopped:
                 raise RuntimeError("proxy was stopped before final accounting")
-            self._lease.stop()
-            self._server.state.deactivate()
-            self._server.shutdown()
-            self._thread.join(timeout=2)
-            self._server.close_active_clients()
-            if self._thread.is_alive() or not self._server.wait_for_no_clients(2):
-                raise RuntimeError("proxy handlers did not quiesce for final accounting")
-            if self._server.body_client_count != 0:
-                raise RuntimeError("proxy body handlers did not quiesce for final accounting")
+            self._quiesce()
             return self.accounting_export
 
     @property
@@ -678,24 +670,35 @@ class TrialProxyHandle:
         with self._stop_lock:
             if self._stopped:
                 return
-            self._stop_route()
+            try:
+                self._quiesce()
+            finally:
+                # Even a route that could not prove itself quiet drops the real credential, so a
+                # handler that outlived the stop has nothing left to inject.
+                self._server.upstream.clear_credential()
+                self._server.upstream.finalize_trace()
             evidence = self._revocation_record()
             if not self._revocation_proven(evidence):
                 raise RuntimeError("proxy revocation could not prove every handler absent")
             self._revocation_evidence = evidence
             self._stopped = True
 
-    def _stop_route(self) -> None:
+    def _quiesce(self) -> None:
+        """The one shutdown sequence, shared by the final accounting read and the stop.
+
+        No new request is admitted, the accept loop and its listener are gone, and every client
+        handler has unregistered. Idempotent, because the stop repeats it after accounting.
+        """
         self._lease.stop()
         self._server.state.deactivate()
-        self._server.close_active_clients()
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=2)
-        if not self._server.wait_for_no_clients(2):
+        self._server.close_active_clients()
+        if self._thread.is_alive() or not self._server.wait_for_no_clients(2):
             raise RuntimeError("proxy client handlers did not stop")
-        self._server.upstream.clear_credential()
-        self._server.upstream.finalize_trace()
+        if self._server.body_client_count != 0:
+            raise RuntimeError("proxy body handlers did not stop")
 
     def _revocation_record(self) -> dict[str, object]:
         return {

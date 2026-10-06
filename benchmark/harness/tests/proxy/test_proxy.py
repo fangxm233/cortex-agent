@@ -11,7 +11,8 @@ import pytest
 import cortex_bench_harness.proxy.network_trace as network_trace
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
-from cortex_bench_harness.proxy.adapters import select_adapter
+from cortex_bench_harness.proxy.adapters import AuthInjectionUnavailable, select_adapter
+from cortex_bench_harness.proxy.adapters.anthropic import MESSAGES_BETA_ROUTE
 from synthetic import (
     LEASE_TERMS,
     MESSAGES_TARGET,
@@ -472,6 +473,38 @@ def test_route_is_dead_after_trial_stop(tmp_path: Path) -> None:
         with pytest.raises(OSError):
             proxy_request(handle.base_url, handle.dummy_token, "dead")
     assert len(upstream.requests) == 1
+
+
+def test_a_stop_that_cannot_quiesce_still_drops_the_real_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stop used to raise before clearing the credential, so a route whose handlers would not
+    stop kept injecting the real key while the campaign moved on to other trials."""
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream)
+        server = handle._server
+        monkeypatch.setattr(server, "wait_for_no_clients", lambda _timeout: False)
+        with pytest.raises(RuntimeError, match="did not stop"):
+            handle.stop()
+        with pytest.raises(AuthInjectionUnavailable):
+            server.adapter.inject_auth({}, MESSAGES_BETA_ROUTE)
+        monkeypatch.undo()
+        handle.stop()
+
+
+def test_final_accounting_and_stop_share_one_shutdown(tmp_path: Path) -> None:
+    """Accounting quiesces the route; the stop after it repeats the same steps and proves them."""
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream)
+        assert proxy_request(handle.base_url, handle.dummy_token, "live")[0] == 200
+        export = handle.final_accounting_export()
+        with pytest.raises(OSError):
+            proxy_request(handle.base_url, handle.dummy_token, "after accounting")
+        handle.stop()
+    assert export["requests"] == {"status": "available", "value": 1}
+    assert handle.revocation_evidence["listener_present"] is False
+    with pytest.raises(RuntimeError, match="stopped before final accounting"):
+        handle.final_accounting_export()
 
 
 @pytest.mark.parametrize("phase", ["open", "write", "fsync"])

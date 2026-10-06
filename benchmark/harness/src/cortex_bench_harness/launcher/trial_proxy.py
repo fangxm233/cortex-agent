@@ -219,7 +219,7 @@ class TrialProxySession:
         before the route is stopped.
         """
         lease_echo = self.handle.lease_echo_record
-        export = self.handle.final_accounting_export
+        export = self.handle.final_accounting_export()
         _write_json(self.lease_echo_path, {
             "schema_version": LEASE_ECHO_RECORD_SCHEMA_VERSION,
             "trial_id": self.handle.trial_id,
