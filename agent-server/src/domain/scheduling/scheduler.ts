@@ -139,8 +139,6 @@ class Scheduler {
 
   // Hot-reload: diff the file against the armed tasks — add, remove, or re-arm what changed.
   async _hotReload(): Promise<void> {
-    // Invalidate first so the read sees the on-disk state, not the cache from before the write.
-    this._repo.invalidate();
     const { tasks } = await this._repo.read();
     const fileIds = new Set(tasks.map(t => t.id));
     const removed = [...this._taskConfigs.keys()].filter(id => !fileIds.has(id));
@@ -235,26 +233,32 @@ class Scheduler {
     this.timers.set(task.id, timer);
   }
 
-  /** One fire of a recurring task, then re-arm. If the task was re-armed, paused or removed while
-   *  this fire was running, the newer timer owns it and this chain ends. */
+  /** One fire of a recurring task, then re-arm. A failed fire is logged and the next one still
+   *  armed. If the task was re-armed, paused or removed while this fire was running, the newer
+   *  timer owns it and this chain ends. */
   async _fireRecurring(task: ScheduleTask, firedTimer: ReturnType<typeof setTimeout>): Promise<void> {
-    const stillOwned = () => this.timers.get(task.id) === firedTimer;
+    let nextDelayMs: number | null;
     try {
-      if (!(await this._passesPreCheck(task))) {
-        if (stillOwned()) this._armRecurring(task, nextFireDelayMs(task));
-        return;
-      }
-      await this._runUnlessInFlight(task);
-      const nextDelayMs = nextFireDelayMs(task);
-      const fresh = await this._repo.updateTask(task.id, (t) => {
-        if (t.isPaused) return;
-        t.lastRun = Date.now();
-        t.nextRun = Date.now() + nextDelayMs;
-      });
-      if (fresh && !fresh.isPaused && stillOwned()) this._armRecurring(task, nextDelayMs);
+      nextDelayMs = await this._fireAndRecord(task);
     } catch (e) {
-      log.error(`Fire error for ${task.id}:`, (e as Error).message);
+      log.error(`Fire error for ${task.id}, next fire still armed:`, (e as Error).message);
+      nextDelayMs = nextFireDelayMs(task);
     }
+    if (nextDelayMs !== null && this.timers.get(task.id) === firedTimer) this._armRecurring(task, nextDelayMs);
+  }
+
+  /** Pre-check, run and record one fire. Returns the delay to the next fire, or null when the
+   *  task is now paused or gone. */
+  async _fireAndRecord(task: ScheduleTask): Promise<number | null> {
+    if (!(await this._passesPreCheck(task))) return nextFireDelayMs(task);
+    await this._runUnlessInFlight(task);
+    const nextDelayMs = nextFireDelayMs(task);
+    const fresh = await this._repo.updateTask(task.id, (t) => {
+      if (t.isPaused) return;
+      t.lastRun = Date.now();
+      t.nextRun = Date.now() + nextDelayMs;
+    });
+    return fresh && !fresh.isPaused ? nextDelayMs : null;
   }
 
   async _runUnlessInFlight(task: ScheduleTask): Promise<void> {

@@ -358,3 +358,26 @@ test('scheduler _hotReload after its own writes reports nothing, paused and fire
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('a failing fire does not end a recurring task: the next fire still happens', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-fire-error-'));
+  const schedulesFile = path.join(tempDir, 'schedules.json');
+  fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{
+    id: 'fast', type: 'interval', intervalMs: 50, message: 'tick', projectId: 'p', profile: 'plan', createdAt: 1, nextRun: 0,
+  }] }));
+  let runs = 0;
+  const scheduler = new Scheduler(async () => { runs++; }, {}, { schedulesFile, watchFile: false });
+  try {
+    await scheduler.start();
+    vi.spyOn(scheduler._repo, 'updateTask').mockRejectedValueOnce(new Error('disk unavailable'));
+
+    const deadline = Date.now() + 3_000;
+    while (runs < 2 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.ok(runs >= 2, `expected a second fire after the failed one, got ${runs} run(s)`);
+    assert.ok(scheduler.timers.has('fast'), 'the task is still armed');
+  } finally {
+    scheduler.stop();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
