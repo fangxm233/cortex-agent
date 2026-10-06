@@ -1,9 +1,9 @@
 import { fmt, type Vocab } from '@/i18n';
-import type { TimeLang } from '@/i18n/time-format';
+import { formatSpanOrDash, type TimeLang } from '@/i18n/time-format';
 import { formatUsd } from '@/lib/format';
 import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import { deriveSessionRunStatus, type SessionRunStatus } from '@/features/session/list/session-run-status';
-import { formatElapsed, turnClockElapsedMs, type TurnClock } from '@/features/session/transcript/transcript-vm';
+import { turnClockElapsedMs, type TurnClock } from '@/features/session/transcript/transcript-vm';
 
 const DASH = '—';
 
@@ -72,7 +72,7 @@ export function runStatusLine(input: RunStatusLineInput, L: Vocab, lang: TimeLan
   }
   const textAt = (now: number | null): string => runStatusText({
     status,
-    elapsed: formatElapsed(turnClockElapsedMs(input.turnClock, now), lang),
+    elapsed: formatSpanOrDash(turnClockElapsedMs(input.turnClock, now), lang),
     turns: input.turns,
     cost: input.cost,
     waitingOn: input.waitingOn,

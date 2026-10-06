@@ -10,7 +10,7 @@ import type {
   TranscriptSubagentSummary,
 } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
-import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
+import { dayDivider, type TimeLang } from '@/i18n/time-format';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 import type { ToolCallImage } from '@/features/session/composer/chat-content';
 
@@ -236,8 +236,7 @@ export interface BuildOpts {
   /** Injected clock for deterministic day-relative divider labels (defaults to Date.now). */
   now?: Date;
   /**
-   * Optional divider-label override (e.g. the mobile 5a screen's ZH 今天/昨天 dividers). Defaults to
-   * the EN `dividerLabel` (TODAY / YESTERDAY / "MON D"). Receives the first message ts of the day.
+   * Divider label for the first message ts of a day. Defaults to the English `capsDayDivider`.
    */
   formatDivider?: (ts: string, now: Date) => string;
   /**
@@ -490,11 +489,6 @@ export function resolveTurns(liveTurns: number | null, snapshotTurns: number | n
   return liveTurns ?? snapshotTurns ?? null;
 }
 
-/** Compact human-readable duration for the composer status line; `—` for null (never fabricated). */
-export function formatElapsed(ms: number | null, lang: TimeLang): string {
-  return ms == null ? '—' : formatSpanPrecise(ms, lang);
-}
-
 /**
  * What an edit at `rowIndex` (a user row) would discard: the count of assistant replies and tool
  * calls after that row. Backs the「发送后回退其后 N 条回复 · M 次工具调用作废」line (desktop 23a)
@@ -620,37 +614,12 @@ function msgKey(m: TranscriptMessageWithSpawns): string {
   return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${m.toolDevice ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}|${decisionIds}|${end}`;
 }
 
-// Relative-day label matching the prototype divider vocabulary (TODAY / YESTERDAY / "MON D"),
-// computed against the local calendar day. HH:MM is the local wall-clock of the first message.
-function dividerLabel(ts: string, now: Date): string {
-  const d = new Date(ts);
-  const startOf = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const dayDelta = Math.round((startOf(now) - startOf(d)) / 86400000);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const time = `${hh}:${mm}`;
-  if (dayDelta <= 0) return `TODAY ${time}`;
-  if (dayDelta === 1) return `YESTERDAY ${time}`;
-  const mon = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-  return `${mon} ${d.getDate()} ${time}`;
+/** The desktop divider: the shared day divider in caps — `TODAY 09:05` / `SEP 24 09:05` / `9月24日 09:05`. */
+export function capsDayDivider(lang: TimeLang): (ts: string, now: Date) => string {
+  return (ts, now) => dayDivider(ts, now, lang).toUpperCase();
 }
 
-/**
- * Returns a formatDivider callback that uses the given vocab for TODAY / YESTERDAY labels. Older
- * days follow the UI language: `SEP 24` (upper-cased to match the English vocab) · `9月24日`.
- */
-export function formatDividerFromVocab(L: Vocab, lang: TimeLang): (ts: string, now: Date) => string {
-  return (ts: string, now: Date) => {
-    const d = new Date(ts);
-    const startOf = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-    const dayDelta = Math.round((startOf(now) - startOf(d)) / 86400000);
-    const time = clockTime(d);
-    if (dayDelta <= 0) return `${L.wbSessionToday} ${time}`;
-    if (dayDelta === 1) return `${L.wbSessionYesterday} ${time}`;
-    const day = dayLabel(ts, now, lang);
-    return `${lang === 'en' ? day.toUpperCase() : day} ${time}`;
-  };
-}
+const defaultDivider = capsDayDivider('en');
 
 /**
  * Send-time stamp for a single message, as revealed on desktop hover / mobile long-press. `HH:MM`
@@ -830,7 +799,7 @@ export function buildTranscriptRows(
       // Dividers live only in the top-level stream. Flushing nested sinks here would split one
       // subagent tool run into multiple rows even though no divider appears inside its card.
       flushTools(top);
-      const label = opts.formatDivider ? opts.formatDivider(m.ts, now) : dividerLabel(m.ts, now);
+      const label = (opts.formatDivider ?? defaultDivider)(m.ts, now);
       rows.push({ kind: 'divider', text: label });
       curDay = day;
     }

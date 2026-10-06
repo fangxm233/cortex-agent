@@ -109,6 +109,11 @@ export function dayLabel(ts: string | number, now: Date, lang: TimeLang): string
   return fmt(L.timeMonthDay, { month: L.timeMonths.split(',')[d.getMonth()], day: d.getDate() });
 }
 
+/** Chat day divider: the day and the local HH:MM of its first message — `Today 09:05` · `9月24日 09:05`. */
+export function dayDivider(ts: string, now: Date, lang: TimeLang): string {
+  return `${dayLabel(ts, now, lang)} ${clockTime(ts)}`;
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }

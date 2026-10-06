@@ -16,9 +16,8 @@ import {
   type LiveSessionMessage,
   type PendingUserMessage,
 } from '@/features/session/transcript/transcript-vm';
-import { mobileDivider } from '@/mobile/shared/mobile-session-vm';
 import { fmt, type Vocab } from '@/i18n';
-import type { TimeLang } from '@/i18n/time-format';
+import { dayDivider, type TimeLang } from '@/i18n/time-format';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 
 /** What the mobile chat's rows are built from beyond the fetched transcript + live tail. */
@@ -63,7 +62,7 @@ export function buildMobileChatRows(
     streamingText: opts.streamingText,
     pendingUser: opts.pendingUser,
     stripScheduledPrefix: opts.stripScheduledPrefix,
-    formatDivider: mobileDivider(opts.lang ?? 'en'),
+    formatDivider: (ts, now) => dayDivider(ts, now, opts.lang ?? 'en'),
     ...(opts.now ? { now: opts.now } : {}),
   });
 }

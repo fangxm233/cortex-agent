@@ -6,7 +6,7 @@ import { MessageStream, type MessageEditCtx } from '@/features/session/transcrip
 import { Composer } from '@/features/workbench/composer/Composer';
 import { ContextUsageControl } from '@/features/session/composer/ContextUsageControl';
 import { useChatSession } from '@/features/session/chat/useChatSession';
-import { buildTranscriptRows, formatDividerFromVocab } from '@/features/session/transcript/transcript-vm';
+import { buildTranscriptRows, capsDayDivider } from '@/features/session/transcript/transcript-vm';
 import { sessionSpanMs } from '@/features/session/list/session-stats';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -140,11 +140,11 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     () => buildTranscriptRows(chat.transcript, chat.liveTail, {
       streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText,
       pendingUser: chat.pendingUser,
-      formatDivider: formatDividerFromVocab(L, lang),
+      formatDivider: capsDayDivider(lang),
       stripScheduledPrefix: !!active?.scheduleId || chat.isScheduledRun,
     }),
     [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.pendingUser,
-      L, lang, active?.scheduleId, chat.isScheduledRun],
+      lang, active?.scheduleId, chat.isScheduledRun],
   );
   // A New Session is only a draft until its first optimistic row is enqueued. Keep this derived from
   // rendered evidence so a rejected create-and-send naturally returns to the centered start state.

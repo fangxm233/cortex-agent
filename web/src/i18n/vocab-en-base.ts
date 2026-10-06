@@ -192,8 +192,6 @@ export const enBase = {
   wbDragOverCount: '{n} → {m} attachments',
   wbDropAddMore: 'Drop to add more',
   wbDropAddMoreN: 'Drop to add {n} more',
-  wbSessionToday: 'TODAY',
-  wbSessionYesterday: 'YESTERDAY',
 
   // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: 'all {n} runs',

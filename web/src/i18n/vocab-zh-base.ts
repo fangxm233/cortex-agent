@@ -188,8 +188,6 @@ export const zhBase = {
   wbDragOverCount: '{n} → {m} 个附件',
   wbDropAddMore: '拖入以添加更多',
   wbDropAddMoreN: '拖入以添加 {n} 个更多',
-  wbSessionToday: '今天',
-  wbSessionYesterday: '昨天',
 
   // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: '全部 {n} runs',
