@@ -5,7 +5,7 @@
 import type * as http from 'http';
 import { timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
-import { json, readJsonBody } from './http-json.js';
+import { readJsonBody, sendError, sendJson, sendMethodNotAllowed } from './http-json.js';
 import type { CustomRouteHandler } from './ui-http-server.js';
 import { parseCookie, type UiSessionStore } from './ui-session.js';
 
@@ -40,22 +40,6 @@ export interface UiAuthRouteDeps {
 
 function firstHeader(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
-}
-
-/**
- * CSRF guard for the credential POST: a cross-site form/fetch carries an `Origin` that is not our
- * own host, and we refuse it. A request with no `Origin` at all (curl, a native client) is allowed
- * — those are not browsers and are not what CSRF is about. Combined with SameSite=Strict on the
- * cookie itself, a hostile page can neither mint a session nor ride an existing one.
- */
-export function isSameOrigin(req: http.IncomingMessage): boolean {
-  const origin = firstHeader(req.headers.origin);
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === firstHeader(req.headers.host);
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -102,24 +86,17 @@ export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, Custom
 
   return {
     [UI_LOGIN_PATH]: async (req, res) => {
-      if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'POST only' });
-      if (!isSameOrigin(req)) {
-        log.warn(`ui login rejected: cross-origin request from ${firstHeader(req.headers.origin)}`);
-        return json(res, 403, { ok: false, error: 'cross-origin login refused' });
-      }
-
-      let body: Record<string, unknown>;
-      try {
-        body = await readJsonBody(req);
-      } catch (err) {
-        return json(res, 400, { ok: false, error: (err as Error).message });
-      }
+      // A cross-site login attempt never gets here: the server refuses any state-changing request
+      // whose Origin is foreign before routing it (isTrustedOrigin).
+      if (req.method !== 'POST') return sendMethodNotAllowed(res, 'POST');
+      const body = await readJsonBody(req, res);
+      if (!body) return;
 
       const presented = typeof body.token === 'string' ? body.token.trim() : '';
       if (!timingSafeEqualStr(deps.getToken(), presented)) {
         await new Promise((resolve) => setTimeout(resolve, LOGIN_FAILURE_DELAY_MS));
         log.warn('ui login rejected: wrong token');
-        return json(res, 401, { ok: false, error: 'invalid token' });
+        return sendError(res, 401, 'invalid-token', 'Invalid token');
       }
 
       const sid = deps.store.create();
@@ -131,18 +108,19 @@ export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, Custom
         );
       }
       log.info('ui login accepted — session issued');
-      json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(sid, maxAgeSec, secure) });
+      sendJson(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(sid, maxAgeSec, secure) });
     },
 
     [UI_LOGOUT_PATH]: async (req, res) => {
+      if (req.method !== 'POST') return sendMethodNotAllowed(res, 'POST');
       deps.store.revoke(sessionIdFrom(req));
-      json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie('', 0, isSecureRequest(req)) });
+      sendJson(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie('', 0, isSecureRequest(req)) });
     },
 
     // Public probe. Answers only two booleans — "am I already in?" and "is there a form worth
     // showing?" — so an unauthenticated caller learns nothing it could not learn by trying.
     [UI_SESSION_PATH]: async (req, res) => {
-      json(res, 200, { ok: true, data: { authenticated: await deps.authorize(req), tokenLogin: true } });
+      sendJson(res, 200, { ok: true, data: { authenticated: await deps.authorize(req), tokenLogin: true } });
     },
   };
 }
@@ -157,7 +135,7 @@ export function createUiSessionProbeRoute(
 ): Record<string, CustomRouteHandler> {
   return {
     [UI_SESSION_PATH]: async (req, res) => {
-      json(res, 200, { ok: true, data: { authenticated: await authorize(req), tokenLogin: false } });
+      sendJson(res, 200, { ok: true, data: { authenticated: await authorize(req), tokenLogin: false } });
     },
   };
 }

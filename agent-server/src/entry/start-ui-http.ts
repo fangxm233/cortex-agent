@@ -1,12 +1,9 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { pipeline } from 'node:stream/promises';
-import { createWriteStream, createReadStream } from 'node:fs';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
-import type { UiHttpServer, CustomRouteHandler } from '@platform/ui-http/ui-http-server.js';
+import type { UiHttpServer } from '@platform/ui-http/ui-http-server.js';
 import { createUiSessionStore, DEFAULT_SESSION_TTL_MS } from '@platform/ui-http/ui-session.js';
 import {
   createUiAuthRoutes,
@@ -19,8 +16,9 @@ import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
 import { isUpdateDevMode } from '@domain/system/server-update-check.js';
 import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
 import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
+import { createFileRoutes } from '@platform/ui-http/file-routes.js';
 import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
-import { openDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
+import { openDevicePort, closeDevicePort } from '@domain/remote/device-port.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
@@ -99,262 +97,6 @@ export interface StartUiHttpOptions {
   corsOrigins?: string[];
 }
 
-// ── File upload route (15a attachments) ───────────────────────────────────────
-
-const ATTACHMENTS_DIR = path.join(WORKSPACE_DIR, 'attachments');
-const UPLOAD_PATH = '/api/attachments/upload';
-
-/** Max upload size: 100 MB. */
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
-
-/** Classify a MIME type into the AttachmentMeta `type` bucket. */
-function classifyMime(mimeType: string): 'image' | 'video' | 'file' {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('video/')) return 'video';
-  return 'file';
-}
-
-const MAX_FILENAME_BYTES = 200;
-
-/** Bound a Unicode display filename without splitting code points. */
-function truncateDisplayFilename(name: string): string {
-  if (Buffer.byteLength(name) <= MAX_FILENAME_BYTES) return name;
-  const ext = path.extname(name);
-  const keptExt = Buffer.byteLength(ext) <= 32 ? ext : '';
-  const stem = keptExt ? name.slice(0, -keptExt.length) : name;
-  let result = '';
-  let bytes = Buffer.byteLength(keptExt);
-  for (const char of stem) {
-    const charBytes = Buffer.byteLength(char);
-    if (bytes + charBytes > MAX_FILENAME_BYTES) break;
-    result += char;
-    bytes += charBytes;
-  }
-  return `${result || 'file'}${keptExt}`;
-}
-
-/** Decode the browser header and preserve a safe Unicode leaf name for display. */
-function sanitizeDisplayFilename(encodedName: string): string {
-  let decoded = encodedName;
-  try { decoded = decodeURIComponent(encodedName); } catch { /* keep malformed input literal */ }
-  const leaf = decoded.replace(/\\/g, '/').split('/').pop() ?? '';
-  const cleaned = leaf.replace(/[\u0000-\u001F\u007F]/g, '_').trim();
-  if (!cleaned || cleaned === '.' || cleaned === '..') return 'file';
-  return truncateDisplayFilename(cleaned);
-}
-
-/** Derive an ASCII-only basename used solely for internal workspace storage. */
-function sanitizeStorageFilename(displayName: string): string {
-  const ext = path.extname(displayName);
-  const safeExt = /^\.[A-Za-z0-9]{1,16}$/.test(ext) ? ext : '';
-  const stem = safeExt ? displayName.slice(0, -ext.length) : displayName;
-  const asciiStem = stem
-    .replace(/[^A-Za-z0-9._-]/g, '_')
-    .replace(/^[._-]+|[._-]+$/g, '');
-  return `${(asciiStem || 'file').slice(0, MAX_FILENAME_BYTES - safeExt.length)}${safeExt}`;
-}
-
-/** Find an available filename in `dir`: if `name` exists, try `name_1`, `name_2`, …
- *  Returns the first non-existing path and the final basename. */
-async function resolveAvailablePath(dir: string, base: string): Promise<{ destPath: string; finalName: string }> {
-  const extIdx = base.lastIndexOf('.');
-  const stem = extIdx > 0 ? base.slice(0, extIdx) : base;
-  const ext = extIdx > 0 ? base.slice(extIdx) : '';
-  let candidate = base;
-  let counter = 0;
-  while (true) {
-    const p = path.join(dir, candidate);
-    try {
-      await fs.promises.access(p, fs.constants.F_OK);
-      // Exists — try next suffix
-      counter++;
-      candidate = `${stem}_${counter}${ext}`;
-    } catch {
-      return { destPath: p, finalName: candidate };
-    }
-  }
-}
-
-function jsonReply(res: ServerResponse, status: number, body: unknown): void {
-  if (!res.headersSent) {
-    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(body));
-  }
-}
-
-interface UploadHeaders {
-  sessionId: string;
-  encodedName: string;
-  mimeType: string;
-}
-
-function parseUploadHeaders(req: IncomingMessage, res: ServerResponse): UploadHeaders | null {
-  const sessionId = (req.headers['x-session-id'] as string | undefined)?.trim();
-  const encodedName = (req.headers['x-file-name'] as string | undefined)?.trim();
-  const mimeType = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim();
-  if (!sessionId) {
-    jsonReply(res, 400, { ok: false, code: 'missing-session', message: 'X-Session-Id header required' });
-    return null;
-  }
-  if (!encodedName) {
-    jsonReply(res, 400, { ok: false, code: 'missing-name', message: 'X-File-Name header required' });
-    return null;
-  }
-  return { sessionId, encodedName, mimeType };
-}
-
-async function receiveUpload(req: IncomingMessage, destPath: string): Promise<{ size: number; error?: Error }> {
-  const writeStream = createWriteStream(destPath, { flags: 'wx' });
-  let size = 0;
-  req.on('data', (chunk: Buffer) => {
-    size += chunk.length;
-    if (size > MAX_UPLOAD_BYTES) {
-      writeStream.destroy(new Error('File too large'));
-      req.destroy();
-    }
-  });
-  try {
-    await pipeline(req, writeStream);
-    return { size };
-  } catch (error) {
-    try { await fs.promises.unlink(destPath); } catch {}
-    return { size, error: error as Error };
-  }
-}
-
-/** Store an upload under an ASCII path while returning its decoded Unicode display name. */
-async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const headers = parseUploadHeaders(req, res);
-  if (!headers) return;
-  const displayName = sanitizeDisplayFilename(headers.encodedName);
-  const storageName = sanitizeStorageFilename(displayName);
-  const dir = path.join(ATTACHMENTS_DIR, headers.sessionId);
-  await fs.promises.mkdir(dir, { recursive: true });
-  const { destPath, finalName } = await resolveAvailablePath(dir, storageName);
-  const upload = await receiveUpload(req, destPath);
-  if (upload.error) {
-    if (!res.headersSent && upload.size > MAX_UPLOAD_BYTES) {
-      jsonReply(res, 413, { ok: false, code: 'too-large', message: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB limit` });
-    } else if (!res.headersSent) {
-      jsonReply(res, 500, { ok: false, code: 'upload-failed', message: upload.error.message });
-    }
-    return;
-  }
-  const relPath = `workspace/attachments/${headers.sessionId}/${finalName}`;
-  jsonReply(res, 200, {
-    ok: true,
-    data: { name: displayName, path: relPath, size: upload.size, mimeType: headers.mimeType, type: classifyMime(headers.mimeType) },
-  });
-}
-
-// ── File download route (15a user uploads + 20a agent-sent files) ─────────────
-// Serves a file stored under WORKSPACE_DIR by its UI-relative `workspace/…` path. Used by both the
-// agent-sent file cards (workspace/outputs/…) and, going forward, the user-upload cards
-// (workspace/attachments/…). Auth-gated by the same dual-path check as every custom route. The path
-// is confined to WORKSPACE_DIR with a single-root traversal guard, so no filesystem location outside
-// the workspace is ever reachable.
-
-const DOWNLOAD_PATH = '/api/files/download';
-
-/** Content types for inline preview / correct download naming. Unknown → octet-stream. */
-const DOWNLOAD_CONTENT_TYPES: Record<string, string> = {
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp',
-  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-  '.pdf': 'application/pdf', '.json': 'application/json', '.csv': 'text/csv',
-  '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.log': 'text/plain; charset=utf-8',
-  '.html': 'text/html; charset=utf-8', '.zip': 'application/zip',
-};
-
-/** GET /api/files/download?path=workspace/…&disposition=inline|attachment — streams the file. */
-async function handleDownload(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  let url: URL;
-  try {
-    url = new URL(req.url ?? '', 'http://localhost');
-  } catch {
-    jsonReply(res, 400, { ok: false, code: 'bad-request', message: 'Malformed URL' });
-    return;
-  }
-  const rel = (url.searchParams.get('path') ?? '').trim();
-  const disposition = url.searchParams.get('disposition') === 'inline' ? 'inline' : 'attachment';
-  if (!rel) {
-    jsonReply(res, 400, { ok: false, code: 'missing-path', message: 'path query param required' });
-    return;
-  }
-  const target = resolveWorkspaceRelPath(rel);
-  if (!target) {
-    jsonReply(res, 403, { ok: false, code: 'forbidden', message: 'Path escapes the workspace root' });
-    return;
-  }
-  await streamFile(res, target, disposition);
-}
-
-/** Stat + stream an already-validated absolute file path with download headers. */
-async function streamFile(res: ServerResponse, target: string, disposition: 'inline' | 'attachment'): Promise<void> {
-  let size: number;
-  try {
-    const stat = await fs.promises.stat(target);
-    if (!stat.isFile()) throw new Error('not a file');
-    size = stat.size;
-  } catch {
-    jsonReply(res, 404, { ok: false, code: 'not-found', message: 'File not found' });
-    return;
-  }
-
-  const ext = path.extname(target).toLowerCase();
-  const name = path.basename(target);
-  res.writeHead(200, {
-    'Content-Type': DOWNLOAD_CONTENT_TYPES[ext] ?? 'application/octet-stream',
-    'Content-Length': String(size),
-    'Content-Disposition': `${disposition}; filename="${name.replace(/"/g, '')}"`,
-    'Cache-Control': 'private, max-age=3600',
-  });
-  const stream = createReadStream(target);
-  stream.on('error', () => { if (!res.headersSent) res.writeHead(500); res.end(); });
-  stream.pipe(res);
-}
-
-// ── Commission asset route (DR-0037 board) ────────────────────────────────────
-// Serves binary assets from a project's commissions/ tree (ledger-referenced images etc.) by
-// projectId + project-root-relative path. Confinement: the rel path must start with `commissions/`
-// and passes the same absolute/`..`/symlink guard as memory.file (resolveMemoryFilePath). Sandbox
-// contract unchanged: .html assets are FETCHED by the parent page and rendered via srcdoc — an
-// iframe never points at this URL. Same auth gate as every custom route.
-
-const COMMISSION_ASSET_PATH = '/api/commissions/asset';
-
-/** GET /api/commissions/asset?projectId=…&path=commissions/<slug>/assets/…&disposition=… */
-async function handleCommissionAsset(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  let url: URL;
-  try {
-    url = new URL(req.url ?? '', 'http://localhost');
-  } catch {
-    jsonReply(res, 400, { ok: false, code: 'bad-request', message: 'Malformed URL' });
-    return;
-  }
-  const projectId = (url.searchParams.get('projectId') ?? '').trim();
-  const rel = (url.searchParams.get('path') ?? '').trim();
-  const disposition = url.searchParams.get('disposition') === 'attachment' ? 'attachment' : 'inline';
-  if (!projectId || !rel) {
-    jsonReply(res, 400, { ok: false, code: 'missing-params', message: 'projectId and path query params required' });
-    return;
-  }
-  if (!rel.startsWith('commissions/')) {
-    jsonReply(res, 403, { ok: false, code: 'forbidden', message: 'path must be under commissions/' });
-    return;
-  }
-  const contextDir = projectStore.get(projectId)?.contextDir;
-  let target: string;
-  try {
-    if (!contextDir) throw new Error('unknown project');
-    target = resolveMemoryFilePath(fs.realpathSync(contextDir), rel);
-  } catch {
-    jsonReply(res, 404, { ok: false, code: 'not-found', message: 'File not found' });
-    return;
-  }
-  await streamFile(res, target, disposition);
-}
-
 /**
  * Build the AppRouter from the injected UiService and start the Web UI HTTP+SSE transport-host
  * on CORTEX_UI_PORT (default 3004), bound 127.0.0.1, behind the x-cortex-token gate, serving the
@@ -412,10 +154,13 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
       ...(sessionStore
         ? createUiAuthRoutes({ store: sessionStore, getToken, authorize, ttlMs: sessionTtlMs(env) })
         : createUiSessionProbeRoute(authorize)),
-      [UPLOAD_PATH]: handleUpload,
-      [DOWNLOAD_PATH]: handleDownload,
-      // Commission board assets (ledger-referenced images/html) — guarded per handler doc above.
-      [COMMISSION_ASSET_PATH]: handleCommissionAsset,
+      // Composer uploads, workspace downloads and commission board assets.
+      ...createFileRoutes({
+        attachmentsDir: path.join(WORKSPACE_DIR, 'attachments'),
+        resolveWorkspaceRelPath,
+        projectContextDir: (projectId) => projectStore.get(projectId)?.contextDir,
+        resolveMemoryFilePath,
+      }),
       // Frontend OTA: serves the built SPA as a manifest + ZIP bundle so the desktop shell can
       // self-update its frontend. Empty (disabled) when the SPA is not built. Same auth gate as tRPC.
       ...createOtaRoutes(spaDir),
@@ -437,7 +182,7 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
           return typeof result?.stdout === 'string' ? result.stdout : '';
         },
         openDevicePort,
-        listDevicePorts,
+        closeDevicePort,
       }),
     },
     portForward: env.CORTEX_PORT_FORWARD !== '0',

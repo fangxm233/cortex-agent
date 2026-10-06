@@ -3,7 +3,7 @@ import { EventBus } from '../src/events/event-bus.js';
 import { once } from 'node:events';
 import { createUiService } from '../src/domain/ui-service/ui-service.js';
 import { createAppRouter } from '../src/domain/ui-service/app-router.js';
-import { createUiHttpServer } from '../src/platform/ui-http/ui-http-server.js';
+import { createAuthorizer, createUiHttpServer } from '../src/platform/ui-http/ui-http-server.js';
 import { specFromFixture } from './run-request-fixture.js';
 import { getSettings, updateSettings } from '../src/core/settings.js';
 import { sanitizePluginEntry } from '../src/domain/ui-service/plugins-shared.js';
@@ -12,7 +12,8 @@ import { makeUiDeps, type UiDepsOverrides } from './domain/ui-service/ui-deps-fi
 test('authenticated API saves credentials, reads redacted status and keeps secrets out of audit/errors', async () => {
   const events: unknown[] = [];
   const service = createUiService(makeUiDeps({ bus: Object.assign(new EventBus(), { publish: (event: unknown) => events.push(event) }) } as UiDepsOverrides));
-  const host = createUiHttpServer({ router: createAppRouter(service), getToken: () => 'test-only-token', port: 0, portForward: false });
+  const getToken = () => 'test-only-token';
+  const host = createUiHttpServer({ router: createAppRouter(service), getToken, authorize: createAuthorizer({ getToken }), port: 0, portForward: false });
   if (!host.server.listening) await once(host.server, 'listening');
   const address = host.server.address() as { port: number };
   const base = `http://127.0.0.1:${address.port}/trpc/`;

@@ -1,7 +1,7 @@
 import { describe, test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
-import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
+import { createAuthorizer, createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { UI_SSE_KEEPALIVE } from '@domain/ui-service/trpc.js';
 import type { UiService, SubscribeFilter, UiEvent } from '@domain/ui-service/types.js';
@@ -59,6 +59,7 @@ describe('live SSE keepalive', () => {
     const inst = createUiHttpServer({
       router: createAppRouter(uiService),
       getToken: () => TOKEN,
+      authorize: createAuthorizer({ getToken: () => TOKEN }),
       port: 0,
       host: '127.0.0.1',
       portForward: false,

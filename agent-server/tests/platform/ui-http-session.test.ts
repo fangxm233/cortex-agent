@@ -178,6 +178,12 @@ describe('token login: minting a browser session', () => {
 
   test('an oversized body is rejected rather than buffered', async () => {
     const res = await postJson(port, UI_LOGIN_PATH, { token: 'x'.repeat(9000) });
+    assert.equal(res.statusCode, 413);
+    assert.equal(JSON.parse(res.body).code, 'too-large');
+  });
+
+  test('a JSON body that is not an object is a 400, not a server error', async () => {
+    const res = await req(port, 'POST', UI_LOGIN_PATH, { 'Content-Type': 'application/json' }, 'null');
     assert.equal(res.statusCode, 400);
   });
 });
@@ -252,6 +258,12 @@ describe('token login: the probe and logout', () => {
     assert.equal(out.statusCode, 200);
     assert.match(out.headers['set-cookie']![0], /Max-Age=0/);
     assert.equal((await get(port, pingPath(), cookieHeader(sid))).statusCode, 401);
+  });
+
+  test('a GET cannot log anyone out (a link or an <img> must not end a session)', async () => {
+    const sid = sidFromSetCookie(await postJson(port, UI_LOGIN_PATH, { token: TOKEN }));
+    assert.equal((await get(port, UI_LOGOUT_PATH, cookieHeader(sid))).statusCode, 405);
+    assert.equal((await get(port, pingPath(), cookieHeader(sid))).statusCode, 200);
   });
 
   test('logout itself needs a credential (it is not a public route)', async () => {

@@ -210,8 +210,13 @@ SPA 会先显示登录页而不是工作台：
 
 - **token 只提交一次**，随即被换成一个不透明的 32 字节会话 id。cookie 是 `HttpOnly` 的，
   页面 JavaScript——包括 XSS 注入的脚本——读不回去。
-- **`SameSite=Strict`** 意味着任何跨站请求都不会携带该会话，CSRF 问题到此为止。登录 POST 还会
-  额外拒绝 `Origin` 不是本机的请求。
+- **`SameSite=Strict`** 让其他站点发起的请求不带该会话。但同一父域名下的各个子域名仍算同站，
+  Cloudflare Access 的凭据也会照常附带，所以服务器还会检查 `Origin`：发往 `/trpc` 或 `/api` 路由
+  （包括登录）的 `POST`，若 `Origin` 既不是本服务器自己、也不在 `uiCorsOrigins` 中，一律返回 403。
+  不带 `Origin` 的请求（CLI、设备、原生壳自身的 HTTP 客户端）照旧只做凭据校验。
+- **工作区文件以沙箱方式打开。** 通过下载链接直接打开工作区里的 HTML 或 SVG 文件时，服务器附带
+  `Content-Security-Policy: sandbox allow-scripts`，页面运行在不透明 origin 中，读不到会话，也无法
+  以你的身份调用 API。
 - **会话能扛过守护进程重启**：它们存放在 `~/.cortex/data/ui-sessions.json`（权限 `0600`），
   签发 30 天后过期。设置 → 高级里有「退出此浏览器的登录」按钮，会在服务端吊销该会话。
 - **会话的权限严格弱于 token**：它与 Cloudflare Access 登录的权限完全相同——tRPC 与 `/api`

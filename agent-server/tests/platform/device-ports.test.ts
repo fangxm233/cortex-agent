@@ -2,16 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Readable } from 'stream';
 import type * as http from 'http';
 import {
-  createDevicePortRoutes, DEVICE_PORT_OPEN_PATH, DEVICE_PORTS_PATH, DEVICES_PATH,
+  createDevicePortRoutes, DEVICE_PORT_CLOSE_PATH, DEVICE_PORT_OPEN_PATH, DEVICE_PORTS_PATH, DEVICES_PATH,
   type DevicePortDeps,
 } from '@platform/ui-http/device-ports.js';
 
 const listDevices = vi.fn(() => [] as Array<{ device: string; platform: string }>);
 const runOnDevice = vi.fn(async (_d: string, _c: string) => '');
 const openDevicePort = vi.fn();
-const deps = {
-  listDevices, runOnDevice, openDevicePort, listDevicePorts: () => [],
-} as unknown as DevicePortDeps;
+const closeDevicePort = vi.fn((_d: string, _p: number) => true);
+const deps = { listDevices, runOnDevice, openDevicePort, closeDevicePort } as unknown as DevicePortDeps;
 const routes = createDevicePortRoutes(deps);
 
 interface Captured { status: number; body: any }
@@ -26,7 +25,8 @@ function fakeRes(): { res: http.ServerResponse; out: Captured } {
 }
 
 function fakeReq(method: string, url: string, body?: unknown): http.IncomingMessage {
-  const stream = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
+  const raw = typeof body === 'string' ? body : JSON.stringify(body);
+  const stream = Readable.from(body === undefined ? [] : [Buffer.from(raw)]);
   return Object.assign(stream, { method, url, headers: {} }) as unknown as http.IncomingMessage;
 }
 
@@ -34,6 +34,7 @@ beforeEach(() => {
   listDevices.mockReset().mockReturnValue([]);
   runOnDevice.mockReset().mockResolvedValue('');
   openDevicePort.mockReset();
+  closeDevicePort.mockReset().mockReturnValue(true);
 });
 
 describe('device port routes', () => {
@@ -103,6 +104,47 @@ describe('device port routes', () => {
     const { res, out } = fakeRes();
     await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'desk', port: 6006 }), res);
     expect(out.status).toBe(500);
-    expect(out.body.error).toContain('too many');
+    expect(out.body).toMatchObject({ ok: false, code: 'open-failed' });
+    expect(out.body.message).toContain('too many');
+  });
+
+  it('tries the next probe when one fails instead of giving up', async () => {
+    runOnDevice
+      .mockRejectedValueOnce(new Error('ss: command not found'))
+      .mockResolvedValueOnce('LISTEN 0 4096 *:3005 *:*\n');
+    const { res, out } = fakeRes();
+    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=desk`), res);
+    expect(out.body.data.ports).toEqual([{ port: 3005, address: '*', process: null }]);
+  });
+
+  it('answers 400, not 500, for a JSON body that is not an object', async () => {
+    for (const raw of ['null', '[1]', '7', '{bad']) {
+      const { res, out } = fakeRes();
+      await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, raw), res);
+      expect(out.status).toBe(400);
+      expect(out.body.code).toBe('bad-json');
+    }
+    expect(openDevicePort).not.toHaveBeenCalled();
+  });
+
+  it('only opens on POST (there is no listing behind GET)', async () => {
+    const { res, out } = fakeRes();
+    await routes[DEVICE_PORT_OPEN_PATH](fakeReq('GET', DEVICE_PORT_OPEN_PATH), res);
+    expect(out.status).toBe(405);
+  });
+
+  it('closes a mapping the UI no longer shows', async () => {
+    const { res, out } = fakeRes();
+    await routes[DEVICE_PORT_CLOSE_PATH](fakeReq('POST', DEVICE_PORT_CLOSE_PATH, { device: 'desk', port: 6006 }), res);
+    expect(out.status).toBe(200);
+    expect(out.body.data).toEqual({ closed: true });
+    expect(closeDevicePort).toHaveBeenCalledWith('desk', 6006);
+  });
+
+  it('validates a close like an open', async () => {
+    const { res, out } = fakeRes();
+    await routes[DEVICE_PORT_CLOSE_PATH](fakeReq('POST', DEVICE_PORT_CLOSE_PATH, { device: 'desk', port: 22 }), res);
+    expect(out.status).toBe(400);
+    expect(closeDevicePort).not.toHaveBeenCalled();
   });
 });

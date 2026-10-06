@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import { initTRPC } from '@trpc/server';
 import { z } from 'zod';
 import { generateKeyPair, exportJWK, SignJWT, type JWK, type CryptoKey } from 'jose';
-import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
+import { createAuthorizer, createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
 import { createAccessJwtVerifier, accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import { startUiHttpServer } from '@entry/start-ui-http.js';
@@ -28,6 +28,7 @@ const WIRING_SSE_MARKER = 'WIRING_EVENT_MARKER';
 const t = initTRPC.create();
 const fakeRouter = t.router({
   ping: t.procedure.input(z.object({ v: z.string() })).query(({ input }) => ({ echoed: input.v })),
+  bump: t.procedure.input(z.object({ v: z.string() })).mutation(({ input }) => ({ length: input.v.length })),
   tick: t.procedure.subscription(async function* ({ signal }) {
     yield { marker: SSE_MARKER, n: 1 };
     // Stay open until the client/server aborts, so close() must force-close a live SSE socket.
@@ -116,12 +117,15 @@ const BLOCKED_ORIGIN = 'https://evil.example.com';
 async function bootTransport(
   opts: { spaDir?: string; corsOrigins?: string[]; verifyAccessJwt?: AccessJwtVerifier; portForward?: boolean } = {},
 ) {
+  const { verifyAccessJwt, ...rest } = opts;
+  const getToken = () => TOKEN;
   const inst = createUiHttpServer({
     router: fakeRouter,
-    getToken: () => TOKEN,
+    getToken,
+    authorize: createAuthorizer({ getToken, verifyAccessJwt }),
     port: 0,
     host: '127.0.0.1',
-    ...opts,
+    ...rest,
   });
   servers.push(inst);
   const { port, host } = await awaitListening(inst.server);
@@ -238,6 +242,77 @@ describe('transport-host: server, token gate, SPA static, CORS', () => {
     assert.equal(statusCode, 401);
     assert.equal(headers['access-control-allow-origin'], ALLOWED_ORIGIN,
       '401 responses must still carry ACAO so the browser can read the error body');
+  });
+});
+
+// ── CSRF: a state-changing request must come from this origin or an allow-listed one ──
+// SameSite alone does not stop a sibling subdomain, and the Cloudflare Access assertion rides
+// along on any request that reaches the edge — so the Origin a browser sends is checked.
+describe('transport-host: Origin check on state-changing requests', () => {
+  const CUSTOM = '/api/test/state';
+  let port: number;
+  let hits = 0;
+
+  beforeAll(async () => {
+    const getToken = () => TOKEN;
+    const inst = createUiHttpServer({
+      router: fakeRouter,
+      getToken,
+      authorize: createAuthorizer({ getToken }),
+      port: 0,
+      host: '127.0.0.1',
+      corsOrigins: [ALLOWED_ORIGIN],
+      portForward: false,
+      customRoutes: { [CUSTOM]: async (_req, res) => { hits += 1; res.writeHead(204); res.end(); } },
+    });
+    servers.push(inst);
+    ({ port } = await awaitListening(inst.server));
+  });
+
+  const mutate = (headers: Record<string, string>) => req(
+    port, 'POST', '/trpc/bump',
+    { 'x-cortex-token': TOKEN, 'content-type': 'application/json', ...headers },
+    JSON.stringify({ v: 'x' }),
+  );
+
+  test('no Origin (CLI, devices, native code) is left to the auth gate', async () => {
+    assert.equal((await mutate({})).statusCode, 200);
+  });
+
+  test('the server\'s own origin passes', async () => {
+    assert.equal((await mutate({ origin: `http://127.0.0.1:${port}` })).statusCode, 200);
+  });
+
+  test('an allow-listed native-shell origin passes', async () => {
+    assert.equal((await mutate({ origin: ALLOWED_ORIGIN })).statusCode, 200);
+  });
+
+  test('a foreign origin is refused even with valid credentials', async () => {
+    for (const origin of [BLOCKED_ORIGIN, 'https://other.fangxm.me', 'null']) {
+      const res = await mutate({ origin });
+      assert.equal(res.statusCode, 403, origin);
+      assert.equal(JSON.parse(res.body).code, 'cross-origin');
+    }
+  });
+
+  test('custom routes are covered too, and the handler never runs', async () => {
+    const before = hits;
+    const res = await req(port, 'POST', CUSTOM, { 'x-cortex-token': TOKEN, origin: BLOCKED_ORIGIN });
+    assert.equal(res.statusCode, 403);
+    assert.equal(hits, before);
+    assert.equal((await req(port, 'POST', CUSTOM, { 'x-cortex-token': TOKEN, origin: ALLOWED_ORIGIN })).statusCode, 204);
+  });
+
+  test('reads are not origin-checked (a GET cannot change state)', async () => {
+    const { statusCode } = await get(port, pingPath(), { 'x-cortex-token': TOKEN, origin: BLOCKED_ORIGIN });
+    assert.equal(statusCode, 200);
+  });
+
+  test('a tRPC body past the size limit is refused', async () => {
+    const huge = JSON.stringify({ v: 'x'.repeat(17 * 1024 * 1024) });
+    const res = await req(port, 'POST', '/trpc/bump',
+      { 'x-cortex-token': TOKEN, 'content-type': 'application/json' }, huge);
+    assert.equal(res.statusCode, 413);
   });
 });
 

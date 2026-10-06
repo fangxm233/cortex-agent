@@ -127,15 +127,6 @@ export function parseSsListeners(stdout: string): ListeningPort[] {
   return [...out.values()].sort((a, b) => a.port - b.port);
 }
 
-/**
- * Discover this host's own listening ports, using the same probe chain the device half uses.
- *
- * Sharing it is not tidiness: `ss` alone means an empty list on a container image without iproute2
- * and on macOS, and this half was the narrower one — a device could report ports its own server
- * could not. The commands are module constants with no interpolation, so running them through a
- * shell introduces nothing to inject.
- */
-
 // ── macOS ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -219,7 +210,7 @@ export interface ListenerProbe {
 }
 
 /**
- * Commands to try on a device, in order — the first that produces output wins.
+ * Commands to try on a host of `platform`, in order — the first that produces output wins.
  */
 export function listenerProbes(platform: string): ListenerProbe[] {
   if (platform === 'win32') {
@@ -235,4 +226,28 @@ export function listenerProbes(platform: string): ListenerProbe[] {
     // No iproute2 (BusyBox, distroless): ports without names beats no ports.
     { command: PROC_LISTENER_COMMAND, parse: parseProcNetTcp },
   ];
+}
+
+/**
+ * Discover listening ports on one host — this server or a device — by running each probe through
+ * `run` until one produces output. Both halves share the chain on purpose: `ss` alone means an
+ * empty list on a container image without iproute2 and on macOS, and a device could otherwise
+ * report ports its own server could not. A probe that fails (command missing, timeout) falls
+ * through to the next one. The commands are module constants with no interpolation, so running
+ * them through a shell introduces nothing to inject.
+ */
+export async function probeListeners(
+  platform: string,
+  run: (command: string) => Promise<string>,
+): Promise<{ ports: ListeningPort[]; error?: string }> {
+  let lastError = 'no probe produced output';
+  for (const probe of listenerProbes(platform)) {
+    try {
+      const stdout = await run(probe.command);
+      if (stdout.trim() !== '') return { ports: probe.parse(stdout) };
+    } catch (e) {
+      lastError = (e as Error).message;
+    }
+  }
+  return { ports: [], error: lastError };
 }

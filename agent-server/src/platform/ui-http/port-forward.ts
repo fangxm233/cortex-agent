@@ -5,7 +5,8 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { createLogger } from '@core/log.js';
-import { listenerProbes, MIN_FORWARDABLE_PORT, type ListeningPort } from './listening-ports.js';
+import { sendJson } from './http-json.js';
+import { probeListeners, MIN_FORWARDABLE_PORT, type ListeningPort } from './listening-ports.js';
 
 const log = createLogger('port-forward');
 const execFileAsync = promisify(execFile);
@@ -63,26 +64,17 @@ async function listListeningPorts(): Promise<ListeningPort[]> {
     log.warn('port discovery is not implemented for a Windows-hosted daemon');
     return [];
   }
-  let lastError = 'no probe produced output';
-  for (const probe of listenerProbes(process.platform)) {
-    try {
-      const { stdout } = await execFileAsync('sh', ['-c', probe.command], { timeout: 3000 });
-      if (stdout.trim() !== '') return probe.parse(stdout);
-    } catch (e) {
-      lastError = (e as Error).message;
-    }
-  }
-  log.warn(`port discovery unavailable: ${lastError}`);
-  return [];
+  const { ports, error } = await probeListeners(process.platform, async (command) =>
+    (await execFileAsync('sh', ['-c', command], { timeout: 3000 })).stdout);
+  if (error) log.warn(`port discovery unavailable: ${error}`);
+  return ports;
 }
 
 /** Discovery route, mounted through `customRoutes` so it inherits the same auth gate. */
 export function createForwardRoutes(): Record<string, (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>> {
   return {
     [FORWARD_PORTS_PATH]: async (_req, res) => {
-      const ports = await listListeningPorts();
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ ok: true, data: { ports } }));
+      sendJson(res, 200, { ok: true, data: { ports: await listListeningPorts() } });
     },
   };
 }

@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type HttpProxy } from 'vite';
 
 // Build stamp inlined into the bundle via `define` below and shown in the mobile Settings footer.
 // Recomputed each build (timestamp + git short sha), so every build has a distinct value AND a
@@ -34,6 +34,23 @@ const BUILD_STAMP = (() => {
 // and the SSE subscription GET). Set CORTEX_CLIENT_TOKEN in the dev shell to reach live data.
 const CLIENT_TOKEN = (process.env.CORTEX_CLIENT_TOKEN ?? '').trim();
 
+// The server refuses a state-changing request whose Origin is neither its own nor allow-listed.
+// `changeOrigin` rewrites Host to 127.0.0.1:3004 but leaves this page's Origin, so the dev page's
+// own requests drop Origin and ride the injected token like any non-browser client. A request
+// from any OTHER page keeps its foreign Origin and is refused — the proxy holds the token, so it
+// must not lend it to whatever site the developer happens to have open.
+const proxyAsDevPage = (proxy: HttpProxy.Server): void => {
+  proxy.on('proxyReq', (proxyReq, req) => {
+    if (CLIENT_TOKEN) proxyReq.setHeader('x-cortex-token', CLIENT_TOKEN);
+    const origin = req.headers.origin;
+    try {
+      if (origin && new URL(origin).host === req.headers.host) proxyReq.removeHeader('origin');
+    } catch {
+      // Unparseable Origin (e.g. `null`): leave it for the server to refuse.
+    }
+  });
+};
+
 export default defineConfig({
   plugins: [react()],
   define: {
@@ -57,20 +74,12 @@ export default defineConfig({
       '/trpc': {
         target: 'http://127.0.0.1:3004',
         changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            if (CLIENT_TOKEN) proxyReq.setHeader('x-cortex-token', CLIENT_TOKEN);
-          });
-        },
+        configure: proxyAsDevPage,
       },
       '/api': {
         target: 'http://127.0.0.1:3004',
         changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            if (CLIENT_TOKEN) proxyReq.setHeader('x-cortex-token', CLIENT_TOKEN);
-          });
-        },
+        configure: proxyAsDevPage,
       },
     },
   },

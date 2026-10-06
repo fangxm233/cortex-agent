@@ -4,13 +4,14 @@ import * as http from 'node:http';
 import { vi } from 'vitest';
 import { createUiService } from '../src/domain/ui-service/ui-service.js';
 import { createAppRouter } from '../src/domain/ui-service/app-router.js';
-import { createUiHttpServer } from '../src/platform/ui-http/ui-http-server.js';
+import { createAuthorizer, createUiHttpServer } from '../src/platform/ui-http/ui-http-server.js';
 import type { UiServiceDeps } from '../src/domain/ui-service/types.js';
 
 /** Real TCP, authenticated tRPC queries and SSE. Only the model/delivery are faked by the caller. */
 export async function transcriptHttp(deps: UiServiceDeps, sessionId: string) {
+  const getToken = () => 'fixture-token';
   const host = createUiHttpServer({
-    router: createAppRouter(createUiService(deps)), getToken: () => 'fixture-token',
+    router: createAppRouter(createUiService(deps)), getToken, authorize: createAuthorizer({ getToken }),
     port: 0, host: '127.0.0.1', portForward: false,
   });
   if (!host.server.listening) await once(host.server, 'listening');

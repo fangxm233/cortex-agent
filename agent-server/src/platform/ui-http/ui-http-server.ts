@@ -5,7 +5,9 @@ import { createHTTPServer } from '@trpc/server/adapters/standalone';
 import type { AnyRouter } from '@trpc/server';
 import { AUTH_HEADER, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
+import { contentTypeHeader, mimeTypeForPath } from '@core/media-types.js';
 import type { AccessJwtVerifier } from './access-jwt.js';
+import { sendError } from './http-json.js';
 import { FORWARD_PATH, createPortForward } from './port-forward.js';
 import { sessionIdFrom } from './ui-auth-routes.js';
 
@@ -24,6 +26,16 @@ const CORS_ALLOW_METHODS = 'GET, POST, OPTIONS';
 // unless these are allow-listed alongside the auth token and content-type.
 const CORS_ALLOW_HEADERS = `${AUTH_HEADER}, content-type, x-session-id, x-file-name`;
 const CORS_MAX_AGE = '86400'; // 24 h preflight cache
+
+/**
+ * Largest tRPC request body. The big legitimate payloads are a pasted message (`sessions.send`,
+ * unbounded in the schema) and a skill file (512 KB); a message past this is several times any
+ * model's context window. Files never travel here — they go through the upload route.
+ */
+const TRPC_MAX_BODY_BYTES = 16 * 1024 * 1024;
+
+/** Methods that never change state. Everything else is checked against the request's Origin. */
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export interface UiHttpServerOptions {
   /** The tRPC router to host (query/mutate/subscribe). Injected — kept generic over AnyRouter. */
@@ -46,13 +58,6 @@ export interface UiHttpServerOptions {
    */
   corsOrigins?: string[] | (() => string[] | undefined);
   /**
-   * Optional Cloudflare Access JWT verifier. When present, a request that fails the x-cortex-token
-   * check is admitted if it carries a valid `Cf-Access-Jwt-Assertion` (signature/aud/iss/exp all
-   * pass). When absent, only the token path is live — the browser (Access) path is disabled, so an
-   * unconfigured Access deployment degrades to token-only rather than admitting requests.
-   */
-  verifyAccessJwt?: AccessJwtVerifier;
-  /**
    * Optional map of custom API route paths to handlers (for non-tRPC endpoints like
    * file upload). Auth-gated with the same dual-path check as tRPC paths.
    */
@@ -64,12 +69,11 @@ export interface UiHttpServerOptions {
    */
   publicRoutes?: string[];
   /**
-   * Optional pre-built authorizer. When omitted one is built from getToken / verifyAccessJwt, with
-   * no session-cookie leg. A caller with browser token login builds its own via createAuthorizer, so
-   * the cookie leg is on and the public /api/ui/session probe can answer with the exact predicate
-   * the gate uses, instead of a second copy that could drift.
+   * The gate predicate for tRPC and custom routes, built with createAuthorizer. The caller builds
+   * it (rather than this server) so the public /api/ui/session probe can answer with the exact
+   * predicate the gate uses, instead of a second copy that could drift.
    */
-  authorize?: Authorizer;
+  authorize: Authorizer;
   /**
    * Mount the TCP-over-WebSocket port forward on `/forward` (desktop shell → a loopback service on
    * this host). Defaults to on; `CORTEX_PORT_FORWARD=0` at the call site turns it off.
@@ -86,20 +90,6 @@ export interface UiHttpServer {
   server: http.Server;
   close: () => Promise<void>;
 }
-
-const CONTENT_TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-  '.map': 'application/json; charset=utf-8',
-};
 
 /** Bearer gate for a tRPC request: constant-time compare of the accepted token vs the header. */
 function isAuthorized(req: http.IncomingMessage, getToken: () => string): boolean {
@@ -147,6 +137,30 @@ export function createAuthorizer(opts: {
   };
 }
 
+function firstHeader(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+/**
+ * CSRF guard for a state-changing request. A browser page always sends `Origin` on one, and it
+ * must be this server's own origin (the SPA) or one in the CORS allow-list (the native shells'
+ * `cortexui` pages). SameSite cookies alone are not enough: every subdomain of a shared parent
+ * domain is "same site", and the Cloudflare Access assertion rides along regardless. A request
+ * with no `Origin` at all (CLI, cortex-signal, a device, the shells' native side) is not a page
+ * acting on someone's cookie and is left to the auth gate. `Origin: null` (sandboxed frames,
+ * opaque documents) is refused.
+ */
+function isTrustedOrigin(req: http.IncomingMessage, allowList: readonly string[] | undefined): boolean {
+  const origin = firstHeader(req.headers.origin);
+  if (origin === undefined) return true;
+  if (allowList?.includes(origin)) return true;
+  try {
+    return new URL(origin).host === firstHeader(req.headers.host);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * If the request `Origin` is in the allow-list, add CORS headers to `res` via `setHeader`.
  * Using `setHeader` (not `writeHead`) ensures the headers survive any downstream `writeHead` call
@@ -156,14 +170,11 @@ export function createAuthorizer(opts: {
 function applyCorsHeaders(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  corsOrigins: string[] | (() => string[] | undefined) | undefined,
+  allowList: readonly string[] | undefined,
 ): string | undefined {
-  const resolvedOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
-  if (!resolvedOrigins || resolvedOrigins.length === 0) return undefined;
-  const origin = Array.isArray(req.headers['origin'])
-    ? req.headers['origin'][0]
-    : req.headers['origin'];
-  if (!origin || !resolvedOrigins.includes(origin)) return undefined;
+  if (!allowList || allowList.length === 0) return undefined;
+  const origin = firstHeader(req.headers.origin);
+  if (!origin || !allowList.includes(origin)) return undefined;
 
   // Non-wildcard: echo the exact origin so the response is origin-specific and cacheable.
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -215,14 +226,13 @@ function serveSpaStub(req: http.IncomingMessage, res: http.ServerResponse, spaDi
     return;
   }
 
-  const ext = path.extname(target).toLowerCase();
   const stream = fs.createReadStream(target);
   // A file removed between existsSync and read would emit 'error' — end the response, never crash.
   stream.on('error', () => {
     if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end();
   });
-  res.writeHead(200, { 'Content-Type': CONTENT_TYPES[ext] ?? 'application/octet-stream' });
+  res.writeHead(200, { 'Content-Type': contentTypeHeader(mimeTypeForPath(target)) });
   stream.pipe(res);
 }
 
@@ -239,13 +249,14 @@ function serveSpaStub(req: http.IncomingMessage, res: http.ServerResponse, spaDi
  */
 export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
   const host = opts.host ?? '127.0.0.1';
-  const authorize = opts.authorize ?? createAuthorizer(opts);
+  const authorize = opts.authorize;
   const publicRoutes = new Set(opts.publicRoutes ?? []);
 
   const server = createHTTPServer({
     router: opts.router,
     basePath: TRPC_BASE_PATH,
     createContext: () => ({}),
+    maxBodySize: TRPC_MAX_BODY_BYTES,
     // Runs BEFORE the tRPC handler. tRPC paths are auth-gated here; everything else is the SPA stub.
     middleware: async (req, res, next) => {
       const url = req.url ?? '/';
@@ -254,7 +265,8 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
       // Apply headers early so they survive all downstream writeHead/write calls.
       // Node.js merges setHeader entries with any explicit headers map passed to
       // writeHead later — the ACAO header we set here will appear on 200, 401, and 204.
-      applyCorsHeaders(req, res, opts.corsOrigins);
+      const allowList = typeof opts.corsOrigins === 'function' ? opts.corsOrigins() : opts.corsOrigins;
+      applyCorsHeaders(req, res, allowList);
 
       // ── CORS preflight ────────────────────────────────────────────────────────
       // OPTIONS for a tRPC path is answered 204 here WITHOUT an auth check.
@@ -269,6 +281,15 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
       if (req.method === 'OPTIONS' && (url.startsWith(TRPC_BASE_PATH) || isCustomRoute)) {
         res.writeHead(204);
         res.end();
+        return;
+      }
+
+      // ── CSRF ──────────────────────────────────────────────────────────────────
+      // Before the gate, so a cross-site page cannot even probe whether a credential rides along.
+      const isApi = isCustomRoute || url.startsWith(TRPC_BASE_PATH);
+      if (isApi && !SAFE_METHODS.has(req.method ?? 'GET') && !isTrustedOrigin(req, allowList)) {
+        log.warn(`ui-http cross-origin request refused: ${req.method} ${pathname} from ${firstHeader(req.headers.origin)}`);
+        sendError(res, 403, 'cross-origin', 'Cross-origin request refused');
         return;
       }
 
@@ -289,10 +310,7 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
           await opts.customRoutes![pathname](req, res);
         } catch (e) {
           log.error(`Custom route ${url} error:`, (e as Error).message);
-          if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-            res.end(JSON.stringify({ ok: false, code: 'internal', message: 'Internal server error' }));
-          }
+          sendError(res, 500, 'internal', 'Internal server error');
         }
         return;
       }

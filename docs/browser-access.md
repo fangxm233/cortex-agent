@@ -228,8 +228,15 @@ What that buys, and what it costs:
 
 - **The token is submitted once.** It is exchanged for an opaque 32-byte session id. The cookie is
   `HttpOnly`, so page JavaScript — including an XSS payload — cannot read it back out.
-- **`SameSite=Strict`** means no cross-site request ever carries the session, which is the whole
-  CSRF story. The login POST additionally refuses a request whose `Origin` is not this host.
+- **`SameSite=Strict`** keeps the session off requests from other sites. Every subdomain of a
+  shared parent domain still counts as the same site, and a Cloudflare Access assertion is attached
+  regardless, so the server also checks `Origin`: a `POST` to `/trpc` or to an `/api` route — login
+  included — whose `Origin` is neither this server's own nor listed in `uiCorsOrigins` is refused
+  with 403. Requests that carry no `Origin` (the CLI, devices, the native shells' own HTTP clients)
+  are left to the credential check.
+- **Workspace files open sandboxed.** A workspace HTML or SVG file opened directly from a download
+  link is served with `Content-Security-Policy: sandbox allow-scripts`, so it runs in an opaque
+  origin and cannot read the session or call the API as you.
 - **Sessions survive a daemon restart.** They live in `~/.cortex/data/ui-sessions.json` (mode
   `0600`) and expire 30 days after they are issued. Settings → Advanced has a
   *Sign out of this browser* button, which revokes the session server-side.
