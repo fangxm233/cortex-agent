@@ -9,7 +9,7 @@ Cross-file conventions. See the dedicated rule for each file type in the same di
 
 ## General Rules
 
-- **Persist context updates after each logical unit** (experiment configuration, analysis report, status update). When Git is available and the directory is a repository, commit your own changes incrementally. Otherwise save the files directly; Git installation and repository creation are optional, not session-closing requirements.
+- **Persist context updates after each logical unit** (experiment configuration, analysis report, status update). Save the files directly; do not accumulate updates until the end of the session.
 - **Value traceability**: Every value appearing in STATUS / EXP / K / reports must be traceable — specify the script + data file that produced it, or write inline arithmetic citing the data. Numbers without sources are invalid.
 - **Update index after creating new files**: After creating a new file in any directory, update that directory's AGENTS.md index (see agents-md.md).
 - **Decision traceability**: Each DR-NNNN within a project adds an inline reference in the project's AGENTS.md; system-level DRs are referenced in `context/AGENTS.md`.

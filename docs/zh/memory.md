@@ -209,7 +209,7 @@ Dense Context 系统遵循以下运行约定：
 2. **创建文件 → 更新索引** — 向目录添加新文件时，更新该目录的 AGENTS.md
 3. **覆盖 vs. 追加** — STATUS.md 覆盖（仅当前状态）；ISSUES.md 追加然后删除；experiments/knowledge/patterns 追加并保留
 4. **来源强制** — 每个事实声明必须追溯到特定的 EXP-NNN、K-NNN、file:line 或内联计算
-5. **每工作单元后持久化** — 将上下文更新保存到磁盘；当 Git 可用且目录是仓库时，增量提交自己的改动。Git 版本历史是可选项
+5. **每工作单元后持久化** — 每个逻辑工作单元结束后将上下文更新保存到磁盘。Git 版本历史是可选项
 
 ## 谁负责加载 AGENTS.md {#who-loads-agents-md}
 

@@ -4,8 +4,8 @@ description: "Use when onboarding a new project into Cortex's tracking system, o
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
 metadata:
   author: "Cortex"
-  version: "2.0.0"
-  date: "2026-03-05"
+  version: "2.0.1"
+  date: "2026-10-06"
 ---
 
 # Project Init
@@ -25,7 +25,6 @@ Inspect the project's code and resources. If multiple machines host parts of the
 
 - **Directory structure**: `ls -la`, `tree -L 2` (or equivalent) to understand organization
 - **Key files**: README, config files, dependency manifests (requirements.txt / pyproject.toml / package.json / Cargo.toml / go.mod / Makefile), entry-point scripts
-- **Git state**: current branch, recent commits (`git log --oneline -10`), remotes
 - **Stack**: identify language, framework, runtime, key dependencies
 - **Data paths**: where input data, generated artifacts, and outputs live
 - **Core documentation**: read README, design docs, or any documentation that explains what the project is about. This is critical for understanding the project's goal and approach.
@@ -132,14 +131,7 @@ Skip for projects already in late-stage delivery. Create only when the project h
 1. Add the project to `context/projects/AGENTS.md` project list table
 2. Add the project to `context/OVERVIEW.md`
 
-## Step 4: Commit
-
-```
-git add context/projects/<project-name>/ context/projects/AGENTS.md context/OVERVIEW.md
-git commit -m "project-init: add <project-name> (<brief description>)"
-```
-
-## Step 5: Report
+## Step 4: Report
 
 Output a structured summary:
 - What the project is about (from README / docs)

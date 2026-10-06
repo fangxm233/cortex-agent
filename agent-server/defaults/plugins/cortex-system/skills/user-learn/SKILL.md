@@ -4,8 +4,8 @@ description: "Use when the user states a personal preference, communication styl
 allowed-tools: Read, Edit, Bash, Grep, Glob
 metadata:
   author: "Cortex"
-  version: "1.0.0"
-  date: "2026-04-27"
+  version: "1.0.1"
+  date: "2026-10-06"
 ---
 
 # User-Learn
@@ -83,9 +83,3 @@ Using the Edit tool, modify the appropriate section:
 Run: `wc -c < context/user/USER.md`
 
 If the file exceeds 3072 bytes, revert the change and report: "USER.md would exceed 3KB limit. Current size: X bytes. Please run `/user-learn` with compression guidance."
-
-## Step 6: Commit
-
-```bash
-git add context/user/USER.md && git commit -m "user-profile: <one-line summary of change>"
-```

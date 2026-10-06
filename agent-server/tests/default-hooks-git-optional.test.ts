@@ -34,13 +34,14 @@ it('records memory access without Git', () => {
   const record = JSON.parse(readFileSync(join(dir, 'context/projects/demo/_meta/access-log.jsonl'), 'utf8'));
   expect(record.file).toBe('K-001.md');
 });
-it('keeps commit guidance and existing-change warning inside repositories', () => {
+it('only asks to save files even inside repositories', () => {
   const dir = home();
   execFileSync('git', ['init', '-q', dir]);
   const nested = join(dir, 'context');
   mkdirSync(nested);
   writeFileSync(join(nested, 'STATUS.md'), 'test');
   const prompt = hook('new-session-hook.mjs', nested, '', process.env.PATH);
-  expect(prompt).toContain('Commit context file changes');
-  expect(prompt).toContain('already uncommitted changes');
+  expect(prompt).toContain('Save context updates directly to disk');
+  expect(prompt).not.toContain('Commit context file changes');
+  expect(prompt).not.toContain('git status');
 });
