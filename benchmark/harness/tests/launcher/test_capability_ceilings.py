@@ -44,7 +44,7 @@ APPROVED_CLAUDE_CEILINGS = {
     "max_provider_requests": 500,
     "max_cost_usd": Decimal("2.00"),
     "deadline_seconds": 1800,
-    "max_output_tokens": 65536,
+    "max_output_tokens": 128000,
     "request_body_limit_bytes": 64 * 1024 * 1024,
     "response_body_limit_bytes": 64 * 1024 * 1024,
 }

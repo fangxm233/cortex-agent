@@ -52,7 +52,8 @@ capabilities:
     max_cost_usd: "2.00"
     max_provider_requests: 500
     deadline_seconds: 1800
-    max_output_tokens: 65536
+    # Claude Code 2.1.291 requests max_tokens=128000 natively (see the recorded wire capture).
+    max_output_tokens: 128000
     request_body_limit_bytes: 67108864
     response_body_limit_bytes: 67108864
   codex-subscription:

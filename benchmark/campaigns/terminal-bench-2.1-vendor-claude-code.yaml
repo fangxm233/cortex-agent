@@ -57,7 +57,9 @@ arms:
       max_provider_requests: 500
       max_cost_usd: "2.00"
       deadline_seconds: 1800
-      max_output_tokens: 65536
+      # Claude Code 2.1.291 asks for max_tokens=128000 on every request; the envelope matches
+      # what the pinned CLI actually requests.
+      max_output_tokens: 128000
 
 network:
   mode: open
