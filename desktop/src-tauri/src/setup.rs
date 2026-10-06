@@ -3,11 +3,8 @@ use std::ffi::OsStr;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
-#[path = "setup_claude.rs"]
 pub mod claude;
-#[path = "setup_package.rs"]
 mod package;
-#[path = "setup_process.rs"]
 mod process;
 
 use package::{server_package, validate_server_version};

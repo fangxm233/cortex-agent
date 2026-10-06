@@ -1,7 +1,5 @@
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Emitter, Manager, State};
+use tauri::Manager;
 
 /// Emit a diagnostic line from the native shell.
 ///
@@ -37,7 +35,9 @@ mod native_menu;
 // Windows: re-owns copies made inside the webview so Clipboard History (Win+V) lists them.
 #[cfg(target_os = "windows")]
 mod clipboard_history;
+mod connection;
 mod creds;
+mod files;
 mod mobile_notifications;
 mod desktop_notifications;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
@@ -55,6 +55,7 @@ mod ota;
 mod update_checks;
 // Shell-side update preferences (silent opt-out + failure counter), stored next to the installers.
 mod update_prefs;
+mod webview_scripts;
 #[cfg(test)]
 mod update_checks_tests;
 // Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
@@ -62,243 +63,12 @@ mod update_checks_tests;
 #[cfg(any(target_os = "android", test))]
 mod seed;
 
-// ─── Frontend source (OTA) ──────────────────────────────────────────────────
-/// The custom URI scheme the SPA is served under. A single origin for the SPA's whole life
-/// (seed and OTA-downloaded versions alike) so browser-origin state stays stable across updates.
-const FRONTEND_SCHEME: &str = "cortexui";
-
-/// Resolve the directory the frontend is currently served from, newest wins:
-///   1. `CORTEX_FRONTEND_DIR` env override (dev/testing — point straight at web/dist).
-///   2. The OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater).
-///   3. The bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline).
-/// A candidate counts only when it contains index.html, so a half-populated dir never wins.
-///
-/// Both platforms serve over `cortexui://` from disk. On Android the `resource_dir/frontend-seed`
-/// fallback is never actually reached because the embedded seed is materialized into `ui/current`
-/// before the window opens (see `seed::ensure_seed`); it stays here only as a harmless last resort.
-fn active_frontend_dir(app: &tauri::AppHandle) -> PathBuf {
-    if let Ok(dir) = std::env::var("CORTEX_FRONTEND_DIR") {
-        let p = PathBuf::from(dir);
-        if p.join("index.html").is_file() {
-            return p;
-        }
-    }
-    if let Ok(data) = app.path().app_data_dir() {
-        let current = data.join("ui").join("current");
-        if current.join("index.html").is_file() {
-            return current;
-        }
-    }
-    if let Ok(res) = app.path().resource_dir() {
-        return res.join("frontend-seed");
-    }
-    // Last resort: a path that won't exist → the resolver 404s cleanly instead of panicking.
-    PathBuf::from("frontend-seed")
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────
-
-/// Where the server this app talks to lives.
-///
-/// `Remote` is the default on purpose: credential entries written before local installs existed have
-/// no `mode` key, and reading them as remote is exactly right — they *are* remote servers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum ConnectionMode {
-    /// A server installed and started by this app on this machine.
-    Local,
-    /// A server the user points us at. The original behaviour.
-    #[default]
-    Remote,
-}
-
-/// Connection credentials shared between Rust AppState and the JS global
-/// `window.__CORTEX_DESKTOP_CONFIG`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ConnectionConfig {
-    /// Absolute URL of the remote Cortex server, e.g. "https://cortex.example.com".
-    /// None = no server configured (shows the connect screen).
-    #[serde(rename = "serverUrl")]
-    pub server_url: Option<String>,
-    /// Client authentication token (x-cortex-token value).
-    pub token: Option<String>,
-    /// Local or remote. Local means this app is responsible for the daemon being up.
-    #[serde(default)]
-    pub mode: ConnectionMode,
-    /// Absolute path of the `cortex` executable driving a local install — kept so later launches can
-    /// start the daemon without re-resolving it through a PATH the GUI may not have.
-    #[serde(rename = "cortexBin", default, skip_serializing_if = "Option::is_none")]
-    pub cortex_bin: Option<String>,
-}
+pub use connection::{ConnectionConfig, ConnectionMode};
 
 pub struct AppState {
     pub config: Mutex<ConnectionConfig>,
     /// The downloaded + verified app shell update, when one is ready to install (see app_update.rs).
     pub app_update: Mutex<Option<app_update::AppUpdate>>,
-}
-
-// ─── Tauri commands ────────────────────────────────────────────────────────
-
-/// Return the current connection config to the webview.
-/// Called by initialization_script on every page load to seed
-/// window.__CORTEX_DESKTOP_CONFIG before React mounts.
-#[tauri::command]
-fn get_connection_config(state: State<AppState>) -> ConnectionConfig {
-    state.config.lock().unwrap().clone()
-}
-
-/// Persist credentials to the platform credential store and update AppState.
-///
-/// Called by the connect screen after the user's test-connection probe
-/// succeeds. Always returns Ok — a store failure is logged to stderr but
-/// the session continues (credentials are in AppState; lost on restart if the
-/// store is unavailable, e.g. headless Linux without a secret-service daemon).
-/// Backend is platform-branched (OS keychain on desktop, app-private file on
-/// Android) — see `creds.rs`.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalInstall {
-    /// Absolute path of the `cortex` executable that owns this install.
-    pub cortex_bin: String,
-}
-
-#[tauri::command]
-async fn connect(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    server_url: String,
-    token: String,
-    local: Option<LocalInstall>,
-) -> Result<(), String> {
-    let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
-    mobile_notifications::clear(&app)?;
-    let config = ConnectionConfig {
-        server_url: Some(server_url),
-        token: Some(token),
-        mode: if local.is_some() { ConnectionMode::Local } else { ConnectionMode::Remote },
-        cortex_bin: local.map(|l| l.cortex_bin),
-    };
-    if let Err(e) = creds::save(&app, &config) {
-        shell_log!(
-            "[cortex-desktop] credential store save failed ({e}); \
-             credentials are session-only (lost on restart)"
-        );
-    }
-    *state.config.lock().unwrap() = config;
-    Ok(())
-}
-
-/// Clear credentials from the platform store and AppState.
-///
-/// Called by the SPA daemon interface's Disconnect action (web/src/lib/shell-connection.ts).
-/// After this returns the SPA navigates to connect.html.
-#[tauri::command]
-async fn disconnect(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
-    mobile_notifications::clear(&app)?;
-    creds::clear(&app);
-    *state.config.lock().unwrap() = ConnectionConfig::default();
-    Ok(())
-}
-
-/// Save agent-sent (or user-downloaded) file bytes to disk. A plain browser `<a download>` /
-/// `window.open(blob)` is a no-op inside the Tauri WebView, so the SPA fetches the bytes and hands
-/// them here (see `web/src/lib/files.downloadFile`). Returns the saved absolute path.
-///
-/// Destination:
-///   - Desktop: the OS download dir (`~/Downloads`), falling back to `app_data_dir/downloads`.
-///   - Android: `app_data_dir/downloads` (app-private but retrievable via a file manager under
-///     `Android/data/dev.cortex.desktop/`), plus a system notification pointing at the saved file —
-///     the public Downloads collection needs MediaStore/DownloadManager (Kotlin/JNI), a documented
-///     follow-up.
-///
-/// `name` is reduced to its basename and stripped of path separators so a crafted name can never
-/// escape the destination directory. On a name collision a ` (n)` suffix is appended.
-///
-/// Errors are `code: detail`, worded by web/src/features/media/useDownloadFile.ts.
-#[tauri::command]
-fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<String, String> {
-    use std::path::Path;
-
-    // Sanitize: basename only, drop separators / parent refs, fall back to a safe default.
-    let base = Path::new(&name)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .map(|s| s.replace(['/', '\\'], "_"))
-        .filter(|s| !s.is_empty() && s != "." && s != "..")
-        .unwrap_or_else(|| "download".to_string());
-
-    // Destination directory: OS downloads on desktop, app-private downloads on Android.
-    #[cfg(not(target_os = "android"))]
-    let dir = app
-        .path()
-        .download_dir()
-        .or_else(|_| app.path().app_data_dir().map(|d| d.join("downloads")))
-        .map_err(|e| format!("download_dir_unavailable: {e}"))?;
-    #[cfg(target_os = "android")]
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map(|d| d.join("downloads"))
-        .map_err(|e| format!("download_dir_unavailable: {e}"))?;
-
-    std::fs::create_dir_all(&dir).map_err(|e| format!("download_dir_create_failed: {e}"))?;
-
-    // Avoid clobbering an existing file: `name.ext` → `name (1).ext` → `name (2).ext` …
-    let mut target = dir.join(&base);
-    if target.exists() {
-        let path = Path::new(&base);
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(&base);
-        let ext = path.extension().and_then(|s| s.to_str());
-        for n in 1..1000 {
-            let candidate = match ext {
-                Some(e) => format!("{stem} ({n}).{e}"),
-                None => format!("{stem} ({n})"),
-            };
-            let p = dir.join(candidate);
-            if !p.exists() {
-                target = p;
-                break;
-            }
-        }
-    }
-
-    std::fs::write(&target, &bytes).map_err(|e| format!("download_write_failed: {e}"))?;
-    let saved = target.to_string_lossy().to_string();
-
-    // Android: surface where it landed via a system notification (the app-private dir is not obvious).
-    // Only pre-DownloadManager pages still reach this and nothing tells Rust the UI language, so the
-    // notification carries no prose: the file name as title, the saved path as body.
-    #[cfg(target_os = "android")]
-    {
-        use tauri_plugin_notification::NotificationExt;
-        let _ = app
-            .notification()
-            .builder()
-            .title(&base)
-            .body(&saved)
-            .show();
-    }
-
-    shell_log!("[cortex-desktop] save_download → {saved}");
-    Ok(saved)
-}
-
-/// Open a saved file with the OS default application — the desktop download toast's "Open file"
-/// action (`web/src/features/media/useDownloadFile.ts`). Desktop-only: the mobile shell surfaces the
-/// system Downloads notification instead, so this is never invoked on Android (the Android branch of
-/// `open_with_os` just returns an error). `path` is the absolute path returned by `save_download`.
-#[tauri::command]
-fn open_path(path: String) -> Result<(), String> {
-    open_with_os(&path)
-}
-
-/// Reveal a saved file in the OS file manager — opens its containing folder, selecting the file where
-/// the platform supports it (macOS Finder / Windows Explorer). The desktop download toast's "Open
-/// folder" action. Desktop-only, same as `open_path`. `path` is the absolute path from `save_download`.
-#[tauri::command]
-fn reveal_path(path: String) -> Result<(), String> {
-    reveal_with_os(&path)
 }
 
 /// A GUI process that starts a console program (`reg`, `cmd`) gets a console window flashed on
@@ -311,220 +81,6 @@ pub(crate) fn no_console_window(command: &mut std::process::Command) -> &mut std
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
-}
-
-/// Launch an OS opener process fire-and-forget (never wait): file managers like Windows Explorer
-/// return non-zero exit codes even on success, so we only care that the process launched, not its
-/// exit status. Args are passed directly (no shell), so a path can never be interpreted as a command.
-#[allow(dead_code)]
-fn spawn_detached(program: &str, args: &[&str]) -> Result<(), String> {
-    no_console_window(&mut std::process::Command::new(program))
-        .args(args)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("failed to launch {program}: {e}"))
-}
-
-#[cfg(target_os = "linux")]
-fn open_with_os(path: &str) -> Result<(), String> {
-    spawn_detached("xdg-open", &[path])
-}
-#[cfg(target_os = "macos")]
-fn open_with_os(path: &str) -> Result<(), String> {
-    spawn_detached("open", &[path])
-}
-#[cfg(target_os = "windows")]
-fn open_with_os(path: &str) -> Result<(), String> {
-    // `explorer <file>` opens folders, not arbitrary files with their default app — use `start`
-    // (via cmd) with an empty title argument so a path is never mistaken for the window title.
-    spawn_detached("cmd", &["/C", "start", "", path])
-}
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-fn open_with_os(_path: &str) -> Result<(), String> {
-    Err("open_path is desktop-only".to_string())
-}
-
-#[cfg(target_os = "linux")]
-fn reveal_with_os(path: &str) -> Result<(), String> {
-    // Linux file managers have no portable "reveal + select this file", so open the containing folder.
-    let parent = std::path::Path::new(path)
-        .parent()
-        .and_then(|p| p.to_str())
-        .ok_or_else(|| "no parent dir".to_string())?;
-    spawn_detached("xdg-open", &[parent])
-}
-#[cfg(target_os = "macos")]
-fn reveal_with_os(path: &str) -> Result<(), String> {
-    // `-R` reveals the file in Finder with it selected.
-    spawn_detached("open", &["-R", path])
-}
-#[cfg(target_os = "windows")]
-fn reveal_with_os(path: &str) -> Result<(), String> {
-    // `/select,<path>` opens the containing folder with the file highlighted.
-    let arg = format!("/select,{path}");
-    spawn_detached("explorer", &[arg.as_str()])
-}
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-fn reveal_with_os(_path: &str) -> Result<(), String> {
-    Err("reveal_path is desktop-only".to_string())
-}
-
-// ─── Initialization script ─────────────────────────────────────────────────
-// Injected into EVERY page load (connect.html and index.html). A per-platform
-// PREFIX (see `init_script()`) sets the shell-detection flag first:
-//   desktop → window.__CORTEX_DESKTOP__ = true   (desktop three-pane workbench)
-//   Android → window.__CORTEX_MOBILE__  = true   (mobile bottom-Tab shell)
-// then this shared body runs:
-//
-// 1. Async-fetches credentials from AppState via IPC and writes to
-//    window.__CORTEX_DESKTOP_CONFIG (read by providers.tsx to switch the tRPC
-//    client to absolute-URL + token-bearer mode). The IPC round-trip is
-//    ~microseconds; the React bundle takes tens of milliseconds to download +
-//    parse, so the global is set before providers.tsx reads it. Shared by both
-//    platforms — the mobile shell reaches the same remote server the same way.
-//
-// Disconnect is no longer a shell-injected button — the SPA's daemon interface
-// owns a discoverable Disconnect action (web/src/lib/shell-connection.ts) that
-// invokes the `disconnect` command + navigates to connect.html.
-
-/// Per-platform flag prefix prepended to `INIT_SCRIPT`.
-#[cfg(target_os = "android")]
-const SHELL_FLAG: &str = "window.__CORTEX_MOBILE__ = true;\n";
-#[cfg(not(target_os = "android"))]
-const SHELL_FLAG: &str = "window.__CORTEX_DESKTOP__ = true;\n";
-
-/// Which OS the SPA is running on. The desktop bar needs it for three decisions the SPA cannot make
-/// on its own: reserve the macOS traffic-light strip, draw caption buttons at the right edge, and
-/// render ⌘ rather than Ctrl in accelerators.
-#[cfg(target_os = "macos")]
-const PLATFORM_FLAG: &str = "macos";
-#[cfg(target_os = "windows")]
-const PLATFORM_FLAG: &str = "windows";
-#[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
-const PLATFORM_FLAG: &str = "linux";
-#[cfg(target_os = "android")]
-const PLATFORM_FLAG: &str = "android";
-
-/// The full initialization script: platform flag + **synchronously baked** credentials + shared body.
-///
-/// The credentials known at window-build time (loaded from the credential store) are serialized
-/// straight into the injected script as the initial `window.__CORTEX_DESKTOP_CONFIG` value, so the
-/// SPA sees them synchronously — BEFORE any bundle code runs — with no dependency on the async IPC.
-/// This closes a race that surfaced on Android: on the second launch the WebView serves a
-/// code-cached bundle that mounts React faster than the `get_connection_config` IPC round-trip could
-/// resolve, so `providers.tsx` (which reads the config exactly once at mount) captured the stale
-/// `{serverUrl:null}` and built a broken tRPC client — the mobile shell rendered (bottom Tab bar)
-/// but every data screen failed, leaving "only the bottom bar". Baking removes the race entirely.
-///
-/// The async IPC in `INIT_SCRIPT` is kept as a REFRESH path: on the first-run connect flow the
-/// window was built with empty creds (baked null), then the user saves creds on connect.html and
-/// navigates to index.html within the same session — the re-injected script's baked value is still
-/// null there, so the async `get_connection_config` fills in the freshly-saved creds.
-fn init_script(config: &ConnectionConfig, title_bar: &str) -> String {
-    // Serialize via serde so serverUrl/token are correctly JSON-escaped (quotes, backslashes, etc.),
-    // never string-interpolated raw. A serialize failure falls back to async-IPC-only behaviour.
-    let baked = serde_json::to_string(config)
-        .unwrap_or_else(|_| r#"{"serverUrl":null,"token":null}"#.to_string());
-    format!(r#"
-(function () {{
-  if (window !== window.top) return;
-  // macOS/Linux: cortexui://localhost; Windows/Android: http://cortexui.localhost.
-  var shellOrigin = location.port === '' && (
-    (location.protocol === '{FRONTEND_SCHEME}:' && location.hostname === 'localhost') ||
-    (location.protocol === 'http:' && location.hostname === '{FRONTEND_SCHEME}.localhost')
-  );
-  if (!shellOrigin) return;
-  {SHELL_FLAG}window.__CORTEX_PLATFORM__ = "{PLATFORM_FLAG}";
-  window.__CORTEX_TITLEBAR__ = "{title_bar}";
-  window.__CORTEX_DESKTOP_CONFIG = {baked};
-  {INIT_SCRIPT}
-}}());
-"#)
-}
-
-const TITLE_BRIDGE_SCRIPT: &str = r#"
-(function () {
-  if (window === window.top || window.parent !== window.top) return;
-  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-  var lastTitle;
-  var observedHead;
-  var headObserver;
-  function report(phase, force) {
-    var title = document.title || '';
-    if (!force && title === lastTitle) return;
-    lastTitle = title;
-    window.parent.postMessage({
-      type: '__cortexBrowserTitle:v1',
-      title: title,
-      href: location.href,
-      timeOrigin: performance.timeOrigin,
-      phase: phase
-    }, '*');
-  }
-  function bindHead() {
-    if (document.head === observedHead) return false;
-    if (headObserver) headObserver.disconnect();
-    observedHead = document.head;
-    if (!observedHead) return false;
-    headObserver = new MutationObserver(function () { report('update', false); });
-    headObserver.observe(observedHead, { childList: true, subtree: true, characterData: true });
-    return true;
-  }
-  function start() {
-    bindHead();
-    report('load', true);
-    if (!document.documentElement) return;
-    new MutationObserver(function () {
-      if (bindHead()) report('update', false);
-    }).observe(document.documentElement, { childList: true });
-  }
-  window.addEventListener('pageshow', function (event) {
-    if (event.persisted) report('restore', true);
-  });
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
-  }
-}());
-"#;
-
-const INIT_SCRIPT: &str = r#"
-// Refresh path: re-read the current credentials via IPC and overwrite the baked value. Normally a
-// no-op (baked value is already correct); it matters on the first-run connect flow, where the window
-// was built before the user saved creds, so the baked value is null and this async call fills it in.
-// The baked value already covers the common (subsequent-launch) case synchronously, so this no longer
-// races the bundle — a stale read just keeps the correct baked creds.
-(function () {
-  var tauri = window.__TAURI__;
-  if (!tauri || !tauri.core || !tauri.core.invoke) return;
-  tauri.core.invoke('get_connection_config').then(function (cfg) {
-    if (cfg && cfg.serverUrl) {
-      window.__CORTEX_DESKTOP_CONFIG = { serverUrl: cfg.serverUrl, token: cfg.token };
-    }
-  }).catch(function () {});
-}());
-"#;
-
-/// A credential counts as PRESENT only when it is Some AND non-empty after trimming.
-/// `Option::is_some()` is true for `Some("")` / `Some("   ")`, so blank or whitespace-only
-/// saved creds (e.g. a half-filled store entry or `CORTEX_SERVER_URL=`) would wrongly route
-/// to index.html and leave the user stranded with a dead tRPC client. Requiring a non-empty
-/// trimmed value makes garbage creds fall through to connect.html.
-fn has_credentials(config: &ConnectionConfig) -> bool {
-    let non_blank = |v: &Option<String>| v.as_deref().map(str::trim).is_some_and(|s| !s.is_empty());
-    non_blank(&config.server_url) && non_blank(&config.token)
-}
-
-/// Load initial credentials: platform credential store first, then env-var fallback
-/// (`CORTEX_SERVER_URL` / `CORTEX_TOKEN`, dev convenience). Loaded inside `setup` because the
-/// Android store backend needs the `AppHandle` to resolve the app-private data dir.
-fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
-    creds::load(app).unwrap_or_else(|| ConnectionConfig {
-        server_url: std::env::var("CORTEX_SERVER_URL").ok(),
-        token: std::env::var("CORTEX_TOKEN").ok(),
-        ..ConnectionConfig::default()
-    })
 }
 
 // ─── App entry point ───────────────────────────────────────────────────────
@@ -563,9 +119,9 @@ pub fn run() {
         .manage(forward::ForwardState::default())
         .manage(desktop_notifications::NotificationState::default())
         .invoke_handler(tauri::generate_handler![
-            get_connection_config,
-            connect,
-            disconnect,
+            connection::get_connection_config,
+            connection::connect,
+            connection::disconnect,
             mobile_notifications::mobile_notifications_configure,
             mobile_notifications::mobile_notifications_status,
             desktop_notifications::desktop_notifications_post,
@@ -579,9 +135,9 @@ pub fn run() {
             update_checks::skip_app_update,
             update_checks::get_update_prefs,
             update_checks::set_update_silent,
-            save_download,
-            open_path,
-            reveal_path,
+            files::save_download,
+            files::open_path,
+            files::reveal_path,
             setup::setup_probe,
             setup::claude::setup_claude_status,
             setup::claude::setup_install_claude,
@@ -602,6 +158,7 @@ pub fn run() {
     // do not exist on the mobile shell, so hooking it there does not compile.
     #[cfg(not(target_os = "android"))]
     {
+        use tauri::Emitter;
         builder = builder.on_menu_event(|app, event| {
             let id = event.id().0.clone();
             if let Err(e) = app.emit(native_menu::MENU_EVENT, id) {
@@ -614,7 +171,7 @@ pub fn run() {
     // directory (env override → OTA-downloaded current → bundled seed), so the frontend can be
     // swapped by the updater. resolve_asset applies the SPA fallback + traversal guard + MIME. On
     // Android `ui/current` is seeded from the embedded copy before the window opens (see setup).
-    builder = builder.register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
+    builder = builder.register_uri_scheme_protocol(frontend::SCHEME, |ctx, request| {
         let uri = request.uri().to_string();
         // connect.html is a shell-local page not shipped in the server OTA bundle. Serve it from the
         // binary-embedded copy first so the connection screen is always reachable, even when the
@@ -622,7 +179,7 @@ pub fn run() {
         // workbench with no server config → blank "can't connect"). All other paths fall through to
         // the normal on-disk resolver.
         let asset = frontend::resolve_embedded(&uri)
-            .unwrap_or_else(|| frontend::resolve_asset(&active_frontend_dir(ctx.app_handle()), &uri));
+            .unwrap_or_else(|| frontend::resolve_asset(&frontend::active_dir(ctx.app_handle()), &uri));
         tauri::http::Response::builder()
             .status(asset.status)
             .header(tauri::http::header::CONTENT_TYPE, asset.mime)
@@ -634,7 +191,7 @@ pub fn run() {
         .setup(move |app| {
             // Load credentials (platform store → env fallback) and seed AppState.
             shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
-            let initial_config = load_initial_config(&app.handle());
+            let initial_config = connection::load_initial_config(&app.handle());
 
             // A local install has no one else to start it: bring the daemon up before the workbench
             // opens onto a dead server. Bounded — see setup::ensure_local_daemon.
@@ -652,7 +209,7 @@ pub fn run() {
                 }
             }
 
-            let open_workbench = has_credentials(&initial_config);
+            let open_workbench = connection::has_credentials(&initial_config);
             shell_log!("[cortex-desktop] initial credentials present={open_workbench}");
             // Keep a copy to bake synchronously into the window's initialization_script (below), so
             // the SPA sees the credentials before any bundle code runs (no async-IPC race).
@@ -701,15 +258,15 @@ pub fn run() {
             shell_log!("[cortex-desktop] title bar mode: {title_bar_mode}");
 
             // ── Open the window against the cortexui:// scheme (both platforms) ──
-            let url = format!("{FRONTEND_SCHEME}://localhost/{initial_file}");
+            let url = format!("{}://localhost/{initial_file}", frontend::SCHEME);
             #[allow(unused_mut)]
             let mut win = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
                 tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
             )
-            .initialization_script_for_all_frames(TITLE_BRIDGE_SCRIPT)
-            .initialization_script(&init_script(&baked_config, title_bar_mode));
+            .initialization_script_for_all_frames(webview_scripts::TITLE_BRIDGE_SCRIPT)
+            .initialization_script(&webview_scripts::init_script(&baked_config, title_bar_mode));
             // Desktop-only window chrome (Android manages its own full-screen activity).
             // `disable_drag_drop_handler()` turns OFF Tauri's native OS-level file drag-drop
             // interception so the webview's own HTML5 DnD events reach the DOM — without it the
@@ -761,81 +318,4 @@ pub fn run() {
                 update_checks::apply_pending_on_exit(handle);
             }
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_credential_entry_written_before_local_mode_existed_loads_as_remote() {
-        // Existing keychain entries have no `mode` key; they must keep working, as remote.
-        let config: ConnectionConfig =
-            serde_json::from_str(r#"{"serverUrl":"https://cortex.example.com","token":"t"}"#)
-                .expect("legacy entry must still parse");
-        assert_eq!(config.mode, ConnectionMode::Remote);
-        assert!(config.cortex_bin.is_none());
-    }
-
-    #[test]
-    fn a_local_install_round_trips_through_the_credential_store() {
-        let config = ConnectionConfig {
-            server_url: Some("http://127.0.0.1:3004".into()),
-            token: Some("t".into()),
-            mode: ConnectionMode::Local,
-            cortex_bin: Some("/usr/local/bin/cortex".into()),
-        };
-        let restored: ConnectionConfig =
-            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
-        assert_eq!(restored.mode, ConnectionMode::Local);
-        assert_eq!(restored.cortex_bin.as_deref(), Some("/usr/local/bin/cortex"));
-    }
-
-    #[test]
-    fn the_injected_config_tells_the_page_which_mode_it_is_in() {
-        let script = init_script(&ConnectionConfig {
-            server_url: Some("http://127.0.0.1:3004".into()),
-            token: Some("t".into()),
-            mode: ConnectionMode::Local,
-            cortex_bin: None,
-        }, "native");
-        assert!(script.contains("\"mode\":\"local\""));
-    }
-
-    #[test]
-    fn credential_script_guards_secrets_before_any_assignment_or_ipc() {
-        let script = init_script(&ConnectionConfig {
-            server_url: Some("https://cortex.example.com".into()),
-            token: Some("secret-token".into()),
-            ..ConnectionConfig::default()
-        }, "native");
-        let guard = script.find("window !== window.top").expect("top-frame guard");
-        let config = script.find("__CORTEX_DESKTOP_CONFIG").expect("baked config");
-        let invoke = script.find("get_connection_config").expect("refresh invoke");
-        assert!(guard < config && guard < invoke);
-        assert!(script.contains("location.protocol === 'cortexui:'"));
-        assert!(script.contains("location.hostname === 'localhost'"));
-        assert!(script.contains("location.hostname === 'cortexui.localhost'"));
-        assert!(script.contains("location.port === ''"));
-    }
-
-    #[test]
-    fn title_bridge_contains_no_shell_credentials_or_ipc() {
-        assert!(TITLE_BRIDGE_SCRIPT.contains("document.title"));
-        assert!(TITLE_BRIDGE_SCRIPT.contains("postMessage"));
-        assert!(TITLE_BRIDGE_SCRIPT.contains("performance.timeOrigin"));
-        assert!(TITLE_BRIDGE_SCRIPT.contains("event.persisted"));
-        assert!(TITLE_BRIDGE_SCRIPT.contains("'restore'"));
-        assert!(TITLE_BRIDGE_SCRIPT.contains("__cortexBrowserTitle"));
-        assert!(!TITLE_BRIDGE_SCRIPT.contains("secret-token"));
-        assert!(!TITLE_BRIDGE_SCRIPT.contains("__CORTEX_DESKTOP_CONFIG"));
-        assert!(!TITLE_BRIDGE_SCRIPT.contains("get_connection_config"));
-    }
-
-    #[test]
-    fn a_default_config_is_remote_with_no_credentials() {
-        let config = ConnectionConfig::default();
-        assert_eq!(config.mode, ConnectionMode::Remote);
-        assert!(!has_credentials(&config));
-    }
 }

@@ -1,5 +1,6 @@
 use super::process::{npm_bin, probe_output, resolve_cli_bin, run_streaming};
-use crate::{AppState, ConnectionConfig, ConnectionMode};
+use crate::connection::{ConnectionConfig, ConnectionMode};
+use crate::AppState;
 use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};

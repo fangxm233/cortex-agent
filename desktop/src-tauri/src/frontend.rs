@@ -1,6 +1,40 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use tauri::Manager;
 
 const INDEX: &str = "index.html";
+
+/// The custom URI scheme the SPA is served under. A single origin for the SPA's whole life
+/// (seed and OTA-downloaded versions alike) so browser-origin state stays stable across updates.
+pub const SCHEME: &str = "cortexui";
+
+/// Resolve the directory the frontend is currently served from, newest wins:
+///   1. `CORTEX_FRONTEND_DIR` env override (dev/testing — point straight at web/dist).
+///   2. The OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater).
+///   3. The bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline).
+/// A candidate counts only when it contains index.html, so a half-populated dir never wins.
+///
+/// Both platforms serve over `cortexui://` from disk. On Android the `resource_dir/frontend-seed`
+/// fallback is never actually reached because the embedded seed is materialized into `ui/current`
+/// before the window opens (see `seed::ensure_seed`); it stays here only as a harmless last resort.
+pub fn active_dir(app: &tauri::AppHandle) -> PathBuf {
+    if let Ok(dir) = std::env::var("CORTEX_FRONTEND_DIR") {
+        let p = PathBuf::from(dir);
+        if p.join("index.html").is_file() {
+            return p;
+        }
+    }
+    if let Ok(data) = app.path().app_data_dir() {
+        let current = data.join("ui").join("current");
+        if current.join("index.html").is_file() {
+            return current;
+        }
+    }
+    if let Ok(res) = app.path().resource_dir() {
+        return res.join("frontend-seed");
+    }
+    // Last resort: a path that won't exist → the resolver 404s cleanly instead of panicking.
+    PathBuf::from("frontend-seed")
+}
 
 /// Binary-embedded shell pages stay reachable regardless of seed/OTA state. Their source keeps the
 /// same `/theme.css` link used in dev; the embedded response replaces that link with the canonical
@@ -185,7 +219,6 @@ pub fn resolve_asset(root: &Path, raw_url: &str) -> ResolvedAsset {
 mod tests {
     use super::*;
     use std::fs;
-    use std::path::PathBuf;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     static COUNTER: AtomicU32 = AtomicU32::new(0);

@@ -13,7 +13,7 @@
 // All three operations take the `AppHandle` so the Android backend can resolve the
 // per-app data dir; the desktop backend ignores it.
 
-use crate::ConnectionConfig;
+use crate::connection::ConnectionConfig;
 use tauri::AppHandle;
 
 #[cfg(not(target_os = "android"))]
