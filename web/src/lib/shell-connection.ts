@@ -58,7 +58,7 @@ export async function disconnectShell(): Promise<void> {
   await runDisconnect({
     invoke: invokeDisconnect,
     navigate: (url) => {
-      window.location.href = url;
+      window.location.replace(url);
     },
   });
 }
