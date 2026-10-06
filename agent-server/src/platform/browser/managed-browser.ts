@@ -137,13 +137,13 @@ async function ensureStarted(): Promise<ManagedBrowser> {
 }
 
 async function launch(): Promise<ManagedBrowser> {
-  const exe = resolveChromeBinary();
+  const exe = await resolveChromeBinary();
   if (!exe) {
     throw new Error(
       'no Chrome/Chromium found — install Google Chrome, or set CORTEX_BROWSER_BINARY to its path',
     );
   }
-  const display = resolveBrowserDisplay();
+  const display = await resolveBrowserDisplay();
   fs.mkdirSync(PROFILE_DIR, { recursive: true });
 
   let xvfb: ChildProcess | undefined;
@@ -230,7 +230,7 @@ function startXvfb(): { proc: ChildProcess; display: string } {
   return { proc, display };
 }
 
-export function resolveChromeBinary(env = process.env): string | null {
+export async function resolveChromeBinary(env = process.env): Promise<string | null> {
   if (env.CORTEX_BROWSER_BINARY) {
     return fs.existsSync(env.CORTEX_BROWSER_BINARY) ? env.CORTEX_BROWSER_BINARY : null;
   }
@@ -255,7 +255,7 @@ export function resolveChromeBinary(env = process.env): string | null {
     }
   }
   for (const bin of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'chrome']) {
-    if (probeHasBinary(bin)) return bin;
+    if (await probeHasBinary(bin)) return bin;
   }
   return null;
 }

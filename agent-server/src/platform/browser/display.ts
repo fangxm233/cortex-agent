@@ -1,6 +1,9 @@
 import * as fs from 'fs';
-import { execFileSync } from 'child_process';
+import { execFile, spawn } from 'child_process';
+import { promisify } from 'util';
 import { createLogger } from '@core/log.js';
+
+const execFileAsync = promisify(execFile);
 
 const log = createLogger('browser-display');
 
@@ -116,46 +119,48 @@ export function decideDisplay(p: DisplayProbe): BrowserDisplay {
 }
 
 // ── Probes (impure) ───────────────────────────────────────────────────────────
+// All asynchronous: they run inside the daemon, and a synchronous probe stalls every session for
+// as long as an X server takes to answer (up to the timeout, per socket).
 
 /** X sockets owned by this uid AND actually connectable. Ownership alone is not enough: the socket
  *  may exist while XAUTHORITY denies us, and a display we cannot open would fail at launch. */
-export function probeUsableDisplays(): string[] {
+export async function probeUsableDisplays(): Promise<string[]> {
   let names: string[];
   try {
-    names = fs.readdirSync('/tmp/.X11-unix');
+    names = await fs.promises.readdir('/tmp/.X11-unix');
   } catch {
     return [];
   }
   const uid = typeof process.getuid === 'function' ? process.getuid() : -1;
-  const found: string[] = [];
-  for (const name of names) {
-    if (!/^X\d+$/.test(name)) continue;
-    try {
-      const st = fs.statSync(`/tmp/.X11-unix/${name}`);
-      if (uid >= 0 && st.uid !== uid) continue; // never draw onto another user's screen
-    } catch {
-      continue;
-    }
-    const display = `:${name.slice(1)}`;
-    if (canOpenDisplay(display)) found.push(display);
-  }
+  const checked = await Promise.all(
+    names
+      .filter((name) => /^X\d+$/.test(name))
+      .map(async (name) => {
+        try {
+          const st = await fs.promises.stat(`/tmp/.X11-unix/${name}`);
+          if (uid >= 0 && st.uid !== uid) return null; // never draw onto another user's screen
+        } catch {
+          return null;
+        }
+        const display = `:${name.slice(1)}`;
+        return (await canOpenDisplay(display)) ? display : null;
+      }),
+  );
   // Lowest display number first — deterministic, and the console/primary session sorts first.
-  return found.sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  return checked
+    .filter((d): d is string => d !== null)
+    .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
 }
 
-function canOpenDisplay(display: string): boolean {
+async function canOpenDisplay(display: string): Promise<boolean> {
   const probes: Array<[string, string[]]> = [
     ['xdpyinfo', ['-display', display]],
     ['xset', ['-display', display, 'q']],
   ];
   for (const [bin, args] of probes) {
-    try {
-      execFileSync(bin, args, { stdio: 'ignore', timeout: 3000 });
-      return true;
-    } catch (e) {
-      // ENOENT = the probe tool is missing; anything else = the display refused us.
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return false;
-    }
+    const result = await runProbe(bin, args, 3000);
+    if (result === 'missing') continue;
+    return result === 0; // anything but success = the display refused us
   }
   // Neither probe exists: fall back to "socket exists and is ours". Weaker, but refusing every
   // display on a machine without x11-utils would be worse.
@@ -163,21 +168,26 @@ function canOpenDisplay(display: string): boolean {
   return true;
 }
 
-export function probeHasBinary(bin: string): boolean {
-  try {
-    execFileSync('which', [bin], { stdio: 'ignore', timeout: 2000 });
-    return true;
-  } catch {
-    return false;
-  }
+/** Run a probe to completion without buffering its output (xdpyinfo is verbose). Resolves the exit
+ *  code, -1 for a timeout or signal, or 'missing' when the binary is not installed. */
+function runProbe(bin: string, args: string[], timeoutMs: number): Promise<number | 'missing'> {
+  return new Promise((resolve) => {
+    const child = spawn(bin, args, { stdio: 'ignore', timeout: timeoutMs });
+    child.once('error', (e) => resolve((e as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : -1));
+    child.once('exit', (code) => resolve(code ?? -1));
+  });
+}
+
+export async function probeHasBinary(bin: string): Promise<boolean> {
+  return (await runProbe('which', [bin], 2000)) === 0;
 }
 
 /** macOS: a GUI (Aqua) session. Windows: anything but the service session. */
-export function probeInteractiveSession(platform: NodeJS.Platform, env = process.env): boolean {
+export async function probeInteractiveSession(platform: NodeJS.Platform, env = process.env): Promise<boolean> {
   if (platform === 'darwin') {
     try {
-      const out = execFileSync('launchctl', ['managername'], { encoding: 'utf8', timeout: 2000 });
-      return out.trim() === 'Aqua';
+      const { stdout } = await execFileAsync('launchctl', ['managername'], { encoding: 'utf8', timeout: 2000 });
+      return stdout.trim() === 'Aqua';
     } catch {
       return false;
     }
@@ -190,18 +200,24 @@ export function probeInteractiveSession(platform: NodeJS.Platform, env = process
   return false;
 }
 
-/** Full resolution for this host. */
-export function resolveBrowserDisplay(env = process.env): BrowserDisplay {
+/** Full resolution for this host. An operator override short-circuits every probe. */
+export async function resolveBrowserDisplay(env = process.env): Promise<BrowserDisplay> {
   const platform = process.platform;
-  const probe: DisplayProbe = {
+  const override = env.CORTEX_BROWSER_DISPLAY;
+  const probeX = platform === 'linux' && !override;
+  const [usableDisplays, hasXvfb, interactiveSession] = await Promise.all([
+    probeX ? probeUsableDisplays() : [],
+    probeX ? probeHasBinary('Xvfb') : false,
+    override ? false : probeInteractiveSession(platform, env),
+  ]);
+  const decided = decideDisplay({
     platform,
-    override: env.CORTEX_BROWSER_DISPLAY,
+    override,
     envDisplay: env.DISPLAY,
-    usableDisplays: platform === 'linux' ? probeUsableDisplays() : [],
-    hasXvfb: platform === 'linux' ? probeHasBinary('Xvfb') : false,
-    interactiveSession: probeInteractiveSession(platform, env),
-  };
-  const decided = decideDisplay(probe);
+    usableDisplays,
+    hasXvfb,
+    interactiveSession,
+  });
   log.info(`display → ${decided.mode}${decided.display ? ` (${decided.display})` : ''}: ${decided.reason}`);
   return decided;
 }

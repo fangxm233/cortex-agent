@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { decideDisplay, type DisplayProbe } from '@platform/browser/display.js';
 import { resolveChromeBinary, backendSupportsBrowser } from '@platform/browser/managed-browser.js';
 
@@ -81,8 +84,25 @@ describe('decideDisplay: override', () => {
 });
 
 describe('resolveChromeBinary', () => {
-  it('rejects an override that does not exist rather than spawning a bogus path', () => {
-    expect(resolveChromeBinary({ CORTEX_BROWSER_BINARY: '/nonexistent/chrome' } as NodeJS.ProcessEnv)).toBeNull();
+  it('rejects an override that does not exist rather than spawning a bogus path', async () => {
+    expect(await resolveChromeBinary({ CORTEX_BROWSER_BINARY: '/nonexistent/chrome' } as NodeJS.ProcessEnv)).toBeNull();
+  });
+
+  it.skipIf(process.platform !== 'linux')('probes PATH without stalling the event loop', async () => {
+    // These probes run inside the daemon; a synchronous one freezes every session until it returns.
+    const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'slow-which-'));
+    fs.writeFileSync(path.join(bin, 'which'), '#!/bin/sh\nsleep 0.2\nexit 1\n', { mode: 0o755 });
+    const savedPath = process.env.PATH;
+    process.env.PATH = `${bin}:${savedPath}`;
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 20);
+    try {
+      expect(await resolveChromeBinary({} as NodeJS.ProcessEnv)).toBeNull();
+    } finally {
+      clearInterval(timer);
+      process.env.PATH = savedPath;
+    }
+    expect(ticks).toBeGreaterThan(5);
   });
 });
 
