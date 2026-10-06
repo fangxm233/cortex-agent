@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { buildSessionRetentionLiveness } from '../../src/core/session-retention-liveness.js';
+import { buildSessionRetentionLiveness } from '../../src/orchestration/session-retention-liveness.js';
 
 test('retention liveness protects live execution ids, bg holds, and pending interactions', () => {
   const snapshot = buildSessionRetentionLiveness({

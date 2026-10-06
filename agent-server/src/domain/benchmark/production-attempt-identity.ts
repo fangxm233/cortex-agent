@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { STORE_DIR } from '../../core/paths.js';
 import type { Backend, EngineSpec } from '../../agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../core/types/benchmark-types.js';
-import { parseProductionBenchmarkEvidenceContext } from '../../core/production-benchmark-evidence.js';
+import type { ProductionBenchmarkEvidenceContext } from './benchmark-types.js';
+import { parseProductionBenchmarkEvidenceContext } from './production-benchmark-evidence.js';
 import type { RunRequest } from '../runs/request.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {

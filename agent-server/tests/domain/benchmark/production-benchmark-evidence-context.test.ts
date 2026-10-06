@@ -14,7 +14,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { AgentProcessSpawner, EngineSpec, Backend } from '../../../src/agent-adapter/types.js';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/domain/benchmark/benchmark-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,

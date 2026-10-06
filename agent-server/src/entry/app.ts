@@ -65,7 +65,7 @@ import { sessionHolds } from '@core/session-holds.js';
 import { sessionStates } from '@core/session-state.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { sessionTodos } from '@core/session-todos.js';
-import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.js';
+import { buildSessionRetentionLiveness } from '@orch/session-retention-liveness.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';

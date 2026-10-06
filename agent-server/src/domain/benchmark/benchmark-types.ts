@@ -1,4 +1,4 @@
-import type { Backend } from './agent-types.js';
+import type { Backend } from '@core/types/agent-types.js';
 
 export type ProductionBenchmarkIdentityJsonValue =
   | null | boolean | number | string

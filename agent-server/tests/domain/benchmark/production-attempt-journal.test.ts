@@ -28,7 +28,7 @@ import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import type { AgentProcessSpawner, Backend } from '../../../src/agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/domain/benchmark/benchmark-types.js';
 import { AGENT_CWD, resolveSpawnCwd } from '../../../src/core/paths.js';
 import { canonicalJsonSha256 } from '../../../src/domain/benchmark/identity.js';
 import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';

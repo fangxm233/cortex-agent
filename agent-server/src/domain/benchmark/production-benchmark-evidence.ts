@@ -1,7 +1,7 @@
 import type {
   ProductionBenchmarkEvidenceContext,
   ProductionBenchmarkIdentityJsonValue,
-} from './types/benchmark-types.js';
+} from './benchmark-types.js';
 
 const CONTEXT_SCHEMA = 'cortex-production-benchmark-evidence-context/1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;

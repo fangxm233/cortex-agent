@@ -16,7 +16,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import type { AgentProcessSpawner, Backend } from '../../../src/agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/domain/benchmark/benchmark-types.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
 } from '../../../src/domain/benchmark/identity.js';

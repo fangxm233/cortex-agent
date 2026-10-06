@@ -6,7 +6,7 @@
 
 import type { EventBus } from '@events/index.js';
 import { createLogger } from '@core/log.js';
-import { parseProductionBenchmarkEvidenceContext } from '@core/production-benchmark-evidence.js';
+import { parseProductionBenchmarkEvidenceContext } from '@domain/benchmark/production-benchmark-evidence.js';
 import { sessionState } from '@core/session-state.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';

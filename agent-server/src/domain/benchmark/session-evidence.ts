@@ -4,7 +4,7 @@
 // of that session then opens its runs with the context, so each attempt is frozen and journaled.
 // In memory only: a trial's server lives exactly as long as its one session.
 
-import type { ProductionBenchmarkEvidenceContext } from '@core/types/benchmark-types.js';
+import type { ProductionBenchmarkEvidenceContext } from './benchmark-types.js';
 
 const bound = new Map<string, ProductionBenchmarkEvidenceContext>();
 

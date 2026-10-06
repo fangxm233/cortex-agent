@@ -1,6 +1,6 @@
 import type { AgentProcessSpawner, McpComposition, UserMessage } from '../../agent-adapter/types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
-import type { ProductionBenchmarkEvidenceContext } from '@core/types/benchmark-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '@domain/benchmark/benchmark-types.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import type { RunEvent } from './events.js';
 import type { AgentSpec } from './spec-loader.js';

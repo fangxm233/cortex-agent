@@ -18,7 +18,7 @@ import type { AgentProcessSpawner, Backend, EngineSpec } from '../../../src/agen
 import type { RunEvent } from '../../../src/agent-adapter/run-events.js';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/domain/benchmark/benchmark-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,

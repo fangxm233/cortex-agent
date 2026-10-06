@@ -1,7 +1,7 @@
 import type { RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
-import type { RunRegistry } from './run-registry.js';
-import type { SessionHolds } from './session-holds.js';
-import type { InteractionRecords } from '@orch/interactions/interaction-records.js';
+import type { RunRegistry } from '@core/run-registry.js';
+import type { SessionHolds } from '@core/session-holds.js';
+import type { InteractionRecords } from './interactions/interaction-records.js';
 
 export interface SessionRetentionLivenessDeps {
   runningExecutions: Pick<RunRegistry, 'getAll'>;

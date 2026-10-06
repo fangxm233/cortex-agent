@@ -10,7 +10,7 @@ import { ConversationHistoryRepo } from '../../../src/store/conversation-history
 import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-repo.js';
 import { runSessionRetentionSweep } from '../../../src/domain/sessions/session-retention.js';
 import { SessionTotalsCarryRepo } from '../../../src/store/session-totals-repo.js';
-import { buildSessionRetentionLiveness } from '../../../src/core/session-retention-liveness.js';
+import { buildSessionRetentionLiveness } from '../../../src/orchestration/session-retention-liveness.js';
 
 function registerOpts(id: string, extra: Record<string, unknown> = {}) {
   return {
