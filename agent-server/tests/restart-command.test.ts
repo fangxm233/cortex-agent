@@ -9,26 +9,16 @@ function delay(ms: number): Promise<void> {
 }
 
 test('triggerServerRestart: touches .restart when the daemon is alive', () => {
-  const touched: string[] = [];
-  const out = triggerServerRestart({
-    storeDir: '/store',
-    readPid: () => 4242,
-    isAlive: (pid) => pid === 4242,
-    touch: (f) => touched.push(f),
-  });
+  let touched = 0;
+  const out = triggerServerRestart({ livePid: () => 4242, touch: () => { touched++; } });
   assert.equal(out.ok, true);
   assert.equal(out.messageKey, 'triggered');
-  assert.deepEqual(touched, ['/store/.restart']);
+  assert.equal(touched, 1);
 });
 
-test('triggerServerRestart: no-op when the daemon pid file is missing', () => {
+test('triggerServerRestart: no-op when no daemon is alive', () => {
   const touched: string[] = [];
-  const out = triggerServerRestart({
-    storeDir: '/store',
-    readPid: () => null,
-    isAlive: () => true,
-    touch: (f) => touched.push(f),
-  });
+  const out = triggerServerRestart({ livePid: () => null, touch: () => { touched.push('x'); } });
   assert.equal(out.ok, false);
   assert.equal(out.messageKey, 'noDaemon');
   assert.deepEqual(touched, [], 'must not touch .restart when there is no daemon to act on it');

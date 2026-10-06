@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import * as path from 'node:path';
-import { STORE_DIR } from '@core/paths.js';
+import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE } from '@core/paths.js';
 import { readRebuildProgress } from '@core/rebuild-progress.js';
-import { isProcessAlive } from '@core/singleton-lock.js';
+import { isProcessAlive, readPidFile } from '@core/singleton-lock.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
@@ -58,29 +57,15 @@ function getProcessUptime(pid: number): string | null {
   }
 }
 
-export function readPidFile(filePath: string): number | null {
-  try {
-    if (!existsSync(filePath)) return null;
-    const raw = readFileSync(filePath, 'utf8').trim();
-    const pid = Number(raw);
-    if (!Number.isFinite(pid) || pid <= 0) return null;
-    return pid;
-  } catch {
-    return null;
-  }
-}
-
 // ── Handler ───────────────────────────────────────────────────────
 
 export async function handleSystemDaemonStatus(
   _params: QueryParams<'system.daemonStatus'>,
 ): Promise<SystemDaemonStatus> {
   const processes: DaemonProcessInfo[] = [];
-  const pidFile = path.join(STORE_DIR, 'daemon.pid');
-  const childPidFile = path.join(STORE_DIR, 'daemon-child.pid');
 
   // ── cortex-daemon ──
-  const daemonPid = readPidFile(pidFile);
+  const daemonPid = readPidFile(DAEMON_PID_FILE);
   const daemonAlive = daemonPid !== null && isProcessAlive(daemonPid);
   const daemonUptime = daemonPid !== null ? getProcessUptime(daemonPid) : null;
 
@@ -94,7 +79,7 @@ export async function handleSystemDaemonStatus(
   });
 
   // ── cortex-server (app.js child) ──
-  const childPid = readPidFile(childPidFile);
+  const childPid = readPidFile(DAEMON_CHILD_PID_FILE);
   const childAlive = childPid !== null && isProcessAlive(childPid);
   const childUptime = childPid !== null ? getProcessUptime(childPid) : null;
   const uiPort = process.env.CORTEX_UI_PORT ? parseInt(process.env.CORTEX_UI_PORT, 10) : null;
@@ -109,7 +94,7 @@ export async function handleSystemDaemonStatus(
   });
 
   // ── Last restart info — read .restart mtime if present ──
-  const restartFile = path.join(STORE_DIR, '.restart');
+  const restartFile = RESTART_TRIGGER_FILE;
   let lastRestartAt: string | null = null;
   try {
     if (existsSync(restartFile)) {

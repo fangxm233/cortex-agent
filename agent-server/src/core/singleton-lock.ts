@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, utimesSync } from 'fs';
 import { dirname } from 'node:path';
+import { RESTART_TRIGGER_FILE } from './paths.js';
 
 /** Probe whether a PID is alive. Signal 0 performs the permission/existence check
  *  without actually delivering a signal; a throw (ESRCH/EPERM-as-dead handled by caller)
@@ -11,6 +12,34 @@ export function isProcessAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+/** The pid recorded in a pid file; null when the file is missing, unreadable or not a positive
+ *  integer. */
+export function readPidFile(pidFile: string): number | null {
+  try {
+    const pid = Number(readFileSync(pidFile, 'utf8').trim());
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The pid recorded in a pid file when that process is alive; otherwise null. */
+export function readLivePid(pidFile: string): number | null {
+  const pid = readPidFile(pidFile);
+  return pid !== null && isProcessAlive(pid) ? pid : null;
+}
+
+/** Create or refresh the daemon's restart trigger (the daemon watches it and respawns app.js). */
+export function touchRestartTrigger(trigger: string = RESTART_TRIGGER_FILE): void {
+  mkdirSync(dirname(trigger), { recursive: true });
+  if (!existsSync(trigger)) {
+    writeFileSync(trigger, '');
+    return;
+  }
+  const now = new Date();
+  utimesSync(trigger, now, now);
 }
 
 // NOTE: a flat interface (not a discriminated union) on purpose — this project compiles
@@ -36,18 +65,12 @@ export interface AcquireResult {
  */
 export function tryAcquireSingletonLock(pidFile: string): AcquireResult {
   mkdirSync(dirname(pidFile), { recursive: true });
-  if (existsSync(pidFile)) {
-    const raw = readFileSync(pidFile, 'utf8').trim();
-    const holderPid = Number(raw);
-    if (Number.isFinite(holderPid) && holderPid > 0 && isProcessAlive(holderPid)) {
-      return { acquired: false, holderPid };
-    }
-    // Stale (previous owner died without cleanup) or corrupt content — reclaim it.
-    writeFileSync(pidFile, String(process.pid), 'utf8');
-    return { acquired: true, stale: true };
-  }
+  const holderPid = readLivePid(pidFile);
+  if (holderPid !== null) return { acquired: false, holderPid };
+  // Present but stale (previous owner died without cleanup) or corrupt — reclaim it.
+  const stale = existsSync(pidFile);
   writeFileSync(pidFile, String(process.pid), 'utf8');
-  return { acquired: true, stale: false };
+  return { acquired: true, stale };
 }
 
 /** Release the lock iff it is still owned by the current process. Best-effort; swallows errors. */

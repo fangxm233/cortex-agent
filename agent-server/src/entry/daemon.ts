@@ -85,7 +85,9 @@ import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { isMainModule, moduleDir, withServerNpmPrefix } from '@core/utils.js';
-import { DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/paths.js';
+import {
+  DATA_DIR, CONFIG_DIR, INSTALL_ROOT, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
+} from '@core/paths.js';
 import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 import {
@@ -108,12 +110,9 @@ const log = createLogger('daemon');
 
 // --- Paths ---
 const MODULE_DIR = moduleDir(import.meta.url);
-const PID_FILE = path.join(STORE_DIR, 'daemon.pid');
-const CHILD_PID_FILE = path.join(STORE_DIR, 'daemon-child.pid');
 
 // --- Config ---
 const APP_ENTRY = path.join(MODULE_DIR, 'app.js');
-const RESTART_TRIGGER = path.join(STORE_DIR, '.restart');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const CORTEX_REPO = process.env.CORTEX_REPO ?? '';
 const SRC_WATCH_PATH = CORTEX_REPO ? path.join(CORTEX_REPO, 'src') : '';
@@ -206,7 +205,7 @@ function startChild() {
   log.info(`app.ts started — PID ${child.pid}`);
 
   // Persist child PID so CLI (daemon status / daemon restart --hard) can find it
-  try { writeFileSync(CHILD_PID_FILE, String(child.pid), 'utf8'); } catch {}
+  try { writeFileSync(DAEMON_CHILD_PID_FILE, String(child.pid), 'utf8'); } catch {}
 
   // IPC: app.ts tells us when it's busy/idle
   child.on('message', (msg) => {
@@ -238,7 +237,7 @@ function startChild() {
     childBusy = false;
 
     // Clean up child PID file
-    try { if (existsSync(CHILD_PID_FILE)) unlinkSync(CHILD_PID_FILE); } catch {}
+    try { if (existsSync(DAEMON_CHILD_PID_FILE)) unlinkSync(DAEMON_CHILD_PID_FILE); } catch {}
 
     if (shuttingDown) {
       log.info('app.ts exited (shutdown).');
@@ -412,8 +411,8 @@ function setupSourceMonitor(): WatchMonitor | null {
 }
 
 function consumeRestartTrigger(): void {
-  if (!existsSync(RESTART_TRIGGER)) return;
-  try { unlinkSync(RESTART_TRIGGER); } catch {}
+  if (!existsSync(RESTART_TRIGGER_FILE)) return;
+  try { unlinkSync(RESTART_TRIGGER_FILE); } catch {}
   if (CORTEX_REPO) {
     debouncedRebuild('manual trigger (.restart file)');
   } else {
@@ -422,16 +421,16 @@ function consumeRestartTrigger(): void {
 }
 
 function setupRestartTriggerMonitor(): WatchMonitor {
-  const triggerDir = path.dirname(RESTART_TRIGGER);
-  const triggerName = path.basename(RESTART_TRIGGER);
+  const triggerDir = path.dirname(RESTART_TRIGGER_FILE);
+  const triggerName = path.basename(RESTART_TRIGGER_FILE);
   return createResilientWatchMonitor({
-    label: `Restart trigger ${RESTART_TRIGGER}`,
+    label: `Restart trigger ${RESTART_TRIGGER_FILE}`,
     warn: (message) => log.warn(message),
     startWatching: () => {
       const watcher = watch(triggerDir, (_event, filename) => {
         if (filename && String(filename) === triggerName) consumeRestartTrigger();
       });
-      log.info(`Watching for restart trigger: ${RESTART_TRIGGER}`);
+      log.info(`Watching for restart trigger: ${RESTART_TRIGGER_FILE}`);
       return [watcher];
     },
     poll: consumeRestartTrigger,
@@ -899,14 +898,14 @@ function setupShutdown() {
 }
 
 function acquireSingletonLock() {
-  const result = tryAcquireSingletonLock(PID_FILE);
+  const result = tryAcquireSingletonLock(DAEMON_PID_FILE);
   if (result.acquired) {
     // Stale lock — previous daemon died without cleanup
     if (result.stale) log.info(`Removed stale PID file and reclaimed lock for PID ${process.pid}`);
     return;
   }
   log.error(
-    `Another Cortex daemon is already running (PID ${result.holderPid}, lockfile ${PID_FILE}).\n` +
+    `Another Cortex daemon is already running (PID ${result.holderPid}, lockfile ${DAEMON_PID_FILE}).\n` +
     `         Refusing to start a second instance — its app.ts already holds ports 3001/3002 and your child would crash-loop on EADDRINUSE.\n` +
     `         To restart the running daemon: \`touch agent-server/.restart\` (hot reload), or send SIGTERM to PID ${result.holderPid} and rerun.`
   );
@@ -914,9 +913,9 @@ function acquireSingletonLock() {
 }
 
 function releaseSingletonLock() {
-  releaseLock(PID_FILE);
+  releaseLock(DAEMON_PID_FILE);
   try {
-    if (existsSync(CHILD_PID_FILE)) unlinkSync(CHILD_PID_FILE);
+    if (existsSync(DAEMON_CHILD_PID_FILE)) unlinkSync(DAEMON_CHILD_PID_FILE);
   } catch {}
 }
 

@@ -2,9 +2,12 @@ import { fork } from 'child_process';
 import * as path from 'path';
 import * as net from 'net';
 import { fileURLToPath } from 'url';
-import { existsSync, readdirSync, mkdirSync, writeFileSync, utimesSync, readFileSync, unlinkSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { isMainModule } from '@core/utils.js';
-import { INSTALL_ROOT, DATA_DIR, STORE_DIR } from '@core/paths.js';
+import {
+  INSTALL_ROOT, DATA_DIR, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
+} from '@core/paths.js';
+import { isProcessAlive, readPidFile, touchRestartTrigger } from '@core/singleton-lock.js';
 import { createLogger } from '@core/log.js';
 import {
   getResolvedPaths,
@@ -120,31 +123,16 @@ export async function cmdTui(args: string[]): Promise<void> {
  * when there is no running daemon (missing, corrupted or stale PID files are cleaned up).
  */
 function readLiveDaemonPid(): { pid: number } | { result: CliResult } {
-  const pidFile = path.join(STORE_DIR, 'daemon.pid');
-
-  // Case 1: No PID file
-  if (!existsSync(pidFile)) {
+  if (!existsSync(DAEMON_PID_FILE)) {
     return { result: { exitCode: 0, stdout: 'Cortex daemon is not running.\n', stderr: '' } };
   }
-
-  // Read PID
-  let pid: number;
-  try {
-    const raw = readFileSync(pidFile, 'utf8').trim();
-    pid = Number(raw);
-    if (!Number.isFinite(pid) || pid <= 0) {
-      try { unlinkSync(pidFile); } catch {}
-      return { result: { exitCode: 0, stdout: 'Cortex daemon is not running (removed corrupted PID file).\n', stderr: '' } };
-    }
-  } catch (err: any) {
-    return { result: { exitCode: 1, stdout: '', stderr: `Failed to read PID file: ${err.message}\n` } };
+  const pid = readPidFile(DAEMON_PID_FILE);
+  if (pid === null) {
+    try { unlinkSync(DAEMON_PID_FILE); } catch {}
+    return { result: { exitCode: 0, stdout: 'Cortex daemon is not running (removed corrupted PID file).\n', stderr: '' } };
   }
-
-  // Case 2: PID file exists but process is dead (stale)
-  let alive = false;
-  try { process.kill(pid, 0); alive = true; } catch { alive = false; }
-  if (!alive) {
-    try { unlinkSync(pidFile); } catch {}
+  if (!isProcessAlive(pid)) {
+    try { unlinkSync(DAEMON_PID_FILE); } catch {}
     return { result: { exitCode: 0, stdout: `Cortex daemon is not running (removed stale PID file for PID ${pid}).\n`, stderr: '' } };
   }
   return { pid };
@@ -153,7 +141,6 @@ function readLiveDaemonPid(): { pid: number } | { result: CliResult } {
 // ─── Daemon stop ──────────────────────────────────────────────────
 
 async function stopDaemonInternal(): Promise<CliResult> {
-  const pidFile = path.join(STORE_DIR, 'daemon.pid');
   const daemon = readLiveDaemonPid();
   if ('result' in daemon) return daemon.result;
   const { pid } = daemon;
@@ -191,10 +178,7 @@ async function stopDaemonInternal(): Promise<CliResult> {
 
   // Clean up PID file in case daemon's exit handler didn't run
   try {
-    if (existsSync(pidFile)) {
-      const raw = readFileSync(pidFile, 'utf8').trim();
-      if (Number(raw) === pid) unlinkSync(pidFile);
-    }
+    if (readPidFile(DAEMON_PID_FILE) === pid) unlinkSync(DAEMON_PID_FILE);
   } catch {}
 
   return { exitCode: 0, stdout: `Cortex daemon stopped (PID ${pid}).\n`, stderr: '' };
@@ -255,27 +239,10 @@ function getDaemonStatusInternal(): CliResult {
     `  Uptime:  ${uptime}`,
   ];
 
-  // Check child (app.js) status via daemon-child.pid
-  const childPidFile = path.join(STORE_DIR, 'daemon-child.pid');
-  if (existsSync(childPidFile)) {
-    try {
-      const raw = readFileSync(childPidFile, 'utf8').trim();
-      const childPid = Number(raw);
-      if (Number.isFinite(childPid) && childPid > 0) {
-        let childAlive = false;
-        try { process.kill(childPid, 0); childAlive = true; } catch {}
-        if (childAlive) {
-          const childUptime = getProcessUptime(childPid);
-          lines.push(`  Child:   app.js (PID ${childPid}, uptime ${childUptime})`);
-        } else {
-          lines.push(`  Child:   none (stale PID ${childPid} — daemon will restart)`);
-        }
-      }
-    } catch {}
-  }
-  if (!lines.some(l => l.startsWith('  Child:'))) {
-    lines.push('  Child:   starting...');
-  }
+  const childPid = readPidFile(DAEMON_CHILD_PID_FILE);
+  if (childPid === null) lines.push('  Child:   starting...');
+  else if (isProcessAlive(childPid)) lines.push(`  Child:   app.js (PID ${childPid}, uptime ${getProcessUptime(childPid)})`);
+  else lines.push(`  Child:   none (stale PID ${childPid} — daemon will restart)`);
 
   return { exitCode: 0, stdout: lines.join('\n') + '\n', stderr: '' };
 }
@@ -283,34 +250,13 @@ function getDaemonStatusInternal(): CliResult {
 // ─── Daemon restart ────────────────────────────────────────────────
 
 function daemonRestartInternal(): CliResult {
-  const pidFile = path.join(STORE_DIR, 'daemon.pid');
-
-  if (!existsSync(pidFile)) {
+  const daemon = readLiveDaemonPid();
+  if ('result' in daemon) {
     return { exitCode: 1, stdout: '', stderr: 'Cortex daemon is not running. Nothing to restart.\n' };
   }
-
-  let pid: number;
   try {
-    const raw = readFileSync(pidFile, 'utf8').trim();
-    pid = Number(raw);
-    if (!Number.isFinite(pid) || pid <= 0) {
-      return { exitCode: 1, stdout: '', stderr: 'Daemon PID file is corrupted. Is the daemon running?\n' };
-    }
-  } catch (err: any) {
-    return { exitCode: 1, stdout: '', stderr: `Failed to read PID file: ${err.message}\n` };
-  }
-
-  let alive = false;
-  try { process.kill(pid, 0); alive = true; } catch { alive = false; }
-  if (!alive) {
-    try { unlinkSync(pidFile); } catch {}
-    return { exitCode: 1, stdout: '', stderr: 'Cortex daemon is not running. Nothing to restart.\n' };
-  }
-
-  // Touch .restart trigger file for the daemon to pick up
-  try {
-    touchRestartTrigger(path.join(STORE_DIR, '.restart'));
-    return { exitCode: 0, stdout: `Restart signal sent to daemon (PID ${pid}).\n`, stderr: '' };
+    touchRestartTrigger();
+    return { exitCode: 0, stdout: `Restart signal sent to daemon (PID ${daemon.pid}).\n`, stderr: '' };
   } catch (err: any) {
     return { exitCode: 1, stdout: '', stderr: `Failed to signal daemon restart: ${err.message || String(err)}\n` };
   }
@@ -319,51 +265,14 @@ function daemonRestartInternal(): CliResult {
 // ─── Daemon hard restart (SIGTERM/SIGKILL directly to app.js) ─────
 
 function daemonRestartHardInternal(force: boolean): CliResult {
-  const pidFile = path.join(STORE_DIR, 'daemon.pid');
-
-  // Verify daemon is running first
-  if (!existsSync(pidFile)) {
-    return { exitCode: 1, stdout: '', stderr: 'Cortex daemon is not running. Nothing to restart.\n' };
-  }
-
-  let daemonPid: number;
-  try {
-    const raw = readFileSync(pidFile, 'utf8').trim();
-    daemonPid = Number(raw);
-    if (!Number.isFinite(daemonPid) || daemonPid <= 0) {
-      return { exitCode: 1, stdout: '', stderr: 'Daemon PID file is corrupted.\n' };
-    }
-  } catch (err: any) {
-    return { exitCode: 1, stdout: '', stderr: `Failed to read daemon PID file: ${err.message}\n` };
-  }
-
-  let daemonAlive = false;
-  try { process.kill(daemonPid, 0); daemonAlive = true; } catch {}
-  if (!daemonAlive) {
-    try { unlinkSync(pidFile); } catch {}
+  if ('result' in readLiveDaemonPid()) {
     return { exitCode: 1, stdout: '', stderr: 'Cortex daemon is not running.\n' };
   }
-
-  // Read child PID
-  const childPidFile = path.join(STORE_DIR, 'daemon-child.pid');
-  if (!existsSync(childPidFile)) {
+  const childPid = readPidFile(DAEMON_CHILD_PID_FILE);
+  if (childPid === null) {
     return { exitCode: 1, stdout: '', stderr: 'No child PID file found. Is app.js running?\n' };
   }
-
-  let childPid: number;
-  try {
-    const raw = readFileSync(childPidFile, 'utf8').trim();
-    childPid = Number(raw);
-    if (!Number.isFinite(childPid) || childPid <= 0) {
-      return { exitCode: 1, stdout: '', stderr: 'Child PID file is corrupted.\n' };
-    }
-  } catch (err: any) {
-    return { exitCode: 1, stdout: '', stderr: `Failed to read child PID file: ${err.message}\n` };
-  }
-
-  let childAlive = false;
-  try { process.kill(childPid, 0); childAlive = true; } catch {}
-  if (!childAlive) {
+  if (!isProcessAlive(childPid)) {
     return { exitCode: 1, stdout: '', stderr: `Child process (PID ${childPid}) is not running.\n` };
   }
 
@@ -446,18 +355,8 @@ async function runInitCli(args: string[]): Promise<CliResult> {
   }
 }
 
-function touchRestartTrigger(trigger: string): void {
-  mkdirSync(STORE_DIR, { recursive: true });
-  if (!existsSync(trigger)) {
-    writeFileSync(trigger, '');
-    return;
-  }
-  const now = new Date();
-  utimesSync(trigger, now, now);
-}
-
 function runRestartCli(): CliResult {
-  const trigger = path.join(STORE_DIR, '.restart');
+  const trigger = RESTART_TRIGGER_FILE;
   try {
     touchRestartTrigger(trigger);
     const stdout = `Restart trigger touched: ${trigger}\nIf a daemon is running it will drain and respawn app.js.\n`;

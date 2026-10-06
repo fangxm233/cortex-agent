@@ -68,6 +68,13 @@ export const CONFIG_DIR = path.join(DATA_DIR, 'config');
 /** Persistent store for runtime JSON state files (DATA_DIR/data/). */
 export const STORE_DIR = path.join(DATA_DIR, 'data');
 
+/** The daemon supervisor's own pid (its singleton lock). */
+export const DAEMON_PID_FILE = path.join(STORE_DIR, 'daemon.pid');
+/** The pid of the app.js child the daemon is supervising. */
+export const DAEMON_CHILD_PID_FILE = path.join(STORE_DIR, 'daemon-child.pid');
+/** Touching this file makes the daemon drain and respawn app.js from the installed dist. */
+export const RESTART_TRIGGER_FILE = path.join(STORE_DIR, '.restart');
+
 /** Research context root — OVERVIEW, decisions, projects, scans, user profile (DATA_DIR/context/). */
 export const CONTEXT_DIR = path.join(DATA_DIR, 'context');
 

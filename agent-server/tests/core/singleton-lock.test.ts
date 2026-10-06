@@ -1,9 +1,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { tryAcquireSingletonLock, releaseSingletonLock } from '../../src/core/singleton-lock.js';
+import {
+  tryAcquireSingletonLock, releaseSingletonLock, readPidFile, readLivePid, touchRestartTrigger,
+} from '../../src/core/singleton-lock.js';
 
 // A PID that is virtually guaranteed not to exist on this machine.
 const DEAD_PID = 2147483646;
@@ -81,4 +83,40 @@ test('releaseSingletonLock: leaves file owned by another pid', (t) => {
   releaseSingletonLock(file);
   assert.equal(existsSync(file), true);
   assert.equal(readFileSync(file, 'utf8').trim(), String(DEAD_PID));
+});
+
+test('readPidFile: parses a positive integer pid, null for missing or corrupt files', (t) => {
+  const { dir, file } = tmpPidFile();
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+
+  assert.equal(readPidFile(file), null, 'missing');
+  writeFileSync(file, ' 4242\n');
+  assert.equal(readPidFile(file), 4242);
+  for (const bad of ['', 'abc', '-3', '0', '12.5']) {
+    writeFileSync(file, bad);
+    assert.equal(readPidFile(file), null, `corrupt: ${JSON.stringify(bad)}`);
+  }
+});
+
+test('readLivePid: only a pid whose process is alive', (t) => {
+  const { dir, file } = tmpPidFile();
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+
+  writeFileSync(file, String(process.pid));
+  assert.equal(readLivePid(file), process.pid);
+  writeFileSync(file, String(DEAD_PID));
+  assert.equal(readLivePid(file), null);
+});
+
+test('touchRestartTrigger: creates the trigger, then refreshes its mtime', (t) => {
+  const { dir } = tmpPidFile();
+  const trigger = path.join(dir, 'store', '.restart');
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+
+  touchRestartTrigger(trigger);
+  assert.equal(existsSync(trigger), true);
+  const old = new Date(Date.now() - 60_000);
+  utimesSync(trigger, old, old);
+  touchRestartTrigger(trigger);
+  assert.ok(statSync(trigger).mtimeMs > old.getTime());
 });

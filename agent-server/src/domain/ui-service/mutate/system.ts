@@ -1,16 +1,12 @@
 import { t } from '@core/i18n.js';
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
-import * as path from 'node:path';
-import { STORE_DIR } from '@core/paths.js';
+import { DAEMON_CHILD_PID_FILE } from '@core/paths.js';
 import { clearThrottle } from '@domain/costs/rate-limit-throttle.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import {
   answerServerUpdatePrompt,
   getServerUpdateStatus,
 } from '@domain/system/update-ui-state.js';
-import { isProcessAlive } from '@core/singleton-lock.js';
-import { readPidFile } from '../query/system.js';
+import { isProcessAlive, readPidFile, touchRestartTrigger } from '@core/singleton-lock.js';
 import type {
   Result,
   UiServiceDeps,
@@ -58,15 +54,8 @@ export async function handleSystemRestart(
 
   // ── Soft restart: touch .restart trigger ────────────────────────
   if (kind === 'soft') {
-    const trigger = path.join(STORE_DIR, '.restart');
     try {
-      mkdirSync(STORE_DIR, { recursive: true });
-      if (existsSync(trigger)) {
-        const now = new Date();
-        utimesSync(trigger, now, now);
-      } else {
-        writeFileSync(trigger, '');
-      }
+      touchRestartTrigger();
       return {
         ok: true,
         data: { ok: true, message: t('ui.system.restartSignalSent') },
@@ -83,7 +72,7 @@ export async function handleSystemRestart(
   // ── Hard / Force restart: signal child PID ──────────────────────
   const signal = kind === 'force' ? 'SIGKILL' : 'SIGTERM';
 
-  const childPid = readPidFile(path.join(STORE_DIR, 'daemon-child.pid'));
+  const childPid = readPidFile(DAEMON_CHILD_PID_FILE);
   if (childPid === null) {
     return {
       ok: false,

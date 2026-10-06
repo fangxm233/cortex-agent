@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
-import { AISTATUS_DIR, DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/paths.js';
+import { AISTATUS_DIR, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 import { isProcessAlive } from '@core/singleton-lock.js';
@@ -160,7 +160,7 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
   checks.push(backendRuntimeCheck(deps));
 
   // Daemon — informational only.
-  const pidPath = path.join(deps.paths.STORE_DIR, 'daemon.pid');
+  const pidPath = path.join(deps.paths.STORE_DIR, path.basename(DAEMON_PID_FILE));
   const pidText = deps.fileExists(pidPath) ? deps.readText(pidPath) : null;
   const pid = pidText ? Number(pidText.trim()) : NaN;
   if (Number.isFinite(pid) && deps.pidAlive(pid)) {
