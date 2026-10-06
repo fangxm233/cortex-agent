@@ -95,12 +95,11 @@ async function receiveUpload(req: IncomingMessage, destPath: string, maxBytes: n
       settled = true;
       req.off('data', onData);
       req.off('end', onEnd);
-      if (outcome.kind !== 'stored') {
-        out.destroy();
-        fs.promises.unlink(destPath).catch(() => {});
-        req.resume();
-      }
-      resolve(outcome);
+      if (outcome.kind === 'stored') return resolve(outcome);
+      out.destroy();
+      req.resume();
+      // Answer only once the partial file is gone, so a client that sees the error never finds it.
+      void fs.promises.unlink(destPath).catch(() => {}).then(() => resolve(outcome));
     };
     const onData = (chunk: Buffer): void => {
       size += chunk.length;
