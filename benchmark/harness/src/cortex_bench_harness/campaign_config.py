@@ -718,7 +718,8 @@ def _concurrency(document: Mapping[str, object], pool: DockerNetworkPool) -> int
 
 def _proxy(source: object, pool: DockerNetworkPool) -> dict[str, object]:
     document = _mapping(source, "campaign proxy")
-    host_derived = sorted({"bound_source_ip", "access_expires_at_ms"}.intersection(document))
+    host_derived = sorted(
+        {"bound_source_ip", "access_expires_at_ms", "oauth_token_holder"}.intersection(document))
     if host_derived:
         raise CampaignConfigError(
             f"campaign proxy rejects host-derived fields {host_derived}; source addresses come "

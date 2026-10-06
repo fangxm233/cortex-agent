@@ -55,7 +55,9 @@ EXPIRY_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
 REFRESH_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
     OpenAICodexResponsesOAuthAdapter,
 })
-REFRESH_BINDINGS = ("refresh_token", "client_id", "token_endpoint_url")
+# Either the three refresh fields, or a host-side holder that already carries them and is shared
+# by every route on the same login.
+REFRESH_BINDINGS = ("refresh_token", "client_id", "token_endpoint_url", "token_holder")
 EXPIRY_VALIDATION_KEYS = frozenset({
     ("pi", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
     ("codex-cli", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
@@ -84,7 +86,7 @@ def select_adapter(
     key: "CredentialCapabilityKey", *, upstream_base_url: str | None = None,
     credential: str | None = None, frozen_model: str | None = None,
     frozen_completion_cap: int | None = None, access_expires_at_ms: int | None = None,
-    **refresh: str,
+    **refresh: object,
 ) -> ProviderAdapter:
     members = (
         key.runner_or_backend, key.provider, key.protocol, key.credential_kind,
@@ -118,7 +120,7 @@ def _construct_adapter(
     factory: AdapterFactory, members: tuple[str, ...], upstream_base_url: str | None,
     credential: str | None, frozen_model: str | None,
     frozen_completion_cap: int | None, access_expires_at_ms: int | None,
-    refresh: Mapping[str, str],
+    refresh: Mapping[str, object],
 ) -> ProviderAdapter:
     bindings: dict[str, object] = {}
     if factory in CAP_BINDING_ADAPTERS:

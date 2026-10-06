@@ -78,6 +78,106 @@ def mint_dummy_codex_token() -> str:
     ))
 
 
+class CodexTokenHolder:
+    """The host's Codex OAuth tokens, and the one lock under which they are refreshed.
+
+    A token host that rotates refresh tokens accepts each one once. Whoever refreshes must
+    therefore keep the rotated refresh token for the next refresh, and every route that uses the
+    same login has to see it -- otherwise the first refresh succeeds and every later one presents
+    a spent token. A campaign shares one holder across its trials for that reason. Refresh is
+    single-flight: a caller that finds the access token expired refreshes while holding the lock,
+    and the callers queued behind it then find the fresh token instead of refreshing again.
+    """
+
+    def __init__(
+        self, access_token: str, *, access_expires_at_ms: int | None,
+        refresh_token: str | None = None, client_id: str | None = None,
+        token_endpoint_url: str | None = None,
+        refresh_timeout_seconds: float = REFRESH_TIMEOUT_SECONDS,
+    ) -> None:
+        self._token_target = _token_target(token_endpoint_url)
+        self._access_token: str | None = access_token
+        self._account_id: str | None = extract_account_id(access_token)
+        self._expires_at_ms = access_expires_at_ms
+        self._refresh_token = refresh_token
+        self._client_id = client_id
+        self._refresh_timeout_seconds = refresh_timeout_seconds
+        self._lock = threading.Lock()
+
+    @property
+    def token_target(self) -> SplitResult | None:
+        return self._token_target
+
+    def current(self) -> tuple[str, str]:
+        """The access token and its account id, refreshed first if it has expired."""
+        with self._lock:
+            if self._access_token is None or self._account_id is None:
+                raise AuthInjectionUnavailable("no codex access token is held")
+            if self._expires_at_ms is not None and _now_ms() >= self._expires_at_ms:
+                self._refresh()
+            return self._access_token, self._account_id
+
+    def clear(self) -> None:
+        with self._lock:
+            self._access_token = None
+            self._account_id = None
+            self._refresh_token = None
+            self._client_id = None
+
+    def _refresh(self) -> None:
+        if self._token_target is None or not self._refresh_token or not self._client_id:
+            raise AuthInjectionUnavailable(
+                "the bound codex access token is expired and no token host is bound")
+        document = self._token_exchange(self._token_target)
+        access = document.get("access_token")
+        refresh = document.get("refresh_token")
+        expires_in = document.get("expires_in")
+        if not _non_empty_text(access) or not _non_empty_text(refresh) \
+                or type(expires_in) is not int:
+            raise AuthInjectionUnavailable("codex token response is missing fields")
+        try:
+            account_id = extract_account_id(access)
+        except ValueError as error:
+            raise AuthInjectionUnavailable(
+                "refreshed codex token carries no account id claim") from error
+        self._access_token = access
+        self._account_id = account_id
+        self._refresh_token = refresh
+        self._expires_at_ms = _now_ms() + expires_in * 1000
+
+    def _token_exchange(self, target: SplitResult) -> dict[str, object]:
+        # The token host is addressed by the holder itself rather than through
+        # the fixed model upstream, and it never receives the messages
+        # credential: the two hosts are bound to two different secrets.
+        body = urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": self._refresh_token,
+            "client_id": self._client_id,
+        }).encode()
+        connection = _token_connection(target, self._refresh_timeout_seconds)
+        try:
+            connection.request("POST", target.path, body, {
+                "content-type": "application/x-www-form-urlencoded",
+                "content-length": str(len(body)),
+                "accept": "application/json",
+            })
+            response = connection.getresponse()
+            status = response.status
+            payload = response.read()
+        except (HTTPException, OSError) as error:
+            raise AuthInjectionUnavailable("codex token host is unreachable") from error
+        finally:
+            connection.close()
+        # A 3xx is a refusal, never a redirect to follow: following one is how a
+        # host outside the frozen set would be reached.
+        if status != 200:
+            raise AuthInjectionUnavailable(f"codex token host answered {status}")
+        document = _json_object(payload)
+        if document is None:
+            raise AuthInjectionUnavailable("codex token response is not a JSON object")
+        return document
+
+
 class OpenAICodexResponsesOAuthAdapter:
     adapter_id = ADAPTER_ID
     schema_version = PROXY_SCHEMA_VERSION
@@ -89,20 +189,33 @@ class OpenAICodexResponsesOAuthAdapter:
         access_expires_at_ms: int | None = None,
         refresh_timeout_seconds: float = REFRESH_TIMEOUT_SECONDS,
         validate_access_expiry: bool = False,
+        token_holder: CodexTokenHolder | None = None,
     ) -> None:
-        self._token_target = _token_target(token_endpoint_url)
-        self.upstream_hosts = _upstream_hosts(upstream_base_url, self._token_target)
-        self._access_token = _validated_credential(credential)
-        self._account_id = (
-            extract_account_id(self._access_token) if self._access_token else None
-        )
+        access_token = _validated_credential(credential)
+        if access_token is not None:
+            extract_account_id(access_token)
         if validate_access_expiry:
-            _validate_bound_expiry(self._access_token, access_expires_at_ms)
+            _validate_bound_expiry(access_token, access_expires_at_ms)
+        if token_holder is not None:
+            if any(value is not None for value in (refresh_token, client_id, token_endpoint_url)):
+                raise ValueError("a shared codex token holder carries its own refresh material")
+            # Shared: this route reads the holder's tokens and never owns them.
+            self._tokens: CodexTokenHolder | None = token_holder
+        elif access_token is not None:
+            self._tokens = CodexTokenHolder(
+                access_token, access_expires_at_ms=access_expires_at_ms,
+                refresh_token=refresh_token, client_id=client_id,
+                token_endpoint_url=token_endpoint_url,
+                refresh_timeout_seconds=refresh_timeout_seconds,
+            )
+        else:
+            self._tokens = None
+        self._owns_tokens = token_holder is None
+        token_target = (
+            self._tokens.token_target if self._tokens is not None
+            else _token_target(token_endpoint_url))
+        self.upstream_hosts = _upstream_hosts(upstream_base_url, token_target)
         self._frozen_model = frozen_model
-        self._refresh_token = refresh_token
-        self._client_id = client_id
-        self._expires_at_ms = access_expires_at_ms
-        self._refresh_timeout_seconds = refresh_timeout_seconds
         self._lock = threading.Lock()
 
     def mint_dummy_credential(self) -> str:
@@ -192,74 +305,19 @@ class OpenAICodexResponsesOAuthAdapter:
 
 
     def clear_credential(self) -> None:
+        """Drop this route's hold on the tokens. A shared holder stays with its owner, which
+        clears it when the last route that may use it is gone."""
         with self._lock:
-            self._access_token = None
-            self._account_id = None
-            self._refresh_token = None
-            self._client_id = None
+            tokens, self._tokens = self._tokens, None
+        if tokens is not None and self._owns_tokens:
+            tokens.clear()
 
     def _current_credential(self) -> tuple[str, str]:
         with self._lock:
-            if self._access_token is None or self._account_id is None:
-                raise AuthInjectionUnavailable(
-                    "no codex access token is bound to this adapter")
-            if self._expires_at_ms is None or _now_ms() < self._expires_at_ms:
-                return self._access_token, self._account_id
-            self._refresh()
-            return self._access_token, self._account_id
-
-    def _refresh(self) -> None:
-        if self._token_target is None or not self._refresh_token or not self._client_id:
-            raise AuthInjectionUnavailable(
-                "the bound codex access token is expired and no token host is bound")
-        document = self._token_exchange(self._token_target)
-        access = document.get("access_token")
-        refresh = document.get("refresh_token")
-        expires_in = document.get("expires_in")
-        if not _non_empty_text(access) or not _non_empty_text(refresh) \
-                or type(expires_in) is not int:
-            raise AuthInjectionUnavailable("codex token response is missing fields")
-        try:
-            account_id = extract_account_id(access)
-        except ValueError as error:
-            raise AuthInjectionUnavailable(
-                "refreshed codex token carries no account id claim") from error
-        self._access_token = access
-        self._account_id = account_id
-        self._refresh_token = refresh
-        self._expires_at_ms = _now_ms() + expires_in * 1000
-
-    def _token_exchange(self, target: SplitResult) -> dict[str, object]:
-        # The token host is addressed by the adapter itself rather than through
-        # the fixed model upstream, and it never receives the messages
-        # credential: the two hosts are bound to two different secrets.
-        body = urlencode({
-            "grant_type": "refresh_token",
-            "refresh_token": self._refresh_token,
-            "client_id": self._client_id,
-        }).encode()
-        connection = _token_connection(target, self._refresh_timeout_seconds)
-        try:
-            connection.request("POST", target.path, body, {
-                "content-type": "application/x-www-form-urlencoded",
-                "content-length": str(len(body)),
-                "accept": "application/json",
-            })
-            response = connection.getresponse()
-            status = response.status
-            payload = response.read()
-        except (HTTPException, OSError) as error:
-            raise AuthInjectionUnavailable("codex token host is unreachable") from error
-        finally:
-            connection.close()
-        # A 3xx is a refusal, never a redirect to follow: following one is how a
-        # host outside the frozen set would be reached.
-        if status != 200:
-            raise AuthInjectionUnavailable(f"codex token host answered {status}")
-        document = _json_object(payload)
-        if document is None:
-            raise AuthInjectionUnavailable("codex token response is not a JSON object")
-        return document
+            tokens = self._tokens
+        if tokens is None:
+            raise AuthInjectionUnavailable("no codex access token is bound to this adapter")
+        return tokens.current()
 
 
 def _token_target(token_endpoint_url: str | None) -> SplitResult | None:

@@ -12,11 +12,13 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.launcher.credential_capabilities import capability_key_for
+from cortex_bench_harness.launcher.host_credential_vault import HOST_TOKEN_HOLDERS
 from cortex_bench_harness.launcher.trial_proxy import (
     parse_trial_proxy_spec,
     arm_trial_proxy,
 )
 from cortex_bench_harness.proxy.adapters import AdapterUnavailable, select_adapter
+from cortex_bench_harness.proxy.adapters.openai_codex_responses import CodexTokenHolder
 from trial_proxy_fixtures import (
     CREDENTIAL_ENV,
     TRIAL_ID,
@@ -121,3 +123,40 @@ def test_an_adapter_that_cannot_refresh_is_never_handed_refresh_material() -> No
             refresh_token=REFRESH_TOKEN, client_id=CLIENT_ID,
             token_endpoint_url=TOKEN_ENDPOINT,
         )
+
+
+def test_a_campaign_holder_handle_binds_the_shared_holder_instead_of_the_environment(
+    tmp_path: Path,
+) -> None:
+    """A trial on the campaign's shared holder never reads the refresh token itself, so the
+    rotated token the holder keeps is the one every trial refreshes with."""
+    holder = CodexTokenHolder(
+        codex_token(EXPIRY_MS), access_expires_at_ms=EXPIRY_MS, refresh_token=REFRESH_TOKEN,
+        client_id=CLIENT_ID, token_endpoint_url=TOKEN_ENDPOINT)
+    handle = HOST_TOKEN_HOLDERS.register(holder)
+    try:
+        session = arm(
+            tmp_path, refreshing_spec(oauth_token_holder=handle),
+            {CREDENTIAL_ENV: codex_token(EXPIRY_MS)})
+        try:
+            adapter = session.handle._server.adapter
+            assert adapter._tokens is holder
+        finally:
+            session.handle.stop()
+        assert holder.current()[0] == codex_token(EXPIRY_MS), "a trial's stop leaves it held"
+    finally:
+        HOST_TOKEN_HOLDERS.release(handle)
+
+
+def test_a_released_holder_handle_refuses_the_route(tmp_path: Path) -> None:
+    handle = HOST_TOKEN_HOLDERS.register(CodexTokenHolder(
+        codex_token(EXPIRY_MS), access_expires_at_ms=EXPIRY_MS))
+    HOST_TOKEN_HOLDERS.release(handle)
+
+    with pytest.raises(ValueError, match="no longer held"):
+        arm(tmp_path, refreshing_spec(oauth_token_holder=handle), host_environment())
+
+
+def test_a_holder_handle_without_refresh_fields_is_refused() -> None:
+    with pytest.raises(ValueError, match="oauth_token_holder requires"):
+        parse_trial_proxy_spec(proxy_spec(oauth_token_holder="holder-x"))

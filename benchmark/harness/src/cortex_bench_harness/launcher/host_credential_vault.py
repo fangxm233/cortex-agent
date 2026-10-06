@@ -3,6 +3,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 
 @dataclass(frozen=True)
@@ -47,3 +48,42 @@ class HostCredentialVault:
 
 
 HOST_CREDENTIAL_VAULT = HostCredentialVault()
+
+
+class _ClearableHolder(Protocol):
+    def clear(self) -> None: ...
+
+
+class HostTokenHolders:
+    """Host-side token holders shared by every trial of one campaign, addressed by a handle.
+
+    The handle names a holder and carries no secret, so it may travel in a Harbor agent
+    configuration exactly as a credential *name* does; the tokens never leave this process.
+    Releasing a handle clears its holder, which is how a campaign drops its rotated tokens.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._holders: dict[str, _ClearableHolder] = {}
+
+    def register(self, holder: _ClearableHolder) -> str:
+        handle = f"holder-{secrets.token_urlsafe(18)}"
+        with self._lock:
+            self._holders[handle] = holder
+        return handle
+
+    def get(self, handle: str) -> _ClearableHolder:
+        with self._lock:
+            holder = self._holders.get(handle)
+        if holder is None:
+            raise LookupError("token holder handle is unavailable")
+        return holder
+
+    def release(self, handle: str) -> None:
+        with self._lock:
+            holder = self._holders.pop(handle, None)
+        if holder is not None:
+            holder.clear()
+
+
+HOST_TOKEN_HOLDERS = HostTokenHolders()

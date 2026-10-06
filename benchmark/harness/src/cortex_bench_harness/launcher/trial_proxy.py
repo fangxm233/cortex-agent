@@ -27,6 +27,7 @@ from .credential_capabilities import (
     CredentialCapabilityKey,
     capability_key_for,
 )
+from .host_credential_vault import HOST_TOKEN_HOLDERS
 from .lease_bound import TEARDOWN_GRACE_MS, provisional_lease_bound_ms
 
 PROXY_AUDIT_LOG_SOURCE = "proxy_audit_log"
@@ -61,6 +62,9 @@ SPEC_OPTIONAL_FIELDS = frozenset({
     # client -- but they are declared rather than hard-coded, because a hard-coded token host is
     # an unreviewable outbound destination.
     "refresh_credential_env", "token_endpoint_url", "oauth_client_id",
+    # A handle on the campaign's shared token holder (host_credential_vault.HOST_TOKEN_HOLDERS),
+    # set by the campaign driver and never declared: a handle, not a secret.
+    "oauth_token_holder",
 })
 
 # The paid envelope: what a run declares it may consume, wait for, and carry. It no longer carries
@@ -104,6 +108,9 @@ class TrialProxySpec:
     refresh_credential_env: str | None = None
     token_endpoint_url: str | None = None
     oauth_client_id: str | None = None
+    #: The campaign's shared holder for the same login, so a refresh token one trial rotated is
+    #: the one the next trial presents. Without it each trial refreshes from the host's original.
+    oauth_token_holder: str | None = None
 
     @property
     def can_refresh(self) -> bool:
@@ -147,6 +154,8 @@ def _refresh_fields(source: Mapping[str, object]) -> dict[str, str]:
     names = ("refresh_credential_env", "token_endpoint_url", "oauth_client_id")
     declared = [name for name in names if name in source]
     if not declared:
+        if "oauth_token_holder" in source:
+            raise ValueError("trial proxy spec oauth_token_holder requires the OAuth refresh fields")
         return {}
     if len(declared) != len(names):
         raise ValueError(
@@ -157,6 +166,8 @@ def _refresh_fields(source: Mapping[str, object]) -> dict[str, str]:
     if target.scheme != "https" or not target.hostname or not target.path:
         raise ValueError(
             "trial proxy spec token_endpoint_url must be an https URL with a path")
+    if "oauth_token_holder" in source:
+        fields["oauth_token_holder"] = _text(source, "oauth_token_holder")
     return fields
 
 
@@ -354,8 +365,9 @@ def _select_trial_adapter(
 
 def _refresh_bindings(
     spec: TrialProxySpec, environ: Mapping[str, str] | None,
-) -> dict[str, str]:
-    """Read the refresh token from the host environment, on the host side, once per trial.
+) -> dict[str, object]:
+    """Bind refresh material on the host side: the campaign's shared holder, or else the refresh
+    token read from the host environment once for this trial.
 
     The refresh token never leaves this process: it is bound to the adapter that lives beside the
     proxy, and the container is handed the same dummy token it always was. That is the whole
@@ -364,6 +376,13 @@ def _refresh_bindings(
     """
     if not spec.can_refresh:
         return {}
+    if spec.oauth_token_holder is not None:
+        try:
+            return {"token_holder": HOST_TOKEN_HOLDERS.get(spec.oauth_token_holder)}
+        except LookupError as error:
+            raise ValueError(
+                "trial proxy oauth_token_holder is no longer held; the campaign that owned it "
+                "has ended") from error
     assert spec.refresh_credential_env is not None
     values = os.environ if environ is None else environ
     refresh = values.get(spec.refresh_credential_env, "")
