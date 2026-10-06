@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '@core/log.js';
@@ -198,6 +199,17 @@ export async function probeInteractiveSession(platform: NodeJS.Platform, env = p
     return !!session && session.toLowerCase() !== 'services';
   }
   return false;
+}
+
+/** First display number at or above `from` that no X server claims — neither a lock file nor a
+ *  socket, whoever owns it (a stale lock still makes Xvfb refuse the number). */
+export function pickFreeDisplay(from: number, tmpDir = '/tmp'): number | null {
+  for (let n = from; n < from + 100; n++) {
+    const taken =
+      fs.existsSync(path.join(tmpDir, `.X${n}-lock`)) || fs.existsSync(path.join(tmpDir, '.X11-unix', `X${n}`));
+    if (!taken) return n;
+  }
+  return null;
 }
 
 /** Full resolution for this host. An operator override short-circuits every probe. */

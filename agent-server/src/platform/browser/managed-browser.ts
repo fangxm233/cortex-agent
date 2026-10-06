@@ -2,9 +2,10 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import { spawn, type ChildProcess } from 'child_process';
+import type { Readable } from 'stream';
 import { DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
-import { resolveBrowserDisplay, probeHasBinary, type BrowserDisplay } from './display.js';
+import { resolveBrowserDisplay, probeHasBinary, pickFreeDisplay, type BrowserDisplay } from './display.js';
 
 const log = createLogger('managed-browser');
 
@@ -17,6 +18,11 @@ const PREFERRED_CDP_PORT = 9222;
 /** Chrome is heavy to start (~1s) but idle-cheap; reclaim slowly so back-to-back sessions reuse it. */
 const IDLE_RECLAIM_MS = 10 * 60 * 1000;
 const READY_TIMEOUT_MS = 30_000;
+const XVFB_READY_TIMEOUT_MS = 10_000;
+/** Virtual displays start well above the numbers real sessions use (:0 console, :10+ xrdp). */
+const FIRST_VIRTUAL_DISPLAY = 99;
+const XVFB_ATTEMPTS = 3;
+const STOPPED_WHILE_STARTING = 'browser stopped while starting';
 /** More crashes than this in the window means Chrome cannot run here at all — stop flapping. */
 const RESTART_WINDOW_MS = 60_000;
 const MAX_RESTARTS_PER_WINDOW = 3;
@@ -34,8 +40,16 @@ interface Instance extends ManagedBrowser {
   xvfb?: ChildProcess;
 }
 
+/** A launch in flight. stopBrowser() cancels it and kills what it has spawned so far: the launch
+ *  may be parked in an await when the daemon exits, and would otherwise publish an unowned Chrome. */
+interface LaunchAttempt {
+  cancelled: boolean;
+  procs: ChildProcess[];
+}
+
 let instance: Instance | null = null;
 let starting: Promise<ManagedBrowser> | null = null;
+let launching: LaunchAttempt | null = null;
 let refs = 0;
 let idleTimer: NodeJS.Timeout | null = null;
 let restartTimes: number[] = [];
@@ -68,7 +82,9 @@ export async function acquireBrowser(): Promise<ManagedBrowser> {
   try {
     return await ensureStarted();
   } catch (e) {
-    refs--; // a failed acquire must not pin a browser that never existed
+    // A failed acquire must not pin a browser that never existed. stopBrowser() may already have
+    // zeroed the count, and going negative would make the next release skip the idle reclaim.
+    if (refs > 0) refs--;
     throw e;
   }
 }
@@ -96,6 +112,10 @@ export function stopBrowser(): void {
     idleTimer = null;
   }
   refs = 0;
+  if (launching) {
+    launching.cancelled = true;
+    killAll(launching.procs, 'SIGTERM');
+  }
   kill();
 }
 
@@ -115,15 +135,16 @@ function kill(): void {
   const inst = instance;
   instance = null;
   if (!inst) return;
-  try {
-    inst.proc.kill('SIGTERM');
-  } catch {
-    /* already gone */
-  }
-  try {
-    inst.xvfb?.kill('SIGTERM');
-  } catch {
-    /* already gone */
+  killAll([inst.proc, ...(inst.xvfb ? [inst.xvfb] : [])], 'SIGTERM');
+}
+
+function killAll(procs: ChildProcess[], signal: NodeJS.Signals): void {
+  for (const p of procs) {
+    try {
+      p.kill(signal);
+    } catch {
+      /* already gone */
+    }
   }
 }
 
@@ -137,6 +158,22 @@ async function ensureStarted(): Promise<ManagedBrowser> {
 }
 
 async function launch(): Promise<ManagedBrowser> {
+  const attempt: LaunchAttempt = { cancelled: false, procs: [] };
+  launching = attempt;
+  try {
+    return await launchInto(attempt);
+  } catch (e) {
+    killAll(attempt.procs, 'SIGKILL'); // every failure after a spawn, including a cancel
+    throw e;
+  } finally {
+    if (launching === attempt) launching = null;
+  }
+}
+
+async function launchInto(attempt: LaunchAttempt): Promise<ManagedBrowser> {
+  const checkpoint = () => {
+    if (attempt.cancelled) throw new Error(STOPPED_WHILE_STARTING);
+  };
   const exe = await resolveChromeBinary();
   if (!exe) {
     throw new Error(
@@ -144,17 +181,19 @@ async function launch(): Promise<ManagedBrowser> {
     );
   }
   const display = await resolveBrowserDisplay();
+  checkpoint();
   fs.mkdirSync(PROFILE_DIR, { recursive: true });
+  const port = await pickPort(PREFERRED_CDP_PORT);
+  checkpoint();
 
   let xvfb: ChildProcess | undefined;
   let displayName = display.display;
   if (display.mode === 'virtual') {
-    const started = startXvfb();
+    const started = await startXvfb(attempt);
     xvfb = started.proc;
     displayName = started.display;
   }
 
-  const port = await pickPort(PREFERRED_CDP_PORT);
   const args = [
     `--remote-debugging-port=${port}`,
     // Chrome 136+ refuses remote debugging on the default profile, so a dedicated dir is mandatory,
@@ -174,20 +213,23 @@ async function launch(): Promise<ManagedBrowser> {
 
   log.info(`launching ${exe} on port ${port} (${display.mode}${displayName ? ` ${displayName}` : ''})`);
   const proc = spawn(exe, args, { env, stdio: 'ignore', detached: false });
+  attempt.procs.push(proc);
+  let spawnError: string | null = null;
   proc.on('exit', (code, signal) => onExit(proc, code, signal));
-  proc.on('error', (e) => log.error(`Chrome failed to spawn: ${e.message}`));
+  proc.on('error', (e) => {
+    spawnError = e.message;
+    log.error(`Chrome failed to spawn: ${e.message}`);
+  });
 
-  try {
-    await waitForCdp(port);
-  } catch (e) {
-    try {
-      proc.kill('SIGKILL');
-    } catch {
-      /* ignore */
+  await waitForCdp(port, () => {
+    if (attempt.cancelled) return STOPPED_WHILE_STARTING;
+    if (spawnError) return `Chrome failed to spawn: ${spawnError}`;
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      return `Chrome exited during startup (code=${proc.exitCode} signal=${proc.signalCode})`;
     }
-    xvfb?.kill('SIGTERM');
-    throw e;
-  }
+    return null;
+  });
+  checkpoint();
 
   instance = {
     cdpEndpoint: `http://127.0.0.1:${port}`,
@@ -220,14 +262,55 @@ function onExit(proc: ChildProcess, code: number | null, signal: string | null):
   void ensureStarted().catch((e) => log.error(`restart failed: ${String(e)}`));
 }
 
-/** Start a virtual display. Only reached when Xvfb exists (the decision function checked). */
-function startXvfb(): { proc: ChildProcess; display: string } {
-  const display = `:${99 + Math.floor(Math.random() * 100)}`;
-  const proc = spawn('Xvfb', [display, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], {
-    stdio: 'ignore',
+/** Start a virtual display and wait until it accepts connections — Chrome launched against a
+ *  display that is not up yet dies at startup. Only reached when Xvfb exists (the decision function
+ *  checked). The spawned process joins `attempt.procs`, so every later failure takes it down. */
+async function startXvfb(attempt: LaunchAttempt): Promise<{ proc: ChildProcess; display: string }> {
+  let from = FIRST_VIRTUAL_DISPLAY;
+  let lastError = 'no free display number';
+  for (let i = 0; i < XVFB_ATTEMPTS; i++) {
+    const n = pickFreeDisplay(from);
+    if (n === null) break;
+    const display = `:${n}`;
+    // -displayfd: Xvfb writes the display number to fd 3 once it is ready for clients.
+    const proc = spawn('Xvfb', [display, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp', '-displayfd', '3'], {
+      stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+    });
+    attempt.procs.push(proc);
+    const failure = await waitForXvfb(proc);
+    if (attempt.cancelled) throw new Error(STOPPED_WHILE_STARTING);
+    if (!failure) return { proc, display };
+    // Lost a race for this number, most likely — another server claimed it after the check.
+    lastError = `${display}: ${failure}`;
+    log.warn(`Xvfb ${lastError}`);
+    killAll([proc], 'SIGKILL');
+    from = n + 1;
+  }
+  throw new Error(`Xvfb could not start a virtual display (${lastError})`);
+}
+
+/** Resolves null once Xvfb reports ready, or why it never did. */
+function waitForXvfb(proc: ChildProcess): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let out = '';
+    const finish = (failure: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(failure);
+    };
+    const timer = setTimeout(() => finish(`not ready within ${XVFB_READY_TIMEOUT_MS}ms`), XVFB_READY_TIMEOUT_MS);
+    // Wait for the whole line: closing our end early would fail Xvfb's write and abort it.
+    const ready = proc.stdio[3] as Readable | null;
+    ready?.on('data', (chunk) => {
+      out += String(chunk);
+      if (out.includes('\n')) finish(null);
+    });
+    ready?.on('error', () => {});
+    proc.once('exit', (code, signal) => finish(`exited (code=${code} signal=${signal})`));
+    proc.once('error', (e) => finish(e.message));
   });
-  proc.on('error', (e) => log.error(`Xvfb failed: ${e.message}`));
-  return { proc, display };
 }
 
 export async function resolveChromeBinary(env = process.env): Promise<string | null> {
@@ -278,11 +361,15 @@ function isFree(port: number): Promise<boolean> {
   });
 }
 
-/** Chrome writes the port file asynchronously; poll the endpoint instead of guessing a delay. */
-async function waitForCdp(port: number): Promise<void> {
+/** Chrome writes the port file asynchronously; poll the endpoint instead of guessing a delay.
+ *  `abandon` reports a reason to stop early (Chrome died, or the launch was cancelled), so neither
+ *  waits out the full timeout. */
+async function waitForCdp(port: number, abandon: () => string | null): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError = '';
   while (Date.now() < deadline) {
+    const reason = abandon();
+    if (reason) throw new Error(reason);
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
         signal: AbortSignal.timeout(2000),

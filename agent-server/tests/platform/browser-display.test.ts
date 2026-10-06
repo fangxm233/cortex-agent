@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { decideDisplay, type DisplayProbe } from '@platform/browser/display.js';
+import { decideDisplay, pickFreeDisplay, type DisplayProbe } from '@platform/browser/display.js';
 import { resolveChromeBinary, backendSupportsBrowser } from '@platform/browser/managed-browser.js';
 
 const base: DisplayProbe = {
@@ -103,6 +103,17 @@ describe('resolveChromeBinary', () => {
       process.env.PATH = savedPath;
     }
     expect(ticks).toBeGreaterThan(5);
+  });
+});
+
+describe('pickFreeDisplay', () => {
+  it('skips numbers held by a lock file or a socket, whoever owns them', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'xdisp-'));
+    fs.mkdirSync(path.join(tmp, '.X11-unix'));
+    fs.writeFileSync(path.join(tmp, '.X99-lock'), '');
+    fs.writeFileSync(path.join(tmp, '.X11-unix', 'X100'), '');
+    expect(pickFreeDisplay(99, tmp)).toBe(101);
+    expect(pickFreeDisplay(102, tmp)).toBe(102);
   });
 });
 
