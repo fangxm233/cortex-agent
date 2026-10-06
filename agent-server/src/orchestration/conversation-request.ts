@@ -291,7 +291,7 @@ export async function resolveConversationTeam(
 }
 
 /** The profile a turn runs on: the agent's own, or the channel's when it says `__active__`. */
-function conversationProfile(channel: string, agentConfig: AgentSlotConfig): ResolvedProfileConfig {
+function conversationProfile(channel: string, agentConfig: ResolvedEnvironment): ResolvedProfileConfig {
   // D5: one resolution for name, profile and the channel's `!model` override. A hardcoded agent
   // profile is an explicit override; `__active__` means "whatever this channel resolves to".
   const runConfig = resolveRunConfig({
@@ -308,7 +308,7 @@ function conversationProfile(channel: string, agentConfig: AgentSlotConfig): Res
 /** The user prompt with the ambient blocks this turn owes the session. */
 async function composeConversationPrompt(
   opts: PrepareConversationRequestOptions,
-  agent: { config: AgentSlotConfig; spec: AgentSpec },
+  agent: { config: ResolvedEnvironment; spec: AgentSpec },
   state: { commissionEnabled: boolean; teamLead: boolean },
 ): Promise<string> {
   const { backendSessionId, projectId } = opts.ids;
