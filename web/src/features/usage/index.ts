@@ -1,4 +1,3 @@
-export { UsagePanel } from './UsagePanel';
 export {
   useUsage,
   type UsagePolicyControlsState,

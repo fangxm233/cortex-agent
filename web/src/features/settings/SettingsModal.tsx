@@ -19,7 +19,7 @@ import { EnvironmentsPanel } from '@/features/settings/panels/EnvironmentsPanel'
 import { AppearancePanel } from '@/features/settings/panels/AppearancePanel';
 import { AccountsPanel } from '@/features/settings/panels/AccountsPanel';
 import { PluginsPanel } from '@/features/settings/panels/PluginsPanel';
-import { UsagePanel } from '@/features/usage';
+import { UsagePanel } from '@/features/settings/panels/UsagePanel';
 import { SettingsHeaderSlotContext } from '@/features/settings/ui/settings-kit';
 import '@/features/settings/ui/settings-style.css';
 

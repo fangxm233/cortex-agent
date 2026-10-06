@@ -14,8 +14,8 @@ import {
   S_CONTROL_STYLE,
   Toggle,
 } from '@/features/settings/ui/settings-ui';
-import { policyActionState, usePolicyThresholdDraft } from './usage-policy-controls';
-import { useUsage } from './useUsage';
+import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
+import { useUsage } from '@/features/usage/useUsage';
 import {
   type ProviderLegacyFallbackView,
   type ProviderUsageView,
@@ -24,7 +24,7 @@ import {
   type UsageSeverity,
   type UsageWindowPolicyView,
   type UsageWindowView,
-} from './usage-vm';
+} from '@/features/usage/usage-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
 

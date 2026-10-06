@@ -89,7 +89,7 @@ module.exports = {
       name: 'dev-only-from-router',
       severity: 'error',
       comment:
-        'dev/ holds DEV-only demo surfaces (/kit, /base). Only router.tsx may reach them, and '
+        'dev/ holds DEV-only demo surfaces (/base). Only router.tsx may reach them, and '
         + 'only from inside an `import.meta.env.DEV` branch, so the production bundle drops '
         + 'them. Anything a demo page shows that the product also needs belongs in design/ or '
         + 'features/ — importing dev/ from either would put a demo in the shipped graph. The '
@@ -103,13 +103,16 @@ module.exports = {
       comment:
         'a component renders; it does not open a transport. Data access goes through a '
         + 'use*Resource / use*Controller hook or a *-vm module, so the view stays testable '
-        + 'without a tRPC client and the query keys live in one place. New violations are '
-        + 'forbidden; the ~55 that exist today are in the known-violations baseline and are '
+        + 'without a tRPC client and the query keys live in one place. Providers and use* '
+        + 'hook modules are data owners, not components, and are exempt. New violations are '
+        + 'forbidden; the ones that exist today are in the known-violations baseline and are '
         + 'to be worked off — the baseline may only shrink.',
       from: {
         path: '^src/(features|mobile|shell)/.*\\.tsx$',
         pathNot: [
           NOT_A_TEST.pathNot,
+          'Provider\\.tsx$',
+          '/use[A-Z][^/]*\\.tsx$',
           '^src/features/session/transcript/__fixtures__/(BackgroundSubagentHarness|background-subagent\\.browser)\\.tsx$',
         ],
       },

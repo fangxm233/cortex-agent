@@ -69,23 +69,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/commission/useCommissionBoard.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/execution/ExecutionDrawer.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
@@ -120,23 +103,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/live/LiveEventsProvider.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/memory/MemoryView.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
@@ -155,23 +121,6 @@
   {
     "type": "dependency",
     "from": "src/features/overview/OverviewView.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/projects/CurrentProjectProvider.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -223,23 +172,6 @@
   {
     "type": "dependency",
     "from": "src/features/session/interaction/DecisionCards.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/session/state/SelectedSessionProvider.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -579,23 +511,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/screens/MPlanReadScreen.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/mobile/screens/MPlatformScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
@@ -678,42 +593,5 @@
       "severity": "error",
       "name": "components-not-direct-trpc"
     }
-  },
-  {
-    "type": "cycle",
-    "from": "src/shell/menu/useAppMenus.ts",
-    "to": "src/shell/useShellModals.tsx",
-    "unresolvedTo": "../useShellModals",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "src/shell/useShellModals.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "src/shell/ShortcutsModal.tsx",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "src/shell/menu/useAppMenus.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      }
-    ]
   }
 ]
