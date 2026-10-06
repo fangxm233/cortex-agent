@@ -23,8 +23,9 @@ import { selectionView, type MChatSelectionView } from './m-chat-selection';
 import { useChatOverlay, type ChatOverlay } from './useChatOverlay';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
+import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
-import { hasActiveWorker, MTeamRow, TEAM_ROW_HEIGHT } from './MChatTeam';
+import { hasActiveWorker, MTeamRow } from './MChatTeam';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
@@ -43,9 +44,16 @@ interface MChatHeaderProps {
   contextControl?: ReactNode;
 }
 
+/** The header pill and, in team mode, the team summary row under it: one floating stack, measured once
+ *  (useHeaderClearance). */
+const HEADER_STACK: CSSProperties = {
+  position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 12, right: 12, zIndex: 5,
+  display: 'flex', flexDirection: 'column', gap: 6,
+};
+
 const CHAT_HEADER: CSSProperties = {
-  position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 12, right: 12, height: 52,
-  zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px 0 4px',
+  position: 'relative', height: 52, flex: 'none',
+  display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px 0 4px',
   borderRadius: 'var(--r-float)', background: MC.glass,
   backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
   boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
@@ -604,9 +612,12 @@ function useTranscriptScroll(props: MChatViewProps) {
   return { scrollRef, contentRef, win, onScroll, onContentClick };
 }
 
-function MChatTranscript({ props, topClear, shellHeight, tailHeight, onShowOriginal }: {
+const HEADER_BOTTOM = `var(${HEADER_BOTTOM_VAR})`;
+/** Rows start (and sticky subagent headers pin) 12px under the floating header stack. */
+const TRANSCRIPT_TOP = `calc(${HEADER_BOTTOM} + 12px)`;
+
+function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal }: {
   props: MChatViewProps;
-  topClear: number;
   shellHeight: number;
   tailHeight: number;
   onShowOriginal: (text: string) => void;
@@ -617,15 +628,14 @@ function MChatTranscript({ props, topClear, shellHeight, tailHeight, onShowOrigi
   // shell top (its 20px offset + measured height), and the tail clearance keeps the last row 52px
   // clear of it, so a transcript scrolled to the end stays fully opaque.
   const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
-  // Hide text beneath the header and safe area; fade in across its existing 12px clearance.
+  // Hide text beneath the floating header stack; fade in across the 12px clearance under it.
   // Only the transcript is masked, leaving the floating title and its glass unchanged.
-  const transcriptFade = `linear-gradient(to bottom, transparent calc(${topClear - 12}px + env(safe-area-inset-top)), #000 calc(${topClear}px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
+  const transcriptFade = `linear-gradient(to bottom, transparent ${HEADER_BOTTOM}, #000 ${TRANSCRIPT_TOP}, #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
   return (
     // Plain-block scroll container (like the desktop MessageStream) with an inner flex-column content
     // wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. Isolate
     // sticky headers so their z-index cannot escape over the composer or overlays.
-    <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': `calc(${topClear}px + env(safe-area-inset-top))` } as CSSProperties}>
-      {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
+    <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': TRANSCRIPT_TOP } as CSSProperties}>
       <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
           onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} streamKey={props.sessionId} />
@@ -669,9 +679,8 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
 /** Body region — a position:relative frame holding the scroll transcript + the floating composer,
  *  both anchored to it. The full-screen editor (2b) mounts as an absolute overlay of THIS region;
  *  since the header now floats over the same box, the editor outranks it. */
-function MChatBody({ props, topClear, overlay, selection }: {
+function MChatBody({ props, overlay, selection }: {
   props: MChatViewProps;
-  topClear: number;
   overlay: ChatOverlay;
   selection: MChatSelectionView;
 }): JSX.Element {
@@ -679,7 +688,7 @@ function MChatBody({ props, topClear, overlay, selection }: {
   const heldRow = props.msgMenu ? props.rows[props.msgMenu.rowIndex] : undefined;
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <MChatTranscript props={props} topClear={topClear} shellHeight={shellHeight} tailHeight={tailHeight}
+      <MChatTranscript props={props} shellHeight={shellHeight} tailHeight={tailHeight}
         onShowOriginal={overlay.showOriginal} />
       <MChatComposer props={props} shellRef={composerRef} overlay={overlay} selection={selection} />
       {/* 7a long-press overlay — an absolute overlay of the BODY region, like the 2b editor above.
@@ -709,21 +718,23 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   const overlay = useChatOverlay(props.sessionId ?? '');
   const files = useFilePicker(props.onAddFiles);
   const selection = selectionView(props.selection, useVocabOptional());
-  // Team mode: a lead's team summary floats in a row under the header, so the transcript's top
-  // clearance grows by that row and the gap above it while the row is there.
+  const clearance = useHeaderClearance();
+  // Team mode: a lead's team summary floats in a row under the header, inside the measured stack.
   const teamRow = !!props.onOpenWorker && hasActiveWorker(props.workers);
-  const topClear = teamRow ? 72 + 6 + TEAM_ROW_HEIGHT : 72;
   return (
     <div
+      ref={clearance.rootRef}
       data-screen-label="1b chat detail"
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
     >
       {files.input}
-      <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
-        onBack={props.onBack} onMore={() => overlay.toggle('more')}
-        contextControl={headerContextControl(props, () => overlay.open('context'))} />
-      {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
-      <MChatBody props={props} topClear={topClear} overlay={overlay} selection={selection} />
+      <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
+        <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
+          onBack={props.onBack} onMore={() => overlay.toggle('more')}
+          contextControl={headerContextControl(props, () => overlay.open('context'))} />
+        {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
+      </div>
+      <MChatBody props={props} overlay={overlay} selection={selection} />
       <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />
     </div>
   );

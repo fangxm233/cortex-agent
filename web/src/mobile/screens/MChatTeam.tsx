@@ -8,12 +8,9 @@ import { MBottomSheet, MC } from '@/mobile/ui/kit';
 // Team mode on mobile: a lead's chat floats one summary row under its header; tapping it opens the
 // team list in a sheet. A worker opens from the sheet.
 
-/** The row's height; the transcript's top clearance grows by this plus the gap above it. */
-export const TEAM_ROW_HEIGHT = 40;
-
+/** Sits in the chat's measured header stack, under the header pill; the transcript clears it. */
 const ROW: CSSProperties = {
-  position: 'absolute', top: 'calc(66px + env(safe-area-inset-top))', left: 12, right: 12, zIndex: 5,
-  height: TEAM_ROW_HEIGHT, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 9,
+  flex: 'none', height: 40, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 9,
   padding: '0 12px 0 14px', border: 0, borderRadius: 'var(--r-card)', cursor: 'pointer', fontFamily: 'inherit',
   textAlign: 'left', background: MC.glass, backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
   boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',

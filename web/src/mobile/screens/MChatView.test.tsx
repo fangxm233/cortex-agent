@@ -116,7 +116,7 @@ describe('MChatView sticky agent clearance', () => {
     act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={rows}
       status={{ running: true, tone: 'running', text: 'running' }} /></LangProvider>); });
     const scroller = renderer.root.findByProps({ 'data-transcript-scroller': true });
-    expect(scroller.props.style['--transcript-sticky-top']).toBe('calc(72px + env(safe-area-inset-top))');
+    expect(scroller.props.style['--transcript-sticky-top']).toBe('calc(var(--chat-header-bottom) + 12px)');
     expect(scroller.findAllByType('div')[1].props.style.padding).toBe('var(--transcript-sticky-top) 16px 0');
     const header = scroller.findByProps({ 'aria-expanded': false });
     act(() => header.props.onClick());
@@ -153,13 +153,14 @@ describe('MChatView floating composer clearance', () => {
         const edge = `calc(100% - ${measured + 20}px - env(safe-area-inset-bottom))`;
         const style = renderer.root.findByProps({ 'data-transcript-scroller': true }).props.style;
         expect(style.maskImage)
-          .toBe(`linear-gradient(to bottom, transparent calc(60px + env(safe-area-inset-top)), #000 calc(72px + env(safe-area-inset-top)), #000 calc(${edge} - 48px), transparent ${edge})`);
+          .toBe(`linear-gradient(to bottom, transparent var(--chat-header-bottom), #000 calc(var(--chat-header-bottom) + 12px), #000 calc(${edge} - 48px), transparent ${edge})`);
         expect(style.WebkitMaskImage).toBe(style.maskImage);
       }
       const header = renderer.root.findByProps({ 'data-chat-header': 'true' });
       expect(header.props.style.maskImage).toBeUndefined();
-      expect(header.props.style.top).toBe('calc(8px + env(safe-area-inset-top))');
       expect(header.props.style.height).toBe(52);
+      expect(renderer.root.findByProps({ 'data-chat-header-stack': '' }).props.style.top)
+        .toBe('calc(8px + env(safe-area-inset-top))');
       expect(renderer.root.findByProps({ 'data-composer-shell': true }).props.style.bottom)
         .toBe('calc(20px + env(safe-area-inset-bottom))');
     } finally {
@@ -425,23 +426,22 @@ describe('MChatView team context', () => {
   };
   const teamRows = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-team-row'] !== undefined);
   const crumbs = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-lead-crumb'] !== undefined);
-  const top = (r: ReactTestRenderer) => r.root.findByProps({ 'data-transcript-scroller': true }).props.style['--transcript-sticky-top'];
+  const stack = (r: ReactTestRenderer) => r.root.findByProps({ 'data-chat-header-stack': '' });
 
-  it('renders neither summary nor breadcrumb without a team, keeping the default clearance', () => {
+  it('renders neither summary nor breadcrumb without a team', () => {
     const r = mount({ workers: [], parent: null, onOpenWorker: vi.fn() });
     expect(teamRows(r)).toHaveLength(0);
     expect(crumbs(r)).toHaveLength(0);
-    expect(top(r)).toBe('calc(72px + env(safe-area-inset-top))');
     const retiredOnly = mount({ workers: [worker('w0', true)], onOpenWorker: vi.fn() });
     expect(teamRows(retiredOnly)).toHaveLength(0);
     act(() => { r.unmount(); retiredOnly.unmount(); });
   });
 
-  it('floats the team summary under the header and opens the team sheet from it', () => {
+  it('floats the team summary in the measured header stack and opens the team sheet from it', () => {
     const onOpenWorker = vi.fn();
     const r = mount({ workers: [worker('w1', false, { running: true }), worker('w2'), worker('w3', true)], onOpenWorker });
-    expect(top(r)).toBe('calc(118px + env(safe-area-inset-top))');
     const row = teamRows(r)[0];
+    expect(stack(r).findAll((n) => n.props['data-team-row'] !== undefined)).toHaveLength(1);
     expect(JSON.stringify(r.toJSON())).toContain('2 workers');
     expect(r.root.findAll((n) => n.props['data-team-sheet'] !== undefined)).toHaveLength(0);
     act(() => row.props.onClick());
@@ -536,5 +536,36 @@ describe('MChatView overlays', () => {
     expect(onPickSelection.mock.calls[0][0]).toMatchObject({ id: 'profile:fast', label: 'fast' });
     act(() => r.unmount());
     vi.unstubAllGlobals();
+  });
+});
+
+// The header stack's bottom edge is measured once and published; the transcript clearance, its
+// fade and the ⋯ menu anchor all read that one variable instead of restating the geometry.
+describe('MChatView header clearance', () => {
+  it('publishes the measured bottom of the header stack and re-measures when it grows', () => {
+    let bottom = 60;
+    const callbacks: Array<() => void> = [];
+    const resize = () => callbacks.forEach((callback) => callback());
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { callbacks.push(callback); }
+      observe = vi.fn();
+      disconnect = vi.fn();
+    });
+    const rect = (top: number, bottomEdge: () => number) => ({ getBoundingClientRect: () => ({ top, bottom: bottomEdge(), height: bottomEdge() - top }) });
+    const setProperty = vi.fn();
+    let renderer!: ReactTestRenderer;
+    try {
+      act(() => { renderer = create(
+        <LangProvider><MChatView {...baseProps} rows={[]} status={{ running: false, tone: 'idle', text: 'idle' }} /></LangProvider>,
+        { createNodeMock: (node) => node.props['data-chat-header-stack'] === '' ? rect(8, () => bottom)
+          : node.props['data-screen-label'] ? { ...rect(0, () => 844), style: { setProperty } } : null },
+      ); });
+      expect(setProperty).toHaveBeenLastCalledWith('--chat-header-bottom', '60px');
+      act(() => { bottom = 94; resize(); });
+      expect(setProperty).toHaveBeenLastCalledWith('--chat-header-bottom', '94px');
+    } finally {
+      act(() => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -10,6 +10,7 @@ import type { MChatSelection, MChatSelectionView } from './m-chat-selection';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 import { SelectionPane } from '@/design/SelectionPane';
 import { useVocabOptional } from '@/i18n';
+import { HEADER_BOTTOM_VAR } from './useHeaderClearance';
 import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
 import { useCommissionOptions } from '@/features/commission/CommissionOptIn';
 
@@ -34,9 +35,9 @@ export function MoreMenu({ onClose, onSessionId, onSessionStats, metadataItems }
   ];
   // A sibling of header/composer, outside the transcript's isolated scroller:
   // the menu can sample the route backdrop, not a blurred ancestor's flat fill.
-  // Keep its anchor and z-index above chrome and below sheets.
+  // It drops 8px under the floating header stack; z-index above chrome and below sheets.
   return (
-    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(68px + env(safe-area-inset-top))', right: 12, width: 148, background: 'var(--material-overlay-bg)', backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter, border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden', zIndex: 6 }}>
+    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: `calc(var(${HEADER_BOTTOM_VAR}) + 8px)`, right: 12, width: 148, background: 'var(--material-overlay-bg)', backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter, border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden', zIndex: 6 }}>
       {metadataItems}
       {items.map((item, index) => <div key={item.label} onClick={item.onTap} style={{ padding: '11px 14px', fontSize: 13, color: MC.ink, borderBottom: index < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined, cursor: 'pointer' }}>{item.label}</div>)}
     </div></>
