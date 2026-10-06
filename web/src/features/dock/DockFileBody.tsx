@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import { IconButton } from '@/design/IconButton';
 import { PdfBody, TextBody } from '@/features/media/DocViewer';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { isMarkdownName } from '@/features/media/doc-kind';
@@ -34,7 +35,7 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
         <PdfBody
           item={item}
           actions={download && (
-            <button type="button" data-file-download="" title={L.cmDownload} aria-label={L.cmDownload} onClick={download} style={PAGER_BUTTON_STYLE}>↓</button>
+            <IconButton data-file-download="" label={L.cmDownload} size={28} onClick={download} style={PAGER_BUTTON_STYLE}>↓</IconButton>
           )}
         />
       </div>
@@ -115,18 +116,11 @@ const CONTENT_STYLE = {
   pdf: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' } as CSSProperties,
 };
 
+/** Resting look on top of IconButton (whose muted glyph turns ink on hover). */
 const PAGER_BUTTON_STYLE: CSSProperties = {
-  width: 28,
-  height: 28,
   borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-card)',
-  color: 'var(--proto-muted)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
   fontSize: 13,
-  cursor: 'pointer',
-  flex: 'none',
   userSelect: 'none',
 };
