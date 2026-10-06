@@ -171,19 +171,19 @@ function supplementalMcpConfig(
 }
 
 function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOptions> {
-  const claudeBackend = spec.backend.kind === 'claude' ? spec.backend : undefined;
+  const claudeOptions = spec.backend.kind === 'claude' ? spec.backend : undefined;
   return {
     model: spec.model.id ?? null,
     systemPrompt: spec.prompt.system ?? null,
     appendSystemPrompt: spec.prompt.append ?? null,
-    outputStyle: claudeBackend?.outputStyle ?? null,
+    outputStyle: claudeOptions?.outputStyle ?? null,
     tools: spec.tools.rawClaude ?? canonicalToolsToNative(spec.tools.canonical),
     pluginDirs: spec.plugins.dirs ?? null,
     isUserInitiated: !!spec.flags.isUserInitiated,
     teamLead: spec.flags.teamLead === true,
     callbackSource: spec.context.callbackSource ?? null,
     scheduleTaskId: spec.context.scheduleTaskId ?? null,
-    claudeAgent: claudeBackend?.claudeAgent ?? null,
+    claudeAgent: claudeOptions?.claudeAgent ?? null,
     thinking: spec.model.thinking ?? null,
   };
 }
