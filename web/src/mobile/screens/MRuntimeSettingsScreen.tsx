@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { MC } from '@/mobile/ui/kit';
+import { MButton, MC } from '@/mobile/ui/kit';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
@@ -19,7 +19,7 @@ import {
   type RuntimeSettingWriter,
 } from '@/features/settings/controllers/runtime-settings-writer';
 import {
-  MSET_KEY, MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage,
+  MSET_KEY, MSettingsCard, MSettingsField, MSettingsPage,
   MSettingsRow, MSettingsSelect, MSettingsToggle,
 } from './MSettingsControls';
 
@@ -86,8 +86,8 @@ function NumberSettingRow(props: {
         min={props.descriptor.min} max={props.descriptor.max}
         placeholder={placeholderKey ? L[placeholderKey] : undefined}
         step={1} />
-      <MSettingsButton disabled={!canSave}
-        onClick={() => { if (next.valid) props.write.onSet(props.descriptor.setting, next.value); }}>{L.stBuiltinSave}</MSettingsButton>
+      <MButton compact variant="accent" disabled={!canSave}
+        onClick={() => { if (next.valid) props.write.onSet(props.descriptor.setting, next.value); }}>{L.stBuiltinSave}</MButton>
     </div>} />;
 }
 
@@ -128,11 +128,11 @@ function JobInterval(props: {
       onChange={(event) => setDraft({ ...draft, unit: event.target.value as typeof draft.unit })}>
       {durationUnits(L).map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
     </MSettingsSelect>
-    <div style={{ gridColumn: '1 / -1' }}><MSettingsButton
+    <div style={{ gridColumn: '1 / -1' }}><MButton compact variant="accent"
       disabled={current === null || next === null || next === current || props.write.pending}
       onClick={() => { if (next !== null) props.write.onSet(props.descriptor.interval, next); }}>
       {L.stBuiltinSave}
-    </MSettingsButton></div>
+    </MButton></div>
   </div>;
 }
 

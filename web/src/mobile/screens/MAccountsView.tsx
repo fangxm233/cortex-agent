@@ -3,6 +3,7 @@ import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useVocab } from '@/i18n';
 import {
+  MButton,
   MPill,
   MC,
   MONO,
@@ -39,20 +40,14 @@ function ActionButton({ children, target, action, disabled, onClick }: {
   onClick: (target: AccountActionTarget) => void;
 }) {
   return (
-    <button
-      type="button" data-auth-action={action} data-backend={target.backend}
+    <MButton
+      compact variant={action === 'logout' ? 'danger-outline' : 'outline'}
+      data-auth-action={action} data-backend={target.backend}
       data-provider={target.provider} data-auth-type={target.authType}
       disabled={disabled} onClick={() => onClick(target)}
-      style={{
-        border: `1px solid ${action === 'logout' ? 'var(--proto-danger-bg)' : MC.run}`,
-        borderRadius: 'var(--r-chip)', padding: '6px 9px', background: 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)', color: action === 'logout' ? MC.fail : MC.run, fontSize: 10.5,
-        fontWeight: 650, cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.45 : 1,
-      }}
     >
       {children}
-    </button>
+    </MButton>
   );
 }
 

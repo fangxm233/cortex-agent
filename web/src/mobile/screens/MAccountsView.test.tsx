@@ -65,7 +65,7 @@ function mount(
 
 function actions(renderer: ReactTestRenderer, provider: string, action: string) {
   return renderer.root.findAll(node => (
-    node.props['data-provider'] === provider && node.props['data-auth-action'] === action
+    node.type === 'button' && node.props['data-provider'] === provider && node.props['data-auth-action'] === action
   ));
 }
 

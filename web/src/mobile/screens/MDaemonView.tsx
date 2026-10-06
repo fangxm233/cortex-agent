@@ -1,5 +1,5 @@
-import { useRef, useState, type CSSProperties } from 'react';
-import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { useRef, useState } from 'react';
+import { MButton, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody, MSettingsSurfaceCard as MCard } from './MSettingsControls';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
@@ -200,23 +200,6 @@ function HoldButton({
   );
 }
 
-const OUTLINE_BTN: CSSProperties = {
-  flex: 1,
-  height: 44,
-  borderRadius: 'var(--r-control)',
-  border: `1.5px solid var(--proto-line-3)`,
-  background: 'var(--material-control-bg)',
-  boxShadow: 'var(--material-control-shadow)',
-  color: MC.ink,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 14,
-  fontWeight: 600,
-  boxSizing: 'border-box',
-  cursor: 'pointer',
-};
-
 function EventRow({ ev }: { ev: MDaemonEvent }) {
   const L = useVocab();
   return (
@@ -336,14 +319,9 @@ export function MDaemonView({
             <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{L.dmnRestartTitle}</span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={onSoftRestart}
-              style={{ ...OUTLINE_BTN, opacity: pending ? 0.5 : 1, cursor: pending ? 'default' : 'pointer' }}
-            >
+            <MButton disabled={pending} onClick={onSoftRestart} style={{ flex: 1 }}>
               {L.dmSoftRestart}
-            </button>
+            </MButton>
             <HoldButton
               label={L.dmnForceKill}
               hint={L.dmnHoldHint}
@@ -369,9 +347,9 @@ export function MDaemonView({
             outline — the red force-kill ink above owns the destructive treatment. */}
         {showDisconnect && (
           <MCard padding="12px 13px">
-            <button type="button" onClick={onDisconnect} style={{ ...OUTLINE_BTN, width: '100%' }}>
+            <MButton onClick={onDisconnect} style={{ width: '100%' }}>
               {L.dmDisconnect}
-            </button>
+            </MButton>
             <div style={{ fontSize: 12, color: MC.muted, marginTop: 8, textAlign: 'center' }}>
               {L.dmnDisconnectNote}
             </div>

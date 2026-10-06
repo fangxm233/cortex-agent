@@ -1,9 +1,9 @@
 //
 // Pure — no data, no tRPC. The full-bleed shell (MobileShell) owns the viewport; a screen renders
 // <MScreen> with its own header, scroll body, and optional footer.
-import { Children, Fragment, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
+import { Children, Fragment, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
 import type { Tone } from '@/design/tone';
-import { MC, M_GUTTER } from '@/design/mobile-tokens';
+import { MC, MONO, M_GUTTER } from '@/design/mobile-tokens';
 import { useVocabOptional } from '@/i18n';
 
 export { MC, MONO, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
@@ -350,6 +350,74 @@ export function MCard({
     >
       {children}
     </div>
+  );
+}
+
+// ── MButton — the 44px action key ──────────────────────────────────────────────────────────────
+// Filled (`accent`, `ink`) for the one decision a card asks for, outlined for the rest. `compact`
+// is for actions that sit inside a row: chip corners and tighter padding, same touch height.
+export type MButtonVariant = 'accent' | 'ink' | 'outline' | 'danger-outline';
+const M_BUTTON_TONE: Record<MButtonVariant, { bg: string; fg: string; line?: string }> = {
+  accent: { bg: MC.run, fg: 'var(--ink-solid-fg)' },
+  ink: { bg: MC.inkSolid, fg: MC.inkSolidFg },
+  outline: { bg: 'var(--material-control-bg)', fg: MC.ink, line: 'var(--proto-line-3)' },
+  'danger-outline': { bg: 'var(--material-control-bg)', fg: 'var(--proto-danger)', line: 'var(--proto-danger-bg)' },
+};
+const M_BUTTON_FULL = { padding: '0 16px', fontSize: 14, borderRadius: 'var(--r-control)', lineWidth: 1.5 };
+const M_BUTTON_COMPACT = { padding: '0 12px', fontSize: 13, borderRadius: 'var(--r-chip)', lineWidth: 1 };
+export interface MButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: MButtonVariant;
+  compact?: boolean;
+}
+export function MButton({ variant = 'outline', compact = false, disabled, style, type = 'button', ...rest }: MButtonProps) {
+  const tone = M_BUTTON_TONE[variant];
+  const { lineWidth, ...box } = compact ? M_BUTTON_COMPACT : M_BUTTON_FULL;
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      style={{
+        ...box,
+        height: 44,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        boxSizing: 'border-box',
+        background: tone.bg,
+        color: tone.fg,
+        border: tone.line ? `${lineWidth}px solid ${tone.line}` : 'none',
+        boxShadow: tone.line ? 'var(--material-control-shadow)' : undefined,
+        fontFamily: 'inherit',
+        fontWeight: 600,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        ...style,
+      }}
+      {...rest}
+    />
+  );
+}
+
+// ── MCollapsedCard — a queue entry folded to one line; tap to expand ─────────────────────────────
+export function MCollapsedCard({ title, meta, leading, sub, onExpand }: {
+  title: ReactNode;
+  meta?: ReactNode;
+  leading?: ReactNode;
+  sub?: ReactNode;
+  onExpand: () => void;
+}) {
+  return (
+    <MCard padding="11px 14px" onClick={onExpand}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
+        {leading}
+        <span style={{ fontSize: 13, fontWeight: 600, color: MC.body, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {title}
+        </span>
+        {meta && <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{meta}</span>}
+      </div>
+      {sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 5, paddingLeft: 2 }}>{sub}</div>}
+    </MCard>
   );
 }
 

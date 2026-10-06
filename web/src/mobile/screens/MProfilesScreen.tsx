@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { MC } from '@/mobile/ui/kit';
+import { MButton, MC } from '@/mobile/ui/kit';
 import {
   PROFILE_BACKENDS, THINKING_LEVELS, isProfileFormValid, profileFieldChoices,
   profileFieldErrorCopy, withCurrentValue,
@@ -12,7 +12,7 @@ import {
   useProfilesController, type ProfilesController,
 } from '@/features/settings/controllers/useProfilesController';
 import {
-  MSettingsButton, MSettingsCard, MSettingsFeedback, MSettingsField,
+  MSettingsCard, MSettingsFeedback, MSettingsField,
   MSettingsPage, MSettingsRow, MSettingsSelect,
 } from './MSettingsControls';
 
@@ -50,8 +50,8 @@ function MProfileChoice(props: {
           label={props.label} value={props.value} hint={props.hint} error={props.error}
           onChange={(event) => props.onValueChange(event.target.value)} />
       </div>
-      {props.options.length > 0 && <MSettingsButton onClick={() => props.onCustom(false)}>
-        {L.pfPickFromList}</MSettingsButton>}
+      {props.options.length > 0 && <MButton compact onClick={() => props.onCustom(false)}>
+        {L.pfPickFromList}</MButton>}
     </div>;
   }
   return <MSettingsSelect data-profile-field={props.field} data-profile-choice="select"
@@ -73,10 +73,10 @@ function ProfileRow(props: {
   const sub = [props.profile.model, props.profile.backend, props.profile.thinking].filter(Boolean).join(' · ');
   return <MSettingsRow stacked title={props.profile.name} sub={sub} trailing={
     <div className="mobile-settings-actions" data-profile-actions={props.profile.name}>
-      {!props.current && <MSettingsButton disabled={props.defaultPending} onClick={props.onDefault}>{L.default}</MSettingsButton>}
-      <MSettingsButton disabled={props.editPending} onClick={props.onEdit}>{L.pfEdit}</MSettingsButton>
-      <MSettingsButton disabled={props.editPending} onClick={props.onDuplicate}>{L.pfDuplicate}</MSettingsButton>
-      <MSettingsButton danger disabled={props.current || props.removePending} onClick={props.onDelete}>{L.pfDelete}</MSettingsButton>
+      {!props.current && <MButton compact disabled={props.defaultPending} onClick={props.onDefault}>{L.default}</MButton>}
+      <MButton compact disabled={props.editPending} onClick={props.onEdit}>{L.pfEdit}</MButton>
+      <MButton compact disabled={props.editPending} onClick={props.onDuplicate}>{L.pfDuplicate}</MButton>
+      <MButton compact variant="danger-outline" disabled={props.current || props.removePending} onClick={props.onDelete}>{L.pfDelete}</MButton>
     </div>} />;
 }
 
@@ -96,11 +96,11 @@ function ExtraOptions(props: {
         onChange={(event) => update(index, 'key', event.target.value)} />
       <MSettingsField data-profile-option-value={index} label={L.pfOptionValuePlaceholder} value={row.value}
         onChange={(event) => update(index, 'value', event.target.value)} />
-      <MSettingsButton danger onClick={() => props.onChange({ ...props.draft,
-        extraOption: props.draft.extraOption.filter((_, rowIndex) => rowIndex !== index) })}>×</MSettingsButton>
+      <MButton compact variant="danger-outline" onClick={() => props.onChange({ ...props.draft,
+        extraOption: props.draft.extraOption.filter((_, rowIndex) => rowIndex !== index) })}>×</MButton>
     </div>)}
-    <MSettingsButton onClick={() => props.onChange({ ...props.draft,
-      extraOption: [...props.draft.extraOption, { key: '', value: '' }] })}>{L.pfAddOption}</MSettingsButton>
+    <MButton compact onClick={() => props.onChange({ ...props.draft,
+      extraOption: [...props.draft.extraOption, { key: '', value: '' }] })}>{L.pfAddOption}</MButton>
     <MSettingsFeedback error={props.error} />
   </div>;
 }
@@ -177,8 +177,8 @@ export function MProfileEditor(props: {
       catalogPending={props.catalogPending} onChange={props.onChange}
       onBackendChange={props.onBackendChange} onProviderChange={props.onProviderChange} />
     <div className="mobile-settings-actions" style={{ padding: '0 13px 13px' }}>
-      <MSettingsButton onClick={props.onCancel}>{L.cancel}</MSettingsButton>
-      <MSettingsButton disabled={!isProfileFormValid(props.errors) || props.pending} onClick={props.onSave}>{L.pfSave}</MSettingsButton>
+      <MButton compact onClick={props.onCancel}>{L.cancel}</MButton>
+      <MButton compact variant="accent" disabled={!isProfileFormValid(props.errors) || props.pending} onClick={props.onSave}>{L.pfSave}</MButton>
     </div>
   </MSettingsCard>;
 }
@@ -194,7 +194,7 @@ export function MProfilesView(props: { controller: ProfilesController; onBack: (
     mode: profiles.creating ? 'create' as const : 'update' as const, draft: profiles.draft,
   } : null;
   return <MSettingsPage title={L.stNavProfiles} onBack={props.onBack}
-    trailing={<MSettingsButton onClick={profiles.openCreate}>{L.pfNew}</MSettingsButton>}>
+    trailing={<MButton compact onClick={profiles.openCreate}>{L.pfNew}</MButton>}>
     {editor && <MProfileEditor
       // A fresh editor per target: the "typed, not picked" flags belong to one editing session.
       key={profiles.creating ? 'create' : profiles.editingName ?? 'none'}

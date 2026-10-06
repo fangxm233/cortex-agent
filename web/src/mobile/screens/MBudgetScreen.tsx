@@ -13,9 +13,9 @@ import {
   useBudgetWriter,
   type BudgetWriterOperation,
 } from '@/features/settings/controllers/useBudgetWriter';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MButton, MC, MONO } from '@/mobile/ui/kit';
 import {
-  MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage, MSettingsSelect,
+  MSettingsCard, MSettingsField, MSettingsPage, MSettingsSelect,
 } from './MSettingsControls';
 
 function SpendBar({ value, limit }: { value: number; limit: number | null }) {
@@ -39,8 +39,8 @@ function BudgetLimitsEditor(props: {
       onChange={(event) => setDaily(event.target.value)} />
     <MSettingsField label={L.stMonthly} inputMode="decimal" value={monthly}
       onChange={(event) => setMonthly(event.target.value)} />
-    <MSettingsButton disabled={!value || clean || props.pending}
-      onClick={() => { if (value) props.onSave(value); }}>{L.stApply}</MSettingsButton>
+    <MButton compact variant="accent" disabled={!value || clean || props.pending}
+      onClick={() => { if (value) props.onSave(value); }}>{L.stApply}</MButton>
   </div>;
 }
 
@@ -102,7 +102,7 @@ export function MBudgetScreen() {
       <BudgetLimitsEditor daily={resolved.daily} monthly={resolved.monthly}
         pending={writer.isPending} onSave={save} />
       {hasOverride(budget, scope) && <div style={{ padding: '0 13px 11px' }}>
-        <MSettingsButton danger disabled={writer.isPending} onClick={clear}>{L.stBudgetClear}</MSettingsButton>
+        <MButton compact variant="danger-outline" disabled={writer.isPending} onClick={clear}>{L.stBudgetClear}</MButton>
       </div>}
     </MSettingsCard>
     <SpendCard today={cost?.today ?? 0} month={cost?.month ?? 0}

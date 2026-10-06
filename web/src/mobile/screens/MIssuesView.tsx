@@ -1,7 +1,6 @@
-import { type ReactNode } from 'react';
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
 import { useVocabOptional, type Vocab } from '@/i18n';
-import { MScreen, MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MC, MONO } from '@/mobile/ui/kit';
 
 export interface MIssuesViewProps {
   cards: IssueDetailVm[];
@@ -68,7 +67,7 @@ export function MIssuesView({
               onHandle={onHandle}
             />
           ) : (
-            <CollapsedCard key={card.id} card={card} onExpand={onExpand} />
+            <MCollapsedCard key={card.id} title={card.title} meta={card.date} onExpand={() => onExpand(card.id)} />
           ),
         )}
         {cards.length > 0 && (
@@ -133,83 +132,12 @@ function ExpandedCard({
       </div>
       {/* decision buttons (24c: 删除 104px danger outline + 处理 flex accent, 44px touch) */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
-        <DecisionButton kind="danger-outline" busy={busy} onClick={() => onDelete(card.id)} width={104}>
+        <MButton variant="danger-outline" disabled={busy} onClick={() => onDelete(card.id)} style={{ flex: 'none', width: 104 }}>
           {copy.isDelete}
-        </DecisionButton>
-        <DecisionButton kind="accent" busy={busy} onClick={() => onHandle(card.id)}>
+        </MButton>
+        <MButton variant="accent" disabled={busy} onClick={() => onHandle(card.id)} style={{ flex: 1 }}>
           {copy.isHandle}
-        </DecisionButton>
-      </div>
-    </MCard>
-  );
-}
-
-function DecisionButton({
-  kind,
-  busy,
-  onClick,
-  width,
-  children,
-}: {
-  kind: 'accent' | 'danger-outline';
-  busy: boolean;
-  onClick: () => void;
-  width?: number;
-  children: ReactNode;
-}) {
-  const accent = kind === 'accent';
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={onClick}
-      style={{
-        flex: width ? 'none' : 1,
-        width,
-        height: 44,
-        borderRadius: 'var(--r-control)',
-        background: accent ? MC.run : 'var(--material-control-bg)',
-        boxShadow: accent ? undefined : 'var(--material-control-shadow)',
-        color: accent ? 'var(--ink-solid-fg)' : 'var(--proto-danger)',
-        border: accent ? 'none' : '1.5px solid var(--proto-danger-bg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 14,
-        fontWeight: 600,
-        boxSizing: 'border-box',
-        fontFamily: 'inherit',
-        cursor: busy ? 'not-allowed' : 'pointer',
-        opacity: busy ? 0.6 : 1,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ── collapsed card — tap to expand (24c) ─────────────────────────────────────────────────────────
-function CollapsedCard({ card, onExpand }: { card: IssueDetailVm; onExpand: (id: string) => void }) {
-  return (
-    <MCard padding="11px 14px" onClick={() => onExpand(card.id)}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: MC.body,
-            flex: 1,
-            minWidth: 0,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {card.title}
-        </span>
-        {card.date && (
-          <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{card.date}</span>
-        )}
+        </MButton>
       </div>
     </MCard>
   );

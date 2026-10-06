@@ -1,5 +1,4 @@
-import { type ReactNode } from 'react';
-import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MPill, MC, MONO } from '@/mobile/ui/kit';
 import { useVocabOptional, type Vocab } from '@/i18n';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
 
@@ -224,55 +223,14 @@ function ExpandedCard({
       </div>
       {/* decision buttons follow the desktop order: reject, then approve */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
-        <DecisionButton kind="outline" busy={busy} onClick={() => onReject(card.id, feedback)}>
+        <MButton variant="outline" disabled={busy} onClick={() => onReject(card.id, feedback)} style={{ flex: 1 }}>
           {copy.apprRejectFeedback}
-        </DecisionButton>
-        <DecisionButton kind="ink" busy={busy} onClick={() => onApprove(card.id)}>
+        </MButton>
+        <MButton variant="ink" disabled={busy} onClick={() => onApprove(card.id)} style={{ flex: 1 }}>
           {copy.approve}
-        </DecisionButton>
+        </MButton>
       </div>
     </MCard>
-  );
-}
-
-function DecisionButton({
-  kind,
-  busy,
-  onClick,
-  children,
-}: {
-  kind: 'ink' | 'outline';
-  busy: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  const ink = kind === 'ink';
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={onClick}
-      style={{
-        flex: 1,
-        height: 44,
-        borderRadius: 'var(--r-control)',
-        background: ink ? MC.inkSolid : 'var(--material-control-bg)',
-        boxShadow: ink ? undefined : 'var(--material-control-shadow)',
-        color: ink ? MC.inkSolidFg : MC.ink,
-        border: ink ? 'none' : '1.5px solid var(--proto-line-3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 14,
-        fontWeight: 600,
-        boxSizing: 'border-box',
-        fontFamily: 'inherit',
-        cursor: busy ? 'not-allowed' : 'pointer',
-        opacity: busy ? 0.6 : 1,
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -290,28 +248,12 @@ function CollapsedCard({
     .filter(Boolean)
     .join(' · ');
   return (
-    <MCard padding="11px 14px" onClick={() => onExpand(card.id)}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
-        {card.operation && <TierPill copy={copy} operation={card.operation} />}
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: MC.body,
-            flex: 1,
-            minWidth: 0,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {card.title}
-        </span>
-        {card.time && (
-          <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{card.time}</span>
-        )}
-      </div>
-      <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 5, paddingLeft: 2 }}>{sub}</div>
-    </MCard>
+    <MCollapsedCard
+      leading={card.operation && <TierPill copy={copy} operation={card.operation} />}
+      title={card.title}
+      meta={card.time}
+      sub={sub}
+      onExpand={() => onExpand(card.id)}
+    />
   );
 }

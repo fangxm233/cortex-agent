@@ -12,7 +12,7 @@ import type {
 import { usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
 import { useVocab, type Vocab } from '@/i18n';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MButton, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsToggle } from './MSettingsControls';
 
@@ -103,17 +103,12 @@ function saveThreshold(props: PolicyThresholdButtonsProps): void {
 
 function PolicySaveButton(props: PolicyThresholdButtonsProps) {
   return (
-    <button
-      type="button" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)} disabled={props.saveDisabled}
-      onClick={() => saveThreshold(props)}
-      style={{
-        border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg,
-        color: MC.run, fontSize: 10.5, fontWeight: 650,
-        opacity: props.saveDisabled ? 0.45 : 1, cursor: props.saveDisabled ? 'default' : 'pointer',
-      }}
+    <MButton
+      compact variant="accent" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)}
+      disabled={props.saveDisabled} onClick={() => saveThreshold(props)}
     >
       {props.pending ? props.L.usagePolicySaving : props.L.usagePolicySave}
-    </button>
+    </MButton>
   );
 }
 
@@ -137,20 +132,15 @@ function ChevronIcon({ open }: { open: boolean }) {
 
 function PolicyResetButton(props: PolicyThresholdButtonsProps) {
   return (
-    <button
-      type="button" data-usage-threshold-reset={usagePolicyTargetKey(props.policy.target)}
+    <MButton
+      compact data-usage-threshold-reset={usagePolicyTargetKey(props.policy.target)}
       aria-label={props.L.usagePolicyResetDefault} title={props.L.usagePolicyResetDefault}
       disabled={props.resetDisabled}
       onClick={() => props.onSavePolicy(props.policy.target, { enabled: true, thresholdPercent: null })}
-      style={{
-        width: 30, height: 30, borderRadius: 'var(--r-chip)', border: `1px solid ${MC.divider}`, padding: 0,
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.sub,
-        opacity: props.resetDisabled ? 0.45 : 1, cursor: props.resetDisabled ? 'default' : 'pointer',
-      }}
+      style={{ width: 44, padding: 0 }}
     >
       <ResetIcon />
-    </button>
+    </MButton>
   );
 }
 
