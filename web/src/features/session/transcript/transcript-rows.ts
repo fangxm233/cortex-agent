@@ -216,17 +216,19 @@ function createBuildState(transcript: SessionTranscript, flat: FlatMessage[]): B
 }
 
 /**
- * A run of consecutive calls becomes one row, except that the calls whose result carried images
- * are pulled out into a row of their own. The two rows keep the order of their first calls.
+ * A run of consecutive calls becomes rows in call order: adjacent calls whose result carried
+ * images share one row, adjacent other calls share another, so reads and tools alternate as they ran.
  */
 function flushTools(sink: RowSink): void {
-  if (sink.toolBuf.length === 0) return;
-  const withImages = sink.toolBuf.filter((call) => call.images);
-  const plain = sink.toolBuf.filter((call) => !call.images);
-  const groups = sink.toolBuf[0].images ? [withImages, plain] : [plain, withImages];
-  for (const calls of groups) {
-    if (calls.length > 0) sink.rows.push({ kind: 'tools', count: calls.length, calls });
+  let calls: ToolCallEntry[] = [];
+  for (const call of sink.toolBuf) {
+    if (calls.length > 0 && !calls[0].images !== !call.images) {
+      sink.rows.push({ kind: 'tools', count: calls.length, calls });
+      calls = [];
+    }
+    calls.push(call);
   }
+  if (calls.length > 0) sink.rows.push({ kind: 'tools', count: calls.length, calls });
   sink.toolBuf = [];
 }
 

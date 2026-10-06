@@ -247,25 +247,24 @@ describe('buildTranscriptRows', () => {
     const user = { type: 'user' as const, text: 'go', toolName: null, toolInput: null, ts: T, elapsedMs: null };
     const toolRows = (rows: ChatRow[]) => rows.filter((r): r is Extract<ChatRow, { kind: 'tools' }> => r.kind === 'tools');
 
-    it('split out of a run into one image row, the two rows ordered by their first call', () => {
-      const plainFirst = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+    it('split out of a run in call order: adjacent image reads share a row, alternation stays alternating', () => {
+      const alternating = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
         user, tool('Bash', 'ls'), tool('Read', '/a.png', [img('a-0.png')]), tool('Grep', 'x'), tool('Read', '/b.png', [img('b-0.png'), img('b-1.png')]),
       ] }]), []));
-      expect(plainFirst).toEqual([
-        { kind: 'tools', count: 2, calls: [{ kind: 'Bash', input: 'ls' }, { kind: 'Grep', input: 'x' }] },
-        { kind: 'tools', count: 2, calls: [
-          { kind: 'Read', input: '/a.png', images: [{ name: 'a.png', path: 'workspace/tool-images/s1/a-0.png' }] },
-          { kind: 'Read', input: '/b.png', images: [
-            { name: 'b.png', path: 'workspace/tool-images/s1/b-0.png' },
-            { name: 'b.png', path: 'workspace/tool-images/s1/b-1.png' },
-          ] },
-        ] },
+      expect(alternating).toEqual([
+        { kind: 'tools', count: 1, calls: [{ kind: 'Bash', input: 'ls' }] },
+        { kind: 'tools', count: 1, calls: [{ kind: 'Read', input: '/a.png', images: [{ name: 'a.png', path: 'workspace/tool-images/s1/a-0.png' }] }] },
+        { kind: 'tools', count: 1, calls: [{ kind: 'Grep', input: 'x' }] },
+        { kind: 'tools', count: 1, calls: [{ kind: 'Read', input: '/b.png', images: [
+          { name: 'b.png', path: 'workspace/tool-images/s1/b-0.png' },
+          { name: 'b.png', path: 'workspace/tool-images/s1/b-1.png' },
+        ] }] },
       ]);
 
-      const imageFirst = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
-        user, tool('Read', '/a.png', [img('a-0.png')]), tool('Bash', 'ls'),
+      const grouped = toolRows(buildTranscriptRows(tx([{ turnIndex: 0, messages: [
+        user, tool('Read', '/a.png', [img('a-0.png')]), tool('Read', '/b.png', [img('b-0.png')]), tool('Bash', 'ls'), tool('Grep', 'x'),
       ] }]), []));
-      expect(imageFirst.map((r) => r.calls.map((c) => c.kind))).toEqual([['Read'], ['Bash']]);
+      expect(grouped.map((r) => r.calls.map((c) => c.kind))).toEqual([['Read', 'Read'], ['Bash', 'Grep']]);
     });
 
     it('a run of image reads alone is one row; non-image attachments do not count', () => {

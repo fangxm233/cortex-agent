@@ -38,8 +38,8 @@ export type ChatRow =
   // user bubble: the stream renders it as a one-line hint, it offers no copy/edit/rewind (there is
   // no human message to rewind to) and it raises no nav-rail mark.
   | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; systemOrigin?: SystemTurnOrigin; debug?: { agentMessage: string } }
-  // `count` is the number of calls. A run of consecutive calls splits into at most two rows: the
-  // calls whose result carried images, and the rest — see `flushTools`.
+  // `count` is the number of calls. A run of consecutive calls splits wherever it switches between
+  // calls whose result carried images and the rest — see `flushTools`.
   | { kind: 'tools'; count: number; calls: ToolCallEntry[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   // `preview` marks the ONE row that is the block being written right now (the token-level
