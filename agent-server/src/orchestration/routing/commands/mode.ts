@@ -3,9 +3,9 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { setChannelModelOverride, setChannelThinkingOverride, getActiveProfile, setActiveProfile, clearChannelProfile, getChannelAgents, getDefaultAgent, setDefaultAgent, switchChannelAgent, clearChannelAgentSelection, switchChannelProfile } from '@domain/agents/index.js';
-import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLevel, listProfiles, resolveProfile, THINKING_LEVELS_BY_BACKEND } from '@domain/agents/profile-manager.js';
-import { resolveRunConfig } from '@domain/runs/config-resolver.js';
+import { applyChannelSelection, getActiveProfile, setActiveProfile, clearChannelProfile, getChannelAgents, getDefaultAgent, setDefaultAgent, switchChannelAgent, clearChannelAgentSelection, switchChannelProfile } from '@domain/agents/index.js';
+import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLevel, listProfiles, resolveProfile } from '@domain/agents/profile-manager.js';
+import { resolveRunConfig, type ResolvedRunConfig } from '@domain/runs/config-resolver.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
 import { getEnvironment, listEnvironments } from '@domain/agents/environments/registry.js';
@@ -83,6 +83,57 @@ export async function handleBackendCmd(channel: string, adapter: PlatformAdapter
 }
 
 /**
+ * `!thinking` — show, set or clear THIS CHANNEL's thinking level (the composer picker's chat twin).
+ *
+ * The same channel-scoped override the picker writes, one field over. The level IS validated (by
+ * the selection rule), unlike the model: an id the backend does not know is the backend's business
+ * to refuse, but an effort word it does not know is rejected by the CLI before the turn starts,
+ * which reads as the agent dying. Clearing drops only the level.
+ */
+export async function handleThinkingCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
+  const args = trimmedMessage.split(/\s+/).slice(1);
+  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  const config = resolveRunConfig({ channel });
+  const arg = args.join(' ').trim();
+  let text: string;
+  if (args.length === 0) text = thinkingStatusText(config);
+  // 'off' is a real pi level, so it only means "clear" on a backend that has no such rung.
+  else if (arg === 'reset' || arg === 'clear' || (arg === 'off' && !isValidThinkingLevel(config.profile.backend, 'off'))) {
+    text = await clearThinking(channel, config);
+  } else text = await setThinking(channel, config, arg);
+  await adapter.postMessage(dest, { text });
+}
+
+function declaredThinking(config: ResolvedRunConfig): string {
+  return config.profile.thinking ?? t('cmd.thinking.none');
+}
+
+function thinkingStatusText(config: ResolvedRunConfig): string {
+  const override = config.override?.thinking ?? null;
+  return override
+    ? t('cmd.thinking.overridden', { thinking: override, profile: config.profileName, profileThinking: declaredThinking(config) })
+    : t('cmd.thinking.current', { thinking: declaredThinking(config), profile: config.profileName });
+}
+
+async function clearThinking(channel: string, config: ResolvedRunConfig): Promise<string> {
+  await applyChannelSelection({ channel, thinking: null, seedDefault: false });
+  const vars = { profile: config.profileName, thinking: declaredThinking(config) };
+  return config.override?.thinking
+    ? `${Icons.ok} ${t('cmd.thinking.cleared', vars)}`
+    : t('cmd.thinking.noOverride', vars);
+}
+
+async function setThinking(channel: string, config: ResolvedRunConfig, thinking: string): Promise<string> {
+  const result = await applyChannelSelection({ channel, thinking, seedDefault: false });
+  if (!result.ok) {
+    return `${Icons.error} ${t('cmd.thinking.invalid', {
+      thinking, backend: result.backend, levels: (result.allowed ?? []).join(', '),
+    })}`;
+  }
+  return `${Icons.ok} ${t('cmd.thinking.set', { thinking, profile: config.profileName })}`;
+}
+
+/**
  * `!model` — show, set or clear THIS CHANNEL's model override (D5).
  *
  * The override is stored per channel and layered on top of whatever profile the channel resolves
@@ -91,92 +142,41 @@ export async function handleBackendCmd(channel: string, adapter: PlatformAdapter
  *
  * The value is not validated here: which ids a backend accepts is the backend's business, and its
  * own rejection names the problem better than a guess would.
- */
-/**
- * `!thinking` — show, set or clear THIS CHANNEL's thinking level (the composer picker's chat twin).
  *
- * The same channel-scoped override the picker writes, one field over. The level IS validated,
- * unlike the model: an id the backend does not know is the backend's business to refuse, but an
- * effort word it does not know is rejected by the CLI before the turn starts, which reads as the
- * agent dying. Clearing drops only the level.
+ * `!model` and `!thinking` write through `applyChannelSelection`, the rule every selection surface
+ * shares, with `seedDefault: false`: a channel-scoped command does not decide what the next new
+ * Web conversation opens on.
  */
-export async function handleThinkingCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const args = trimmedMessage.split(/\s+/).slice(1);
-  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  const config = resolveRunConfig({ channel });
-  const backend = config.profile.backend;
-  const override = config.override?.thinking ?? null;
-  const declared = config.profile.thinking ?? t('cmd.thinking.none');
-
-  if (args.length === 0) {
-    await adapter.postMessage(dest, {
-      text: override
-        ? t('cmd.thinking.overridden', { thinking: override, profile: config.profileName, profileThinking: declared })
-        : t('cmd.thinking.current', { thinking: declared, profile: config.profileName }),
-    });
-    return;
-  }
-
-  const arg = args.join(' ').trim();
-  // 'off' is a real pi level, so it only means "clear" on a backend that has no such rung.
-  if ((arg === 'reset' || arg === 'clear') || (arg === 'off' && !isValidThinkingLevel(backend, 'off'))) {
-    setChannelThinkingOverride(channel, null);
-    await adapter.postMessage(dest, {
-      text: override
-        ? `${Icons.ok} ${t('cmd.thinking.cleared', { profile: config.profileName, thinking: declared })}`
-        : t('cmd.thinking.noOverride', { profile: config.profileName, thinking: declared }),
-    });
-    return;
-  }
-  if (!isValidThinkingLevel(backend, arg)) {
-    await adapter.postMessage(dest, {
-      text: `${Icons.error} ${t('cmd.thinking.invalid', {
-        thinking: arg, backend, levels: THINKING_LEVELS_BY_BACKEND[backend].join(', '),
-      })}`,
-    });
-    return;
-  }
-  setChannelThinkingOverride(channel, arg);
-  await adapter.postMessage(dest, {
-    text: `${Icons.ok} ${t('cmd.thinking.set', { thinking: arg, profile: config.profileName })}`,
-  });
-}
-
 export async function handleModelCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
   const args = trimmedMessage.split(/\s+/).slice(1);
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   const config = resolveRunConfig({ channel });
-
-  if (args.length === 0) {
-    await adapter.postMessage(dest, {
-      text: config.modelOverride
-        ? t('cmd.model.overridden', {
-            model: config.modelOverride, profile: config.profileName, profileModel: config.profile.model,
-          })
-        : t('cmd.model.current', { model: config.profile.model, profile: config.profileName }),
-    });
-    return;
-  }
-
   const arg = args.join(' ').trim();
-  if (arg === 'reset' || arg === 'clear' || arg === 'off') {
-    const had = config.modelOverride !== null;
-    setChannelModelOverride(channel, null);
-    await adapter.postMessage(dest, {
-      text: had
-        ? `${Icons.ok} ${t('cmd.model.cleared', { profile: config.profileName, model: config.profile.model })}`
-        : t('cmd.model.noOverride', { profile: config.profileName, model: config.profile.model }),
-    });
-    return;
+  let text: string;
+  if (args.length === 0) text = modelStatusText(config);
+  else if (arg === 'reset' || arg === 'clear' || arg === 'off') text = await clearModel(channel, config);
+  else if (!arg) text = `${Icons.error} ${t('cmd.model.usage')}`;
+  else {
+    await applyChannelSelection({ channel, model: arg, seedDefault: false });
+    text = `${Icons.ok} ${t('cmd.model.set', { model: arg, profile: config.profileName })}`;
   }
-  if (!arg) {
-    await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.model.usage')}` });
-    return;
-  }
-  setChannelModelOverride(channel, arg);
-  await adapter.postMessage(dest, {
-    text: `${Icons.ok} ${t('cmd.model.set', { model: arg, profile: config.profileName })}`,
-  });
+  await adapter.postMessage(dest, { text });
+}
+
+function modelStatusText(config: ResolvedRunConfig): string {
+  return config.modelOverride
+    ? t('cmd.model.overridden', {
+      model: config.modelOverride, profile: config.profileName, profileModel: config.profile.model,
+    })
+    : t('cmd.model.current', { model: config.profile.model, profile: config.profileName });
+}
+
+async function clearModel(channel: string, config: ResolvedRunConfig): Promise<string> {
+  await applyChannelSelection({ channel, model: null, seedDefault: false });
+  const vars = { profile: config.profileName, model: config.profile.model };
+  return config.modelOverride !== null
+    ? `${Icons.ok} ${t('cmd.model.cleared', vars)}`
+    : t('cmd.model.noOverride', vars);
 }
 
 const MAX_PROFILE_BUTTONS = 10;

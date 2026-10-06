@@ -119,9 +119,9 @@ export function setChannelOverride(channel: string, patch: Partial<Record<keyof 
  * Remember a composer's pick as the seed a brand-new conversation starts on.
  *
  * Written for direct (`web:`) channels only, by `applyChannelSelection` — never for a platform
- * channel, and never by `!model` / `!thinking`, which write their channel's override directly.
- * Those are channel-scoped tools; letting one of them decide what the next Web session runs would
- * be action at a distance. Clearing back to the profile IS a choice and is remembered as one — the
+ * channel, and never for `!model` / `!thinking`, which pass `seedDefault: false`. Those are
+ * channel-scoped tools; letting one of them decide what the next Web session runs would be action
+ * at a distance. Clearing back to the profile IS a choice and is remembered as one — the
  * seed then carries a profile and no overrides.
  */
 export function setSelectionDefault(seed: SelectionDefault | null): void {
@@ -154,18 +154,6 @@ export function clearChannelOverride(channel: string): void {
   const overrides = { ...agentState.channelOverrides };
   delete overrides[channel];
   commit({ ...agentState, channelOverrides: overrides });
-}
-
-/** Set or clear the channel's model override. Takes effect on the next turn — a live turn already
- *  has its EngineSpec. */
-export function setChannelModelOverride(channel: string, model: string | null): void {
-  setChannelOverride(channel, { model });
-}
-
-/** The channel-scoped thinking level `!thinking` writes — the chat twin of the composer's picker.
- *  Clearing drops ONLY the level: a model chosen separately was a separate decision. */
-export function setChannelThinkingOverride(channel: string, thinking: string | null): void {
-  setChannelOverride(channel, { thinking });
 }
 
 /**

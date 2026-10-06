@@ -28,8 +28,7 @@ vi.mock('@domain/agents/index.js', () => ({
   },
   clearChannelAgentSelection: async (channel: string) => { calls.push(`clear(${channel})`); },
   // Unused by `!agent`, but mode.ts imports them at module level.
-  setChannelModelOverride: () => {},
-  setChannelThinkingOverride: () => {},
+  applyChannelSelection: async () => ({ ok: true }),
   getActiveProfile: () => 'execute',
   setActiveProfile: () => {},
   clearChannelProfile: () => {},

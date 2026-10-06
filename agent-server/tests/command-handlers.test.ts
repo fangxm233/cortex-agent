@@ -10,7 +10,9 @@ import { handleBackendCmd, handleModelCmd, handleThinkingCmd } from '../src/orch
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
 import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
 import { projectStore } from '../src/domain/projects/index.js';
-import { clearChannelProfile, setChannelModelOverride, setChannelThinkingOverride } from '../src/domain/agents/config.js';
+import {
+  clearChannelOverride, clearChannelProfile, getSelectionDefault, setChannelOverride,
+} from '../src/domain/agents/config.js';
 import { resolveRunConfig } from '../src/domain/runs/config-resolver.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
@@ -158,7 +160,7 @@ test('!backend honours defaultProfileByBackend over declaration order', async (t
 });
 
 test('!model sets, reports and resets a channel-scoped override', async (t) => {
-  t.onTestFinished(() => setChannelModelOverride('C-model', null));
+  t.onTestFinished(() => clearChannelOverride('C-model'));
 
   const show = new MockAdapter();
   await handleModelCmd('C-model', show, '!model');
@@ -181,7 +183,7 @@ test('!model sets, reports and resets a channel-scoped override', async (t) => {
 });
 
 test('!thinking sets, reports and resets a channel-scoped level', async (t) => {
-  t.onTestFinished(() => setChannelModelOverride('C-think', null));
+  t.onTestFinished(() => clearChannelOverride('C-think'));
 
   const show = new MockAdapter();
   await handleThinkingCmd('C-think', show, '!thinking');
@@ -198,7 +200,7 @@ test('!thinking sets, reports and resets a channel-scoped level', async (t) => {
 });
 
 test('!thinking refuses a level the channel\'s backend does not take', async (t) => {
-  t.onTestFinished(() => setChannelModelOverride('C-think-bad', null));
+  t.onTestFinished(() => clearChannelOverride('C-think-bad'));
 
   const adapter = new MockAdapter();
   // 'off' is a pi level; this channel runs claude, whose CLI would die on it.
@@ -212,11 +214,8 @@ test('!thinking refuses a level the channel\'s backend does not take', async (t)
 });
 
 test('!thinking leaves a model chosen separately alone', async (t) => {
-  t.onTestFinished(() => {
-    setChannelModelOverride('C-think-model', null);
-    setChannelThinkingOverride('C-think-model', null);
-  });
-  setChannelModelOverride('C-think-model', 'haiku-test');
+  t.onTestFinished(() => clearChannelOverride('C-think-model'));
+  setChannelOverride('C-think-model', { model: 'haiku-test' });
 
   await handleThinkingCmd('C-think-model', new MockAdapter(), '!thinking high');
   assert.deepEqual(resolveRunConfig({ channel: 'C-think-model' }).override, {
@@ -226,6 +225,17 @@ test('!thinking leaves a model chosen separately alone', async (t) => {
   await handleThinkingCmd('C-think-model', new MockAdapter(), '!thinking reset');
   assert.equal(resolveRunConfig({ channel: 'C-think-model' }).modelOverride, 'haiku-test',
     'clearing the level is not a licence to drop the model too');
+});
+
+test('!model and !thinking on a web channel leave the next conversation\'s seed alone', async (t) => {
+  t.onTestFinished(() => clearChannelOverride('web:cmd-seed'));
+  const before = getSelectionDefault();
+
+  await handleModelCmd('web:cmd-seed', new MockAdapter(), '!model haiku-test');
+  await handleThinkingCmd('web:cmd-seed', new MockAdapter(), '!thinking high');
+
+  assert.deepEqual(resolveRunConfig({ channel: 'web:cmd-seed' }).override, { model: 'haiku-test', thinking: 'high' });
+  assert.deepEqual(getSelectionDefault(), before, 'a channel-scoped command is not a composer pick');
 });
 
 test('!cost <project> filters report to the requested project scope', async (t) => {
