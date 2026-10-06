@@ -198,6 +198,18 @@ textarea::placeholder {
     opacity: 0.3;
   }
 }
+/* A running worker's dot: a soft accent ring that grows and fades. */
+@keyframes cxring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--proto-accent) 40%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--proto-accent) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--proto-accent) 0%, transparent);
+  }
+}
 @keyframes cxtoast {
   from {
     opacity: 0;

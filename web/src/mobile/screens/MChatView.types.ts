@@ -49,7 +49,8 @@ export interface MChatViewProps {
   title: string;
   /** Team mode: the worker's lead, named before the title; tapping it opens the lead. */
   parent?: { title: string; onSelect: () => void } | null;
-  /** Team mode: the lead's workers, as a chip row under the header. */
+  /** Team mode: the lead's workers, as a summary row under the header that opens the team sheet.
+   *  `onOpenWorker` runs from that sheet, so it should replace the sheet's history entry. */
   workers?: SessionInfo[];
   onOpenWorker?: (sessionId: string) => void;
   status: ChatHeaderStatus;

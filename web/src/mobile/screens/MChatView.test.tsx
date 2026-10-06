@@ -45,6 +45,7 @@ vi.mock('@/mobile/ui/kit', async () => ({
   ...(await vi.importActual<typeof import('@/mobile/ui/kit')>('@/mobile/ui/kit')),
   MBottomSheet: ({ children, onClose }: any) => <div data-bottom-sheet="" data-close={onClose}>{children}</div>,
 }));
+vi.mock('@/features/team/useWorkerQuestions', () => ({ useWorkerQuestions: () => ({}) }));
 vi.mock('@/features/browser/BrowserOptIn', () => ({
   useBrowserDeviceOptions: () => [{ device: null, label: 'Off', sub: '' }, { device: 'laptop', label: 'laptop', sub: '' }],
 }));
@@ -413,38 +414,44 @@ describe('MChatView header status line', () => {
 
 describe('MChatView team context', () => {
   const status = { running: false, tone: 'idle' as const, text: 'idle' };
-  const worker = (sessionId: string, retired = false) => ({
+  const worker = (sessionId: string, retired = false, extra: Record<string, unknown> = {}) => ({
     sessionId, projectId: 'p', name: sessionId, label: null, origin: 'direct', teamLeadId: 'lead',
-    workerName: 'w-' + sessionId, workerRetiredAt: retired ? 1 : null, createdAt: '', lastUsedAt: '',
+    workerName: 'w-' + sessionId, workerRetiredAt: retired ? 1 : null, createdAt: '', lastUsedAt: '', ...extra,
   }) as unknown as import('@cortex-agent/ui-contract').SessionInfo;
   const mount = (extra: Record<string, unknown>) => {
     let renderer!: ReactTestRenderer;
-    act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} {...extra} /></LangProvider>); });
+    act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="lead" {...extra} /></LangProvider>); });
     return renderer;
   };
-  const strips = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'div' && n.props['data-worker-strip'] !== undefined);
+  const teamRows = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-team-row'] !== undefined);
   const crumbs = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-lead-crumb'] !== undefined);
   const top = (r: ReactTestRenderer) => r.root.findByProps({ 'data-transcript-scroller': true }).props.style['--transcript-sticky-top'];
 
-  it('renders neither strip nor breadcrumb without a team, keeping the default clearance', () => {
+  it('renders neither summary nor breadcrumb without a team, keeping the default clearance', () => {
     const r = mount({ workers: [], parent: null, onOpenWorker: vi.fn() });
-    expect(strips(r)).toHaveLength(0);
+    expect(teamRows(r)).toHaveLength(0);
     expect(crumbs(r)).toHaveLength(0);
     expect(top(r)).toBe('calc(72px + env(safe-area-inset-top))');
     const retiredOnly = mount({ workers: [worker('w0', true)], onOpenWorker: vi.fn() });
-    expect(strips(retiredOnly)).toHaveLength(0);
+    expect(teamRows(retiredOnly)).toHaveLength(0);
     act(() => { r.unmount(); retiredOnly.unmount(); });
   });
 
-  it('floats the worker chips under the header and pushes the transcript down', () => {
+  it('floats the team summary under the header and opens the team sheet from it', () => {
     const onOpenWorker = vi.fn();
-    const r = mount({ workers: [worker('w1'), worker('w2', true)], onOpenWorker });
-    expect(strips(r)).toHaveLength(1);
-    expect(top(r)).toBe('calc(108px + env(safe-area-inset-top))');
-    const chips = r.root.findAll((n) => n.type === 'button' && n.props['data-worker-chip']);
-    expect(chips.map((c) => c.props['data-worker-chip'])).toEqual(['w1']);
-    act(() => chips[0].props.onClick());
-    expect(onOpenWorker).toHaveBeenCalledWith('w1');
+    const r = mount({ workers: [worker('w1', false, { running: true }), worker('w2'), worker('w3', true)], onOpenWorker });
+    expect(top(r)).toBe('calc(118px + env(safe-area-inset-top))');
+    const row = teamRows(r)[0];
+    expect(JSON.stringify(r.toJSON())).toContain('2 workers');
+    expect(r.root.findAll((n) => n.props['data-team-sheet'] !== undefined)).toHaveLength(0);
+    act(() => row.props.onClick());
+    const sheet = r.root.findByProps({ 'data-team-sheet': '' });
+    const workerRows = sheet.findAll((n) => n.type === 'button' && n.props['data-worker-row'] !== undefined);
+    expect(workerRows.map((n) => n.props['data-worker-row'])).toEqual(['w1', 'w2']);
+    expect(sheet.findByProps({ 'data-team-retired': '' })).toBeTruthy();
+    act(() => workerRows[1].props.onClick());
+    expect(onOpenWorker).toHaveBeenCalledWith('w2');
+    expect(r.root.findAll((n) => n.props['data-team-sheet'] !== undefined)).toHaveLength(0);
     act(() => r.unmount());
   });
 

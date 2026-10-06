@@ -24,8 +24,7 @@ import { useChatOverlay, type ChatOverlay } from './useChatOverlay';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
 import { useNowTick } from '@/lib/useNowTick';
-import { WorkerStrip } from '@/features/team/WorkerStrip';
-import { isRetiredWorker } from '@/features/team/worker-groups';
+import { hasActiveWorker, MTeamRow, TEAM_ROW_HEIGHT } from './MChatTeam';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
@@ -710,10 +709,10 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   const overlay = useChatOverlay(props.sessionId ?? '');
   const files = useFilePicker(props.onAddFiles);
   const selection = selectionView(props.selection, useVocabOptional());
-  // Team mode: a lead's worker chips float in a 36px row under the header, so the transcript's top
-  // clearance grows by that much while the row is there.
-  const workerRow = !!props.onOpenWorker && (props.workers ?? []).some((w) => !isRetiredWorker(w));
-  const topClear = workerRow ? 108 : 72;
+  // Team mode: a lead's team summary floats in a row under the header, so the transcript's top
+  // clearance grows by that row and the gap above it while the row is there.
+  const teamRow = !!props.onOpenWorker && hasActiveWorker(props.workers);
+  const topClear = teamRow ? 72 + 6 + TEAM_ROW_HEIGHT : 72;
   return (
     <div
       data-screen-label="1b chat detail"
@@ -723,10 +722,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
         onBack={props.onBack} onMore={() => overlay.toggle('more')}
         contextControl={headerContextControl(props, () => overlay.open('context'))} />
-      {workerRow && (
-        <WorkerStrip workers={props.workers ?? []} onOpen={props.onOpenWorker!} touch
-          style={{ position: 'absolute', top: 'calc(66px + env(safe-area-inset-top))', left: 16, right: 16, zIndex: 5 }} />
-      )}
+      {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
       <MChatBody props={props} topClear={topClear} overlay={overlay} selection={selection} />
       <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />
     </div>

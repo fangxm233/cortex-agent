@@ -83,12 +83,16 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
 
 - The sidebar nests a lead's workers under it, behind a caret with a worker count. The lead's
   dot summarizes its workers, and retired workers are listed last and dimmed.
-- A lead's chat shows a compact strip of worker chips under its header. Each chip carries the
-  worker's status dot and opens the worker.
+- A lead's chat header carries its team as one capsule: a status dot per active worker, needs-you
+  first, then a summary such as *7 workers · 3 running · 1 needs you*. Clicking it opens the team
+  list. Each row shows a worker's status and how long it has been running or idle, and underneath
+  it what the worker is doing: the question it is waiting on you for, its current task while it
+  runs, or the brief the lead spawned it with. A row opens that worker. Retired workers are folded
+  at the bottom of the list.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
-  shows as running while any worker runs, and as unread while any worker has news. The worker
-  chips in the lead's chat open them. Retired workers are not on the strip and count toward
-  neither.
+  shows as running while any worker runs, and as unread while any worker has news. In the lead's
+  chat, a summary row under the header opens the same team list as a sheet. Retired workers count
+  toward neither state and are folded at the bottom of the list.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
 - A worker that is waiting for its lead to answer shows a hollow ring and *Waiting on lead*. The

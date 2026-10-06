@@ -260,7 +260,8 @@ export function MChatScreen(): JSX.Element {
       title={title}
       parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => navigate(`/m/session/${team.lead!.sessionId}`) } : null}
       workers={team.workers}
-      onOpenWorker={(id) => navigate(`/m/session/${id}`)}
+      // Opened from the team sheet: replacing its back-guard entry keeps back from the worker on the lead.
+      onOpenWorker={(id) => navigate(`/m/session/${id}`, { replace: true })}
       metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
       status={status}
       project={route.projectId ?? undefined}
