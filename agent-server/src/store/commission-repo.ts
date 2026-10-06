@@ -80,11 +80,13 @@ export class CommissionRepo {
     });
   }
 
-  async update(id: string, fn: (record: CommissionRecord) => void): Promise<CommissionRecord | null> {
+  /** Read-modify-write one record under the repo lock. `fn` returning `false` declines the change
+   *  (a check made inside the lock failed); the record comes back untouched. */
+  async update(id: string, fn: (record: CommissionRecord) => void | false): Promise<CommissionRecord | null> {
     return this._repo.mutate((data) => {
       const record = data.commissions.find(c => c.id === id);
       if (!record) return { next: data, result: null };
-      fn(record);
+      if (fn(record) === false) return { next: data, result: record };
       record.updatedAt = Date.now();
       return { next: data, result: record };
     });

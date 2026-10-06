@@ -1988,7 +1988,8 @@ export interface UiServiceDeps {
   commissionStore?: {
     list(projectId?: string): Promise<CommissionRecord[]>;
     find(id: string): Promise<CommissionRecord | null>;
-    update(id: string, fn: (record: CommissionRecord) => void): Promise<CommissionRecord | null>;
+    /** `fn` returning `false` declines the change; the record comes back untouched. */
+    update(id: string, fn: (record: CommissionRecord) => void | false): Promise<CommissionRecord | null>;
   };
   /** Absolute path to PENDING_APPROVALS.md (the approval-center 7a markdown queue). */
   approvalsPath: string;

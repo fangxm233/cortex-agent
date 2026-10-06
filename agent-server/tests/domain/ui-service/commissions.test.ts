@@ -12,7 +12,7 @@ import {
 import { handleCommissionClose } from '../../../src/domain/ui-service/mutate/commissions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
-import type { CommissionRecord } from '../../../src/store/commission-repo.js';
+import { CommissionRepo, type CommissionRecord } from '../../../src/store/commission-repo.js';
 
 const T0 = Date.UTC(2026, 7, 28, 10, 0, 0);
 
@@ -31,10 +31,10 @@ function storeOf(records: CommissionRecord[]): NonNullable<UiServiceDeps['commis
   return {
     list: async (projectId?: string) => records.filter((r) => !projectId || r.projectId === projectId),
     find: async (id: string) => records.find((r) => r.id === id) ?? null,
-    update: async (id: string, fn: (r: CommissionRecord) => void) => {
+    update: async (id: string, fn: (r: CommissionRecord) => void | false) => {
       const r = records.find((x) => x.id === id);
       if (!r) return null;
-      fn(r);
+      if (fn(r) === false) return r;
       r.updatedAt = Date.now();
       return r;
     },
@@ -119,4 +119,22 @@ test('commissions.close sets status/closedAt/note, publishes, and guards re-clos
   assert.ok(!again.ok && (again as any).code === 'already-terminal');
   const missing = await handleCommissionClose(deps, { commissionId: 'zz', status: 'done' });
   assert.ok(!missing.ok && (missing as any).code === 'not-found');
+});
+
+test('two closes racing on the same commission: exactly one wins, the other is told it is closed', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-comm-close-'));
+  t.onTestFinished(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} });
+  const repo = new CommissionRepo(path.join(dir, 'commissions.json'));
+  await repo.add(record());
+  const deps = makeDeps({ commissionStore: repo, bus: { publish: () => {} } as any });
+
+  const [a, b] = await Promise.all([
+    handleCommissionClose(deps, { commissionId: 'c1', status: 'done', note: 'shipped' }),
+    handleCommissionClose(deps, { commissionId: 'c1', status: 'abandoned', note: 'dropped' }),
+  ]);
+  assert.deepEqual([a.ok, b.ok], [true, false]);
+  assert.equal((b as any).code, 'already-terminal');
+  const stored = (await repo.find('c1'))!;
+  assert.equal(stored.status, 'done', 'the loser must not overwrite the winner');
+  assert.equal(stored.closeNote, 'shipped');
 });
