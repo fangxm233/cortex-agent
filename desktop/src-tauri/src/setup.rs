@@ -19,9 +19,18 @@ use process::{
 /// Bump this to the release that actually ships those flags whenever they move.
 pub const MIN_SERVER_VERSION: &str = "2026.8.20";
 
-/// Node floor. The server targets modern Node; below this the install fails in confusing ways
-/// (missing globals, unsupported syntax), so the wizard refuses before touching anything.
-pub const MIN_NODE_MAJOR: u32 = 20;
+/// The server package this shell was built with. Its `engines.node` is the Node floor.
+const SERVER_PACKAGE_JSON: &str = include_str!("../../../agent-server/package.json");
+
+/// Node floor: the server's own `engines.node` (`>=X.Y.Z`). An older Node installs the package but
+/// cannot run it, so the wizard refuses before touching anything.
+pub fn min_node_version() -> String {
+    serde_json::from_str::<serde_json::Value>(SERVER_PACKAGE_JSON)
+        .ok()
+        .and_then(|pkg| pkg["engines"]["node"].as_str().map(str::to_string))
+        .and_then(|range| range.strip_prefix(">=").map(|v| v.trim().to_string()))
+        .expect("agent-server/package.json declares engines.node as >=X.Y.Z")
+}
 
 /// Event carrying one line of a running command to the wizard page.
 pub const SETUP_LOG_EVENT: &str = "setup-log";
@@ -75,11 +84,6 @@ pub fn version_at_least(installed: &str, floor: &str) -> bool {
         }
     }
     true
-}
-
-/// Major version of a `node -v` string.
-pub fn node_major(raw: &str) -> Option<u32> {
-    parse_version(raw).and_then(|p| p.first().copied())
 }
 
 /// Recognise npm's global-prefix permission failure.
@@ -296,8 +300,7 @@ fn probe_machine() -> SetupProbe {
     SetupProbe {
         node_ok: node
             .as_deref()
-            .and_then(node_major)
-            .is_some_and(|m| m >= MIN_NODE_MAJOR),
+            .is_some_and(|v| version_at_least(v, &min_node_version())),
         node,
         npm: probe_output(npm_bin(), &["-v"]),
         git: probe_output("git", &["--version"]),
@@ -530,6 +533,15 @@ mod tests {
         assert!(version_at_least("2026.10.1", "2026.9.30"));
         assert!(!version_at_least("2026.9.30", "2026.10.1"));
         assert!(version_at_least("2026.8.20", "2026.8.20"));
+    }
+
+    #[test]
+    fn the_node_floor_is_the_server_engines_range() {
+        let floor = min_node_version();
+        assert_eq!(parse_version(&floor).map(|p| p.len()), Some(3), "{floor}");
+        assert!(version_at_least("v22.19.0", "22.19.0"));
+        assert!(!version_at_least("v22.18.1", "22.19.0"));
+        assert!(!version_at_least("v20.11.0", &floor));
     }
 
     #[test]
