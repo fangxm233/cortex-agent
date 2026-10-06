@@ -17,6 +17,16 @@ function makePersistenceStub(initial: any = null) {
   };
 }
 
+/** A persisted Anthropic throttle with one five-hour window. */
+function persistedAnthropic(resetsAt: number, activatedAt: number, modes: string[]) {
+  return {
+    providers: [{
+      provider: 'anthropic', displayName: 'Anthropic', modes,
+      windows: [{ type: 'five_hour', utilization: null, resetsAt, activatedAt }],
+    }],
+  };
+}
+
 function makeAdapterStub() {
   return new MockAdapter({ adminChannel: 'mock-admin' });
 }
@@ -181,7 +191,7 @@ test('does not extend timer on earlier resetsAt', async (t) => {
 
 test('initRateLimitThrottle recovers expired throttle on restart', async (t) => {
   const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub({ resetsAt: Math.floor(Date.now() / 1000) - 600, activatedAt: Date.now() - 3600000, modes: ['plan'] });
+  const persistence = makePersistenceStub(persistedAnthropic(Math.floor(Date.now() / 1000) - 600, Date.now() - 3600000, ['plan']));
   const adapter = makeAdapterStub();
 
   await mod.initRateLimitThrottle(adapter, persistence as any);
@@ -194,7 +204,7 @@ test('initRateLimitThrottle recovers expired throttle on restart', async (t) => 
 test('initRateLimitThrottle recovers active throttle on restart', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const futureReset = Math.floor(Date.now() / 1000) + 600;
-  const persistence = makePersistenceStub({ resetsAt: futureReset, activatedAt: Date.now() - 60000, modes: ['plan', 'api'] });
+  const persistence = makePersistenceStub(persistedAnthropic(futureReset, Date.now() - 60000, ['plan', 'api']));
   const adapter = makeAdapterStub();
 
   await mod.initRateLimitThrottle(adapter, persistence as any);
@@ -230,7 +240,7 @@ test('onResume fires once when the resume timer clears the throttle', async (t) 
 test('onResume fires when an expired throttle is recovered on restart', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   let resumeCount = 0;
-  const persistence = makePersistenceStub({ resetsAt: Math.floor(Date.now() / 1000) - 600, activatedAt: Date.now() - 3600000, modes: ['plan'] });
+  const persistence = makePersistenceStub(persistedAnthropic(Math.floor(Date.now() / 1000) - 600, Date.now() - 3600000, ['plan']));
   const adapter = makeAdapterStub();
 
   await mod.initRateLimitThrottle(adapter, persistence as any, () => { resumeCount++; });
@@ -244,7 +254,7 @@ test('onResume does NOT fire immediately when an active throttle is recovered', 
   vi.useFakeTimers({ toFake: ['setTimeout'] });
   let resumeCount = 0;
   const futureReset = Math.floor(Date.now() / 1000) + 600;
-  const persistence = makePersistenceStub({ resetsAt: futureReset, activatedAt: Date.now() - 60000, modes: ['plan'] });
+  const persistence = makePersistenceStub(persistedAnthropic(futureReset, Date.now() - 60000, ['plan']));
   const adapter = makeAdapterStub();
 
   await mod.initRateLimitThrottle(adapter, persistence as any, () => { resumeCount++; });
@@ -631,23 +641,13 @@ test('groups multiple active window identities under one provider and upserts mo
   ]);
 });
 
-test('legacy persisted throttle recovers as an Anthropic provider record', async (t) => {
-  const reset = Math.floor(Date.now() / 1000) + 600;
-  const persistence = makePersistenceStub({
-    resetsAt: reset,
-    activatedAt: Date.now() - 1_000,
-    modes: ['plan'],
-    types: ['seven_day'],
-  });
+test('a persisted record without providers restores no throttle', async (t) => {
+  const persistence = makePersistenceStub({ resetsAt: Math.floor(Date.now() / 1000) + 600, activatedAt: Date.now(), modes: ['plan'] });
   const mod = await freshModuleWithCleanup(t);
   await mod.initRateLimitThrottle(makeAdapterStub(), persistence as any);
 
-  const provider = (mod.getThrottleState() as any).providers[0];
-  assert.equal(provider.provider, 'anthropic');
-  assert.equal(provider.displayName, 'Anthropic');
-  assert.deepEqual(provider.modes, ['plan']);
-  assert.deepEqual(provider.windows.map((w: any) => w.type), ['seven_day']);
-  assert.equal(provider.windows[0].resetsAt, reset);
+  assert.equal(mod.isThrottled(), false);
+  assert.equal(persistence.getSaved(), null);
 });
 
 function assertOutageActivation(mod: any, persistence: any): void {

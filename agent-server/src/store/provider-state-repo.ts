@@ -3,17 +3,14 @@ import path from 'node:path';
 import { atomicWrite } from '@core/atomic-write.js';
 import { JsonRepository } from '@core/json-repository.js';
 import { DATA_DIR, STORE_DIR } from '@core/paths.js';
-import type {
-  PersistedThrottleState,
-  RateLimitThrottleState,
-} from '@domain/costs/rate-limit-throttle.js';
+import type { RateLimitThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import type { ResumeEntry } from '@domain/costs/resume-registry.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
 
 export const PROVIDER_STATE_FILE = path.join(STORE_DIR, 'provider-state.json');
 
 export interface ProviderStateData {
-  rateLimitThrottle: PersistedThrottleState | null;
+  rateLimitThrottle: RateLimitThrottleState | null;
   resumeQueue: ResumeEntry[];
   providerUsage: ProviderUsage[];
 }
@@ -68,7 +65,7 @@ function hasLegacyProviderState(schedules: Record<string, unknown>): boolean {
 
 function legacyProviderState(schedules: Record<string, unknown>): ProviderStateData {
   return {
-    rateLimitThrottle: (schedules.rateLimitThrottle as PersistedThrottleState | null | undefined) ?? null,
+    rateLimitThrottle: (schedules.rateLimitThrottle as RateLimitThrottleState | null | undefined) ?? null,
     resumeQueue: (schedules.resumeQueue as ResumeEntry[] | null | undefined) ?? [],
     providerUsage: [],
   };
@@ -111,7 +108,7 @@ export class ProviderStateRepo {
     }));
   }
 
-  async getRateLimitThrottle(): Promise<PersistedThrottleState | null> {
+  async getRateLimitThrottle(): Promise<RateLimitThrottleState | null> {
     return (await this.repo.read()).rateLimitThrottle ?? null;
   }
 

@@ -48,18 +48,9 @@ export interface RateLimitThrottleState {
   providers: ProviderThrottleState[];
 }
 
-export interface LegacyThrottleState {
-  resetsAt: number;
-  activatedAt: number;
-  modes?: string[];
-  types?: string[];
-}
-
-export type PersistedThrottleState = RateLimitThrottleState | LegacyThrottleState;
-
 export interface ThrottlePersistence {
   save: (state: RateLimitThrottleState | null) => Promise<void>;
-  load: () => Promise<PersistedThrottleState | null>;
+  load: () => Promise<RateLimitThrottleState | null>;
 }
 
 export interface ClearedThrottleProvider {
@@ -242,28 +233,9 @@ function normalizeProvider(raw: ProviderThrottleState): ProviderThrottleState | 
   };
 }
 
-function fromLegacy(raw: LegacyThrottleState): ProviderThrottleState[] {
-  if (!Number.isFinite(raw.resetsAt)) return [];
-  const types = raw.types?.length ? raw.types : ['unknown'];
-  return [{
-    provider: 'anthropic',
-    displayName: 'Anthropic',
-    modes: uniqueSorted(raw.modes ?? []),
-    windows: types.map((type) => ({
-      type,
-      utilization: null,
-      resetsAt: raw.resetsAt,
-      activatedAt: raw.activatedAt,
-    })),
-  }];
-}
-
-function normalizePersisted(raw: PersistedThrottleState): ProviderThrottleState[] {
-  const providerState = raw as RateLimitThrottleState;
-  if (Array.isArray(providerState.providers)) {
-    return providerState.providers.map(normalizeProvider).filter((provider): provider is ProviderThrottleState => provider !== null);
-  }
-  return fromLegacy(raw as LegacyThrottleState);
+function normalizePersisted(raw: RateLimitThrottleState): ProviderThrottleState[] {
+  if (!Array.isArray(raw.providers)) return [];
+  return raw.providers.map(normalizeProvider).filter((provider): provider is ProviderThrottleState => provider !== null);
 }
 
 function windowExpiryMs(window: RateLimitWindowState): number {
@@ -275,7 +247,7 @@ function windowIsActive(window: RateLimitWindowState, now = Date.now()): boolean
   return windowExpiryMs(window) > now;
 }
 
-function loadActiveProviders(raw: PersistedThrottleState): void {
+function loadActiveProviders(raw: RateLimitThrottleState): void {
   for (const provider of normalizePersisted(raw)) {
     const windows = provider.windows.filter((window) => windowIsActive(window));
     if (windows.length > 0) _providers.set(provider.provider, { ...provider, windows });
