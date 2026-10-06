@@ -1,9 +1,6 @@
 import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { extractTuiAdapter } from '@platform/index.js';
-import { stopBrowser } from '@platform/browser/managed-browser.js';
-import { stopAllDevicePorts } from '@domain/remote/device-port.js';
-import { forgetDeviceBrowsers } from '@domain/remote/device-browser.js';
 import type { PlatformAdapter } from '@platform/index.js';
 // Gate for the in-core Web UI transport: static import is @trpc-free (node builtins + an erased
 // type only); the transport (which pulls @trpc/server + jose) is dynamic-imported inside the gate,
@@ -16,7 +13,6 @@ import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, CONTEXT_DIR } from '@co
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
-import { flushAllRepositories } from '@core/json-repository.js';
 import { engines } from '@domain/runs/engines.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
@@ -29,14 +25,15 @@ import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notic
 import { cancelChannelRuns, cancelLiveExecution } from '@orch/routing/commands/cancel.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
-import { recoverWaitpoints, startWaitpointSweep, stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
+import { recoverWaitpoints, startWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
-import { startPlatformAdapters, type PlatformConnections } from './platform-connect.js';
+import { installSigtermShutdown, type ShutdownHandles } from './shutdown.js';
+import { startPlatformAdapters } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
-import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
+import { startGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
-import { startClientManager, stopClientManager, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
+import { startClientManager, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
 import { startAllRemoteClients, releaseUnregisteredDevices } from '@domain/remote/client-lifecycle.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
@@ -70,7 +67,7 @@ import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/edit-retry.js';
 import { initScheduledRunner, initAuthExpiryScan, createScheduler, setBus } from '@domain/scheduling/runner.js';
-import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
+import { startBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
@@ -108,9 +105,9 @@ import {
   getSelectionDefault, resolveBackendForChannel, switchChannelAgent, switchChannelProfile,
 } from '@domain/agents/index.js';
 import { isSessionCompactionSupported } from '@domain/runs/compact.js';
-import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
-import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
-import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/remote/machine-registry.js';
+import { initDiskMonitor } from '@domain/monitor/disk-monitor.js';
+import { startEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
+import { loadMachinesFromFile, startMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/remote/machine-registry.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { flushTeamOutbox, installTeamDelivery } from '@orch/team-delivery.js';
@@ -432,50 +429,12 @@ registerInteractionHandlers(adapter);
 // --- Register message handler ---
 registerMessageHandler(adapter, { dispatchCommand, handleMessageEdit });
 
-// --- Profile watcher (hot-reload profiles.json without restart) ---
-let _stopProfileWatcher: (() => void) | null = null;
-// Web UI transport-host handle. The transport lives in-core (platform/ui-http) but is loaded on
-// demand behind CORTEX_UI_HTTP; app.ts only ever calls close(), so a structural type keeps the
-// composition root free of the transport's types (and of @trpc) on the static import graph.
-let _uiHttpServer: { close: () => Promise<void> } | null = null;
-let _platformConnections: PlatformConnections | null = null;
-
 // --- Graceful shutdown ---
-process.on('SIGTERM', async () => {
-  void emitCortexEvent('cortex:server.shutdown', {
-    version: CORTEX_VERSION,
-    pid: process.pid,
-    reason: 'SIGTERM',
-  }).catch(() => {});
-  await stopBuiltinJobs();
-  await _platformConnections?.stop().catch(() => {});
-  await retentionController.stop().catch(() => {});
-  engines.closeAll(); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
-  // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
-  // an instance nothing is supervising.
-  stopBrowser();
-  // Device ports are loopback listeners held by this process; nothing reclaims them on its behalf.
-  stopAllDevicePorts();
-  // A device's Chrome is on someone else's machine and is not ours to kill on the way out; the next
-  // acquire re-verifies, so leaving it running costs a window and nothing else.
-  forgetDeviceBrowsers();
-  await _uiHttpServer?.close().catch(() => {});
-  stopDiskMonitor();
-  stopEventLoopMonitor();
-  // Stop scheduler timers BEFORE draining repo writes — otherwise a late-firing
-  // timer can enqueue a mutate() after scheduleRepo.flush() resolves, losing that write.
-  scheduler.stop();
-  stopWaitpointSweep();
-  // Stop outbound queue drain loop (pending WAL entries survive on disk for next startup).
-  await oq.stop();
-  // Drain in-flight atomic writes before exiting. Without this, SIGTERM landing between
-  // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
-  // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
-  try {
-    await Promise.allSettled([bus.close(), oq.flush(), flushAllRepositories()]);
-  } catch {}
-  await stopGateway(); process.exit(0);
-});
+// Boot fills in the platform connections, the Web UI host and the profile watcher as it starts them.
+const shutdownHandles: ShutdownHandles = {
+  bus, outboundQueue: oq, scheduler, retention: retentionController,
+};
+installSigtermShutdown(shutdownHandles);
 
 // --- Start ---
 (async () => {
@@ -653,7 +612,7 @@ process.on('SIGTERM', async () => {
   // transport — so an unset flag means @trpc/server + jose never enter the runtime graph. app.ts
   // statically imports only the import-free gate, keeping its static graph @trpc-free.
   try {
-    _uiHttpServer = await startUiHttpIfEnabled(uiService);
+    shutdownHandles.uiHttpServer = await startUiHttpIfEnabled(uiService);
   } catch (e) {
     log.warn(`CORTEX_UI_HTTP is set but the Web UI transport failed to load: ${(e as Error).message}`);
   }
@@ -661,7 +620,7 @@ process.on('SIGTERM', async () => {
   // Binds the TUI gateway; Slack/Feishu connect in the background with bounded retries, and a
   // platform that fails or stalls ends in a system notice rather than a stalled boot. Nothing below
   // needs their sockets: every outbound post, including the notices, goes through their HTTP APIs.
-  _platformConnections = await startPlatformAdapters(adapter);
+  shutdownHandles.platformConnections = await startPlatformAdapters(adapter);
 
   // Let the supervisor reach the operator through us — it has no platform adapter of its own.
   subscribeDaemonNotices(adapter);
@@ -691,7 +650,7 @@ process.on('SIGTERM', async () => {
       profiles: getProfileConfigRevision(), environments: getEnvironmentRevision(),
     }),
   });
-  _stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
+  shutdownHandles.stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
     bus.publish({ type: 'config.changed', section: 'profiles' });
   });
   await executionRepo.archiveTerminal().catch((e) => log.error(`Execution archive failed: ${(e as Error).message}`));
