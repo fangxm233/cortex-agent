@@ -62,7 +62,7 @@ function nativeCanGoBack(payload: unknown): boolean {
 }
 
 async function exitNativeApp(): Promise<void> {
-  await safeInvoke('plugin:app|exit');
+  await safeInvoke('plugin:app|exit', { code: 0 });
 }
 
 function overlayActive(): boolean {

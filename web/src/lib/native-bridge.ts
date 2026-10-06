@@ -138,12 +138,13 @@ interface NativeCommandMap {
   forward_start: { args: { port: number }; result: NativeForwardInfo };
   forward_stop: { args: { port: number }; result: unknown };
   forward_list: { args: undefined; result: NativeForwardInfo[] };
-  'plugin:app|exit': { args: undefined; result: unknown };
+  // Every `plugin:` command needs a grant in desktop/src-tauri/capabilities/default.json (core ones
+  // an explicit `core:<plugin>:allow-<command>`); an ungranted command fails silently.
+  // native-bridge.contract.test.ts checks this map against the grants and the shell's handlers.
+  'plugin:app|exit': { args: { code: number }; result: unknown };
   // ── Window chrome (desktop only; the app draws its own title bar) ──
   // Arg shapes mirror @tauri-apps/api, which always passes the window label — see
-  // node_modules/@tauri-apps/api/window.js. Every one needs an explicit grant in
-  // desktop/src-tauri/capabilities/default.json: `core:default` allows only read-only queries
-  // plus `internal_toggle_maximize`, so an ungranted command fails silently.
+  // node_modules/@tauri-apps/api/window.js.
   'plugin:window|minimize': { args: { label: string }; result: unknown };
   'plugin:window|maximize': { args: { label: string }; result: unknown };
   'plugin:window|unmaximize': { args: { label: string }; result: unknown };
