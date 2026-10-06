@@ -1,6 +1,4 @@
 export const enExtra = {
-  stMcpVariantReadOnly: "Set by the startup mode; read-only here.",
-  stMachineLogsUnavailable: "Machine logs are not available here.",
   stMobileNotifyTitle: 'Background notifications on this device',
   stMobileNotifyNote: 'Android battery limits or force stop may delay notifications.',
   stMobileNotifyRunning: 'Background service running',

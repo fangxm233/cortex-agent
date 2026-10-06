@@ -1,6 +1,6 @@
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { SCard, SCardHeader, SPill, SRow, SSegmented, type SegmentOption } from '@/features/settings/ui/settings-ui';
+import { SCard, SCardHeader, SPill, SRow } from '@/features/settings/ui/settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -37,28 +37,6 @@ export function PlatformAvatar({ glyph }: { glyph: string }) {
   );
 }
 
-type McpVariant = 'full' | 'core' | 'tui';
-
-const MCP_VARIANTS: SegmentOption<McpVariant>[] = [
-  { id: 'full', label: 'full' },
-  { id: 'core', label: 'core' },
-  { id: 'tui', label: 'tui' },
-];
-
-// No `onChange`: the variant is chosen by the runtime that started the server, so the segment
-// reports the shape of that choice without offering to write it.
-function VariantSegment() {
-  const L = useVocab();
-  return (
-    <span
-      title={L.stMcpVariantReadOnly}
-      style={{ display: 'inline-flex' }}
-    >
-      <SSegmented value="full" options={MCP_VARIANTS} mono />
-    </span>
-  );
-}
-
 function ServerRows({ servers }: { servers: string[] }) {
   const L = useVocab();
   if (servers.length === 0) {
@@ -80,7 +58,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   const servers = snapshot.mcp?.servers ?? [];
   return (
     <SCard style={{ overflow: 'hidden' }}>
-      <SCardHeader title={L.stServers} right={<VariantSegment />} />
+      <SCardHeader title={L.stServers} />
       <ServerRows servers={servers} />
     </SCard>
   );

@@ -1,9 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { ConfigBudget, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import {
-  RadioDot,
   ROW_STYLE,
   SButton,
   SChip,
@@ -19,7 +18,6 @@ import {
 import {
   DAILY_CHIPS,
   MONTHLY_CHIPS,
-  WARN_CHIPS,
   type BudgetScopeId,
   type ScopeBudget,
   hasOverride,
@@ -36,8 +34,7 @@ import { useBudgetSpend, useProjectList } from '@/features/settings/controllers/
 // global limits and a per-project override; both the daily and the monthly limit are editable in
 // either scope, by quick chip or by typed amount. Every write is a complete pair because overrides
 // are pair-only, so a project that has never been overridden is seeded from the globals it is
-// currently inheriting. Warn and policy controls stay disabled because the server reports budgets
-// as advisory and does not enforce them.
+// currently inheriting. Budgets are advisory: the server reports them but does not enforce them.
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -46,12 +43,6 @@ const NOTE_STYLE: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(-
 const SCOPE_TAG_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
 const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' };
 const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 };
-
-const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab }[] = [
-  { titleKey: 'stPolicyPauseTitle', descKey: 'stPolicyPauseDesc' },
-  { titleKey: 'stPolicyWarnTitle', descKey: 'stPolicyWarnDesc' },
-  { titleKey: 'stPolicyStopTitle', descKey: 'stPolicyStopDesc' },
-];
 
 // SMeter wants a number; the vm owns the clamp and formats it as `NN%`.
 function meterPct(spent: number, limit: number | null): number {
@@ -154,25 +145,6 @@ function LimitRow(props: LimitRowProps) {
   );
 }
 
-// WARN AT is displayed as disabled until a writable server setting exists.
-function WarnRow() {
-  const L = useVocab();
-  return (
-    <SRow title={L.stWarnAt} desc={L.warnNote}>
-      <div style={{ ...CHIPS_STYLE, alignItems: 'center', gap: 10, marginTop: 6 }}>
-        <span style={{ ...AMOUNT_STYLE, color: 'var(--proto-faint)' }}>—</span>
-        <div style={CHIPS_STYLE}>
-          {WARN_CHIPS.map((value) => (
-            <SChip key={value} disabled title={L.warnNote}>
-              {value + '%'}
-            </SChip>
-          ))}
-        </div>
-      </div>
-    </SRow>
-  );
-}
-
 function ScopeRow({ scope, projects, budget, onSelect }: {
   scope: BudgetScopeId;
   projects: { id: string }[];
@@ -208,29 +180,6 @@ function ClearOverrideRow({ pending, onClear }: { pending: boolean; onClear: () 
         {L.stBudgetClear}
       </SLinkAction>
     </div>
-  );
-}
-
-// ── Over-budget policy ──────────────────────────────────────────────────────
-
-function PolicySection() {
-  const L = useVocab();
-  return (
-    <SSection label={L.stOverBudgetBehavior} action={<span style={SCOPE_TAG_STYLE}>{L.obNote}</span>}>
-      <SRowGroup title={L.obNote} style={{ cursor: 'not-allowed' }}>
-        {POLICY_ROWS.map((row) => (
-          <SRow
-            key={row.titleKey} align="flex-start" control={<RadioDot selected={false} />}
-            desc={L[row.descKey]}
-            title={
-              <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, color: 'var(--proto-muted)' }}>
-                {L[row.titleKey]}
-              </span>
-            }
-          />
-        ))}
-      </SRowGroup>
-    </SSection>
   );
 }
 
@@ -314,7 +263,6 @@ function LimitsSection({ scope, projects, budget, resolved, actions, onScope }: 
         ) : null}
         {row('daily', L.stDaily, resolved.daily, DAILY_CHIPS)}
         {row('monthly', L.stMonthly, resolved.monthly, MONTHLY_CHIPS)}
-        <WarnRow />
         {hasOverride(budget, scope)
           ? <ClearOverrideRow pending={actions.pending} onClear={actions.clear} /> : null}
       </SRowGroup>
@@ -337,7 +285,6 @@ export function BudgetPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
         today={shown?.today ?? 0} month={shown?.month ?? 0} />
       <LimitsSection scope={scope} projects={projects} budget={budget} resolved={resolved}
         actions={actions} onScope={setScope} />
-      <PolicySection />
     </div>
   );
 }

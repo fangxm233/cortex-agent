@@ -16,8 +16,6 @@ export type BudgetScopeId = string | null;
 export const DAILY_CHIPS = [5, 10, 20, 50];
 /** Monthly-limit quick chips — same ladder one order of magnitude up. */
 export const MONTHLY_CHIPS = [100, 200, 500, 1000];
-/** Warn-threshold chips — display only; no budget.json field backs it. */
-export const WARN_CHIPS = [60, 80, 90];
 
 export interface ScopeBudget {
   daily: number | null;

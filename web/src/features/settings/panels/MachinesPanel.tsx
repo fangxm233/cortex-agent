@@ -21,12 +21,7 @@ function MachineEntity({ machine }: { machine: MachineInfo }) {
     dot={<SDot color={ssh ? 'var(--proto-success)' : 'var(--proto-line-3)'} />}
     name={<SEntityName>{machine.name}</SEntityName>}
     meta={`${machine.cortexPath ?? '—'} · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
-    trailing={<div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-      <SPill tone={ssh ? 'success' : 'neutral'}>{ssh ? L.stConfigured : L.stMachineLocal}</SPill>
-      <SLinkAction tone="muted" disabled title={L.stMachineLogsUnavailable}>
-        {L.stLogs}
-      </SLinkAction>
-    </div>} />;
+    trailing={<SPill tone={ssh ? 'success' : 'neutral'}>{ssh ? L.stConfigured : L.stMachineLocal}</SPill>} />;
 }
 
 function AddMachineAction({ disabled, onAdd }: { disabled: boolean; onAdd: () => void }) {

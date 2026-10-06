@@ -1,6 +1,4 @@
 export const zhExtra = {
-  stMcpVariantReadOnly: "由启动模式决定，此处只读。",
-  stMachineLogsUnavailable: "此处暂不支持查看机器日志。",
   stMobileNotifyTitle: '本设备后台通知',
   stMobileNotifyNote: 'Android 省电限制或强制停止可能延迟通知。',
   stMobileNotifyRunning: '后台服务运行中',
