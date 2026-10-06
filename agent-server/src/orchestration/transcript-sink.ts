@@ -62,9 +62,9 @@ const DEFAULT_TOOL_IMAGE_DEPS: ToolImageDeps = {
  * transcripts to refetch. Not DEBUG-gated: the images are the transcript's own media, unlike the
  * result text. Fire-and-forget like every history write; the bytes are dropped once filed.
  */
-export function recordToolImages(
+function recordToolImages(
   sessionId: string, channel: string, toolUseId: string, images: ToolResultImage[] | undefined,
-  deps: ToolImageDeps = DEFAULT_TOOL_IMAGE_DEPS,
+  deps: ToolImageDeps,
 ): void {
   if (!toolUseId || !images?.length) return;
   recordHistory((async () => {
@@ -200,10 +200,10 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     // the user. Chat platforms get the live counter on the spawning call's trace line instead;
     // the full text stays in the transcript, where it can be grouped.
     //
-    // Only the foreground turn streams to the platform callback. A background turn's prose belongs
-    // to whichever surface is holding the turn open (the platform hold merges it into the held
-    // reply, the web one publishes it as new session messages); streaming it from here
-    // too would post it twice. The ROW is written either way — that is what this sink is for.
+    // Only the foreground turn streams to the platform callback. A background turn's prose is
+    // delivered by the observer that owns that phase (a hold, or the injection ledger); streaming
+    // it from here too would post it twice. The ROW is written either way — that is what this
+    // sink is for.
     if (!ref && phase === 'foreground') opts.onAssistantMessage?.(text);
     if (!text) return;
     const ts = new Date().toISOString();

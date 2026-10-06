@@ -8,7 +8,7 @@ import { renderTodoProgress } from '../../agent-adapter/normalize/todo.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { createToolTrace } from '@platform/index.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
-import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
+import { conversationHistory } from '@store/conversation-history-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -29,10 +29,10 @@ import {
 } from '../status-helpers.js';
 import { publishAskUserRequested } from '../routing/hook-bridge.js';
 import {
-  publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered,
+  publishSessionMessage, publishSessionMessageDelivered,
   publishSessionStatus, publishSessionTurn, publishSessionTurnCompleted,
 } from '../session-events.js';
-import { createTranscriptSink, persistSessionContextUsage, recordHistory, recordToolImages } from '../transcript-sink.js';
+import { createTranscriptSink, recordHistory } from '../transcript-sink.js';
 import { createSessionDeltaStream } from '../delta-coalescer.js';
 import { tryInjectIntoLiveTurn, type MidTurnInjectDeps } from '../mid-turn-inject.js';
 import { commitPendingInjection } from '../pending-injection-recovery.js';
@@ -773,7 +773,7 @@ export function buildInteractiveCallbacks(
  * busy-gate seams a turn uses for an ordinary message, so an injected message and a queued one
  * land in the transcript identically.
  */
-export function buildInjectDeps(sessionName: string | null, channel: string, adapter: PlatformAdapter): MidTurnInjectDeps {
+export function buildInjectDeps(sessionName: string | null, adapter: PlatformAdapter): MidTurnInjectDeps {
   return {
     getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
       backend: entry.backend,
@@ -781,32 +781,15 @@ export function buildInjectDeps(sessionName: string | null, channel: string, ada
       trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: (channel) => activeTurns.streamingCallback(channel),
-    appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
-    appendTool: (sessionId, o) => recordHistory(
-      conversationHistory.appendTool(sessionId, o),
-      o.fullInput !== undefined ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
-    ),
-    appendToolResult: (sessionId, o) => recordHistory(
-      conversationHistory.appendToolResult(sessionId, o),
-      () => publishSessionDebugUpdated({ sessionId, channel }),
-    ),
-    recordToolImages: (sessionId, imageChannel, toolUseId, images) =>
-      recordToolImages(sessionId, imageChannel, toolUseId, images),
+    sessionName,
     publishMessage: publishSessionMessage,
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,
-    onContextUsage: (sessionId, usageChannel, usage) => {
-      if (!sessionName) return;
-      void persistSessionContextUsage({
-        sessionName, sessionId, channel: usageChannel, usage,
-      }).catch((error) => log.warn('injected continuation context persistence failed:', (error as Error).message));
-    },
     persistPending: (record) => pendingInjectionRepo.add(record),
     commitPending: (record) => commitPendingInjection(record),
     markPending: (record) => adapter.markQueued({ conduit: record.channel, messageId: record.messageId }),
     unmarkPending: (record) => adapter.unmarkQueued({ conduit: record.channel, messageId: record.messageId }),
     track: trackPendingTask,
-    summarizeToolInput: (input) => summarizeToolInputForHistory(input),
     captureDebug: isDebugMode(),
     now: () => new Date().toISOString(),
   };

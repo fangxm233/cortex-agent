@@ -5,23 +5,17 @@
 // background-phase continuation events.
 //
 // `AgentRun` installs the backend `InjectionAckSink` and owns the process's single
-// `BackgroundTurnSink`; the ledger never touches either. It is only fed RunEvents.
+// `BackgroundTurnSink`; the ledger never touches either. It is only fed RunEvents. Continuation rows
+// are written through a `createTranscriptSink` instance, the same writer every other row uses.
 
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import type { ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
-import { toolDeviceForHistory } from '@store/conversation-history-repo.js';
-import type { SubagentRowRef } from '@store/conversation-history-repo.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
-import type { AttachmentMeta } from '@domain/ui-service/types.js';
-import {
-  subagentSpawnFromAttribution, subagentSpawnsFromToolCall,
-} from '../agent-adapter/normalize/event-types.js';
-import type { SubagentSpawnRef, ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import type { RunEvent } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';
 import type { AgentRun } from '../domain/runs/run.js';
-import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
+import type { publishSessionMessage } from './session-events.js';
+import { createTranscriptSink, type TranscriptSinkDeps } from './transcript-sink.js';
 
 const log = createLogger('injection-ledger');
 
@@ -29,38 +23,24 @@ const log = createLogger('injection-ledger');
 export interface InjectionLedgerDeps {
   /** Captured while the running turn still owns it, before a spontaneous turn starts. */
   getStreamingCallback: (channel: string) => ((text: string) => void) | null;
-  appendAssistant: (sessionId: string, opts: {
-    text: string; ts: string; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[];
-  }) => void;
-  appendTool: (sessionId: string, opts: {
-    toolName: string; toolInput: string; toolDevice?: string; ts: string; toolUseId?: string;
-    fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[];
-  }) => void;
-  appendToolResult?: (sessionId: string, opts: {
-    toolUseId: string; content: string; isError: boolean;
-  }) => void;
-  /** File a continuation tool result's images (see `recordToolImages`). */
-  recordToolImages?: (sessionId: string, channel: string, toolUseId: string, images: ToolResultImage[]) => void;
-  publishMessage: (ev: {
-    sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; ts: string;
-    toolName?: string; toolInput?: string; toolDevice?: string; attachments?: AttachmentMeta[];
-    pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: SubagentSpawnRef[];
-    subagentType?: string; subagentDescription?: string; subagentModel?: string;
-  }) => void;
+  /** Session record a continuation's context usage is stored on; without one it is not stored. */
+  sessionName?: string | null;
+  /** Publishes the provisional (pending) user row. */
+  publishMessage: typeof publishSessionMessage;
   publishDelivered: (ev: {
     sessionId: string; channel: string; pendingId: string; messageTs: string; committedTs: string;
   }) => void;
   publishStatus: (ev: { sessionId: string; channel: string; running: boolean }) => void;
-  onContextUsage?: (sessionId: string, channel: string, usage: ContextUsage) => void;
   persistPending: (record: PendingInjectionRecord) => Promise<void>;
   commitPending: (record: PendingInjectionRecord) => Promise<{ committedTs: string }>;
   markPending?: (record: PendingInjectionRecord) => Promise<void>;
   unmarkPending?: (record: PendingInjectionRecord) => Promise<void>;
   track: (delta: number) => void;
   now: () => string;
-  summarizeToolInput?: (input: unknown) => string;
   captureDebug?: boolean;
   maxWaitMs?: number;
+  /** Test seam for the continuation's transcript sink; production omits it. */
+  transcript?: Partial<TranscriptSinkDeps>;
 }
 
 /** Leak guard: a wedged process must not hold the daemon restart gate forever. */
@@ -272,78 +252,6 @@ async function handleUndelivered(channel: string, injectionId: string): Promise<
   await state.pending.find((entry) => entry.record.id === injectionId)?.release();
 }
 
-function handleContinuationAssistant(
-  deps: InjectionLedgerDeps,
-  state: ChannelInjectState,
-  sessionId: string,
-  channel: string,
-  streamAssistant: ((text: string) => void) | null,
-  text: string,
-  subagent?: ToolUseSubagent,
-): void {
-  if (!text) return;
-  if (!state.continuationRunning) {
-    state.continuationRunning = true;
-    deps.publishStatus({ sessionId, channel, running: true });
-  }
-  // Streamed text is the reply the user reads, so a subagent's working notes stay out of it —
-  // but they are still recorded, tagged, so the transcript can fold them into that subagent's
-  // block rather than showing them as the agent speaking a turn later.
-  const ref = subagent ? subagentRowRef(subagent) : undefined;
-  const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
-  if (!ref) {
-    try { streamAssistant?.(text); }
-    catch (error) { log.warn('injection stream callback threw:', (error as Error).message); }
-  }
-  const ts = deps.now();
-  deps.appendAssistant(sessionId, {
-    text, ts, ...(ref ? { subagent: ref } : {}),
-    ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
-  });
-  deps.publishMessage({
-    sessionId, channel, role: 'assistant', text, ts,
-    ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
-    ...subagentPayloadFields(ref),
-  });
-}
-
-function handleContinuationTool(
-  deps: InjectionLedgerDeps,
-  sessionId: string,
-  channel: string,
-  name: string,
-  input: unknown,
-  toolUseId: string,
-  subagent?: ToolUseSubagent,
-): void {
-  const ts = deps.now();
-  const toolInput = deps.summarizeToolInput?.(input) ?? '';
-  const toolDevice = toolDeviceForHistory(name, input);
-  const ref = subagent ? subagentRowRef(subagent) : undefined;
-  const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
-  const subagentSpawns = attributedSpawn
-    ? [attributedSpawn]
-    : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
-  const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
-    ? { id: subagentSpawns[0].id }
-    : undefined;
-  const rowRef = ref ?? legacyAnchor;
-  deps.appendTool(sessionId, {
-    toolName: name, toolInput, ts,
-    ...(toolDevice ? { toolDevice } : {}),
-    ...(rowRef ? { subagent: rowRef } : {}),
-    ...(subagentSpawns.length ? { subagentSpawns } : {}),
-    ...(toolUseId ? { toolUseId } : {}),
-    ...(deps.captureDebug ? { fullInput: input } : {}),
-  });
-  deps.publishMessage({
-    sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
-    ...(toolDevice ? { toolDevice } : {}),
-    ...(subagentSpawns.length ? { subagentSpawns } : {}),
-    ...subagentPayloadFields(rowRef),
-  });
-}
-
 async function handleContinuationResult(
   deps: InjectionLedgerDeps,
   state: ChannelInjectState,
@@ -355,6 +263,47 @@ async function handleContinuationResult(
   await Promise.all([...state.releases].map((release) => release()));
   state.pending = [];
   disposeIfIdle(channel);
+}
+
+/** The background-phase events that become rows of the injected turn's transcript. */
+const CONTINUATION_ROW_EVENTS: ReadonlySet<RunEvent['type']> = new Set<RunEvent['type']>([
+  'assistant_text', 'tool_use', 'tool_result', 'todo_update', 'subagent_end', 'context_usage',
+]);
+
+interface ContinuationWriter {
+  deps: InjectionLedgerDeps;
+  sessionId: string;
+  channel: string;
+  stream: ((text: string) => void) | null;
+  transcript: RunObserver;
+}
+
+/** The spontaneous turn's prose: marks the session running on its first words and streams it to the
+ *  channel. Its row is the transcript sink's job. */
+function streamContinuationText(w: ContinuationWriter, text: string, fromSubagent: boolean): void {
+  const state = stateFor(w.channel);
+  if (!state.continuationRunning) {
+    state.continuationRunning = true;
+    w.deps.publishStatus({ sessionId: w.sessionId, channel: w.channel, running: true });
+  }
+  // Streamed text is the reply the user reads, so a subagent's working notes stay out of it; the
+  // sink still records them, tagged, so the transcript folds them into that subagent's block.
+  if (fromSubagent) return;
+  try { w.stream?.(text); }
+  catch (error) { log.warn('injection stream callback threw:', (error as Error).message); }
+}
+
+function writeContinuationRow(w: ContinuationWriter, event: RunEvent): void | Promise<void> {
+  if (event.type === 'assistant_text') {
+    if (!event.text) return;
+    streamContinuationText(w, event.text, !!event.subagent);
+  }
+  if (event.type === 'context_usage' && !w.deps.sessionName) return;
+  return w.transcript.onEvent(event);
+}
+
+function isContinuationRow(event: RunEvent): boolean {
+  return CONTINUATION_ROW_EVENTS.has(event.type) && 'phase' in event && event.phase === 'background';
 }
 
 /**
@@ -370,7 +319,14 @@ export function createInjectionObserver(
    *  Absent (tests, or an injection with no live run) means the ledger is the only writer. */
   run?: Pick<AgentRun, 'backgroundTranscriptOwned'>,
 ): RunObserver {
-  const stream = deps.getStreamingCallback(channel);
+  const writer: ContinuationWriter = {
+    deps, sessionId, channel,
+    stream: deps.getStreamingCallback(channel),
+    transcript: createTranscriptSink({
+      sessionId, channel, sessionName: deps.sessionName ?? '', debug: deps.captureDebug ?? false,
+      ...(deps.transcript ? { deps: deps.transcript } : {}),
+    }),
+  };
   /** Exactly one observer persists the background turn. When a background hold has claimed it, the
    *  ledger still commits its injections but writes no transcript rows — otherwise a session that is
    *  both held and injected into would append every continuation row twice. */
@@ -382,32 +338,11 @@ export function createInjectionObserver(
           return handleDelivered(channel, event.injectionId, event.foldedIntoTurn);
         case 'injection_rejected':
           return handleUndelivered(channel, event.injectionId);
-        case 'assistant_text':
-          if (event.phase !== 'background' || !ownsRows()) return;
-          return handleContinuationAssistant(deps, stateFor(channel), sessionId, channel, stream, event.text, event.subagent);
-        case 'tool_use':
-          if (event.phase !== 'background' || !ownsRows()) return;
-          return handleContinuationTool(deps, sessionId, channel, event.name, event.input, event.toolUseId, event.subagent);
-        case 'tool_result':
-          if (event.phase !== 'background' || !ownsRows()) return;
-          if (event.images?.length) deps.recordToolImages?.(sessionId, channel, event.toolUseId, event.images);
-          if (deps.captureDebug) {
-            deps.appendToolResult?.(sessionId, {
-              toolUseId: event.toolUseId, content: event.content, isError: !event.ok,
-            });
-          }
-          return;
-        case 'context_usage':
-          if (event.phase !== 'background' || !ownsRows()) return;
-          deps.onContextUsage?.(sessionId, channel, {
-            usedTokens: event.usedTokens, contextWindow: event.contextWindow,
-            percent: event.percent, accuracy: event.accuracy,
-          });
-          return;
         case 'background_result':
           return handleContinuationResult(deps, stateFor(channel), sessionId, channel);
         default:
-          return;
+          if (!isContinuationRow(event) || !ownsRows()) return;
+          return writeContinuationRow(writer, event);
       }
     },
   };

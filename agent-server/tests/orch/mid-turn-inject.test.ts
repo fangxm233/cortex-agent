@@ -164,8 +164,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
       trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: () => (text: string) => streamed.push(text),
-    appendAssistant: (sessionId, o) => history.push({ kind: 'assistant', sessionId, ...o }),
-    appendTool: (sessionId, o) => history.push({ kind: 'tool', sessionId, ...o }),
+    sessionName: 'cortex-sess-1',
     publishMessage: (ev) => published.push(ev),
     publishDelivered: (ev) => delivered.push(ev),
     publishStatus: (ev) => status.push(ev),
@@ -179,9 +178,15 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
     createPendingId: () => `pin-${++pendingId}`,
     markPending: async (record) => { marked.push(record.messageId); },
     unmarkPending: async (record) => { unmarked.push(record.messageId); },
-    onContextUsage: (sessionId, channel, usage) => contexts.push({ sessionId, channel, usage }),
     track: (d) => track.push(d),
     now,
+    // The continuation's rows go through the real transcript sink; only its store/bus edges are faked.
+    transcript: {
+      appendAssistant: async (sessionId, o) => { history.push({ kind: 'assistant', sessionId, ...o }); },
+      appendTool: async (sessionId, o) => { history.push({ kind: 'tool', sessionId, ...o }); },
+      publishMessage: (ev) => published.push(ev),
+      persistContextUsage: async (input) => { contexts.push(input); },
+    },
     ...overrides,
   };
   return { deps, history, published, delivered, status, ledger, persisted, track, streamed, marked, unmarked, contexts };
@@ -341,9 +346,9 @@ test('output written before the model read the message is recorded ABOVE it', as
   const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  // The turn that was already running keeps writing — it goes through the same history seam. This
-  // paragraph was produced without the model ever having seen the injected message.
-  r.deps.appendAssistant(SESSION, { text: 'still answering the previous question', ts: r.deps.now() });
+  // The turn that was already running keeps writing into the same history. This paragraph was
+  // produced without the model ever having seen the injected message.
+  r.history.push({ kind: 'assistant', sessionId: SESSION, text: 'still answering the previous question', ts: r.deps.now() });
 
   await run.deliver('skip the rest', true);
 
@@ -539,6 +544,7 @@ test('post-result continuation forwards context usage to the session persistence
   });
 
   assert.deepEqual(r.contexts, [{
+    sessionName: 'cortex-sess-1',
     sessionId: SESSION,
     channel: CHANNEL,
     usage: { usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact' },

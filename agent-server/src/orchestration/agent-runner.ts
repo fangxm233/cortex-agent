@@ -148,7 +148,7 @@ export class AgentRunner {
       const sessionId = await getSessionAsync(ctx.channel);
       if (!sessionId) return false;
       const sessionName = await sessionStore.lookupBySessionId(sessionId);
-      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.channel, ctx.adapter), {
+      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.adapter), {
         channel: ctx.channel,
         sessionId,
         sessionName,

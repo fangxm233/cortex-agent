@@ -70,8 +70,6 @@ function harness(persist: Promise<void>) {
       trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: () => null,
-    appendAssistant: () => {},
-    appendTool: () => {},
     publishMessage: (ev) => { order.push(`publish:${ev.pendingId}`); },
     publishDelivered: (ev) => { order.push(`delivered:${ev.pendingId}`); },
     publishStatus: () => {},
