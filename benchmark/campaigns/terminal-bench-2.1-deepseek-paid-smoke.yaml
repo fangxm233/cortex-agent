@@ -41,13 +41,7 @@ proxy:
 arms:
   - name: ds-smoke
     kind: cortex
-    backend: pi
-    provider: deepseek
-    model: deepseek-v4-flash
-    credential_capability: pi-deepseek-api-key
-    orchestration:
-      mode: direct
-      ask_manager: false
+    bundle: direct-pi-deepseek
     limits:
       max_provider_requests: 1
       max_cost_usd: "0.05"

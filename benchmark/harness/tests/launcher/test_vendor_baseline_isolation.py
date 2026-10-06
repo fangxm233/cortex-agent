@@ -17,7 +17,7 @@ def baseline_arm(
     vendor_agent: str, provider: str | None, model: str,
 ) -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "vendor-baseline",
         "name": f"pure-{vendor_agent}",
         "vendor_agent": vendor_agent,
@@ -55,7 +55,7 @@ def test_baseline_uses_only_the_native_harbor_path(
     assert all("cortex" not in path.name.casefold() for path in logs_dir.rglob("*"))
 
 
-@pytest.mark.parametrize("field", ["backend", "orchestration"])
+@pytest.mark.parametrize("field", ["backend", "bundle"])
 def test_baseline_rejects_cortex_composition_fields(field: str) -> None:
     arm = baseline_arm("claude-code", None, "claude-sonnet")
     arm[field] = {"configured": True}

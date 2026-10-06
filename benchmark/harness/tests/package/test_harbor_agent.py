@@ -150,11 +150,11 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 
 def direct_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "cortex", "name": "cortex-direct",
         "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
@@ -445,23 +445,14 @@ def test_constructor_rejects_manifest_seed_binding_mismatch(
         )
 
 
-def audit_retry_arm() -> dict[str, object]:
-    arm = direct_arm()
-    arm["orchestration"] = {
-        "mode": "coder-review", "coder_review_variant": "audit-retry",
-        "ask_manager": False,
-    }
-    return arm
-
-
-@pytest.mark.parametrize("builder", [direct_arm, audit_retry_arm])
+@pytest.mark.parametrize("drift", [
+    {"model": "deepseek-v4-pro"}, {"thinking": "high"}, {"bundle": "no-such-bundle"},
+    {"provider": "openai-codex"},
+])
 def test_a_misaligned_production_arm_never_falls_back_to_standalone(
-    tmp_path: Path, builder,
+    tmp_path: Path, drift: dict[str, object],
 ) -> None:
-    arm = builder()
-    orchestration = dict(arm["orchestration"])
-    orchestration["ask_manager"] = True
-    arm["orchestration"] = orchestration
+    arm = {**direct_arm(), **drift}
 
     with pytest.raises(ProductionArmError, match="production launcher"):
         CortexBenchAgent(

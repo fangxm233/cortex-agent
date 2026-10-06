@@ -43,6 +43,11 @@ from .launcher.network_policy import (
     NetworkAccessError,
     parse_network_access,
 )
+from .launcher.production_arms import (
+    ARM_SCHEMA_VERSION,
+    ProductionArmError,
+    production_arm_bundle,
+)
 from .launcher.runtime_mounts import (
     OFFLINE_ONLY_RUNTIMES,
     RuntimeMountError,
@@ -52,7 +57,6 @@ from .launcher.runtime_mounts import (
 from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
 
 CAMPAIGN_SCHEMA_VERSION = "cortex-bench-campaign/1"
-ARM_SCHEMA_VERSION = "cortex-benchmark-arm/2"
 # Campaign, arm and task identifiers become one Harbor trial id, which is a container hostname.
 IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # A corpus picks its own task ids and Terminal-Bench 2.1 ships one with a dot in it
@@ -113,20 +117,16 @@ HOST_SCAN_POLICY_MAPPING_FIELDS = (
 HOST_SCAN_POLICY_TEXT_FIELDS = ("repository_checkout_environment",)
 HOST_SCAN_POLICY_FIELDS = frozenset(
     HOST_SCAN_POLICY_MAPPING_FIELDS + HOST_SCAN_POLICY_TEXT_FIELDS)
-ARM_COMMON_REQUIRED_FIELDS = frozenset({
-    "name", "kind", "provider", "model", "credential_capability", "limits",
-})
-CORTEX_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
-    "backend", "orchestration",
-})
-VENDOR_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
-    "vendor_agent", "vendor_cli_version",
+# A Cortex arm names its committed bundle, and the bundle is the only statement of what it runs:
+# backend, provider, model and thinking are read from it, never declared beside it.
+CORTEX_ARM_REQUIRED_FIELDS = frozenset({"name", "kind", "bundle", "limits"})
+CORTEX_ARM_OPTIONAL_FIELDS = frozenset({"runtime_mounts"})
+VENDOR_IDENTITY_FIELDS = ("provider", "model", "credential_capability")
+VENDOR_ARM_REQUIRED_FIELDS = frozenset({
+    "name", "kind", "limits", "vendor_agent", "vendor_cli_version", *VENDOR_IDENTITY_FIELDS,
 })
 VENDOR_ARM_OPTIONAL_FIELDS = frozenset({"thinking", "runtime_mounts"})
-CORTEX_ARM_OPTIONAL_FIELDS = frozenset({"runtime_mounts"})
-ORCHESTRATION_REQUIRED_FIELDS = frozenset({"mode", "ask_manager"})
-ORCHESTRATION_OPTIONAL_FIELDS = frozenset({"coder_review_variant"})
-# Campaign limits describe the host envelope. Orchestration and concurrency live in the committed
+# Campaign limits describe the host envelope. What the agent runs lives in the committed
 # production config bundle rather than a second arm schema.
 ARM_POSITIVE_LIMITS = (
     "max_provider_requests", "deadline_seconds", "max_output_tokens",
@@ -759,8 +759,6 @@ def _arm_common(document: Mapping[str, object], kind: str) -> dict[str, object]:
     return {
         "schema_version": ARM_SCHEMA_VERSION, "kind": kind,
         "name": _identifier(document, "name", "campaign arm"),
-        **{field: _text(document, field, "campaign arm")
-           for field in ("provider", "model", "credential_capability")},
         "limits": _limits(document["limits"]),
     }
 
@@ -768,10 +766,12 @@ def _arm_common(document: Mapping[str, object], kind: str) -> dict[str, object]:
 def _cortex_arm(document: Mapping[str, object]) -> dict[str, object]:
     _require_fields(
         document, CORTEX_ARM_REQUIRED_FIELDS, CORTEX_ARM_OPTIONAL_FIELDS, "campaign arm")
+    try:
+        bundle = production_arm_bundle(_text(document, "bundle", "campaign arm"))
+    except ProductionArmError as error:
+        raise CampaignConfigError(f"campaign arm bundle: {error}") from error
     return {
-        **_arm_common(document, "cortex"),
-        "backend": _text(document, "backend", "campaign arm"),
-        "orchestration": _orchestration(document["orchestration"]),
+        **_arm_common(document, "cortex"), **bundle.arm_fields(),
         **_arm_runtime_mounts(document),
     }
 
@@ -824,6 +824,7 @@ def _vendor_arm(document: Mapping[str, object]) -> dict[str, object]:
             f"got {vendor_agent!r}")
     arm = {
         **_arm_common(document, "vendor-baseline"),
+        **{field: _text(document, field, "campaign arm") for field in VENDOR_IDENTITY_FIELDS},
         "vendor_agent": vendor_agent,
         "vendor_cli_version": _text(document, "vendor_cli_version", "campaign arm"),
     }
@@ -831,21 +832,6 @@ def _vendor_arm(document: Mapping[str, object]) -> dict[str, object]:
     if thinking is not None:
         arm["thinking"] = thinking
     return {**arm, **_arm_runtime_mounts(document)}
-
-
-def _orchestration(source: object) -> dict[str, object]:
-    document = _mapping(source, "campaign arm orchestration")
-    _require_fields(
-        document, ORCHESTRATION_REQUIRED_FIELDS, ORCHESTRATION_OPTIONAL_FIELDS,
-        "campaign arm orchestration")
-    orchestration: dict[str, object] = {
-        "mode": _text(document, "mode", "campaign arm orchestration"),
-        "ask_manager": _boolean(document, "ask_manager", "campaign arm orchestration"),
-    }
-    if "coder_review_variant" in document:
-        orchestration["coder_review_variant"] = _text(
-            document, "coder_review_variant", "campaign arm orchestration")
-    return orchestration
 
 
 def _limits(source: object) -> dict[str, object]:

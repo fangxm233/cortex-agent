@@ -106,11 +106,11 @@ def closed_upstream() -> str:
 
 def arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 120, "max_output_tokens": 65536,
@@ -1146,11 +1146,11 @@ def production_proxy_outputs(artifact_dir: Path) -> TrialRevocation:
 
 def production_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
+        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
         "name": ARM_NAME, "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
@@ -1160,7 +1160,7 @@ def production_arm() -> dict[str, object]:
 
 def vendor_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2", "kind": "vendor-baseline",
+        "schema_version": "cortex-benchmark-arm/3", "kind": "vendor-baseline",
         "name": "pi-vendor", "vendor_agent": "pi", "vendor_cli_version": "0.82.1",
         "provider": "deepseek", "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
@@ -1172,9 +1172,7 @@ def vendor_arm() -> dict[str, object]:
 
 
 def production_arm_for(bundle: ProductionArmBundle) -> dict[str, object]:
-    arm = production_arm()
-    arm["orchestration"] = dict(bundle.orchestration)
-    return arm
+    return {**production_arm(), **bundle.arm_fields()}
 
 
 def environment_prompts(bundle: ProductionArmBundle) -> dict[str, str]:

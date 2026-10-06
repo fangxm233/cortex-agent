@@ -168,13 +168,7 @@ proxy:
 arms:
   - name: cortex-direct
     kind: cortex
-    backend: pi
-    provider: deepseek
-    model: deepseek-v4-flash
-    credential_capability: pi-deepseek-api-key
-    orchestration:
-      mode: direct
-      ask_manager: false
+    bundle: direct-pi-deepseek
     limits:
       # The route's cap, and now the only statement of it: the proxy counts to this number and
       # refuses. It sits above what 900 seconds of agent time can physically issue.

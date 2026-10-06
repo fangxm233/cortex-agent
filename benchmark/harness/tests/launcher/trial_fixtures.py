@@ -15,11 +15,11 @@ def closed_upstream() -> str:
 
 def cortex_arm(capability_id: str, *, model: str, backend: str = "pi") -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "cortex", "name": ARM_NAME, "backend": backend,
         "provider": "deepseek" if backend == "pi" else "anthropic", "model": model,
         "credential_capability": capability_id,
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 120, "max_output_tokens": 65536,

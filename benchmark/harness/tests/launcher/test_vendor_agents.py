@@ -73,7 +73,7 @@ def vendor_arm(
     vendor: str, provider: str | None, model: str, *, thinking: str | None = None,
 ) -> dict[str, object]:
     arm = {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "vendor-baseline",
         "name": f"pure-{vendor}",
         "vendor_agent": vendor,

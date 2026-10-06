@@ -16,6 +16,7 @@ from ..host_finalization import parse_host_scan_policy
 from ..outcome import TERMINAL_SUCCESS, TrialOutcomeReader
 from ..scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
 from .deepseek_paid_smoke import (
+    BUNDLE,
     CAPABILITY_ID,
     MODEL,
     load_deepseek_relay_credential,
@@ -50,7 +51,7 @@ def load_smoke_config(path: Path | str) -> tuple[CampaignConfig, TrialPlan]:
 
 def _validate_smoke_plan(config: CampaignConfig, plan: TrialPlan) -> None:
     expected = {
-        "kind": "cortex", "backend": "pi", "provider": "deepseek",
+        "kind": "cortex", "bundle": BUNDLE, "backend": "pi", "provider": "deepseek",
         "model": MODEL, "credential_capability": CAPABILITY_ID,
     }
     if not config.paid or any(plan.arm.get(key) != value for key, value in expected.items()):

@@ -6,7 +6,6 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Protocol
 
 from .campaign_config import CampaignConfig, TrialPlan
-from .launcher.production_arms import resolve_production_arm
 
 RESULT_SUMMARY_FILENAME = "result-summary.json"
 RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/4"
@@ -144,11 +143,9 @@ def _cli_pin(
 
 
 def _thinking(arm: Mapping[str, object]) -> str | None:
-    if arm.get("kind") == "vendor-baseline":
-        value = arm.get("thinking")
-        return value if isinstance(value, str) else None
-    bundle = resolve_production_arm(arm)
-    return None if bundle is None else bundle.thinking
+    """A vendor arm's declared level, or a Cortex arm's as its bundle states it."""
+    value = arm.get("thinking")
+    return value if isinstance(value, str) else None
 
 
 def _counters(

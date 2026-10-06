@@ -15,7 +15,7 @@ VENDOR_AGENTS = frozenset(VENDOR_IMPORT_PATHS)
 VENDOR_THINKING_AGENTS = frozenset({"pi", "codex"})
 VENDOR_THINKING_LEVELS = frozenset({"off", "minimal", "low", "medium", "high", "xhigh"})
 VENDOR_CORTEX_FIELDS = frozenset({
-    "artifact_inventory_spec", "backend", "coordinator", "orchestration",
+    "artifact_inventory_spec", "backend", "bundle", "coordinator",
     "plugin_dirs", "task_store",
 })
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")

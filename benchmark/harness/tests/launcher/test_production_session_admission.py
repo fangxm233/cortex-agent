@@ -68,10 +68,8 @@ ARM_NAMES = {"direct-pi-deepseek": "zero-paid-pi-direct"}
 
 def production_arm(bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
-        "name": ARM_NAMES[bundle.key], "backend": "pi", "provider": "deepseek",
-        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "orchestration": dict(bundle.orchestration),
+        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
+        "name": ARM_NAMES[bundle.key], **bundle.arm_fields(),
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.00",
             "deadline_seconds": 90, "max_output_tokens": 65536,

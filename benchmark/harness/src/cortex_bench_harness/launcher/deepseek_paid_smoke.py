@@ -7,6 +7,7 @@ import yaml
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .trial_admission import create_harbor_trial
 
+BUNDLE = "direct-pi-deepseek"
 CAPABILITY_ID = "pi-deepseek-api-key"
 MODEL = "deepseek-v4-flash"
 UPSTREAM = "http://127.0.0.1:9880/m/deepseek/deepseek"
@@ -51,7 +52,7 @@ def _validate_contract(values: Mapping[str, object]) -> None:
     proxy = _mapping(values, "trial_proxy")
     limits = _mapping(arm, "limits")
     exact = {
-        "kind": "cortex", "backend": "pi", "provider": "deepseek",
+        "kind": "cortex", "bundle": BUNDLE, "backend": "pi", "provider": "deepseek",
         "model": MODEL, "credential_capability": CAPABILITY_ID,
     }
     if any(arm.get(key) != value for key, value in exact.items()):
@@ -64,12 +65,6 @@ def _validate_execution(
     arm: Mapping[str, object], seed: Mapping[str, object],
     limits: Mapping[str, object],
 ) -> None:
-    orchestration = _mapping(arm, "orchestration")
-    exact = {
-        "mode": "direct", "ask_manager": False,
-    }
-    if any(orchestration.get(key) != value for key, value in exact.items()):
-        raise ValueError("DeepSeek paid smoke contract orchestration differs")
     limits_exact = {
         "max_provider_requests": 1, "max_cost_usd": "0.05",
         "deadline_seconds": 120,

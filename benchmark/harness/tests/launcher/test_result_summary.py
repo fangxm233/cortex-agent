@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from cortex_bench_harness.launcher.production_arms import production_arm_bundle
 from cortex_bench_harness.result_summary import build_result_summary
 
 DIGEST = f"sha256:{'a' * 64}"
@@ -42,14 +43,14 @@ def outcome(arm: dict[str, object]) -> SimpleNamespace:
 
 def cortex_arm(**overrides: object) -> dict[str, object]:
     arm = {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "cortex",
         "name": "cortex-arm",
         "backend": "pi",
         "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": dict(LIMITS),
     }
     arm.update(overrides)
@@ -90,25 +91,14 @@ def test_vendor_result_summary_projects_the_declared_thinking_when_present(
 
 @pytest.mark.parametrize(("arm", "expected"), [
     (cortex_arm(), "off"),
-    (cortex_arm(
-        provider="openai-codex",
-        model="gpt-5.6-sol",
-        credential_capability="pi-openai-codex-oauth",
-    ), "xhigh"),
+    (cortex_arm(**production_arm_bundle("direct-pi-openai-codex").arm_fields()), "xhigh"),
 ])
-def test_cortex_result_summary_projects_the_resolved_bundle_thinking(
+def test_cortex_result_summary_projects_the_bundle_thinking(
     tmp_path: Path, arm: dict[str, object], expected: str,
 ) -> None:
     summary = build_result_summary(summary_config(tmp_path, arm), [outcome(arm)])
 
     assert summary["trials"][0]["thinking"] == expected
-
-
-def test_non_bundle_cortex_arms_project_null_thinking(tmp_path: Path) -> None:
-    arm = cortex_arm(backend="claude", credential_capability="claude-subscription")
-    summary = build_result_summary(summary_config(tmp_path, arm), [outcome(arm)])
-
-    assert summary["trials"][0]["thinking"] is None
 
 
 def test_the_summary_counts_each_arm_against_the_denominator_it_earned(

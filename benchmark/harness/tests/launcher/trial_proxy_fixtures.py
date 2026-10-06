@@ -40,11 +40,11 @@ def closed_upstream() -> str:
 
 def cortex_arm(credential_capability: str = "pi-deepseek-api-key") -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": MODEL,
         "credential_capability": credential_capability,
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,
@@ -176,8 +176,8 @@ def epoch_datetime(epoch_ms: int) -> datetime:
 
 def codex_vendor_arm() -> dict[str, object]:
     arm = cortex_arm("codex-subscription")
-    arm.pop("backend")
-    arm.pop("orchestration")
+    for field in ("backend", "bundle", "thinking"):
+        arm.pop(field)
     arm.update({
         "kind": "vendor-baseline", "name": "pure-codex", "vendor_agent": "codex",
         "vendor_cli_version": "0.148.0", "provider": "openai-codex", "model": "gpt-5.6-sol",

@@ -7,7 +7,6 @@ from cortex_bench_harness.launcher.production_arms import (
     PRODUCTION_ARM_BUNDLES,
     ProductionArmError,
     production_arm_bundle,
-    production_arm_candidate,
     require_production_arm,
     resolve_production_arm,
 )
@@ -18,33 +17,14 @@ EXECUTION_LIMITS = {
 }
 
 
-def arm(
-    orchestration: dict[str, object],
-    **overrides: object,
-) -> dict[str, object]:
+def arm(bundle_key: str = "direct-pi-deepseek", **overrides: object) -> dict[str, object]:
     value: dict[str, object] = {
-        "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
-        "name": "an-arm", "backend": "pi", "provider": "deepseek",
-        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "orchestration": orchestration,
+        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex", "name": "an-arm",
+        **production_arm_bundle(bundle_key).arm_fields(),
         "limits": dict(EXECUTION_LIMITS),
     }
     value.update(overrides)
     return value
-
-
-def direct_arm(**overrides: object) -> dict[str, object]:
-    return arm({"mode": "direct", "ask_manager": False}, **overrides)
-
-
-def direct_codex_arm(**overrides: object) -> dict[str, object]:
-    return arm(
-        {"mode": "direct", "ask_manager": False},
-        provider="openai-codex",
-        model="gpt-5.6-sol",
-        credential_capability="pi-openai-codex-oauth",
-        **overrides,
-    )
 
 
 def read_json(path: Path) -> dict[str, object]:
@@ -52,17 +32,19 @@ def read_json(path: Path) -> dict[str, object]:
 
 
 def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
-    bundle = require_production_arm(direct_arm())
+    bundle = require_production_arm(arm())
 
     assert bundle.key == "direct-pi-deepseek"
     assert bundle.bundle_dir.name == "cortex-home"
     assert bundle.environment == "main"
     assert bundle.profile_name == "direct"
-    assert bundle.thinking == "off"
+    assert (bundle.backend, bundle.provider, bundle.model, bundle.thinking) == (
+        "pi", "deepseek", "deepseek-v4-flash", "off")
+    assert bundle.credential_capability == "pi-deepseek-api-key"
 
 
 def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
-    bundle = require_production_arm(direct_codex_arm())
+    bundle = require_production_arm(arm("direct-pi-openai-codex"))
 
     assert bundle.key == "direct-pi-openai-codex"
     assert bundle.bundle_dir.name == "cortex-home"
@@ -72,24 +54,44 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
     assert bundle.model == "gpt-5.6-sol"
     assert bundle.credential_capability == "pi-openai-codex-oauth"
     assert bundle.thinking == "xhigh"
-    assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
+    assert bundle.bundle_dir != require_production_arm(arm()).bundle_dir
 
 
-@pytest.mark.parametrize("orchestration", [
-    {"mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False},
-    {"mode": "coder-review", "coder_review_variant": "reviewer-fix", "ask_manager": False},
-    {"mode": "manager", "ask_manager": False},
-    {"mode": "manager", "ask_manager": True},
-    {"mode": "direct", "ask_manager": True},
+def test_bundle_identity_is_read_from_the_committed_profile() -> None:
+    for bundle in PRODUCTION_ARM_BUNDLES:
+        profiles = read_json(bundle.bundle_dir / "config/profiles.json")
+        profile = profiles["profiles"][profiles["defaultProfile"]]
+        assert bundle.profile_name == profiles["defaultProfile"]
+        fields = ("backend", "provider", "model", "thinking")
+        assert {field: profile[field] for field in fields} == {
+            field: getattr(bundle, field) for field in fields}
+
+
+@pytest.mark.parametrize("drift", [
+    {"bundle": "no-such-bundle"},
+    {"model": "deepseek-v4-pro"},
+    {"thinking": "high"},
+    {"provider": "openai-codex"},
+    {"credential_capability": "pi-openai-codex-oauth"},
+    {"kind": "vendor-baseline"},
+    {"schema_version": "cortex-benchmark-arm/2"},
+    {"name": ""},
 ])
-def test_only_the_direct_orchestration_is_a_production_arm(
-    orchestration: dict[str, object],
+def test_an_arm_that_does_not_carry_exactly_its_bundle_is_refused(
+    drift: dict[str, object],
 ) -> None:
-    other = arm(orchestration)
+    other = arm(**drift)
 
-    assert production_arm_candidate(other) is None
+    assert resolve_production_arm(other) is None
     with pytest.raises(ProductionArmError, match="committed PI arm"):
         require_production_arm(other)
+
+
+def test_an_arm_without_a_bundle_key_is_not_a_production_arm() -> None:
+    legacy = arm()
+    del legacy["bundle"]
+
+    assert resolve_production_arm(legacy) is None
 
 
 def test_every_arm_records_the_one_session_endpoint_it_needs_open() -> None:
@@ -100,13 +102,6 @@ def test_every_arm_records_the_one_session_endpoint_it_needs_open() -> None:
         assert bundle.attested_record() == {
             "key": bundle.key, "profile_name": "direct", "environment": "main",
         }
-
-
-def test_a_non_pi_deepseek_arm_is_not_a_production_candidate() -> None:
-    claude = direct_arm(backend="claude")
-
-    assert production_arm_candidate(claude) is None
-    assert resolve_production_arm(claude) is None
 
 
 def test_an_unknown_bundle_key_is_refused() -> None:

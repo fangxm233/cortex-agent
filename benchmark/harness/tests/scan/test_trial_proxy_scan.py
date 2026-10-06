@@ -55,11 +55,11 @@ def closed_upstream() -> str:
 
 def cortex_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": MODEL,
         "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,

@@ -33,10 +33,10 @@ EVIDENCE_CONTEXT = {
 
 def direct_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
+        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
         "name": "cortex-direct", "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "bundle": "direct-pi-deepseek", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
@@ -45,13 +45,7 @@ def direct_arm() -> dict[str, object]:
 
 
 def arm_for_bundle(bundle) -> dict[str, object]:
-    arm = direct_arm()
-    arm.update(
-        name=f"cortex-{bundle.key}", provider=bundle.provider, model=bundle.model,
-        credential_capability=bundle.credential_capability,
-        orchestration=dict(bundle.orchestration),
-    )
-    return arm
+    return {**direct_arm(), "name": f"cortex-{bundle.key}", **bundle.arm_fields()}
 
 
 def session(
@@ -530,15 +524,11 @@ def test_every_arm_deadline_returns_and_records_an_explicit_terminal_outcome(
     assert production.stopped_cleanly is True
 
 
-@pytest.mark.parametrize("orchestration", [
-    {"mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False},
-    {"mode": "manager", "ask_manager": False},
-])
+@pytest.mark.parametrize("drift", [{"bundle": "no-such-bundle"}, {"thinking": "xhigh"}])
 def test_session_refuses_an_arm_no_bundle_declares(
-    tmp_path: Path, orchestration: dict[str, object],
+    tmp_path: Path, drift: dict[str, object],
 ) -> None:
-    arm = direct_arm()
-    arm["orchestration"] = orchestration
+    arm = {**direct_arm(), **drift}
 
     with pytest.raises(ProductionArmError, match="production launcher"):
         session(tmp_path, arm=arm)

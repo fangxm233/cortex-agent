@@ -110,9 +110,7 @@ CODEX_NOW_MS = 1_900_000_000_000
 
 def arm_document(name: str, **overrides: object) -> dict[str, object]:
     return {
-        "name": name, "kind": "cortex", "backend": "pi", "provider": "deepseek",
-        "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "orchestration": {"mode": "direct", "ask_manager": False},
+        "name": name, "kind": "cortex", "bundle": "direct-pi-deepseek",
         "limits": {
             "max_provider_requests": 200, "max_cost_usd": "2.00",
             "deadline_seconds": 1800, "max_output_tokens": 32768,
@@ -217,10 +215,7 @@ def vendor_pi_codex_campaign_document(root: Path, *, concurrency: int = 3) -> di
 
 def cortex_pi_codex_campaign_document(root: Path, *, concurrency: int = 3) -> dict[str, object]:
     document = campaign_document(root, concurrency=concurrency, comparisons=[])
-    document["arms"] = [arm_document(
-        "cortex-pi-codex", provider="openai-codex", model="gpt-5.6-sol",
-        credential_capability="pi-openai-codex-oauth",
-    )]
+    document["arms"] = [arm_document("cortex-pi-codex", bundle="direct-pi-openai-codex")]
     document["tasks"].append({
         "task_id": "task-three", "path": str(root / "tasks" / "three"),
         "image_ref": IMAGE_REF,
@@ -640,7 +635,7 @@ def test_a_vendor_baseline_arm_parses_with_its_own_cli_version(tmp_path: Path) -
     (arm,) = load_campaign_config(write_campaign(tmp_path, document)).arms
 
     assert arm == {
-        "schema_version": "cortex-benchmark-arm/2",
+        "schema_version": "cortex-benchmark-arm/3",
         "name": "pure-pi", "kind": "vendor-baseline", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "vendor_agent": "pi", "vendor_cli_version": "0.82.1",
@@ -655,7 +650,7 @@ def test_a_vendor_baseline_arm_parses_with_its_own_cli_version(tmp_path: Path) -
     ("field", "value"),
     [
         ("backend", "pi"),
-        ("orchestration", {"mode": "direct", "ask_manager": False}),
+        ("bundle", "direct-pi-deepseek"),
         ("environment", {"CORTEX_HOME": "/tmp/cortex-home"}),
     ],
 )
@@ -957,18 +952,46 @@ def test_vendor_pi_openai_codex_arm_must_name_the_exact_pi_capability_before_arm
     assert recorder.armed == []
 
 
-def test_cortex_pi_openai_codex_arm_must_name_the_exact_pi_capability_before_arming(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+def test_a_cortex_arm_reads_what_it_runs_from_its_bundle(tmp_path: Path) -> None:
+    (arm,) = load_campaign_config(write_campaign(
+        tmp_path, cortex_pi_codex_campaign_document(tmp_path))).arms
+
+    assert arm == {
+        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex", "name": "cortex-pi-codex",
+        "bundle": "direct-pi-openai-codex", "backend": "pi", "provider": "openai-codex",
+        "model": "gpt-5.6-sol", "thinking": "xhigh",
+        "credential_capability": "pi-openai-codex-oauth",
+        "limits": {
+            "max_provider_requests": 200, "max_cost_usd": "2.00",
+            "deadline_seconds": 1800, "max_output_tokens": 32768,
+        },
+    }
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("backend", "pi"), ("provider", "openai-codex"), ("model", "gpt-5.6-sol"),
+    ("thinking", "xhigh"), ("credential_capability", "pi-deepseek-api-key"),
+    ("orchestration", {"mode": "direct", "ask_manager": False}),
+])
+def test_a_cortex_arm_restating_its_bundle_is_refused(
+    tmp_path: Path, field: str, value: object,
 ) -> None:
-    recorder = RecordingTrialPath().install(monkeypatch)
-    document = cortex_pi_codex_campaign_document(tmp_path)
-    document["arms"][0]["credential_capability"] = "pi-deepseek-api-key"
+    arm = arm_document("cortex-a", bundle="direct-pi-openai-codex")
+    arm[field] = value
+    document = campaign_document(tmp_path, arms=[arm], comparisons=[])
 
-    status = campaign.main(["run", "--config", str(write_campaign(tmp_path, document))])
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document))
 
-    assert status == 1
-    assert "exact pi-openai-codex-oauth capability" in failure_document(capsys)["error"]
-    assert recorder.armed == []
+    assert field in str(error.value)
+
+
+def test_a_cortex_arm_naming_no_committed_bundle_is_refused(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, arms=[arm_document("cortex-a", bundle="manager-pi-deepseek")], comparisons=[])
+
+    with pytest.raises(CampaignConfigError, match="bundle.*manager-pi-deepseek"):
+        load_campaign_config(write_campaign(tmp_path, document))
 
 
 @pytest.mark.parametrize(("name", "expected"), COMMITTED_CODEX_XHIGH_CONFIGS.items())
@@ -993,10 +1016,8 @@ def test_committed_codex_xhigh_campaign_configs_expand_to_exactly_three_trials(
     assert [task.image_digest for task in config.tasks] == expected["image_digests"]
     assert (arm["provider"], arm["model"], arm["credential_capability"]) == (
         "openai-codex", "gpt-5.6-sol", expected["credential_capability"])
-    if arm["kind"] == "vendor-baseline":
-        assert arm["thinking"] == expected["thinking"]
-    else:
-        assert arm.get("thinking") is None
+    assert arm["thinking"] == expected["thinking"]
+    if arm["kind"] == "cortex":
         assert require_production_arm(arm).thinking == expected["thinking"]
 
 
@@ -2292,7 +2313,7 @@ def test_the_committed_paid_campaign_config_declares_the_approved_envelope() -> 
     assert config.paid is True
     assert (arm["kind"], arm["backend"], arm["provider"], arm["model"]) == (
         "cortex", "pi", "deepseek", "deepseek-v4-flash")
-    assert arm["orchestration"] == {"mode": "direct", "ask_manager": False}
+    assert arm["bundle"] == "direct-pi-deepseek"
     assert int(limits["max_output_tokens"]) >= 32768
     assert [task.task_id for task in config.tasks] == [
         "chess-best-move", "constraints-scheduling", "db-wal-recovery"]
