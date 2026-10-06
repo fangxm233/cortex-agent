@@ -3,9 +3,6 @@
   "productName": "Cortex",
   "version": "../../agent-server/package.json",
   "identifier": "dev.cortex.desktop",
-  "build": {
-    "frontendDist": "../../web/dist"
-  },
   "app": {
     "withGlobalTauri": true,
     "windows": [],
