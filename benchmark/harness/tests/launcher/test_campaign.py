@@ -18,6 +18,7 @@ from cortex_bench_harness.launcher.production_arms import require_production_arm
 from cortex_bench_harness.launcher.production_session import (
     SERVER_READY_TIMEOUT_SECONDS,
     SERVER_STOP_TIMEOUT_SECONDS,
+    SESSION_OUTCOME_SCHEMA_VERSION,
 )
 from cortex_bench_harness.launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from cortex_bench_harness.campaign_config import (
@@ -296,7 +297,6 @@ def envelope_document(
             "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
             "atomic": True, "post_publication_reread": True,
         },
-        "grader_admission": {"admitted": True},
     }
 
 
@@ -1617,15 +1617,16 @@ def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
     later task's measurement. A failed agent is now a result: it is recorded with the reason it
     failed, and the remaining trials still run.
     """
-    def not_admitted(document: dict[str, object]) -> dict[str, object]:
-        document["grader_admission"] = {
-            "admitted": False, "reason": "inner_terminal_not_ok",
-            "terminal_state": "failed", "terminal_reason": "provider_error",
+    def inner_failed(document: dict[str, object]) -> dict[str, object]:
+        document["agent_outcome"] = {
+            "schema_version": SESSION_OUTCOME_SCHEMA_VERSION,
+            "trial_id": document["identity"]["trial_id"], "terminal": True,
+            "status": "failed", "terminal_reason": "session_failed", "session_id": "ses-1",
         }
         return document
 
     recorder = RecordingTrialPath(
-        default_requests=1, envelope_mutation=not_admitted).install(monkeypatch)
+        default_requests=1, envelope_mutation=inner_failed).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
@@ -1634,29 +1635,10 @@ def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
         "camp-01-task-one-cortex-a", "camp-01-task-one-cortex-b",
         "camp-01-task-two-cortex-a", "camp-01-task-two-cortex-b",
     ], "every later trial still ran"
-    assert result["trials"][0]["grader_admission"] == {
-        "admitted": False, "reason": "inner_terminal_not_ok",
-        "terminal_state": "failed", "terminal_reason": "provider_error",
-    }
+    assert result["trials"][0]["outcome_state"] == "terminal-agent-failure"
+    assert result["trials"][0]["reason"] == "session_failed"
     assert result["trials"][0]["requests"] == 1, (
         "a trial whose inner run failed still made its provider request")
-
-
-def test_an_envelope_that_will_not_say_whether_it_is_gradable_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Non-admitted is an answer; silence is not."""
-    def no_admission(document: dict[str, object]) -> dict[str, object]:
-        document["grader_admission"] = {"reason": "inner_terminal_not_ok"}
-        return document
-
-    RecordingTrialPath(envelope_mutation=no_admission).install(monkeypatch)
-
-    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
-
-    assert status == 1
-    assert result["trials"][0]["outcome_state"] == "harness-incomplete"
-    assert "grader_admission" in result["trials"][0]["reason"]
 
 
 def test_a_harbor_agent_exception_keeps_its_finite_verifier_rewards(
@@ -1730,7 +1712,6 @@ def test_resuming_a_terminal_verifier_failure_keeps_it_failed_without_rearming(
         "requests": 1, "metered_requests": 1,
         "outer_envelope_path": str(
             trials_dir / trial_id / "artifacts" / OUTER_ENVELOPE_FILENAME),
-        "grader_admission": {"admitted": True},
         "verifier_rewards": None, "score_status": "failed",
         "reason": "RuntimeError: bad verifier",
     }]
@@ -1828,7 +1809,7 @@ def test_untrustworthy_security_evidence_never_exposes_a_score(
     assert first["outcome_state"] == "security-failed"
     assert first["verifier_rewards"] is None
     assert first["score_status"] == "unavailable"
-    assert first["grader_admission"] == {"admitted": False, "reason": "security_failed"}
+    assert "grader_admission" not in first
 
 
 def test_a_partial_outer_envelope_is_rejected_before_any_new_route_is_armed(
@@ -2113,7 +2094,6 @@ def test_a_successful_campaign_returns_structured_state(
         "outer_envelope_path": str(
             tmp_path / "trials" / "camp-01-task-one-cortex-a" / "artifacts"
             / OUTER_ENVELOPE_FILENAME),
-        "grader_admission": {"admitted": True},
     }
 
 

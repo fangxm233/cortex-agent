@@ -64,11 +64,10 @@ from .outcome import (
     HARNESS_INCOMPLETE,
     SCORE_AVAILABLE,
     SCORE_UNAVAILABLE,
-    SECURITY_FAILED,
     TrialOutcomeReader,
 )
 
-CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/5"
+CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/6"
 CAMPAIGN_RESULT_FILENAME = "campaign-result.json"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
 STATE_COMPLETED = "completed"
@@ -151,14 +150,6 @@ class TrialOutcome:
     started_at: str | None = None
     finished_at: str | None = None
 
-    @property
-    def admission(self) -> Mapping[str, object] | None:
-        """What the terminal record says about being gradable."""
-        if self.outcome_state == SECURITY_FAILED:
-            return {"admitted": False, "reason": "security_failed"}
-        admission = (self.envelope or {}).get("grader_admission")
-        return admission if isinstance(admission, Mapping) else None
-
     def as_dict(self) -> dict[str, object]:
         record: dict[str, object] = {
             "trial_id": self.plan.trial_id, "arm": self.plan.arm_name,
@@ -174,8 +165,6 @@ class TrialOutcome:
             record["metered_requests"] = self.metered_requests
         if self.envelope_path is not None:
             record["outer_envelope_path"] = str(self.envelope_path)
-        if self.admission is not None:
-            record["grader_admission"] = dict(self.admission)
         if self.outcome_state is not None:
             record["outcome_state"] = self.outcome_state
             record["verifier_rewards"] = (
@@ -787,7 +776,6 @@ def _report_run(config: CampaignConfig, outcome: TrialOutcome) -> dict[str, obje
         "task": {"task_id": outcome.plan.task.task_id,
                  "image_digest": outcome.plan.task.image_digest},
         "cortex_telemetry": _cortex_telemetry(outcome),
-        "grader_admission": dict(outcome.admission) if outcome.admission else None,
         "outcome_state": outcome.outcome_state,
         "outcome_reason": outcome.reason,
         "verifier_rewards": (

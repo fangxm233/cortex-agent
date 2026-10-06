@@ -6,7 +6,7 @@ from typing import cast
 
 from .arms import IMAGE_DIGEST, VENDOR_AGENTS
 
-COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/4"
+COMPARISON_REPORT_SCHEMA_VERSION = "cortex-benchmark-comparison-report/5"
 DIFFERENCE_CLASSES = frozenset({"bundle-level", "orchestration"})
 OUTCOME_STATES = frozenset({
     "terminal-success", "terminal-agent-failure", "terminal-verifier-failure",
@@ -16,10 +16,6 @@ SCORE_STATUSES = frozenset({"available", "failed", "unavailable"})
 VENDOR_TELEMETRY_UNAVAILABLE = {
     "status": "unavailable",
     "reason": "not_exposed_by_vendor_runner",
-}
-VENDOR_ADMISSION_UNAVAILABLE = {
-    "status": "unavailable",
-    "reason": "vendor_runner_publishes_no_outer_envelope",
 }
 CORTEX_OUTER_UNAVAILABLE = {
     "status": "unavailable",
@@ -99,23 +95,6 @@ def _telemetry(run: Mapping[str, object], kind: str, outcome_state: str) -> obje
     raise ValueError("successful Cortex runs must provide cortex_telemetry")
 
 
-def _admission(run: Mapping[str, object], kind: str, outcome_state: str) -> object:
-    """Whether this run's result may be compared with the others, carried per run.
-
-    A campaign no longer stops at the first inner run that failed, so a report can hold runs that
-    did not end comparably. Nothing here averages across them — this field is what makes such an
-    average refusable rather than accidental.
-    """
-    admission = run.get("grader_admission")
-    if kind == "vendor-baseline" and admission is None:
-        return dict(VENDOR_ADMISSION_UNAVAILABLE)
-    if isinstance(admission, Mapping) and isinstance(admission.get("admitted"), bool):
-        return json.loads(json.dumps(admission))
-    if outcome_state != "terminal-success" and admission is None:
-        return dict(CORTEX_OUTER_UNAVAILABLE)
-    raise ValueError("Cortex runs must state grader_admission.admitted")
-
-
 def _outcome_reason(run: Mapping[str, object]) -> str | None:
     """Why this run ended the way it did, when the outcome reader computed a reason.
 
@@ -186,7 +165,6 @@ def _build_run(run: Mapping[str, object]) -> dict[str, object]:
                 "version": _text(run, "cli_version", "run")},
         "task": _task(run), "limits": _limits(arm),
         "cortex_telemetry": _telemetry(run, kind, outcome_state),
-        "grader_admission": _admission(run, kind, outcome_state),
         "outcome_state": outcome_state, "outcome_reason": _outcome_reason(run),
         **_score(run, outcome_state),
     }

@@ -510,7 +510,7 @@ def test_a_run_records_every_collected_file_and_publishes_one_envelope(
     }
     assert agent.outer_envelope_sha256 == hashlib.sha256(payload).hexdigest()
     # What the campaign driver reads back out of a published envelope.
-    assert envelope["grader_admission"] == {"admitted": True, "reason": "recorded"}
+    assert "grader_admission" not in envelope
     assert isinstance(envelope["proxy_usage"]["requests"], int)
     assert envelope["publication"] == {
         "root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
@@ -754,9 +754,9 @@ def test_the_proxy_revocation_and_audit_records_land_in_the_envelope(
     assert usage["requests"] == 0
     assert usage["audit_entries"] == 1
     assert usage["audit_outcomes"] == {}
-    assert usage["lease_echo"] == {
-        "status": UNAVAILABLE, "reason": "unavailable_by_design",
-    }
+    # The real lease record, not a placeholder: this trial echoed its lease.
+    assert usage["lease_echo"]["status"] == "available"
+    assert usage["lease_echo"]["value"]["lease_state"] == "reconciled"
     assert agent.proxy_session.handle.revocation_evidence["listener_present"] is False
 
 
@@ -841,8 +841,11 @@ def assert_deadline_evidence(envelope: Mapping[str, object]) -> None:
             "status": "unavailable", "reason": "no_cache_breakdown_reported",
         },
         "audit_entries": 1, "audit_outcomes": {},
-        "lease_echo": unavailable("unavailable_by_design"),
+        "lease_echo": envelope["proxy_usage"]["lease_echo"],
     }
+    # The real lease record rides along, not a placeholder: this trial echoed its lease.
+    assert envelope["proxy_usage"]["lease_echo"]["status"] == "available"
+    assert envelope["proxy_usage"]["lease_echo"]["value"]["lease_state"] == "reconciled"
     cost = recorded_files(envelope)[("agent", DEADLINE_COST_PATH)]
     assert cost["sha256"] == sha256_hex(DEADLINE_COST_PAYLOAD)
 

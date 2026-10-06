@@ -220,7 +220,6 @@ def _common_envelope(
         "leak_scan": scan,
         "publication": {"root": "artifacts", "relative_path": OUTER_ENVELOPE_FILENAME,
                         "atomic": True, "post_publication_reread": True},
-        "grader_admission": {"admitted": True, "reason": "recorded"},
     }
     if agent_outcome is not None:
         envelope["agent_outcome"] = dict(agent_outcome)
@@ -581,8 +580,7 @@ def _proxy_usage(
         return {
             "schema_version": absent, "trial_id": trial_id, "requests": absent,
             "unsent_requests": absent, "input_tokens": absent, "output_tokens": absent, "cached_tokens": absent,
-            "audit_entries": absent, "audit_outcomes": absent,
-            "lease_echo": _unavailable("unavailable_by_design"),
+            "audit_entries": absent, "audit_outcomes": absent, "lease_echo": absent,
         }
     audit = _as_emitted(export.get("audit_log"))
     return {
@@ -594,7 +592,8 @@ def _proxy_usage(
         "cached_tokens": _as_emitted(export.get("cached_tokens")),
         "audit_entries": _audit_field(audit, "entries"),
         "audit_outcomes": _audit_field(audit, "outcomes"),
-        "lease_echo": _unavailable("unavailable_by_design"),
+        # The lease record exactly as the proxy export carries it: an echo or its absence.
+        "lease_echo": _field(export, "lease_echo"),
     }
 
 

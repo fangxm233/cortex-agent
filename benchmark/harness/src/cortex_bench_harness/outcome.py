@@ -206,8 +206,7 @@ def _envelope_reason(
     if envelope.get("schema_version") != OUTER_ENVELOPE_SCHEMA_VERSION:
         return "outer envelope schema_version is unsupported"
     for validator in (
-        _identity_reason, _admission_reason, _requests_reason, _publication_reason,
-        _agent_outcome_reason,
+        _identity_reason, _requests_reason, _publication_reason, _agent_outcome_reason,
     ):
         reason = validator(envelope, trial_id, arm_name)
         if reason is not None:
@@ -223,16 +222,6 @@ def _identity_reason(
     declared = (identity.get("trial_id"), identity.get("arm_name"))
     if declared != (trial_id, arm_name):
         return f"outer envelope identifies trial {declared[0]!r} on arm {declared[1]!r}"
-    return None
-
-
-def _admission_reason(
-    envelope: Mapping[str, object], _trial_id: str, _arm_name: str,
-) -> str | None:
-    admission = envelope.get("grader_admission")
-    admitted = admission.get("admitted") if isinstance(admission, Mapping) else None
-    if not isinstance(admitted, bool):
-        return "outer envelope must state grader_admission.admitted"
     return None
 
 
