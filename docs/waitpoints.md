@@ -58,7 +58,8 @@ python train.py; cortex-signal --exit-code $?
 
 `--exit-code` turns `$?` into both a status and a message, which is why the integration is one
 line. Everything else is optional: `--message` for a one-line summary, `--member` for which job
-this is, `--data @file` or `--data -` to attach a log tail.
+this is (required once the waitpoint names its members), `--data @file` or `--data -` to attach a
+log tail.
 
 Without the CLI, the same thing with curl:
 
@@ -93,7 +94,7 @@ printf '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"%s","message":"exit=%s"
 Write to `.tmp` and rename — a same-directory rename is atomic, so the collector never reads a
 half-written file. Give every file a fresh name: the collector treats the name as the signal's
 identity, so a monitor that reused one name would be heard once. For a waitpoint with members, add
-`"member":"arm2"` to the JSON. Nothing needs to be installed on the device. If the device is
+`"member":"arm2"` to the JSON — without it the file is refused and parked under `bad/`. Nothing needs to be installed on the device. If the device is
 offline the files simply wait there.
 
 That spool directory works on the daemon's own machine too, and `cortex-signal` falls back to it
@@ -143,8 +144,9 @@ wait_create({
 })
 ```
 
-Each job signals with `--member arm2`; a name that is not on the list is refused with an error
-rather than counted, so a typo cannot complete the set. By default the first failure wakes you immediately
+Each job signals with `--member arm2`. A signal that names nobody, or a name that is not on the
+list, is refused with an error rather than counted, so neither a typo nor a forgotten flag can
+complete the set. By default the first failure wakes you immediately
 (`fail_fast`), and otherwise you are woken once, when all three are in — one turn, not three.
 Signals arriving within a few seconds of each other are folded into that single wake.
 

@@ -333,8 +333,9 @@ const SIGNAL_REPLIES: Record<string, (outcome: any) => [number, unknown]> = {
   'rate-limited': () => [429, { accepted: false, error: 'too many signals' }],
 };
 
-export function unknownMemberError(o: { member: string; members: string[] }): string {
-  return `unknown member "${o.member}" — this waitpoint expects one of: ${o.members.join(', ')}`;
+export function unknownMemberError(o: { member: string | null; members: string[] }): string {
+  const expected = `this waitpoint expects one of: ${o.members.join(', ')}`;
+  return o.member ? `unknown member "${o.member}" — ${expected}` : `no member named — ${expected}`;
 }
 
 function signalReply(outcome: SignalOutcome): [number, unknown] {

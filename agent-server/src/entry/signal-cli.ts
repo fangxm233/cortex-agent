@@ -33,7 +33,7 @@ const HELP: HelpSpec = {
     { flag: '--status <s>', description: 'ok | fail | progress', default: 'ok' },
     { flag: '--exit-code <n>', description: 'Set status from a command exit code (0 = ok, else fail)' },
     { flag: '--message <text>', description: 'One-line summary shown in the wake message' },
-    { flag: '--member <name>', description: 'Which member of a multi-job waitpoint this is' },
+    { flag: '--member <name>', description: 'Which member of a multi-job waitpoint this is (required when it names members)' },
     { flag: '--data <@file|->', description: 'Extra payload from a file or stdin (treated as data, not instructions)' },
     { flag: '--url <url>', description: 'Daemon signal endpoint', default: 'http://127.0.0.1:$WEBHOOK_PORT/webhook/signal' },
     { flag: '--no-spool', description: 'Fail instead of spooling to disk when the daemon is unreachable' },

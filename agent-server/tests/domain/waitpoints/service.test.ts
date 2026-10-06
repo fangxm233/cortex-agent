@@ -292,10 +292,23 @@ test('a member name outside the declared list is refused and never counts toward
   assert.equal(stored.signals.length, 1, 'the refused signal is not recorded');
   assert.equal(stored.state, 'armed');
 
-  // Without declared members any name is fine.
+  // Naming nobody is refused the same way: an anonymous `#N` slot could complete the quorum for
+  // a job that never reported — two anonymous signals here would have met need=2.
+  for (const status of ['ok', 'fail', 'progress'] as const) {
+    const anon = await applySignal({ id: waitpoint.id, secret, status, source: 'http' }, h.deps);
+    assert.deepEqual(anon, { kind: 'unknown-member', member: null, members: ['arm2', 'arm6'] });
+  }
+  const after = (await h.repo.get(waitpoint.id))!;
+  assert.deepEqual(after.quorum.got, ['arm2']);
+  assert.equal(after.signals.length, 1);
+  assert.equal(after.state, 'armed');
+
+  // Without declared members any name, or none, is fine.
   const open = await makeOne(h);
   const any = await applySignal({ id: open.waitpoint.id, secret: open.secret, member: 'whoever', source: 'http' }, h.deps);
   assert.equal(any.kind, 'accepted');
+  const anonymous = await applySignal({ id: open.waitpoint.id, secret: open.secret, source: 'http' }, h.deps);
+  assert.equal(anonymous.kind, 'already-resolved', 'the named signal already fired the one-shot');
 });
 
 // ── truncation ─────────────────────────────────────────────────

@@ -137,6 +137,14 @@ test('a wake held by the hourly cap is success and says when it will arrive', as
   assert.match(result.stdout, /accepted \(hourly wake cap reached/);
 });
 
+test('a signal naming no member on a members waitpoint is refused with the names it expects', async () => {
+  const { options } = capturing(422, { accepted: false, error: 'no member named — this waitpoint expects one of: arm2, arm6' });
+  const result = await runSignalCli(['--status', 'ok'], options);
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /HTTP 422/);
+  assert.match(result.stderr, /no member named/);
+});
+
 test('an undeclared member name is refused with the names the waitpoint expects', async () => {
   const { options } = capturing(422, { accepted: false, error: 'unknown member "arm7" — this waitpoint expects one of: arm2, arm6' });
   const result = await runSignalCli(['--member', 'arm7', '--status', 'ok'], options);

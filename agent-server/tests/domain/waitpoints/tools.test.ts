@@ -142,6 +142,10 @@ test('a signal naming an undeclared member is refused with the expected names', 
   assert.equal(typo.json.accepted, false);
   assert.match(typo.json.error, /unknown member "arm7".*arm2, arm6/);
 
+  const anon = await post('/webhook/signal', { id, secret, status: 'ok' }, null);
+  assert.equal(anon.statusCode, 422);
+  assert.match(anon.json.error, /no member named.*arm2, arm6/);
+
   const good = await post('/webhook/signal', { id, secret, member: 'arm2', status: 'ok' }, null);
   assert.equal(good.statusCode, 202);
   assert.equal(good.json.fired, false);

@@ -186,6 +186,16 @@ test('the local and device drains dispose of the same outcome the same way', asy
   await drainLocalSpool(h.ingest, spool);
   assert.equal((await fs.readdir(path.join(spool, 'bad'))).length, 1);
   assert.equal((await h.repo.get(waitpoint.id))!.signals.length, 0);
+
+  // A file naming no member is parked the same way on both sides.
+  const anon = JSON.stringify({ id: waitpoint.id, secret, status: 'ok' });
+  h.deviceFiles.set('anon.json', anon);
+  await drainDeviceSpools(h.deps);
+  assert.ok(h.commands.some((c) => c.command.includes('mkdir -p bad') && c.command.includes("'anon.json'")));
+  await fs.writeFile(path.join(spool, 'anon.json'), anon);
+  await drainLocalSpool(h.ingest, spool);
+  assert.equal((await fs.readdir(path.join(spool, 'bad'))).length, 2);
+  assert.equal((await h.repo.get(waitpoint.id))!.signals.length, 0);
 });
 
 test('a device failing outright does not stop the other devices in the same pass', async () => {

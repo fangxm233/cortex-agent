@@ -152,8 +152,9 @@ export type ApplySignalOutcome =
   | { kind: 'duplicate'; waitpoint: Waitpoint }
   | { kind: 'not-found' }
   | { kind: 'bad-secret' }
-  /** `members` were declared and this signal named someone else. Nothing was recorded. */
-  | { kind: 'unknown-member'; member: string; members: string[] }
+  /** `members` were declared and this signal named someone else, or nobody (`member: null`).
+   *  Nothing was recorded. */
+  | { kind: 'unknown-member'; member: string | null; members: string[] }
   | { kind: 'already-resolved'; state: Waitpoint['state']; resolvedAt: number | null }
   /** Refused before lookup: the global miss budget (ingress anti-enumeration) is spent. */
   | { kind: 'rate-limited' };
@@ -222,7 +223,9 @@ export async function applySignal(
       return { next: wp, result: { kind: 'already-resolved', state: 'expired', resolvedAt: now } };
     }
     const member = input.member ? String(input.member) : null;
-    if (member && wp.quorum.members.length > 0 && !wp.quorum.members.includes(member)) {
+    // With members declared, every signal must name one: an anonymous one would take a `#N` slot
+    // and could complete the quorum on behalf of a job that never reported.
+    if (wp.quorum.members.length > 0 && (!member || !wp.quorum.members.includes(member))) {
       return { next: wp, result: { kind: 'unknown-member', member, members: [...wp.quorum.members] } };
     }
     if (input.dedupeKey && wp.signals.some((s) => s.dedupeKey === input.dedupeKey)) {
