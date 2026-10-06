@@ -8,7 +8,8 @@ import { atomicWriteSync } from '../../core/atomic-write.js';
 import { ensurePrivateDirectory, physicalUnder } from '@core/private-dir.js';
 import { loadPluginCatalog } from './catalog.js';
 import { pluginMcpRuntime, portableNamespace, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
-import { realPath } from './fs-helpers.js';
+import { listImmediateChildNames, realPath } from './fs-helpers.js';
+import { markInUse, sweepStaleRuntimeDirs } from './runtime-gc.js';
 import { safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
 import {
   buildProjectedSkillTree,
@@ -368,7 +369,10 @@ function ensureSkillSnapshot(
   ensurePrivateDirectory(parent, `${backend} skill snapshots`);
   const target = skillSnapshotTarget(parent, selection, skill);
   ensurePrivateDirectory(path.dirname(target), `${backend} skill snapshot`);
-  if (fs.existsSync(target)) return validateSkillSnapshot(target, skill);
+  if (fs.existsSync(target)) {
+    markInUse(path.dirname(target));
+    return validateSkillSnapshot(target, skill);
+  }
   const createdTarget = createSkillSnapshot(selection, skill, target);
   try {
     return validateSkillSnapshot(target, skill);
@@ -417,7 +421,10 @@ function ensurePortableProjection(
   ensurePrivateDirectory(parent, `${backend} plugin projection`);
   const manifestText = projectionManifest(selection.entry);
   const target = projectionTarget(parent, selection, skills);
-  if (fs.existsSync(target)) return validateReadyProjection(target, manifestText, skills);
+  if (fs.existsSync(target)) {
+    markInUse(target);
+    return validateReadyProjection(target, manifestText, skills);
+  }
   const createdTarget = createProjectionTarget(selection, skills, manifestText, target);
   try {
     return validateReadyProjection(target, manifestText, skills);
@@ -716,6 +723,33 @@ function resolvedRuntime(
   };
 }
 
+/** Catalog ids the selection names (by path or realpath), so the catalog loads only those. */
+function selectedCatalogIds(pluginsDir: string, dataDir: string, selectedPluginDirs: readonly string[]): Set<string> {
+  const wanted = new Set<string>();
+  for (const value of selectedPluginDirs) {
+    const absolute = selectedPath(dataDir, value);
+    wanted.add(absolute);
+    const real = realPath(absolute);
+    if (real) wanted.add(real);
+  }
+  const ids = new Set<string>();
+  for (const id of listImmediateChildNames(pluginsDir)) {
+    const absolute = path.resolve(pluginsDir, id);
+    if (wanted.has(absolute) || wanted.has(realPath(absolute) ?? absolute)) ids.add(id);
+  }
+  return ids;
+}
+
+/** The snapshot and projection directories this spawn hands to the backend. */
+function directoriesInUse(details: ReadonlyMap<string, PortableRuntimeDetail>): Set<string> {
+  const inUse = new Set<string>();
+  for (const detail of details.values()) {
+    if (detail.projectionDir) inUse.add(detail.projectionDir);
+    for (const skill of detail.skills) inUse.add(path.dirname(skill.target));
+  }
+  return inUse;
+}
+
 export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): ResolvedPluginRuntime {
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
   const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
@@ -728,13 +762,16 @@ export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): Reso
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
   if (selectedPluginDirs.length === 0) return {};
-  const entries = loadPluginCatalog({ pluginsDir, dataDir: physicalDataDir });
+  const entries = loadPluginCatalog({
+    pluginsDir, dataDir: physicalDataDir, ids: selectedCatalogIds(pluginsDir, dataDir, selectedPluginDirs),
+  });
   const classified = classifySelections(entries, catalogRoots(pluginsDir, entries), dataDir, selectedPluginDirs);
   if (classified.items.length === 0) return {};
   const portable = collectPortableDetails(
     classified.portableSelections, options.backend, runtimeDir, portableMcpEnabled(options.mcpComposition),
   );
   warnLegacySkillCollisions(portable.skillClaims, classified.selectedLegacySkills);
+  sweepStaleRuntimeDirs(path.join(runtimeDir, options.backend), directoriesInUse(portable.details));
   const resolved = resolvedRuntime(options.backend, classified.items, portable.details);
   return portable.warnings.length > 0 ? { ...resolved, warnings: portable.warnings } : resolved;
 }

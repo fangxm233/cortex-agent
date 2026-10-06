@@ -7,6 +7,7 @@ import { AGENT_PLUGIN_V1_MCP_SCHEMA_URL, AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL } fro
 import { safeClaudeManifestName, safeNativeComposite } from '@core/native-name.js';
 import { resolvePluginRuntime } from '../../../src/domain/plugins/runtime.js';
 import { loadPluginCatalog } from '../../../src/domain/plugins/catalog.js';
+import { _resetSweepThrottle } from '../../../src/domain/plugins/runtime-gc.js';
 import { buildProjectedSkillTree, copyProjectedSkillTree } from '../../../src/domain/plugins/skill-projection.js';
 
 interface Harness {
@@ -745,6 +746,28 @@ test('rejects symlinked runtimeDir ancestry before writing a Claude projection',
   });
   assert.equal(resolved.pluginDirs, undefined);
   assert.equal(fs.existsSync(path.join(physical, 'plugin-runtime', 'claude')), false);
+});
+
+test('a spawn keeps the snapshots it reuses and sweeps week-old ones nobody uses', () => {
+  const harness = makeHarness();
+  portablePlugin(harness, { id: 'portable-gc', skills: [{ name: 'gc-skill' }] });
+  const first = resolveRuntime(harness, ['plugins/portable-gc'], { backend: 'claude' });
+  const projection = first.pluginDirs?.[0] ?? '';
+  const weekAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+  fs.utimesSync(projection, weekAgo, weekAgo);
+  const orphan = path.join(harness.runtimeDir, 'claude', 'skill-snapshots', 'skill_orphan_0123456789');
+  fs.mkdirSync(path.join(orphan, 'old-skill'), { recursive: true });
+  fs.utimesSync(orphan, weekAgo, weekAgo);
+  _resetSweepThrottle();
+
+  const second = resolvePluginRuntime({
+    backend: 'claude', selectedPluginDirs: ['plugins/portable-gc'], mcpComposition: 'direct',
+    dataDir: harness.dataDir, pluginsDir: harness.pluginsDir, runtimeDir: harness.runtimeDir,
+  });
+
+  assert.deepEqual(second.pluginDirs, first.pluginDirs);
+  assert.ok(Date.now() - fs.statSync(projection).mtimeMs < 60_000, 'reuse marks the projection live');
+  assert.equal(fs.existsSync(orphan), false);
 });
 
 function symlinkedHome(): { alias: string; physical: string } {

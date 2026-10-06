@@ -430,14 +430,17 @@ function safePluginEntry(
   }
 }
 
+/** `ids` limits the load to those plugin ids: a spawn needs only the plugins it selected, and
+ *  validating every other plugin's skill trees on each spawn is wasted work. */
 export function loadPluginCatalog(
-  options: { pluginsDir?: string; dataDir?: string } = {},
+  options: { pluginsDir?: string; dataDir?: string; ids?: ReadonlySet<string> } = {},
 ): PluginCatalogEntry[] {
   const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
   if (!pathExists(pluginsDir)) return [];
   const pluginsRoot = fs.realpathSync(pluginsDir);
   const entries = listImmediateChildNames(pluginsRoot)
+    .filter((id) => !options.ids || options.ids.has(id))
     .map((id) => safePluginEntry(id, pluginsRoot, dataDir));
   flagSharedNamespaces(entries);
   return entries;
