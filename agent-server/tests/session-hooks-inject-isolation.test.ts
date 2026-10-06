@@ -132,3 +132,39 @@ test('runHookInjection (onNew) — closes the isolated session even when the inj
   assert.equal(closeCalls.length, 1, 'isolated session must be closed in finally even on failure');
   assert.deepEqual(closeCalls[0], { channel, sessionKey: onNewInjectSessionKey(channel) });
 });
+
+// ── (5) onMessageEnd lands on the live engine of the turn it follows ────────────
+
+test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so the pool keeps its engine', async () => {
+  const channel = 'web:live';
+  const { deps, startRunCalls } = makeDeps();
+  const turn = {
+    runId: 'run-turn',
+    session: { sessionId: 'track-live', backendSessionId: null, engineKey: channel, sessionName: 'cortex-live' },
+    profile: { name: 'plan' },
+    spec: { tools: 'Bash,Read', pluginDirs: ['/plugins/coder'] },
+    prompt: { text: 'hello', attachments: [] },
+    context: { channel, project: 'proj', trigger: 'user', isUserInitiated: true, commissionMode: true, teamLead: true },
+    policy: { background: 'hold', mcpComposition: 'direct', browserCdpEndpoint: 'http://127.0.0.1:9222' },
+  } as unknown as RunRequest;
+  const spec: SessionHookSpec = {
+    name: 'onMessageEnd',
+    ctx: { channel, sessionId: 'backend-live', sessionName: 'cortex-live', profile: null },
+    format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
+    inject: {
+      targetSessionId: 'backend-live', profileName: null, sessionKey: channel,
+      trigger: 'hook:onMessageEnd', follows: turn,
+    },
+  };
+
+  await runHookInjection('reminder', spec, makeStream(), deps);
+
+  const injected = startRunCalls[0].request;
+  assert.notEqual(injected.runId, turn.runId);
+  assert.deepEqual(injected.session, { ...turn.session, backendSessionId: 'backend-live' });
+  assert.deepEqual(injected.prompt, { text: 'reminder', attachments: [] });
+  assert.deepEqual(injected.context, { ...turn.context, trigger: 'hook:onMessageEnd' });
+  assert.equal(injected.spec, turn.spec);
+  assert.equal(injected.policy, turn.policy);
+  assert.equal(injected.profile, turn.profile);
+});

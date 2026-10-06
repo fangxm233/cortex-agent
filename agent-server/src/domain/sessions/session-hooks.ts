@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
@@ -76,6 +77,9 @@ export interface SessionHookInject {
   sessionKey: string;
   /** Forwarded to runAgent as `trigger`, useful for telemetry / cost grouping. */
   trigger?: string;
+  /** onMessageEnd: the request of the turn this injection follows. The injected turn reuses it, so
+   *  it asks the pool for the very engine that turn ran on instead of respawning the process. */
+  follows?: RunRequest | null;
 }
 
 /** Pool key for the onNew hook's injected "pre-close" turn.
@@ -127,6 +131,20 @@ const defaultInjectDeps: InjectDeps = {
   },
 };
 
+/** The next turn on the engine `after` ran on: same session, agent, profile and policy. */
+function followUpRequest(
+  after: RunRequest,
+  next: { prompt: string; trigger: string; backendSessionId: string },
+): RunRequest {
+  return {
+    ...after,
+    runId: randomUUID(),
+    session: { ...after.session, backendSessionId: next.backendSessionId },
+    prompt: { text: next.prompt, attachments: [] },
+    context: { ...after.context, trigger: next.trigger },
+  };
+}
+
 /** Inject hook stdout as a fresh agent turn against `inject.targetSessionId`, routed through
  *  `stream`. Runs on `inject.sessionKey`; for onNew that is an isolated key which we close
  *  afterwards (the resurrected old session must not linger on / collide with the channel slot).
@@ -140,7 +158,9 @@ export async function runHookInjection(
   const inject = spec.inject;
   if (!inject) return;
   try {
-    const request: RunRequest = continuationRunRequest({
+    const request: RunRequest = inject.follows ? followUpRequest(inject.follows, {
+      prompt: output, trigger: inject.trigger ?? `hook:${spec.name}`, backendSessionId: inject.targetSessionId,
+    }) : continuationRunRequest({
       session: {
         // The injected turn resumes the OLD backend session; there is no separate Cortex track id
         // for it, so both fields carry the same id.
@@ -399,6 +419,8 @@ export interface OnMessageEndArgs {
   sessionName: string;
   executionId: string;
   profile?: string | null;
+  /** The finished turn's request; see {@link SessionHookInject.follows}. */
+  request?: RunRequest | null;
   /** OutputStream to extend — pass the assistant turn's stream so the hook lines
    *  thread under the just-finished reply rather than leaking to top-level. */
   stream: OutputStream;
@@ -424,6 +446,7 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
       // onMessageEnd continues the live conversation — keep it on the channel pool slot.
       sessionKey: args.channel,
       trigger: 'hook:onMessageEnd',
+      follows: args.request ?? null,
     },
   };
   await runSessionHook(spec, args.stream);
@@ -436,6 +459,7 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
 export async function runMessageEndForTurn(args: {
   channel: string; sessionId: string | null; sessionName: string | null;
   executionId: string | null; stream: OutputStream | null | undefined;
+  request?: RunRequest | null;
 }): Promise<void> {
   if (!isOnMessageEndHookConfigured() || !args.sessionId) return;
   if (!args.stream) {
@@ -453,6 +477,7 @@ export async function runMessageEndForTurn(args: {
       executionId: args.executionId ?? '',
       profile,
       stream: args.stream,
+      request: args.request,
     });
   } catch (err) {
     log.error('onMessageEnd hook failed:', (err as Error)?.message || err);

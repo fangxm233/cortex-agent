@@ -1,12 +1,11 @@
+// A continuation run forwards one prompt into a session whose live engine it does not share: the
+// onNew hook's pre-close turn, which resumes the old session on its own isolated pool key. It runs
+// on a bare spec (`bareSpec()` — no agent identity), the direct-run policy and a machine-driven
+// context; only the session ids, the profile and the trigger differ.
 //
-// A "continuation run" is a run that forwards one prompt into somebody else's session: an edit
-// retry, an ask-user resume, a scheduled auto-compound, a session-hook injection, a thread hook
-// turn. They share a spec (`bareSpec()` — no agent identity), a policy (direct MCP, no background
-// wait, transcripts on) and a context shape; only the session ids, the profile and the trigger
-// differ. Before this module each of those five surfaces re-typed the same ~40-line literal.
-//
-// Callers that need one field off the shared shape spread over the result rather than widen the
-// builder — the point is that every field NOT spread is provably the shared value.
+// A turn on a session's LIVE engine must not use it: the pool compares the spec identity and would
+// respawn the process. Those turns build their request the way a user turn does
+// (`orchestration/conversation-request.ts`).
 
 import { randomUUID } from 'node:crypto';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
@@ -34,7 +33,7 @@ export const DIRECT_RUN_POLICY: RunRequest['policy'] = {
 
 export interface ContinuationRunOptions {
   /** Ids the caller already resolved: the Cortex track id, the backend resume target, the engine
-   *  pool key (a continuation must NOT re-pool the session it continues) and the display name. */
+   *  pool key and the display name. */
   session: RunRequest['session'];
   profile: ResolvedProfileConfig;
   /** Prompt text; continuation runs never carry attachments. */
@@ -43,11 +42,6 @@ export interface ContinuationRunOptions {
   project: string;
   /** Execution-record AND cost-attribution trigger — both read this one field. */
   trigger: string;
-  /** Default false: a continuation is machine-driven unless the caller says otherwise (only the
-   *  edit retry, which replays a human's edited message, sets it true). */
-  isUserInitiated?: boolean;
-  executionKind?: RunRequest['context']['executionKind'];
-  scheduleTaskId?: string | null;
 }
 
 /** Build the `RunRequest` for a continuation run. Every field not named in `o` is the shared
@@ -63,10 +57,10 @@ export function continuationRunRequest(o: ContinuationRunOptions): RunRequest {
       channel: o.channel,
       project: o.project,
       trigger: o.trigger,
-      executionKind: o.executionKind ?? 'local',
-      isUserInitiated: o.isUserInitiated ?? false,
+      executionKind: 'local',
+      isUserInitiated: false,
       commissionMode: false,
-      scheduleTaskId: o.scheduleTaskId ?? null,
+      scheduleTaskId: null,
     },
     policy: { ...DIRECT_RUN_POLICY },
   };

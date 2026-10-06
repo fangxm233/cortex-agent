@@ -48,73 +48,9 @@ function expectIdentical(built: RunRequest, legacy: RunRequest): void {
   expect(built.profile).toBe(legacy.profile);
 }
 
-// --- 1. orchestration/edit-retry.ts (runRetryAgent) ---
+// --- domain/sessions/session-hooks.ts (the onNew pre-close turn) ---
 
-function legacyEditRetry(i: {
-  sessionId: string | null; backendSessionId: string | null; channel: string;
-  sessionName: string | null; profile: ResolvedProfileConfig; agentMessage: string; projectId: string;
-}): RunRequest {
-  return {
-    runId: FIXED,
-    session: {
-      sessionId: i.sessionId,
-      backendSessionId: i.backendSessionId,
-      engineKey: i.channel,
-      sessionName: i.sessionName,
-    },
-    profile: i.profile,
-    spec: bareSpec(),
-    prompt: { text: i.agentMessage, attachments: [] },
-    context: {
-      channel: i.channel,
-      project: i.projectId,
-      trigger: 'edit-retry',
-      executionKind: 'local',
-      isUserInitiated: true,
-      commissionMode: false,
-      scheduleTaskId: null,
-    },
-    policy: {
-      background: 'none',
-      recordCost: true,
-      hooks: true,
-      loadRules: true,
-      mcpComposition: 'direct',
-      browserCdpEndpoint: null,
-      captureTranscripts: true,
-    },
-  };
-}
-
-describe('continuationRunRequest — edit-retry', () => {
-  it('matches the pre-migration literal field for field', () => {
-    const p = profile('retry-profile');
-    const input = {
-      sessionId: 'sess-1', backendSessionId: 'backend-1', channel: 'slack:C1',
-      sessionName: 'brave-otter', profile: p, agentMessage: 'edited text', projectId: 'cortex',
-    };
-    const built = continuationRunRequest({
-      session: {
-        sessionId: input.sessionId,
-        backendSessionId: input.backendSessionId,
-        engineKey: input.channel,
-        sessionName: input.sessionName,
-      },
-      profile: p,
-      prompt: input.agentMessage,
-      channel: input.channel,
-      project: input.projectId,
-      trigger: 'edit-retry',
-      isUserInitiated: true,
-    });
-    expectIdentical(built, legacyEditRetry(input));
-  });
-
-});
-
-// --- 2. orchestration/interactions/ask-user-resume.ts ---
-
-function legacyAskUserResume(i: {
+function legacyContinuation(i: {
   sessionId: string; backendSessionId: string | null; channel: string;
   sessionName: string | null; profile: ResolvedProfileConfig; responseText: string; projectId: string;
 }): RunRequest {
@@ -150,7 +86,7 @@ function legacyAskUserResume(i: {
   };
 }
 
-describe('continuationRunRequest — ask-user-resume', () => {
+describe('continuationRunRequest', () => {
   it('matches the pre-migration literal', () => {
     const p = profile('ask-profile');
     const input = {
@@ -170,7 +106,7 @@ describe('continuationRunRequest — ask-user-resume', () => {
       project: input.projectId,
       trigger: 'ask-user-question',
     });
-    expectIdentical(base, legacyAskUserResume(input));
+    expectIdentical(base, legacyContinuation(input));
   });
 });
 

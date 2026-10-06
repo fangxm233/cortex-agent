@@ -2,6 +2,7 @@ import { createLogger } from '@core/log.js';
 import { t } from '../../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';
 import type { AgentResult } from '@core/types/agent-types.js';
+import type { RunRequest } from '@domain/runs/request.js';
 import { activeTurns } from './active-turns.js';
 
 import { renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from '../status-helpers.js';
@@ -38,7 +39,7 @@ export type BackgroundHoldInstaller = (ctx: {
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -94,6 +95,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   await runMessageEndForTurn({
     channel, sessionId: result?.sessionId ?? null, sessionName, executionId,
     stream: (onAssistantMessage as any)?.stream as OutputStream | undefined,
+    request,
   });
 }
 
@@ -227,10 +229,12 @@ export async function persistErrorSession(args: {
  * continuation callbacks — belonged to the background hold, which the Turn now builds and hands
  * down as one closure. This path decides only whether the turn MAY be held, never how.
  */
-export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null }: {
+export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null, request = null }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string | null; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string | null;
+  /** The request the turn ran with; a message-end hook's injected turn continues on its engine. */
+  request?: RunRequest | null;
   /** Only the assistant stream is read here; the full `AgentCallbacks` shape stays in `turn.ts`. */
   callbacks: { onAssistantMsg: ((text: string) => void) & { stream?: OutputStream } };
   holdBackground?: BackgroundHoldInstaller | null;
@@ -244,6 +248,6 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return 'rate-limited';
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request });
   return 'completed';
 }

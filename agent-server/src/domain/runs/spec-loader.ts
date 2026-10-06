@@ -50,10 +50,8 @@ export interface AgentSpec {
 }
 
 /**
- * A run that forwards a prompt and nothing else: ask-user resume, edit retry, scheduled
- * auto-compound, hook injection and the thread hook agent. None of them has an agent identity —
- * they continue somebody else's session, whose system prompt and tool surface were fixed when
- * that session was created. Direct MCP is what "no declared composition" resolved to.
+ * A run with no agent identity of its own: the onNew hook's pre-close turn and manual compaction.
+ * Direct MCP is what "no declared composition" resolved to.
  */
 export function bareSpec(): AgentSpec {
   return {

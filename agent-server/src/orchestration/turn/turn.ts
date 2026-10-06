@@ -431,7 +431,7 @@ export class Turn {
       const verdict = await handleDefaultAgentResult({
         result, channel, adapter, statusMsg, startTime: this.startTime,
         userMessage: this.input.user.text, executionId: run.executionId,
-        sessionName, sessionId, threadAnchorId, messageTs: userMessageTs, callbacks,
+        sessionName, sessionId, threadAnchorId, messageTs: userMessageTs, callbacks, request,
         // The platform hold REPLACES the seal, so it can only be installed from inside the terminal
         // handler — after the ask-user questions were sent, and with the reply stream it built.
         holdBackground: holdKind === 'platform'
