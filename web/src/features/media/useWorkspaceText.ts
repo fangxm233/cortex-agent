@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fileDownloadUrl } from '@/lib/files';
-import { authHeaders } from '@/lib/desktop-config';
+import { fetchWorkspaceBytes } from './workspace-bytes';
 
 // Fetch a workspace `path` as text (authenticated), refusing anything over `limit` bytes so a huge
 // file is offered as a download instead of being pulled into the page. Shared by the text/Markdown
@@ -13,21 +12,21 @@ export function useWorkspaceText(path: string, limit: number): { text: string | 
   const [state, setState] = useState<WorkspaceTextState>('loading');
 
   useEffect(() => {
-    let alive = true;
+    const controller = new AbortController();
     setState('loading');
     setText(null);
-    (async () => {
-      const res = await fetch(fileDownloadUrl(path, 'inline'), { headers: authHeaders() });
-      if (!res.ok) throw new Error(`download failed: ${res.status}`);
-      const blob = await res.blob();
-      if (blob.size > limit) {
-        if (alive) setState('toolarge');
-        return;
-      }
-      const t = await blob.text();
-      if (alive) { setText(t); setState('ok'); }
-    })().catch(() => { if (alive) setState('failed'); });
-    return () => { alive = false; };
+    fetchWorkspaceBytes(path, limit, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.kind === 'toolarge') {
+          setState('toolarge');
+          return;
+        }
+        setText(new TextDecoder().decode(result.bytes));
+        setState('ok');
+      })
+      .catch(() => { if (!controller.signal.aborted) setState('failed'); });
+    return () => controller.abort();
   }, [path, limit]);
 
   return { text, state };
