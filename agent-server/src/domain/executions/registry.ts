@@ -2,6 +2,7 @@ import { executionRepo } from '@store/execution-repo.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { TerminalRunStatus } from '../runs/run.js';
+import type { RunSpend } from '../runs/spend.js';
 
 export type { ExecutionRecord } from '@store/execution-repo.js';
 
@@ -58,28 +59,32 @@ function rateLimitReason(result: AgentResult | null | undefined): string {
  * This is the single teardown every execution path should funnel through so the persistent
  * status, the live registry, and the bus events never drift apart — and the one place a run's
  * terminal status becomes a record status. Every branch keeps the cost and turns the run reported:
- * a cancelled or failed run has still spent what it spent. A rate-limited run is filed as `failed`
- * (the record's status set is shared with released clients) with the rate limit as its error.
+ * a cancelled or failed run has still spent what it spent. `spend` is the run's own total over
+ * every attempt it made; absent, the result's figures stand for it. A rate-limited run is filed as
+ * `failed` (the record's status set is shared with released clients) with the rate limit as its
+ * error.
  *
  * Does NOT touch the busy-tracker — trackPendingTask(±1) is per-enqueue, so it stays managed by
  * the caller.
  */
-export function teardownExecution({ executionId, status, result, error, durationS }: {
+export function teardownExecution({ executionId, status, result, spend, error, durationS }: {
   executionId: string | null;
   status: TerminalRunStatus;
   result?: AgentResult | null;
+  spend?: RunSpend | null;
   error?: { message?: string } | null;
   durationS: number;
 }) {
   if (!executionId) return null;
+  const costUsd = spend ? spend.costUsd : result?.total_cost_usd;
   const metrics = {
-    costUsd: result?.total_cost_usd, numTurns: result?.num_turns, durationS,
+    costUsd, numTurns: spend ? spend.numTurns : result?.num_turns, durationS,
     finalOutput: result?.finalOutput || null,
   };
   let rec;
   if (status === 'completed') {
     rec = completeExecution(executionId, metrics);
-    runRegistry.complete(executionId, result?.total_cost_usd ?? 0);
+    runRegistry.complete(executionId, costUsd ?? 0);
   } else if (status === 'cancelled') {
     rec = cancelExecution(executionId, metrics);
     // The kill already happened on the cancel path; supersede() publishes agent.superseded

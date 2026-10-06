@@ -33,9 +33,9 @@ export function startRun(request: RunRequest, observers: RunObserver[]): AgentRu
     executionId: execution.id,
     registry: runRegistry,
     startedAt,
-    onTerminal: ({ status, result, error, durationS }) => {
+    onTerminal: ({ status, result, spend, error, durationS }) => {
       executionRegistry.teardownExecution({
-        executionId: execution.id, status, result,
+        executionId: execution.id, status, result, spend,
         error: error ? { message: error.message } : null,
         durationS,
       });

@@ -149,3 +149,19 @@ test('stopLiveExecution lets a registered run cancel itself instead of closing i
   assert.deepEqual(executionRegistry.getExecution(rec.id)!.metrics, { costUsd: 0.4, numTurns: 3, durationS: 2 });
   assert.equal(runRegistry.hasId(rec.id), false);
 });
+
+test('teardownExecution files the run\'s own spend over every attempt, not the last result\'s', () => {
+  const bus = new EventBus();
+  const rec = executionRegistry.startLocalExecution({ channel: 'C-teardown', project: 'general', trigger: 'user', backend: 'test' });
+  register(rec.id, bus);
+
+  teardownExecution({
+    executionId: rec.id, status: 'completed', durationS: 1,
+    result: { total_cost_usd: 0.3, num_turns: 3, finalOutput: 'ok' } as any,
+    spend: { costUsd: 0.4, numTurns: 4 },
+  });
+
+  const metrics = executionRegistry.getExecution(rec.id)!.metrics;
+  assert.equal(metrics.costUsd, 0.4);
+  assert.equal(metrics.numTurns, 4);
+});

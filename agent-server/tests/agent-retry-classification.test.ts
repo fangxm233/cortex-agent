@@ -13,7 +13,7 @@ import { PassThrough } from 'node:stream';
 import { writeFileSync } from 'node:fs';
 
 import { isRetryableError, allConfigsRateLimited } from '../src/domain/runs/fallback.js';
-import { AgentRunImpl } from '../src/domain/runs/run.js';
+import { AgentRunImpl, type RunTerminalInfo } from '../src/domain/runs/run.js';
 import type { RunRequest, RunObserver, RunResult } from '../src/domain/runs/request.js';
 import type { RunEvent } from '../src/agent-adapter/run-events.js';
 import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
@@ -102,10 +102,12 @@ const rateLimitScript = [
 
 // --- run helpers -------------------------------------------------------------------------------
 
-function openRun(request: RunRequest, observers: RunObserver[]): AgentRunImpl {
+function openRun(
+  request: RunRequest, observers: RunObserver[], onTerminal: (info: RunTerminalInfo) => void = () => {},
+): AgentRunImpl {
   const run = new AgentRunImpl({
     request, observers, executionId: 'exec-fixture',
-    registry: new RunRegistry(), onTerminal: () => {}, startedAt: Date.now(),
+    registry: new RunRegistry(), onTerminal, startedAt: Date.now(),
   });
   run.start();
   return run;
@@ -657,6 +659,77 @@ test('after a mid-turn rate limit, the throttle still sends the next automated t
   assert.equal(result.finalOutput, 'fallback-ok');
   assert.equal(fixtures.current.runtimes.length, 1, 'the primary was not spawned again');
   assert.equal(spawnedChildren.length, 1, 'the fallback ran');
+});
+
+// The execution record (and so the session totals) carries what the whole run spent: every
+// attempt the chain made, the way the ledger has it, not only the attempt that ended the run.
+
+function terminalSpend(): { info: Promise<RunTerminalInfo>; onTerminal: (info: RunTerminalInfo) => void } {
+  let resolve!: (info: RunTerminalInfo) => void;
+  const info = new Promise<RunTerminalInfo>((res) => { resolve = res; });
+  return { info, onTerminal: resolve };
+}
+
+test('a retried run reports the cost and turns of every attempt, not only the last', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-fallback-spend' });
+  const request = claudeRequestWithScript(
+    { channel: 'web:retry', sessionKey: 'spend-retried' },
+    resultLine({ subtype: 'error', is_error: true, result: 'rate limit exceeded', total_cost_usd: 0.1, num_turns: 1 }),
+  );
+  withFallback(request, attemptFixture({ model: 'deepseek-v4-pro', backend: 'pi', provider: 'deepseek', mode: 'deepseek' }));
+  const terminal = terminalSpend();
+  const run = openRun(request, [collector().observer], terminal.onTerminal);
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitSimpleTurn('fallback-ok', { usage: { input: 10, output: 5, cost: { total: 0.3 } }, provider: 'deepseek' });
+
+  const result = await run.settled;
+  assert.equal(result.finalOutput, 'fallback-ok');
+  const { spend, result: last } = await terminal.info;
+  assert.ok(Math.abs((last?.total_cost_usd ?? 0) - 0.3) < 1e-9, 'the result is still the last attempt\'s');
+  assert.ok(Math.abs((spend.costUsd ?? 0) - 0.4) < 1e-9, `run spend ${spend.costUsd}`);
+  assert.equal(spend.numTurns, 1 + (last?.num_turns ?? 0));
+});
+
+test('a PI attempt retried after spending is counted by the cost rows it streamed', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-spent-then-429' });
+  const terminal = terminalSpend();
+  const run = openRun(piPrimaryWithClaudeFallback('spend-pi-retried'), [collector().observer], terminal.onTerminal);
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emitAgentEnd({
+    stopReason: 'error', errorMessage: 'HTTP 429 rate limit exceeded',
+    usage: { input: 100, output: 10, cost: { total: 0.25 } }, provider: 'deepseek',
+  });
+
+  await run.settled;
+  const { spend } = await terminal.info;
+  // The fallback's result line reports no cost; the PI attempt's 0.25 is what the ledger got.
+  assert.ok(Math.abs((spend.costUsd ?? 0) - 0.25) < 1e-9, `run spend ${spend.costUsd}`);
+});
+
+test('a run that fails with no result still reports what its attempt streamed', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-spent-then-fail' });
+  const terminal = terminalSpend();
+  const request = runRequestFixture({ channel: 'web:retry', sessionKey: 'spend-failed', piProvider: 'deepseek' }, PI);
+  const run = openRun(request, [collector().observer], terminal.onTerminal);
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emitAgentEnd({
+    stopReason: 'error', errorMessage: 'context window exceeded',
+    usage: { input: 100, output: 10, cost: { total: 0.5 } }, provider: 'deepseek',
+  });
+
+  await assert.rejects(run.settled, /context window exceeded/);
+  const { status, result, spend } = await terminal.info;
+  assert.equal(status, 'failed');
+  assert.equal(result, null);
+  assert.ok(Math.abs((spend.costUsd ?? 0) - 0.5) < 1e-9, `run spend ${spend.costUsd}`);
 });
 
 test('run emits one terminal error notice for a deterministic authentication failure', async () => {

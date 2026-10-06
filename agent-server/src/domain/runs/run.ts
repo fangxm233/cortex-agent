@@ -11,6 +11,7 @@ import type { ModeEnv } from './mode-env.js';
 import {
   fallbackReasonOf, isRetryableError, isRetryableResult, notRetriedFailure, type FallbackReason,
 } from './retryable-errors.js';
+import { NO_SPEND, addSpend, countSpend, spendOfResult, type RunSpend } from './spend.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
@@ -94,6 +95,10 @@ export interface RunTerminalInfo {
   /** What the run had produced when it ended — the foreground turn plus every continuation that
    *  settled, also on a cancelled or failed run, so the spend already incurred is not lost. */
   result: RunResult | null;
+  /** Everything the run spent, over every attempt the chain made — what the execution record and
+   *  the session totals carry. The attempts the chain moved past count by the cost rows they
+   *  streamed (the rows the ledger got); the last one by `result` when there is one. */
+  spend: RunSpend;
   error?: Error;
   durationS: number;
 }
@@ -143,6 +148,11 @@ export class AgentRunImpl implements AgentRun {
   /** Continuation results seen so far. The live tally and a run that ends before its attempt
    *  settles (Stop, failure) read them; a settled attempt reports its own merged result. */
   private readonly continuations: RunResult[] = [];
+  /** What each attempt the chain moved past had spent. Each entry keeps counting until the run
+   *  ends: a retired attempt's late cost rows still reach the ledger, so they count here too. */
+  private readonly retiredSpend: RunSpend[] = [];
+  /** What the running attempt has streamed so far: a run that ends with no result still cost it. */
+  private liveSpend: RunSpend | null = null;
 
   private readonly observers: RunObserver[];
   private readonly registry: RunRegistry;
@@ -287,12 +297,21 @@ export class AgentRunImpl implements AgentRun {
     // the close of its engine) belongs to no one: observers follow the attempt that replaced it.
     let abandoned = false;
     let toolStarted = false;
+    const spend: RunSpend = { ...NO_SPEND };
+    this.liveSpend = spend;
+    const retire = (reason: FallbackReason): FallbackReason => {
+      abandoned = true;
+      this.retiredSpend.push(spend);
+      this.liveSpend = null;
+      return reason;
+    };
     let current: RunAttempt;
     try {
       current = startAttempt({
         request, attempt, executionId: this.executionId,
         route: this.routeFor(attempt),
         onEvent: (event) => {
+          countSpend(spend, event);
           if (abandoned) return;
           if (event.type === 'tool_use') toolStarted = true;
           this.onRunEvent(event);
@@ -312,6 +331,9 @@ export class AgentRunImpl implements AgentRun {
         this.settleAttemptResult(current, result);
         return 'settled';
       }
+      // The attempt ends here with a result of its own: its turn count is the last word.
+      const resultTurns = spendOfResult(result).numTurns;
+      if (resultTurns !== null) spend.numTurns = Math.max(spend.numTurns ?? 0, resultTurns);
       if (toolStarted) {
         log.info(`${attemptLabel(attempt)} rate limited after a tool ran; not retrying on fallback[${index}]`);
         const detail = result.rateLimitMessage || t('status.rateLimitedExhausted');
@@ -319,8 +341,7 @@ export class AgentRunImpl implements AgentRun {
         return 'settled';
       }
       log.info(`${attemptLabel(attempt)} rate limited, trying fallback[${index}]`);
-      abandoned = true;
-      return 'rate-limited';
+      return retire('rate-limited');
     } catch (error) {
       const failure = asError(error);
       if (this.cancelRequested || !isRetryableError(failure) || isLast) {
@@ -334,8 +355,7 @@ export class AgentRunImpl implements AgentRun {
         return 'settled';
       }
       log.info(`${attemptLabel(attempt)} retryable error (${reason}), trying fallback[${index}]`);
-      abandoned = true;
-      return reason;
+      return retire(reason);
     }
   }
 
@@ -706,7 +726,7 @@ export class AgentRunImpl implements AgentRun {
     const durationS = (Date.now() - this.startedAt) / 1000;
     const terminalResult = result ?? this.tally();
     try {
-      this.onTerminal({ status, result: terminalResult, error, durationS });
+      this.onTerminal({ status, result: terminalResult, spend: this.runSpend(terminalResult), error, durationS });
     } catch (terminalError) {
       log.warn('run terminal handler failed:', asError(terminalError).message);
     }
@@ -718,6 +738,14 @@ export class AgentRunImpl implements AgentRun {
       this.settleDeferred.resolve(terminalResult as RunResult);
     }
     this.closeObservers();
+  }
+
+  /** The whole run's spend: the attempt that ended it counts by its result when it has one
+   *  (continuations folded in), by what it streamed when it has none; every attempt before it by
+   *  what it streamed. */
+  private runSpend(result: RunResult | null): RunSpend {
+    const last = result ? spendOfResult(result) : this.liveSpend ?? NO_SPEND;
+    return [...this.retiredSpend, last].reduce(addSpend, NO_SPEND);
   }
 
   // ── observer fan-out ───────────────────────────────────────────────────
