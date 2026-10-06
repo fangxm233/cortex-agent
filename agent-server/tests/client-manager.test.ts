@@ -13,10 +13,10 @@ import {
   getOnlineDevices,
   isDeviceOnline,
   sendCommand,
+  sendControlMessage,
   startClientManager,
   stopClientManager,
   buildRemoteSpawnCommand,
-  clientPids,
   startRemoteClient,
   startAllRemoteClients,
   _setSshExecForTesting,
@@ -26,6 +26,10 @@ import {
   _getRestartTimerCount,
   _testReset,
 } from '../src/domain/remote/client-manager.js';
+import { requestStream } from '../src/domain/remote/reverse-stream.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { STORE_DIR } from '../src/core/paths.js';
 
 // The WS server now enforces a bearer token on the upgrade handshake. Set one for the
 // whole test file; clients must send it via the `x-cortex-token` header.
@@ -57,6 +61,21 @@ async function waitFor(pred: () => boolean, timeoutMs = 2000): Promise<void> {
     await new Promise((r) => setTimeout(r, 10));
   }
   throw new Error('waitFor timed out');
+}
+
+async function connectDevice(port: number, device: string): Promise<WebSocket> {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
+  await new Promise<void>((resolve, reject) => {
+    ws.once('open', () => resolve());
+    ws.once('error', reject);
+  });
+  ws.send(JSON.stringify({ type: 'hello', device, platform: 'linux', capabilities: [] }));
+  await waitFor(() => isDeviceOnline(device));
+  return ws;
+}
+
+function launchedPid(device: string): number | undefined {
+  try { return JSON.parse(readFileSync(join(STORE_DIR, 'client-pids.json'), 'utf8'))[device]; } catch { return undefined; }
 }
 
 beforeEach(() => {
@@ -346,7 +365,7 @@ test('SSH-routed startup does not spawn a duplicate when the client connects whi
   await startRemoteClient('managed-service');
 
   assert.equal(ssh.mock.calls.length, 0);
-  assert.equal(clientPids.get('managed-service'), undefined);
+  assert.equal(launchedPid('managed-service'), undefined);
 });
 
 test('SSH-routed client waits for its tunnel and launches with the loopback URL', async (t) => {
@@ -377,7 +396,7 @@ test('SSH-routed client waits for its tunnel and launches with the loopback URL'
   );
   const launch = ssh.mock.calls.find(([, command]) => command.includes('nohup'))?.[1] ?? '';
   assert.match(launch, /CORTEX_SERVER_URL='ws:\/\/127\.0\.0\.1:13002'/);
-  assert.equal(clientPids.get('worker'), 4321);
+  assert.equal(launchedPid('worker'), 4321);
 });
 
 test('a POSIX SSH-routed client marks its tunnel session so a stale one can be evicted', async (t) => {
@@ -456,7 +475,7 @@ test('startAllRemoteClients keeps recovery armed until a launched client connect
 
   await startAllRemoteClients();
 
-  assert.equal(clientPids.get('worker'), 4321);
+  assert.equal(launchedPid('worker'), 4321);
   assert.equal(_getRestartTimerCount(), 1, 'expected recovery while the launched client has not said hello');
 });
 
@@ -538,6 +557,66 @@ test('sendCommand rejects pending commands when stopClientManager is called mid-
   assert.match(err.message, /shutting down|disconnected|not online/);
 
   try { ws.close(); } catch {}
+});
+
+// --- Every path that notices a device is gone takes it offline the same way: in-flight commands
+//     and reverse streams fail now rather than at their timeouts, and recovery is armed.
+const SEND_PATHS: Array<[string, (device: string) => Promise<unknown>]> = [
+  ['sendCommand', (device) => sendCommand(device, { action: 'bash', params: { cmd: 'true' } })],
+  ['sendControlMessage', async (device) => sendControlMessage(device, { type: 'ping' })],
+];
+
+for (const [label, send] of SEND_PATHS) {
+  test(`${label} that finds the socket no longer open takes the device offline like a disconnect`, async (t) => {
+    const port = await findEphemeralPort();
+    _setMachineRegistryProviderForTesting(() => ({ flaky: { cortexPath: '/home/x', gpuCount: 0, ssh: 'user@flaky' } }));
+    startClientManager(port);
+    const ws = await connectDevice(port, 'flaky');
+    t.onTestFinished(async () => { try { ws.close(); } catch {} await stopClientManager(); _testReset(); });
+
+    const inFlight = sendCommand('flaky', { action: 'bash', params: { cmd: 'sleep 9999' }, timeout: 60_000 })
+      .then(() => null, (err: Error) => err);
+    const stream = requestStream('flaky', '127.0.0.1', 80).socket.then(() => null, (err: Error) => err);
+    const readyState = vi.spyOn(WebSocket.prototype, 'readyState', 'get').mockReturnValue(WebSocket.CLOSING);
+    try {
+      await assert.rejects(() => send('flaky'), /not open/);
+    } finally {
+      readyState.mockRestore();
+    }
+
+    assert.equal(isDeviceOnline('flaky'), false);
+    assert.match((await inFlight)?.message ?? '', /disconnected/);
+    assert.match((await stream)?.message ?? '', /disconnected/);
+    assert.equal(_getRestartTimerCount(), 1, 'expected recovery to be armed');
+    assert.deepEqual(hookBus.emitCortexEvent.mock.calls.at(-1), [
+      'cortex:client.disconnected',
+      { device: 'flaky', reason: 'WebSocket is not open' },
+    ]);
+  });
+}
+
+test('a heartbeat timeout also cancels the device\'s pending reverse streams', async (t) => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  const port = await findEphemeralPort();
+  _setMachineRegistryProviderForTesting(() => ({ silent: { cortexPath: '/home/x', gpuCount: 0, ssh: 'user@silent' } }));
+  startClientManager(port);
+  const ws = await connectDevice(port, 'silent');
+  t.onTestFinished(async () => {
+    try { ws.close(); } catch {}
+    await stopClientManager();
+    _testReset();
+    vi.useRealTimers();
+  });
+
+  const inFlight = sendCommand('silent', { action: 'bash', params: { cmd: 'sleep 9999' }, timeout: 60_000 })
+    .then(() => null, (err: Error) => err);
+  const stream = requestStream('silent', '127.0.0.1', 80).socket.then(() => null, (err: Error) => err);
+  vi.advanceTimersByTime(20_000);
+
+  assert.equal(isDeviceOnline('silent'), false);
+  assert.match((await inFlight)?.message ?? '', /disconnected/);
+  assert.match((await stream)?.message ?? '', /disconnected/);
+  assert.equal(_getRestartTimerCount(), 1, 'expected recovery to be armed');
 });
 
 test('a hello frame reconciles the reported GPU count into the machine registry', async (t) => {

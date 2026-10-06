@@ -69,6 +69,41 @@ function emitDisconnected(device: string, reason?: string): void {
   void emitCortexEvent('cortex:client.disconnected', payload).catch(() => {});
 }
 
+function rejectPendingFor(device: string, error: Error): void {
+  for (const [id, pending] of pendingCommands) {
+    if (pending.device !== device) continue;
+    clearTimeout(pending.timer);
+    pending.reject(error);
+    pendingCommands.delete(id);
+  }
+}
+
+/**
+ * Take a device offline. Every path that notices a device is gone — socket close, heartbeat
+ * timeout, a send that finds the socket no longer open — lands here, so nobody waits out a command
+ * or stream-claim timeout for a device that just left, and recovery is always armed.
+ */
+function dropDevice(device: string, reason?: string): void {
+  devices.delete(device);
+  log.info(`Device disconnected: ${device}${reason ? ` (${reason})` : ''}`);
+  emitDisconnected(device, reason);
+  const dropped = cancelStreamsFor(device);
+  if (dropped > 0) log.info(`cancelled ${dropped} pending reverse stream(s) for ${device}`);
+  rejectPendingFor(device, new Error(`Device "${device}" disconnected${reason ? ` (${reason})` : ''}`));
+  scheduleRestart(device);
+}
+
+/** The device's control socket, or throws (taking the device offline if its socket is gone). */
+function openSocket(device: string): WebSocket {
+  const info = devices.get(device);
+  if (!info) throw new Error(`Device "${device}" is not online`);
+  if (info.ws.readyState !== WebSocket.OPEN) {
+    dropDevice(device, 'WebSocket is not open');
+    throw new Error(`Device "${device}" WebSocket is not open`);
+  }
+  return info.ws;
+}
+
 /**
  * Take a device online from its hello frame. Returns the device name, or null when the frame was
  * rejected (no name / a live connection already holds that name) — the socket is closed in that case.
@@ -199,26 +234,8 @@ function startClientManager(port: number): void {
     });
 
     ws.on('close', (_code, reason) => {
-      if (deviceName) {
-        const current = devices.get(deviceName);
-        if (current && current.ws === ws) {
-          log.info(`Device disconnected: ${deviceName}`);
-          devices.delete(deviceName);
-          emitDisconnected(deviceName, reason.toString().trim() || undefined);
-          // Nobody should wait out the full claim timeout for a device that just left.
-          const dropped = cancelStreamsFor(deviceName);
-          if (dropped > 0) log.info(`cancelled ${dropped} pending reverse stream(s) for ${deviceName}`);
-          // Reject all pending commands for this device
-          for (const [id, pending] of pendingCommands) {
-            if (pending.device === deviceName) {
-              clearTimeout(pending.timer);
-              pending.reject(new Error(`Device "${deviceName}" disconnected`));
-              pendingCommands.delete(id);
-            }
-          }
-          // Auto-restart remote client
-          scheduleRestart(deviceName);
-        }
+      if (deviceName && devices.get(deviceName)?.ws === ws) {
+        dropDevice(deviceName, reason.toString().trim() || undefined);
       }
     });
 
@@ -238,23 +255,9 @@ function startClientManager(port: number): void {
     }
     for (const { name, info } of toEvict) {
       // Guard: only evict if entry hasn't been replaced by a reconnect
-      const current = devices.get(name);
-      if (current && current.ws === info.ws) {
-        log.info(`Device ${name} heartbeat timeout, marking offline`);
-        try { info.ws.close(4003, 'Heartbeat timeout'); } catch {}
-        devices.delete(name);
-        emitDisconnected(name, 'Heartbeat timeout');
-        // Reject pending commands for this device
-        for (const [id, pending] of pendingCommands) {
-          if (pending.device === name) {
-            clearTimeout(pending.timer);
-            pending.reject(new Error(`Device "${name}" heartbeat timeout`));
-            pendingCommands.delete(id);
-          }
-        }
-        // Auto-restart remote client after heartbeat timeout
-        scheduleRestart(name);
-      }
+      if (devices.get(name) !== info) continue;
+      try { info.ws.close(4003, 'Heartbeat timeout'); } catch {}
+      dropDevice(name, 'Heartbeat timeout');
     }
   }, 5000);
 
@@ -318,28 +321,13 @@ function isDeviceOnline(device: string): boolean {
  * all — the device answers by dialing a new WebSocket back, so there is nothing to await here.
  */
 function sendControlMessage(device: string, message: Record<string, unknown>): void {
-  const info = devices.get(device);
-  if (!info) throw new Error(`Device "${device}" is not online`);
-  if (info.ws.readyState !== WebSocket.OPEN) {
-    devices.delete(device);
-    emitDisconnected(device, 'WebSocket is not open');
-    throw new Error(`Device "${device}" WebSocket is not open`);
-  }
-  info.ws.send(JSON.stringify(message));
+  openSocket(device).send(JSON.stringify(message));
 }
 
 
 function sendCommand(device: string, command: CommandParams): Promise<any> {
-  const info = devices.get(device);
-  if (!info) {
-    return Promise.reject(new Error(`Device "${device}" is not online`));
-  }
-
-  if (info.ws.readyState !== WebSocket.OPEN) {
-    devices.delete(device);
-    emitDisconnected(device, 'WebSocket is not open');
-    return Promise.reject(new Error(`Device "${device}" WebSocket is not open`));
-  }
+  let ws: WebSocket;
+  try { ws = openSocket(device); } catch (err) { return Promise.reject(err); }
 
   const commandId = crypto.randomBytes(8).toString('hex');
   const timeoutMs = command.timeout || (
@@ -355,7 +343,7 @@ function sendCommand(device: string, command: CommandParams): Promise<any> {
     pendingCommands.set(commandId, { resolve, reject, timer, device });
 
     try {
-      info.ws.send(JSON.stringify({
+      ws.send(JSON.stringify({
         type: 'command',
         commandId,
         action: command.action,
@@ -385,9 +373,6 @@ function savePids(pids: Record<string, number>): void {
 function getPid(device: string): number | undefined { return loadPids()[device]; }
 function setPid(device: string, pid: number): void { const p = loadPids(); p[device] = pid; savePids(p); }
 function deletePid(device: string): void { const p = loadPids(); delete p[device]; savePids(p); }
-
-// Keep in-memory alias for export compatibility
-const clientPids = { get: getPid, set: setPid, delete: deletePid };
 
 function sshExec(host: string, command: string, timeout = 15000): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -577,21 +562,21 @@ function expectedRouteOwnership(reg: MachineEntry): string {
 }
 
 async function stopMismatchedRemoteClient(device: string, reg: MachineEntry): Promise<void> {
-  const pid = clientPids.get(device);
+  const pid = getPid(device);
   if (!pid || !reg.ssh) return;
   const owned = loadRouteOwnership()[device];
   const expected = expectedRouteOwnership(reg);
   if (owned === expected || (!owned && expected === 'direct')) return;
   const cmd = reg.win ? `taskkill /pid ${pid} /f /t 2>nul || echo ok` : `kill ${pid} 2>/dev/null || true`;
   await _sshExecImpl(reg.ssh, cmd, 10000);
-  clientPids.delete(device);
+  deletePid(device);
   log.info(`Stopped client on ${device} to switch route ${owned} → ${expected}`);
 }
 
 async function isRemotePidAlive(device: string): Promise<boolean> {
   const reg = managedEntry(device);
   if (!reg?.ssh) return false;
-  const pid = clientPids.get(device);
+  const pid = getPid(device);
   if (!pid) return false;
   try {
     const cmd = reg.win
@@ -612,7 +597,7 @@ async function launchRemoteClient(device: string): Promise<boolean> {
   const pidStr = await _sshExecImpl(reg.ssh, command, 30000);
   const pid = parseInt(pidStr);
   if (isNaN(pid) || pid <= 0) return false;
-  clientPids.set(device, pid);
+  setPid(device, pid);
   setRouteOwnership(device, expectedRouteOwnership(reg));
   log.info(`Started client on ${device} (PID ${pid})`);
   return true;
@@ -628,7 +613,7 @@ async function startRemoteClient(device: string): Promise<void> {
     if (devices.has(device)) return;
     if (reg.ssh) await stopMismatchedRemoteClient(device, reg);
     if (reg.ssh && await isRemotePidAlive(device)) {
-      log.info(`Client on ${device} already running (PID ${clientPids.get(device)}), waiting for reconnect...`);
+      log.info(`Client on ${device} already running (PID ${getPid(device)}), waiting for reconnect...`);
       return;
     }
   } catch (err) {
@@ -654,7 +639,7 @@ async function startRemoteClient(device: string): Promise<void> {
       });
       child.unref();
       if (child.pid) {
-        clientPids.set(device, child.pid);
+        setPid(device, child.pid);
         log.info(`Started local client on ${device} (PID ${child.pid})`);
       }
     } catch (err) {
@@ -764,7 +749,6 @@ export {
   startAllRemoteClients,
   releaseUnregisteredDevices,
   buildRemoteSpawnCommand,
-  clientPids,
   // Test-only hooks (prefixed with _ by convention).
   _setSshExecForTesting,
   _setMachineRegistryProviderForTesting,
