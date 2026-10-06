@@ -52,14 +52,14 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 
 | Path | Purpose |
 |------|---------|
-| `mode.json` | Current runtime mode and profile |
-| `profiles.json` | Named agent profile list |
-| `budget.json` | Daily/monthly budget limits |
-| `costs.jsonl` | Per-call cost records (90-day rolling) |
+| `data/agent-state.json` | Agent selection state (active profile, default agent) |
+| `config/profiles.json` | Named agent profile list |
+| `config/budget.json` | Daily/monthly budget limits |
+| `data/costs.jsonl` | Per-call cost records (90-day rolling) |
 | `data/schedules.json` | Scheduled tasks |
 | `data/provider-state.json` | Provider usage, throttle windows and provider-attributed resume queue |
-| `sessions.json` | Channel-to-agent session mapping |
-| `executions.json` | Unified execution registry |
+| `data/session-registry.jsonl` | Session registry: sessions, channel bindings, turns |
+| `data/executions.json` | Unified execution registry |
 | `config/environments/` | Execution environments: one JSON file per environment (`main`, `creative`, and any the user adds) |
 | `config/archive/`, `data/archive/` | Configuration and state an upgrade retired, moved aside rather than deleted |
 | `logs/` | Daemon and LLM logs |
