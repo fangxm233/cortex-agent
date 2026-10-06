@@ -1,6 +1,7 @@
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
-import { copyFileIntoOutputs, writeTextIntoOutputs, sanitizeDisplayFilename, type StoredOutput } from './outputs-store.js';
+import { copyFileIntoOutputs, writeTextIntoOutputs, type StoredOutput } from './outputs-store.js';
+import { sanitizeDisplayFilename } from '@core/workspace-filenames.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { ViewWidth } from '@core/types/agent-types.js';
 

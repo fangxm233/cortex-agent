@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+
 /** Mimetypes a backend can read as an image attachment. Both the prompt builder (which decides how
  *  an attachment is described to the agent) and the platform file router classify against the same
  *  two sets, so they live below both rather than in either one. */
@@ -34,4 +36,31 @@ export function sniffImageMime(head: Buffer): string | null {
 /** The extension an image mime should be stored under, or null for a mime with no fixed one. */
 export function imageMimeExtension(mimeType: string): string | null {
   return IMAGE_MIME_EXTENSIONS[mimeType] ?? null;
+}
+
+/** Extension → MIME for the files Cortex serves or hands to a client: the SPA's own build output,
+ *  and the workspace files agents and users exchange. One table, so a file the agent sends and the
+ *  same file downloaded later can never disagree about what it is. Unknown → octet-stream. */
+const MIME_BY_EXT: Record<string, string> = {
+  '.html': 'text/html', '.htm': 'text/html', '.xhtml': 'application/xhtml+xml', '.xml': 'application/xml',
+  '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.map': 'application/json',
+  '.json': 'application/json', '.csv': 'text/csv', '.txt': 'text/plain', '.md': 'text/markdown', '.log': 'text/plain',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+  '.svg': 'image/svg+xml', '.bmp': 'image/bmp', '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+  '.pdf': 'application/pdf', '.zip': 'application/zip', '.woff2': 'font/woff2',
+};
+
+export const OCTET_STREAM = 'application/octet-stream';
+
+/** MIME type for a file name or path, by extension (case-insensitive). */
+export function mimeTypeForPath(name: string): string {
+  return MIME_BY_EXT[path.extname(name).toLowerCase()] ?? OCTET_STREAM;
+}
+
+/** The `Content-Type` header value for a MIME type: text-like types declare UTF-8. */
+export function contentTypeHeader(mimeType: string): string {
+  const textLike = mimeType.startsWith('text/') || mimeType === 'application/json'
+    || mimeType === 'application/xml' || mimeType === 'application/xhtml+xml';
+  return textLike ? `${mimeType}; charset=utf-8` : mimeType;
 }

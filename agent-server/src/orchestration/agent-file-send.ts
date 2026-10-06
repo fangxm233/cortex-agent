@@ -1,26 +1,9 @@
-import * as path from 'path';
+import { mimeTypeForPath } from '@core/media-types.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
 import { copyFileIntoOutputs, receiveIntoOutputs, type StoredOutput } from './outputs-store.js';
 import { fetchRemoteFile, prepareRemoteFetch } from '@domain/remote/device-file.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
-
-/** Minimal extension → MIME map for the common file kinds an agent shares. Anything unknown falls
- *  back to application/octet-stream (still downloadable, just no inline preview). */
-const MIME_BY_EXT: Record<string, string> = {
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp',
-  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-  '.pdf': 'application/pdf', '.json': 'application/json', '.csv': 'text/csv',
-  '.txt': 'text/plain', '.md': 'text/markdown', '.log': 'text/plain',
-  '.html': 'text/html', '.zip': 'application/zip',
-};
-
-/** Infer a MIME type from a filename's extension. */
-export function extToMime(name: string): string {
-  const ext = path.extname(name).toLowerCase();
-  return MIME_BY_EXT[ext] ?? 'application/octet-stream';
-}
 
 /** Classify a MIME type into the AttachmentMeta `type` bucket (mirrors the upload classifier).
  *  Deliberately narrower than `AttachmentMeta['type']`: it can never return `'view'`, so a file the
@@ -123,6 +106,6 @@ async function landFile(
   const { relPath, name, size } = args.device
     ? await fetchIn({ ...target, device: args.device })
     : await copy(target);
-  const mimeType = extToMime(name);
+  const mimeType = mimeTypeForPath(name);
   return { name, path: relPath, size, mimeType, type: classifyAttachment(mimeType) };
 }

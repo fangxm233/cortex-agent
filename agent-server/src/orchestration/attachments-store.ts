@@ -1,10 +1,10 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { WORKSPACE_DIR } from '@core/paths.js';
-import { imageMimeExtension, sniffImageMime } from '@core/media-types.js';
+import { imageMimeExtension, mimeTypeForPath, sniffImageMime } from '@core/media-types.js';
 import { createLogger } from '@core/log.js';
-import { resolveAvailablePath, sanitizeDisplayFilename, sanitizeStorageFilename } from './outputs-store.js';
-import { classifyAttachment, extToMime } from './agent-file-send.js';
+import { resolveAvailablePath, sanitizeDisplayFilename, sanitizeStorageFilename } from '@core/workspace-filenames.js';
+import { classifyAttachment } from './agent-file-send.js';
 import type { DownloadedFile } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 
@@ -87,7 +87,7 @@ export async function finalizeInboundFile(file: DownloadedFile, ownedDir: string
   const sniffed = await sniffFile(file.localPath);
   // Bytes first, then what the platform said, then the name — Feishu hands a `file` message over
   // with no mimetype at all, and an empty string reaches the UI as an undownloadable card.
-  const mimetype = sniffed ?? (file.mimetype || extToMime(displayName));
+  const mimetype = sniffed ?? (file.mimetype || mimeTypeForPath(displayName));
   const owned = path.resolve(path.dirname(file.localPath)) === path.resolve(ownedDir);
   if (!owned) return { localPath: file.localPath, mimetype, name: displayName };
 
