@@ -1,15 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { PDFPageProxy } from 'pdfjs-dist';
 import '@/design/content-surfaces.css';
-import { useBackDismiss } from '@/design/use-back-dismiss';
+import { IconButton } from '@/design/IconButton';
 import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { useVocabOptional } from '@/i18n';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
-import { useDockIntake } from '@/design/dock-intake';
 import { isMarkdownName } from './doc-kind';
 import type { DocItem } from './preview-item';
 import { HtmlBody } from './HtmlBody';
+import { usePreviewHost, usePreviewModalChrome } from './preview-modal';
 import { useWorkspaceText } from './useWorkspaceText';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 import { PDF_RENDER_SCALE, PdfPreview, type PdfPageCanvas, type PdfPageSize } from './pdf-preview';
@@ -265,15 +265,9 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       }}
     >
       {total > 0 && (
-      <button type="button" className="content-text-action"
-        role="button"
-        title={L.mediaPrevPage}
-        disabled={current <= 1}
-        onClick={() => { if (current > 1) onJump(current - 1); }}
-        style={pagerBtnStyle(current <= 1)}
-      >
-        ↑
-      </button>
+        <IconButton label={L.mediaPrevPage} size={28} disabled={current <= 1} onClick={() => onJump(current - 1)} style={controlStyle(current <= 1)}>
+          ↑
+        </IconButton>
       )}
       {total > 0 && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `600 11.5px ${mono}`, color: 'var(--proto-ink)' }}>
@@ -300,30 +294,24 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       </div>
       )}
       {total > 0 && (
-      <button type="button" className="content-text-action"
-        role="button"
-        title={L.mediaNextPage}
-        disabled={current >= total}
-        onClick={() => { if (current < total) onJump(current + 1); }}
-        style={pagerBtnStyle(current >= total)}
-      >
-        ↓
-      </button>
+        <IconButton label={L.mediaNextPage} size={28} disabled={current >= total} onClick={() => onJump(current + 1)} style={controlStyle(current >= total)}>
+          ↓
+        </IconButton>
       )}
 
       {/* Zoom controls */}
       {total > 0 && (
       <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-        <button type="button" className="content-text-action" role="button" title={L.mViewZoomOut} disabled={scale <= 1} onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</button>
-        <button type="button" className="content-text-action"
-          role="button"
-          title={L.mediaZoomReset}
+        <IconButton label={L.mViewZoomOut} size={28} disabled={scale <= 1} onClick={onZoomOut} style={controlStyle(scale <= 1)}>−</IconButton>
+        <IconButton
+          label={L.mediaZoomReset}
+          size={28}
           onClick={onZoomReset}
-          style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', cursor: 'pointer', padding: '0 4px', userSelect: 'none', minWidth: 36, textAlign: 'center' }}
+          style={{ width: 'auto', minWidth: 36, padding: '0 4px', font: `600 11px ${mono}`, userSelect: 'none' }}
         >
           {Math.round(scale * 100)}%
-        </button>
-        <button type="button" className="content-text-action" role="button" title={L.mViewZoomIn} disabled={scale >= 5} onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</button>
+        </IconButton>
+        <IconButton label={L.mViewZoomIn} size={28} disabled={scale >= 5} onClick={onZoomIn} style={controlStyle(scale >= 5)}>+</IconButton>
       </div>
       )}
       {actions && <div style={{ marginLeft: total > 0 ? 12 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>{actions}</div>}
@@ -331,23 +319,17 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
   );
 }
 
-function pagerBtnStyle(disabled: boolean): React.CSSProperties {
+/** The bordered control look of the viewer's toolbars, on top of IconButton. A disabled control
+ *  fades as a whole rather than only its glyph. */
+function controlStyle(disabled = false): CSSProperties {
   return {
-    width: 28,
-    height: 28,
-    borderRadius: 'var(--r-control)',
     border: '1px solid var(--proto-line-2)',
+    borderRadius: 'var(--r-control)',
     background: 'var(--material-control-bg)',
     boxShadow: 'var(--material-control-shadow)',
-    color: 'var(--proto-muted)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
     fontSize: 14,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.4 : 1,
-    flex: 'none',
     userSelect: 'none',
+    ...(disabled ? { opacity: 0.4, color: 'var(--proto-muted)' } : {}),
   };
 }
 
@@ -362,16 +344,7 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
 function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void; onPin?: () => void }): JSX.Element {
   const dl = useDownloadFile();
   const L = useVocabOptional();
-  // Android hardware back (and browser back) close the doc modal instead of navigating a route.
-  useBackDismiss(onClose);
-  // Esc closes; lock body scroll while open.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [onClose]);
+  usePreviewModalChrome(onClose);
 
   return (
     <div
@@ -428,21 +401,16 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
             {item.name}
           </span>
           {onPin && (
-            <button type="button" className="content-text-action" role="button" title={L.mediaPin} onClick={onPin} style={btnStyle}>
+            <IconButton label={L.mediaPin} onClick={onPin} style={controlStyle()}>
               ◧
-            </button>
+            </IconButton>
           )}
-          <button type="button" className="content-text-action"
-            role="button"
-            title={L.cmDownload}
-            onClick={() => dl(item.path, item.name)}
-            style={btnStyle}
-          >
+          <IconButton label={L.cmDownload} onClick={() => dl(item.path, item.name)} style={controlStyle()}>
             ↓
-          </button>
-          <button type="button" className="content-text-action" role="button" title={L.cmClose} onClick={onClose} style={{ ...btnStyle, fontSize: 16 }}>
+          </IconButton>
+          <IconButton label={L.cmClose} onClick={onClose} style={{ ...controlStyle(), fontSize: 16 }}>
             ×
-          </button>
+          </IconButton>
         </div>
 
         {/* Body */}
@@ -456,49 +424,13 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
   );
 }
 
-const btnStyle: React.CSSProperties = {
-  width: 30,
-  height: 30,
-  borderRadius: 'var(--r-control)',
-  border: '1px solid var(--proto-line-2)',
-  background: 'var(--material-control-bg)',
-  boxShadow: 'var(--material-control-shadow)',
-  color: 'var(--proto-muted)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 14,
-  cursor: 'pointer',
-  flex: 'none',
-};
-
 export function DocViewerProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [item, setItem] = useState<DocItem | null>(null);
-  const dock = useDockIntake();
-  // While the dock is open, opening a document opens (or focuses) its tab — no modal.
-  const openDoc = useCallback(
-    (next: DocItem) => {
-      if (dock.active) {
-        dock.openFile(next);
-        return;
-      }
-      setItem(next);
-    },
-    [dock],
-  );
-  const close = useCallback(() => setItem(null), []);
-  const value = useMemo(() => ({ openDoc }), [openDoc]);
-  // Docking hands the open document over to a dock tab and dismisses the modal.
-  const onPin = dock.canDock
-    ? () => {
-        if (item) dock.openFile(item);
-        setItem(null);
-      }
-    : undefined;
+  const { item, open, close, pin } = usePreviewHost<DocItem>();
+  const value = useMemo(() => ({ openDoc: open }), [open]);
   return (
     <DocViewerContext.Provider value={value}>
       {children}
-      {item && <DocModal item={item} onClose={close} onPin={onPin} />}
+      {item && <DocModal item={item} onClose={close} onPin={pin} />}
     </DocViewerContext.Provider>
   );
 }

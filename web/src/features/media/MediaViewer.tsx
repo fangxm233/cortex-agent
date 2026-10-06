@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type CSSProperties, type ReactNode } from 'react';
 import '@/design/content-surfaces.css';
-import { useBackDismiss } from '@/design/use-back-dismiss';
-import { useDockIntake } from '@/design/dock-intake';
+import { IconButton } from '@/design/IconButton';
+import { usePreviewHost, usePreviewModalChrome } from './preview-modal';
 import { useDownloadFile } from './useDownloadFile';
 import { useMediaSrc } from './useMediaSrc';
 import { useZoom } from './useZoom';
@@ -30,6 +30,13 @@ const MediaViewerContext = createContext<MediaViewerContextValue>({ openMedia: (
 
 const mono = "'IBM Plex Mono',monospace";
 
+/** Lightbox controls sit on the dark scrim, so they keep their own light-on-glass look. */
+const LIGHTBOX_CONTROL: CSSProperties = {
+  borderRadius: 'var(--r-control)',
+  background: 'var(--media-control-bg)',
+  color: 'var(--ink-solid-fg)',
+};
+
 function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => void; onPin?: () => void }): JSX.Element {
   // Resolve the source: a local composer preview already has an object URL; a workspace file is
   // fetched with auth into one (revoked on close / change) — shared with the docked preview pane.
@@ -38,22 +45,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
   const L = useVocabOptional();
   const { containerRef, contentRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', maxScale: 8 });
 
-  // Android hardware back (and browser back) close the lightbox instead of navigating a route.
-  useBackDismiss(onClose);
-
-  // Esc closes; lock body scroll while open.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
+  usePreviewModalChrome(onClose);
 
   const onDownload = (): void => {
     if (item.path) {
@@ -102,64 +94,16 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         }}
       >
         {onPin && (
-          <button type="button" className="content-text-action"
-            role="button"
-            title={L.mediaPin}
-            onClick={onPin}
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 'var(--r-control)',
-              background: 'var(--media-control-bg)',
-              color: 'var(--ink-solid-fg)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 15,
-              cursor: 'pointer',
-            }}
-          >
+          <IconButton label={L.mediaPin} size={38} onClick={onPin} style={{ ...LIGHTBOX_CONTROL, fontSize: 15 }}>
             ◧
-          </button>
+          </IconButton>
         )}
-        <button type="button" className="content-text-action"
-          role="button"
-          title={L.cmDownload}
-          onClick={onDownload}
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 'var(--r-control)',
-            background: 'var(--media-control-bg)',
-            color: 'var(--ink-solid-fg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 16,
-            cursor: 'pointer',
-          }}
-        >
+        <IconButton label={L.cmDownload} size={38} onClick={onDownload} style={{ ...LIGHTBOX_CONTROL, fontSize: 16 }}>
           ↓
-        </button>
-        <button type="button" className="content-text-action"
-          role="button"
-          title={L.cmClose}
-          onClick={onClose}
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 'var(--r-control)',
-            background: 'var(--media-control-bg)',
-            color: 'var(--ink-solid-fg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            cursor: 'pointer',
-          }}
-        >
+        </IconButton>
+        <IconButton label={L.cmClose} size={38} onClick={onClose} style={{ ...LIGHTBOX_CONTROL, fontSize: 18 }}>
           ×
-        </button>
+        </IconButton>
       </div>
 
       {/* Media stage — touch target for zoom gestures covers full area; transform on inner wrapper. */}
@@ -204,32 +148,12 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
 }
 
 export function MediaViewerProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [item, setItem] = useState<MediaItem | null>(null);
-  const dock = useDockIntake();
-  // While the dock is open, a preview click opens (or focuses) its tab — no modal.
-  const openMedia = useCallback(
-    (next: MediaItem) => {
-      if (dock.active) {
-        dock.openFile(next);
-        return;
-      }
-      setItem(next);
-    },
-    [dock],
-  );
-  const close = useCallback(() => setItem(null), []);
-  const value = useMemo(() => ({ openMedia }), [openMedia]);
-  // Docking hands the open item over to a dock tab and dismisses the modal.
-  const onPin = dock.canDock
-    ? () => {
-        if (item) dock.openFile(item);
-        setItem(null);
-      }
-    : undefined;
+  const { item, open, close, pin } = usePreviewHost<MediaItem>();
+  const value = useMemo(() => ({ openMedia: open }), [open]);
   return (
     <MediaViewerContext.Provider value={value}>
       {children}
-      {item && <Lightbox item={item} onClose={close} onPin={onPin} />}
+      {item && <Lightbox item={item} onClose={close} onPin={pin} />}
     </MediaViewerContext.Provider>
   );
 }
