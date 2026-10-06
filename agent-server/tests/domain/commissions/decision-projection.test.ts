@@ -45,3 +45,10 @@ test('sessions without a commission (or with a dangling id) are silent no-ops', 
   assert.equal(await projectCommissionDecisions({ sessionId: 's1', ts: 'T', items: [ITEM] }, dangling.deps), false);
   assert.equal(none.lines.length + dangling.lines.length, 0);
 });
+
+test('the board refresh hint goes to the bus it was handed, after the line lands', async () => {
+  const h = harness('comm-1');
+  const published: unknown[] = [];
+  await projectCommissionDecisions({ sessionId: 's1', ts: 'T', items: [ITEM] }, { ...h.deps, bus: { publish: (e: any) => { published.push(e); } } });
+  assert.deepEqual(published, [{ type: 'commission.updated', commissionId: 'comm-1', projectId: 'proj' }]);
+});

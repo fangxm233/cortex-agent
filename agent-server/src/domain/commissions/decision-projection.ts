@@ -1,7 +1,7 @@
 import * as fsp from 'node:fs/promises';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { commissionRepo } from '@store/commission-repo.js';
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import type { EventBus } from '@events/index.js';
 import type { RawDecisionItem } from '@store/conversation-history-repo.js';
 import { commissionDecisionsFile } from './commission-paths.js';
 
@@ -17,6 +17,8 @@ export interface DecisionProjectionDeps {
   findCommission?: (id: string) => Promise<{ projectId: string; slug: string } | null>;
   resolveFile?: (projectId: string, slug: string) => string | null;
   appendLine?: (filePath: string, line: string) => Promise<void>;
+  /** Where the `commission.updated` hint goes once a line lands; absent ⇒ no hint. */
+  bus?: Pick<EventBus, 'publish'> | null;
 }
 
 interface ProjectionTarget { filePath: string; commissionId: string; projectId: string }
@@ -39,9 +41,8 @@ async function appendProjection(sessionId: string, line: CommissionDecisionLine,
   if (!target) return false;
   const append = deps.appendLine ?? ((file: string, text: string) => fsp.appendFile(file, text, 'utf8'));
   await append(target.filePath, `${JSON.stringify(line)}\n`);
-  // SSE hint after a successful append (an open board refetches commissions.decisions); no-op
-  // when the bus is absent.
-  jobCtx.bus?.publish({ type: 'commission.updated', commissionId: target.commissionId, projectId: target.projectId });
+  // SSE hint after a successful append (an open board refetches commissions.decisions).
+  deps.bus?.publish({ type: 'commission.updated', commissionId: target.commissionId, projectId: target.projectId });
   return true;
 }
 

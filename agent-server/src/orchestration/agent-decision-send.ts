@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { conversationHistory, type RawDecisionItem } from '@store/conversation-history-repo.js';
-import { projectCommissionDecisions } from '@domain/commissions/decision-projection.js';
+import { projectCommissionDecisions, type DecisionProjectionDeps } from '@domain/commissions/decision-projection.js';
+import { orchestrationBus } from './runtime.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
 
 const log = createLogger('agent-decision-send');
@@ -29,7 +30,10 @@ export interface SendAgentDecisionsDeps {
   publish?: (p: SessionMessagePayload) => void;
   now?: () => string;
   newId?: () => string;
-  projectDecisions?: (args: { sessionId: string; ts: string; items: RawDecisionItem[] }) => Promise<boolean>;
+  projectDecisions?: (
+    args: { sessionId: string; ts: string; items: RawDecisionItem[] },
+    deps?: DecisionProjectionDeps,
+  ) => Promise<boolean>;
 }
 
 function requireField(value: unknown, name: string, index: number, max: number): string {
@@ -82,7 +86,7 @@ export async function sendAgentDecisions(args: SendAgentDecisionsArgs, deps: Sen
   // Commission projection is best-effort by design (DR-0037): the chat card is the
   // authoritative record; a projection failure must never fail the tool call.
   const project = deps.projectDecisions ?? projectCommissionDecisions;
-  await project({ sessionId: args.sessionId, ts, items })
+  await project({ sessionId: args.sessionId, ts, items }, { bus: orchestrationBus() })
     .catch((err) => log.warn('commission decision projection failed:', (err as Error)?.message ?? err));
   return items;
 }

@@ -8,6 +8,7 @@ import type {
   QueryParams,
 } from '../types.js';
 import { resolveProjectRoot, resolveMemoryFilePath } from './memory.js';
+import { commissionRelPath, DECISIONS_FILE } from '@domain/commissions/commission-paths.js';
 
 function notFound(message: string): Error {
   return Object.assign(new Error(message), { code: 'not-found' });
@@ -101,7 +102,7 @@ export async function handleCommissionsDecisions(
   let abs: string;
   try {
     // Path is built from registry facts (slug), not user input; the guard is defense in depth.
-    abs = resolveMemoryFilePath(root, `commissions/${record.slug}/decisions.jsonl`);
+    abs = resolveMemoryFilePath(root, commissionRelPath(record.slug, DECISIONS_FILE));
   } catch {
     return [];   // no projection file yet — an empty stream, not an error
   }

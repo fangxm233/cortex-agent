@@ -566,7 +566,7 @@ export async function handleRespondDecision(
   void projectCommissionDecisionAction({
     sessionId: args.sessionId, ts, decisionId: args.decisionId, action: args.action,
     ...(args.action !== 'approve' ? { message } : {}),
-  }).catch(() => {});
+  }, { bus: deps.bus }).catch(() => {});
   if (args.action !== 'approve') {
     deps.sendSessionMessage({ channel: session.channel, text: message });
   }

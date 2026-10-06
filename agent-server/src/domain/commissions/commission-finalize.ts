@@ -3,7 +3,7 @@ import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { commissionRepo, newCommissionId, type CommissionRecord } from '@store/commission-repo.js';
-import { commissionsRoot, slugifyCommissionName, DRAFT_DIR_PREFIX } from './commission-paths.js';
+import { commissionsRoot, slugifyCommissionName, DECISIONS_FILE, DRAFT_DIR_PREFIX } from './commission-paths.js';
 
 export interface CommissionFinalizeArgs {
   sessionId: string | null | undefined;
@@ -94,7 +94,7 @@ export async function validateCommissionFinalize(
 async function scaffoldCommissionDir(dir: string): Promise<void> {
   await fsp.mkdir(path.join(dir, 'assets'), { recursive: true }).catch(() => {});
   // 'wx' keeps an existing projection file intact if the draft already accumulated one.
-  await fsp.writeFile(path.join(dir, 'decisions.jsonl'), '', { flag: 'wx' }).catch(() => {});
+  await fsp.writeFile(path.join(dir, DECISIONS_FILE), '', { flag: 'wx' }).catch(() => {});
 }
 
 /** Undo a finalize whose registration failed after the rename, so the session is back to drafting
