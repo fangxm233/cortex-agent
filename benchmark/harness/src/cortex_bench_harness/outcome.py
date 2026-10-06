@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from .host_finalization import OUTER_ENVELOPE_FILENAME, OUTER_ENVELOPE_SCHEMA_VERSION
+from .host_finalization import (
+    OUTER_ENVELOPE_FILENAME,
+    OUTER_ENVELOPE_SCHEMA_VERSION,
+    unscanned_evidence_files,
+)
 from .launcher.production_session import (
     DEADLINE_EXHAUSTED,
     DEADLINE_REASON,
@@ -351,6 +355,16 @@ def _scan_reason(envelope: Mapping[str, object]) -> str | None:
         return "leak scan is unavailable"
     if scan.get("matches") != []:
         return "leak scan has matches or is malformed"
+    evidence = envelope.get("evidence")
+    evidence = evidence if isinstance(evidence, Mapping) else {}
+    unscanned = unscanned_evidence_files(evidence.get("roots"), evidence.get("files"), scan)
+    if unscanned is None:
+        return "leak scan coverage record is malformed, so what it covered is unknown"
+    if unscanned:
+        roots = sorted({root for root, _ in unscanned})
+        return (
+            f"{len(unscanned)} evidence file(s) in {', '.join(roots)} were never read by the "
+            "leak scan")
     return None
 
 

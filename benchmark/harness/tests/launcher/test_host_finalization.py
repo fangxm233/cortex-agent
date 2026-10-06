@@ -1484,9 +1484,14 @@ def test_scan_coverage_uncertainty_is_recorded_without_refusal(
     monkeypatch.setattr(finalization, "_scan_collected", lambda *_args: report)
 
     envelope = finalize_vendor_trial(tmp_path, monkeypatch)
+    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 1}}})
 
-    assert envelope["leak_scan"] == {**report, "unscanned_roots": []}
+    # The record is kept; the trial is not trusted, since the scan never read either file.
+    assert envelope["leak_scan"] == {**report, "unscanned_roots": [], "unscanned_files": 2}
     assert envelope_path(tmp_path).exists()
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path).read()
+    assert (outcome.outcome_state, outcome.verifier_rewards) == ("security-failed", None)
 
 
 def test_all_unavailable_roots_are_recorded_without_refusal(
@@ -1503,7 +1508,7 @@ def test_all_unavailable_roots_are_recorded_without_refusal(
         "status": "unavailable", "reason": "evidence_roots_unavailable",
         "ok": False, "clean": False, "sources": [], "matches": [],
         "missing_sources": [], "unclassified_files": [],
-        "unscanned_roots": ["agent", "artifacts", "verifier"],
+        "unscanned_roots": ["agent", "artifacts", "verifier"], "unscanned_files": 0,
     }
     assert envelope_path(tmp_path).exists()
 
@@ -1567,6 +1572,7 @@ def test_dangling_or_escaping_collected_symlink_is_recorded_without_refusal(
     assert envelope["leak_scan"]["unclassified_files"] == [
         {"root_index": 0, "relative_path": "unsafe-link"},
     ]
+    assert envelope["leak_scan"]["unscanned_files"] == 0, "a link holds no bytes of its own"
     assert envelope_path(tmp_path).exists()
 
 
@@ -1583,9 +1589,46 @@ def test_collected_source_missing_before_scan_is_recorded_without_refusal(
     monkeypatch.setattr(finalization, "_collect_roots", remove_after_collection)
 
     envelope = finalize_vendor_trial(tmp_path, monkeypatch)
+    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 1}}})
 
     assert envelope["leak_scan"]["missing_sources"] != []
+    assert envelope["leak_scan"]["unscanned_files"] == 1
     assert envelope_path(tmp_path).exists()
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path).read()
+    assert outcome.outcome_state == "security-failed"
+    assert "never read by the leak scan" in str(outcome.reason)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-000 file")
+def test_an_unreadable_file_in_a_readable_root_is_published_unscanned_and_untrusted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The root walks fine, so it is not an unscanned root; the one file the host cannot open is
+    never handed to the scanner, and used to leave the scan reading as covered."""
+    locked = tmp_path / "agent" / "locked.log"
+
+    def lock_a_file(root: Path) -> None:
+        locked.write_text("never read", encoding="utf-8")
+        locked.chmod(0)
+
+    try:
+        envelope = finalize_vendor_trial(tmp_path, monkeypatch, mutation=lock_a_file)
+    finally:
+        locked.chmod(0o644)
+    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 1}}})
+
+    assert envelope["leak_scan"]["unscanned_roots"] == []
+    assert envelope["leak_scan"]["unscanned_files"] == 1
+    assert (envelope["leak_scan"]["ok"], envelope["leak_scan"]["clean"]) == (False, False)
+    assert {
+        (item["relative_path"], item["kind"]) for item in envelope["evidence"]["files"]
+    } >= {("locked.log", "unreadable")}
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path).read()
+    assert outcome.outcome_state == "security-failed"
+    assert outcome.score_status == "unavailable"
+    assert outcome.reason == "1 evidence file(s) in agent were never read by the leak scan"
 
 
 def test_production_assets_copy_the_materialized_arm_prompts_not_npm_defaults(

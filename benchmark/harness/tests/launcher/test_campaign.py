@@ -280,10 +280,13 @@ def envelope_document(
         "schema_version": OUTER_ENVELOPE_SCHEMA_VERSION,
         "identity": {"trial_id": trial_id, "root_run_id": f"{trial_id}.{arm_name}",
                      "arm_name": arm_name},
-        "evidence": {"roots": [
-            {"root": root, "status": "collected"}
-            for root in ("agent", "verifier", "artifacts")
-        ]},
+        "evidence": {
+            "roots": [
+                {"root": root, "status": "collected"}
+                for root in ("agent", "verifier", "artifacts")
+            ],
+            "files": [],
+        },
         "proxy_usage": {"requests": requests, "input_tokens": 11,
                         "output_tokens": 7, "reconciled": True},
         "revocation": {
@@ -1855,33 +1858,109 @@ def test_resuming_a_terminal_verifier_failure_keeps_it_failed_without_rearming(
     assert report["runs"][0]["score_status"] == "failed"
 
 
-@pytest.mark.parametrize("uncertainty", ["missing", "unclassified"])
-def test_scan_coverage_uncertainty_keeps_the_verifier_score(
+def evidence_file(kind: str, relative_path: str) -> dict[str, object]:
+    return {
+        "source": "collected:0000", "root": "agent", "relative_path": relative_path,
+        "kind": kind, "size_bytes": 3, "sha256": "ab" * 32 if kind == "file" else None,
+    }
+
+
+# Decision 23: nothing the leak scan never read is published as trusted.
+UNSCANNED_FILE_CASES = {
+    # The host could not open it, so the scanner was never handed its bytes.
+    "unreadable-file": (
+        [evidence_file("unreadable", "locked.log")], [],
+        [{"root_index": 0, "relative_path": "locked.log"}]),
+    # Collected, then gone or replaced by the time the scanner opened it.
+    "missing-source": ([evidence_file("file", "transcript.jsonl")], ["collected:0000"], []),
+    # A regular file the scanner met in the root that the host never collected.
+    "uncollected-file": ([], [], [{"root_index": 0, "relative_path": "late.log"}]),
+    # The scanner withheld the name because it carried a sensitive literal.
+    "withheld-name": ([], [], [{"root_index": 0, "relative_path": None}]),
+}
+
+
+@pytest.mark.parametrize("uncertainty", UNSCANNED_FILE_CASES)
+def test_an_evidence_file_the_scan_never_read_is_untrusted_and_counted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     uncertainty: str,
 ) -> None:
+    files, missing, unclassified = UNSCANNED_FILE_CASES[uncertainty]
+
     def record_uncertainty(document: dict[str, object]) -> dict[str, object]:
-        scan = document["leak_scan"]
-        assert isinstance(scan, dict)
-        scan["ok"] = False
-        scan["clean"] = False
-        if uncertainty == "missing":
-            scan["missing_sources"] = ["collected:0000"]
-        else:
-            scan["unclassified_files"] = [
-                {"root_index": 0, "relative_path": "runtime.sock"},
-            ]
+        document["evidence"]["files"] = files
+        document["leak_scan"].update({
+            "ok": False, "clean": False,
+            "missing_sources": missing, "unclassified_files": unclassified,
+        })
         return document
 
     RecordingTrialPath(envelope_mutation=record_uncertainty).install(monkeypatch)
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
+    assert status == 1
+    first = result["trials"][0]
+    assert (first["state"], first["outcome_state"]) == ("failed", "security-failed")
+    assert (first["verifier_rewards"], first["score_status"]) == (None, "unavailable")
+    assert "1 evidence file(s) in agent were never read by the leak scan" == first["reason"]
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["runs"][0]["outcome_state"] == "security-failed"
+    summary = json.loads(
+        (tmp_path / "trials" / "result-summary.json").read_text(encoding="utf-8"))
+    assert summary["trials"][0]["leak_scan"]["unscanned_files"] == 1
+    assert "locked.log" not in json.dumps(summary), "the count is published, never the name"
+
+
+@pytest.mark.parametrize("kind", ["symlink", "other"])
+def test_an_unclassified_link_or_special_file_keeps_the_verifier_score(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    kind: str,
+) -> None:
+    """A dangling or escaping symlink, or a socket, is recorded but holds no bytes of its own for
+    the scan to have missed, so it alone does not withdraw the score."""
+    def record_link(document: dict[str, object]) -> dict[str, object]:
+        document["evidence"]["files"] = [evidence_file(kind, "runtime.sock")]
+        document["leak_scan"].update({
+            "ok": False, "clean": False,
+            "unclassified_files": [{"root_index": 0, "relative_path": "runtime.sock"}],
+        })
+        return document
+
+    RecordingTrialPath(envelope_mutation=record_link).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
     assert status == 0
     first = result["trials"][0]
-    assert first["state"] == "ran"
+    assert (first["state"], first["score_status"]) == ("ran", "available")
     assert first["verifier_rewards"] == {"reward": 1.0}
-    assert first["score_status"] == "available"
+
+
+@pytest.mark.parametrize("damage", ["no-files", "no-unclassified", "unknown-source", "bad-index"])
+def test_a_scan_coverage_record_that_cannot_be_read_is_untrusted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    damage: str,
+) -> None:
+    def damage_record(document: dict[str, object]) -> dict[str, object]:
+        if damage == "no-files":
+            del document["evidence"]["files"]
+        elif damage == "no-unclassified":
+            del document["leak_scan"]["unclassified_files"]
+        elif damage == "unknown-source":
+            document["leak_scan"]["missing_sources"] = ["collected:0009"]
+        else:
+            document["leak_scan"]["unclassified_files"] = [
+                {"root_index": 3, "relative_path": "x"}]
+        return document
+
+    RecordingTrialPath(envelope_mutation=damage_record).install(monkeypatch)
+
+    _, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    first = result["trials"][0]
+    assert (first["outcome_state"], first["score_status"]) == ("security-failed", "unavailable")
+    assert "coverage record is malformed" in first["reason"]
 
 
 @pytest.mark.parametrize("uncertainty", ["root", "all-roots"])
@@ -2305,7 +2384,7 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
         "status": "available", "value": 2,
     }
     assert summary["trials"][3]["leak_scan"] == {
-        "ok": False, "clean": False, "unscanned_roots": [],
+        "ok": False, "clean": False, "unscanned_roots": [], "unscanned_files": 0,
     }
     assert summary["trials"][3]["counters"]["cached_tokens"] == {
         "status": "unavailable",

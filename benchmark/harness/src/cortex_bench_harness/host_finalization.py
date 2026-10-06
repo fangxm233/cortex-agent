@@ -276,7 +276,7 @@ def _vendor_task_record(task: Mapping[str, object] | None) -> dict[str, str]:
 def _require_trusted_security(
     scan: Mapping[str, object], revocation: TrialRevocation | None, trial_id: str,
 ) -> None:
-    # Coverage uncertainty stays in the envelope (an unscanned root is read back as untrusted);
+    # Coverage uncertainty stays in the envelope (an unscanned root or file reads back untrusted);
     # only an observed leak blocks publication.
     if scan.get("matches") != []:
         raise HostFinalizationError("output_scan_untrusted")
@@ -302,13 +302,75 @@ def _collect_and_scan(
     scan = dict(_scan_collected(
         collected, scan_roots, {"agent": container_logs_dir}, scan_policy,
     ))
-    # A root with an unreadable subdirectory is skipped whole, so a scan of the others must not
-    # read as clean: the bytes it never saw could hold exactly what it looks for.
+    # A root with an unreadable subdirectory is skipped whole, and a file the host could not read
+    # is never handed to the scanner, so neither may let the scan read as clean: the bytes it
+    # never saw could hold exactly what it looks for.
     unscanned = sorted(name for name in roots if walked[name] != "collected")
     scan["unscanned_roots"] = unscanned
-    if unscanned:
+    files = unscanned_evidence_files(
+        [{"root": name, "status": status} for name, status in walked.items()],
+        [item.as_dict() for item in collected], scan,
+    )
+    scan["unscanned_files"] = None if files is None else len(files)
+    if unscanned or files != []:
         scan["ok"] = scan["clean"] = False
     return walked, collected, scan
+
+
+def unscanned_evidence_files(
+    roots: object, files: object, scan: object,
+) -> list[tuple[str, str | None]] | None:
+    """The evidence files, inside roots that were walked, whose bytes the leak scan never read.
+
+    Read from the envelope's own record -- `evidence.roots`, `evidence.files` and the scan's
+    `missing_sources` and `unclassified_files` -- so an envelope published before this was
+    counted reads back the same way. A file escapes the scan in three ways: the host could not
+    read it (`unreadable`), it was collected but gone or replaced when the scanner opened it (a
+    missing source), or the scanner met it in a root without it being a collected source (an
+    unclassified file). Unclassified symlinks and special files the host collected as such are
+    not counted: they hold no bytes of their own to scan. Returns (root, relative path), the path
+    None where the scanner withheld it; None when the record is malformed, which a reader has to
+    treat as unscanned too.
+    """
+    if not (isinstance(roots, list) and isinstance(files, list) and isinstance(scan, Mapping)):
+        return None
+    missing, unclassified = scan.get("missing_sources"), scan.get("unclassified_files")
+    if not (isinstance(missing, list) and isinstance(unclassified, list)):
+        return None
+    walked = [
+        item.get("root") for item in roots
+        if isinstance(item, Mapping) and item.get("status") == "collected"
+    ]
+    by_source: dict[str, tuple[str, str]] = {}
+    byteless: set[tuple[str, str]] = set()
+    unscanned: set[tuple[str, str | None]] = set()
+    for item in files:
+        fields = [item.get(key) for key in ("root", "relative_path", "kind", "source")] if (
+            isinstance(item, Mapping)) else [None]
+        if not all(isinstance(value, str) for value in fields):
+            return None
+        root, relative_path, kind, source = fields
+        by_source[source] = (root, relative_path)
+        if kind == "unreadable":
+            unscanned.add((root, relative_path))
+        elif kind in {"symlink", "other"}:
+            byteless.add((root, relative_path))
+    for source in missing:
+        if source not in by_source:
+            return None
+        unscanned.add(by_source[source])
+    for item in unclassified:
+        index = item.get("root_index") if isinstance(item, Mapping) else None
+        relative_path = item.get("relative_path") if isinstance(item, Mapping) else None
+        if (
+            isinstance(index, bool) or not isinstance(index, int)
+            or not 0 <= index < len(walked) or not isinstance(walked[index], str)
+            or not (relative_path is None or isinstance(relative_path, str))
+        ):
+            return None
+        if (walked[index], relative_path) not in byteless:
+            unscanned.add((str(walked[index]), relative_path))
+    return sorted(unscanned, key=lambda entry: (entry[0], entry[1] or ""))
 
 
 def _unavailable(reason: str) -> dict[str, str]:

@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Protocol
 
 from .campaign_config import CampaignConfig, TrialPlan
+from .host_finalization import unscanned_evidence_files
 
 RESULT_SUMMARY_FILENAME = "result-summary.json"
 RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/5"
@@ -206,6 +207,7 @@ def _leak_scan(envelope: Mapping[str, object] | None) -> dict[str, object]:
     return {
         "ok": _boolean(scan.get("ok")), "clean": _boolean(scan.get("clean")),
         "unscanned_roots": _unscanned_roots(envelope),
+        "unscanned_files": _unscanned_files(envelope),
     }
 
 
@@ -220,6 +222,19 @@ def _unscanned_roots(envelope: Mapping[str, object] | None) -> list[str] | None:
         if isinstance(item, Mapping) and item.get("status") == "unavailable"
         and item.get("root") in _EVIDENCE_ROOTS
     )
+
+
+def _unscanned_files(envelope: Mapping[str, object] | None) -> int | None:
+    """How many files inside walked roots the leak scan never read; None when unknown.
+
+    A count, not the names: a file name inside a trial root is trial content.
+    """
+    evidence = _envelope_section(envelope, "evidence")
+    if evidence is None:
+        return None
+    files = unscanned_evidence_files(
+        evidence.get("roots"), evidence.get("files"), _envelope_section(envelope, "leak_scan"))
+    return None if files is None else len(files)
 
 
 def _revocation(envelope: Mapping[str, object] | None) -> dict[str, object]:
