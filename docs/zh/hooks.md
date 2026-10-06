@@ -184,7 +184,7 @@ bus 如何处理 stdout 取决于 `result`：
 
 声明可以用内联的 `run.command` 代替脚本。
 
-同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。
+同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。`cortex-context-lib.mjs` 也不是钩子入口：它包含 AGENTS.md 去重缓存、内联体积预算和规则 `paths:` 解析，由 `agents-md-injector.mjs`、`rules-loader.mjs` 与服务端共用，因此钩子与 MCP 侧对远端 AGENTS.md 的注入读写同一份会话缓存。
 
 ## 从钩子向用户提问 {#asking-the-user-from-a-hook}
 

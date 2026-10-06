@@ -1,117 +1,40 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.25
+// @cortex-hook-version 2026.10.6
 
-import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
-import { join, resolve, dirname } from 'path';
+import { readFileSync } from 'fs';
+import { join, resolve } from 'path';
 import { homedir } from 'os';
+import {
+  isValidSessionId, loadRules, pruneCacheDir, readJsonFile, rulesCacheDir, writeJsonFileAtomic,
+} from './cortex-context-lib.mjs';
 
 const DATA_DIR = process.env.CORTEX_HOME
   ? resolve(process.env.CORTEX_HOME)
   : join(homedir(), '.cortex');
 const RULES_DIR = join(DATA_DIR, 'rules');
-const CACHE_DIR = join(DATA_DIR, 'tmp', 'rules-cache');
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;
-const PATH_LINE_RE = /^\s*-\s+["']?(.+?)["']?\s*$/;
-const SESSION_ID_RE = /^[A-Za-z0-9._-]+$/;
+const CACHE_DIR = rulesCacheDir(DATA_DIR);
 
 // ── cache helpers ──
 
-/**
- * Load the dedup cache for a session. Returns a Set of already-injected rule file names.
- */
+function cacheFile(sessionId) {
+  return isValidSessionId(sessionId) ? join(CACHE_DIR, `${sessionId}.json`) : null;
+}
+
+/** Rule file names already injected in this session. */
 function loadCache(sessionId) {
-  const cache = new Set();
-  if (!sessionId || !SESSION_ID_RE.test(sessionId)) return cache;
-  const cacheFile = join(CACHE_DIR, `${sessionId}.json`);
-  try {
-    if (!existsSync(cacheFile)) return cache;
-    const raw = readFileSync(cacheFile, 'utf8');
-    const data = JSON.parse(raw);
-    if (Array.isArray(data)) {
-      for (const f of data) {
-        if (typeof f === 'string') cache.add(f);
-      }
-    }
-  } catch { /* corrupt/unreadable — start fresh */ }
-  return cache;
+  const file = cacheFile(sessionId);
+  const data = file ? readJsonFile(file) : null;
+  return new Set(Array.isArray(data) ? data.filter((f) => typeof f === 'string') : []);
 }
 
-/**
- * Persist the dedup cache for a session. Atomic write via tmp file + rename.
- */
 function saveCache(sessionId, cache) {
-  if (!sessionId || !SESSION_ID_RE.test(sessionId)) return;
-  try {
-    mkdirSync(CACHE_DIR, { recursive: true });
-    const cacheFile = join(CACHE_DIR, `${sessionId}.json`);
-    const arr = Array.from(cache);
-    const tmp = `${cacheFile}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(arr), 'utf8');
-    renameSync(tmp, cacheFile);
-  } catch { /* disk full etc. — degrade gracefully */ }
+  const file = cacheFile(sessionId);
+  if (file) writeJsonFileAtomic(file, Array.from(cache));
 }
 
-/**
- * Remove stale session cache files (> CACHE_TTL_MS old). Best-effort.
- */
-function maintainCacheDir() {
-  try {
-    if (!existsSync(CACHE_DIR)) return;
-    const now = Date.now();
-    for (const name of readdirSync(CACHE_DIR)) {
-      const p = join(CACHE_DIR, name);
-      try {
-        const st = statSync(p);
-        if (!st.isFile()) continue;
-        if (now - st.mtimeMs > CACHE_TTL_MS) {
-          try { require('fs').rmSync(p, { force: true }); } catch { /* ignore */ }
-        }
-      } catch { /* ignore */ }
-    }
-  } catch { /* ignore */ }
-}
-
-// ── rule parsing ──
-
-/**
- * Parse YAML frontmatter from rule content.
- * Returns { paths, body } where paths is the `paths:` array and body is text after frontmatter.
- */
-function parseFrontmatter(content) {
-  const m = content.match(FRONTMATTER_RE);
-  if (!m) return { paths: [], body: content };
-  const fmBlock = m[1];
-  const body = content.slice(m[0].length);
-  const paths = [];
-  for (const line of fmBlock.split('\n')) {
-    const pm = line.match(PATH_LINE_RE);
-    if (pm) paths.push(pm[1]);
-  }
-  return { paths, body };
-}
-
-/**
- * Load all scoped rules (those with non-empty `paths` frontmatter).
- */
+/** Rules scoped by a non-empty `paths` frontmatter list; global rules reach the prompt elsewhere. */
 function loadScopedRules() {
-  const rules = [];
-  let files;
-  try { files = readdirSync(RULES_DIR); } catch { return rules; }
-  for (const f of files) {
-    if (!f.endsWith('.md')) continue;
-    const fp = join(RULES_DIR, f);
-    try {
-      const st = statSync(fp);
-      if (!st.isFile()) continue;
-      const content = readFileSync(fp, 'utf8');
-      const { paths, body } = parseFrontmatter(content);
-      if (paths.length === 0) continue;
-      rules.push({ file: f, paths, body });
-    } catch { /* skip unreadable */ }
-  }
-  return rules;
+  return loadRules(RULES_DIR).filter((rule) => rule.paths.length > 0);
 }
 
 /**
@@ -176,7 +99,7 @@ function main() {
 
   // ── session dedup ──
   const sessionId = payload.session_id;
-  maintainCacheDir();
+  pruneCacheDir(CACHE_DIR);
   const cache = loadCache(sessionId);
   const newMatched = matched.filter(r => !cache.has(r.file));
 

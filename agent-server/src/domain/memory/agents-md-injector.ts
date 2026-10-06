@@ -1,6 +1,8 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { WORKSPACE_DIR } from '@core/paths.js';
+import { DATA_DIR } from '@core/paths.js';
+// Shared with the agents-md-injector hook: one cache format, one key, one inline budget.
+import {
+  agentsMdCacheDir, agentsMdCacheKey, overflowNotice, pruneCacheDir, selectWithinBudget, withAgentsMdCache,
+} from '../../../defaults/hooks/cortex-context-lib.mjs';
 
 export interface AgentsMDEntry {
   path: string;
@@ -14,140 +16,49 @@ export interface AgentsMDBlock {
   text: string;
 }
 
-// Directory name predates the AGENTS.md rename and is deliberately unchanged: it is shared
-// with the local agents-md-injector hook, and renaming it would orphan every live session's
-// dedup state at once, re-injecting every rule file already in context.
-const DEFAULT_CACHE_DIR = path.join(WORKSPACE_DIR, 'cortexmd-cache');
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const LOCK_WAIT_MS = 250;
-const LOCK_STALE_MS = 5000;
-const SESSION_ID_RE = /^[A-Za-z0-9._-]+$/;
-const LOCK_SLEEP = new Int32Array(new SharedArrayBuffer(4));
-
-function resolveCacheFile(cacheDir: string, sessionId: string | undefined): string | null {
-  if (!sessionId || !SESSION_ID_RE.test(sessionId)) return null;
-  return path.join(cacheDir, `${sessionId}.json`);
-}
-
-function maintainCacheDir(cacheDir: string): void {
-  try {
-    if (!fs.existsSync(cacheDir)) return;
-    const now = Date.now();
-    for (const name of fs.readdirSync(cacheDir)) {
-      const filePath = path.join(cacheDir, name);
-      try {
-        const stat = fs.statSync(filePath);
-        if (stat.isFile() && now - stat.mtimeMs > CACHE_TTL_MS) {
-          fs.rmSync(filePath, { force: true });
-        }
-      } catch { /* ignore */ }
-    }
-  } catch { /* ignore */ }
-}
-
-function readCache(cacheFile: string): Map<string, number> {
-  const cache = new Map<string, number>();
-  try {
-    const data = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) as Record<string, unknown>;
-    if (!data || typeof data !== 'object') return cache;
-    for (const [key, value] of Object.entries(data)) {
-      if (typeof value === 'number') cache.set(key, value);
-    }
-  } catch { /* missing/corrupt — start fresh */ }
-  return cache;
-}
-
-function writeCache(cacheFile: string, cache: Map<string, number>): void {
-  try {
-    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
-    const tempFile = `${cacheFile}.${process.pid}.tmp`;
-    fs.writeFileSync(tempFile, JSON.stringify(Object.fromEntries(cache)), 'utf8');
-    fs.renameSync(tempFile, cacheFile);
-  } catch { /* degrade gracefully */ }
-}
-
-function removeStaleLock(lockFile: string): void {
-  try {
-    const stat = fs.statSync(lockFile);
-    if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) fs.rmSync(lockFile, { force: true });
-  } catch { /* ignore */ }
-}
-
-function acquireLock(lockFile: string): number | null {
-  const deadline = Date.now() + LOCK_WAIT_MS;
-  do {
-    try {
-      fs.mkdirSync(path.dirname(lockFile), { recursive: true });
-      return fs.openSync(lockFile, 'wx');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') return null;
-      removeStaleLock(lockFile);
-      Atomics.wait(LOCK_SLEEP, 0, 0, 5);
-    }
-  } while (Date.now() <= deadline);
-  return null;
-}
-
-function releaseLock(lockFile: string, descriptor: number): void {
-  try { fs.closeSync(descriptor); } catch { /* ignore */ }
-  try { fs.rmSync(lockFile, { force: true }); } catch { /* ignore */ }
-}
-
-function cacheKey(device: string, entry: AgentsMDEntry): string {
-  const physicalDevice = entry.deviceId?.trim() || device;
-  return `${physicalDevice.toLowerCase()}:${entry.path}`;
-}
-
 export interface AgentsMDInjectorOptions {
   sessionId?: string;
   cacheDir?: string;
 }
 
-interface CacheResult<T> {
-  value: T;
-  changed: boolean;
-}
-
+/** Injects the AGENTS.md chain that cortex-client returns for a remote path, at most once per
+ *  (physical device, path, mtime) per session — the same dedup cache the local hook uses. */
 export class AgentsMDInjector {
   private readonly memoryCache = new Map<string, number>();
-  private readonly cacheFile: string | null;
+  private readonly cacheDir: string;
+  private readonly sessionId: string | undefined;
 
   constructor(options: AgentsMDInjectorOptions = {}) {
-    const cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
-    this.cacheFile = resolveCacheFile(cacheDir, options.sessionId ?? process.env.CORTEX_SESSION_ID);
-    maintainCacheDir(cacheDir);
-  }
-
-  private transact<T>(operation: (cache: Map<string, number>) => CacheResult<T>): T {
-    if (!this.cacheFile) return operation(this.memoryCache).value;
-    const lockFile = `${this.cacheFile}.lock`;
-    const descriptor = acquireLock(lockFile);
-    const cache = readCache(this.cacheFile);
-    const result = operation(cache);
-    if (descriptor === null) return result.value;
-    try {
-      if (result.changed) writeCache(this.cacheFile, cache);
-      return result.value;
-    } finally {
-      releaseLock(lockFile, descriptor);
-    }
+    this.cacheDir = options.cacheDir ?? agentsMdCacheDir(DATA_DIR);
+    this.sessionId = options.sessionId ?? process.env.CORTEX_SESSION_ID;
+    pruneCacheDir(this.cacheDir);
   }
 
   buildBlocks(device: string, entries: AgentsMDEntry[], markOnlyPaths?: Set<string>): AgentsMDBlock[] {
     if (!entries || entries.length === 0) return [];
-    return this.transact((cache) => {
-      const blocks: AgentsMDBlock[] = [];
+    const keyOf = (entry: AgentsMDEntry) => agentsMdCacheKey(entry.deviceId?.trim() || device, entry.path);
+    return withAgentsMdCache(this.cacheDir, this.sessionId, (cache) => {
       let changed = false;
+      const fresh: AgentsMDEntry[] = [];
       for (const entry of entries) {
-        const key = cacheKey(device, entry);
-        if (cache.get(key) === entry.mtimeMs) continue;
-        cache.set(key, entry.mtimeMs);
-        changed = true;
-        if (markOnlyPaths?.has(entry.path)) continue;
-        blocks.push({ type: 'text', text: this.formatBlock(device, entry) });
+        if (cache.get(keyOf(entry)) === entry.mtimeMs) continue;
+        if (markOnlyPaths?.has(entry.path)) {
+          cache.set(keyOf(entry), entry.mtimeMs);
+          changed = true;
+        } else {
+          fresh.push(entry);
+        }
       }
-      return { value: blocks, changed };
-    });
+      const { included, blocks, truncated } = selectWithinBudget(fresh, (entry) => this.formatBlock(device, entry));
+      for (const entry of included) {
+        cache.set(keyOf(entry), entry.mtimeMs);
+        changed = true;
+      }
+      const texts = truncated.length > 0
+        ? [...blocks, overflowNotice(truncated.map((entry) => `${device}:${entry.path}`))]
+        : blocks;
+      return { value: texts.map((text): AgentsMDBlock => ({ type: 'text', text })), changed };
+    }, this.memoryCache);
   }
 
   private formatBlock(device: string, entry: AgentsMDEntry): string {

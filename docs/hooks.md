@@ -309,7 +309,11 @@ plain text) to stdout. The scripts shipped with Cortex are:
 A declaration may run an inline `run.command` instead of a script.
 
 `cortex-hook-api.mjs` in the same directory is not a hook entry — it is a helper
-library that hook scripts import (see below).
+library that hook scripts import (see below). `cortex-context-lib.mjs` is not one
+either: it holds the AGENTS.md dedup cache, the inline size budget and the rules
+`paths:` parser shared by `agents-md-injector.mjs`, `rules-loader.mjs` and the
+server, so the hooks and the MCP-side injection of remote AGENTS.md files read
+and write the same per-session cache.
 
 ## Asking the user from a hook
 
