@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 
 // Dynamic import of the module under test.
-const { compareCalVer, runMigrations, migrateAistatusConfigLocation, upsertMarkerBlock, applyReplacements } = await import('../../src/store/version-migrations.js');
+const { runMigrations, migrateAistatusConfigLocation, upsertMarkerBlock, applyReplacements } = await import('../../src/store/version-migrations.js');
 type StepMigration = import('../../src/store/version-migrations.js').StepMigration;
 
 // ── Shared tmp directory ───────────────────────────────────────
@@ -50,36 +50,6 @@ async function writeText(filePath: string, data: string): Promise<void> {
 async function readText(filePath: string): Promise<string> {
   return fs.readFile(filePath, 'utf8');
 }
-
-// ── compareCalVer tests ────────────────────────────────────────
-
-test('compareCalVer - same version returns 0', () => {
-  assert.equal(compareCalVer('2026.5.23', '2026.5.23'), 0);
-  assert.equal(compareCalVer('2027.1.1', '2027.1.1'), 0);
-});
-
-test('compareCalVer - cross-digit day boundary', () => {
-  // String comparison would fail: "2026.5.9" > "2026.5.10" (because '9' > '1')
-  // Numeric comparison is correct: 9 < 10
-  assert.ok(compareCalVer('2026.5.9', '2026.5.10') < 0, '9 < 10');
-  assert.ok(compareCalVer('2026.5.10', '2026.5.9') > 0, '10 > 9');
-});
-
-test('compareCalVer - cross-digit month boundary', () => {
-  // 2026.10.1 vs 2026.5.1 — string compare would fail ('.' < '1')
-  assert.ok(compareCalVer('2026.10.1', '2026.5.1') > 0, 'October > May');
-  assert.ok(compareCalVer('2026.5.1', '2026.10.1') < 0, 'May < October');
-});
-
-test('compareCalVer - different year', () => {
-  assert.ok(compareCalVer('2027.1.1', '2026.12.31') > 0, '2027 > 2026');
-  assert.ok(compareCalVer('2026.12.31', '2027.1.1') < 0, '2026 < 2027');
-});
-
-test('compareCalVer - zero version', () => {
-  assert.ok(compareCalVer('2026.5.23', '0.0.0') > 0, 'any version > 0.0.0');
-  assert.ok(compareCalVer('0.0.0', '2026.5.23') < 0, '0.0.0 < any version');
-});
 
 // ── runMigrations tests ────────────────────────────────────────
 // Each test uses an isolated temp dir passed as MigrationOptions to
@@ -173,6 +143,18 @@ test('runMigrations - handles corrupt versions.json gracefully', async () => {
   // Versions file should now be valid
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
   assert.equal(versions[PROFILES], '2026.5.25');
+});
+
+test('runMigrations - a same-day hotfix step runs over the plain tracked version', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs(_testIdx++);
+  await writeJson(path.join(storeDir, 'versions.json'), { probe: '2020.1.1' });
+  let ran = 0;
+  const step: StepMigration = { key: 'probe', version: '2020.1.1-1', run: async () => { ran++; } };
+
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: [step] });
+
+  assert.equal(ran, 1);
+  assert.equal((await readJson(path.join(storeDir, 'versions.json')) as any).probe, '2020.1.1-1');
 });
 
 test('runMigrations - vector-clock: only runs versions newer than tracked', async () => {

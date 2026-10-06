@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
-import { compareCalVer } from './version-migrations.js';
+import { compareCalVer } from '@core/calver.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('plugin-sync');
@@ -53,7 +53,7 @@ export async function pruneRetiredPluginPaths(dstDir: string): Promise<string[]>
 }
 
 /** Parse the `version` field from a plugin.json manifest string, or null if absent/malformed.
- *  compareCalVer is a generic numeric dotted-version comparator, so plain semver ("0.1.0") works. */
+ *  compareCalVer compares numeric dotted versions plus an optional -N suffix, so plain semver ("0.1.0") works. */
 export function parsePluginVersion(manifestJson: string): string | null {
   try {
     const parsed = JSON.parse(manifestJson);

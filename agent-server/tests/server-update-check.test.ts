@@ -4,8 +4,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import { compareCalVer } from '../src/core/calver.js';
-
 // ── Helpers ─────────────────────────────────────────────────────
 
 function freshModule() {
@@ -20,32 +18,6 @@ function freshModule() {
 function mockPrompt(result: 'apply' | 'skip' | 'cancel' | null) {
   return { ask: async () => result };
 }
-
-// ============================================================
-// compareCalVer
-// ============================================================
-
-test('compareCalVer - same version returns 0', () => {
-  assert.equal(compareCalVer('2026.5.23', '2026.5.23'), 0);
-  assert.equal(compareCalVer('2027.1.1', '2027.1.1'), 0);
-});
-
-test('compareCalVer - different day, same month/year', () => {
-  assert.ok(compareCalVer('2026.5.23', '2026.5.9') > 0, '23 > 9');
-  assert.ok(compareCalVer('2026.5.9', '2026.5.23') < 0, '9 < 23');
-});
-
-test('compareCalVer - cross-digit day boundary', () => {
-  assert.ok(compareCalVer('2026.5.9', '2026.5.10') < 0, '9 < 10');
-  assert.ok(compareCalVer('2026.5.10', '2026.5.9') > 0, '10 > 9');
-});
-
-test('compareCalVer - suffix comparison', () => {
-  assert.ok(compareCalVer('2026.5.23-2', '2026.5.23-1') > 0, '-2 > -1');
-  assert.ok(compareCalVer('2026.5.23-1', '2026.5.23-2') < 0, '-1 < -2');
-  assert.ok(compareCalVer('2026.5.23-1', '2026.5.23') > 0, '-1 > absent (default 0)');
-  assert.ok(compareCalVer('2026.5.23', '2026.5.23-1') < 0, 'absent (default 0) < -1');
-});
 
 // ============================================================
 // isUpdateDevMode

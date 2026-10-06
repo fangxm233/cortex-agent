@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import { createHash } from 'node:crypto';
 import { CORTEX_VERSION, CORTEX_DOCS_URL } from '@core/version.js';
 import { DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
+import { compareCalVer } from '@core/calver.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
@@ -16,26 +17,6 @@ import {
 } from './prompt-migration-replacements.js';
 
 const log = createLogger('version-migrations');
-
-// ── CalVer comparison ──────────────────────────────────────────
-// CalVer format: YYYY.M.D (no zero-padding, e.g. 2026.5.23).
-// String comparison fails on cross-digit boundaries (2026.5.9 vs 2026.5.23)
-// so we parse into numeric components and compare element-wise.
-// Returns negative if a < b, positive if a > b, 0 if equal.
-
-/** Strip -N suffix from CalVer strings so that "2026.5.24-1" → "2026.5.24". */
-function stripSuffix(v: string): string {
-  const dash = v.indexOf('-');
-  return dash === -1 ? v : v.slice(0, dash);
-}
-
-export function compareCalVer(a: string, b: string): number {
-  const [aYear, aMonth, aDay] = stripSuffix(a).split('.').map(Number);
-  const [bYear, bMonth, bDay] = stripSuffix(b).split('.').map(Number);
-  if (aYear !== bYear) return aYear - bYear;
-  if (aMonth !== bMonth) return aMonth - bMonth;
-  return aDay - bDay;
-}
 
 // ── Migration type ─────────────────────────────────────────────
 

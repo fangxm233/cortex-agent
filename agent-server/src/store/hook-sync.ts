@@ -5,7 +5,7 @@ import { atomicWrite } from '@core/atomic-write.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry } from './hook-registry.js';
-import { compareCalVer } from './version-migrations.js';
+import { compareCalVer } from '@core/calver.js';
 
 const log = createLogger('hook-sync');
 const VERSION_MARKER_RE = /@cortex-hook-version\s+(\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?)/;

@@ -46,6 +46,18 @@ test('(b) refreshes a deployed hook when the shipped version is newer', async (t
   assert.ok((await fs.readFile(path.join(dst, 'h.mjs'), 'utf8')).includes('NEW'), 'destination now has new code');
 });
 
+test('(b2) refreshes a deployed hook when the shipped version is a same-day hotfix', async (t) => {
+  const { src, dst, cleanup } = await mkdirs();
+  t.onTestFinished(cleanup);
+  await fs.writeFile(path.join(src, 'h.mjs'), stamped('2026.6.8-1', 'export const HOTFIX = 1;'));
+  await fs.writeFile(path.join(dst, 'h.mjs'), stamped('2026.6.8', 'export const OLD = 1;'));
+
+  const updated = await syncManagedHookScripts({ srcDir: src, dstDir: dst });
+
+  assert.deepEqual(updated, ['h.mjs']);
+  assert.ok((await fs.readFile(path.join(dst, 'h.mjs'), 'utf8')).includes('HOTFIX'), 'hotfix deployed');
+});
+
 test('(c) brings a legacy UNstamped deployed hook under management (counts as oldest)', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
   t.onTestFinished(cleanup);

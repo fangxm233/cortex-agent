@@ -61,6 +61,18 @@ test('(b) refreshes an updated skill when the shipped version is newer', async (
   assert.equal(await readSkill(dst, 'cortex-x'), 'NEW skill', 'deployed skill refreshed');
 });
 
+test('(b2) refreshes a deployed plugin when the shipped version is a hotfix of the same version', async (t) => {
+  const { src, dst, cleanup } = await mkdirs();
+  t.onTestFinished(cleanup);
+  await writePlugin(src, 'cortex-x', '0.2.0-1', 'HOTFIX skill');
+  await writePlugin(dst, 'cortex-x', '0.2.0', 'OLD skill');
+
+  const updated = await syncManagedPlugins({ srcDir: src, dstDir: dst });
+
+  assert.deepEqual(updated, ['cortex-x']);
+  assert.equal(await readSkill(dst, 'cortex-x'), 'HOTFIX skill', 'hotfix deployed');
+});
+
 test('(c) brings a legacy UNversioned deployed plugin under management (counts as oldest)', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
   t.onTestFinished(cleanup);
