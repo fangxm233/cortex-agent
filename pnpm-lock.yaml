@@ -136,6 +136,9 @@ importers:
         specifier: ^2.12.1
         version: 2.12.1
     devDependencies:
+      '@cortex-agent/web':
+        specifier: workspace:*
+        version: link:../web
       '@tauri-apps/cli':
         specifier: ^2.12.1
         version: 2.12.1
