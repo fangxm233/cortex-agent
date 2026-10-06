@@ -1,7 +1,7 @@
 name: Check
 
-# Fast static checks on every push to main and every pull request: types, layer rules and the
-# desktop native command contract. The full test suites stay local.
+# Every push to main and every pull request: static checks (types, layer rules) and the three test
+# suites, as parallel jobs. Benchmark tests that need Docker or the real vendor CLIs stay local.
 on:
   push:
     branches:
@@ -15,9 +15,14 @@ concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The engines floor in package.json, so CI proves the oldest Node the packages claim to support.
+  NODE_VERSION: "22.19"
+
 jobs:
-  check:
+  check:   # job id kept: it is the status-check name branch protection may require
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -47,5 +52,81 @@ jobs:
           pnpm -C web typecheck
           pnpm -C web depcruise
 
-      - name: Native command contract
-        run: pnpm -C web exec vitest run src/lib/native-bridge.contract.test.ts
+  server-tests:
+    name: Server tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Fork-pool size; the runner has 4 cores and the script's default of 16 is sized for a big box.
+      CORTEX_TEST_CONCURRENCY: "4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit and integration suites
+        # Seeds a throwaway CORTEX_HOME, then runs both unit shards and the integration suite.
+        run: pnpm -C agent-server test:quick
+
+  web-tests:
+    name: Web tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CORTEX_TEST_CONCURRENCY: "4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Vitest
+        # Includes the native command contract test, which reads desktop/ sources directly.
+        run: pnpm -C web exec vitest run
+
+  benchmark-tests:
+    name: Benchmark harness tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: benchmark/harness
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          working-directory: benchmark/harness
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Pytest
+        # Container tests are gated on CORTEX_BENCH_DOCKER_TESTS=1 and skip without it. The
+        # vendor_cli tests drive the real claude/pi/codex CLIs, which the runner does not have.
+        run: uv run --frozen pytest -m "not vendor_cli"
