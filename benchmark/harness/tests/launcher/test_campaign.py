@@ -1174,7 +1174,7 @@ def test_a_trial_reuses_a_slot_once_the_previous_trial_released_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Four trials over two slots: a slot's subnet has to be usable again after its network went."""
-    recorder = RecordingTrialPath().install(monkeypatch)
+    RecordingTrialPath().install(monkeypatch)
     document = campaign_document(tmp_path, concurrency=2)
 
     status, result, _ = run_cli(
@@ -1962,7 +1962,7 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
         document["revocation"]["diagnostic_path"] = f"{private_home}/route.json"
         return document
 
-    recorder = RecordingTrialPath(
+    RecordingTrialPath(
         failures=(harness_incomplete,), envelope_mutation=mutate,
         spends={harness_incomplete: 2},
         results={agent_failed: RecordingResult(

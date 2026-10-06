@@ -52,7 +52,6 @@ from .host_finalization import (
 from .launcher.trial_proxy import TrialProxySession
 from .manifest import (
     MANIFEST_FILENAME,
-    HarnessManifestSeed,
     build_harness_manifest,
     parse_manifest_seed,
     write_harness_manifest,

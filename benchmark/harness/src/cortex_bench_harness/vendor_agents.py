@@ -32,7 +32,7 @@ from .launcher.runtime_mounts import (
     runtime_agent_command,
     runtime_link_command,
 )
-from .launcher.trial_seed import TrialSeed, parse_trial_seed
+from .launcher.trial_seed import parse_trial_seed
 from .manifest import MANIFEST_FILENAME, SCHEMA_VERSION
 from .scan.models import ArtifactInventory, ScanPolicy
 from .trial_lifecycle import TrialLifecycle, consume_host_credential

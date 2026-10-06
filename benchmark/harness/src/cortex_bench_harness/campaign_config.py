@@ -54,7 +54,7 @@ from .launcher.runtime_mounts import (
     resolve_runtime_mounts,
     runtime_target,
 )
-from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
+from .launcher.trial_proxy import parse_trial_proxy_spec
 
 CAMPAIGN_SCHEMA_VERSION = "cortex-bench-campaign/1"
 # Campaign, arm and task identifiers become one Harbor trial id, which is a container hostname.

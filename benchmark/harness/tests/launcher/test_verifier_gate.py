@@ -290,7 +290,7 @@ def test_a_campaign_still_declaring_an_unrunnable_task_is_refused(tmp_path: Path
     config = gated_campaign(tmp_path, [])
     config = gated_campaign(tmp_path, [config.tasks[0].task_id])
 
-    with pytest.raises(bench.BenchError) as error:
+    with pytest.raises(bench.BenchError):
         bench.check_verifier_gate(config)
 
 

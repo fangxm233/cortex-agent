@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
-from cortex_bench_harness.launcher import trial_proxy
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
     CODEX_CLI_CAPABILITY_KEY,
