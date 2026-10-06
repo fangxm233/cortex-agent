@@ -24,7 +24,6 @@ function LocalNotificationControls() {
       {state.permission === 'default' && <SButton tone="neutral" data-allow-notifications disabled={!state.enabled || state.pending}
         onClick={() => { void state.allow(); }}>{L.notifAllow}</SButton>}
     </div>
-    {isDesktopShell() && <div style={{ fontSize: 11, color: 'var(--proto-muted-2)', marginTop: 6 }}>{L.notifNativeNote}</div>}
   </section>;
 }
 
