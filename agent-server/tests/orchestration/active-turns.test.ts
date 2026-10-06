@@ -1,0 +1,48 @@
+// Supersede state is covered through the ActiveTurns methods, not through the edit-to-terminal
+// call path.
+import { test, beforeEach } from 'vitest';
+import assert from 'node:assert/strict';
+
+import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
+
+beforeEach(() => activeTurns._reset());
+
+test('streaming slot set / get / release', () => {
+  assert.equal(activeTurns.streamingCallback('web:abc'), null);
+
+  const cb = (text: string) => { void text; };
+  activeTurns.setStreamingCallback('web:abc', cb);
+  assert.equal(activeTurns.streamingCallback('web:abc'), cb);
+
+  activeTurns.releaseStreamingCallback('web:abc', cb);
+  assert.equal(activeTurns.streamingCallback('web:abc'), null);
+});
+
+test('releaseStreamingCallback is scoped to the registering callback', () => {
+  const held = (text: string) => { void text; };
+  const successor = (text: string) => { void text; };
+  activeTurns.setStreamingCallback('slack:D1', held);
+
+  // The next turn claimed the channel before the previous turn's background hold sealed.
+  activeTurns.setStreamingCallback('slack:D1', successor);
+  assert.equal(activeTurns.releaseStreamingCallback('slack:D1', held), false,
+    'the old hold no longer owns the slot, so its seal releases nothing');
+  assert.equal(activeTurns.streamingCallback('slack:D1'), successor, 'the successor keeps streaming');
+
+  assert.equal(activeTurns.releaseStreamingCallback('slack:D1', successor), true);
+  assert.equal(activeTurns.streamingCallback('slack:D1'), null);
+  assert.equal(activeTurns.releaseStreamingCallback('slack:D1', successor), false,
+    'releasing an empty slot reports nothing to release');
+});
+
+test('markSuperseded / isSuperseded / clearSuperseded are per channel and per reason', () => {
+  assert.equal(activeTurns.isSuperseded('web:a', 'edit'), false);
+
+  activeTurns.markSuperseded('web:a', 'edit');
+  assert.equal(activeTurns.isSuperseded('web:a', 'edit'), true);
+  assert.equal(activeTurns.isSuperseded('web:b', 'edit'), false);
+
+  assert.equal(activeTurns.clearSuperseded('web:a', 'edit'), true);
+  assert.equal(activeTurns.isSuperseded('web:a', 'edit'), false);
+  assert.equal(activeTurns.clearSuperseded('web:a', 'edit'), false, 'clearing twice reports nothing to clear');
+});

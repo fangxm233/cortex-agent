@@ -1,6 +1,3 @@
-//
-// Moved out of tests/runs/registry.test.ts by T2.1 (the code moved out of RunRegistry).
-// Assertions unchanged.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

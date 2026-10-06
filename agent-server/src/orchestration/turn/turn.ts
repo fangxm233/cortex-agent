@@ -216,7 +216,7 @@ export class Turn {
     // 3. Superseded while the ledger turn was still pending: the edit that replaced this message
     //    already killed nothing (there is no run yet), so the turn simply stops here. Deliberately
     //    OUTSIDE the try/finally below — no running:true was published, so there is no bracket to
-    //    close and no status to seal (characterized by tests/orch/turn-golden.test.ts).
+    //    close and no status to seal (see tests/orchestration/turn-tracking.test.ts).
     if (opensTracking && this.trackingToken && consumePendingTurnSupersession(channel, this.trackingToken)) {
       finishTurnTracking(channel, this.trackingToken);
       return;

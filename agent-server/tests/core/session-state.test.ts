@@ -1,6 +1,4 @@
-//
-// Moved out of tests/runs/registry.test.ts by T2.1: `sessionState` is no longer a RunRegistry
-// method, so these drive the singletons the function reads. Assertions unchanged.
+// `sessionState` is a free function, so these drive the singletons it reads.
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 

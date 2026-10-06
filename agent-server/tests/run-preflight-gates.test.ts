@@ -19,7 +19,7 @@ import type { AgentResult } from '../src/core/types/agent-types.js';
 import type { RunRequest, RunObserver } from '../src/domain/runs/request.js';
 import type { RunEvent } from '../src/domain/runs/events.js';
 import type { RunAttempt } from '../src/domain/runs/attempt.js';
-import { loadThrottleHome } from './runs/throttle-fixture.js';
+import { loadThrottleHome } from './domain/runs/throttle-fixture.js';
 
 const attempt = vi.hoisted(() => ({ startAttempt: vi.fn() }));
 
