@@ -15,6 +15,7 @@ from harbor.trial.hooks import TrialEvent
 from harbor.trial.trial import Trial
 
 import cortex_bench_harness.host_finalization as finalization
+import cortex_bench_harness.trial_lifecycle as trial_lifecycle
 import cortex_bench_harness.vendor_agents as vendor_agents
 from cortex_bench_harness import campaign
 from cortex_bench_harness.host_finalization import OUTER_ENVELOPE_FILENAME
@@ -180,8 +181,8 @@ def _install_first_cli_observer(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _track_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     counts = {"arm": 0, "revoke": 0}
-    original_arm = vendor_agents.arm_trial_proxy
-    original_revoke = vendor_agents.revoke_trial_proxy
+    original_arm = trial_lifecycle.arm_trial_proxy
+    original_revoke = trial_lifecycle.revoke_trial_proxy
 
     def arm(*args: object, **kwargs: object) -> object:
         counts["arm"] += 1
@@ -191,8 +192,8 @@ def _track_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
         counts["revoke"] += 1
         return original_revoke(*args, **kwargs)
 
-    monkeypatch.setattr(vendor_agents, "arm_trial_proxy", arm)
-    monkeypatch.setattr(vendor_agents, "revoke_trial_proxy", revoke)
+    monkeypatch.setattr(trial_lifecycle, "arm_trial_proxy", arm)
+    monkeypatch.setattr(trial_lifecycle, "revoke_trial_proxy", revoke)
     return counts
 
 

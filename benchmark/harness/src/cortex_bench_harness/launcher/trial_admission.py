@@ -9,7 +9,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, override
+from typing import Any, Protocol, override, runtime_checkable
 from urllib.parse import urlsplit
 
 from harbor.environments.base import ExecResult
@@ -36,12 +36,17 @@ from harbor.models.trial.config import (
 from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
 from harbor.trial.trial import Trial
 
-from ..container_boundary import ContainerBoundaryProbe, ContainerBoundaryUnproven
+from ..container_boundary import (
+    ContainerBoundaryObservation,
+    ContainerBoundaryProbe,
+    ContainerBoundaryUnproven,
+)
 from ..vendor_agents import VENDOR_FIXED_ENVIRONMENT
 from .trial_seed import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import VENDOR_AGENTS, arm_backend, build_agent_config, require_pinned_image
 from .runtime_mounts import RUNTIME_TARGETS
+from .trial_proxy import TrialProxySession
 from .network_policy import (
     METADATA_HOSTS,
     MODE_OPEN,
@@ -111,6 +116,29 @@ SENSITIVE_HOME_PATHS = (
 class VendorRuntimeProjection:
     vendor_agent: str
     environment: Mapping[str, str]
+
+
+class TrialProxyController(Protocol):
+    """The trial's agent, as the admitted environment drives its credential route: armed once the
+    final inputs are admitted, revoked on the way down, published after the container stops."""
+
+    @property
+    def post_stop_finalization_pending(self) -> bool: ...
+
+    def arm_admitted_proxy(self) -> TrialProxySession: ...
+
+    def revoke_admitted_proxy(self) -> None: ...
+
+    def finalize_after_container_stop(
+        self, observation: ContainerBoundaryObservation | None,
+    ) -> None: ...
+
+
+@runtime_checkable
+class VendorRuntimeProjector(Protocol):
+    """A vendor agent, which also states the environment its CLI needs to reach the route."""
+
+    def project_vendor_runtime(self, session: object) -> VendorRuntimeProjection: ...
 
 
 def _required_text(values: Mapping[str, object], field: str) -> str:
@@ -1081,14 +1109,14 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         self._admitted_image_ref = _required_text(contract, "image_ref")
         self._sealed_mounts = [dict(mount) for mount in mounts]
         self._evidence_path = trial_paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME
-        self._proxy_controller: Any | None = None
+        self._proxy_controller: TrialProxyController | None = None
         # False for every phase but the one `AdmittedVerifier` opens. See `verifier_phase`.
         self._verifier_phase = False
         # Filled by `_validate_image_configuration`, which runs before anything is armed. Empty
         # until then, and empty for an image that declares no environment of its own.
         self._image_environment: dict[str, str] = {}
 
-    def bind_proxy_controller(self, controller: object) -> None:
+    def bind_proxy_controller(self, controller: TrialProxyController) -> None:
         if self._proxy_controller is not None:
             raise HarborTrialAdmissionError("trial proxy controller is already bound")
         self._proxy_controller = controller
@@ -1177,10 +1205,10 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         raise HarborTrialAdmissionError(f"unsupported vendor agent: {vendor_agent}")
 
     def _project_vendor_runtime(self, session: object) -> VendorRuntimeProjection:
-        project = getattr(self._proxy_controller, "project_vendor_runtime", None)
-        if not callable(project):
+        controller = self._proxy_controller
+        if not isinstance(controller, VendorRuntimeProjector):
             raise HarborTrialAdmissionError("vendor runtime projection is unavailable")
-        projection = project(session)
+        projection = controller.project_vendor_runtime(session)
         if not isinstance(projection, VendorRuntimeProjection):
             raise HarborTrialAdmissionError("vendor runtime projection is invalid")
         if projection.vendor_agent != self._vendor_agent:
@@ -1388,7 +1416,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
     async def _finalize_after_container_stop(self) -> None:
         self._record_verified_host_load()
         controller = self._proxy_controller
-        if controller is None or not getattr(controller, "post_stop_finalization_pending", False):
+        if controller is None or not controller.post_stop_finalization_pending:
             return
         await self._remove_verifier_uvx_alias()
         await self._discard_trial_scratch()

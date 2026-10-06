@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-import cortex_bench_harness.vendor_agents as vendor_agents
+import cortex_bench_harness.trial_lifecycle as trial_lifecycle
 from cortex_bench_harness import campaign
 from cortex_bench_harness.proxy.adapters.openai_codex_responses import JWT_ACCOUNT_CLAIM
 from cortex_bench_harness.vendor_agents import VendorLifecycleMixin
@@ -212,7 +212,8 @@ def _install_environment(monkeypatch: pytest.MonkeyPatch, credential: str) -> No
 
 def _track_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     counts = {"arm": 0, "revoke": 0}
-    original_arm, original_revoke = vendor_agents.arm_trial_proxy, vendor_agents.revoke_trial_proxy
+    original_arm = trial_lifecycle.arm_trial_proxy
+    original_revoke = trial_lifecycle.revoke_trial_proxy
 
     def arm(*args: object, **kwargs: object):
         counts["arm"] += 1
@@ -222,8 +223,8 @@ def _track_routes(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
         counts["revoke"] += 1
         return original_revoke(*args, **kwargs)
 
-    monkeypatch.setattr(vendor_agents, "arm_trial_proxy", arm)
-    monkeypatch.setattr(vendor_agents, "revoke_trial_proxy", revoke)
+    monkeypatch.setattr(trial_lifecycle, "arm_trial_proxy", arm)
+    monkeypatch.setattr(trial_lifecycle, "revoke_trial_proxy", revoke)
     return counts
 
 

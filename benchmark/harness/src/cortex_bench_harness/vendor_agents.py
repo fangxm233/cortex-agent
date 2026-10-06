@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from harbor.agents.installed.base import with_prompt_template
 from harbor.agents.installed.claude_code import ClaudeCode
@@ -18,22 +18,13 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.paths import EnvironmentPaths
 
 from .container_boundary import ContainerBoundaryObservation
-from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .launcher.trial_admission_io import (
     TRIAL_ROOT,
     HarborTrialAdmissionError,
     atomic_write_json,
     validate_admission_environment,
 )
-from .launcher.trial_proxy import (
-    TrialProxySession,
-    TrialRevocation,
-    arm_trial_proxy,
-    capture_trial_inventory,
-    parse_trial_proxy_spec,
-    require_capability_admission,
-    revoke_trial_proxy,
-)
+from .launcher.trial_proxy import TrialProxySession, TrialRevocation
 from .launcher.runtime_mounts import (
     RuntimeMountError,
     arm_runtime_names,
@@ -43,6 +34,10 @@ from .launcher.runtime_mounts import (
 from .launcher.trial_seed import TrialSeed, parse_trial_seed
 from .manifest import MANIFEST_FILENAME, SCHEMA_VERSION
 from .scan.models import ArtifactInventory, ScanPolicy
+from .trial_lifecycle import TrialLifecycle, consume_host_credential
+
+if TYPE_CHECKING:
+    from .launcher.trial_admission import VendorRuntimeProjection
 
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
 PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
@@ -131,40 +126,53 @@ class VendorLifecycleMixin:
     ) -> None:
         self._initialize_vendor_lifecycle(
             artifact_dir, manifest, trial_seed, trial_proxy, host_scan_policy,
-            admission_environment_digest, defer_proxy_arm, credential_handle,
-            extra_env,
+            admission_environment_digest, credential_handle, extra_env,
         )
         self._verifier_dir = Path(logs_dir).parent / EnvironmentPaths().verifier_dir.name
         super().__init__(
             logs_dir, *args, version=version, extra_env=extra_env, **kwargs,
         )
-        self._arm_unsealed_proxy_if_requested()
+        if self._lifecycle is not None and not defer_proxy_arm:
+            self._lifecycle.arm()
 
     def _initialize_vendor_lifecycle(
         self, artifact_dir: Path | str | None, manifest: Mapping[str, object] | None,
         trial_seed: Mapping[str, object] | None,
         trial_proxy: Mapping[str, object] | None,
         host_scan_policy: Mapping[str, object] | None,
-        expected_environment_digest: str | None, defer_proxy_arm: bool,
+        expected_environment_digest: str | None,
         credential_handle: str | None, extra_env: Mapping[str, str] | None,
     ) -> None:
         validate_admission_environment(extra_env, expected_environment_digest)
-        self._artifact_dir = Path(artifact_dir) if artifact_dir is not None else None
         self._manifest = dict(manifest or {})
         self._trial_seed = parse_trial_seed(trial_seed) if trial_seed is not None else None
-        self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
         self._host_scan_policy = self._parse_scan_policy(host_scan_policy)
-        self._proxy_arm_deferred = defer_proxy_arm
-        self._proxy_session: TrialProxySession | None = None
-        self._captured_inventory: ArtifactInventory | None = None
-        self._revocation: TrialRevocation | None = None
-        self._revoked = False
         self._setup_complete = False
         self._vendor_execution_active = False
         self._vendor_process_token = secrets.token_hex(16)
-        self._post_stop_finalization_pending = False
-        self._host_credential = self._consume_credential(credential_handle)
-        self._validate_lifecycle_inputs()
+        host_credential = consume_host_credential(credential_handle, self._trial_seed)
+        self._lifecycle = self._configured_lifecycle(
+            Path(artifact_dir) if artifact_dir is not None else None,
+            trial_proxy, host_credential,
+        )
+
+    def _configured_lifecycle(
+        self, artifact_dir: Path | None, trial_proxy: Mapping[str, object] | None,
+        host_credential: str | None,
+    ) -> TrialLifecycle | None:
+        """The trial's route, or None for a vendor agent Harbor runs outside a campaign trial."""
+        if not any((artifact_dir, self._trial_seed, trial_proxy)):
+            return None
+        if artifact_dir is None or self._trial_seed is None:
+            raise HarborTrialAdmissionError(
+                "vendor lifecycle requires artifact_dir and trial_seed"
+            )
+        if trial_proxy is None:
+            raise HarborTrialAdmissionError("vendor lifecycle requires a trial proxy")
+        return TrialLifecycle(
+            artifact_dir=artifact_dir, seed=self._trial_seed, trial_proxy=trial_proxy,
+            host_credential=host_credential,
+        )
 
     @staticmethod
     def _parse_scan_policy(source: Mapping[str, object] | None) -> ScanPolicy | None:
@@ -174,65 +182,17 @@ class VendorLifecycleMixin:
 
         return parse_host_scan_policy(source)
 
-    def _consume_credential(self, credential_handle: str | None) -> str | None:
-        if credential_handle is None:
-            return None
-        if self._trial_seed is None:
-            raise HarborTrialAdmissionError("credential handle requires a trial seed")
-        require_capability_admission(
-            self._trial_seed.arm, paid_run=self._trial_seed.paid_run,
-        )
-        return HOST_CREDENTIAL_VAULT.consume(credential_handle)
-
-    def _validate_lifecycle_inputs(self) -> None:
-        configured = any((self._artifact_dir, self._trial_seed, self._deferred_proxy))
-        if not configured:
-            return
-        if self._artifact_dir is None or self._trial_seed is None:
-            raise HarborTrialAdmissionError(
-                "vendor lifecycle requires artifact_dir and trial_seed"
-            )
-        if self._deferred_proxy is None:
-            raise HarborTrialAdmissionError("vendor lifecycle requires a trial proxy")
-
-    def _arm_unsealed_proxy_if_requested(self) -> None:
-        if self._trial_seed is None or self._proxy_arm_deferred:
-            return
-        try:
-            self._proxy_session = self._arm_proxy()
-        finally:
-            self._host_credential = None
-
-    def _arm_proxy(self) -> TrialProxySession:
-        if self._trial_seed is None or self._artifact_dir is None:
-            raise HarborTrialAdmissionError("vendor trial proxy is not configured")
-        if self._deferred_proxy is None:
-            raise HarborTrialAdmissionError("vendor trial proxy is unavailable")
-        return arm_trial_proxy(
-            arm=self._trial_seed.arm,
-            trial_id=self._trial_seed.trial_id,
-            upstream_base_url=str(self._trial_seed.credential["upstream_base_url"]),
-            spec=parse_trial_proxy_spec(self._deferred_proxy),
-            proxy_dir=self._artifact_dir / "proxy",
-            trial_roots=(self._artifact_dir,),
-            host_credential=self._host_credential,
-            paid_run=self._trial_seed.paid_run,
-        )
-
     def arm_admitted_proxy(self) -> TrialProxySession:
-        if not self._proxy_arm_deferred:
-            raise HarborTrialAdmissionError("vendor proxy is not awaiting admission")
-        try:
-            session = self._arm_proxy()
-        finally:
-            self._host_credential = None
-        self._proxy_session = session
-        self._proxy_arm_deferred = False
-        self._deferred_proxy = None
-        return session
+        if self._lifecycle is None:
+            raise HarborTrialAdmissionError("vendor trial proxy is not configured")
+        return self._lifecycle.arm_admitted()
 
-    def project_vendor_runtime(self, session: object) -> object:
-        if session is not self._proxy_session:
+    @property
+    def proxy_session(self) -> TrialProxySession | None:
+        return self._lifecycle.proxy_session if self._lifecycle is not None else None
+
+    def project_vendor_runtime(self, session: object) -> "VendorRuntimeProjection":
+        if session is not self.proxy_session:
             raise HarborTrialAdmissionError("vendor projection names another proxy session")
         from .launcher.trial_admission import VendorRuntimeProjection
 
@@ -252,33 +212,22 @@ class VendorLifecycleMixin:
 
     @property
     def post_stop_finalization_pending(self) -> bool:
-        return self._post_stop_finalization_pending
+        return self._lifecycle is not None and self._lifecycle.finalization_pending
 
     @property
     def captured_inventory(self) -> ArtifactInventory | None:
-        return self._captured_inventory
+        return self._lifecycle.captured_inventory if self._lifecycle is not None else None
 
     @property
     def revocation(self) -> TrialRevocation | None:
-        return self._revocation
-
-    def _capture_inventory(self) -> ArtifactInventory:
-        self._captured_inventory = capture_trial_inventory(
-            sources={}, session=self._proxy_session,
-            trial_roots=(self._artifact_dir,) if self._artifact_dir is not None else (),
-        )
-        return self._captured_inventory
+        return self._lifecycle.revocation if self._lifecycle is not None else None
 
     def revoke_admitted_proxy(self) -> None:
-        if self._proxy_session is None or self._revoked:
-            return
-        self._revoked = True
-        self._revocation = revoke_trial_proxy(
-            self._proxy_session, capture_inventory=self._capture_inventory,
-        )
+        if self._lifecycle is not None:
+            self._lifecycle.revoke()
 
     def _proxy_values(self) -> tuple[str, str]:
-        handle = getattr(self._proxy_session, "handle", None)
+        handle = getattr(self.proxy_session, "handle", None)
         base_url = getattr(handle, "base_url", None)
         dummy_token = getattr(handle, "dummy_token", None)
         if not isinstance(base_url, str) or not base_url:
@@ -454,21 +403,21 @@ class VendorLifecycleMixin:
             raise
 
     def _write_vendor_manifest(self) -> None:
-        if self._artifact_dir is None or self._trial_seed is None:
+        if self._lifecycle is None:
             return
-        task = self._trial_seed.task
+        task = self._lifecycle.seed.task
         document = {
             "schema_version": SCHEMA_VERSION,
-            "root_run_id": self._trial_seed.root_run_id,
-            "trial_id": self._trial_seed.trial_id,
-            "arm": self._trial_seed.arm["name"],
+            "root_run_id": self._lifecycle.seed.root_run_id,
+            "trial_id": self._lifecycle.seed.trial_id,
+            "arm": self._lifecycle.seed.arm["name"],
             "container": {
                 "image_ref": task["image_ref"], "image_digest": task["image_digest"],
                 "image_size_bytes": self._manifest.get("image_size_bytes"),
             },
             "vendor_cli": {"name": self.VENDOR_AGENT, "version": self._version},
         }
-        atomic_write_json(self._artifact_dir / MANIFEST_FILENAME, document)
+        atomic_write_json(self._lifecycle.artifact_dir / MANIFEST_FILENAME, document)
 
     def _staged_runtime_names(self) -> tuple[str, ...]:
         if self._trial_seed is None:
@@ -556,7 +505,7 @@ class VendorLifecycleMixin:
         await super().run(instruction, environment, context)
 
     def _finish_vendor_run(self, failed: bool) -> None:
-        if self._trial_seed is None:
+        if self._lifecycle is None:
             if failed:
                 self.revoke_admitted_proxy()
             return
@@ -567,40 +516,17 @@ class VendorLifecycleMixin:
 
             raise HostFinalizationError("proxy_revocation_uncertain") from error
         if self._setup_complete and self._host_scan_policy is not None:
-            self._post_stop_finalization_pending = True
+            self._lifecycle.finalization_pending = True
 
     def finalize_after_container_stop(
         self, observation: ContainerBoundaryObservation | None,
     ) -> None:
-        if not self._post_stop_finalization_pending:
+        if self._lifecycle is None or not self._lifecycle.record_container_boundary(observation):
             return
-        self._post_stop_finalization_pending = False
-        self._write_container_boundary(observation)
-        self._finalize_outer()
-
-    def _write_container_boundary(
-        self, observation: ContainerBoundaryObservation | None,
-    ) -> None:
-        from .host_finalization import CONTAINER_BOUNDARY_ATTESTATION_FILENAME
-
-        assert self._artifact_dir is not None
-        path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
-        path.unlink(missing_ok=True)
-        if observation is not None and self._trial_seed is not None:
-            atomic_write_json(path, observation.document(self._trial_seed.trial_id))
-
-    def _finalize_outer(self) -> None:
-        from .host_finalization import finalize_host_trial
-
-        assert self._artifact_dir is not None
-        assert self._trial_seed is not None
         assert self._host_scan_policy is not None
-        finalize_host_trial(
+        self._lifecycle.finalize(
             logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
-            artifact_dir=self._artifact_dir, root_run_id=self._trial_seed.root_run_id,
-            trial_id=self._trial_seed.trial_id, arm=self._trial_seed.arm,
-            revocation=self._revocation, scan_policy=self._host_scan_policy,
-            container_logs_dir=EnvironmentPaths().agent_dir, task=self._trial_seed.task,
+            scan_policy=self._host_scan_policy,
         )
 
     async def _exec(

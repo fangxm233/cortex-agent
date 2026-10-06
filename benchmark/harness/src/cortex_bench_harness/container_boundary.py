@@ -9,6 +9,7 @@ from pathlib import Path
 from harbor.environments.base import ExecResult
 
 CommandRunner = Callable[[tuple[str, ...]], Awaitable[ExecResult]]
+CONTAINER_BOUNDARY_ATTESTATION_FILENAME = "cortex-bench-container-boundary-attestation.json"
 NAMESPACE_TARGET = re.compile(r"^pid:\[(\d+)]$")
 
 

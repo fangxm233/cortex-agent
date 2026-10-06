@@ -488,7 +488,7 @@ def test_public_entry_run_does_not_swallow_a_stop_failure(
     calls: list[str] = []
     live = agent.proxy_session
     try:
-        agent._proxy_session = recording_session(tmp_path, calls, stop_error=True)
+        agent._lifecycle.proxy_session = recording_session(tmp_path, calls, stop_error=True)
 
         with pytest.raises(RuntimeError, match="did not stop"):
             asyncio.run(agent.run("Complete the task.", environment, AgentContext()))
@@ -616,7 +616,7 @@ def test_a_route_already_revoked_is_not_revoked_a_second_time(
         asyncio.run(agent.setup(BrokenContainerEnvironment()))
 
     calls: list[str] = []
-    agent._proxy_session = recording_session(tmp_path, calls)
+    agent._lifecycle.proxy_session = recording_session(tmp_path, calls)
     with pytest.raises(RuntimeError, match="setup"):
         asyncio.run(agent.run("Complete the task.", ContainerEnvironment(), AgentContext()))
 

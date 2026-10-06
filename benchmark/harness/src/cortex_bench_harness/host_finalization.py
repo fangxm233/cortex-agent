@@ -23,6 +23,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from .container_boundary import CONTAINER_BOUNDARY_ATTESTATION_FILENAME
 from .launcher.production_home import (
     CONTAINER_HOME_DIR,
     LAUNCH_ATTESTATION_FILENAME,
@@ -48,7 +49,6 @@ from .trial_assets import (
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
 OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/5"
-CONTAINER_BOUNDARY_ATTESTATION_FILENAME = "cortex-bench-container-boundary-attestation.json"
 VERIFIER_ROOT = "verifier"
 VERIFIER_REWARD_JSON = "reward.json"
 VERIFIER_REWARD_TEXT = "reward.txt"

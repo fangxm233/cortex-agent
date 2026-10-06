@@ -35,7 +35,7 @@ from .launcher.trial_admission import (
     HarborTrialAdmissionError,
     trial_scratch_command,
 )
-from .launcher.trial_admission_io import atomic_write_json, validate_admission_environment
+from .launcher.trial_admission_io import validate_admission_environment
 from .launcher.runtime_mounts import (
     RuntimeMountError,
     arm_runtime_names,
@@ -43,24 +43,13 @@ from .launcher.runtime_mounts import (
     runtime_link_command,
 )
 from .launcher.trial_seed import parse_trial_seed
-from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .host_finalization import (
-    CONTAINER_BOUNDARY_ATTESTATION_FILENAME,
     LAUNCH_ATTESTATION_FILENAME,
     HostFinalizationError,
     HostFinalizationResult,
-    finalize_host_trial,
     parse_host_scan_policy,
 )
-from .launcher.trial_proxy import (
-    TrialProxySession,
-    TrialRevocation,
-    arm_trial_proxy,
-    capture_trial_inventory,
-    parse_trial_proxy_spec,
-    require_capability_admission,
-    revoke_trial_proxy,
-)
+from .launcher.trial_proxy import TrialProxySession
 from .manifest import (
     MANIFEST_FILENAME,
     HarnessManifestSeed,
@@ -70,6 +59,7 @@ from .manifest import (
 )
 from .proxy.manifest import fill_proxy_manifest
 from .trial_assets import PRODUCTION_HOME_DIRNAME
+from .trial_lifecycle import TrialLifecycle, consume_host_credential
 from .scan.models import ArtifactInventory, ScanPolicy
 
 PACKAGE_VERSION = "0.1.0"
@@ -179,23 +169,18 @@ class CortexBenchAgent(BaseInstalledAgent):
     ) -> None:
         self._initialize_trial_state(
             artifact_dir, manifest, trial_seed, trial_proxy, host_scan_policy,
-            admission_environment_digest, defer_proxy_arm, extra_env,
-            credential_handle,
+            admission_environment_digest, extra_env, credential_handle,
         )
         super().__init__(logs_dir, *args, version=version, extra_env=extra_env, **kwargs)
         self._verifier_dir = Path(logs_dir).parent / EnvironmentPaths().verifier_dir.name
         # The sealed path defers arming until EnvironmentFactory admits Harbor's final inputs.
-        try:
-            self._proxy_session = None if defer_proxy_arm else self._arm_proxy(trial_proxy)
-        finally:
-            if not defer_proxy_arm:
-                self._host_credential = None
+        if not defer_proxy_arm:
+            self._lifecycle.arm()
 
     def _initialize_trial_state(
         self, artifact_dir: Path | str, manifest: Mapping[str, object],
         trial_seed: Mapping[str, object], trial_proxy: Mapping[str, object] | None,
-        host_scan_policy: Mapping[str, object] | None,
-        environment_hash: str | None, defer_proxy_arm: bool,
+        host_scan_policy: Mapping[str, object] | None, environment_hash: str | None,
         extra_env: Mapping[str, str] | None, credential_handle: str | None,
     ) -> None:
         self._artifact_dir = Path(artifact_dir)
@@ -203,28 +188,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._trial_seed = parse_trial_seed(trial_seed)
         self._validate_trial_seed_binding()
         self._production_arm: ProductionArmBundle = require_production_arm(self._trial_seed.arm)
-        self._host_credential = None
-        if credential_handle is not None:
-            require_capability_admission(
-                self._trial_seed.arm, paid_run=self._trial_seed.paid_run,
-            )
-            self._host_credential = HOST_CREDENTIAL_VAULT.consume(credential_handle)
-        try:
-            self._initialize_admitted_state(
-                trial_proxy, host_scan_policy, environment_hash,
-                defer_proxy_arm, extra_env,
-            )
-        except BaseException:
-            self._host_credential = None
-            raise
-
-    def _initialize_admitted_state(
-        self, trial_proxy: Mapping[str, object] | None,
-        host_scan_policy: Mapping[str, object] | None,
-        environment_hash: str | None, defer_proxy_arm: bool,
-        extra_env: Mapping[str, str] | None,
-    ) -> None:
+        host_credential = consume_host_credential(credential_handle, self._trial_seed)
         validate_admission_environment(extra_env, environment_hash)
+        self._initialize_finalization(host_scan_policy, environment_hash)
         self._resolved_cwd: ResolvedCwd | None = None
         self._npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
@@ -232,11 +198,13 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._materialized_home: MaterializedProductionHome | None = None
         self._production_server_stopped = False
         self._inherited_environment = {**os.environ, **dict(extra_env or {})}
-        self._captured_inventory: ArtifactInventory | None = None
-        self._revocation: TrialRevocation | None = None
-        self._initialize_finalization(host_scan_policy, environment_hash)
-        self._proxy_arm_deferred = defer_proxy_arm
-        self._deferred_proxy = dict(trial_proxy) if trial_proxy is not None else None
+        self._lifecycle = TrialLifecycle(
+            artifact_dir=self._artifact_dir, seed=self._trial_seed, trial_proxy=trial_proxy,
+            host_credential=host_credential, inventory_sources={
+                "manifest": self._artifact_dir / MANIFEST_FILENAME,
+                "launch_attestation": self._artifact_dir / LAUNCH_ATTESTATION_FILENAME,
+            },
+        )
 
     def _initialize_finalization(
         self, policy: Mapping[str, object] | None, environment_hash: str | None,
@@ -246,10 +214,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         )
         if environment_hash is not None and self._host_scan_policy is None:
             raise HarborTrialAdmissionError("sealed trials require a host scan policy")
-        self._revoked = False
         self._outer_publication: HostFinalizationResult | None = None
-        self._post_stop_revocation: TrialRevocation | None = None
-        self._post_stop_finalization_pending = False
 
     @staticmethod
     @override
@@ -259,30 +224,24 @@ class CortexBenchAgent(BaseInstalledAgent):
     @property
     def proxy_session(self) -> TrialProxySession | None:
         """The armed credential route, or None for a trial that declared no proxy."""
-        return self._proxy_session
+        return self._lifecycle.proxy_session
 
     def arm_admitted_proxy(self) -> TrialProxySession:
-        if not self._proxy_arm_deferred or self._deferred_proxy is None:
-            raise HarborTrialAdmissionError("current trial proxy is not awaiting admission")
-        try:
-            session = self._arm_proxy(self._deferred_proxy)
-        finally:
-            self._host_credential = None
-        if session is None:
-            raise HarborTrialAdmissionError("current trial proxy could not be armed")
-        self._proxy_session = session
-        self._proxy_arm_deferred = False
-        self._deferred_proxy = None
-        return session
+        return self._lifecycle.arm_admitted()
 
-    def _require_admitted_proxy(self) -> None:
-        if self._proxy_arm_deferred or self._proxy_session is None:
+    def revoke_admitted_proxy(self) -> None:
+        self._lifecycle.revoke()
+
+    def _require_admitted_proxy(self) -> TrialProxySession:
+        session = self._lifecycle.proxy_session
+        if self._lifecycle.awaiting_admission or session is None:
             raise HarborTrialAdmissionError("current trial proxy is not armed")
+        return session
 
     @property
     def captured_inventory(self) -> ArtifactInventory | None:
         """The artifact-dir inventory captured at proxy revocation."""
-        return self._captured_inventory
+        return self._lifecycle.captured_inventory
 
     @property
     def production_server_stopped(self) -> bool:
@@ -290,56 +249,12 @@ class CortexBenchAgent(BaseInstalledAgent):
 
     @property
     def post_stop_finalization_pending(self) -> bool:
-        return self._post_stop_finalization_pending
+        return self._lifecycle.finalization_pending
 
     @property
     def outer_envelope_sha256(self) -> str | None:
         publication = self._outer_publication
         return publication.sha256 if publication is not None else None
-
-    def _arm_proxy(
-        self, trial_proxy: Mapping[str, object] | None,
-    ) -> TrialProxySession | None:
-        if trial_proxy is None:
-            # A paid trial exchanges a real credential, so it may not run without the host route
-            # that keeps that credential out of the container.
-            if self._trial_seed.paid_run:
-                raise ValueError(
-                    "a paid trial requires trial_proxy: the real credential is exchanged on the "
-                    "host and never enters the container")
-            return None
-        return arm_trial_proxy(
-            arm=self._trial_seed.arm, trial_id=self._trial_seed.trial_id,
-            upstream_base_url=str(self._trial_seed.credential["upstream_base_url"]),
-            spec=parse_trial_proxy_spec(trial_proxy),
-            proxy_dir=self._artifact_dir / "proxy",
-            trial_roots=(self._artifact_dir,),
-            host_credential=self._host_credential,
-            paid_run=self._trial_seed.paid_run,
-        )
-
-    def _revoke_proxy(self) -> TrialRevocation | None:
-        """Revoke from whichever lifecycle point ends the trial first, and only once."""
-        if self._proxy_session is None or self._revoked:
-            return self._revocation
-        self._revoked = True
-        self._revocation = revoke_trial_proxy(
-            self._proxy_session, capture_inventory=self._capture_inventory,
-        )
-        return self._revocation
-
-    def revoke_admitted_proxy(self) -> None:
-        self._revoke_proxy()
-
-    def _capture_inventory(self) -> ArtifactInventory:
-        self._captured_inventory = capture_trial_inventory(
-            sources={
-                "manifest": self._artifact_dir / MANIFEST_FILENAME,
-                "launch_attestation": self._artifact_dir / LAUNCH_ATTESTATION_FILENAME,
-            },
-            session=self._proxy_session, trial_roots=(self._artifact_dir,),
-        )
-        return self._captured_inventory
 
     def _validate_trial_seed_binding(self) -> None:
         actual = {
@@ -434,7 +349,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         try:
             await self._install(environment)
         except BaseException:
-            self._revoke_proxy()
+            self._lifecycle.revoke()
             raise
 
     async def _install(self, environment: BaseEnvironment) -> None:
@@ -491,8 +406,9 @@ class CortexBenchAgent(BaseInstalledAgent):
     def _materialize_production_home(self, workspace_cwd: str) -> MaterializedProductionHome:
         assert self._npm_artifact is not None
         assert self._installed_server is not None
-        assert self._proxy_session is not None
-        credential = self._proxy_session.credential_block(self._trial_seed.credential)
+        session = self._lifecycle.proxy_session
+        assert session is not None
+        credential = session.credential_block(self._trial_seed.credential)
         facts = ProductionArmLaunchFacts(
             arm_bundle=self._production_arm,
             trial_id=self._trial_seed.trial_id,
@@ -521,7 +437,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             # Harbor abandons the agent when setup raises and never reaches run(), and a cancelled
             # setup (its timeout) arrives here as a BaseException too. Either way this is the last
             # code of ours that executes, so the route it armed goes down here.
-            self._revoke_proxy()
+            self._lifecycle.revoke()
             raise
 
     async def _setup(self, environment: BaseEnvironment) -> None:
@@ -534,8 +450,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         manifest_path = write_harness_manifest(
             self._artifact_dir, build_harness_manifest(inputs),
         )
-        if self._proxy_session is not None:
-            fill_proxy_manifest(manifest_path, self._proxy_session.handle)
+        session = self._lifecycle.proxy_session
+        if session is not None:
+            fill_proxy_manifest(manifest_path, session.handle)
         self._materialized_home = self._materialize_production_home(resolved_cwd.realpath)
         self._resolved_cwd = resolved_cwd
 
@@ -555,15 +472,14 @@ class CortexBenchAgent(BaseInstalledAgent):
         except Exception as error:
             execution_error = error
         finally:
-            revocation = self._revoke_after_run()
+            self._revoke_after_run()
         if execution_error is not None:
             if self._host_scan_policy is None:
                 raise execution_error
             raise HostFinalizationError("inner_execution_failed") from execution_error
         await self._collect_trial_outputs(environment)
         if self._host_scan_policy is not None:
-            self._post_stop_revocation = revocation
-            self._post_stop_finalization_pending = True
+            self._lifecycle.finalization_pending = True
 
     async def _execute_production_run(
         self, instruction: str, environment: BaseEnvironment,
@@ -597,8 +513,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             self._production_server_stopped = session.stopped_cleanly
 
     def _require_production_proxy_traffic(self) -> None:
-        assert self._proxy_session is not None
-        evidence = self._proxy_session.handle.accounting_export
+        evidence = self._require_admitted_proxy().handle.accounting_export
         requests = evidence.get("requests")
         audit = evidence.get("audit_log")
         count = requests.get("value") if isinstance(requests, Mapping) else None
@@ -616,9 +531,9 @@ class CortexBenchAgent(BaseInstalledAgent):
                 "production PI/DeepSeek route did not reach the trial-scoped proxy"
             )
 
-    def _revoke_after_run(self) -> TrialRevocation | None:
+    def _revoke_after_run(self) -> None:
         try:
-            return self._revoke_proxy()
+            self._lifecycle.revoke()
         except Exception as error:
             if self._host_scan_policy is None:
                 raise
@@ -644,33 +559,17 @@ class CortexBenchAgent(BaseInstalledAgent):
     def finalize_after_container_stop(
         self, observation: ContainerBoundaryObservation | None,
     ) -> None:
-        """Record what the boundary observed, then publish.
+        """Record what the boundary observed, then publish, once."""
+        if self._lifecycle.record_container_boundary(observation):
+            self._finalize_outer()
 
-        A census that is unavailable, or that counts surviving descendants, used to refuse the
-        trial as `container_boundary_unproven`. Both are now written down: an observation that
-        says processes remained is evidence about this run, and destroying the whole record over
-        it discards everything else the trial produced. The flag makes publication happen once.
-        """
-        if not self._post_stop_finalization_pending:
-            return
-        self._post_stop_finalization_pending = False
-        path = self._artifact_dir / CONTAINER_BOUNDARY_ATTESTATION_FILENAME
-        path.unlink(missing_ok=True)
-        if observation is not None:
-            atomic_write_json(path, observation.document(self._trial_seed.trial_id))
-        self._finalize_outer(self._post_stop_revocation)
-
-    def _finalize_outer(self, revocation: TrialRevocation | None) -> None:
+    def _finalize_outer(self) -> None:
         if self._host_scan_policy is None:
             return
         if self._npm_artifact is None or self._installed_server is None:
             raise RuntimeError("CortexBenchAgent.install() must complete before finalization")
-        self._outer_publication = finalize_host_trial(
+        self._outer_publication = self._lifecycle.finalize(
             logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
-            artifact_dir=self._artifact_dir,
-            root_run_id=self._trial_seed.root_run_id, trial_id=self._trial_seed.trial_id,
-            arm=self._trial_seed.arm, npm_artifact=self._npm_artifact,
+            scan_policy=self._host_scan_policy, npm_artifact=self._npm_artifact,
             bundle_root=str(self._installed_server.bundle_root),
-            revocation=revocation, scan_policy=self._host_scan_policy,
-            container_logs_dir=EnvironmentPaths().agent_dir,
         )

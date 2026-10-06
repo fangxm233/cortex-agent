@@ -189,8 +189,8 @@ def make_agent(
         manifest=manifest_seed(tmp_path),
     )
     if attach_proxy:
-        agent._proxy_session = FakeProxySession()
-        agent._revoke_proxy = lambda: None
+        agent._lifecycle.proxy_session = FakeProxySession()
+        agent._lifecycle.revoke = lambda: None
     return agent
 
 
@@ -199,11 +199,11 @@ def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
 ) -> None:
     environment = FakeEnvironment(setup_results())
     agent = make_agent(tmp_path, attach_proxy=True)
-    agent._proxy_session = FakeProxySession(request_count=0)
+    agent._lifecycle.proxy_session = FakeProxySession(request_count=0)
 
     asyncio.run(agent.setup(environment))
 
-    assert agent._proxy_session.handle.accounting_export["requests"]["value"] == 0
+    assert agent.proxy_session.handle.accounting_export["requests"]["value"] == 0
     assert environment.calls == [
         ("pwd", None), ("realpath -- /app", None), ("test -d /app", None),
         ("[ -d /installed-agent ] || mkdir -p /installed-agent", "root"),
@@ -257,8 +257,8 @@ def test_committed_zero_paid_direct_campaigns_materialize_the_production_bundle(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
         trial_seed=seed, manifest=manifest,
     )
-    agent._proxy_session = FakeProxySession()
-    agent._revoke_proxy = lambda: None
+    agent._lifecycle.proxy_session = FakeProxySession()
+    agent._lifecycle.revoke = lambda: None
 
     asyncio.run(agent.setup(FakeEnvironment(setup_results())))
 
@@ -303,7 +303,7 @@ def test_direct_run_refuses_without_positive_trial_proxy_traffic(
 ) -> None:
     environment = FakeEnvironment(setup_results())
     agent = make_agent(tmp_path, attach_proxy=True)
-    agent._proxy_session = FakeProxySession(request_count=0)
+    agent._lifecycle.proxy_session = FakeProxySession(request_count=0)
 
     async def run_production(
         self: ProductionServerSession, instruction: str, execute: object,

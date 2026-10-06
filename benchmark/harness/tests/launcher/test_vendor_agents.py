@@ -129,12 +129,13 @@ def create_agent(
         arm, cli_version="ignored", **lifecycle,  # type: ignore[arg-type]
     )
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / vendor)
-    agent._proxy_session = SimpleNamespace(  # type: ignore[attr-defined]
-        handle=SimpleNamespace(
-            base_url="http://trial-proxy.invalid:4312",
-            dummy_token="dummy.jwt.token",
+    if admitted:
+        agent._lifecycle.proxy_session = SimpleNamespace(  # type: ignore[attr-defined]
+            handle=SimpleNamespace(
+                base_url="http://trial-proxy.invalid:4312",
+                dummy_token="dummy.jwt.token",
+            )
         )
-    )
     return agent
 
 
@@ -162,9 +163,7 @@ def test_setup_writes_and_records_dummy_files_before_exact_version_preflight(
     tmp_path: Path, vendor: str, provider: str | None, model: str,
     _expected_class: type, _harbor_class: type, stdout: str,
 ) -> None:
-    agent = create_agent(
-        tmp_path, vendor, provider, model, admitted=vendor == "pi",
-    )
+    agent = create_agent(tmp_path, vendor, provider, model, admitted=True)
     environment = RecordingEnvironment(stdout)
 
     asyncio.run(agent.setup(environment))  # type: ignore[attr-defined]
@@ -195,9 +194,7 @@ def test_version_preflight_fails_closed_without_entering_install_path(
     vendor: str, provider: str | None, model: str, _expected_class: type,
     harbor_class: type, _stdout: str,
 ) -> None:
-    agent = create_agent(
-        tmp_path, vendor, provider, model, admitted=vendor == "pi",
-    )
+    agent = create_agent(tmp_path, vendor, provider, model, admitted=True)
     environment = RecordingEnvironment(version_stdout, 127 if not version_stdout else 0)
     installs: list[object] = []
     revocations: list[object] = []
@@ -329,7 +326,7 @@ def test_pi_openai_codex_uses_oauth_dummy_auth_and_builtin_model_override(
     agent = create_agent(
         tmp_path, "pi", "openai-codex", "gpt-5.6-sol", admitted=True,
     )
-    agent._proxy_session.handle.dummy_token = dummy_oauth_jwt()  # type: ignore[attr-defined]
+    agent.proxy_session.handle.dummy_token = dummy_oauth_jwt()  # type: ignore[attr-defined]
     files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
     auth = json.loads(files["auth.json"].content)
     models = json.loads(files["models.json"].content)
@@ -338,7 +335,7 @@ def test_pi_openai_codex_uses_oauth_dummy_auth_and_builtin_model_override(
     assert auth == {
         "openai-codex": {
             "type": "oauth",
-            "access": agent._proxy_session.handle.dummy_token,  # type: ignore[attr-defined]
+            "access": agent.proxy_session.handle.dummy_token,  # type: ignore[attr-defined]
             "refresh": "dummy-refresh-never-forward",
             "expires": 4_102_444_800_000,
         }
@@ -351,7 +348,7 @@ def test_pi_openai_codex_uses_oauth_dummy_auth_and_builtin_model_override(
 
 
 def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> None:
-    agent = create_agent(tmp_path, "codex", None, "gpt-5.3-codex")
+    agent = create_agent(tmp_path, "codex", None, "gpt-5.3-codex", admitted=True)
     files = {item.path.name: item for item in agent._runtime_files()}  # type: ignore[attr-defined]
     auth = json.loads(files["auth.json"].content)
     config = files["config.toml"].content
@@ -369,7 +366,8 @@ def test_codex_uses_p0_proven_provider_config_and_dummy_jwt(tmp_path: Path) -> N
 
 
 def test_codex_runtime_config_uses_the_resolved_reasoning_effort(tmp_path: Path) -> None:
-    agent = create_agent(tmp_path, "codex", None, "gpt-5.3-codex", thinking="low")
+    agent = create_agent(
+        tmp_path, "codex", None, "gpt-5.3-codex", admitted=True, thinking="low")
     config = next(
         item.content for item in agent._runtime_files()  # type: ignore[attr-defined]
         if item.path.name == "config.toml"
@@ -414,7 +412,7 @@ def test_file_evidence_records_verified_mode_and_content_digest(tmp_path: Path) 
 def test_route_revocation_is_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat")
+    agent = create_agent(tmp_path, "pi", "deepseek", "deepseek-chat", admitted=True)
     calls: list[object] = []
     marker = object()
 
@@ -422,7 +420,7 @@ def test_route_revocation_is_idempotent(
         calls.append((session, capture_inventory))
         return marker
 
-    monkeypatch.setattr("cortex_bench_harness.vendor_agents.revoke_trial_proxy", revoke)
+    monkeypatch.setattr("cortex_bench_harness.trial_lifecycle.revoke_trial_proxy", revoke)
 
     agent.revoke_admitted_proxy()  # type: ignore[attr-defined]
     agent.revoke_admitted_proxy()  # type: ignore[attr-defined]

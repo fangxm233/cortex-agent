@@ -298,6 +298,7 @@ class VendorProxyController:
         self.calls: list[str] = []
         self.revoke_count = 0
         self.real_credential = "real-provider-secret-must-not-cross"
+        self.post_stop_finalization_pending = False
 
     def arm_admitted_proxy(self) -> object:
         self.calls.append("arm")
@@ -312,6 +313,9 @@ class VendorProxyController:
 
     def revoke_admitted_proxy(self) -> None:
         self.revoke_count += 1
+
+    def finalize_after_container_stop(self, observation: object) -> None:
+        self.calls.append("post-stop")
 
 
 def create_vendor_trial(
@@ -1687,9 +1691,6 @@ def test_the_scratch_is_discarded_as_root_before_the_container_stops(
     """
     controller = VendorProxyController("pi")
     controller.post_stop_finalization_pending = True
-    controller.finalize_after_container_stop = (
-        lambda observation: controller.calls.append("post-stop")
-    )
     trial = create_vendor_trial(tmp_path, "pi", controller)
     environment = trial.agent_environment
     ordered: list[str] = []
