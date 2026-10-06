@@ -8,7 +8,6 @@ due, and the launch inputs a Cortex arm adds to the envelope -- stays with each 
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from harbor.models.trial.paths import EnvironmentPaths
 
@@ -16,6 +15,7 @@ from .container_boundary import (
     CONTAINER_BOUNDARY_ATTESTATION_FILENAME,
     ContainerBoundaryObservation,
 )
+from .host_finalization import HostFinalizationResult, finalize_host_trial
 from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .launcher.trial_admission_io import HarborTrialAdmissionError, atomic_write_json
 from .launcher.trial_proxy import (
@@ -29,9 +29,6 @@ from .launcher.trial_proxy import (
 )
 from .launcher.trial_seed import TrialSeed
 from .scan.models import ArtifactInventory, ScanPolicy
-
-if TYPE_CHECKING:
-    from .host_finalization import HostFinalizationResult
 
 
 def consume_host_credential(handle: str | None, seed: TrialSeed | None) -> str | None:
@@ -140,10 +137,7 @@ class TrialLifecycle:
     def finalize(
         self, *, logs_dir: Path, verifier_dir: Path, scan_policy: ScanPolicy,
         npm_artifact: Path | None = None, bundle_root: str | None = None,
-    ) -> "HostFinalizationResult":
-        # Imported here: host_finalization reaches trial_admission, which imports the vendor agents.
-        from .host_finalization import finalize_host_trial
-
+    ) -> HostFinalizationResult:
         return finalize_host_trial(
             logs_dir=logs_dir, verifier_dir=verifier_dir, artifact_dir=self.artifact_dir,
             root_run_id=self.seed.root_run_id, trial_id=self.seed.trial_id, arm=self.seed.arm,
