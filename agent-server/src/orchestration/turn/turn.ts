@@ -303,7 +303,7 @@ export class Turn {
             // The profile's fallback chain switched attempt. The chat notice is synthesized by the
             // run (domain/runs/notices.ts) and reaches the sink as assistant_text; this only
             // updates the platform status message.
-            void callbacks.onFallback(event.from, event.to);
+            void callbacks.onFallback(event.from, event.to, event.reason);
             return;
           // The run synthesizes the chat notices for compaction and gateway model fallback and
           // delivers them as assistant_text, so the sink already has them; these events are the
@@ -640,7 +640,7 @@ export function emitTurnProgress(deps: TurnProgressDeps, progress: { num_turns?:
 
 export interface AgentCallbacks {
   /** Attempt switch of the profile's fallback chain, as two `model/mode` labels. */
-  onFallback: (fromLabel: string, toLabel: string) => Promise<void>;
+  onFallback: (fromLabel: string, toLabel: string, reason: 'rate-limited' | 'transport-error') => Promise<void>;
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
   onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;

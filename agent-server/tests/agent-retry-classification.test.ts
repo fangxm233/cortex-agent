@@ -459,10 +459,11 @@ test('run falls back after PI exhausts a generic provider-retry error', async ()
   assert.equal(spawnedChildren.length, 1, 'one Claude fallback attempt');
   assert.deepEqual(
     seen.events.filter((event) => event.type === 'run_fallback').map((event) => (event as Extract<RunEvent, { type: 'run_fallback' }>)),
-    [{ type: 'run_fallback', from: 'deepseek-v4-pro/deepseek', to: 'claude-sonnet-4-6/plan', reason: 'rate-limited' }],
+    // A provider asking for a retry is a transport failure, not a rate limit; the notice says so.
+    [{ type: 'run_fallback', from: 'deepseek-v4-pro/deepseek', to: 'claude-sonnet-4-6/plan', reason: 'transport-error' }],
   );
   assert.deepEqual(notices(seen.events), [{
-    text: 'Model fallback: deepseek-v4-pro/deepseek → claude-sonnet-4-6/plan.',
+    text: 'Could not reach deepseek-v4-pro/deepseek; falling back to claude-sonnet-4-6/plan.',
     level: 'warning',
   }, {
     // The fallback attempt's own assistant prose is a notice too; the real backend streams it
@@ -509,6 +510,81 @@ test('a fallback on another backend runs with its own capabilities but never nam
   assert.equal(result.finalOutput, 'fallback-ok');
   // A PI session resumed by Claude next turn (or the other way round) would start from nothing.
   assert.equal(run.backendSessionId, 'pi-primary', 'the session keeps the resume target on its own backend');
+});
+
+// A fallback re-runs the turn in a fresh conversation. After a tool ran that would run it again
+// (a second `rm`, a second deploy), so a transport failure past that point ends the turn instead.
+
+function piPrimaryWithClaudeFallback(sessionKey: string): RunRequest {
+  const fallbackAttempt = attemptFixture({ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' });
+  const request = claudeRequestWithScript(
+    { channel: 'web:retry', sessionKey, piProvider: 'deepseek' },
+    [textLine('fallback-ok'), resultLine({ result: 'fallback-ok', session_id: 'claude-fallback' })],
+  );
+  request.profile = {
+    ...request.profile,
+    model: 'deepseek-v4-pro', backend: 'pi', provider: 'deepseek', mode: 'deepseek',
+    fallback: [fallbackAttempt],
+  };
+  return request;
+}
+
+test('a transport error after a tool ran ends the turn instead of re-running it on the fallback', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-tool-then-reset' });
+  const seen = collector();
+  const run = openRun(piPrimaryWithClaudeFallback('transport-after-tool'), [seen.observer]);
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'make deploy' } });
+  runtime.emitAgentEnd({ stopReason: 'error', errorMessage: 'read ECONNRESET' });
+
+  await assert.rejects(run.settled, /ECONNRESET.*already run tools/);
+  assert.equal(spawnedChildren.length, 0, 'the fallback never started');
+  assert.deepEqual(seen.events.filter((event) => event.type === 'run_fallback'), []);
+  const lastNotice = notices(seen.events).at(-1);
+  assert.equal(lastNotice?.level, 'error');
+  assert.match(lastNotice?.text ?? '', /read ECONNRESET.*not retried on the fallback model/);
+});
+
+test('a transport error before any tool ran still falls back, and says it was a transport error', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-reset-early' });
+  const seen = collector();
+  const run = openRun(piPrimaryWithClaudeFallback('transport-before-tool'), [seen.observer]);
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emitAgentEnd({ stopReason: 'error', errorMessage: 'read ECONNRESET' });
+
+  const result = await run.settled;
+  assert.equal(result.finalOutput, 'fallback-ok');
+  assert.equal(spawnedChildren.length, 1, 'one Claude fallback attempt');
+  assert.deepEqual(
+    seen.events.filter((event) => event.type === 'run_fallback').map((event) => (event as Extract<RunEvent, { type: 'run_fallback' }>).reason),
+    ['transport-error'],
+  );
+});
+
+test('a thrown rate limit still falls back after a tool ran: the no-retry rule covers transport errors only', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-tool-then-429' });
+  const seen = collector();
+  const run = openRun(piPrimaryWithClaudeFallback('rate-limit-after-tool'), [seen.observer]);
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'ls' } });
+  runtime.emitAgentEnd({ stopReason: 'error', errorMessage: 'HTTP 429 rate limit exceeded' });
+
+  const result = await run.settled;
+  assert.equal(result.finalOutput, 'fallback-ok');
+  assert.deepEqual(
+    seen.events.filter((event) => event.type === 'run_fallback').map((event) => (event as Extract<RunEvent, { type: 'run_fallback' }>).reason),
+    ['rate-limited'],
+  );
+  assert.equal(notices(seen.events)[0]?.text, 'deepseek-v4-pro/deepseek is rate limited; falling back to claude-sonnet-4-6/plan.');
 });
 
 test('run emits one terminal error notice for a deterministic authentication failure', async () => {
@@ -643,7 +719,7 @@ test('run resets terminal-error deduplication when moving to a fallback attempt'
   await assert.rejects(run.settled, /401 unauthorized/);
   assert.deepEqual(notices(seen.events), [
     { text: firstError, level: 'error' },
-    { text: 'Model fallback: deepseek-v4-pro/deepseek → claude-sonnet-4-6/plan.', level: 'warning' },
+    { text: 'Could not reach deepseek-v4-pro/deepseek; falling back to claude-sonnet-4-6/plan.', level: 'warning' },
     { text: 'Error: HTTP 401 unauthorized', level: 'error' },
   ]);
 });

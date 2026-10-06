@@ -80,7 +80,7 @@ export type RunEvent =
       provider_requests: number | null; cost_usd: number | null;
     }
   | { type: 'turn_progress'; numTurns: number }
-  | { type: 'run_fallback'; from: AttemptLabel; to: AttemptLabel; reason: string }
+  | { type: 'run_fallback'; from: AttemptLabel; to: AttemptLabel; reason: 'rate-limited' | 'transport-error' }
   | { type: 'foreground_result'; result: AgentResult }
   | { type: 'background_result'; result: AgentResult }
   // The run's own background watchdog gave up waiting. `grace` = finished-but-unnotified work

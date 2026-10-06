@@ -31,12 +31,13 @@ export function buildExecutionStatusReport(): string {
  *  The run layer reports a fallback as two labels (`RunEvent.run_fallback`); the callback below
  *  renders the same labels out of a pair of attempt configs. */
 export function makeFallbackLabelNotifier(statusMsg: MessageRef | null, adapter: PlatformAdapter) {
-  return async (fromLabel: string, toLabel: string) => {
-    log.info(`Fallback: ${fromLabel} \u2192 ${toLabel}`);
+  return async (fromLabel: string, toLabel: string, reason: 'rate-limited' | 'transport-error') => {
+    log.info(`Fallback (${reason}): ${fromLabel} \u2192 ${toLabel}`);
     if (statusMsg) {
+      const key = reason === 'rate-limited' ? 'notice.fallback.rateLimited' : 'notice.fallback.transportError';
       try {
         await adapter.updateMessage(statusMsg, {
-          text: `${Icons.warning} ${t('notice.fallback.rateLimited', { from: fromLabel, to: `*${toLabel}*` })}`,
+          text: `${Icons.warning} ${t(key, { from: fromLabel, to: `*${toLabel}*` })}`,
         });
       } catch {}
     }

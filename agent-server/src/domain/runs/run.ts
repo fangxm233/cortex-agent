@@ -9,7 +9,9 @@ import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
 import type { ModeEnv } from './mode-env.js';
-import { isRetryableError, isRetryableResult } from './retryable-errors.js';
+import {
+  fallbackReasonOf, isRetryableError, isRetryableResult, type FallbackReason,
+} from './retryable-errors.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
@@ -116,6 +118,12 @@ function asError(error: unknown): Error {
 interface PendingInjectionAck {
   id: string;
   text: string;
+}
+
+/** The error a turn ends with when a transport failure hit after it ran a tool. It keeps the
+ *  original message — auth classification and provider attribution read it. */
+function notRetriedAfterTools(failure: Error): Error {
+  return new Error(t('status.notRetriedAfterTools', { message: failure.message }));
 }
 
 function cancellationError(reason: string): Error {
@@ -237,11 +245,12 @@ export class AgentRunImpl implements AgentRun {
    * `attempt.index` moves.
    */
   private async walkChain(): Promise<void> {
+    let reason: FallbackReason = 'rate-limited';
     for (let index = 0; index < this.plan.length; index++) {
       if (this.terminal) return;
       const attempt = this.plan[index];
       const isLast = index === this.plan.length - 1;
-      if (index > 0) this.advanceAttempt(index, attempt);
+      if (index > 0) this.advanceAttempt(index, attempt, reason);
 
       if (shouldSkipAttempt(attempt, { isUserInitiated: this.request.context.isUserInitiated })) {
         const blocked = rateLimitedResult(attempt.mode || 'api', attemptProvider(attempt));
@@ -251,33 +260,50 @@ export class AgentRunImpl implements AgentRun {
           return;
         }
         log.info(`${attemptLabel(attempt)} rate-limited, skipping to fallback[${index}]`);
-        this.notices.transitionToFallback(attempt, this.plan[index + 1]);
+        reason = 'rate-limited';
+        this.notices.transitionToFallback(attempt, this.plan[index + 1], reason);
         continue;
       }
 
       const outcome = await this.runAttempt(attempt, index, isLast);
       if (outcome === 'settled') return;
-      this.notices.transitionToFallback(attempt, this.plan[index + 1]);
+      reason = outcome;
+      this.notices.transitionToFallback(attempt, this.plan[index + 1], reason);
     }
     // Unreachable: the last attempt always settles or throws. Guard rather than hang.
     if (!this.terminal) this.finishForegroundError(new Error('All fallback configs exhausted without result'));
   }
 
-  /** One attempt. Returns 'settled' when the run is over, 'retry' when the chain should advance. */
+  /**
+   * One attempt. Returns 'settled' when the run is over, or why the chain should advance.
+   *
+   * A fallback re-runs the whole turn in a fresh backend conversation. That is safe for a rate
+   * limit (the provider refused before doing anything) and for a transport failure that hit before
+   * the turn ran any tool; after a tool ran, re-running would repeat its side effects, so the turn
+   * ends with an error that says why it was not retried.
+   */
   private async runAttempt(
     attempt: RunAttemptConfig, index: number, isLast: boolean,
-  ): Promise<'settled' | 'retry'> {
+  ): Promise<'settled' | FallbackReason> {
     // A retry starts a fresh backend conversation: the previous attempt's resume target belongs to
     // a provider that just failed us.
     const request = index === 0
       ? this.request
       : { ...this.request, session: { ...this.request.session, backendSessionId: null } };
+    // Once the chain moves on, whatever this attempt still streams (a hold-mode background phase,
+    // the close of its engine) belongs to no one: observers follow the attempt that replaced it.
+    let abandoned = false;
+    let toolStarted = false;
     let current: RunAttempt;
     try {
       current = startAttempt({
         request, attempt, executionId: this.executionId,
         route: this.routeFor(attempt),
-        onEvent: (event) => this.onRunEvent(event),
+        onEvent: (event) => {
+          if (abandoned) return;
+          if (event.type === 'tool_use') toolStarted = true;
+          this.onRunEvent(event);
+        },
       });
     } catch (error) {
       this.onForegroundError(error);
@@ -294,14 +320,23 @@ export class AgentRunImpl implements AgentRun {
         return 'settled';
       }
       log.info(`${attemptLabel(attempt)} rate limited, trying fallback[${index}]`);
-      return 'retry';
+      abandoned = true;
+      return 'rate-limited';
     } catch (error) {
-      if (this.cancelRequested || !isRetryableError(asError(error)) || isLast) {
+      const failure = asError(error);
+      if (this.cancelRequested || !isRetryableError(failure) || isLast) {
         this.onAttemptError(current, attempt, error);
         return 'settled';
       }
-      log.info(`${attemptLabel(attempt)} retryable error, trying fallback[${index}]`);
-      return 'retry';
+      const reason = fallbackReasonOf(failure);
+      if (reason === 'transport-error' && toolStarted) {
+        log.info(`${attemptLabel(attempt)} transport error after a tool ran; not retrying on fallback[${index}]`);
+        this.onAttemptError(current, attempt, notRetriedAfterTools(failure));
+        return 'settled';
+      }
+      log.info(`${attemptLabel(attempt)} retryable error (${reason}), trying fallback[${index}]`);
+      abandoned = true;
+      return reason;
     }
   }
 
@@ -312,14 +347,14 @@ export class AgentRunImpl implements AgentRun {
   }
 
   /** The chain moved on. Report it on the stream; the surface renders the notice. */
-  private advanceAttempt(index: number, next: RunAttemptConfig): void {
+  private advanceAttempt(index: number, next: RunAttemptConfig, reason: FallbackReason): void {
     const previous = this.attemptValue.config;
     this.attemptValue = { index, config: next };
     this.absorb({
       type: 'run_fallback',
       from: attemptLabel(previous),
       to: attemptLabel(next),
-      reason: 'rate-limited',
+      reason,
     });
   }
 

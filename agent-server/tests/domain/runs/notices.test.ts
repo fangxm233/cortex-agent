@@ -89,11 +89,22 @@ test('a fallback transition flushes the held card before the fallback warning', 
   const tracker = makeTracker(seen);
 
   tracker.observe(RATE_LIMIT_TEXT, undefined, 'error');
-  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' });
+  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' }, 'rate-limited');
 
   assert.deepEqual(seen.map((s) => [s.text, s.level]), [
     [RATE_LIMIT_TEXT, 'error'],
-    ['Model fallback: m1/plan → m2/api.', 'warning'],
+    ['m1/plan is rate limited; falling back to m2/api.', 'warning'],
+  ]);
+});
+
+test('the fallback warning names a transport failure as one, not as a rate limit', () => {
+  const seen: Seen[] = [];
+  const tracker = makeTracker(seen);
+
+  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' }, 'transport-error');
+
+  assert.deepEqual(seen.map((s) => [s.text, s.level]), [
+    ['Could not reach m1/plan; falling back to m2/api.', 'warning'],
   ]);
 });
 
@@ -105,7 +116,7 @@ test('a fallback opens a fresh dedupe window so the next provider can still repo
   const tracker = makeTracker(seen);
 
   tracker.observe('API Error: first provider died', undefined, 'error');
-  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' });
+  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' }, 'transport-error');
   seen.length = 0;
 
   tracker.emitTerminalError(new Error('API Error: second provider died too'));

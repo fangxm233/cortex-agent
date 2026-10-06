@@ -14,7 +14,7 @@ import { t } from '../../core/i18n.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
-import { isApiRateLimitError } from './retryable-errors.js';
+import { isApiRateLimitError, type FallbackReason } from './retryable-errors.js';
 import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
 import { attemptLabel } from './fallback.js';
 
@@ -122,12 +122,13 @@ export class AttemptNoticeTracker {
   transitionToFallback(
     current: Pick<RunAttemptConfig, 'model' | 'mode'>,
     next: Pick<RunAttemptConfig, 'model' | 'mode'>,
+    reason: FallbackReason,
   ): void {
     this.flushHeldError();
     if (this.synthesize) {
-      this.observe(t('notify.agentFallback', {
-        from: attemptLabel(current), to: attemptLabel(next),
-      }), undefined, 'warning');
+      const key = reason === 'rate-limited'
+        ? 'notify.attemptFallback.rateLimited' : 'notify.attemptFallback.transportError';
+      this.observe(t(key, { from: attemptLabel(current), to: attemptLabel(next) }), undefined, 'warning');
     }
     this.attemptHasErrorNotice = false;
   }
