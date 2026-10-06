@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useToast } from '@/design';
+import { Button, EmptyState, useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -25,6 +25,12 @@ import { toIssueDetail, buildIssuePrompt } from './issues-vm';
 //   • time-of-day — entries carry a date only → the date is shown, no fabricated clock.
 //   • field labels — VERBATIM from the markdown sub-bullets (问题/建议/Fix/…), not the mock's
 //     fixed 描述/证据/相关文件 schema.
+
+// The empty queue's mark: a green tick over the title.
+const ALL_CLEAR_ICON = (
+  <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--proto-success-bg)', color: 'var(--proto-success)',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 }}>✓</span>
+);
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -141,7 +147,7 @@ function IssueCenterView(props: IssueCenterViewProps) {
 
         {/* body */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-          {!hasItems && <EmptyState />}
+          {!hasItems && <EmptyState className="m-auto" icon={ALL_CLEAR_ICON} title={L.isEmptyTitle} description={L.isEmptyDesc} />}
           {hasItems && (
             <>
               <IssueQueue
@@ -166,44 +172,6 @@ function IssueCenterView(props: IssueCenterViewProps) {
         </div>
       </div>
     </>
-  );
-}
-
-// ── empty state ───────────────────────────────────────────────────────────────────────────────
-
-function EmptyState() {
-  const L = useVocab();
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 9,
-        background: 'transparent',
-      }}
-    >
-      <span
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: '50%',
-          background: 'var(--proto-success-bg)',
-          color: 'var(--proto-success)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 15,
-          fontWeight: 700,
-        }}
-      >
-        ✓
-      </span>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.isEmptyTitle}</div>
-      <div style={{ fontSize: 11, color: 'var(--proto-muted)' }}>{L.isEmptyDesc}</div>
-    </div>
   );
 }
 
@@ -388,87 +356,22 @@ function DetailPane({
         </span>
         {!armed && (
           <>
-            <HoverButton
-              data-action="arm-delete"
-              onClick={pending ? undefined : () => onArm()}
-              base={{
-                fontSize: 12,
-                fontWeight: 600,
-                border: '1px solid var(--proto-danger-bg)',
-                borderRadius: 'var(--r-control)',
-                padding: '7px 16px',
-                color: 'var(--proto-danger)',
-                background: 'var(--material-control-bg)',
-                boxShadow: 'var(--material-control-shadow)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-                opacity: pending ? 0.6 : 1,
-              }}
-              hover={{ background: 'var(--proto-danger-bg)' }}
-            >
+            <Button variant="danger-outline" data-action="arm-delete" disabled={pending} onClick={() => onArm()}>
               {L.isDelete}
-            </HoverButton>
-            <HoverButton
-              data-action="handle"
-              onClick={pending ? undefined : () => onHandle(detail.id)}
-              base={{
-                fontSize: 12,
-                fontWeight: 600,
-                borderRadius: 'var(--r-control)',
-                boxShadow: 'var(--accent-glow)',
-                padding: '8px 22px',
-                color: 'var(--ink-solid-fg)',
-                background: 'var(--proto-accent)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-                opacity: pending ? 0.6 : 1,
-              }}
-              hover={{ background: 'var(--proto-accent-strong)' }}
-            >
+            </Button>
+            <Button variant="primary" data-action="handle" disabled={pending} onClick={() => onHandle(detail.id)}>
               {L.isHandle}
-            </HoverButton>
+            </Button>
           </>
         )}
         {armed && (
           <>
-            <HoverButton
-              data-action="cancel-delete"
-              onClick={pending ? undefined : () => onCancelArm()}
-              base={{
-                fontSize: 12,
-                fontWeight: 600,
-                border: '1px solid var(--proto-line-3)',
-                borderRadius: 'var(--r-control)',
-                padding: '7px 16px',
-                color: 'var(--proto-ink)',
-                background: 'var(--material-control-bg)',
-                boxShadow: 'var(--material-control-shadow)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-                opacity: pending ? 0.6 : 1,
-              }}
-              hover={{ background: 'var(--proto-alt)' }}
-            >
+            <Button data-action="cancel-delete" disabled={pending} onClick={() => onCancelArm()}>
               {L.cancel}
-            </HoverButton>
-            <HoverButton
-              data-action="confirm-delete"
-              onClick={pending ? undefined : () => onDelete(detail.id)}
-              base={{
-                fontSize: 12,
-                fontWeight: 600,
-                borderRadius: 'var(--r-control)',
-                padding: '8px 20px',
-                color: 'var(--ink-solid-fg)',
-                background: 'var(--proto-danger)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-                opacity: pending ? 0.6 : 1,
-              }}
-              hover={{ opacity: 0.88 }}
-            >
+            </Button>
+            <Button variant="danger" data-action="confirm-delete" disabled={pending} onClick={() => onDelete(detail.id)}>
               {L.isConfirmDelete}
-            </HoverButton>
+            </Button>
           </>
         )}
       </div>
@@ -482,34 +385,6 @@ function FieldRow({ label, text }: { label: string; text: string }) {
       <span style={GRID_LABEL}>{label}</span>
       <span style={{ color: 'var(--proto-ink-2)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{text}</span>
     </>
-  );
-}
-
-function HoverButton({
-  base,
-  hover,
-  onClick,
-  children,
-  ...rest
-}: {
-  base: React.CSSProperties;
-  hover: React.CSSProperties;
-  onClick?: () => void;
-  children: React.ReactNode;
-} & Record<string, unknown>) {
-  const [h, setH] = useState(false);
-  return (
-    <button
-      {...rest}
-      type="button"
-      disabled={!onClick}
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{ border: 0, fontFamily: 'inherit', ...base, ...(h && onClick ? hover : {}) }}
-    >
-      {children}
-    </button>
   );
 }
 

@@ -4,7 +4,7 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react';
 // colors come from the state palette / surface tokens. Forwards its ref so it can
 // be an `asChild` Radix trigger (Dialog/Popover restore focus via the trigger ref).
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline';
 export type ButtonSize = 'sm' | 'md';
 
 // Only the accent-filled `primary` carries `--accent-glow`; `danger` is filled from the state
@@ -17,6 +17,9 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
   secondary: 'border border-proto-faint [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink hover:[background:var(--material-inset-bg)]',
   ghost: 'text-proto-ink-2 hover:bg-surface-canvas-alt',
   danger: 'bg-state-fail text-[var(--ink-solid-fg)] hover:bg-state-fail/90',
+  // The first step of a destructive pair: quiet until hovered, so the filled `danger` that arms
+  // behind it is the only red block.
+  'danger-outline': 'border border-proto-danger-bg [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-proto-danger hover:[background:var(--proto-danger-bg)]',
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {

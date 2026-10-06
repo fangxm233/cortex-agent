@@ -35,7 +35,7 @@ const queue: ApprovalQueue = {
 };
 
 vi.mock('./useApprovalQueue', () => ({ useApprovalQueue: () => queue }));
-vi.mock('@/design', () => ({ useToast: () => ({ toast: adapter.toast }) }));
+vi.mock('@/design', async (original) => ({ ...await original<object>(), useToast: () => ({ toast: adapter.toast }) }));
 vi.mock('@/i18n', () => ({
   useVocab: () => new Proxy({}, { get: (_target, key) => String(key) }),
   useLang: () => 'en',

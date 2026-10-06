@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { useToast } from '@/design';
+import { Button, EmptyState, useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import {
   defaultSelectedId,
@@ -31,6 +31,12 @@ import { useApprovalQueue } from './useApprovalQueue';
 // queuedAt has date-only (no clock), so the "age" and "queued" slots show the date.
 
 const mono = "'IBM Plex Mono',monospace";
+// The empty queue's mark (prototype L1329-1335): a green tick over the title.
+const ALL_CLEAR_ICON = (
+  <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--proto-success-bg)', color: 'var(--proto-success)',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 }}>✓</span>
+);
+
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 
 // ── pure presentational view ──────────────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
 
         {/* body (prototype L1328) */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-          {!hasItems && <EmptyState />}
+          {!hasItems && <EmptyState className="m-auto" icon={ALL_CLEAR_ICON} title={L.aprEmptyTitle} />}
           {hasItems && (
             <>
               <PendingList
@@ -193,43 +199,6 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
         </div>
       </div>
     </>
-  );
-}
-
-// ── empty state (prototype L1329-1335) ────────────────────────────────────────────────────────
-
-function EmptyState() {
-  const L = useVocab();
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 9,
-        background: 'transparent',
-      }}
-    >
-      <span
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: '50%',
-          background: 'var(--proto-success-bg)',
-          color: 'var(--proto-success)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 15,
-          fontWeight: 700,
-        }}
-      >
-        ✓
-      </span>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.aprEmptyTitle}</div>
-    </div>
   );
 }
 
@@ -555,119 +524,27 @@ function DetailPane({
         <div style={{ display: 'flex', gap: 10, marginLeft: 'auto', alignItems: 'center' }}>
         {!armed && (
           <>
-            <HoverButton
-              data-action="arm"
-              onClick={pending ? undefined : () => onArm()}
-              base={{
-                marginLeft: 'auto',
-                fontSize: 12,
-                fontWeight: 600,
-                border: '1px solid var(--proto-danger-bg)',
-                borderRadius: 'var(--r-control)',
-                padding: '7px 16px',
-                color: 'var(--proto-danger)',
-                background: 'var(--material-control-bg)',
-                boxShadow: 'var(--material-control-shadow)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-              }}
-              hover={{ background: 'var(--proto-danger-bg)' }}
-            >
+            <Button variant="danger-outline" data-action="arm" disabled={pending} onClick={() => onArm()}>
               {L.rejectFeedback}
-            </HoverButton>
-            <HoverButton
-              data-action="approve"
-              onClick={pending ? undefined : () => onApprove(detail.id)}
-              base={{
-                fontSize: 12,
-                fontWeight: 600,
-                borderRadius: 'var(--r-control)',
-                padding: '8px 20px',
-                color: 'var(--ink-solid-fg)',
-                background: 'var(--proto-accent)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-              }}
-              hover={{ background: 'var(--proto-accent-strong)' }}
-            >
+            </Button>
+            <Button variant="primary" data-action="approve" disabled={pending} onClick={() => onApprove(detail.id)}>
               {L.approve}
-            </HoverButton>
+            </Button>
           </>
         )}
         {armed && (
           <>
-            <HoverButton
-              data-action="cancel"
-              onClick={pending ? undefined : () => onCancel()}
-              base={{
-                marginLeft: 'auto',
-                fontSize: 12,
-                fontWeight: 600,
-                border: '1px solid var(--proto-line-3)',
-                borderRadius: 'var(--r-control)',
-                padding: '7px 16px',
-                color: 'var(--proto-ink)',
-                background: 'var(--material-control-bg)',
-                boxShadow: 'var(--material-control-shadow)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-              }}
-              hover={{ background: 'var(--proto-alt)' }}
-            >
+            <Button data-action="cancel" disabled={pending} onClick={() => onCancel()}>
               {L.cancel}
-            </HoverButton>
-            <HoverButton
-              data-action="reject"
-              onClick={pending ? undefined : () => onReject(detail.id)}
-              base={{
-                fontSize: 12,
-                fontWeight: 600,
-                borderRadius: 'var(--r-control)',
-                padding: '8px 20px',
-                color: 'var(--ink-solid-fg)',
-                background: 'var(--proto-danger)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-                flex: 'none',
-              }}
-              hover={{ filter: 'brightness(1.08)' }}
-            >
+            </Button>
+            <Button variant="danger" data-action="reject" disabled={pending} onClick={() => onReject(detail.id)}>
               {L.denyConfirm}
-            </HoverButton>
+            </Button>
           </>
         )}
         </div>
       </div>
     </div>
-  );
-}
-
-function HoverButton({
-  base,
-  hover,
-  onClick,
-  children,
-  ...rest
-}: {
-  base: React.CSSProperties;
-  hover: React.CSSProperties;
-  onClick?: () => void;
-  children: React.ReactNode;
-} & Record<string, unknown>) {
-  const [h, setH] = useState(false);
-  return (
-    <button
-      {...rest}
-      type="button"
-      className={focusClass}
-      disabled={!onClick}
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{ ...base, ...(h && onClick ? hover : {}),
-        ...(!onClick ? { background: 'var(--proto-gray)', color: 'var(--proto-muted)' } : {}) }}
-    >
-      {children}
-    </button>
   );
 }
 
