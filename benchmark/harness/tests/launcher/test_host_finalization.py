@@ -144,6 +144,7 @@ def bundle_members() -> dict[str, bytes]:
         f"{COMMON_PLUGIN}/skills/compound/SKILL.md": b"# compound\nfixture skill\n",
         f"{CODER_PLUGIN}/.claude-plugin/plugin.json": b'{"name":"cortex-coder"}\n',
         f"{CODER_PLUGIN}/skills/develop/SKILL.md": b"# develop\nfixture skill\n",
+        "package.json": b'{"name":"@cortex-agent/server","bin":{"cortex":"dist/index.js"}}\n',
         "dist/index.js": b"// product code the model never reads\n" * 64,
         "node_modules/left-pad/index.js": b"// a dependency, likewise\n" * 64,
     }

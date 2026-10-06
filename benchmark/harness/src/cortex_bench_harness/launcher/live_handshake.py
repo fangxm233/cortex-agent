@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import zstandard
 
+from ..proxy.export import PROXY_EXPORT_SCHEMA_VERSION
 from ..proxy.lease import LeaseTerms
 from ..proxy.models import ProxyLimits
 from ..proxy.server import host_now_ms, start_trial_proxy
@@ -609,7 +610,7 @@ def _complete(
 def _accounting(path: Path, session: _HandshakeSession) -> tuple[int, int, int]:
     document = json.loads(path.read_bytes())
     expected = {
-        "schema_version": "cortex-bench-proxy-export/1",
+        "schema_version": PROXY_EXPORT_SCHEMA_VERSION,
         "trial_id": session.proxy.handle.trial_id,
         "adapter_id": session.adapter_id,
         "source": "proxy_export",

@@ -27,6 +27,7 @@ from cortex_bench_harness.manifest import MANIFEST_FILENAME
 from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION, LEASE_ECHO_TARGET
 from cortex_bench_harness.scan.models import ScanPolicy
 from cortex_bench_harness.scan.scanner import scan_trial_artifacts
+from launcher.trial_proxy_fixtures import write_npm_artifact
 
 DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-scan.cortex-direct"
@@ -90,6 +91,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
     }
     for file in files.values():
         file.write_bytes(b"scan fixture")
+    write_npm_artifact(files["npm_artifact_path"])
     return {
         "root_run_id": ROOT_RUN_ID, "trial_id": TRIAL_ID, "arm": ARM_NAME,
         **{name: str(file) for name, file in files.items()},

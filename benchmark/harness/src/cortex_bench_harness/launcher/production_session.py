@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
+from ..proxy.export import COUNTER_SLOTS, PROXY_EXPORT_SCHEMA_VERSION, unavailable
 from ..trial_assets import canonical_sha256
 from .production_arms import require_production_arm
 from .production_home import MaterializedProductionHome
@@ -125,13 +126,11 @@ def _required_text(value: object, label: str) -> str:
 
 
 def _unavailable_proxy(trial_id: str) -> dict[str, object]:
-    unavailable = {"status": "unavailable", "reason": "counter_unreadable"}
+    slots = (*COUNTER_SLOTS, "audit_log", "lease_echo")
     return {
-        "schema_version": "cortex-bench-proxy-export/1", "trial_id": trial_id,
-        "adapter_id": "trial-scoped-proxy", "requests": unavailable,
-        "cached_tokens": unavailable, "input_tokens": unavailable,
-        "output_tokens": unavailable, "audit_log": unavailable,
-        "lease_echo": unavailable, "source": "proxy_export",
+        "schema_version": PROXY_EXPORT_SCHEMA_VERSION, "trial_id": trial_id,
+        "adapter_id": "trial-scoped-proxy", "source": "proxy_export",
+        **{slot: unavailable("counter_unreadable") for slot in slots},
     }
 
 

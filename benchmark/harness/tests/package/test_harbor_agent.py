@@ -10,7 +10,7 @@ from harbor.agents.installed.base import NonZeroAgentExitCodeError
 from harbor.environments.base import ExecResult
 
 from cortex_bench_harness.campaign_config import load_campaign_config
-from cortex_bench_harness.harbor_agent import CortexBenchAgent
+from cortex_bench_harness.harbor_agent import CortexBenchAgent, bundle_bin_links
 from cortex_bench_harness.launcher.production_arms import ProductionArmError
 from cortex_bench_harness.launcher.production_session import (
     ProductionServerSession,
@@ -21,6 +21,7 @@ from cortex_bench_harness.launcher.trial_admission import (
     HarborTrialAdmissionError,
     trial_scratch_command,
 )
+from launcher.trial_proxy_fixtures import write_npm_artifact
 
 ARTIFACT_NAME = "cortex-agent-server-test.tgz"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
@@ -41,8 +42,8 @@ INSTALL_COMMAND = (
     " /installed-agent/npm/bin/cortex-evidence-export"
     " && ln -sfn \"$package_root/dist/entry/hook-cli.js\""
     " /installed-agent/npm/bin/cortex-hook"
-    " && ln -sfn \"$package_root/dist/domain/tasks/system/task-cli.js\""
-    " /installed-agent/npm/bin/cortex-task"
+    " && ln -sfn \"$package_root/dist/entry/signal-cli.js\""
+    " /installed-agent/npm/bin/cortex-signal"
     " && ln -sfn /installed-agent/npm/bin/cortex /usr/local/bin/cortex"
 )
 VERIFY_COMMANDS = [
@@ -134,7 +135,10 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
         "npm_artifact_path": tmp_path / ARTIFACT_NAME,
     }
     for name, file in files.items():
-        file.write_bytes(b"npm artifact" if name == "npm_artifact_path" else b"fixture")
+        if name == "npm_artifact_path":
+            write_npm_artifact(file)
+        else:
+            file.write_bytes(b"fixture")
     return {
         "root_run_id": "root-install-only", "trial_id": "trial-install-only",
         "arm": "cortex-direct", **{name: str(file) for name, file in files.items()},
@@ -314,6 +318,44 @@ def test_direct_run_refuses_without_positive_trial_proxy_traffic(
         asyncio.run(agent.run("Solve through production.", environment, None))
 
     assert agent.production_server_stopped is True
+
+
+def test_bin_links_follow_the_packed_bin_table(tmp_path: Path) -> None:
+    artifact = write_npm_artifact(tmp_path / "server.tgz", {"bin": {
+        "cortex-hook": "./dist/entry/hook-cli.js", "cortex": "dist/entry/cortex-cli.js",
+    }})
+
+    assert bundle_bin_links(artifact) == (
+        ("dist/entry/cortex-cli.js", "cortex"), ("dist/entry/hook-cli.js", "cortex-hook"),
+    )
+
+
+@pytest.mark.parametrize("package", [
+    {"name": "no-bin"},
+    {"bin": {}},
+    {"bin": "dist/entry/cortex-cli.js"},
+    {"bin": {"cortex": "../outside.js"}},
+    {"bin": {"cortex": "/usr/bin/env"}},
+    {"bin": {"cortex": "."}},
+    {"bin": {"cortex; rm": "dist/entry/cortex-cli.js"}},
+    {"bin": {"cortex": "dist/$(id).js"}},
+])
+def test_bin_links_refuse_a_table_that_cannot_be_linked_safely(
+    tmp_path: Path, package: dict[str, object],
+) -> None:
+    with pytest.raises(RuntimeError, match="bin"):
+        bundle_bin_links(write_npm_artifact(tmp_path / "server.tgz", package))
+
+
+def test_install_refuses_an_artifact_without_a_package_json(tmp_path: Path) -> None:
+    agent = make_agent(tmp_path, attach_proxy=True)
+    (tmp_path / ARTIFACT_NAME).write_bytes(b"not a tarball")
+    environment = FakeEnvironment(install_results())
+
+    with pytest.raises(RuntimeError, match="package.json is unreadable"):
+        asyncio.run(agent.setup(environment))
+
+    assert environment.uploads == []
 
 
 def test_failed_install_does_not_publish_manifest_or_home(tmp_path: Path) -> None:

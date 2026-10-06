@@ -1,5 +1,8 @@
+import json
 import os
+import re
 import shlex
+import tarfile
 from pathlib import Path, PurePosixPath
 from collections.abc import Sequence
 from typing import Any, Mapping, override
@@ -75,6 +78,8 @@ NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 BUNDLE_PACKAGE = "@cortex-agent/server"
 PRODUCTION_HOME_NAME = PRODUCTION_HOME_DIRNAME
 VERSION_COMMAND = "cortex daemon --version"
+BIN_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+BIN_TARGET = re.compile(r"^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$")
 WORKSPACE_EVIDENCE_FILENAME = "workspace.diff"
 WORKSPACE_COLLECTOR = r"""
 const fs = require('node:fs');
@@ -120,6 +125,39 @@ try {
   throw error;
 }
 """
+
+
+def _packed_package_json(npm_artifact: Path) -> object:
+    try:
+        with tarfile.open(npm_artifact, "r:gz") as tar:
+            member = tar.extractfile("package/package.json")
+            return json.load(member) if member is not None else None
+    except (OSError, KeyError, ValueError, tarfile.TarError) as error:
+        raise RuntimeError("npm artifact package.json is unreadable") from error
+
+
+def bundle_bin_links(npm_artifact: Path) -> tuple[tuple[str, str], ...]:
+    """The packed package's own `bin` table as (target, command) pairs, sorted by command.
+
+    Read from the artifact rather than restated here: a hand-copied table kept linking a deleted
+    entry point, and `ln -sfn` turns that into a dangling command instead of an error.
+    """
+    document = _packed_package_json(npm_artifact)
+    table = document.get("bin") if isinstance(document, Mapping) else None
+    if not isinstance(table, Mapping) or not table:
+        raise RuntimeError("npm artifact package.json declares no bin table")
+    links: list[tuple[str, str]] = []
+    for name, target in sorted(table.items()):
+        relative = PurePosixPath(target).as_posix() if isinstance(target, str) else ""
+        valid = (
+            isinstance(name, str) and BIN_NAME.fullmatch(name) is not None
+            and BIN_TARGET.fullmatch(relative) is not None
+            and not {".", ".."} & set(relative.split("/"))
+        )
+        if not valid:
+            raise RuntimeError(f"npm artifact bin entry {name!r} is not a package-relative file")
+        links.append((relative, name))
+    return tuple(links)
 
 
 class CortexBenchAgent(BaseInstalledAgent):
@@ -334,14 +372,10 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._npm_artifact = source
         return source, PurePosixPath("/installed-agent") / source.name
 
-    def _install_command(self, artifact: PurePosixPath) -> str:
+    def _install_command(
+        self, artifact: PurePosixPath, links: Sequence[tuple[str, str]],
+    ) -> str:
         package_root = NPM_INSTALL_PREFIX / "lib/node_modules" / BUNDLE_PACKAGE
-        links = (
-            ("dist/entry/cortex-cli.js", "cortex"),
-            ("dist/entry/production-evidence-export-cli.js", "cortex-evidence-export"),
-            ("dist/entry/hook-cli.js", "cortex-hook"),
-            ("dist/domain/tasks/system/task-cli.js", "cortex-task"),
-        )
         link_commands = " && ".join(
             f'ln -sfn "$package_root/{target}" {NPM_INSTALL_PREFIX / "bin" / name}'
             for target, name in links
@@ -407,8 +441,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         await self._prepare_trial_scratch(environment)
         await self._link_staged_runtimes(environment)
         artifact_path, artifact = self._npm_artifact_upload()
+        links = bundle_bin_links(artifact_path)
         await environment.upload_file(artifact_path, str(artifact))
-        await self.exec_as_root(environment, command=self._install_command(artifact))
+        await self.exec_as_root(environment, command=self._install_command(artifact, links))
         for command in self._verification_commands():
             await self.exec_as_agent(environment, command=command)
         self._installed_server = await self._discover_installed_server(environment)

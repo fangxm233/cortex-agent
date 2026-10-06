@@ -1,5 +1,7 @@
+import io
 import json
 import socket
+import tarfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -71,6 +73,26 @@ def trial_seed(upstream: str, **overrides: object) -> dict[str, object]:
     }
 
 
+PACKAGE_BIN = {
+    "cortex": "dist/entry/cortex-cli.js",
+    "cortex-evidence-export": "dist/entry/production-evidence-export-cli.js",
+    "cortex-hook": "dist/entry/hook-cli.js",
+    "cortex-signal": "dist/entry/signal-cli.js",
+}
+
+
+def write_npm_artifact(path: Path, package: object | None = None) -> Path:
+    """A packed bundle holding only the package.json the install step reads its bin table from."""
+    payload = json.dumps(
+        {"name": "@cortex-agent/server", "bin": PACKAGE_BIN} if package is None else package,
+    ).encode()
+    with tarfile.open(path, "w:gz") as tar:
+        info = tarfile.TarInfo("package/package.json")
+        info.size = len(payload)
+        tar.addfile(info, io.BytesIO(payload))
+    return path
+
+
 def manifest_seed(tmp_path: Path) -> dict[str, object]:
     files = {
         "wheel_path": tmp_path / "harness.whl",
@@ -79,6 +101,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
     }
     for file in files.values():
         file.write_bytes(b"wiring fixture")
+    write_npm_artifact(files["npm_artifact_path"])
     return {
         "root_run_id": ROOT_RUN_ID, "trial_id": TRIAL_ID, "arm": ARM_NAME,
         **{name: str(file) for name, file in files.items()},
