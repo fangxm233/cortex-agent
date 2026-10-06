@@ -71,6 +71,87 @@ function defaultSpawnSsh(args: string[]): ChildProcess {
   return spawn('ssh', args, { stdio: 'ignore' });
 }
 
+/**
+ * Kill the sshd sessions still listening on the tunnel's loopback port on a Windows host. Windows
+ * OpenSSH neither tears the forward listener down with the session nor refuses a duplicate bind,
+ * so a dead tunnel can keep answering the cortex-client while a healthy one sits next to it
+ * unused — and several can pile up on one port.
+ *
+ * It loops because `Get-NetTCPConnection` reports a single row per endpoint no matter how many
+ * sockets are bound to it: with two listeners on the port, `netstat -ano` and .NET's
+ * `GetActiveTcpListeners()` both show two and the cmdlet shows one — the oldest. One pass would
+ * evict one listener and leave the rest, so it repeats until no sshd holds the port.
+ *
+ * The owner is checked by name because the kill is otherwise indiscriminate: whatever happens to
+ * be listening on the port gets force-stopped, which is a stray kill waiting to happen if anything
+ * else ever binds it. This is the same guard the POSIX command applies through `comm`.
+ */
+function windowsFreePortCommand(port: number): string {
+  return 'powershell -NoProfile -Command "for ($i = 0; $i -lt 8; $i++) { '
+    + `$t = @(Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | `
+    + "Where-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName -eq 'sshd' }); "
+    + 'if (-not $t) { break }; '
+    + '$t | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; '
+    + 'Start-Sleep -Milliseconds 250 }"';
+}
+
+/** Tags a POSIX tunnel's remote session so a stale one can be found by name rather than by port. */
+function posixTunnelMarker(port: number): string {
+  return `cortex-tunnel-${port}`;
+}
+
+/**
+ * The remote end of a POSIX tunnel: a shell that parks with the marker in its own argv for as long
+ * as the sshd that spawned it lives. `ssh -N` would leave nothing on the far side but sshd, and
+ * sshd marks itself non-dumpable, so `/proc/<sshd>/fd` is root-only and an unprivileged
+ * `fuser`/`lsof`/`ss -p` reports no owner for the forward listener at all — a stale one simply
+ * cannot be located from the port. This process is an ordinary child of that sshd, which turns
+ * "who holds the port" into a `pgrep`.
+ *
+ * It has to watch its parent rather than park forever: `-T` gives the session no pty, so nothing
+ * sends SIGHUP when sshd goes away, and a plain `sleep` loop would be reparented to init and leak
+ * one process per tunnel restart. Watching the parent by pid also keeps the black-hole case right
+ * — there sshd is still alive, so the marker stays put and stays findable.
+ */
+function posixTunnelCommand(port: number): string {
+  return "exec sh -c 'P=$PPID; while kill -0 $P 2>/dev/null; do sleep 30; done"
+    + ` # ${posixTunnelMarker(port)}'`;
+}
+
+/**
+ * Evict a stale POSIX tunnel by killing the sshd session that owns its listener. When the link
+ * dies without a clean close, sshd blocks writing the session's exit status into the black hole
+ * and keeps the forward bound for a full TCP retransmission timeout (~15 min); every `ssh -R` in
+ * that window dies on ExitOnForwardFailure. Killing the marker's parent needs no privilege — that
+ * sshd runs as us — but it does need care: `/proc/<pid>/stat` is read past the last `)` because a
+ * process name may contain spaces, and the kill is gated on the parent actually being an sshd, so
+ * neither a recycled PID nor a marker already reparented to init can turn this into a stray kill.
+ * The name is matched as a prefix because OpenSSH 9.8+ renamed the per-connection process to
+ * `sshd-session`. The `[-]` keeps the pattern from matching the command's own shell, which would
+ * otherwise make this hang up on itself.
+ */
+function posixFreePortCommand(port: number): string {
+  const pattern = posixTunnelMarker(port).replace('cortex-', 'cortex[-]');
+  return `for p in $(pgrep -f "${pattern}"); do `
+    + 'pp=$(sed -e "s/^.*) //" /proc/$p/stat 2>/dev/null | cut -d" " -f2); '
+    + '[ -n "$pp" ] || continue; '
+    + 'case "$(cat /proc/$pp/comm 2>/dev/null)" in sshd*) kill "$pp";; esac; '
+    + 'done; exit 0';
+}
+
+/** The reverse tunnel that carries a device's client back to the hub, with its platform's eviction. */
+export function reverseTunnelSpec(
+  route: Pick<SshTunnelSpec, 'device' | 'host' | 'remotePort' | 'serverPort'>,
+  win: boolean,
+): SshTunnelSpec {
+  if (win) return { ...route, freeRemotePortCommand: windowsFreePortCommand(route.remotePort) };
+  return {
+    ...route,
+    markerCommand: posixTunnelCommand(route.remotePort),
+    freeRemotePortCommand: posixFreePortCommand(route.remotePort),
+  };
+}
+
 export function buildSshTunnelArgs(spec: SshTunnelSpec, controlPath: string): string[] {
   const args = [
     '-M', '-S', controlPath, '-T',

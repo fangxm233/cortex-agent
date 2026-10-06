@@ -36,7 +36,8 @@ import { startPlatformAdapters, type PlatformConnections } from './platform-conn
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
-import { startClientManager, stopClientManager, startAllRemoteClients, releaseUnregisteredDevices, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
+import { startClientManager, stopClientManager, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
+import { startAllRemoteClients, releaseUnregisteredDevices } from '@domain/remote/client-lifecycle.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';

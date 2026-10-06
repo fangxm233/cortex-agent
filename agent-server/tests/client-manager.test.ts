@@ -16,6 +16,8 @@ import {
   sendControlMessage,
   startClientManager,
   stopClientManager,
+} from '../src/domain/remote/client-manager.js';
+import {
   buildRemoteSpawnCommand,
   startRemoteClient,
   startAllRemoteClients,
@@ -25,7 +27,7 @@ import {
   releaseUnregisteredDevices,
   _getRestartTimerCount,
   _testReset,
-} from '../src/domain/remote/client-manager.js';
+} from '../src/domain/remote/client-lifecycle.js';
 import { requestStream } from '../src/domain/remote/reverse-stream.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

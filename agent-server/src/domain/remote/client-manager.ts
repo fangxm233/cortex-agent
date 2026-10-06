@@ -1,16 +1,10 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-import { spawn } from 'child_process';
-import { getMachineRegistry, applyReportedGpuCount, type MachineEntry, type MachineRegistry } from './machine-registry.js';
-import { STORE_DIR, CONFIG_DIR, DATA_DIR } from '@core/paths.js';
+import { applyReportedGpuCount } from './machine-registry.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
-import { SshTunnelSupervisor, type SshTunnelSpec } from './client-ssh-tunnel.js';
-import { sshExec } from './ssh-exec.js';
 
 const log = createLogger('client-manager');
 
@@ -37,6 +31,18 @@ interface ClientUpdateHooks {
 let updateHooks: ClientUpdateHooks | null = null;
 function setClientUpdateHooks(hooks: ClientUpdateHooks): void { updateHooks = hooks; }
 
+/** Remote-client lifecycle wiring (set by client-lifecycle at load). */
+interface HubLifecycleHooks {
+  /** The hub is (re)starting to accept clients. */
+  onStart: () => void;
+  /** A device dropped off unexpectedly — bring its client back. */
+  onDeviceGone: (device: string) => void;
+  /** The hub is shutting down: cancel recovery and tear down routes. */
+  onStop: () => Promise<void>;
+}
+let lifecycleHooks: HubLifecycleHooks | null = null;
+function setHubLifecycleHooks(hooks: HubLifecycleHooks): void { lifecycleHooks = hooks; }
+
 interface PendingCommand {
   resolve: (result: any) => void;
   reject: (error: Error) => void;
@@ -57,9 +63,6 @@ const pendingCommands = new Map<string, PendingCommand>();
 let wss: WebSocketServer | null = null;
 let heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
 let clientManagerPort: number | null = null;
-type TunnelController = Pick<SshTunnelSupervisor, 'ensure' | 'stopAll' | 'resume' | 'release'>;
-let tunnelSupervisor: TunnelController = new SshTunnelSupervisor();
-const routeSnapshots = new Map<string, Pick<MachineEntry, 'ssh' | 'clientConnection' | 'clientReversePort'>>();
 
 const HEARTBEAT_TIMEOUT_MS = 15_000; // 3 missed 5s heartbeats
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000; // 2 min for bash
@@ -91,7 +94,7 @@ function dropDevice(device: string, reason?: string): void {
   const dropped = cancelStreamsFor(device);
   if (dropped > 0) log.info(`cancelled ${dropped} pending reverse stream(s) for ${device}`);
   rejectPendingFor(device, new Error(`Device "${device}" disconnected${reason ? ` (${reason})` : ''}`));
-  scheduleRestart(device);
+  lifecycleHooks?.onDeviceGone(device);
 }
 
 /** The device's control socket, or throws (taking the device offline if its socket is gone). */
@@ -149,7 +152,7 @@ function startClientManager(port: number): void {
   }
 
   clientManagerPort = port;
-  tunnelSupervisor.resume();
+  lifecycleHooks?.onStart();
 
   // Authenticate at the HTTP upgrade (before the WS is established): the client must send a
   // valid bearer token in the `x-cortex-token` header. Fail-closed — an unset server token or
@@ -270,8 +273,6 @@ function startClientManager(port: number): void {
 async function stopClientManager(): Promise<void> {
   if (heartbeatCheckInterval) clearInterval(heartbeatCheckInterval);
   heartbeatCheckInterval = null;
-  for (const [, timer] of restartTimers) clearTimeout(timer);
-  restartTimers.clear();
 
   for (const [id, pending] of pendingCommands) {
     clearTimeout(pending.timer);
@@ -287,8 +288,7 @@ async function stopClientManager(): Promise<void> {
   const server = wss;
   wss = null;
   if (server) server.close();
-  await tunnelSupervisor.stopAll();
-  routeSnapshots.clear();
+  await lifecycleHooks?.onStop();
   clientManagerPort = null;
   if (server) log.info('WebSocket server stopped');
 }
@@ -312,6 +312,11 @@ function getOnlineDevices(): Array<{ device: string; platform: string; connected
 
 function isDeviceOnline(device: string): boolean {
   return devices.has(device);
+}
+
+/** The port the hub listens on, or null while it is stopped. */
+function getClientManagerPort(): number | null {
+  return clientManagerPort;
 }
 
 // --- Command routing ---
@@ -358,393 +363,14 @@ function sendCommand(device: string, command: CommandParams): Promise<any> {
   });
 }
 
-// --- Remote client lifecycle (SSH nohup start, PID tracking, auto-restart) ---
-
-const PID_FILE = path.join(STORE_DIR, 'client-pids.json');
-const restartTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const RESTART_DELAY_MS = 60_000; // retry every 60s until device reconnects
-
-function loadPids(): Record<string, number> {
-  try { return JSON.parse(fs.readFileSync(PID_FILE, 'utf8')); } catch { return {}; }
-}
-function savePids(pids: Record<string, number>): void {
-  fs.mkdirSync(STORE_DIR, { recursive: true });
-  fs.writeFileSync(PID_FILE, JSON.stringify(pids, null, 2));
-}
-function getPid(device: string): number | undefined { return loadPids()[device]; }
-function setPid(device: string, pid: number): void { const p = loadPids(); p[device] = pid; savePids(p); }
-function deletePid(device: string): void { const p = loadPids(); delete p[device]; savePids(p); }
-
-// --- Indirection so tests can swap the SSH executor and registry without spawning ssh ---
-type SshExec = (host: string, command: string, timeout?: number) => Promise<string>;
-let _sshExecImpl: SshExec = sshExec;
-let _getRegistryImpl: () => MachineRegistry = getMachineRegistry;
-
-/** Managed bundle entry for the same-machine client (shares the server's CORTEX home). */
-function localClientEntryPath(): string {
-  return path.join(DATA_DIR, 'client', 'current', 'client.mjs');
-}
-
-/** Default launch: node on the managed bundle. Shell/cmd expands the home variable. */
-function defaultClientLaunch(reg: MachineEntry): string {
-  return reg.win
-    ? 'node "%USERPROFILE%\\.cortex\\client\\current\\client.mjs"'
-    : 'node "$HOME/.cortex/client/current/client.mjs"';
-}
-
-/**
- * Build the shell command run over SSH to spawn cortex-client on a remote device.
- *
- * Windows note: WMI `Win32_Process.Create` does NOT perform PATH lookup, so the
- * launch is wrapped with `cmd.exe /c`, which resolves `node` and expands
- * `%USERPROFILE%`.
- *
- * Linux note: the shell handles PATH lookup; `nohup` detaches and `echo $!`
- * returns the child PID on stdout. Machines where `node` is not on the
- * non-interactive SSH PATH (nvm installs) set an absolute node path in
- * machines.json `clientCommand`.
- */
-function buildRemoteSpawnCommand(
-  reg: MachineEntry,
-  clientToken?: string,
-  serverUrl?: string,
-): string {
-  const token = clientToken?.trim();
-  const url = serverUrl?.trim();
-  const launch = reg.clientCommand?.trim() || defaultClientLaunch(reg);
-  if (reg.win) {
-    const env = [
-      token ? `set CORTEX_CLIENT_TOKEN=${token}` : '',
-      url ? `set CORTEX_SERVER_URL=${url}` : '',
-    ].filter(Boolean);
-    const inner = `cmd.exe /c ${[...env, launch].join('&&')}`;
-    return `powershell -Command "(Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList '${inner}').ProcessId"`;
-  }
-  const env = [
-    token ? `CORTEX_CLIENT_TOKEN='${token}'` : '',
-    url ? `CORTEX_SERVER_URL='${url}'` : '',
-  ].filter(Boolean).join(' ');
-  const envPrefix = env ? `${env} ` : '';
-  return `${envPrefix}nohup ${launch} > /dev/null 2>&1 & echo $!`;
-}
-
-const ROUTE_OWNERSHIP_FILE = path.join(STORE_DIR, 'client-routes.json');
-
-function loadRouteOwnership(): Record<string, string> {
-  try { return JSON.parse(fs.readFileSync(ROUTE_OWNERSHIP_FILE, 'utf8')); } catch { return {}; }
-}
-
-function setRouteOwnership(device: string, route: string): void {
-  const routes = loadRouteOwnership();
-  routes[device] = route;
-  fs.mkdirSync(STORE_DIR, { recursive: true });
-  fs.writeFileSync(ROUTE_OWNERSHIP_FILE, JSON.stringify(routes, null, 2));
-}
-
-function managedEntry(device: string): MachineEntry | undefined {
-  const live = _getRegistryImpl()[device];
-  if (!live) return undefined;
-  let route = routeSnapshots.get(device);
-  if (!route) {
-    route = {
-      ssh: live.ssh,
-      clientConnection: live.clientConnection,
-      clientReversePort: live.clientReversePort,
-    };
-    routeSnapshots.set(device, route);
-  }
-  return { ...live, ...route };
-}
-
-function managedServerUrl(reg: MachineEntry): string | undefined {
-  if (reg.clientConnection !== 'ssh-reverse') return undefined;
-  if (clientManagerPort === null) throw new Error('Client manager is not started');
-  return `ws://127.0.0.1:${reg.clientReversePort ?? clientManagerPort}`;
-}
-
-/**
- * Kill the sshd sessions still listening on the tunnel's loopback port on a Windows host. Windows
- * OpenSSH neither tears the forward listener down with the session nor refuses a duplicate bind,
- * so a dead tunnel can keep answering the cortex-client while a healthy one sits next to it
- * unused — and several can pile up on one port.
- *
- * It loops because `Get-NetTCPConnection` reports a single row per endpoint no matter how many
- * sockets are bound to it: with two listeners on the port, `netstat -ano` and .NET's
- * `GetActiveTcpListeners()` both show two and the cmdlet shows one — the oldest. One pass would
- * evict one listener and leave the rest, so it repeats until no sshd holds the port.
- *
- * The owner is checked by name because the kill is otherwise indiscriminate: whatever happens to
- * be listening on the port gets force-stopped, which is a stray kill waiting to happen if anything
- * else ever binds it. This is the same guard the POSIX command applies through `comm`.
- */
-function windowsFreePortCommand(port: number): string {
-  return 'powershell -NoProfile -Command "for ($i = 0; $i -lt 8; $i++) { '
-    + `$t = @(Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | `
-    + "Where-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName -eq 'sshd' }); "
-    + 'if (-not $t) { break }; '
-    + '$t | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; '
-    + 'Start-Sleep -Milliseconds 250 }"';
-}
-
-/** Tags a POSIX tunnel's remote session so a stale one can be found by name rather than by port. */
-function posixTunnelMarker(port: number): string {
-  return `cortex-tunnel-${port}`;
-}
-
-/**
- * The remote end of a POSIX tunnel: a shell that parks with the marker in its own argv for as long
- * as the sshd that spawned it lives. `ssh -N` would leave nothing on the far side but sshd, and
- * sshd marks itself non-dumpable, so `/proc/<sshd>/fd` is root-only and an unprivileged
- * `fuser`/`lsof`/`ss -p` reports no owner for the forward listener at all — a stale one simply
- * cannot be located from the port. This process is an ordinary child of that sshd, which turns
- * "who holds the port" into a `pgrep`.
- *
- * It has to watch its parent rather than park forever: `-T` gives the session no pty, so nothing
- * sends SIGHUP when sshd goes away, and a plain `sleep` loop would be reparented to init and leak
- * one process per tunnel restart. Watching the parent by pid also keeps the black-hole case right
- * — there sshd is still alive, so the marker stays put and stays findable.
- */
-function posixTunnelCommand(port: number): string {
-  return "exec sh -c 'P=$PPID; while kill -0 $P 2>/dev/null; do sleep 30; done"
-    + ` # ${posixTunnelMarker(port)}'`;
-}
-
-/**
- * Evict a stale POSIX tunnel by killing the sshd session that owns its listener. When the link
- * dies without a clean close, sshd blocks writing the session's exit status into the black hole
- * and keeps the forward bound for a full TCP retransmission timeout (~15 min); every `ssh -R` in
- * that window dies on ExitOnForwardFailure. Killing the marker's parent needs no privilege — that
- * sshd runs as us — but it does need care: `/proc/<pid>/stat` is read past the last `)` because a
- * process name may contain spaces, and the kill is gated on the parent actually being an sshd, so
- * neither a recycled PID nor a marker already reparented to init can turn this into a stray kill.
- * The name is matched as a prefix because OpenSSH 9.8+ renamed the per-connection process to
- * `sshd-session`. The `[-]` keeps the pattern from matching the command's own shell, which would
- * otherwise make this hang up on itself.
- */
-function posixFreePortCommand(port: number): string {
-  const pattern = posixTunnelMarker(port).replace('cortex-', 'cortex[-]');
-  return `for p in $(pgrep -f "${pattern}"); do `
-    + 'pp=$(sed -e "s/^.*) //" /proc/$p/stat 2>/dev/null | cut -d" " -f2); '
-    + '[ -n "$pp" ] || continue; '
-    + 'case "$(cat /proc/$pp/comm 2>/dev/null)" in sshd*) kill "$pp";; esac; '
-    + 'done; exit 0';
-}
-
-function tunnelSpec(device: string, reg: MachineEntry): SshTunnelSpec | null {
-  if (reg.clientConnection !== 'ssh-reverse') return null;
-  if (!reg.ssh || clientManagerPort === null) throw new Error(`SSH reverse route is not ready for ${device}`);
-  const remotePort = reg.clientReversePort ?? clientManagerPort;
-  const spec: SshTunnelSpec = { device, host: reg.ssh, remotePort, serverPort: clientManagerPort };
-  if (reg.win) {
-    spec.freeRemotePortCommand = windowsFreePortCommand(remotePort);
-  } else {
-    spec.markerCommand = posixTunnelCommand(remotePort);
-    spec.freeRemotePortCommand = posixFreePortCommand(remotePort);
-  }
-  return spec;
-}
-
-async function ensureManagedRoute(device: string, reg: MachineEntry): Promise<void> {
-  const spec = tunnelSpec(device, reg);
-  if (spec) await tunnelSupervisor.ensure(spec);
-}
-
-function expectedRouteOwnership(reg: MachineEntry): string {
-  return managedServerUrl(reg) ?? 'direct';
-}
-
-async function stopMismatchedRemoteClient(device: string, reg: MachineEntry): Promise<void> {
-  const pid = getPid(device);
-  if (!pid || !reg.ssh) return;
-  const owned = loadRouteOwnership()[device];
-  const expected = expectedRouteOwnership(reg);
-  if (owned === expected || (!owned && expected === 'direct')) return;
-  const cmd = reg.win ? `taskkill /pid ${pid} /f /t 2>nul || echo ok` : `kill ${pid} 2>/dev/null || true`;
-  await _sshExecImpl(reg.ssh, cmd, 10000);
-  deletePid(device);
-  log.info(`Stopped client on ${device} to switch route ${owned} → ${expected}`);
-}
-
-async function isRemotePidAlive(device: string): Promise<boolean> {
-  const reg = managedEntry(device);
-  if (!reg?.ssh) return false;
-  const pid = getPid(device);
-  if (!pid) return false;
-  try {
-    const cmd = reg.win
-      ? `tasklist /fi "pid eq ${pid}" /fo csv /nh`
-      : `kill -0 ${pid} 2>/dev/null && echo alive || echo dead`;
-    const result = await _sshExecImpl(reg.ssh, cmd);
-    return reg.win ? result.includes(`"${pid}"`) : result.includes('alive');
-  } catch {
-    return false;
-  }
-}
-
-async function launchRemoteClient(device: string): Promise<boolean> {
-  const reg = managedEntry(device);
-  if (!reg?.ssh) return false;
-  await ensureManagedRoute(device, reg);
-  const command = buildRemoteSpawnCommand(reg, getClientToken(), managedServerUrl(reg));
-  const pidStr = await _sshExecImpl(reg.ssh, command, 30000);
-  const pid = parseInt(pidStr);
-  if (isNaN(pid) || pid <= 0) return false;
-  setPid(device, pid);
-  setRouteOwnership(device, expectedRouteOwnership(reg));
-  log.info(`Started client on ${device} (PID ${pid})`);
-  return true;
-}
-
-async function startRemoteClient(device: string): Promise<void> {
-  const reg = managedEntry(device);
-  if (!reg) return;
-  if (devices.has(device) && reg.clientConnection !== 'ssh-reverse') return;
-
-  try {
-    await ensureManagedRoute(device, reg);
-    if (devices.has(device)) return;
-    if (reg.ssh) await stopMismatchedRemoteClient(device, reg);
-    if (reg.ssh && await isRemotePidAlive(device)) {
-      log.info(`Client on ${device} already running (PID ${getPid(device)}), waiting for reconnect...`);
-      return;
-    }
-  } catch (err) {
-    log.error(`Failed to prepare client route on ${device}: ${(err as Error).message} — scheduling retry`);
-    scheduleRestart(device);
-    return;
-  }
-
-  // Local device (no SSH): spawn the managed bundle on the server's own node.
-  if (!reg.ssh) {
-    const entry = localClientEntryPath();
-    if (!fs.existsSync(entry)) {
-      log.warn(`Managed client bundle missing at ${entry} — skipping local client spawn on ${device}`);
-      return;
-    }
-    try {
-      const child = spawn(process.execPath, [entry], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.on('error', (err) => {
-        log.error(`Local client spawn error on ${device}: ${(err as Error).message}`);
-      });
-      child.unref();
-      if (child.pid) {
-        setPid(device, child.pid);
-        log.info(`Started local client on ${device} (PID ${child.pid})`);
-      }
-    } catch (err) {
-      log.error(`Failed to start local client on ${device}: ${(err as Error).message}`);
-    }
-    return;
-  }
-
-  // Remote device: launch cortex-client (config managed by LLM, written once at bootstrap).
-  // On ANY failure path (SSH error, empty/unparseable PID), we MUST schedule a retry —
-  // otherwise a single startup failure leaves the device offline until the next server
-  // restart, because scheduleRestart() is otherwise only triggered by disconnect or
-  // heartbeat-timeout of an already-connected device.
-  try {
-    if (!await launchRemoteClient(device)) {
-      log.warn(`Failed to parse PID for ${device} — scheduling retry`);
-      scheduleRestart(device);
-    }
-  } catch (err) {
-    log.error(`Failed to start client on ${device}: ${(err as Error).message} — scheduling retry`);
-    scheduleRestart(device);
-  }
-}
-
-function scheduleRestart(device: string): void {
-  const reg = _getRegistryImpl()[device];
-  if (!reg || restartTimers.has(device)) return;
-
-  const timer = setTimeout(async () => {
-    restartTimers.delete(device);
-    if (devices.has(device)) return; // already reconnected
-
-    log.info(`Auto-restarting client on ${device}...`);
-    try {
-      await startRemoteClient(device);
-    } catch (err) {
-      log.error(`Restart failed for ${device}: ${(err as Error).message}`);
-    }
-    // If still offline, schedule another attempt
-    if (!devices.has(device)) {
-      scheduleRestart(device);
-    }
-  }, RESTART_DELAY_MS);
-
-  restartTimers.set(device, timer);
-}
-
-async function releaseDevice(device: string): Promise<void> {
-  const timer = restartTimers.get(device);
-  if (timer) clearTimeout(timer);
-  restartTimers.delete(device);
-  routeSnapshots.delete(device);
-  await tunnelSupervisor.release(device);
-  log.info(`Released ${device}: no longer in machines.json`);
-}
-
-/**
- * Drop what the manager still holds for machines that left the registry. A removed machine's
- * tunnel would otherwise keep retrying its frozen route until the server restarts. Pids and route
- * ownership stay on disk so a machine added back can adopt a client that is still running.
- */
-async function releaseUnregisteredDevices(): Promise<void> {
-  const registry = _getRegistryImpl();
-  const held = new Set([...routeSnapshots.keys(), ...restartTimers.keys()]);
-  await Promise.all([...held].filter((device) => !registry[device]).map(releaseDevice));
-}
-
-/** Start clients on all registered devices and keep recovery armed until they connect. */
-async function startAllRemoteClients(): Promise<void> {
-  for (const [device] of Object.entries(_getRegistryImpl())) {
-    try {
-      await startRemoteClient(device);
-      if (!devices.has(device)) scheduleRestart(device);
-    } catch (err) {
-      log.error(`Failed to start ${device}: ${(err as Error).message}`);
-      scheduleRestart(device);
-    }
-  }
-}
-
-// --- Test hooks ---
-// Tests override sshExec / registry to exercise spawn-failure and retry-scheduling
-// paths without actually invoking the `ssh` binary. _testReset() must clear timers
-// before module state leaks between tests.
-function _setSshExecForTesting(fn: SshExec): void { _sshExecImpl = fn; }
-function _setMachineRegistryProviderForTesting(fn: () => MachineRegistry): void { _getRegistryImpl = fn; }
-function _setTunnelSupervisorForTesting(supervisor: TunnelController): void { tunnelSupervisor = supervisor; }
-function _getRestartTimerCount(): number { return restartTimers.size; }
-function _testReset(): void {
-  for (const [, timer] of restartTimers) clearTimeout(timer);
-  restartTimers.clear();
-  routeSnapshots.clear();
-  _sshExecImpl = sshExec;
-  _getRegistryImpl = getMachineRegistry;
-  tunnelSupervisor = new SshTunnelSupervisor();
-}
-
 export {
   startClientManager,
   stopClientManager,
   getOnlineDevices,
   isDeviceOnline,
+  getClientManagerPort,
   sendCommand,
   sendControlMessage,
   setClientUpdateHooks,
-  startRemoteClient,
-  startAllRemoteClients,
-  releaseUnregisteredDevices,
-  buildRemoteSpawnCommand,
-  // Test-only hooks (prefixed with _ by convention).
-  _setSshExecForTesting,
-  _setMachineRegistryProviderForTesting,
-  _setTunnelSupervisorForTesting,
-  _getRestartTimerCount,
-  _testReset,
+  setHubLifecycleHooks,
 };
