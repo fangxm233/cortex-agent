@@ -213,7 +213,9 @@ SPA 会先显示登录页而不是工作台：
 - **`SameSite=Strict`** 让其他站点发起的请求不带该会话。但同一父域名下的各个子域名仍算同站，
   Cloudflare Access 的凭据也会照常附带，所以服务器还会检查 `Origin`：发往 `/trpc` 或 `/api` 路由
   （包括登录）的 `POST`，若 `Origin` 既不是本服务器自己、也不在 `uiCorsOrigins` 中，一律返回 403。
-  不带 `Origin` 的请求（CLI、设备、原生壳自身的 HTTP 客户端）照旧只做凭据校验。
+  不带 `Origin` 的请求（CLI、设备、原生壳自身的 HTTP 客户端）照旧只做凭据校验。"本服务器自己"指
+  `Origin` 的主机与请求的 `Host` header 相同，因此服务器前面的反向代理必须原样转发 `Host`
+  （cloudflared 默认如此，除非设置了 `httpHostHeader`；nginx 需要 `proxy_set_header Host $host`）。
 - **工作区文件以沙箱方式打开。** 通过下载链接直接打开工作区里的 HTML 或 SVG 文件时，服务器附带
   `Content-Security-Policy: sandbox allow-scripts`，页面运行在不透明 origin 中，读不到会话，也无法
   以你的身份调用 API。

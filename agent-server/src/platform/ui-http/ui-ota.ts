@@ -84,37 +84,66 @@ function buildBundle(spaDir: string): OtaBundle {
   };
 }
 
-/**
- * Identity of the build on disk, cheap enough to check per request: Vite rewrites index.html on
- * every build. Null while index.html is absent — the middle of a rebuild that emptied the dir.
- */
-function buildStamp(spaDir: string): string | null {
+/** How long a build must have been left alone before it counts as finished. Rollup writes every
+ *  output file in parallel, so a fresh index.html says nothing about the chunks beside it. */
+const BUILD_SETTLE_MS = 2000;
+
+interface BuildStamp {
+  /** Changes whenever any file or directory under the SPA dir changes. */
+  key: string;
+  /** Newest mtime seen, directories included — a deletion bumps its directory. */
+  newestMs: number;
+  hasIndex: boolean;
+}
+
+/** Identity of the build on disk, from stat alone (the dir is a few dozen files). */
+function buildStamp(spaDir: string): BuildStamp {
+  let files = 0;
+  let bytes = 0;
+  let newestMs = 0;
+  const walk = (dir: string): void => {
+    newestMs = Math.max(newestMs, fs.statSync(dir).mtimeMs);
+    for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const child = path.join(dir, dirent.name);
+      if (dirent.isDirectory()) {
+        walk(child);
+      } else if (dirent.isFile()) {
+        const st = fs.statSync(child);
+        files += 1;
+        bytes += st.size;
+        newestMs = Math.max(newestMs, st.mtimeMs);
+      }
+    }
+  };
   try {
-    const st = fs.statSync(path.join(spaDir, 'index.html'));
-    return `${st.mtimeMs}:${st.size}`;
+    walk(spaDir);
   } catch {
-    return null;
+    // A file vanished mid-walk: a rebuild is under way, and a "now" newest says so.
+    newestMs = Date.now();
   }
+  return { key: `${files}:${bytes}:${newestMs}`, newestMs, hasIndex: fs.existsSync(path.join(spaDir, 'index.html')) };
 }
 
 /**
  * Build the OTA custom-route map for the given SPA directory. Returns an empty map (OTA disabled)
  * when the SPA is not built. The bundle is built lazily and cached per build: the SPA itself is
  * served live from disk, so a `web/dist` rebuild without a server restart must reach the native
- * shells too, not only browsers.
+ * shells too, not only browsers. While a rebuild is still landing, the last complete bundle keeps
+ * being served — a shell that installed a half-written one would show a blank page.
  */
 export function createOtaRoutes(spaDir: string | undefined): Record<string, CustomRouteHandler> {
   if (!spaDir || !fs.existsSync(spaDir)) return {};
 
-  // `stamp: null` = not known to match any build; mid-rebuild (no index.html) keeps the last bundle.
-  let cached: { stamp: string | null; bundle: OtaBundle } | undefined;
+  let cached: { key: string | null; bundle: OtaBundle } | undefined;
   const bundle = (): OtaBundle => {
     const stamp = buildStamp(spaDir);
-    if (cached && (stamp === null || cached.stamp === stamp)) return cached.bundle;
+    if (cached) {
+      if (cached.key === stamp.key) return cached.bundle;
+      if (!stamp.hasIndex || Date.now() - stamp.newestMs < BUILD_SETTLE_MS) return cached.bundle;
+    }
     const built = buildBundle(spaDir);
-    // A rebuild that landed while we were reading may have mixed two builds: serve it, but do not
-    // file it under this stamp, so the next request reads the settled directory again.
-    cached = { stamp: buildStamp(spaDir) === stamp ? stamp : null, bundle: built };
+    // Changed while we read it: serve it this once, but never file it as the build of record.
+    cached = { key: buildStamp(spaDir).key === stamp.key ? stamp.key : null, bundle: built };
     return built;
   };
 

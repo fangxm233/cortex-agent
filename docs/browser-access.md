@@ -233,7 +233,9 @@ What that buys, and what it costs:
   regardless, so the server also checks `Origin`: a `POST` to `/trpc` or to an `/api` route — login
   included — whose `Origin` is neither this server's own nor listed in `uiCorsOrigins` is refused
   with 403. Requests that carry no `Origin` (the CLI, devices, the native shells' own HTTP clients)
-  are left to the credential check.
+  are left to the credential check. "Own" means the `Origin` host equals the request's `Host`
+  header, so a reverse proxy in front of the server must pass `Host` through unchanged (cloudflared
+  does unless `httpHostHeader` is set; nginx needs `proxy_set_header Host $host`).
 - **Workspace files open sandboxed.** A workspace HTML or SVG file opened directly from a download
   link is served with `Content-Security-Policy: sandbox allow-scripts`, so it runs in an opaque
   origin and cannot read the session or call the API as you.
