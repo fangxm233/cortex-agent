@@ -27,3 +27,6 @@ packages = ["src/cortex_bench_harness"]
 [tool.pytest.ini_options]
 testpaths = ["tests/launcher", "tests/package", "tests/proxy", "tests/scan"]
 pythonpath = ["src", "tests"]
+markers = [
+  "vendor_cli: runs a real vendor CLI (claude, pi, codex) from PATH inside an unprivileged network namespace; deselect with -m 'not vendor_cli' on hosts without them",
+]

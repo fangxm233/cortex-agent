@@ -77,6 +77,7 @@ def test_redaction_rejects_non_dummy_authorization(
         redact_request(request, tmp_path)
 
 
+@pytest.mark.vendor_cli
 def test_current_pi_satisfies_wire_contract_without_egress(tmp_path: Path) -> None:
     output_dir = tmp_path / "pi"
     executable = shutil.which("pi")

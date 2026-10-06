@@ -170,6 +170,7 @@ def test_current_contract_rejects_behavioral_regressions(regression: str) -> Non
     os.environ.get("RUN_CLAUDE_CODE_VENDOR_WIRE") != "1",
     reason="set RUN_CLAUDE_CODE_VENDOR_WIRE=1 for the real isolated CLI recapture",
 )
+@pytest.mark.vendor_cli
 def test_current_claude_process_satisfies_wire_contract(
     tmp_path: Path, request: pytest.FixtureRequest,
 ) -> None:

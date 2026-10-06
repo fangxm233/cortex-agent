@@ -325,6 +325,7 @@ def frozen_model(vendor: str, tmp_path: Path) -> str:
     return str(arm(vendor)["model"])
 
 
+@pytest.mark.vendor_cli
 @pytest.mark.parametrize("vendor", ("pi", "claude-code", "codex"))
 def test_current_vendor_cli_transmits_the_frozen_model_unchanged(
     vendor: str, tmp_path: Path, request: pytest.FixtureRequest,
@@ -340,6 +341,7 @@ def test_current_vendor_cli_transmits_the_frozen_model_unchanged(
     assert "request_model_mismatch" not in outcomes
 
 
+@pytest.mark.vendor_cli
 @pytest.mark.parametrize("vendor", ("pi", "claude-code", "codex"))
 def test_proxy_refuses_real_cli_model_mismatch_before_upstream(
     vendor: str, tmp_path: Path, request: pytest.FixtureRequest,
@@ -355,6 +357,7 @@ def test_proxy_refuses_real_cli_model_mismatch_before_upstream(
     assert "request_model_mismatch" in outcomes
 
 
+@pytest.mark.vendor_cli
 def test_claude_native_default_subagent_drift_is_refused_after_primary(
     tmp_path: Path, request: pytest.FixtureRequest,
 ) -> None:
