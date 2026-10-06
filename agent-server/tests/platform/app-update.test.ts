@@ -7,6 +7,7 @@ import {
   parseAppAssetName,
   type GhRelease,
 } from '@platform/ui-http/app-update.js';
+import { fakeReq, fakeRes, type FakeRes } from '../helpers/http.js';
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -148,33 +149,11 @@ test('manifest selection: non-server tags and malformed tags are ignored', () =>
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
-interface FakeRes {
-  statusCode: number;
-  headers: Record<string, string>;
-  body: string;
-  writeHead(status: number, headers?: Record<string, string>): FakeRes;
-  end(chunk?: Buffer | string): void;
-}
-
-function fakeRes(): FakeRes {
-  return {
-    statusCode: 0,
-    headers: {},
-    body: '',
-    writeHead(status, headers) {
-      this.statusCode = status;
-      if (headers) for (const [k, v] of Object.entries(headers)) this.headers[k.toLowerCase()] = String(v);
-      return this;
-    },
-    end(chunk) { if (chunk) this.body += chunk.toString(); },
-  };
-}
-
 async function callManifest(routes: Record<string, any>, method = 'GET'): Promise<FakeRes> {
   const handler = routes[APP_UPDATE_MANIFEST_PATH];
   assert.ok(handler, 'manifest route must be registered');
   const res = fakeRes();
-  await handler({ method, url: APP_UPDATE_MANIFEST_PATH, headers: {} }, res);
+  await handler(fakeReq(method, APP_UPDATE_MANIFEST_PATH), res);
   return res;
 }
 
@@ -187,7 +166,7 @@ test('route: serves the manifest as no-store JSON', async () => {
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['content-type'] ?? '', /application\/json/);
   assert.equal(res.headers['cache-control'], 'no-store');
-  const m = JSON.parse(res.body);
+  const m = res.json();
   assert.equal(m.version, '2026.7.30');
   assert.equal(m.assets.length, 6);
 });
@@ -199,7 +178,7 @@ test('route: serves {} when no qualifying release exists', async () => {
   });
   const res = await callManifest(routes);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), {});
+  assert.deepEqual(res.json(), {});
 });
 
 test('route: serves {} when the GitHub fetch fails', async () => {
@@ -209,7 +188,7 @@ test('route: serves {} when the GitHub fetch fails', async () => {
   });
   const res = await callManifest(routes);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), {});
+  assert.deepEqual(res.json(), {});
 });
 
 test('route: method guard rejects POST with 405', async () => {
@@ -251,9 +230,9 @@ test('route: a failed refetch keeps serving the last good manifest', async () =>
     ttlMs: 60_000,
     now: () => nowMs,
   });
-  const first = JSON.parse((await callManifest(routes)).body);
+  const first = (await callManifest(routes)).json();
   nowMs += 61_000;
-  const second = JSON.parse((await callManifest(routes)).body);
+  const second = (await callManifest(routes)).json();
   assert.equal(calls, 2);
   assert.deepEqual(second, first, 'stale-but-good beats empty on refetch failure');
 });
@@ -272,6 +251,6 @@ test('route: a dev server advertises nothing and never calls GitHub', async () =
   });
   const res = await callManifest(routes);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), {});
+  assert.deepEqual(res.json(), {});
   assert.equal(calls, 0, 'dev mode must short-circuit before the GitHub call');
 });

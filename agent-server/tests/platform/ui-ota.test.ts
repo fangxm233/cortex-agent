@@ -9,6 +9,7 @@ import {
   UI_OTA_MANIFEST_PATH,
   UI_OTA_BUNDLE_PATH,
 } from '@platform/ui-http/ui-ota.js';
+import { fakeReq, fakeRes, type FakeRes } from '../helpers/http.js';
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -24,40 +25,6 @@ function makeSpa(files: Record<string, string>): string {
     writeFileSync(full, content);
   }
   return dir;
-}
-
-interface FakeRes {
-  statusCode: number;
-  headers: Record<string, string>;
-  headersSent: boolean;
-  writeHead(status: number, headers?: Record<string, string>): FakeRes;
-  setHeader(k: string, v: string): void;
-  write(chunk: Buffer | string): boolean;
-  end(chunk?: Buffer | string): void;
-  readonly body: Buffer;
-}
-
-function fakeRes(): FakeRes {
-  const chunks: Buffer[] = [];
-  return {
-    statusCode: 0,
-    headers: {},
-    headersSent: false,
-    writeHead(status, headers) {
-      this.statusCode = status;
-      if (headers) for (const [k, v] of Object.entries(headers)) this.headers[k.toLowerCase()] = v;
-      this.headersSent = true;
-      return this;
-    },
-    setHeader(k, v) { this.headers[k.toLowerCase()] = v; },
-    write(chunk) { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)); return true; },
-    end(chunk) { if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)); },
-    get body() { return Buffer.concat(chunks); },
-  };
-}
-
-function fakeReq(method: string, url: string): any {
-  return { method, url, headers: {} };
 }
 
 async function callRoute(
@@ -88,7 +55,7 @@ test('manifest: returns JSON with version/sha256/size/url', async () => {
   const res = await callRoute(routes, 'GET', UI_OTA_MANIFEST_PATH);
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['content-type'] ?? '', /application\/json/);
-  const m = JSON.parse(res.body.toString('utf8'));
+  const m = res.json();
   assert.equal(typeof m.version, 'string');
   assert.ok(m.version.length > 0);
   assert.match(m.sha256, /^[0-9a-f]{64}$/);
@@ -102,7 +69,7 @@ test('manifest: returns JSON with version/sha256/size/url', async () => {
 test('bundle: application/zip whose bytes match the manifest size and sha256', async () => {
   const dir = makeSpa({ 'index.html': '<html>hi</html>', 'assets/app.js': 'console.log(1)' });
   const routes = createOtaRoutes(dir);
-  const manifest = JSON.parse((await callRoute(routes, 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
+  const manifest = (await callRoute(routes, 'GET', UI_OTA_MANIFEST_PATH)).json();
   const res = await callRoute(routes, 'GET', UI_OTA_BUNDLE_PATH);
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['content-type'] ?? '', /application\/zip/);
@@ -119,16 +86,16 @@ test('version is content-addressed: stable for identical content across separate
   const files = { 'index.html': '<html>same</html>', 'a.js': 'a=1' };
   const dirA = makeSpa(files);
   const dirB = makeSpa(files);
-  const mA = JSON.parse((await callRoute(createOtaRoutes(dirA), 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
-  const mB = JSON.parse((await callRoute(createOtaRoutes(dirB), 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
+  const mA = (await callRoute(createOtaRoutes(dirA), 'GET', UI_OTA_MANIFEST_PATH)).json();
+  const mB = (await callRoute(createOtaRoutes(dirB), 'GET', UI_OTA_MANIFEST_PATH)).json();
   assert.equal(mA.version, mB.version, 'identical content must yield identical version');
 });
 
 test('version changes when a file changes', async () => {
   const dir1 = makeSpa({ 'index.html': '<html>v1</html>' });
   const dir2 = makeSpa({ 'index.html': '<html>v2</html>' });
-  const m1 = JSON.parse((await callRoute(createOtaRoutes(dir1), 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
-  const m2 = JSON.parse((await callRoute(createOtaRoutes(dir2), 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
+  const m1 = (await callRoute(createOtaRoutes(dir1), 'GET', UI_OTA_MANIFEST_PATH)).json();
+  const m2 = (await callRoute(createOtaRoutes(dir2), 'GET', UI_OTA_MANIFEST_PATH)).json();
   assert.notEqual(m1.version, m2.version, 'changed content must change the version');
 });
 
@@ -157,7 +124,7 @@ test('a web/dist rebuild without a restart is served to the shells', async () =>
   const dir = makeSpa({ 'index.html': '<html>v1</html>', 'assets/app.js': 'a=1' });
   settle(dir, 20);
   const routes = createOtaRoutes(dir);
-  const manifest = async () => JSON.parse((await callRoute(routes, 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
+  const manifest = async () => (await callRoute(routes, 'GET', UI_OTA_MANIFEST_PATH)).json();
   const first = await manifest();
   assert.equal((await manifest()).version, first.version, 'unchanged build stays cached');
 
