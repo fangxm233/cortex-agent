@@ -84,9 +84,9 @@ L5  entry/         → 所有层（组合根）
 
 **事件类别：**
 
-- **Message/interaction**：`message.received`、`message.edited`、`plan.submitted`、`plan.approved`、`ask-user.requested`、`ask-user.answered`
+- **Message/interaction**：`session.message`、`plan.submitted`、`plan.approved`、`ask-user.requested`、`ask-user.answered`
 - **Agent lifecycle**：`agent.started`、`agent.completed`、`agent.failed`、`agent.superseded`
-- **System**：`llm.active-count-delta`、`scheduler.tick`、`rate-limit.breach`
+- **System**：`system.notice`、`config.changed`、`llm.active-count-delta`、`scheduler.tick`、`rate-limit.changed`
 
 ### 第 3 层：`domain/` — 业务逻辑 {#layer-3-domain-business-logic}
 

@@ -206,7 +206,7 @@ function waitForFileState(
 function isolatedBaseEnv(home: string): NodeJS.ProcessEnv {
   const blockedPrefixes = ['CORTEX_', 'SLACK_', 'FEISHU_', 'ANTHROPIC_', 'CF_ACCESS_', 'CLOUDFLARE_', 'FISH_'];
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    !blockedPrefixes.some((prefix) => key.startsWith(prefix)) && key !== 'GITHUB_WEBHOOK_SECRET'));
+    !blockedPrefixes.some((prefix) => key.startsWith(prefix))));
   return {
     ...env,
     HOME: home,

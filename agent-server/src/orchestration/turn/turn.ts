@@ -763,7 +763,7 @@ export function buildInteractiveCallbacks(
       crypto.randomUUID(), channel, sessionId ?? '', questions, event.toolUseId,
     );
   };
-  return { onPlanWritten: () => undefined, onAskUserQuestion, onToolUse: () => undefined };
+  return { onAskUserQuestion };
 }
 
 // --- Mid-turn injection wiring --------------------------------------------------------------------

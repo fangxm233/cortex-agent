@@ -5,24 +5,16 @@ import { createWebhookHandler } from '../src/orchestration/routing/webhook.js';
 
 const TOKEN = 'test-webhook-token-abc';
 let prevToken: string | undefined;
-let prevGithub: string | undefined;
-// Built in beforeAll() so getSecret() default captures the cleared github secret.
 let handler: ReturnType<typeof createWebhookHandler>;
 
 beforeAll(() => {
   prevToken = process.env.CORTEX_WEBHOOK_TOKEN;
   process.env.CORTEX_WEBHOOK_TOKEN = TOKEN;
-  // Clear the GitHub HMAC secret so the github-exemption test can prove the token gate
-  // (not HMAC) is what's being bypassed: with no secret, verifySignature passes.
-  prevGithub = process.env.GITHUB_WEBHOOK_SECRET;
-  delete process.env.GITHUB_WEBHOOK_SECRET;
   handler = createWebhookHandler();
 });
 afterAll(() => {
   if (prevToken === undefined) delete process.env.CORTEX_WEBHOOK_TOKEN;
   else process.env.CORTEX_WEBHOOK_TOKEN = prevToken;
-  if (prevGithub === undefined) delete process.env.GITHUB_WEBHOOK_SECRET;
-  else process.env.GITHUB_WEBHOOK_SECRET = prevGithub;
 });
 
 interface Driven { statusCode: number; body: string }
@@ -83,7 +75,7 @@ test('the token exemption covers /webhook/signal and nothing adjacent to it', as
   assert.equal(JSON.parse(signal.body).accepted, false);
 
   // Neighbours must stay gated: no prefix matching, no sibling leaking through.
-  for (const url of ['/webhook/signals', '/webhook/signal/extra', '/webhook/waitpoint', '/webhook/task-op']) {
+  for (const url of ['/webhook/signals', '/webhook/signal/extra', '/webhook/waitpoint', '/webhook/github']) {
     const { statusCode } = await drive({ method: 'POST', url, body: {} });
     assert.equal(statusCode, 401, `${url} must still require the bearer token`);
   }
@@ -143,16 +135,25 @@ test('benchmark-only mode still requires the bearer token', async () => {
   }
 });
 
-test('POST /webhook/github is exempt from the token gate (uses HMAC instead)', async () => {
-  // No x-cortex-token header. With no GITHUB_WEBHOOK_SECRET configured, verifySignature
-  // returns true (warns) and a non-push event is Ignored with 200 — proving the token
-  // gate did NOT intercept the github route.
-  const { statusCode, body } = await drive({
-    method: 'POST',
-    url: '/webhook/github',
-    headers: { 'x-github-event': 'ping' },
-    body: {},
+test('an authorized request to an unknown route gets 404', async () => {
+  const { statusCode } = await drive({ method: 'POST', url: '/webhook/github', headers: { 'x-cortex-token': TOKEN }, body: {} });
+  assert.equal(statusCode, 404);
+});
+
+test('a body that is not JSON gets 400 before any handler runs', async () => {
+  const result = await new Promise<{ statusCode: number; body: string }>((resolve) => {
+    const req = new EventEmitter() as any;
+    req.method = 'POST';
+    req.url = '/webhook/remote-command';
+    req.headers = { 'x-cortex-token': TOKEN };
+    let statusCode = 200;
+    const res: any = {
+      writeHead: (code: number) => { statusCode = code; },
+      end: (chunk?: string) => resolve({ statusCode, body: chunk ?? '' }),
+    };
+    handler(req, res);
+    req.emit('data', '{not json');
+    req.emit('end');
   });
-  assert.equal(statusCode, 200);
-  assert.equal(body, 'Ignored');
+  assert.deepEqual(result, { statusCode: 400, body: 'Bad JSON' });
 });

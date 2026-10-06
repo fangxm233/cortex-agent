@@ -176,7 +176,6 @@ still read as a deprecated fallback.
 |---|---|---|
 | `WEBHOOK_PORT` | `3001` | Webhook HTTP server port |
 | `WEBHOOK_HOST` | `127.0.0.1` | Fallback host for remote clients (when Tailscale/LAN IP not detected) |
-| `GITHUB_WEBHOOK_SECRET` | — | GitHub webhook HMAC-SHA256 signing secret |
 
 ### Data file overrides
 
@@ -641,7 +640,7 @@ Three categories of variables deliberately remain in `.env`:
 
 - **Secrets and credentials** — `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
   `SLACK_APP_TOKEN`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`,
-  `ANTHROPIC_API_KEY`, `GITHUB_WEBHOOK_SECRET`, `CORTEX_CLIENT_TOKEN`. They are
+  `ANTHROPIC_API_KEY`, `CORTEX_CLIENT_TOKEN`. They are
   settings in a loose sense, but keeping them out of a file that the Web UI can
   read and write keeps the blast radius small.
 - **Variables consumed by child processes** — `CORTEX_HOME`,

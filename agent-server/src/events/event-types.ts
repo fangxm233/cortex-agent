@@ -15,8 +15,6 @@ export type AuthErrorKind = 'login_required' | 'oauth_expired' | 'invalid_api_ke
 /** All CortexEvent variants.  `ts` is ISO-8601, injected by EventBus.publish(). */
 export type CortexEvent =
   // Message / interaction
-  | { type: 'message.received';       ts: string; channel: string; user: string; text: string }
-  | { type: 'message.edited';         ts: string; channel: string; user: string; text: string }
   // `pending` marks a user message written into a live turn's backend stdin but not yet read by the
   // model. It is NOT in conversation history yet — clients show it as a provisional row pinned below
   // everything the agent is currently emitting, and `session.message.delivered` later commits it.
@@ -97,7 +95,6 @@ export type CortexEvent =
   | { type: 'config.changed';         ts: string; section: 'profiles' | 'preferences' }
   | { type: 'llm.active-count-delta'; ts: string; delta: number }
   | { type: 'scheduler.tick';         ts: string; jobKey: string }
-  | { type: 'rate-limit.breach';      ts: string; provider: string; percent: number }
   | { type: 'rate-limit.changed';     ts: string }
 
     // ── Meta-events (EventBus / EventLogger infrastructure) ───────────────────
