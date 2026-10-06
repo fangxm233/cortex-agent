@@ -15,8 +15,9 @@ export interface JsonRepoOptions<T> {
   /** Serialize without pretty-printing. For multi-MB stores the indentation costs ~40% extra
    *  stringify CPU on every write (synchronous, blocks the event loop) — opt in for those. */
   compact?: boolean;
-  /** Other processes write this file too: mutate() holds a cross-process lock (core/file-lock) and
-   *  re-reads the file inside it instead of trusting the cache, so no writer's update is lost. */
+  /** Other processes write this file too: read() always reads the file, and mutate() holds a
+   *  cross-process lock (core/file-lock) and re-reads the file inside it, so no reader sees a stale
+   *  copy and no writer's update is lost. */
   sharedFile?: boolean;
 }
 
@@ -78,9 +79,10 @@ export class JsonRepository<T> {
    * Return the current value.
    * Cache hit: zero I/O. Cache miss: reads file, parses JSON, applies migrate if present, and
    * persists a migration that changed the shape. Missing file returns and caches defaultValue().
+   * A sharedFile repo always reads the file: another process may have written it since.
    */
   async read(): Promise<T> {
-    if (this.cache !== null) return this.cache;
+    if (this.cache !== null && !this.opts.sharedFile) return this.cache;
     // A shared file is swept only under its lock: another process may have a tmp in flight.
     if (!this.opts.sharedFile) await this.ensureSwept();
     const { value, migrated } = await this.load();
@@ -104,8 +106,10 @@ export class JsonRepository<T> {
   private parse(raw: string): { value: T; migrated: boolean } {
     const parsed = JSON.parse(raw) as unknown;
     if (!this.opts.migrate) return { value: parsed as T, migrated: false };
+    // Snapshot first: a migration may rewrite `parsed` in place.
+    const before = JSON.stringify(parsed);
     const value = this.opts.migrate(parsed);
-    return { value, migrated: JSON.stringify(parsed) !== JSON.stringify(value) };
+    return { value, migrated: before !== JSON.stringify(value) };
   }
 
   /** Corrupt JSON: preserve the original bytes under a .corrupt.<ts> sibling so they remain

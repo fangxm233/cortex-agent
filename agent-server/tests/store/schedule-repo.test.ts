@@ -158,6 +158,34 @@ test('ScheduleRepo - a stored target and its fallback are dropped on read, the r
   assert.equal('target' in (await repo.findTask('project-1'))!, false);
 });
 
+test('ScheduleRepo - a migration that rewrites records in place is persisted on read', async () => {
+  const filePath = path.join(tmpDir, `schedules-${_testIdx++}.json`);
+  await fs.writeFile(filePath, JSON.stringify({
+    tasks: [{ id: 'legacy', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', profile: null, createdAt: 1, target: { kind: 'fresh' } }],
+  }));
+
+  await new ScheduleRepo(filePath).read();
+
+  const onDisk = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  assert.equal('target' in onDisk.tasks[0], false);
+  assert.equal(onDisk.tasks[0].message, 'm');
+});
+
+test('ScheduleRepo - reads see another writer\'s change without invalidate (long-lived reader process)', async () => {
+  const filePath = path.join(tmpDir, `schedules-${_testIdx++}.json`);
+  const reader = new ScheduleRepo(filePath);
+  const writer = new ScheduleRepo(filePath);
+  await writer.addTask(makeTask({ id: 'first' }));
+  assert.deepEqual((await reader.read()).tasks.map((t) => t.id), ['first']);
+
+  await writer.addTask(makeTask({ id: 'second' }));
+  await writer.updateTask('first', (t) => { t.lastRun = 42; });
+
+  assert.deepEqual((await reader.read()).tasks.map((t) => t.id), ['first', 'second']);
+  assert.equal((await reader.findTask('first'))?.lastRun, 42);
+  assert.ok(await reader.findTask('second'));
+});
+
 // ── Invalidate: clears cache so next read fetches from disk ────
 
 test('ScheduleRepo - invalidate() clears in-memory cache', async () => {
