@@ -171,6 +171,7 @@ export async function handleSessionsList(
       commissionDraft: s.commissionDraft ?? null,
       teamLeadId: s.teamLeadId ?? null,
       workerName: s.workerName ?? null,
+      workerBrief: s.workerBrief ?? null,
       workerRetiredAt: s.workerRetiredAt ?? null,
       createdAt: s.createdAt,
       lastUsedAt: s.lastUsedAt,

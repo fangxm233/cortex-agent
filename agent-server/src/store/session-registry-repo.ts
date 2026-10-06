@@ -97,6 +97,7 @@ export interface RegisterSessionOpts {
   commissionDraft?: string | null;
   teamLeadId?: string | null;
   workerName?: string | null;
+  workerBrief?: string | null;
 }
 
 /** Mutators available inside `batch(fn)` — each shares the one locked state so several events land
@@ -211,7 +212,10 @@ export class SessionRegistryRepo {
       commissionId: opts.commissionId ?? null,
       commissionDraft: opts.commissionDraft ?? null,
       ...(opts.teamLeadId
-        ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerRetiredAt: null }
+        ? {
+          teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null,
+          workerBrief: opts.workerBrief ?? null, workerRetiredAt: null,
+        }
         : {}),
     });
   }

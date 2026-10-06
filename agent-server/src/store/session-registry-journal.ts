@@ -71,6 +71,8 @@ export interface SessionRecord {
   teamLeadId?: string | null;
   /** The worker's short name, unique within its lead's team. */
   workerName?: string | null;
+  /** What the lead spawned the worker to do: the first line of its spawn prompt, capped. */
+  workerBrief?: string | null;
   /** Epoch ms when the worker was retired; null while active. */
   workerRetiredAt?: number | null;
 }
@@ -567,6 +569,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     browser: toOptionalBrowserValue(row?.browser),
     teamLeadId: toOptionalNullableString(row?.teamLeadId),
     workerName: toOptionalNullableString(row?.workerName),
+    workerBrief: toOptionalNullableString(row?.workerBrief),
     workerRetiredAt: toOptionalNullableNumber(row?.workerRetiredAt),
   } satisfies SessionRecord;
   return assertRecordId(record, expectedId);
@@ -675,6 +678,7 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   browser: toOptionalBrowserValue,
   teamLeadId: toOptionalNullableString,
   workerName: toOptionalNullableString,
+  workerBrief: toOptionalNullableString,
   workerRetiredAt: toOptionalNullableNumber,
 };
 

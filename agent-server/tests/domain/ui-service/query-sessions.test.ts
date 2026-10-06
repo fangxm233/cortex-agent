@@ -61,15 +61,20 @@ test('sessions.list exposes display metadata and defaults legacy records to fals
 test('sessions.list exposes worker fields and uses null for ordinary sessions', async () => {
   const deps = makeDeps();
   deps.sessionStore.listByProject = async () => [
-    { ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout', workerRetiredAt: 1738454400000 },
+    {
+      ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout', workerBrief: 'Map the dataset',
+      workerRetiredAt: 1738454400000,
+    },
     mockSessions[2],
   ];
   const [worker, ordinary] = await handleSessionsList(deps, { projectId: 'proj1' });
   assert.equal(worker.teamLeadId, 'lead-1');
   assert.equal(worker.workerName, 'scout');
+  assert.equal(worker.workerBrief, 'Map the dataset');
   assert.equal(worker.workerRetiredAt, 1738454400000);
   assert.equal(ordinary.teamLeadId, null);
   assert.equal(ordinary.workerName, null);
+  assert.equal(ordinary.workerBrief, null);
   assert.equal(ordinary.workerRetiredAt, null);
 });
 

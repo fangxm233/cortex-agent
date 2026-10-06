@@ -19,7 +19,7 @@ export interface SessionRegistryWriter {
     label?: string | null; profileName?: string | null; agentName?: string | null;
     browser?: SessionBrowserOption | null;
     commissionId?: string | null; commissionDraft?: string | null;
-    teamLeadId?: string | null; workerName?: string | null;
+    teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     scheduleId?: string | null;
   }): Promise<void>;
 }
@@ -39,9 +39,11 @@ export interface RegisterNamedSessionOpts {
   /** Resolve commission fields from the freshly generated session name. Needed because a new
    *  commission's draft directory is named after the session, which is not known until here. */
   commissionFor?: (sessionName: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
-  /** Team mode: the owning lead's sessionId and this worker's name. Absent for ordinary sessions. */
+  /** Team mode: the owning lead's sessionId, this worker's name and its brief. Absent for ordinary
+   *  sessions. */
   teamLeadId?: string | null;
   workerName?: string | null;
+  workerBrief?: string | null;
   /** The schedule whose fire opened this session. Present, the session is that schedule's run
    *  (kind and origin 'scheduled') until a reply adopts it as an ordinary direct session. */
   scheduleId?: string | null;
@@ -71,7 +73,9 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     browser: opts.browser ?? null,
     commissionId: commission?.commissionId ?? null,
     commissionDraft: commission?.commissionDraft ?? null,
-    ...(opts.teamLeadId ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null } : {}),
+    ...(opts.teamLeadId
+      ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerBrief: opts.workerBrief ?? null }
+      : {}),
     ...(scheduled ? { scheduleId: opts.scheduleId } : {}),
   });
   return name;
@@ -104,7 +108,7 @@ export async function createDirectSession(
     projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null;
     selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
     browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
-    teamLeadId?: string | null; workerName?: string | null;
+    teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     label?: string | null; scheduleId?: string | null;
   },
 ): Promise<{ sessionId: string; sessionName: string; channel: string }> {
@@ -175,6 +179,7 @@ export async function createDirectSession(
       : undefined,
     teamLeadId: opts.teamLeadId ?? null,
     workerName: opts.workerName ?? null,
+    workerBrief: opts.workerBrief ?? null,
     scheduleId: opts.scheduleId ?? null,
   });
   await deps.setChannelSession(channel, sessionId);

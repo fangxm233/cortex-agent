@@ -357,7 +357,9 @@ test('session registry replays worker fields, retirement, and lists a lead\'s wo
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
   await repo.registerSession('cortex-lead', registerOpts('sess-lead'));
-  await repo.registerSession('cortex-w1', registerOpts('sess-w1', { teamLeadId: 'sess-lead', workerName: 'scout' }));
+  await repo.registerSession('cortex-w1', registerOpts('sess-w1', {
+    teamLeadId: 'sess-lead', workerName: 'scout', workerBrief: 'Map the grasp dataset',
+  }));
   await repo.registerSession('cortex-w2', registerOpts('sess-w2', { teamLeadId: 'sess-lead', workerName: 'builder' }));
   await repo.registerSession('cortex-other', registerOpts('sess-other', { teamLeadId: 'sess-elsewhere', workerName: 'scout' }));
 
@@ -365,6 +367,7 @@ test('session registry replays worker fields, retirement, and lists a lead\'s wo
   const lead = await repo.getById('sess-lead');
   assert.equal(lead?.teamLeadId ?? null, null);
   assert.equal(lead?.workerName ?? null, null);
+  assert.equal(lead?.workerBrief ?? null, null);
 
   await repo.setWorkerRetired('sess-w2', 1738454400000);
 
@@ -372,6 +375,7 @@ test('session registry replays worker fields, retirement, and lists a lead\'s wo
   const w1 = await reopened.getById('sess-w1');
   assert.equal(w1?.teamLeadId, 'sess-lead');
   assert.equal(w1?.workerName, 'scout');
+  assert.equal(w1?.workerBrief, 'Map the grasp dataset');
   assert.equal(w1?.workerRetiredAt, null);
   assert.equal((await reopened.getById('sess-w2'))?.workerRetiredAt, 1738454400000);
   assert.deepEqual((await reopened.listWorkers('sess-lead')).map(s => s.sessionId).sort(), ['sess-w1', 'sess-w2']);

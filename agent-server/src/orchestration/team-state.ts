@@ -94,10 +94,12 @@ const defaultViewDeps: WorkerViewDeps = {
   now: () => Date.now(),
 };
 
-/** After a restart: the brief from the first lead message, the last report from the last reply. */
+/** After a restart: the brief from the session record (or, for a worker spawned before the record
+ *  carried one, the first lead message), the last report from the last reply. */
 async function recoverFromHistory(worker: Session, deps: WorkerViewDeps): Promise<void> {
   if (historyLoaded.has(worker.sessionId)) return;
   historyLoaded.add(worker.sessionId);
+  if (worker.workerBrief && !briefs.has(worker.sessionId)) briefs.set(worker.sessionId, worker.workerBrief);
   if (briefs.has(worker.sessionId) && reports.has(worker.sessionId)) return;
   let history: SessionHistory | null = null;
   try { history = await deps.history(worker.sessionId); } catch { return; }
