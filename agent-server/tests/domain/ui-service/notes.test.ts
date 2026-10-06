@@ -14,6 +14,7 @@ import {
 } from '../../../src/domain/ui-service/mutate/notes.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 interface PublishedEvent {
   type: string;
@@ -26,7 +27,7 @@ function tempContext(): string {
 }
 
 function makeDeps(contextDir: string | null, published: PublishedEvent[] = []): UiServiceDeps {
-  return {
+  return makeUiDeps({
     projectStore: {
       list: () => [],
       get: (id: string) => contextDir && id === 'atlas'
@@ -36,27 +37,12 @@ function makeDeps(contextDir: string | null, published: PublishedEvent[] = []): 
       getDefault: () => ({ id: 'general', name: 'general', kind: 'general', contextDir: '/g' } as any),
       createProject: () => ({} as any),
     },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
     scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch' } as any) },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
     approvalsPath: '/nonexistent/PENDING_APPROVALS.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     bus: Object.assign(new EventBus(), {
       publish: (event: PublishedEvent) => { published.push(event); },
     }),
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: {} as any,
-  };
+  });
 }
 
 test('notes handlers scope NOTES.md through the registered project', async () => {

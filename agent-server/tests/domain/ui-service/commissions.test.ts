@@ -11,6 +11,7 @@ import {
 } from '../../../src/domain/ui-service/query/commissions.js';
 import { handleCommissionClose } from '../../../src/domain/ui-service/mutate/commissions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 import type { CommissionRecord } from '../../../src/store/commission-repo.js';
 
 const T0 = Date.UTC(2026, 7, 28, 10, 0, 0);
@@ -23,28 +24,7 @@ function record(overrides: Partial<CommissionRecord> = {}): CommissionRecord {
 }
 
 function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
-  return {
-    projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({} as any),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-    ...overrides,
-  };
+  return makeUiDeps(overrides);
 }
 
 function storeOf(records: CommissionRecord[]): NonNullable<UiServiceDeps['commissionStore']> {

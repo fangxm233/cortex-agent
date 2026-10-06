@@ -2,9 +2,10 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCreateProject } from '../../../src/domain/ui-service/mutate/projects.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 function makeDeps(createProject: UiServiceDeps['projectStore']['createProject']): UiServiceDeps {
-  return {
+  return makeUiDeps({
     projectStore: {
       list: () => [],
       get: () => undefined,
@@ -12,25 +13,8 @@ function makeDeps(createProject: UiServiceDeps['projectStore']['createProject'])
       getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }),
       createProject,
     },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
     approvalsPath: '/tmp/PENDING_APPROVALS.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: {} as any,
-  };
+  });
 }
 
 test('projects.create returns ok with the new project id on success', async () => {

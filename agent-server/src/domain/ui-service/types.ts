@@ -2587,6 +2587,9 @@ export interface UiServiceDeps {
    * domain never imports orchestration (layer safety / depcruise).
    */
   cancelSessionRun: (opts: { channel: string }) => Promise<number>;
+  /** Kill one live execution and tear it down as `cancelled` (Web "Kill run"). Wired in app.ts to the
+   *  orchestration `cancelLiveExecution`. False when no live execution has that id. */
+  cancelLiveExecution: (executionId: string) => Promise<boolean>;
   /**
    * Message edit + rewind: roll the session back to `turnIndex` and re-send the edited text
    * (orchestration `rewindWebSession` — ledger rollback + backend backup restore + pooled-CLI

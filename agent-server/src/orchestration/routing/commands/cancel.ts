@@ -30,6 +30,15 @@ async function cancelLive(exec: RunningExecution): Promise<void> {
   }
 }
 
+/** Cancel one live execution by id (the Web UI "Kill run", ui-service `executions.cancel`, wired
+ *  via the `cancelLiveExecution` dep in entry/app.ts). False when nothing live has that id. */
+export async function cancelLiveExecution(executionId: string): Promise<boolean> {
+  const exec = runRegistry.getById(executionId);
+  if (!exec) return false;
+  await cancelLive(exec);
+  return true;
+}
+
 /** Seams for {@link cancelBgHolds} — injected in tests, defaulted to the real registry/adapter. */
 export interface BgHoldCancelDeps {
   heldSessions?: (channel: string) => string[];

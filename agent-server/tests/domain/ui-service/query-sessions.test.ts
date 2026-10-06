@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { resetSettingsForTests } from '../../../src/core/settings.js';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 const mockSessions = [
   { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
@@ -11,7 +12,7 @@ const mockSessions = [
 ];
 
 function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
-  return {
+  return makeUiDeps({
     projectStore: {
       list: () => [
         { id: 'proj1', name: 'proj1', kind: 'user' as const, contextDir: '/p1' },
@@ -27,28 +28,12 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
       listResumable: async (pid?: string) => mockSessions.filter(s => s.kind !== 'scheduled' && (!pid || s.projectId === pid)),
       getById: async () => null,
     },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    approvalsPath: '/tmp/nonexistent-approvals.md',
     runningExecutions: {
       getAll: () => [],
       sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
     } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
     ...overrides,
-  };
+  });
 }
 
 test('sessions.list with projectId returns filtered sessions', async () => {

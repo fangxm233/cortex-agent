@@ -6,7 +6,7 @@
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { cancelBgHolds, cancelChannelRuns, cancelSubagentRuns } from '../../src/orchestration/routing/commands/cancel.js';
+import { cancelBgHolds, cancelChannelRuns, cancelLiveExecution, cancelSubagentRuns } from '../../src/orchestration/routing/commands/cancel.js';
 import type { RunningExecution } from '../../src/core/run-registry.js';
 import { beginForegroundSession } from '../../src/orchestration/turn/turn.js';
 import { runRegistry } from '../../src/core/run-registry.js';
@@ -218,4 +218,22 @@ test('Stop on a channel with nothing running never touches the registry', () => 
   });
   assert.equal(n, 0);
   assert.equal(calls, 0);
+});
+
+// --- cancelLiveExecution: the web "Kill run" on one execution ---------------------------------
+
+test('cancelLiveExecution kills the live handle and removes it from the registry', async () => {
+  let killed = 0;
+  runRegistry.register({
+    channel: 'web:kill', executionId: 'exec-kill',
+    kill: () => { killed++; return true; }, backend: 'claude', trackSessionId: 'sess-kill',
+  });
+
+  assert.equal(await cancelLiveExecution('exec-kill'), true);
+  assert.equal(killed, 1, 'the process is killed, not only the record');
+  assert.equal(runRegistry.getById('exec-kill'), null);
+});
+
+test('cancelLiveExecution of an execution with no live handle reports false', async () => {
+  assert.equal(await cancelLiveExecution('exec-gone'), false);
 });

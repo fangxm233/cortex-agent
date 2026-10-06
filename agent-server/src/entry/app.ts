@@ -25,7 +25,7 @@ import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
-import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
+import { cancelChannelRuns, cancelLiveExecution } from '@orch/routing/commands/cancel.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
@@ -583,6 +583,7 @@ process.on('SIGTERM', async () => {
     // channel-cancel path (same code the no-arg/`--all` !cancel command uses). Injected here so the
     // ui-service domain never imports orchestration.
     cancelSessionRun: ({ channel }) => cancelChannelRuns(channel),
+    cancelLiveExecution,
     // Manual context compact: both the Web mutation and !compact command share the idle-only
     // orchestration coordinator; sessions.list receives the matching display capability hint.
     supportsSessionCompaction: (session) => isSessionCompactionSupported(session),

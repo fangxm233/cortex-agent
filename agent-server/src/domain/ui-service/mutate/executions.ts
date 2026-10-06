@@ -6,6 +6,7 @@ export async function handleCancelExecution(
   args: { executionId: string },
 ): Promise<Result<ExecutionsCancelReturn>> {
   try {
+    if (await deps.cancelLiveExecution(args.executionId)) return { ok: true, data: { cancelled: true } };
     const record = deps.executionRegistry.cancelExecution(args.executionId);
     if (!record) {
       return { ok: false, code: 'not-found', message: t('ui.execution.notFound', { id: args.executionId }) };

@@ -20,6 +20,7 @@ export function makeUiDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDep
     bus: new EventBus(),
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
     cancelSessionRun: async () => 0,
+    cancelLiveExecution: async () => false,
     switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
     adapter: { getProjectConduits: async () => ({}) } as any,
