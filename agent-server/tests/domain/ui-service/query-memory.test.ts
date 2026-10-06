@@ -1,4 +1,6 @@
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
+import * as git from '../../../src/core/git-availability.js';
+import * as commands from '../../../src/core/exec-async.js';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -259,4 +261,17 @@ test('memory.file returns real per-line blame (commit hash + task ref) for a tra
     dto.blame!.map((b) => b.line),
     [1, 2, 3],
   );
+});
+
+test('memory.file skips all history commands when Git is unavailable', async () => {
+  const { root } = makeProject();
+  const capability = vi.spyOn(git, 'isGitAvailable').mockReturnValue(false);
+  const run = vi.spyOn(commands, 'runFile');
+  try {
+    const dto = await handleMemoryFile(makeDeps('p', root), { projectId: 'p', path: 'STATUS.md' });
+    assert.equal(dto.content, '# status\nline2\n');
+    assert.equal(dto.lineDiff, null);
+    assert.equal(dto.blame, null);
+    assert.equal(run.mock.calls.length, 0);
+  } finally { capability.mockRestore(); run.mockRestore(); }
 });

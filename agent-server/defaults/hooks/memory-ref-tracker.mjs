@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.22-2
+// @cortex-hook-version 2026.10.6
 
 import { readFileSync, existsSync, mkdirSync, appendFileSync } from 'fs';
 import { execSync } from 'child_process';
+import { gitStatus } from './git-support.mjs';
 import { join, resolve } from 'path';
 import { homedir } from 'os';
 
@@ -85,6 +86,7 @@ function processGrepTool(payload) {
 }
 
 function autoCommitAccessLog() {
+  if (gitStatus(DATA_DIR) === null) return;
   try {
     let hasStaged = false;
     try {

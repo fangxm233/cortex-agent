@@ -1,17 +1,16 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.2
+// @cortex-hook-version 2026.10.6
 
-import { execSync } from 'child_process';
+import { gitStatus } from './git-support.mjs';
 
 async function main() {
   // Drain stdin; the hook payload is not needed.
   for await (const _chunk of process.stdin) { /* discard */ }
 
-  let hasChanges = false;
-  try {
-    const out = execSync('git status --porcelain', { encoding: 'utf8', timeout: 10_000 }).trim();
-    hasChanges = out.length > 0;
-  } catch {}
+  const status = gitStatus();
+  const afterRecording = status === null
+    ? '- Save context updates directly to disk. Git history is unavailable here; do not initialize a repository or install Git just to close this session.'
+    : '- Run `git status` to review all changes\n- Commit context file changes with a clear, specific message\n- Do NOT commit changes you did not make';
 
   const prompt = `Before this session closes, do a memory flush. Think back through everything that happened in this session and persist anything a fresh session would need to know.
 
@@ -60,11 +59,9 @@ Do NOT create files for trivial observations. Only persist what a fresh session 
 
 ## After recording
 
-- Run \`git status\` to review all changes
-- Commit context file changes with a clear, specific message (e.g. "context: record gpu-server dataset path and Conference deadline")
-- Do NOT commit changes you did not make`;
+${afterRecording}`;
 
-  if (hasChanges) {
+  if (status) {
     process.stdout.write(prompt + '\n\nNote: there are already uncommitted changes in the repo from earlier work — only commit your own changes, leave the rest alone.');
   } else {
     process.stdout.write(prompt);

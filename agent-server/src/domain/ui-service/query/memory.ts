@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { isGitAvailable } from '@core/git-availability.js';
 import { runFile } from '@core/exec-async.js';
 import type {
   UiServiceDeps,
@@ -193,10 +194,10 @@ export async function handleMemoryFile(
   const st = fs.statSync(abs);
   const content = fs.readFileSync(abs, 'utf8');
   // Both git probes are independent child processes: run them concurrently.
-  const [lineDiff, blame] = await Promise.all([
+  const [lineDiff, blame] = isGitAvailable() ? await Promise.all([
     gitLineDiff(root, params.path),
     gitBlame(root, params.path),
-  ]);
+  ]) : [null, null];
   return {
     projectId: params.projectId,
     path: params.path,
