@@ -408,14 +408,27 @@ test('the catalog reports a plugin name shared by two portable plugins on both o
   assert.equal(entries.find((entry) => entry.id === 'portable-one')?.valid, true);
 });
 
-test('fails closed when an assigned portable package is invalid', () => {
+test('an assigned portable package with an invalid manifest is skipped and reported, not fatal', () => {
   const harness = makeHarness();
   invalidPortablePlugin(harness, 'portable-invalid');
+  portablePlugin(harness, { id: 'portable-good', skills: [{ name: 'good-skill' }] });
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-invalid']),
-    /Assigned portable plugin 'portable-invalid' is invalid/,
-  );
+  const resolved = resolveRuntime(harness, ['plugins/portable-invalid', 'plugins/portable-good'], { backend: 'pi' });
+  assert.equal(resolved.pluginSkillDirs?.length, 1);
+  assert.match(resolved.pluginSkillDirs?.[0] ?? '', /good-skill/);
+  assert.equal(resolved.warnings?.length, 1);
+  assert.match(resolved.warnings?.[0] ?? '', /Skipping plugin 'portable-invalid': its plugin\.json is invalid/);
+
+  // Alone it still yields a (pluginless) spawn that carries the warning.
+  const alone = resolveRuntime(harness, ['plugins/portable-invalid'], { backend: 'claude' });
+  assert.equal(alone.pluginDirs, undefined);
+  assert.match(alone.warnings?.[0] ?? '', /portable-invalid/);
+
+  // The catalog shows why on the plugin's page.
+  const entry = loadPluginCatalog({ pluginsDir: harness.pluginsDir, dataDir: harness.dataDir })
+    .find((candidate) => candidate.id === 'portable-invalid');
+  assert.equal(entry?.valid, false);
+  assert.ok(entry?.issues.some((issue) => issue.code === 'manifest_invalid'));
 });
 
 test('Claude projection copies validated skill trees, preserves executable files, and normalizes manifest compatibility fields', () => {

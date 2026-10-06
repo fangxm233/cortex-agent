@@ -83,6 +83,7 @@ interface ClassifiedSelections {
   items: SelectedRuntimeItem[];
   portableSelections: Map<string, PortableSelection>;
   selectedLegacySkills: LegacySkillRef[];
+  warnings: string[];
 }
 
 function stablePrimitive(value: unknown): string | undefined {
@@ -528,7 +529,13 @@ function addPortableSelection(
   roots: ReadonlyMap<string, CatalogRootInfo>,
   result: ClassifiedSelections,
 ): void {
-  if (!entry.valid) throw new Error(`Assigned portable plugin '${entry.id}' is invalid`);
+  // Skipped, not fatal: one broken manifest must not stop every session that selects it from
+  // starting. The catalog already lists the manifest issues on the plugin's page.
+  if (!entry.valid) {
+    const reason = entry.issues[0]?.message ?? 'manifest is invalid';
+    reportSkip(result.warnings, `Skipping plugin '${entry.id}': its plugin.json is invalid (${reason})`);
+    return;
+  }
   if (result.portableSelections.has(entry.id)) return;
   const root = requiredPortableRoot(roots, entry.id);
   result.portableSelections.set(entry.id, { entry, root });
@@ -562,7 +569,7 @@ function classifySelections(
 ): ClassifiedSelections {
   const lookup = catalogEntriesByPath(entries, roots);
   const result: ClassifiedSelections = {
-    items: [], portableSelections: new Map(), selectedLegacySkills: [],
+    items: [], portableSelections: new Map(), selectedLegacySkills: [], warnings: [],
   };
   const preserved = new Set<string>();
   for (const value of selectedPluginDirs) {
@@ -766,12 +773,16 @@ export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): Reso
     pluginsDir, dataDir: physicalDataDir, ids: selectedCatalogIds(pluginsDir, dataDir, selectedPluginDirs),
   });
   const classified = classifySelections(entries, catalogRoots(pluginsDir, entries), dataDir, selectedPluginDirs);
-  if (classified.items.length === 0) return {};
+  if (classified.items.length === 0) return withWarnings({}, classified.warnings);
   const portable = collectPortableDetails(
     classified.portableSelections, options.backend, runtimeDir, portableMcpEnabled(options.mcpComposition),
   );
   warnLegacySkillCollisions(portable.skillClaims, classified.selectedLegacySkills);
   sweepStaleRuntimeDirs(path.join(runtimeDir, options.backend), directoriesInUse(portable.details));
   const resolved = resolvedRuntime(options.backend, classified.items, portable.details);
-  return portable.warnings.length > 0 ? { ...resolved, warnings: portable.warnings } : resolved;
+  return withWarnings(resolved, [...classified.warnings, ...portable.warnings]);
+}
+
+function withWarnings(resolved: ResolvedPluginRuntime, warnings: string[]): ResolvedPluginRuntime {
+  return warnings.length > 0 ? { ...resolved, warnings } : resolved;
 }
