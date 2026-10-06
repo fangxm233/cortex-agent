@@ -9,7 +9,9 @@
 # written again, so a re-run spends nothing on it. A harness-incomplete root (a trial that died
 # before it could publish) is moved aside to a sibling named `<trial>.harness-incomplete-<UTC>` --
 # renamed, never deleted, since it is the only evidence of what that attempt spent -- and only
-# that trial is armed again. `--dry-run` makes the same classification and reports it.
+# that trial is armed again. What every set-aside attempt metered stays in the campaign's
+# request total, and one with no readable meter marks that total incomplete. `--dry-run` makes
+# the same classification and reports it.
 #
 # CONCURRENCY. Worker `k` holds network slot `k` for the whole campaign and pulls plans off a
 # shared queue in declared order. A slot owns one subnet, one gateway and one container address, so
@@ -169,6 +171,10 @@ class TrialOutcome:
     finished_at: str | None = None
     #: The harness-incomplete root an earlier run left, which this run moved aside.
     moved_aside: Mapping[str, object] | None = None
+    #: Every set-aside root of this trial on disk -- this run's move and any earlier one -- with
+    #: what its proxy metered. Those attempts reached the provider, so their spend is the
+    #: campaign's spend even though nothing of them is graded.
+    set_aside_attempts: tuple[Mapping[str, object], ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -194,6 +200,8 @@ class TrialOutcome:
             record["reason"] = self.reason
         if self.moved_aside is not None:
             record["moved_aside"] = dict(self.moved_aside)
+        if self.set_aside_attempts:
+            record["set_aside_attempts"] = [dict(attempt) for attempt in self.set_aside_attempts]
         # The schedule, not the declaration: trials are reported in declared order, so without
         # these three a reader cannot tell which of them actually overlapped.
         for field in ("slot", "started_at", "finished_at"):
@@ -294,8 +302,14 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     started_at = _timestamp()
     task_inputs = _stage_task_inputs(config)
     moved = _move_incomplete_roots_aside(config, resumes)
+    attempts = _set_aside_attempts(config, resumes)
     with _codex_access(config, preflight) as codex:
         outcomes, fault = asyncio.run(_run_campaign(config, resumes, moved, task_inputs, codex))
+    outcomes = [
+        replace(outcome, set_aside_attempts=attempts[outcome.plan.trial_id])
+        if outcome.plan.trial_id in attempts else outcome
+        for outcome in outcomes
+    ]
     report_path, report_sha256 = _write_comparison_report(config, outcomes)
     failed = sum(outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED) for outcome in outcomes)
     document: dict[str, object] = {
@@ -511,17 +525,42 @@ def _move_incomplete_roots_aside(
         if resume.incomplete is None:
             continue
         trial_root = config.trials_dir / resume.plan.trial_id
-        metered = _metered_requests(trial_root)
         try:
             target = _move_aside(trial_root, stamp)
         except OSError as error:
             raise CampaignError(
                 f"cannot move harness-incomplete trial root {trial_root} aside: {error}"
             ) from error
-        moved[resume.plan.trial_id] = {
-            "path": str(target), "reason": resume.incomplete, "metered_requests": metered,
-        }
+        moved[resume.plan.trial_id] = {"path": str(target), "reason": resume.incomplete}
     return moved
+
+
+def _set_aside_attempts(
+    config: CampaignConfig, resumes: Sequence[_Resume],
+) -> dict[str, tuple[dict[str, object], ...]]:
+    """Every set-aside root on disk, by trial, with what its proxy metered (None if unreadable).
+
+    Found by name rather than remembered from the move, so a re-run after the trial finally
+    published still counts the attempts an earlier run set aside.
+    """
+    try:
+        names = sorted(entry.name for entry in config.trials_dir.iterdir())
+    except FileNotFoundError:
+        return {}
+    except OSError as error:
+        raise CampaignError(
+            f"cannot list {config.trials_dir} for set-aside trial roots: {error}") from error
+    attempts: dict[str, tuple[dict[str, object], ...]] = {}
+    for resume in resumes:
+        prefix = f"{resume.plan.trial_id}.{MOVED_ASIDE_MARKER}-"
+        found = tuple(
+            {"path": str(config.trials_dir / name),
+             "metered_requests": _metered_requests(config.trials_dir / name)}
+            for name in names if name.startswith(prefix)
+        )
+        if found:
+            attempts[resume.plan.trial_id] = found
+    return attempts
 
 
 def _move_aside(trial_root: Path, stamp: str) -> Path:
@@ -773,22 +812,35 @@ def _metered_requests(trial_root: Path) -> int | None:
 
 
 def _total(outcomes: Sequence[TrialOutcome]) -> int:
+    """Every request the campaign's meters counted: each trial's own, plus each attempt of it
+    that an earlier run left harness-incomplete and a later run set aside."""
     return sum(
-        outcome.metered_requests
-        for outcome in outcomes if outcome.metered_requests is not None
+        value for value in (
+            *(outcome.metered_requests for outcome in outcomes),
+            *(_attempt_meter(attempt) for outcome in outcomes
+              for attempt in outcome.set_aside_attempts),
+        ) if value is not None
     )
 
 
 def _total_is_complete(outcomes: Sequence[TrialOutcome]) -> bool:
-    """Whether every trial that was armed contributed a figure to the total.
+    """Whether every trial that was armed, and every set-aside attempt, contributed a figure.
 
-    A trial that was never armed spent nothing and cannot make the total incomplete; a trial that
-    ran and left no readable meter makes the total a floor rather than a sum, and the document has
-    to say so instead of letting the missing number read as zero.
+    A trial that was never armed spent nothing and cannot make the total incomplete; a trial or a
+    set-aside attempt that ran and left no readable meter makes the total a floor rather than a
+    sum, and the document has to say so instead of letting the missing number read as zero.
     """
     return all(
         outcome.metered_requests is not None for outcome in outcomes if outcome.armed
+    ) and all(
+        _attempt_meter(attempt) is not None
+        for outcome in outcomes for attempt in outcome.set_aside_attempts
     )
+
+
+def _attempt_meter(attempt: Mapping[str, object]) -> int | None:
+    value = attempt.get("metered_requests")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _write_comparison_report(

@@ -1738,6 +1738,8 @@ def test_an_envelope_from_another_trial_is_not_counted_as_this_one(
     moved = result["trials"][0]["moved_aside"]
     assert "camp-01-task-two-cortex-b" in moved["reason"]
     assert result["provider_requests"] == 4, "the foreign envelope's 50 requests are not counted"
+    assert result["provider_requests_complete"] is False, (
+        "the set-aside root has no meter of its own, so what it spent is unknown")
 
 
 def test_a_trial_whose_inner_run_failed_is_recorded_and_the_campaign_continues(
@@ -2019,11 +2021,53 @@ def test_an_unfinished_root_is_moved_aside_never_deleted_and_only_its_trial_rear
     assert (moved / "partial.log").read_text(encoding="utf-8") == "half a trial"
     record = result["trials"][1]
     assert record["state"] == "ran"
-    assert record["moved_aside"] == {
-        "path": str(moved), "reason": record["moved_aside"]["reason"], "metered_requests": 5,
-    }
+    assert record["moved_aside"] == {"path": str(moved), "reason": record["moved_aside"]["reason"]}
     assert "outer envelope" in record["moved_aside"]["reason"]
+    assert record["set_aside_attempts"] == [{"path": str(moved), "metered_requests": 5}]
     assert result["trials"][0]["state"] == "skipped"
+
+
+def test_a_set_aside_attempts_spend_is_counted_in_this_run_and_every_later_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The attempt reached the provider before it died, so its requests are campaign spend. They
+    are found by name, so a later re-run -- with nothing left to arm -- still counts them."""
+    trials_dir = tmp_path / "trials"
+    incomplete = "camp-01-task-one-cortex-b"
+    (trials_dir / incomplete).mkdir(parents=True)
+    write_proxy_export(trials_dir, incomplete, 5)
+    config_path = write_campaign(tmp_path)
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
+
+    _, first, _ = run_cli(capsys, "run", "--config", str(config_path))
+    rerun = RecordingTrialPath().install(monkeypatch)
+    _, second, _ = run_cli(capsys, "run", "--config", str(config_path))
+
+    assert first["provider_requests"] == 4 + 5, "four trials of one request, plus the attempt"
+    assert first["provider_requests_complete"] is True
+    assert rerun.armed == []
+    assert (second["provider_requests"], second["provider_requests_complete"]) == (9, True)
+    assert [len(trial.get("set_aside_attempts", [])) for trial in second["trials"]] == [
+        0, 1, 0, 0]
+
+
+def test_a_set_aside_attempt_whose_meter_is_unreadable_makes_the_total_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Same rule as a failed trial: an attempt that may have spent and left no readable meter makes
+    the total a floor, never a sum that silently reads the missing number as zero."""
+    trials_dir = tmp_path / "trials"
+    incomplete = "camp-01-task-one-cortex-b"
+    (trials_dir / incomplete).mkdir(parents=True)
+    RecordingTrialPath(default_requests=1).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0, "every trial ran; only the account of what was spent is partial"
+    assert result["provider_requests"] == 4
+    assert result["provider_requests_complete"] is False
+    (attempt,) = result["trials"][1]["set_aside_attempts"]
+    assert attempt["metered_requests"] is None
 
 
 def test_a_trial_that_failed_mid_run_is_rearmed_by_the_next_run(
