@@ -26,7 +26,6 @@ const FULL_PROBE = [
 function makeDeps(overrides: {
   machines?: Record<string, { cortexPath: string; gpuCount: number; ssh?: string; win?: boolean }>;
   online?: string[];
-  executions?: any[];
   probeMachine?: (device: string, command: string, timeoutMs: number) => Promise<string>;
 } = {}): any {
   return {
@@ -35,11 +34,6 @@ function makeDeps(overrides: {
       isDeviceOnline: (device: string) => (overrides.online ?? []).includes(device),
       getMachineRegistry: () => overrides.machines ?? {},
       probeMachine: overrides.probeMachine,
-    },
-    executionRegistry: {
-      getAll: () => overrides.executions ?? [],
-      getExecution: () => null,
-      cancelExecution: () => null,
     },
   };
 }
@@ -183,41 +177,14 @@ test('machines.detail: a failed probe surfaces probeError instead of throwing', 
   assert.match(result.probeError ?? '', /timed out/);
 });
 
-test('machines.detail: liveRuns lists running dispatches on this machine', async () => {
-  const deps = makeDeps({
-    machines: { orchard: { cortexPath: '/home/user/.cortex', gpuCount: 4 } },
-    online: [],
-    executions: [
-      {
-        id: 'exec_1', status: 'running', project: 'dexhand',
-        dispatch: { machine: 'orchard', taskId: 'a3f1' },
-        runtime: { startedAt: '2026-08-03T10:00:00.000Z' },
-      },
-      {
-        id: 'exec_2', status: 'completed', project: 'dexhand',
-        dispatch: { machine: 'orchard', taskId: 'bbbb' },
-        runtime: { startedAt: '2026-08-03T09:00:00.000Z' },
-      },
-      {
-        id: 'exec_3', status: 'running', project: 'other',
-        dispatch: { machine: 'elsewhere', taskId: 'cccc' },
-        runtime: { startedAt: '2026-08-03T10:00:00.000Z' },
-      },
-      { id: 'exec_4', status: 'running', project: 'p', dispatch: null, runtime: null },
-    ],
-  });
+test('machines.detail: liveRuns stays empty for SPAs that still map it', async () => {
+  const deps = makeDeps({ machines: { orchard: { cortexPath: '/home/user/.cortex', gpuCount: 4 } }, online: [] });
 
   const result = await handleMachineDetail(deps, { machine: 'orchard' });
 
-  assert.deepStrictEqual(result.liveRuns, [
-    {
-      executionId: 'exec_1',
-      taskId: 'a3f1',
-      project: 'dexhand',
-      startedAt: '2026-08-03T10:00:00.000Z',
-    },
-  ]);
+  assert.deepStrictEqual(result.liveRuns, []);
 });
+
 
 test('machines.detail: an online machine with no probe transport reports it as a probe error', async () => {
   const deps = makeDeps({

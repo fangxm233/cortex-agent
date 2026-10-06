@@ -1,4 +1,4 @@
-import type { MachineDetail, MachineGpu, MachineLiveRun, MachineVitals } from '@cortex-agent/ui-contract';
+import type { MachineDetail, MachineGpu, MachineVitals } from '@cortex-agent/ui-contract';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 import { fmt } from '@/i18n/fmt';
 import { pickVocab } from '@/i18n/lang';
@@ -30,16 +30,9 @@ export interface MachineGpuRow {
   hiddenProcessCount: number;
 }
 
-export interface MachineRunRow {
-  key: string;
-  label: string;
-  duration: string;
-}
-
 export interface MachineDetailVm {
   meters: MachineMeter[];
   gpus: MachineGpuRow[];
-  liveRuns: MachineRunRow[];
   probeError: string | null;
 }
 
@@ -100,10 +93,6 @@ function buildMeters(vitals: MachineVitals | null, lang: TimeLang): MachineMeter
   return meters;
 }
 
-function runLabel(run: MachineLiveRun): string {
-  return run.taskId ?? run.executionId;
-}
-
 function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
   const ranked = [...gpu.processes].sort((a, b) => b.memoryMb - a.memoryMb);
   return {
@@ -124,15 +113,10 @@ function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
 }
 
 /** Map the machines.detail DTO into render slots. No fabrication: absent probe fields drop their row. */
-export function buildMachineDetailVm(detail: MachineDetail, lang: TimeLang, now: number = Date.now()): MachineDetailVm {
+export function buildMachineDetailVm(detail: MachineDetail, lang: TimeLang): MachineDetailVm {
   return {
     meters: buildMeters(detail.vitals, lang),
     gpus: detail.gpus.map((gpu) => buildGpuRow(gpu)),
-    liveRuns: detail.liveRuns.map((run) => ({
-      key: run.executionId,
-      label: runLabel(run),
-      duration: formatSince(run.startedAt, lang, now),
-    })),
     probeError: detail.probeError,
   };
 }

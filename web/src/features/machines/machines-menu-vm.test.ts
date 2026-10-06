@@ -12,7 +12,6 @@ const machine = (online: boolean): MachineInfo => ({
   connectedAt: null,
   lastHeartbeat: null,
   capabilities: [],
-  liveRuns: 0,
 });
 
 describe('machines menu view-model', () => {

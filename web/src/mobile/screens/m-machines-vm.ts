@@ -1,7 +1,7 @@
 //
 // 守则11 no-fabrication — every rendered field has a real DTO source or is explicitly omitted:
-//   • per-GPU util / VRAM bars and the running-run NAME live in the machines.detail probe, which the
-//     container fetches only for the expanded card — they are NOT part of this collapsed-card vm.
+//   • per-GPU util / VRAM bars live in the machines.detail probe, which the container fetches only
+//     for the expanded card — they are NOT part of this collapsed-card vm.
 //   • client version (scheme `client v0.4.2`) → NO DTO source → omitted.
 //   • heartbeat → fmtConnected(lastHeartbeat) in the UI language; '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
@@ -15,8 +15,6 @@ export interface MMachineCard {
   os: 'windows' | 'unix';
   /** null when machines.json has no gpuCount entry → GPU line omitted. */
   gpuCount: number | null;
-  /** Running dispatch executions on this machine (real count; run name is not in the DTO). */
-  liveRuns: number;
   /** Relative heartbeat label ("3s 前" / "5m 前" …); '—' when offline (null lastHeartbeat). */
   heartbeat: string;
   /** Connection age ("3h 0m"); '' when the machine has never connected. Expand panel only. */
@@ -51,7 +49,6 @@ export function buildMMachinesVm(machines: MachineInfo[], lang: TimeLang, now: n
     online: m.online,
     os: m.os,
     gpuCount: m.gpuCount,
-    liveRuns: m.liveRuns,
     heartbeat: fmtConnected(m.lastHeartbeat, now, lang),
     connectedFor: formatSince(m.connectedAt, lang, now),
     capabilities: m.capabilities,

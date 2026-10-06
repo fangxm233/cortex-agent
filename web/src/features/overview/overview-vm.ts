@@ -181,7 +181,6 @@ export function execStatusPill(status: ExecutionInfo['status'], L: Vocab): ExecP
  * "review step · thr_8f2c" is mock), so we surface the strongest identifier we have. Flagged.
  */
 export function execSummary(e: ExecutionInfo, L: Vocab): string {
-  if (e.taskId) return fmt(L.ovSummaryTask, { id: e.taskId });
   if (e.sessionId) return fmt(L.ovSummarySession, { id: e.sessionId });
-  return fmt(L.ovSummaryExec, { type: e.type });
+  return L.ovSummaryExec;
 }

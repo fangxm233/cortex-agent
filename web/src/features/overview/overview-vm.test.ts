@@ -14,9 +14,7 @@ import { en, zh } from '@/i18n';
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
   id: 'exec_1',
-  type: 'local',
   status: 'running',
-  taskId: null,
   sessionId: null,
   projectId: 'proj',
   machine: null,
@@ -130,6 +128,7 @@ describe('execution row copy', () => {
   it('follows the UI language for the status pill and summary', () => {
     expect(execStatusPill('completed', en).text).toBe('done');
     expect(execStatusPill('completed', zh).text).toBe('完成');
-    expect(execSummary(exec({ taskId: 'T-1' }), zh)).toBe('任务 T-1');
+    expect(execSummary(exec({ sessionId: 's-1' }), zh)).toBe('会话 s-1');
+    expect(execSummary(exec({}), zh)).toBe('本地执行');
   });
 });

@@ -36,7 +36,6 @@ function makeDeps(): UiServiceDeps {
 test('executions.get handler maps real ExecutionRecord fields into the detail DTO', async () => {
   const dto = await handleExecutionsGet(makeDeps(), { executionId: 'exec_known' });
   assert.equal(dto.id, 'exec_known');
-  assert.equal(dto.type, 'dispatch');
   assert.equal(dto.kind, 'dispatch');
   assert.equal(dto.status, 'completed');
   assert.equal(dto.projectId, 'proj2');
@@ -45,10 +44,7 @@ test('executions.get handler maps real ExecutionRecord fields into the detail DT
   assert.equal(dto.runtime.startedAt, knownRecord.runtime.startedAt);
   assert.equal(dto.runtime.updatedAt, knownRecord.runtime.updatedAt);
   assert.equal(dto.runtime.endedAt, knownRecord.runtime.endedAt);
-  assert.deepEqual(dto.dispatch, {
-    taskId: 't1', machine: 'server1', pid: '4242',
-    tmuxName: 'tmux-1', sessionName: 'sess-1', scheduleTaskId: 'sch1',
-  });
+  assert.equal('dispatch' in dto, false);
   assert.deepEqual(dto.metrics, { costUsd: 0.05, numTurns: 3, durationS: 119 });
   assert.deepEqual(dto.text, { label: 'dispatch-task', finalOutput: 'done', error: null });
 });

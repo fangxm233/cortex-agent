@@ -82,7 +82,6 @@ export const enBase = {
   mOnline: 'online',
   mOffline: 'offline',
   mNoMachines: 'No machines configured',
-  mLiveRuns: 'live',
   mGpu: 'GPU',
   mManageMachines: 'Manage',
 

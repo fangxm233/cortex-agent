@@ -82,7 +82,6 @@ export const zhBase = {
   mOnline: '在线',
   mOffline: '离线',
   mNoMachines: '暂无机器',
-  mLiveRuns: '运行',
   mGpu: 'GPU',
   mManageMachines: '管理',
 

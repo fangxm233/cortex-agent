@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
   MSettingsSurfaceCard as MCard } from './MSettingsControls';
-import type { MachineDetailVm, MachineGpuRow, MachineRunRow } from '@/features/machines/machine-detail-vm';
+import type { MachineDetailVm, MachineGpuRow } from '@/features/machines/machine-detail-vm';
 import type { MMachinesVm, MMachineCard } from './m-machines-vm';
 import { useVocab, type Vocab } from '@/i18n';
 
@@ -65,16 +65,6 @@ function GpuLine({ gpu }: { gpu: MachineGpuRow }) {
   );
 }
 
-function RunLine({ run }: { run: MachineRunRow }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...META, marginTop: 5 }}>
-      <MDot color={MC.run} size={5} />
-      <span style={{ color: MC.body, fontWeight: 600 }}>{run.label}</span>
-      {run.duration && <span style={{ marginLeft: 'auto', color: MC.muted }}>{run.duration}</span>}
-    </div>
-  );
-}
-
 function Notice({ text, tone }: { text: string; tone?: 'fail' }) {
   return <div style={{ ...META, color: tone === 'fail' ? MC.fail : MC.muted, marginTop: 6 }}>{text}</div>;
 }
@@ -101,7 +91,7 @@ function CardStatics({ card, L, uptime }: { card: MMachineCard; L: Vocab; uptime
 function ProbePanel({ panel, L }: { panel: MMachineDetailPanel; L: Vocab }) {
   if (panel.status === 'probing') return <Notice text={L.mProbing} />;
   if (panel.status === 'error' || !panel.vm) return <Notice text={L.mProbeFailed} tone="fail" />;
-  const { meters, gpus, liveRuns, probeError } = panel.vm;
+  const { meters, gpus, probeError } = panel.vm;
   return (
     <>
       {probeError && <Notice text={`${L.mProbeFailed}: ${probeError}`} tone="fail" />}
@@ -120,9 +110,6 @@ function ProbePanel({ panel, L }: { panel: MMachineDetailPanel; L: Vocab }) {
         <GpuLine key={gpu.index} gpu={gpu} />
       ))}
       {!probeError && gpus.length === 0 && <Notice text={L.mNoGpuReported} />}
-      {liveRuns.map((run) => (
-        <RunLine key={run.key} run={run} />
-      ))}
     </>
   );
 }
@@ -160,13 +147,7 @@ function OnlineCard({
           <span>
             {L.machHeartbeat} {card.heartbeat}
             {card.gpuCount !== null && card.gpuCount > 0 && ` · ${card.gpuCount} ${L.mGpu}`}
-            {card.liveRuns > 0 && ` · ${card.liveRuns} ${L.machRunning}`}
           </span>
-          {card.liveRuns > 0 && (
-            <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
-              <MDot color={MC.run} size={6} />
-            </span>
-          )}
         </div>
 
         {expanded && (

@@ -694,9 +694,7 @@ export interface WaitpointInfo {
 
 export interface ExecutionInfo {
   id: string;
-  type: 'local' | 'dispatch';
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'stale';
-  taskId: string | null;
   sessionId: string | null;
   projectId: string | null;
   machine: string | null;
@@ -707,11 +705,9 @@ export interface ExecutionInfo {
 }
 
 // Full single-execution detail for the execution detail screen (F3/8b right pane).
-// Superset of ExecutionInfo's identifying fields plus nested lifecycle / dispatch /
-// metrics / text.
+// Superset of ExecutionInfo's identifying fields plus nested lifecycle / metrics / text.
 export interface ExecutionDetailInfo {
   id: string;
-  type: 'local' | 'dispatch';
   kind: string;
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'stale';
   projectId: string | null;
@@ -719,14 +715,6 @@ export interface ExecutionDetailInfo {
   /** Always null. Kept so released mobile clients that still read it keep parsing the detail. */
   threadId: null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
-  dispatch: {
-    taskId: string | null;
-    machine: string | null;
-    pid: string | null;
-    tmuxName: string | null;
-    sessionName: string | null;
-    scheduleTaskId: string | null;
-  } | null;
   metrics: { costUsd: number | null; numTurns: number | null; durationS: number | null };
   text: { label: string | null; finalOutput: string | null; error: string | null };
 }
@@ -981,9 +969,9 @@ export interface ConfigLang {
 }
 
 // ── machines.list DTO (plan §12 A item 1) ────────────────────────────────────
-// Joined view of machines.json (static config) + client-manager (live online state) +
-// executionRegistry (running dispatch count). SECURITY: ssh field is a presence flag only —
-// the raw user@host string is never returned (same convention as config.get ConfigMachine.ssh).
+// Joined view of machines.json (static config) + client-manager (live online state).
+// SECURITY: ssh field is a presence flag only — the raw user@host string is never returned (same
+// convention as config.get ConfigMachine.ssh).
 
 export interface MachineInfo {
   /** Machine name (key from machines.json). */
@@ -1004,13 +992,11 @@ export interface MachineInfo {
   lastHeartbeat: string | null;
   /** Capabilities advertised by the cortex-client on connect; [] when offline. */
   capabilities: string[];
-  /** Number of dispatch executions currently running on this machine. */
-  liveRuns: number;
 }
 
 // ── machines.detail DTO ──────────────────────────────────────────────────────
 // Live per-machine probe, fetched lazily when a machine card is expanded. One bash round trip to
-// the device (nvidia-smi + nproc/loadavg/free/df/uptime) joined with the running dispatch records.
+// the device (nvidia-smi + nproc/loadavg/free/df/uptime).
 // Never folded into machines.list: probing is an RPC to a possibly-slow device, so it stays behind
 // an explicit expand. A failed or unavailable probe is reported via probeError, never as empty data.
 
@@ -1046,14 +1032,6 @@ export interface MachineVitals {
   uptimeSec: number | null;
 }
 
-/** A dispatch execution currently running on this machine (from executionRegistry). */
-export interface MachineLiveRun {
-  executionId: string;
-  taskId: string | null;
-  project: string | null;
-  startedAt: string | null;
-}
-
 export interface MachineDetail {
   name: string;
   online: boolean;
@@ -1061,7 +1039,8 @@ export interface MachineDetail {
   vitals: MachineVitals | null;
   /** Empty when the machine is offline, has no nvidia-smi, or the probe failed. */
   gpus: MachineGpu[];
-  liveRuns: MachineLiveRun[];
+  /** Always empty. Kept so SPAs still awaiting their OTA update, which map it, keep rendering. */
+  liveRuns: never[];
   /** ISO timestamp of the successful probe; null when no probe ran or it failed. */
   probedAt: string | null;
   /** Human-readable probe failure reason; null when the probe succeeded or was skipped. */
@@ -1876,13 +1855,13 @@ export interface UiServiceDeps {
   sendSessionMessage: (opts: { channel: string; text: string; attachments?: AttachmentMeta[] }) => void;
   /**
    * Cancel every live execution running on a session's channel (S4 chat Stop). Wired in the entry
-   * layer (app.ts) to the orchestration channel-cancel path (`cancelChannelRuns`), which kills the
-   * live agent handle, preserves the session, cancels the thread record, and tears the execution
-   * down as `cancelled`. Returns the number cancelled. Kept as an injected callback so the ui-service
-   * domain never imports orchestration (layer safety / depcruise).
+   * layer to the orchestration channel-cancel path (`cancelChannelRuns`), which kills the live agent
+   * handle, preserves the session, and tears the execution down as `cancelled`. Returns the number
+   * cancelled. Kept as an injected callback so the ui-service domain never imports orchestration
+   * (layer safety / depcruise).
    */
   cancelSessionRun: (opts: { channel: string }) => Promise<number>;
-  /** Kill one live execution and tear it down as `cancelled` (Web "Kill run"). Wired in app.ts to the
+  /** Kill one live execution and tear it down as `cancelled` (Web "Kill run"). Wired to the
    *  orchestration `cancelLiveExecution`. False when no live execution has that id. */
   cancelLiveExecution: (executionId: string) => Promise<boolean>;
   /**

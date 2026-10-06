@@ -8,7 +8,6 @@ import { handleMachinesList } from '../src/domain/ui-service/query/machines.js';
 function makeDeps(overrides: {
   machines?: Record<string, { cortexPath: string; gpuCount: number; ssh?: string; win?: boolean }>;
   onlineDevices?: Array<{ device: string; platform: string; connectedAt: Date; lastHeartbeat: Date; capabilities: string[] }>;
-  executions?: Array<{ status: string; dispatch?: { machine?: string } }>;
 } = {}): any {
   return {
     clientRegistry: {
@@ -16,11 +15,6 @@ function makeDeps(overrides: {
       isDeviceOnline: (device: string) =>
         (overrides.onlineDevices ?? []).some((d) => d.device === device),
       getMachineRegistry: () => overrides.machines ?? {},
-    },
-    executionRegistry: {
-      getAll: () => overrides.executions ?? [],
-      getExecution: () => null,
-      cancelExecution: () => null,
     },
   };
 }
@@ -53,7 +47,6 @@ test('machines.list: online machine returns online=true with timestamps and capa
   assert.strictEqual(m.gpuCount, 2);
   assert.strictEqual(m.sshConfigured, true);
   assert.strictEqual(m.os, 'unix');
-  assert.strictEqual(m.liveRuns, 0);
 });
 
 test('machines.list: offline machine returns online=false with null timestamps and empty capabilities', async () => {
@@ -74,26 +67,5 @@ test('machines.list: offline machine returns online=false with null timestamps a
   assert.strictEqual(m.lastHeartbeat, null);
   assert.deepStrictEqual(m.capabilities, []);
   assert.strictEqual(m.sshConfigured, false);
-  assert.strictEqual(m.liveRuns, 0);
 });
 
-test('machines.list: liveRuns counts only running executions on the named machine', async () => {
-  const deps = makeDeps({
-    machines: {
-      'orchard': { cortexPath: '/home/user/.cortex', gpuCount: 4, ssh: 'user@orchard' },
-    },
-    onlineDevices: [],
-    executions: [
-      { status: 'running', dispatch: { machine: 'orchard' } },
-      { status: 'running', dispatch: { machine: 'orchard' } },
-      { status: 'completed', dispatch: { machine: 'orchard' } }, // completed, must not count
-      { status: 'running', dispatch: { machine: 'other-host' } }, // different machine
-      { status: 'running' }, // no dispatch.machine
-    ],
-  });
-
-  const result: MachineInfo[] = await handleMachinesList(deps, {});
-
-  assert.strictEqual(result.length, 1);
-  assert.strictEqual(result[0].liveRuns, 2, 'only 2 running on this machine');
-});

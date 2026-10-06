@@ -1,24 +1,9 @@
 import { t } from '@core/i18n.js';
-import type { UiServiceDeps, MachineDetail, MachineLiveRun, QueryParams } from '../types.js';
+import type { UiServiceDeps, MachineDetail, QueryParams } from '../types.js';
 import { buildProbeCommand, parseMachineProbe, PROBE_TIMEOUT_MS } from './machine-probe.js';
 
-/** Running dispatch executions on this machine. Process pids are deliberately NOT matched against
- *  the GPU probe: dispatch.pid is the launcher, not the CUDA process, so any such join would be
- *  fabricated. */
-function collectLiveRuns(deps: UiServiceDeps, machine: string): MachineLiveRun[] {
-  return deps.executionRegistry
-    .getAll()
-    .filter((exec) => exec?.status === 'running' && exec?.dispatch?.machine === machine)
-    .map((exec) => ({
-      executionId: String(exec.id),
-      taskId: exec.dispatch?.taskId ?? null,
-      project: exec.project ?? null,
-      startedAt: exec.runtime?.startedAt ?? null,
-    }));
-}
-
-function emptyDetail(name: string, online: boolean, liveRuns: MachineLiveRun[], probeError: string | null): MachineDetail {
-  return { name, online, vitals: null, gpus: [], liveRuns, probedAt: null, probeError };
+function emptyDetail(name: string, online: boolean, probeError: string | null): MachineDetail {
+  return { name, online, vitals: null, gpus: [], liveRuns: [], probedAt: null, probeError };
 }
 
 export async function handleMachineDetail(
@@ -28,11 +13,9 @@ export async function handleMachineDetail(
   const entry = deps.clientRegistry.getMachineRegistry()[params.machine];
   if (!entry) throw new Error(t('ui.machine.unknown', { name: params.machine }));
 
-  const liveRuns = collectLiveRuns(deps, params.machine);
-
   // Offline devices are answered from the registry alone — never a round trip that can only time out.
   if (!deps.clientRegistry.isDeviceOnline(params.machine)) {
-    return emptyDetail(params.machine, false, liveRuns, null);
+    return emptyDetail(params.machine, false, null);
   }
 
   try {
@@ -43,11 +26,11 @@ export async function handleMachineDetail(
       online: true,
       vitals,
       gpus,
-      liveRuns,
+      liveRuns: [],
       probedAt: new Date().toISOString(),
       probeError: null,
     };
   } catch (err) {
-    return emptyDetail(params.machine, true, liveRuns, err instanceof Error ? err.message : String(err));
+    return emptyDetail(params.machine, true, err instanceof Error ? err.message : String(err));
   }
 }

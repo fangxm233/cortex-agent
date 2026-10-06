@@ -51,14 +51,12 @@ test('executions.list filters by status', async () => {
   assert.ok(result.every(e => e.status === 'running' || e.status === 'failed'));
 });
 
-test('executions.list DTO shape for dispatch execution', async () => {
+test('executions.list DTO shape for a legacy dispatch record', async () => {
   const result = await handleExecutionsList(makeDeps(), { status: ['completed'] });
   assert.equal(result.length, 1);
   const e = result[0];
   assert.equal(e.id, 'exec_2');
-  assert.equal(e.type, 'dispatch');
   assert.equal(e.status, 'completed');
-  assert.equal(e.taskId, 't1');
   assert.equal(e.machine, 'server1');
   assert.equal(e.projectId, 'proj2');
   assert.ok(e.durationMs! > 0);
@@ -69,19 +67,15 @@ test('executions.list DTO shape for running execution', async () => {
   const result = await handleExecutionsList(makeDeps(), { status: ['running'] });
   assert.equal(result.length, 1);
   const e = result[0];
-  assert.equal(e.type, 'local');
   assert.equal(e.sessionId, 's1');
-  // The fields released clients still read come back null for a record that never had them.
-  assert.equal(e.taskId, null);
   assert.equal(e.machine, null);
   assert.equal(e.finishedAt, null);
   assert.equal(e.durationMs, null);
   assert.equal(e.cost, null);
 });
 
-test('executions.get keeps the compat fields null for a current record', async () => {
+test('executions.get keeps the compat threadId null for a current record', async () => {
   const detail = await handleExecutionsGet(makeDeps(), { executionId: 'exec_1' });
   assert.equal(detail.threadId, null);
-  assert.equal(detail.dispatch, null);
   assert.equal(detail.sessionId, 's1');
 });

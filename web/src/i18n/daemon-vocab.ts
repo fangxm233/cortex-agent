@@ -3,7 +3,6 @@
 export const daemonEn = {
   dmnTitle: 'Daemon',
   dmnLocal: 'local',
-  dmnExecDispatch: 'dispatch',
   dmnBuild: 'build',
   dmnLoadFailed: 'Failed to load daemon status',
   dmnStatusRunning: 'running',
@@ -31,7 +30,6 @@ export const daemonEn = {
 export const daemonZh: Record<keyof typeof daemonEn, string> = {
   dmnTitle: 'Daemon',
   dmnLocal: '本地',
-  dmnExecDispatch: '派发',
   dmnBuild: '构建',
   dmnLoadFailed: '无法加载守护进程状态',
   dmnStatusRunning: '运行中',

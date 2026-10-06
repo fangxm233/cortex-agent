@@ -33,7 +33,7 @@ function machine(name: string, online = true): MachineInfo {
     name, online, cortexPath: '/srv/.cortex', gpuCount: 2, sshConfigured: true,
     os: 'unix', connectedAt: online ? '2026-08-03T10:00:00.000Z' : null,
     lastHeartbeat: online ? '2026-08-03T11:59:59.000Z' : null,
-    capabilities: online ? ['gpu'] : [], liveRuns: 0,
+    capabilities: online ? ['gpu'] : [],
   };
 }
 

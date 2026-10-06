@@ -50,17 +50,10 @@ export function execNow(detail: ExecutionDetailInfo): string {
   return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
 }
 
-// Header meta line: prototype `gpu-01 · T-041 · finished 07:49` (L1548/L2645). Real substitution:
-// machine · taskId · (finished <HH:MM> when ended, else running). Null segments are dropped.
+// Header meta line: `finished <HH:MM>` once ended, else the running status word.
 export function execMeta(detail: ExecutionDetailInfo, L: Vocab): string {
   const endedAt = detail.runtime.endedAt;
-  const finished = fmt(L.execFinishedAt, { time: execClock(endedAt) });
-  const segments = [
-    detail.dispatch?.machine ?? null,
-    detail.dispatch?.taskId ?? null,
-    endedAt ? finished : execStatusWord('running', L),
-  ].filter((s): s is string => s != null && s !== '');
-  return segments.join(' · ');
+  return endedAt ? fmt(L.execFinishedAt, { time: execClock(endedAt) }) : execStatusWord('running', L);
 }
 
 // Only a running execution can be Killed (executions.cancel). Terminal states no-op with a toast.

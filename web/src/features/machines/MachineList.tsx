@@ -5,14 +5,13 @@ import {
   formatSince,
   type MachineGpuRow,
   type MachineMeter,
-  type MachineRunRow,
 } from './machine-detail-vm';
 import { machinePill } from './machines-menu-vm';
 
 // Machine cards for the top-bar machines menu. Collapsed cards show machines.list (name / online
-// pill / GPU ×N / live-runs). Expanding a card lazily fetches machines.detail: a live probe of the
-// device (GPU telemetry, host vitals) joined with its running dispatch executions. The probe is an
-// RPC round trip, so it only runs while the menu is open and the card is expanded.
+// pill / GPU ×N). Expanding a card lazily fetches machines.detail: a live probe of the device (GPU
+// telemetry, host vitals). The probe is an RPC round trip, so it only runs while the menu is open
+// and the card is expanded.
 
 // Server-rack icon: two shelf rows with a status LED each (14×14 viewport, stroke 1.6).
 const MACHINE_ICON = (
@@ -100,18 +99,6 @@ function GpuRow({ gpu }: { gpu: MachineGpuRow }) {
     </div>;
 }
 
-function RunRow({ run }: { run: MachineRunRow }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, font: META_FONT, color: 'var(--proto-muted)' }}>
-      <span
-        style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0 }}
-      />
-      <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{run.label}</span>
-      {run.duration && <span style={{ marginLeft: 'auto', color: 'var(--proto-muted)' }}>{run.duration}</span>}
-    </div>
-  );
-}
-
 /** Static facts from machines.list — rendered even when the machine is offline or the probe fails. */
 function MetaFooter({ machine, uptime }: { machine: MachineInfo; uptime: string }) {
   const L = useVocab();
@@ -163,9 +150,6 @@ function MachineDetailBody({ detail }: { detail: MachineDetailResource }) {
     {vm.meters.length > 0 && <MeterRow meters={vm.meters} />}
     {vm.gpus.map((gpu) => <GpuRow key={gpu.index} gpu={gpu} />)}
     {!vm.probeError && vm.gpus.length === 0 && <Notice text={L.mNoGpuReported} tone="muted" />}
-    {vm.liveRuns.length > 0 && <div style={{ padding: '8px 14px', borderTop: '1px solid var(--proto-line-soft)', display: 'flex', flexDirection: 'column', gap: 5 }}>
-      {vm.liveRuns.map((run) => <RunRow key={run.key} run={run} />)}
-    </div>}
     <MetaFooter machine={detail.machine} uptime={detail.uptime} />
   </>;
 }
@@ -185,14 +169,11 @@ function MachineCardTitle({ machine, open }: { machine: MachineInfo; open: boole
 
 function MachineCardMeta({ machine }: { machine: MachineInfo }) {
   const L = useVocab();
-  const parts = [machine.gpuCount == null ? '' : `${L.mGpu} ×${machine.gpuCount}`, machine.os,
-    machine.liveRuns > 0 ? `${machine.liveRuns} ${L.mLiveRuns}` : ''].filter(Boolean);
+  const parts = [machine.gpuCount == null ? '' : `${L.mGpu} ×${machine.gpuCount}`, machine.os].filter(Boolean);
   return <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
     <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', paddingLeft: 17 }}>
       {parts.join(' · ')}
     </span>
-    {machine.liveRuns > 0 && <span style={{ marginLeft: 'auto', width: 6, height: 6,
-      borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0 }} />}
   </div>;
 }
 

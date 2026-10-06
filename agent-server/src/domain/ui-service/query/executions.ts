@@ -36,9 +36,7 @@ export async function handleExecutionsList(
 
     return {
       id: e.id,
-      type: e.kind === 'dispatch' ? 'dispatch' : 'local',
       status: e.status,
-      taskId: e.dispatch?.taskId ?? null,
       sessionId: e.session?.sessionId ?? null,
       projectId: e.project ?? null,
       machine: e.dispatch?.machine ?? null,
@@ -63,7 +61,6 @@ export async function handleExecutionsGet(
 
   return {
     id: e.id,
-    type: e.kind === 'dispatch' ? 'dispatch' : 'local',
     kind: e.kind,
     status: e.status as ExecutionDetailInfo['status'],
     projectId: e.project ?? null,
@@ -74,16 +71,6 @@ export async function handleExecutionsGet(
       updatedAt: e.runtime?.updatedAt ?? '',
       endedAt: e.runtime?.endedAt ?? null,
     },
-    dispatch: e.dispatch
-      ? {
-          taskId: e.dispatch.taskId ?? null,
-          machine: e.dispatch.machine ?? null,
-          pid: e.dispatch.pid ?? null,
-          tmuxName: e.dispatch.tmuxName ?? null,
-          sessionName: e.dispatch.sessionName ?? null,
-          scheduleTaskId: e.dispatch.scheduleTaskId ?? null,
-        }
-      : null,
     metrics: {
       costUsd: e.metrics?.costUsd ?? null,
       numTurns: e.metrics?.numTurns ?? null,

@@ -7,9 +7,7 @@ const NOW = new Date('2026-07-15T12:00:00Z').getTime();
 function exec(p: Partial<ExecutionInfo> = {}): ExecutionInfo {
   return {
     id: 'exec_1',
-    type: 'dispatch',
     status: 'running',
-    taskId: null,
     sessionId: null,
     projectId: 'proj',
     machine: null,
@@ -45,6 +43,7 @@ describe('buildDaemonVm', () => {
       const executions = Array.from({ length: 9 }, (_, i) => exec({ id: `e${i}` }));
       const vm = buildDaemonVm({ schedules: [], executions, ok: true, now: NOW, lang: 'en' });
       expect(vm.events).toHaveLength(5);
+      expect(vm.events[0].ref).toBe('local');
     });
   });
 });
