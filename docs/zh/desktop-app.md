@@ -171,7 +171,7 @@ Cortex 下载的文件会交给 Android `DownloadManager`，写入公共 Downloa
 
 ### 前端工作台 {#frontend-workbench}
 
-启动后，原生壳会比较本地 SPA 与服务器提供的 content-addressed frontend bundle。发现新 bundle 后，应用在后台下载、校验 SHA-256 digest、完成 staging，并在可通过重启应用时提示。这条通道更新 Web 工作台，不会替换原生 executable 或 APK。安装包含不同内置前端的 Android APK 时，会同步刷新一次本地页面；之后的启动仍保留兼容的前端 OTA 更新。若服务器缓存的旧页面缺少原生通知桥，会回退到 APK 内置页面，避免通知点击再次失效（`desktop/src-tauri/src/seed.rs`）。
+启动后，原生壳会比较本地 SPA 与服务器提供的 content-addressed frontend bundle。发现新 bundle 后，应用在后台下载、校验 SHA-256 digest、完成 staging，并在可通过重启应用时提示。这条通道更新 Web 工作台，不会替换原生 executable 或 APK。安装包含不同内置前端的 Android APK 时，会同步刷新一次本地页面；之后的启动仍保留兼容的前端 OTA 更新。若服务器缓存的旧页面缺少原生通知桥，会回退到 APK 内置页面，避免通知点击再次失效（`desktop/src-tauri/src/seed.rs`）。未连接服务器时，原生壳提供应用内置的前端而非已下载的前端，因此连接与安装界面始终与已安装的应用版本一致，不受设备上留存的任何服务器前端影响（`desktop/src-tauri/src/frontend.rs`）。
 
 ### 原生应用壳 {#native-app-shell}
 
