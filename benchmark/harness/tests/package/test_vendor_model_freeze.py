@@ -3,6 +3,8 @@ import os
 import shutil
 import subprocess
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -256,41 +258,72 @@ def audit_outcomes(path: Path) -> list[str]:
     ]
 
 
+@contextmanager
+def serving(upstream: SyntheticUpstream) -> Iterator[str]:
+    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{upstream.server_port}"
+    finally:
+        upstream.shutdown()
+        upstream.server_close()
+        thread.join(timeout=2)
+
+
 def exercise(
     tmp_path: Path, vendor: str, declared: str, selected: str, *, subagent: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], list[dict[str, object]], list[str]]:
     upstream = SyntheticUpstream(vendor, declared, subagent)
-    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
-    thread.start()
-    upstream_url = f"http://127.0.0.1:{upstream.server_port}"
     log_path = tmp_path / "proxy.jsonl"
-    handle = start_trial_proxy(
-        trial_id=f"model-freeze-{vendor}", upstream_base_url=upstream_url,
-        adapter=adapter_for(vendor, upstream_url, declared), bound_source_ip="127.0.0.1",
-        absolute_deadline=datetime.now(UTC) + timedelta(minutes=2),
-        limits=ProxyLimits(max_requests=20), log_path=log_path,
-        lease_terms=LeaseTerms(budget_ms=120_000, teardown_grace_ms=1_000),
-    )
-    try:
-        result = run_vendor(
-            vendor, real_cli(vendor), tmp_path, handle.base_url, handle.dummy_token,
-            selected, subagent=subagent,
+    with serving(upstream) as upstream_url:
+        handle = start_trial_proxy(
+            trial_id=f"model-freeze-{vendor}", upstream_base_url=upstream_url,
+            adapter=adapter_for(vendor, upstream_url, declared), bound_source_ip="127.0.0.1",
+            absolute_deadline=datetime.now(UTC) + timedelta(minutes=2),
+            limits=ProxyLimits(max_requests=20), log_path=log_path,
+            lease_terms=LeaseTerms(budget_ms=120_000, teardown_grace_ms=1_000),
         )
-    finally:
-        handle.stop()
-        upstream.shutdown()
-        upstream.server_close()
-        thread.join(timeout=2)
+        try:
+            result = run_vendor(
+                vendor, real_cli(vendor), tmp_path, handle.base_url, handle.dummy_token,
+                selected, subagent=subagent,
+            )
+        finally:
+            handle.stop()
     return result, upstream.requests, audit_outcomes(log_path)
 
 
+def claude_native_default(root: Path) -> str:
+    """The model the installed Claude Code requests when nothing selects one.
+
+    A campaign freezes the native default of the CLI version it pins. These tests run whatever
+    CLI is installed, so they freeze the proxy to what that CLI asks for, observed straight off
+    the wire rather than restated from an older version.
+    """
+    root.mkdir()
+    upstream = SyntheticUpstream("claude-code", "", subagent=False)
+    with serving(upstream) as upstream_url:
+        result = run_claude(
+            real_cli("claude-code"), root, upstream_url, "host-only-dummy-claude",
+            "native-default", subagent=False,
+        )
+    assert result.returncode == 0, result.stderr
+    return str(upstream.requests[0]["body"]["model"])  # type: ignore[index]
+
+
+def frozen_model(vendor: str, tmp_path: Path) -> str:
+    if vendor == "claude-code":
+        return claude_native_default(tmp_path / "native-default")
+    return str(arm(vendor)["model"])
+
+
 @pytest.mark.parametrize("vendor", ("pi", "claude-code", "codex"))
-def test_current_vendor_cli_transmits_campaign_model_unchanged(
+def test_current_vendor_cli_transmits_the_frozen_model_unchanged(
     vendor: str, tmp_path: Path, request: pytest.FixtureRequest,
 ) -> None:
     if not isolated_or_rerun(request):
         return
-    declared = str(arm(vendor)["model"])
+    declared = frozen_model(vendor, tmp_path)
     selected = "native-default" if vendor == "claude-code" else declared
     result, requests, outcomes = exercise(tmp_path, vendor, declared, selected)
 
@@ -319,7 +352,7 @@ def test_claude_native_default_subagent_drift_is_refused_after_primary(
 ) -> None:
     if not isolated_or_rerun(request):
         return
-    declared = str(arm("claude-code")["model"])
+    declared = claude_native_default(tmp_path / "native-default")
     result, requests, outcomes = exercise(
         tmp_path, "claude-code", declared, "native-default", subagent=True,
     )
