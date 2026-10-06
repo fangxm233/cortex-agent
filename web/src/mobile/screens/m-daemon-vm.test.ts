@@ -10,7 +10,6 @@ function exec(p: Partial<ExecutionInfo> = {}): ExecutionInfo {
     status: 'running',
     sessionId: null,
     projectId: 'proj',
-    machine: null,
     startedAt: new Date(NOW).toISOString(),
     finishedAt: null,
     durationMs: null,

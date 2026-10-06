@@ -40,13 +40,11 @@ export function globalRuleBodies(load: boolean): string[] {
 export interface UserPromptSpec {
   /** Role/identity text prepended to the rendered body. */
   directive?: string | null;
-  /** Template with `{{input}}` and friends; a null/empty template means "the input verbatim". */
+  /** Template over `{{input}}` and the system variables; null/empty means "the input verbatim". */
   promptTemplate?: string | null;
 }
 
 export interface UserPromptOptions {
-  /** Template variables beyond `{{input}}`. System variables are applied last and win. */
-  vars?: Record<string, string>;
   /** The USER.md profile block — see {@link userProfileBlock}. */
   userContext?: string | null;
   /** Names the project a session is bound to, so the agent knows where its findings belong. */
@@ -59,15 +57,6 @@ export interface UserPromptOptions {
   team?: { roster: string[] } | null;
   /** Team mode, worker side: its own name and its lead's title. */
   worker?: { name: string; lead: string } | null;
-  /** A control-plane preamble (the thread protocol) — the last prefix before the body. */
-  preamble?: string | null;
-  /** Text spliced between the prefixes and the rendered body, separated by a `---` rule. The
-   *  ad-hoc thread path carries the previous step's output here when the template never asked
-   *  for `{{previousOutput}}`. */
-  lead?: string | null;
-  /** Text appended after the body — buffered user replies that arrived while the turn was queued.
-   *  Appended before the final trim, so it is the appendix, not the body, that ends the prompt. */
-  appendix?: string | null;
   /** True when the engine session already received the prefix blocks on an earlier turn. Every
    *  prefix is then dropped: a resumed session still has them in its history, so re-sending them
    *  burns tokens and can contradict what the model was already told. */
@@ -79,7 +68,7 @@ export interface UserPromptOptions {
  * the ambient blocks the session needs in front of it.
  *
  * Prefix order is fixed — user profile, agent directive, session project, transcript location,
- * commission, team or worker, control-plane preamble — and every block is optional. A caller that passes none (and no lead/appendix) gets the
+ * commission, team or worker — and every block is optional. A caller that passes none gets the
  * rendered template alone, trimmed.
  */
 export function composeUserPrompt(
@@ -87,30 +76,21 @@ export function composeUserPrompt(
   input: string,
   opts: UserPromptOptions = {},
 ): string {
-  const vars: Record<string, string> = {
-    input,
-    ...opts.vars,
-    ...promptSystemVars(),
-  };
-  let prompt = renderPromptTemplate(spec.promptTemplate || '{{input}}', vars);
+  const body = renderPromptTemplate(spec.promptTemplate || '{{input}}', { input, ...promptSystemVars() });
+  const prefixes = opts.resumed ? [] : ambientPrefixes(spec, opts);
+  return [...prefixes, body].join('\n\n').trim();
+}
 
-  if (opts.lead) prompt = `${opts.lead}\n\n---\n\n${prompt}`;
-
-  if (!opts.resumed) {
-    const prefixes: string[] = [];
-    if (opts.userContext) prefixes.push(opts.userContext);
-    if (spec.directive) prefixes.push(resolveSystemVars(spec.directive));
-    if (opts.project) prefixes.push(buildProjectBlock(opts.project));
-    if (opts.transcriptDir) prefixes.push(buildTranscriptBlock(opts.transcriptDir));
-    if (opts.commission) prefixes.push(buildCommissionBlock(opts.commission));
-    if (opts.team) prefixes.push(buildTeamBlock(opts.team.roster));
-    if (opts.worker) prefixes.push(buildWorkerBlock(opts.worker));
-    if (opts.preamble) prefixes.push(opts.preamble);
-    if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
-  }
-
-  if (opts.appendix) prompt += opts.appendix;
-  return prompt.trim();
+function ambientPrefixes(spec: UserPromptSpec, opts: UserPromptOptions): string[] {
+  return [
+    opts.userContext,
+    spec.directive ? resolveSystemVars(spec.directive) : null,
+    opts.project ? buildProjectBlock(opts.project) : null,
+    opts.transcriptDir ? buildTranscriptBlock(opts.transcriptDir) : null,
+    opts.commission ? buildCommissionBlock(opts.commission) : null,
+    opts.team ? buildTeamBlock(opts.team.roster) : null,
+    opts.worker ? buildWorkerBlock(opts.worker) : null,
+  ].filter((block): block is string => !!block);
 }
 
 /**

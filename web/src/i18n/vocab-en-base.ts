@@ -299,7 +299,6 @@ export const enBase = {
   ovNoSchedules: 'No schedules for this project.',
   ovColId: 'ID',
   ovColSummary: 'SUMMARY',
-  ovColMachine: 'MACHINE',
   ovColDur: 'DUR',
   ovColCost: 'COST',
   ovColStatus: 'STATUS',

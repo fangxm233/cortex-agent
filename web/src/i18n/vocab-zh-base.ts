@@ -295,7 +295,6 @@ export const zhBase = {
   ovNoSchedules: '本项目暂无调度',
   ovColId: 'ID',
   ovColSummary: '摘要',
-  ovColMachine: '机器',
   ovColDur: '时长',
   ovColCost: '成本',
   ovColStatus: '状态',

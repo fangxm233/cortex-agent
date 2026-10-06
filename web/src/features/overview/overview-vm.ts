@@ -143,10 +143,6 @@ export function execDurationMs(e: ExecutionInfo, now: number): number | null {
   return null;
 }
 
-export function execMachine(e: ExecutionInfo, L: Vocab): string {
-  return e.machine ?? L.ovMachineLocal;
-}
-
 export function execCost(cost: number | null): string {
   return cost == null ? '—' : formatUsd(cost);
 }

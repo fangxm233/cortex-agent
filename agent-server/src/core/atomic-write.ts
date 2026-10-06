@@ -4,9 +4,9 @@ import path from 'node:path';
 import * as os from 'node:os';
 
 /** The operator's real data home. A test process must never write here — it would race the
- *  running daemon and leak fixtures into the live store (this happened: tests polluted
- *  ~/.cortex/data/threads.json). Tests isolate via the vitest setup file (tests/_vitest-setup.ts),
- *  which repoints CORTEX_HOME at a per-file temp dir, so legitimate test writes land elsewhere and pass this guard. */
+ *  running daemon and leak fixtures into the live store. Tests isolate via the vitest setup file
+ *  (tests/_vitest-setup.ts), which repoints CORTEX_HOME at a per-file temp dir, so legitimate test
+ *  writes land elsewhere and pass this guard. */
 const REAL_HOME_CORTEX = path.join(os.homedir(), '.cortex');
 
 /** True only inside `node --test` / `tsx --test` worker processes (env set by the runner). */

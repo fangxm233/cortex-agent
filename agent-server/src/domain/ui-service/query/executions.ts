@@ -39,7 +39,6 @@ export async function handleExecutionsList(
       status: e.status,
       sessionId: e.session?.sessionId ?? null,
       projectId: e.project ?? null,
-      machine: e.dispatch?.machine ?? null,
       startedAt,
       finishedAt,
       durationMs: endMs ? endMs - startMs : null,

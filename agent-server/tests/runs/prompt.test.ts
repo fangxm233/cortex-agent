@@ -37,7 +37,7 @@ test('an absent template means the input verbatim', () => {
   assert.equal(composeUserPrompt({ promptTemplate: null }, 'hello'), 'hello');
 });
 
-test('prefix order is user profile, directive, project, transcripts, commission, preamble', () => {
+test('prefix order is user profile, directive, project, transcripts, commission', () => {
   const prompt = composeUserPrompt(
     { directive: 'DIRECTIVE', promptTemplate: '{{input}}' },
     'BODY',
@@ -46,10 +46,9 @@ test('prefix order is user profile, directive, project, transcripts, commission,
       project: { id: 'cortex', contextDir: '/ctx/cortex' },
       transcriptDir: '/data/conversation-history',
       commission: { phase: 'draft', dir: '/d' },
-      preamble: 'PREAMBLE',
     },
   );
-  const order = ['[User Context]', 'DIRECTIVE', '[Session Project]', '[Session Transcripts]', '[Commission]', 'PREAMBLE', 'BODY']
+  const order = ['[User Context]', 'DIRECTIVE', '[Session Project]', '[Session Transcripts]', '[Commission]', 'BODY']
     .map((needle) => prompt.indexOf(needle));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), prompt);
   assert.ok(order.every((i) => i >= 0), prompt);
@@ -80,7 +79,7 @@ test('an active commission block is an index plus the protocol, never the file c
     + '\n\ngo');
 });
 
-// --- composeUserPrompt: the thread-step shape ---
+// --- composeUserPrompt: template rendering and resume ---
 
 test('an unknown template variable renders empty, but an unknown one in the directive stays literal', () => {
   assert.equal(composeUserPrompt({ promptTemplate: 'a{{nope}}b' }, 'x'), 'ab');
@@ -91,12 +90,9 @@ test('an unknown template variable renders empty, but an unknown one in the dire
 });
 
 test('{{#if}} blocks keep their body only when the variable is truthy', () => {
-  const template = '{{#if modifiedFiles}}Changed:\n{{modifiedFiles}}\n\n{{/if}}{{input}}';
-  assert.equal(composeUserPrompt({ promptTemplate: template }, 'go'), 'go');
-  assert.equal(
-    composeUserPrompt({ promptTemplate: template }, 'go', { vars: { modifiedFiles: '- a.ts\n- b.ts' } }),
-    'Changed:\n- a.ts\n- b.ts\n\ngo',
-  );
+  const template = '{{#if input}}Asked: {{input}}{{/if}}';
+  assert.equal(composeUserPrompt({ promptTemplate: template }, ''), '');
+  assert.equal(composeUserPrompt({ promptTemplate: template }, 'go'), 'Asked: go');
 });
 
 test('a resumed session receives the body alone — every prefix is dropped', () => {
@@ -105,18 +101,8 @@ test('a resumed session receives the body alone — every prefix is dropped', ()
       userContext: '[User Context]\np\n[/User Context]',
       project: { id: 'cortex', contextDir: '/ctx' },
       commission: ACTIVE,
-      preamble: 'PREAMBLE',
       resumed: true,
     }),
     'next step',
-  );
-});
-
-test('resumed still keeps the lead and the appendix — those are this turn\'s content, not bootstrap', () => {
-  assert.equal(
-    composeUserPrompt({ directive: 'D', promptTemplate: '{{input}}' }, 'next', {
-      lead: 'LEAD', appendix: '\n\n---\n\nAPPENDIX', resumed: true,
-    }),
-    'LEAD\n\n---\n\nnext\n\n---\n\nAPPENDIX',
   );
 });

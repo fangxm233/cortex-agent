@@ -57,7 +57,6 @@ test('executions.list DTO shape for a legacy dispatch record', async () => {
   const e = result[0];
   assert.equal(e.id, 'exec_2');
   assert.equal(e.status, 'completed');
-  assert.equal(e.machine, 'server1');
   assert.equal(e.projectId, 'proj2');
   assert.ok(e.durationMs! > 0);
   assert.equal(e.cost, 0.05);
@@ -68,7 +67,6 @@ test('executions.list DTO shape for running execution', async () => {
   assert.equal(result.length, 1);
   const e = result[0];
   assert.equal(e.sessionId, 's1');
-  assert.equal(e.machine, null);
   assert.equal(e.finishedAt, null);
   assert.equal(e.durationMs, null);
   assert.equal(e.cost, null);

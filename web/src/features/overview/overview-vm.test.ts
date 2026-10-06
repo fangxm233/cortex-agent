@@ -17,7 +17,6 @@ const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
   status: 'running',
   sessionId: null,
   projectId: 'proj',
-  machine: null,
   startedAt: '2026-07-06T00:00:00.000Z',
   finishedAt: null,
   durationMs: null,

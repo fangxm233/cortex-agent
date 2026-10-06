@@ -697,7 +697,6 @@ export interface ExecutionInfo {
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'stale';
   sessionId: string | null;
   projectId: string | null;
-  machine: string | null;
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;

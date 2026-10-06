@@ -20,7 +20,6 @@ import {
   nextRunLabel,
   lastRunLabel,
   execDurationMs,
-  execMachine,
   execCost,
   execStatusPill,
   execSummary,
@@ -569,7 +568,6 @@ export function OverviewView(): JSX.Element {
           >
             <span>{L.ovColId}</span>
             <span>{L.ovColSummary}</span>
-            <span>{L.ovColMachine}</span>
             <span>{L.ovColDur}</span>
             <span>{L.ovColCost}</span>
             <span>{L.ovColStatus}</span>
@@ -608,7 +606,6 @@ export function OverviewView(): JSX.Element {
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 12 }}>
                   {execSummary(x, L)}
                 </span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x, L)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatSpanOrDash(execDurationMs(x, now), lang)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>

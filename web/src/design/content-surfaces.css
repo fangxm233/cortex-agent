@@ -41,8 +41,8 @@
 .overview-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
 .overview-table-row {
   display: grid;
-  grid-template-columns: 104px minmax(180px, 1fr) 100px 72px 72px 104px 56px;
-  min-width: 764px;
+  grid-template-columns: 104px minmax(180px, 1fr) 72px 72px 104px 56px;
+  min-width: 656px;
   gap: 8px;
 }
 .overview-table-row > * { min-width: 0; overflow-wrap: anywhere; }

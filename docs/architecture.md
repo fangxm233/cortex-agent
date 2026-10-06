@@ -38,6 +38,8 @@ The shared kernel every other layer builds on: types, path constants, settings, 
 |------|---------|
 | `paths.ts` | Canonical path constants: `INSTALL_ROOT`, `DATA_DIR` (`~/.cortex/`), `CONFIG_DIR`, `STORE_DIR`, `CONTEXT_DIR`, `PROJECTS_DIR`, `WORKSPACE_DIR`, `PLUGINS_DIR`, `PROMPTS_DIR`, `HOOKS_DIR`, `LOGS_DIR` |
 | `utils.ts` | Utility functions: `chunkText`, `formatDurationCompact`, `todayISO`, `listProjectDirs`, `readableTimestamp` |
+| `atomic-write.ts` | `atomicWrite(filePath, data)` — write to `.tmp.<pid>.<ts>` then `fs.rename` |
+| `json-repository.ts` | Generic `JsonRepository<T>` base class: `read()`, `write()`, `mutate(fn)`, `flush()`. Lazy orphan `.tmp.*` sweep on first I/O. Corrupt-JSON backup mechanism |
 | `async-mutex.ts` | `AsyncMutex` class — promise-based mutex for serializing async disk writes. Used throughout the store layer to prevent concurrent file corruption |
 | `log.ts` | `createLogger(tag)` — console + daily-rolling file sink with 14-day retention |
 | `cli-utils.ts` | `formatHelp`, `formatError`, `readStdinSync`, `cliError` — shared CLI formatting |
@@ -56,18 +58,15 @@ The shared kernel every other layer builds on: types, path constants, settings, 
 
 All write operations are serialized through `AsyncMutex` to prevent corruption from concurrent writes. The layer uses two repository patterns:
 
-- **Pattern A (JsonRepository delegation)**: Simple CRUD wrappers around `JsonRepository<T>`. Used for schedule-repo, session-repo, channel-repo, session-registry-repo, cost-repo. All writes go through `atomicWrite()` (write to `.tmp.<pid>.<ts>` then `fs.rename`).
+- **Pattern A (JsonRepository delegation)**: Simple CRUD wrappers around `JsonRepository<T>`. Used for schedule-repo, cost-repo, commission-repo, waitpoint-repo, provider-state-repo and most other repositories. All writes go through `atomicWrite()` (write to `.tmp.<pid>.<ts>` then `fs.rename`).
 - **Pattern B (in-memory Map + fire-and-forget persist)**: Synchronous in-memory `Map` for reads, with async persist chain for writes. Used for execution-repo where read latency matters and stale-on-crash is acceptable.
 
 | File | Purpose |
 |------|---------|
-| `json-repository.ts` | Generic `JsonRepository<T>` base class: `read()`, `write()`, `mutate(fn)`, `flush()`. Lazy orphan `.tmp.*` sweep on first I/O. Corrupt-JSON backup mechanism |
-| `atomic-write.ts` | `atomicWrite(filePath, data)` — write to `.tmp.<pid>.<ts>` then `fs.rename` |
 | `outbound-queue.ts` | WAL-based durable outbound message queue. 30-min TTL, 200-entry compaction, 5-second drain loop. Coalesces consecutive updates to the same message |
 | `conversation-ledger-repo.ts` | Façade over `session-registry-repo.ts` — same per-channel turn API (`initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo`) with no file of its own |
 | `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Replays an append-only journal (`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`), admits sessions, and compacts snapshots when the log grows |
-| `execution-repo.ts` | Pattern B repository. Full CRUD: `startLocalExecution`, `registerDispatchExecution`, `completeExecution`, `failExecution`. Async stale detection via `reconcileStaleDispatches` |
-| `channel-repo.ts` | `projectName → channelId` mapping |
+| `execution-repo.ts` | Pattern B repository: `startLocalExecution`, `completeExecution`, `failExecution`, `cancelExecution`. At startup `markMissingRunningExecutionsStale` marks runs that no longer exist as stale; terminal records are archived after seven days |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` with reverse channel lookup |
 | `schedule-repo.ts` | Schedule persistence. `ScheduleTask` interface; `schedules.json` is shared with out-of-process writers |
 | `cost-repo.ts` | Costs in JSONL (append-only), budget in JSON. 90-day pruning at startup |

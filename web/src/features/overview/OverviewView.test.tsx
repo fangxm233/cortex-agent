@@ -122,7 +122,7 @@ describe('Overview schedule actions', () => {
     const region = renderer.root.findByProps({ className: 'overview-table-scroll' });
     expect(region.props.tabIndex).toBe(0);
     expect(region.props.role).toBe('region');
-    expect(region.findByProps({ className: 'overview-table-row' }).children).toHaveLength(7);
+    expect(region.findByProps({ className: 'overview-table-row' }).children).toHaveLength(6);
     const cards = renderer.root.findAll(node => node.props.style?.background === 'var(--material-card-bg)');
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) {

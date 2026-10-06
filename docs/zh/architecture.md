@@ -39,6 +39,8 @@ L5  entry/         → 所有层（组合根）
 |------|---------|
 | `paths.ts` | 规范路径常量：`INSTALL_ROOT`、`DATA_DIR`（`~/.cortex/`）、`CONFIG_DIR`、`STORE_DIR`、`CONTEXT_DIR`、`PROJECTS_DIR`、`WORKSPACE_DIR`、`PLUGINS_DIR`、`PROMPTS_DIR`、`HOOKS_DIR`、`LOGS_DIR` |
 | `utils.ts` | 工具函数：`chunkText`、`formatDurationCompact`、`todayISO`、`listProjectDirs`、`readableTimestamp` |
+| `atomic-write.ts` | `atomicWrite(filePath, data)` — 写入 `.tmp.<pid>.<ts>` 然后 `fs.rename` |
+| `json-repository.ts` | 通用 `JsonRepository<T>` 基类：`read()`、`write()`、`mutate(fn)`、`flush()`。首次 I/O 时惰性清理孤立的 `.tmp.*` 文件。损坏 JSON 备份机制 |
 | `async-mutex.ts` | `AsyncMutex` 类——基于 Promise 的互斥锁，用于序列化异步磁盘写入。在整个存储层中使用，防止并发文件损坏 |
 | `log.ts` | `createLogger(tag)` — 控制台 + 按日滚动文件输出，保留 14 天 |
 | `cli-utils.ts` | `formatHelp`、`formatError`、`readStdinSync`、`cliError` — 共享 CLI 格式化 |
@@ -55,18 +57,15 @@ L5  entry/         → 所有层（组合根）
 
 所有写操作通过 `AsyncMutex` 序列化以防止并发写入损坏。该层使用两种仓库模式：
 
-- **模式 A（JsonRepository 委托）**：`JsonRepository<T>` 的简单 CRUD 包装器。用于 schedule-repo、session-repo、channel-repo、session-registry-repo、cost-repo。所有写入通过 `atomicWrite()`（写入 `.tmp.<pid>.<ts>` 然后 `fs.rename`）。
+- **模式 A（JsonRepository 委托）**：`JsonRepository<T>` 的简单 CRUD 包装器。用于 schedule-repo、cost-repo、commission-repo、waitpoint-repo、provider-state-repo 等大多数仓库。所有写入通过 `atomicWrite()`（写入 `.tmp.<pid>.<ts>` 然后 `fs.rename`）。
 - **模式 B（内存 Map + 即发即忘持久化）**：同步内存 `Map` 用于读，异步持久化链用于写。用于 execution-repo，其中读延迟很重要，崩溃时数据陈旧是可接受的。
 
 | 文件 | 用途 |
 |------|---------|
-| `json-repository.ts` | 通用 `JsonRepository<T>` 基类：`read()`、`write()`、`mutate(fn)`、`flush()`。首次 I/O 时惰性清理孤立的 `.tmp.*` 文件。损坏 JSON 备份机制 |
-| `atomic-write.ts` | `atomicWrite(filePath, data)` — 写入 `.tmp.<pid>.<ts>` 然后 `fs.rename` |
 | `outbound-queue.ts` | 基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条目压缩，5 秒排放循环。合并对同一消息的连续更新 |
 | `conversation-ledger-repo.ts` | `session-registry-repo.ts` 的外观层——提供相同的每频道轮次 API（`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo`），自身不再持有文件 |
 | `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。回放仅追加日志（`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`）、接纳会话，并在日志膨胀后压缩快照 |
-| `execution-repo.ts` | 模式 B 仓库。完整 CRUD：`startLocalExecution`、`registerDispatchExecution`、`completeExecution`、`failExecution`。通过 `reconcileStaleDispatches` 进行异步陈旧检测 |
-| `channel-repo.ts` | `projectName → channelId` 映射 |
+| `execution-repo.ts` | 模式 B 仓库：`startLocalExecution`、`completeExecution`、`failExecution`、`cancelExecution`。启动时 `markMissingRunningExecutionsStale` 把已不存在的运行标为陈旧；终态记录七天后归档 |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` 带反向频道查找 |
 | `schedule-repo.ts` | 调度持久化。`ScheduleTask` 接口；`schedules.json` 也由其他进程直接写入 |
 | `cost-repo.ts` | JSONL 格式费用（仅追加），JSON 格式预算。启动时 90 天修剪 |
