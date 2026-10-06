@@ -737,6 +737,41 @@ def test_vendor_arm_thinking_is_refused_when_vendor_or_level_is_unsupported(
         load_campaign_config(write_campaign(tmp_path, document))
 
 
+def claude_arm_document(version: str, model: str) -> dict[str, object]:
+    return vendor_arm_document(
+        "pure-claude-code", vendor_agent="claude-code", vendor_cli_version=version,
+        provider="anthropic", model=model, credential_capability="claude-subscription",
+    )
+
+
+def test_a_claude_arm_freezing_its_cli_native_default_is_admitted(tmp_path: Path) -> None:
+    document = campaign_document(
+        tmp_path, arms=[claude_arm_document("2.1.291", "claude-opus-5-5")], comparisons=[])
+
+    (arm,) = load_campaign_config(write_campaign(tmp_path, document)).arms
+
+    assert (arm["vendor_cli_version"], arm["model"]) == ("2.1.291", "claude-opus-5-5")
+
+
+@pytest.mark.parametrize(
+    ("version", "model", "message"),
+    [
+        # A CLI bump that leaves the model behind: every request would be refused mid-run.
+        ("2.1.291", "claude-opus-5", "requests 'claude-opus-5-5' by default"),
+        # A version whose native default nobody observed.
+        ("2.1.232", "claude-opus-5", "has not been observed"),
+    ],
+)
+def test_a_claude_arm_whose_model_is_not_its_cli_native_default_is_refused(
+    tmp_path: Path, version: str, model: str, message: str,
+) -> None:
+    document = campaign_document(
+        tmp_path, arms=[claude_arm_document(version, model)], comparisons=[])
+
+    with pytest.raises(CampaignConfigError, match=message):
+        load_campaign_config(write_campaign(tmp_path, document))
+
+
 def test_an_unknown_arm_kind_is_refused(tmp_path: Path) -> None:
     document = campaign_document(
         tmp_path, arms=[vendor_arm_document("pure-pi", kind="unknown")], comparisons=[])

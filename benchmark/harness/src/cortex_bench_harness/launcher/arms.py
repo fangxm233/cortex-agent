@@ -1,6 +1,7 @@
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from harbor.models.trial.config import AgentConfig
@@ -14,6 +15,14 @@ VENDOR_IMPORT_PATHS = {
 VENDOR_AGENTS = frozenset(VENDOR_IMPORT_PATHS)
 VENDOR_THINKING_AGENTS = frozenset({"pi", "codex"})
 VENDOR_THINKING_LEVELS = frozenset({"off", "minimal", "low", "medium", "high", "xhigh"})
+# The model each pinned Claude Code version requests when nothing selects one, observed off the
+# wire against a loopback upstream (tests/package/test_vendor_model_freeze.py does the same probe).
+# A Claude arm gets no model override and the proxy freezes the arm's `model`, so a model other
+# than its CLI's native default has every request refused. The campaign, this table, the runtime
+# image pins and the preflight's expected model move together; a version absent here is refused.
+CLAUDE_CODE_NATIVE_MODELS: Mapping[str, str] = MappingProxyType({
+    "2.1.291": "claude-opus-5-5",
+})
 VENDOR_CORTEX_FIELDS = frozenset({
     "artifact_inventory_spec", "backend", "bundle", "coordinator",
     "plugin_dirs", "task_store",

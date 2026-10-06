@@ -45,11 +45,13 @@ arms:
   - name: pure-claude-code
     kind: vendor-baseline
     vendor_agent: claude-code
-    vendor_cli_version: "2.1.232"
+    vendor_cli_version: "2.1.291"
     provider: anthropic
-    # The proxy freezes the model observed from Claude Code 2.1.232's native default request;
-    # the container does not receive ANTHROPIC_MODEL or alias override variables.
-    model: claude-opus-5
+    # Claude Code 2.1.291 requests claude-opus-5-5 by default; the container gets no
+    # ANTHROPIC_MODEL or alias override and the proxy freezes this model, so it must equal the
+    # pinned CLI's native default. Move vendor_cli_version and model together (campaign load
+    # refuses a pair not in launcher/arms.py CLAUDE_CODE_NATIVE_MODELS).
+    model: claude-opus-5-5
     credential_capability: claude-subscription
     limits:
       max_provider_requests: 500
@@ -63,12 +65,12 @@ network:
 tasks:
   - task_id: chess-best-move
     path: tasks/terminal-bench-2.1/claude-code/chess-best-move
-    image_ref: cortex-terminal-bench-2.1@sha256:0e75f455072cc3b4a407e922b87f5a382f689cf8290d2219d4e9d70c133b9b41
+    image_ref: cortex-terminal-bench-2.1@sha256:9cce51ee49f82dd358016e585bd0a7de89b7d9151bfe3060802f234380c12e2d
   - task_id: constraints-scheduling
     path: tasks/terminal-bench-2.1/claude-code/constraints-scheduling
-    image_ref: cortex-terminal-bench-2.1@sha256:defe6b6e045c409994d9c26cb1b70670353e49483b6e23d50f28de835c564978
+    image_ref: cortex-terminal-bench-2.1@sha256:81a48d796419e4b2e9c5fc2bd92286c09118af440b42b0343d59f839b0db0347
   - task_id: db-wal-recovery
     path: tasks/terminal-bench-2.1/claude-code/db-wal-recovery
-    image_ref: cortex-terminal-bench-2.1@sha256:b33bed1d275441266a169e2a320287485acef1afebc4a5202cc51a284d18dbc6
+    image_ref: cortex-terminal-bench-2.1@sha256:3534864a5bbe78423accaa7e49786c1aa84b833e89849244571036a29b281026
 
 comparisons: []

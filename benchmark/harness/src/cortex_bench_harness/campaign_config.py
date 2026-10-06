@@ -31,6 +31,7 @@ import re
 import yaml
 
 from .launcher.arms import (
+    CLAUDE_CODE_NATIVE_MODELS,
     IMAGE_DIGEST,
     VENDOR_AGENTS,
     VENDOR_THINKING_AGENTS,
@@ -831,7 +832,28 @@ def _vendor_arm(document: Mapping[str, object]) -> dict[str, object]:
     thinking = _vendor_thinking(document, vendor_agent)
     if thinking is not None:
         arm["thinking"] = thinking
+    if vendor_agent == "claude-code":
+        _require_claude_native_model(arm)
     return {**arm, **_arm_runtime_mounts(document)}
+
+
+def _require_claude_native_model(arm: Mapping[str, object]) -> None:
+    """Refuse a Claude arm whose frozen model is not what its pinned CLI asks for by default.
+
+    Otherwise the mismatch surfaces mid-run, as the proxy refusing every request of every trial.
+    """
+    version, model = arm["vendor_cli_version"], arm["model"]
+    native = CLAUDE_CODE_NATIVE_MODELS.get(str(version))
+    if native is None:
+        raise CampaignConfigError(
+            f"campaign arm {arm['name']!r} pins Claude Code {version}, whose native default "
+            f"model has not been observed (known: {dict(CLAUDE_CODE_NATIVE_MODELS)}); probe it "
+            "and record it in launcher/arms.py CLAUDE_CODE_NATIVE_MODELS")
+    if model != native:
+        raise CampaignConfigError(
+            f"campaign arm {arm['name']!r} freezes model {model!r}, but Claude Code {version} "
+            f"requests {native!r} by default, so the proxy would refuse every request; move "
+            "vendor_cli_version and model together")
 
 
 def _limits(source: object) -> dict[str, object]:

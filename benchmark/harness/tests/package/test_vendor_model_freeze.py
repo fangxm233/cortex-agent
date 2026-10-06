@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from cortex_bench_harness.launcher.arms import CLAUDE_CODE_NATIVE_MODELS
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from cortex_bench_harness.proxy.adapters import (
     AnthropicMessagesSubscriptionOAuthAdapter,
@@ -28,7 +29,7 @@ from vendor_wire_capture import sse, text_events, tool_events
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
 FROZEN_MODELS = {
-    "claude-code": "claude-opus-5",
+    "claude-code": "claude-opus-5-5",
     "codex": "gpt-5.6-sol",
 }
 MISMATCH_MODELS = {
@@ -63,9 +64,11 @@ def test_subscription_campaigns_freeze_the_declared_models() -> None:
         .read_text(encoding="utf-8")
     )
 
-    assert claude["vendor_cli_version"] == "2.1.232"
+    assert claude["vendor_cli_version"] == "2.1.291"
     assert codex["vendor_cli_version"] == "0.148.0"
     assert claude["model"] == FROZEN_MODELS["claude-code"]
+    assert CLAUDE_CODE_NATIVE_MODELS[claude["vendor_cli_version"]] == claude["model"]
+    assert claude_wire["claude_code_version"] == claude["vendor_cli_version"]
     assert codex["model"] == FROZEN_MODELS["codex"]
     assert claude_wire["observed_model_identifiers"]["opus"] == claude["model"]
     assert codex_wire["request"]["model"] == "gpt-5.3-codex"
@@ -204,14 +207,19 @@ def run_claude(
     argv = [str(binary), "--print", "--verbose", "--output-format", "stream-json",
             "--include-partial-messages", "--no-session-persistence", "--tools",
             "Agent" if subagent else ""]
+    environment = claude_environment(root, proxy_url, token)
+    if subagent:
+        # The trial's permission mode; otherwise the CLI's safety classifier, not the subagent,
+        # is what issues the second request.
+        argv.extend(["--permission-mode", "bypassPermissions"])
+        environment["IS_SANDBOX"] = "1"
     if selection != "native-default":
         argv.extend(["--model", selection])
     argv.extend(["--system-prompt", "model freeze system", "Reply MODEL_FREEZE_OK"])
     if not subagent:
         argv.insert(1, "--bare")
     return subprocess.run(
-        argv, cwd=root, env=claude_environment(root, proxy_url, token),
-        capture_output=True, text=True, timeout=60,
+        argv, cwd=root, env=environment, capture_output=True, text=True, timeout=60,
     )
 
 
