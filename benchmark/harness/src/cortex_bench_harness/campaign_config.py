@@ -515,7 +515,7 @@ def _trial_id(campaign: str, task_id: str, arm_name: str, declared: str) -> str:
     suffix = hashlib.sha256(declared.encode()).hexdigest()[:TRIAL_ID_HASH_LENGTH]
     budget = TRIAL_ID_LIMIT - len(suffix) - 1
     fixed = len(campaign) + 2
-    del declared  # every decision below is made from the sanitized parts
+    # Every decision below is made from the sanitized parts; `declared` only names the refusal.
     task_slug, arm_slug = task_id, arm_name
     if fixed + len(task_slug) + len(arm_slug) > budget:
         task_slug = _trim(task_slug, budget - fixed - len(arm_slug))

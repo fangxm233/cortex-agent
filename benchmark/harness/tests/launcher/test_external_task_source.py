@@ -179,6 +179,18 @@ def test_an_over_long_trial_id_is_shortened_rather_than_refused(tmp_path: Path) 
     assert long.declared_trial_id == f"camp-01-{LONG_TASK_ID}-cortex-direct-pi-openai-codex"
 
 
+def test_a_campaign_name_too_long_to_shorten_around_is_refused_by_name(tmp_path: Path) -> None:
+    """Only the campaign and arm names are left once the task segment is gone; refuse, naming it."""
+    document = external_document(tmp_path)
+    document["campaign"] = "c" * 60
+    document["arms"] = [arm_document("cortex-direct-pi-openai-codex")]
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(write_campaign(tmp_path, document)).trials()
+    assert f"compose the trial id '{'c' * 60}-" in str(error.value)
+    assert "shorten the campaign or arm name" in str(error.value)
+
+
 def test_a_corpus_task_id_a_hostname_cannot_carry_is_rewritten_not_refused(
     tmp_path: Path,
 ) -> None:
