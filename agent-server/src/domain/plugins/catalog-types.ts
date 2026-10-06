@@ -98,7 +98,7 @@ export interface PluginMcpRemoteRuntime {
 
 export type PluginMcpRuntime = PluginMcpStdioRuntime | PluginMcpRemoteRuntime;
 
-export const PLUGIN_MCP_RUNTIME = Symbol('pluginMcpRuntime');
+const PLUGIN_MCP_RUNTIME = Symbol('pluginMcpRuntime');
 
 type RuntimeCarrier = { [PLUGIN_MCP_RUNTIME]?: PluginMcpRuntime };
 

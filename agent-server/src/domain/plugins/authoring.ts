@@ -33,7 +33,7 @@ function fail(code: PluginWriteErrorCode, message: string): PluginWriteError {
   return Object.assign(new Error(message), { code });
 }
 
-export function sha256(text: string): string {
+function sha256(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
@@ -64,7 +64,7 @@ function containedTarget(absolute: string): string {
   return target;
 }
 
-export function pluginDirPath(id: string): string {
+function pluginDirPath(id: string): string {
   assertName('plugin id', id);
   const dir = contained(path.join(PLUGINS_DIR, id));
   if (!isDirectoryPath(dir)) throw fail('not-found', `Unknown plugin: '${id}'`);
@@ -119,7 +119,7 @@ export function writeSkillSource(
   return { baseHash: sha256(content) };
 }
 
-export function skillTemplate(skill: string, description: string): string {
+function skillTemplate(skill: string, description: string): string {
   return [
     '---',
     `name: ${skill}`,
@@ -185,7 +185,7 @@ export function removeSkill(pluginId: string, skill: string): void {
   fs.rmSync(skillDirPath(pluginId, skill), { recursive: true, force: true });
 }
 
-export function portableManifestText(id: string, description: string): string {
+function portableManifestText(id: string, description: string): string {
   const body: Record<string, string> = {
     $schema: AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
     name: id,
