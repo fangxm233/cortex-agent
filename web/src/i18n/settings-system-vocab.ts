@@ -2,6 +2,7 @@
 // rows, environments editor errors, local notifications, toast overflow and provider-setup errors.
 export const settingsSystemEn = {
   setEditOnDesktop: 'Edit on desktop',
+  setUnsavedLeave: 'Save or reset your changes before leaving.',
   setViewOnly: 'View only',
   setSwitchProfile: 'Switch',
   setMachinesOnline: '{n} online',
@@ -72,6 +73,7 @@ export const settingsSystemEn = {
 };
 export const settingsSystemZh: Record<keyof typeof settingsSystemEn, string> = {
   setEditOnDesktop: '桌面编辑',
+  setUnsavedLeave: '请先保存或重置更改，再离开此页面。',
   setViewOnly: '仅查看',
   setSwitchProfile: '切换',
   setMachinesOnline: '{n} 台在线',

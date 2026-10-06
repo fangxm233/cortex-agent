@@ -124,8 +124,8 @@ function OpenSettingsBody(props: SettingsBodyProps & { open: boolean }) {
 
 export function SettingsModal({ open, onClose, initialSection = 'appearance' }: SettingsModalProps) {
   const L = useVocab();
-  // A panel holding an unsaved committed-on-save draft blocks nav and close. Today that is the
-  // plugin assignment form, which lives in the environments editor.
+  // A panel holding an unsaved committed-on-save draft blocks nav and close: the Platform
+  // connection forms and the plugin assignment form in the environments editor.
   const [dirty, setDirty] = useState(false);
   useEffect(() => resetDirty(open, setDirty), [open]);
   const requestClose = () => requestSettingsClose(dirty, onClose);
@@ -203,7 +203,7 @@ function SettingsNavEntry({ entry, ...props }: SettingsNavProps & { entry: NavEn
     <button className="settings-nav-button" type="button" disabled={disabled}
       onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
       aria-current={active ? 'page' : undefined}
-      title={disabled ? L.plUnsavedLeave : undefined} style={navButtonStyle(active, disabled)}>
+      title={disabled ? L.setUnsavedLeave : undefined} style={navButtonStyle(active, disabled)}>
       <NavIcon path={entry.icon} active={active} />
       <span className="settings-nav-label" style={{ flex: 1, minWidth: 0 }}>{entry.label}</span>
     </button>
@@ -273,7 +273,7 @@ function SettingsPanelHeader(props: {
       <div ref={props.actionsRef} data-settings-header-actions
         style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }} />
       <CloseButton onClose={props.onClose} blocked={props.closeBlocked} label={L.stEsc}
-        title={props.closeBlocked ? L.plUnsavedLeave : L.stEsc} />
+        title={props.closeBlocked ? L.setUnsavedLeave : L.stEsc} />
     </div>
   );
 }
