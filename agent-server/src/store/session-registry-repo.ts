@@ -599,7 +599,10 @@ export class SessionRegistryRepo {
       const intents: SessionRegistryEvent[] = [];
       const records = sortRecent(state.live.values());
       const channelsBySession = conversationChannelsBySession(state);
+      // A starred session and a commission's session are kept however old: the user marked one,
+      // and the other is the record of a contract's work.
       const expired = (record: SessionRecord): boolean => {
+        if (record.starred === true || record.commissionId) return false;
         const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
         return lastUsedAtMs !== null && lastUsedAtMs < toCutoffMs(cutoff);
       };
