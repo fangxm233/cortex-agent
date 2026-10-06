@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { Context, Model, ToolResultMessage } from '@earendil-works/pi-ai';
+import { normalizeContext, type Model, type ToolResultMessage, type TranscriptContext } from '@earendil-works/pi-ai';
 import type {
   BeforeProviderRequestEvent, ExtensionAPI, ExtensionContext, InlineExtension,
 } from '@earendil-works/pi-coding-agent';
@@ -20,7 +20,7 @@ async function transform(factories: InlineExtension[], payload: unknown, api = '
     on: (name: string, handler: Handler) => { if (name === 'before_provider_request') handlers.push(handler); },
     registerTool: () => {},
   } as unknown as ExtensionAPI;
-  for (const extension of factories) await extension.factory(pi);
+  for (const extension of factories) await (typeof extension === 'function' ? extension : extension.factory)(pi);
   const ctx = { model: { api, provider: 'custom-gateway' } } as ExtensionContext;
   for (const handler of handlers) payload = await handler({ type: 'before_provider_request', payload }, ctx) ?? payload;
   return payload;
@@ -28,7 +28,7 @@ async function transform(factories: InlineExtension[], payload: unknown, api = '
 
 const text = (value: string) => ({ type: 'text', text: value });
 const image = (data: string) => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data } });
-const result = (content: unknown) => ({ type: 'tool_result', tool_use_id: 'read-1', is_error: false, content });
+const result = <T>(content: T) => ({ type: 'tool_result', tool_use_id: 'read-1', is_error: false, content });
 const payload = (blocks: unknown[]) => ({ model: 'fixture', messages: [{ role: 'user', content: blocks }] });
 
 const sessions = [
@@ -90,15 +90,15 @@ const model: Model<'anthropic-messages'> = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 128,
 };
 
-function sdkContext(content: ToolResultMessage['content']): Context {
-  return { messages: [
+function sdkContext(content: ToolResultMessage['content']): TranscriptContext {
+  return normalizeContext({ messages: [
     { role: 'user', content: 'read the image', timestamp: 1 },
     { role: 'assistant', api: model.api, provider: model.provider, model: model.id, timestamp: 2,
       stopReason: 'toolUse', content: [{ type: 'toolCall', id: 'read-1', name: 'read', arguments: {} }],
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } },
     { role: 'toolResult', toolCallId: 'read-1', toolName: 'read', content, isError: false, timestamp: 3 },
-  ] };
+  ] });
 }
 
 type WirePayload = { messages: Array<{ content: Array<{ type: string; content?: unknown[] }> }> };
