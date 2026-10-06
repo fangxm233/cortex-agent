@@ -18,7 +18,6 @@ import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
 import { isUpdateDevMode } from '@domain/system/server-update-check.js';
 import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
-import { createBrowserStatusRoutes } from '@platform/ui-http/browser-status.js';
 import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
 import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
 import { openDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
@@ -428,9 +427,6 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
       // Listening-port discovery for the desktop port forward: tells the shell which loopback
       // services exist here so the Ports list can offer them. Same auth gate as tRPC.
       ...createForwardRoutes(),
-      // Browser takeover: tells the UI where the managed Chrome draws, so "how do I log in?" has
-      // an answer on screen instead of only in the daemon log.
-      ...createBrowserStatusRoutes(),
       // The same discovery and mapping for ports that live on a connected device instead of here.
       // A device is outbound-only, so the server asks it to dial back and hands out a loopback port
       // that stands in for the remote one (plan/embedded-browser.md §18).
