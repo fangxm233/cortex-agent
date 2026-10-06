@@ -102,4 +102,17 @@ describe('mobile navigation side effects', () => {
     expect(exit).toHaveBeenCalledTimes(1);
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  it('asks the screen before leaving it, but not before dismissing an overlay', async () => {
+    const deps = { historyBack: vi.fn(), exit: vi.fn(), navigate: vi.fn(), canLeave: vi.fn(() => false) };
+
+    await runMobileBack('/m/settings/platform', false, true, deps);
+    await runMobileBack('/m/settings/platform', false, false, deps);
+    expect(deps.historyBack).not.toHaveBeenCalled();
+    expect(deps.navigate).not.toHaveBeenCalled();
+
+    await runMobileBack('/m/settings/platform', true, true, deps);
+    expect(deps.canLeave).toHaveBeenCalledTimes(2);
+    expect(deps.historyBack).toHaveBeenCalledTimes(1);
+  });
 });

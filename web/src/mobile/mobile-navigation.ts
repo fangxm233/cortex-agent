@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
 import { mobileHomeView, mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';
 
@@ -37,6 +37,8 @@ export interface MobileBackDeps {
   historyBack: () => void;
   exit: () => unknown | Promise<unknown>;
   navigate: MobileNavigate;
+  /** False when the screen being left holds unsaved changes the user chose to keep. */
+  canLeave?: () => boolean;
 }
 
 export async function runMobileBack(
@@ -46,6 +48,8 @@ export async function runMobileBack(
   deps: MobileBackDeps,
 ): Promise<void> {
   const action = resolveMobileBack(pathname, overlayActive, canGoBack);
+  // Dismissing an overlay stays on the screen, so only leaving it asks the screen first.
+  if (!overlayActive && deps.canLeave && !deps.canLeave()) return;
   if (action.kind === 'history') return deps.historyBack();
   if (action.kind === 'exit') return void (await deps.exit());
   deps.navigate(action.to, { replace: true });
@@ -65,6 +69,28 @@ async function exitNativeApp(): Promise<void> {
   await safeInvoke('plugin:app|exit', { code: 0 });
 }
 
+// Screens holding unsaved edits register here so the system back button asks the same question
+// their header back button does.
+const leaveGuards = new Set<() => boolean>();
+
+export function confirmMobileLeave(): boolean {
+  for (const guard of leaveGuards) if (!guard()) return false;
+  return true;
+}
+
+/** Asks `message` before the screen is left while `dirty`; returns the check for the screen's
+ *  own back button. */
+export function useMobileLeaveGuard(dirty: boolean, message: string): () => boolean {
+  const latest = useRef({ dirty, message });
+  latest.current = { dirty, message };
+  const guard = useCallback(() => !latest.current.dirty || window.confirm(latest.current.message), []);
+  useEffect(() => {
+    leaveGuards.add(guard);
+    return () => { leaveGuards.delete(guard); };
+  }, [guard]);
+  return guard;
+}
+
 function overlayActive(): boolean {
   const state = window.history.state as { __cortexOverlay?: boolean } | null;
   return state?.__cortexOverlay === true;
@@ -81,6 +107,7 @@ export function useMobileBackNavigation(pathname: string, navigate: MobileNaviga
       historyBack: () => window.history.back(),
       exit: exitNativeApp,
       navigate: current.navigate,
+      canLeave: confirmMobileLeave,
     }).catch(() => {});
   }), []);
 }

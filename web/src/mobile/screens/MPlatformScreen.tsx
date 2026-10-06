@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { PlatformPanel } from '@/features/settings/panels/PlatformPanel';
+import { useMobileLeaveGuard } from '@/mobile/mobile-navigation';
 import { MSettingsCard, MSettingsPage } from './MSettingsControls';
 
 export function MPlatformScreen() {
@@ -12,7 +13,8 @@ export function MPlatformScreen() {
   const navigate = useNavigate();
   const [dirty, setDirty] = useState(false);
   const query = useQuery(trpc.config.get.queryOptions({}));
-  const back = () => { if (!dirty || window.confirm(L.psUnsaved)) navigate('/m/settings'); };
+  const canLeave = useMobileLeaveGuard(dirty, L.psUnsaved);
+  const back = () => { if (canLeave()) navigate('/m/settings'); };
   let content;
   if (query.isLoading) content = <MSettingsCard><p>{L.stLoadingConfig}</p></MSettingsCard>;
   else if (query.isError || !query.data) content = <MSettingsCard><p>{L.stFailedLoadConfig}</p></MSettingsCard>;
