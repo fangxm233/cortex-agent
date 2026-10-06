@@ -2,6 +2,7 @@ export { TONES, statusTone, type Tone } from './tone';
 export { PlusGlyph, type PlusGlyphProps } from './PlusGlyph';
 export { Card, type CardProps } from './Card';
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
+export { IconButton, type IconButtonProps, type IconButtonTone } from './IconButton';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export {
   Modal,

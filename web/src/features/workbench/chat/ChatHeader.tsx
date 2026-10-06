@@ -1,5 +1,6 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
+import { IconButton } from '@/design/IconButton';
 import { useVocab } from '@/i18n';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 import { ChatSessionMenu } from './ChatSessionMenu';
@@ -9,47 +10,6 @@ import { NotesGlyph } from '@/features/notes/NotesGlyph';
 import { useDockIntake } from '@/design/dock-intake';
 
 const MONO = "'IBM Plex Mono',monospace";
-
-function iconButtonStyle(hover: boolean, active: boolean): CSSProperties {
-  return {
-    width: 28,
-    height: 28,
-    padding: 0,
-    border: 0,
-    borderRadius: 'var(--r-chip)',
-    display: 'grid',
-    placeItems: 'center',
-    cursor: 'pointer',
-    background: hover || active ? 'var(--proto-line-2)' : 'transparent',
-    color: active ? 'var(--proto-accent)' : hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
-  };
-}
-
-function HeaderIconButton({ active = false, title, attr, onClick, children }: {
-  active?: boolean;
-  title: string;
-  /** Data attribute the rest of the app (and its tests) uses to find this control. */
-  attr?: Record<string, string>;
-  onClick: () => void;
-  children: ReactNode;
-}): JSX.Element {
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      type="button"
-      {...attr}
-      className={MENU_FOCUS}
-      aria-pressed={active}
-      title={title}
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={iconButtonStyle(hover, active)}
-    >
-      {children}
-    </button>
-  );
-}
 
 function FolderGlyph(): JSX.Element {
   return (
@@ -76,14 +36,17 @@ function BrowserIconButton(): JSX.Element | null {
   const L = useVocab();
   if (!canDock) return null;
   return (
-    <HeaderIconButton
-      attr={{ 'data-browser-button': '' }}
+    <IconButton
+      data-browser-button=""
+      size={28}
+      tone="accent"
       active={active && activeKind === 'web'}
-      title={L.wbOpenWebPage}
+      aria-pressed={active && activeKind === 'web'}
+      label={L.wbOpenWebPage}
       onClick={openWeb}
     >
       <GlobeGlyph />
-    </HeaderIconButton>
+    </IconButton>
   );
 }
 
@@ -213,14 +176,17 @@ export function ChatHeader({
         {team}
         <BrowserIconButton />
         <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <HeaderIconButton
-            attr={{ 'data-notes-button': '' }}
+          <IconButton
+            data-notes-button=""
+            size={28}
+            tone="accent"
             active={notes.isOpen}
-            title={`${L.noteTitle} · ⌘⇧N`}
+            aria-pressed={notes.isOpen}
+            label={`${L.noteTitle} · ⌘⇧N`}
             onClick={() => notes.isOpen ? notes.close() : notes.open()}
           >
             <NotesGlyph />
-          </HeaderIconButton>
+          </IconButton>
           {/* The button lost its label in this row, but not its count: a badge keeps the number on
               screen rather than demoting it into a tooltip nobody hovers. */}
           {notes.vm.activeCount > 0 && (

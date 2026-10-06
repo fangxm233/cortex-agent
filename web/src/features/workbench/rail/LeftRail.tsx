@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -26,7 +26,7 @@ import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync
 import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
 import type { ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
-import { PlusGlyph } from '@/design';
+import { IconButton, PlusGlyph } from '@/design';
 import { glassPanelStyle } from '@/design/GlassPanel';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
@@ -101,44 +101,6 @@ export function GearIcon({ size = 15 }: { size?: number }): JSX.Element {
       <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
-  );
-}
-
-// Borderless 30px square — the same footprint as the top strip's icon buttons, so the two icon
-// surfaces read as one control family.
-function RailIconButton({ label, color, background = 'transparent', onClick, onMouseEnter, onMouseLeave, children }: {
-  label: string;
-  color: string;
-  background?: string;
-  onClick: () => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
-  children: ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      style={{
-        width: 30,
-        height: 30,
-        border: 0,
-        borderRadius: 'var(--r-chip)',
-        background,
-        color,
-        display: 'grid',
-        placeItems: 'center',
-        padding: 0,
-        cursor: 'pointer',
-        flex: 'none',
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -417,26 +379,16 @@ export function LeftRail(): JSX.Element {
       {railDivider}
       {/* Searching means reading results, and results need the full width — so this opens the rail
           with the field already focused rather than searching inside the fold. */}
-      <RailIconButton
-        label={L.wbFilterSessions}
-        color={isHover('crail:search') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
-        onClick={openSearchExpanded}
-        {...hp('crail:search')}
-      >
+      <IconButton label={L.wbFilterSessions} onClick={openSearchExpanded}>
         <SearchIcon />
-      </RailIconButton>
+      </IconButton>
       <div style={{ flex: 1, minHeight: 8 }} />
       {hasPendingApprovals && (
-        <RailIconButton
-          label={pendingLabel}
-          color="var(--proto-amber-fg)"
-          background="var(--proto-amber-bg)"
-          onClick={() => approvals.open()}
-        >
+        <IconButton label={pendingLabel} tone="amber" onClick={() => approvals.open()}>
           <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 'var(--r-chip)', background: 'var(--proto-amber)', color: 'var(--amber-fill-fg)', font: `600 11px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             {pendingCount}
           </span>
-        </RailIconButton>
+        </IconButton>
       )}
     </nav>
   );

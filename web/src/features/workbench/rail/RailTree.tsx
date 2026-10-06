@@ -1,6 +1,7 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import { MENU_SURFACE } from '@/design/MenuChrome';
+import { IconButton } from '@/design/IconButton';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
 import { RailSessionMenu } from './RailSessionMenu';
 import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
@@ -10,6 +11,8 @@ import type { RailSortMode } from './rail-order';
 import { scheduleSubline, type ScheduleRow } from '@/features/session/list/schedule-rail';
 
 const mono = "'IBM Plex Mono',monospace";
+// Header and folder-row icon controls fit inside the row's fixed height.
+const ROW_ICON = 22;
 
 // The three section-header glyphs share one optical box: 14px rendered, one 16 viewBox, content
 // bounded to y ∈ [3.4, 12.9], stroke 1.6. The sort glyph is a pair of opposed arrows rather than
@@ -62,44 +65,6 @@ function CaretIcon({ open, size = 9 }: { open: boolean; size?: number }): JSX.El
     >
       <path d="M4.5 2.5L8.5 6l-4 3.5" />
     </svg>
-  );
-}
-
-function IconButton({ label, active, size = 22, onClick, children }: {
-  label: string;
-  active?: boolean;
-  /** Box side. A denser row than the project folder's gives it a smaller one, so the button still
-   *  fits inside the row's fixed height instead of stretching it under the cursor. */
-  size?: number;
-  onClick: (e: React.MouseEvent) => void;
-  children: ReactNode;
-}): JSX.Element {
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        width: size,
-        height: size,
-        border: 0,
-        borderRadius: 6,
-        padding: 0,
-        display: 'grid',
-        placeItems: 'center',
-        cursor: 'pointer',
-        flex: 'none',
-        position: 'relative',
-        background: active ? 'var(--proto-accent-bg)' : hover ? 'var(--proto-gray)' : 'transparent',
-        color: active ? 'var(--proto-accent)' : hover ? 'var(--proto-ink-2)' : 'var(--proto-muted-2)',
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -210,8 +175,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
       <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', marginLeft: 5, marginRight: 'auto' }}>
         {props.projectCount}
       </span>
-      <IconButton label={L.wbFilterSessions} onClick={props.onToggleSearch}><SearchIcon /></IconButton>
+      <IconButton size={ROW_ICON} label={L.wbFilterSessions} onClick={props.onToggleSearch}><SearchIcon /></IconButton>
       <IconButton
+        size={ROW_ICON}
+        tone="accent"
         label={L.wbSortMode}
         active={menuOpen}
         onClick={(e) => {
@@ -263,7 +230,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           </span>
         )}
       </IconButton>
-      <IconButton label={L.newProject} onClick={props.onNewProject}><NewProjectIcon /></IconButton>
+      <IconButton size={ROW_ICON} label={L.newProject} onClick={props.onNewProject}><NewProjectIcon /></IconButton>
     </div>
   );
 
@@ -653,6 +620,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             {hovered ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <IconButton
+                  size={ROW_ICON}
                   label={L.wbProjectOverview.replace('{p}', node.id)}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -662,6 +630,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   <OverviewIcon />
                 </IconButton>
                 <IconButton
+                  size={ROW_ICON}
                   label={L.wbNewSessionIn.replace('{p}', node.id)}
                   onClick={(e) => {
                     e.stopPropagation();

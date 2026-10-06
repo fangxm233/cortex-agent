@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useState, type CSSProperties } from 'react';
 import './top-bar.css';
 import { useVocab } from '@/i18n';
 import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-platform';
@@ -18,6 +18,7 @@ import { useAppMenus } from './menu/useAppMenus';
 import { useMenuShortcuts } from './menu/useMenuShortcuts';
 import { useNativeMenu } from './menu/useNativeMenu';
 import { WindowControls } from '@/design/WindowControls';
+import { IconButton } from '@/design/IconButton';
 
 export const TOP_BAR_HEIGHT = 44;
 
@@ -28,43 +29,6 @@ const mono = "'IBM Plex Mono',monospace";
 // Usage and Settings.
 //
 // Everything here is window-scoped. Session-scoped controls (Browser, Notes, ⋯) stay in ChatHeader.
-
-function IconButton({ label, active, disabled, onClick, children }: {
-  label: string;
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}): JSX.Element {
-  const [hover, setHover] = useState(false);
-  const tone = disabled ? 'var(--proto-line-3)' : active || hover ? 'var(--proto-ink)' : 'var(--proto-muted)';
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        width: 30,
-        height: 30,
-        border: 0,
-        borderRadius: 'var(--r-chip)',
-        padding: 0,
-        display: 'grid',
-        placeItems: 'center',
-        cursor: disabled ? 'default' : 'pointer',
-        color: tone,
-        background: active && !disabled ? 'var(--proto-line-2)' : 'transparent',
-        flex: 'none',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
 
 const strokeProps = {
   fill: 'none',
