@@ -4,6 +4,10 @@ import type { AttachmentMeta } from './types';
 
 const UPLOAD_PATH = '/api/attachments/upload';
 
+/** The server's upload cap (`MAX_UPLOAD_BYTES` in agent-server file-routes.ts), checked here first
+ *  so an oversized file fails at once instead of after its whole upload. The server still decides. */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
 type UploadErrorCode = 'too-large' | 'failed' | 'network' | 'cancelled';
 
 const UPLOAD_ERROR_KEY = {
@@ -81,6 +85,7 @@ export function uploadAttachment(
   signal: AbortSignal,
 ): Promise<AttachmentMeta> {
   if (signal.aborted) return Promise.reject(new AttachmentUploadError('cancelled'));
+  if (file.size > MAX_UPLOAD_BYTES) return Promise.reject(new AttachmentUploadError('too-large'));
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     let settled = false;

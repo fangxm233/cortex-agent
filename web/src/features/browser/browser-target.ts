@@ -234,6 +234,22 @@ export function applyBrowserTitle(
   return { ...tab, pageTitle: title, titleTimeOrigin: timeOrigin };
 }
 
+export interface DeviceForward {
+  device: string;
+  port: number;
+}
+
+/** Device port mappings the given tabs show, keyed by device+port. The server's own ports are not
+ *  mappings (nothing to tear down), and a forward still connecting has nothing to close yet. */
+export function deviceForwardsInUse(tabs: readonly BrowserTabState[]): Map<string, DeviceForward> {
+  const inUse = new Map<string, DeviceForward>();
+  for (const { forward } of tabs) {
+    if (forward?.status !== 'ready' || forward.device === '') continue;
+    inUse.set(`${forward.device}\u0000${forward.originalPort}`, { device: forward.device, port: forward.originalPort });
+  }
+  return inUse;
+}
+
 export function browserTabForwardSource(tab: BrowserTabState): string | null {
   if (!tab.forward) return null;
   if (tab.forward.status === 'ready' && tab.forward.targetUrl !== currentUrl(tab.history)) return null;

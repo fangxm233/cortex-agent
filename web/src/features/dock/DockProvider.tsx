@@ -1,6 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DockIntakeProvider, type DockIntakeValue } from '@/design/dock-intake';
-import { createBrowserTab, isBlankWebTab } from '@/features/browser/browser-target';
+import {
+  createBrowserTab,
+  deviceForwardsInUse,
+  isBlankWebTab,
+  type DeviceForward,
+} from '@/features/browser/browser-target';
+import { closeDeviceForward } from '@/features/browser/forward';
 import {
   clampDockSplit,
   DOCK_OPEN_KEY,
@@ -12,6 +18,7 @@ import {
 import {
   activeTabOf,
   closeTab,
+  isWebTab,
   openFileTab,
   openWebTab,
   reorderTabs,
@@ -160,6 +167,18 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
   const close = useCallback((id: string) => {
     setState((current) => (current === null ? current : closeTab(current, id)));
   }, []);
+
+  // A device port mapping outlives the tab that asked for it unless someone closes it: release each
+  // one as soon as no tab shows it (tab closed, evicted, or its forward replaced). Hiding the dock
+  // keeps the tabs alive, so it keeps their mappings too.
+  const deviceForwards = useRef(new Map<string, DeviceForward>());
+  useEffect(() => {
+    const inUse = deviceForwardsInUse(state?.tabs.filter(isWebTab) ?? []);
+    for (const [key, { device, port }] of deviceForwards.current) {
+      if (!inUse.has(key)) void closeDeviceForward(device, port).catch(() => {});
+    }
+    deviceForwards.current = inUse;
+  }, [state]);
 
   const reorder = useCallback((orderedIds: string[]) => {
     setState((current) => (current === null ? current : reorderTabs(current, orderedIds)));

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { en, zh } from '@/i18n';
-import { AttachmentUploadError, uploadAttachment, uploadErrorText } from './upload-attachment';
+import { AttachmentUploadError, MAX_UPLOAD_BYTES, uploadAttachment, uploadErrorText } from './upload-attachment';
 import type { AttachmentMeta } from './types';
 
 type Handler = (event: any) => void;
@@ -55,6 +55,14 @@ afterEach(() => {
 });
 
 describe('uploadAttachment', () => {
+  it('refuses a file over the server limit without sending it', async () => {
+    const file = new File(['x'], 'huge.bin');
+    Object.defineProperty(file, 'size', { value: MAX_UPLOAD_BYTES + 1 });
+    await expect(uploadAttachment(file, 'b1', vi.fn(), new AbortController().signal))
+      .rejects.toMatchObject({ code: 'too-large' });
+    expect(MockXHR.instances).toHaveLength(0);
+  });
+
   it('sends authenticated Unicode-safe headers and reports progress', async () => {
     const progress = vi.fn();
     const file = new File(['data'], '雪 景.png', { type: 'image/png' });

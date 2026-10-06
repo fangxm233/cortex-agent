@@ -81,8 +81,8 @@ async function forwardApi<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { ...authHeaders(), ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
   });
-  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: T; error?: string };
-  if (!res.ok || !body.ok) throw body.error ? new Error(body.error) : new ForwardError('request', res.status);
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: T; message?: string };
+  if (!res.ok || !body.ok) throw body.message ? new Error(body.message) : new ForwardError('request', res.status);
   return body.data as T;
 }
 
@@ -103,6 +103,14 @@ export async function listDeviceRemotePorts(device: string): Promise<ListeningPo
 /** Map a device port onto a server port. Idempotent per (device, port) on the server side. */
 export async function openDeviceForward(device: string, port: number): Promise<DevicePortMapping> {
   return forwardApi<DevicePortMapping>('/api/forward/device-port', {
+    method: 'POST',
+    body: JSON.stringify({ device, port }),
+  });
+}
+
+/** Drop a device mapping once no open view shows it; otherwise it lives until the device leaves. */
+export async function closeDeviceForward(device: string, port: number): Promise<void> {
+  await forwardApi<{ closed: boolean }>('/api/forward/device-port/close', {
     method: 'POST',
     body: JSON.stringify({ device, port }),
   });

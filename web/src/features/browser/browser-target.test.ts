@@ -12,6 +12,8 @@ import {
   previewOriginConflict,
   pushHistory,
   frameRefusedEmbedding,
+  deviceForwardsInUse,
+  type BrowserTabState,
 } from './browser-target';
 
 describe('normalizeBrowserUrl', () => {
@@ -134,5 +136,19 @@ describe('frameRefusedEmbedding', () => {
 
   it('treats an unreachable document as a successful load', () => {
     expect(frameRefusedEmbedding({ documentReachable: false })).toBe(false);
+  });
+});
+
+describe('deviceForwardsInUse', () => {
+  it('lists ready device forwards once, skipping server ports and pending ones', () => {
+    const tab = (forward: BrowserTabState['forward']): BrowserTabState => ({ ...createBrowserTab('t'), forward });
+    const inUse = deviceForwardsInUse([
+      tab({ status: 'ready', device: 'desk', originalPort: 6006, targetUrl: 'http://127.0.0.1:41000/' }),
+      tab({ status: 'ready', device: 'desk', originalPort: 6006, targetUrl: 'http://127.0.0.1:41000/' }),
+      tab({ status: 'ready', device: '', originalPort: 5173, targetUrl: 'http://127.0.0.1:5173/' }),
+      tab({ status: 'connecting', operationId: 1, device: 'lab', originalPort: 8888 }),
+      tab(null),
+    ]);
+    expect([...inUse.values()]).toEqual([{ device: 'desk', port: 6006 }]);
   });
 });
