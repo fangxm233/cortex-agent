@@ -1,4 +1,6 @@
-import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
+import type {
+  UiServiceDeps, UiService, QueryScope, MutateOp, Result, QueryParams, QueryReturn, MutateArgs, MutateReturn,
+} from './types.js';
 import { handleProjectsList } from './query/projects.js';
 import { handleSetStarred, handleRenameSession } from './mutate/session-metadata.js';
 import {
@@ -115,10 +117,16 @@ import {
 import { createSubscription } from './subscribe.js';
 import { AssistantSnapshots } from './assistant-snapshots.js';
 
-type QueryHandler = (deps: UiServiceDeps, params: any) => Promise<any>;
-type MutateHandler = (deps: UiServiceDeps, args: any) => Promise<Result<any>>;
+/** One handler per query scope; a missing or mistyped handler fails compilation. */
+export type QueryHandlerMap = {
+  [S in QueryScope]: (deps: UiServiceDeps, params: QueryParams<S>) => Promise<QueryReturn<S>>;
+};
+/** One handler per mutate op; a missing or mistyped handler fails compilation. */
+export type MutateHandlerMap = {
+  [O in MutateOp]: (deps: UiServiceDeps, args: MutateArgs<O>) => Promise<Result<MutateReturn<O>>>;
+};
 
-const queryHandlers: Record<string, QueryHandler> = {
+export const queryHandlers = {
   'projects.list': (deps) => handleProjectsList(deps),
   'sessions.list': (deps, params) => handleSessionsList(deps, params),
   'sessions.transcript': (deps, params) => handleSessionsTranscript(deps, params),
@@ -157,9 +165,9 @@ const queryHandlers: Record<string, QueryHandler> = {
   'system.usageStatus': (_deps, params) => handleSystemUsageStatus(params),
   'system.notices': (_deps, params) => handleSystemNotices(params),
   'system.updateStatus': (_deps, params) => handleSystemUpdateStatus(params),
-};
+} satisfies QueryHandlerMap;
 
-const mutateHandlers: Record<string, MutateHandler> = {
+export const mutateHandlers = {
   'projects.create': (deps, args) => handleCreateProject(deps, args),
   'sessions.create': (deps, args) => handleCreateSession(deps, args),
   'sessions.send': (deps, args) => handleSendSession(deps, args),
@@ -233,7 +241,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'system.checkUpdate': handleSystemCheckUpdate,
   'system.applyUpdate': (_deps, args) => handleSystemApplyUpdate(args),
   'system.skipUpdate': (_deps, args) => handleSystemSkipUpdate(args),
-};
+} satisfies MutateHandlerMap;
 
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
   if (op === 'config.setPlatform') return { redacted: true };
@@ -255,7 +263,7 @@ export function createUiService(deps: UiServiceDeps): UiService {
   const assistantSnapshots = new AssistantSnapshots(deps.bus);
   return {
     async query(scope, params) {
-      const handler = queryHandlers[scope];
+      const handler: QueryHandlerMap[typeof scope] | undefined = (queryHandlers as QueryHandlerMap)[scope];
       if (!handler) {
         return { ok: false, code: 'invalid-args', message: `Unknown query scope: ${scope}` };
       }
@@ -269,7 +277,7 @@ export function createUiService(deps: UiServiceDeps): UiService {
     },
 
     async mutate(op, args) {
-      const handler = mutateHandlers[op];
+      const handler: MutateHandlerMap[typeof op] | undefined = (mutateHandlers as MutateHandlerMap)[op];
       if (!handler) {
         return { ok: false, code: 'invalid-args', message: `Unknown mutate op: ${op}` };
       }
