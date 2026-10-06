@@ -211,9 +211,9 @@ pub fn run() {
 
             let open_workbench = connection::has_credentials(&initial_config);
             shell_log!("[cortex-desktop] initial credentials present={open_workbench}");
-            // Keep a copy to bake synchronously into the window's initialization_script (below), so
-            // the SPA sees the credentials before any bundle code runs (no async-IPC race).
-            let baked_config = initial_config.clone();
+            // Bake the page's view of these credentials into the window's initialization_script
+            // (below), so the launch document sees them before any bundle code runs.
+            let baked_config = connection::PageConfig::from(&initial_config);
             *app.state::<AppState>().config.lock().unwrap() = initial_config;
 
             // Open the workbench directly when credentials are available; otherwise the connect screen.
@@ -258,7 +258,7 @@ pub fn run() {
             shell_log!("[cortex-desktop] title bar mode: {title_bar_mode}");
 
             // ── Open the window against the cortexui:// scheme (both platforms) ──
-            let url = format!("{}://localhost/{initial_file}", frontend::SCHEME);
+            let url = webview_scripts::launch_url(initial_file);
             #[allow(unused_mut)]
             let mut win = tauri::WebviewWindowBuilder::new(
                 app,

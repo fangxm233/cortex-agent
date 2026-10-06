@@ -17,8 +17,8 @@ pub enum ConnectionMode {
     Remote,
 }
 
-/// Connection credentials shared between Rust AppState and the JS global
-/// `window.__CORTEX_DESKTOP_CONFIG`.
+/// The saved connection: AppState and the platform credential store hold this; the page sees only
+/// its `PageConfig` projection.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConnectionConfig {
     /// Absolute URL of the remote Cortex server, e.g. "https://cortex.example.com".
@@ -36,12 +36,26 @@ pub struct ConnectionConfig {
     pub cortex_bin: Option<String>,
 }
 
-/// Return the current connection config to the webview.
-/// Called by initialization_script on every page load to seed
-/// window.__CORTEX_DESKTOP_CONFIG before React mounts.
+/// The part of the connection the page may see: enough to reach the server. `mode` and `cortexBin`
+/// describe the local install and stay in the shell.
+#[derive(Debug, Clone, Serialize)]
+pub struct PageConfig {
+    #[serde(rename = "serverUrl")]
+    pub server_url: Option<String>,
+    pub token: Option<String>,
+}
+
+impl From<&ConnectionConfig> for PageConfig {
+    fn from(config: &ConnectionConfig) -> Self {
+        PageConfig { server_url: config.server_url.clone(), token: config.token.clone() }
+    }
+}
+
+/// Return the current connection to the webview. Called by the initialization script on every page
+/// load to refresh window.__CORTEX_DESKTOP_CONFIG.
 #[tauri::command]
-pub fn get_connection_config(state: State<AppState>) -> ConnectionConfig {
-    state.config.lock().unwrap().clone()
+pub fn get_connection_config(state: State<AppState>) -> PageConfig {
+    PageConfig::from(&*state.config.lock().unwrap())
 }
 
 /// The local install a `connect` call comes from, when setup installed the server on this machine.

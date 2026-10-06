@@ -4,8 +4,9 @@ import type { RemoteConfig } from './trpc';
  * Read desktop-mode credentials injected by the Tauri initialization_script.
  *
  * The initialization script synchronously bakes the launch-time config into
- * `window.__CORTEX_DESKTOP_CONFIG` before the React bundle runs. An async
- * `get_connection_config` IPC call refreshes it after first-run connection.
+ * `window.__CORTEX_DESKTOP_CONFIG` before the React bundle runs on the window's
+ * launch document. An async `get_connection_config` IPC call refreshes it, and is
+ * the only source on documents loaded after a connect or disconnect.
  *
  * Returns undefined in browser / ui-http mode (no Tauri shell, global never set).
  *

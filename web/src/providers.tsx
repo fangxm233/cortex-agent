@@ -9,11 +9,10 @@ import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
 import { UiAuthGate } from '@/features/auth/UiAuthGate';
 
 // How long the native shell will wait for its injected credentials before giving up and falling
-// back to browser mode. The Tauri shell now BAKES the credentials into the initialization_script
-// synchronously (see desktop/src-tauri/src/lib.rs `init_script`), so on a normal launch the config
-// is already present at first render and this timeout never fires. It only covers the first-run
-// connect flow, where the window was built before the user saved credentials and the value arrives
-// a moment later via the async `get_connection_config` IPC refresh.
+// back to browser mode. The Tauri shell BAKES the credentials into the initialization_script for the
+// document the window opened with (desktop/src-tauri/src/webview_scripts.rs `init_script`), so on a
+// normal launch the config is already present at first render. Every document loaded after a
+// connect or disconnect gets the value a moment later via the async `get_connection_config` refresh.
 const CONFIG_WAIT_MS = 2000;
 const CONFIG_POLL_MS = 20;
 
@@ -21,8 +20,8 @@ const CONFIG_POLL_MS = 20;
  * Resolve the desktop/mobile shell credentials, tolerating the async IPC refresh path.
  *
  * Reads the (usually baked-in, synchronous) `window.__CORTEX_DESKTOP_CONFIG` immediately. If we are
- * inside a native shell but the config is not yet present (first-run connect flow, where it arrives
- * shortly via IPC), it polls briefly until the value shows up or a short deadline passes — then
+ * inside a native shell but the config is not yet present (any document after a connect, where it
+ * arrives shortly via IPC), it polls briefly until the value shows up or a short deadline passes — then
  * reports `done` so rendering can proceed. In browser / ui-http mode there is nothing to wait for,
  * so it is `done` immediately with no config (same-origin relative-/trpc mode).
  *

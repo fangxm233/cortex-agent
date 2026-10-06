@@ -1,7 +1,7 @@
 // The daemon interfaces (desktop DaemonStatusModal, mobile MDaemonView) offer a "断开连接"/Disconnect
 // action that clears the saved credentials (key/token) and returns to the connect (login) screen.
 // This is the SPA-side counterpart of the shell's `disconnect` Tauri command (clears the OS keychain /
-// app-private store + AppState — see desktop/src-tauri/src/lib.rs) plus the navigation the injected
+// app-private store + AppState — see desktop/src-tauri/src/connection.rs) plus the navigation the injected
 // "Switch" button used to own.
 //
 // Off-shell (plain browser / ui-http) there is no native store to clear and no connect screen to

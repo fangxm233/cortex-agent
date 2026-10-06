@@ -11,7 +11,7 @@ import { nativeErrorText } from '@/lib/native-error';
 // (`save_download` / DownloadManager), so an in-app bubble would only repeat it. There the plain
 // `downloadFile` runs and the OS notification is the feedback.
 
-/** A failed download in the UI language: `save_download` rejects with `code: detail` (lib.rs). */
+/** A failed download in the UI language: `save_download` rejects with `code: detail` (desktop/src-tauri/src/files.rs). */
 export function downloadErrorText(error: unknown, L: Vocab): string {
   return nativeErrorText(error, {
     download_dir_unavailable: L.downloadErrDir,

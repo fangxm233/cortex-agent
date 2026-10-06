@@ -1,23 +1,26 @@
-use crate::connection::ConnectionConfig;
+use crate::connection::PageConfig;
 use crate::frontend::SCHEME;
 
 // ─── Initialization script ─────────────────────────────────────────────────
-// Injected into EVERY page load (connect.html and index.html). A per-platform
-// PREFIX (see `init_script()`) sets the shell-detection flag first:
+// Injected into EVERY page load of the shell origin. A per-platform PREFIX (see `init_script()`)
+// sets the shell-detection flag first:
 //   desktop → window.__CORTEX_DESKTOP__ = true   (desktop three-pane workbench)
 //   Android → window.__CORTEX_MOBILE__  = true   (mobile bottom-Tab shell)
-// then this shared body runs:
-//
-// 1. Async-fetches credentials from AppState via IPC and writes to
-//    window.__CORTEX_DESKTOP_CONFIG (read by providers.tsx to switch the tRPC
-//    client to absolute-URL + token-bearer mode). The IPC round-trip is
-//    ~microseconds; the React bundle takes tens of milliseconds to download +
-//    parse, so the global is set before providers.tsx reads it. Shared by both
-//    platforms — the mobile shell reaches the same remote server the same way.
-//
-// Disconnect is no longer a shell-injected button — the SPA's daemon interface
-// owns a discoverable Disconnect action (web/src/lib/shell-connection.ts) that
-// invokes the `disconnect` command + navigates to connect.html.
+// then publishes the connection as window.__CORTEX_DESKTOP_CONFIG = {serverUrl, token} (read by
+// providers.tsx to switch the tRPC client to absolute-URL + token-bearer mode) and refreshes it
+// over IPC. Disconnect is the SPA's own action (web/src/lib/shell-connection.ts): it invokes the
+// `disconnect` command and navigates to connect.html.
+
+/// Query parameter marking the document the window was opened with. Only that document may use
+/// the credentials baked into the initialization script: they were read when the window was built,
+/// and every later connect/disconnect is followed by a navigation to a document without it.
+const LAUNCH_QUERY: &str = "launch";
+
+/// The URL the main window opens on: `file` (index.html or connect.html) marked as the launch
+/// document.
+pub fn launch_url(file: &str) -> String {
+    format!("{SCHEME}://localhost/{file}?{LAUNCH_QUERY}")
+}
 
 /// Per-platform flag prefix prepended to `INIT_SCRIPT`.
 #[cfg(target_os = "android")]
@@ -40,23 +43,19 @@ const PLATFORM_FLAG: &str = "android";
 /// The full initialization script: platform flag + **synchronously baked** credentials + shared body.
 ///
 /// The credentials known at window-build time (loaded from the credential store) are serialized
-/// straight into the injected script as the initial `window.__CORTEX_DESKTOP_CONFIG` value, so the
-/// SPA sees them synchronously — BEFORE any bundle code runs — with no dependency on the async IPC.
-/// This closes a race that surfaced on Android: on the second launch the WebView serves a
-/// code-cached bundle that mounts React faster than the `get_connection_config` IPC round-trip could
-/// resolve, so `providers.tsx` (which reads the config exactly once at mount) captured the stale
-/// `{serverUrl:null}` and built a broken tRPC client — the mobile shell rendered (bottom Tab bar)
-/// but every data screen failed, leaving "only the bottom bar". Baking removes the race entirely.
+/// straight into the injected script, so the launch document sees them synchronously — BEFORE any
+/// bundle code runs — with no dependency on the async IPC. This closes a race that surfaced on
+/// Android: on the second launch the WebView serves a code-cached bundle that mounts React faster
+/// than the `get_connection_config` IPC round-trip could resolve, and a dead tRPC client left "only
+/// the bottom bar".
 ///
-/// The async IPC in `INIT_SCRIPT` is kept as a REFRESH path: on the first-run connect flow the
-/// window was built with empty creds (baked null), then the user saves creds on connect.html and
-/// navigates to index.html within the same session — the re-injected script's baked value is still
-/// null there, so the async `get_connection_config` fills in the freshly-saved creds.
-pub fn init_script(config: &ConnectionConfig, title_bar: &str) -> String {
+/// The script is fixed for the window's lifetime, so the baked value goes stale once the user
+/// connects or disconnects. Later documents therefore start from null and take the async
+/// `get_connection_config` refresh, which `providers.tsx` waits for.
+pub fn init_script(config: &PageConfig, title_bar: &str) -> String {
     // Serialize via serde so serverUrl/token are correctly JSON-escaped (quotes, backslashes, etc.),
     // never string-interpolated raw. A serialize failure falls back to async-IPC-only behaviour.
-    let baked = serde_json::to_string(config)
-        .unwrap_or_else(|_| r#"{"serverUrl":null,"token":null}"#.to_string());
+    let baked = serde_json::to_string(config).unwrap_or_else(|_| "null".to_string());
     format!(r#"
 (function () {{
   if (window !== window.top) return;
@@ -68,7 +67,8 @@ pub fn init_script(config: &ConnectionConfig, title_bar: &str) -> String {
   if (!shellOrigin) return;
   {SHELL_FLAG}window.__CORTEX_PLATFORM__ = "{PLATFORM_FLAG}";
   window.__CORTEX_TITLEBAR__ = "{title_bar}";
-  window.__CORTEX_DESKTOP_CONFIG = {baked};
+  var launch = new URLSearchParams(location.search).has('{LAUNCH_QUERY}');
+  window.__CORTEX_DESKTOP_CONFIG = launch ? {baked} : null;
   {INIT_SCRIPT}
 }}());
 "#)
@@ -122,18 +122,13 @@ pub const TITLE_BRIDGE_SCRIPT: &str = r#"
 "#;
 
 const INIT_SCRIPT: &str = r#"
-// Refresh path: re-read the current credentials via IPC and overwrite the baked value. Normally a
-// no-op (baked value is already correct); it matters on the first-run connect flow, where the window
-// was built before the user saved creds, so the baked value is null and this async call fills it in.
-// The baked value already covers the common (subsequent-launch) case synchronously, so this no longer
-// races the bundle — a stale read just keeps the correct baked creds.
+// Refresh path: re-read the current credentials via IPC. On the launch document this normally
+// confirms the baked value; on every later document it is the only source.
 (function () {
   var tauri = window.__TAURI__;
   if (!tauri || !tauri.core || !tauri.core.invoke) return;
   tauri.core.invoke('get_connection_config').then(function (cfg) {
-    if (cfg && cfg.serverUrl) {
-      window.__CORTEX_DESKTOP_CONFIG = { serverUrl: cfg.serverUrl, token: cfg.token };
-    }
+    if (cfg && cfg.serverUrl) window.__CORTEX_DESKTOP_CONFIG = cfg;
   }).catch(function () {});
 }());
 "#;
@@ -141,26 +136,37 @@ const INIT_SCRIPT: &str = r#"
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connection::ConnectionMode;
+    use crate::connection::{ConnectionConfig, ConnectionMode};
+
+    fn page_config(url: &str, token: &str) -> PageConfig {
+        PageConfig::from(&ConnectionConfig {
+            server_url: Some(url.into()),
+            token: Some(token.into()),
+            mode: ConnectionMode::Local,
+            cortex_bin: Some("/home/someone/.npm/bin/cortex".into()),
+        })
+    }
 
     #[test]
-    fn the_injected_config_tells_the_page_which_mode_it_is_in() {
-        let script = init_script(&ConnectionConfig {
-            server_url: Some("http://127.0.0.1:3004".into()),
-            token: Some("t".into()),
-            mode: ConnectionMode::Local,
-            cortex_bin: None,
-        }, "native");
-        assert!(script.contains("\"mode\":\"local\""));
+    fn the_page_never_sees_the_local_install() {
+        let script = init_script(&page_config("http://127.0.0.1:3004", "t"), "native");
+        assert!(script.contains(r#"{"serverUrl":"http://127.0.0.1:3004","token":"t"}"#));
+        assert!(!script.contains("cortexBin"));
+        assert!(!script.contains("/home/someone"));
+        assert!(!script.contains("\"mode\""));
+    }
+
+    #[test]
+    fn only_the_launch_document_uses_the_baked_credentials() {
+        let script = init_script(&page_config("https://cortex.example.com", "t"), "native");
+        assert!(launch_url("index.html").ends_with("/index.html?launch"));
+        assert!(script.contains("has('launch')"));
+        assert!(script.contains(r#"launch ? {"serverUrl":"https://cortex.example.com","token":"t"} : null"#));
     }
 
     #[test]
     fn credential_script_guards_secrets_before_any_assignment_or_ipc() {
-        let script = init_script(&ConnectionConfig {
-            server_url: Some("https://cortex.example.com".into()),
-            token: Some("secret-token".into()),
-            ..ConnectionConfig::default()
-        }, "native");
+        let script = init_script(&page_config("https://cortex.example.com", "secret-token"), "native");
         let guard = script.find("window !== window.top").expect("top-frame guard");
         let config = script.find("__CORTEX_DESKTOP_CONFIG").expect("baked config");
         let invoke = script.find("get_connection_config").expect("refresh invoke");

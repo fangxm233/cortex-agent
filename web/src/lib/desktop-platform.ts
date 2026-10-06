@@ -1,5 +1,6 @@
-// The Rust shell bakes these into the initialization script (desktop/src-tauri/src/lib.rs), so they
-// are readable synchronously before React mounts — the top bar must not flash the wrong chrome.
+// The Rust shell bakes these into the initialization script
+// (desktop/src-tauri/src/webview_scripts.rs), so they are readable synchronously before React
+// mounts — the top bar must not flash the wrong chrome.
 //
 // The desktop shell always uses app-drawn chrome: custom on Windows/Linux, overlay on macOS.
 // Follow the injected mode rather than guessing from the OS. Missing flags (browser or older
