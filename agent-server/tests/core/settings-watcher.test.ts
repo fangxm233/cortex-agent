@@ -110,8 +110,15 @@ describe.sequential('settings watcher ordering', () => {
     vi.useFakeTimers();
     try {
       assert.equal(getSettings().adminChannel, 'alpha');
+      const observedCtime = (await fs.stat(SETTINGS_FILE)).ctimeMs;
       await fs.writeFile(SETTINGS_FILE, JSON.stringify({ adminChannel: 'bravo' }));
       await fs.utimes(SETTINGS_FILE, fixedTime, fixedTime);
+      // With size and mtime pinned, ctime is the only thing left to see, and the kernel stamps it
+      // at clock-tick granularity (1-4 ms): a rewrite inside the tick the watcher snapshotted is
+      // indistinguishable from no change. Re-stamp until the tick has moved on.
+      while ((await fs.stat(SETTINGS_FILE)).ctimeMs === observedCtime) {
+        await fs.utimes(SETTINGS_FILE, fixedTime, fixedTime);
+      }
 
       await vi.advanceTimersByTimeAsync(5_300);
 
