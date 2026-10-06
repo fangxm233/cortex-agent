@@ -4,8 +4,8 @@ import {
   MC,
   MONO,
 } from '@/mobile/ui/kit';
-import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
-  MSettingsSurfaceCard as MCard, MSettingsSheet as MBottomSheet, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
+import { MSettingsSurfaceCard as MCard, MSettingsSheet as MBottomSheet,
+  MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
 import { useVocab, type Vocab } from '@/i18n';
 import type { MHooksVm, MHookGroup, MHookRow, MHookGroupKey, MHookDetailVm } from './m-hooks-vm';
 
@@ -200,46 +200,42 @@ function DeclarationSheet({ row, L, onClose }: { row: MHookRow; L: Vocab; onClos
   );
 }
 
+/** Header count beside the page title: enabled declarations out of all of them. */
+export function MHooksCount({ vm }: { vm: MHooksVm }) {
+  const L = useVocab();
+  return <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>
+    {vm.enabledCount}/{vm.total} {L.hookEnabledWord}
+  </span>;
+}
+
+/** The loaded hooks list; the page frame and its loading / error states belong to the screen. */
 export function MHooksView({
   vm,
   sheetRow,
-  onBack,
   onOpenHook,
   onCloseSheet,
 }: {
   vm: MHooksVm;
   /** The row whose declaration sheet is open; null while the list is plain. */
   sheetRow: MHookRow | null;
-  onBack: () => void;
   onOpenHook: (key: string) => void;
   onCloseSheet: () => void;
 }) {
   const L = useVocab();
   return (
-    <MSettingsFrame label="Settings · Hooks" header={<MDrillHeader
-        onBack={onBack}
-        trailing={
-          <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>
-            {vm.enabledCount}/{vm.total} {L.hookEnabledWord}
-          </span>
-        }
-      >
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{L.stNavHooks}</div>
-      </MDrillHeader>}>
-      <MScrollBody>
-        {vm.groups.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{L.hookEmpty}</div>
-        )}
-        {vm.groups.map((group) => (
-          <GroupSection key={group.key} group={group} L={L} onOpenHook={onOpenHook} />
-        ))}
-        {vm.groups.length > 0 && (
-          <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>
-            {L.setEditOnDesktop}
-          </div>
-        )}
-      </MScrollBody>
+    <>
+      {vm.groups.length === 0 && (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{L.hookEmpty}</div>
+      )}
+      {vm.groups.map((group) => (
+        <GroupSection key={group.key} group={group} L={L} onOpenHook={onOpenHook} />
+      ))}
+      {vm.groups.length > 0 && (
+        <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>
+          {L.setEditOnDesktop}
+        </div>
+      )}
       {sheetRow && <DeclarationSheet row={sheetRow} L={L} onClose={onCloseSheet} />}
-    </MSettingsFrame>
+    </>
   );
 }

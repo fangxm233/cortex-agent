@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import type { BudgetValue } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
 import {
   budgetBarPct, buildBudgetDraft, formatBudgetUsd, hasOverride, pickScopeBudget,
   type BudgetScopeId,
@@ -13,9 +11,12 @@ import {
   useBudgetWriter,
   type BudgetWriterOperation,
 } from '@/features/settings/controllers/useBudgetWriter';
+import {
+  useBudgetSpend, useConfigSnapshot, useProjectList,
+} from '@/features/settings/controllers/useConfigSnapshot';
 import { MButton, MC, MONO } from '@/mobile/ui/kit';
 import {
-  MSettingsCard, MSettingsField, MSettingsPage, MSettingsSelect,
+  MSettingsCard, MSettingsField, MSettingsQueryPage, MSettingsSelect,
 } from './MSettingsControls';
 
 function SpendBar({ value, limit }: { value: number; limit: number | null }) {
@@ -58,18 +59,15 @@ function SpendCard(props: { today: number; month: number; daily: number | null; 
 
 export function MBudgetScreen() {
   const L = useVocab();
-  const trpc = useTRPC();
   const navigate = useNavigate();
   const { toast } = useToast();
   const writer = useBudgetWriter();
   const [scope, setScope] = useState<BudgetScopeId>(null);
-  const config = useQuery(trpc.config.get.queryOptions({}));
-  const projects = useQuery(trpc.projects.list.queryOptions({}));
-  const globalCost = useQuery(trpc.cost.summary.queryOptions({}));
-  const scopedCost = useQuery({ ...trpc.cost.summary.queryOptions({ projectId: scope ?? undefined }), enabled: scope !== null });
+  const config = useConfigSnapshot();
+  const projects = useProjectList();
+  const cost = useBudgetSpend(scope);
   const budget = config.data?.budget ?? null;
   const resolved = pickScopeBudget(budget, scope);
-  const cost = scope === null ? globalCost.data : scopedCost.data;
   const writeSucceeded = (operation: BudgetWriterOperation | null) => {
     if (!operation) return;
     toast({
@@ -86,27 +84,23 @@ export function MBudgetScreen() {
   const clear = () => {
     if (scope && !writer.isPending) void writer.clear(scope).then(writeSucceeded).catch(writeFailed);
   };
-  if (config.isLoading) return <MSettingsPage title={L.stNavBudget} onBack={() => navigate('/m/settings')}>
-    <MSettingsCard><div style={{ padding: 13 }}>{L.stLoadingConfig}</div></MSettingsCard>
-  </MSettingsPage>;
-  if (config.isError) return <MSettingsPage title={L.stNavBudget} onBack={() => navigate('/m/settings')}>
-    <MSettingsCard><div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div></MSettingsCard>
-  </MSettingsPage>;
-  return <MSettingsPage title={L.stNavBudget} onBack={() => navigate('/m/settings')}>
-    <MSettingsCard title={L.stBudgetScope} note={resolved.inherited ? L.stBudgetInherited : undefined}>
-      <div style={{ padding: '11px 13px' }}><MSettingsSelect label={L.stBudgetScope} value={scope ?? ''}
-        onChange={(event) => setScope(event.target.value || null)}>
-        <option value="">{L.stBudgetScopeGlobal}</option>
-        {(projects.data ?? []).map((project) => <option key={project.id} value={project.id}>{project.id}</option>)}
-      </MSettingsSelect></div>
-      {/* Keyed by scope: a draft typed for one scope must not survive into the next. */}
-      <BudgetLimitsEditor key={scope ?? ''} daily={resolved.daily} monthly={resolved.monthly}
-        pending={writer.isPending} onSave={save} />
-      {hasOverride(budget, scope) && <div style={{ padding: '0 13px 11px' }}>
-        <MButton compact variant="danger-outline" disabled={writer.isPending} onClick={clear}>{L.stBudgetClear}</MButton>
-      </div>}
-    </MSettingsCard>
-    <SpendCard today={cost?.today ?? 0} month={cost?.month ?? 0}
-      daily={resolved.daily} monthly={resolved.monthly} />
-  </MSettingsPage>;
+  return <MSettingsQueryPage title={L.stNavBudget} onBack={() => navigate('/m/settings')} query={config}>
+    {() => <>
+      <MSettingsCard title={L.stBudgetScope} note={resolved.inherited ? L.stBudgetInherited : undefined}>
+        <div style={{ padding: '11px 13px' }}><MSettingsSelect label={L.stBudgetScope} value={scope ?? ''}
+          onChange={(event) => setScope(event.target.value || null)}>
+          <option value="">{L.stBudgetScopeGlobal}</option>
+          {projects.map((project) => <option key={project.id} value={project.id}>{project.id}</option>)}
+        </MSettingsSelect></div>
+        {/* Keyed by scope: a draft typed for one scope must not survive into the next. */}
+        <BudgetLimitsEditor key={scope ?? ''} daily={resolved.daily} monthly={resolved.monthly}
+          pending={writer.isPending} onSave={save} />
+        {hasOverride(budget, scope) && <div style={{ padding: '0 13px 11px' }}>
+          <MButton compact variant="danger-outline" disabled={writer.isPending} onClick={clear}>{L.stBudgetClear}</MButton>
+        </div>}
+      </MSettingsCard>
+      <SpendCard today={cost?.today ?? 0} month={cost?.month ?? 0}
+        daily={resolved.daily} monthly={resolved.monthly} />
+    </>}
+  </MSettingsQueryPage>;
 }

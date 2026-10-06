@@ -1,7 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { ConfigBudget, ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
+import type { ConfigBudget, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import {
@@ -32,6 +30,7 @@ import {
   budgetBarPct,
 } from '@/features/settings/vm/budget-vm';
 import { useBudgetWriter } from '@/features/settings/controllers/useBudgetWriter';
+import { useBudgetSpend, useProjectList } from '@/features/settings/controllers/useConfigSnapshot';
 
 // Desktop Budget panel — a live-write settings surface. A scope selector switches between the
 // global limits and a per-project override; both the daily and the monthly limit are editable in
@@ -323,28 +322,12 @@ function LimitsSection({ scope, projects, budget, resolved, actions, onScope }: 
   );
 }
 
-export function BudgetPanel({
-  snapshot,
-  cost,
-}: {
-  snapshot: ConfigSnapshot;
-  cost: CostSummary | undefined;
-}) {
+export function BudgetPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   const L = useVocab();
-  const trpc = useTRPC();
-
   const budget = snapshot.budget;
   const [scope, setScope] = useState<BudgetScopeId>(null);
-
-  const projects = useQuery(trpc.projects.list.queryOptions({})).data ?? [];
-  // The spend side must follow the scope, or the panel would divide project-scoped limits by
-  // all-project spend. The unscoped summary already arrives as a prop; a project scope re-queries.
-  const scopedCost = useQuery({
-    ...trpc.cost.summary.queryOptions({ projectId: scope ?? undefined }),
-    enabled: scope != null,
-  });
-  const shown = scope == null ? cost : scopedCost.data;
-
+  const projects = useProjectList();
+  const shown = useBudgetSpend(scope);
   const resolved = pickScopeBudget(budget, scope);
   const actions = useBudgetActions(scope, resolved);
 

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   HookDetail,
   HookScriptInfo,
+  HooksOverview,
   HooksTestReturn,
   MutateArgs,
 } from '@cortex-agent/ui-contract';
@@ -15,6 +16,7 @@ import {
   type HookFilterKey,
   type HookFilterValue,
 } from '@/features/settings/vm/hooks-panel-vm';
+import type { SettingsQuery } from './useConfigSnapshot';
 
 /**
  * The generated router input type narrows a matcherFilters value to `string | number | boolean`,
@@ -61,6 +63,13 @@ export interface HooksController {
   update: (args: MutateArgs<'hooks.update'>) => void;
   remove: (args: { id: string }) => void;
   runTest: (args: { id: string; payload: string }) => void;
+}
+
+/** The `hooks.list` overview alone, for surfaces that only display it. */
+export function useHooksOverview(): SettingsQuery<HooksOverview> {
+  const trpc = useTRPC();
+  const query = useQuery(trpc.hooks.list.queryOptions({}));
+  return { data: query.data, isLoading: query.isLoading, isError: query.isError, error: query.error };
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
-import { useVocabOptional } from '@/i18n';
+import { useVocab, useVocabOptional } from '@/i18n';
+import type { SettingsQuery } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
 import './mobile-settings.css';
 
@@ -50,6 +51,38 @@ export function MSettingsPage(props: { title: string; onBack: () => void; childr
       <MSettingsBody>{props.children}</MSettingsBody>
     </MSettingsFrame>
   );
+}
+
+/** A settings page whose content waits on one read: loading, failed (with the server's message), or
+ *  rendered from the data. `lead` is shown above it in every state. */
+export function MSettingsQueryPage<T>(props: {
+  title: string;
+  onBack: () => void;
+  query: SettingsQuery<T>;
+  children: (data: T) => ReactNode;
+  lead?: ReactNode;
+  trailing?: ReactNode;
+  loadingText?: string;
+  errorText?: string;
+}) {
+  const L = useVocab();
+  const { query } = props;
+  let content: ReactNode;
+  if (query.isLoading) {
+    content = <MSettingsCard><div data-settings-loading style={{ padding: 13, color: MC.muted }}>
+      {props.loadingText ?? L.stLoadingConfig}
+    </div></MSettingsCard>;
+  } else if (query.isError || query.data === undefined) {
+    content = <MSettingsCard><div data-settings-load-error style={{ padding: 13, color: MC.fail, overflowWrap: 'anywhere' }}>
+      {props.errorText ?? L.stFailedLoadConfig} {query.error?.message}
+    </div></MSettingsCard>;
+  } else {
+    content = props.children(query.data);
+  }
+  return <MSettingsPage title={props.title} onBack={props.onBack} trailing={props.trailing}>
+    {props.lead}
+    {content}
+  </MSettingsPage>;
 }
 
 export function MSettingsCard(props: { children: ReactNode; title?: string; note?: string }) {

@@ -1,23 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
+import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
 import { PlatformPanel } from '@/features/settings/panels/PlatformPanel';
 import { useMobileLeaveGuard } from '@/mobile/mobile-navigation';
-import { MSettingsCard, MSettingsPage } from './MSettingsControls';
+import { MSettingsQueryPage } from './MSettingsControls';
 
 export function MPlatformScreen() {
   const L = useVocab();
-  const trpc = useTRPC();
   const navigate = useNavigate();
   const [dirty, setDirty] = useState(false);
-  const query = useQuery(trpc.config.get.queryOptions({}));
+  const config = useConfigSnapshot();
   const canLeave = useMobileLeaveGuard(dirty, L.psUnsaved);
   const back = () => { if (canLeave()) navigate('/m/settings'); };
-  let content;
-  if (query.isLoading) content = <MSettingsCard><p>{L.stLoadingConfig}</p></MSettingsCard>;
-  else if (query.isError || !query.data) content = <MSettingsCard><p>{L.stFailedLoadConfig}</p></MSettingsCard>;
-  else content = <PlatformPanel snapshot={query.data} onDirtyChange={setDirty} />;
-  return <MSettingsPage title={L.stNavPlatform} onBack={back}>{content}</MSettingsPage>;
+  return <MSettingsQueryPage title={L.stNavPlatform} onBack={back} query={config}>
+    {(snapshot) => <PlatformPanel snapshot={snapshot} onDirtyChange={setDirty} />}
+  </MSettingsQueryPage>;
 }

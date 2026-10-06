@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
 
@@ -53,12 +53,10 @@ const snapshot = {
   settings: [],
 } as unknown as ConfigSnapshot;
 
-const cost = { today: 3, month: 30 } as CostSummary;
-
 function mount(): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<LangProvider><BudgetPanel snapshot={snapshot} cost={cost} /></LangProvider>);
+    renderer = create(<LangProvider><BudgetPanel snapshot={snapshot} /></LangProvider>);
   });
   act(() => renderer.root.findByProps({ 'data-budget-scope': 'alpha' }).props.onClick());
   return renderer;

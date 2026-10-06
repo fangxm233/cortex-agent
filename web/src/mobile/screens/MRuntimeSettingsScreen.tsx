@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotificationsCard';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
-import { MButton, MC } from '@/mobile/ui/kit';
+import { MButton } from '@/mobile/ui/kit';
+import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
@@ -19,7 +18,7 @@ import {
   type RuntimeSettingWriter,
 } from '@/features/settings/controllers/runtime-settings-writer';
 import {
-  MSET_KEY, MSettingsCard, MSettingsField, MSettingsPage,
+  MSET_KEY, MSettingsCard, MSettingsField, MSettingsQueryPage,
   MSettingsRow, MSettingsSelect, MSettingsToggle,
 } from './MSettingsControls';
 
@@ -163,24 +162,18 @@ function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettin
 }
 
 function RuntimeScreen({ kind }: { kind: 'notifications' | 'advanced' }) {
-  const trpc = useTRPC();
   const L = useVocab();
   const navigate = useNavigate();
-  const query = useQuery(trpc.config.get.queryOptions({}));
+  const config = useConfigSnapshot();
   const write = useRuntimeSettingWrite();
   const title = kind === 'notifications' ? L.stNavNotifications : L.stNavAdvanced;
-  let content;
-  if (query.isLoading) content = <MSettingsCard><div style={{ padding: 13 }}>{L.stLoadingConfig}</div></MSettingsCard>;
-  else if (query.isError || !query.data) content = <MSettingsCard>
-    <div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div>
-  </MSettingsCard>;
-  else content = kind === 'notifications'
-    ? <NotificationsContent snapshot={query.data} write={write} />
-    : <AdvancedContent snapshot={query.data} write={write} />;
-  return <MSettingsPage title={title} onBack={() => navigate('/m/settings')}>
-    {kind === 'notifications' && <><MNativeNotificationsCard /><LocalNotificationsCard /></>}
-    {content}
-  </MSettingsPage>;
+  // The device cards work without the server's config, so they stay usable when it fails to load.
+  const lead = kind === 'notifications' ? <><MNativeNotificationsCard /><LocalNotificationsCard /></> : undefined;
+  return <MSettingsQueryPage title={title} onBack={() => navigate('/m/settings')} query={config} lead={lead}>
+    {(snapshot) => kind === 'notifications'
+      ? <NotificationsContent snapshot={snapshot} write={write} />
+      : <AdvancedContent snapshot={snapshot} write={write} />}
+  </MSettingsQueryPage>;
 }
 
 export function MNotificationsScreen() { return <RuntimeScreen kind="notifications" />; }

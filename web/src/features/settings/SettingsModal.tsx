@@ -1,8 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
+import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { fmt, useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
@@ -21,6 +19,7 @@ import { AccountsPanel } from '@/features/settings/panels/AccountsPanel';
 import { PluginsPanel } from '@/features/settings/panels/PluginsPanel';
 import { UsagePanel } from '@/features/settings/panels/UsagePanel';
 import { SettingsHeaderSlotContext } from '@/features/settings/ui/settings-kit';
+import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -284,7 +283,6 @@ interface SectionContentProps {
   section: SettingsSectionKey;
   onClose: () => void;
   snapshot: ConfigSnapshot | undefined;
-  cost: CostSummary | undefined;
   configLoading: boolean;
   configError: { message: string } | null;
   onPanelDirtyChange: (dirty: boolean) => void;
@@ -339,14 +337,12 @@ interface SettingsBodyProps {
 }
 
 function SettingsBody(props: SettingsBodyProps) {
-  const trpc = useTRPC();
   // The body mounts per open, so the initial section applies each time the sheet opens.
   const [section, setSection] = useState<SettingsSectionKey>(props.initialSection);
   const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null);
-  const config = useQuery(trpc.config.get.queryOptions({}));
-  const cost = useQuery(trpc.cost.summary.queryOptions({}));
+  const config = useConfigSnapshot();
   const content = {
-    section, onClose: props.onClose, snapshot: config.data, cost: cost.data,
+    section, onClose: props.onClose, snapshot: config.data,
     configLoading: config.isLoading,
     onPanelDirtyChange: props.onPanelDirtyChange,
     configError: config.isError ? config.error : null,
@@ -375,7 +371,7 @@ type PanelRenderer = (props: PanelBodyProps) => JSX.Element;
 const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   platform: (props) => <PlatformPanel snapshot={props.snapshot} onDirtyChange={props.onPanelDirtyChange} />,
   profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
-  budget: (props) => <BudgetPanel snapshot={props.snapshot} cost={props.cost} />,
+  budget: (props) => <BudgetPanel snapshot={props.snapshot} />,
   machines: () => <MachinesPanel />,
   environments: (props) => <EnvironmentsPanel onDirtyChange={props.onPanelDirtyChange} />,
   mcp: (props) => <McpPanel snapshot={props.snapshot} />,
