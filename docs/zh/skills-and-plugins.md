@@ -21,8 +21,6 @@ Read the complete artifact, preserve evidence links, and report the main result.
 
 加载器有意保持宽松。只有完全不可用的 skill 才会被丢弃：frontmatter 无法解析、`name` 与目录名冲突、`description` 为空。其余情况——缺少 `name`、名称不规范、`description` 过长、可选字段格式有误、`allowed-tools` 写成 YAML 列表、出现规范之外的键——都会正常加载，并在插件详情页作为提示性问题列出。因为一个多余的 frontmatter 键就让可用的 skill 消失，是更糟糕也更难察觉的失败。
 
-Cortex 也会扫描 `$CORTEX_HOME/.claude/skills/` 中的 standalone user skills。这些独立技能不进入插件清单，也不参与 plugin assignment。
-
 ## 支持的插件格式 {#supported-plugin-formats}
 
 Cortex 会盘点 `$CORTEX_HOME/plugins/` 的每个直接子目录。它识别 portable Agent Plugins 1.0.0 Working Draft，也保留现有 Claude-compatible legacy layout。
@@ -107,11 +105,11 @@ Overview 给出身份与健康状态：格式、manifest 来源与 metadata、�
 
 ## 管理插件内容 {#managing-plugin-contents}
 
-Skills tab 列出 package 携带的 skill，包含描述与路径，并可直接编辑。展开一个 skill 会打开它的 `SKILL.md`；保存时携带打开那一刻的哈希，因此文件若在编辑期间被改动，会得到冲突提示而不是被静默覆盖。新建 skill 需要名称与描述；已有的 skill 可以重命名或移动到另一个插件，移动时会同步改写 frontmatter 的 `name`，使其继续与目录一致。删除会移除整个 skill 目录及其下所有内容。
+Skills tab 列出 package 携带的 skill，包含描述与路径，并可直接编辑。展开一个 skill 会打开它的 `SKILL.md`；保存时携带打开那一刻的哈希，因此文件若在编辑期间被改动，会得到冲突提示而不是被静默覆盖。新建 skill 需要名称与描述；已有的 skill 可以重命名或移动到另一个插件，移动时会同步改写 frontmatter 中的 `name`（只改 frontmatter），使其继续与目录一致。删除会移除整个 skill 目录及其下所有内容。
 
 MCP tab 以表单方式编辑 `mcp.json`。命令、参数、工作目录和 URL 会正常往返，但环境变量的值和请求头不会：这个页面从来不会收到它们。每个已存储的键显示为“保持不变”，替换是一个明确动作；未被改动的键由服务端从磁盘上已有的内容合并回去。Legacy package 根本无法声明 MCP server，因此它的 MCP tab 提供的是转换动作 —— 写入根目录 `plugin.json`，同时保留 `.claude-plugin/plugin.json`，让更新机制继续工作。
 
-编辑前有两件事值得先看清。随 Cortex 发布的 package 会被标注，其中随发布的每个 skill 也会被标注：更新机制会在下一次版本号提升时重写所有随发布的文件，因此那里的修改只维持到那时为止，而你自己新增的 skill 不会被触碰。随发布的 package 也不能删除，因为下次更新会把它重新部署回来。本机 package 在没有任何执行环境引用它之后可以删除。
+编辑前有两件事值得先看清。随 Cortex 发布的 package 会被标注，其中随发布的每个 skill 也会被标注：更新机制会在下一次版本号提升时重写所有随发布的文件，因此那里的修改只维持到那时为止，而你自己新增的 skill 不会被触碰。随发布的 package 不能删除，随发布的 skill 也不能移动、重命名或删除，因为下次更新会把它放回原处；对应按钮会被禁用并说明原因。本机 package 在没有任何执行环境引用它之后可以删除。
 
 ## 分配插件 {#assigning-plugins}
 
@@ -144,9 +142,11 @@ Assignment 以 `pluginDirs` 的形式保存在 `$CORTEX_HOME/config/environments
 
 Cortex 在 spawn 时重新读取所选 catalog。Legacy plugin directory 保留原有 backend path behavior。Portable skill support tree 会先做 containment check 与 content hash，再复制到 backend-specific private projection。Claude 通过 `--plugin-dir` 获得 compatibility projection；PI 只获得其 private projection 内的 skill directories，作为进程内 session 的附加 skill 路径。两个 backend 都不会直接获得指向 mutable installed package 的 portable skill path（`agent-server/src/domain/plugins/skill-projection.ts:23-151`；`agent-server/src/domain/plugins/runtime.ts:346-494,629-632`）。
 
-Portable MCP declaration 经过同一个 backend-neutral normalization layer。Claude 获得 private supplemental config；其中的 remote entry 是本地 stdio proxy，remote URL 与 headers 保存在独立 private file。PI 的 MCP bridge 直接从 session request 上获得 normalized server entries，并自行建立每个连接（stdio、Streamable HTTP 或 SSE）。组件按声明的 dependency boundary 隔离失败：invalid 或无法 materialize 的 skill 不会移除 sibling skills 或有效 MCP；plugin-scoped `PLUGIN_DATA` 不可用时，会省略共享它的 stdio servers，但保留 remote MCP 与 skills；remote/stdio process 也与 sibling processes 和 bundled tools 独立连接（`agent-server/src/domain/plugins/runtime.ts:186-205,346-494`；`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。
+Portable MCP declaration 经过同一个 backend-neutral normalization layer。Claude 获得 private supplemental config；其中的 remote entry 是本地 stdio proxy，remote URL 与 headers 保存在独立 private file。PI 的 MCP bridge 直接从 session request 上获得 normalized server entries，并自行建立每个连接（stdio、Streamable HTTP 或 SSE）。组件按声明的 dependency boundary 隔离失败：invalid 或无法 materialize 的 skill 不会移除 sibling skills 或有效 MCP；plugin-scoped `PLUGIN_DATA` 不可用时，会省略共享它的 stdio servers，但保留 remote MCP 与 skills；remote/stdio process 也与 sibling processes 和 bundled tools 独立连接（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/claude/mcp-config.ts`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。所选 skill 或 MCP server 无法 materialize 时，web 会话会在该轮显示一条警告提示，列出缺了什么以及原因。
 
-Capability fingerprint 覆盖 effective plugin paths、portable skill content、projected manifest 与 normalized MCP declarations。Claude pooled session 只会复用 capability 相同的 process，因此 assignment 及这些 covered inputs 的变化会选择兼容的 process boundary。Legacy package content 与 executable bytes 等 auxiliary portable files 不做 content hash；只改变这些文件并不保证替换 process。Portable skill name、portable namespace 或 MCP runtime name 发生冲突时，该 assignment set 会 fail closed。
+Projection、snapshot 与 private MCP 文件位于 `$CORTEX_HOME/data/plugin-runtime/`。`$CORTEX_HOME` 本身可以经由符号链接到达（例如把 home 挪到另一块磁盘）；它下面任何一层的符号链接都会被拒绝。每个 projection 与 snapshot 都按内容寻址：被 spawn 复用的会被标记为在用，一周内没有任何 spawn 使用过的会被删除，下次需要时在同一路径重建。
+
+Capability fingerprint 覆盖 effective plugin paths、portable skill content、projected manifest 与 normalized MCP declarations。Claude pooled session 只会复用 capability 相同的 process，因此 assignment 及这些 covered inputs 的变化会选择兼容的 process boundary。Legacy package content 与 executable bytes 等 auxiliary portable files 不做 content hash；只改变这些文件并不保证替换 process。两个所选插件提供同名 skill 时，`pluginDirs` 中排在前面的保留它，另一个插件加载时不含该 skill。两个所选 portable plugin 的 manifest `name`（即 namespace）相同时，排在前面的保留，后一个整个跳过；Plugins 页面会在每个使用该名字的 package 上标出冲突。
 
 在显式 `none` composition 与受限的子智能体工具面上，portable MCP 会被抑制。这可避免 plugin capability 进入本来就有意收窄的 execution mode。
 
@@ -158,7 +158,7 @@ Plugins 页面管理 inventory 与 package 内容，assignment 则由执行环�
 
 ## 技能发现与调用 {#skill-discovery-and-invocation}
 
-`!skills` 命令按插件分组显示已发现技能。Plugin skill 使用 `cortex-system:schedule` 这样的 plugin-qualified discovery identity，standalone user skill 使用 bare name。消息开头的已知 bare command 可以在调用前规范化为 slash form。
+`!skills` 命令按插件分组列出当前对话会加载的技能：即其执行环境的插件经 scope 过滤后、由 catalog 发现的技能。Skills 视图以同样方式列出所有 catalog 插件的技能。只有显式的 `/name`才会调用 skill；只是以 skill 名开头的消息会按原文发送。
 
 通过 `Skill` 工具调用技能时，Cortex hook bridge 会由 session activity tracker 记录活动。它复用 experiment 与 knowledge 文件的 access-tracking infrastructure；hook bridge 详见 [hooks.md](./hooks.md)。
 
