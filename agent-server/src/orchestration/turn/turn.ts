@@ -4,7 +4,7 @@ import { resolveDestinationConduit } from '@platform/types.js';
 import type { AgentResult, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
-import { renderTodoProgress } from '../../agent-adapter/normalize/todo.js';
+import { renderTodoProgress } from '@core/todo.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { createToolTrace } from '@platform/index.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
@@ -239,7 +239,7 @@ export class Turn {
     beginForegroundSession(sessionId, channel);
 
     // 5c. Token-level streaming for the Web chat. Null for every other surface (Slack / Feishu /
-    //     Ink-TUI / threads) and when the feature is off. Lives for the turn; sealed in the finally.
+    //     Ink-TUI) and when the feature is off. Lives for the turn; sealed in the finally.
     const deltaStream = createSessionDeltaStream({ sessionId, channel });
     const debugEnabled = isDebugMode();
     // 5d. The transcript sink owns the history+publish copy and is driven by the run's observer
@@ -567,8 +567,8 @@ export function acceptUserMessage(opts: {
     text: opts.text, ts, attachments: opts.attachments, ...origin,
   });
   // A callback or a resume signal is not a title. Left to itself this would name a session woken by
-  // a task callback "[Task done] The task you dispatched #…", which is neither what the user asked
-  // for nor recognisable in the rail — so a system-authored turn never claims the label.
+  // an agent result after the result's notice text, which is neither what the user asked for nor
+  // recognisable in the rail — so a system-authored turn never claims the label.
   if (!opts.systemOrigin) deps.ensureLabel(opts.sessionId, opts.text);
 }
 

@@ -1,6 +1,6 @@
 import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
-import { parseTodoWrite } from '../normalize/todo.js';
+import { parseTodoWrite } from '@core/todo.js';
 import type { ModelFallbackEvent } from './event-parser.js';
 import type { SubagentEndStatus } from './bg-task-tracker.js';
 import type { UserMessage } from '../types.js';

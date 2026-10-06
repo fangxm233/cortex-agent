@@ -9,7 +9,7 @@ import {
 import type { Destination, OutputStream } from '../src/platform/index.js';
 import { ToolTrace, createToolTrace, isToolTraceEnabled } from '../src/platform/tool-trace.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
-import { subagentSpawnsFromToolCall } from '../src/agent-adapter/normalize/event-types.js';
+import { subagentSpawnsFromToolCall } from '../src/core/subagent-spawn.js';
 
 function testDest(channel: string): Destination {
   return { type: 'interactive-reply', conduit: channel, sessionId: '' };

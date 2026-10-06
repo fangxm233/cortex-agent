@@ -6,9 +6,7 @@ import type {
 import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
-import {
-  subagentSpawnFromAttribution, subagentSpawnsFromToolCall,
-} from '../agent-adapter/normalize/event-types.js';
+import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '@core/subagent-spawn.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import type { RunEvent, RunPhase } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';

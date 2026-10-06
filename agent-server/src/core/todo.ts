@@ -1,6 +1,5 @@
-import type { Backend } from '../types.js';
-import type { TodoItem, TodoSnapshot, TodoStatus } from './event-types.js';
-import { matchesCanonicalAnyBackend, toCanonical } from '@core/tool-names.js';
+import type { Backend, TodoItem, TodoSnapshot, TodoStatus } from './types/agent-types.js';
+import { matchesCanonicalAnyBackend, toCanonical } from './tool-names.js';
 
 const STATUSES: ReadonlySet<string> = new Set<TodoStatus>(['pending', 'in_progress', 'completed']);
 

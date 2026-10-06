@@ -39,7 +39,7 @@ export type {
   TodoStatus,
 } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
-import type { SubagentSpawnRef } from '../../agent-adapter/normalize/event-types.js';
+import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 import type {
   HookBackend,
   HookEvent,

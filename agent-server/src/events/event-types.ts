@@ -6,7 +6,7 @@ import type {
   SessionContextUsage,
   TodoSnapshot,
 } from '@core/types/agent-types.js';
-import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
+import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 
 export type AuthErrorKind = 'login_required' | 'oauth_expired' | 'invalid_api_key' | 'unauthorized' | 'invalid_grant';
 

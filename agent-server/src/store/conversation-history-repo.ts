@@ -17,8 +17,8 @@ import {
   resumeHistoryAccumulator,
 } from './conversation-history-reader.js';
 import type { AttachmentMeta, ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
-import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
-import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
+import { parseTodoSnapshot, renderTodoProgress } from '@core/todo.js';
+import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 import { registerFlushable } from '@core/json-repository.js';
 
 /** Where every session's transcript lives, one `<sessionId>.jsonl` per session. */

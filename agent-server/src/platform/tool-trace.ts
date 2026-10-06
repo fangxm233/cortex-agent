@@ -2,9 +2,9 @@ import type { OutputStream, MutableRegion } from '@platform/index.js';
 
 import { Icons } from '../core/icons.js';
 import { getSettings } from '@core/settings.js';
-import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
-import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '../agent-adapter/normalize/event-types.js';
-import type { SubagentSpawnRef, ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
+import { parseTodoSnapshot, renderTodoProgress } from '@core/todo.js';
+import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '@core/subagent-spawn.js';
+import type { SubagentSpawnRef, ToolUseSubagent } from '@core/subagent-spawn.js';
 
 const MAX_LINE_LEN = 120;
 const ELLIPSIS = '…';

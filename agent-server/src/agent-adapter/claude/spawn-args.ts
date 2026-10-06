@@ -64,7 +64,7 @@ export interface ClaudeSpawnOptions {
   thinking?: string | null;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string> | null;
-  /** True for user-message-initiated sessions (not thread/scheduled pipeline workers). Such
+  /** True for conversation turns (not subagents or the onNew pre-close turn). Such
    *  sessions additionally get the cortex-interaction-bridge MCP tools
    *  (cortex_plan_enter/exit, cortex_ask_user) because the native EnterPlanMode/ExitPlanMode/
    *  AskUserQuestion are filtered out by headless `-p`. Non-direct compositions never get them. */
@@ -272,7 +272,7 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
 }
 
 /** Cortex agent execution context — surfaces as CORTEX_* env vars so MCP tools
- *  (cortex_context, cortex_schedule_*) can self-discover the current thread/profile/etc.
+ *  (cortex_context, cortex_schedule_*) can self-discover the current session/profile/etc.
  *  Optional fields are omitted from env when undefined, so child processes see no key
  *  rather than an empty string. */
 export interface CortexAgentContext {
@@ -483,7 +483,7 @@ export function buildClaudeEnv(
   resetClaudeCodeEnv(env, !pinnedEnv);
   applyChannelEnv(env, channel, !!pinnedEnv);
   // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
-  // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset (threads).
+  // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset.
   env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;
   // Declared, not inferred: hooks branch on which backend loaded the AGENTS.md chain natively
   // (agents-md-injector.mjs), and "absent means Claude" would silently mis-handle any future

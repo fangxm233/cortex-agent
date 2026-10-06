@@ -360,7 +360,7 @@ export function shouldHoldForBg(
   return remainingBg(result) > 0 ? kind : null;
 }
 
-/** Scope gate: only interactive user conduits (Slack / Feishu), never thread/dispatch. */
+/** Scope gate: only interactive chat-platform conduits (Slack / Feishu). */
 export function isInteractiveChannel(channel: string): boolean {
   return !!channel && (channel.startsWith('slack:') || channel.startsWith('feishu:'));
 }

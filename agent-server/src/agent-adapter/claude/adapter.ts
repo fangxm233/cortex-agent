@@ -702,8 +702,8 @@ function sessionRuntimeOptions(
   composition: McpComposition,
 ): Partial<ClaudeSessionOptions> & Pick<ClaudeSessionOptions, 'mcpComposition'> {
   const supplemental = supplementalMcpConfig(spec, composition);
-  // Only a direct session can carry browser tools — thread/dispatch workers run unattended, where a
-  // shared browser would be a cross-run side channel rather than a feature.
+  // Browser tools ride on the direct composition only: an agent configured with composition
+  // `none` gets no Cortex MCP servers, the browser included.
   const browser = spec.mcp.browserCdpEndpoint && composition === 'direct'
     ? writeBrowserMcpConfig(spec.mcp.browserCdpEndpoint)
     : null;

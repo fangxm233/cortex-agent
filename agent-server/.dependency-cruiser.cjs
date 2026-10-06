@@ -39,7 +39,7 @@ module.exports = {
       severity: 'error',
       comment: 'store may only depend on core; any import to other layers is a violation (profile-repo → domain handled by type-only exemption)',
       from: { path: '^src/store/' },
-      to: { path: '^src/(events|domain|orchestration|platform|entry)/', ...COMMON_OPTS },
+      to: { path: '^src/(events|domain|orchestration|platform|entry|agent-adapter)/', ...COMMON_OPTS },
     },
     {
       name: 'events-not-to-other-layers',
@@ -53,7 +53,7 @@ module.exports = {
       severity: 'error',
       comment: 'platform may only depend on core and events',
       from: { path: '^src/platform/' },
-      to: { path: '^src/(store|domain|orchestration|entry)/', ...COMMON_OPTS },
+      to: { path: '^src/(store|domain|orchestration|entry|agent-adapter)/', ...COMMON_OPTS },
     },
     {
       name: 'domain-not-to-orch-or-entry',
@@ -87,11 +87,11 @@ module.exports = {
       name: 'no-circular',
       severity: 'error',
       comment:
-        'orchestration must have no import cycles. The one that existed — agent-runner → '
-        + 'manager-qa → thread-callback → agent-runner — is broken by session-gateway.ts, which '
-        + 'imports agent-runner and is imported BY thread-callback / manager-qa, never the other '
-        + 'way round. Keep that direction: everything that wants to open a turn calls the '
-        + 'gateway; the gateway is the only orchestration module the runner may not know about.',
+        'orchestration must have no import cycles. session-gateway.ts imports agent-runner and '
+        + 'is imported BY every module that delivers a turn (team, subagent and waitpoint '
+        + 'delivery, resume, rewind), never the other way round. Keep that direction: everything '
+        + 'that wants to open a turn calls the gateway; the gateway is the only orchestration '
+        + 'module the runner may not know about.',
       from: { path: '^src/orchestration/' },
       to: { circular: true },
     },

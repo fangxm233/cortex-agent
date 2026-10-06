@@ -22,7 +22,7 @@ export function buildSessionTag(sessionName: string | null, sessionId: string | 
   return parts.join(' · ') + ' | ';
 }
 
-/** `todoProgress` is a pre-rendered task-list line (see normalize/todo.ts renderTodoProgress).
+/** `todoProgress` is a pre-rendered task-list line (see core/todo.ts renderTodoProgress).
  *  Passing the rendered string rather than a snapshot keeps this formatter free of todo parsing
  *  and lets every caller decide whether the surface shows task progress at all. */
 export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionName = null, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionName?: string | null; sessionId?: string | null; todoProgress?: string | null }): string {

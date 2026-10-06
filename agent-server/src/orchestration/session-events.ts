@@ -1,15 +1,15 @@
 import { orchestrationBus } from './runtime.js';
 import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
-import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
+import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
   channel: string;
   role: 'user' | 'assistant' | 'tool';
   text: string;
-  /** User messages only: Cortex authored this turn (resume signal, task/thread callback, subtask
-   *  question, backgrounded agent result) rather than a human. Chat surfaces render it as a hint
+  /** User messages only: Cortex authored this turn (resume signal, backgrounded agent result,
+   *  waitpoint signal, team hand-off) rather than a human. Chat surfaces render it as a hint
    *  instead of a user bubble. Absent = human. */
   systemOrigin?: SystemTurnOrigin;
   toolName?: string;

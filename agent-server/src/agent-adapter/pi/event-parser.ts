@@ -6,7 +6,7 @@ import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
 import type { SubagentEndStatus, SubagentNotice } from '@core/agents/subagent/types.js';
 export type { SubagentNotice } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
-import { parseTodoWrite } from '../normalize/todo.js';
+import { parseTodoWrite } from '@core/todo.js';
 
 interface PIPendingCompletion {
   numTurns: number;

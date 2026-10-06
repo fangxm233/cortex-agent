@@ -4,7 +4,7 @@ import {
   parseTodoSnapshot,
   parseTodoWrite,
   parseTodoWriteByName,
-} from '../src/agent-adapter/normalize/todo.js';
+} from '../src/core/todo.js';
 
 const THREE = {
   todos: [
