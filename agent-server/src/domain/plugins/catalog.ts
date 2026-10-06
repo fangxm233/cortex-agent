@@ -470,42 +470,57 @@ export interface PluginSkillGroup {
   skills: string[];
 }
 
-function selectedEntries(
+function sortedNames(names: readonly string[]): string[] {
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/** A selected directory the runtime hands to the backend as it is — a legacy package, a directory
+ *  without a manifest, or one outside the plugins root. Both backends read the plugin layout's
+ *  `skills/<name>/SKILL.md` from it, so that is what is listed. */
+function passThroughSkills(directory: string): string[] {
+  const root = path.join(directory, 'skills');
+  return listImmediateChildNames(root).filter((name) => isRegularFile(path.join(root, name, 'SKILL.md')));
+}
+
+/** The groups a session selecting `pluginDirs` loads, in selection order, following the runtime's
+ *  classification (runtime.ts `classifySelections`): a valid portable plugin contributes its catalog
+ *  skills, an invalid one is skipped, and every other directory is passed through. */
+function selectedGroups(
   entries: readonly PluginCatalogEntry[],
   pluginsRoot: string,
   dataDir: string,
   pluginDirs: readonly string[],
-): PluginCatalogEntry[] {
+): PluginSkillGroup[] {
   const byRealpath = new Map<string, PluginCatalogEntry>();
   for (const entry of entries) {
     const real = realPath(path.join(pluginsRoot, entry.id));
     if (real) byRealpath.set(real, entry);
   }
-  const picked: PluginCatalogEntry[] = [];
+  const groups: PluginSkillGroup[] = [];
+  const seen = new Set<string>();
   for (const value of pluginDirs) {
-    const real = realPath(path.isAbsolute(value) ? value : path.resolve(dataDir, value));
-    const entry = real ? byRealpath.get(real) : undefined;
-    if (entry && !picked.includes(entry)) picked.push(entry);
+    const absolute = path.isAbsolute(value) ? path.resolve(value) : path.resolve(dataDir, value);
+    const directory = realPath(absolute) ?? absolute;
+    if (seen.has(directory)) continue;
+    seen.add(directory);
+    const entry = byRealpath.get(directory);
+    if (entry?.kind === 'portable') {
+      if (entry.valid) groups.push({ plugin: entry.id, skills: sortedNames(entry.skills.map((skill) => skill.name)) });
+      continue;
+    }
+    groups.push({ plugin: entry?.id ?? value, skills: sortedNames(passThroughSkills(directory)) });
   }
-  return picked;
+  return groups.filter((group) => group.skills.length > 0);
 }
 
-/** The skills a reader can invoke, grouped by plugin id: every catalog plugin, or — given the plugin
- *  dirs a session resolved — only those, in their selection order. Directories outside the plugins
- *  root are not catalog plugins and are not listed. */
 export function listSkillGroups(
   options: { pluginDirs?: readonly string[]; pluginsDir?: string; dataDir?: string } = {},
 ): PluginSkillGroup[] {
   const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
   const entries = loadPluginCatalog({ pluginsDir, dataDir });
-  const listed = options.pluginDirs
-    ? selectedEntries(entries, pluginsDir, dataDir, options.pluginDirs)
-    : entries;
-  return listed
+  if (options.pluginDirs) return selectedGroups(entries, pluginsDir, dataDir, options.pluginDirs);
+  return entries
     .filter((entry) => entry.valid && entry.skills.length > 0)
-    .map((entry) => ({
-      plugin: entry.id,
-      skills: entry.skills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)),
-    }));
+    .map((entry) => ({ plugin: entry.id, skills: sortedNames(entry.skills.map((skill) => skill.name)) }));
 }

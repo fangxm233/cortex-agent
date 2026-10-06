@@ -146,7 +146,7 @@ Portable MCP declaration 经过同一个 backend-neutral normalization layer。C
 
 Projection、snapshot 与 private MCP 文件位于 `$CORTEX_HOME/data/plugin-runtime/`。`$CORTEX_HOME` 本身可以经由符号链接到达（例如把 home 挪到另一块磁盘）；它下面任何一层的符号链接都会被拒绝。每个 projection 与 snapshot 都按内容寻址：被 spawn 复用的会被标记为在用，一周内没有任何 spawn 使用过的会被删除，下次需要时在同一路径重建。
 
-Capability fingerprint 覆盖 effective plugin paths、portable skill content、projected manifest 与 normalized MCP declarations。Claude pooled session 只会复用 capability 相同的 process，因此 assignment 及这些 covered inputs 的变化会选择兼容的 process boundary。Legacy package content 与 executable bytes 等 auxiliary portable files 不做 content hash；只改变这些文件并不保证替换 process。两个所选插件提供同名 skill 时，`pluginDirs` 中排在前面的保留它，另一个插件加载时不含该 skill。两个所选 portable plugin 的 manifest `name`（即 namespace）相同时，排在前面的保留，后一个整个跳过；Plugins 页面会在每个使用该名字的 package 上标出冲突。
+Capability fingerprint 覆盖 effective plugin paths、portable skill content、projected manifest 与 normalized MCP declarations。Claude pooled session 只会复用 capability 相同的 process，因此 assignment 及这些 covered inputs 的变化会选择兼容的 process boundary。Legacy package content 与 executable bytes 等 auxiliary portable files 不做 content hash；只改变这些文件并不保证替换 process。所选 portable plugin 的 `plugin.json` 无效时，它不会被加载，每轮的提示会列出它；具体问题显示在 Plugins 页面上。两个所选插件提供同名 skill 时，`pluginDirs` 中排在前面的保留它，另一个插件加载时不含该 skill。两个所选 portable plugin 的 manifest `name`（即 namespace）相同时，排在前面的保留，后一个整个跳过；Plugins 页面会在每个使用该名字的 package 上标出冲突。
 
 在显式 `none` composition 与受限的子智能体工具面上，portable MCP 会被抑制。这可避免 plugin capability 进入本来就有意收窄的 execution mode。
 
@@ -158,7 +158,7 @@ Plugins 页面管理 inventory 与 package 内容，assignment 则由执行环�
 
 ## 技能发现与调用 {#skill-discovery-and-invocation}
 
-`!skills` 命令按插件分组列出当前对话会加载的技能：即其执行环境的插件经 scope 过滤后、由 catalog 发现的技能。Skills 视图以同样方式列出所有 catalog 插件的技能。只有显式的 `/name` 才会调用 skill；只是以 skill 名开头的消息会按原文发送。
+`!skills` 命令按插件分组列出当前对话会加载的技能：即其执行环境中经 scope 过滤后的插件。Portable plugin 显示 catalog 接受的技能；原样交给 backend 的目录（legacy package，或 `$CORTEX_HOME/plugins/` 之外的路径）显示其中的 `skills/<name>/SKILL.md`，不属于 catalog 的目录以配置的路径作为标签。Skills 视图以同样方式列出所有 catalog 插件的技能。只有显式的 `/name` 才会调用 skill；只是以 skill 名开头的消息会按原文发送。
 
 通过 `Skill` 工具调用技能时，Cortex hook bridge 会由 session activity tracker 记录活动。它复用 experiment 与 knowledge 文件的 access-tracking infrastructure；hook bridge 详见 [hooks.md](./hooks.md)。
 

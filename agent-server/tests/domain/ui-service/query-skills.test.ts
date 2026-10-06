@@ -1,6 +1,7 @@
 import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { CONFIG_DIR, PLUGINS_DIR } from '../../../src/core/paths.js';
 import { handleSkillsList } from '../../../src/domain/ui-service/query/skills.js';
@@ -48,24 +49,48 @@ test('skills.list lists every catalog plugin with its loadable skills, sorted', 
   ]);
 });
 
-test('listSkillGroups with plugin dirs lists only those plugins, in selection order', () => {
-  assert.deepEqual(listSkillGroups({ pluginDirs: ['plugins/beta', path.join(PLUGINS_DIR, 'alpha'), 'plugins/stray'] }), [
+/** A plugin directory outside the plugins root, as an environment may list by absolute path. */
+function externalDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'external-plugin-'));
+  fs.mkdirSync(path.join(dir, 'skills', 'ext-skill'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'skills', 'ext-skill', 'SKILL.md'), '---\nname: ext-skill\ndescription: x\n---\n');
+  fs.mkdirSync(path.join(dir, 'skills', 'not-a-skill'), { recursive: true });
+  return dir;
+}
+
+test('listSkillGroups with plugin dirs lists what the session loads, in selection order', () => {
+  const external = externalDir();
+  // An invalid portable manifest: the spawn skips this plugin, so it lists nothing.
+  fs.mkdirSync(path.join(PLUGINS_DIR, 'broken', 'skills', 'lost'), { recursive: true });
+  fs.writeFileSync(path.join(PLUGINS_DIR, 'broken', 'plugin.json'), JSON.stringify({ $schema: SCHEMA, name: 'Not Valid' }));
+  fs.writeFileSync(path.join(PLUGINS_DIR, 'broken', 'skills', 'lost', 'SKILL.md'), '---\nname: lost\ndescription: x\n---\n');
+
+  assert.deepEqual(listSkillGroups({
+    pluginDirs: ['plugins/beta', path.join(PLUGINS_DIR, 'alpha'), 'plugins/stray', 'plugins/broken', external],
+  }), [
     { plugin: 'beta', skills: ['review'] },
     { plugin: 'alpha', skills: ['apple', 'zebra'] },
+    // Not catalog plugins, but handed to the backend as they are, so their skills load.
+    { plugin: 'stray', skills: ['ghost'] },
+    { plugin: external, skills: ['ext-skill'] },
   ]);
   assert.deepEqual(listSkillGroups({ pluginDirs: [] }), []);
+  fs.rmSync(external, { recursive: true, force: true });
 });
 
-test('!skills lists only the plugins of the environment the channel runs', async () => {
+test('!skills lists only the plugins of the environment the channel runs, external dirs included', async () => {
+  const external = externalDir();
   const envDir = path.join(CONFIG_DIR, 'environments');
   fs.mkdirSync(envDir, { recursive: true });
   fs.writeFileSync(path.join(envDir, 'main.json'), JSON.stringify({
-    name: 'main', profile: '__active__', pluginDirs: ['plugins/beta'],
+    name: 'main', profile: '__active__', pluginDirs: ['plugins/beta', external],
   }));
   loadEnvironments();
   const adapter = new MockAdapter();
   await handleSkillsCmd('C-skills', adapter);
   const text = String(adapter.posted.at(-1)?.content.text ?? '');
   assert.match(text, /_beta_\n• `review`/);
+  assert.ok(text.includes(`_${external}_\n• \`ext-skill\``), text);
   assert.doesNotMatch(text, /alpha|apple|zebra/);
+  fs.rmSync(external, { recursive: true, force: true });
 });
