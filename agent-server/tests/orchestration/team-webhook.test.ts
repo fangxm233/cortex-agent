@@ -71,7 +71,10 @@ function world(): World {
     } as any,
     createSession: async (opts) => {
       const id = opts.sessionId;
-      w.sessions.set(id, session(id, { teamLeadId: opts.teamLeadId, workerName: opts.workerName, profileName: opts.profileName, projectId: opts.projectId }));
+      w.sessions.set(id, session(id, {
+        teamLeadId: opts.teamLeadId, workerName: opts.workerName, workerBrief: opts.workerBrief,
+        profileName: opts.profileName, projectId: opts.projectId,
+      }));
       return { sessionId: id, channel: `web:${id}` };
     },
     newSessionId: () => `w${++next}`,
@@ -138,6 +141,7 @@ test('spawn creates a named worker under the lead and hands it the prompt as tea
   const created = w.sessions.get('w1');
   assert.equal(created.teamLeadId, 'lead');
   assert.equal(created.workerName, 'api-refactor');
+  assert.equal(created.workerBrief, 'Refactor the API', 'the brief is stored on the record');
   assert.equal(created.label, 'api-refactor', 'the worker is titled by its name');
   assert.equal(created.profileName, 'lead-profile', 'the lead profile is inherited');
   // The lead's own pick rides along, written before the session exists and without moving the
@@ -152,6 +156,11 @@ test('spawn creates a named worker under the lead and hands it the prompt as tea
 
   const listed = await call(w, { action: 'list' });
   assert.match((listed.data as any).text, /api-refactor .* — Refactor the API$/m);
+
+  // After a restart the in-memory brief is gone; the record's brings it back.
+  _resetTeamState();
+  const relisted = await call(w, { action: 'list' });
+  assert.match((relisted.data as any).text, /api-refactor .* — Refactor the API$/m);
 });
 
 test('spawn validates the name, its uniqueness and the running cap', async () => {

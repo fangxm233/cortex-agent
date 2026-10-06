@@ -32,7 +32,6 @@ export interface WorkerView {
   waitingOn: string[];
   brief: string | null;
   lastReport: WorkerReport | null;
-  contextPercent: number | null;
   userTouched: boolean;
   retired: boolean;
 }
@@ -95,10 +94,12 @@ const defaultViewDeps: WorkerViewDeps = {
   now: () => Date.now(),
 };
 
-/** After a restart: the brief from the first lead message, the last report from the last reply. */
+/** After a restart: the brief from the session record (or, for a worker spawned before the record
+ *  carried one, the first lead message), the last report from the last reply. */
 async function recoverFromHistory(worker: Session, deps: WorkerViewDeps): Promise<void> {
   if (historyLoaded.has(worker.sessionId)) return;
   historyLoaded.add(worker.sessionId);
+  if (worker.workerBrief && !briefs.has(worker.sessionId)) briefs.set(worker.sessionId, worker.workerBrief);
   if (briefs.has(worker.sessionId) && reports.has(worker.sessionId)) return;
   let history: SessionHistory | null = null;
   try { history = await deps.history(worker.sessionId); } catch { return; }
@@ -137,7 +138,6 @@ export async function describeWorker(worker: Session, deps: WorkerViewDeps = def
     waitingOn,
     brief: briefs.get(worker.sessionId) ?? null,
     lastReport,
-    contextPercent: typeof worker.contextUsage?.percent === 'number' ? Math.round(worker.contextUsage.percent) : null,
     userTouched: userTouched.has(worker.sessionId),
     retired,
   };
@@ -169,12 +169,11 @@ export function statusLabel(view: WorkerView): string {
   return view.status === 'waiting' ? `waiting(${view.waitingOn.join(', ')})` : view.status;
 }
 
-/** One compact roster line: name · status · last report · ctx · user-touched — brief. */
+/** One compact roster line: name · status · last report · user-touched — brief. */
 export function rosterLine(view: WorkerView, now = Date.now()): string {
   const parts = [view.name, statusLabel(view)];
   if (view.lastReport) parts.push(`last report ${formatAge(now - view.lastReport.at)}`);
   else parts.push('no report yet');
-  if (view.contextPercent !== null) parts.push(`ctx ${view.contextPercent}%`);
   if (view.userTouched) parts.push('user talked to it directly');
   return `- ${parts.join(' · ')}${view.brief ? ` — ${view.brief}` : ''}`;
 }

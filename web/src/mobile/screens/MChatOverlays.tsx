@@ -5,6 +5,7 @@ import {
   BrowserSheet, CommissionSheet, ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
 } from './MChatSheets';
 import { MChatSessionMenu } from './MChatSessionMenu';
+import { MTeamSheet } from './MChatTeam';
 import type { MChatSelectionView } from './m-chat-selection';
 import type { MChatViewProps } from './MChatView.types';
 import type { ChatOverlay } from './useChatOverlay';
@@ -25,7 +26,8 @@ function OriginalMessageSheet({ text, onClose }: { text: string; onClose: () => 
   );
 }
 
-/** The ⋯ menu and what it opens, plus the header's context-usage sheet and the 已编辑 original. */
+/** The ⋯ menu and what it opens, plus the header's context-usage and team sheets and the 已编辑
+ *  original. */
 function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
   const statsRows = props.sessionStatsRows?.length ? props.sessionStatsRows : null;
   return (
@@ -44,6 +46,10 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
         <ContextUsageSheet usage={props.contextUsage ?? null} compactAction={props.contextCompactAction}
           onClose={() => overlay.close('context')} />
       ) : null}
+      {overlay.is('team') && props.onOpenWorker && (
+        <MTeamSheet workers={props.workers ?? []} onClose={() => overlay.close('team')}
+          onOpen={(id) => { overlay.close('team'); props.onOpenWorker!(id); }} />
+      )}
     </>
   );
 }

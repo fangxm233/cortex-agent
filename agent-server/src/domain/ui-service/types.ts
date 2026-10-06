@@ -294,6 +294,9 @@ export interface SessionInfo {
   teamLeadId: string | null;
   /** The worker's short name within its team; null outside team mode. */
   workerName: string | null;
+  /** Team mode: what the lead spawned this worker to do (first line of its spawn prompt, capped).
+   *  Null for ordinary sessions and for workers spawned before the record carried it. */
+  workerBrief?: string | null;
   /** Epoch ms when the worker was retired; null while active or outside team mode. */
   workerRetiredAt: number | null;
   createdAt: string;

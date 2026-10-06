@@ -22,7 +22,7 @@ import { answerQuestion } from './interactions/answer-question.js';
 import { getGroupByHookRequestId } from './interactions/ask-user-question.js';
 import { respondToPlan } from './interactions/plan-response.js';
 import {
-  clearDispatch, describeTeam, formatAge, isWorkerBusy, noteDispatch, rosterLine, statusLabel,
+  briefOf, clearDispatch, describeTeam, formatAge, isWorkerBusy, noteDispatch, rosterLine, statusLabel,
   type WorkerView,
 } from './team-state.js';
 
@@ -42,6 +42,7 @@ export interface TeamWebhookDeps {
    *  again only records it on the session; it leaves the channel's selection as written. */
   createSession: (opts: {
     projectId: string; sessionId: string; profileName: string; teamLeadId: string; workerName: string;
+    workerBrief: string;
   }) => Promise<{ sessionId: string; channel: string }>;
   newSessionId: () => string;
   deliver: (opts: Pick<DeliverToSessionOptions, 'channel' | 'text' | 'origin'>) => void;
@@ -217,6 +218,7 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
     profileName: applied.profileName,
     teamLeadId: lead.sessionId,
     workerName: name,
+    workerBrief: briefOf(prompt),
   });
   await deps.sessions.rename(created.sessionId, name);
   noteDispatch(created.sessionId, prompt, deps.now());
@@ -257,7 +259,6 @@ function describeOne(view: WorkerView, selection: ChannelSelection, now: number)
     `Model: ${modelLabel(selection)}`,
   ];
   if (view.brief) lines.push(`Brief: ${view.brief}`);
-  if (view.contextPercent !== null) lines.push(`Context: ${view.contextPercent}%`);
   if (view.userTouched) lines.push('The user has talked to this worker directly since you last engaged it.');
   if (view.lastReport) {
     lines.push('', `Last report (${view.lastReport.status}, ${formatAge(now - view.lastReport.at)}):`,

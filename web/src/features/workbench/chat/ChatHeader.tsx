@@ -136,6 +136,7 @@ export function ChatHeader({
   sessionName,
   metadataSession,
   parent,
+  team,
 }: {
   title: string;
   running: boolean;
@@ -145,6 +146,8 @@ export function ChatHeader({
   sessionName: string | null;
   metadataSession: MetadataSession | null;
   parent?: ChatHeaderParent | null;
+  /** Team mode: a lead's team capsule, first among the header's actions. */
+  team?: ReactNode;
 }): JSX.Element {
   const L = useVocab();
   const notes = useNotes();
@@ -207,6 +210,7 @@ export function ChatHeader({
         </span>
       )}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted)' }}>
+        {team}
         <BrowserIconButton />
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <HeaderIconButton
