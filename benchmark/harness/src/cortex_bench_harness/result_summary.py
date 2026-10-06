@@ -15,6 +15,7 @@ _COUNTER_FIELDS = (
 )
 _REVOCATION_BOOLEAN_FIELDS = ("route_active", "listener_present", "serving_thread_alive")
 _REVOCATION_COUNT_FIELDS = ("active_handlers", "body_handlers")
+_EVIDENCE_ROOTS = frozenset({"agent", "verifier", "artifacts"})
 
 
 class SummaryOutcome(Protocol):
@@ -200,9 +201,25 @@ def _proxy_export(trials_dir: Path, trial_id: str) -> Mapping[str, object]:
     return document if isinstance(document, Mapping) else {}
 
 
-def _leak_scan(envelope: Mapping[str, object] | None) -> dict[str, bool | None]:
+def _leak_scan(envelope: Mapping[str, object] | None) -> dict[str, object]:
     scan = _envelope_section(envelope, "leak_scan") or {}
-    return {"ok": _boolean(scan.get("ok")), "clean": _boolean(scan.get("clean"))}
+    return {
+        "ok": _boolean(scan.get("ok")), "clean": _boolean(scan.get("clean")),
+        "unscanned_roots": _unscanned_roots(envelope),
+    }
+
+
+def _unscanned_roots(envelope: Mapping[str, object] | None) -> list[str] | None:
+    """The evidence roots the host could not read in full, which the leak scan never covered."""
+    evidence = _envelope_section(envelope, "evidence")
+    roots = evidence.get("roots") if evidence is not None else None
+    if not isinstance(roots, list):
+        return None
+    return sorted(
+        str(item["root"]) for item in roots
+        if isinstance(item, Mapping) and item.get("status") == "unavailable"
+        and item.get("root") in _EVIDENCE_ROOTS
+    )
 
 
 def _revocation(envelope: Mapping[str, object] | None) -> dict[str, object]:

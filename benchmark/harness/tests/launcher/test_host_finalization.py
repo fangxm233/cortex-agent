@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import io
 import json
+import os
 import socket
 import tarfile
 from collections.abc import Callable, Mapping
@@ -1484,7 +1485,7 @@ def test_scan_coverage_uncertainty_is_recorded_without_refusal(
 
     envelope = finalize_vendor_trial(tmp_path, monkeypatch)
 
-    assert envelope["leak_scan"] == report
+    assert envelope["leak_scan"] == {**report, "unscanned_roots": []}
     assert envelope_path(tmp_path).exists()
 
 
@@ -1502,8 +1503,42 @@ def test_all_unavailable_roots_are_recorded_without_refusal(
         "status": "unavailable", "reason": "evidence_roots_unavailable",
         "ok": False, "clean": False, "sources": [], "matches": [],
         "missing_sources": [], "unclassified_files": [],
+        "unscanned_roots": ["agent", "artifacts", "verifier"],
     }
     assert envelope_path(tmp_path).exists()
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-000 directory")
+def test_a_root_with_an_unreadable_subdirectory_is_published_unscanned_and_untrusted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The walk skips a root whole when one of its subdirectories cannot be listed, and the leak
+    scan used to say "clean" about the roots that were left. The record is still kept, but the
+    root is named as unscanned and the trial reads back as security-failed rather than scored."""
+    locked = tmp_path / "agent" / "locked"
+
+    def lock_a_subdirectory(root: Path) -> None:
+        locked.mkdir()
+        (locked / "secret.txt").write_text("never read", encoding="utf-8")
+        locked.chmod(0)
+
+    try:
+        envelope = finalize_vendor_trial(
+            tmp_path, monkeypatch, mutation=lock_a_subdirectory)
+    finally:
+        locked.chmod(0o755)
+    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 1}}})
+
+    assert {item["root"]: item["status"] for item in envelope["evidence"]["roots"]} == {
+        "agent": "unavailable", "verifier": "collected", "artifacts": "collected"}
+    assert envelope["leak_scan"]["unscanned_roots"] == ["agent"]
+    assert (envelope["leak_scan"]["ok"], envelope["leak_scan"]["clean"]) == (False, False)
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path).read()
+    assert outcome.outcome_state == "security-failed"
+    assert outcome.score_status == "unavailable"
+    assert outcome.verifier_rewards is None
+    assert "agent" in str(outcome.reason) and "leak scan" in str(outcome.reason)
 
 
 def test_collected_provider_credential_refuses_publication(

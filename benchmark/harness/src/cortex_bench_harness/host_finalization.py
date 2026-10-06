@@ -11,7 +11,9 @@
 # reimplementing the producer inside the consumer, which is the fork this benchmark exists to
 # delete. Only one refusal survives, and it is not an evidence gate: a leak found by the scanner
 # stops publication, because a credential or a host identity on a collected artifact is real damage
-# rather than a disagreement about evidence.
+# rather than a disagreement about evidence. An evidence root the host could not read all of was
+# never scanned, so it is named in the leak scan and the outcome reader treats the trial as
+# security-failed: its record is kept, its score is not trusted.
 
 import hashlib
 import json
@@ -274,7 +276,8 @@ def _vendor_task_record(task: Mapping[str, object] | None) -> dict[str, str]:
 def _require_trusted_security(
     scan: Mapping[str, object], revocation: TrialRevocation | None, trial_id: str,
 ) -> None:
-    # Coverage uncertainty stays in the envelope; only an observed leak blocks publication.
+    # Coverage uncertainty stays in the envelope (an unscanned root is read back as untrusted);
+    # only an observed leak blocks publication.
     if scan.get("matches") != []:
         raise HostFinalizationError("output_scan_untrusted")
     record = _revocation_record(revocation)
@@ -296,9 +299,15 @@ def _collect_and_scan(
     roots = {"agent": logs_dir, VERIFIER_ROOT: verifier_dir, "artifacts": artifact_dir}
     walked, collected = _collect_roots(roots)
     scan_roots = {name: root for name, root in roots.items() if walked[name] == "collected"}
-    scan = _scan_collected(
+    scan = dict(_scan_collected(
         collected, scan_roots, {"agent": container_logs_dir}, scan_policy,
-    )
+    ))
+    # A root with an unreadable subdirectory is skipped whole, so a scan of the others must not
+    # read as clean: the bytes it never saw could hold exactly what it looks for.
+    unscanned = sorted(name for name in roots if walked[name] != "collected")
+    scan["unscanned_roots"] = unscanned
+    if unscanned:
+        scan["ok"] = scan["clean"] = False
     return walked, collected, scan
 
 

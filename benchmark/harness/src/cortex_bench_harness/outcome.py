@@ -337,6 +337,11 @@ def _roots_reason(envelope: Mapping[str, object]) -> str | None:
         return "evidence root records are malformed"
     if any(status not in {"collected", "unavailable"} for _, status in entries):
         return "evidence root records are malformed"
+    unscanned = sorted(str(root) for root, status in entries if status == "unavailable")
+    if unscanned:
+        return (
+            f"evidence root(s) {', '.join(unscanned)} could not be read in full, so the leak "
+            "scan never covered them")
     return None
 
 

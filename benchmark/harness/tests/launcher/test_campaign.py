@@ -1721,7 +1721,7 @@ def test_resuming_a_terminal_verifier_failure_keeps_it_failed_without_rearming(
     assert report["runs"][0]["score_status"] == "failed"
 
 
-@pytest.mark.parametrize("uncertainty", ["missing", "unclassified", "root", "all-roots"])
+@pytest.mark.parametrize("uncertainty", ["missing", "unclassified"])
 def test_scan_coverage_uncertainty_keeps_the_verifier_score(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     uncertainty: str,
@@ -1733,16 +1733,10 @@ def test_scan_coverage_uncertainty_keeps_the_verifier_score(
         scan["clean"] = False
         if uncertainty == "missing":
             scan["missing_sources"] = ["collected:0000"]
-        elif uncertainty == "unclassified":
+        else:
             scan["unclassified_files"] = [
                 {"root_index": 0, "relative_path": "runtime.sock"},
             ]
-        else:
-            roots = document["evidence"]["roots"]
-            assert isinstance(roots, list)
-            selected = roots if uncertainty == "all-roots" else roots[:1]
-            for root in selected:
-                root["status"] = "unavailable"
         return document
 
     RecordingTrialPath(envelope_mutation=record_uncertainty).install(monkeypatch)
@@ -1754,6 +1748,38 @@ def test_scan_coverage_uncertainty_keeps_the_verifier_score(
     assert first["state"] == "ran"
     assert first["verifier_rewards"] == {"reward": 1.0}
     assert first["score_status"] == "available"
+
+
+@pytest.mark.parametrize("uncertainty", ["root", "all-roots"])
+def test_an_evidence_root_the_scan_never_covered_is_untrusted_and_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    uncertainty: str,
+) -> None:
+    """A root the host could not read in full was never scanned for leaks, so its trial is kept
+    as a record but not as a score, and every published projection names the root."""
+    def unscanned(document: dict[str, object]) -> dict[str, object]:
+        roots = document["evidence"]["roots"]
+        assert isinstance(roots, list)
+        for root in roots if uncertainty == "all-roots" else roots[:1]:
+            root["status"] = "unavailable"
+        return document
+
+    RecordingTrialPath(envelope_mutation=unscanned).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 1
+    first = result["trials"][0]
+    assert (first["state"], first["outcome_state"]) == ("failed", "security-failed")
+    assert (first["verifier_rewards"], first["score_status"]) == (None, "unavailable")
+    assert "agent" in first["reason"] and "leak scan" in first["reason"]
+    report = json.loads(Path(str(result["report_path"])).read_text(encoding="utf-8"))
+    assert report["runs"][0]["outcome_state"] == "security-failed"
+    assert "leak scan" in report["runs"][0]["outcome_reason"]
+    summary = json.loads(
+        (tmp_path / "trials" / "result-summary.json").read_text(encoding="utf-8"))
+    expected = ["agent", "artifacts", "verifier"] if uncertainty == "all-roots" else ["agent"]
+    assert summary["trials"][0]["leak_scan"]["unscanned_roots"] == expected
 
 
 @pytest.mark.parametrize(
@@ -2022,7 +2048,9 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert summary["trials"][2]["counters"]["requests"] == {
         "status": "available", "value": 2,
     }
-    assert summary["trials"][3]["leak_scan"] == {"ok": False, "clean": False}
+    assert summary["trials"][3]["leak_scan"] == {
+        "ok": False, "clean": False, "unscanned_roots": [],
+    }
     assert summary["trials"][3]["counters"]["cached_tokens"] == {
         "status": "unavailable",
     }
