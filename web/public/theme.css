@@ -186,7 +186,6 @@
   --caption-hover: var(--proto-line-2);
   --caption-close-hover: #e81123;
   --caption-close-hover-fg: #ffffff;
-  --ink-solid-fg-dim: rgba(255, 255, 255, 0.55);
   --run-dot: var(--accent-main);
   --border-card: rgba(0, 0, 0, 0.08);
 
@@ -250,10 +249,7 @@
   --log-border: #2a2f3a;
 
   --m-canvas: oklch(calc(0.973 + var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
-  --m-page-header: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
   --m-card: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
-  --m-tabbar-bg: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
-  --m-sheet-bg: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --m-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --m-sub: var(--proto-muted);
   --m-body: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
@@ -391,7 +387,6 @@
   --caption-hover: var(--proto-line-2);
   --caption-close-hover: #e81123;
   --caption-close-hover-fg: #ffffff;
-  --ink-solid-fg-dim: rgba(20, 23, 27, 0.5);
   --run-dot: var(--accent-mid);
   --border-card: rgba(255, 255, 255, 0.1);
 
@@ -438,10 +433,7 @@
   --log-fg: #c9ceda;
 
   --m-canvas: oklch(calc(0.177 + var(--bg-light)) calc(0.0114 * var(--bg-chroma)) var(--bg-hue));
-  --m-page-header: oklch(calc(0.177 + var(--bg-light)) calc(0.0114 * var(--bg-chroma)) var(--bg-hue));
   --m-card: oklch(calc(0.243 + 0.45 * var(--bg-light)) calc(0.0188 * var(--bg-chroma)) var(--bg-hue));
-  --m-tabbar-bg: oklch(calc(0.195 + var(--bg-light)) calc(0.013 * var(--bg-chroma)) var(--bg-hue));
-  --m-sheet-bg: oklch(calc(0.243 + 0.45 * var(--bg-light)) calc(0.0188 * var(--bg-chroma)) var(--bg-hue));
   --m-ink: oklch(calc(0.965 + var(--ink-contrast)) calc(0.0054 * var(--ink-chroma)) var(--ink-hue));
   --m-sub: var(--proto-muted);
   --m-body: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));

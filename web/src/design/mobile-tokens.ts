@@ -8,7 +8,6 @@ export const MC = {
   /** Raised translucent fill with NO filter of its own; composites over whatever is behind it. */
   glassRaised: 'var(--glass-2)',
   glassFilter: 'var(--glass-filter)',
-  canvas: 'var(--m-canvas)',
   /** Stable reading/occlusion fill, not the default material for list cards. */
   card: 'var(--m-card)',
   ink: 'var(--m-ink)',
@@ -37,13 +36,10 @@ export const MC = {
   grayInk: 'var(--m-gray-ink)',
   inkSolid: 'var(--ink-solid-bg)',
   inkSolidFg: 'var(--ink-solid-fg)',
-  inkSolidFgDim: 'var(--ink-solid-fg-dim)',
 } as const;
 
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
-/** Top edge of floating tab-screen chrome (the header pill), below the OS status bar. */
-export const M_FLOAT_TOP = 'calc(8px + env(safe-area-inset-top))';
 /** Bottom edge of floating screen chrome (the new-session button), above the home indicator. */
 export const M_FLOAT_BOTTOM = 'max(26px, calc(10px + env(safe-area-inset-bottom)))';
 /** Horizontal page gutter shared by every floating layer on a tab screen (header, list, buttons). */

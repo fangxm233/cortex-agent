@@ -7,7 +7,7 @@ import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import { orderSessions } from '@/features/session/list/session-groups';
 import { groupWorkers, isRetiredWorker } from '@/features/team/worker-groups';
 import { sessionRollup, workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
-import { relTime } from '@/mobile/ui/format';
+import { relTime } from '@/i18n/time-format';
 import { en, fmt, type Vocab } from '@/i18n';
 
 type Lang = 'en' | 'zh';
