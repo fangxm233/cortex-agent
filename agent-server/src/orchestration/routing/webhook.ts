@@ -6,9 +6,10 @@ import * as crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { sendCommand, isDeviceOnline, getOnlineDevices } from '@domain/remote/client-manager.js';
 import { stageRemoteFile } from '@domain/remote/device-file.js';
-import { createWaitpoint, cancelWaitpoint, listWaitpointsForSession, publicView } from '@domain/waitpoints/service.js';
+import { createWaitpoint, cancelWaitpoint, listOwnedWaitpoints } from '@domain/waitpoints/service.js';
+import { agentWaitpointView, ownsWaitpoint } from '@domain/waitpoints/view.js';
 import { ingestSignal, toSignalInput } from '../waitpoint-ingress.js';
-import { waitpointRepo } from '@store/waitpoint-repo.js';
+import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
 import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -346,6 +347,16 @@ const handleSignal: RequestHandler = (req, res) => readJsonBody(req, async (erro
 
 // --- /webhook/waitpoint (agent-side ops behind the normal bearer token) ---
 
+function waitpointView(wp: Waitpoint): Record<string, unknown> {
+  return agentWaitpointView(wp, Date.now(), getSettings().waitpointMaxWakesPerHour);
+}
+
+/** The session asking, resolved the way `create` resolves the owner it records. */
+async function waitpointCaller(data: any): Promise<{ sessionId: string; channel: string | null }> {
+  const sessionId = String(data.sessionId || '');
+  return { sessionId, channel: data.channel || await resolveSessionChannel(sessionId) };
+}
+
 async function createWaitpointOp(data: any): Promise<unknown> {
   const channel = data.channel || await resolveSessionChannel(data.sessionId);
   if (!channel) return { success: false, error: 'cannot resolve a channel for this session' };
@@ -361,22 +372,35 @@ async function createWaitpointOp(data: any): Promise<unknown> {
     ttlMs: data.ttlMs,
     emitFrom: data.device ? { kind: 'device', device: String(data.device) } : { kind: 'local' },
   });
-  return { success: true, data: { ...publicView(waitpoint), secret } };
+  return { success: true, data: { ...waitpointView(waitpoint), secret } };
+}
+
+/** A waitpoint by id, but only one this session armed or will be woken by — the rule the UI uses. */
+async function ownedWaitpoint(data: any): Promise<{ wp: Waitpoint } | { error: string }> {
+  const id = String(data.id);
+  const wp = await waitpointRepo.get(id);
+  if (!wp) return { error: `unknown waitpoint: ${id}` };
+  const caller = await waitpointCaller(data);
+  if (!ownsWaitpoint(wp, caller.sessionId, caller.channel)) return { error: `waitpoint ${id} belongs to another session` };
+  return { wp };
 }
 
 async function checkWaitpointOp(data: any): Promise<unknown> {
   if (data.id) {
-    const wp = await waitpointRepo.get(String(data.id));
-    if (!wp) return { success: false, error: `unknown waitpoint: ${data.id}` };
-    return { success: true, data: publicView(wp) };
+    const found = await ownedWaitpoint(data);
+    if ('error' in found) return { success: false, error: found.error };
+    return { success: true, data: waitpointView(found.wp) };
   }
-  const mine = await listWaitpointsForSession(String(data.sessionId || ''));
-  return { success: true, data: { waitpoints: mine.map(publicView) } };
+  const caller = await waitpointCaller(data);
+  const mine = await listOwnedWaitpoints(caller.sessionId, caller.channel);
+  return { success: true, data: { waitpoints: mine.map(waitpointView) } };
 }
 
 async function cancelWaitpointOp(data: any): Promise<unknown> {
   if (!data.id) return { success: false, error: 'id is required' };
-  return { success: true, data: await cancelWaitpoint(String(data.id)) };
+  const found = await ownedWaitpoint(data);
+  if ('error' in found) return { success: false, error: found.error };
+  return { success: true, data: await cancelWaitpoint(found.wp.id) };
 }
 
 const WAITPOINT_OPS: Record<string, (data: any) => Promise<unknown>> = {

@@ -193,7 +193,8 @@ the waitpoint is armed. The UI can copy the id, never the credential.
 Which waitpoints count as "this session's" is the union of two rules: the session armed it, **or**
 its wake will be delivered here. The second is what the notifier actually uses, so a waitpoint armed
 by an earlier session on the same channel (after `!new`, or on a re-run of a schedule) shows up on
-the session that will really receive it.
+the session that will really receive it. The agent's `wait_check` and `wait_cancel` follow the same
+rule: a session sees and disarms its own waitpoints, never another session's.
 
 ## Housekeeping
 

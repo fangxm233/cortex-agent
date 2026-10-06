@@ -83,14 +83,15 @@ test('create → check → cancel round-trips through the agent-side route', asy
   assert.equal(typeof secret, 'string');
   assert.equal(created.json.data.state, 'armed');
 
-  const checked = await post('/webhook/waitpoint', { action: 'check', id });
+  const caller = { sessionId: 'sess-tools', channel: 'web:tools-1' };
+  const checked = await post('/webhook/waitpoint', { action: 'check', id, ...caller });
   assert.equal(checked.json.data.label, 'arm2');
   assert.equal('secretHash' in checked.json.data, false, 'check must never expose the stored hash');
 
-  const listed = await post('/webhook/waitpoint', { action: 'check', sessionId: 'sess-tools' });
+  const listed = await post('/webhook/waitpoint', { action: 'check', ...caller });
   assert.equal(listed.json.data.waitpoints.some((w: any) => w.id === id), true);
 
-  const cancelled = await post('/webhook/waitpoint', { action: 'cancel', id });
+  const cancelled = await post('/webhook/waitpoint', { action: 'cancel', id, ...caller });
   assert.deepEqual(cancelled.json.data, { cancelled: true, state: 'cancelled' });
 
   // The capability stops working the moment the waitpoint is cancelled.
@@ -144,4 +145,28 @@ test('a signal naming an undeclared member is refused with the expected names', 
   const good = await post('/webhook/signal', { id, secret, member: 'arm2', status: 'ok' }, null);
   assert.equal(good.statusCode, 202);
   assert.equal(good.json.fired, false);
+});
+
+test('another session can neither inspect nor cancel a waitpoint it does not own', async () => {
+  const created = await post('/webhook/waitpoint', {
+    action: 'create', sessionId: 'sess-owner', channel: 'web:owner',
+    label: 'mine', intent: 'x',
+  });
+  const { id } = created.json.data;
+  const stranger = { sessionId: 'sess-stranger', channel: 'web:stranger' };
+
+  const peek = await post('/webhook/waitpoint', { action: 'check', id, ...stranger });
+  assert.equal(peek.json.success, false);
+  assert.match(peek.json.error, /belongs to another session/);
+  const listed = await post('/webhook/waitpoint', { action: 'check', ...stranger });
+  assert.equal(listed.json.data.waitpoints.some((w: any) => w.id === id), false);
+
+  const cancel = await post('/webhook/waitpoint', { action: 'cancel', id, ...stranger });
+  assert.equal(cancel.json.success, false);
+  const still = await post('/webhook/waitpoint', { action: 'check', id, sessionId: 'sess-owner', channel: 'web:owner' });
+  assert.equal(still.json.data.state, 'armed');
+
+  // A later session on the owner's channel receives its wake, so it may manage it.
+  const heir = await post('/webhook/waitpoint', { action: 'cancel', id, sessionId: 'sess-heir', channel: 'web:owner' });
+  assert.deepEqual(heir.json.data, { cancelled: true, state: 'cancelled' });
 });

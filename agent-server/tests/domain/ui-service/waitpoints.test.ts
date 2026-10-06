@@ -1,11 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import {
-  handleWaitpointsList,
-  ownsWaitpoint,
-  countWaitingOn,
-  toWaitpointInfo,
-} from '../../../src/domain/ui-service/query/waitpoints.js';
+import { handleWaitpointsList, countWaitingOn } from '../../../src/domain/ui-service/query/waitpoints.js';
+import { ownsWaitpoint, toWaitpointInfo } from '../../../src/domain/waitpoints/view.js';
 import { handleCancelWaitpoint } from '../../../src/domain/ui-service/mutate/waitpoints.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';

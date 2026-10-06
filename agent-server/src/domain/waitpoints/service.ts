@@ -10,6 +10,7 @@ import {
   type WaitpointSignal,
   type SignalStatus,
 } from '@store/waitpoint-repo.js';
+import { ownsWaitpoint } from './view.js';
 
 const log = createLogger('waitpoints');
 
@@ -333,34 +334,12 @@ export async function expireDueWaitpoints(
   });
 }
 
-export async function listWaitpointsForSession(
+/** Every waitpoint (any state) owned by this session or delivered to its channel — the same
+ *  ownership rule the UI applies, so the agent and the user see the same set. */
+export async function listOwnedWaitpoints(
   sessionId: string,
+  channel: string | null,
   deps: WaitpointServiceDeps = productionWaitpointDeps,
 ): Promise<Waitpoint[]> {
-  return (await deps.repo.list()).filter((wp) => wp.owner.sessionId === sessionId);
-}
-
-/** Public view of a waitpoint — never leaks `secretHash`. */
-export function publicView(wp: Waitpoint): Record<string, unknown> {
-  const need = wp.quorum.need;
-  return {
-    id: wp.id,
-    label: wp.label,
-    intent: wp.intent,
-    state: wp.state,
-    quorum: { need, got: wp.quorum.got.length, members: wp.quorum.members },
-    fires: wp.fires,
-    max_signals: wp.maxSignals,
-    emit_from: wp.emitFrom,
-    created_at: new Date(wp.createdAt).toISOString(),
-    expires_at: new Date(wp.expiresAt).toISOString(),
-    resolved_at: wp.resolvedAt ? new Date(wp.resolvedAt).toISOString() : null,
-    signals: wp.signals.map((s) => ({
-      at: new Date(s.at).toISOString(),
-      status: s.status,
-      member: s.member,
-      message: s.message,
-      source: s.source,
-    })),
-  };
+  return (await deps.repo.list()).filter((wp) => ownsWaitpoint(wp, sessionId, channel));
 }

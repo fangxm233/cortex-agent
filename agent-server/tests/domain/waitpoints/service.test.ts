@@ -10,8 +10,7 @@ import {
   createWaitpoint,
   expireDueWaitpoints,
   hashSecret,
-  listWaitpointsForSession,
-  publicView,
+  listOwnedWaitpoints,
   releaseHeldWakes,
   DATA_MAX_CHARS,
   MAX_TTL_MS,
@@ -19,6 +18,7 @@ import {
   RESOLVED_RETENTION_MS,
   type WaitpointServiceDeps,
 } from '../../../src/domain/waitpoints/service.js';
+import { agentWaitpointView } from '../../../src/domain/waitpoints/view.js';
 
 let tmpDir: string;
 
@@ -357,21 +357,31 @@ test('cancel disarms an armed point once and is a no-op afterwards', async () =>
 
 // ── queries / views ────────────────────────────────────────────
 
-test('listWaitpointsForSession scopes by owner and publicView never leaks the secret hash', async () => {
+test('the owned list uses the UI ownership rule and the agent view never leaks the secret hash', async () => {
   const h = harness();
-  const { waitpoint } = await makeOne(h);
+  const { waitpoint, secret } = await makeOne(h);
+  // Armed by an earlier session on this channel: its wake lands here, so it is this session's too.
+  const inherited = await createWaitpoint(
+    { label: 'earlier', intent: 'x', owner: { sessionId: 'sess-0', channel: 'web:chan-1' } },
+    h.deps,
+  );
   await createWaitpoint(
     { label: 'other', intent: 'x', owner: { sessionId: 'sess-2', channel: 'web:other' } },
     h.deps,
   );
+  await applySignal({ id: waitpoint.id, secret, data: 'payload-xyz', source: 'http' }, h.deps);
 
-  const mine = await listWaitpointsForSession('sess-1', h.deps);
-  assert.deepEqual(mine.map((w) => w.id), [waitpoint.id]);
+  const mine = await listOwnedWaitpoints('sess-1', 'web:chan-1', h.deps);
+  assert.deepEqual(mine.map((w) => w.id).sort(), [waitpoint.id, inherited.waitpoint.id].sort());
+  assert.deepEqual((await listOwnedWaitpoints('sess-1', null, h.deps)).map((w) => w.id), [waitpoint.id]);
 
-  const view = publicView((await h.repo.get(waitpoint.id))!);
+  const view = agentWaitpointView((await h.repo.get(waitpoint.id))!, 1_700_000_000_000, 12);
   assert.equal('secretHash' in view, false);
   assert.equal(JSON.stringify(view).includes(waitpoint.secretHash), false);
+  assert.equal(JSON.stringify(view).includes('payload-xyz'), false, 'signal data stays out of the view');
   assert.equal(view.id, waitpoint.id);
+  assert.equal(view.state, 'fired');
+  assert.equal(typeof view.resolved_at, 'string');
 });
 
 // ── persistence ────────────────────────────────────────────────
