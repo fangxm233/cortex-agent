@@ -55,7 +55,7 @@ TRUNCATED_SSE_53_BYTES = (
     b'data: {"type":"error","code":"synthetic_refusal_1"}\n\n'
 )
 CLAUDE_OFFLINE_EVIDENCE_SHA256 = (
-    "50ebdbae35cf82f50dc7ec03f500f529a16003e0320fbc6ad6425683bfbb7c76"
+    "41f2653b2ca7ac73af7254e131f5a8b1e6565c0683c20dc6b525c52c9ec348ed"
 )
 
 
@@ -316,7 +316,7 @@ def assert_live_evidence(tmp_path: Path, evidence_path: Path) -> None:
     assert evidence["revocation_proven"] is True
     assert evidence["adapter_id"] == "anthropic-messages/subscription-oauth"
     assert evidence["capability_key"]["runner_or_backend"] == "claude-code"
-    assert evidence["claude_code_version"] == "2.1.232"
+    assert evidence["claude_code_version"] == "2.1.291"
     assert row.state == "offline-contract-passed"
     assert HOST_CREDENTIAL not in "".join(
         path.read_text(errors="ignore") for path in tmp_path.rglob("*") if path.is_file())

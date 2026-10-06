@@ -20,8 +20,22 @@ DEEPSEEK_OFFLINE_CONTRACT = {
     "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
     "mutation_manifest_sha256": "a362d72a1c3fab94b0ac34dc2722695412a5c695278bba60ea7d964760456286",
 }
+# Moving the Claude Code pin. The CLI version and the model the campaign freezes move together,
+# because the container gets no model override and the proxy refuses any other model:
+#   1. Probe the new CLI's native default against a loopback upstream (the probe in
+#      tests/package/test_vendor_model_freeze.py) and record it in launcher/arms.py
+#      CLAUDE_CODE_NATIVE_MODELS, scripts/vendor-runtime-preflight.js and the campaign arms.
+#   2. Recapture tests/fixtures/vendor-wire/claude-code (RUN_CLAUDE_CODE_VENDOR_WIRE=1 runs the
+#      capture; the test prints where it wrote the document) and update pin.json from the
+#      release manifest.
+#   3. Re-derive the synthetic observation and the offline record from that capture, update the
+#      CLAUDE_* constants below and drop the registry row to offline-contract-passed.
+#   4. One native-default live handshake through the handshake proxy promotes the row again.
+#   5. Bump scripts/zero-paid-runtime-inputs.json and terminal-bench-2.1-images.json, rebuild the
+#      claude-code variants with provision-terminal-bench-images.sh (--capture-digests, then a
+#      verifying rebuild) and pin the new digests in the campaign tasks.
 CLAUDE_OFFLINE_CONTRACT = {
-    "claude_code_version": "2.1.232",
+    "claude_code_version": "2.1.291",
 }
 CODEX_OFFLINE_CONTRACT = {
     "implementation_commit": "418aca2685ebf84507540613edc6fdbe1b813a04",
@@ -31,12 +45,14 @@ PI_CODEX_OFFLINE_CONTRACT = {
     "implementation_commit": "1d082ce02fbc634198e576b8f9757a833e89bed9",
     "pi_version": "0.82.1",
 }
-CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
+CLAUDE_P0_CAPTURE_SHA256 = "d2276523d7cf7887c23677cf3749fddb05a2819258293bb7ba8646236659f056"
+CLAUDE_P0_MODEL = "claude-sonnet-5-5"
 CLAUDE_P0_BETA_HEADER = (
     "claude-code-20250219,interleaved-thinking-2025-05-14,"
     "thinking-token-count-2026-05-13,context-management-2025-06-27,"
     "prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,"
-    "effort-2025-11-24"
+    "per-turn-control-2026-07-01,effort-2025-11-24,dangerous-tool-use-2026-09-03,"
+    "thinking-display-updates-2026-08-18,afk-mode-2026-01-31"
 )
 
 
@@ -175,7 +191,7 @@ def _validate_synthetic_observation(
         "claude_code_version": evidence["claude_code_version"],
         "request": {
             "method": "POST", "target": "/v1/messages?beta=true",
-            "model": "claude-sonnet-5",
+            "model": CLAUDE_P0_MODEL,
             "retained_headers": {
                 "anthropic-beta": CLAUDE_P0_BETA_HEADER,
                 "anthropic-version": "2023-06-01",

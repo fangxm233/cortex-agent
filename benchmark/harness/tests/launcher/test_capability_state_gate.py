@@ -127,7 +127,7 @@ def test_an_offline_admitted_row_cannot_arm_a_paid_route(
 
 def test_shipped_claude_live_row_admits_paid_routes() -> None:
     arm = cortex_arm(
-        "claude-subscription", model="claude-opus-5", backend="claude-code",
+        "claude-subscription", model="claude-opus-5-5", backend="claude-code",
     )
     expected = next(
         key for key, row in CAPABILITY_REGISTRY.items()

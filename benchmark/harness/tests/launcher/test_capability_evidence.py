@@ -109,7 +109,8 @@ def test_validates_shipped_claude_live_and_synthetic_evidence() -> None:
         live_path, row.evidence_sha256, capability_id=row.id, key=key, state=row.state,
         adapter_id="anthropic-messages/subscription-oauth",
     )
-    assert live["claude_code_version"] == "2.1.232"
+    assert live["claude_code_version"] == "2.1.291"
+    assert live["request_count"] == 1
 
     offline_path = EVIDENCE_DIR / "claude-subscription.offline-contract-passed.json"
     offline_digest = hashlib.sha256(offline_path.read_bytes()).hexdigest()
@@ -119,6 +120,7 @@ def test_validates_shipped_claude_live_and_synthetic_evidence() -> None:
         adapter_id="anthropic-messages/subscription-oauth",
     )
     validate_offline_supporting_artifacts(offline_path.parent, offline)
+    assert offline["claude_code_version"] == live["claude_code_version"]
 
 
 def test_validates_shipped_codex_live_evidence() -> None:
