@@ -5,10 +5,8 @@ import { readClaudeStore } from '@core/claude-credentials.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { resolveRunConfig } from '../runs/config-resolver.js';
-import {
-  getActiveProfile,
-  getSavedApiEnv as readSavedApiEnv,
-} from '../agents/config.js';
+import { getActiveProfile } from '../agents/config.js';
+import { getSavedApiEnv as readSavedApiEnv } from './anthropic-env.js';
 import {
   listProfiles as readProfiles,
   resolveProfileConfig,

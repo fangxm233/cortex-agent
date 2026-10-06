@@ -49,7 +49,8 @@ import { executionRepo } from '@store/execution-repo.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
-import { applyAuthEnv, defaultClaudeModel } from '@domain/agents/index.js';
+import { defaultClaudeModel } from '@domain/agents/index.js';
+import { applyAuthEnv } from '@domain/auth/anthropic-env.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
 import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
@@ -151,9 +152,9 @@ if (!shouldSyncManagedStartupAssets()) {
 }
 
 // Project the saved credentials onto this process's env now that .env is loaded — the gateway
-// child inherits them. This used to be an import-time side effect inside domain/agents/config.ts;
-// it is explicit here so that CLI processes (cortex init / setup-gateway) importing that module
-// don't get their env mutated. Mode routing is resolved per spawn, never here.
+// child inherits them. Explicit here rather than at import, so CLI processes (cortex init /
+// setup-gateway) importing the module don't get their env mutated. Mode routing is resolved per
+// spawn, never here.
 applyAuthEnv();
 // The "daemon's Claude model" PI's subagent catalog and the MCP tool context read.
 process.env.CORTEX_CLAUDE_MODEL = defaultClaudeModel();

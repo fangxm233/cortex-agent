@@ -161,7 +161,7 @@ test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth
   _testSetHealthy(false);
   const { loginClaudeApiKey } = await import('../../src/domain/auth/cc-login.js');
   const { getAuthStatus } = await import('../../src/domain/auth/auth-status.js');
-  const config = await import('../../src/domain/agents/config.js');
+  const config = await import('../../src/domain/auth/anthropic-env.js');
   assert.equal((await readClaudeStatus(getAuthStatus)).state, 'logged-out');
   process.env.ANTHROPIC_API_KEY = OLD_KEY;
   const recovered = captureRecovery();
@@ -176,7 +176,7 @@ test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth
 
 test('Claude and Feishu dotenv writes preserve both concurrent updates', async (t) => {
   const fixture = setupAuthFixture(t);
-  const { saveAnthropicApiKey } = await import('../../src/domain/agents/config.js');
+  const { saveAnthropicApiKey } = await import('../../src/domain/auth/anthropic-env.js');
   const { upsertEnvVar } = await import('../../src/entry/feishu-login.js');
 
   const claudeWrite = saveAnthropicApiKey(NEW_KEY);

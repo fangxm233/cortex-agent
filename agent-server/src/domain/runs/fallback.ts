@@ -10,7 +10,7 @@ import type { ResolvedProfileConfig, RunAttemptConfig } from '../agents/profile-
 import { configIsRateLimited, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
 
 export { configIsRateLimited, rateLimitedResult, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
-export { isRetryableError, isRetryableResult } from '../agents/config.js';
+export { isRetryableError, isRetryableResult } from './retryable-errors.js';
 
 /**
  * The attempts a run may make, in order: the profile itself, then its declared fallbacks.

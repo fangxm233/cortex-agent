@@ -6,7 +6,7 @@ import {
   getSavedApiEnv,
   removeAnthropicApiKey,
   removeClaudeCodeOAuthToken,
-} from '../agents/config.js';
+} from './anthropic-env.js';
 import { logoutClaudeAuth } from './cc-auth-cli.js';
 import {
   getAuthStatus,

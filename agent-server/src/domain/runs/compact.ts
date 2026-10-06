@@ -7,7 +7,7 @@
 import type { Backend, EngineSession, EngineSpec } from '../../agent-adapter/types.js';
 import type { AgentCompactResult } from '../../agent-adapter/types.js';
 import { recordCost } from '../costs/cost-tracker.js';
-import { resolveModeEnv, type ModeEnv } from '../agents/config.js';
+import { resolveModeEnv, type ModeEnv } from './mode-env.js';
 import { resolveProfileConfig, type ResolvedProfileConfig } from '../agents/profile-manager.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';

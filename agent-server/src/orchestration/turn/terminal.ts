@@ -14,7 +14,7 @@ import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index
 
 import { maybeNotifyTurnComplete } from '../turn-notify.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
-import { isApiRateLimitError } from '@domain/agents/config.js';
+import { isApiRateLimitError } from '@domain/runs/retryable-errors.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { durablePost, getOutboundQueue } from '@store/outbound-queue.js';
 

@@ -2,7 +2,7 @@ import { t } from '@core/i18n.js';
 import {
   applyAuthEnv,
   saveAnthropicApiKey,
-} from '../agents/config.js';
+} from './anthropic-env.js';
 import { publishAuthRecovered } from './auth-events.js';
 import type { AuthInteraction, LoginOutcome } from './login-flow.js';
 

@@ -7,7 +7,7 @@ import { resolveMcpComposition } from '../../agent-adapter/types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
-import type { ModeEnv } from '../agents/config.js';
+import type { ModeEnv } from './mode-env.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import type { RunRequest } from './request.js';
 

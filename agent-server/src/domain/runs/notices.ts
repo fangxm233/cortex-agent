@@ -14,7 +14,7 @@ import { t } from '../../core/i18n.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
-import { isApiRateLimitError } from '../agents/config.js';
+import { isApiRateLimitError } from './retryable-errors.js';
 import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
 import { attemptLabel } from './fallback.js';
 

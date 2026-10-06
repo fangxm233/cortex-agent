@@ -19,7 +19,7 @@ import type { AwaitBackground } from '../../agent-adapter/continuation-phase.js'
 import type { RunEvent } from '../../agent-adapter/run-events.js';
 import type { EventObserver, NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
-import type { ModeEnv } from '../agents/config.js';
+import type { ModeEnv } from './mode-env.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';

@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'vitest';
-import { getSavedApiEnv } from '../../src/domain/agents/config.js';
+import { getSavedApiEnv } from '../../src/domain/auth/anthropic-env.js';
 import {
   getAuthStatus,
   preferredAuthType,

@@ -7,8 +7,8 @@ import type { UserMessage } from '../../agent-adapter/types.js';
 import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
-import type { ModeEnv } from '../agents/config.js';
-import { isRetryableError, isRetryableResult } from '../agents/config.js';
+import type { ModeEnv } from './mode-env.js';
+import { isRetryableError, isRetryableResult } from './retryable-errors.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {

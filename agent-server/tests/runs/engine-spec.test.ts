@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import * as path from 'node:path';
 import { specFromFixture, type RunRequestFixtureInput } from '../run-request-fixture.js';
 import type { RunAttemptConfig } from '../../src/domain/agents/profile-manager.js';
-import type { ModeEnv } from '../../src/domain/agents/config.js';
+import type { ModeEnv } from '../../src/domain/runs/mode-env.js';
 import type { EngineSpec } from '../../src/agent-adapter/types.js';
 import { DATA_DIR, CONFIG_DIR } from '../../src/core/paths.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';

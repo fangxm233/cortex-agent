@@ -1,6 +1,6 @@
 import { createLogger } from '@core/log.js';
 import type { ChatNoticeLevel, ContextUsage, NoticeAction, ToolResultImage } from '@core/types/agent-types.js';
-import { isApiRateLimitError } from '@domain/agents/config.js';
+import { isApiRateLimitError } from '@domain/runs/retryable-errors.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { t } from '../../core/i18n.js';
 import type { HoldRenderer, HoldTotals, SealedVerdict } from './background-hold.js';

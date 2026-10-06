@@ -24,7 +24,7 @@ const REAL_PI_AUTH = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
 let consoleCalls: unknown[][] = [];
 
 type LogoutModule = typeof import('../../src/domain/auth/logout.js');
-type ConfigModule = typeof import('../../src/domain/agents/config.js');
+type ConfigModule = typeof import('../../src/domain/auth/anthropic-env.js');
 type StatusModule = typeof import('../../src/domain/auth/auth-status.js');
 
 interface FileStamp {
@@ -100,7 +100,7 @@ function claudeStatusOptions(root: string, mode: 'api' | 'plan'): GetAuthStatusO
 }
 
 async function resetSavedEnv(): Promise<ConfigModule> {
-  const config = await import('../../src/domain/agents/config.js');
+  const config = await import('../../src/domain/auth/anthropic-env.js');
   await config.removeAnthropicApiKey();
   await config.removeClaudeCodeOAuthToken();
   writeFile(ENV_FILE, '', 0o600);

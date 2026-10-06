@@ -8,6 +8,9 @@ import { importFresh } from './module-loader.js';
 
 // Standard import (no cache buster) — same singleton instance that mode-manager uses
 import { _testSetHealthy, GATEWAY_URL } from './../src/domain/costs/gateway-manager.js';
+import * as anthropicEnv from './../src/domain/auth/anthropic-env.js';
+import { resolveModeEnv } from './../src/domain/runs/mode-env.js';
+import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from './../src/core/utils.js';
 
 test('resolveModeEnv(api) sets placeholder key when no key available and gateway healthy', async (t) => {
   const modeManager = await freshConfigWithSavedEnv(t, '', true);
@@ -85,7 +88,7 @@ function restoreFile(file: string, contents: string | undefined): void {
   else fs.writeFileSync(file, contents);
 }
 
-test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effect)', async (t) => {
+test('importing the credential and route modules does NOT mutate ANTHROPIC_API_KEY (no module side effect)', async (t) => {
   await freshConfigWithSavedEnv(t, '', false);
 
   // CLI processes (cortex init / setup-gateway) import this module transitively and the
@@ -96,12 +99,16 @@ test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effe
   process.env.ANTHROPIC_API_KEY = 'sk-import-probe';
   process.env.ANTHROPIC_BASE_URL = 'https://import-probe.example.test';
 
-  await importFresh('./../src/domain/agents/config.js');
+  for (const modulePath of [
+    './../src/domain/auth/anthropic-env.js',
+    './../src/domain/runs/mode-env.js',
+    './../src/domain/agents/config.js',
+  ]) await importFresh(modulePath);
 
   assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-import-probe',
-    'importing config.js must not delete/rewrite ANTHROPIC_API_KEY');
+    'importing these modules must not delete/rewrite ANTHROPIC_API_KEY');
   assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://import-probe.example.test',
-    'importing config.js must not delete/rewrite ANTHROPIC_BASE_URL');
+    'importing these modules must not delete/rewrite ANTHROPIC_BASE_URL');
 });
 
 // --- resolveModeEnv: the mode decision as a value, not a global write (plan §4.1) ---
@@ -120,10 +127,9 @@ function restoreRouteEnv(snapshot: Record<string, string | undefined>): void {
   }
 }
 
-// The saved-credential snapshot is captured when config.js is evaluated, so the dotenv
-// fixture must land BEFORE the fresh import; process.env is cleared so the fixture is
-// the only credential source (getSavedApiEnv prefers process.env over the file).
-// Fresh-import the state owner, not the SDK-heavy barrel: its query does not reset config.
+// The saved-credential snapshot outlives a read, so it is reset AFTER the dotenv fixture lands;
+// process.env is cleared so the fixture is the only credential source (getSavedApiEnv prefers
+// process.env over the file).
 async function freshConfigWithSavedEnv(
   t: { onTestFinished: (fn: () => void) => void },
   dotenv: string,
@@ -140,7 +146,8 @@ async function freshConfigWithSavedEnv(
   for (const key of ROUTE_ENV_KEYS) delete process.env[key];
   fs.writeFileSync(envFile, dotenv);
   _testSetHealthy(healthy);
-  return importFresh('./../src/domain/agents/config.js');
+  anthropicEnv._testResetSavedApiEnv();
+  return { ...anthropicEnv, resolveModeEnv, GATEWAY_MANAGED_KEY_PLACEHOLDER };
 }
 
 test('resolveModeEnv(plan) routes via gateway and marks the API key for deletion', async (t) => {

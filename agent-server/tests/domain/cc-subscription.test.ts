@@ -22,7 +22,7 @@ import { initAuthEvents } from '../../src/domain/auth/auth-events.js';
 import {
   applyAuthEnv,
   removeClaudeCodeOAuthToken,
-} from '../../src/domain/agents/config.js';
+} from '../../src/domain/auth/anthropic-env.js';
 import { _testSetHealthy } from '../../src/domain/costs/gateway-manager.js';
 
 const AUTH_URL = 'https://claude.com/cai/oauth/authorize?code=true&state=fixture';

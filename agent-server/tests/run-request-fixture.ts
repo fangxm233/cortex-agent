@@ -7,7 +7,7 @@
 // here rather than replaced by the request contract's own.
 
 import type { EngineSpec } from '../src/agent-adapter/types.js';
-import type { ModeEnv } from '../src/domain/agents/config.js';
+import type { ModeEnv } from '../src/domain/runs/mode-env.js';
 import type { ResolvedProfileConfig, RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
 import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import type { RunRequest } from '../src/domain/runs/request.js';

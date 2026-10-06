@@ -2,7 +2,7 @@ import { t } from '@core/i18n.js';
 import {
   applyAuthEnv,
   removeClaudeCodeOAuthToken,
-} from '../agents/config.js';
+} from './anthropic-env.js';
 import {
   ClaudeAuthCliError,
   loginClaudeAuth,

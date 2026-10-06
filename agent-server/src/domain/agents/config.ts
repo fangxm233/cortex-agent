@@ -1,170 +1,34 @@
-import { readFileSync } from 'fs';
-import { mutateFileAtomically } from '@core/atomic-write.js';
-import * as path from 'path';
-import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
-import { CONFIG_DIR } from '@core/paths.js';
-import {
-  apiKeyValue, claudeOwnsOAuthCredential, credentialValue, readDotenvCredentials,
-  type DotenvCredentials,
-} from '@core/claude-credentials.js';
-import { resolveProfileConfig } from './profile-manager.js';
-import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
-import { classifyAuthError } from '../auth/auth-events.js';
-import { createLogger } from '@core/log.js';
+import { getDefaultProfileName, resolveProfileConfig } from './profile-manager.js';
 import {
   loadAgentState, saveAgentState,
   type AgentState, type ChannelOverride, type SelectionDefault,
 } from './agent-state.js';
 import type { Backend } from '../../agent-adapter/types.js';
 
-const log = createLogger('config');
-
-const ENV_FILE = path.join(CONFIG_DIR, '.env');
-
-export type ApiEnv = DotenvCredentials;
-
-// Per-request mode URL: encodes mode in URL path so gateway resolves endpoints per-request
-// instead of relying on global POST /mode state (eliminates race conditions)
-export function gatewayModeUrl(mode: string, metadata?: Record<string, string>): string {
-  if (metadata && Object.keys(metadata).length > 0) {
-    const metaStr = Object.entries(metadata)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join(",");
-    return `${GATEWAY_URL}/m/${mode}/${metaStr}/anthropic`;
-  }
-  return `${GATEWAY_URL}/m/${mode}/anthropic`;
-}
-
-function captureApiEnvSnapshot(): ApiEnv {
-  const fileEnv = readDotenvCredentials();
-  const processOauthToken = credentialValue(process.env.CLAUDE_CODE_OAUTH_TOKEN);
-  const oauthToken = processOauthToken || fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  const expiryMatchesToken = oauthToken !== undefined
-    && oauthToken === fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  return {
-    ANTHROPIC_API_KEY: apiKeyValue(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
-    ANTHROPIC_BASE_URL: credentialValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
-    CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
-    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiryMatchesToken
-      ? fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
-      : undefined,
-  };
-}
-
-let savedApiEnv: ApiEnv = captureApiEnvSnapshot();
-
-export function getSavedApiEnv(): ApiEnv {
-  const liveEnv = captureApiEnvSnapshot();
-  if (liveEnv.ANTHROPIC_API_KEY) savedApiEnv.ANTHROPIC_API_KEY = liveEnv.ANTHROPIC_API_KEY;
-  if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
-  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = liveEnv.CLAUDE_CODE_OAUTH_TOKEN
-    ? liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
-    : undefined;
-  return { ...savedApiEnv };
-}
-
-function requireAnthropicApiKey(value: string): string {
-  const key = apiKeyValue(value);
-  if (!key || /[\s"\\]/.test(key)) throw new Error('Enter a valid Anthropic API key.');
-  return key;
-}
-
-function savedEnvMatcher(name: string, flags: string): RegExp {
-  return new RegExp(`^[ \\t]*(?:export[ \\t]+)?${name}[ \\t]*=.*$`, flags);
-}
-
-function upsertSavedEnv(contents: string, name: string, value: string): string {
-  const assignment = `${name}=${JSON.stringify(value)}`;
-  const matcher = savedEnvMatcher(name, 'm');
-  if (matcher.test(contents)) return contents.replace(savedEnvMatcher(name, 'gm'), assignment);
-  const separator = contents.length === 0 || contents.endsWith('\n') ? '' : '\n';
-  return `${contents}${separator}${assignment}\n`;
-}
-
-function removeSavedEnv(contents: string, name: string): string {
-  const line = savedEnvMatcher(name, 'gm');
-  return contents.replace(new RegExp(`${line.source}(?:\\r?\\n|$)`, 'gm'), '');
-}
-
-async function saveCredential(name: string, value: string): Promise<void> {
-  await mutateFileAtomically(
-    ENV_FILE,
-    contents => upsertSavedEnv(contents, name, value),
-    { mode: 0o600 },
-  );
-}
-
-async function removeCredentials(names: string[]): Promise<void> {
-  await mutateFileAtomically(
-    ENV_FILE,
-    contents => names.reduce(removeSavedEnv, contents),
-    { mode: 0o600 },
-  );
-}
-
-export async function saveAnthropicApiKey(value: string): Promise<void> {
-  const key = requireAnthropicApiKey(value);
-  await saveCredential('ANTHROPIC_API_KEY', key);
-  savedApiEnv.ANTHROPIC_API_KEY = key;
-  process.env.ANTHROPIC_API_KEY = key;
-}
-
-export async function removeAnthropicApiKey(): Promise<void> {
-  await removeCredentials(['ANTHROPIC_API_KEY']);
-  savedApiEnv.ANTHROPIC_API_KEY = undefined;
-  delete process.env.ANTHROPIC_API_KEY;
-}
-
-export async function removeClaudeCodeOAuthToken(): Promise<void> {
-  await removeCredentials([
-    'CLAUDE_CODE_OAUTH_TOKEN',
-    'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT',
-  ]);
-  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = undefined;
-  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = undefined;
-  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-}
-
-/**
- * Which OAuth token the daemon may hold. Two stores can answer — `CONFIG_DIR/.env` and
- * `~/.claude/.credentials.json` — and the two old writers disagreed: `applySavedApiEnv`
- * projected the .env copy unconditionally while `applySavedOAuthToken` deleted it as soon as
- * Claude owned a credential, so which one won came down to call order.
- *
- * Arbitration: Claude's own credential wins. It is the one `claude login` writes and refreshes,
- * while the .env copy is a static token nobody rotates — leaving it in the env would silently
- * shadow the live credential in every child that inherits it, and it would outlive a logout that
- * only Claude's store recorded. So the .env token is a fallback for machines where Claude owns
- * nothing, never an override.
- */
-function savedOAuthToken(saved: ApiEnv): string | null {
-  if (claudeOwnsOAuthCredential()) return null;
-  return saved.CLAUDE_CODE_OAUTH_TOKEN ?? null;
-}
-
+/** The host's selection state. The one copy in memory, mirrored to agent-state.json on every change. */
 let agentState: AgentState = loadAgentState();
-let activeProfile: string | null = agentState.activeProfile;
-let channelProfiles: Record<string, string> = agentState.channelProfiles;
-let defaultAgent: string | null = agentState.defaultAgent;
-let channelAgents: Record<string, string> = agentState.channelAgents;
 
-/** Persist every field this module owns. `agentState` stays the one object on disk. */
-function persist(): void {
-  agentState = { ...agentState, activeProfile, channelProfiles, defaultAgent, channelAgents };
+function commit(next: AgentState): void {
+  agentState = next;
   saveAgentState(agentState);
 }
 
+/** `map` with `key` set to `value`, or removed when `value` is null. */
+function withEntry(map: Record<string, string>, key: string, value: string | null): Record<string, string> {
+  const next = { ...map };
+  if (value) next[key] = value;
+  else delete next[key];
+  return next;
+}
+
 export function getActiveProfile(channel?: string): string | null {
-  if (channel && channelProfiles[channel]) return channelProfiles[channel];
+  const channelProfile = channel ? agentState.channelProfiles[channel] : undefined;
+  if (channelProfile) return channelProfile;
   // '__active__' is the init default — resolve to profiles.json defaultProfile if still unset
-  if (activeProfile === '__active__') {
-    try {
-      const data = JSON.parse(readFileSync(path.join(CONFIG_DIR, 'profiles.json'), 'utf8'));
-      return data.defaultProfile || null;
-    } catch { return null; }
+  if (agentState.activeProfile === '__active__') {
+    try { return getDefaultProfileName() || null; } catch { return null; }
   }
-  return activeProfile;
+  return agentState.activeProfile;
 }
 
 const DEFAULT_CLAUDE_MODEL = 'opus';
@@ -212,21 +76,15 @@ export function resolveBackendForChannel(channel?: string): Backend {
 }
 
 export function setActiveProfile(profileName: string | null, channel?: string): void {
-  if (channel) {
-    if (profileName) {
-      channelProfiles[channel] = profileName;
-    } else {
-      delete channelProfiles[channel];
-    }
-  } else {
-    activeProfile = profileName;
+  if (!channel) {
+    commit({ ...agentState, activeProfile: profileName });
+    return;
   }
-  persist();
+  commit({ ...agentState, channelProfiles: withEntry(agentState.channelProfiles, channel, profileName) });
 }
 
 export function clearChannelProfile(channel: string): void {
-  delete channelProfiles[channel];
-  persist();
+  setActiveProfile(null, channel);
 }
 
 /** The channel's whole selection on top of its profile (model / provider / thinking). null when the
@@ -249,13 +107,12 @@ export function setChannelOverride(channel: string, patch: Partial<Record<keyof 
   const next: ChannelOverride = { ...overrides[channel] };
   for (const [field, value] of Object.entries(patch) as [keyof ChannelOverride, string | null | undefined][]) {
     if (value === undefined) continue;
-    if (value) next[field] = value;
-    else delete next[field];
+    if (value === null) delete next[field];
+    else next[field] = value;
   }
   if (Object.keys(next).length > 0) overrides[channel] = next;
   else delete overrides[channel];
-  agentState = { ...agentState, channelOverrides: overrides };
-  persist();
+  commit({ ...agentState, channelOverrides: overrides });
 }
 
 /**
@@ -273,8 +130,7 @@ export function setSelectionDefault(seed: SelectionDefault | null): void {
   // `setSelectionDefaultAgent` is the only writer of that half.
   const agentName = agentState.selectionDefault?.agentName;
   const next = seed && agentName && !seed.agentName ? { ...seed, agentName } : seed;
-  agentState = { ...agentState, selectionDefault: next ?? undefined };
-  persist();
+  commit({ ...agentState, selectionDefault: next ?? undefined });
 }
 
 /** Remember the composer's AGENT pick in the same seed, leaving the engine half alone. A null name
@@ -283,11 +139,7 @@ export function setSelectionDefaultAgent(agentName: string | null): void {
   const seed: SelectionDefault = { ...(agentState.selectionDefault ?? {}) };
   if (agentName) seed.agentName = agentName;
   else delete seed.agentName;
-  agentState = {
-    ...agentState,
-    selectionDefault: Object.keys(seed).length > 0 ? seed : undefined,
-  };
-  persist();
+  commit({ ...agentState, selectionDefault: Object.keys(seed).length > 0 ? seed : undefined });
 }
 
 /** The seed for the next conversation, or null when nothing has been picked on this host yet. */
@@ -301,8 +153,7 @@ export function clearChannelOverride(channel: string): void {
   if (!agentState.channelOverrides[channel]) return;
   const overrides = { ...agentState.channelOverrides };
   delete overrides[channel];
-  agentState = { ...agentState, channelOverrides: overrides };
-  persist();
+  commit({ ...agentState, channelOverrides: overrides });
 }
 
 /** Set or clear the channel's model override. Takes effect on the next turn — a live turn already
@@ -326,133 +177,28 @@ export function setChannelThinkingOverride(channel: string, thinking: string | n
  * independent axes (which model vs which environment) and each has its own channel map.
  */
 export function getDefaultAgent(channel?: string): string | null {
-  if (channel && channelAgents[channel]) return channelAgents[channel];
-  return defaultAgent;
+  const channelAgent = channel ? agentState.channelAgents[channel] : undefined;
+  return channelAgent || agentState.defaultAgent;
 }
 
 /** Set the agent for one channel (`channel` given) or the global default (omitted). A null name
  *  clears: for a channel that means "follow the global default again", globally it means "no
  *  default agent at all". */
 export function setDefaultAgent(name: string | null, channel?: string): void {
-  if (channel) {
-    if (name) channelAgents[channel] = name;
-    else delete channelAgents[channel];
-    persist();
+  if (!channel) {
+    commit({ ...agentState, defaultAgent: name });
     return;
   }
-  defaultAgent = name;
-  persist();
+  commit({ ...agentState, channelAgents: withEntry(agentState.channelAgents, channel, name) });
 }
 
 /** Drop the channel's agent selection — it follows the global default again. */
 export function clearChannelAgent(channel: string): void {
-  if (!channelAgents[channel]) return;
-  delete channelAgents[channel];
-  persist();
+  if (!agentState.channelAgents[channel]) return;
+  setDefaultAgent(null, channel);
 }
 
 /** Every channel that has selected an agent of its own. */
 export function getChannelAgents(): Record<string, string> {
-  return { ...channelAgents };
+  return { ...agentState.channelAgents };
 }
-
-export function isApiRateLimitError(errorMessage: string | null | undefined): boolean {
-  if (!errorMessage) return false;
-  const msg = errorMessage.toLowerCase();
-  return msg.includes('rate limit') || msg.includes('rate_limit') ||
-         msg.includes('overloaded') || msg.includes('529') ||
-         msg.includes('too many requests') || msg.includes('quota');
-}
-
-export function isRetryableResult(result: { rateLimited?: boolean } | null): boolean {
-  return result?.rateLimited === true;
-}
-
-const PERMANENT_PROVIDER_ERROR = /(?:invalid[_ ]request|forbidden|not found|request body too large|context(?: window|_length).*exceed|insufficient[_ ](?:balance|quota)|billing|quota exhausted)/i;
-const TRANSIENT_HTTP_STATUS = /(?:^(?:error\s*)?(?:408|500|502|503|504)\b|\bhttp(?: status)?\s*[:=]?\s*(?:408|500|502|503|504)\b|\bstatus(?: code)?\s*[:=]?\s*(?:408|500|502|503|504)\b)/i;
-const TRANSIENT_TRANSPORT_ERROR = /(?:fetch failed|econnreset|econnrefused|etimedout|eai_again|enotfound|socket hang up|connection (?:reset|refused|terminated|error)|upstream connection error|temporary failure in name resolution|(?:request|connection|connect|network|socket|tls|upstream).*tim(?:ed? out|eout))/i;
-const TRANSIENT_PROVIDER_GUIDANCE = /\byou can retry your request\b/i;
-
-export function isRetryableError(error: Error | null | undefined): boolean {
-  const message = error?.message;
-  if (!message || classifyAuthError(message) || PERMANENT_PROVIDER_ERROR.test(message)) return false;
-  return isApiRateLimitError(message)
-    || TRANSIENT_HTTP_STATUS.test(message)
-    || TRANSIENT_TRANSPORT_ERROR.test(message)
-    || TRANSIENT_PROVIDER_GUIDANCE.test(message);
-}
-
-/**
- * Which Anthropic route one connection needs. The base URL is always fully decided by the
- * route, so `undefined` there means "this route has no base URL" (unset the variable).
- * For the credentials, absent = the route has no opinion (leave as-is), null = must be deleted.
- */
-export interface ModeEnv {
-  ANTHROPIC_BASE_URL?: string;
-  ANTHROPIC_API_KEY?: string | null;
-  CLAUDE_CODE_OAUTH_TOKEN?: string | null;
-}
-
-function gatewayModeEnv(mode: string, metadata?: Record<string, string>): ModeEnv {
-  const ANTHROPIC_BASE_URL = gatewayModeUrl(mode, metadata);
-  // An API key takes precedence over the subscription token on the passthrough route.
-  if (mode === 'plan') return { ANTHROPIC_BASE_URL, ANTHROPIC_API_KEY: null };
-  const saved = getSavedApiEnv();
-  return {
-    ANTHROPIC_BASE_URL,
-    ANTHROPIC_API_KEY: saved.ANTHROPIC_API_KEY || GATEWAY_MANAGED_KEY_PLACEHOLDER,
-  };
-}
-
-function directModeEnv(mode: string): ModeEnv {
-  if (mode === 'plan') return { ANTHROPIC_API_KEY: null };
-  const saved = getSavedApiEnv();
-  return {
-    ANTHROPIC_BASE_URL: saved.ANTHROPIC_BASE_URL,
-    ANTHROPIC_API_KEY: saved.ANTHROPIC_API_KEY || null,
-    CLAUDE_CODE_OAUTH_TOKEN: saved.CLAUDE_CODE_OAUTH_TOKEN || null,
-  };
-}
-
-/**
- * The mode decision as a value: reads the saved credentials, writes no env. It is applied to one
- * spawn's environment only (the run's per-attempt route → engine-spec's routeEnvFields); nothing
- * projects it onto the daemon's own env, which carries saved credentials alone (applyAuthEnv).
- */
-export function resolveModeEnv(mode: string, metadata?: Record<string, string>): ModeEnv {
-  if (isGatewayHealthy()) return gatewayModeEnv(mode, metadata);
-  log.debug(`Gateway unhealthy — using direct Anthropic connection (mode=${mode})`);
-  return directModeEnv(mode);
-}
-
-function assignEnvVar(name: string, value: string | null | undefined): void {
-  if (value === undefined) return;
-  if (value === null) delete process.env[name];
-  else process.env[name] = value;
-}
-
-/**
- * Projects the saved credentials onto the daemon's own env — and nothing else. Mode routing never
- * lands here: it is resolved per spawn (resolveModeEnv) and applied to that child only, so the
- * daemon env can no longer decide how an unrelated process authenticates (K-053: the usage probe
- * inherited whichever mode configured the daemon last).
- *
- * What stays global is what other processes read out of this env: the aistatus gateway child
- * resolves `keys: ['$ANTHROPIC_API_KEY']` from it, and Claude spawns re-admit an ambient
- * CLAUDE_CODE_OAUTH_TOKEN. Both therefore see a real credential or none — never the gateway
- * placeholder, which apiKeyValue has already dropped from the saved snapshot.
- */
-export function applyAuthEnv(): void {
-  const saved = getSavedApiEnv();
-  const token = savedOAuthToken(saved);
-  assignEnvVar('ANTHROPIC_API_KEY', saved.ANTHROPIC_API_KEY ?? null);
-  assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN', token);
-  if (token === null) assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT', null);
-}
-
-// NOTE: deliberately NO env write at module scope. This module is imported transitively by CLI
-// processes (cortex init / setup-gateway), and an import-time write would
-// rewrite ANTHROPIC_API_KEY before gateway-generator discovery runs, breaking api endpoint
-// generation. The server entry (app.ts) calls applyAuthEnv() explicitly after dotenv loads.
-
-export { GATEWAY_MANAGED_KEY_PLACEHOLDER };

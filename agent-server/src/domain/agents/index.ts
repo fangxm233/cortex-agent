@@ -1,6 +1,6 @@
 // Usage: import { getActiveBackend, getActiveProfile, ... } from './domain/agents/index.js';
 //
-// Profiles / roles / credentials only. Starting a run, compacting a session and the engine spec
+// Profiles / roles / channel selection only. Starting a run, compacting a session and the engine spec
 // all belong to the run layer: import `startRun` from `@domain/runs/service.js`,
 // `compactAgentContext` from `@domain/runs/compact.js`, `buildEngineSpec` from
 // `@domain/runs/engine-spec.js`.

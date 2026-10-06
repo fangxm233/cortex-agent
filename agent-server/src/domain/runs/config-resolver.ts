@@ -1,5 +1,6 @@
 import type { ChannelOverride } from '../agents/agent-state.js';
-import { getActiveProfile, getChannelOverride, resolveModeEnv, type ModeEnv } from '../agents/config.js';
+import { getActiveProfile, getChannelOverride } from '../agents/config.js';
+import { resolveModeEnv, type ModeEnv } from './mode-env.js';
 import {
   getDefaultProfileName, resolveModeForProvider, resolveProfileConfig,
   type ResolvedProfileConfig, type RunAttemptConfig,
