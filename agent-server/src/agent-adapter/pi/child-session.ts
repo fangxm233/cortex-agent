@@ -10,8 +10,10 @@ export interface ChildSessionRequest {
   cwd: string;
   /** PI agent dir whose auth.json and models.json the child authenticates and routes with. */
   agentDir: string;
+  /** The child's selection, `provider/model:thinking` taken apart; each part may be absent. */
   provider: string | null;
   model: string | null;
+  thinking: string | null;
   /** Built-in tool names the child may use; undefined leaves PI's default set. */
   tools?: string[];
   /** Role prompt text appended to PI's system prompt. */
@@ -29,21 +31,28 @@ export interface ChildSessionHandle {
 
 export type ChildSessionFactory = (request: ChildSessionRequest) => Promise<ChildSessionHandle>;
 
-/** PI's own CLI resolver, so a role's `provider/model` selection behaves as `--provider --model` did. */
+type ResolvedChildModel = Pick<ReturnType<PiSdkModule['resolveCliModel']>, 'model' | 'thinkingLevel'>;
+
+/**
+ * PI's own CLI resolver, so a role's `provider/model:thinking` selection behaves as `--model` did.
+ * The parts are joined back into the one pattern they were parsed from: PI decides for itself
+ * whether a `/` prefix is a provider and whether a `:` suffix is a thinking level, and the level it
+ * finds is the one the child runs with.
+ */
 function resolveModel(
   sdk: PiSdkModule,
   request: ChildSessionRequest,
   modelRuntime: Parameters<PiSdkModule['resolveCliModel']>[0]['modelRuntime'],
-): ReturnType<PiSdkModule['resolveCliModel']>['model'] {
-  if (!request.model) return undefined;
+): ResolvedChildModel {
+  if (!request.model) return { model: undefined, thinkingLevel: undefined };
+  const named = request.provider ? `${request.provider}/${request.model}` : request.model;
   const resolved = sdk.resolveCliModel({
-    cliProvider: request.provider ?? undefined,
-    cliModel: request.model,
+    cliModel: request.thinking ? `${named}:${request.thinking}` : named,
     modelRuntime,
   });
   if (resolved.error) throw new Error(resolved.error);
   if (resolved.warning) log.warn(`PI subagent model resolution: ${resolved.warning}`);
-  return resolved.model;
+  return { model: resolved.model, thinkingLevel: resolved.thinkingLevel };
 }
 
 async function createChildServices(sdk: PiSdkModule, request: ChildSessionRequest) {
@@ -77,10 +86,12 @@ export async function createChildSession(request: ChildSessionRequest): Promise<
   for (const diagnostic of services.diagnostics) {
     if (diagnostic.type === 'error') log.warn(`PI subagent session: ${diagnostic.message}`);
   }
+  const { model, thinkingLevel } = resolveModel(sdk, request, services.modelRuntime);
   const created = await sdk.createAgentSessionFromServices({
     services,
     sessionManager: sdk.SessionManager.inMemory(request.cwd),
-    model: resolveModel(sdk, request, services.modelRuntime),
+    model,
+    thinkingLevel,
     tools: request.tools,
   });
   await created.session.bindExtensions({

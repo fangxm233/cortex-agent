@@ -12,7 +12,7 @@ import {
   type ApplySelectionRequest, type ApplySelectionResult, type ChannelSelection,
 } from '@domain/agents/index.js';
 import { findProfileForProvider, getDefaultProfileForBackend } from '@domain/agents/profile-manager.js';
-import { parseModelSpec } from '@domain/agents/subagent/runner.js';
+import { parseModelSpec } from '@core/agents/subagent/model-spec.js';
 import { isRebuildHeld } from '@domain/system/rebuild-hold.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
 import { cancelChannelRuns } from './routing/commands/cancel.js';

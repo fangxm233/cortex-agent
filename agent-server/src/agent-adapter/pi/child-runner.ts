@@ -2,6 +2,7 @@ import type { InlineExtension } from '@earendil-works/pi-coding-agent';
 import type { AgentRole } from '@core/agents/roles.js';
 import { roleToolsForBackend } from '@core/agents/roles.js';
 import { addTurnUsage, emptyUsage, finiteNumber } from '@core/agents/subagent/usage.js';
+import type { ModelSpec } from '@core/agents/subagent/model-spec.js';
 import type {
   ChildAccumulator, ChildEventForwarder, SubagentResult, SubagentTask,
 } from '@core/agents/subagent/types.js';
@@ -9,12 +10,6 @@ import { createChildSession, type ChildSessionFactory, type ChildSessionHandle }
 import { messageEndMessage, textFromMessage } from './child-events.js';
 import { withoutUnseenImages } from './event-parser.js';
 import { PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV } from './session-options.js';
-
-/** The parent's current model, offered when neither the task nor the role names one. */
-export interface PiModelFallback {
-  id: string;
-  provider?: string;
-}
 
 export interface PiChildRequest {
   task: SubagentTask;
@@ -24,7 +19,9 @@ export interface PiChildRequest {
   agentDir: string;
   /** The parent session's env; the child's is derived from it. */
   parentEnv: NodeJS.ProcessEnv;
-  fallbackModel?: PiModelFallback | null;
+  /** The child's model, already chosen by whoever launches it (`selectChildModel`); absent or empty
+   *  leaves the choice to PI's own default. Taken as is — nothing here picks again. */
+  model?: ModelSpec | null;
   /** Nested session factory; tests substitute a fake. */
   createSession?: ChildSessionFactory;
   /** The Cortex extensions the child loads, closed over the child's own env and the provider the
@@ -33,20 +30,6 @@ export interface PiChildRequest {
   childExtensions: (env: NodeJS.ProcessEnv, childProvider: string | null) => InlineExtension[];
   signal?: AbortSignal;
   forward?: ChildEventForwarder;
-}
-
-/** Explicit task model → role model → the parent's current model. */
-export function selectPiModel(
-  task: SubagentTask,
-  role: AgentRole,
-  fallback?: PiModelFallback | null,
-): { model?: string; provider?: string } {
-  const explicit = task.model?.trim();
-  if (explicit) return { model: explicit };
-  const roleModel = role.model?.trim();
-  if (roleModel) return { model: roleModel };
-  if (fallback) return { model: fallback.id, provider: fallback.provider };
-  return {};
 }
 
 /** The child's env: the parent's, marked as a subagent and stripped of the interaction bridge, so the child's tool shims skip the Agent tool and its MCP bridge loads only
@@ -61,13 +44,14 @@ export function buildChildEnv(parentEnv: NodeJS.ProcessEnv, agentDir: string): N
 /** Run one task on its own nested PI session; the session is disposed however the run ends. */
 export async function runPiChild(request: PiChildRequest): Promise<SubagentResult> {
   const { task, role } = request;
-  const selection = selectPiModel(task, role, request.fallbackModel);
+  const selection = request.model ?? {};
   const create = request.createSession ?? createChildSession;
   const handle = await create({
     cwd: request.cwd,
     agentDir: request.agentDir,
     provider: selection.provider ?? null,
     model: selection.model ?? null,
+    thinking: selection.thinking ?? null,
     tools: roleToolsForBackend(role, 'pi'),
     appendSystemPrompt: role.systemPrompt ? [role.systemPrompt] : [],
     extensions: request.childExtensions(

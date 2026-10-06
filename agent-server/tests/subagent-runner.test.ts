@@ -11,8 +11,9 @@ import {
   MAX_SUBAGENT_CONCURRENCY, MAX_SUBAGENT_TASKS, resolveInvocation,
 } from '@core/agents/subagent/schema.js';
 import {
-  _test as subagentRunnerTest, parseModelSpec, supportsSubagents,
+  _test as subagentRunnerTest, supportsSubagents,
 } from '../src/domain/agents/subagent/runner.js';
+import { parseModelSpec, selectChildModel } from '@core/agents/subagent/model-spec.js';
 import { profileRepo } from '../src/store/profile-repo.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type {
@@ -93,6 +94,17 @@ test('parseModelSpec splits provider, model and thinking, each part optional', (
 test('parseModelSpec does not mistake the scheme colon of a lone model id for a thinking level', () => {
   // A leading colon is not a separator: `lastIndexOf(':') > 0` is the guard.
   assert.deepEqual(parseModelSpec(':weird'), { model: ':weird', thinking: undefined });
+});
+
+test('selectChildModel: task, then role, then the parent\'s whole selection — never a mix', () => {
+  const parent = { model: 'glm-parent', provider: 'zai' };
+  assert.deepEqual(selectChildModel({ model: 'a/b:low' }, { model: 'role-model' }, parent),
+    { provider: 'a', model: 'b', thinking: 'low' });
+  assert.deepEqual(selectChildModel({}, { model: 'role-model' }, parent),
+    { model: 'role-model', thinking: undefined });
+  assert.deepEqual(selectChildModel({ model: '  ' }, {}, parent), { model: 'glm-parent', provider: 'zai' });
+  assert.deepEqual(selectChildModel({}, {}, { model: null, provider: 'zai' }), {});
+  assert.deepEqual(selectChildModel({}, {}, null), {});
 });
 
 test('a cross-backend Claude child uses the Claude backend default, never the PI channel mode', () => {

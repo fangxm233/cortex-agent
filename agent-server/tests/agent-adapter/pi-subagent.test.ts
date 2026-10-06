@@ -404,6 +404,26 @@ test('model resolution inherits parent provider and model when role has no model
   }
 });
 
+test('a named provider/model:thinking reaches the child session as its three parts', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute(
+      'tool-3b', singleParams({ model: 'deepseek/deepseek-chat:high' }), undefined, undefined,
+      context(harness.root, { id: 'parent-model', provider: 'parent-provider' }),
+    );
+    await waitForPrompts(harness, 1);
+    // Parsed once, by the launcher: the child gets the parts, the thinking level included, and none
+    // of the parent's selection is mixed in.
+    assert.equal(harness.calls[0].provider, 'deepseek');
+    assert.equal(harness.calls[0].model, 'deepseek-chat');
+    assert.equal(harness.calls[0].thinking, 'high');
+    harness.sessions[0].finish();
+    await run;
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('model resolution leaves PI defaults untouched when no source selects a model', async () => {
   const harness = createHarness();
   try {

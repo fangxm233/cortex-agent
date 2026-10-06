@@ -20,6 +20,7 @@ import type {
 import { subagentChannel } from './child-events.js';
 import { subagentEndNotice } from '@core/agents/subagent/attribution.js';
 import { runPiChild } from './child-runner.js';
+import { selectChildModel } from '@core/agents/subagent/model-spec.js';
 import type { SubagentNotice } from '@core/agents/subagent/types.js';
 
 /** The field descriptions track the live catalog, so the schema is built per tool instead of being
@@ -169,7 +170,8 @@ function buildRunChild(
     const execute = () => backend === 'pi'
       ? runPiChild({
         task, role, cwd: ctx.cwd, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
-        fallbackModel: ctx.model, createSession: deps.createSession,
+        model: selectChildModel(task, role, ctx.model && { model: ctx.model.id, provider: ctx.model.provider }),
+        createSession: deps.createSession,
         childExtensions: deps.childExtensions, signal, forward,
       })
       : runForeignChild(ctx, deps, task, role, backend, ref, signal);

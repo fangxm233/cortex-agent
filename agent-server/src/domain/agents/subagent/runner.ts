@@ -5,6 +5,7 @@ import type { AgentResult } from '@core/types/agent-types.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../../../agent-adapter/capabilities.js';
 import type { Backend } from '../../../agent-adapter/types.js';
 import type { SubagentNotice } from '@core/agents/subagent/types.js';
+import { parseModelSpec, selectChildModel, type ModelSpec } from '@core/agents/subagent/model-spec.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
@@ -60,50 +61,9 @@ export interface SubagentRunRequest {
   onNotice?: (notice: SubagentNotice) => void;
 }
 
-export interface ModelSpec {
-  provider?: string;
-  model?: string;
-  thinking?: string;
-}
-
-/**
- * `provider/model[:thinking]`, every part optional.
- *
- * A `claude` child keeps only `model` and `thinking` — a bare Claude model id has no provider
- * segment, so a spec carrying one was written for the other backend and its provider is dropped
- * rather than smuggled into `--model`.
- */
-export function parseModelSpec(spec: string | undefined): ModelSpec {
-  const trimmed = spec?.trim();
-  if (!trimmed) return {};
-  const colon = trimmed.lastIndexOf(':');
-  const thinking = colon > 0 ? trimmed.slice(colon + 1).trim() || undefined : undefined;
-  const rest = colon > 0 ? trimmed.slice(0, colon) : trimmed;
-  const slash = rest.indexOf('/');
-  if (slash < 0) return { model: rest || undefined, thinking };
-  return {
-    provider: rest.slice(0, slash) || undefined,
-    model: rest.slice(slash + 1) || undefined,
-    thinking,
-  };
-}
-
-/**
- * Task model → role model, and nothing else. The parent's own model is deliberately NOT a fallback
- * here: it is only meaningful to a child on the same backend, so each branch applies it itself.
- */
+/** Task model → role model, and nothing else: a Claude child applies the parent's model itself. */
 function resolveSpec(request: SubagentRunRequest): ModelSpec {
   return parseModelSpec(request.task.model?.trim() || request.role.model?.trim());
-}
-
-/** The parent's model, but only when the child runs the same backend — a Claude model id means
- *  nothing to PI, and a PI `provider/model` means nothing to Claude. */
-function parentModel(request: SubagentRunRequest): ModelSpec {
-  if (request.parent.backend !== request.backend) return {};
-  return {
-    provider: request.parent.provider ?? undefined,
-    model: request.parent.model ?? undefined,
-  };
 }
 
 /**
@@ -143,10 +103,13 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     import('../../../agent-adapter/pi/child-runner.js'),
     import('../../../agent-adapter/pi/tool-shims.js'),
   ]);
-  const inherited = parentModel(request);
-  const spec = resolveSpec(request);
-  const provider = spec.provider ?? inherited.provider;
+  // The parent's own model is a fallback only from a PI parent: a Claude model id means nothing to
+  // PI. What is selected here is what the child resolves — the route below is for that provider.
+  const model = selectChildModel(
+    request.task, request.role, request.parent.backend === 'pi' ? request.parent : null,
+  );
   const adapter = getPiEngineAdapter();
+  const provider = model.provider;
   if (provider) {
     const mode = resolvePiMode(request, provider);
     try {
@@ -154,20 +117,19 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
         provider,
         gatewayPath: buildPiGatewaySubPath(mode, provider) ?? null,
         gatewayBaseUrl: GATEWAY_URL,
-        model: spec.model,
+        model: model.model,
       });
     } catch (error) {
       log.warn(`Could not route provider ${provider} for a pi subagent: ${(error as Error).message}`);
     }
   }
-  const model = spec.model ?? inherited.model;
   return runPiChild({
     task: request.task,
     role: request.role,
     cwd: request.cwd,
     agentDir: adapter.agentDir,
     parentEnv: request.parent.env ?? process.env,
-    fallbackModel: model ? { id: model, provider } : null,
+    model,
     // A Claude parent delegating to a `pi` child builds the child outside any PI session, so the
     // Cortex bundle opener is bound here rather than inherited from a parent session (D10).
     childExtensions: (env) => childExtensions(env, openBundledMcpServer),
