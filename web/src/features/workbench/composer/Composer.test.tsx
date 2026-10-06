@@ -65,6 +65,10 @@ vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
         draftCommission,
         setDraftCommission,
         startCommissionDraft: vi.fn(),
+        draftSelection: { profileName: null, override: null },
+        setDraftSelection: vi.fn(),
+        pendingCreatedSession: null,
+        draftReloadToken: 0,
       };
     },
   };
@@ -72,6 +76,13 @@ vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
 
 vi.mock('./SessionSelector', async () => {
   const React = await import('react');
+  return {
+    SessionSelectorView: () => React.createElement('selection-chip'),
+    AgentSelectorView: () => React.createElement('agent-chip'),
+  };
+});
+
+vi.mock('@/features/session/composer/useSessionSelection', () => {
   return {
     useSessionSelection: () => ({
       open: false, setOpen: vi.fn(),
@@ -84,8 +95,6 @@ vi.mock('./SessionSelector', async () => {
       modelsReady: true,
       pickProfile: harness.pickProfile, pickModel: vi.fn(), pickThinking: vi.fn(),
     }),
-    SessionSelectorView: () => React.createElement('selection-chip'),
-    AgentSelectorView: () => React.createElement('agent-chip'),
   };
 });
 
@@ -125,12 +134,14 @@ function mountComposer(
         turnClock={null}
         currentProfile="plan"
         currentOverride={null}
-        draftSelection={{ profileName: null, override: null }}
         hasHistory
-        prepareOptimistic={() => ({ clientId: 'c1', text: '', attachments: [], createdAt: 0 }) as never}
-        enqueueOptimistic={() => {}}
-        acceptOptimistic={() => true}
-        rejectOptimistic={() => true}
+        optimistic={{
+          pendingUser: [],
+          prepare: () => ({ clientId: 'c1', text: '', attachments: [], createdAt: 0 }) as never,
+          enqueue: () => {},
+          accept: () => true,
+          reject: () => true,
+        }}
         compactAction={{ onCompact: compact, pending: false, disabled: false, status: null, error: null, disabledReason: null }}
         onOpenSettings={harness.openSettings}
         dropTargetRef={{ current: null }}

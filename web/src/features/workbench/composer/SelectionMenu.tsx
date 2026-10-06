@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import { SelectionPane as PaneMotion } from '@/design/SelectionPane';
 import type {
-  ModeOption, ModelOption, ProfileOption, SelectionRootRow, ThinkingOption,
+  ModeOption, ModelOption, ProfileOption, SelectionPane, SelectionRootRow, ThinkingOption,
 } from '@/features/session/list/selection-menu';
 import {
   Divider, MenuCard, MenuRow, MONO as mono, Note, rowBackground, SectionTitle, type HoverProps,
@@ -201,7 +201,7 @@ function ProfileRow({ option, nameCh, thinkingCh, onPick, hover, setHover }: {
   );
 }
 
-export type SelectionPane = 'root' | 'model' | 'thinking' | 'mode';
+export type { SelectionPane };
 
 export interface SelectionMenuProps {
   /** Already filtered to what this conversation can move to. */

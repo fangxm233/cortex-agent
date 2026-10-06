@@ -1,19 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useAllSessions, useProjectSessions } from '@/features/projects/useProjectSessions';
 import {
-  applyDraftSelection,
   resolveSelectedSessionId,
-  seedDraftSelection,
   DRAFT_SENTINEL,
-  EMPTY_DRAFT_SELECTION,
   type DraftSelection,
   type PendingCreatedSession,
   type SelectionChange,
 } from './selected-session';
 import { prefillProjectDraft } from '@/features/session/composer/composer-draft';
+import { useDraftSelection } from './useDraftSelection';
 
 // Cross-pane "selected session" state. A single source of truth for which session the center chat
 // shows, written by the LeftRail session rows (+ the "+ New session" control) and read by CenterChat.
@@ -55,7 +51,6 @@ interface SelectedSessionContextValue {
 const SelectedSessionContext = createContext<SelectedSessionContextValue | null>(null);
 
 export function SelectedSessionProvider({ children }: { children: ReactNode }) {
-  const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
   const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
   // Scheduled runs are selectable rail rows too (design 27a-B) — without them in the membership
@@ -63,9 +58,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
   const allDirectQuery = useAllSessions('direct');
   const allScheduledQuery = useAllSessions('scheduled');
-  const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
-  const [draftSelection, setDraftSelectionState] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
   const [draftReloadToken, setDraftReloadToken] = useState(0);
   // Deliberately NOT persisted into the localStorage composer draft: reopening a tab, or starting
   // the next draft, must not silently re-arm commission mode.
@@ -81,6 +74,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const pendingCreatedId = pendingCreatedSession?.sessionId ?? null;
   const selectedSessionId = resolveSelectedSessionId(override, selectableSessions, pendingCreatedId, sessions);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
+  const [draftSelection, setDraftSelection] = useDraftSelection(isDraft);
 
   // The most-recent fallback is a starting point, not a live value: latch it once both lists are in.
   // A stale override is replaced only when it provably belongs to another project, never while the
@@ -106,24 +100,6 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setPendingCreatedSession(null);
   }, [currentProjectId]);
-
-  // When entering draft mode, start from the last engine chosen on this host — profile included, so
-  // the draft is never left in the "no profile named" state the server has to guess about. Only
-  // while nothing has been picked for this draft yet; a user choice is never overwritten.
-  useEffect(() => {
-    if (!isDraft || draftSelection.profileName || draftSelection.override || draftSelection.agentName) return;
-    const profilesSnapshot = configQuery.data?.profiles;
-    if (!profilesSnapshot) return;
-    const seeded = seedDraftSelection(
-      configQuery.data?.selectionDefault, profilesSnapshot.profiles, profilesSnapshot.defaultProfile,
-    );
-    if (seeded) setDraftSelectionState(seeded);
-  }, [isDraft, draftSelection.profileName, draftSelection.override, draftSelection.agentName,
-    configQuery.data]);
-
-  const setDraftSelection = useCallback((change: SelectionChange) => {
-    setDraftSelectionState((current) => applyDraftSelection(current, change));
-  }, []);
 
   // Every explicit selection — a session row, a plain new draft — disarms commission mode: it is a
   // choice about ONE draft, and inheriting it into the next conversation would bind work to a

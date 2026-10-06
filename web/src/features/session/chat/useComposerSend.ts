@@ -1,0 +1,193 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { attachmentSendAllowed, uploadedAttachments, type AttachmentMeta } from '@/features/attachments/types';
+import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
+import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
+import {
+  buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
+  type SlashAction, type SlashSuggestion,
+} from '@/features/session/composer/composer-slash';
+import type { ProfileOption } from '@/features/session/list/selection-menu';
+import type { CommissionRequest } from '@/features/commission/CommissionOptIn';
+import type { DraftSelection } from '@/features/session/state/selected-session';
+import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
+import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
+import { useComposerDraft, type ComposerDraftScope, type ComposerDraftState } from './useComposerDraft';
+
+export type SlashFeedbackKey = ReturnType<typeof slashFeedbackKey>;
+
+/** What a draft's first message creates its session with, beyond the message itself. */
+export interface DraftCreation {
+  selection: DraftSelection;
+  browserDevice: string | null;
+  /** Already gated by the commission feature switch; null is "not a commission". */
+  commission: CommissionRequest | null;
+}
+
+export interface ComposerSlashHost {
+  /** The profiles this conversation can move to — the same filtered list its picker shows. */
+  profileOptions: ProfileOption[];
+  onNew: () => void;
+  onProfile: (name: string) => void;
+  onSettings: () => void;
+}
+
+export interface ComposerSendOptions extends ComposerDraftScope {
+  optimistic: Pick<OptimisticUserMessages, 'prepare' | 'enqueue' | 'accept' | 'reject'>;
+  creation: DraftCreation;
+  running: boolean;
+  compactAction?: ContextCompactAction;
+  slash: ComposerSlashHost;
+  /** The user is still on the draft its first message created a session from: follow it there. */
+  onCreated: (sessionId: string) => void;
+  /** A rejected send came back into the composer; say why. */
+  onSendFailed: (error: Error) => void;
+  /** A slash command was refused (key) or ran / was not a command (null). */
+  onSlashFeedback: (key: SlashFeedbackKey) => void;
+  /** The composer's text was consumed by a send or a command. */
+  onConsumed?: () => void;
+}
+
+export interface ComposerSend extends ComposerDraftState {
+  canSend: boolean;
+  /** createAndSend in flight — the draft's project can no longer change under it. */
+  creating: boolean;
+  /** Run the typed text as a command if it is one, else send it. */
+  submit: () => void;
+  stop: () => void;
+  stopPending: boolean;
+  slashSuggestions: SlashSuggestion[];
+  /** A palette pick: run it, or put the command in for its argument (returns true then). */
+  pickSlash: (suggestion: SlashSuggestion) => boolean;
+}
+
+type SendResult = { sessionId: string; acceptedAt: string } | { accepted: boolean; acceptedAt: string };
+
+function useSendMutations() {
+  const trpc = useTRPC();
+  const sendMut = useMutation(trpc.sessions.send.mutationOptions());
+  const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
+  const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
+  return { sendMut, createAndSendMut, cancelMut };
+}
+
+/**
+ * The chat composer's controller, shared by the desktop and mobile composers: draft persistence and
+ * uploads, local slash commands, stop, and the optimistic send — the row is on screen the frame the
+ * composer clears, a draft's first message creates its session, and a rejected send comes back
+ * into whichever scope it was written in.
+ */
+export function useComposerSend(options: ComposerSendOptions): ComposerSend {
+  const trpc = useTRPC();
+  const L = useVocab();
+  const queryClient = useQueryClient();
+  const { sendMut, createAndSendMut, cancelMut } = useSendMutations();
+  const draft = useComposerDraft(options);
+  const { sessionId, isDraft, running, compactAction } = options;
+
+  const stop = (): void => {
+    if (!sessionId || cancelMut.isPending) return;
+    cancelMut.mutate({ sessionId });
+  };
+  const slashProfiles = options.slash.profileOptions.map((option) => ({
+    name: option.name, detail: option.sub, disabled: option.disabled,
+  }));
+  const slashAvailability = {
+    newDisabled: draft.uploads.hasNonDone,
+    cancelDisabled: !running || cancelMut.isPending,
+    compactDisabled: !compactAction || compactAction.disabled || compactAction.pending,
+    settingsDisabled: draft.uploads.hasNonDone,
+  };
+  const runSlash = (action: SlashAction): void => {
+    draft.consumeText();
+    options.onConsumed?.();
+    runSlashAction(action, {
+      onNew: options.slash.onNew,
+      onCancel: () => { if (running) stop(); },
+      onCompact: () => compactAction?.onCompact(),
+      onProfile: options.slash.onProfile,
+      onSettings: options.slash.onSettings,
+    });
+  };
+  const handleSlash = (value: string): boolean => {
+    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability);
+    if (resolution.kind === 'none') return false;
+    if (resolution.kind === 'action') runSlash(resolution.action);
+    options.onSlashFeedback(slashFeedbackKey(resolution));
+    return true;
+  };
+
+  const canSend = attachmentSendAllowed(draft.text, draft.uploads.items) && (!!sessionId || isDraft)
+    && !sendMut.isPending && !createAndSendMut.isPending;
+
+  const mutateSend = (text: string, attachments: AttachmentMeta[], draftUploadId?: string): Promise<SendResult> => {
+    const withAttachments = attachments.length > 0 ? { attachments: uploadedAttachments(attachments) } : {};
+    if (!isDraft) return sendMut.mutateAsync({ sessionId, text, ...withAttachments });
+    const { selection, browserDevice, commission } = options.creation;
+    return createAndSendMut.mutateAsync({
+      projectId: options.projectId,
+      profileName: selection.profileName ?? undefined,
+      ...(selection.override ? { selection: selection.override } : {}),
+      ...(selection.agentName ? { agentName: selection.agentName } : {}),
+      text,
+      draftUploadId,
+      ...(browserDevice ? { browser: { device: browserDevice } } : {}),
+      ...(commission ? { commission } : {}),
+      ...withAttachments,
+    });
+  };
+
+  const onAccepted = (clientId: string, data: SendResult): void => {
+    if (!('sessionId' in data)) {
+      options.optimistic.accept(clientId, { acceptedAt: data.acceptedAt });
+      return;
+    }
+    const follow = options.optimistic.accept(clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
+    queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+    if (!follow) return;
+    draft.releaseDraftBucket();
+    options.onCreated(data.sessionId);
+  };
+
+  const sendText = (raw: string): void => {
+    const text = raw.trim();
+    const sent = draft.snapshot(text);
+    if (!text && sent.attachments.length === 0) return;
+    const sentKey = draft.draftKey;
+    const sentIdentity = draft.identity;
+    // The row is enqueued before the mutation is awaited, so the message is on screen on the same
+    // frame the composer clears.
+    const mutation = runOptimisticMutation<SendResult>({
+      message: options.optimistic.prepare(text, sent.attachments),
+      mutate: () => mutateSend(text, sent.attachments, sent.draftUploadId),
+      onEnqueue: options.optimistic.enqueue,
+      onAccepted: (entry, data) => onAccepted(entry.clientId, data),
+      onRejected: (entry) => options.optimistic.reject(entry.clientId),
+    });
+    draft.consume();
+    options.onConsumed?.();
+    void mutation.then((result) => {
+      if (result.ok || !result.restore) return;
+      if (draft.restore(sent, sentKey, sentIdentity)) options.onSendFailed(result.error);
+    });
+  };
+
+  return {
+    ...draft,
+    canSend,
+    creating: createAndSendMut.isPending,
+    submit: () => {
+      if (handleSlash(draft.text)) return;
+      if (canSend) sendText(draft.text);
+    },
+    stop,
+    stopPending: cancelMut.isPending,
+    slashSuggestions: buildSlashSuggestions(draft.text, slashProfiles, L, slashAvailability),
+    pickSlash: (suggestion) => {
+      if (suggestion.disabled) return false;
+      if (suggestion.action) { runSlash(suggestion.action); return false; }
+      draft.setText(`${suggestion.command} `);
+      return true;
+    },
+  };
+}

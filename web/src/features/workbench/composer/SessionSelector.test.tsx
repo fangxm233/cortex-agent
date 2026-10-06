@@ -81,15 +81,8 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
-  useSelectedSession: () => ({
-    draftSelection: harness.draftSelection,
-    setDraftSelection: harness.setDraftSelection,
-    pendingCreatedSession: null,
-  }),
-}));
-
-import { AgentSelectorView, SessionSelectorView, useSessionSelection } from './SessionSelector';
+import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
+import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
 
 interface MountProps {
   isDraft: boolean;
@@ -106,6 +99,9 @@ function Composer(props: MountProps): JSX.Element {
     sessionId: 's1',
     ...props,
     currentOverride: (props.currentOverride ?? null) as never,
+    draftSelection: harness.draftSelection as never,
+    setDraftSelection: harness.setDraftSelection,
+    pendingCreatedSession: null,
   });
   return (
     <>

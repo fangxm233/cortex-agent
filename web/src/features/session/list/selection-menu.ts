@@ -489,6 +489,9 @@ export interface SelectionRootRow {
   overridden: boolean;
 }
 
+/** Which level an engine picker is showing: the root, or the pane one of its rows opens. */
+export type SelectionPane = 'root' | SelectionRootRow['key'];
+
 const NO_VALUE = '—';
 
 /**

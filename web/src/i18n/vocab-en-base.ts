@@ -126,7 +126,6 @@ export const enBase = {
   wbProfile: 'profile',
   wbIdle: 'idle',
   /** Composer status segment: the session is waiting on N armed waitpoints (external signals). */
-  wbWaitingOn: 'waiting on {n}',
   wbModel: 'model',
   wbThinking: 'thinking',
   wbRoute: 'route',

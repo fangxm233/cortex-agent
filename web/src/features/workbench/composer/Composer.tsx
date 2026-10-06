@@ -6,26 +6,18 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
-import {
-  buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
-  type SlashAction, type SlashActionHandlers, type SlashSuggestion,
-} from '@/features/session/composer/composer-slash';
-import { formatUsd } from '@/lib/format';
+import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
-import { DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION, type DraftSelection } from '@/features/session/state/selected-session';
-import {
-  attachmentSendAllowed, completedAttachmentMetas, type AttachmentMeta,
-} from '@/features/attachments/types';
-import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
-import {
-  draftStorageKey, loadDraft, saveDraft, clearDraft, mergeRestoredDraft, type ComposerDraft,
-} from '@/features/session/composer/composer-draft';
+import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
+import { useComposerSend, type SlashFeedbackKey } from '@/features/session/chat/useComposerSend';
+import { runStatusLine } from '@/features/session/chat/run-status-line';
+import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
+import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
 import { ComposerStatusLine } from './ComposerStatusLine';
 import { SessionStatsModal } from './SessionStatsModal';
 import { sessionStatsView } from '@/features/session/list/session-stats';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
-import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import { TodoRail } from '@/features/session/rail/TodoRail';
 import { WaitRail } from '@/features/session/rail/WaitRail';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
@@ -34,14 +26,12 @@ import {
   type ComposerBrowserControl, type ComposerCommissionControl,
 } from './ComposerActionRow';
 import {
-  commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle,
+  commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle, type CommissionRequest,
 } from '@/features/commission/CommissionOptIn';
-import { AgentSelectorView, SessionSelectorView, useSessionSelection } from './SessionSelector';
+import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
-import { runOptimisticMutation, type OptimisticUserMessage } from '@/features/session/transcript/optimistic-message';
-import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
-import { formatElapsed, turnClockElapsedMs, type TurnClock } from '@/features/session/transcript/transcript-vm';
+import type { TurnClock } from '@/features/session/transcript/transcript-vm';
 import { DraftProjectSelector } from './DraftProjectSelector';
 import { useFileDropTarget } from './useFileDropTarget';
 import { ChatDropOverlay } from './ChatDropOverlay';
@@ -54,44 +44,10 @@ import { ChatDropOverlay } from './ChatDropOverlay';
 // Attachment chips show type badges, filenames, sizes, upload progress, and remove buttons.
 // The send button enables when text is non-empty OR uploaded attachments are present.
 
-const DASH = '—';
 // Auto-grow cap: ~15 lines at 13.5px × 1.5 line-height (≈20.25px/line), then internal scroll.
 const COMPOSER_MAX_HEIGHT = 305;
 
-export function Composer({
-  sessionId,
-  running,
-  backgroundRunning = false,
-  waitingOn = 0,
-  turns,
-  cost,
-  turnClock,
-  totals = null,
-  sessionSpanMs: spanMs = null,
-  isDraft = false,
-  sessionBrowser = null,
-  sessionCommission = null,
-  currentProfile,
-  currentOverride = null,
-  currentAgent = null,
-  hasHistory,
-  draftSelection = EMPTY_DRAFT_SELECTION,
-  draftReloadToken = 0,
-  projectId = 'general',
-  prepareOptimistic,
-  enqueueOptimistic,
-  acceptOptimistic,
-  rejectOptimistic,
-  showStatus = true,
-  statusStarting = false,
-  turnProgressStarted = false,
-  contextControl,
-  todos,
-  waitpoints,
-  compactAction,
-  dropTargetRef,
-  onOpenSettings = () => {},
-}: {
+export interface ComposerProps {
   sessionId: string;
   running: boolean;
   /** Foreground turn ended but a background task is still running (web bg-hold). `running` stays
@@ -126,18 +82,12 @@ export function Composer({
   /** The agent it runs in, from that same row. Null = it follows the host's default. */
   currentAgent?: string | null;
   hasHistory: boolean;
-  /** The draft's engine choice (profile + model/provider/thinking), carried into createAndSend. */
-  draftSelection?: DraftSelection;
-  draftReloadToken?: number;
   projectId?: string;
-  prepareOptimistic: (text: string, attachments?: AttachmentMeta[]) => OptimisticUserMessage;
-  enqueueOptimistic: (message: OptimisticUserMessage) => void;
-  acceptOptimistic: (clientId: string, settled?: { acceptedAt?: string; createdSessionId?: string }) => boolean;
-  rejectOptimistic: (clientId: string, error: Error) => boolean;
+  /** The chat's optimistic sends: a send shows its row before the server answers, and a locally
+   *  queued message reads as running before the authoritative session event arrives. */
+  optimistic: Pick<OptimisticUserMessages, 'pendingUser' | 'prepare' | 'enqueue' | 'accept' | 'reject'>;
   /** The untouched New Session hides status until its first optimistic message appears. */
   showStatus?: boolean;
-  /** A locally queued message reads as running before the authoritative session event arrives. */
-  statusStarting?: boolean;
   /** True after this turn emits its first agent progress or streamed output. */
   turnProgressStarted?: boolean;
   /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
@@ -150,46 +100,36 @@ export function Composer({
   /** The larger surface that accepts file drops for this composer. */
   dropTargetRef: RefObject<HTMLElement>;
   onOpenSettings?: () => void;
-}): JSX.Element {
+}
+
+/**
+ * The commission capsule's control, for all three states.
+ *
+ * A draft only records the choice (it is sent with sessions.create). A LIVE session switches for
+ * real: the mode is registry state, not a property of the spawned process, so a conversation that
+ * turns into a long task can be promoted where it stands (DR-0037 v4). A session already BOUND is
+ * terminal and only reports — a second contract would orphan the first.
+ */
+function useCommissionControl(
+  sessionId: string,
+  isDraft: boolean,
+  sessionCommission: { value: string; label: string | null } | null,
+): { control: ComposerCommissionControl | null; request: CommissionRequest | null } {
   const trpc = useTRPC();
-  const L = useVocab();
-  const lang = useLang();
   const queryClient = useQueryClient();
-  const {
-    selectCreatedSession, setSelectedSession,
-    draftCommission: commissionChoice, setDraftCommission: setCommissionChoice,
-  } = useSelectedSession();
-  const engineSelection = useSessionSelection({
-    sessionId, currentProfile, currentOverride, currentAgent, hasHistory, isDraft,
-  });
-  // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
-  // creation-time choice, not a session setting.
-  const [browserDevice, setBrowserDevice] = useState<string | null>(null);
-  // Draft-only for the same reason as the browser, but held by SelectedSessionProvider rather than
-  // here: the rail row and the commission board open a draft already armed with their commission,
-  // and that seed has to survive the composer remounting under the new selection.
+  // Draft-only, held by SelectedSessionProvider rather than here: the rail row and the commission
+  // board open a draft already armed with their commission, and that seed has to survive the
+  // composer remounting under the new selection.
+  const { draftCommission: choice, setDraftCommission: setChoice } = useSelectedSession();
   // Commission mode is a switchable feature (settings.commissionEnabled); when it is off the
   // composer offers no way in. A live session's read-only capsule still renders, so a session bound
   // while the feature was on keeps saying what it serves.
-  const commissionEnabled = useCommissionEnabled();
+  const enabled = useCommissionEnabled();
   // A draft holds only the chosen value, so joining an existing commission needs its title fetched
   // back or the capsule would report a named commission as unnamed.
-  const draftCommissionLabel = useCommissionTitle(commissionChoice);
-  const sendMut = useMutation(trpc.sessions.send.mutationOptions());
-  const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
-  const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
+  const draftLabel = useCommissionTitle(choice);
   const setCommissionMut = useMutation(trpc.sessions.setCommission.mutationOptions());
-
-  /**
-   * The commission capsule's control, for all three states.
-   *
-   * A draft only records the choice (it is sent with sessions.create). A LIVE session switches for
-   * real: the mode is registry state, not a property of the spawned process, so a conversation that
-   * turns into a long task can be promoted where it stands (DR-0037 v4). A session already BOUND is
-   * terminal and only reports — a second contract would orphan the first.
-   */
-  const boundToCommission = !!sessionCommission && sessionCommission.value !== 'new';
-  const switchLiveCommission = useCallback((picked: null | 'new' | string) => {
+  const switchLive = useCallback((picked: null | 'new' | string) => {
     if (!sessionId) return;
     setCommissionMut.mutate(
       { sessionId, commission: commissionSwitchOf(picked) },
@@ -201,33 +141,87 @@ export function Composer({
       },
     );
   }, [sessionId, setCommissionMut, queryClient, trpc]);
+  const request = enabled ? commissionRequestOf(choice) : null;
+  const readOnly = sessionCommission ? { value: sessionCommission.value, label: sessionCommission.label } : null;
+  if (!enabled) return { control: isDraft ? null : readOnly, request };
+  if (isDraft) return { control: { value: choice, label: draftLabel, onChange: setChoice }, request };
+  if (sessionCommission && sessionCommission.value !== 'new') return { control: readOnly, request };
+  return { control: { value: sessionCommission?.value ?? null, label: null, onChange: switchLive }, request };
+}
 
-  const commissionControl: ComposerCommissionControl | null = !commissionEnabled
-    // Feature off: a session bound while it was on still says what it serves, read-only.
-    ? (sessionCommission && !isDraft ? { value: sessionCommission.value, label: sessionCommission.label } : null)
-    : isDraft
-      ? { value: commissionChoice, label: draftCommissionLabel, onChange: setCommissionChoice }
-      : boundToCommission
-        ? { value: sessionCommission!.value, label: sessionCommission!.label }
-        : { value: sessionCommission?.value ?? null, label: null, onChange: switchLiveCommission };
-  const [composer, setComposer] = useState('');
+export function Composer({
+  sessionId,
+  running,
+  backgroundRunning = false,
+  waitingOn = 0,
+  turns,
+  cost,
+  turnClock,
+  totals = null,
+  sessionSpanMs: spanMs = null,
+  isDraft = false,
+  sessionBrowser = null,
+  sessionCommission = null,
+  currentProfile,
+  currentOverride = null,
+  currentAgent = null,
+  hasHistory,
+  projectId = 'general',
+  optimistic,
+  showStatus = true,
+  turnProgressStarted = false,
+  contextControl,
+  todos,
+  waitpoints,
+  compactAction,
+  dropTargetRef,
+  onOpenSettings = () => {},
+}: ComposerProps): JSX.Element {
+  const L = useVocab();
+  const lang = useLang();
+  const {
+    selectCreatedSession, setSelectedSession, draftSelection, setDraftSelection, pendingCreatedSession,
+    draftReloadToken,
+  } = useSelectedSession();
+  const engineSelection = useSessionSelection({
+    sessionId, currentProfile, currentOverride, currentAgent, hasHistory, isDraft,
+    draftSelection, setDraftSelection, pendingCreatedSession,
+  });
+  // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
+  // creation-time choice, not a session setting.
+  const [browserDevice, setBrowserDevice] = useState<string | null>(null);
+  const commission = useCommissionControl(sessionId, isDraft, sessionCommission);
   const [sendError, setSendError] = useState<Error | null>(null);
-  const [slashErrorKey, setSlashErrorKey] = useState<ReturnType<typeof slashFeedbackKey>>(null);
+  const [slashErrorKey, setSlashErrorKey] = useState<SlashFeedbackKey>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [btnHover, setBtnHover] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Resolve a restored draft bucket before the shared controller binds. This keeps a scope change
-  // from briefly binding a random bucket and then clearing the restored metadata on the next render.
-  const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
-  const draftIdentity = `${draftKey ?? ''}:${isDraft ? draftReloadToken : 0}`;
-  useEffect(() => { setSlashErrorKey(null); }, [composer, draftIdentity]);
-  const draftUploadId = useRef<string | null>(null);
-  const uploadIdentityRef = useRef<string | null>(null);
-  if (uploadIdentityRef.current !== draftIdentity) {
-    uploadIdentityRef.current = draftIdentity;
-    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? crypto.randomUUID()) : null;
-  }
-  const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
+  const composerSend = useComposerSend({
+    sessionId, isDraft, projectId, reloadToken: draftReloadToken, optimistic, running, compactAction,
+    creation: {
+      selection: draftSelection,
+      browserDevice,
+      commission: commission.request,
+    },
+    slash: {
+      profileOptions: engineSelection.profileOptions,
+      onNew: () => setSelectedSession(DRAFT_SENTINEL),
+      onProfile: engineSelection.pickProfile,
+      onSettings: onOpenSettings,
+    },
+    onCreated: selectCreatedSession,
+    onSendFailed: setSendError,
+    onSlashFeedback: setSlashErrorKey,
+    onConsumed: () => {
+      setSlashOpen(false);
+      setSendError(null);
+      if (inputRef.current) inputRef.current.style.height = 'auto';
+    },
+  });
+  const { text: composer, setText: setComposer, uploads } = composerSend;
+  useEffect(() => { setSlashErrorKey(null); }, [composer, composerSend.identity]);
 
   // Auto-grow the textarea up to a cap.
   const autoGrow = (el: HTMLTextAreaElement | null): void => {
@@ -246,19 +240,7 @@ export function Composer({
     autoGrow(inputRef.current);
   }, [composer]);
 
-  // ── Slash palette state ──
-  const [slashOpen, setSlashOpen] = useState(false);
-
-  // ── Hover states ──
-  const [btnHover, setBtnHover] = useState(false);
-
-  // ── Attachment state ──
-  const attachmentUploads = useAttachmentUploads({ scope: draftIdentity, bucket: uploadSessionId });
-  const attachments = attachmentUploads.items;
-  const composerRef = useRef(composer);
-  const attachmentsRef = useRef(attachments);
-  composerRef.current = composer;
-  attachmentsRef.current = attachments;
+  const attachments = uploads.items;
   // Re-fit the textarea whenever the chip row appears/disappears: its vertical padding changes with
   // attachments (2px→11px). Pasting an image mutates `attachments` but not `composer`, so the
   // `[composer]` effect above never re-fires and the box stayed fitted to the old padding — the text
@@ -268,75 +250,20 @@ export function Composer({
     autoGrow(inputRef.current);
   }, [hasAttachmentsForFit]);
 
-  // ── Per-session draft persistence (localStorage) ──
-  // The composer text + successfully-uploaded attachments are persisted per scope so a draft survives
-  // an app restart (stable webview/browser origin) and a server restart (the referenced upload files
-  // live on the server and are not wiped on boot). One effect both LOADS on scope change and SAVES on
-  // content change, distinguished by comparing the live key to a ref — so switching sessions swaps the
-  // draft cleanly and never writes the outgoing content under the incoming key.
-  const currentDraftIdentityRef = useRef(draftIdentity);
-  currentDraftIdentityRef.current = draftIdentity;
-  const draftKeyRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (draftKeyRef.current !== draftIdentity) {
-      // Scope or external prefill changed → load the draft; skip saving on this cycle.
-      draftKeyRef.current = draftIdentity;
-      if (!draftKey) return; // no stable scope (transient empty sessionId) → leave content untouched
-      const d = loadDraft(draftKey);
-      if (isDraft && d?.draftUploadId) draftUploadId.current = d.draftUploadId;
-      setComposer(d?.text ?? '');
-      attachmentUploads.replaceRestored(d?.attachments ?? []);
-      return;
-    }
-    // Same scope, content changed → persist.
-    saveDraft(draftKey, {
-      text: composer,
-      attachments: attachments.filter((a) => a.status === 'done' && a.meta).map((a) => a.meta!),
-      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-    });
-  }, [draftKey, draftIdentity, composer, attachments, isDraft, attachmentUploads.replaceRestored]);
-
-  const addFiles = attachmentUploads.addFiles;
-  const removeAttachment = attachmentUploads.remove;
-  const retryAttachment = attachmentUploads.retry;
+  const addFiles = uploads.addFiles;
   const { active: dragOver, fileCount: dragFileCount } = useFileDropTarget(dropTargetRef, addFiles);
 
   const hasAttachments = attachments.length > 0;
-  const doneAttachments = attachmentUploads.completed;
-  const hasPendingUploads = attachmentUploads.hasNonDone;
-  const canSend = attachmentSendAllowed(composer, attachments) && (!!sessionId || isDraft)
-    && !sendMut.isPending && !createAndSendMut.isPending;
+  const canSend = composerSend.canSend;
   // The accent ring is the card's only state cue now that it carries no resting border: it lights up
   // when the draft is sendable, and while the slash palette is anchored to the card.
   const composerRing = canSend || slashOpen;
   const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
-  // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
-  const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
-  // Last run's cost; render — when unknown (running turn not yet finalized / never ran).
-  const costText = cost == null ? DASH : formatUsd(cost);
-  // A session has run at least one turn once it carries a turn count. A fresh/never-run session (draft
-  // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
-  const hasRun = !isDraft && turns != null;
-  const runStatus = deriveSessionRunStatus({
-    running: running || statusStarting, backgroundRunning, hasRun,
-  });
-  const runStatusLabel = runStatus.phase === 'background' ? L.pillBackground
-    : runStatus.phase === 'foreground' ? L.pillRunning
-      : L.wbIdle;
-  // "idle" and "idle but waiting for a signal" are different states and must not read the same.
-  // Appended rather than substituted: the run status itself stays true.
-  const waitingText = waitingOn > 0 ? L.wbWaitingOn.replace('{n}', String(waitingOn)) : null;
-  // `now` is passed only while the turn runs; the status line then ticks the clock itself.
-  const runStatusTextAt = (now: number | null): string => {
-    const elapsed = formatElapsed(turnClockElapsedMs(turnClock, now), lang);
-    const statusMetrics = [runStatusLabel, elapsed, turnsText, ...(runStatus.showCost ? [costText] : [])];
-    return [
-      ...(runStatus.showMetrics ? [statusMetrics.join(' · ')] : [runStatusLabel]),
-      ...(waitingText ? [waitingText] : []),
-    ].join(' · ');
-  };
-  const clockLive = running && runStatus.showMetrics && turnClock != null;
-  // Second segment: the same three quantities for the WHOLE session. Independent of runStatus —
+  const statusLine = runStatusLine({
+    isDraft, running, backgroundRunning, starting: optimistic.pendingUser.length > 0, turns, cost, turnClock,
+    waitingOn, browserDevice: sessionBrowser?.device ?? browserDevice, turnProgressStarted,
+  }, L, lang);
+  // Second segment: the same three quantities for the WHOLE session. Independent of the run status —
   // totals are finalized numbers, so they stay on screen (and stay still) while a turn runs.
   const sessionStats = useMemo(
     () => sessionStatsView(totals, spanMs, {
@@ -346,27 +273,6 @@ export function Composer({
     }, lang),
     [totals, spanMs, L, lang],
   );
-  const statusBrowserDevice = sessionBrowser?.device ?? browserDevice;
-  const browserStarting = browserStartupPending({
-    running: runStatus.active,
-    backgroundRunning,
-    device: statusBrowserDevice,
-    turnProgressStarted,
-  });
-  const browserHint = browserStarting && statusBrowserDevice
-    ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
-    : null;
-
-  const slashProfiles = engineSelection.profileOptions.map((option) => ({
-    name: option.name, detail: option.sub, disabled: option.disabled,
-  }));
-  const slashAvailability = {
-    newDisabled: hasPendingUploads,
-    cancelDisabled: !running || cancelMut.isPending,
-    compactDisabled: !compactAction || compactAction.disabled || compactAction.pending,
-    settingsDisabled: hasPendingUploads,
-  };
-  const slashList = buildSlashSuggestions(composer, slashProfiles, L, slashAvailability);
 
   // ── Paste handler ──
   const onPaste = useCallback((e: React.ClipboardEvent): void => {
@@ -386,137 +292,10 @@ export function Composer({
     }
   }, [addFiles]);
 
-  // ── Send ──
-  const restoreRejectedSend = (
-    sent: ComposerDraft,
-    sentKey: string | null,
-    sentIdentity: string,
-    error: Error,
-  ): void => {
-    const stillCurrent = currentDraftIdentityRef.current === sentIdentity;
-    const current = stillCurrent
-      ? {
-          text: composerRef.current,
-          attachments: completedAttachmentMetas(attachmentsRef.current),
-          ...(draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-        }
-      : (loadDraft(sentKey) ?? { text: '', attachments: [] });
-    const restored = mergeRestoredDraft(current, sent);
-    saveDraft(sentKey, restored);
-    if (!stillCurrent) return;
-    if (restored.draftUploadId) draftUploadId.current = restored.draftUploadId;
-    setComposer(restored.text);
-    attachmentUploads.mergeRestored(sent.attachments);
-    setSendError(error);
-  };
-
-  const clearConsumedComposer = (): void => {
-    clearDraft(draftKey);
-    setComposer('');
-    attachmentUploads.reset();
-    setSlashOpen(false);
-    if (inputRef.current) inputRef.current.style.height = 'auto';
-  };
-
-  const doSendText = (raw: string): void => {
-    const text = raw.trim();
-    const metas = doneAttachments;
-    if (!text && metas.length === 0) return;
-    if (!isDraft && !sessionId) return;
-    const sent: ComposerDraft = {
-      text, attachments: metas,
-      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-    };
-    const message = prepareOptimistic(text, metas);
-    const sentKey = draftKey;
-    const sentIdentity = draftIdentity;
-    setSendError(null);
-    const mutation = runOptimisticMutation<
-      { sessionId: string; acceptedAt: string } | { accepted: boolean; acceptedAt: string }
-    >({
-      message,
-      mutate: () => isDraft
-        ? createAndSendMut.mutateAsync({
-            projectId, profileName: draftSelection.profileName ?? undefined,
-            ...(draftSelection.override ? { selection: draftSelection.override } : {}),
-            ...(draftSelection.agentName ? { agentName: draftSelection.agentName } : {}),
-            text,
-            ...(browserDevice ? { browser: { device: browserDevice } } : {}),
-            ...(commissionEnabled && commissionRequestOf(commissionChoice)
-              ? { commission: commissionRequestOf(commissionChoice) } : {}),
-            draftUploadId: sent.draftUploadId,
-            ...(metas.length > 0 ? { attachments: metas } : {}),
-          } as any)
-        : sendMut.mutateAsync({ sessionId, text, ...(metas.length > 0 ? { attachments: metas } : {}) } as any),
-      onEnqueue: enqueueOptimistic,
-      onAccepted: (entry, data) => {
-        if ('sessionId' in data) {
-          const selectCreated = acceptOptimistic(entry.clientId, {
-            acceptedAt: data.acceptedAt, createdSessionId: data.sessionId,
-          });
-          queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-          if (selectCreated) {
-            draftUploadId.current = null;
-            selectCreatedSession(data.sessionId);
-          }
-        } else {
-          acceptOptimistic(entry.clientId, { acceptedAt: data.acceptedAt });
-        }
-      },
-      onRejected: (entry, error) => rejectOptimistic(entry.clientId, error),
-    });
-    clearConsumedComposer();
-    void mutation.then((result) => {
-      if (!result.ok && result.restore) restoreRejectedSend(sent, sentKey, sentIdentity, result.error);
-    });
-  };
-
-  const doStop = (): void => {
-    if (!sessionId || cancelMut.isPending) return;
-    cancelMut.mutate({ sessionId });
-  };
-
-  const slashHandlers: SlashActionHandlers = {
-    onNew: () => setSelectedSession(DRAFT_SENTINEL),
-    onCancel: () => { if (running) doStop(); },
-    onCompact: () => compactAction?.onCompact(),
-    onProfile: engineSelection.pickProfile,
-    onSettings: onOpenSettings,
-  };
-
-  const consumeSlashText = (): void => {
-    saveDraft(draftKey, {
-      text: '',
-      attachments: doneAttachments,
-      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-    });
-    setComposer('');
-    setSlashOpen(false);
-  };
-
-  const executeSlashAction = (action: SlashAction): void => {
-    consumeSlashText();
-    runSlashAction(action, slashHandlers);
-  };
-
-  const handleSlashInput = (text: string): boolean => {
-    const resolution = resolveSlashInput(text, slashProfiles, slashAvailability);
-    if (resolution.kind === 'none') return false;
-    if (resolution.kind === 'action') executeSlashAction(resolution.action);
-    setSlashErrorKey(slashFeedbackKey(resolution));
-    return true;
-  };
-
+  const doSend = composerSend.submit;
+  const doStop = composerSend.stop;
   const onSlashPick = (suggestion: SlashSuggestion): void => {
-    if (suggestion.disabled) return;
-    if (suggestion.action) executeSlashAction(suggestion.action);
-    else { setComposer(`${suggestion.command} `); setSlashOpen(true); }
-  };
-
-  const doSend = (): void => {
-    if (handleSlashInput(composer)) return;
-    if (!canSend) return;
-    doSendText(composer);
+    if (composerSend.pickSlash(suggestion)) setSlashOpen(true);
   };
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -540,7 +319,7 @@ export function Composer({
       <div style={{ position: 'relative', padding: '6px 32px 14px' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
           {/* Slash palette */}
-          {slashOpen ? <ComposerSlashMenu suggestions={slashList} onPick={onSlashPick} /> : null}
+          {slashOpen ? <ComposerSlashMenu suggestions={composerSend.slashSuggestions} onPick={onSlashPick} /> : null}
 
           {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
               the highest-value line on this surface and belongs at the point of gaze; it renders
@@ -560,7 +339,7 @@ export function Composer({
             />
           )}
 
-          {isDraft && <DraftProjectSelector disabled={createAndSendMut.isPending} />}
+          {isDraft && <DraftProjectSelector disabled={composerSend.creating} />}
 
           {/* Composer card. The whole chat pane is the drop zone; ChatDropOverlay carries the drag cue. */}
           <div
@@ -595,8 +374,8 @@ export function Composer({
                   <ComposerAttachmentChip
                     key={attachment.id}
                     attachment={attachment}
-                    onRetry={retryAttachment}
-                    onRemove={removeAttachment}
+                    onRetry={uploads.retry}
+                    onRemove={uploads.remove}
                   />
                 ))}
               </div>
@@ -648,7 +427,7 @@ export function Composer({
                 : sessionBrowser
                   ? { device: sessionBrowser.device }
                   : null}
-              commission={commissionControl}
+              commission={commission.control}
               onAttach={() => fileInputRef.current?.click()}
               onCommands={() => { setComposer('/'); setSlashOpen(true); }}
               agentControl={<AgentSelectorView selection={engineSelection} />}
@@ -699,7 +478,7 @@ export function Composer({
                       type="button"
                       className={MENU_FOCUS}
                       aria-label={L.stop}
-                      disabled={cancelMut.isPending}
+                      disabled={composerSend.stopPending}
                       data-action="stop"
                       title={`${L.stop} · esc`}
                       onClick={doStop}
@@ -716,7 +495,7 @@ export function Composer({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        cursor: cancelMut.isPending ? 'default' : 'pointer',
+                        cursor: composerSend.stopPending ? 'default' : 'pointer',
                       }}
                     >
                       <span style={{ width: 11, height: 11, background: 'var(--ink-solid-fg)', borderRadius: 2 }} />
@@ -761,9 +540,9 @@ export function Composer({
               user's gaze. */}
           {showStatus && (
             <ComposerStatusLine
-              running={runStatus.active}
-              text={browserHint ?? runStatusTextAt(null)}
-              liveText={!browserHint && clockLive ? runStatusTextAt : undefined}
+              running={statusLine.active}
+              text={statusLine.text}
+              liveText={statusLine.liveText}
               sessionText={sessionStats?.summary}
               onOpenSessionStats={sessionStats ? () => setStatsOpen(true) : undefined}
             />

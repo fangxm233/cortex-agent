@@ -1,24 +1,15 @@
 import { useMemo, useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
 import { Composer } from '@/features/workbench/composer/Composer';
 import { ContextUsageControl } from '@/features/session/composer/ContextUsageControl';
-import { useSessionCompact } from '@/features/session/live/useSessionCompact';
-import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
-import { useSessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
-import { useTranscriptQuery } from '@/features/session/transcript/useTranscriptQuery';
-import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
-import { useMarkSessionRead } from '@/features/session/live/useMarkSessionRead';
-import { buildTranscriptRows, turnCount, resolveTurns, currentTurnClock, formatDividerFromVocab } from '@/features/session/transcript/transcript-vm';
+import { useChatSession } from '@/features/session/chat/useChatSession';
+import { buildTranscriptRows, formatDividerFromVocab } from '@/features/session/transcript/transcript-vm';
 import { sessionSpanMs } from '@/features/session/list/session-stats';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
-import { useOptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
-import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { CommissionBanner } from '@/features/commission/CommissionBanner';
 import { useSessionCommission } from '@/features/commission/CommissionOptIn';
@@ -39,8 +30,6 @@ import { WorkerStrip } from '@/features/team/WorkerStrip';
 // Running is snapshot + delta: SessionInfo.running (sessions.list) restores the true state on
 // mount / session switch / reload, and the live `session.status` event overrides once received —
 // so a mid-turn session never shows idle after switching away and back.
-
-const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 // The brand mark (25c 皮层弧 C), tinted for the transcript rather than the rail badge.
 function DraftBrandMark(): JSX.Element {
@@ -112,10 +101,9 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
 } = {}): JSX.Element {
   const L = useVocab();
   const lang = useLang();
-  const trpc = useTRPC();
   const chatDropTargetRef = useRef<HTMLDivElement>(null);
   const { currentProjectId } = useCurrentProject();
-  const { selectedSessionId, isDraft, draftSelection, draftReloadToken, setSelectedSession } = useSelectedSession();
+  const { selectedSessionId, isDraft, setSelectedSession } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same lists the rail shows — direct conversations AND scheduled runs
   // (design 27a-B puts both in the rail, so both must open here).
@@ -135,125 +123,44 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   // Team mode: a worker's header names its lead; a lead gets its workers as a strip under the header.
   const team = useTeamContext(isDraft ? null : active, sessionsQuery.data);
 
+  const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   // Schedule context (design 30c): the chat is identical to a normal conversation — the only
   // scheduled affordances left are the title annotation「schedule 名 · run #n」on an un-adopted
   // run and the reply-adopts hint under the composer. Management lives in the rail/modal.
-  const schedulesQuery = useQuery({
-    ...trpc.schedules.list.queryOptions({}),
-    enabled: !!active?.scheduleId,
+  const chat = useChatSession(sessionId, active, {
+    isDraft, projectId: currentProjectId ?? 'general', scheduledRuns: scheduledSessionsQuery.data,
   });
-  const activeSchedule = useMemo(
-    () => (active?.scheduleId ? (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null : null),
-    [schedulesQuery.data, active?.scheduleId],
-  );
-  // Un-adopted scheduled run: the composer carries the "replying converts this run" hint (30c).
-  const isScheduledRun = active?.origin === 'scheduled';
-  // 30c title:「schedule 名 · run #n」for an un-adopted run (falls back to the plain label when
-  // the schedule record is gone; adopted sessions are plain timeline rows).
-  const runTitle = useMemo(() => {
-    if (!isScheduledRun || !active?.scheduleId) return null;
-    const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(activeSchedule, runs, active.sessionId, L);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data, L]);
-
-  const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   const title = isDraft
     ? L.wbNewConversation
     : active
-      ? sessionDisplayTitle(active, runTitle)
+      ? sessionDisplayTitle(active, chat.runTitle)
       : L.wbNoSession;
 
-  const transcriptQuery = useTranscriptQuery(sessionId);
-
-  // `deltas: true` — this is the surface that shows a live preview, so it opens the session-scoped
-  // delta subscription. The reply then appears token by token instead of arriving whole after the
-  // whole block is generated (measured on a long answer: first text at ~3.6s, complete at ~22s).
-  // `transcript` is passed back in only so a pending row self-heals if its delivered event is lost.
-  const {
-    liveTail, getMessageSnapshot, streaming, running, backgroundRunning,
-    liveTurns, contextUsage, todos, streamingText, pendingUser,
-  } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
-      deltas: true,
-      transcript: transcriptQuery.data ?? null,
-      contextUsage: active?.contextUsage ?? null,
-      todos: active?.todos ?? null,
-    });
-  // Waitpoints for the rail above the composer. Kept here rather than inside WaitRail so mounting a
-  // composer in a test does not require the waitpoints route to be stubbed.
-  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId, active?.waitingOn ?? 0);
-  const optimistic = useOptimisticUserMessages({
-    sessionId,
-    isDraft,
-    projectId: currentProjectId ?? 'general',
-    transcript: transcriptQuery.data ?? null,
-    liveTail,
-    pendingUser,
-    getMessageSnapshot,
-  });
-  // Interaction cards are transcript rows now (web-interactions-redesign) — this hook only
-  // provides the answer/approve/reject actions; state lives in the transcript.
-  const interactionActions = useInteractionActions(sessionId);
-  // Unread write side: the OPEN session is being read — stamp markRead on select, on live
-  // activity while viewing, and on tab re-focus (only while the document is visible).
-  useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
-
-  const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildTranscriptRows(transcript, liveTail, {
-      streaming, running, streamingText, pendingUser: optimistic.pendingUser,
+    () => buildTranscriptRows(chat.transcript, chat.liveTail, {
+      streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText,
+      pendingUser: chat.pendingUser,
       formatDivider: formatDividerFromVocab(L, lang),
-      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
+      stripScheduledPrefix: !!active?.scheduleId || chat.isScheduledRun,
     }),
-    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, L, lang, active?.scheduleId, isScheduledRun],
+    [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.pendingUser,
+      L, lang, active?.scheduleId, chat.isScheduledRun],
   );
   // A New Session is only a draft until its first optimistic row is enqueued. Keep this derived from
   // rendered evidence so a rejected create-and-send naturally returns to the centered start state.
   const preFirstMessage = isDraft && rows.length === 0;
-  const turns = turnCount(transcriptQuery.data);
-  // The composer status line shows the REAL agent-turn count (the number that grows as the agent
-  // works), NOT the number of user-message rounds (`turns`). Snapshot + delta: the live `session.turn`
-  // event wins, else the `SessionInfo.numTurns` snapshot from sessions.list (restored on mount/reload).
-  const agentTurns = resolveTurns(liveTurns, active?.numTurns ?? null);
-  // Running-line elapsed = the CURRENT turn's runtime only, not the whole-session accumulated time —
-  // a fresh turn's clock starts from its own user message. The composer ticks it while running.
-  const turnClock = useMemo(
-    () => currentTurnClock(transcriptQuery.data, liveTail),
-    [transcriptQuery.data, liveTail],
-  );
   // Whole-session wall-clock lifetime, which the totals DTO deliberately does not carry: it is a
   // property of the session record (createdAt → lastUsedAt), not of its runs.
   const sessionSpan = useMemo(
     () => sessionSpanMs(active?.createdAt, active?.lastUsedAt),
     [active?.createdAt, active?.lastUsedAt],
   );
-  // A session "has history" once it carries at least one turn — the switch rule uses this to allow
-  // only same-backend profile switches on a live conversation. Live streaming counts too.
-  const hasHistory = turns > 0 || liveTail.length > 0;
-  const compactAction = useSessionCompact(sessionId, {
-    running,
-    hasBackendHistory: !!active?.backendSessionId,
-  });
-
-  // Message edit + rewind (sec-23): submit fires the real `sessions.rewind` mutation; the
-  // transcript + rail refetch on settle (and again on the `session.rewound` event / regeneration
-  // stream). Editing is greyed out while running (`edit.running`) — the server double-guards.
-  const queryClient = useQueryClient();
-  const rewindMut = useMutation(trpc.sessions.rewind.mutationOptions({
-    onSettled: () => {
-      if (!sessionId) return;
-      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
-      queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-      invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
-    },
-  }));
+  // Message edit + rewind (sec-23). Editing is greyed out while running — the server double-guards.
+  const { rewind } = chat;
   const edit = useMemo<MessageEditCtx | undefined>(() => {
     if (!sessionId) return undefined;
-    return {
-      running,
-      busy: rewindMut.isPending,
-      onSubmit: (turnIndex, text) => rewindMut.mutate({ sessionId, turnIndex, text }),
-    };
-  }, [sessionId, running, rewindMut]);
+    return { running: chat.running, busy: rewind.pending, onSubmit: rewind.submit };
+  }, [sessionId, chat.running, rewind.pending, rewind.submit]);
 
   // The rail's session lists are already scoped to the current project, so a live session's own
   // project and the selected one agree; a draft has only the latter.
@@ -280,7 +187,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
       <ChatHeader
         title={title}
         metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
-        running={running}
+        running={chat.running}
         projectName={projectName}
         backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
@@ -314,20 +221,20 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         ) : (
           <MessageStream
             rows={rows}
-            loading={!!sessionId && transcriptQuery.isPending}
-            interactionActions={interactionActions}
+            loading={!!sessionId && chat.transcriptPending}
+            interactionActions={chat.interactionActions}
             edit={edit}
             streamKey={sessionId}
           />
         )}
         <Composer
           sessionId={sessionId}
-          running={running}
-          backgroundRunning={backgroundRunning}
+          running={chat.running}
+          backgroundRunning={chat.backgroundRunning}
           waitingOn={active?.waitingOn ?? 0}
-          turns={agentTurns}
+          turns={chat.turns}
           cost={active?.costUsd ?? null}
-          turnClock={turnClock}
+          turnClock={chat.turnClock}
           totals={active?.totals ?? null}
           sessionSpanMs={sessionSpan}
           isDraft={isDraft}
@@ -336,32 +243,23 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           currentAgent={active?.agentName}
           sessionBrowser={active?.browser ?? null}
           sessionCommission={sessionCommission}
-          hasHistory={hasHistory}
-          draftSelection={draftSelection}
-          draftReloadToken={draftReloadToken}
+          hasHistory={chat.hasHistory}
           projectId={currentProjectId ?? 'general'}
-          prepareOptimistic={optimistic.prepare}
-          enqueueOptimistic={optimistic.enqueue}
-          acceptOptimistic={optimistic.accept}
-          rejectOptimistic={optimistic.reject}
+          optimistic={chat.optimistic}
           showStatus={!preFirstMessage}
-          statusStarting={optimistic.pendingUser.length > 0}
-          turnProgressStarted={liveTurns !== null || streaming}
-          compactAction={active?.contextCompactionSupported ? compactAction : undefined}
-          todos={todos}
-          waitpoints={waitpoints}
+          turnProgressStarted={chat.liveTurns !== null || chat.streaming}
+          compactAction={chat.compactAction}
+          todos={chat.todos}
+          waitpoints={chat.waitpoints}
           dropTargetRef={chatDropTargetRef}
           onOpenSettings={onOpenSettings}
-          contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
-            <ContextUsageControl
-              usage={contextUsage}
-              compactAction={active?.contextCompactionSupported ? compactAction : undefined}
-            />
+          contextControl={(chat.compactAction || chat.contextUsage !== null) ? (
+            <ContextUsageControl usage={chat.contextUsage} compactAction={chat.compactAction} />
           ) : undefined}
         />
         <div aria-hidden="true" style={{ minHeight: 0 }} />
       </div>
-      {isScheduledRun && (
+      {chat.isScheduledRun && (
         <div
           style={{
             font: "400 9.5px 'IBM Plex Mono',monospace",

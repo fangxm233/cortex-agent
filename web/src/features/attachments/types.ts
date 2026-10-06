@@ -10,6 +10,13 @@ export interface AttachmentMeta {
 
 export type ViewWidth = 'narrow' | 'wide' | 'full';
 
+/** What a user can attach to a message: an uploaded file. A `view` is agent output only. */
+export type UploadedAttachmentMeta = AttachmentMeta & { type: 'image' | 'video' | 'file' };
+
+export function uploadedAttachments(metas: AttachmentMeta[]): UploadedAttachmentMeta[] {
+  return metas.filter((meta): meta is UploadedAttachmentMeta => meta.type !== 'view');
+}
+
 export type AttachmentUploadStatus = 'queued' | 'uploading' | 'done' | 'error';
 
 export interface AttachmentUploadItem {
