@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { beforeEach, test } from 'vitest';
+import fs from 'node:fs';
+import { beforeEach, test, vi } from 'vitest';
 import { CONFIG_DIR, PLUGINS_DIR } from '../../../src/core/paths.js';
 import {
   AGENT_PLUGIN_V1_MCP_SCHEMA_URL,
@@ -192,6 +193,40 @@ test('moving a skill to another plugin rewrites the frontmatter name it is addre
     readFileSync(path.join(PLUGINS_DIR, 'beta', 'skills', 'critique', 'SKILL.md'), 'utf8'),
     /^name: critique$/m,
   );
+});
+
+test('a rename edits only the frontmatter, adding a name when the block has none', async () => {
+  const file = path.join(PLUGINS_DIR, 'alpha', 'skills', 'review', 'SKILL.md');
+  const body = '\n# review\n\n---\n\nname: keep this line\n';
+  writeFileSync(file, `---\ndescription: review helper skill\n---\n${body}`, 'utf8');
+
+  ok(await handlePluginsSkillMove(deps(), {
+    pluginId: 'alpha', skill: 'review', toPluginId: 'alpha', toSkill: 'critique',
+  }));
+
+  assert.equal(
+    readFileSync(path.join(PLUGINS_DIR, 'alpha', 'skills', 'critique', 'SKILL.md'), 'utf8'),
+    `---\nname: critique\ndescription: review helper skill\n---\n${body}`,
+  );
+  const { plugins } = await handlePluginsList(deps(), {});
+  assert.deepEqual(plugins.find((plugin) => plugin.id === 'alpha')?.skills.map((skill) => skill.name), ['critique']);
+});
+
+test('a move whose directory rename fails leaves the skill valid where it was', async () => {
+  const file = path.join(PLUGINS_DIR, 'alpha', 'skills', 'review', 'SKILL.md');
+  const before = readFileSync(file, 'utf8');
+  const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => { throw new Error('EXDEV'); });
+  try {
+    const failure = err(await handlePluginsSkillMove(deps(), {
+      pluginId: 'alpha', skill: 'review', toPluginId: 'beta', toSkill: 'critique',
+    }));
+    assert.match(failure.message, /EXDEV/);
+  } finally {
+    rename.mockRestore();
+  }
+  assert.equal(readFileSync(file, 'utf8'), before);
+  const { plugins } = await handlePluginsList(deps(), {});
+  assert.deepEqual(plugins.find((plugin) => plugin.id === 'alpha')?.skills.map((skill) => skill.name), ['review']);
 });
 
 test('refuses to move a skill onto an occupied name', async () => {

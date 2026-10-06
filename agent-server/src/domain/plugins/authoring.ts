@@ -20,6 +20,7 @@ import {
   pathExists,
   resolveContainedAbsolutePath,
 } from './fs-helpers.js';
+import { FRONTMATTER_RE, SKILL_NAME_RE } from './skill.js';
 
 export type PluginWriteErrorCode = 'invalid-args' | 'not-found' | 'conflict';
 
@@ -27,8 +28,6 @@ export interface PluginWriteError extends Error {
   code: PluginWriteErrorCode;
 }
 
-/** Agent Skills canonical name, also used for plugin ids: lowercase, digits, single hyphens. */
-const NAME_RE = /^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 function fail(code: PluginWriteErrorCode, message: string): PluginWriteError {
   return Object.assign(new Error(message), { code });
@@ -39,7 +38,7 @@ export function sha256(text: string): string {
 }
 
 function assertName(label: string, value: string): void {
-  if (typeof value !== 'string' || value.length > 64 || !NAME_RE.test(value)) {
+  if (typeof value !== 'string' || value.length > 64 || !SKILL_NAME_RE.test(value)) {
     throw fail('invalid-args', `${label} '${String(value)}' must be lowercase letters, digits and single hyphens`);
   }
 }
@@ -143,27 +142,43 @@ export function createSkill(pluginId: string, skill: string, description: string
 }
 
 /** Rewrite the frontmatter `name` so it keeps agreeing with the directory, which is the one
- *  disagreement the loader still treats as fatal. Everything else in the file is left alone. */
+ *  disagreement the loader still treats as fatal. Only the leading frontmatter block is touched — a
+ *  `name:` line in the body is prose — and a block without a top-level `name` gets one. A file with
+ *  no frontmatter at all is left alone: the loader rejects it either way. */
 function renameInFrontmatter(content: string, skill: string): string {
-  return content.replace(/^(---\r?\n[\s\S]*?)^name:.*$/m, `$1name: ${skill}`);
+  const match = FRONTMATTER_RE.exec(content);
+  if (!match) return content;
+  const yaml = match[1];
+  const eol = match[0].startsWith('---\r\n') ? '\r\n' : '\n';
+  const nameLine = /^name:[^\r\n]*/m;
+  const renamed = nameLine.test(yaml) ? yaml.replace(nameLine, `name: ${skill}`) : `name: ${skill}${eol}${yaml}`;
+  const start = 3 + eol.length;
+  return content.slice(0, start) + renamed + content.slice(start + yaml.length);
 }
 
+/** Move the directory first and only then rewrite its name, putting the directory back if the
+ *  rewrite fails: either step failing leaves one valid skill, never a renamed file in the old place. */
 export function moveSkill(
   from: { pluginId: string; skill: string },
   to: { pluginId: string; skill: string },
 ): void {
   assertName('skill name', to.skill);
   const source = skillDirPath(from.pluginId, from.skill);
-  const file = skillFilePath(from.pluginId, from.skill);
+  skillFilePath(from.pluginId, from.skill); // a directory without SKILL.md is not a skill to move
   const skillsRoot = containedTarget(path.join(pluginDirPath(to.pluginId), 'skills'));
   const target = containedTarget(path.join(skillsRoot, to.skill));
   if (target === source) throw fail('invalid-args', 'source and destination are the same skill');
   if (pathExists(target)) throw fail('invalid-args', `Skill '${to.pluginId}/${to.skill}' already exists`);
-  if (from.skill !== to.skill) {
-    atomicWriteSync(file, renameInFrontmatter(fs.readFileSync(file, 'utf8'), to.skill));
-  }
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.renameSync(source, target);
+  if (from.skill === to.skill) return;
+  try {
+    const file = contained(path.join(target, 'SKILL.md'));
+    atomicWriteSync(file, renameInFrontmatter(fs.readFileSync(file, 'utf8'), to.skill));
+  } catch (error) {
+    fs.renameSync(target, source);
+    throw error;
+  }
 }
 
 export function removeSkill(pluginId: string, skill: string): void {

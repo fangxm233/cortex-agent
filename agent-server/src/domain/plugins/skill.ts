@@ -4,8 +4,10 @@ import { parse as yamlParse } from 'yaml';
 import { isPlainObject } from './fs-helpers.js';
 import type { PluginCatalogIssue, PluginCatalogSkill } from './catalog-types.js';
 
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
-const SKILL_NAME_RE = /^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+/** The leading `---` block of a SKILL.md; group 1 is the YAML between the fences. */
+export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+/** Agent Skills canonical name, also used for plugin ids: lowercase, digits, single hyphens. */
+export const SKILL_NAME_RE = /^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const SKILL_FIELDS = new Set([
   'name',
   'description',
