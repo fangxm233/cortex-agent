@@ -27,7 +27,6 @@ import { removeDirectResume } from '@domain/costs/resume-registry.js';
 import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
 import { enterCommissionDraft, leaveCommissionDraft } from '@domain/commissions/commission-draft.js';
 import { commissionRepo } from '@store/commission-repo.js';
-import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
 
@@ -102,8 +101,14 @@ export async function handleSetCommission(
     },
   });
 
+  // Every registry read and write goes through the injected store, including the draft helpers'.
+  const draftDeps = {
+    getSession: (id: string) => deps.sessionStore.getById(id),
+    setDraft: (id: string, draftDir: string | null) => deps.sessionStore.setCommissionDraft(id, draftDir),
+  };
+
   if (args.commission.mode === 'off') {
-    const left = await leaveCommissionDraft(args.sessionId);
+    const left = await leaveCommissionDraft(args.sessionId, draftDeps);
     if (left.ok === false) return { ok: false, code: 'invalid-args', message: left.error };
     deps.bus.publish({ type: 'session.commission', sessionId: args.sessionId, channel: session.channel });
     return settled(left.removed);
@@ -117,14 +122,23 @@ export async function handleSetCommission(
     if (commission.status !== 'active') {
       return { ok: false, code: 'invalid-args', message: t('ui.commission.notActive', { status: commission.status }) };
     }
+    // A drafting session that joins instead leaves its own draft directory behind; clear it the way
+    // `off` does — removed only while nothing was written into it.
+    const left = session.commissionDraft ? await leaveCommissionDraft(args.sessionId, draftDeps) : null;
     // Joining mid-conversation is safe because the [Commission] block follows the binding rather
     // than the session's first turn: the next turn carries the contract index (DR-0037 v4).
-    await sessionStore.bindCommission(args.sessionId, commission.id);
+    await deps.sessionStore.bindCommission(args.sessionId, commission.id);
     deps.bus.publish({ type: 'commission.updated', commissionId: commission.id, projectId: commission.projectId });
-    return { ok: true, data: { phase: 'active', commissionId: commission.id, commissionDraft: null } };
+    return {
+      ok: true,
+      data: {
+        phase: 'active', commissionId: commission.id, commissionDraft: null,
+        ...(left?.ok ? { removedDraftDir: left.removed } : {}),
+      },
+    };
   }
 
-  const entered = await enterCommissionDraft(args.sessionId);
+  const entered = await enterCommissionDraft(args.sessionId, draftDeps);
   if (entered.ok === false) return { ok: false, code: 'invalid-args', message: entered.error };
   if (!entered.alreadyDrafting) {
     deps.bus.publish({ type: 'session.commission', sessionId: args.sessionId, channel: session.channel });

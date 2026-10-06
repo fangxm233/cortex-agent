@@ -1804,6 +1804,10 @@ export interface UiServiceDeps {
     /** Atomic metadata-only writes. */
     setStarred(sessionId: string, starred: boolean): Promise<Session | null>;
     rename(sessionId: string, label: string): Promise<Session | null>;
+    /** Commission mode (`sessions.setCommission`): bind to a landed commission (clears any draft),
+     *  or enter/leave the drafting half. */
+    bindCommission(sessionId: string, commissionId: string | null): Promise<Session | null>;
+    setCommissionDraft(sessionId: string, draftDir: string | null): Promise<Session | null>;
   };
   /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
    *  the two fields the answer depends on so the list can answer it once per distinct profile
