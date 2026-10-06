@@ -78,7 +78,6 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: {
       ...h.history,
       clearBySessionIds: async (sessionIds: Iterable<string>) => {
@@ -114,7 +113,6 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -158,7 +156,7 @@ test('retention sweep ignores untrusted Claude ledger backup paths outside the c
   const result = await runSessionRetentionSweep({
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
-    registry: h.registry, ledgerRepo: h.ledger, historyRepo: h.history,
+    registry: h.registry, historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: { protectedTrackSessionIds: [], protectedBackendSessionIds: [], activeClaudeCapturePaths: [], activeClaudeCapturePairs: [] },
     paths: { historyDir: h.historyDir, piSessionsDir: h.piDir, claudeCaptureDir: h.captureDir, claudeProjectDir: h.claudeProjectDir },
@@ -186,7 +184,7 @@ test('retention sweep drops a deleted session\'s carried totals, and leaves surv
   const result = await runSessionRetentionSweep({
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
-    registry: h.registry, ledgerRepo: h.ledger, historyRepo: h.history,
+    registry: h.registry, historyRepo: h.history,
     candidateRepo: h.candidates,
     sessionTotals: totals,
     liveness: { protectedTrackSessionIds: [], protectedBackendSessionIds: [], activeClaudeCapturePaths: [], activeClaudeCapturePairs: [] },
@@ -228,7 +226,6 @@ test('retention sweep preserves invalid registry dates, syncs Claude helper, and
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -277,7 +274,6 @@ test('retention sweep deletes orphan history and PI transcript bundles only afte
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -309,7 +305,7 @@ test('retention sweep deletes orphan history and PI transcript bundles only afte
   await assert.rejects(() => fs.stat(piBackup));
 });
 
-test('retention sweep removes tool-image directories of sessions that are gone, and only those', async () => {
+test('retention sweep removes tool-image directories of sessions that are gone, and only those, on the second sweep', async () => {
   const h = await makeHarness();
   const toolImagesDir = path.join(h.root, 'tool-images');
   await h.registry.registerSession('cortex-live', registerOpts('track-live'));
@@ -322,11 +318,10 @@ test('retention sweep removes tool-image directories of sessions that are gone, 
   await fs.utimes(dirs[0], oldTime, oldTime);
   await fs.utimes(dirs[1], oldTime, oldTime);
 
-  const result = await runSessionRetentionSweep({
+  const sweep = () => runSessionRetentionSweep({
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -340,6 +335,12 @@ test('retention sweep removes tool-image directories of sessions that are gone, 
     syncClaudeUserCleanupPeriodDays: async () => ({ filePath: '/tmp/settings.json', changed: false }),
   });
 
+  // Like the history and PI sweeps: the first sweep only marks the orphan.
+  const first = await sweep();
+  assert.equal(first.toolImagesDeleted, 0);
+  await assert.doesNotReject(() => fs.stat(dirs[1]), 'one sweep is not enough');
+
+  const result = await sweep();
   assert.equal(result.toolImagesDeleted, 1);
   await assert.doesNotReject(() => fs.stat(dirs[0]), 'a live session keeps its images');
   await assert.rejects(() => fs.stat(dirs[1]), 'an unregistered, old directory goes');
@@ -365,7 +366,6 @@ test('retention sweep isolates Claude helper and registry failures from capture 
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -402,7 +402,6 @@ test('retention sweep isolates Claude helper and registry failures from capture 
       ...h.registry,
       listRecentSessions: async () => { throw new Error('registry read boom'); },
     } as any,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -457,7 +456,6 @@ for (const failingMethod of ['listRecentSessions', 'listPendingDeletions'] as co
       retentionDays: 30,
       now: () => Date.parse('2026-08-01T00:00:00.000Z'),
       registry,
-      ledgerRepo: h.ledger,
       historyRepo: h.history,
       candidateRepo: h.candidates,
       liveness: {
@@ -525,7 +523,6 @@ test('retention sweep rejects symlink cleanup and parses canonical plus timestam
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: {
@@ -646,7 +643,6 @@ function sweepDeps(h: Harness, overrides: Partial<Parameters<typeof runSessionRe
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
     sessionTotals: new SessionTotalsCarryRepo(path.join(h.root, 'session-totals.json')),

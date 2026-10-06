@@ -2,7 +2,7 @@ import path from 'node:path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
 
-export type RetentionCandidateCategory = 'history' | 'pi';
+export type RetentionCandidateCategory = 'history' | 'pi' | 'tool-images';
 
 interface RetentionCandidateData {
   categories: Partial<Record<RetentionCandidateCategory, Record<string, number>>>;

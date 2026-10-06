@@ -208,10 +208,6 @@ export class ConversationLedgerRepo {
     return matches;
   }
 
-  async clearBySessionIds(sessionIds: Iterable<string>): Promise<number> {
-    return this.registry.clearConversationsBySessionIds(sessionIds);
-  }
-
   async switchSession(channel: string, opts: {
     sessionId: string;
     sessionName: string | null;

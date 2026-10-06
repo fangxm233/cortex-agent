@@ -408,33 +408,31 @@ export class SessionRegistryRepo {
     await this.withState((state) => this.doUnbindChannel(state, channel));
   }
 
-  /** Remove every binding pointing at one of `sessionIds`. Used when sessions are torn down.
-   *  Returns the number of bindings removed. */
-  async unbindBySessionIds(sessionIds: Iterable<string>): Promise<number> {
-    const targets = new Set(sessionIds);
-    return this.withState(async (state) => {
-      const channels = Array.from(state.bindings)
-        .filter(([, boundId]) => targets.has(boundId))
-        .map(([channel]) => channel);
-      await this.appendBatch(state, channels.map((channel): SessionRegistryEvent => ({ v: 1, op: 'unbind', channel })));
-      return channels.length;
-    });
-  }
-
-  /** Drop the conversation header and turns of every channel whose conversation names one of
-   *  `sessionIds`, in one append. Returns the number of channels cleared. */
-  async clearConversationsBySessionIds(sessionIds: Iterable<string>): Promise<number> {
+  /**
+   * Release every channel `sessionIds` still hold, in one append: the bindings that point at them,
+   * and the conversation header and turns of each channel whose conversation names one of them.
+   * Retention runs this before it removes a deleted session's files, so no channel stays bound to
+   * a session that can no longer be leased while that cleanup runs (or fails and is retried).
+   * Returns the number of channels touched.
+   */
+  async releaseChannels(sessionIds: Iterable<string>): Promise<number> {
     const targets = new Set(sessionIds);
     if (targets.size === 0) return 0;
     return this.withState(async (state) => {
-      const channels = Array.from(state.conversations)
+      const unbound = Array.from(state.bindings)
+        .filter(([, boundId]) => targets.has(boundId))
+        .map(([channel]) => channel);
+      const cleared = Array.from(state.conversations)
         .filter(([, header]) => header.sessionId && targets.has(header.sessionId))
         .map(([channel]) => channel);
-      await this.appendBatch(state, channels.flatMap((channel): SessionRegistryEvent[] => [
-        { v: 1, op: 'conversation', channel, kind: 'clear' },
-        { v: 1, op: 'turn', channel, kind: 'clear' },
-      ]));
-      return channels.length;
+      await this.appendBatch(state, [
+        ...unbound.map((channel): SessionRegistryEvent => ({ v: 1, op: 'unbind', channel })),
+        ...cleared.flatMap((channel): SessionRegistryEvent[] => [
+          { v: 1, op: 'conversation', channel, kind: 'clear' },
+          { v: 1, op: 'turn', channel, kind: 'clear' },
+        ]),
+      ]);
+      return new Set([...unbound, ...cleared]).size;
     });
   }
 

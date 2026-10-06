@@ -3,9 +3,8 @@ import path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { parsePISessionFilename } from '@core/pi-session-filename.js';
 import { effectiveBackendSessionId, type PendingDeletion, type Session, type SessionRegistryRepo, type TurnRecord } from '@store/session-registry-repo.js';
-import type { ConversationLedgerRepo } from '@store/conversation-ledger-repo.js';
 import type { ConversationHistoryRepo } from '@store/conversation-history-repo.js';
-import type { RetentionCandidateRepo } from '@store/retention-candidate-repo.js';
+import type { RetentionCandidateCategory, RetentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { sessionTotalsCarry, type SessionTotalsCarryRepo } from '@store/session-totals-repo.js';
 import { activeSessionUseIds } from '@domain/sessions/session-use.js';
 import { toolImageSessionDir } from '@store/tool-image-files.js';
@@ -37,7 +36,6 @@ export interface SessionRetentionDeps {
   retentionDays: number;
   now?: () => number;
   registry: SessionRegistryRepo;
-  ledgerRepo: Pick<ConversationLedgerRepo, 'clearBySessionIds'>;
   historyRepo: Pick<ConversationHistoryRepo, 'clearBySessionIds'>;
   /** Per-session cumulative stats carried over from archived executions. Optional so existing
    *  callers and fixtures keep working; absent ⇒ the carry is simply not pruned. */
@@ -195,9 +193,12 @@ async function safeRegistryListPendingDeletions(
 
 /**
  * Crash-safety order, per batch: the delete intents are already durable; registry-side cleanup
- * (bindings, conversation + turns) lands in one append; per-session files are removed; only the
- * sessions whose cleanup fully succeeded are committed in one append. Every step is idempotent, so
- * a crash or stop anywhere leaves intents that the next sweep's retry finishes.
+ * (bindings, conversation + turns) lands in one append (`releaseChannels`); per-session files are
+ * removed; only the sessions whose cleanup fully succeeded are committed in one append. Every step
+ * is idempotent, so a crash or stop anywhere leaves intents that the next sweep's retry finishes.
+ *
+ * The release cannot wait for the commit (whose replay drops the same channels): a session whose
+ * file cleanup fails stays pending, and a channel still bound to it could not start a new turn.
  */
 async function commitDeletes(
   deps: SessionRetentionDeps,
@@ -218,8 +219,7 @@ async function commitDeleteBatch(
 ): Promise<number> {
   const ids = entries.map(entry => entry.session.sessionId);
   try {
-    await deps.registry.unbindBySessionIds(ids);
-    await deps.ledgerRepo.clearBySessionIds(ids);
+    await deps.registry.releaseChannels(ids);
   } catch (error) {
     errors.push(`registry cleanup (${ids.length} sessions): ${(error as Error).message}`);
     return 0;
@@ -326,6 +326,58 @@ async function realpathOrNull(filePath: string): Promise<string | null> {
   }
 }
 
+/** One thing an orphan sweep may remove. */
+interface OrphanCandidate {
+  key: string;
+  /** Still owned (a live or pending session, an in-use backend id): never removed. */
+  kept: boolean;
+  /** Newest mtime of what would be removed — the two-sweep stamp. Null when nothing removable is
+   *  there (gone, a symlink, not the expected kind). Read only for an unowned candidate. */
+  stamp(): Promise<number | null>;
+  /** Remove it; resolves the number of entries removed. */
+  remove(): Promise<number>;
+}
+
+/**
+ * The rule every orphan sweep shares: an owned candidate, or one written inside the retention
+ * window, has its mark cleared; otherwise the first sweep only marks it with its stamp, and a later
+ * sweep that finds the same stamp removes it. Two sweeps apart, so a file a session is about to
+ * claim (a registry write that has not landed, a directory being created) survives one sweep.
+ */
+async function sweepOrphans(
+  deps: SessionRetentionDeps,
+  category: RetentionCandidateCategory,
+  candidates: Iterable<OrphanCandidate>,
+  cutoffMs: number,
+  errors: string[],
+): Promise<number> {
+  let removed = 0;
+  for (const candidate of candidates) {
+    if (isStopped(deps)) break;
+    try {
+      const stamp = candidate.kept ? null : await candidate.stamp();
+      if (stamp === null || stamp >= cutoffMs) {
+        await deps.candidateRepo.clear(category, candidate.key);
+        continue;
+      }
+      if (!await deps.candidateRepo.isConfirmed(category, candidate.key, stamp)) {
+        await deps.candidateRepo.mark(category, candidate.key, stamp);
+        continue;
+      }
+      removed += await candidate.remove();
+      await deps.candidateRepo.clear(category, candidate.key);
+    } catch (error) {
+      errors.push(`${category}:${candidate.key}: ${(error as Error).message}`);
+    }
+  }
+  return removed;
+}
+
+/** Session ids that still own their files: live, or pending deletion (the commit removes theirs). */
+function ownedSessions(live: Session[], pending: PendingDeletion[]): Session[] {
+  return [...live, ...pending.map(entry => entry.session)];
+}
+
 async function deleteHistoryOrphans(
   deps: SessionRetentionDeps,
   live: Session[],
@@ -333,43 +385,24 @@ async function deleteHistoryOrphans(
   cutoffMs: number,
   errors: string[],
 ): Promise<number> {
-  const protectedIds = new Set([
-    ...live.map(session => session.sessionId),
-    ...pending.map(entry => entry.session.sessionId),
-  ]);
+  const owned = new Set(ownedSessions(live, pending).map(session => session.sessionId));
   const files = await listFiles(deps.paths.historyDir, '.jsonl');
-  let removed = 0;
-  for (const filePath of files) {
-    if (isStopped(deps)) break;
+  return sweepOrphans(deps, 'history', files.map((filePath): OrphanCandidate => {
     const sessionId = path.basename(filePath, '.jsonl');
-    try {
-      if (protectedIds.has(sessionId)) {
-        await deps.candidateRepo.clear('history', sessionId);
-        continue;
-      }
-      const stats = await safeStat(filePath);
-      if (!stats || stats.mtimeMs >= cutoffMs) {
-        await deps.candidateRepo.clear('history', sessionId);
-        continue;
-      }
-      const stamp = Number(stats.mtimeMs);
-      if (!await deps.candidateRepo.isConfirmed('history', sessionId, stamp)) {
-        await deps.candidateRepo.mark('history', sessionId, stamp);
-        continue;
-      }
-      await unlinkIfExists(filePath);
-      await deps.candidateRepo.clear('history', sessionId);
-      removed += 1;
-    } catch (error) {
-      errors.push(`history:${sessionId}: ${(error as Error).message}`);
-    }
-  }
-  return removed;
+    return {
+      key: sessionId,
+      kept: owned.has(sessionId),
+      stamp: async () => {
+        const stats = await safeStat(filePath);
+        return stats ? Number(stats.mtimeMs) : null;
+      },
+      remove: () => unlinkIfExists(filePath),
+    };
+  }), cutoffMs, errors);
 }
 
 /** A session's tool-image directory outlives nothing: once the session is neither live nor pending
- *  deletion its images have no transcript left to show them. The mtime guard mirrors the history
- *  sweep — a directory written inside the retention window is never touched. */
+ *  deletion its images have no transcript left to show them. */
 async function deleteToolImageOrphans(
   deps: SessionRetentionDeps,
   live: Session[],
@@ -379,8 +412,7 @@ async function deleteToolImageOrphans(
 ): Promise<number> {
   const root = deps.paths.toolImagesDir;
   if (!root) return 0;
-  const keep = new Set([...live, ...pending.map(entry => entry.session)]
-    .map(session => toolImageSessionDir(session.sessionId)));
+  const owned = new Set(ownedSessions(live, pending).map(session => toolImageSessionDir(session.sessionId)));
   let names: string[];
   try {
     names = await readDirSafe(root);
@@ -388,21 +420,21 @@ async function deleteToolImageOrphans(
     errors.push(`tool-images: ${(error as Error).message}`);
     return 0;
   }
-  let removed = 0;
-  for (const name of names) {
-    if (isStopped(deps)) break;
-    if (keep.has(name)) continue;
+  return sweepOrphans(deps, 'tool-images', names.map((name): OrphanCandidate => {
     const dir = path.join(root, name);
-    try {
-      const entry = await safeLstat(dir);
-      if (!entry || !entry.isDirectory() || entry.mtimeMs >= cutoffMs) continue;
-      await fs.rm(dir, { recursive: true, force: true });
-      removed += 1;
-    } catch (error) {
-      errors.push(`tool-images:${name}: ${(error as Error).message}`);
-    }
-  }
-  return removed;
+    return {
+      key: name,
+      kept: owned.has(name),
+      stamp: async () => {
+        const entry = await safeLstat(dir);
+        return entry?.isDirectory() ? Number(entry.mtimeMs) : null;
+      },
+      remove: async () => {
+        await fs.rm(dir, { recursive: true, force: true });
+        return 1;
+      },
+    };
+  }), cutoffMs, errors);
 }
 
 async function deletePiOrphans(
@@ -414,34 +446,17 @@ async function deletePiOrphans(
   errors: string[],
 ): Promise<number> {
   const tracked = new Set<string>();
-  for (const session of [...live, ...pending.map(entry => entry.session)]) {
+  for (const session of ownedSessions(live, pending)) {
     const backendId = effectiveBackendSessionId(session);
     if (backendId) tracked.add(backendId);
   }
   const bundles = await collectPiBundles(deps.paths.piSessionsDir);
-  let removed = 0;
-  for (const bundle of bundles) {
-    if (isStopped(deps)) break;
-    try {
-      if (tracked.has(bundle.backendSessionId) || protectedBackendIds.has(bundle.backendSessionId)) {
-        await deps.candidateRepo.clear('pi', bundle.backendSessionId);
-        continue;
-      }
-      if (bundle.newestMtimeMs >= cutoffMs) {
-        await deps.candidateRepo.clear('pi', bundle.backendSessionId);
-        continue;
-      }
-      if (!await deps.candidateRepo.isConfirmed('pi', bundle.backendSessionId, bundle.newestMtimeMs)) {
-        await deps.candidateRepo.mark('pi', bundle.backendSessionId, bundle.newestMtimeMs);
-        continue;
-      }
-      removed += await deleteFiles(bundle.files);
-      await deps.candidateRepo.clear('pi', bundle.backendSessionId);
-    } catch (error) {
-      errors.push(`pi:${bundle.backendSessionId}: ${(error as Error).message}`);
-    }
-  }
-  return removed;
+  return sweepOrphans(deps, 'pi', bundles.map((bundle): OrphanCandidate => ({
+    key: bundle.backendSessionId,
+    kept: tracked.has(bundle.backendSessionId) || protectedBackendIds.has(bundle.backendSessionId),
+    stamp: async () => bundle.newestMtimeMs,
+    remove: () => deleteFiles(bundle.files),
+  })), cutoffMs, errors);
 }
 
 async function deleteClaudeCaptureLogs(deps: SessionRetentionDeps, cutoffMs: number, errors: string[]): Promise<number> {

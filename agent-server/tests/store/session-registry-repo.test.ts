@@ -481,7 +481,7 @@ async function seedExpired(filePath: string, count: number, turnsPerSession = 0)
   return ids;
 }
 
-test('beginDeleteExpired, the cleanup releases and commitDeletions each land as one append and one compaction check', async () => {
+test('beginDeleteExpired, the channel release and commitDeletions each land as one append and one compaction check', async () => {
   const { filePath } = nextPaths();
   const ids = await seedExpired(filePath, 50, 2);
   const { repo, counts } = countingRepo(filePath, { compactAlways: true });
@@ -490,19 +490,18 @@ test('beginDeleteExpired, the cleanup releases and commitDeletions each land as 
   assert.equal(pending.length, 50);
   assert.deepEqual(counts, { appends: 1, compactions: 1 });
 
-  assert.equal(await repo.unbindBySessionIds(ids), 50);
-  assert.equal(await repo.clearConversationsBySessionIds(ids), 50);
-  assert.deepEqual(counts, { appends: 3, compactions: 3 });
+  assert.equal(await repo.releaseChannels(ids), 50);
+  assert.deepEqual(counts, { appends: 2, compactions: 2 }, 'bindings, headers and turns in one append');
   assert.equal(await repo.getBoundSessionId('web:sess-0'), null);
   assert.deepEqual(await repo.getTurns('web:sess-0'), []);
   assert.equal(await repo.getConversationHeader('web:sess-0'), null);
 
   const committed = await repo.commitDeletions([...ids, 'not-pending', ids[0]]);
   assert.deepEqual(committed, ids);
-  assert.deepEqual(counts, { appends: 4, compactions: 4 });
+  assert.deepEqual(counts, { appends: 3, compactions: 3 });
   assert.deepEqual(await repo.listPendingDeletions(), []);
   assert.deepEqual(await repo.commitDeletions(ids), [], 'a second commit is a no-op');
-  assert.equal(counts.appends, 4, 'and appends nothing');
+  assert.equal(counts.appends, 3, 'and appends nothing');
 
   const reopened = new SessionRegistryRepo(filePath);
   assert.deepEqual(await reopened.listRecentSessions(100), []);

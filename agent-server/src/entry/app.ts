@@ -158,7 +158,6 @@ async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Pr
     retentionDays,
     signal,
     registry: sessionStore,
-    ledgerRepo: conversationLedger,
     historyRepo: conversationHistory,
     candidateRepo: retentionCandidateRepo,
     cancelWaitpoints: (sessionIds) => cancelWaitpointsForSessions(sessionIds),
