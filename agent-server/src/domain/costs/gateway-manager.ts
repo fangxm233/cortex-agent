@@ -1,10 +1,9 @@
 import { spawn as childSpawn, ChildProcess } from 'child_process';
 import { createWriteStream, mkdirSync, existsSync } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import * as http from 'http';
 import { createRequire } from 'module';
-import { DATA_DIR } from '@core/paths.js';
+import { AISTATUS_DIR, DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('gateway-mgr');
@@ -129,7 +128,7 @@ async function spawnGateway() {
   // no retention, which grew to 66 GB / 111k files in three months and filled the disk (ENOSPC
   // killed running threads). The env spread below still honours an explicitly exported
   // GATEWAY_DUMP_DIR, so debugging remains one `export` away — it is just never on by accident.
-  const GATEWAY_CONFIG_PATH = path.join(os.homedir(), '.aistatus', 'gateway.yaml');
+  const GATEWAY_CONFIG_PATH = path.join(AISTATUS_DIR, 'gateway.yaml');
   child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, 'start', '-c', GATEWAY_CONFIG_PATH, '-p', String(GATEWAY_PORT)], {
     cwd: DATA_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],

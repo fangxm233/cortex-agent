@@ -58,6 +58,10 @@ export function resolveSpawnCwd(cwd?: string): string {
   return path.resolve(cwd ?? AGENT_CWD);
 }
 
+/** aistatus's own home (gateway.yaml, config.yaml, usage/). Always under the user's home, not
+ *  DATA_DIR: aistatus reads it from there regardless of CORTEX_HOME. */
+export const AISTATUS_DIR = path.join(os.homedir(), '.aistatus');
+
 /** Configuration files — .env, budget, mode, profiles, templates, etc. (DATA_DIR/config/). */
 export const CONFIG_DIR = path.join(DATA_DIR, 'config');
 

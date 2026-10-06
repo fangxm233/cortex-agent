@@ -1,8 +1,9 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { copyFileSync, existsSync } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 
+import { atomicWriteSync } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
+import { AISTATUS_DIR } from '@core/paths.js';
 import {
   readGatewayYaml, serializeGatewayYaml, type EndpointMap,
 } from '@core/gateway-generator.js';
@@ -10,7 +11,7 @@ import {
 const log = createLogger('pi-custom-providers');
 
 /** The config file the running gateway watches; edits are hot-reloaded within ~1s. */
-export const GATEWAY_CONFIG_PATH = path.join(os.homedir(), '.aistatus', 'gateway.yaml');
+export const GATEWAY_CONFIG_PATH = path.join(AISTATUS_DIR, 'gateway.yaml');
 
 export interface GatewayRouteSpec {
   /** Endpoint section (URL segment after the mode): `/m/<mode>/<endpoint>`. */
@@ -36,7 +37,6 @@ function readDocument(gatewayPath: string): GatewayDocument {
 }
 
 function writeDocument(gatewayPath: string, doc: GatewayDocument): void {
-  mkdirSync(path.dirname(gatewayPath), { recursive: true });
   if (existsSync(gatewayPath)) {
     try {
       copyFileSync(gatewayPath, `${gatewayPath}.bak`);
@@ -50,7 +50,7 @@ function writeDocument(gatewayPath: string, doc: GatewayDocument): void {
     preservedCustom: [],
     droppedFromDiscovery: [],
   });
-  writeFileSync(gatewayPath, content, 'utf8');
+  atomicWriteSync(gatewayPath, content);
 }
 
 /** The stored route config, or null when that endpoint/mode pair is absent. */

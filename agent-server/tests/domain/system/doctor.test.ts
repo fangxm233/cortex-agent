@@ -79,7 +79,7 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
   return {
     env: { ...BASE_ENV },
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
-    homeDir: '/h', nodeVersion: 'v20.11.0', requiredNodeMajor: 20,
+    aistatusDir: '/h/.aistatus', nodeVersion: 'v20.11.0', requiredNodeMajor: 20,
     fileExists: p => BASE_PRESENT.has(p),
     isWritable: () => true,
     readText: p => (p in BASE_TEXTS ? BASE_TEXTS[p] : null),

@@ -19,7 +19,7 @@ import { generateProfiles, writeProfilesJson, listChoices } from '@core/profile-
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
 import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
-import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
+import { AISTATUS_DIR, INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -578,7 +578,7 @@ async function checkAndInstallBackends(backends: InitBackend[]): Promise<void> {
 
 /** Path to aistatus config file. */
 export function getAistatusConfigPath(): string {
-  return path.join(os.homedir(), '.aistatus', 'config.yaml');
+  return path.join(AISTATUS_DIR, 'config.yaml');
 }
 
 /** Write gateway usage config to ~/.aistatus/config.yaml, or <configDir>/config.yaml if configDir is given (for testing). */

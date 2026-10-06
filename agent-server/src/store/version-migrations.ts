@@ -1,9 +1,8 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
 import { createHash } from 'node:crypto';
 import { CORTEX_VERSION, CORTEX_DOCS_URL } from '@core/version.js';
-import { DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
+import { AISTATUS_DIR, DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { compareCalVer } from '@core/calver.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
@@ -1242,7 +1241,7 @@ export async function migrateSessionHooksToRegistry(dataDir: string): Promise<vo
  */
 export async function migrateAistatusConfigLocation(
   dataDir: string,
-  dstPath = path.join(os.homedir(), '.aistatus', 'config.yaml'),
+  dstPath = path.join(AISTATUS_DIR, 'config.yaml'),
 ): Promise<void> {
   const srcPath = path.join(dataDir, 'config', 'config.yaml');
 

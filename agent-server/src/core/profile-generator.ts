@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { atomicWriteSync } from './atomic-write.js';
+import { CONFIG_DIR } from './paths.js';
 import type { DiscoveredEndpoint } from './gateway-generator.js';
 import { createLogger } from './log.js';
 
@@ -232,12 +233,10 @@ export function generateProfiles(
  */
 export function mergeProfilesJson(
   generated: ProfilesFile,
-  outputDir?: string,
+  outputDir: string = CONFIG_DIR,
   overwrite: boolean = false,
 ): ProfilesFile {
-  const existingPath = outputDir
-    ? path.join(outputDir, 'profiles.json')
-    : path.join(os.homedir(), '.cortex', 'config', 'profiles.json');
+  const existingPath = path.join(outputDir, 'profiles.json');
 
   let existing: ProfilesFile | null = null;
 
@@ -277,7 +276,7 @@ export function mergeProfilesJson(
 }
 
 export interface WriteProfilesOpts extends GenerateOpts {
-  /** Output directory. Defaults to ~/.cortex/config. */
+  /** Output directory. Defaults to CONFIG_DIR. */
   outputDir?: string;
   /** Force overwrite of existing `plan` / `execute` profiles. Default false. */
   overwrite?: boolean;
@@ -286,18 +285,10 @@ export interface WriteProfilesOpts extends GenerateOpts {
 }
 
 /**
- * Write profiles.json to ~/.cortex/config/profiles.json (or outputDir/profiles.json).
- * Merges with existing file to preserve user customizations unless overwrite=true.
+ * Write profiles.json to CONFIG_DIR (or outputDir). Merges with the existing file to preserve user
+ * customizations unless overwrite=true. Written atomically: the server hot-reads this file.
  */
-export function writeProfilesJson(
-  endpoints: DiscoveredEndpoint[],
-  optsOrOutputDir?: WriteProfilesOpts | string,
-): string {
-  // Back-compat: previous signature was (endpoints, outputDir?: string)
-  const opts: WriteProfilesOpts = typeof optsOrOutputDir === 'string'
-    ? { outputDir: optsOrOutputDir }
-    : (optsOrOutputDir ?? {});
-
+export function writeProfilesJson(endpoints: DiscoveredEndpoint[], opts: WriteProfilesOpts = {}): string {
   const generated = generateProfiles(endpoints, {
     planChoice: opts.planChoice,
     executeChoice: opts.executeChoice,
@@ -305,15 +296,10 @@ export function writeProfilesJson(
     executeFallback: opts.executeFallback,
     extraProfiles: opts.extraProfiles,
   });
-  const merged = mergeProfilesJson(generated, opts.outputDir, opts.overwrite ?? false);
-
-  const configDir = opts.outputDir || path.join(os.homedir(), '.cortex', 'config');
+  const configDir = opts.outputDir || CONFIG_DIR;
+  const merged = mergeProfilesJson(generated, configDir, opts.overwrite ?? false);
   const outputPath = path.join(configDir, 'profiles.json');
-
-  mkdirSync(configDir, { recursive: true });
-
-  const content = JSON.stringify(merged, null, 2) + '\n';
-  writeFileSync(outputPath, content, 'utf-8');
+  atomicWriteSync(outputPath, JSON.stringify(merged, null, 2) + '\n');
   log.info(`Written profiles.json to ${outputPath}`);
 
   return outputPath;

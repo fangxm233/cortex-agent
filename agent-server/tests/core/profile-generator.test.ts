@@ -268,6 +268,12 @@ test('writeProfilesJson: writes profiles.json containing plan and execute', () =
   }
 });
 
+test('writeProfilesJson: defaults to CORTEX_HOME/config, not the real ~/.cortex', () => {
+  const outPath = writeProfilesJson([ANTHROPIC_PLAN]);
+  assert.equal(outPath, path.join(process.env.CORTEX_HOME!, 'config', 'profiles.json'));
+  assert.ok(JSON.parse(fs.readFileSync(outPath, 'utf-8')).profiles.plan);
+});
+
 test('writeProfilesJson: overwrite=true forces overwrite of existing plan/execute', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-profile-write-'));
   try {

@@ -44,7 +44,7 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
       SLACK_SIGNING_SECRET: 's', SLACK_APP_TOKEN: 'xapp-1',
     },
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
-    homeDir: '/h', nodeVersion: 'v20.0.0', requiredNodeMajor: 20,
+    aistatusDir: '/h/.aistatus', nodeVersion: 'v20.0.0', requiredNodeMajor: 20,
     fileExists: p => GREEN_PRESENT.has(p), isWritable: () => true,
     readText: p => (p in GREEN_TEXTS ? GREEN_TEXTS[p] : null),
     parseDotenv: parseEnv, commandExists: () => true, pidAlive: () => true,

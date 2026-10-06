@@ -1,12 +1,13 @@
-import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
+import { copyFileSync, existsSync, readFileSync } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 import {
   anthropicModelDiscovery, anthropicModelIds, type DiscoveredAnthropicModel,
 } from './anthropic-model-discovery.js';
+import { atomicWriteSync } from './atomic-write.js';
 import { resolveAnthropicApiKey } from './claude-credentials.js';
 import { createLogger } from './log.js';
+import { AISTATUS_DIR, CONFIG_DIR } from './paths.js';
 import { loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
 
 const log = createLogger('gateway-generator');
@@ -556,8 +557,7 @@ export function writeMergedGatewayYaml(
   outputDir?: string,
   defaultMode?: string,
 ): { path: string; result: MergeGatewayResult } {
-  const configDir = outputDir || path.join(os.homedir(), '.aistatus');
-  const configPath = path.join(configDir, 'gateway.yaml');
+  const configPath = path.join(outputDir || AISTATUS_DIR, 'gateway.yaml');
 
   const existing = readGatewayYaml(configPath);
   const result = mergeGatewayConfig(discovered, existing, defaultMode);
@@ -572,8 +572,7 @@ export function writeMergedGatewayYaml(
     }
   }
 
-  mkdirSync(configDir, { recursive: true });
-  writeFileSync(configPath, content, 'utf-8');
+  atomicWriteSync(configPath, content);
   log.info(`Written merged gateway.yaml to ${configPath}`);
 
   return { path: configPath, result };
@@ -586,11 +585,9 @@ export function writeMergedGatewayYaml(
  */
 export function validateProfilesAgainstGateway(
   mergedEndpoints: EndpointMap,
-  profilesConfigDir?: string,
+  profilesConfigDir: string = CONFIG_DIR,
 ): GatewayValidationIssue[] {
-  const profilesPath = profilesConfigDir
-    ? path.join(profilesConfigDir, 'profiles.json')
-    : path.join(os.homedir(), '.cortex', 'config', 'profiles.json');
+  const profilesPath = path.join(profilesConfigDir, 'profiles.json');
 
   let parsed: unknown;
   try {

@@ -367,6 +367,14 @@ test('validateProfilesAgainstGateway: flags pi profile with missing gateway mode
   assert.match(issues[0].reason, /qwen-local/);
 });
 
+test('validateProfilesAgainstGateway: reads profiles.json from CORTEX_HOME/config by default', () => {
+  writeProfiles(nodePath.join(process.env.CORTEX_HOME!, 'config'), {
+    p: { model: 'm', backend: 'pi', mode: 'nope', provider: 'deepseek' },
+  });
+  const issues = validateProfilesAgainstGateway(GW);
+  assert.deepEqual(issues.map(i => i.profile), ['p']);
+});
+
 test('validateProfilesAgainstGateway: passes when all modes exist', () => {
   const dir = tmpDir();
   writeProfiles(dir, {

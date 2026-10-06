@@ -1,12 +1,11 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import * as http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
-import { DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/paths.js';
+import { AISTATUS_DIR, DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/paths.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 import { isProcessAlive } from '@core/singleton-lock.js';
@@ -63,7 +62,7 @@ export interface DoctorPaths {
 export interface DoctorDeps {
   env: Record<string, string | undefined>;
   paths: DoctorPaths;
-  homeDir: string;
+  aistatusDir: string;
   nodeVersion: string;        // e.g. 'v20.11.0'
   requiredNodeMajor: number;  // e.g. 20
   fileExists(p: string): boolean;
@@ -428,7 +427,7 @@ function sectionGateway(
   healthy: boolean,
 ): DoctorSection {
   const checks: CheckResult[] = [];
-  const gwYaml = path.join(deps.homeDir, '.aistatus', 'gateway.yaml');
+  const gwYaml = path.join(deps.aistatusDir, 'gateway.yaml');
   const gwConfigured = deps.fileExists(gwYaml);
   checks.push(gwConfigured
     ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
@@ -549,7 +548,7 @@ export function createDefaultDoctorDeps(): DoctorDeps {
   return {
     env: process.env,
     paths: { DATA_DIR, CONFIG_DIR, STORE_DIR },
-    homeDir: os.homedir(),
+    aistatusDir: AISTATUS_DIR,
     nodeVersion: process.version,
     requiredNodeMajor: 20,
     fileExists: (p) => { try { return fs.existsSync(p); } catch { return false; } },

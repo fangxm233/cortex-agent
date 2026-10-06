@@ -507,7 +507,7 @@ async function writeGatewayConfiguration(outputDir: string | undefined): Promise
     return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
   }
   const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, outputDir);
-  const profilesPath = writeProfilesJson(endpoints, outputDir);
+  const profilesPath = writeProfilesJson(endpoints, { outputDir });
   return {
     exitCode: 0,
     stdout: gatewayOutput(endpoints, outputDir, gatewayPath, profilesPath, result),
