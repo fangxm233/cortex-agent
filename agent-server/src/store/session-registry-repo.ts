@@ -604,7 +604,8 @@ export class SessionRegistryRepo {
         const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
         return lastUsedAtMs !== null && lastUsedAtMs < toCutoffMs(cutoff);
       };
-      // A team worker lives as long as its lead: kept while the lead exists, deleted with it.
+      // A team worker lives as long as its lead: kept while the lead exists, deleted with it —
+      // unless it is starred itself. A star means "never auto-delete", for a worker too.
       const leadsDeleted = new Set(records
         .filter(record => !record.teamLeadId && !blocked.has(record.sessionId) && expired(record))
         .map(record => record.sessionId));
@@ -612,7 +613,7 @@ export class SessionRegistryRepo {
       for (const record of records) {
         // In-use sessions are protected by the caller: `domain/sessions/session-retention.ts` unions
         // `activeSessionUseIds()` into `protectedIds`. The store no longer keeps a use counter.
-        if (blocked.has(record.sessionId)) continue;
+        if (blocked.has(record.sessionId) || record.starred === true) continue;
         const leadId = record.teamLeadId && liveIds.has(record.teamLeadId) ? record.teamLeadId : null;
         if (leadId ? !leadsDeleted.has(leadId) : !expired(record)) continue;
         // Hand the callback the session's turns from the locked state directly — the ledger is now a

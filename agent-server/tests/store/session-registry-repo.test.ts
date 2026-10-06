@@ -418,7 +418,7 @@ test('retention keeps a stale worker while its lead lives and deletes fresh work
     'an in-use lead keeps its workers');
 });
 
-test('retention keeps starred and commission sessions however old; a worker still follows its lead', async () => {
+test('retention keeps starred and commission sessions however old; an unstarred worker follows its lead', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
   const stale = '2020-01-01T00:00:00.000Z';
@@ -430,19 +430,26 @@ test('retention keeps starred and commission sessions however old; a worker stil
   await repo.registerSession('cortex-lead', registerOpts('sess-lead'));
   await repo.setStarred('sess-lead', true);
   await repo.registerSession('cortex-worker', { ...registerOpts('sess-worker'), teamLeadId: 'sess-lead', workerName: 'w' });
-  // A worker goes with its expired lead, its own star notwithstanding (Decision 6).
+  // An expired lead takes its unstarred worker with it; a starred worker stays.
   await repo.registerSession('cortex-lead2', registerOpts('sess-lead2'));
   await repo.registerSession('cortex-worker2', { ...registerOpts('sess-worker2'), teamLeadId: 'sess-lead2', workerName: 'w2' });
-  await repo.setStarred('sess-worker2', true);
-  for (const name of ['cortex-starred', 'cortex-commission', 'cortex-plain', 'cortex-lead', 'cortex-worker', 'cortex-lead2', 'cortex-worker2']) {
-    await repo.updateSession(name, { lastUsedAt: stale });
-  }
+  await repo.registerSession('cortex-worker3', { ...registerOpts('sess-worker3'), teamLeadId: 'sess-lead2', workerName: 'w3' });
+  await repo.setStarred('sess-worker3', true);
+  const names = [
+    'cortex-starred', 'cortex-commission', 'cortex-plain', 'cortex-lead', 'cortex-worker',
+    'cortex-lead2', 'cortex-worker2', 'cortex-worker3',
+  ];
+  for (const name of names) await repo.updateSession(name, { lastUsedAt: stale });
 
   const pending = await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
   assert.deepEqual(
     pending.map(entry => entry.session.sessionId).sort(),
     ['sess-lead2', 'sess-plain', 'sess-worker2'],
   );
+
+  // Once its lead is gone, the starred worker is still kept by its own star.
+  await repo.commitDeletions(pending.map(entry => entry.session.sessionId));
+  assert.deepEqual(await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []), []);
 });
 
 /** A registry whose appends and compactions are counted; `compactAlways` forces a compaction
