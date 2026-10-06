@@ -10,7 +10,7 @@ const FAKE_CHROME = `
 const fs = require('fs'), http = require('http'), path = require('path');
 const log = process.env.FAKE_BROWSER_LOG;
 const display = process.env.DISPLAY || null;
-fs.writeFileSync(path.join(log, 'chrome-' + process.pid + '.json'), JSON.stringify({ pid: process.pid, display }));
+fs.writeFileSync(path.join(log, 'chrome-' + process.pid + '.json'), JSON.stringify({ pid: process.pid, display, at: String(process.hrtime.bigint()) }));
 const mode = process.env.FAKE_CHROME_MODE || 'serve';
 if (mode === 'exit') process.exit(1);
 // Like real Chrome: with no X server behind DISPLAY, it dies at startup.
@@ -28,7 +28,7 @@ const fs = require('fs'), path = require('path');
 const log = process.env.FAKE_BROWSER_LOG;
 const display = process.argv[2];
 const fdIdx = process.argv.indexOf('-displayfd');
-fs.writeFileSync(path.join(log, 'xvfb-' + process.pid + '.json'), JSON.stringify({ pid: process.pid, display }));
+fs.writeFileSync(path.join(log, 'xvfb-' + process.pid + '.json'), JSON.stringify({ pid: process.pid, display, at: String(process.hrtime.bigint()) }));
 setTimeout(() => {
   fs.writeFileSync(path.join(log, 'xvfb-ready-' + display.slice(1)), '');
   if (fdIdx > 0) fs.writeSync(Number(process.argv[fdIdx + 1]), display.slice(1) + '\\n');
@@ -40,7 +40,7 @@ export interface FakeBrowserKit {
   chrome: string;
   binDir: string;
   logDir: string;
-  /** Records the fakes left behind, read fresh each call. */
+  /** Records the fakes left behind, read fresh each call, oldest first. */
   spawned(kind: 'chrome' | 'xvfb'): Array<{ pid: number; display: string | null }>;
   /** Kill anything still running — a failing test must not leave fakes behind. */
   cleanup(): void;
@@ -60,11 +60,14 @@ export function makeFakeBrowserKit(): FakeBrowserKit {
   const chrome = write('fake-chrome', FAKE_CHROME);
   write('Xvfb', FAKE_XVFB);
 
+  // Ordered by the monotonic clock each fake stamped at startup. readdir returns names sorted as
+  // strings, and pid order is not spawn order once pids roll over a digit (99999 → 100000) or wrap.
   const spawned = (kind: 'chrome' | 'xvfb') =>
     fs
       .readdirSync(logDir)
       .filter((f) => f.startsWith(`${kind}-`) && f.endsWith('.json'))
-      .map((f) => JSON.parse(fs.readFileSync(path.join(logDir, f), 'utf8')));
+      .map((f) => JSON.parse(fs.readFileSync(path.join(logDir, f), 'utf8')))
+      .sort((a, b) => (BigInt(a.at) < BigInt(b.at) ? -1 : 1));
 
   return {
     chrome,
