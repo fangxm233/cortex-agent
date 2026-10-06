@@ -1,4 +1,4 @@
-export type { PlatformAdapter } from './adapter.js';
+export type { PlatformAdapter, AdminChannelKey } from './adapter.js';
 export { SYNTHETIC_CALLBACK_SENDER } from './types.js';
 export type {
   MessageRef,
@@ -40,4 +40,4 @@ export {
 } from './interactive-builder.js';
 export type { QuestionOption, QuestionRecord, QuestionGroup } from './interactive-builder.js';
 export { createAdapterFromEnv } from './adapters/index.js';
-export { extractTuiAdapter, listPlatformAdapters, setPlatformAdminChannel } from './adapters/composite-adapter.js';
+export { extractTuiAdapter, listPlatformAdapters } from './adapters/composite-adapter.js';

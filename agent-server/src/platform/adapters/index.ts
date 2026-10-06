@@ -94,11 +94,6 @@ function decideTuiEnabled(): boolean {
   return true; // auto: default enabled
 }
 
-/** Return the configured TUI port (default 3003). */
-function tuiPort(): number {
-  return Number(process.env.CORTEX_TUI_PORT) || 3003;
-}
-
 // ─── createAdapterFromEnv (rewritten with 4-branch logic) ──────────────
 
 /**
@@ -112,7 +107,7 @@ function tuiPort(): number {
  */
 export function createAdapterFromEnv(): PlatformAdapter {
   const primaries = createPrimaryAdaptersFromEnv();
-  const tui = decideTuiEnabled() ? new TuiGatewayAdapter({ port: tuiPort() }) : null;
+  const tui = decideTuiEnabled() ? new TuiGatewayAdapter() : null;
   const all: PlatformAdapter[] = [...primaries, ...(tui ? [tui] : [])];
 
   if (all.length === 0) {

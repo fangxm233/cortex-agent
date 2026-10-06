@@ -1,5 +1,5 @@
 import { getSettings, onSettingsChange } from '@core/settings.js';
-import { createAdapterFromEnv, setPlatformAdminChannel } from '@platform/index.js';
+import { createAdapterFromEnv, listPlatformAdapters } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
 
 type AdapterFactory = () => PlatformAdapter;
@@ -7,11 +7,9 @@ type AdapterFactory = () => PlatformAdapter;
 function registerAdminChannelHotReload(adapter: PlatformAdapter): void {
   onSettingsChange((changedKeys) => {
     const settings = getSettings();
-    if (changedKeys.includes('adminChannel')) {
-      setPlatformAdminChannel(adapter, 'slack', settings.adminChannel);
-    }
-    if (changedKeys.includes('feishuAdminChannel')) {
-      setPlatformAdminChannel(adapter, 'feishu', settings.feishuAdminChannel);
+    for (const platform of listPlatformAdapters(adapter)) {
+      const key = platform.adminChannelKey;
+      if (key && changedKeys.includes(key)) platform.setAdminChannel?.(settings[key]);
     }
   });
 }

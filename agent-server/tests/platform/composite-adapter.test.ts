@@ -6,7 +6,6 @@ import {
   CompositeAdapter,
   extractTuiAdapter,
   FanOutOutputStream,
-  setPlatformAdminChannel,
 } from '../../src/platform/adapters/composite-adapter.js';
 import { TuiGatewayAdapter, TuiConnection } from '../../src/platform/adapters/tui/index.js';
 import type { OutputStream, MutableRegion } from '../../src/platform/output-stream.js';
@@ -49,43 +48,6 @@ class RecordingOutputStream implements OutputStream {
     return this.parentRef;
   }
 }
-
-test('setPlatformAdminChannel keeps Slack/test and Feishu hot updates isolated', async () => {
-  const slack = new MockAdapter({ adminChannel: 'C-slack-old' });
-  const mock = new MockAdapter({ adminChannel: 'C-test-old' });
-  const feishu = new MockAdapter({ adminChannel: 'oc-old' });
-  Object.defineProperty(slack, 'name', { value: 'slack' });
-  Object.defineProperty(feishu, 'name', { value: 'feishu' });
-  const composite = new CompositeAdapter([slack, mock, feishu]);
-
-  setPlatformAdminChannel(composite, 'slack', 'C-new');
-  setPlatformAdminChannel(composite, 'feishu', 'oc-new');
-
-  const destination = { type: 'system-notice' as const };
-  assert.equal((await slack.postMessage(destination, { text: 's' })).conduit, 'C-new');
-  assert.equal((await mock.postMessage(destination, { text: 'm' })).conduit, 'C-new');
-  assert.equal((await feishu.postMessage(destination, { text: 'f' })).conduit, 'oc-new');
-});
-
-test('setPlatformAdminChannel clears Slack/test and Feishu routes', async () => {
-  const slack = new MockAdapter({ adminChannel: 'C-slack-old' });
-  const mock = new MockAdapter({ adminChannel: 'C-test-old' });
-  const feishu = new MockAdapter({ adminChannel: 'oc-old' });
-  Object.defineProperty(slack, 'name', { value: 'slack' });
-  Object.defineProperty(feishu, 'name', { value: 'feishu' });
-  const composite = new CompositeAdapter([slack, mock, feishu]);
-
-  setPlatformAdminChannel(composite, 'slack', null);
-  setPlatformAdminChannel(composite, 'feishu', null);
-
-  const destination = { type: 'system-notice' as const };
-  assert.equal((await slack.postMessage(destination, { text: 's' })).conduit, '');
-  assert.equal((await mock.postMessage(destination, { text: 'm' })).conduit, '');
-  assert.equal((await feishu.postMessage(destination, { text: 'f' })).conduit, '');
-  assert.equal(slack.posted.length, 0);
-  assert.equal(mock.posted.length, 0);
-  assert.equal(feishu.posted.length, 0);
-});
 
 // ── Test: Fan-out project-report ──────────────────────────────────
 

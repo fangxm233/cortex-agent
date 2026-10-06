@@ -17,6 +17,7 @@ import type {
   RichBlock,
 } from '../types.js';
 import type { OutputStream, MutableRegion, OpenOutputStreamOpts } from '../output-stream.js';
+import { noopOutputStream } from '../output-stream-helpers.js';
 import { TuiGatewayAdapter } from './tui/index.js';
 
 // ── Capability merging ────────────────────────────────────────────
@@ -86,19 +87,6 @@ export class FanOutOutputStream implements OutputStream {
   getParentRef(): MessageRef | null {
     return this._subs.length > 0 ? this._subs[0].getParentRef() : null;
   }
-}
-
-// ── No-op output stream ───────────────────────────────────────────
-
-function noopOutputStream(): OutputStream {
-  return {
-    emitText: () => {},
-    openMutable: () => ({ update: () => {} }),
-    postInteractive: async () => null,
-    flush: async () => {},
-    getRefs: () => [],
-    getParentRef: () => null,
-  };
 }
 
 // ── No-op platform adapter ────────────────────────────────────────
@@ -180,9 +168,8 @@ export class CompositeAdapter implements PlatformAdapter {
   readonly name = 'composite';
   readonly capabilities: PlatformCapabilities;
 
-  private _adapters: PlatformAdapter[];
-  /** Cached TUI gateway reference (if any) for extractTuiAdapter. */
-  private _tui: TuiGatewayAdapter | null;
+  private readonly _adapters: PlatformAdapter[];
+  private readonly _tui: TuiGatewayAdapter | null;
   /** No-op adapter for unowned conduits (e.g. web sessions). */
   private _noop: PlatformAdapter = createNoopAdapter();
 
@@ -193,6 +180,16 @@ export class CompositeAdapter implements PlatformAdapter {
     this._adapters = adapters;
     this._tui = (adapters.find(a => a instanceof TuiGatewayAdapter) as TuiGatewayAdapter) ?? null;
     this.capabilities = adapters.map(a => a.capabilities).reduce(mergeCapabilities);
+  }
+
+  /** The sub-adapters, in routing order. */
+  get adapters(): readonly PlatformAdapter[] {
+    return this._adapters;
+  }
+
+  /** The TUI gateway among the sub-adapters, if any. */
+  get tui(): TuiGatewayAdapter | null {
+    return this._tui;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────
@@ -242,21 +239,14 @@ export class CompositeAdapter implements PlatformAdapter {
     return this._adapterForConduit(triggerId);
   }
 
-  /** Return sub-adapter(s) for a destination (single-target types only).
+  /** Return sub-adapter(s) for a non-project-report destination.
    *  system-notice fans out to every real primary (each drops if its own admin
    *  channel is unconfigured) but NOT the TUI gateway, which has no admin
    *  channel concept. With a single primary this is just `[primary]`. */
-  private _adaptersForDest(dest: Destination): PlatformAdapter[] {
-    switch (dest.type) {
-      case 'interactive-reply':
-        return [this._adapterForConduit(dest.conduit)];
-      case 'system-notice': {
-        const primaries = this._adapters.filter(a => a !== this._tui);
-        return primaries.length > 0 ? primaries : this._adapters.slice();
-      }
-      default:
-        return [this._adapters[0]];
-    }
+  private _adaptersForDest(dest: Exclude<Destination, { type: 'project-report' }>): PlatformAdapter[] {
+    if (dest.type === 'interactive-reply') return [this._adapterForConduit(dest.conduit)];
+    const primaries = this._adapters.filter(a => a !== this._tui);
+    return primaries.length > 0 ? primaries : this._adapters.slice();
   }
 
   /** Resolve which sub-adapters should receive a project-report.
@@ -416,22 +406,7 @@ export class CompositeAdapter implements PlatformAdapter {
 
 /** The individual platform adapters behind an adapter: a composite's sub-adapters, else itself. */
 export function listPlatformAdapters(adapter: PlatformAdapter): PlatformAdapter[] {
-  return adapter instanceof CompositeAdapter
-    ? ((adapter as any)._adapters as PlatformAdapter[]).slice()
-    : [adapter];
-}
-
-export type AdminChannelPlatform = 'slack' | 'feishu';
-
-export function setPlatformAdminChannel(
-  adapter: PlatformAdapter,
-  platform: AdminChannelPlatform,
-  channel: string | null,
-): void {
-  const names = platform === 'slack' ? new Set(['slack', 'mock']) : new Set(['feishu']);
-  for (const candidate of listPlatformAdapters(adapter)) {
-    if (names.has(candidate.name)) candidate.setAdminChannel?.(channel);
-  }
+  return adapter instanceof CompositeAdapter ? [...adapter.adapters] : [adapter];
 }
 
 // ── extractTuiAdapter ─────────────────────────────────────────────
@@ -444,7 +419,7 @@ export function setPlatformAdminChannel(
  */
 export function extractTuiAdapter(adapter: PlatformAdapter): TuiGatewayAdapter | null {
   if (adapter instanceof CompositeAdapter) {
-    return (adapter as any)._tui as TuiGatewayAdapter | null;
+    return adapter.tui;
   }
   if (adapter instanceof TuiGatewayAdapter) {
     return adapter;

@@ -64,6 +64,7 @@ export interface FeishuAdapterConfig {
 
 export class FeishuAdapter implements PlatformAdapter {
   readonly name = 'feishu';
+  readonly adminChannelKey = 'feishuAdminChannel';
   readonly capabilities: PlatformCapabilities = {
     threads: true,           // via reply API with reply_in_thread
     messageEdit: false,      // Feishu has no message_changed event

@@ -71,6 +71,7 @@ export interface SlackAdapterConfig {
 
 export class SlackAdapter implements PlatformAdapter {
   readonly name = 'slack';
+  readonly adminChannelKey = 'adminChannel';
   readonly capabilities: PlatformCapabilities = {
     threads: true,
     messageEdit: true,

@@ -41,9 +41,7 @@ test('runtime adapter creation registers external admin hot reload and clear pro
   await updateSettings({ adminChannel: 'C-slack-old', feishuAdminChannel: 'oc-old' });
   const slack = new MockAdapter({ adminChannel: 'C-slack-old' });
   const mock = new MockAdapter({ adminChannel: 'C-test-old' });
-  const feishu = new MockAdapter({ adminChannel: 'oc-old' });
-  Object.defineProperty(slack, 'name', { value: 'slack' });
-  Object.defineProperty(feishu, 'name', { value: 'feishu' });
+  const feishu = new MockAdapter({ adminChannel: 'oc-old', adminChannelKey: 'feishuAdminChannel' });
   const composite = new CompositeAdapter([slack, mock, feishu]);
   assert.strictEqual(createHotReloadingAdapter(() => composite), composite);
   const base = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));

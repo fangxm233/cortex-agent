@@ -1,4 +1,4 @@
-import type { PlatformAdapter } from './adapter.js';
+import type { PlatformAdapter, AdminChannelKey } from './adapter.js';
 import type {
   MessageRef,
   MessageContent,
@@ -136,6 +136,7 @@ export class MockOutputStream implements OutputStream {
 export class MockAdapter implements PlatformAdapter {
   readonly name = 'mock';
   readonly capabilities: PlatformCapabilities;
+  readonly adminChannelKey: AdminChannelKey;
 
   posted: PostedMessage[] = [];
   updated: UpdatedMessage[] = [];
@@ -157,10 +158,11 @@ export class MockAdapter implements PlatformAdapter {
   private actionHandlers = new Map<string, (ctx: ActionContext) => Promise<void>>();
   private modalHandlers = new Map<string, (ctx: ModalSubmitContext) => Promise<void>>();
 
-  constructor(opts?: Partial<PlatformCapabilities> | { adminChannel?: string; capabilities?: Partial<PlatformCapabilities> }) {
-    const isLegacy = opts && !('adminChannel' in opts) && !('capabilities' in opts);
+  constructor(opts?: Partial<PlatformCapabilities> | { adminChannel?: string; adminChannelKey?: AdminChannelKey; capabilities?: Partial<PlatformCapabilities> }) {
+    const isLegacy = opts && !('adminChannel' in opts) && !('adminChannelKey' in opts) && !('capabilities' in opts);
     const capabilities = isLegacy ? opts as Partial<PlatformCapabilities> : (opts as any)?.capabilities;
     this._adminChannel = isLegacy ? 'mock-admin' : ((opts as any)?.adminChannel ?? null);
+    this.adminChannelKey = (isLegacy ? undefined : (opts as any)?.adminChannelKey) ?? 'adminChannel';
     this.capabilities = {
       threads: true,
       messageEdit: true,

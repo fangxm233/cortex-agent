@@ -17,6 +17,9 @@ import type {
 } from './types.js';
 import type { OutputStream, OpenOutputStreamOpts } from './output-stream.js';
 
+/** Settings keys that hold a platform's admin channel. */
+export type AdminChannelKey = 'adminChannel' | 'feishuAdminChannel';
+
 export interface PlatformAdapter {
   readonly name: string;
   readonly capabilities: PlatformCapabilities;
@@ -56,6 +59,8 @@ export interface PlatformAdapter {
 
   // --- Misc ---
   getPermalink(ref: MessageRef): Promise<string | null>;
+  /** The settings key holding this platform's admin channel, for platforms that have one. */
+  readonly adminChannelKey?: AdminChannelKey;
   setAdminChannel?(channel: string | null): void;
 
   // --- Output streams ---
