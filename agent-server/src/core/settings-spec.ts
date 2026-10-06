@@ -27,7 +27,6 @@ export interface Settings {
   disableUserContext: boolean;
   serverUpdateDisable: boolean;
   clientHotReloadEnabled: boolean;
-  hooksLegacy: boolean;
   commissionEnabled: boolean;
   teamEnabled: boolean;
   feishuSkillsInWeb: boolean;
@@ -210,12 +209,6 @@ export const SETTINGS_SPEC = {
   clientHotReloadEnabled: {
     type: 'boolean',
     default: true,
-  },
-  hooksLegacy: {
-    envVar: 'CORTEX_HOOKS_LEGACY',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => raw === '1',
   },
   feishuSkillsInWeb: { type: 'boolean', default: false },
   commissionEnabled: {

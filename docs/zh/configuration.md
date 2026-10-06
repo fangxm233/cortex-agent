@@ -396,7 +396,6 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `commissionEnabled` | boolean | `true` | 委托（commission）模式的总开关——以契约锚定的长任务。默认开启：任何会话都能中途进入该模式，既可以由 agent 自己调用 `cortex_commission_start`，也可以由你在输入框的委托胶囊里切换。关掉它会拒绝所有入口（创建、输入框、start webhook）并停止注入契约块；已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `false` | 实验性的团队模式：任何网页会话都能用 `worker_*` 工具创建并管理持久的 worker 会话。关闭后，下一轮起不再提供这些工具，已有的 worker 变回普通会话。见 [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
-| `hooksLegacy` | boolean | `false` | 绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
 | `waitpointSweepMs` | number | `30000` | waitpoint 扫描的间隔（毫秒）：收取落盘的信号（本机以及已连接设备上的）、让逾期的 waitpoint 过期、重试失败的投递。参见 [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
 | `waitpointTtlMs` | number | `604800000` | agent 未指定时 waitpoint 的默认存活时长（7 天）。单个 waitpoint 可以要更短，也可以更长但不超过 30 天硬上限；超时后 waitpoint 过期，并会告知 session「什么都没来」 | `CORTEX_WAITPOINT_TTL_MS` |
 | `waitpointMaxWakesPerHour` | number | `12` | 单个 waitpoint 每小时唤醒其 session 的次数上限。失控的信号循环会被限流（并只提示一次），而不是刷屏 | `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` |

@@ -1,5 +1,4 @@
 import * as path from 'path';
-import { getSettings } from '@core/settings.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry, type HookRun } from '../../store/hook-registry.js';
 import { DEFAULT_TOOLS, HOOKS_DIR } from './defaults.js';
 
@@ -21,32 +20,6 @@ const AGENT_EVENT_NAMES: Partial<Record<HookEntry['event'], string>> = {
   'agent:post-tool': 'PostToolUse',
   'agent:session-start': 'SessionStart',
 };
-
-function nodeHook(script: string, timeout?: number): ClaudeCommandHook {
-  const hook: ClaudeCommandHook = { type: 'command', command: `node ${path.join(HOOKS_DIR, script)}` };
-  if (timeout != null) hook.timeout = timeout;
-  return hook;
-}
-
-export const POST_TOOL_USE_HOOKS = [
-  { matcher: 'Read|Grep', hooks: [
-    nodeHook('memory-ref-tracker.mjs'),
-    nodeHook('rules-loader.mjs'),
-  ]},
-  { matcher: 'Read|Edit|Write|Skill', hooks: [nodeHook('session-activity-tracker.mjs')] },
-  { matcher: 'Read|Edit', hooks: [nodeHook('agents-md-injector.mjs')] },
-];
-
-export const SESSION_START_HOOKS = [
-  { matcher: 'startup|resume|clear|compact', hooks: [nodeHook('agents-md-injector.mjs')] },
-];
-
-function buildLegacyHooksSettings(): ClaudeHooksSettings {
-  return {
-    PostToolUse: POST_TOOL_USE_HOOKS,
-    SessionStart: SESSION_START_HOOKS,
-  };
-}
 
 /**
  * The Claude settings event an entry compiles to, or null when Claude has no mount point for it.
@@ -95,6 +68,5 @@ function compileRegistryHooks(toolsList: string[]): ClaudeHooksSettings {
 
 export function buildHooksSettings(tools: string | null) {
   const toolsList = (tools || DEFAULT_TOOLS).split(',').map((tool) => tool.trim());
-  if (getSettings().hooksLegacy) return buildLegacyHooksSettings();
   return compileRegistryHooks(toolsList);
 }

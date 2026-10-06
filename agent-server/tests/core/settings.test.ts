@@ -106,8 +106,6 @@ describe.sequential('core settings', () => {
       ['disableUserContext', 'true', false],
       ['serverUpdateDisable', '1', true],
       ['serverUpdateDisable', 'on', false],
-      ['hooksLegacy', '1', true],
-      ['hooksLegacy', 'yes', false],
       ['waitpointMaxWakesPerHour', '20wakes', 20],
       ['waitpointMaxWakesPerHour', '-1', 12],
       ['waitpointMaxWakesPerHour', 'bad', 12],

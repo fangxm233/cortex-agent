@@ -1,7 +1,7 @@
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 
 
-import { afterAll, beforeAll, test } from 'vitest';
+import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -46,7 +46,6 @@ import type { HookEntry } from '../src/store/hook-registry.js';
 
 const HOOK_REGISTRY_DIR = path.join(CONFIG_DIR, 'hooks');
 const SHIPPED_HOOK_REGISTRY_DIR = path.join(DEFAULTS_DIR, 'config', 'hooks');
-const inheritedLegacyHooks = process.env.CORTEX_HOOKS_LEGACY;
 
 function resetHookRegistry(): void {
   fs.rmSync(HOOK_REGISTRY_DIR, { recursive: true, force: true });
@@ -63,26 +62,16 @@ function writeHookRegistry(entries: readonly HookEntry[]): void {
 }
 
 function withHookRegistry<T>(entries: readonly HookEntry[], run: () => T): T {
-  const legacy = process.env.CORTEX_HOOKS_LEGACY;
-  delete process.env.CORTEX_HOOKS_LEGACY;
   writeHookRegistry(entries);
   try {
     return run();
   } finally {
     resetHookRegistry();
-    if (legacy === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
-    else process.env.CORTEX_HOOKS_LEGACY = legacy;
   }
 }
 
 beforeAll(() => {
-  delete process.env.CORTEX_HOOKS_LEGACY;
   resetHookRegistry();
-});
-
-afterAll(() => {
-  if (inheritedLegacyHooks === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
-  else process.env.CORTEX_HOOKS_LEGACY = inheritedLegacyHooks;
 });
 
 function mcpConfigPaths(args: string[]): string[] {
@@ -796,7 +785,6 @@ test('recoverTuiOrphans only sweeps sessions matching cortex-claude- prefix', ()
 // --- buildHooksSettings ---
 
 const GOLDEN_HOOKS = `{"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/status-md-guard.mjs","timeout":10}]}]}`;
-const GOLDEN_LEGACY_HOOKS = `{"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}]}`;
 
 test('buildHooksSettings compiles ordered Claude events from the active registry', () => {
   const entries: HookEntry[] = [
@@ -834,27 +822,6 @@ test('buildHooksSettings serializes native events that collide with Object.proto
 
 test('buildHooksSettings byte parity — null tools', () => {
   assert.equal(JSON.stringify(buildHooksSettings(null)), GOLDEN_HOOKS);
-});
-
-test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', async () => {
-  const entries: HookEntry[] = [
-    { id: 'only-notification', event: 'cc:Notification', matcher: 'idle', run: { command: 'notify' } },
-  ];
-  const legacy = process.env.CORTEX_HOOKS_LEGACY;
-  writeHookRegistry(entries);
-  process.env.CORTEX_HOOKS_LEGACY = '1';
-  try {
-    resetSettingsForTests();
-    assert.equal(
-      JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')),
-      GOLDEN_LEGACY_HOOKS,
-    );
-  } finally {
-    resetHookRegistry();
-    if (legacy === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
-    else process.env.CORTEX_HOOKS_LEGACY = legacy;
-    resetSettingsForTests();
-  }
 });
 
 // --- buildClaudeEnv extraEnv merge ---
