@@ -7,7 +7,7 @@
 //     becomes "the turn finished and sealed its status message";
 //   * a Turn posts its status message and resolves ids before it opens the run, so the live-registry
 //     test holds the attempt open instead of reading after a single microtask.
-import { test, expect, vi } from 'vitest';
+import { beforeAll, test, expect, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 const { mockStartAttempt } = vi.hoisted(() => ({
@@ -58,6 +58,10 @@ import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import { runRegistry } from '../../src/core/run-registry.js';
+import { seedTestProfiles } from '../_seed-profiles.js';
+
+// Opening a turn resolves the channel's profile; a scoped run starts from an empty skeleton home.
+beforeAll(seedTestProfiles);
 
 /** The synthetic attempt shape `startAttempt` hands the run; only the fields the run reads. */
 function makeSyntheticAttempt(opts: {
