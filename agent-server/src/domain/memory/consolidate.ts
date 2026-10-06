@@ -1,11 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { isMainModule } from '@core/utils.js';
 import { PROJECTS_DIR } from '@core/paths.js';
-import { scanAtomicFiles } from './index-regen.js';
-import { createLogger } from '@core/log.js';
-
-const log = createLogger('consolidate');
+import { listMemoryProjects, loadRefStats, scanAtomicFiles, stringList, type RefStats } from './index-regen.js';
 
 // --- Types ---
 
@@ -88,8 +84,7 @@ function detectTagClusters(projectName: string, experiments: ReturnType<typeof s
 
   const tagToExps = new Map<string, string[]>();
   for (const exp of activeExps) {
-    const tags = Array.isArray(exp.meta.tags) ? (exp.meta.tags as string[]) : [];
-    for (const tag of tags) {
+    for (const tag of stringList(exp.meta.tags)) {
       const normalized = tag.toLowerCase().trim();
       if (!normalized) continue;
       if (!tagToExps.has(normalized)) tagToExps.set(normalized, []);
@@ -99,7 +94,7 @@ function detectTagClusters(projectName: string, experiments: ReturnType<typeof s
 
   const patternTagSets = patterns.map(pat => ({
     id: pat.id,
-    tags: new Set((Array.isArray(pat.meta.tags) ? (pat.meta.tags as string[]) : []).map(t => t.toLowerCase())),
+    tags: new Set(stringList(pat.meta.tags).map(t => t.toLowerCase())),
   }));
 
   const tagList = [...tagToExps.keys()].filter(t => (tagToExps.get(t)?.length ?? 0) >= 2);
@@ -141,7 +136,7 @@ function detectLinkClusters(projectName: string, experiments: ReturnType<typeof 
 
   const linkGraph = new Map<string, Set<string>>();
   for (const exp of activeExps) {
-    const links = Array.isArray(exp.meta.links) ? (exp.meta.links as string[]) : [];
+    const links = stringList(exp.meta.links);
     if (links.length === 0) continue;
     if (!linkGraph.has(exp.id)) linkGraph.set(exp.id, new Set());
     for (const link of links) {
@@ -243,7 +238,7 @@ function detectContradictions(
     for (const field of ['evidence', 'source-experiments', 'source']) {
       const val = entry.meta[field];
       if (Array.isArray(val)) {
-        sourceIds.push(...(val as string[]).map(s => s.toUpperCase().trim()));
+        sourceIds.push(...stringList(val).map(s => s.toUpperCase().trim()));
       } else if (typeof val === 'string') {
         // Parse "EXP-001, EXP-003" format
         const matches = String(val).matchAll(/EXP-\d+/gi);
@@ -287,12 +282,15 @@ function detectContradictions(
 }
 
 // --- Detector 5: Staleness — entries with refs=0 and age > threshold ---
+// Refs come from the access log (the index generator reads the same source); the `refs:` field some
+// older atomic files still carry is no longer maintained.
 
 function detectStale(
   projectName: string,
   experiments: ReturnType<typeof scanAtomicFiles>,
   knowledge: ReturnType<typeof scanAtomicFiles>,
   patterns: ReturnType<typeof scanAtomicFiles>,
+  refStats: Map<string, RefStats>,
   thresholdDays: number = 30,
 ): StaleCandidate[] {
   const candidates: StaleCandidate[] = [];
@@ -310,7 +308,7 @@ function detectStale(
     const status = String(entry.meta.status || '').toLowerCase();
     if (status === 'stale' || status.startsWith('challenged')) continue;
 
-    const refs = typeof entry.meta.refs === 'number' ? entry.meta.refs : 0;
+    const refs = refStats.get(entry.filename)?.refs ?? 0;
     if (refs > 0) continue;
 
     const age = daysSince(entry.meta.date as string);
@@ -423,7 +421,7 @@ function detectAntiPatterns(projectName: string, experiments: ReturnType<typeof 
 
 // --- Core analysis ---
 
-function analyzeProject(projectName: string): ProjectReport {
+export function analyzeProject(projectName: string): ProjectReport {
   const projectDir = path.join(PROJECTS_DIR, projectName);
   const expDir = path.join(projectDir, 'experiments');
   const knDir = path.join(projectDir, 'knowledge');
@@ -447,7 +445,7 @@ function analyzeProject(projectName: string): ProjectReport {
   });
 
   const contradictions = detectContradictions(projectName, experiments, knowledge, patterns);
-  const stale = detectStale(projectName, experiments, knowledge, patterns);
+  const stale = detectStale(projectName, experiments, knowledge, patterns, loadRefStats(projectDir));
   const antiPatterns = detectAntiPatterns(projectName, experiments);
 
   return {
@@ -465,68 +463,59 @@ function analyzeProject(projectName: string): ProjectReport {
 // --- Public API ---
 
 export function consolidateAll(): ProjectReport[] {
-  const projects = fs.readdirSync(PROJECTS_DIR).filter(d => {
-    const dir = path.join(PROJECTS_DIR, d);
-    return fs.statSync(dir).isDirectory()
-      && fs.existsSync(path.join(dir, 'experiments'));
-  });
-
-  return projects.map(p => analyzeProject(p));
+  return listMemoryProjects().map(p => analyzeProject(p));
 }
 
-// --- CLI ---
+// --- Human-readable report ---
 
-function printReport(reports: ProjectReport[]): void {
+export function formatReport(reports: ProjectReport[]): string {
+  const out: string[] = [];
   const reportsWithFindings = reports.filter(r =>
     r.consolidation.length > 0 || r.contradictions.length > 0 ||
     r.stale.length > 0 || r.antiPatterns.length > 0);
 
-  if (reportsWithFindings.length === 0) {
-    log.info('No findings across all projects.');
-    return;
-  }
+  if (reportsWithFindings.length === 0) return 'No findings across all projects.';
 
   for (const r of reportsWithFindings) {
-    log.info(`\n=== ${r.project} (${r.experimentCount} exp, ${r.knowledgeCount} K, ${r.patternCount} PAT) ===`);
+    out.push(`\n=== ${r.project} (${r.experimentCount} exp, ${r.knowledgeCount} K, ${r.patternCount} PAT) ===`);
 
     if (r.contradictions.length > 0) {
-      log.info(`\n  ⚠ CONTRADICTIONS (${r.contradictions.length}):`);
+      out.push(`\n  ⚠ CONTRADICTIONS (${r.contradictions.length}):`);
       for (const c of r.contradictions) {
         const sev = c.severity === 'all-compromised' ? '🔴' : '🟡';
-        log.info(`    ${sev} ${c.reason}`);
-        log.info(`      Compromised: ${c.compromisedSources.map(s => `${s.id}(${s.status})`).join(', ')}`);
+        out.push(`    ${sev} ${c.reason}`);
+        out.push(`      Compromised: ${c.compromisedSources.map(s => `${s.id}(${s.status})`).join(', ')}`);
         if (c.remainingSources.length > 0) {
-          log.info(`      Remaining: ${c.remainingSources.join(', ')}`);
+          out.push(`      Remaining: ${c.remainingSources.join(', ')}`);
         }
       }
     }
 
     if (r.stale.length > 0) {
-      log.info(`\n  ⏳ STALE (${r.stale.length}):`);
+      out.push(`\n  ⏳ STALE (${r.stale.length}):`);
       for (const s of r.stale.slice(0, 10)) {
-        log.info(`    ${s.entryId} (${s.entryType}, ${s.ageDays}d old, ${s.refs} refs)`);
+        out.push(`    ${s.entryId} (${s.entryType}, ${s.ageDays}d old, ${s.refs} refs)`);
       }
-      if (r.stale.length > 10) log.info(`    ... and ${r.stale.length - 10} more`);
+      if (r.stale.length > 10) out.push(`    ... and ${r.stale.length - 10} more`);
     }
 
     if (r.antiPatterns.length > 0) {
-      log.info(`\n  🔁 ANTI-PATTERNS (${r.antiPatterns.length}):`);
+      out.push(`\n  🔁 ANTI-PATTERNS (${r.antiPatterns.length}):`);
       for (const a of r.antiPatterns.slice(0, 5)) {
-        log.info(`    "${a.pattern}" in ${a.experiments.join(', ')}`);
+        out.push(`    "${a.pattern}" in ${a.experiments.join(', ')}`);
       }
     }
 
     if (r.consolidation.length > 0) {
       const uncovered = r.consolidation.filter(c => c.existingPatterns.length === 0);
-      log.info(`\n  📦 CONSOLIDATION (${r.consolidation.length} total, ${uncovered.length} uncovered):`);
+      out.push(`\n  📦 CONSOLIDATION (${r.consolidation.length} total, ${uncovered.length} uncovered):`);
       for (const c of uncovered.slice(0, 5)) {
-        log.info(`    [${c.type}] ${c.reason}`);
+        out.push(`    [${c.type}] ${c.reason}`);
       }
-      if (uncovered.length > 5) log.info(`    ... and ${uncovered.length - 5} more`);
+      if (uncovered.length > 5) out.push(`    ... and ${uncovered.length - 5} more`);
     }
   }
 
-  // Summary
   const totals = {
     contradictions: reports.reduce((s, r) => s + r.contradictions.length, 0),
     allCompromised: reports.reduce((s, r) => s + r.contradictions.filter(c => c.severity === 'all-compromised').length, 0),
@@ -536,46 +525,10 @@ function printReport(reports: ProjectReport[]): void {
     uncovered: reports.reduce((s, r) => s + r.consolidation.filter(c => c.existingPatterns.length === 0).length, 0),
   };
 
-  log.info(`\n--- Summary ---`);
-  log.info(`Contradictions: ${totals.contradictions} (${totals.allCompromised} fully compromised)`);
-  log.info(`Stale entries: ${totals.stale}`);
-  log.info(`Anti-pattern signals: ${totals.antiPatterns}`);
-  log.info(`Consolidation candidates: ${totals.consolidation} (${totals.uncovered} uncovered)`);
-}
-
-if (isMainModule(import.meta.url)) {
-  const args = process.argv.slice(2);
-
-  if (args.includes('--help') || args.includes('-h')) {
-    log.info(`Usage: memory-consolidate.ts [--all | <project-name>] [--json]
-
-Knowledge lifecycle detector — scans experiments, knowledge, and patterns for:
-  • Contradictions: K/PAT entries whose source experiments are invalidated
-  • Staleness: entries with 0 refs and age > 30 days
-  • Anti-patterns: recurring deficiency keywords across experiments
-  • Consolidation candidates: tag clusters, link graphs, supersede chains
-
-Options:
-  --all              Scan all projects (default)
-  <project-name>     Scan specific project
-  --json             Output raw JSON (for programmatic use)
-  --help             Show this help`);
-    process.exit(0);
-  }
-
-  const jsonMode = args.includes('--json');
-  const filteredArgs = args.filter(a => a !== '--json');
-
-  let reports: ProjectReport[];
-  if (filteredArgs.includes('--all') || filteredArgs.length === 0) {
-    reports = consolidateAll();
-  } else {
-    reports = filteredArgs.map(p => analyzeProject(p));
-  }
-
-  if (jsonMode) {
-    log.info(JSON.stringify(reports, null, 2));
-  } else {
-    printReport(reports);
-  }
+  out.push(`\n--- Summary ---`);
+  out.push(`Contradictions: ${totals.contradictions} (${totals.allCompromised} fully compromised)`);
+  out.push(`Stale entries: ${totals.stale}`);
+  out.push(`Anti-pattern signals: ${totals.antiPatterns}`);
+  out.push(`Consolidation candidates: ${totals.consolidation} (${totals.uncovered} uncovered)`);
+  return out.join('\n');
 }

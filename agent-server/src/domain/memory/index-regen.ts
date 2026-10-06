@@ -1,169 +1,148 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { isMainModule } from '@core/utils.js';
+import { parse as yamlParse } from 'yaml';
 import { PROJECTS_DIR } from '@core/paths.js';
+import { atomicWriteSync } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('index-regen');
 
-// --- Frontmatter parser ---
+// The generator only ever READS the atomic EXP/K/PAT files and writes the git-ignored index.md
+// next to them. Reference counts come from the access log and live only in the index: the source
+// files are agent-authored, and rewriting them from here once corrupted their frontmatter while
+// agents were still editing. `refs:` / `last-ref:` lines left in older files are no longer
+// maintained and nothing reads them.
 
-interface Frontmatter {
-  [key: string]: string | string[] | number | null;
+export const MEMORY_SUBDIRS = ['experiments', 'knowledge', 'patterns'] as const;
+
+// --- Frontmatter ---
+
+export type Frontmatter = Record<string, unknown>;
+
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+const KEY_LINE_RE = /^([A-Za-z_][\w-]*):(?:\s|$)/;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseFrontmatter(content: string): { meta: Frontmatter; body: string; raw: string } {
-  // Normalize \r\n → \n to handle Windows-edited files
-  const normalized = content.replace(/\r\n/g, '\n');
-
-  if (!normalized.startsWith('---\n')) {
-    return { meta: {}, body: content, raw: '' };
-  }
-  const endMarker = normalized.indexOf('\n---\n', 4);
-  if (endMarker === -1) return { meta: {}, body: content, raw: '' };
-
-  const yamlBlock = normalized.slice(4, endMarker);
-  const body = normalized.slice(endMarker + 5);
+/** Hand-written frontmatter is not always valid YAML (a bare `{` inside a flow list, `: ` inside a
+ *  plain scalar). One bad value must not drop the whole entry from the index, so each top-level key
+ *  is parsed on its own; a key that still fails keeps its raw text. */
+function parseKeysLeniently(block: string): Frontmatter {
   const meta: Frontmatter = {};
-
-  const lines = yamlBlock.split('\n');
-  let i = 0;
-  while (i < lines.length) {
-    const match = lines[i].match(/^([\w][\w-]*):\s*(.*)/);
-    if (!match) { i++; continue; }
-    const [, key, rawVal] = match;
-    const trimmed = rawVal.trim();
-
-    // Multi-line block scalar: | or >
-    if (trimmed === '|' || trimmed === '>') {
-      const joinChar = trimmed === '|' ? '\n' : ' ';
-      const blockLines: string[] = [];
-      i++;
-      while (i < lines.length && (lines[i].startsWith('  ') || lines[i] === '')) {
-        blockLines.push(lines[i].startsWith('  ') ? lines[i].slice(2) : '');
-        i++;
-      }
-      // Trim trailing empty lines
-      while (blockLines.length > 0 && blockLines[blockLines.length - 1] === '') blockLines.pop();
-      meta[key] = blockLines.join(joinChar);
-      continue;
+  let key: string | null = null;
+  let lines: string[] = [];
+  const flush = () => {
+    if (!key) return;
+    const text = lines.join('\n');
+    try {
+      const parsed = yamlParse(text);
+      meta[key] = isPlainObject(parsed) ? parsed[key] : null;
+    } catch {
+      meta[key] = text.slice(key.length + 1).trim();
     }
-
-    meta[key] = parseSimpleYamlValue(trimmed);
-    i++;
-  }
-
-  return { meta, body, raw: yamlBlock };
-}
-
-function parseSimpleYamlValue(s: string): string | string[] | number | null {
-  if (s === 'null') return null;
-  // Array: [item1, item2]
-  if (s.startsWith('[') && s.endsWith(']')) {
-    const inner = s.slice(1, -1);
-    if (inner.trim() === '') return [];
-    return inner.split(',').map(item => {
-      let v = item.trim();
-      // Strip quotes
-      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-        v = v.slice(1, -1);
-      }
-      return v;
-    });
-  }
-  // Number
-  if (/^\d+$/.test(s)) return parseInt(s, 10);
-  // Quoted string
-  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-    return s.slice(1, -1).replace(/\\"/g, '"').replace(/\\n/g, '\n');
-  }
-  return s;
-}
-
-function serializeFrontmatter(meta: Frontmatter): string {
-  const lines = ['---'];
-  for (const [key, val] of Object.entries(meta)) {
-    if (val === null) {
-      lines.push(`${key}: null`);
-    } else if (Array.isArray(val)) {
-      const items = val.map(v => {
-        if (/[,\[\]:"']/.test(v) || v.includes(' ')) return `"${v}"`;
-        return v;
-      });
-      lines.push(`${key}: [${items.join(', ')}]`);
-    } else if (typeof val === 'number') {
-      lines.push(`${key}: ${val}`);
-    } else {
-      // String - quote if needed
-      const s = String(val);
-      if (/[:"'\[\]{}#|>&*!?,\n]/.test(s) || s.startsWith(' ') || s.startsWith('-')) {
-        lines.push(`${key}: "${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
-      } else {
-        lines.push(`${key}: ${s}`);
-      }
+  };
+  for (const line of block.split(/\r?\n/)) {
+    const match = KEY_LINE_RE.exec(line);
+    if (match) {
+      flush();
+      key = match[1];
+      lines = [line];
+    } else if (key) {
+      lines.push(line);
     }
   }
-  lines.push('---');
-  return lines.join('\n');
+  flush();
+  return meta;
 }
 
-// --- Access log parser ---
-
-interface AccessRecord {
-  file: string;
-  ts: string;
+/** `valid` is false when the block is not a YAML mapping and was read key by key instead. */
+export function parseFrontmatter(content: string): { meta: Frontmatter; valid: boolean } {
+  const match = FRONTMATTER_RE.exec(content);
+  if (!match) return { meta: {}, valid: true };
+  try {
+    const parsed = yamlParse(match[1]);
+    if (isPlainObject(parsed)) return { meta: parsed, valid: true };
+  } catch { /* fall through to the per-key parse */ }
+  return { meta: parseKeysLeniently(match[1]), valid: false };
 }
 
-function loadAccessLog(metaDir: string): Map<string, { count: number; lastRef: string | null }> {
-  const logPath = path.join(metaDir, 'access-log.jsonl');
-  const stats = new Map<string, { count: number; lastRef: string | null }>();
+export function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)) : [];
+}
 
-  if (!fs.existsSync(logPath)) return stats;
+// --- Access log ---
 
-  const content = fs.readFileSync(logPath, 'utf8');
+export interface RefStats {
+  refs: number;
+  /** ISO timestamp of the newest access, or null when never read. */
+  lastRef: string | null;
+}
+
+/** Reference counts per atomic file name (`EXP-001.md`), from `<project>/_meta/access-log.jsonl`. */
+export function loadRefStats(projectDir: string): Map<string, RefStats> {
+  const stats = new Map<string, RefStats>();
+  let content: string;
+  try {
+    content = fs.readFileSync(path.join(projectDir, '_meta', 'access-log.jsonl'), 'utf8');
+  } catch {
+    return stats;
+  }
   for (const line of content.split('\n')) {
     if (!line.trim()) continue;
+    let record: { file?: unknown; ts?: unknown };
     try {
-      const record: AccessRecord = JSON.parse(line);
-      const existing = stats.get(record.file);
-      if (existing) {
-        existing.count++;
-        if (!existing.lastRef || record.ts > existing.lastRef) {
-          existing.lastRef = record.ts;
-        }
-      } else {
-        stats.set(record.file, { count: 1, lastRef: record.ts });
-      }
+      record = JSON.parse(line);
     } catch {
-      // skip malformed lines
+      continue;
     }
+    if (typeof record.file !== 'string') continue;
+    const ts = typeof record.ts === 'string' ? record.ts : null;
+    const existing = stats.get(record.file);
+    if (!existing) {
+      stats.set(record.file, { refs: 1, lastRef: ts });
+      continue;
+    }
+    existing.refs++;
+    if (ts && (!existing.lastRef || ts > existing.lastRef)) existing.lastRef = ts;
   }
   return stats;
 }
 
-// --- Index generation ---
+const NO_REFS: RefStats = { refs: 0, lastRef: null };
 
-interface ParsedEntry {
+// --- Atomic files ---
+
+export interface ParsedEntry {
   id: string;
   filename: string;
   meta: Frontmatter;
+  /** False when the frontmatter is not valid YAML (parsed key by key). */
+  validFrontmatter: boolean;
 }
 
-function scanAtomicFiles(dir: string): ParsedEntry[] {
-  if (!fs.existsSync(dir)) return [];
-
-  const entries: ParsedEntry[] = [];
-  for (const file of fs.readdirSync(dir)) {
-    if (file === 'index.md' || file === '_section-mapping.md' || file.startsWith('_') || file.startsWith('.')) continue;
-    if (!file.endsWith('.md')) continue;
-
-    const content = fs.readFileSync(path.join(dir, file), 'utf8');
-    const { meta } = parseFrontmatter(content);
-    if (!meta.id) continue;
-
-    entries.push({ id: String(meta.id), filename: file, meta });
+export function scanAtomicFiles(dir: string): ParsedEntry[] {
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir).sort();
+  } catch {
+    return [];
   }
-
+  const entries: ParsedEntry[] = [];
+  for (const file of files) {
+    if (file === 'index.md' || file.startsWith('_') || file.startsWith('.') || !file.endsWith('.md')) continue;
+    let content: string;
+    try {
+      content = fs.readFileSync(path.join(dir, file), 'utf8');
+    } catch {
+      continue;
+    }
+    const { meta, valid } = parseFrontmatter(content);
+    if (meta.id === undefined || meta.id === null || meta.id === '') continue;
+    if (!valid) log.warn(`${path.join(dir, file)}: frontmatter is not valid YAML, read key by key`);
+    entries.push({ id: String(meta.id), filename: file, meta, validFrontmatter: valid });
+  }
   return entries;
 }
 
@@ -176,9 +155,14 @@ const INVALIDATED_PREFIXES = ['invalidated'];
 const INACTIVE_PREFIXES = ['superseded', 'deprecated'];
 const EXCLUDED_EXACT = ['refined', 'stale']; // refined = fully replaced; stale = pending review
 
-function isActiveStatus(status: string | null | undefined): boolean {
+function statusOf(entry: ParsedEntry): string {
+  const status = entry.meta.status;
+  return status === undefined || status === null ? '' : String(status);
+}
+
+function isActiveStatus(status: string): boolean {
   if (!status) return true;
-  const s = String(status).toLowerCase();
+  const s = status.toLowerCase();
   if (INVALIDATED_PREFIXES.some(p => s.startsWith(p))) return false;
   if (INACTIVE_PREFIXES.some(p => s.startsWith(p))) return false;
   if (EXCLUDED_EXACT.includes(s)) return false;
@@ -186,10 +170,11 @@ function isActiveStatus(status: string | null | undefined): boolean {
   return true;
 }
 
-function isInvalidatedStatus(status: string | null | undefined): boolean {
-  if (!status) return false;
-  return String(status).toLowerCase().startsWith('invalidated');
+function isInvalidatedStatus(status: string): boolean {
+  return status.toLowerCase().startsWith('invalidated');
 }
+
+// --- Index generation ---
 
 // "Use when" descriptions for each index type
 const USE_WHEN: Record<string, string> = {
@@ -198,110 +183,88 @@ const USE_WHEN: Record<string, string> = {
   patterns: 'Use when: looking for cross-experiment regularities, anti-patterns to avoid, or established best practices before making design decisions.',
 };
 
-function generateIndex(dir: string, title: string): void {
+const HEADER_NOTE = '> Auto-generated from YAML frontmatter; Refs / Last ref come from _meta/access-log.jsonl. Do not edit manually. Not tracked by git.';
+
+/** One markdown table cell: a value never breaks the row it sits in. */
+function cell(value: unknown, max?: number): string {
+  if (value === undefined || value === null) return '';
+  let text = (typeof value === 'object' ? JSON.stringify(value) : String(value)).replace(/\s*\r?\n\s*/g, ' ');
+  if (max !== undefined) text = text.slice(0, max);
+  return text.replace(/\|/g, '\\|');
+}
+
+function text(entry: ParsedEntry, ...keys: string[]): unknown {
+  for (const key of keys) {
+    const value = entry.meta[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function tagCell(entry: ParsedEntry): string {
+  return stringList(entry.meta.tags).slice(0, 4).map(t => `\`${cell(t)}\``).join(', ');
+}
+
+function writeIndex(dir: string, content: string): void {
+  atomicWriteSync(path.join(dir, 'index.md'), content);
+}
+
+export function generateIndex(dir: string, title: string): void {
   const entries = scanAtomicFiles(dir);
   const subdirName = path.basename(dir);
+  const useWhen = USE_WHEN[subdirName] || '';
+  const now = new Date().toISOString().slice(0, 19);
+  const lines: string[] = [`# ${title}`, ''];
+  if (useWhen) lines.push(useWhen, '');
+  lines.push(HEADER_NOTE, `> Last updated: ${now}`, '');
 
   if (entries.length === 0) {
-    const useWhen = USE_WHEN[subdirName] || '';
-    const empty = `# ${title}\n\n${useWhen ? useWhen + '\n\n' : ''}> Auto-generated from frontmatter. Do not edit manually.\n> Last updated: ${new Date().toISOString().slice(0, 19)}\n\n_No entries._\n`;
-    fs.writeFileSync(path.join(dir, 'index.md'), empty);
+    lines.push('_No entries._', '');
+    writeIndex(dir, lines.join('\n'));
     return;
   }
 
-  // Load access stats from _meta/
-  const projectDir = path.dirname(dir);
-  const metaDir = path.join(projectDir, '_meta');
-  const accessStats = loadAccessLog(metaDir);
-
-  // Update refs in each file's frontmatter
-  for (const entry of entries) {
-    const basename = entry.filename;
-    const stats = accessStats.get(basename);
-    const newRefs = stats ? stats.count : 0;
-    const newLastRef = stats ? stats.lastRef : null;
-
-    const currentRefs = entry.meta.refs;
-    const currentLastRef = entry.meta['last-ref'];
-
-    if (currentRefs !== newRefs || currentLastRef !== newLastRef) {
-      entry.meta.refs = newRefs;
-      entry.meta['last-ref'] = newLastRef;
-
-      // Rewrite file with updated frontmatter
-      const filePath = path.join(dir, basename);
-      const content = fs.readFileSync(filePath, 'utf8');
-      const { body } = parseFrontmatter(content);
-      fs.writeFileSync(filePath, serializeFrontmatter(entry.meta) + '\n' + body);
-    }
-  }
+  const refStats = loadRefStats(path.dirname(dir));
+  const statsOf = (e: ParsedEntry): RefStats => refStats.get(e.filename) ?? NO_REFS;
+  const refsCell = (e: ParsedEntry) => `${statsOf(e).refs} | ${statsOf(e).lastRef?.slice(0, 10) ?? ''}`;
 
   // Three-way split: active / invalidated / inactive (superseded/deprecated/stale)
-  const active = entries.filter(e => isActiveStatus(e.meta.status as string));
-  const invalidated = entries.filter(e => isInvalidatedStatus(e.meta.status as string));
-  const inactive = entries.filter(e =>
-    !isActiveStatus(e.meta.status as string) && !isInvalidatedStatus(e.meta.status as string));
+  const active = entries.filter(e => isActiveStatus(statusOf(e)));
+  const invalidated = entries.filter(e => isInvalidatedStatus(statusOf(e)));
+  const inactive = entries.filter(e => !isActiveStatus(statusOf(e)) && !isInvalidatedStatus(statusOf(e)));
 
   // Sort active by refs descending, then by date descending
   active.sort((a, b) => {
-    const refsA = typeof a.meta.refs === 'number' ? a.meta.refs : 0;
-    const refsB = typeof b.meta.refs === 'number' ? b.meta.refs : 0;
-    if (refsB !== refsA) return refsB - refsA;
-    const dateA = String(a.meta.date || '');
-    const dateB = String(b.meta.date || '');
-    return dateB.localeCompare(dateA);
+    const refDiff = statsOf(b).refs - statsOf(a).refs;
+    if (refDiff !== 0) return refDiff;
+    return String(b.meta.date ?? '').localeCompare(String(a.meta.date ?? ''));
   });
 
-  // Build index content
-  const now = new Date().toISOString().slice(0, 19);
-  const useWhen = USE_WHEN[subdirName] || '';
-  const lines: string[] = [
-    `# ${title}`,
-    '',
-  ];
-  if (useWhen) lines.push(useWhen, '');
-  lines.push(
-    `> Auto-generated by memory-index-regen.ts from YAML frontmatter. Do not edit manually. Not tracked by git.`,
-    `> Last updated: ${now}`,
-    '',
-  );
-
   // Detect type based on ID prefix
-  const isExperiments = entries.some(e => String(e.meta.id).startsWith('EXP-'));
-  const isKnowledge = entries.some(e => String(e.meta.id).startsWith('K-'));
+  const isExperiments = entries.some(e => e.id.startsWith('EXP-'));
+  const isKnowledge = entries.some(e => e.id.startsWith('K-'));
 
+  lines.push(`## Active (${active.length} entries)`, '');
   if (isExperiments) {
-    lines.push(`## Active (${active.length} entries)`, '');
-    lines.push('| ID | Date | Summary | Tags | Refs | Links |');
-    lines.push('|----|------|---------|------|------|-------|');
+    lines.push('| ID | Date | Summary | Tags | Refs | Last ref | Links |');
+    lines.push('|----|------|---------|------|------|----------|-------|');
     for (const e of active) {
-      const tags = Array.isArray(e.meta.tags)
-        ? (e.meta.tags as string[]).slice(0, 4).map(t => `\`${t}\``).join(', ')
-        : '';
-      const links = Array.isArray(e.meta.links) ? (e.meta.links as string[]).join(', ') : '';
-      const summary = String(e.meta.summary || '—').slice(0, 100);
-      lines.push(`| ${e.meta.id} | ${e.meta.date || ''} | ${summary} | ${tags} | ${e.meta.refs || 0} | ${links} |`);
+      const links = stringList(e.meta.links).map(l => cell(l)).join(', ');
+      lines.push(`| ${cell(e.id)} | ${cell(e.meta.date)} | ${cell(text(e, 'summary') ?? '—', 100)} | ${tagCell(e)} | ${refsCell(e)} | ${links} |`);
     }
   } else if (isKnowledge) {
-    lines.push(`## Active (${active.length} entries)`, '');
-    lines.push('| ID | Title | Source | Refs |');
-    lines.push('|----|-------|--------|------|');
+    lines.push('| ID | Title | Source | Refs | Last ref |');
+    lines.push('|----|-------|--------|------|----------|');
     for (const e of active) {
-      lines.push(`| ${e.meta.id} | ${e.meta.title || e.meta.summary || '—'} | ${e.meta.source || ''} | ${e.meta.refs || 0} |`);
+      lines.push(`| ${cell(e.id)} | ${cell(text(e, 'title', 'summary') ?? '—')} | ${cell(e.meta.source)} | ${refsCell(e)} |`);
     }
   } else {
     // Generic (patterns, etc)
-    lines.push(`## Active (${active.length} entries)`, '');
-    lines.push('| ID | Summary | Tags | Sources | Refs |');
-    lines.push('|----|---------|------|---------|------|');
+    lines.push('| ID | Summary | Tags | Sources | Refs | Last ref |');
+    lines.push('|----|---------|------|---------|------|----------|');
     for (const e of active) {
-      const tags = Array.isArray(e.meta.tags)
-        ? (e.meta.tags as string[]).slice(0, 4).map(t => `\`${t}\``).join(', ')
-        : '';
-      const sources = Array.isArray(e.meta['source-experiments'])
-        ? (e.meta['source-experiments'] as string[]).join(', ')
-        : '';
-      lines.push(`| ${e.meta.id} | ${e.meta.summary || e.meta.title || '—'} | ${tags} | ${sources} | ${e.meta.refs || 0} |`);
+      const sources = stringList(e.meta['source-experiments']).map(s => cell(s)).join(', ');
+      lines.push(`| ${cell(e.id)} | ${cell(text(e, 'summary', 'title') ?? '—')} | ${tagCell(e)} | ${sources} | ${refsCell(e)} |`);
     }
   }
 
@@ -313,9 +276,8 @@ function generateIndex(dir: string, title: string): void {
     lines.push('| ID | Date | Summary | Invalidated By | Refs |');
     lines.push('|----|------|---------|----------------|------|');
     for (const e of invalidated) {
-      const summary = String(e.meta.summary || e.meta.title || '—').slice(0, 80);
-      const statusTarget = String(e.meta.status || '').replace(/^invalidated:/i, '').trim();
-      lines.push(`| ${e.meta.id} | ${e.meta.date || ''} | ${summary} | ${statusTarget} | ${e.meta.refs || 0} |`);
+      const statusTarget = statusOf(e).replace(/^invalidated:/i, '').trim();
+      lines.push(`| ${cell(e.id)} | ${cell(e.meta.date)} | ${cell(text(e, 'summary', 'title') ?? '—', 80)} | ${cell(statusTarget)} | ${statsOf(e).refs} |`);
     }
   }
 
@@ -325,114 +287,78 @@ function generateIndex(dir: string, title: string): void {
     lines.push('| ID | Date | Summary | Status | Refs |');
     lines.push('|----|------|---------|--------|------|');
     for (const e of inactive) {
-      const summary = String(e.meta.summary || e.meta.title || '—').slice(0, 80);
-      lines.push(`| ${e.meta.id} | ${e.meta.date || ''} | ${summary} | ${e.meta.status || ''} | ${e.meta.refs || 0} |`);
+      lines.push(`| ${cell(e.id)} | ${cell(e.meta.date)} | ${cell(text(e, 'summary', 'title') ?? '—', 80)} | ${cell(statusOf(e))} | ${statsOf(e).refs} |`);
     }
   }
 
   // Stats
   const hotThreshold = 5;
   const coldAgeDays = 14;
-  const today = new Date();
-  const hot = active
-    .filter(e => typeof e.meta.refs === 'number' && e.meta.refs >= hotThreshold)
-    .map(e => String(e.meta.id));
+  const today = Date.now();
+  const hot = active.filter(e => statsOf(e).refs >= hotThreshold).map(e => e.id);
   const cold = active
     .filter(e => {
-      if (typeof e.meta.refs === 'number' && e.meta.refs > 0) return false;
+      if (statsOf(e).refs > 0) return false;
       const d = e.meta.date ? new Date(String(e.meta.date)) : null;
       if (!d || isNaN(d.getTime())) return false;
-      return (today.getTime() - d.getTime()) / 86400000 > coldAgeDays;
+      return (today - d.getTime()) / 86400000 > coldAgeDays;
     })
-    .map(e => String(e.meta.id));
-
-  // Count challenged entries in active
-  const challenged = active.filter(e => String(e.meta.status || '').toLowerCase().startsWith('challenged'));
+    .map(e => e.id);
+  const challenged = active.filter(e => statusOf(e).toLowerCase().startsWith('challenged'));
+  const invalidYaml = entries.filter(e => !e.validFrontmatter);
 
   lines.push('', '## Stats');
   lines.push(`- Total: ${entries.length} (${active.length} active, ${invalidated.length} invalidated, ${inactive.length} superseded/deprecated)`);
   if (challenged.length > 0) {
-    lines.push(`- Challenged (under review): ${challenged.map(e => String(e.meta.id)).join(', ')}`);
+    lines.push(`- Challenged (under review): ${challenged.map(e => e.id).join(', ')}`);
   }
   lines.push(`- Hot (refs >= ${hotThreshold}): ${hot.slice(0, 10).join(', ') || 'none'}`);
   lines.push(`- Cold (refs=0, age>${coldAgeDays}d): ${cold.slice(0, 10).join(', ') || 'none'}`);
+  if (invalidYaml.length > 0) {
+    lines.push(`- Invalid YAML frontmatter (fix the file): ${invalidYaml.map(e => e.filename).join(', ')}`);
+  }
   lines.push('');
 
-  fs.writeFileSync(path.join(dir, 'index.md'), lines.join('\n'));
+  writeIndex(dir, lines.join('\n'));
 }
 
-// --- CLI: regenerate indexes for all or specific projects ---
+// --- Projects ---
 
-export function regenAll(): string[] {
-  // Use withFileTypes to avoid ENOENT on broken symlinks (e.g. AGENTS.md -> CLAUDE.md)
-  const projects = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })
+function hasMemoryDirs(projectDir: string): boolean {
+  return MEMORY_SUBDIRS.some(sub => fs.existsSync(path.join(projectDir, sub)));
+}
+
+/** Projects that have at least one memory directory, sorted. */
+export function listMemoryProjects(): string[] {
+  // withFileTypes avoids ENOENT on broken symlinks (e.g. AGENTS.md -> CLAUDE.md)
+  return fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })
     .filter(d => d.isDirectory() && !d.name.startsWith('.'))
     .map(d => d.name)
-    .filter(d => {
-      const dir = path.join(PROJECTS_DIR, d);
-      return fs.existsSync(path.join(dir, 'experiments'))
-        || fs.existsSync(path.join(dir, 'knowledge'))
-        || fs.existsSync(path.join(dir, 'patterns'));
-    });
-  for (const p of projects) {
-    regenProject(p);
-  }
+    .filter(name => hasMemoryDirs(path.join(PROJECTS_DIR, name)))
+    .sort();
+}
+
+export function regenAll(): string[] {
+  const projects = listMemoryProjects();
+  for (const p of projects) regenProject(p);
   return projects;
 }
 
-export function regenProject(projectName: string): void {
+/** Regenerate every index of one project. Returns the regenerated index paths, relative to the
+ *  project directory; empty when the project does not exist. */
+export function regenProject(projectName: string): string[] {
   const projectDir = path.join(PROJECTS_DIR, projectName);
   if (!fs.existsSync(projectDir)) {
     log.error(`Project not found: ${projectName}`);
-    return;
+    return [];
   }
-
-  log.info(`Regenerating indexes for ${projectName}...`);
-
-  for (const subdir of ['experiments', 'knowledge', 'patterns']) {
+  const written: string[] = [];
+  for (const subdir of MEMORY_SUBDIRS) {
     const dir = path.join(projectDir, subdir);
-    if (fs.existsSync(dir)) {
-      const ucFirst = subdir.charAt(0).toUpperCase() + subdir.slice(1);
-      generateIndex(dir, `${ucFirst} Index — ${projectName}`);
-      log.info(`  ${subdir}/index.md`);
-    }
+    if (!fs.existsSync(dir)) continue;
+    const ucFirst = subdir.charAt(0).toUpperCase() + subdir.slice(1);
+    generateIndex(dir, `${ucFirst} Index — ${projectName}`);
+    written.push(`${subdir}/index.md`);
   }
+  return written;
 }
-
-if (isMainModule(import.meta.url)) {
-  const args = process.argv.slice(2);
-
-  if (args.includes('--help') || args.includes('-h')) {
-    log.info(`Usage: memory-index-regen.ts [--all | <project-name> ... | <directory-path>]
-
-Regenerate index.md from atomic file frontmatter + update refs from access-log.
-
-Options:
-  --all              Regenerate for all projects
-  <project-name>     Regenerate for specific project(s)
-  <directory-path>   Regenerate for a specific directory (e.g., experiments/)
-  --help             Show this help`);
-    process.exit(0);
-  }
-
-  if (args.includes('--all')) {
-    regenAll();
-  } else if (args.length > 0) {
-    for (const arg of args) {
-      // Check if it's a directory path or a project name
-      if (fs.existsSync(arg) && fs.statSync(arg).isDirectory()) {
-        const dirName = path.basename(arg);
-        const parentName = path.basename(path.dirname(arg));
-        generateIndex(arg, `${dirName.charAt(0).toUpperCase() + dirName.slice(1)} Index — ${parentName}`);
-        log.info(`Generated ${arg}/index.md`);
-      } else {
-        regenProject(arg);
-      }
-    }
-  } else {
-    log.error('Usage: memory-index-regen.ts [--all | <project-name> ... | <directory-path>]');
-    process.exit(1);
-  }
-}
-
-export { generateIndex, scanAtomicFiles };
