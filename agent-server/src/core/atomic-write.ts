@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import * as os from 'node:os';
+import { withFileLock } from './file-lock.js';
 
 /** The operator's real data home. A test process must never write here — it would race the
  *  running daemon and leak fixtures into the live store. Tests isolate via the vitest setup file
@@ -34,124 +35,10 @@ function assertNotRealHomeInTest(filePath: string): void {
   }
 }
 
-const MUTATION_LOCK_WAIT_MS = 10;
-const MUTATION_LOCK_TIMEOUT_MS = 30_000;
-const OWNERLESS_LOCK_GRACE_MS = 1_000;
-
 function throwIfWriteAborted(signal?: AbortSignal): void {
   if (!signal?.aborted) return;
   if (signal.reason instanceof Error) throw signal.reason;
   throw new Error('Atomic write aborted.');
-}
-
-interface MutationLockOwner {
-  pid: number;
-  token: string;
-  processStart: string | null;
-}
-
-function processIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error: any) {
-    return error?.code !== 'ESRCH';
-  }
-}
-
-async function processStartIdentity(pid: number): Promise<string | null> {
-  try {
-    const stat = await fs.readFile(`/proc/${pid}/stat`, 'utf8');
-    return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function readLockOwner(lockPath: string): Promise<MutationLockOwner | null> {
-  try {
-    const owner = JSON.parse(await fs.readFile(path.join(lockPath, 'owner.json'), 'utf8'));
-    if (typeof owner.pid !== 'number' || typeof owner.token !== 'string') return null;
-    return {
-      pid: owner.pid,
-      token: owner.token,
-      processStart: typeof owner.processStart === 'string' ? owner.processStart : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function lockIsStale(lockPath: string): Promise<boolean> {
-  let ageMs: number;
-  try { ageMs = Date.now() - (await fs.stat(lockPath)).mtimeMs; } catch { return false; }
-  const owner = await readLockOwner(lockPath);
-  if (!owner) return ageMs > OWNERLESS_LOCK_GRACE_MS;
-  if (!processIsAlive(owner.pid)) return true;
-  const currentStart = await processStartIdentity(owner.pid);
-  return owner.processStart !== null && currentStart !== null && owner.processStart !== currentStart;
-}
-
-async function releaseOwnedLock(lockPath: string, token: string): Promise<void> {
-  if ((await readLockOwner(lockPath))?.token !== token) return;
-  const releasedPath = `${lockPath}.released.${encodeURIComponent(token)}`;
-  try {
-    await fs.rename(lockPath, releasedPath);
-    if ((await readLockOwner(releasedPath))?.token === token) {
-      await fs.rm(releasedPath, { recursive: true, force: true });
-    }
-  } catch {}
-}
-
-async function removeStaleLock(lockPath: string): Promise<void> {
-  if (!(await lockIsStale(lockPath))) return;
-  try {
-    const initial = await fs.stat(lockPath);
-    await fs.writeFile(path.join(lockPath, '.reclaimed'), '');
-    const current = await fs.stat(lockPath);
-    if (current.dev !== initial.dev || current.ino !== initial.ino) return;
-    if ((await readLockOwner(lockPath)) && !(await lockIsStale(lockPath))) return;
-    const identity = `${current.dev}.${current.ino}.${String(current.ctimeMs).replace('.', '-')}`;
-    const tombstone = `${lockPath}.reclaimed.${identity}`;
-    await fs.rename(lockPath, tombstone);
-    await fs.rm(tombstone, { recursive: true, force: true });
-  } catch {}
-}
-
-async function tryAcquireLock(lockPath: string): Promise<(() => Promise<void>) | null> {
-  const token = `${process.pid}:${Date.now()}:${Math.random()}`;
-  const candidate = `${lockPath}.candidate.${encodeURIComponent(token)}`;
-  try {
-    await fs.mkdir(candidate);
-    const owner: MutationLockOwner = {
-      pid: process.pid, token, processStart: await processStartIdentity(process.pid),
-    };
-    await fs.writeFile(path.join(candidate, 'owner.json'), JSON.stringify(owner), { mode: 0o600 });
-    await fs.rename(candidate, lockPath);
-    return () => releaseOwnedLock(lockPath, token);
-  } catch (error: any) {
-    await fs.rm(candidate, { recursive: true, force: true });
-    if (error?.code === 'EEXIST' || error?.code === 'ENOTEMPTY') return null;
-    throw error;
-  }
-}
-
-async function acquireMutationLock(
-  filePath: string,
-  signal?: AbortSignal,
-): Promise<() => Promise<void>> {
-  throwIfWriteAborted(signal);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const lockPath = `${filePath}.mutation-lock`;
-  const deadline = Date.now() + MUTATION_LOCK_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    throwIfWriteAborted(signal);
-    const release = await tryAcquireLock(lockPath);
-    if (release) return release;
-    if (await lockIsStale(lockPath)) await removeStaleLock(lockPath);
-    else await new Promise(resolve => setTimeout(resolve, MUTATION_LOCK_WAIT_MS));
-  }
-  throw new Error('Timed out waiting for file mutation lock.');
 }
 
 async function readOptionalText(filePath: string): Promise<string> {
@@ -182,8 +69,7 @@ export async function mutateFileAtomically(
   options: AtomicWriteOptions = {},
 ): Promise<void> {
   assertNotRealHomeInTest(filePath);
-  const release = await acquireMutationLock(filePath, options.signal);
-  try {
+  await withFileLock(filePath, async () => {
     throwIfWriteAborted(options.signal);
     const contents = await readOptionalText(filePath);
     throwIfWriteAborted(options.signal);
@@ -191,9 +77,7 @@ export async function mutateFileAtomically(
     throwIfWriteAborted(options.signal);
     if (updated !== contents) await atomicWrite(filePath, updated, options);
     else if (options.mode !== undefined) await applyModeIfPresent(filePath, options.mode);
-  } finally {
-    await release();
-  }
+  }, { signal: options.signal });
 }
 
 export async function atomicWrite(
