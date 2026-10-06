@@ -4,7 +4,6 @@ import ipaddress
 import json
 import os
 import re
-import stat
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -33,7 +32,7 @@ from harbor.models.trial.config import (
     TrialConfig,
     VerifierConfig,
 )
-from harbor.models.trial.paths import EnvironmentPaths, TrialPaths
+from harbor.models.trial.paths import TrialPaths
 from harbor.trial.trial import Trial
 
 from ..container_boundary import (
@@ -56,6 +55,14 @@ from .network_policy import (
     network_record,
     parse_network_access,
     resolve_denylist,
+)
+from .trial_mounts import (
+    canonical_mount,
+    canonical_target,
+    mount_record,
+    prepare_harbor_mount_modes,
+    refresh_mount_records,
+    standard_mounts,
 )
 from .trial_admission_io import (
     TRIAL_ROOT,
@@ -97,21 +104,8 @@ VERIFIER_UVX_TARGET = PurePosixPath("/opt/terminal-bench-verifier/bin/uvx")
 INSTALLED_AGENT_BIN = "/installed-agent/npm/bin"
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 SUPPORTED_PROVIDERS = frozenset({"anthropic", "deepseek", "openai", "openai-codex"})
-CREDENTIAL_ENV_KEYS = (
-    "AWS_SHARED_CREDENTIALS_FILE",
-    "AWS_CONFIG_FILE",
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    "AZURE_CONFIG_DIR",
-    "KUBECONFIG",
-    "SSH_AUTH_SOCK",
-    "GPG_AGENT_INFO",
-    "DOCKER_HOST",
-    "CONTAINER_HOST",
-)
-SENSITIVE_HOME_PATHS = (
-    ".cortex", ".claude", ".anthropic", ".pi", ".ssh", ".gnupg", ".aws",
-    ".azure", ".docker", ".kube", ".config/gcloud", ".config/gh",
-)
+
+
 @dataclass(frozen=True)
 class VendorRuntimeProjection:
     vendor_agent: str
@@ -410,7 +404,7 @@ def _sealed_runtime_mounts(runtime_mounts: Mapping[str, str]) -> dict[str, str]:
         if not path.is_absolute() or not path.is_dir():
             raise HarborTrialAdmissionError(
                 f"runtime mount source must be an existing absolute directory: {source}")
-        sealed[_canonical_target(target)] = str(path.resolve(strict=True))
+        sealed[canonical_target(target)] = str(path.resolve(strict=True))
     return sealed
 
 
@@ -708,190 +702,6 @@ def _validate_persistent_environment(
     _validate_environment_values(values)
 
 
-def _canonical_target(value: str) -> str:
-    target = PurePosixPath(value)
-    if not target.is_absolute() or ".." in target.parts or str(target) != value:
-        raise HarborTrialAdmissionError(f"mount target is not canonical: {value}")
-    return value
-
-
-def _repository_root(start: Path) -> Path | None:
-    for candidate in (start, *start.parents):
-        if (candidate / ".git").exists():
-            return candidate.resolve()
-    return None
-
-
-def _cortex_checkout_root(start: Path) -> Path | None:
-    root = _repository_root(start)
-    if root is None:
-        return None
-    markers = (root / "agent-server/package.json", root / "benchmark/harness/pyproject.toml")
-    return root if all(marker.exists() for marker in markers) else None
-
-
-def _sensitive_roots() -> tuple[Path, ...]:
-    home = Path.home().resolve()
-    roots = [home / relative for relative in SENSITIVE_HOME_PATHS]
-    for start in (Path.cwd().resolve(), Path(__file__).resolve()):
-        checkout = _cortex_checkout_root(start)
-        if checkout is not None:
-            roots.append(checkout)
-    return tuple(dict.fromkeys(path.resolve() for path in roots if path.exists()))
-
-
-def _credential_path(value: str | None) -> Path | None:
-    if not value:
-        return None
-    if value.startswith("unix://"):
-        value = value.removeprefix("unix://")
-    if not value.startswith("/"):
-        return None
-    return Path(value).resolve()
-
-
-def _credential_paths() -> tuple[Path, ...]:
-    candidates = (_credential_path(os.environ.get(key)) for key in CREDENTIAL_ENV_KEYS)
-    return tuple(dict.fromkeys(path for path in candidates if path is not None))
-
-
-def _overlaps(candidate: Path, root: Path) -> bool:
-    return (
-        candidate == root or candidate.is_relative_to(root)
-        or root.is_relative_to(candidate)
-    )
-
-
-def _reject_socket_or_credential(source: Path) -> None:
-    if stat.S_ISSOCK(source.stat().st_mode):
-        raise HarborTrialAdmissionError(f"mount source is a socket: {source}")
-    for credential in _credential_paths():
-        if _overlaps(source, credential):
-            raise HarborTrialAdmissionError(f"mount exposes a host credential path: {source}")
-
-
-def _reject_sensitive_source(source: Path) -> None:
-    _reject_socket_or_credential(source)
-    home = Path.home().resolve()
-    source_checkout = _cortex_checkout_root(source)
-    if source == home or home.is_relative_to(source) or source_checkout is not None:
-        raise HarborTrialAdmissionError(f"mount exposes a sensitive host path: {source}")
-    if any(_overlaps(source, root) for root in _sensitive_roots()):
-        raise HarborTrialAdmissionError(f"mount exposes a sensitive host path: {source}")
-
-
-def _prepare_harbor_mount_modes(trial_paths: TrialPaths) -> None:
-    trial_paths.chmod_dir()
-    current = trial_paths.host_artifact_path("main", "/logs/artifacts")
-    while True:
-        current.chmod(0o777)
-        if current == trial_paths.artifacts_dir:
-            return
-        current = current.parent
-
-
-def _standard_mounts(trial_paths: TrialPaths) -> dict[str, Path]:
-    environment = EnvironmentPaths()
-    return {
-        str(environment.agent_dir): trial_paths.agent_dir.resolve(strict=True),
-        str(environment.verifier_dir): trial_paths.verifier_dir.resolve(strict=True),
-        str(environment.artifacts_dir): trial_paths.host_artifact_path(
-            "main", str(environment.artifacts_dir),
-        ).resolve(strict=True),
-    }
-
-
-def _validate_mount_shape(mount: ServiceVolumeConfig) -> None:
-    if mount.get("type") != "bind":
-        raise HarborTrialAdmissionError("only declared Harbor bind mounts are admitted")
-    allowed = {"type", "source", "target", "read_only"}
-    if set(mount) - allowed:
-        raise HarborTrialAdmissionError("Harbor mount options are unsupported")
-
-
-def _mount_record(
-    mount: ServiceVolumeConfig, standard: Mapping[str, Path],
-    task_root: Path, trial_root: Path, runtime: Mapping[str, str],
-) -> dict[str, object]:
-    _validate_mount_shape(mount)
-    source = Path(str(mount.get("source", ""))).resolve(strict=True)
-    target = _canonical_target(str(mount.get("target", "")))
-    _reject_sensitive_source(source)
-    owner, read_only = _mount_owner(mount, source, target, standard, task_root, runtime)
-    if owner == "harbor-output-handoff" and not source.is_relative_to(trial_root):
-        raise HarborTrialAdmissionError(f"Harbor mount escapes trial root: {source}")
-    if owner == "harbor-task-input" and _overlaps(source, trial_root.parent):
-        raise HarborTrialAdmissionError(f"Harbor input exposes a sibling trial root: {source}")
-    info = source.stat()
-    return {
-        "type": "bind", "source": str(source), "target": target,
-        "access": "read-only" if read_only else "read-write", "owner": owner,
-        "uid": info.st_uid, "gid": info.st_gid,
-        "source_mode": oct(stat.S_IMODE(info.st_mode)),
-    }
-
-
-def _standard_mount_owner(
-    mount: ServiceVolumeConfig, source: Path, target: str,
-    standard: Mapping[str, Path],
-) -> tuple[str, bool] | None:
-    if target not in standard:
-        return None
-    if source != standard[target] or mount.get("read_only") is True:
-        raise HarborTrialAdmissionError(f"Harbor output mount does not match {target}")
-    return "harbor-output-handoff", False
-
-
-def _mount_owner(
-    mount: ServiceVolumeConfig, source: Path, target: str,
-    standard: Mapping[str, Path], task_root: Path, runtime: Mapping[str, str],
-) -> tuple[str, bool]:
-    standard_owner = _standard_mount_owner(mount, source, target, standard)
-    if standard_owner is not None:
-        return standard_owner
-    if target in runtime:
-        return _runtime_mount_owner(mount, source, target, runtime)
-    if target != "/harbor/input" or not source.is_relative_to(task_root):
-        raise HarborTrialAdmissionError(f"extra bind mount is not admitted: {target}")
-    if mount.get("read_only") is not True:
-        raise HarborTrialAdmissionError("Harbor task input mount must be read-only")
-    return "harbor-task-input", True
-
-
-def _runtime_mount_owner(
-    mount: ServiceVolumeConfig, source: Path, target: str, runtime: Mapping[str, str],
-) -> tuple[str, bool]:
-    """A staged runtime is admitted at exactly the target and source the contract sealed.
-
-    Read-only is not a courtesy here. The same tree is mounted into every concurrent trial of the
-    campaign, so a writable mount would let one trial modify the interpreter the next twenty run
-    on, and the trials would stop being independent measurements of the same thing.
-    """
-    if str(source) != runtime[target]:
-        raise HarborTrialAdmissionError(
-            f"runtime mount at {target} differs from the sealed staged root")
-    if mount.get("read_only") is not True:
-        raise HarborTrialAdmissionError(f"runtime mount at {target} must be read-only")
-    return "harness-staged-runtime", True
-
-
-def _refresh_mount_records(records: Sequence[dict[str, object]]) -> None:
-    for record in records:
-        info = Path(str(record["source"])).stat()
-        record["uid"] = info.st_uid
-        record["gid"] = info.st_gid
-        record["source_mode"] = oct(stat.S_IMODE(info.st_mode))
-
-
-def _canonical_mount(record: Mapping[str, object]) -> ServiceVolumeConfig:
-    mount = ServiceVolumeConfig(
-        type="bind", source=str(record["source"]), target=str(record["target"]),
-    )
-    if record["access"] == "read-only":
-        mount["read_only"] = True
-    return mount
-
-
 def _mount_records(
     mounts: Sequence[ServiceVolumeConfig] | None, trial_paths: TrialPaths,
     contract: Mapping[str, object],
@@ -901,10 +711,10 @@ def _mount_records(
     actual_trial_root = trial_paths.trial_dir.resolve(strict=True)
     if actual_trial_root != trial_root:
         raise HarborTrialAdmissionError("Harbor trial root differs from sealed policy")
-    standard = _standard_mounts(trial_paths)
+    standard = standard_mounts(trial_paths)
     runtime = _contract_runtime_mounts(contract)
     records = [
-        _mount_record(mount, standard, task_root, trial_root, runtime)
+        mount_record(mount, standard, task_root, trial_root, runtime)
         for mount in list(mounts or [])
     ]
     targets = [str(record["target"]) for record in records]
@@ -918,7 +728,7 @@ def _mount_records(
             f"sealed runtime mounts are missing from the final mount list: "
             f"{sorted(set(runtime) - set(targets))}")
     ordered = sorted(records, key=lambda record: str(record["target"]))
-    return ordered, [_canonical_mount(record) for record in ordered]
+    return ordered, [canonical_mount(record) for record in ordered]
 
 
 def _contract_network(contract: Mapping[str, object]) -> NetworkAccess:
@@ -1029,8 +839,8 @@ def _admit_final_inputs(
     )
     _validate_persistent_environment(persistent_env, contract)
     records, canonical_mounts = _mount_records(mounts, trial_paths, contract)
-    _prepare_harbor_mount_modes(trial_paths)
-    _refresh_mount_records(records)
+    prepare_harbor_mount_modes(trial_paths)
+    refresh_mount_records(records)
     network = _network_record(network_policy, phase_network_policies, contract, denylist)
     return contract, records, network, canonical_mounts
 
