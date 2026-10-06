@@ -195,7 +195,6 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       path.join(tempDir, 'context'),
       path.join(tempDir, 'context', 'projects'),
       path.join(tempDir, 'tmp'),
-      path.join(tempDir, 'tmp', 'threads'),
       path.join(tempDir, '.claude'),
     ];
     for (const dir of dirs) {
@@ -360,13 +359,15 @@ test('Test 3: Initialized environment has correct config content', async () => {
 
     // Verify agent-state.json content
     const mode = JSON.parse(readFileSync(path.join(tempDir, 'data', 'agent-state.json'), 'utf-8'));
-    assert.equal(mode.backend, 'claude');
-    assert.equal(mode.mode, 'plan');
-    assert.equal(mode.claudeModel, 'opus');
+    // The retired backend/mode/claudeModel globals are no longer written;
+    // backend and model selection live in profiles.json.
+    assert.equal(mode.backend, undefined);
+    assert.equal(mode.mode, undefined);
+    assert.equal(mode.claudeModel, undefined);
     // activeProfile should be set to profiles.json's defaultProfile, not the __active__ sentinel
     const profiles = JSON.parse(readFileSync(path.join(tempDir, 'config', 'profiles.json'), 'utf-8'));
     assert.equal(mode.activeProfile, profiles.defaultProfile);
-    assert.equal(mode.defaultAgent, 'direct');
+    assert.equal(mode.defaultAgent, 'main');
 
     // Profile-generator new contract: defaultProfile is unsuffixed 'plan';
     // no plan-*/execute-*/write-*/qa-* suffixed names should exist.
