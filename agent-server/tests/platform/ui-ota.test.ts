@@ -1,7 +1,7 @@
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as crypto from 'node:crypto';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, utimesSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -137,4 +137,24 @@ test('method guard: a non-GET request is rejected 405', async () => {
   const routes = createOtaRoutes(dir);
   const res = await callRoute(routes, 'POST', UI_OTA_MANIFEST_PATH);
   assert.equal(res.statusCode, 405);
+});
+
+test('a web/dist rebuild without a restart is served to the shells', async () => {
+  const dir = makeSpa({ 'index.html': '<html>v1</html>', 'assets/app.js': 'a=1' });
+  const routes = createOtaRoutes(dir);
+  const manifest = async () => JSON.parse((await callRoute(routes, 'GET', UI_OTA_MANIFEST_PATH)).body.toString('utf8'));
+  const first = await manifest();
+  assert.equal((await manifest()).version, first.version, 'unchanged build stays cached');
+
+  writeFileSync(path.join(dir, 'assets/app.js'), 'a=2');
+  writeFileSync(path.join(dir, 'index.html'), '<html>v2</html>');
+  const later = new Date(Date.now() + 5000);
+  utimesSync(path.join(dir, 'index.html'), later, later);
+  const rebuilt = await manifest();
+  assert.notEqual(rebuilt.version, first.version);
+
+  // Mid-rebuild (index.html not written yet) the last complete bundle keeps being served.
+  rmSync(path.join(dir, 'index.html'));
+  writeFileSync(path.join(dir, 'assets/app.js'), 'a=3');
+  assert.equal((await manifest()).version, rebuilt.version);
 });

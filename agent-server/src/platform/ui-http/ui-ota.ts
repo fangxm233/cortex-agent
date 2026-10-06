@@ -85,15 +85,38 @@ function buildBundle(spaDir: string): OtaBundle {
 }
 
 /**
+ * Identity of the build on disk, cheap enough to check per request: Vite rewrites index.html on
+ * every build. Null while index.html is absent — the middle of a rebuild that emptied the dir.
+ */
+function buildStamp(spaDir: string): string | null {
+  try {
+    const st = fs.statSync(path.join(spaDir, 'index.html'));
+    return `${st.mtimeMs}:${st.size}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Build the OTA custom-route map for the given SPA directory. Returns an empty map (OTA disabled)
- * when the SPA is not built. The bundle is built lazily on first request and cached for the process
- * lifetime.
+ * when the SPA is not built. The bundle is built lazily and cached per build: the SPA itself is
+ * served live from disk, so a `web/dist` rebuild without a server restart must reach the native
+ * shells too, not only browsers.
  */
 export function createOtaRoutes(spaDir: string | undefined): Record<string, CustomRouteHandler> {
   if (!spaDir || !fs.existsSync(spaDir)) return {};
 
-  let cached: OtaBundle | undefined;
-  const bundle = (): OtaBundle => (cached ??= buildBundle(spaDir));
+  // `stamp: null` = not known to match any build; mid-rebuild (no index.html) keeps the last bundle.
+  let cached: { stamp: string | null; bundle: OtaBundle } | undefined;
+  const bundle = (): OtaBundle => {
+    const stamp = buildStamp(spaDir);
+    if (cached && (stamp === null || cached.stamp === stamp)) return cached.bundle;
+    const built = buildBundle(spaDir);
+    // A rebuild that landed while we were reading may have mixed two builds: serve it, but do not
+    // file it under this stamp, so the next request reads the settled directory again.
+    cached = { stamp: buildStamp(spaDir) === stamp ? stamp : null, bundle: built };
+    return built;
+  };
 
   const manifestHandler: CustomRouteHandler = async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
