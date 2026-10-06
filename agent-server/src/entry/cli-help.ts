@@ -103,6 +103,47 @@ export function getClientHelp(): string {
   });
 }
 
+export function getScheduleHelp(): string {
+  return formatHelp({
+    name: 'cortex schedule',
+    description: 'Manage scheduled tasks. Each fire opens a new session in the schedule\'s project and sends it the message.\n'
+      + 'Changes land in schedules.json; a running daemon picks them up within a second. Output is JSON.',
+    usage: 'cortex schedule <command> [<id>] [options]',
+    commands: [
+      { name: 'list', description: 'List schedules (--project to filter)' },
+      { name: 'get <id>', description: 'Show one schedule' },
+      { name: 'add --type <type>', description: 'Create a schedule' },
+      { name: 'edit <id>', description: 'Change message, project, profile, pre-check or timing (the type is fixed)' },
+      { name: 'pause <id>', description: 'Pause a recurring schedule' },
+      { name: 'resume <id>', description: 'Resume a paused schedule' },
+      { name: 'remove <id>', description: 'Delete a schedule (--dry-run to preview)' },
+    ],
+    options: [
+      { flag: '--type <type>', description: 'add: interval | daily | weekly | once' },
+      { flag: '--interval <duration>', description: 'interval: repeat period, e.g. 30m, 2h, 1d' },
+      { flag: '--time <HH:MM>', description: 'daily/weekly: time of day, 24-hour, server local time' },
+      { flag: '--day <day>', description: 'weekly: sun..sat or 0-6' },
+      { flag: '--delay <duration>', description: 'once: fire this long from now, e.g. 90m, 2h' },
+      { flag: '--message <text|->', description: 'Prompt for the fired session; "-" reads stdin' },
+      { flag: '--project <id>', description: 'Project the fired session belongs to', default: 'general' },
+      { flag: '--profile <name>', description: 'Agent profile to run under', default: 'the default profile' },
+      { flag: '--pre-check <cmd>', description: 'Shell gate run before each fire; non-zero exit skips it' },
+      { flag: '--idempotency-key <key>', description: 'add: return the schedule already created with this key' },
+      { flag: '--dry-run', description: 'remove: show what would be removed' },
+      { flag: '--help, -h', description: 'Show this help' },
+    ],
+    examples: [
+      { description: 'Every 30 minutes in a project', command: 'cortex schedule add --type interval --interval 30m --project nimbus --message "Check GPU usage on lab2 and report a one-line summary"' },
+      { description: 'Every day at 09:00', command: 'cortex schedule add --type daily --time 09:00 --message "Summarize yesterday\'s sessions"' },
+      { description: 'Every Monday at 21:00', command: 'cortex schedule add --type weekly --day mon --time 21:00 --message "Weekly review"' },
+      { description: 'Once, two hours from now, prompt from stdin', command: 'echo "Check training run r42 on lab2" | cortex schedule add --type once --delay 2h --message -' },
+      { description: 'List one project\'s schedules', command: 'cortex schedule list --project nimbus' },
+      { description: 'Move a daily schedule to 10:30', command: 'cortex schedule edit a1b2c3d4 --time 10:30' },
+      { description: 'Preview a removal', command: 'cortex schedule remove a1b2c3d4 --dry-run' },
+    ],
+  });
+}
+
 function getCliCommands() {
   return [
     { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
@@ -123,6 +164,7 @@ function getCliCommands() {
     { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
     { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
     { name: 'client remove', description: 'Unregister a remote machine and uninstall its cortex-client' },
+    { name: 'schedule', description: 'List, add, edit, pause, resume and remove scheduled tasks' },
     { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
   ];
 }
@@ -139,6 +181,7 @@ function getCliExamples() {
     { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
     { description: 'Enable the local Web UI endpoint', command: 'cortex ui enable' },
     { description: 'Remove a remote machine and its client', command: 'cortex client remove --device trainer' },
+    { description: 'List scheduled tasks', command: 'cortex schedule list' },
     { description: 'Start the server', command: 'cortex start' },
     { description: 'Stop the daemon', command: 'cortex daemon stop' },
     { description: 'Check daemon status', command: 'cortex daemon status' },
