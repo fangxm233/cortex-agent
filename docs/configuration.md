@@ -223,7 +223,6 @@ lists only offer, they never narrow what this file accepts.
       "model": "claude-sonnet-4-20250514",
       "backend": "claude",
       "mode": "plan",
-      "claudeBackend": "print",
       "extraEnv": {},
       "extraOption": {},
       "fallback": []
@@ -232,7 +231,6 @@ lists only offer, they never narrow what this file accepts.
       "model": "claude-sonnet-4-20250514",
       "backend": "claude",
       "mode": "execute",
-      "claudeBackend": "print",
       "extraEnv": {},
       "extraOption": {}
     }
@@ -251,7 +249,6 @@ lists only offer, they never narrow what this file accepts.
 | `profiles.<name>.mode` | string | no | Operational mode identifier (free-form, e.g. `plan`, `execute`) |
 | `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`. |
 | `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the Claude Code backend. Keys must start with `--`. On `pi` only `--thinking` is honored, as an override of the `thinking` field; any other key is logged and ignored, since there is no PI command line to hand it to. |
-| `profiles.<name>.claudeBackend` | string | no | Claude adapter mode: `print` (default, uses `-p` + stream-json) or `tui` (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends. |
 | `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (delivered as the `--effort` flag), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (delivered as the session's thinking level). Absent → the backend's own default applies. Fallback entries do not inherit it — each declares its own. |
 | `profiles.<name>.fallback` | array | no | Ordered list of fallback profile entries. If the primary backend fails, Cortex tries each fallback in order. Each fallback inherits unspecified fields from the primary. |
 
@@ -263,7 +260,7 @@ At agent spawn time, Cortex resolves the profile through this chain:
    conversation's execution environment naming one), use it.
 2. Otherwise, use `defaultProfile` from `profiles.json`.
 3. The resolved profile supplies `model`, `backend`, `mode`, `extraEnv`,
-   `extraOption`, `claudeBackend`, and `thinking`.
+   `extraOption`, and `thinking`.
 4. A direct session may override `model`, `provider`, `thinking` and `mode`
    on top of that profile, chosen in the Web composer's engine picker and
    stored per channel. Nothing else is overridable — the backend, environment
@@ -275,8 +272,7 @@ At agent spawn time, Cortex resolves the profile through this chain:
 ### Validation rules
 
 Profile names must match `^[a-zA-Z0-9_-]+$`. Backend must be `claude`
-or `pi`. `claudeBackend` must be `print` or `tui` if specified.
-`thinking`, if specified, must be a value from the entry's backend value
+or `pi`. `thinking`, if specified, must be a value from the entry's backend value
 set (see the fields table). Unknown fields are silently ignored.
 
 ## Execution environments

@@ -13,7 +13,6 @@ import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
 import { engines } from '@domain/runs/engines.js';
-import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { initHookBridge, setOnStale } from '@orch/routing/hook-bridge.js';
@@ -430,18 +429,6 @@ installSigtermShutdown(shutdownHandles);
   // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
   // A sealed production trial declares no plugins and keeps its attested config immutable.
   if (syncManagedAssets) await syncManagedPlugins();
-  // DR-0012 §3.6: clean up orphan TUI tmux sessions from a previous agent-server lifetime.
-  // We can't re-adopt them (sessionKey↔tmux mapping was never persisted) so the honest move
-  // is to kill any leftovers — otherwise a later session that reuses the same sessionId will
-  // collide with `tmux new-session -s <name>` (which fails on duplicates).
-  try {
-    const { found, killed } = recoverTuiOrphans();
-    if (found.length > 0) {
-      log.info(`Startup: swept ${killed.length}/${found.length} orphan TUI tmux session(s)`);
-    }
-  } catch (e) {
-    log.warn(`Startup: recoverTuiOrphans failed: ${(e as Error).message}`);
-  }
   executionRepo.load();
   // An in-process execution dies with the server, so stale it immediately — otherwise a
   // 'running' dispatch record poisons a dispatch concurrency slot until the reconciler's next tick.

@@ -8,7 +8,7 @@ import { useProfilesController, type ProfilesController } from './useProfilesCon
 function entry(over: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry {
   return {
     name: 'plan', model: 'claude-opus-5', backend: 'claude', mode: 'plan', thinking: 'max',
-    provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
     ...over,
   };
 }
@@ -102,7 +102,7 @@ function deferred<T>() {
 function validCreate() {
   return {
     name: 'new-pi', model: 'deepseek-v3', backend: 'pi' as const, mode: 'openai',
-    provider: 'deepseek', thinking: 'high', claudeBackend: '' as const, extraOption: [],
+    provider: 'deepseek', thinking: 'high', extraOption: [],
   };
 }
 

@@ -121,7 +121,7 @@ function profile(backend: Backend): ResolvedProfileConfig {
     backend,
     mode: 'trial',
     provider: backend === 'claude' ? 'anthropic' : 'deepseek',
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print',
+    extraEnv: {}, extraOption: {},
     thinking: backend === 'claude' ? 'high' : 'off', fallback: [],
   };
 }
@@ -362,7 +362,7 @@ test('fails closed before spawn for fallback profiles, missing identity inputs, 
     ...resolvedProfile,
     fallback: [{
       model: 'fallback', backend: 'claude', mode: null, provider: 'anthropic',
-      extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+      extraEnv: {}, extraOption: {}, thinking: null,
     }],
   };
 

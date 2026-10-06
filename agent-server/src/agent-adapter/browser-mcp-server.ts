@@ -15,10 +15,9 @@ export const BROWSER_MCP_OUTPUT_DIR = path.join(DATA_DIR, 'browser', 'mcp-output
 export const BROWSER_MCP_SERVER_NAME = 'playwright';
 
 /**
- * One definition, three backends. Claude wraps it in a `--mcp-config` file, the Claude TUI adapter
- * passes the same file, and PI writes it into its plugin-MCP envelope for the bridge to connect to.
- * Keeping the descriptor here is what stops the pinned version and the output directory from
- * drifting apart between them.
+ * One definition, two backends. Claude wraps it in a `--mcp-config` file and PI writes it into its
+ * plugin-MCP envelope for the bridge to connect to. Keeping the descriptor here is what stops the
+ * pinned version and the output directory from drifting apart between them.
  */
 export function browserMcpServer(cdpEndpoint: string): McpStdioServerConfig {
   return {

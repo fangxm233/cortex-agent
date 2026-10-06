@@ -6,7 +6,7 @@ import { ProfilesPanelView, type ProfilesPanelViewProps } from './ProfilesPanel'
 const name = `profile-${'long-identifier-'.repeat(8)}`;
 const profile = {
   name, model: `provider/${'long-model-'.repeat(12)}`, backend: 'pi' as const,
-  mode: 'chat', thinking: 'high', provider: 'provider', claudeBackend: null,
+  mode: 'chat', thinking: 'high', provider: 'provider',
   extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
 };
 

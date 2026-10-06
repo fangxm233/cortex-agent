@@ -179,7 +179,7 @@ tracking、入队、turn 中注入之前就拒绝：此刻启动的 turn 会被�
 
 | 后端 | 适配器 | 备注 |
 |---------|---------|-------|
-| Claude Code | `claude/adapter.ts` | 无状态引擎适配器：打开一个 Claude 进程会话（print 模式）、spawn-args 构建器、事件解析器。TUI 模式（tmux + JSONL tail）已废弃（D9） |
+| Claude Code | `claude/adapter.ts` | 无状态引擎适配器：打开一个 Claude 进程会话（print 模式）、spawn-args 构建器、事件解析器 |
 | PI | `pi/adapter.ts` | 无状态引擎适配器：打开一个进程内 PI 会话、MCP 桥接、钩子桥接、工具填充 |
 
 会话池位于 `domain/runs/engines.ts`（`SessionEngines`），不在任何一个适配器里。

@@ -79,7 +79,7 @@ export interface EngineSpec {
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
   extraOption?: Record<string, string>;
   backend:
-    | { kind: 'claude'; claudeAgent?: string; outputStyle?: string; claudeBackend?: 'print' | 'tui' }
+    | { kind: 'claude'; claudeAgent?: string; outputStyle?: string }
     | { kind: 'pi' };
   process: { spawner?: AgentProcessSpawner; cliPath?: string };
 }

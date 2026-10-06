@@ -386,7 +386,6 @@ The MCP server processes receive a subset of the agent server's environment:
 | `CORTEX_PROJECT` | Session context | context tools |
 | `CORTEX_EXECUTION_ID` | Execution context | Hook scripts |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
-| `CORTEX_TUI_MODE` | Set to `'1'` in TUI mode | Claude TUI process |
 | `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | Optional schedule ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | Optional API base URL override | Model routing |

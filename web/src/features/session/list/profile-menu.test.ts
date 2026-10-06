@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
 
-// The settings-editor fields (provider / claudeBackend / extraOption / extraEnvKeys / fallbackCount)
+// The settings-editor fields (provider / extraOption / extraEnvKeys / fallbackCount)
 // play no part in the menu, so the factory supplies their empty shape and the fixtures stay readable.
 function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
   return {
     model: null, backend: null, mode: null, thinking: null,
-    provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
     ...over,
   };
 }

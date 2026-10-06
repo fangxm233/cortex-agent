@@ -12,7 +12,7 @@ import {
 function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
   return {
     model: null, backend: null, mode: null, thinking: null,
-    provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
     ...over,
   };
 }

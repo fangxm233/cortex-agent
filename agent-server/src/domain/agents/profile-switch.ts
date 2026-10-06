@@ -14,10 +14,6 @@ export type ProfileSwitchDecision =
  * - Has history (live conversation) → only a same-backend switch is allowed. A cross-backend switch
  *   is rejected because the running conversation cannot be resumed on a different backend; the user
  *   must start a new session to change backend.
- *
- * NOTE: `claudeBackend` (print vs tui) is deliberately NOT part of the identity — those share
- * `backend: 'claude'` and count as the same backend (product decision), so switching between a
- * print and a tui claude profile mid-conversation is allowed.
  */
 export function decideProfileSwitch(opts: {
   currentBackend: string;

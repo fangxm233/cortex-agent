@@ -11,12 +11,12 @@ import {
   buildMobileChatRows,
 } from './m-chat-vm';
 
-// The settings-editor fields (provider / claudeBackend / extraOption / extraEnvKeys / fallbackCount)
+// The settings-editor fields (provider / extraOption / extraEnvKeys / fallbackCount)
 // play no part in the chat chip, so the factory supplies their empty shape.
 function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
   return {
     model: null, backend: null, mode: null, thinking: null,
-    provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
     ...over,
   };
 }

@@ -41,11 +41,7 @@ Cortex 定义了后端可能支持的四种能力。编排层在尝试后端特�
 
 ## Claude Code
 
-参考后端。定义了两种适配器模式；TUI 已废弃：
-
-**Print 模式**（`claudeBackend: "print"`，默认）。使用持久化的 `claude -p` 进程以及 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON stream 发送后续回合，直到 session 被关闭、超时或 spawn identity 改变。
-
-**TUI 模式**（`claudeBackend: "tui"`，已废弃）。历史上会在 tmux 下生成交互式 Claude 会话，并尾随会话的 JSONL 文件获取事件。D9 已废弃该模式：适配器会警告一次，并以 print 模式运行该会话。
+参考后端。每个会话运行一个持久化的 `claude -p` 进程，以 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON stream 发送后续回合，直到 session 被关闭、超时或 spawn identity 改变。
 
 Claude Code 会话按 engine key 池化以复用（`SessionEngines`，`domain/runs/engines.ts`）。费用报告从 `message.usage` 令牌计数逆向推导 USD 费用，使用 Anthropic 发布的定价。
 

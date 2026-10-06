@@ -8,7 +8,7 @@ import { LangProvider } from '@/i18n';
 const profile: ConfigProfileEntry = {
   name: 'research-with-a-very-long-profile-name', backend: 'pi',
   model: 'provider/long-model-name-for-small-mobile-screens', provider: 'openai',
-  thinking: 'high', mode: null, claudeBackend: null,
+  thinking: 'high', mode: null,
   extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
 };
 

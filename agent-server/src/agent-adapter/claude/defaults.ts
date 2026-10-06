@@ -6,14 +6,9 @@ import { SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
 
-/** DR-0012: tmux session name prefix used by the startup migration sweep
- *  ({@link recoverTuiOrphans}) to find sessions left by pre-D9 builds. D9 retired the TUI mode
- *  that used to create them, so no new session carries this prefix. */
-export const TUI_TMUX_NAME_PREFIX = 'cortex-claude-';
-
 /** Base directory where Claude writes per-session jsonl transcripts (per-cwd encoded).
  *  Read by {@link computeTranscriptPath} to gate `--resume` vs `--session-id`. */
-export const TUI_JSONL_BASE = path.join(os.homedir(), '.claude', 'projects');
+export const CLAUDE_TRANSCRIPTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
 export const LOGS_DIR = path.join(DATA_DIR, 'logs', 'sessions');
 

@@ -590,7 +590,6 @@ const profileDraftShape = {
   mode: profileSafeName.optional(),
   provider: profileSafeName.optional(),
   thinking: z.string().min(1).optional(),
-  claudeBackend: z.enum(['print', 'tui']).optional(),
   extraOption: z.record(z.string().startsWith('--'), z.string()).optional(),
 };
 

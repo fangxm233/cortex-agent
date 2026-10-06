@@ -226,7 +226,6 @@ function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): RunAtt
     provider: null,
     extraEnv: {},
     extraOption: {},
-    claudeBackend: 'print',
     thinking: spec.thinking ?? null,
   };
 }
@@ -244,7 +243,6 @@ function claudeChildProfile(config: RunAttemptConfig): ResolvedProfileConfig {
     provider: config.provider ?? null,
     extraEnv: config.extraEnv ?? {},
     extraOption: config.extraOption ?? {},
-    claudeBackend: config.claudeBackend ?? 'print',
     thinking: config.thinking ?? null,
     maxOutputTokens: config.maxOutputTokens ?? null,
     fallback: [],

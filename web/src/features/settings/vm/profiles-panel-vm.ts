@@ -16,8 +16,6 @@ export type ProfileBackend = 'claude' | 'pi';
 
 export const PROFILE_BACKENDS: readonly ProfileBackend[] = ['claude', 'pi'];
 
-export type ProfileClaudeBackend = 'print' | 'tui';
-
 /** Mirrors THINKING_LEVELS_BY_BACKEND in agent-server domain/agents/profile-manager.ts. */
 export const THINKING_LEVELS: Readonly<Record<ProfileBackend, readonly string[]>> = {
   claude: ['low', 'medium', 'high', 'xhigh', 'max'],
@@ -41,7 +39,6 @@ export interface ProfileFormState {
   mode: string;
   provider: string;
   thinking: string;
-  claudeBackend: ProfileClaudeBackend | '';
   extraOption: ProfileOptionRow[];
 }
 
@@ -158,7 +155,6 @@ export function formStateFromEntry(entry: ConfigProfileEntry): ProfileFormState 
     mode: entry.mode ?? '',
     provider: entry.provider ?? '',
     thinking: entry.thinking ?? '',
-    claudeBackend: entry.claudeBackend ?? '',
     extraOption: Object.entries(entry.extraOption).map(([key, value]) => ({ key, value })),
   };
 }
@@ -171,7 +167,6 @@ export function emptyProfileForm(): ProfileFormState {
     mode: '',
     provider: '',
     thinking: '',
-    claudeBackend: '',
     extraOption: [],
   };
 }
@@ -189,7 +184,6 @@ function canonicalForm(form: ProfileFormState): string {
     mode: form.mode.trim(),
     provider: form.provider.trim(),
     thinking: form.thinking,
-    claudeBackend: form.claudeBackend,
     extraOption: usedOptionRows(form.extraOption)
       .map((row) => [row.key.trim(), row.value.trim()])
       .sort((a, b) => a[0].localeCompare(b[0])),
@@ -306,7 +300,6 @@ export function buildProfileDraft(form: ProfileFormState): ProfileDraftInput {
   const provider = form.provider.trim();
   if (provider !== '') draft.provider = provider;
   if (form.thinking !== '') draft.thinking = form.thinking;
-  if (form.claudeBackend !== '') draft.claudeBackend = form.claudeBackend;
   const rows = usedOptionRows(form.extraOption);
   if (rows.length > 0) {
     draft.extraOption = Object.fromEntries(rows.map((row) => [row.key.trim(), row.value.trim()]));

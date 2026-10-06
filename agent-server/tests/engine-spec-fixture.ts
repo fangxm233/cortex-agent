@@ -46,7 +46,6 @@ export interface EngineSpecFixtureInput {
   scheduleTaskId?: string;
   claudeAgent?: string;
   outputStyle?: string;
-  claudeBackend?: 'print' | 'tui';
   processSpawner?: AgentProcessSpawner;
   cliPath?: string;
 }
@@ -122,7 +121,6 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
           kind: 'claude',
           claudeAgent: partial.claudeAgent,
           outputStyle: partial.outputStyle,
-          claudeBackend: partial.claudeBackend,
         },
     process: {
       spawner: partial.processSpawner,

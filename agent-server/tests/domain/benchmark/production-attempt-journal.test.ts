@@ -125,7 +125,7 @@ function profile(backend: Backend): ResolvedProfileConfig {
   return {
     name: `benchmark-${backend}`, model: `${backend}-model`, backend, mode: 'trial',
     provider: backend === 'claude' ? 'anthropic' : 'deepseek', fallback: [],
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+    extraEnv: {}, extraOption: {}, thinking: null,
   };
 }
 

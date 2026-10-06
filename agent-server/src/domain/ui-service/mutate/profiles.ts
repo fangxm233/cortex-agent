@@ -70,7 +70,6 @@ export function buildProfileEntry(draft: ProfileDraftInput, preserved?: ProfileE
   if (draft.extraOption !== undefined && Object.keys(draft.extraOption).length > 0) {
     entry.extraOption = draft.extraOption;
   }
-  if (draft.claudeBackend !== undefined) entry.claudeBackend = draft.claudeBackend;
   if (draft.thinking !== undefined) entry.thinking = draft.thinking;
   if (preserved?.fallback !== undefined) entry.fallback = preserved.fallback;
   return entry;

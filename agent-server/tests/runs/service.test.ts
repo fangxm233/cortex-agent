@@ -123,7 +123,7 @@ function makeRequest(overrides: Partial<RunRequest> = {}): RunRequest {
     },
     profile: {
       name: 'test', model: 'm', backend: 'claude', mode: 'plan', provider: null,
-      extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null, fallback: [],
+      extraEnv: {}, extraOption: {}, thinking: null, fallback: [],
     },
     spec: {
       systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],

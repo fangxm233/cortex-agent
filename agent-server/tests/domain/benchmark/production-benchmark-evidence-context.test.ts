@@ -96,7 +96,7 @@ function profile(backend: Backend): ResolvedProfileConfig {
     backend,
     mode: 'trial',
     provider: backend === 'claude' ? 'anthropic' : 'deepseek',
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null, fallback: [],
+    extraEnv: {}, extraOption: {}, thinking: null, fallback: [],
   };
 }
 
@@ -160,7 +160,7 @@ function runAttempt(
     profileName: resolved.name,
     model: resolved.model,
     piProvider: backend === 'pi' ? resolved.provider : undefined,
-    claudeBackend: 'print',
+   
     tools: input.tools ?? 'Read',
     pluginDirs: [],
     mcpComposition: 'none',

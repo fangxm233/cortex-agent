@@ -272,7 +272,6 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `CORTEX_PROJECT` | 会话上下文 | context 工具 |
 | `CORTEX_EXECUTION_ID` | 执行上下文 | 钩子脚本 |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
-| `CORTEX_TUI_MODE` | 在 TUI 模式下设为 `'1'` | Claude TUI 进程 |
 | `CORTEX_CALLBACK_SOURCE` | 可选回调元数据 | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | 可选定时任务 ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |

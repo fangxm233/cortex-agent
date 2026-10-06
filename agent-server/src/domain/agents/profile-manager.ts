@@ -14,9 +14,6 @@ export interface ProfileEntry {
   provider?: string;
   extraEnv?: Record<string, string>;
   extraOption?: Record<string, string>;
-  /** DR-0012: opt into TUI-mode Claude (interactive tmux + jsonl tail). Default 'print' for backward
-   *  compatibility. Only meaningful when backend='claude'. Other backends ignore the field. */
-  claudeBackend?: 'print' | 'tui';
   /** Optional thinking level. Backend-native value set, validated against the entry's effective
    *  backend: claude → `--effort` (low/medium/high/xhigh/max), pi → `--thinking`
    *  (off/minimal/low/medium/high/xhigh). Fallback entries do not inherit it. */
@@ -51,11 +48,6 @@ export interface RunAttemptConfig {
   provider: string | null;
   extraEnv: Record<string, string>;
   extraOption: Record<string, string>;
-  /** Resolved Claude adapter mode. Only 'print' runs: the TUI runtime was retired (D9), so a
-   *  profile still configured `'tui'` is accepted, warned about once by `ClaudeAdapter.open`, and
-   *  run on the print path. Kept on the type because it is still a field of profiles.json and of
-   *  the Web profile editor; nothing downstream branches on it any more. */
-  claudeBackend: 'print' | 'tui';
   /** Thinking level (backend-native value). null → nothing is passed to the CLI. */
   thinking: string | null;
   maxOutputTokens?: number | null;
@@ -182,11 +174,6 @@ function validateProfileEntry(profile: unknown, label: string, inheritedBackend:
       }
     }
   }
-  if (p.claudeBackend !== undefined) {
-    if (p.claudeBackend !== 'print' && p.claudeBackend !== 'tui') {
-      throw new Error(`${label} has invalid claudeBackend: ${String(p.claudeBackend)} (expected 'print' or 'tui')`);
-    }
-  }
   if (p.thinking !== undefined) {
     const levels = THINKING_LEVELS_BY_BACKEND[effectiveBackend];
     if (!levels) {
@@ -197,16 +184,6 @@ function validateProfileEntry(profile: unknown, label: string, inheritedBackend:
     }
   }
   validateMaxOutputTokens(p.maxOutputTokens, effectiveBackend, label);
-}
-
-/**
- * Pure resolver: maps a ProfileEntry's claudeBackend field to one of the two accepted values.
- * Defaults to 'print' for any non-'tui' value (including a missing field). Since D9 retired the
- * TUI runtime this only decides whether the adapter emits its one deprecation warning — both
- * values run the print path.
- */
-export function resolveClaudeBackend(p: { claudeBackend?: unknown }): 'print' | 'tui' {
-  return p.claudeBackend === 'tui' ? 'tui' : 'print';
 }
 
 function validateProfilesFile(data: unknown): void {
@@ -352,7 +329,6 @@ function resolveProfileConfig(name: string | null = null): ResolvedProfileConfig
     provider: profile.provider || null,
     extraEnv: { ...(profile.extraEnv || {}) },
     extraOption: { ...(profile.extraOption || {}) },
-    claudeBackend: resolveClaudeBackend(profile),
     thinking: profile.thinking || null,
     maxOutputTokens: profile.maxOutputTokens ?? null,
   };
@@ -365,7 +341,6 @@ function resolveProfileConfig(name: string | null = null): ResolvedProfileConfig
     provider: fb.provider || null,
     extraEnv: { ...(fb.extraEnv || {}) },
     extraOption: { ...(fb.extraOption || {}) },
-    claudeBackend: fb.claudeBackend !== undefined ? resolveClaudeBackend(fb) : primary.claudeBackend,
     // thinking does NOT inherit from primary (like provider) — value sets are backend-specific,
     // so each entry must declare its own; undeclared → nothing is passed.
     thinking: fb.thinking || null,
@@ -384,4 +359,3 @@ export {
   resolveProfileConfig,
   validateProfilesFile,
 };
-// resolveClaudeBackend is already an `export function` above; named here for discoverability of the public surface.

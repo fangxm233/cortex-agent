@@ -177,7 +177,6 @@ $CORTEX_HOME/
       "model": "claude-sonnet-4-20250514",
       "backend": "claude",
       "mode": "plan",
-      "claudeBackend": "print",
       "extraEnv": {},
       "extraOption": {},
       "fallback": []
@@ -186,7 +185,6 @@ $CORTEX_HOME/
       "model": "claude-sonnet-4-20250514",
       "backend": "claude",
       "mode": "execute",
-      "claudeBackend": "print",
       "extraEnv": {},
       "extraOption": {}
     }
@@ -205,7 +203,6 @@ $CORTEX_HOME/
 | `profiles.<name>.mode` | string | 否 | 运行模式标识符（自由格式，如 `plan`、`execute`） |
 | `profiles.<name>.extraEnv` | object | 否 | 传递给后端进程的额外环境变量。键必须匹配 `^[A-Z_][A-Z0-9_]*$`。 |
 | `profiles.<name>.extraOption` | object | 否 | 传递给 Claude Code 后端的额外 CLI 标志。键必须以 `--` 开头。在 `pi` 上只有 `--thinking` 生效（作为 `thinking` 字段的覆盖值），其余键会被记录日志并忽略——PI 没有可接收它们的命令行。 |
-| `profiles.<name>.claudeBackend` | string | 否 | Claude 适配器模式：`print`（默认，使用 `-p` + stream-json）或 `tui`（在 tmux 下交互式 Claude + jsonl tail）。非 claude 后端忽略。 |
 | `profiles.<name>.thinking` | string | 否 | 思考档位，取后端原生值域：`claude` 为 `low`/`medium`/`high`/`xhigh`/`max` 之一（以 `--effort` 标志传递），`pi` 为 `off`/`minimal`/`low`/`medium`/`high`/`xhigh` 之一（作为会话的 thinking level 传递）。不写则使用后端自身默认值。fallback 条目不继承——每条自行声明。 |
 | `profiles.<name>.fallback` | array | 否 | 有序的回退配置项列表。如果主后端失败，Cortex 按顺序尝试每个回退项。每个回退项继承主配置中未指定的字段。 |
 
@@ -215,13 +212,13 @@ $CORTEX_HOME/
 
 1. 如果显式提供了配置名称（通过 `--profile`，或由对话的执行环境指定），使用它。
 2. 否则，使用 `profiles.json` 中的 `defaultProfile`。
-3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption`、`claudeBackend` 和 `thinking`。
+3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption` 和 `thinking`。
 4. 直接会话可以在该 profile 之上覆盖 `model`、`provider`、`thinking` 和 `mode`——在 Web 输入框的引擎选择器里选定，按 channel 保存。其余一概不可覆盖：后端、环境变量与回退链仍属于 profile。参见 [backends.md](./backends.md#per-session-model-thinking-level-and-route)。
 5. 如果后端调用因瞬态错误失败，Cortex 遍历 `fallback` 数组（如果有），按顺序尝试每个条目。
 
 ### 验证规则 {#validation-rules}
 
-配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。
+配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。
 
 ## 执行环境 {#execution-environments}
 

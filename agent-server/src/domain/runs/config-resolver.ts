@@ -68,7 +68,6 @@ function syntheticProfile(
     provider: null,
     extraEnv: {},
     extraOption: {},
-    claudeBackend: 'print',
     thinking: null,
     maxOutputTokens: null,
     fallback: [],

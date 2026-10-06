@@ -114,7 +114,7 @@ function hookInjectionProfile(profileName: string | null, channel: string): Reso
   } catch {
     return {
       name: profileName ?? '', model: '', backend: resolveBackendForChannel(channel), mode: null,
-      provider: null, extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+      provider: null, extraEnv: {}, extraOption: {}, thinking: null,
       maxOutputTokens: null, fallback: [],
     };
   }

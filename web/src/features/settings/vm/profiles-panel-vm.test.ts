@@ -36,7 +36,6 @@ function entry(over: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry {
     mode: 'plan',
     thinking: 'xhigh',
     provider: null,
-    claudeBackend: null,
     extraOption: {},
     extraEnvKeys: [],
     fallbackCount: 0,
@@ -57,7 +56,6 @@ describe('formStateFromEntry', () => {
       mode: 'plan',
       provider: '',
       thinking: 'xhigh',
-      claudeBackend: '',
       extraOption: [],
     });
     expect(formStateFromEntry(entry({ backend: null })).backend).toBe('claude');
@@ -184,11 +182,6 @@ describe('buildProfileDraft', () => {
       thinking: 'xhigh',
       extraOption: { '--thinking': 'xhigh' },
     });
-  });
-
-  it('sends claudeBackend only when it is declared', () => {
-    expect(buildProfileDraft(form({ claudeBackend: '' })).claudeBackend).toBeUndefined();
-    expect(buildProfileDraft(form({ claudeBackend: 'tui' })).claudeBackend).toBe('tui');
   });
 });
 

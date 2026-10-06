@@ -13,13 +13,8 @@ import { resetSettingsForTests } from '../../src/core/settings.js';
 // path on the `refactor/runs` base, in this exact test home (no rules dir, default settings), and
 // converted one-for-one into the EngineSpec shape. `assert.deepStrictEqual` distinguishes a
 // present-but-`undefined` key from an absent one, so the literals list every key the builder emits.
-//
-// AMENDED at the run-model cutover, in two keys only, because a RESOLVED request carries fewer
-// undefineds than the old options bag did:
-//   - `backend.claudeBackend`: was `undefined` when a config omitted it; a ResolvedProfileConfig
-//     always resolves it, so it is now `'print'`. Read only as `=== 'tui'`, so argv is unchanged
-//     (the spawn-seam byte goldens still pass untouched).
-// Nothing else moved. Any further drift here is a regression, not a restatement.
+// The only key removed since is `backend.claudeBackend`, which selected the retired TUI runtime and
+// never reached argv. Any further drift here is a regression, not a restatement.
 const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
 
 interface Case {
@@ -75,7 +70,7 @@ const cases: Case[] = [
       },
       context: { channel: 'general', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
-      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: 'print' },
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined },
       process: { spawner: undefined, cliPath: undefined },
     },
   },
@@ -91,7 +86,7 @@ const cases: Case[] = [
     },
     config: {
       model: 'pi-model', backend: 'pi', mode: 'pi-mode', provider: 'deepseek',
-      maxOutputTokens: 4096, thinking: 'high', claudeBackend: 'print',
+      maxOutputTokens: 4096, thinking: 'high',
     },
     route: undefined,
     expected: {
@@ -180,7 +175,7 @@ const cases: Case[] = [
       },
       context: { channel: 'subagent-channel', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
-      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: 'print' },
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined },
       process: { spawner: undefined, cliPath: '/fixture/bin/claude' },
     },
   },
@@ -202,7 +197,7 @@ const cases: Case[] = [
       outputStyle: 'concise',
     },
     config: {
-      ...FIXTURE_CONFIG, mode: 'plan', claudeBackend: 'print', thinking: 'medium',
+      ...FIXTURE_CONFIG, mode: 'plan', thinking: 'medium',
       extraOption: { foo: 'bar' }, extraEnv: { EXTRA_ONE: '1' },
     },
     route: {
@@ -246,7 +241,7 @@ const cases: Case[] = [
       },
       context: { channel: 'web:browser-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
       extraOption: { foo: 'bar' },
-      backend: { kind: 'claude', claudeAgent: 'my-agent', outputStyle: 'concise', claudeBackend: 'print' },
+      backend: { kind: 'claude', claudeAgent: 'my-agent', outputStyle: 'concise' },
       process: { spawner: undefined, cliPath: undefined },
     },
   },

@@ -161,7 +161,7 @@ function childRequestInput(channel: string | undefined) {
   } as any;
   const config = {
     model: 'child-model', backend: 'claude', mode: null, provider: null,
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+    extraEnv: {}, extraOption: {}, thinking: null,
   } as any;
   return { request, config };
 }

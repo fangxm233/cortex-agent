@@ -145,11 +145,11 @@ test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks',
   assert.deepEqual(snap.profiles!.profiles, [
     {
       name: 'plan', model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high',
-      provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+      provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
     },
     {
       name: 'fast', model: 'm2', backend: 'pi', mode: 'plan', thinking: null,
-      provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+      provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
     },
   ]);
 
@@ -199,7 +199,7 @@ test('readConfigSnapshot carries the editable profile fields but never an extraE
   const snap = await readConfigSnapshot(configDir, [], LANG);
   const rich = snap.profiles!.profiles[0];
   assert.equal(rich.provider, 'deepseek');
-  assert.equal(rich.claudeBackend, 'tui');
+  assert.ok(!('claudeBackend' in rich), 'the retired claudeBackend key is not carried');
   assert.deepEqual(rich.extraOption, { '--thinking': 'xhigh' }, 'non-string option values are dropped');
   assert.deepEqual(rich.extraEnvKeys, ['OTHER', 'PI_TOKEN']);
   assert.equal(rich.fallbackCount, 2);

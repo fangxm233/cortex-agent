@@ -90,18 +90,10 @@ operations.
 
 ## Claude Code
 
-The reference backend. Two adapter modes are defined; TUI is
-deprecated:
-
-**Print mode** (`claudeBackend: "print"`, default). Uses a persistent
-`claude -p` process with stream-json input and output. Cortex pools the process
-by session key and sends later turns over the same NDJSON stream until the
-session is closed, times out, or its spawn identity changes.
-
-**TUI mode** (`claudeBackend: "tui"`, deprecated). Historically spawned an
-interactive Claude session under tmux and tailed the session's JSONL file for
-events. D9 deprecated it: the adapter warns once and runs the session in print
-mode instead.
+The reference backend. Each session runs a persistent `claude -p` process
+with stream-json input and output. Cortex pools the process by session key and
+sends later turns over the same NDJSON stream until the session is closed,
+times out, or its spawn identity changes.
 
 Claude Code sessions are pooled by engine key for reuse (`SessionEngines`,
 `domain/runs/engines.ts`). Cost reporting reverse-derives USD from

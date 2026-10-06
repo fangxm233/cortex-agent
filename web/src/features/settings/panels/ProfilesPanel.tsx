@@ -500,22 +500,6 @@ function ProfileEditor({
             style={S_CONTROL_STYLE}
           />
         </SFieldRow>
-        {draft.backend === 'claude' ? (
-          <SFieldRow label={L.pfFieldClaudeBackend}>
-            <Select popupClassName="settings-surface settings-select-popup"
-              data-profile-field="claudeBackend"
-              aria-label={L.pfFieldClaudeBackend}
-              value={draft.claudeBackend}
-              options={[
-                { value: '', label: L.pfPrintDefault },
-                { value: 'print', label: 'print' },
-                { value: 'tui', label: 'tui' },
-              ]}
-              onValueChange={(claudeBackend: ProfileFormState['claudeBackend']) => set({ claudeBackend })}
-              style={S_CONTROL_STYLE}
-            />
-          </SFieldRow>
-        ) : null}
         <SFieldRow label={L.pfFieldExtraOption} hint={hint('extraOption')} hintTone={tone('extraOption')}>
           <ExtraOptionRows rows={draft.extraOption} onChange={(extraOption) => set({ extraOption })} />
         </SFieldRow>

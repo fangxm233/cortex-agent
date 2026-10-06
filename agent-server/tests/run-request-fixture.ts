@@ -47,7 +47,6 @@ export function attemptFixture(partial: Partial<RunAttemptConfig> = {}): RunAtte
     provider: partial.provider ?? null,
     extraEnv: partial.extraEnv ?? {},
     extraOption: partial.extraOption ?? {},
-    claudeBackend: partial.claudeBackend ?? 'print',
     thinking: partial.thinking ?? null,
     ...(partial.maxOutputTokens !== undefined ? { maxOutputTokens: partial.maxOutputTokens } : {}),
   };
@@ -59,7 +58,7 @@ export function attemptOf(resolved: ResolvedProfileConfig): RunAttemptConfig {
   return {
     model: resolved.model, backend: resolved.backend, mode: resolved.mode,
     provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
+    thinking: resolved.thinking,
   };
 }
 
@@ -74,7 +73,6 @@ export function attemptFromFixture(
     thinking: partial.thinking,
     extraEnv: partial.env,
     extraOption: partial.extraOption,
-    claudeBackend: partial.claudeBackend,
     maxOutputTokens: partial.piModelMaxTokens,
     ...defined(override),
   });

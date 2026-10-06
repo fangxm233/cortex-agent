@@ -68,7 +68,7 @@ afterEach(async () => {
 function profile(): ResolvedProfileConfig {
   return {
     name: 'benchmark-pi', model: 'deepseek-fixture', backend: 'pi', mode: 'trial', provider: 'deepseek',
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null, fallback: [],
+    extraEnv: {}, extraOption: {}, thinking: null, fallback: [],
   };
 }
 
@@ -119,7 +119,7 @@ async function runAttempt(
     profileName: resolved.name,
     model: resolved.model,
     piProvider: resolved.provider,
-    claudeBackend: 'print',
+   
     tools: 'Read',
     pluginDirs: [],
     mcpComposition: 'none',

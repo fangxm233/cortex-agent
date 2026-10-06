@@ -23,7 +23,7 @@ const REQUEST = {
 function profile(overrides: Record<string, unknown> = {}): any {
   return {
     name: 'deepseek', backend: 'pi', model: 'deepseek-chat', mode: 'deepseek', provider: 'anthropic',
-    fallback: [], extraEnv: {}, extraOption: {}, claudeBackend: undefined, thinking: null,
+    fallback: [], extraEnv: {}, extraOption: {}, thinking: null,
     ...overrides,
   };
 }
@@ -32,13 +32,7 @@ test('support requires a profile whose backend matches the session’s', () => {
   assert.equal(isSessionCompactionSupported({ backend: 'pi', profileName: 'deepseek' }, () => profile()), true);
   assert.equal(isSessionCompactionSupported(
     { backend: 'claude', profileName: 'print' },
-    () => profile({ backend: 'claude', claudeBackend: 'print' }),
-  ), true);
-  // A profile still configured `claudeBackend: 'tui'` runs the print path — the TUI runtime was
-  // retired (D9) — so it compacts like any other Claude profile.
-  assert.equal(isSessionCompactionSupported(
-    { backend: 'claude', profileName: 'tui' },
-    () => profile({ backend: 'claude', claudeBackend: 'tui' }),
+    () => profile({ backend: 'claude' }),
   ), true);
   assert.equal(isSessionCompactionSupported(
     { backend: 'pi', profileName: 'wrong' },

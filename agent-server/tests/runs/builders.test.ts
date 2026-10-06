@@ -22,7 +22,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function profile(name: string): ResolvedProfileConfig {
   return {
     name, model: 'sonnet', backend: 'claude', mode: null, provider: null,
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+    extraEnv: {}, extraOption: {}, thinking: null,
     maxOutputTokens: null, fallback: [],
   } as ResolvedProfileConfig;
 }

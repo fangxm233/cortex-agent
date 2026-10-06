@@ -155,11 +155,6 @@ function ProfileFields(props: {
       <option value="">{L.pfNotDeclared}</option>
       {THINKING_LEVELS[draft.backend].map((level) => <option key={level}>{level}</option>)}
     </MSettingsSelect>
-    {draft.backend === 'claude' && <MSettingsSelect data-profile-field="claudeBackend"
-      label={L.pfFieldClaudeBackend} value={draft.claudeBackend}
-      onChange={(event) => set('claudeBackend', event.target.value as ProfileFormState['claudeBackend'])}>
-      <option value="">{L.pfPrintDefault}</option><option value="print">print</option><option value="tui">tui</option>
-    </MSettingsSelect>}
     <ExtraOptions draft={draft} error={error('extraOption')} onChange={props.onChange} />
   </div>;
 }

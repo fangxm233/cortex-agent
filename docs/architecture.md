@@ -198,7 +198,7 @@ The `agent-adapter/` directory abstracts two LLM backends behind a unified inter
 
 | Backend | Adapter | Notes |
 |---------|---------|-------|
-| Claude Code | `claude/adapter.ts` | Stateless engine adapter: opens a Claude process session (print mode), spawn-args builder, event parser. TUI mode (tmux + JSONL tail) is deprecated (D9) |
+| Claude Code | `claude/adapter.ts` | Stateless engine adapter: opens a Claude process session (print mode), spawn-args builder, event parser |
 | PI | `pi/adapter.ts` | Stateless engine adapter: opens an in-process PI session, MCP bridge, hook bridge, tool shims |
 
 The session pool lives in `domain/runs/engines.ts` (`SessionEngines`), not in either adapter.

@@ -205,7 +205,6 @@ function backendField(
     claudeAgent: request.spec.backendOptions.claudeAgent ?? undefined,
     outputStyle: typeof request.spec.backendOptions.outputStyle === 'string'
       ? request.spec.backendOptions.outputStyle : undefined,
-    claudeBackend: attempt.claudeBackend,
   };
   return attempt.backend === 'claude'
     ? { kind: 'claude', ...claudeFields }

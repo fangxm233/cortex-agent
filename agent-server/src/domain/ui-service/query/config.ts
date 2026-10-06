@@ -105,7 +105,6 @@ function parseProfiles(raw: any): ConfigProfiles | null {
       mode: typeof p?.mode === 'string' ? p.mode : null,
       thinking: typeof p?.thinking === 'string' ? p.thinking : null,
       provider: typeof p?.provider === 'string' ? p.provider : null,
-      claudeBackend: p?.claudeBackend === 'print' || p?.claudeBackend === 'tui' ? p.claudeBackend : null,
       extraOption: parseStringMap(p?.extraOption),
       // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
       extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)

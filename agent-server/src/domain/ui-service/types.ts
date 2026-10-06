@@ -237,7 +237,6 @@ export interface ProfileDraftInput {
   mode?: string;
   provider?: string;
   thinking?: string;
-  claudeBackend?: 'print' | 'tui';
   extraOption?: Record<string, string>;
 }
 
@@ -756,8 +755,6 @@ export interface ConfigProfileEntry {
   thinking: string | null;
   /** Rate-limit provider identity; required by profiles whose effective backend is 'pi'. */
   provider: string | null;
-  /** DR-0012 claude adapter mode. null when the entry does not declare one (resolves to 'print'). */
-  claudeBackend: 'print' | 'tui' | null;
   /** Extra CLI flags (keys start with '--'). Returned in full — the editor must round-trip them. */
   extraOption: Record<string, string>;
   /** KEYS ONLY of `extraEnv`. Values are environment injection and may hold a token, so they are

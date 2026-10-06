@@ -36,9 +36,8 @@ import {
   clearActivePlanFile,
   getCurrentPlanFilePath,
 } from '../src/agent-adapter/claude/event-parser.js';
-import { ClaudeAdapter, _test as adapterTest, recoverTuiOrphans } from '../src/agent-adapter/claude/adapter.js';
+import { ClaudeAdapter, _test as adapterTest } from '../src/agent-adapter/claude/adapter.js';
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
-import type { TmuxExecResult } from '../src/agent-adapter/claude/tmux-control.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
 import { safeNativeName } from '@core/native-name.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
@@ -736,50 +735,6 @@ test('Claude print respawn revalidates supplemental MCP content before spawning 
   assert.throws(() => session.spawnProcess(), /identity mismatch|content mismatch/i);
   assert.equal(counter.value, 1);
   await pool.close('revalidate-print');
-});
-
-// --- recoverTuiOrphans (DR-0012 §3.6 startup sweep) ---
-
-function makeRecordingExec(scenario: {
-  listOutput: string;
-  listStatus?: number;
-  killStatus?: number;
-}): { exec: (a: string[]) => TmuxExecResult; calls: string[][] } {
-  const calls: string[][] = [];
-  const exec = (args: string[]): TmuxExecResult => {
-    calls.push([...args]);
-    if (args[0] === 'list-sessions') {
-      return { stdout: scenario.listOutput, stderr: '', status: scenario.listStatus ?? 0 };
-    }
-    if (args[0] === 'kill-session') {
-      return { stdout: '', stderr: '', status: scenario.killStatus ?? 0 };
-    }
-    return { stdout: '', stderr: '', status: 0 };
-  };
-  return { exec, calls };
-}
-
-test('recoverTuiOrphans returns empty when no tmux sessions exist', () => {
-  const { exec, calls } = makeRecordingExec({ listOutput: '', listStatus: 1 });
-  const r = recoverTuiOrphans(exec);
-  assert.deepEqual(r.found, []);
-  assert.deepEqual(r.killed, []);
-  // Only the list call happened — no kill attempts
-  assert.equal(calls.filter(c => c[0] === 'kill-session').length, 0);
-});
-
-test('recoverTuiOrphans only sweeps sessions matching cortex-claude- prefix', () => {
-  const { exec, calls } = makeRecordingExec({
-    listOutput: 'cortex-claude-abc\nuser-shell\ncortex-claude-def\nother\n',
-  });
-  const r = recoverTuiOrphans(exec);
-  assert.deepEqual(r.found.sort(), ['cortex-claude-abc', 'cortex-claude-def']);
-  assert.deepEqual(r.killed.sort(), ['cortex-claude-abc', 'cortex-claude-def']);
-  const killTargets = calls.filter(c => c[0] === 'kill-session').map(c => c[c.indexOf('-t') + 1]);
-  assert.deepEqual(killTargets.sort(), ['cortex-claude-abc', 'cortex-claude-def']);
-  // Did NOT try to kill the unrelated tmux sessions
-  assert.ok(!killTargets.includes('user-shell'));
-  assert.ok(!killTargets.includes('other'));
 });
 
 // --- buildHooksSettings ---

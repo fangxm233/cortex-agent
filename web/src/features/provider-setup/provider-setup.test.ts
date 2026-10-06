@@ -10,7 +10,7 @@ const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => (
 });
 const profile = (patch: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry => ({
   name: 'pi-ready', backend: 'pi', provider: 'openai', model: 'gpt-test', mode: null,
-  thinking: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0, ...patch,
+  thinking: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0, ...patch,
 });
 function fixture() {
   const ports = {

@@ -23,8 +23,6 @@ import {
   ClaudeSpawnOptions, CortexAgentContext,
 } from './spawn-args.js';
 import { computeTranscriptPath, readRestoredSessionCost, resolveResumeAgainstTranscript } from './transcript-path.js';
-import { TmuxControl, type TmuxExec } from './tmux-control.js';
-import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
   buildPrompt,
   clearActivePlanFile,
@@ -780,9 +778,6 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
   return buildSpawnArgs(spawnOptions);
 }
 
-/** D9: `claudeBackend: 'tui'` is accepted but deprecated; warn once per process, then run print. */
-let warnedTuiDeprecated = false;
-
 /** Collaborators the daemon owns and a trial replaces — the Claude twin of `PIAdapterHooks`.
  *  Left unset, a rate-limit window the CLI reports is observed and discarded; the daemon wires the
  *  real throttle in `domain/runs/adapters.ts`. */
@@ -810,11 +805,6 @@ export class ClaudeAdapter implements EngineAdapter {
    * only when you have decided to create, the way `acquire` does.
    */
   open(spec: EngineSpec, hooks: ClaudeEngineOpenHooks = {}): ClaudeEngineSession {
-    // D9: TUI is deprecated — one warning, then continue down the print path (never a throw).
-    if (spec.backend.kind === 'claude' && spec.backend.claudeBackend === 'tui' && !warnedTuiDeprecated) {
-      warnedTuiDeprecated = true;
-      log.warn('claudeBackend "tui" is deprecated (D9); running this session in print mode');
-    }
     const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
     // Same resume gate as the old spawn(): a pre-registered sessionId with no transcript yet must create.
     sessionOptions.needsResume = resolveResumeForPrint(
@@ -856,39 +846,6 @@ export class ClaudeAdapter implements EngineAdapter {
       sessionId: sessionIdEffective,
     };
   }
-}
-
-/**
- * Startup hook — sweep orphan tmux sessions matching the `cortex-claude-` prefix.
- *
- * This is a one-way MIGRATION SWEEP, not support for a live TUI mode: D9 retired
- * `claudeBackend: 'tui'` and no new TUI tmux session can be created. It exists because tmux
- * sessions outlive agent-server's process, so machines upgrading across the D9 boundary still
- * hold `cortex-claude-<sessionId>` sessions from older builds. The in-memory bookkeeping that
- * could re-adopt them (the TUI session map) is gone, so the honest move is to
- * kill the leftovers at startup — otherwise they accumulate forever and a later session reusing
- * the same sessionId would collide with `tmux new-session -s <name>` (which fails on duplicates).
- *
- * Deletable once the deprecation window closes and no pre-D9 build can still be upgraded from.
- * Logs the killed names so operators can investigate if needed.
- *
- * Override `exec` in tests so we don't touch the real tmux server.
- */
-export function recoverTuiOrphans(exec?: TmuxExec): { found: string[]; killed: string[] } {
-  const tmux = exec ? new TmuxControl(exec) : new TmuxControl();
-  const found = tmux.listSessions(TUI_TMUX_NAME_PREFIX);
-  if (found.length === 0) return { found: [], killed: [] };
-  const killed: string[] = [];
-  for (const name of found) {
-    try {
-      tmux.killSession(name);
-      killed.push(name);
-    } catch (e) {
-      log.warn(`recoverTuiOrphans: failed to kill ${name}: ${(e as Error).message}`);
-    }
-  }
-  log.info(`recoverTuiOrphans: swept ${killed.length}/${found.length} orphan tmux sessions (prefix=${TUI_TMUX_NAME_PREFIX})`);
-  return { found, killed };
 }
 
 /** Construct a ClaudeSession WITHOUT spawning the `claude` child process, for unit

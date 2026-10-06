@@ -27,7 +27,6 @@ export function planAttempts(profile: ResolvedProfileConfig): RunAttemptConfig[]
     provider: profile.provider,
     extraEnv: profile.extraEnv,
     extraOption: profile.extraOption,
-    claudeBackend: profile.claudeBackend,
     thinking: profile.thinking,
     maxOutputTokens: profile.maxOutputTokens,
   };

@@ -1,6 +1,6 @@
 import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs';
 import * as path from 'path';
-import { TUI_JSONL_BASE } from './defaults.js';
+import { CLAUDE_TRANSCRIPTS_DIR } from './defaults.js';
 
 /**
  * Mirror Claude Code's convention: the jsonl session transcript lives at
@@ -19,7 +19,7 @@ import { TUI_JSONL_BASE } from './defaults.js';
  */
 export function computeTranscriptPath(cwd: string, sessionId: string): string {
   const encoded = cwd.replace(/[/.]/g, '-');
-  return path.join(TUI_JSONL_BASE, encoded, `${sessionId}.jsonl`);
+  return path.join(CLAUDE_TRANSCRIPTS_DIR, encoded, `${sessionId}.jsonl`);
 }
 
 /**
