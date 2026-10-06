@@ -506,7 +506,8 @@ export class AgentRunImpl implements AgentRun {
    * (Slack/Feishu have no notice lines), like the other synthesized notices.
    */
   private announcePluginWarnings(spec: EngineSpec): void {
-    const warnings = spec.plugins.warnings;
+    // Read defensively: this notice is advisory and must never be what breaks a run.
+    const warnings = spec?.plugins?.warnings;
     if (!warnings?.length || this.pluginWarningsAnnounced || !this.noticesActive) return;
     if (!this.request.context.channel?.startsWith('web:')) return;
     this.pluginWarningsAnnounced = true;
