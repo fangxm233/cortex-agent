@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { RunRegistry } from '@core/run-registry.js';
 import { remainingBg } from '../../agent-adapter/bg-wait.js';
@@ -111,13 +110,6 @@ export interface CreateAgentRunArgs {
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
-}
-
-/** A message written to the live backend but whose delivery ack has not arrived yet. `id` is the
- *  caller's pending-injection id, carried on the eventual `injection_delivered`/`_rejected` event. */
-interface PendingInjectionAck {
-  id: string;
-  text: string;
 }
 
 /** The error a turn ends with when a transport failure hit after it ran a tool. It keeps the
@@ -686,9 +678,9 @@ export class AgentRunImpl implements AgentRun {
 
   private finishForegroundError(failure: Error): void {
     if (this.terminal) return;
-    // `cancelRequested` only covers a cancel that came through this object. Stop/!cancel/thread
-    // abort still kill the process directly, and the engine rejects with a `cancelled` error; the
-    // run layer suppresses the terminal notice for exactly that flag —
+    // `cancelRequested` only covers a cancel that came through this object. A kill that did not
+    // (the pool retiring the engine, a held session's Stop killing the pooled process) makes the
+    // engine reject with a `cancelled` error; the run treats exactly that flag as a cancel —
     // otherwise a user pressing Stop gets an error card and a 'failed' execution.
     if (this.cancelRequested || (failure as { cancelled?: boolean }).cancelled === true) {
       this.finishTerminal('cancelled', null, failure);
