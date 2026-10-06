@@ -12,7 +12,7 @@ import {
 } from '@domain/pi-providers/index.js';
 import { piProviderDiscovery } from '../../../agent-adapter/pi/discovery.js';
 import { THINKING_LEVELS_BY_BACKEND } from '@domain/agents/profile-manager.js';
-import type { ModelCatalogRoute, ModelCatalogSnapshot, ModelsCatalogParams, UiServiceDeps } from '../types.js';
+import type { ModelCatalogRoute, ModelCatalogSnapshot, UiServiceDeps, QueryParams } from '../types.js';
 
 /**
  * The catalog is a UNION, never an intersection: a profile must stay writable for an endpoint the
@@ -96,7 +96,7 @@ export interface ModelsCatalogReaders {
 
 export async function handleModelsCatalog(
   deps: UiServiceDeps,
-  _params: ModelsCatalogParams,
+  _params: QueryParams<'models.catalog'>,
   readers: ModelsCatalogReaders = {},
 ): Promise<ModelCatalogSnapshot> {
   const claudeModels = readers.claudeModels ?? (() => anthropicModelDiscovery.ensure());

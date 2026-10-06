@@ -10,15 +10,11 @@ import {
   type LoginFlowState,
 } from '@domain/auth/index.js';
 import type {
-  AuthCancelFlowArgs,
-  AuthLogoutArgs,
   AuthLogoutReturn,
-  AuthRespondPromptArgs,
-  AuthStartLoginArgs,
-  AuthSyncGatewayArgs,
   AuthSyncGatewayReturn,
   Result,
   UiServiceDeps,
+  MutateArgs,
 } from '../types.js';
 
 function serviceFor(deps: UiServiceDeps): AuthLoginService {
@@ -61,7 +57,7 @@ function missingWebFlow(): Result<never> {
   return { ok: false, code: 'not-found', message: t('ux.auth.flowNotFound') };
 }
 
-function startWebFlow(service: AuthLoginService, args: AuthStartLoginArgs) {
+function startWebFlow(service: AuthLoginService, args: MutateArgs<'auth.startLogin'>) {
   const { noticeId, ...input } = args;
   const options = noticeId ? { reuseExistingPair: true } : undefined;
   return service.start({ ...input, channel: null, sessionId: null }, options);
@@ -69,7 +65,7 @@ function startWebFlow(service: AuthLoginService, args: AuthStartLoginArgs) {
 
 async function startWebNoticeFlow(
   service: AuthLoginService,
-  args: AuthStartLoginArgs & { noticeId: string },
+  args: MutateArgs<'auth.startLogin'> & { noticeId: string },
 ): Promise<Result<LoginFlowState>> {
   const resolved = resolveAuthNoticeFlow(service, args.noticeId);
   if (resolved.kind === 'expired') return missingWebFlow();
@@ -85,7 +81,7 @@ async function startWebNoticeFlow(
 
 export async function handleAuthStartLogin(
   deps: UiServiceDeps,
-  args: AuthStartLoginArgs,
+  args: MutateArgs<'auth.startLogin'>,
 ): Promise<Result<LoginFlowState>> {
   const service = serviceFor(deps);
   if (args.noticeId) return startWebNoticeFlow(service, { ...args, noticeId: args.noticeId });
@@ -94,7 +90,7 @@ export async function handleAuthStartLogin(
 
 export async function handleAuthRespondPrompt(
   deps: UiServiceDeps,
-  args: AuthRespondPromptArgs,
+  args: MutateArgs<'auth.respondPrompt'>,
 ): Promise<Result<LoginFlowState>> {
   const service = serviceFor(deps);
   if (!isWebOwned(service, args.flowId)) return missingWebFlow();
@@ -103,7 +99,7 @@ export async function handleAuthRespondPrompt(
 
 export async function handleAuthCancelFlow(
   deps: UiServiceDeps,
-  args: AuthCancelFlowArgs,
+  args: MutateArgs<'auth.cancelFlow'>,
 ): Promise<Result<LoginFlowState>> {
   const service = serviceFor(deps);
   if (!isWebOwned(service, args.flowId)) return missingWebFlow();
@@ -112,7 +108,7 @@ export async function handleAuthCancelFlow(
 
 export async function handleAuthLogout(
   deps: UiServiceDeps,
-  args: AuthLogoutArgs,
+  args: MutateArgs<'auth.logout'>,
 ): Promise<Result<AuthLogoutReturn>> {
   const result = await (deps.logoutAccount ?? logoutAccount)(args);
   if (result.ok === true) return { ok: true, data: result };
@@ -129,7 +125,7 @@ export async function handleAuthLogout(
  */
 export async function handleAuthSyncGateway(
   deps: UiServiceDeps,
-  args: AuthSyncGatewayArgs,
+  args: MutateArgs<'auth.syncGateway'>,
 ): Promise<Result<AuthSyncGatewayReturn>> {
   const sync = deps.syncGateway ?? syncGatewayFromBackends;
   const result = await sync({ backends: args.backend ? [args.backend] : undefined });

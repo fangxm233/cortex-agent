@@ -8,11 +8,10 @@ import {
   type CustomProviderView,
 } from '@domain/pi-providers/index.js';
 import type {
-  AuthRemoveCustomProviderArgs,
   AuthRemoveCustomProviderReturn,
-  AuthUpsertCustomProviderArgs,
   Result,
   UiServiceDeps,
+  MutateArgs,
 } from '../types.js';
 
 function storesOf(deps: UiServiceDeps): CustomProviderStores {
@@ -41,7 +40,7 @@ function failure(errors: CustomProviderFailure[]): Result<never> {
  */
 export async function handleCustomProviderUpsert(
   deps: UiServiceDeps,
-  args: AuthUpsertCustomProviderArgs,
+  args: MutateArgs<'auth.upsertCustomProvider'>,
 ): Promise<Result<CustomProviderView>> {
   const result = upsertCustomProvider(storesOf(deps), args);
   // `=== true` rather than a truthiness test: this project typechecks with `strict: false`, where
@@ -51,7 +50,7 @@ export async function handleCustomProviderUpsert(
 
 export async function handleCustomProviderRemove(
   deps: UiServiceDeps,
-  args: AuthRemoveCustomProviderArgs,
+  args: MutateArgs<'auth.removeCustomProvider'>,
 ): Promise<Result<AuthRemoveCustomProviderReturn>> {
   const result = removeCustomProvider(storesOf(deps), args.name);
   return result.ok === true ? { ok: true, data: { removed: true } } : failure(result.errors);

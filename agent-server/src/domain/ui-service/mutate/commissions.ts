@@ -1,13 +1,13 @@
 import { t } from '@core/i18n.js';
 import { commissionRepo } from '@store/commission-repo.js';
-import type { UiServiceDeps, Result, CommissionCloseArgs, CommissionInfo } from '../types.js';
+import type { UiServiceDeps, Result, CommissionInfo, MutateArgs } from '../types.js';
 import { toCommissionInfo } from '../query/commissions.js';
 
 /** Close a commission as done/abandoned — a user action from the board UI; agents never close
  *  their own commission. The commission dir (contract/ledger/assets) is left untouched. */
 export async function handleCommissionClose(
   deps: UiServiceDeps,
-  args: CommissionCloseArgs,
+  args: MutateArgs<'commissions.close'>,
 ): Promise<Result<CommissionInfo>> {
   const store = deps.commissionStore ?? commissionRepo;
   const record = await store.find(args.commissionId);

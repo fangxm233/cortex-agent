@@ -4,7 +4,7 @@ import type {
   UiServiceDeps,
   ApprovalInfo,
   ApprovalStatus,
-  ApprovalsListParams,
+  QueryParams,
 } from '../types.js';
 import { parseTaskRef } from './memory.js';
 
@@ -121,7 +121,7 @@ export function parseApprovals(md: string, filter?: ApprovalStatus): ApprovalInf
 
 export async function handleApprovalsList(
   deps: UiServiceDeps,
-  params: ApprovalsListParams,
+  params: QueryParams<'approvals.list'>,
 ): Promise<ApprovalInfo[]> {
   let md: string;
   try {

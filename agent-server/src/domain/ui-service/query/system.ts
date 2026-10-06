@@ -12,15 +12,11 @@ import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
   DaemonRebuildProgress,
-  SystemDaemonStatusParams,
   SystemRateLimitStatus,
-  SystemRateLimitStatusParams,
   SystemUsageStatus,
-  SystemUsageStatusParams,
   SystemNotices,
-  SystemNoticesParams,
   SystemUpdateStatus,
-  SystemUpdateStatusParams,
+  QueryParams,
 } from '../types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -77,7 +73,7 @@ export function readPidFile(filePath: string): number | null {
 // ── Handler ───────────────────────────────────────────────────────
 
 export async function handleSystemDaemonStatus(
-  _params: SystemDaemonStatusParams,
+  _params: QueryParams<'system.daemonStatus'>,
 ): Promise<SystemDaemonStatus> {
   const processes: DaemonProcessInfo[] = [];
   const pidFile = path.join(STORE_DIR, 'daemon.pid');
@@ -148,7 +144,7 @@ function liveRebuildProgress(daemonPid: number | null, daemonAlive: boolean): Da
 }
 
 export async function handleSystemRateLimitStatus(
-  _params: SystemRateLimitStatusParams,
+  _params: QueryParams<'system.rateLimitStatus'>,
 ): Promise<SystemRateLimitStatus> {
   const waiting = getResumeCountsByProvider();
   const providers = getThrottleState().providers.map((provider) => ({
@@ -161,17 +157,17 @@ export async function handleSystemRateLimitStatus(
 }
 
 export async function handleSystemUsageStatus(
-  _params: SystemUsageStatusParams,
+  _params: QueryParams<'system.usageStatus'>,
 ): Promise<SystemUsageStatus> {
   return usageService.getStatus();
 }
 
-export async function handleSystemNotices(params: SystemNoticesParams): Promise<SystemNotices> {
+export async function handleSystemNotices(params: QueryParams<'system.notices'>): Promise<SystemNotices> {
   return { entries: listSystemNotices(params.limit), cap: NOTICE_HISTORY_CAP };
 }
 
 export async function handleSystemUpdateStatus(
-  _params: SystemUpdateStatusParams,
+  _params: QueryParams<'system.updateStatus'>,
 ): Promise<SystemUpdateStatus> {
   return getServerUpdateStatus();
 }

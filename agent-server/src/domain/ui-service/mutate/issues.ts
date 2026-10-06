@@ -5,9 +5,9 @@ import type {
   UiServiceDeps,
   Result,
   IssueInfo,
-  IssueActionArgs,
   IssuesDeleteReturn,
   IssuesHandleReturn,
+  MutateArgs,
 } from '../types.js';
 import { parseIssues, issueLineId, resolveIssuesPath } from '../query/issues.js';
 
@@ -68,7 +68,7 @@ export function buildIssuePrompt(projectId: string, entry: IssueInfo): string {
 
 export async function handleIssuesDelete(
   deps: UiServiceDeps,
-  args: IssueActionArgs,
+  args: MutateArgs<'issues.handle'>,
 ): Promise<Result<IssuesDeleteReturn>> {
   try {
     const issuesPath = resolveIssuesPath(deps, args.projectId);
@@ -89,7 +89,7 @@ export async function handleIssuesDelete(
 
 export async function handleIssuesHandle(
   deps: UiServiceDeps,
-  args: IssueActionArgs,
+  args: MutateArgs<'issues.handle'>,
 ): Promise<Result<IssuesHandleReturn>> {
   try {
     const issuesPath = resolveIssuesPath(deps, args.projectId);

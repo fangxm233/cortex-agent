@@ -3,9 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   HookDetail,
   HookScriptInfo,
-  HooksCreateArgs,
   HooksTestReturn,
-  HooksUpdateArgs,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
@@ -58,8 +57,8 @@ export interface HooksController {
   setSearch: (value: string) => void;
   select: (id: string | null) => void;
   setEnabled: (args: { id: string; enabled: boolean }) => void;
-  create: (args: HooksCreateArgs) => void;
-  update: (args: HooksUpdateArgs) => void;
+  create: (args: MutateArgs<'hooks.create'>) => void;
+  update: (args: MutateArgs<'hooks.update'>) => void;
   remove: (args: { id: string }) => void;
   runTest: (args: { id: string; payload: string }) => void;
 }

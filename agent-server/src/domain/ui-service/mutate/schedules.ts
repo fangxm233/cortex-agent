@@ -1,5 +1,5 @@
 import { t } from '@core/i18n.js';
-import type { UiServiceDeps, Result, ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '../types.js';
+import type { UiServiceDeps, Result, ScheduleInfo, MutateArgs } from '../types.js';
 import { toScheduleInfo } from '../query/schedules.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 
@@ -54,7 +54,7 @@ export async function handleRemoveSchedule(
 // deps.scheduler.add composes the real scheduler.add + schedule-repo backfill of target.
 export async function handleAddSchedule(
   deps: UiServiceDeps,
-  args: ScheduleAddArgs,
+  args: MutateArgs<'schedules.add'>,
 ): Promise<Result<ScheduleInfo>> {
   // Per-type required-field validation — return Err BEFORE calling add() so nothing is written.
   if (args.type === 'interval' && args.intervalMs === undefined) {
@@ -100,7 +100,7 @@ const UPDATE_TIMING_FIELDS: Record<ScheduleTask['type'], string[]> = {
   once: [],
 };
 
-function buildUpdatePatch(args: ScheduleUpdateArgs): Record<string, unknown> {
+function buildUpdatePatch(args: MutateArgs<'schedules.update'>): Record<string, unknown> {
   const { scheduleId: _id, ...rest } = args;
   const patch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(rest)) {
@@ -114,7 +114,7 @@ function buildUpdatePatch(args: ScheduleUpdateArgs): Record<string, unknown> {
 // scheduler.update would also throw — this keeps the error a typed Result instead).
 export async function handleUpdateSchedule(
   deps: UiServiceDeps,
-  args: ScheduleUpdateArgs,
+  args: MutateArgs<'schedules.update'>,
 ): Promise<Result<ScheduleInfo>> {
   const task = await deps.scheduler.get(args.scheduleId);
   if (!task) {

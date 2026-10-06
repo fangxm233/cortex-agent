@@ -7,11 +7,10 @@ import { readMcpEnvelope, readSkillSource } from '@domain/plugins/authoring.js';
 import { isManagedSkill, readPluginCatalogSnapshot } from '../plugins-shared.js';
 import type {
   PluginsMcpRead,
-  PluginsMcpReadParams,
   PluginsSkillFile,
-  PluginsSkillFileParams,
   UiPluginMcpDraft,
   UiServiceDeps,
+  QueryParams,
 } from '../types.js';
 
 function stringList(value: unknown): string[] {
@@ -47,7 +46,7 @@ function draftServer(name: string, raw: unknown): UiPluginMcpDraft | null {
 
 export async function handlePluginsSkillFile(
   _deps: UiServiceDeps,
-  params: PluginsSkillFileParams,
+  params: QueryParams<'plugins.skillFile'>,
 ): Promise<PluginsSkillFile> {
   const source = readSkillSource(params.pluginId, params.skill);
   return {
@@ -71,7 +70,7 @@ export function readMcpDrafts(pluginId: string): PluginsMcpRead {
 
 export async function handlePluginsMcpRead(
   _deps: UiServiceDeps,
-  params: PluginsMcpReadParams,
+  params: QueryParams<'plugins.mcpRead'>,
 ): Promise<PluginsMcpRead> {
   return readMcpDrafts(params.pluginId);
 }

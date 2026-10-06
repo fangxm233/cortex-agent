@@ -1,7 +1,7 @@
 import type {
-  AuthUpsertCustomProviderArgs,
   CustomProviderApi,
   CustomProviderView,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
@@ -126,8 +126,8 @@ export function isCustomProviderFormValid(errors: CustomProviderFormErrors): boo
  */
 export function buildCustomProviderArgs(
   form: CustomProviderFormState,
-): AuthUpsertCustomProviderArgs {
-  const args: AuthUpsertCustomProviderArgs = {
+): MutateArgs<'auth.upsertCustomProvider'> {
+  const args: MutateArgs<'auth.upsertCustomProvider'> = {
     name: form.name.trim(),
     api: form.api,
     upstreamUrl: form.upstreamUrl.trim(),

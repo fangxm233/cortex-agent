@@ -1,4 +1,4 @@
-import type { UiServiceDeps, ScheduleInfo, SchedulesListParams } from '../types.js';
+import type { UiServiceDeps, ScheduleInfo, QueryParams } from '../types.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 
 /** Map a persisted ScheduleTask → ScheduleInfo DTO. */
@@ -22,7 +22,7 @@ export function toScheduleInfo(s: ScheduleTask): ScheduleInfo {
 
 export async function handleSchedulesList(
   deps: UiServiceDeps,
-  params: SchedulesListParams,
+  params: QueryParams<'schedules.list'>,
 ): Promise<ScheduleInfo[]> {
   const { projectId, paused } = params;
 

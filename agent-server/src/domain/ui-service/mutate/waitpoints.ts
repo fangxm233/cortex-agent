@@ -1,9 +1,9 @@
 import { t } from '@core/i18n.js';
-import type { Result, UiServiceDeps, WaitpointsCancelArgs, WaitpointsCancelReturn } from '../types.js';
+import type { Result, UiServiceDeps, WaitpointsCancelReturn, MutateArgs } from '../types.js';
 
 export async function handleCancelWaitpoint(
   deps: UiServiceDeps,
-  args: WaitpointsCancelArgs,
+  args: MutateArgs<'waitpoints.cancel'>,
 ): Promise<Result<WaitpointsCancelReturn>> {
   if (!deps.waitpointRegistry) {
     return { ok: false, code: 'not-available', message: t('ui.waitpoint.unavailable') };

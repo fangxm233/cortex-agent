@@ -3,12 +3,11 @@ import * as path from 'node:path';
 import { runFile } from '@core/exec-async.js';
 import type {
   UiServiceDeps,
-  MemoryTreeParams,
-  MemoryFileParams,
   MemoryTree,
   MemoryFile,
   MemoryLineDiff,
   MemoryBlameLine,
+  QueryParams,
 } from '../types.js';
 
 // Canonical top-level memory files, in display order. Missing ones are omitted (not errored).
@@ -63,7 +62,7 @@ export function resolveMemoryFilePath(realRoot: string, relPath: string): string
 
 export async function handleMemoryTree(
   deps: UiServiceDeps,
-  params: MemoryTreeParams,
+  params: QueryParams<'memory.tree'>,
 ): Promise<MemoryTree> {
   const root = resolveProjectRoot(deps, params.projectId);
 
@@ -186,7 +185,7 @@ async function gitBlame(root: string, relPath: string): Promise<MemoryBlameLine[
 
 export async function handleMemoryFile(
   deps: UiServiceDeps,
-  params: MemoryFileParams,
+  params: QueryParams<'memory.file'>,
 ): Promise<MemoryFile> {
   const root = resolveProjectRoot(deps, params.projectId);
   const abs = resolveMemoryFilePath(root, params.path);

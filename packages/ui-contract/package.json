@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Shared client↔server contract for the Cortex Web UI: re-exported ui-service DTO types, zod input schemas per query/mutate, and the AppRouter type re-export point.",
+  "description": "Shared client↔server contract for the Cortex Web UI: type-only re-exports of the ui-service DTOs and the AppRouter type.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "engines": {
@@ -11,16 +11,13 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/schemas.test.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^4.4.3",
     "@cortex-agent/server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "tsx": "^4.21.0",
     "typescript": "^7.0.2"
   }
 }

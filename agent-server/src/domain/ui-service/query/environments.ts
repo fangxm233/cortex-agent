@@ -13,9 +13,8 @@ import type {
   EnvironmentDetail,
   EnvironmentEntry,
   EnvironmentOrigin,
-  EnvironmentsGetParams,
-  EnvironmentsListParams,
   UiServiceDeps,
+  QueryParams,
 } from '../types.js';
 
 /** Relationship to the shipped environment of the same name. Defaults are copy-if-missing and never
@@ -82,14 +81,14 @@ export async function readEnvironmentDetail(name: string, dir: string = ENVIRONM
 
 export async function handleEnvironmentsList(
   _deps: UiServiceDeps,
-  _params: EnvironmentsListParams,
+  _params: QueryParams<'environments.list'>,
 ): Promise<EnvironmentEntry[]> {
   return readEnvironmentEntries(CONFIG_DIR);
 }
 
 export async function handleEnvironmentsGet(
   _deps: UiServiceDeps,
-  params: EnvironmentsGetParams,
+  params: QueryParams<'environments.get'>,
 ): Promise<EnvironmentDetail> {
   return readEnvironmentDetail(params.name);
 }

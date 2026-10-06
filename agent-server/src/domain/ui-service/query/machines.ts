@@ -1,8 +1,8 @@
-import type { UiServiceDeps, MachineInfo, MachinesListParams } from '../types.js';
+import type { UiServiceDeps, MachineInfo, QueryParams } from '../types.js';
 
 export async function handleMachinesList(
   deps: UiServiceDeps,
-  _params: MachinesListParams,
+  _params: QueryParams<'machines.list'>,
 ): Promise<MachineInfo[]> {
   const registry = deps.clientRegistry.getMachineRegistry();
   const onlineDevices = deps.clientRegistry.getOnlineDevices();

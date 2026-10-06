@@ -3,11 +3,9 @@ import { commissionRepo, type CommissionRecord } from '@store/commission-repo.js
 import type {
   UiServiceDeps,
   CommissionInfo,
-  CommissionsListParams,
-  CommissionsGetParams,
-  CommissionsDecisionsParams,
   CommissionDecisionEntry,
   DecisionActionKind,
+  QueryParams,
 } from '../types.js';
 import { resolveProjectRoot, resolveMemoryFilePath } from './memory.js';
 
@@ -36,7 +34,7 @@ function store(deps: UiServiceDeps): NonNullable<UiServiceDeps['commissionStore'
 
 export async function handleCommissionsList(
   deps: UiServiceDeps,
-  params: CommissionsListParams,
+  params: QueryParams<'commissions.list'>,
 ): Promise<CommissionInfo[]> {
   let records = await store(deps).list(params.projectId);
   if (params.status) records = records.filter((r) => r.status === params.status);
@@ -45,7 +43,7 @@ export async function handleCommissionsList(
 
 export async function handleCommissionsGet(
   deps: UiServiceDeps,
-  params: CommissionsGetParams,
+  params: QueryParams<'commissions.get'>,
 ): Promise<CommissionInfo> {
   const record = await store(deps).find(params.commissionId);
   if (!record) throw notFound(`commission not found: ${params.commissionId}`);
@@ -95,7 +93,7 @@ export function foldDecisionLines(content: string): CommissionDecisionEntry[] {
 
 export async function handleCommissionsDecisions(
   deps: UiServiceDeps,
-  params: CommissionsDecisionsParams,
+  params: QueryParams<'commissions.decisions'>,
 ): Promise<CommissionDecisionEntry[]> {
   const record = await store(deps).find(params.commissionId);
   if (!record) throw notFound(`commission not found: ${params.commissionId}`);

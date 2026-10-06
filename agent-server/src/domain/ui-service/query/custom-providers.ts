@@ -3,7 +3,7 @@ import {
   listCustomProviders,
   type CustomProviderView,
 } from '@domain/pi-providers/index.js';
-import type { AuthCustomProvidersParams, UiServiceDeps } from '../types.js';
+import type { UiServiceDeps, QueryParams } from '../types.js';
 
 /**
  * Every entry is derived from PI's own catalog joined with its gateway route, so the list shows the
@@ -12,7 +12,7 @@ import type { AuthCustomProvidersParams, UiServiceDeps } from '../types.js';
  */
 export async function handleCustomProvidersList(
   deps: UiServiceDeps,
-  _params: AuthCustomProvidersParams,
+  _params: QueryParams<'auth.customProviders'>,
 ): Promise<CustomProviderView[]> {
   return listCustomProviders(deps.customProviderStores ?? defaultCustomProviderStores());
 }

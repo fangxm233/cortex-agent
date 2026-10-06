@@ -111,6 +111,7 @@ import {
   systemApplyUpdateInput,
   systemSkipUpdateInput,
 } from './input-schemas.js';
+import type { queryInputSchemas, mutateInputSchemas } from './input-schemas.js';
 import type {
   UiService,
   Result,
@@ -166,10 +167,10 @@ function unwrap<T>(result: Result<T>): T {
 // Each factory takes the CONCRETE zod schema (not an index into the keyed map) so tRPC
 // infers input from one schema per call — this keeps per-procedure input types precise
 // while avoiding a whole-union type instantiation on every procedure (which balloons tsc
-// time and the emitted AppRouter .d.ts). The `as unknown as` casts are sound: the
-// schemas are parity-guarded (ui-contract/contract.parity.ts) to match QueryParamMap /
-// MutateArgsMap, but TS cannot see that equivalence through the generic scope/op.
-function makeQuery<S extends QueryScope, Sch extends z.ZodType>(
+// time and the emitted AppRouter .d.ts). The `Sch extends …[S]` bound rejects a schema that does
+// not match its scope/op; the `as unknown as` casts remain because QueryParamMap / MutateArgsMap
+// are derived from those same schemas, an equivalence TS cannot see through the generic scope/op.
+function makeQuery<S extends QueryScope, Sch extends (typeof queryInputSchemas)[S]>(
   uiService: UiService,
   scope: S,
   schema: Sch,
@@ -179,7 +180,7 @@ function makeQuery<S extends QueryScope, Sch extends z.ZodType>(
     .query(async ({ input }) => unwrap(await uiService.query(scope, input as unknown as QueryParams<S>)));
 }
 
-function makeMutation<O extends MutateOp, Sch extends z.ZodType>(
+function makeMutation<O extends MutateOp, Sch extends (typeof mutateInputSchemas)[O]>(
   uiService: UiService,
   op: O,
   schema: Sch,

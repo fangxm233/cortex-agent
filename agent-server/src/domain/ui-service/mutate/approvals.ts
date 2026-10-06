@@ -6,10 +6,8 @@ import type {
   Result,
   ApprovalInfo,
   ApprovalMutateReturn,
-  ApprovalsApproveArgs,
-  ApprovalsRejectArgs,
-  ApprovalsRequestArgs,
   ApprovalsRequestReturn,
+  MutateArgs,
 } from '../types.js';
 import { parseApprovals, headingId } from '../query/approvals.js';
 import { approvalsRequestInput } from '../input-schemas.js';
@@ -88,14 +86,14 @@ async function decide(
 
 export async function handleApproveApproval(
   deps: UiServiceDeps,
-  args: ApprovalsApproveArgs,
+  args: MutateArgs<'approvals.approve'>,
 ): Promise<Result<ApprovalMutateReturn>> {
   return decide(deps, args.id, 'approved');
 }
 
 export async function handleRejectApproval(
   deps: UiServiceDeps,
-  args: ApprovalsRejectArgs,
+  args: MutateArgs<'approvals.reject'>,
 ): Promise<Result<ApprovalMutateReturn>> {
   return decide(deps, args.id, 'rejected', args.feedback);
 }
@@ -110,7 +108,7 @@ export async function handleRejectApproval(
  * system-level operations → projectId stays null ("global") when parsed back.
  */
 export function buildApprovalEntry(
-  args: ApprovalsRequestArgs,
+  args: MutateArgs<'approvals.request'>,
   today: string,
 ): { heading: string; block: string } {
   let title: string;
@@ -148,7 +146,7 @@ export function buildApprovalEntry(
  */
 export async function handleRequestApproval(
   deps: UiServiceDeps,
-  args: ApprovalsRequestArgs,
+  args: MutateArgs<'approvals.request'>,
 ): Promise<Result<ApprovalsRequestReturn>> {
   // Re-validate (invalid-args → BAD_REQUEST) so a direct facade call (bypassing the router's zod
   // gate) cannot enqueue a malformed / injection entry.
@@ -156,7 +154,7 @@ export async function handleRequestApproval(
   if (!parsed.success) {
     return { ok: false, code: 'invalid-args', message: parsed.error.message };
   }
-  args = parsed.data as ApprovalsRequestArgs;
+  args = parsed.data as MutateArgs<'approvals.request'>;
   try {
     let md = '';
     try {

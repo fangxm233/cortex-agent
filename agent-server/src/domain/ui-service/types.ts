@@ -1,13 +1,13 @@
-import type { PlatformSettingsPatch, PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
+import type { PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
 export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnapshot, PlatformFieldKey } from '@core/platform-settings-spec.js';
 
-import type {
-  SessionsSetStarredArgs, SessionsSetStarredReturn, SessionsRenameArgs, SessionsRenameReturn,
-} from './session-metadata-schemas.js';
+import type { SessionsSetStarredReturn, SessionsRenameReturn } from './session-metadata-schemas.js';
 export type {
   SessionsSetStarredArgs, SessionsSetStarredReturn, SessionsRenameArgs, SessionsRenameReturn,
 } from './session-metadata-schemas.js';
 
+import type { z } from 'zod';
+import type { queryInputSchemas, mutateInputSchemas } from './input-schemas.js';
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
@@ -18,12 +18,7 @@ export type { SystemUpdateCheckResult } from '@domain/system/server-update-coord
 export type { ServerUpdateState, ServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type { EventBus } from '@events/index.js';
 import type { SessionStateReader } from '@core/session-state.js';
-import type {
-  ProviderRateLimitPolicyOverride,
-  ProviderRateLimits,
-  Settings,
-  SettingSnapshotEntry,
-} from '@core/settings-spec.js';
+import type { SettingSnapshotEntry } from '@core/settings-spec.js';
 import type {
   AttachmentMeta,
   AuthNoticeAction,
@@ -68,7 +63,6 @@ import type {
   AuthLogoutResult,
   AuthLogoutSuccess,
   AuthStatusSnapshot,
-  AuthType,
   LoginFlowState,
   LogoutAccountInput,
 } from '@domain/auth/index.js';
@@ -85,12 +79,7 @@ export type {
   LoginPendingPrompt,
   LoginPromptOption,
 } from '@domain/auth/index.js';
-import type {
-  CustomProviderApi,
-  CustomProviderModelSpec,
-  CustomProviderStores,
-  CustomProviderView,
-} from '@domain/pi-providers/index.js';
+import type { CustomProviderStores, CustomProviderView } from '@domain/pi-providers/index.js';
 export type {
   CustomProviderApi,
   CustomProviderModelSpec,
@@ -110,13 +99,16 @@ export type Result<T> = Ok<T> | Err;
 
 // ── Query scopes ──────────────────────────────────────────────────
 
-/** Every query scope — the keys of `QueryParamMap` (mirrored by `QueryReturnMap`). */
-export type QueryScope = keyof QueryParamMap;
+type QueryInputSchemas = typeof queryInputSchemas;
+type MutateInputSchemas = typeof mutateInputSchemas;
+
+/** Every query scope — the keys of `queryInputSchemas` (mirrored by `QueryReturnMap`). */
+export type QueryScope = keyof QueryInputSchemas;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
-/** Every mutate op — the keys of `MutateArgsMap` (mirrored by `MutateReturnMap`). */
-export type MutateOp = keyof MutateArgsMap;
+/** Every mutate op — the keys of `mutateInputSchemas` (mirrored by `MutateReturnMap`). */
+export type MutateOp = keyof MutateInputSchemas;
 
 // ── Subscribe ─────────────────────────────────────────────────────
 
@@ -137,164 +129,15 @@ export interface UiEvent {
 
 // ── Query params / return types ───────────────────────────────────
 
-export interface SessionsListParams {
-  projectId?: string;
-  resumable?: boolean;
-  /** Restrict to a single initiation origin. The workbench left rail passes 'direct' so
-   *  only user conversations show; thread/scheduled sessions live in their own views. */
-  origin?: 'direct' | 'thread' | 'scheduled';
-}
-
-export interface SessionsTranscriptParams {
-  sessionId: string;
-  compactSubagents?: boolean;
-  /** Cursor from a previous response's `cursor`. Compact reads only; a matching cursor is answered
-   *  with a `delta` instead of the whole transcript. */
-  since?: string;
-}
-
-export interface SessionsSubagentTranscriptParams {
-  sessionId: string;
-  subagentId: string;
-}
-
-export interface SessionsDebugDetailsParams {
-  sessionId: string;
-  ref: string;
-}
-
-export interface SessionsPendingInteractionParams {
-  sessionId: string;
-}
-
 export interface SessionsPendingInteraction {
   askUser: { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[]; blocking: boolean } | null;
   plan: { requestId: string; planContent: string; planFilePath: string | null } | null;
 }
 
-export interface SchedulesListParams {
-  projectId?: string;
-  paused?: boolean;
-}
-
-export interface CommissionsListParams {
-  projectId?: string;
-  status?: 'active' | 'done' | 'abandoned';
-}
-
-export interface CommissionsGetParams {
-  commissionId: string;
-}
-
-export interface CommissionsDecisionsParams {
-  commissionId: string;
-}
-
-export interface ExecutionsListParams {
-  status?: string[];
-  limit?: number;
-}
-
-export interface ExecutionsGetParams {
-  executionId: string;
-}
-
-/** Waitpoints belonging to ONE session. Scoped server-side: the client cannot compute the match
- *  because SessionInfo carries no `channel` (see WaitpointInfo for the ownership rule). */
-export interface WaitpointsListParams {
-  sessionId: string;
-}
-
-export interface MemoryTreeParams {
-  projectId: string;
-}
-
-export interface MemoryFileParams {
-  projectId: string;
-  /** Path relative to the project root. Absolute paths / `..` traversal / symlink escape are rejected. */
-  path: string;
-}
-
-export interface ApprovalsListParams {
-  /** Filter to a single approval status. Omitted → all entries. */
-  status?: ApprovalStatus;
-}
-
-export interface IssuesListParams {
-  /** Issues are per-project (`<contextDir>/ISSUES.md`) — the project is required. */
-  projectId: string;
-}
-
-export interface NotesListParams {
-  projectId: string;
-}
-
-export interface CostSummaryParams {
-  projectId?: string | null;
-}
-
-export type ConfigGetParams = Record<string, never>;
-
-
-export type AuthStatusParams = Record<string, never>;
-
-export interface AuthFlowStateParams {
-  flowId: string;
-}
-
-export type AuthCustomProvidersParams = Record<string, never>;
-
-export type MachinesListParams = Record<string, never>;
-
-export interface MachineDetailParams {
-  /** Machine name as registered in machines.json. */
-  machine: string;
-}
-
-export type SkillsListParams = Record<string, never>;
-
-export type PluginsListParams = Record<string, never>;
-
-export type EnvironmentsListParams = Record<string, never>;
-
-export type SystemDaemonStatusParams = Record<string, never>;
-
-export type SystemRateLimitStatusParams = Record<string, never>;
-
-export type SystemUsageStatusParams = Record<string, never>;
 
 // ── Mutate args ───────────────────────────────────────────────────
 
-export interface ProjectCreateArgs {
-  name: string;
-}
-
-export interface AuthStartLoginArgs {
-  backend: 'claude' | 'pi';
-  provider: string;
-  authType: AuthType;
-  noticeId?: string;
-}
-
-export interface AuthRespondPromptArgs {
-  flowId: string;
-  value: string;
-}
-
-export interface AuthCancelFlowArgs {
-  flowId: string;
-}
-
-export type AuthLogoutArgs = LogoutAccountInput;
 export type AuthLogoutReturn = AuthLogoutSuccess;
-
-// auth.syncGateway — re-derive gateway modes and profiles from the backends reachable right now.
-// Credentials alone do not make a model usable: the routing map is generated by scanning local
-// backend state, so a login performed outside `cortex init` needs this to become effective.
-export interface AuthSyncGatewayArgs {
-  /** Limit the scan to one backend. Omitted → scan everything installed. */
-  backend?: 'claude' | 'pi';
-}
 
 export interface AuthSyncGatewayReturn {
   /** False when nothing was written (see `reason`); not an error. */
@@ -304,35 +147,8 @@ export interface AuthSyncGatewayReturn {
   reason?: string;
 }
 
-// auth.upsertCustomProvider / auth.removeCustomProvider — the definitions of self-hosted or proxied
-// endpoints. The upstream URL and key live in the gateway route, the protocol and models in PI's
-// catalog; both files are written from this one draft. `apiKey` omitted keeps the stored key.
-export interface AuthUpsertCustomProviderArgs {
-  name: string;
-  api: CustomProviderApi;
-  upstreamUrl: string;
-  apiKey?: string;
-  models: CustomProviderModelSpec[];
-  headers?: Record<string, string>;
-  compat?: Record<string, unknown>;
-}
-
-export interface AuthRemoveCustomProviderArgs {
-  name: string;
-}
-
 export interface AuthRemoveCustomProviderReturn {
   removed: boolean;
-}
-
-export interface SessionsCreateArgs {
-  /** Project the new session belongs to. Omitted → the default project (handler fallback). */
-  projectId?: string;
-  /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
-  browser?: { device: string } | null;
-  /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
-   *  server create the draft directory; `join` attaches the session to a landed commission. */
-  commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null;
 }
 
 // ── Attachment metadata (S4 chat file attachments, 15a) ──────────────────
@@ -342,49 +158,10 @@ export interface SessionsCreateArgs {
 
 export type { AttachmentMeta } from '@core/types/agent-types.js';
 
-export interface SessionsSendArgs {
-  sessionId: string;
-  text: string;
-  /** Optional file attachments already uploaded to the server. */
-  attachments?: AttachmentMeta[];
-}
-
-export interface SessionsCancelArgs {
-  sessionId: string;
-}
-
-export interface SessionsCompactArgs {
-  sessionId: string;
-}
-
-export interface SessionsMarkReadArgs {
-  sessionId: string;
-}
-
-/** Batch form of markRead: the client hands over the exact sessions it is showing as unread (the
- *  run list's「mark all read」), so the server never has to re-derive the set. */
-export interface SessionsMarkManyReadArgs {
-  sessionIds: string[];
-}
-
 export interface SessionsMarkManyReadReturn {
   /** How many of the requested sessions were stamped — ids that no longer resolve (purged runs)
    *  are skipped rather than failing the batch. */
   marked: number;
-}
-
-export interface SessionsSetProfileArgs {
-  sessionId: string;
-  /** The profile to switch the session to. Must exist in profiles.json. */
-  profileName: string;
-}
-
-export interface SessionsSetAgentArgs {
-  sessionId: string;
-  /** The agent template to run this session as — its execution environment. `null` (or an absent
-   *  field, which the browser client sends instead — see `sessionsSetAgentInput`) hands the session
-   *  back to the global default agent. */
-  agentName?: string | null;
 }
 
 /** The part of a session's engine selection that came from the user rather than from its profile.
@@ -398,22 +175,6 @@ export interface SessionSelectionOverride {
   mode?: string;
 }
 
-/**
- * One change to what the session's next turn runs: its profile, its model, its PI provider, its
- * thinking level — or any combination, applied as a single decision.
- *
- * A field left out is untouched; an explicit `null` returns that field to the profile's own value.
- * Naming a profile without naming anything else means "run this profile as declared", which drops
- * the session's earlier model/thinking choices.
- */
-/** Move a live session in or out of commission mode. `new` starts a contract draft, `join` attaches
- *  to a landed commission, `off` leaves the drafting phase. A session already bound to a commission
- *  is terminal and refuses every transition. */
-export interface SessionsSetCommissionArgs {
-  sessionId: string;
-  commission: { mode: 'off' } | { mode: 'new' } | { mode: 'join'; commissionId: string };
-}
-
 export interface SessionsSetCommissionReturn {
   /** The session's state after the call: which half of the mode it is in, if any. */
   phase: 'none' | 'draft' | 'active';
@@ -423,43 +184,11 @@ export interface SessionsSetCommissionReturn {
   removedDraftDir?: boolean;
 }
 
-export interface SessionsSetSelectionArgs {
-  sessionId: string;
-  profileName?: string;
-  /** The WHOLE selection to run on top of the profile — a field it does not carry follows the
-   *  profile. Absent means "leave the session's selection as it is", which for a profile switch
-   *  means dropping it (choosing a profile is choosing to run it as declared). */
-  selection?: SessionSelectionOverride;
-}
-
-export interface SessionsAnswerQuestionArgs {
-  requestId: string;
-  answers: Record<string, string>;
-}
-
-export interface SessionsRespondPlanArgs {
-  requestId: string;
-  approved: boolean;
-  feedback?: string;
-}
-
 /** Return of sessions.answerQuestion / sessions.respondPlan. 'already-resolved' means another
  *  client (or Slack / timeout) resolved the interaction first — not an error; the caller
  *  refetches the transcript to show the final state. */
 export interface SessionsInteractionMutateReturn {
   outcome: 'resolved' | 'already-resolved';
-}
-
-/** Args for `sessions.respondDecision`: the user's response to an agent-announced decision card
- *  (`send_decision`). `approve` records only — nothing is ever sent to the agent. `explain` /
- *  `revise` record the action AND forward `message` (composed by the client from its template +
- *  the user's free text) to the agent as an ordinary user chat message. */
-export interface SessionsRespondDecisionArgs {
-  sessionId: string;
-  decisionId: string;
-  action: DecisionActionKind;
-  /** Required for explain/revise; ignored for approve. */
-  message?: string;
 }
 
 /** `already-approved` = a repeated approve (another device or a double-click) — idempotent,
@@ -468,110 +197,15 @@ export interface SessionsRespondDecisionReturn {
   outcome: 'recorded' | 'already-approved';
 }
 
-/** Args for `sessions.cancelResume`: decline the auto-resume promised when a rate limit
- *  interrupted this session's turn. */
-export interface SessionsCancelResumeArgs {
-  sessionId: string;
-}
-
 /** `cancelled: false` means nothing was queued any more — the window reset and the turn
  *  already resumed. A late click is a no-op, not an error. */
 export interface SessionsCancelResumeReturn {
   cancelled: boolean;
 }
 
-/** Args for `sessions.rewind` (message edit + rewind, desktop design 23 / mobile 7): replace the
- *  user message that opened `turnIndex` with `text`, rolling back every later turn and
- *  regenerating. Attachments of the original message are preserved server-side (the edit UI can
- *  neither add nor remove them). */
-export interface SessionsRewindArgs {
-  sessionId: string;
-  /** The transcript turn whose opening user message is being edited. */
-  turnIndex: number;
-  /** The edited message text (non-empty). */
-  text: string;
-}
-
 /** Fire-and-forget like sessions.send — the regenerated reply streams over `session.message`. */
 export interface SessionsRewindReturn {
   accepted: true;
-}
-
-export interface SessionsCreateAndSendArgs {
-  /** Project the new session belongs to. */
-  projectId: string;
-  /** The profile to create the session with. Omitted → system default. */
-  profileName?: string;
-  /** The agent template — the environment — the new session runs as. Omitted → whatever the
-   *  global default agent is. Applied at creation, so the first turn already runs in it. */
-  agentName?: string;
-  /** The model / provider / thinking the draft composer had selected on top of that profile.
-   *  Omitted (or empty) → the profile's own values: this call always comes from a composer, so
-   *  "nothing overridden" is a statement ("run the profile as declared"), not silence, and is
-   *  remembered as the engine the next new conversation opens on. Applied at creation so the first
-   *  turn already runs what the user picked (there is no session to `setSelection` on before this
-   *  call). */
-  selection?: SessionSelectionOverride;
-  /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
-  browser?: { device: string } | null;
-  /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
-   *  server create the draft directory; `join` attaches the session to a landed commission. */
-  commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null;
-  /** First user message text. */
-  text: string;
-  /** Optional file attachments. */
-  attachments?: AttachmentMeta[];
-  /** Temporary upload directory id (draft mode). Attachments were uploaded under this id
-   *  rather than a real sessionId. The handler moves them to the new session's dir. */
-  draftUploadId?: string;
-}
-
-export interface ExecutionsCancelArgs {
-  executionId: string;
-}
-
-export interface WaitpointsCancelArgs {
-  waitpointId: string;
-}
-
-export interface ScheduleActionArgs {
-  scheduleId: string;
-}
-
-// Args for `commissions.close` — the ONLY path that ends a commission (a user action in the
-// board UI; agents never close their own commission, per DR-0037).
-export interface CommissionCloseArgs {
-  commissionId: string;
-  status: 'done' | 'abandoned';
-  note?: string;
-}
-
-// Args for `schedules.add` (DR-0018 §2.1 7c). Per-type required fields are enforced by the zod
-// `scheduleAddInput` schema at the router boundary AND re-checked in the handler (so a direct
-// facade/unit call is rejected too). intervalMs/delay are raw ms numbers; dayOfWeek is 0..6.
-export interface ScheduleAddArgs {
-  type: 'interval' | 'daily' | 'weekly' | 'once';
-  message: string;
-  projectId?: string;
-  profile?: string;
-  intervalMs?: number;
-  time?: string;
-  dayOfWeek?: number;
-  delay?: number;
-  target?: ScheduleTarget;
-}
-
-// Args for `schedules.update` — a partial patch of an existing schedule. The schedule's type is
-// immutable; only fields valid for that type are accepted (checked against the persisted task in
-// the handler, mirroring scheduler.validateTaskPatch). target is not patchable in v1.
-export interface ScheduleUpdateArgs {
-  scheduleId: string;
-  message?: string;
-  projectId?: string;
-  profile?: string;
-  intervalMs?: number;
-  time?: string;
-  dayOfWeek?: number;
 }
 
 // Safely-writable config.set sections (Stage 7 + task b983). Each section has its own validated
@@ -583,12 +217,6 @@ export interface BudgetValue {
   monthly_usd: number;
 }
 
-export interface ProfilesValue {
-  defaultProfile: string;
-}
-
-export type SettingsValue = Partial<Omit<Settings, 'providerRateLimits'>>;
-
 export interface ProviderRateLimitPolicy {
   provider: string;
   windowType?: string;
@@ -596,33 +224,6 @@ export interface ProviderRateLimitPolicy {
   enabled: boolean;
   threshold: number | null;
 }
-
-export interface ConfigSetProviderRateLimitPolicyArgs {
-  provider: string;
-  windowType?: string | null;
-  windowLabel?: string | null;
-  enabled: boolean;
-  threshold?: number | null;
-}
-
-/**
- * `project` absent/null targets the global limits; a project id targets that project's override.
- * An absent/null `value` clears an override (legal only together with a `project`) — per-project
- * overrides are pair-only, so a project either declares both limits or inherits both globals.
- */
-export interface ConfigSetBudgetArgs {
-  section: 'budget';
-  project?: string | null;
-  value?: BudgetValue | null;
-}
-
-export type ConfigSetArgs =
-  | ConfigSetBudgetArgs
-  | { section: 'profiles'; value: ProfilesValue }
-  | { section: 'settings'; value: SettingsValue }
-  // The display language: config/preferences.json, not settings.json, because writing it also
-  // switches the live server locale. See ConfigSnapshot.lang.
-  | { section: 'preferences'; value: { lang: 'en' | 'zh' } };
 
 // profiles.* — CRUD over the `profiles` map of profiles.json. `config.set {section:'profiles'}`
 // still owns the ONE other write (re-pointing defaultProfile) and is untouched by these ops.
@@ -638,78 +239,16 @@ export interface ProfileDraftInput {
   extraOption?: Record<string, string>;
 }
 
-export interface ProfilesCreateArgs extends ProfileDraftInput {
-  name: string;
-}
 export interface ProfilesCreateReturn {
   name: string;
 }
 
-export interface ProfilesUpdateArgs extends ProfileDraftInput {
-  name: string;
-}
 export interface ProfilesUpdateReturn {
   changed: boolean;
 }
 
-export interface ProfilesRemoveArgs {
-  name: string;
-}
 export interface ProfilesRemoveReturn {
   removed: boolean;
-}
-
-export interface ApprovalsApproveArgs {
-  id: string;
-}
-
-// issues.handle / issues.delete both take the target issue off the project's ISSUES.md list
-// (design sec-24: 在列表即待处理，处理/删除即离场).
-export interface IssueActionArgs {
-  projectId: string;
-  id: string;
-}
-
-export interface NoteAddArgs {
-  projectId: string;
-  text: string;
-}
-
-export interface NoteUpdateArgs extends NoteAddArgs {
-  id: string;
-}
-
-export interface NoteSetCompletedArgs {
-  projectId: string;
-  id: string;
-  completed: boolean;
-}
-
-export interface NoteActionArgs {
-  projectId: string;
-  id: string;
-}
-
-export interface NotesClearCompletedArgs {
-  projectId: string;
-}
-
-export interface ApprovalsRejectArgs {
-  id: string;
-  feedback?: string;
-}
-
-// approvals.request enqueues a high-privilege operation as a PENDING entry in
-// PENDING_APPROVALS.md instead of executing it (task b983 — the Web settings "approval gate").
-// The `kind` is a CLOSED enum and the server constructs ALL of the entry's prose; the browser
-// cannot inject arbitrary markdown. Never runs the operation — a human/agent actions it after
-// approval (mirrors approvals.approve, which also only flips the Status line).
-export interface ApprovalsRequestArgs {
-  kind: 'reconnect-platform' | 'add-machine';
-  /** Required when kind === 'reconnect-platform'. */
-  platform?: 'slack' | 'feishu';
-  /** Required when kind === 'add-machine'. */
-  machineName?: string;
 }
 
 // ── Query return types (DTOs) ─────────────────────────────────────
@@ -1233,11 +772,6 @@ export interface ConfigProfiles {
   profiles: ConfigProfileEntry[];
 }
 
-// models.catalog — what a profile's `model`, `provider` and `mode` may be SELECTED from. It is a
-// union of every source that knows about an endpoint, so it never narrows what profiles.json
-// accepts: the editor keeps a free-text escape for anything the host cannot enumerate.
-export type ModelsCatalogParams = Record<string, never>;
-
 export interface ModelCatalogRoute {
   /** Gateway endpoint group: 'anthropic' for claude, the PI provider name otherwise. */
   endpoint: string;
@@ -1366,8 +900,6 @@ export interface HooksOverview {
   hooksDir: string;
 }
 
-export type HooksListParams = Record<string, never>;
-
 /** The editable surface of a declaration, flattened so the form binds one field per control. */
 export interface HookDraftInput {
   event: string;
@@ -1382,42 +914,25 @@ export interface HookDraftInput {
   enabled?: boolean;
 }
 
-export interface HooksCreateArgs extends HookDraftInput {
-  id: string;
-}
 export interface HooksCreateReturn {
   id: string;
   fileName: string;
 }
 
-export interface HooksUpdateArgs extends HookDraftInput {
-  id: string;
-}
 export interface HooksUpdateReturn {
   changed: boolean;
 }
 
-export interface HooksSetEnabledArgs {
-  id: string;
-  enabled: boolean;
-}
 export interface HooksSetEnabledReturn {
   changed: boolean;
   /** Non-null when the change is not durable (a managed entry a later sync will restore). */
   warning: string | null;
 }
 
-export interface HooksRemoveArgs {
-  id: string;
-}
 export interface HooksRemoveReturn {
   removed: boolean;
 }
 
-export interface HooksTestArgs {
-  id: string;
-  payload: string;
-}
 export interface HooksTestReturn {
   ok: boolean;
   exitCode: number | null;
@@ -1587,10 +1102,6 @@ export interface EnvironmentIssue {
   message: string;
 }
 
-export interface EnvironmentsGetParams {
-  name: string;
-}
-
 export interface EnvironmentDetail {
   name: string;
   description: string | null;
@@ -1604,32 +1115,16 @@ export interface EnvironmentDetail {
   warnings: EnvironmentIssue[];
 }
 
-export interface EnvironmentsValidateArgs {
-  name: string;
-  body: Record<string, unknown>;
-}
-
 export interface EnvironmentsValidateReturn {
   ok: boolean;
   errors: EnvironmentIssue[];
   warnings: EnvironmentIssue[];
 }
 
-export interface EnvironmentsSaveArgs extends EnvironmentsValidateArgs {
-  /** Absent creates (the file must not exist); present is the hash the editor loaded, which the
-   *  writer compares against disk to reject a save made under a stale editor. */
-  baseHash?: string;
-}
-
 export interface EnvironmentsSaveReturn {
   changed: boolean;
   sha256: string;
   warnings: EnvironmentIssue[];
-}
-
-/** The default environment (`main`) is refused: every conversation falls back to it. */
-export interface EnvironmentsDeleteArgs {
-  name: string;
 }
 
 export interface EnvironmentsDeleteReturn {
@@ -1726,18 +1221,6 @@ export interface PluginsListReturn {
   targets: PluginAssignmentTarget[];
 }
 
-export interface PluginsAssignAgentTarget {
-  kind: 'agent';
-  name: string;
-  baseHash: string;
-}
-
-export interface PluginsAssignArgs {
-  target: PluginsAssignAgentTarget;
-  pluginIds: string[];
-  acknowledgeMcp?: boolean;
-}
-
 export interface PluginsAssignReturn {
   changed: boolean;
   baseHash: string;
@@ -1746,11 +1229,6 @@ export interface PluginsAssignReturn {
 // ── plugin authoring DTOs ───────────────────────────────────────────────────
 // The write side of the plugin catalog: SKILL.md editing, skill and plugin lifecycle, and the
 // MCP server form. Every op names its plugin by catalog id; the server re-resolves the path.
-
-export interface PluginsSkillFileParams {
-  pluginId: string;
-  skill: string;
-}
 
 export interface PluginsSkillFile {
   pluginId: string;
@@ -1769,10 +1247,6 @@ export interface PluginsSkillFile {
 export type UiPluginMcpDraft =
   | { name: string; type: 'stdio'; command: string; args: string[]; cwd?: string; envKeys: string[] }
   | { name: string; type: 'streamable-http' | 'sse'; url: string; headerKeys: string[] };
-
-export interface PluginsMcpReadParams {
-  pluginId: string;
-}
 
 export interface PluginsMcpRead {
   pluginId: string;
@@ -1795,56 +1269,13 @@ export interface PluginsMcpServerInput {
   headers?: Record<string, string | null>;
 }
 
-export interface PluginsMcpWriteArgs {
-  pluginId: string;
-  servers: PluginsMcpServerInput[];
-}
-
-export interface PluginsSkillWriteArgs {
-  pluginId: string;
-  skill: string;
-  content: string;
-  baseHash: string;
-}
-
 export interface PluginsSkillWriteReturn {
   baseHash: string;
-}
-
-export interface PluginsSkillCreateArgs {
-  pluginId: string;
-  skill: string;
-  description: string;
-}
-
-export interface PluginsSkillMoveArgs {
-  pluginId: string;
-  skill: string;
-  toPluginId: string;
-  toSkill: string;
-}
-
-export interface PluginsSkillRemoveArgs {
-  pluginId: string;
-  skill: string;
 }
 
 export interface PluginsSkillReturn {
   pluginId: string;
   skill: string;
-}
-
-export interface PluginsCreateArgs {
-  id: string;
-  description?: string;
-}
-
-export interface PluginsRemoveArgs {
-  id: string;
-}
-
-export interface PluginsConvertArgs {
-  id: string;
 }
 
 export interface PluginsPackageReturn {
@@ -2025,8 +1456,6 @@ export interface SystemDaemonStatus {
 
 // ── system.notices DTO ────────────────────────────────────────────
 
-export type SystemNoticesParams = { limit?: number };
-
 export interface SystemNoticeEntry {
   id: string;
   ts: string;
@@ -2065,14 +1494,9 @@ export interface SystemRateLimitStatus {
 // ── system usage DTOs ─────────────────────────────────────────────
 
 export type SystemUsageStatus = ProviderUsage[];
-export type SystemRefreshUsageArgs = Record<string, never>;
 export type SystemRefreshUsageReturn = ProviderUsage[];
 
 // ── system.restart DTO ────────────────────────────────────────────
-
-export interface SystemRestartArgs {
-  kind: 'soft' | 'hard' | 'force';
-}
 
 export interface SystemRestartReturn {
   ok: boolean;
@@ -2083,13 +1507,7 @@ export interface SystemRestartReturn {
 // Mirrors domain/system/update-ui-state.ts. One npm self-update prompt is raised as a SPA dialog
 // (system.updateStatus + apply/skip) and, after a fallback delay, also as a chat message.
 
-export type SystemUpdateStatusParams = Record<string, never>;
-
 export type SystemUpdateStatus = ServerUpdateStatus;
-
-export type SystemCheckUpdateArgs = Record<string, never>;
-export type SystemApplyUpdateArgs = Record<string, never>;
-export type SystemSkipUpdateArgs = Record<string, never>;
 
 export interface SystemUpdateDecisionReturn {
   /** false when no prompt was pending — a stale dialog whose answer arrived too late. */
@@ -2098,11 +1516,6 @@ export interface SystemUpdateDecisionReturn {
 }
 
 // ── system.clearRateLimit DTO ────────────────────────────────────
-
-export interface SystemClearRateLimitArgs {
-  /** Provider key to clear; omit to clear every throttled provider. */
-  provider?: string;
-}
 
 export interface SystemClearRateLimitReturn {
   /** Providers whose throttle was lifted early. */
@@ -2243,46 +1656,8 @@ export interface ApprovalsRequestReturn {
 
 // ── Mapped types ──────────────────────────────────────────────────
 
-export interface QueryParamMap {
-  'projects.list': Record<string, never>;
-  'sessions.list': SessionsListParams;
-  'sessions.transcript': SessionsTranscriptParams;
-  'sessions.subagentTranscript': SessionsSubagentTranscriptParams;
-  'sessions.debugDetails': SessionsDebugDetailsParams;
-  'sessions.pendingInteraction': SessionsPendingInteractionParams;
-  'schedules.list': SchedulesListParams;
-  'commissions.list': CommissionsListParams;
-  'commissions.get': CommissionsGetParams;
-  'commissions.decisions': CommissionsDecisionsParams;
-  'executions.list': ExecutionsListParams;
-  'waitpoints.list': WaitpointsListParams;
-  'executions.get': ExecutionsGetParams;
-  'memory.tree': MemoryTreeParams;
-  'memory.file': MemoryFileParams;
-  'approvals.list': ApprovalsListParams;
-  'issues.list': IssuesListParams;
-  'notes.list': NotesListParams;
-  'cost.summary': CostSummaryParams;
-  'config.get': ConfigGetParams;
-  'auth.status': AuthStatusParams;
-  'auth.flowState': AuthFlowStateParams;
-  'auth.customProviders': AuthCustomProvidersParams;
-  'models.catalog': ModelsCatalogParams;
-  'hooks.list': HooksListParams;
-  'machines.list': MachinesListParams;
-  'machines.detail': MachineDetailParams;
-  'skills.list': SkillsListParams;
-  'plugins.list': PluginsListParams;
-  'plugins.skillFile': PluginsSkillFileParams;
-  'plugins.mcpRead': PluginsMcpReadParams;
-  'environments.list': EnvironmentsListParams;
-  'environments.get': EnvironmentsGetParams;
-  'system.daemonStatus': SystemDaemonStatusParams;
-  'system.rateLimitStatus': SystemRateLimitStatusParams;
-  'system.usageStatus': SystemUsageStatusParams;
-  'system.notices': SystemNoticesParams;
-  'system.updateStatus': SystemUpdateStatusParams;
-}
+/** Query params are exactly what the scope's zod schema parses to. */
+export type QueryParamMap = { [S in QueryScope]: z.output<QueryInputSchemas[S]> };
 
 export interface QueryReturnMap {
   'projects.list': ProjectConduitInfo[];
@@ -2325,81 +1700,8 @@ export interface QueryReturnMap {
   'system.updateStatus': SystemUpdateStatus;
 }
 
-export interface MutateArgsMap {
-  'projects.create': ProjectCreateArgs;
-  'sessions.create': SessionsCreateArgs;
-  'sessions.send': SessionsSendArgs;
-  'sessions.cancel': SessionsCancelArgs;
-  'sessions.compact': SessionsCompactArgs;
-  'sessions.setProfile': SessionsSetProfileArgs;
-  'sessions.setAgent': SessionsSetAgentArgs;
-  'sessions.setSelection': SessionsSetSelectionArgs;
-  'sessions.setCommission': SessionsSetCommissionArgs;
-  'sessions.createAndSend': SessionsCreateAndSendArgs;
-  'sessions.setStarred': SessionsSetStarredArgs;
-  'sessions.rename': SessionsRenameArgs;
-  'sessions.markRead': SessionsMarkReadArgs;
-  'sessions.markManyRead': SessionsMarkManyReadArgs;
-  'sessions.answerQuestion': SessionsAnswerQuestionArgs;
-  'sessions.respondPlan': SessionsRespondPlanArgs;
-  'sessions.respondDecision': SessionsRespondDecisionArgs;
-  'sessions.cancelResume': SessionsCancelResumeArgs;
-  'sessions.rewind': SessionsRewindArgs;
-  'executions.cancel': ExecutionsCancelArgs;
-  'waitpoints.cancel': WaitpointsCancelArgs;
-  'schedules.pause': ScheduleActionArgs;
-  'schedules.resume': ScheduleActionArgs;
-  'schedules.remove': ScheduleActionArgs;
-  'schedules.add': ScheduleAddArgs;
-  'schedules.update': ScheduleUpdateArgs;
-  'commissions.close': CommissionCloseArgs;
-  'approvals.approve': ApprovalsApproveArgs;
-  'approvals.reject': ApprovalsRejectArgs;
-  'approvals.request': ApprovalsRequestArgs;
-  'issues.handle': IssueActionArgs;
-  'issues.delete': IssueActionArgs;
-  'notes.add': NoteAddArgs;
-  'notes.update': NoteUpdateArgs;
-  'notes.setCompleted': NoteSetCompletedArgs;
-  'notes.delete': NoteActionArgs;
-  'notes.clearCompleted': NotesClearCompletedArgs;
-  'config.set': ConfigSetArgs;
-  'config.setPlatform': PlatformSettingsPatch;
-  'config.setProviderRateLimitPolicy': ConfigSetProviderRateLimitPolicyArgs;
-  'auth.startLogin': AuthStartLoginArgs;
-  'auth.respondPrompt': AuthRespondPromptArgs;
-  'auth.cancelFlow': AuthCancelFlowArgs;
-  'auth.logout': AuthLogoutArgs;
-  'auth.syncGateway': AuthSyncGatewayArgs;
-  'auth.upsertCustomProvider': AuthUpsertCustomProviderArgs;
-  'auth.removeCustomProvider': AuthRemoveCustomProviderArgs;
-  'hooks.create': HooksCreateArgs;
-  'hooks.update': HooksUpdateArgs;
-  'hooks.setEnabled': HooksSetEnabledArgs;
-  'hooks.remove': HooksRemoveArgs;
-  'hooks.test': HooksTestArgs;
-  'profiles.create': ProfilesCreateArgs;
-  'profiles.update': ProfilesUpdateArgs;
-  'profiles.remove': ProfilesRemoveArgs;
-  'plugins.assign': PluginsAssignArgs;
-  'plugins.skillWrite': PluginsSkillWriteArgs;
-  'plugins.skillCreate': PluginsSkillCreateArgs;
-  'plugins.skillMove': PluginsSkillMoveArgs;
-  'plugins.skillRemove': PluginsSkillRemoveArgs;
-  'plugins.create': PluginsCreateArgs;
-  'plugins.remove': PluginsRemoveArgs;
-  'plugins.convertToPortable': PluginsConvertArgs;
-  'plugins.mcpWrite': PluginsMcpWriteArgs;
-  'environments.validate': EnvironmentsValidateArgs;
-  'environments.save': EnvironmentsSaveArgs;
-  'environments.delete': EnvironmentsDeleteArgs;
-  'system.restart': SystemRestartArgs;
-  'system.clearRateLimit': SystemClearRateLimitArgs;
-  'system.refreshUsage': SystemRefreshUsageArgs;
-  'system.checkUpdate': SystemCheckUpdateArgs;
-  'system.applyUpdate': SystemApplyUpdateArgs;
-  'system.skipUpdate': SystemSkipUpdateArgs;
-}
+/** Mutate args are exactly what the op's zod schema parses to. */
+export type MutateArgsMap = { [O in MutateOp]: z.output<MutateInputSchemas[O]> };
 
 export interface MutateReturnMap {
   'projects.create': ProjectCreateReturn;

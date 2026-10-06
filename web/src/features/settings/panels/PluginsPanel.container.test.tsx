@@ -2,23 +2,25 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
-  PluginsListReturn, PluginsMcpRead, PluginsMcpWriteArgs, PluginsSkillFile,
-  PluginsSkillCreateArgs, PluginsSkillMoveArgs, PluginsSkillRemoveArgs, PluginsSkillWriteArgs,
-  PluginsCreateArgs, PluginsRemoveArgs, PluginsConvertArgs, UiPluginCatalogEntry,
+  PluginsListReturn,
+  PluginsMcpRead,
+  PluginsSkillFile,
+  UiPluginCatalogEntry,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const adapter = vi.hoisted(() => ({
   skillFile: null as PluginsSkillFile | null,
   mcpRead: null as PluginsMcpRead | null,
-  skillWrite: vi.fn<(a: PluginsSkillWriteArgs) => Promise<unknown>>(),
-  skillCreate: vi.fn<(a: PluginsSkillCreateArgs) => Promise<unknown>>(),
-  skillMove: vi.fn<(a: PluginsSkillMoveArgs) => Promise<unknown>>(),
-  skillRemove: vi.fn<(a: PluginsSkillRemoveArgs) => Promise<unknown>>(),
-  create: vi.fn<(a: PluginsCreateArgs) => Promise<unknown>>(),
-  remove: vi.fn<(a: PluginsRemoveArgs) => Promise<unknown>>(),
-  convert: vi.fn<(a: PluginsConvertArgs) => Promise<unknown>>(),
-  mcpWrite: vi.fn<(a: PluginsMcpWriteArgs) => Promise<unknown>>(),
+  skillWrite: vi.fn<(a: MutateArgs<'plugins.skillWrite'>) => Promise<unknown>>(),
+  skillCreate: vi.fn<(a: MutateArgs<'plugins.skillCreate'>) => Promise<unknown>>(),
+  skillMove: vi.fn<(a: MutateArgs<'plugins.skillMove'>) => Promise<unknown>>(),
+  skillRemove: vi.fn<(a: MutateArgs<'plugins.skillRemove'>) => Promise<unknown>>(),
+  create: vi.fn<(a: MutateArgs<'plugins.create'>) => Promise<unknown>>(),
+  remove: vi.fn<(a: MutateArgs<'plugins.remove'>) => Promise<unknown>>(),
+  convert: vi.fn<(a: MutateArgs<'plugins.convertToPortable'>) => Promise<unknown>>(),
+  mcpWrite: vi.fn<(a: MutateArgs<'plugins.mcpWrite'>) => Promise<unknown>>(),
   toast: vi.fn(),
 }));
 

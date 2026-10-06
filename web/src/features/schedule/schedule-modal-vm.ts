@@ -1,4 +1,4 @@
-import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
+import type { ScheduleInfo, MutateArgs } from '@cortex-agent/ui-contract';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 import type { Vocab } from '@/i18n';
 
@@ -30,7 +30,7 @@ export function scheduleOptionLabel(option: IntervalUnit | TargetChoice, L: Voca
 
 // PROFILE options are the real agent profiles, sourced from `config.get` (ConfigSnapshot.profiles —
 // read from ~/.cortex/config/profiles.json, redacted to names). `profile` is optional in
-// ScheduleAddArgs. This pure helper derives the <select> options from those real names while
+// MutateArgs<'schedules.add'>. This pure helper derives the <select> options from those real names while
 // guaranteeing the form's current value stays selectable (controlled-select invariant). When no
 // source is available (profiles.json absent → undefined/empty) it returns only the current value —
 // or nothing when current is empty — never a fabricated list.
@@ -153,14 +153,14 @@ export function unitToMs(value: number, unit: IntervalUnit): number {
 
 const TIME_RE = /^\d{2}:\d{2}$/;
 
-function buildTarget(choice: TargetChoice, projectId: string | null): ScheduleAddArgs['target'] {
+function buildTarget(choice: TargetChoice, projectId: string | null): MutateArgs<'schedules.add'>['target'] {
   if (choice === 'fresh') return { kind: 'fresh' };
   if (choice === 'project') return { kind: 'project', projectId: projectId ?? 'general' };
   return undefined; // current-channel → let the scheduler default (no constructible channel here)
 }
 
-export function buildScheduleAddArgs(form: ScheduleForm): ScheduleAddArgs {
-  const args: ScheduleAddArgs = {
+export function buildScheduleAddArgs(form: ScheduleForm): MutateArgs<'schedules.add'> {
+  const args: MutateArgs<'schedules.add'> = {
     type: form.type,
     message: form.message.trim(),
   };
@@ -203,8 +203,8 @@ export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
 }
 
 /** The real `schedules.update` payload: only patchable fields, timing scoped to the form's type. */
-export function buildScheduleUpdateArgs(scheduleId: string, form: ScheduleForm): ScheduleUpdateArgs {
-  const args: ScheduleUpdateArgs = { scheduleId, message: form.message.trim() };
+export function buildScheduleUpdateArgs(scheduleId: string, form: ScheduleForm): MutateArgs<'schedules.update'> {
+  const args: MutateArgs<'schedules.update'> = { scheduleId, message: form.message.trim() };
   if (form.profile) args.profile = form.profile;
   if (form.projectId) args.projectId = form.projectId;
   if (form.type === 'interval') args.intervalMs = unitToMs(form.intervalValue, form.intervalUnit);

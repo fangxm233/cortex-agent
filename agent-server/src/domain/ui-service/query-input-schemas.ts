@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const sessionsListInput = z.object({
   projectId: z.string().optional(),
   resumable: z.boolean().optional(),
+  /** Restrict to a single initiation origin. The workbench left rail passes 'direct' so
+   *  only user conversations show; thread/scheduled sessions live in their own views. */
   origin: z.enum(['direct', 'thread', 'scheduled']).optional(),
 });
 
@@ -45,6 +47,8 @@ export const commissionsDecisionsInput = z.object({
   commissionId: z.string(),
 });
 
+/** Waitpoints belonging to ONE session. Scoped server-side: the client cannot compute the match
+ *  because SessionInfo carries no `channel` (see WaitpointInfo for the ownership rule). */
 export const waitpointsListInput = z.object({
   sessionId: z.string().min(1),
 });
@@ -64,14 +68,17 @@ export const memoryTreeInput = z.object({
 
 export const memoryFileInput = z.object({
   projectId: z.string(),
+  /** Path relative to the project root. Absolute paths / `..` traversal / symlink escape are rejected. */
   path: z.string(),
 });
 
 export const approvalsListInput = z.object({
+  /** Filter to a single approval status. Omitted → all entries. */
   status: z.enum(['pending', 'approved', 'rejected', 'failed']).optional(),
 });
 
 export const issuesListInput = z.object({
+  /** Issues are per-project (`<contextDir>/ISSUES.md`) — the project is required. */
   projectId: z.string(),
 });
 

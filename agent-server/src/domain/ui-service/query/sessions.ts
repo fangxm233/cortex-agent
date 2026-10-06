@@ -1,10 +1,6 @@
 import type {
   UiServiceDeps,
   SessionInfo,
-  SessionsListParams,
-  SessionsTranscriptParams,
-  SessionsSubagentTranscriptParams,
-  SessionsDebugDetailsParams,
   SessionTranscript,
   SessionSubagentTranscript,
   TranscriptTurn,
@@ -12,8 +8,8 @@ import type {
   TranscriptDelta,
   TranscriptDeltaRow,
   TranscriptDebugDetails,
-  SessionsPendingInteractionParams,
   SessionsPendingInteraction,
+  QueryParams,
 } from '../types.js';
 import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { countWaitingOn } from './waitpoints.js';
@@ -28,7 +24,7 @@ import { isTeamWorker } from '@domain/sessions/team.js';
 
 export async function handleSessionsList(
   deps: UiServiceDeps,
-  params: SessionsListParams,
+  params: QueryParams<'sessions.list'>,
 ): Promise<SessionInfo[]> {
   const { projectId, resumable, origin } = params;
 
@@ -445,7 +441,7 @@ function sessionTranscript(
 
 async function fullTranscript(
   deps: UiServiceDeps,
-  params: SessionsTranscriptParams,
+  params: QueryParams<'sessions.transcript'>,
   pendingSnapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
 ): Promise<SessionTranscript> {
   const history = await deps.conversationHistory.getHistory(params.sessionId, { includeToolDebug: false });
@@ -474,7 +470,7 @@ function authoritativeSubagentSummaries(
 
 async function compactTranscript(
   deps: UiServiceDeps,
-  params: SessionsTranscriptParams,
+  params: QueryParams<'sessions.transcript'>,
   pendingSnapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
 ): Promise<SessionTranscript> {
   const { value: history, cursor } = await deps.conversationHistory.getCompactHistoryAt(params.sessionId);
@@ -493,7 +489,7 @@ async function compactTranscript(
 
 export async function handleSessionsTranscript(
   deps: UiServiceDeps,
-  params: SessionsTranscriptParams,
+  params: QueryParams<'sessions.transcript'>,
 ): Promise<SessionTranscript> {
   const pendingSnapshot = await pendingUserSnapshot(deps, params.sessionId);
   return params.compactSubagents
@@ -503,7 +499,7 @@ export async function handleSessionsTranscript(
 
 export async function handleSessionsSubagentTranscript(
   deps: UiServiceDeps,
-  params: SessionsSubagentTranscriptParams,
+  params: QueryParams<'sessions.subagentTranscript'>,
 ): Promise<SessionSubagentTranscript> {
   const history = await deps.conversationHistory.getSubagentHistory(params.sessionId, params.subagentId);
   return {
@@ -515,7 +511,7 @@ export async function handleSessionsSubagentTranscript(
 
 export async function handleSessionsDebugDetails(
   deps: UiServiceDeps,
-  params: SessionsDebugDetailsParams,
+  params: QueryParams<'sessions.debugDetails'>,
 ): Promise<TranscriptDebugDetails | null> {
   if (!isDebugMode() || !deps.conversationHistory.getToolDebugDetails) return null;
   // The store stamps `overCharacterThreshold` while it reads the rows, so there is nothing left
@@ -528,7 +524,7 @@ export async function handleSessionsDebugDetails(
 // Reads from the server's in-memory Maps (same lifetime as the blocked MCP tool).
 export async function handleSessionsPendingInteraction(
   deps: UiServiceDeps,
-  params: SessionsPendingInteractionParams,
+  params: QueryParams<'sessions.pendingInteraction'>,
 ): Promise<SessionsPendingInteraction> {
   const channel = `web:${params.sessionId}`;
   return {

@@ -1,7 +1,7 @@
 import type {
   PluginAssignmentTarget,
-  PluginsAssignArgs,
   UiPluginCatalogEntry,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 
 /** The environment whose assignment is being edited. Assignment is a field of the environment, so
@@ -124,7 +124,7 @@ export function draftMcpPlugins(
 export function buildPluginsAssignArgs(
   target: PluginAssignmentTarget | null,
   draft: PluginsPanelDraft | null,
-): PluginsAssignArgs | null {
+): MutateArgs<'plugins.assign'> | null {
   if (!target || !draft) return null;
   return {
     target: { kind: 'agent', name: target.name, baseHash: draft.baseHash },

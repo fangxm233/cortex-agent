@@ -1,7 +1,7 @@
 import { t } from '@core/i18n.js';
 import * as path from 'node:path';
 import { projectNotesRepository } from '@store/project-notes-repo.js';
-import type { NoteInfo, NotesListParams, UiServiceDeps } from '../types.js';
+import type { NoteInfo, UiServiceDeps, QueryParams } from '../types.js';
 
 function notFound(projectId: string): Error {
   return Object.assign(new Error(t('ui.project.notFound', { id: projectId })), { code: 'not-found' });
@@ -15,7 +15,7 @@ export function resolveNotesPath(deps: UiServiceDeps, projectId: string): string
 
 export async function handleNotesList(
   deps: UiServiceDeps,
-  params: NotesListParams,
+  params: QueryParams<'notes.list'>,
 ): Promise<NoteInfo[]> {
   return projectNotesRepository.list(resolveNotesPath(deps, params.projectId));
 }

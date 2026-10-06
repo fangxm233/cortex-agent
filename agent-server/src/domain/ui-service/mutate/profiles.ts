@@ -8,12 +8,10 @@ import type {
   UiServiceDeps,
   Result,
   ProfileDraftInput,
-  ProfilesCreateArgs,
   ProfilesCreateReturn,
-  ProfilesUpdateArgs,
   ProfilesUpdateReturn,
-  ProfilesRemoveArgs,
   ProfilesRemoveReturn,
+  MutateArgs,
 } from '../types.js';
 
 /**
@@ -93,7 +91,7 @@ function assertValidEntry(name: string, entry: ProfileEntry): void {
   }
 }
 
-export async function createProfile(configDir: string, args: ProfilesCreateArgs): Promise<void> {
+export async function createProfile(configDir: string, args: MutateArgs<'profiles.create'>): Promise<void> {
   const { name, ...draft } = args;
   const raw = await readProfilesFile(configDir);
   if (Object.prototype.hasOwnProperty.call(raw.profiles, name)) {
@@ -104,7 +102,7 @@ export async function createProfile(configDir: string, args: ProfilesCreateArgs)
   await writeProfilesFile(configDir, { ...raw, profiles: { ...raw.profiles, [name]: entry } });
 }
 
-export async function updateProfile(configDir: string, args: ProfilesUpdateArgs): Promise<boolean> {
+export async function updateProfile(configDir: string, args: MutateArgs<'profiles.update'>): Promise<boolean> {
   const { name, ...draft } = args;
   const raw = await readProfilesFile(configDir);
   const current = raw.profiles[name];
@@ -123,7 +121,7 @@ export async function updateProfile(configDir: string, args: ProfilesUpdateArgs)
  * missing profile, and deleting the last one leaves nothing to resolve at all. Both are refused
  * with the remedy in the message rather than written and then discovered at spawn time.
  */
-export async function removeProfile(configDir: string, args: ProfilesRemoveArgs): Promise<void> {
+export async function removeProfile(configDir: string, args: MutateArgs<'profiles.remove'>): Promise<void> {
   const { name } = args;
   const raw = await readProfilesFile(configDir);
   if (!Object.prototype.hasOwnProperty.call(raw.profiles, name)) {
@@ -152,7 +150,7 @@ function toErr(error: unknown): Result<never> {
 
 export async function handleProfilesCreate(
   _deps: UiServiceDeps,
-  args: ProfilesCreateArgs,
+  args: MutateArgs<'profiles.create'>,
 ): Promise<Result<ProfilesCreateReturn>> {
   try {
     await createProfile(CONFIG_DIR, args);
@@ -164,7 +162,7 @@ export async function handleProfilesCreate(
 
 export async function handleProfilesUpdate(
   _deps: UiServiceDeps,
-  args: ProfilesUpdateArgs,
+  args: MutateArgs<'profiles.update'>,
 ): Promise<Result<ProfilesUpdateReturn>> {
   try {
     return { ok: true, data: { changed: await updateProfile(CONFIG_DIR, args) } };
@@ -175,7 +173,7 @@ export async function handleProfilesUpdate(
 
 export async function handleProfilesRemove(
   _deps: UiServiceDeps,
-  args: ProfilesRemoveArgs,
+  args: MutateArgs<'profiles.remove'>,
 ): Promise<Result<ProfilesRemoveReturn>> {
   try {
     await removeProfile(CONFIG_DIR, args);

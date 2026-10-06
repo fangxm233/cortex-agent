@@ -14,16 +14,12 @@ import type {
   UiServiceDeps,
   Result,
   HookDraftInput,
-  HooksCreateArgs,
   HooksCreateReturn,
-  HooksUpdateArgs,
   HooksUpdateReturn,
-  HooksSetEnabledArgs,
   HooksSetEnabledReturn,
-  HooksRemoveArgs,
   HooksRemoveReturn,
-  HooksTestArgs,
   HooksTestReturn,
+  MutateArgs,
 } from '../types.js';
 
 /**
@@ -69,7 +65,7 @@ function toErr(error: unknown): Result<never> {
 
 export async function handleHooksCreate(
   _deps: UiServiceDeps,
-  args: HooksCreateArgs,
+  args: MutateArgs<'hooks.create'>,
 ): Promise<Result<HooksCreateReturn>> {
   try {
     const { id, filePath } = createHookEntry(undefined, {
@@ -84,7 +80,7 @@ export async function handleHooksCreate(
 
 export async function handleHooksUpdate(
   _deps: UiServiceDeps,
-  args: HooksUpdateArgs,
+  args: MutateArgs<'hooks.update'>,
 ): Promise<Result<HooksUpdateReturn>> {
   try {
     const { changed } = updateHookEntry(undefined, args.id, hookDraftFromArgs(args));
@@ -96,7 +92,7 @@ export async function handleHooksUpdate(
 
 export async function handleHooksSetEnabled(
   _deps: UiServiceDeps,
-  args: HooksSetEnabledArgs,
+  args: MutateArgs<'hooks.setEnabled'>,
 ): Promise<Result<HooksSetEnabledReturn>> {
   try {
     const { changed, warning } = setHookEnabled(undefined, args.id, args.enabled);
@@ -108,7 +104,7 @@ export async function handleHooksSetEnabled(
 
 export async function handleHooksRemove(
   _deps: UiServiceDeps,
-  args: HooksRemoveArgs,
+  args: MutateArgs<'hooks.remove'>,
 ): Promise<Result<HooksRemoveReturn>> {
   try {
     return { ok: true, data: removeHookEntry(undefined, args.id) };
@@ -119,7 +115,7 @@ export async function handleHooksRemove(
 
 export async function handleHooksTest(
   _deps: UiServiceDeps,
-  args: HooksTestArgs,
+  args: MutateArgs<'hooks.test'>,
 ): Promise<Result<HooksTestReturn>> {
   const hook = loadMountedHooks().find((candidate) => candidate.id === args.id);
   if (!hook) return { ok: false, code: 'not-found', message: t('ui.hook.unknownId', { id: args.id }) };

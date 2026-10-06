@@ -1,5 +1,5 @@
 import { t } from '@core/i18n.js';
-import type { UiServiceDeps, MachineDetail, MachineDetailParams, MachineLiveRun } from '../types.js';
+import type { UiServiceDeps, MachineDetail, MachineLiveRun, QueryParams } from '../types.js';
 import { buildProbeCommand, parseMachineProbe, PROBE_TIMEOUT_MS } from './machine-probe.js';
 
 /** Running dispatch executions on this machine. Process pids are deliberately NOT matched against
@@ -23,7 +23,7 @@ function emptyDetail(name: string, online: boolean, liveRuns: MachineLiveRun[], 
 
 export async function handleMachineDetail(
   deps: UiServiceDeps,
-  params: MachineDetailParams,
+  params: QueryParams<'machines.detail'>,
 ): Promise<MachineDetail> {
   const entry = deps.clientRegistry.getMachineRegistry()[params.machine];
   if (!entry) throw new Error(t('ui.machine.unknown', { name: params.machine }));

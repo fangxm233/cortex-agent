@@ -7,9 +7,9 @@ import {
 } from '../plugins-shared.js';
 import type {
   PluginAgentTarget,
-  PluginsListParams,
   PluginsListReturn,
   UiServiceDeps,
+  QueryParams,
 } from '../types.js';
 
 function readAgentTargets(
@@ -35,7 +35,7 @@ function readAgentTargets(
 
 export async function handlePluginsList(
   _deps: UiServiceDeps,
-  _params: PluginsListParams,
+  _params: QueryParams<'plugins.list'>,
 ): Promise<PluginsListReturn> {
   const snapshot = readPluginCatalogSnapshot();
   return {

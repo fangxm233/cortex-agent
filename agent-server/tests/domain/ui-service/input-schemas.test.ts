@@ -1,21 +1,6 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { queryInputSchemas, mutateInputSchemas } from './schemas.js';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-
-const serverSchemasUrl = pathToFileURL(
-  path.resolve(import.meta.dirname, '../../../agent-server/dist/domain/ui-service/input-schemas.js'),
-).href;
-let reloadedSchemasPromise: Promise<typeof import('./schemas.js')> | null = null;
-
-async function reloadSchemas(): Promise<typeof import('./schemas.js')> {
-  if (!reloadedSchemasPromise) {
-    const imported = import(`${serverSchemasUrl}?sessionRetentionDays=${Date.now()}`);
-    reloadedSchemasPromise = imported as Promise<typeof import('./schemas.js')>;
-  }
-  return reloadedSchemasPromise;
-}
+import { queryInputSchemas, mutateInputSchemas } from '../../../src/domain/ui-service/input-schemas.js';
 
 test('auth flow schemas accept both auth types and require the prompt response value', () => {
   assert.deepEqual(
@@ -140,9 +125,8 @@ test('mutate schemas require their mandatory fields', () => {
   assert.throws(() => mutateInputSchemas['notes.update'].parse({ projectId: 'p', id: 'n1', text: '' }));
 });
 
-test('config.set accepts valid budget / profiles sections and rejects illegal values / sections', async () => {
-  const liveSchemas = await reloadSchemas();
-  const configSet = liveSchemas.mutateInputSchemas['config.set'];
+test('config.set accepts valid budget / profiles sections and rejects illegal values / sections', () => {
+  const configSet = mutateInputSchemas['config.set'];
   assert.deepEqual(
     configSet.parse({ section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } }),
     { section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } },
@@ -158,9 +142,8 @@ test('config.set accepts valid budget / profiles sections and rejects illegal va
   assert.throws(() => configSet.parse({ section: 'mcp', value: {} }));
 });
 
-test('config.setProviderRateLimitPolicy accepts optional window targets and rejects invalid ones', async () => {
-  const liveSchemas = await reloadSchemas();
-  const setPolicy = liveSchemas.mutateInputSchemas['config.setProviderRateLimitPolicy'];
+test('config.setProviderRateLimitPolicy accepts optional window targets and rejects invalid ones', () => {
+  const setPolicy = mutateInputSchemas['config.setProviderRateLimitPolicy'];
   assert.deepEqual(
     setPolicy.parse({ provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: 0.91 }),
     { provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: 0.91 },

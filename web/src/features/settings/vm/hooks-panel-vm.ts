@@ -1,8 +1,7 @@
 import type {
   HookDetail,
   HookDraftInput,
-  HooksCreateArgs,
-  HooksUpdateArgs,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 
 // The registry's leaf types are not re-exported by the contract, so they are recovered from
@@ -481,11 +480,11 @@ export function buildHookDraft(form: HookFormState): HookDraftInput {
   return draft;
 }
 
-export function buildHookCreateArgs(form: HookFormState): HooksCreateArgs {
+export function buildHookCreateArgs(form: HookFormState): MutateArgs<'hooks.create'> {
   return { id: form.id.trim(), ...buildHookDraft(form) };
 }
 
-export function buildHookUpdateArgs(form: HookFormState): HooksUpdateArgs {
+export function buildHookUpdateArgs(form: HookFormState): MutateArgs<'hooks.update'> {
   return { id: form.id.trim(), ...buildHookDraft(form) };
 }
 

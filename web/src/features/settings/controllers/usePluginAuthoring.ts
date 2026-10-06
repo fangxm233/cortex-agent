@@ -1,15 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
-  PluginsConvertArgs,
-  PluginsCreateArgs,
-  PluginsMcpWriteArgs,
-  PluginsRemoveArgs,
-  PluginsSkillCreateArgs,
-  PluginsSkillMoveArgs,
-  PluginsSkillRemoveArgs,
-  PluginsSkillWriteArgs,
   PluginsSkillWriteReturn,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
@@ -22,14 +15,14 @@ function errorMessage(error: unknown): string {
 export interface PluginAuthoringActions {
   /** One gate for every write: two plugin mutations in flight would race the same catalog read. */
   busy: boolean;
-  skillWrite: (args: PluginsSkillWriteArgs) => Promise<PluginsSkillWriteReturn | null>;
-  skillCreate: (args: PluginsSkillCreateArgs) => Promise<boolean>;
-  skillMove: (args: PluginsSkillMoveArgs) => Promise<boolean>;
-  skillRemove: (args: PluginsSkillRemoveArgs) => Promise<boolean>;
-  pluginCreate: (args: PluginsCreateArgs) => Promise<boolean>;
-  pluginRemove: (args: PluginsRemoveArgs) => Promise<boolean>;
-  convertToPortable: (args: PluginsConvertArgs) => Promise<boolean>;
-  mcpWrite: (args: PluginsMcpWriteArgs) => Promise<boolean>;
+  skillWrite: (args: MutateArgs<'plugins.skillWrite'>) => Promise<PluginsSkillWriteReturn | null>;
+  skillCreate: (args: MutateArgs<'plugins.skillCreate'>) => Promise<boolean>;
+  skillMove: (args: MutateArgs<'plugins.skillMove'>) => Promise<boolean>;
+  skillRemove: (args: MutateArgs<'plugins.skillRemove'>) => Promise<boolean>;
+  pluginCreate: (args: MutateArgs<'plugins.create'>) => Promise<boolean>;
+  pluginRemove: (args: MutateArgs<'plugins.remove'>) => Promise<boolean>;
+  convertToPortable: (args: MutateArgs<'plugins.convertToPortable'>) => Promise<boolean>;
+  mcpWrite: (args: MutateArgs<'plugins.mcpWrite'>) => Promise<boolean>;
 }
 
 type Mutation<A> = { mutateAsync: (args: A) => Promise<unknown> };
@@ -41,14 +34,14 @@ export function usePluginAuthoring(): PluginAuthoringActions {
   const L = useVocab();
   const [busy, setBusy] = useState(false);
 
-  const skillWriteM = useMutation(trpc.plugins.skillWrite.mutationOptions()) as Mutation<PluginsSkillWriteArgs>;
-  const skillCreateM = useMutation(trpc.plugins.skillCreate.mutationOptions()) as Mutation<PluginsSkillCreateArgs>;
-  const skillMoveM = useMutation(trpc.plugins.skillMove.mutationOptions()) as Mutation<PluginsSkillMoveArgs>;
-  const skillRemoveM = useMutation(trpc.plugins.skillRemove.mutationOptions()) as Mutation<PluginsSkillRemoveArgs>;
-  const createM = useMutation(trpc.plugins.create.mutationOptions()) as Mutation<PluginsCreateArgs>;
-  const removeM = useMutation(trpc.plugins.remove.mutationOptions()) as Mutation<PluginsRemoveArgs>;
-  const convertM = useMutation(trpc.plugins.convertToPortable.mutationOptions()) as Mutation<PluginsConvertArgs>;
-  const mcpWriteM = useMutation(trpc.plugins.mcpWrite.mutationOptions()) as Mutation<PluginsMcpWriteArgs>;
+  const skillWriteM = useMutation(trpc.plugins.skillWrite.mutationOptions()) as Mutation<MutateArgs<'plugins.skillWrite'>>;
+  const skillCreateM = useMutation(trpc.plugins.skillCreate.mutationOptions()) as Mutation<MutateArgs<'plugins.skillCreate'>>;
+  const skillMoveM = useMutation(trpc.plugins.skillMove.mutationOptions()) as Mutation<MutateArgs<'plugins.skillMove'>>;
+  const skillRemoveM = useMutation(trpc.plugins.skillRemove.mutationOptions()) as Mutation<MutateArgs<'plugins.skillRemove'>>;
+  const createM = useMutation(trpc.plugins.create.mutationOptions()) as Mutation<MutateArgs<'plugins.create'>>;
+  const removeM = useMutation(trpc.plugins.remove.mutationOptions()) as Mutation<MutateArgs<'plugins.remove'>>;
+  const convertM = useMutation(trpc.plugins.convertToPortable.mutationOptions()) as Mutation<MutateArgs<'plugins.convertToPortable'>>;
+  const mcpWriteM = useMutation(trpc.plugins.mcpWrite.mutationOptions()) as Mutation<MutateArgs<'plugins.mcpWrite'>>;
 
   /** The catalog is re-read from disk on every request and has no cache to invalidate server-side,
    *  so a write is only visible once this query is refetched. */

@@ -9,7 +9,6 @@ import { loadMountedHookSummaries } from '@store/hook-registry.js';
 import { ENVIRONMENTS_DIRNAME } from '@domain/agents/environments/paths.js';
 import type {
   UiServiceDeps,
-  ConfigGetParams,
   ConfigLang,
   ConfigSnapshot,
   ConfigBudget,
@@ -20,6 +19,7 @@ import type {
   ConfigAgentEntry,
   ConfigEnvEntry,
   ConfigSettingEntry,
+  QueryParams,
 } from '../types.js';
 import type { Backend } from '../../../agent-adapter/types.js';
 
@@ -195,7 +195,7 @@ export async function readConfigSnapshot(
   };
 }
 
-export async function handleConfigGet(deps: UiServiceDeps, _params: ConfigGetParams): Promise<ConfigSnapshot> {
+export async function handleConfigGet(deps: UiServiceDeps, _params: QueryParams<'config.get'>): Promise<ConfigSnapshot> {
   // `value` is the LIVE process locale, not the file: a `!lang` switch takes effect without a
   // restart, and the UI must follow what Cortex is actually speaking. `source` is read from disk
   // and the environment, and is the only thing that can say "CORTEX_LANG will win again at boot".

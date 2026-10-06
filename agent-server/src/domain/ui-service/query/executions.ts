@@ -2,14 +2,13 @@ import { t } from '@core/i18n.js';
 import type {
   UiServiceDeps,
   ExecutionInfo,
-  ExecutionsListParams,
   ExecutionDetailInfo,
-  ExecutionsGetParams,
+  QueryParams,
 } from '../types.js';
 
 export async function handleExecutionsList(
   deps: UiServiceDeps,
-  params: ExecutionsListParams,
+  params: QueryParams<'executions.list'>,
 ): Promise<ExecutionInfo[]> {
   const { status, limit } = params;
 
@@ -53,7 +52,7 @@ export async function handleExecutionsList(
 
 export async function handleExecutionsGet(
   deps: UiServiceDeps,
-  params: ExecutionsGetParams,
+  params: QueryParams<'executions.get'>,
 ): Promise<ExecutionDetailInfo> {
   const e = deps.executionRegistry.getExecution(params.executionId);
   if (!e) {

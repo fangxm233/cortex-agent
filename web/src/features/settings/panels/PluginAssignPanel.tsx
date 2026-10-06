@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
+import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry, MutateArgs } from '@cortex-agent/ui-contract';
 import { Modal, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { trpcErrorCode, useTRPC } from '@/lib/trpc';
@@ -30,9 +30,9 @@ const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 
 const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
-type AssignMutation = { mutateAsync: (payload: PluginsAssignArgs) => Promise<unknown> };
+type AssignMutation = { mutateAsync: (payload: MutateArgs<'plugins.assign'>) => Promise<unknown> };
 
-interface AckState { key: string | null; payload: PluginsAssignArgs; plugins: UiPluginCatalogEntry[] }
+interface AckState { key: string | null; payload: MutateArgs<'plugins.assign'>; plugins: UiPluginCatalogEntry[] }
 
 interface Selection { target: PluginAssignmentTarget | null; draft: PluginsPanelDraft | null }
 
@@ -105,7 +105,7 @@ async function refreshWhileBusy(args: RefreshArgs, preserveDraft: boolean): Prom
 }
 
 async function submitAssign(
-  args: RefreshArgs & { assign: AssignMutation; payload: PluginsAssignArgs },
+  args: RefreshArgs & { assign: AssignMutation; payload: MutateArgs<'plugins.assign'> },
 ): Promise<void> {
   try {
     await args.assign.mutateAsync(args.payload);
@@ -266,7 +266,7 @@ function usePluginAssignProps(props: PluginAssignPanelProps): PluginAssignViewPr
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const listQuery = useQuery<PluginsListReturn>(trpc.plugins.list.queryOptions({}) as never);
-  const assign = useMutation<unknown, Error, PluginsAssignArgs>(trpc.plugins.assign.mutationOptions() as never);
+  const assign = useMutation<unknown, Error, MutateArgs<'plugins.assign'>>(trpc.plugins.assign.mutationOptions() as never);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<PluginsPanelDraft | null>(null);
   const [ack, setAck] = useState<AckState | null>(null);

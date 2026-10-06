@@ -4,7 +4,7 @@ import type {
   UiServiceDeps,
   WaitpointInfo,
   WaitpointSignalInfo,
-  WaitpointsListParams,
+  QueryParams,
 } from '../types.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -101,7 +101,7 @@ export function toWaitpointInfo(wp: Waitpoint, now: number, wakeLimit: number): 
 
 export async function handleWaitpointsList(
   deps: UiServiceDeps,
-  params: WaitpointsListParams,
+  params: QueryParams<'waitpoints.list'>,
 ): Promise<WaitpointInfo[]> {
   if (!deps.waitpointRegistry) return [];
   const sessionId = String(params.sessionId || '');

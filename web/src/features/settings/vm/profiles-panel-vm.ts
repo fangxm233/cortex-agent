@@ -4,8 +4,7 @@ import type {
   ModelCatalogRoute,
   ModelCatalogSnapshot,
   ProfileDraftInput,
-  ProfilesCreateArgs,
-  ProfilesUpdateArgs,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 
 // Pure derivations for ProfilesPanel: form state in and out of the read DTO, the client-side echo of
@@ -315,10 +314,10 @@ export function buildProfileDraft(form: ProfileFormState): ProfileDraftInput {
   return draft;
 }
 
-export function buildProfileCreateArgs(form: ProfileFormState): ProfilesCreateArgs {
+export function buildProfileCreateArgs(form: ProfileFormState): MutateArgs<'profiles.create'> {
   return { name: form.name.trim(), ...buildProfileDraft(form) };
 }
 
-export function buildProfileUpdateArgs(form: ProfileFormState): ProfilesUpdateArgs {
+export function buildProfileUpdateArgs(form: ProfileFormState): MutateArgs<'profiles.update'> {
   return { name: form.name.trim(), ...buildProfileDraft(form) };
 }

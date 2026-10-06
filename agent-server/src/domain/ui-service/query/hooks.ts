@@ -5,12 +5,12 @@ import { loadMountedHooks, type MountedHook } from '@store/hook-registry.js';
 import { hookAppliesAt, hookMountTargets, legalResultModes } from '@domain/hooks/hook-view.js';
 import type {
   UiServiceDeps,
-  HooksListParams,
   HooksOverview,
   HookDetail,
   HookScriptInfo,
   HookRunInfo,
   HookScopeInfo,
+  QueryParams,
 } from '../types.js';
 
 function runInfo(hook: MountedHook): HookRunInfo {
@@ -106,7 +106,7 @@ export function readHooksOverview(registryDir: string, scriptsDir: string): Hook
 
 export async function handleHooksList(
   _deps: UiServiceDeps,
-  _params: HooksListParams,
+  _params: QueryParams<'hooks.list'>,
 ): Promise<HooksOverview> {
   return readHooksOverview(path.join(CONFIG_DIR, 'hooks'), HOOKS_DIR);
 }

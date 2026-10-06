@@ -11,10 +11,10 @@ import {
 } from '../plugins-shared.js';
 import { fail, toErr } from './errors.js';
 import type {
-  PluginsAssignArgs,
   PluginsAssignReturn,
   Result,
   UiServiceDeps,
+  MutateArgs,
 } from '../types.js';
 
 function requireDesiredPluginIds(
@@ -40,7 +40,7 @@ function requireMcpAck(
   }
 }
 
-function assignAgentPlugins(args: PluginsAssignArgs): PluginsAssignReturn {
+function assignAgentPlugins(args: MutateArgs<'plugins.assign'>): PluginsAssignReturn {
   const snapshot = readPluginCatalogSnapshot();
   const entity = readEnvironment(ENVIRONMENTS_DIR, args.target.name);
   if (!entity.body) throw fail('invalid-args', `Agent '${args.target.name}' is not a JSON object`);
@@ -57,7 +57,7 @@ function assignAgentPlugins(args: PluginsAssignArgs): PluginsAssignReturn {
 
 export async function handlePluginsAssign(
   _deps: UiServiceDeps,
-  args: PluginsAssignArgs,
+  args: MutateArgs<'plugins.assign'>,
 ): Promise<Result<PluginsAssignReturn>> {
   try {
     return { ok: true, data: assignAgentPlugins(args) };

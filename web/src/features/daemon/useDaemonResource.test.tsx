@@ -2,8 +2,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
   SystemDaemonStatus,
-  SystemRestartArgs,
   SystemRestartReturn,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
@@ -11,7 +11,7 @@ import { useDaemonResource, type DaemonResource } from './useDaemonResource';
 
 const adapter = vi.hoisted(() => ({
   status: vi.fn<() => Promise<SystemDaemonStatus>>(),
-  restart: vi.fn<(args: SystemRestartArgs) => Promise<SystemRestartReturn>>(),
+  restart: vi.fn<(args: MutateArgs<'system.restart'>) => Promise<SystemRestartReturn>>(),
 }));
 
 vi.mock('@/lib/trpc', () => ({

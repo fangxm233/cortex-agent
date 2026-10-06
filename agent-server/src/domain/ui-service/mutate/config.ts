@@ -14,11 +14,10 @@ import { readProfilesFile, writeProfilesFile } from './profiles.js';
 import type {
   UiServiceDeps,
   Result,
-  ConfigSetArgs,
   ConfigSetReturn,
-  ConfigSetProviderRateLimitPolicyArgs,
   ConfigSetProviderRateLimitPolicyReturn,
   BudgetValue,
+  MutateArgs,
 } from '../types.js';
 
 /**
@@ -91,7 +90,7 @@ export async function writeDefaultProfile(configDir: string, defaultProfile: str
 
 export async function handleConfigSet(
   deps: UiServiceDeps,
-  args: ConfigSetArgs,
+  args: MutateArgs<'config.set'>,
 ): Promise<Result<ConfigSetReturn>> {
   // Validate first (invalid-args → BAD_REQUEST), so a genuine write/IO failure below is not
   // misreported as bad input. Covers the section guard and each section's constraints in one pass.
@@ -130,7 +129,7 @@ export async function handleConfigSet(
 
 export async function handleConfigSetProviderRateLimitPolicy(
   _deps: UiServiceDeps,
-  args: ConfigSetProviderRateLimitPolicyArgs,
+  args: MutateArgs<'config.setProviderRateLimitPolicy'>,
 ): Promise<Result<ConfigSetProviderRateLimitPolicyReturn>> {
   const parsed = configSetProviderRateLimitPolicyInput.safeParse(args);
   if (!parsed.success) {

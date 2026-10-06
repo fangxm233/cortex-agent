@@ -14,21 +14,16 @@ import { readPidFile } from '../query/system.js';
 import type {
   Result,
   UiServiceDeps,
-  SystemCheckUpdateArgs,
   SystemUpdateCheckResult,
-  SystemClearRateLimitArgs,
   SystemClearRateLimitReturn,
-  SystemRefreshUsageArgs,
   SystemRefreshUsageReturn,
-  SystemRestartArgs,
   SystemRestartReturn,
-  SystemApplyUpdateArgs,
-  SystemSkipUpdateArgs,
   SystemUpdateDecisionReturn,
+  MutateArgs,
 } from '../types.js';
 
 export async function handleSystemClearRateLimit(
-  args: SystemClearRateLimitArgs,
+  args: MutateArgs<'system.clearRateLimit'>,
 ): Promise<Result<SystemClearRateLimitReturn>> {
   try {
     const result = await clearThrottle(args.provider ?? null);
@@ -43,7 +38,7 @@ export async function handleSystemClearRateLimit(
 }
 
 export async function handleSystemRefreshUsage(
-  _args: SystemRefreshUsageArgs,
+  _args: MutateArgs<'system.refreshUsage'>,
 ): Promise<Result<SystemRefreshUsageReturn>> {
   try {
     return { ok: true, data: await usageService.refresh() };
@@ -57,7 +52,7 @@ export async function handleSystemRefreshUsage(
 }
 
 export async function handleSystemRestart(
-  args: SystemRestartArgs,
+  args: MutateArgs<'system.restart'>,
 ): Promise<Result<SystemRestartReturn>> {
   const { kind } = args;
 
@@ -125,7 +120,7 @@ export async function handleSystemRestart(
 
 export async function handleSystemCheckUpdate(
   deps: UiServiceDeps,
-  _args: SystemCheckUpdateArgs,
+  _args: MutateArgs<'system.checkUpdate'>,
 ): Promise<Result<SystemUpdateCheckResult>> {
   const failed: SystemUpdateCheckResult = { status: 'error', reason: 'check_failed' };
   try {
@@ -141,14 +136,14 @@ export async function handleSystemCheckUpdate(
 // handlers only deliver the answer.
 
 export async function handleSystemApplyUpdate(
-  _args: SystemApplyUpdateArgs,
+  _args: MutateArgs<'system.applyUpdate'>,
 ): Promise<Result<SystemUpdateDecisionReturn>> {
   const accepted = answerServerUpdatePrompt('apply');
   return { ok: true, data: { accepted, status: getServerUpdateStatus() } };
 }
 
 export async function handleSystemSkipUpdate(
-  _args: SystemSkipUpdateArgs,
+  _args: MutateArgs<'system.skipUpdate'>,
 ): Promise<Result<SystemUpdateDecisionReturn>> {
   const accepted = answerServerUpdatePrompt('skip');
   return { ok: true, data: { accepted, status: getServerUpdateStatus() } };

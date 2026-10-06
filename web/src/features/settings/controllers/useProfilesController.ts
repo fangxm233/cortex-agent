@@ -2,9 +2,9 @@ import { useRef, useState, type MutableRefObject } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConfigProfileEntry,
-  ConfigSetArgs,
   ConfigSnapshot,
   ModelCatalogSnapshot,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
@@ -131,7 +131,7 @@ function useProfileWriteEffects(closeDraft: () => void, clearDelete: () => void)
     created: (data: { name: string }) => { refresh(); closeDraft(); toast({ title: `${L.pfToastCreated} · ${data.name}`, tone: 'done' }); },
     updated: (data: { changed: boolean }) => { refresh(); closeDraft(); toast({ title: data.changed ? L.pfToastSaved : L.pfToastUnchanged, tone: 'done' }); },
     removed: () => { refresh(); clearDelete(); closeDraft(); toast({ title: L.pfToastDeleted, tone: 'done' }); },
-    defaulted: (_data: unknown, vars: ConfigSetArgs) => {
+    defaulted: (_data: unknown, vars: MutateArgs<'config.set'>) => {
       if (vars.section !== 'profiles') return;
       refresh(); toast({ title: `${L.stDefaultProfile} → ${vars.value.defaultProfile} · ${L.stToastDefaultProfile}`, tone: 'done' });
     },
@@ -158,7 +158,7 @@ function useProfileWrites(closeDraft: () => void, clearDelete: () => void) {
   return { create, update, remove, setDefault };
 }
 
-function defaultProfileVariable(vars: ConfigSetArgs | undefined): string | null {
+function defaultProfileVariable(vars: MutateArgs<'config.set'> | undefined): string | null {
   return vars?.section === 'profiles' ? vars.value.defaultProfile : null;
 }
 

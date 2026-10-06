@@ -10,14 +10,12 @@ import {
 } from '@domain/agents/environments/index.js';
 import type { Issue } from '@domain/agents/environments/index.js';
 import type {
-  EnvironmentsDeleteArgs,
   EnvironmentsDeleteReturn,
-  EnvironmentsSaveArgs,
   EnvironmentsSaveReturn,
-  EnvironmentsValidateArgs,
   EnvironmentsValidateReturn,
   Result,
   UiServiceDeps,
+  MutateArgs,
 } from '../types.js';
 import { fail, toErr } from './errors.js';
 
@@ -52,7 +50,7 @@ export function removeEnvironmentFile(name: string, dir: string = ENVIRONMENTS_D
 
 export async function handleEnvironmentsValidate(
   _deps: UiServiceDeps,
-  args: EnvironmentsValidateArgs,
+  args: MutateArgs<'environments.validate'>,
 ): Promise<Result<EnvironmentsValidateReturn>> {
   try {
     return { ok: true, data: validateEnvironmentBody(args.name, args.body) };
@@ -63,7 +61,7 @@ export async function handleEnvironmentsValidate(
 
 export async function handleEnvironmentsSave(
   _deps: UiServiceDeps,
-  args: EnvironmentsSaveArgs,
+  args: MutateArgs<'environments.save'>,
 ): Promise<Result<EnvironmentsSaveReturn>> {
   try {
     return { ok: true, data: saveEnvironmentBody(args.name, args.body, args.baseHash ?? null) };
@@ -74,7 +72,7 @@ export async function handleEnvironmentsSave(
 
 export async function handleEnvironmentsDelete(
   _deps: UiServiceDeps,
-  args: EnvironmentsDeleteArgs,
+  args: MutateArgs<'environments.delete'>,
 ): Promise<Result<EnvironmentsDeleteReturn>> {
   try {
     return { ok: true, data: removeEnvironmentFile(args.name) };

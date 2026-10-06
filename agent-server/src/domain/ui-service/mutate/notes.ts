@@ -1,15 +1,11 @@
 import { projectNotesRepository } from '@store/project-notes-repo.js';
 import type {
-  NoteActionArgs,
-  NoteAddArgs,
   NoteInfo,
-  NotesClearCompletedArgs,
   NotesClearCompletedReturn,
   NotesDeleteReturn,
-  NoteSetCompletedArgs,
-  NoteUpdateArgs,
   Result,
   UiServiceDeps,
+  MutateArgs,
 } from '../types.js';
 import { resolveNotesPath } from '../query/notes.js';
 
@@ -23,17 +19,17 @@ async function asResult<T>(operation: () => Promise<T>): Promise<Result<T>> {
   }
 }
 
-export async function handleNotesAdd(deps: UiServiceDeps, args: NoteAddArgs): Promise<Result<NoteInfo>> {
+export async function handleNotesAdd(deps: UiServiceDeps, args: MutateArgs<'notes.add'>): Promise<Result<NoteInfo>> {
   return asResult(() => projectNotesRepository.add(resolveNotesPath(deps, args.projectId), args.text));
 }
 
-export async function handleNotesUpdate(deps: UiServiceDeps, args: NoteUpdateArgs): Promise<Result<NoteInfo>> {
+export async function handleNotesUpdate(deps: UiServiceDeps, args: MutateArgs<'notes.update'>): Promise<Result<NoteInfo>> {
   return asResult(() => projectNotesRepository.update(resolveNotesPath(deps, args.projectId), args.id, args.text));
 }
 
 export async function handleNotesSetCompleted(
   deps: UiServiceDeps,
-  args: NoteSetCompletedArgs,
+  args: MutateArgs<'notes.setCompleted'>,
 ): Promise<Result<NoteInfo>> {
   return asResult(() => projectNotesRepository.setCompleted(
     resolveNotesPath(deps, args.projectId),
@@ -44,7 +40,7 @@ export async function handleNotesSetCompleted(
 
 export async function handleNotesDelete(
   deps: UiServiceDeps,
-  args: NoteActionArgs,
+  args: MutateArgs<'notes.delete'>,
 ): Promise<Result<NotesDeleteReturn>> {
   return asResult(async () => {
     await projectNotesRepository.delete(resolveNotesPath(deps, args.projectId), args.id);
@@ -54,7 +50,7 @@ export async function handleNotesDelete(
 
 export async function handleNotesClearCompleted(
   deps: UiServiceDeps,
-  args: NotesClearCompletedArgs,
+  args: MutateArgs<'notes.clearCompleted'>,
 ): Promise<Result<NotesClearCompletedReturn>> {
   return asResult(async () => ({
     cleared: await projectNotesRepository.clearCompleted(resolveNotesPath(deps, args.projectId)),

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   SystemDaemonStatus,
-  SystemRestartArgs,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
@@ -24,7 +24,7 @@ export interface DaemonResource {
   facts: DaemonVm;
   loading: boolean;
   error: Error | null;
-  restart: (kind: SystemRestartArgs['kind']) => void;
+  restart: (kind: MutateArgs<'system.restart'>['kind']) => void;
   restartState: DaemonRestartState;
 }
 

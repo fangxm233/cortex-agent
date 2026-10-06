@@ -2,7 +2,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
-  PluginsAssignArgs, PluginsListReturn, EnvironmentDetail, EnvironmentEntry, UiPluginCatalogEntry,
+  PluginsListReturn,
+  EnvironmentDetail,
+  EnvironmentEntry,
+  UiPluginCatalogEntry,
+  MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
@@ -12,7 +16,7 @@ const adapter = vi.hoisted(() => ({
   currentData: null as PluginsListReturn | null,
   failRefresh: false,
   refreshGate: null as Promise<void> | null,
-  assignImpl: vi.fn<(args: PluginsAssignArgs) => Promise<unknown>>(),
+  assignImpl: vi.fn<(args: MutateArgs<'plugins.assign'>) => Promise<unknown>>(),
   toast: vi.fn(),
 }));
 
@@ -82,7 +86,7 @@ vi.mock('@/lib/trpc', () => ({
     },
     plugins: {
       list: pluginListQuery(),
-      assign: { mutationOptions: () => ({ mutationFn: (args: PluginsAssignArgs) => adapter.assignImpl(args) }) },
+      assign: { mutationOptions: () => ({ mutationFn: (args: MutateArgs<'plugins.assign'>) => adapter.assignImpl(args) }) },
       // The Plugins page mounts the whole authoring surface; this test only exercises assignment.
       skillFile: staticQuery('plugins.skillFile'),
       mcpRead: staticQuery('plugins.mcpRead'),

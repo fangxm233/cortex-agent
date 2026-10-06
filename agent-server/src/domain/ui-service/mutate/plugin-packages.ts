@@ -15,21 +15,14 @@ import { pluginOrigin, readPluginCatalogSnapshot } from '../plugins-shared.js';
 import { handlePluginsList } from '../query/plugins.js';
 import { fail, toErr } from './errors.js';
 import type {
-  PluginsConvertArgs,
-  PluginsCreateArgs,
   PluginsMcpRead,
   PluginsMcpServerInput,
-  PluginsMcpWriteArgs,
   PluginsPackageReturn,
-  PluginsRemoveArgs,
-  PluginsSkillCreateArgs,
-  PluginsSkillMoveArgs,
-  PluginsSkillRemoveArgs,
   PluginsSkillReturn,
-  PluginsSkillWriteArgs,
   PluginsSkillWriteReturn,
   Result,
   UiServiceDeps,
+  MutateArgs,
 } from '../types.js';
 
 async function guarded<T>(run: () => Promise<T> | T): Promise<Result<T>> {
@@ -42,14 +35,14 @@ async function guarded<T>(run: () => Promise<T> | T): Promise<Result<T>> {
 
 export async function handlePluginsSkillWrite(
   _deps: UiServiceDeps,
-  args: PluginsSkillWriteArgs,
+  args: MutateArgs<'plugins.skillWrite'>,
 ): Promise<Result<PluginsSkillWriteReturn>> {
   return guarded(() => writeSkillSource(args.pluginId, args.skill, args.content, args.baseHash));
 }
 
 export async function handlePluginsSkillCreate(
   _deps: UiServiceDeps,
-  args: PluginsSkillCreateArgs,
+  args: MutateArgs<'plugins.skillCreate'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
     createSkill(args.pluginId, args.skill, args.description);
@@ -59,7 +52,7 @@ export async function handlePluginsSkillCreate(
 
 export async function handlePluginsSkillMove(
   _deps: UiServiceDeps,
-  args: PluginsSkillMoveArgs,
+  args: MutateArgs<'plugins.skillMove'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
     moveSkill(
@@ -72,7 +65,7 @@ export async function handlePluginsSkillMove(
 
 export async function handlePluginsSkillRemove(
   _deps: UiServiceDeps,
-  args: PluginsSkillRemoveArgs,
+  args: MutateArgs<'plugins.skillRemove'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
     removeSkill(args.pluginId, args.skill);
@@ -82,7 +75,7 @@ export async function handlePluginsSkillRemove(
 
 export async function handlePluginsCreate(
   _deps: UiServiceDeps,
-  args: PluginsCreateArgs,
+  args: MutateArgs<'plugins.create'>,
 ): Promise<Result<PluginsPackageReturn>> {
   return guarded(() => {
     createPlugin(args.id, args.description ?? '');
@@ -99,7 +92,7 @@ async function pluginReferences(deps: UiServiceDeps, id: string): Promise<string
 
 export async function handlePluginsRemove(
   deps: UiServiceDeps,
-  args: PluginsRemoveArgs,
+  args: MutateArgs<'plugins.remove'>,
 ): Promise<Result<PluginsPackageReturn>> {
   return guarded(async () => {
     if (pluginOrigin(args.id) === 'managed') {
@@ -114,7 +107,7 @@ export async function handlePluginsRemove(
 
 export async function handlePluginsConvertToPortable(
   _deps: UiServiceDeps,
-  args: PluginsConvertArgs,
+  args: MutateArgs<'plugins.convertToPortable'>,
 ): Promise<Result<PluginsPackageReturn>> {
   return guarded(() => {
     const entry = readPluginCatalogSnapshot().byId.get(args.id);
@@ -180,7 +173,7 @@ function duplicateName(servers: readonly PluginsMcpServerInput[]): string | null
 
 export async function handlePluginsMcpWrite(
   _deps: UiServiceDeps,
-  args: PluginsMcpWriteArgs,
+  args: MutateArgs<'plugins.mcpWrite'>,
 ): Promise<Result<PluginsMcpRead>> {
   return guarded(() => {
     const duplicate = duplicateName(args.servers);

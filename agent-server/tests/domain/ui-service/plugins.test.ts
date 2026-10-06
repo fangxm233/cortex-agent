@@ -13,8 +13,8 @@ import { handlePluginsAssign } from '../../../src/domain/ui-service/mutate/plugi
 import { handlePluginsList } from '../../../src/domain/ui-service/query/plugins.js';
 import type {
   PluginAgentTarget,
-  PluginsAssignArgs,
   UiServiceDeps,
+  MutateArgs,
 } from '../../../src/domain/ui-service/types.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { getEnvironment } from '../../../src/domain/agents/environments/index.js';
@@ -145,7 +145,7 @@ function routerCaller() {
   return createAppRouter(createUiService(deps())).createCaller({});
 }
 
-function assign(args: PluginsAssignArgs): Promise<AssignResult> {
+function assign(args: MutateArgs<'plugins.assign'>): Promise<AssignResult> {
   return handlePluginsAssign(deps(), args);
 }
 

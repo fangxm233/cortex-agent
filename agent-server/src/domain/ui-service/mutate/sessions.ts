@@ -6,37 +6,23 @@
 import type {
   UiServiceDeps,
   Result,
-  SessionsCreateArgs,
   SessionsCreateReturn,
-  SessionsSendArgs,
   SessionsSendReturn,
-  SessionsCancelArgs,
-  SessionsCompactArgs,
   SessionsCompactReturn,
-  SessionsMarkReadArgs,
-  SessionsMarkManyReadArgs,
   SessionsMarkManyReadReturn,
   SessionsCancelReturn,
-  SessionsSetProfileArgs,
   SessionsSetProfileReturn,
-  SessionsSetAgentArgs,
   SessionsSetAgentReturn,
-  SessionsSetSelectionArgs,
   SessionsSetSelectionReturn,
-  SessionsSetCommissionArgs,
   SessionsSetCommissionReturn,
-  SessionsCreateAndSendArgs,
   SessionsCreateAndSendReturn,
-  SessionsAnswerQuestionArgs,
-  SessionsRespondPlanArgs,
-  SessionsRespondDecisionArgs,
   SessionsRespondDecisionReturn,
   SessionsInteractionMutateReturn,
-  SessionsRewindArgs,
   SessionsRewindReturn,
-  SessionsCancelResumeArgs,
   SessionsCancelResumeReturn,
+  MutateArgs,
 } from '../types.js';
+import type { AttachmentMeta } from '@core/types/agent-types.js';
 import { removeDirectResume } from '@domain/costs/resume-registry.js';
 import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
 import { enterCommissionDraft, leaveCommissionDraft } from '@domain/commissions/commission-draft.js';
@@ -68,7 +54,7 @@ function expectedOneOf(allowed: readonly string[] | undefined): string {
 
 export async function handleCreateSession(
   deps: UiServiceDeps,
-  args: SessionsCreateArgs,
+  args: MutateArgs<'sessions.create'>,
 ): Promise<Result<SessionsCreateReturn>> {
   const disabled = commissionDisabled(args.commission);
   if (disabled) return disabled;
@@ -92,7 +78,7 @@ export async function handleCreateSession(
  */
 export async function handleSetCommission(
   deps: UiServiceDeps,
-  args: SessionsSetCommissionArgs,
+  args: MutateArgs<'sessions.setCommission'>,
 ): Promise<Result<SessionsSetCommissionReturn>> {
   // `off` stays allowed with the feature switched off: a session left drafting when the switch
   // flipped must still be able to get out.
@@ -148,7 +134,7 @@ export async function handleSetCommission(
 
 export async function handleSendSession(
   deps: UiServiceDeps,
-  args: SessionsSendArgs,
+  args: MutateArgs<'sessions.send'>,
 ): Promise<Result<SessionsSendReturn>> {
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: t('ui.session.textOrAttachments') };
@@ -187,7 +173,7 @@ export async function handleSendSession(
 // preserves the session, cancels the thread record, tears the execution down as `cancelled`).
 export async function handleCancelSession(
   deps: UiServiceDeps,
-  args: SessionsCancelArgs,
+  args: MutateArgs<'sessions.cancel'>,
 ): Promise<Result<SessionsCancelReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -201,7 +187,7 @@ export async function handleCancelSession(
 // the workbench. `sessions.list` computes `unread = lastUsedAt > lastReadAt` against this stamp.
 export async function handleCompactSession(
   deps: UiServiceDeps,
-  args: SessionsCompactArgs,
+  args: MutateArgs<'sessions.compact'>,
 ): Promise<Result<SessionsCompactReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -231,7 +217,7 @@ export async function handleCompactSession(
 
 export async function handleMarkReadSession(
   deps: UiServiceDeps,
-  args: SessionsMarkReadArgs,
+  args: MutateArgs<'sessions.markRead'>,
 ): Promise<Result<void>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -246,7 +232,7 @@ export async function handleMarkReadSession(
  *  the user asked to clear what they see, and a half-stale list must still clear. */
 export async function handleMarkManyReadSessions(
   deps: UiServiceDeps,
-  args: SessionsMarkManyReadArgs,
+  args: MutateArgs<'sessions.markManyRead'>,
 ): Promise<Result<SessionsMarkManyReadReturn>> {
   let marked = 0;
   for (const sessionId of new Set(args.sessionIds)) {
@@ -266,7 +252,7 @@ export async function handleMarkManyReadSessions(
 // draft to a real session.
 export async function handleCreateAndSend(
   deps: UiServiceDeps,
-  args: SessionsCreateAndSendArgs,
+  args: MutateArgs<'sessions.createAndSend'>,
 ): Promise<Result<SessionsCreateAndSendReturn>> {
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: t('ui.session.textOrAttachments') };
@@ -293,7 +279,7 @@ export async function handleCreateAndSend(
 
   // If the client uploaded files under a draft upload id, move them to the real
   // session's attachment directory and update path references.
-  let attachments = args.attachments ?? [];
+  let attachments: AttachmentMeta[] = args.attachments ?? [];
   if (args.draftUploadId && attachments.length > 0 && deps.moveDraftAttachments) {
     attachments = await deps.moveDraftAttachments({
       draftUploadId: args.draftUploadId,
@@ -320,7 +306,7 @@ export async function handleCreateAndSend(
 // A same-backend switch keeps the conversation (no reset) — only the model changes on the next turn.
 export async function handleSetProfile(
   deps: UiServiceDeps,
-  args: SessionsSetProfileArgs,
+  args: MutateArgs<'sessions.setProfile'>,
 ): Promise<Result<SessionsSetProfileReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -351,7 +337,7 @@ export async function handleSetProfile(
 // A null `agentName` clears the selection: the session follows the global default again.
 export async function handleSetAgent(
   deps: UiServiceDeps,
-  args: SessionsSetAgentArgs,
+  args: MutateArgs<'sessions.setAgent'>,
 ): Promise<Result<SessionsSetAgentReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -393,7 +379,7 @@ export async function handleSetAgent(
 // A same-backend change keeps the conversation — only the next turn differs.
 export async function handleSetSelection(
   deps: UiServiceDeps,
-  args: SessionsSetSelectionArgs,
+  args: MutateArgs<'sessions.setSelection'>,
 ): Promise<Result<SessionsSetSelectionReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -469,7 +455,7 @@ export async function handleSetSelection(
 // while running); an unknown turn maps to not-found.
 export async function handleRewindSession(
   deps: UiServiceDeps,
-  args: SessionsRewindArgs,
+  args: MutateArgs<'sessions.rewind'>,
 ): Promise<Result<SessionsRewindReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
@@ -502,7 +488,7 @@ export async function handleRewindSession(
 // an error — the caller refetches the transcript to show the final state.
 export async function handleAnswerQuestion(
   deps: UiServiceDeps,
-  args: SessionsAnswerQuestionArgs,
+  args: MutateArgs<'sessions.answerQuestion'>,
 ): Promise<Result<SessionsInteractionMutateReturn>> {
   if (!deps.answerQuestion) {
     return { ok: false, code: 'not-available', message: 'answerQuestion not wired' };
@@ -522,7 +508,7 @@ export async function handleAnswerQuestion(
 // once the window resets the entry is drained by the dispatcher, so a late click reports
 // `cancelled: false` rather than failing.
 export async function handleCancelResume(
-  args: SessionsCancelResumeArgs,
+  args: MutateArgs<'sessions.cancelResume'>,
 ): Promise<Result<SessionsCancelResumeReturn>> {
   if (!args.sessionId) {
     return { ok: false, code: 'invalid-args', message: 'sessionId required' };
@@ -537,7 +523,7 @@ export async function handleCancelResume(
 // user chat message (fire-and-forget, same seam as sessions.send).
 export async function handleRespondDecision(
   deps: UiServiceDeps,
-  args: SessionsRespondDecisionArgs,
+  args: MutateArgs<'sessions.respondDecision'>,
 ): Promise<Result<SessionsRespondDecisionReturn>> {
   if (!args.sessionId || !args.decisionId) {
     return { ok: false, code: 'invalid-args', message: 'sessionId and decisionId required' };
@@ -598,7 +584,7 @@ export async function handleRespondDecision(
 // handleAnswerQuestion.
 export async function handleRespondPlan(
   deps: UiServiceDeps,
-  args: SessionsRespondPlanArgs,
+  args: MutateArgs<'sessions.respondPlan'>,
 ): Promise<Result<SessionsInteractionMutateReturn>> {
   if (!deps.respondPlan) {
     return { ok: false, code: 'not-available', message: 'respondPlan not wired' };

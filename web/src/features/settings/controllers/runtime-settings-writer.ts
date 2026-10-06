@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ConfigSetArgs } from '@cortex-agent/ui-contract';
+import type { MutateArgs } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import type { WritableBooleanSettingKey, WritableSettingKey } from '@/features/settings/vm/platform-env';
 
-export type SettingsSetArgs = Extract<ConfigSetArgs, { section: 'settings' }>;
+export type SettingsSetArgs = Extract<MutateArgs<'config.set'>, { section: 'settings' }>;
 export type WritableSettingValue = boolean | number | null;
 
 export interface CommitSettingDeps {

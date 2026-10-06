@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import type { UiServiceDeps, IssueInfo, IssuesListParams } from '../types.js';
+import type { UiServiceDeps, IssueInfo, QueryParams } from '../types.js';
 
 const ENTRY_RE = /^-\s+\*\*(.+?)\*\*\s*(?:\((.*)\))?\s*$/;
 const DATE_RE = /\d{4}-\d{2}-\d{2}/;
@@ -75,7 +75,7 @@ export function resolveIssuesPath(deps: UiServiceDeps, projectId: string): strin
 
 export async function handleIssuesList(
   deps: UiServiceDeps,
-  params: IssuesListParams,
+  params: QueryParams<'issues.list'>,
 ): Promise<IssueInfo[]> {
   const issuesPath = resolveIssuesPath(deps, params.projectId);
   let md: string;
