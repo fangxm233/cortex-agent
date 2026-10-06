@@ -25,7 +25,7 @@ interface Harness {
   setNow: (t: number) => void;
 }
 
-async function harness(): Promise<Harness> {
+async function harness(opts: { maxWakesPerHour?: number } = {}): Promise<Harness> {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const repo = new WaitpointRepo({ filePath: path.join(tmpDir, `wp-${stamp}.json`) });
   const spoolDir = path.join(tmpDir, `spool-${stamp}`);
@@ -36,7 +36,7 @@ async function harness(): Promise<Harness> {
   const now = () => clock;
   const service: WaitpointServiceDeps = {
     repo, now,
-    maxWakesPerHour: () => 12,
+    maxWakesPerHour: () => opts.maxWakesPerHour ?? 12,
     defaultTtlMs: () => 7 * 24 * 60 * 60 * 1000,
     newId: () => `wp_${String(++seq).padStart(12, '0')}`,
     newSecret: () => `secret-${seq}`,
@@ -72,7 +72,7 @@ test('a second sweep is a no-op once everything has been delivered', async () =>
 
   await sweepWaitpoints(h.sweep);
   const second = await sweepWaitpoints(h.sweep);
-  assert.deepEqual(second, { spooled: 0, fromDevices: 0, expired: 0, delivered: 0, purged: 0 });
+  assert.deepEqual(second, { spooled: 0, fromDevices: 0, released: 0, expired: 0, delivered: 0, purged: 0 });
   assert.equal(h.sent.length, 1);
 });
 
@@ -110,6 +110,59 @@ test('a signal landing just before the deadline beats the expiry notice', async 
   assert.equal(h.sent.length, 1);
   assert.match(h.sent[0], /status=ok/);
   assert.equal(/expired/.test(h.sent[0]), false);
+});
+
+test('a wake held by the hourly cap is delivered by a later sweep with no further signal', async () => {
+  const h = await harness({ maxWakesPerHour: 1 });
+  const { waitpoint, secret } = await createWaitpoint(
+    { label: 'monitor', intent: 'each report', owner: owner(), maxSignals: 5 },
+    h.service,
+  );
+  await applySignal({ id: waitpoint.id, secret, message: 'first', source: 'http' }, h.service);
+  await sweepWaitpoints(h.sweep);
+  await applySignal({ id: waitpoint.id, secret, message: 'second', source: 'http' }, h.service);
+  await applySignal({ id: waitpoint.id, secret, message: 'third', source: 'http' }, h.service);
+
+  assert.equal((await sweepWaitpoints(h.sweep)).released, 0, 'still inside the hour');
+  assert.equal(h.sent.length, 1);
+
+  h.setNow(BASE + 61 * 60 * 1000);
+  const result = await sweepWaitpoints(h.sweep);
+  assert.equal(result.released, 1);
+  assert.equal(result.delivered, 1);
+  assert.equal(h.sent.length, 2);
+  assert.match(h.sent[1], /second/);
+  assert.match(h.sent[1], /third/);
+  assert.match(h.sent[1], /held back by the hourly wake cap/);
+  assert.equal(/first/.test(h.sent[1]), false);
+});
+
+test('expiry carries a mailbox fire that was still waiting for delivery', async () => {
+  const h = await harness();
+  let up = false;
+  h.sweep.notifier = {
+    repo: h.repo,
+    now: () => BASE + 20_000,
+    deliver: async (_c, text) => { if (!up) throw new Error('adapter down'); h.sent.push(text); },
+  };
+  const { waitpoint, secret } = await createWaitpoint(
+    { label: 'monitor', intent: 'each epoch', owner: owner(), maxSignals: 5, ttlMs: 10_000 },
+    h.service,
+  );
+  await applySignal({ id: waitpoint.id, secret, status: 'progress', message: 'step 100', source: 'http' }, h.service);
+  await applySignal({ id: waitpoint.id, secret, message: 'epoch 7 done', data: 'loss 0.3', source: 'http' }, h.service);
+  await sweepWaitpoints(h.sweep);
+  assert.equal((await h.repo.get(waitpoint.id))!.delivery.pending, true);
+
+  up = true;
+  h.setNow(BASE + 20_000);
+  await sweepWaitpoints(h.sweep);
+  assert.equal(h.sent.length, 1);
+  assert.match(h.sent[0], /expired after/);
+  assert.match(h.sent[0], /woke you 1 time\(s\) \(of 5 allowed\)/);
+  assert.match(h.sent[0], /epoch 7 done/, 'the pending fire must not be lost to the expiry notice');
+  assert.match(h.sent[0], /loss 0\.3/);
+  assert.equal(/never finished or never reported/.test(h.sent[0]), false);
 });
 
 test('a delivery failure is retried by the next sweep rather than lost', async () => {

@@ -146,14 +146,39 @@ export interface SignalInput {
 }
 
 export type ApplySignalOutcome =
-  | { kind: 'accepted'; waitpoint: Waitpoint; fired: boolean }
+  /** `held`: the signal earned a wake but the hourly cap is full; the sweep delivers it later. */
+  | { kind: 'accepted'; waitpoint: Waitpoint; fired: boolean; held?: boolean }
   | { kind: 'duplicate'; waitpoint: Waitpoint }
   | { kind: 'not-found' }
   | { kind: 'bad-secret' }
+  /** `members` were declared and this signal named someone else. Nothing was recorded. */
+  | { kind: 'unknown-member'; member: string; members: string[] }
   | { kind: 'already-resolved'; state: Waitpoint['state']; resolvedAt: number | null }
-  /** The signal was recorded but no wake was sent. `waitpoint` is absent when the refusal happened
-   *  before lookup (global miss budget) rather than at the per-waitpoint cap. */
-  | { kind: 'rate-limited'; waitpoint?: Waitpoint };
+  /** Refused before lookup: the global miss budget (ingress anti-enumeration) is spent. */
+  | { kind: 'rate-limited' };
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/** Trim the sliding window and say whether one more wake fits under the hourly cap. */
+function hasWakeRoom(wp: Waitpoint, now: number, maxWakes: number): boolean {
+  wp.wakes = wp.wakes.filter((t) => t > now - HOUR_MS);
+  return wp.wakes.length < Math.max(1, maxWakes);
+}
+
+/** Record one wake: the delivery WAL bit, the cap window, and the state transition. */
+function fire(wp: Waitpoint, now: number): void {
+  wp.fires += 1;
+  wp.wakes.push(now);
+  wp.wakeHeld = false;
+  wp.delivery.pending = true;
+  wp.lastFireGot = wp.quorum.got.length;
+  if (wp.fires >= wp.maxSignals) {
+    wp.state = 'fired';
+    wp.resolvedAt = now;
+  } else {
+    wp.quorum.got = [];
+  }
+}
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…[truncated ${value.length - max} chars]`;
@@ -195,6 +220,10 @@ export async function applySignal(
       wp.resolvedAt = now;
       return { next: wp, result: { kind: 'already-resolved', state: 'expired', resolvedAt: now } };
     }
+    const member = input.member ? String(input.member) : null;
+    if (member && wp.quorum.members.length > 0 && !wp.quorum.members.includes(member)) {
+      return { next: wp, result: { kind: 'unknown-member', member, members: [...wp.quorum.members] } };
+    }
     if (input.dedupeKey && wp.signals.some((s) => s.dedupeKey === input.dedupeKey)) {
       return { next: wp, result: { kind: 'duplicate', waitpoint: wp } };
     }
@@ -203,7 +232,7 @@ export async function applySignal(
     const signal: WaitpointSignal = {
       at: now,
       status,
-      member: input.member ?? null,
+      member,
       message: input.message ? truncate(String(input.message), MESSAGE_MAX_CHARS) : null,
       data: normalizeData(input.data),
       source: input.source,
@@ -214,36 +243,46 @@ export async function applySignal(
     // `progress` is a heartbeat: recorded, never resolving, never waking.
     if (status === 'progress') return { next: wp, result: { kind: 'accepted', waitpoint: wp, fired: false } };
 
-    const key = signal.member && signal.member.length > 0 ? signal.member : `#${wp.quorum.got.length + 1}`;
+    const key = member ?? `#${wp.quorum.got.length + 1}`;
     if (!wp.quorum.got.includes(key)) wp.quorum.got.push(key);
 
-    const need = typeof wp.quorum.need === 'number' ? wp.quorum.need : wp.quorum.members.length || 1;
-    const shouldFire = (status === 'fail' && wp.failFast) || wp.quorum.got.length >= need;
+    const shouldFire = (status === 'fail' && wp.failFast) || wp.quorum.got.length >= wp.quorum.need;
     if (!shouldFire) return { next: wp, result: { kind: 'accepted', waitpoint: wp, fired: false } };
 
-    // Sliding-window wake cap. The signal is still recorded; only the wake is withheld.
-    const windowStart = now - 60 * 60 * 1000;
-    wp.wakes = wp.wakes.filter((t) => t > windowStart);
-    if (wp.wakes.length >= maxWakes) {
-      const firstTime = !wp.rateLimitNotified;
-      wp.rateLimitNotified = true;
-      if (!firstTime) return { next: wp, result: { kind: 'rate-limited', waitpoint: wp } };
-      // The first time the cap bites, fall through and deliver — the notice carries the warning.
+    // Sliding-window wake cap. The signal is recorded either way; a wake over the cap is held and
+    // released by the sweep (`releaseHeldWakes`) once the window has room again.
+    if (!hasWakeRoom(wp, now, maxWakes)) {
+      wp.wakeHeld = true;
+      return { next: wp, result: { kind: 'accepted', waitpoint: wp, fired: false, held: true } };
     }
-
-    wp.fires += 1;
-    wp.wakes.push(now);
-    wp.delivery.pending = true;
-    if (wp.fires >= wp.maxSignals) {
-      wp.state = 'fired';
-      wp.resolvedAt = now;
-    } else {
-      wp.quorum.got = [];
-    }
+    fire(wp, now);
     return { next: wp, result: { kind: 'accepted', waitpoint: wp, fired: true } };
   });
 
   return outcome ?? { kind: 'not-found' };
+}
+
+/**
+ * Fire every wake the hourly cap was holding once its window has room. Returns the waitpoints that
+ * fired; their `delivery.pending` is set, so the sweep's delivery pass sends them. A held wake on a
+ * waitpoint past its deadline is left for the expiry notice, which carries its signals.
+ */
+export async function releaseHeldWakes(
+  deps: WaitpointServiceDeps = productionWaitpointDeps,
+): Promise<Waitpoint[]> {
+  const now = deps.now();
+  const maxWakes = deps.maxWakesPerHour();
+  return deps.repo.mutate((data) => {
+    const released: Waitpoint[] = [];
+    for (const wp of Object.values(data)) {
+      if (!wp.wakeHeld || wp.state !== 'armed' || wp.expiresAt <= now) continue;
+      if (!hasWakeRoom(wp, now, maxWakes)) continue;
+      fire(wp, now);
+      wp.delivery.heldByCap = true;
+      released.push(wp);
+    }
+    return { next: data, result: released };
+  });
 }
 
 // --- cancel / expire / query ---
@@ -257,6 +296,7 @@ export async function cancelWaitpoint(
     if (wp.state !== 'armed') return { next: wp, result: { cancelled: false, state: wp.state } };
     wp.state = 'cancelled';
     wp.resolvedAt = now;
+    wp.wakeHeld = false;
     wp.delivery.pending = false;
     return { next: wp, result: { cancelled: true, state: 'cancelled' } };
   });
@@ -278,6 +318,7 @@ export async function expireDueWaitpoints(
       if (wp.state === 'armed' && wp.expiresAt <= now) {
         wp.state = 'expired';
         wp.resolvedAt = now;
+        wp.wakeHeld = false;
         expired.push(wp);
         continue;
       }
@@ -301,7 +342,7 @@ export async function listWaitpointsForSession(
 
 /** Public view of a waitpoint — never leaks `secretHash`. */
 export function publicView(wp: Waitpoint): Record<string, unknown> {
-  const need = typeof wp.quorum.need === 'number' ? wp.quorum.need : wp.quorum.members.length || 1;
+  const need = wp.quorum.need;
   return {
     id: wp.id,
     label: wp.label,

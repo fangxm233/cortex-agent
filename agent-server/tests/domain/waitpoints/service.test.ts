@@ -12,6 +12,7 @@ import {
   hashSecret,
   listWaitpointsForSession,
   publicView,
+  releaseHeldWakes,
   DATA_MAX_CHARS,
   MAX_TTL_MS,
   MESSAGE_MAX_CHARS,
@@ -233,23 +234,68 @@ test('a mailbox point stays armed across fires and resets its quorum each round'
   assert.equal(closed?.fires, 3);
 });
 
-test('the sliding wake cap delivers one warning wake then withholds the rest', async () => {
+test('the sliding wake cap holds the wake over the cap and the sweep releases it once the hour clears', async () => {
   const h = harness({ maxWakesPerHour: 2 });
   const { waitpoint, secret } = await makeOne(h, { maxSignals: 10 });
+  const T = 1_700_000_000_000;
 
   assert.equal((await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps)).kind, 'accepted');
+  h.setNow(T + 60_000);
   assert.equal((await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps)).kind, 'accepted');
-  // Third trips the cap — still delivered once, carrying the warning.
-  const warned = await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps);
-  assert.equal(warned.kind === 'accepted' && warned.fired, true);
-  assert.equal((await h.repo.get(waitpoint.id))?.rateLimitNotified, true);
-  // Fourth is withheld.
-  assert.equal((await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps)).kind, 'rate-limited');
+  // Third is over the cap: recorded, accepted, but its wake is held rather than dropped.
+  h.setNow(T + 120_000);
+  const held = await applySignal({ id: waitpoint.id, secret, message: 'third', source: 'http' }, h.deps);
+  assert.equal(held.kind === 'accepted' && !held.fired && held.held, true);
+  const stored = (await h.repo.get(waitpoint.id))!;
+  assert.equal(stored.wakeHeld, true);
+  assert.equal(stored.fires, 2);
+  assert.equal(stored.signals.length, 3);
 
-  // An hour later the window has slid and wakes resume.
+  // Nothing to release while the window is still full.
+  assert.deepEqual(await releaseHeldWakes(h.deps), []);
+
+  // Once the first wake slides out, the sweep fires the held wake without any new signal.
+  h.setNow(T + 61 * 60 * 1000);
+  const released = await releaseHeldWakes(h.deps);
+  assert.deepEqual(released.map((w) => w.id), [waitpoint.id]);
+  const after = (await h.repo.get(waitpoint.id))!;
+  assert.equal(after.fires, 3);
+  assert.equal(after.wakeHeld, false, 'the cap is no longer biting');
+  assert.equal(after.delivery.pending, true);
+  assert.equal(after.delivery.heldByCap, true, 'its notice says it is late');
+  assert.deepEqual(await releaseHeldWakes(h.deps), [], 'released once');
+});
+
+test('a wake under the cap again clears the held flag', async () => {
+  const h = harness({ maxWakesPerHour: 1 });
+  const { waitpoint, secret } = await makeOne(h, { maxSignals: 10 });
+  await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps);
+  await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps);
+  assert.equal((await h.repo.get(waitpoint.id))!.wakeHeld, true);
+
+  // A fresh signal after the window slid fires directly and folds in the held one.
   h.setNow(1_700_000_000_000 + 61 * 60 * 1000);
-  const resumed = await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps);
-  assert.equal(resumed.kind === 'accepted' && resumed.fired, true);
+  const res = await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.deps);
+  assert.equal(res.kind === 'accepted' && res.fired, true);
+  assert.equal((await h.repo.get(waitpoint.id))!.wakeHeld, false);
+});
+
+test('a member name outside the declared list is refused and never counts toward the quorum', async () => {
+  const h = harness();
+  const { waitpoint, secret } = await makeOne(h, { quorum: { need: 'all', members: ['arm2', 'arm6'] } });
+
+  const typo = await applySignal({ id: waitpoint.id, secret, member: 'arm7', source: 'http' }, h.deps);
+  assert.deepEqual(typo, { kind: 'unknown-member', member: 'arm7', members: ['arm2', 'arm6'] });
+  await applySignal({ id: waitpoint.id, secret, member: 'arm2', source: 'http' }, h.deps);
+  const stored = (await h.repo.get(waitpoint.id))!;
+  assert.deepEqual(stored.quorum.got, ['arm2']);
+  assert.equal(stored.signals.length, 1, 'the refused signal is not recorded');
+  assert.equal(stored.state, 'armed');
+
+  // Without declared members any name is fine.
+  const open = await makeOne(h);
+  const any = await applySignal({ id: open.waitpoint.id, secret: open.secret, member: 'whoever', source: 'http' }, h.deps);
+  assert.equal(any.kind, 'accepted');
 });
 
 // ── truncation ─────────────────────────────────────────────────
@@ -344,6 +390,25 @@ test('records survive a reopen and the shape guard is idempotent across cold rea
   const again = new WaitpointRepo({ filePath: h.filePath });
   await again.list();
   assert.equal(await fs.readFile(h.filePath, 'utf8'), before, 'migrate must not rewrite an already-valid file');
+});
+
+test("the shape guard collapses a stored quorum.need of 'all' to a count", async () => {
+  const h = harness();
+  const { waitpoint } = await makeOne(h);
+  const other = await makeOne(h);
+  const raw = JSON.parse(await fs.readFile(h.filePath, 'utf8')) as Record<string, any>;
+  raw[waitpoint.id].quorum = { need: 'all', members: ['a', 'b', 'c'], got: ['a'] };
+  raw[other.waitpoint.id].quorum = { need: 'all', members: [], got: [] };
+  raw[waitpoint.id].rateLimitNotified = true;
+  await fs.writeFile(h.filePath, JSON.stringify(raw, null, 2));
+
+  const reopened = new WaitpointRepo({ filePath: h.filePath });
+  assert.equal((await reopened.get(waitpoint.id))!.quorum.need, 3);
+  assert.equal((await reopened.get(other.waitpoint.id))!.quorum.need, 1);
+  assert.equal('rateLimitNotified' in (await reopened.get(waitpoint.id))!, false);
+  const migrated = await fs.readFile(h.filePath, 'utf8');
+  await new WaitpointRepo({ filePath: h.filePath }).list();
+  assert.equal(await fs.readFile(h.filePath, 'utf8'), migrated, 'the migration is idempotent');
 });
 
 test('the shape guard drops junk entries instead of failing the read', async () => {

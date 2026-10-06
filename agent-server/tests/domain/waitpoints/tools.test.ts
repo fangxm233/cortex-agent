@@ -128,3 +128,20 @@ test('a signal carrying the issued secret is accepted without the daemon token',
   const wrong = await post('/webhook/signal', { id, secret: `${secret}x`, status: 'ok' }, null);
   assert.equal(wrong.statusCode, 401);
 });
+
+test('a signal naming an undeclared member is refused with the expected names', async () => {
+  const created = await post('/webhook/waitpoint', {
+    action: 'create', sessionId: 'sess-tools-3', channel: 'web:tools-3',
+    label: 'ladder', intent: 'arms', quorum: { need: 'all', members: ['arm2', 'arm6'] },
+  });
+  const { id, secret } = created.json.data;
+
+  const typo = await post('/webhook/signal', { id, secret, member: 'arm7', status: 'ok' }, null);
+  assert.equal(typo.statusCode, 422);
+  assert.equal(typo.json.accepted, false);
+  assert.match(typo.json.error, /unknown member "arm7".*arm2, arm6/);
+
+  const good = await post('/webhook/signal', { id, secret, member: 'arm2', status: 'ok' }, null);
+  assert.equal(good.statusCode, 202);
+  assert.equal(good.json.fired, false);
+});

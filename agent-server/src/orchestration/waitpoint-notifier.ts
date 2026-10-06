@@ -56,15 +56,23 @@ async function deliverOne(id: string, deps: WaitpointNotifierDeps): Promise<bool
   if (!wp) return false;
 
   const now = deps.now();
+  // Signals are append-only, so the ones this notice reports are exactly the first `reported`.
+  const reported = wp.signals.length;
+  const fresh = wp.signals.filter((s) => !s.deliveredAt);
   const text = wp.state === 'expired'
-    ? buildExpiryNotice(wp, now)
-    : buildSignalNotice(wp, { signals: undeliveredSignals(wp), now, rateLimited: wp.rateLimitNotified === true });
+    ? buildExpiryNotice(wp, now, fresh)
+    : buildSignalNotice(wp, {
+      signals: fresh.length > 0 ? fresh : wp.signals.slice(-1),
+      now,
+      heldByCap: wp.delivery.heldByCap === true,
+    });
 
   try {
     await deps.deliver(wp.owner.channel, text, wp.id);
     await deps.repo.update(id, (current) => {
-      for (const signal of current.signals) signal.deliveredAt = signal.deliveredAt ?? now;
+      for (const signal of current.signals.slice(0, reported)) signal.deliveredAt = signal.deliveredAt ?? now;
       current.delivery.lastError = null;
+      current.delivery.heldByCap = false;
       return { next: current, result: undefined };
     });
     log.info(`delivered ${wp.id} to ${wp.owner.channel}`);
@@ -79,12 +87,6 @@ async function deliverOne(id: string, deps: WaitpointNotifierDeps): Promise<bool
     log.error(`deliver ${wp.id} failed, will retry: ${message}`);
     return false;
   }
-}
-
-/** Signals not yet folded into a previous wake — what this notice is actually reporting. */
-function undeliveredSignals(wp: Waitpoint): Waitpoint['signals'] {
-  const fresh = wp.signals.filter((s) => !s.deliveredAt);
-  return fresh.length > 0 ? fresh : wp.signals.slice(-1);
 }
 
 /**

@@ -83,11 +83,11 @@ describe('waitRailViewModel', () => {
 
   // ── the three silent failures ───────────────────────────────────────────────
 
-  it('shouts when the wake limit has latched — signals no longer wake the session', () => {
+  it('flags a wake the hourly cap is holding back', () => {
     const vm = waitRailViewModel([wp({ rateLimited: true, wakesLastHour: 12 })], T0, en, 'en');
     const badges = vm!.rows[0].badges;
     expect(badges[0].key).toBe('rate-limit');
-    expect(badges[0].tone).toBe('danger');
+    expect(badges[0].tone).toBe('warn');
     // The quota badge is suppressed: the rate-limit badge already says it louder.
     expect(badges.some((b) => b.key === 'quota')).toBe(false);
   });

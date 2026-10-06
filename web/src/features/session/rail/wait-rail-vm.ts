@@ -70,7 +70,7 @@ function failureBadges(wp: WaitpointInfo, L: WaitRailVocab): WaitRailBadge[] {
 
 function badgesFor(wp: WaitpointInfo, L: WaitRailVocab): WaitRailBadge[] {
   const out: WaitRailBadge[] = [];
-  if (wp.rateLimited) out.push({ key: 'rate-limit', text: fmt(L.waitRateLimit, { limit: wp.wakeLimit }), tone: 'danger' });
+  if (wp.rateLimited) out.push({ key: 'rate-limit', text: fmt(L.waitRateLimit, { limit: wp.wakeLimit }), tone: 'warn' });
   if (wp.delivery.pending && wp.delivery.attempts > 1) {
     out.push({
       key: 'delivery', text: fmt(L.waitDelivery, { n: wp.delivery.attempts }), tone: 'warn',

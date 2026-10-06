@@ -129,12 +129,12 @@ describe('WaitRail', () => {
     expect(state.cancel).toHaveBeenCalledWith('wp_1');
   });
 
-  it('warns that a rate-limited waitpoint can no longer wake the session', () => {
+  it('warns that a rate-limited waitpoint holds its next wake until the hour clears', () => {
     store.set('cortex.waitRailOpen.s1', '1');
     state.waitpoints = [wp({ rateLimited: true, wakesLastHour: 12 })];
     const r = mount();
     const badge = r.root.findByProps({ 'data-wait-badge': 'rate-limit' });
-    expect(JSON.stringify(badge.props.children)).toContain('no longer wake');
+    expect(JSON.stringify(badge.props.children)).toContain('waits until the hour clears');
   });
 
   it('shows failures, rate limits and delivery retries even when collapsed', () => {

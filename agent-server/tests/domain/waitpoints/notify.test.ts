@@ -112,6 +112,37 @@ test('a quorum notice summarises every member and flags the failures', async () 
   assert.match(text, /arm2 ok · arm6 ok · arm8 FAIL — exit 137/);
 });
 
+test('a mailbox quorum notice counts the round that fired, not heartbeats or the next round', async () => {
+  const h = harness();
+  const { waitpoint, secret } = await createWaitpoint(
+    { label: 'pair', intent: 'both arms each round', owner: owner(), quorum: { need: 'all', members: ['a', 'b'] }, maxSignals: 3, coalesceMs: 0 },
+    h.service,
+  );
+  await applySignal({ id: waitpoint.id, secret, member: 'a', status: 'progress', message: 'step 10', source: 'http' }, h.service);
+  await applySignal({ id: waitpoint.id, secret, member: 'a', source: 'http' }, h.service);
+  await applySignal({ id: waitpoint.id, secret, member: 'b', source: 'http' }, h.service);
+
+  await deliverPendingWaitpoints(h.notifier);
+  assert.equal(h.sent.length, 1);
+  assert.match(h.sent[0].text, /2\/2 reported/);
+  assert.match(h.sent[0].text, /1 of 3 wakes used/);
+});
+
+test('the expiry notice separates heartbeats from an unmet quorum', async () => {
+  const h = harness();
+  const { waitpoint, secret } = await createWaitpoint(
+    { label: 'trio', intent: 'x', owner: owner(), quorum: { need: 'all', members: ['a', 'b', 'c'] }, ttlMs: 1000 },
+    h.service,
+  );
+  await applySignal({ id: waitpoint.id, secret, member: 'a', status: 'progress', source: 'http' }, h.service);
+  const onlyBeats = buildExpiryNotice((await h.repo.get(waitpoint.id))!, BASE + 5000);
+  assert.match(onlyBeats, /Only progress heartbeats arrived \(1\)/);
+
+  await applySignal({ id: waitpoint.id, secret, member: 'a', source: 'http' }, h.service);
+  const short = buildExpiryNotice((await h.repo.get(waitpoint.id))!, BASE + 5000);
+  assert.match(short, /1\/3 reported, short of the quorum/);
+});
+
 test('the expiry notice says plainly that nothing ever reported', async () => {
   const h = harness();
   const { waitpoint } = await createWaitpoint({ label: 'arm2', intent: 'training', owner: owner(), ttlMs: 1000 }, h.service);

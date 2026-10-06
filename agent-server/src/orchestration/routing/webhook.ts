@@ -314,14 +314,19 @@ async function handleExitPlanMode(data: any, res: Res): Promise<void> {
 type SignalOutcome = Awaited<ReturnType<typeof ingestSignal>>;
 
 const SIGNAL_REPLIES: Record<string, (outcome: any) => [number, unknown]> = {
-  accepted: (o) => [202, { accepted: true, fired: o.fired, state: o.waitpoint.state }],
+  accepted: (o) => [202, { accepted: true, fired: o.fired, state: o.waitpoint.state, ...(o.held ? { held: true } : {}) }],
   duplicate: (o) => [202, { accepted: true, duplicate: true, state: o.waitpoint.state }],
   // 410, not 404: the caller asked about something that really existed, and echoing the original
   // resolution lets a script log "already reported" instead of retrying forever.
   'already-resolved': (o) => [410, { accepted: false, state: o.state, resolved_at: o.resolvedAt }],
   'bad-secret': () => [401, { accepted: false, error: 'bad secret' }],
+  'unknown-member': (o) => [422, { accepted: false, error: unknownMemberError(o) }],
   'rate-limited': () => [429, { accepted: false, error: 'too many signals' }],
 };
+
+export function unknownMemberError(o: { member: string; members: string[] }): string {
+  return `unknown member "${o.member}" — this waitpoint expects one of: ${o.members.join(', ')}`;
+}
 
 function signalReply(outcome: SignalOutcome): [number, unknown] {
   const build = SIGNAL_REPLIES[outcome.kind];

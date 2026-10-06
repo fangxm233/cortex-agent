@@ -130,6 +130,21 @@ test('a refused signal exits non-zero and surfaces the reason', async () => {
   assert.match(result.stderr, /bad secret/);
 });
 
+test('a wake held by the hourly cap is success and says when it will arrive', async () => {
+  const { options } = capturing(202, { accepted: true, fired: false, held: true, state: 'armed' });
+  const result = await runSignalCli(['--status', 'ok'], options);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /accepted \(hourly wake cap reached/);
+});
+
+test('an undeclared member name is refused with the names the waitpoint expects', async () => {
+  const { options } = capturing(422, { accepted: false, error: 'unknown member "arm7" — this waitpoint expects one of: arm2, arm6' });
+  const result = await runSignalCli(['--member', 'arm7', '--status', 'ok'], options);
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /HTTP 422/);
+  assert.match(result.stderr, /arm2, arm6/);
+});
+
 // ── spool fallback ─────────────────────────────────────────────
 
 test('an unreachable daemon spools the signal to disk and still exits 0', async () => {

@@ -187,8 +187,9 @@ export async function runSignalCli(argv: string[], options: SignalCliOptions = {
     }
 
     if (response.status === 202) {
-      const fired = response.body?.fired ? ' (waitpoint fired)' : '';
-      return { exitCode: 0, stdout: `accepted${fired}`, stderr: '' };
+      const note = response.body?.fired ? ' (waitpoint fired)'
+        : response.body?.held ? ' (hourly wake cap reached; the wake is delivered once it clears)' : '';
+      return { exitCode: 0, stdout: `accepted${note}`, stderr: '' };
     }
     if (response.status === 410) {
       // Not an error worth failing a build over: the waitpoint did its job already.

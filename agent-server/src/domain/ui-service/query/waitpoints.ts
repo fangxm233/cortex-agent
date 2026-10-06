@@ -45,12 +45,6 @@ export function countWaitingOn(
   return out;
 }
 
-/** `quorum.need` is collapsed to a number at creation, but the stored type still permits `'all'`
- *  (a hand-edited or pre-existing waitpoints.json). Same fallback every other reader uses. */
-function needCount(wp: Waitpoint): number {
-  return typeof wp.quorum.need === 'number' ? wp.quorum.need : wp.quorum.members.length || 1;
-}
-
 function toSignalInfo(s: Waitpoint['signals'][number]): WaitpointSignalInfo {
   return {
     at: s.at,
@@ -77,7 +71,7 @@ export function toWaitpointInfo(wp: Waitpoint, now: number, wakeLimit: number): 
       ? { kind: 'device', device: wp.emitFrom.device }
       : { kind: 'local' },
     quorum: {
-      need: needCount(wp),
+      need: wp.quorum.need,
       got: wp.quorum.got.length,
       members: [...wp.quorum.members],
     },
@@ -95,7 +89,7 @@ export function toWaitpointInfo(wp: Waitpoint, now: number, wakeLimit: number): 
     },
     wakesLastHour: wp.wakes.filter((t) => t > windowStart).length,
     wakeLimit,
-    rateLimited: wp.rateLimitNotified === true,
+    rateLimited: wp.wakeHeld === true,
   };
 }
 

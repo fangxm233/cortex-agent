@@ -690,8 +690,8 @@ export interface WaitpointInfo {
   /** Wakes spent in the trailing hour, and the cap they are counted against. */
   wakesLastHour: number;
   wakeLimit: number;
-  /** True once the rate limit has bitten: further signals are RECORDED BUT NEVER WAKE the session,
-   *  and the flag is never reset. The loudest thing this DTO carries. */
+  /** True while the hourly cap is holding a wake back: the signals are recorded and the wake is
+   *  delivered once the trailing hour has room again. */
   rateLimited: boolean;
 }
 

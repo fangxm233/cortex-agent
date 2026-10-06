@@ -95,18 +95,6 @@ test('the serialised view never carries the capability secret', () => {
   assert.equal(json.includes('huge'), false);
 });
 
-test("a legacy quorum.need of 'all' does not crash the view", () => {
-  const w = wp({ quorum: { need: 'all' as any, members: ['a', 'b', 'c'], got: ['a'] } });
-  const view = toWaitpointInfo(w, T0, 12);
-  assert.equal(view.quorum.need, 3);
-  assert.equal(view.quorum.got, 1);
-});
-
-test("'all' with no declared members falls back to 1", () => {
-  const view = toWaitpointInfo(wp({ quorum: { need: 'all' as any, members: [], got: [] } }), T0, 12);
-  assert.equal(view.quorum.need, 1);
-});
-
 test('anonymous reporters can outnumber the declared members', () => {
   // Three anonymous signals take synthetic slots #1..#3 while members[] stays empty.
   const w = wp({ quorum: { need: 3, members: [], got: ['#1', '#2', '#3'] } });
@@ -121,9 +109,9 @@ test('only wakes inside the trailing hour count against the budget', () => {
   assert.equal(toWaitpointInfo(w, now, 12).wakesLastHour, 2);
 });
 
-test('the rate-limit latch and delivery retry state are surfaced', () => {
+test('a wake held by the hourly cap and delivery retry state are surfaced', () => {
   const w = wp({
-    rateLimitNotified: true,
+    wakeHeld: true,
     delivery: { pending: true, attempts: 3, lastError: 'conduit closed', lastAt: T0 },
   });
   const view = toWaitpointInfo(w, T0, 12);

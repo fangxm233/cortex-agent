@@ -46,8 +46,9 @@ export interface Waitpoint {
   intent: string;
   owner: WaitpointOwner;
   emitFrom: WaitpointEmitFrom;
-  /** `need` terminal signals resolve it. `'all'` means "one per declared member". */
-  quorum: { need: number | 'all'; members: string[]; got: string[] };
+  /** `need` terminal signals resolve it. A create-time `'all'` is collapsed to the member count,
+   *  and `migrate` collapses any stored `'all'` the same way, so readers always see a number. */
+  quorum: { need: number; members: string[]; got: string[] };
   /** A `fail` resolves immediately even when the quorum is unmet — "tell me when the first one breaks". */
   failFast: boolean;
   /** How many times it may fire before closing. 1 = one-shot (default); >1 = a mailbox. */
@@ -61,12 +62,19 @@ export interface Waitpoint {
   resolvedAt?: number | null;
   state: WaitpointState;
   signals: WaitpointSignal[];
-  /** WAL bit: a fire that has not been delivered yet. Replayed at boot and by the sweep. */
-  delivery: { pending: boolean; attempts: number; lastError?: string | null; lastAt?: number | null };
+  /** WAL bit: a fire that has not been delivered yet. Replayed at boot and by the sweep.
+   *  `heldByCap` marks a pending wake the hourly cap delayed, so its notice says it is late. */
+  delivery: {
+    pending: boolean; attempts: number; lastError?: string | null; lastAt?: number | null; heldByCap?: boolean;
+  };
   /** Wake timestamps, newest last. Sliding-window rate limit input. */
   wakes: number[];
-  /** Set once when the rate limit first bites, so the warning notice is emitted exactly once. */
-  rateLimitNotified?: boolean;
+  /** A fire the hourly wake cap is holding back. Its signals are recorded; the sweep releases the
+   *  wake once the window has room again. */
+  wakeHeld?: boolean;
+  /** How many quorum slots were filled when it last fired. A mailbox clears `quorum.got` for the
+   *  next round at that moment, so the notice for the fire reads its count from here. */
+  lastFireGot?: number;
 }
 
 /** Shape of waitpoints.json: `{ "wp_…": Waitpoint, … }` */
@@ -85,8 +93,13 @@ function migrate(raw: unknown): WaitpointsData {
   const out: WaitpointsData = {};
   for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
-    const wp = value as Waitpoint;
+    const wp = value as Waitpoint & { rateLimitNotified?: unknown };
     if (typeof wp.id !== 'string' || typeof wp.secretHash !== 'string') continue;
+    if (wp.quorum && !(typeof wp.quorum.need === 'number' && Number.isFinite(wp.quorum.need) && wp.quorum.need > 0)) {
+      wp.quorum.need = Array.isArray(wp.quorum.members) && wp.quorum.members.length > 0 ? wp.quorum.members.length : 1;
+    }
+    // Retired latch: it never reset, so a stored `true` would mean nothing now.
+    delete wp.rateLimitNotified;
     out[id] = wp;
   }
   return out;

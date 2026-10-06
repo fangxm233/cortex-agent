@@ -4,7 +4,12 @@
 
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import { expireDueWaitpoints, productionWaitpointDeps, type WaitpointServiceDeps } from '@domain/waitpoints/service.js';
+import {
+  expireDueWaitpoints,
+  productionWaitpointDeps,
+  releaseHeldWakes,
+  type WaitpointServiceDeps,
+} from '@domain/waitpoints/service.js';
 import {
   deliverPendingWaitpoints,
   notifyWaitpointExpiry,
@@ -36,15 +41,17 @@ export const productionSweepDeps: WaitpointSweepDeps = {
 export interface SweepResult {
   spooled: number;
   fromDevices: number;
+  /** Wakes the hourly cap had held back, fired now that the window has room. */
+  released: number;
   expired: number;
   delivered: number;
   purged: number;
 }
 
 /**
- * One pass: take in whatever the outside world left on disk, age out what is past due, then flush
- * every undelivered wake. Order matters — draining first means a signal that landed a second before
- * the deadline still beats the expiry notice.
+ * One pass: take in whatever the outside world left on disk, release wakes the hourly cap was
+ * holding, age out what is past due, then flush every undelivered wake. Order matters — draining
+ * first means a signal that landed a second before the deadline still beats the expiry notice.
  */
 export async function sweepWaitpoints(deps: WaitpointSweepDeps = productionSweepDeps): Promise<SweepResult> {
   const spooled = await (deps.spoolDir
@@ -60,10 +67,14 @@ export async function sweepWaitpoints(deps: WaitpointSweepDeps = productionSweep
       return 0;
     })
     : 0;
+  const released = await releaseHeldWakes(deps.service).catch((e) => {
+    log.error(`held wakes: ${(e as Error).message}`);
+    return [];
+  });
   const { expired, purged } = await expireDueWaitpoints(deps.service);
   if (expired.length > 0) await notifyWaitpointExpiry(expired, deps.notifier);
   const delivered = await deliverPendingWaitpoints(deps.notifier);
-  return { spooled, fromDevices, expired: expired.length, delivered, purged };
+  return { spooled, fromDevices, released: released.length, expired: expired.length, delivered, purged };
 }
 
 let timer: NodeJS.Timeout | null = null;
@@ -104,6 +115,6 @@ export function stopWaitpointSweep(): void {
 export async function recoverWaitpoints(): Promise<SweepResult> {
   return sweepWaitpoints().catch((e) => {
     log.error(`recovery failed: ${(e as Error).message}`);
-    return { spooled: 0, fromDevices: 0, expired: 0, delivered: 0, purged: 0 };
+    return { spooled: 0, fromDevices: 0, released: 0, expired: 0, delivered: 0, purged: 0 };
   });
 }
