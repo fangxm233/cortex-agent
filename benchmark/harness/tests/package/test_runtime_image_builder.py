@@ -51,9 +51,9 @@ def test_runtime_manifest_pins_the_three_p0_vendor_artifacts() -> None:
     assert document["vendors"]["claude-code"] == {
         "distribution": "native",
         "platform": "linux-x64",
-        "version": "2.1.232",
-        "sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
-        "size_bytes": 323021104,
+        "version": "2.1.291",
+        "sha256": "078fad28d0297c9a25d306b635b2d8816c6839347520f29eb54ffea5d56142fb",
+        "size_bytes": 249642168,
     }
     codex = document["vendors"]["codex"]
     assert codex["package"] == "@openai/codex"
@@ -126,6 +126,62 @@ def test_codex_runtime_preflight_selects_the_campaign_model(tmp_path: Path) -> N
     assert json.loads(result.stdout) == {
         "ok": True, "vendor": "codex", "version": "codex-cli 0.148.0", "requests": 1,
     }
+
+
+FAKE_CLAUDE_PREFLIGHT = """#!/usr/bin/python3
+import json, os, sys, urllib.request
+if sys.argv[1:] == ['--version']:
+    print('__VERSION__ (Claude Code)')
+    raise SystemExit(0)
+if '--model' in sys.argv:
+    print('preflight selected a model', file=sys.stderr)
+    raise SystemExit(2)
+body = json.dumps({'model': '__NATIVE_MODEL__', 'stream': True}).encode()
+url = os.environ['ANTHROPIC_BASE_URL'] + '/v1/messages?beta=true'
+with urllib.request.urlopen(urllib.request.Request(url, data=body, method='POST')) as response:
+    response.read()
+"""
+
+
+def run_claude_preflight(tmp_path: Path, native_model: str) -> subprocess.CompletedProcess[str]:
+    node = shutil.which("node")
+    assert node
+    runtime = json.loads(RUNTIME_MANIFEST.read_text(encoding="utf-8"))
+    source = FAKE_CLAUDE_PREFLIGHT.replace(
+        "__VERSION__", runtime["vendors"]["claude-code"]["version"],
+    ).replace("__NATIVE_MODEL__", native_model)
+    fake = executable(tmp_path / "bin/claude", source)
+    return subprocess.run(
+        [node, str(PREFLIGHT_SCRIPT), "--vendor", "claude-code", "--cli", str(fake)],
+        capture_output=True, text=True, env={**os.environ, "PATH": str(fake.parent)}, timeout=30,
+    )
+
+
+def test_claude_runtime_preflight_requires_the_campaign_model_as_native_default(
+    tmp_path: Path,
+) -> None:
+    campaign = yaml.safe_load(
+        (HARNESS_DIR.parent / "campaigns/terminal-bench-2.1-vendor-claude-code.yaml").read_text()
+    )
+    arm = campaign["arms"][0]
+
+    result = run_claude_preflight(tmp_path, arm["model"])
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "ok": True, "vendor": "claude-code",
+        "version": f"{arm['vendor_cli_version']} (Claude Code)", "requests": 1,
+    }
+
+
+def test_claude_runtime_preflight_refuses_a_native_default_the_campaign_does_not_freeze(
+    tmp_path: Path,
+) -> None:
+    result = run_claude_preflight(tmp_path, "claude-model-not-frozen")
+
+    assert result.returncode == 1
+    assert "requests claude-model-not-frozen by default" in result.stderr
+    assert "together" in result.stderr
 
 
 def fixture_inputs(root: Path) -> dict[str, Path]:

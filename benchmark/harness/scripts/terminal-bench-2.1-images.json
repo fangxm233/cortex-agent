@@ -8,7 +8,7 @@
   "build_epoch": 1786481201,
   "vendors": {
     "pi": {"version": "0.82.1"},
-    "claude-code": {"version": "2.1.232"},
+    "claude-code": {"version": "2.1.291"},
     "codex": {"version": "0.148.0"}
   },
   "cortex_smoke": {
@@ -70,8 +70,8 @@
           "final_image_digest": "sha256:5f16cd3f75c54b22866a823b35e39305155c784886d1db5f894272d89f7cbbed"
         },
         "claude-code": {
-          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-claude-code-2.1.232",
-          "final_image_digest": "sha256:0e75f455072cc3b4a407e922b87f5a382f689cf8290d2219d4e9d70c133b9b41"
+          "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-claude-code-2.1.291",
+          "final_image_digest": "sha256:9cce51ee49f82dd358016e585bd0a7de89b7d9151bfe3060802f234380c12e2d"
         },
         "codex": {
           "final_image_tag": "cortex-terminal-bench-2.1:chess-best-move-codex-0.148.0",
@@ -95,8 +95,8 @@
           "final_image_digest": "sha256:f7cd67351adf773328d8a07a483daaff838a05388205872cfe65c187aef9b353"
         },
         "claude-code": {
-          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-claude-code-2.1.232",
-          "final_image_digest": "sha256:defe6b6e045c409994d9c26cb1b70670353e49483b6e23d50f28de835c564978"
+          "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-claude-code-2.1.291",
+          "final_image_digest": "sha256:81a48d796419e4b2e9c5fc2bd92286c09118af440b42b0343d59f839b0db0347"
         },
         "codex": {
           "final_image_tag": "cortex-terminal-bench-2.1:constraints-scheduling-codex-0.148.0",
@@ -120,8 +120,8 @@
           "final_image_digest": "sha256:7199e472b87adc22c356e9a364d453c6f825938de6ab7f6422b787735dbf47f7"
         },
         "claude-code": {
-          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-claude-code-2.1.232",
-          "final_image_digest": "sha256:b33bed1d275441266a169e2a320287485acef1afebc4a5202cc51a284d18dbc6"
+          "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-claude-code-2.1.291",
+          "final_image_digest": "sha256:3534864a5bbe78423accaa7e49786c1aa84b833e89849244571036a29b281026"
         },
         "codex": {
           "final_image_tag": "cortex-terminal-bench-2.1:db-wal-recovery-codex-0.148.0",

@@ -4,8 +4,11 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const VERSIONS = { pi: "0.82.1", "claude-code": "2.1.232", codex: "0.148.0" };
+const VERSIONS = { pi: "0.82.1", "claude-code": "2.1.291", codex: "0.148.0" };
 const CODEX_MODEL = "gpt-5.6-sol";
+// Claude Code gets no model override in a trial, and the proxy freezes the campaign model, so the
+// pinned CLI's native default must be that model. Moves with VERSIONS["claude-code"].
+const CLAUDE_NATIVE_MODEL = "claude-opus-5-5";
 const COMMANDS = { pi: "pi", "claude-code": "claude", codex: "codex" };
 
 function fail(message) {
@@ -177,8 +180,10 @@ function runClaude(cli, root, port) {
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_TELEMETRY: "1",
     DISABLE_ERROR_REPORTING: "1", DISABLE_AUTOUPDATER: "1",
     CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" });
-  const argv = ["--bare", "--print", "--output-format", "json", "--no-session-persistence",
-    "--tools", "", "--model", "sonnet", "Reply PREFLIGHT_OK"];
+  // No --model: the request carries the CLI's native default. `--tools` is variadic, so an option
+  // has to follow it or it would swallow the prompt.
+  const argv = ["--bare", "--print", "--tools", "", "--output-format", "json",
+    "--no-session-persistence", "Reply PREFLIGHT_OK"];
   return runProcess(cli, argv, { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
 }
 
@@ -236,6 +241,11 @@ async function main() {
   await new Promise((resolve) => server.close(resolve));
   if (result.status !== 0) fail(`${vendor} synthetic request failed: ${result.stderr}`);
   if (requests.length !== 1) fail(`${vendor} emitted ${requests.length} requests; expected exactly one`);
+  const model = requests[0].body.model;
+  if (vendor === "claude-code" && model !== CLAUDE_NATIVE_MODEL) {
+    fail(`${version} requests ${model} by default, not ${CLAUDE_NATIVE_MODEL}; the trial proxy ` +
+      "would refuse every request. Move the Claude CLI pin and the campaign model together");
+  }
   process.stdout.write(`${JSON.stringify({ ok: true, vendor, version, requests: 1 })}\n`);
 }
 

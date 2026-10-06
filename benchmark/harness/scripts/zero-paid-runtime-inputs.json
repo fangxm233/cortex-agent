@@ -17,9 +17,9 @@
     "claude-code": {
       "distribution": "native",
       "platform": "linux-x64",
-      "version": "2.1.232",
-      "sha256": "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1",
-      "size_bytes": 323021104
+      "version": "2.1.291",
+      "sha256": "078fad28d0297c9a25d306b635b2d8816c6839347520f29eb54ffea5d56142fb",
+      "size_bytes": 249642168
     },
     "codex": {
       "package": "@openai/codex",
