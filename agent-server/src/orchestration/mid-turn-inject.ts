@@ -2,7 +2,7 @@
  * Mid-turn user-message injection router. The injection itself lives on `AgentRun.steer()`
  * (which installs the backend `InjectionAckSink` and fans acks out as `injection_delivered` /
  * `injection_rejected` RunEvents) and the durable two-phase persistence lives in
- * `orchestration/transcript-sink.ts` (the injection ledger, driven by those events).
+ * `orchestration/injection-ledger.ts` (driven by those events).
  *
  * This module only decides *whether* to inject: the cheapest gates first, the run lookup second,
  * then it hands the message to the run and registers the pending record with the ledger. Every
@@ -21,7 +21,7 @@ import type { AgentRun } from '../domain/runs/run.js';
 import {
   beginInjection, ensureInjectionObserver, resetInjectionLedger,
   type InjectionLedgerDeps,
-} from './transcript-sink.js';
+} from './injection-ledger.js';
 
 /** The subset of a live registry entry this path needs. The run decides capability itself. */
 export interface LiveExecutionLike {

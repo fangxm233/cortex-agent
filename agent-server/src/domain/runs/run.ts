@@ -46,7 +46,7 @@ export interface AgentRun {
    * capability from `this.capabilities` — callers never inspect the process. Resolves `refused`
    * when the backend cannot take the message (the caller then falls back to the queue). The
    * authoritative fold/queue outcome arrives later as an `injection_delivered` RunEvent.
-   * `injectionId` lets the caller (the pending-injection ledger in `orchestration/transcript-sink`)
+   * `injectionId` lets the caller (the pending-injection ledger in `orchestration/injection-ledger`)
    * correlate the eventual ack event with its durable pending record.
    */
   steer(msg: UserMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;

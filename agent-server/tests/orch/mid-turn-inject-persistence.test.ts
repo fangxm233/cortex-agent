@@ -26,7 +26,7 @@ function harness(persist: Promise<void>) {
   const order: string[] = [];
   // The live `AgentRun` the router selects: it owns the injection-ack translation, so the ledger
   // only consumes the `injection_delivered` RunEvent this fixture emits (phase two lives in
-  // transcript-sink and is driven by the event, not by a sink orchestration installed).
+  // injection-ledger and is driven by the event, not by a sink orchestration installed).
   const observers = new Set<any>();
   const pending: Array<{ id: string; text: string }> = [];
   const emit = async (event: any): Promise<void> => {
