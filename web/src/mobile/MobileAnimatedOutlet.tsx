@@ -1,11 +1,23 @@
-import { useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useLocation, useNavigationType, useOutlet } from 'react-router-dom';
 import { mobileHomeView, mobileScreenKey } from './mobile-route-manifest';
 import { MC } from './ui/kit';
 
 export interface Frame {
+  /** Screen key of the path the frame shows. */
   key: string;
   element: ReactNode;
+  /** React identity of the layer; defaults to `key`. A re-pointed screen keeps its own. */
+  id?: string;
+}
+
+/** Navigation state for a `replace` that re-points the current screen at a new path instead of
+ *  swapping in a new one — a new-session draft becoming the session its first message created,
+ *  with the screen (and what it holds for that message) staying put. */
+export const SAME_SCREEN_STATE = { sameScreen: true } as const;
+
+function keepsScreen(navType: NavType, state: unknown): boolean {
+  return navType === 'REPLACE' && (state as { sameScreen?: unknown } | null)?.sameScreen === true;
 }
 
 type NavType = 'PUSH' | 'POP' | 'REPLACE';
@@ -90,8 +102,11 @@ const retainedStyle: CSSProperties = {
   pointerEvents: 'none',
 };
 
-function useAnimatedFrames(pathname: string, navType: NavType, outlet: ReactNode) {
-  const [current, setCurrent] = useState<Frame>({ key: mobileScreenKey(pathname), element: outlet });
+function useAnimatedFrames(pathname: string, navType: NavType, state: unknown, outlet: ReactNode) {
+  // Layer ids stay unique even when a re-pointed screen's old path is opened again beside it.
+  const nextId = useRef(0);
+  const frameAt = (path: string): Frame => ({ key: mobileScreenKey(path), element: outlet, id: `${nextId.current++}` });
+  const [current, setCurrent] = useState<Frame>(() => frameAt(pathname));
   const [retainedHome, setRetainedHome] = useState<Frame | null>(null);
   const [previous, setPrevious] = useState<Frame | null>(null);
   const [dir, setDir] = useState<SlideDir>('forward');
@@ -99,7 +114,11 @@ function useAnimatedFrames(pathname: string, navType: NavType, outlet: ReactNode
   useLayoutEffect(() => {
     // Opening or closing the Projects panel keeps the same home screen; only a new screen swaps.
     if (sameScreen(pathname, current.key)) return;
-    const destination = { key: mobileScreenKey(pathname), element: outlet };
+    if (keepsScreen(navType, state)) {
+      setCurrent({ ...current, key: mobileScreenKey(pathname), element: outlet });
+      return;
+    }
+    const destination = frameAt(pathname);
     const change = planFrameChange(current, retainedHome, destination);
     const plan = planTransition(navType, prefersReducedMotion(), change.returningToRetained);
     setRetainedHome(change.retainedHome);
@@ -136,6 +155,8 @@ function RouteLayer({ frame, role, className, hidden, onAnimationEnd }: RouteLay
   );
 }
 
+const layerKey = (frame: Frame): string => frame.id ?? frame.key;
+
 export function AnimatedOutletLayers({ current, retainedHome, previous, dir, onSettled }: {
   current: Frame;
   retainedHome: Frame | null;
@@ -149,12 +170,12 @@ export function AnimatedOutletLayers({ current, retainedHome, previous, dir, onS
     && retainedHome.key !== current.key;
   return (
     <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
-      {showRetained && <RouteLayer key={retainedHome.key} frame={retainedHome} role="retained" hidden />}
+      {showRetained && <RouteLayer key={layerKey(retainedHome)} frame={retainedHome} role="retained" hidden />}
       {previous && (
-        <RouteLayer key={previous.key} frame={previous} role="previous" className={classes.outgoing} />
+        <RouteLayer key={layerKey(previous)} frame={previous} role="previous" className={classes.outgoing} />
       )}
       <RouteLayer
-        key={current.key}
+        key={layerKey(current)}
         frame={current}
         role="current"
         className={previous ? classes.incoming : undefined}
@@ -168,6 +189,6 @@ export function AnimatedOutlet() {
   const location = useLocation();
   const navType = useNavigationType();
   const outlet = useOutlet();
-  const frames = useAnimatedFrames(location.pathname, navType, outlet);
+  const frames = useAnimatedFrames(location.pathname, navType, location.state, outlet);
   return <AnimatedOutletLayers {...frames} />;
 }

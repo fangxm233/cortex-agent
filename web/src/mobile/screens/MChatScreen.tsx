@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { fmt, useLang, useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
@@ -19,6 +19,8 @@ import {
 } from '@/features/commission/CommissionOptIn';
 import { useTeamContext } from '@/features/team/useTeamContext';
 import { attachmentType } from '@/features/attachments/types';
+import { normalizeMobilePath } from '../mobile-route-manifest';
+import { SAME_SCREEN_STATE } from '../MobileAnimatedOutlet';
 import { MChatView } from './MChatView';
 import {
   buildMobileChatRows, selectionChipLabel, buildAgentSheet, buildSelectionSheet,
@@ -71,6 +73,7 @@ function usePendingCreatedSession(activeSessionId: string | undefined, isDraft: 
 
 export function MChatScreen(): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   const lang = useLang();
   const vocab = useVocab();
   const route = useRouteSession();
@@ -125,6 +128,10 @@ export function MChatScreen(): JSX.Element {
   // read-only capsule is unaffected.
   const commissionEnabled = useCommissionEnabled();
 
+  // Follow a created session only while this screen is still the draft on screen: a user who has
+  // already gone back stays where they went.
+  const onDraftScreen = useRef(false);
+  onDraftScreen.current = isDraft && normalizeMobilePath(location.pathname) === DRAFT_PATH;
   const composer = useComposerSend({
     sessionId, isDraft, projectId: route.projectId ?? 'general',
     optimistic: chat.optimistic, running: chat.running, compactAction: chat.compactAction,
@@ -140,13 +147,15 @@ export function MChatScreen(): JSX.Element {
       onSettings: () => navigate('/m/settings'),
     },
     onCreated: (createdId) => {
+      if (!onDraftScreen.current) return;
       setPendingCreatedSession({
         sessionId: createdId,
         profileName: draftSelection.profileName,
         override: draftSelection.override,
         agentName: draftSelection.agentName ?? null,
       });
-      navigate(`/m/session/${createdId}`, { replace: true });
+      // The same screen carries on as the created session, so the row and chip stay put.
+      navigate(`/m/session/${createdId}`, { replace: true, state: SAME_SCREEN_STATE });
     },
     onSendFailed: (error) => addSystemLine(fmt(vocab.chatSendFailed, { error: error.message })),
     onSlashFeedback: (key) => { if (key) addSystemLine(vocab[key]); },

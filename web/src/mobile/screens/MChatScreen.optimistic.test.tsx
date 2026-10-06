@@ -532,7 +532,7 @@ describe('mobile optimistic sender wiring', () => {
       await gate.promise;
     });
     // The route follows the created session; the row must survive the scope change.
-    expect(harness.navigate).toHaveBeenCalledWith('/m/session/s-new', { replace: true });
+    expect(harness.navigate).toHaveBeenCalledWith('/m/session/s-new', expect.objectContaining({ replace: true }));
     harness.routeParam = 's-new';
     act(() => { mounted?.update(<LangProvider><MChatScreen /></LangProvider>); });
 
