@@ -410,6 +410,78 @@ test('PI tool, channel and registry agree on a stopped chain child without start
   assert.equal(onEvent.mock.calls.length, 0, 'background never tees into the parent runtime');
 });
 
+test('a backgrounded PI child that ends after the turn files its spend once, as the parent\'s subagent run', async () => {
+  const { startBackgroundSubagent } = await import('../src/orchestration/pi-background-subagent.js');
+  const executionRegistry = await import('../src/domain/executions/registry.js');
+  const { costRepo } = await import('../src/domain/costs/cost-tracker.js');
+  const { foldExecution, toSessionTotals } = await import('../src/store/session-totals.js');
+  const costsFile = path.join(os.tmpdir(), `bg-subagent-costs-${process.pid}.jsonl`);
+  vi.stubEnv('CORTEX_COSTS_FILE', costsFile);
+  costRepo._testReset();
+  try {
+    const createSession = vi.fn(async () => {
+      let listener: (event: unknown) => void = () => {};
+      return {
+        session: {
+          subscribe: (next: (event: unknown) => void) => { listener = next; return () => {}; },
+          prompt: async () => {
+            listener({
+              type: 'message_end',
+              message: {
+                role: 'assistant', content: [{ type: 'text', text: 'found it' }], stopReason: 'stop',
+                provider: 'deepseek', model: 'deepseek-chat',
+                usage: { input: 300, output: 120, cacheRead: 40, cacheWrite: 0, cost: { total: 0.25 } },
+              },
+            });
+          },
+          abort: async () => {},
+        },
+        dispose: () => {},
+      };
+    });
+    // The parent's own stream: what it was handed would be dropped once its turn is over.
+    const parentUsage = vi.fn();
+    const tool = createSubagentTool(piDeps({
+      createSession, startBackgroundSubagent, onUsage: parentUsage,
+      parentEnv: { CORTEX_SESSION_ID: SESSION, SLACK_CHANNEL: CHANNEL, CORTEX_PROJECT: 'bg-spend' },
+    }));
+    const result = await tool.execute('call-spend', {
+      description: 'find the entry point', prompt: 'p', subagent_type: 'general-purpose', run_in_background: true,
+    } as any, undefined, () => {}, { cwd: '/tmp' } as any);
+    const runId = /Agent (\S+) started in the background/.exec(textOf(result))![1];
+    await waitForSubagentRun(runId, 1000);
+
+    assert.equal(parentUsage.mock.calls.length, 0, 'the spend never goes through the parent\'s stream');
+    const records = executionRegistry.getAll().filter((record) => record.session?.ownerSessionId === SESSION);
+    assert.equal(records.length, 1, 'one record for the one child');
+    const [record] = records;
+    assert.equal(record.status, 'completed');
+    assert.equal(record.source.trigger, 'subagent');
+    assert.equal(record.project, 'bg-spend');
+    assert.equal(record.session?.sessionId ?? null, null, 'not the parent\'s own turn');
+    assert.ok(Math.abs((record.metrics.costUsd ?? 0) - 0.25) < 1e-9);
+
+    await costRepo.flush();
+    const rows = fs.readFileSync(costsFile, 'utf8').trim().split('\n').filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((row) => row.execution_id === record.id);
+    assert.equal(rows.length, 1, 'one ledger row, pointing at that record');
+    assert.equal(rows[0].session_id, SESSION);
+    assert.equal(rows[0].project, 'bg-spend');
+    assert.equal(rows[0].provider, 'deepseek');
+    assert.equal(rows[0].input_tokens, 300);
+    assert.ok(Math.abs(rows[0].cost_usd - 0.25) < 1e-9);
+
+    const totals = new Map();
+    for (const each of executionRegistry.getAll()) foldExecution(totals, each);
+    assert.ok(Math.abs((toSessionTotals(totals.get(SESSION))?.subagentCostUsd ?? 0) - 0.25) < 1e-9);
+  } finally {
+    vi.unstubAllEnvs();
+    costRepo._testReset();
+    fs.rmSync(costsFile, { force: true });
+  }
+});
+
 test('PI refuses run_in_background rather than silently blocking when it cannot background', async () => {
   const tool = createSubagentTool(piDeps());
   await assert.rejects(

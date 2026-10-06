@@ -322,6 +322,7 @@ test('a finished child reports its spend once, named by the provider that answer
     assert.deepEqual(harness.usageReports, [{
       provider: 'openai-codex',
       model: 'gpt-5-codex',
+      description: 'Inspect code',
       usage: {
         input: 150, output: 60, cacheRead: 10, cacheWrite: 0,
         cost: 0.75, contextTokens: 0, turns: 2,

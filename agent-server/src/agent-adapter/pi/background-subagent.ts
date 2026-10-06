@@ -1,11 +1,17 @@
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
 import type { Invocation, RunChildFn, SubagentNotice } from '@core/agents/subagent/types.js';
+import type { SubagentUsageReport } from './subagent.js';
 
 export interface BackgroundSubagentRequest {
   invocation: Invocation;
   /** The host supplies one session-bound sink before any child starts. All notice producers
-   *  (native events, foreign events and terminal seals) must bind to it, never the parent runtime. */
-  bindNoticeSink(onNotice: (notice: SubagentNotice) => void): {
+   *  (native events, foreign events and terminal seals) must bind to it, never the parent runtime.
+   *  So must each nested PI child's spend: the turn that started the run may be long over when a
+   *  child ends, and the parent's stream would drop it (or bill it to a later turn). */
+  bindNoticeSink(
+    onNotice: (notice: SubagentNotice) => void,
+    onUsage: (report: SubagentUsageReport) => void,
+  ): {
     runChild: RunChildFn;
     channel?: SubagentChannel;
   };
@@ -14,6 +20,8 @@ export interface BackgroundSubagentRequest {
   /** Owning Cortex session and its conduit — where the answer is delivered. */
   sessionId: string | null;
   conduit: string | undefined;
+  /** The owning session's project, which its children's spend is filed under. */
+  project?: string;
 }
 
 export interface BackgroundSubagentHandle {

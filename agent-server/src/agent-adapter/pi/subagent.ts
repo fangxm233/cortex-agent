@@ -96,6 +96,8 @@ export interface SubagentUsageReport {
   provider: string;
   model: string;
   usage: SubagentUsage;
+  /** The task's description, for a host that files the child as a record of its own. */
+  description?: string;
 }
 
 export interface SubagentToolDeps {
@@ -138,7 +140,9 @@ export interface SubagentToolDeps {
 function reportChildUsage(deps: SubagentToolDeps, result: SubagentResult): void {
   if (!deps.onUsage || !result.provider || result.usage.turns === 0) return;
   try {
-    deps.onUsage({ provider: result.provider, model: result.model ?? '', usage: result.usage });
+    deps.onUsage({
+      provider: result.provider, model: result.model ?? '', usage: result.usage, description: result.description,
+    });
   } catch { /* best-effort */ }
 }
 
@@ -233,7 +237,9 @@ function textResult(text: string): { content: Array<{ type: 'text'; text: string
  * The tool call returns now, so nothing from this point on may depend on the call's own `signal`
  * (already aborting) or on `ctx` surviving — the child runner closes over the values it needs. The
  * host binds a session-owned writer before constructing any runner/channel. Nothing is teed to
- * the parent's runtime: all three notice producers use this invocation-local dependency copy.
+ * the parent's runtime: all three notice producers use this invocation-local dependency copy, and
+ * so does the children's spend — a child that ends after the parent's turn has no turn left to be
+ * billed to, so the host files it on its own.
  */
 async function startInBackground(
   deps: SubagentToolDeps,
@@ -247,12 +253,13 @@ async function startInBackground(
   const { id } = await deps.startBackgroundSubagent({
     invocation,
     toolCallId,
-    bindNoticeSink: onEvent => ({
-      runChild: bindRunChild({ ...deps, onEvent }),
+    bindNoticeSink: (onEvent, onUsage) => ({
+      runChild: bindRunChild({ ...deps, onEvent, onUsage }),
       channel: subagentChannel(toolCallId, onEvent, invocation.mode === 'chain'),
     }),
     sessionId: deps.parentEnv.CORTEX_SESSION_ID || null,
     conduit: deps.parentEnv.SLACK_CHANNEL || deps.parentEnv.FEISHU_CHANNEL || undefined,
+    project: deps.parentEnv.CORTEX_PROJECT || undefined,
   });
   return textResult(
     `Agent ${id} started in the background. Its result will be delivered to you when it is ready. `

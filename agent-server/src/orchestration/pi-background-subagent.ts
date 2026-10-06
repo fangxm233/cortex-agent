@@ -1,5 +1,6 @@
 import { runInvocation } from '@core/agents/subagent/orchestrate.js';
 import { startSubagentRun, stopSubagentRun, trackSubagentChildren } from '@domain/agents/subagent/registry.js';
+import { recordBackgroundChildSpend } from '@domain/agents/subagent/background-spend.js';
 import type {
   BackgroundSubagentHandle, BackgroundSubagentRequest,
 } from '../agent-adapter/pi/background-subagent.js';
@@ -20,8 +21,10 @@ import { backgroundNoticeSink } from './subagent-attribution.js';
 export async function startBackgroundSubagent(
   request: BackgroundSubagentRequest,
 ): Promise<BackgroundSubagentHandle> {
+  const owner = { sessionId: request.sessionId, conduit: request.conduit, project: request.project };
   const { runChild, channel } = request.bindNoticeSink(
     backgroundNoticeSink(request.sessionId, request.conduit),
+    (report) => recordBackgroundChildSpend(owner, report),
   );
   const view = startBackgroundSubagentRun(onSettled => startSubagentRun({
     invocation: request.invocation,
