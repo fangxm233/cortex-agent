@@ -99,7 +99,8 @@ export function MBudgetScreen() {
         <option value="">{L.stBudgetScopeGlobal}</option>
         {(projects.data ?? []).map((project) => <option key={project.id} value={project.id}>{project.id}</option>)}
       </MSettingsSelect></div>
-      <BudgetLimitsEditor daily={resolved.daily} monthly={resolved.monthly}
+      {/* Keyed by scope: a draft typed for one scope must not survive into the next. */}
+      <BudgetLimitsEditor key={scope ?? ''} daily={resolved.daily} monthly={resolved.monthly}
         pending={writer.isPending} onSave={save} />
       {hasOverride(budget, scope) && <div style={{ padding: '0 13px 11px' }}>
         <MButton compact variant="danger-outline" disabled={writer.isPending} onClick={clear}>{L.stBudgetClear}</MButton>

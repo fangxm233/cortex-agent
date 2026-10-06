@@ -41,7 +41,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
         isLoading: false,
         isError: false,
       };
-      if (options.budgetQuery === 'projects') return { data: [{ id: 'alpha' }] };
+      if (options.budgetQuery === 'projects') return { data: [{ id: 'alpha' }, { id: 'beta' }] };
       return { data: options.input?.projectId ? { today: 2, month: 20 } : { today: 3, month: 30 } };
     },
   };
@@ -150,5 +150,24 @@ describe('MBudgetScreen writer feedback', () => {
       await Promise.resolve();
     });
 
+  });
+
+  it('drops a typed draft when the scope changes to one with the same limits', async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(createElement(MBudgetScreen));
+    });
+    await act(async () => {
+      renderer.root.findAllByType('input')[0].props.onChange({ target: { value: '6' } });
+    });
+    expect(renderer.root.findAllByType('input')[0].props.value).toBe('6');
+
+    await act(async () => {
+      renderer.root.findAllByType('select')[0].props.onChange({ target: { value: 'beta' } });
+    });
+
+    expect(renderer.root.findAllByType('input')[0].props.value).toBe('10');
+    const apply = renderer.root.findAllByType('button').find((button) => button.children.includes('Apply'))!;
+    expect(apply.props.disabled).toBe(true);
   });
 });
