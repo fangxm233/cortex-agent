@@ -5,7 +5,9 @@ import { SSegmented } from '@/features/settings/ui/settings-kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
 import { useVocab, type Lang, type LangSource } from '@/i18n';
-import { useAccentCopy, usePaletteCopy } from '@/features/settings/panels/AppearancePanel';
+import {
+  languageHint, languageOptions, useAccentCopy, usePaletteCopy,
+} from '@/features/settings/useAppearanceCopy';
 import {
   AccentPicker,
   PaletteControls,
@@ -135,8 +137,7 @@ export function MAppearanceView({
         <Card>
           <ChoiceRow
             divider title={L.stLangLabel} ariaLabel={L.stLangLabel} value={lang}
-            hint={langSource === 'env' ? L.stLangEnvPinned : L.stLangHint}
-            options={[{ id: 'en', label: 'EN' }, { id: 'zh', label: '中' }] as const}
+            hint={languageHint(L, langSource)} options={languageOptions(L)}
             onChange={onSetLang}
           />
           <ChoiceRow

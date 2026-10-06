@@ -19,13 +19,14 @@ import {
   useTheme,
   useSetTheme,
   type AccentIntensity,
-  type AccentPickerCopy,
   type GlassLevel,
   type MotionMode,
-  type PaletteControlsCopy,
   type Theme,
 } from '@/theme';
 import { SRowGroup, SRow, SSection, SSegmented } from '@/features/settings/ui/settings-kit';
+import {
+  languageHint, languageOptions, useAccentCopy, usePaletteCopy,
+} from '@/features/settings/useAppearanceCopy';
 
 // Device-local appearance controls persist through their providers with no daemon round-trip.
 
@@ -99,32 +100,6 @@ function ThemeSection() {
 }
 
 // ── Colour ──────────────────────────────────────────────────────────────────
-
-/** Palette control labels, shared with the mobile Appearance screen. */
-export function usePaletteCopy(): PaletteControlsCopy {
-  const L = useVocab();
-  return {
-    presets: L.stPalettePresets, custom: L.stPaletteCustom, reset: L.stPaletteReset,
-    background: L.stPaletteBackground, foreground: L.stPaletteForeground,
-    hue: L.stPaletteHue, tint: L.stPaletteTint,
-    lightness: L.stPaletteLightness, contrast: L.stPaletteContrast,
-    presetNames: {
-      default: L.stPresetDefault, graphite: L.stPresetGraphite, sepia: L.stPresetSepia,
-      indigo: L.stPresetIndigo, forest: L.stPresetForest, rose: L.stPresetRose,
-      deep: L.stPresetDeep,
-    },
-  };
-}
-
-/** Accent picker labels, shared with the mobile Appearance screen. */
-export function useAccentCopy(): AccentPickerCopy {
-  const L = useVocab();
-  return {
-    label: L.stAccentLabel, default: L.stAccentDefault, blue: L.stAccentBlue,
-    teal: L.stAccentTeal, violet: L.stAccentViolet, rose: L.stAccentRose,
-    orange: L.stAccentOrange, custom: L.stAccentCustom, reset: L.stAccentReset,
-  };
-}
 
 function ColorSection() {
   const L = useVocab();
@@ -203,14 +178,11 @@ function LanguageSection() {
   const lang = useLang();
   const setLang = useSetLang();
   const langSource = useLangSource();
-  // CORTEX_LANG re-wins at boot, so say so rather than let the toggle look authoritative.
-  const hint = langSource === 'env' ? `${L.stLangHint} ${L.stLangEnvPinned}` : L.stLangHint;
   return (
     <SRowGroup>
-      <SRow title={L.stLangLabel} desc={hint} control={
+      <SRow title={L.stLangLabel} desc={languageHint(L, langSource)} control={
         <SSegmented<Lang> value={lang} dataAttr="data-lang-option" ariaLabel={L.stLangLabel}
-          onChange={setLang}
-          options={[{ id: 'en', label: L.stLangEnglish }, { id: 'zh', label: L.stLangChinese }]} />
+          onChange={setLang} options={languageOptions(L)} />
       } />
     </SRowGroup>
   );
