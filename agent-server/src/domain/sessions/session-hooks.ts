@@ -11,7 +11,7 @@ import { continuationRunRequest } from '@domain/runs/builders.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { engines } from '@domain/runs/engines.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { filterHookEntries, loadHookRegistry } from '@store/hook-registry.js';
 import { t } from '@core/i18n.js';
@@ -44,8 +44,11 @@ export function isOnMessageEndHookConfigured(): boolean {
 /** Per-hook context fed to the subprocess (via stdin JSON) and the formatters. */
 export interface SessionHookContext {
   channel: string;
+  /** The Cortex session id — the registry key, the id every Cortex surface and API names. */
   sessionId: string;
   sessionName: string;
+  /** The backend's own id for the session's conversation (its transcript), when it has one. */
+  backendSessionId?: string | null;
   executionId?: string | null;
   profile?: string | null;
 }
@@ -64,11 +67,15 @@ export interface SessionHookFormat {
   emptyLine?: () => string | null;
 }
 
-/** When set, the hook stdout is injected as a fresh agent turn against `targetSessionId`.
+/** When set, the hook stdout is injected as a fresh agent turn on the session's conversation.
  *  All assistant output is appended into the same OutputStream so it visually
  *  continues the hook's status/preview lines. */
 export interface SessionHookInject {
-  targetSessionId: string;
+  /** The Cortex session the injected turn belongs to. */
+  sessionId: string;
+  /** The backend conversation it resumes. Differs from `sessionId` once the backend has assigned
+   *  its own id (Slack, Feishu, the Web after a first turn) or a rewind has moved it. */
+  backendSessionId: string;
   profileName: string | null;
   /** Session-pool key for the injected turn.
    *  - onNew: an ISOLATED key (onNewInjectSessionKey(channel)) so resuming the old session for
@@ -131,7 +138,9 @@ const defaultInjectDeps: InjectDeps = {
   },
 };
 
-/** The next turn on the engine `after` ran on: same session, agent, profile and policy. */
+/** The next turn on the engine `after` ran on: same session, agent, profile, policy and route —
+ *  the route keeps `after`'s trigger, since the gateway URL names it and the process was spawned on
+ *  it; the follow-up's own trigger is what its execution and cost are recorded under. */
 function followUpRequest(
   after: RunRequest,
   next: { prompt: string; trigger: string; backendSessionId: string },
@@ -141,11 +150,15 @@ function followUpRequest(
     runId: randomUUID(),
     session: { ...after.session, backendSessionId: next.backendSessionId },
     prompt: { text: next.prompt, attachments: [] },
-    context: { ...after.context, trigger: next.trigger },
+    context: {
+      ...after.context,
+      trigger: next.trigger,
+      routeTrigger: after.context.routeTrigger ?? after.context.trigger,
+    },
   };
 }
 
-/** Inject hook stdout as a fresh agent turn against `inject.targetSessionId`, routed through
+/** Inject hook stdout as a fresh agent turn on `inject.backendSessionId`, routed through
  *  `stream`. Runs on `inject.sessionKey`; for onNew that is an isolated key which we close
  *  afterwards (the resurrected old session must not linger on / collide with the channel slot).
  *  For onMessageEnd the key IS the channel (live conversation) and is left open. */
@@ -159,13 +172,12 @@ export async function runHookInjection(
   if (!inject) return;
   try {
     const request: RunRequest = inject.follows ? followUpRequest(inject.follows, {
-      prompt: output, trigger: inject.trigger ?? `hook:${spec.name}`, backendSessionId: inject.targetSessionId,
+      prompt: output, trigger: inject.trigger ?? `hook:${spec.name}`, backendSessionId: inject.backendSessionId,
     }) : continuationRunRequest({
       session: {
-        // The injected turn resumes the OLD backend session; there is no separate Cortex track id
-        // for it, so both fields carry the same id.
-        sessionId: inject.targetSessionId,
-        backendSessionId: inject.targetSessionId,
+        // The injected turn resumes the OLD backend conversation, as a turn of its Cortex session.
+        sessionId: inject.sessionId,
+        backendSessionId: inject.backendSessionId,
         // The pool key is the sessionKey the hook has always used (onNew: the isolated
         // `${channel}::onnew-hook`; onMessageEnd: the channel). Changing it would silently re-pool
         // every live hook session, so it stays keyed on the injected session key and not on the
@@ -213,6 +225,7 @@ function buildHookEnv(name: HookName, ctx: SessionHookContext): NodeJS.ProcessEn
     CORTEX_HOOK_SESSION_NAME: ctx.sessionName,
     CORTEX_HOOK_TRIGGER: name === 'onNew' ? 'new' : 'messageEnd',
   };
+  if (ctx.backendSessionId) env.CORTEX_HOOK_BACKEND_SESSION_ID = ctx.backendSessionId;
   if (ctx.executionId) env.CORTEX_HOOK_EXECUTION_ID = ctx.executionId;
   return env;
 }
@@ -225,6 +238,7 @@ function buildHookPayload(
     channel: ctx.channel,
     sessionId: ctx.sessionId,
     sessionName: ctx.sessionName,
+    backendSessionId: ctx.backendSessionId ?? null,
     executionId: ctx.executionId ?? null,
     profile: ctx.profile ?? null,
     trigger: name === 'onNew' ? 'new' : 'messageEnd',
@@ -345,17 +359,42 @@ export async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?:
   return null;
 }
 
-/** Resolve the profile name to use when injecting the onNew hook's stdout as a fresh
- *  agent turn. The session registry is the SINGLE source of truth (B.T2): the per-session
- *  record carries the profileName, correct for both user-conversation and thread-spawned
- *  sessions. The old channel-level conversation-ledger fallback is gone — it could disagree
- *  with the registry on a channel hosting both kinds of session and resume with the wrong
- *  profile (routing through the wrong gateway mode → Anthropic 400 on thinking blocks). */
-async function defaultLookupRegistryProfile(sessionId: string): Promise<string | null> {
-  const name = await sessionStore.lookupBySessionId(sessionId);
-  if (!name) return null;
-  const record = await sessionStore.lookupSession(name);
-  return record?.profileName ?? null;
+interface SessionHookTarget {
+  sessionName: string | null;
+  profile: string | null;
+  /** The backend conversation an injected turn resumes; null when the session has none yet. */
+  backendSessionId: string | null;
+}
+
+/** What a session hook reads about its session, from the registry, keyed by the Cortex session id.
+ *  The registry is the SINGLE source of truth for the profile (B.T2): the per-session record is
+ *  right for every kind of session, where the old channel-level ledger fallback could name another
+ *  session on the same channel and resume with the wrong profile (wrong gateway mode → Anthropic
+ *  400 on thinking blocks). */
+async function sessionHookTarget(sessionId: string): Promise<SessionHookTarget> {
+  const record = await sessionStore.getById(sessionId);
+  return {
+    sessionName: record?.name ?? null,
+    profile: record?.profileName ?? null,
+    backendSessionId: record ? effectiveBackendSessionId(record) : null,
+  };
+}
+
+function onNewHookSpec(channel: string, sessionId: string, target: SessionHookTarget): SessionHookSpec {
+  const { profile, backendSessionId } = target;
+  return {
+    name: 'onNew',
+    ctx: { channel, sessionId, sessionName: target.sessionName ?? sessionId.slice(0, 8), profile, backendSessionId },
+    format: ONNEW_FORMAT,
+    // A session with no backend conversation yet has nothing for a pre-close turn to continue.
+    inject: backendSessionId ? {
+      sessionId,
+      backendSessionId,
+      profileName: profile,
+      sessionKey: onNewInjectSessionKey(channel),
+      trigger: 'hook:onNew',
+    } : null,
+  };
 }
 
 /** Build the onNew SessionHookSpec + a fresh stream. Returns null when the hook isn't
@@ -372,27 +411,10 @@ async function prepareOnNewRun(
     log.info('onNew hook skipped: no active session for channel', channel);
     return null;
   }
-  const sessionName = (await sessionStore.lookupBySessionId(sessionId)) || sessionId.slice(0, 8);
-
-  // Registry is the single source of truth for the per-session profileName.
-  const profileName = await defaultLookupRegistryProfile(sessionId);
-
+  const target = await sessionHookTarget(sessionId);
   const anchor = await resolveOnNewThreadAnchor(channel, threadAnchorId);
   const stream = adapter.openOutputStream({ type: 'interactive-reply', conduit: channel, sessionId: '' }, { threadId: anchor });
-
-  const spec: SessionHookSpec = {
-    name: 'onNew',
-    ctx: { channel, sessionId, sessionName, profile: profileName },
-    format: ONNEW_FORMAT,
-    inject: {
-      targetSessionId: sessionId,
-      profileName,
-      sessionKey: onNewInjectSessionKey(channel),
-      trigger: 'hook:onNew',
-    },
-  };
-
-  return { spec, stream };
+  return { spec: onNewHookSpec(channel, sessionId, target), stream };
 }
 
 /** Fire-and-forget onNew hook used by the !new command and the "New" status button.
@@ -415,7 +437,10 @@ export async function fireAndForgetPreCloseHook(
 
 export interface OnMessageEndArgs {
   channel: string;
+  /** The Cortex session id. */
   sessionId: string;
+  /** The backend conversation the turn ran on; a follow-up turn resumes it. */
+  backendSessionId: string | null;
   sessionName: string;
   executionId: string;
   profile?: string | null;
@@ -436,18 +461,20 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
       channel: args.channel,
       sessionId: args.sessionId,
       sessionName: args.sessionName,
+      backendSessionId: args.backendSessionId,
       executionId: args.executionId,
       profile: args.profile ?? null,
     },
     format: ONMESSAGEEND_FORMAT,
-    inject: {
-      targetSessionId: args.sessionId,
+    inject: args.backendSessionId ? {
+      sessionId: args.sessionId,
+      backendSessionId: args.backendSessionId,
       profileName: args.profile ?? null,
       // onMessageEnd continues the live conversation — keep it on the channel pool slot.
       sessionKey: args.channel,
       trigger: 'hook:onMessageEnd',
       follows: args.request ?? null,
-    },
+    } : null,
   };
   await runSessionHook(spec, args.stream);
 }
@@ -457,7 +484,12 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
  *  one continuous thread with the reply we just finished — no top-level leak, no detached stream.
  *  The profile comes from the turn's conversation record, never from a global. */
 export async function runMessageEndForTurn(args: {
-  channel: string; sessionId: string | null; sessionName: string | null;
+  channel: string;
+  /** The Cortex session id (the registry key), not the backend's. */
+  sessionId: string | null;
+  /** The backend id the turn reported; the registry's resume target when it reported none. */
+  backendSessionId: string | null;
+  sessionName: string | null;
   executionId: string | null; stream: OutputStream | null | undefined;
   request?: RunRequest | null;
 }): Promise<void> {
@@ -469,13 +501,14 @@ export async function runMessageEndForTurn(args: {
   try {
     // Profile comes from the session registry (the single source of truth), keyed by the turn's
     // sessionId — never from the channel-level ledger, which could name a different session.
-    const profile = await defaultLookupRegistryProfile(args.sessionId);
+    const target = await sessionHookTarget(args.sessionId);
     await runMessageEndSessionHook({
       channel: args.channel,
       sessionId: args.sessionId,
+      backendSessionId: args.backendSessionId ?? target.backendSessionId,
       sessionName: args.sessionName ?? '',
       executionId: args.executionId ?? '',
-      profile,
+      profile: target.profile,
       stream: args.stream,
       request: args.request,
     });

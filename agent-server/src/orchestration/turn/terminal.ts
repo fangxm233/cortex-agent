@@ -39,7 +39,7 @@ export type BackgroundHoldInstaller = (ctx: {
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -92,8 +92,9 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   // message (and historically could desync when the retired ExitPlanMode hook's mtime-based
   // lookup picked a stale file).
 
+  // The hook addresses the session by its Cortex id; the backend id is what a follow-up resumes.
   await runMessageEndForTurn({
-    channel, sessionId: result?.sessionId ?? null, sessionName, executionId,
+    channel, sessionId: trackSessionId, backendSessionId: result?.sessionId ?? null, sessionName, executionId,
     stream: (onAssistantMessage as any)?.stream as OutputStream | undefined,
     request,
   });
@@ -248,6 +249,6 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return 'rate-limited';
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request });
   return 'completed';
 }

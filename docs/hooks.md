@@ -148,7 +148,7 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 | `cortex:schedule.fired` | A schedule fires | `scheduleId`, `name`, `project` |
 | `cortex:client.connected` | A remote device client registers | `device` |
 | `cortex:client.disconnected` | A remote device client drops | `device`, `reason` when known |
-| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `sessionName`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
+| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `sessionName`, `backendSessionId`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
 
 ### Matchers
@@ -252,14 +252,23 @@ Both are declared like any other hook; the shipped `session-new-hook`
 declaration points at `new-session-hook.mjs` with `result` set to
 `stdout-as-prompt`.
 
+`sessionId` is the Cortex session id — the key of the session registry, from
+which the `cortex-hook` helpers resolve a channel. `backendSessionId` is the
+backend's own id for the session's conversation (the name of its transcript),
+or `null` while the session has had no turn; the two differ once the backend has
+assigned its own id or a rewind has moved the conversation.
+
 Beyond the JSON payload on stdin, session hooks receive `CORTEX_HOOK_CHANNEL`,
 `CORTEX_HOOK_SESSION_ID`, `CORTEX_HOOK_SESSION_NAME`, `CORTEX_HOOK_TRIGGER`, and
-`CORTEX_HOOK_EXECUTION_ID` in the environment. Non-empty stdout is injected as a
-fresh agent turn — for `session.new` against the still-alive session on an
-isolated session key that is closed afterwards, so the pre-close turn cannot
-resurrect the old session under the channel; for `session.messageEnd` on the
-channel itself, so the follow-up continues the live conversation and its output
-threads under the reply that triggered it.
+`CORTEX_HOOK_EXECUTION_ID` in the environment, plus
+`CORTEX_HOOK_BACKEND_SESSION_ID` when the session has a backend conversation.
+Non-empty stdout is injected as a fresh agent turn that resumes that
+conversation — for `session.new` on an isolated session key that is closed
+afterwards, so the pre-close turn cannot resurrect the old session under the
+channel; for `session.messageEnd` on the channel itself, so the follow-up
+continues the live conversation and its output threads under the reply that
+triggered it. A session with no backend conversation has nothing to resume, so
+its hook output is shown but not injected.
 
 ## The hook-bridge: blocking calls over HTTP
 

@@ -79,7 +79,8 @@ function makeSessionSpec(): SessionHookSpec {
 function makeInjectedSpec(): SessionHookSpec {
   const spec = makeSessionSpec();
   spec.inject = {
-    targetSessionId: 'sess-target',
+    sessionId: 'sess-track',
+    backendSessionId: 'sess-target',
     profileName: 'review-profile',
     sessionKey: spec.ctx.channel,
     trigger: 'hook:onMessageEnd',

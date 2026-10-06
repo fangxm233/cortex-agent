@@ -54,7 +54,8 @@ function onNewSpec(channel: string, oldSessionId: string): SessionHookSpec {
     ctx: { channel, sessionId: oldSessionId, sessionName: oldSessionId.slice(0, 8), profile: null },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
-      targetSessionId: oldSessionId,
+      sessionId: `track-${oldSessionId}`,
+      backendSessionId: oldSessionId,
       profileName: null,
       sessionKey: onNewInjectSessionKey(channel),
       trigger: 'hook:onNew',
@@ -85,6 +86,7 @@ test('runHookInjection (onNew) — injects on the isolated key, resumes the OLD 
   assert.equal(startRunCalls.length, 1, 'startRun called exactly once');
   const request = startRunCalls[0].request;
   assert.equal(request.session.backendSessionId, 'old-sess', 'injection resumes the OLD session (pre-close turn)');
+  assert.equal(request.session.sessionId, 'track-old-sess', 'as a turn of its Cortex session');
   assert.equal(request.session.engineKey, onNewInjectSessionKey(channel), 'injection uses the isolated pool key');
   assert.notEqual(request.session.engineKey, channel,
     'injection must NOT reuse the channel live pool slot — otherwise the new conversation resumes the old session');
@@ -103,7 +105,10 @@ test('runHookInjection (onMessageEnd) — injects on the channel key and does NO
     name: 'onMessageEnd',
     ctx: { channel, sessionId: 'live-sess', sessionName: 'live', profile: null },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
-    inject: { targetSessionId: 'live-sess', profileName: null, sessionKey: channel, trigger: 'hook:onMessageEnd' },
+    inject: {
+      sessionId: 'track-live', backendSessionId: 'live-sess', profileName: null, sessionKey: channel,
+      trigger: 'hook:onMessageEnd',
+    },
   };
 
   await runHookInjection('reminder', spec, stream, deps);
@@ -149,10 +154,10 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   } as unknown as RunRequest;
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',
-    ctx: { channel, sessionId: 'backend-live', sessionName: 'cortex-live', profile: null },
+    ctx: { channel, sessionId: 'track-live', sessionName: 'cortex-live', backendSessionId: 'backend-live', profile: null },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
-      targetSessionId: 'backend-live', profileName: null, sessionKey: channel,
+      sessionId: 'track-live', backendSessionId: 'backend-live', profileName: null, sessionKey: channel,
       trigger: 'hook:onMessageEnd', follows: turn,
     },
   };
@@ -163,7 +168,8 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   assert.notEqual(injected.runId, turn.runId);
   assert.deepEqual(injected.session, { ...turn.session, backendSessionId: 'backend-live' });
   assert.deepEqual(injected.prompt, { text: 'reminder', attachments: [] });
-  assert.deepEqual(injected.context, { ...turn.context, trigger: 'hook:onMessageEnd' });
+  // Recorded as the hook's turn, routed like the turn it follows (the route is the engine's).
+  assert.deepEqual(injected.context, { ...turn.context, trigger: 'hook:onMessageEnd', routeTrigger: 'user' });
   assert.equal(injected.spec, turn.spec);
   assert.equal(injected.policy, turn.policy);
   assert.equal(injected.profile, turn.profile);
