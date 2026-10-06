@@ -446,7 +446,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
     case 'tools':
       return (
-        <div className="group">
+        <div className="group" data-row="tools">
           <ToolCallsRow
             calls={row.calls.map((c) => ({ kind: c.kind, input: c.input, ...(c.images ? { images: c.images } : {}), ...(c.debug ? { debug: c.debug } : {}) }))}
             sessionId={streamKey}

@@ -389,6 +389,12 @@ textarea::placeholder {
   }
 }
 
+/* Tool rows pull in 8px each side (ToolCallsRow's -8px margin); give back 8px between two of them
+   so adjacent tool rows sit as far apart as a tool row and prose. */
+[data-row='tools'] + [data-row='tools'] {
+  margin-top: 8px;
+}
+
 .usage-meter-fill {
   transition: width 450ms ease-out;
 }
