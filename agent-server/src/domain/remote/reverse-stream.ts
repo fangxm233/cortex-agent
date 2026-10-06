@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import type { WebSocket } from 'ws';
 import { createLogger } from '@core/log.js';
+import type { OpenFileStreamFrame, OpenStreamFrame } from './client-protocol.js';
 
 const log = createLogger('reverse-stream');
 
@@ -43,7 +44,7 @@ export function parseStreamId(rawUrl: string | undefined): string | null {
   return id && /^[0-9a-f]{32}$/.test(id) ? id : null;
 }
 
-export interface StreamRequest<M = { type: 'open-stream'; streamId: string; host: string; port: number }> {
+export interface StreamRequest<M extends OpenStreamFrame | OpenFileStreamFrame = OpenStreamFrame> {
   id: string;
   /** Message to hand to the device over its control socket. */
   message: M;
@@ -78,14 +79,12 @@ export function requestStream(device: string, host: string, port: number): Strea
   return { id, message: { type: 'open-stream', streamId: id, host, port }, socket };
 }
 
-export type OpenFileStreamMessage = { type: 'open-file-stream'; streamId: string; path: string };
-
 /**
  * Same handshake as `requestStream`, but the device answers with the bytes of a FILE rather than a
  * TCP connection. Both share the claim table, the cap and the callback path, so a file transfer
  * needs no new port, credential or tunnel — only a different message on the control socket.
  */
-export function requestFileStream(device: string, filePath: string): StreamRequest<OpenFileStreamMessage> {
+export function requestFileStream(device: string, filePath: string): StreamRequest<OpenFileStreamFrame> {
   const { id, socket } = mintStream(device, filePath);
   return { id, message: { type: 'open-file-stream', streamId: id, path: filePath }, socket };
 }

@@ -1,6 +1,7 @@
 import * as net from 'net';
 import WebSocket from 'ws';
 import { createLogger } from './log.js';
+import type { OpenStreamFrame } from './protocol.js';
 
 const log = createLogger('reverse-stream');
 
@@ -12,15 +13,8 @@ const log = createLogger('reverse-stream');
  * The callback reuses the control socket's URL and token, changing only the path: whatever route,
  * tunnel and credential already work for the control socket work here by construction.
  */
-export interface OpenStreamMessage {
-  type: 'open-stream';
-  streamId: string;
-  host: string;
-  port: number;
-}
-
-export function isOpenStream(msg: unknown): msg is OpenStreamMessage {
-  const m = msg as OpenStreamMessage;
+export function isOpenStream(msg: unknown): msg is OpenStreamFrame {
+  const m = msg as OpenStreamFrame;
   return !!m && m.type === 'open-stream'
     && typeof m.streamId === 'string'
     && typeof m.host === 'string'
@@ -57,7 +51,7 @@ export interface ReverseStreamDeps {
  * Serve one open-stream request. Errors are logged and the sockets closed: a failed stream must
  * never take the control connection down with it, because that would disconnect the whole device.
  */
-export function openReverseStream(msg: OpenStreamMessage, deps: ReverseStreamDeps): void {
+export function openReverseStream(msg: OpenStreamFrame, deps: ReverseStreamDeps): void {
   if (!isAllowedTarget(msg.host, msg.port)) {
     log.warn(`refusing reverse stream to ${msg.host}:${msg.port} — only loopback ports ≥ 1024`);
     return;

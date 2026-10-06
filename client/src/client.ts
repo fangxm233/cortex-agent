@@ -13,6 +13,7 @@ import { isOpenFileStream, openFileStream } from './file-stream.js';
 import { resolveServerUrl } from './server-url.js';
 import { detectGpuCount } from './gpu-detect.js';
 import { computeSelfBundleHash, handleUpdateMessage, defaultRespawn } from './self-update.js';
+import type { ClientAction, ClientCapability, ClientFrame, CommandFrame, ServerFrame, UpdateFrame } from './protocol.js';
 
 const log = createLogger('cortex-client');
 
@@ -179,11 +180,11 @@ function extractImageDimensions(buf: Buffer, mime: string): { width: number; hei
 
 // --- Capabilities detection ---
 
-function detectCapabilities(): string[] {
+function detectCapabilities(): ClientCapability[] {
   // `file-stream` is a protocol capability, not a probed binary: it tells the server this client
   // is new enough to answer `file.stat` + `open-file-stream`, so the server can fail with a clear
   // message on an old client instead of timing out waiting for a callback that never comes.
-  const caps: string[] = ['file-stream'];
+  const caps: ClientCapability[] = ['file-stream'];
   try {
     execFileSync('rg', ['--version'], { timeout: 5000, stdio: 'pipe' });
     caps.push('rg');
@@ -532,53 +533,38 @@ async function handleGrep(params: any): Promise<{ output?: string; error?: strin
 
 // --- Command dispatcher ---
 
-async function handleCommand(action: string, params: any): Promise<{ success: boolean; data?: any; error?: string }> {
-  switch (action) {
-    case 'bash': {
-      const timeout = Math.min(params.timeout || 120000, 600000);
-      if (params.run_in_background) {
-        const { pid } = execBashBackground(params.command);
-        return {
-          success: true,
-          data: { stdout: `Background process started with PID ${pid}`, stderr: '', exitCode: 0 },
-        };
-      }
-      const result = await execBash(params.command, timeout);
-      return { success: true, data: result };
-    }
-    case 'read': {
-      const result = handleRead(params);
-      if (result.error) return { success: false, error: result.error };
-      return { success: true, data: result };
-    }
-    case 'file.stat': {
-      const result = handleFileStat(params);
-      if (result.error) return { success: false, error: result.error };
-      return { success: true, data: result };
-    }
-    case 'write': {
-      const result = handleWrite(params);
-      if (result.error) return { success: false, error: result.error };
-      return { success: true, data: result };
-    }
-    case 'edit': {
-      const result = handleEdit(params);
-      if (result.error) return { success: false, error: result.error };
-      return { success: true, data: result };
-    }
-    case 'glob': {
-      const result = await handleGlob(params);
-      if (result.error) return { success: false, error: result.error };
-      return { success: true, data: result };
-    }
-    case 'grep': {
-      const result = await handleGrep(params);
-      if (result.error) return { success: false, error: result.error };
-      return { success: true, data: result };
-    }
-    default:
-      return { success: false, error: `Unknown action: ${action}` };
+type CommandOutcome = Pick<Extract<ClientFrame, { type: 'result' }>, 'success' | 'data' | 'error'>;
+
+/** A tool result that reports failure as `{ error }`, shaped for the result frame. */
+function settle(result: { error?: string }): CommandOutcome {
+  return result.error ? { success: false, error: result.error } : { success: true, data: result };
+}
+
+async function handleBashCommand(params: any): Promise<CommandOutcome> {
+  if (params.run_in_background) {
+    const { pid } = execBashBackground(params.command);
+    return {
+      success: true,
+      data: { stdout: `Background process started with PID ${pid}`, stderr: '', exitCode: 0 },
+    };
   }
+  const timeout = Math.min(params.timeout || 120000, 600000);
+  return { success: true, data: await execBash(params.command, timeout) };
+}
+
+const COMMAND_HANDLERS: Record<ClientAction, (params: any) => Promise<CommandOutcome>> = {
+  bash: handleBashCommand,
+  read: async (params) => settle(handleRead(params)),
+  'file.stat': async (params) => settle(handleFileStat(params)),
+  write: async (params) => settle(handleWrite(params)),
+  edit: async (params) => settle(handleEdit(params)),
+  glob: async (params) => settle(await handleGlob(params)),
+  grep: async (params) => settle(await handleGrep(params)),
+};
+
+async function handleCommand(action: string, params: any): Promise<CommandOutcome> {
+  if (!Object.hasOwn(COMMAND_HANDLERS, action)) return { success: false, error: `Unknown action: ${action}` };
+  return COMMAND_HANDLERS[action as ClientAction](params);
 }
 
 // --- WebSocket connection ---
@@ -587,6 +573,39 @@ let ws: WebSocket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30000;
+
+function sendFrame(socket: WebSocket | null, frame: ClientFrame): void {
+  if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame));
+}
+
+async function runCommand(frame: CommandFrame): Promise<void> {
+  const currentWs = ws;
+  log.info(`Executing ${frame.action}: ${JSON.stringify(frame.params).substring(0, 100)}`);
+  let outcome: CommandOutcome;
+  try {
+    outcome = await handleCommand(frame.action, frame.params || {});
+  } catch (err) {
+    outcome = { success: false, error: (err as Error).message };
+  }
+  sendFrame(currentWs, { type: 'result', commandId: frame.commandId, ...outcome });
+}
+
+function applyUpdate(frame: UpdateFrame): void {
+  const currentWs = ws;
+  handleUpdateMessage(frame, {
+    sendResult: (ok, error) => sendFrame(currentWs, {
+      type: 'update-result',
+      updateId: frame.updateId,
+      device: DEVICE_NAME,
+      hash: frame.hash,
+      ok,
+      ...(error ? { error } : {}),
+    }),
+    closeWs: () => { try { currentWs?.close(1000, 'self-update'); } catch {} },
+    respawn: defaultRespawn,
+    exit: (code) => process.exit(code),
+  });
+}
 
 function connect() {
   const url = SERVER_URL;
@@ -602,29 +621,23 @@ function connect() {
     const capabilities = detectCapabilities();
     // null = could not probe; the server keeps its configured gpuCount instead of zeroing it.
     const gpuCount = detectGpuCount();
-    ws!.send(JSON.stringify({
+    sendFrame(ws, {
       type: 'hello',
       device: DEVICE_NAME,
       platform: PLATFORM,
       capabilities,
       gpuCount,
       bundleHash: BUNDLE_HASH,
-    }));
+    });
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'heartbeat',
-          device: DEVICE_NAME,
-          timestamp: Date.now(),
-        }));
-      }
+      sendFrame(ws, { type: 'heartbeat', device: DEVICE_NAME, timestamp: Date.now() });
     }, HEARTBEAT_INTERVAL_MS);
   });
 
   ws.on('message', async (raw) => {
-    let msg: any;
+    let msg: unknown;
     try {
       msg = JSON.parse(raw.toString());
     } catch {
@@ -648,50 +661,14 @@ function connect() {
       return;
     }
 
-    if (msg.type === 'update') {
-      const currentWs = ws;
-      handleUpdateMessage(msg, {
-        sendResult: (ok, error) => {
-          if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-            currentWs.send(JSON.stringify({
-              type: 'update-result',
-              updateId: msg.updateId,
-              device: DEVICE_NAME,
-              hash: msg.hash,
-              ok,
-              ...(error ? { error } : {}),
-            }));
-          }
-        },
-        closeWs: () => { try { currentWs?.close(1000, 'self-update'); } catch {} },
-        respawn: defaultRespawn,
-        exit: (code) => process.exit(code),
-      });
+    const frame = msg as ServerFrame | null;
+    if (frame?.type === 'update') {
+      applyUpdate(frame);
       return;
     }
 
-    if (msg.type === 'command' && msg.commandId) {
-      const currentWs = ws;
-      log.info(`Executing ${msg.action}: ${JSON.stringify(msg.params).substring(0, 100)}`);
-      try {
-        const result = await handleCommand(msg.action, msg.params || {});
-        if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-          currentWs.send(JSON.stringify({
-            type: 'result',
-            commandId: msg.commandId,
-            ...result,
-          }));
-        }
-      } catch (err) {
-        if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-          currentWs.send(JSON.stringify({
-            type: 'result',
-            commandId: msg.commandId,
-            success: false,
-            error: (err as Error).message,
-          }));
-        }
-      }
+    if (frame?.type === 'command' && frame.commandId) {
+      await runCommand(frame);
     }
   });
 

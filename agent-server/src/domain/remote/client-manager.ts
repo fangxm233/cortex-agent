@@ -1,10 +1,12 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import type { IncomingMessage } from 'http';
 import * as crypto from 'crypto';
 import { applyReportedGpuCount } from './machine-registry.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
+import type { ClientAction, ClientFrame, HelloFrame, ResultFrame, ServerFrame, UpdateResultFrame } from './client-protocol.js';
 
 const log = createLogger('client-manager');
 
@@ -51,7 +53,7 @@ interface PendingCommand {
 }
 
 interface CommandParams {
-  action: string;
+  action: ClientAction;
   params: Record<string, any>;
   timeout?: number;
 }
@@ -116,7 +118,7 @@ function openSocket(device: string): WebSocket {
  * a client knows its hardware, the registry only holds what someone typed. An absent or
  * unparseable `gpuCount` is "unknown" and leaves the configured value alone.
  */
-function registerHelloDevice(ws: WebSocket, msg: any): string | null {
+function registerHelloDevice(ws: WebSocket, msg: HelloFrame): string | null {
   const device: string | undefined = msg.device;
   if (!device) {
     ws.close(4001, 'Missing device name');
@@ -143,7 +145,110 @@ function registerHelloDevice(ws: WebSocket, msg: any): string | null {
   return device;
 }
 
+function parseClientFrame(raw: string): ClientFrame | null {
+  try {
+    const msg = JSON.parse(raw);
+    return msg && typeof msg.type === 'string' ? msg as ClientFrame : null;
+  } catch {
+    return null;
+  }
+}
+
+function settleCommand(frame: ResultFrame): void {
+  const pending = frame.commandId ? pendingCommands.get(frame.commandId) : undefined;
+  if (!pending) return;
+  pendingCommands.delete(frame.commandId);
+  clearTimeout(pending.timer);
+  if (frame.success) pending.resolve(frame.data);
+  else pending.reject(new Error(frame.error || 'Command failed'));
+}
+
+function reportUpdateResult(device: string, frame: UpdateResultFrame): void {
+  try {
+    updateHooks?.onUpdateResult(device, {
+      ok: !!frame.ok,
+      hash: typeof frame.hash === 'string' ? frame.hash : undefined,
+      error: typeof frame.error === 'string' ? frame.error : undefined,
+    });
+  } catch (e) {
+    log.warn(`onUpdateResult hook failed for ${device}: ${(e as Error).message}`);
+  }
+}
+
+/** Every frame but hello; `device` is null until this socket has said hello. */
+function onClientFrame(frame: Exclude<ClientFrame, HelloFrame>, device: string | null): void {
+  if (frame.type === 'result') return settleCommand(frame);
+  if (!device) return;
+  if (frame.type === 'heartbeat') {
+    const info = devices.get(device);
+    if (info) info.lastHeartbeat = new Date();
+  } else if (frame.type === 'update-result') {
+    reportUpdateResult(device, frame);
+  }
+}
+
 // --- Server lifecycle ---
+
+/**
+ * Authenticate at the HTTP upgrade (before the WS is established): the client must send a valid
+ * bearer token in the `x-cortex-token` header. Fail-closed — an unset server token or a
+ * missing/mismatched header rejects the upgrade with 401. This is the no-Cloudflare gate.
+ */
+function verifyClientToken(
+  info: { req: IncomingMessage },
+  cb: (ok: boolean, code?: number, message?: string) => void,
+): void {
+  const provided = info.req.headers[AUTH_HEADER];
+  const headerVal = Array.isArray(provided) ? provided[0] : provided;
+  if (timingSafeEqualStr(getClientToken(), headerVal)) return cb(true);
+  const from = info.req.socket?.remoteAddress || 'unknown';
+  log.warn(`WS auth rejected from ${from}: ${headerVal ? 'invalid token' : 'missing token'}`);
+  cb(false, 401, 'Unauthorized');
+}
+
+function serveControlSocket(ws: WebSocket): void {
+  let deviceName: string | null = null;
+
+  ws.on('message', (raw) => {
+    const frame = parseClientFrame(raw.toString());
+    if (frame?.type === 'hello') deviceName = registerHelloDevice(ws, frame);
+    else if (frame) onClientFrame(frame, deviceName);
+  });
+
+  ws.on('close', (_code, reason) => {
+    if (deviceName && devices.get(deviceName)?.ws === ws) {
+      dropDevice(deviceName, reason.toString().trim() || undefined);
+    }
+  });
+
+  ws.on('error', (err) => {
+    log.error(`WebSocket error for ${deviceName || 'unknown'}: ${err.message}`);
+  });
+}
+
+function onConnection(ws: WebSocket, req: IncomingMessage): void {
+  // A reverse-stream callback rides this same port and token, distinguished only by path. It
+  // carries raw bytes, never control JSON, so it must be handed off BEFORE the message loop —
+  // and an unknown id is closed rather than trusted.
+  const streamId = parseStreamId(req.url);
+  if (!streamId) return serveControlSocket(ws);
+  if (!claimStream(streamId, ws)) {
+    log.warn('reverse callback with an unknown stream id — closing');
+    ws.close(4004, 'Unknown stream');
+  }
+}
+
+/** Mark devices whose heartbeats stopped as offline. */
+function evictStaleDevices(): void {
+  const now = Date.now();
+  const stale = [...devices.values()].filter((info) => now - info.lastHeartbeat.getTime() > HEARTBEAT_TIMEOUT_MS);
+  for (const info of stale) {
+    // Guard: only evict if entry hasn't been replaced by a reconnect
+    if (devices.get(info.device) !== info) continue;
+    try { info.ws.close(4003, 'Heartbeat timeout'); } catch {}
+    dropDevice(info.device, 'Heartbeat timeout');
+  }
+}
 
 function startClientManager(port: number): void {
   if (wss) {
@@ -154,120 +259,14 @@ function startClientManager(port: number): void {
   clientManagerPort = port;
   lifecycleHooks?.onStart();
 
-  // Authenticate at the HTTP upgrade (before the WS is established): the client must send a
-  // valid bearer token in the `x-cortex-token` header. Fail-closed — an unset server token or
-  // a missing/mismatched header rejects the upgrade with 401. This is the no-Cloudflare gate.
-  wss = new WebSocketServer({
-    port,
-    verifyClient: (info, cb) => {
-      const provided = info.req.headers[AUTH_HEADER];
-      const headerVal = Array.isArray(provided) ? provided[0] : provided;
-      if (timingSafeEqualStr(getClientToken(), headerVal)) {
-        cb(true);
-      } else {
-        const from = info.req.socket?.remoteAddress || 'unknown';
-        log.warn(`WS auth rejected from ${from}: ${headerVal ? 'invalid token' : 'missing token'}`);
-        cb(false, 401, 'Unauthorized');
-      }
-    },
-  });
+  wss = new WebSocketServer({ port, verifyClient: verifyClientToken });
   log.info(`WebSocket server started on port ${port}`);
-
-  wss.on('connection', (ws, req) => {
-    // A reverse-stream callback rides this same port and token, distinguished only by path. It
-    // carries raw bytes, never control JSON, so it must be handed off BEFORE the message loop —
-    // and an unknown id is closed rather than trusted.
-    const streamId = parseStreamId(req.url);
-    if (streamId) {
-      if (!claimStream(streamId, ws)) {
-        log.warn('reverse callback with an unknown stream id — closing');
-        ws.close(4004, 'Unknown stream');
-      }
-      return;
-    }
-
-    let deviceName: string | null = null;
-
-    ws.on('message', (raw) => {
-      let msg: any;
-      try {
-        msg = JSON.parse(raw.toString());
-      } catch {
-        return;
-      }
-
-      if (msg.type === 'hello') {
-        deviceName = registerHelloDevice(ws, msg);
-        return;
-      }
-
-      if (msg.type === 'update-result' && deviceName) {
-        try {
-          updateHooks?.onUpdateResult(deviceName, {
-            ok: !!msg.ok,
-            hash: typeof msg.hash === 'string' ? msg.hash : undefined,
-            error: typeof msg.error === 'string' ? msg.error : undefined,
-          });
-        } catch (e) {
-          log.warn(`onUpdateResult hook failed for ${deviceName}: ${(e as Error).message}`);
-        }
-        return;
-      }
-
-      if (msg.type === 'heartbeat' && deviceName) {
-        const info = devices.get(deviceName);
-        if (info) {
-          info.lastHeartbeat = new Date();
-        }
-        return;
-      }
-
-      if (msg.type === 'result' && msg.commandId) {
-        const pending = pendingCommands.get(msg.commandId);
-        if (pending) {
-          pendingCommands.delete(msg.commandId);
-          clearTimeout(pending.timer);
-          if (msg.success) {
-            pending.resolve(msg.data);
-          } else {
-            pending.reject(new Error(msg.error || 'Command failed'));
-          }
-        }
-        return;
-      }
-    });
-
-    ws.on('close', (_code, reason) => {
-      if (deviceName && devices.get(deviceName)?.ws === ws) {
-        dropDevice(deviceName, reason.toString().trim() || undefined);
-      }
-    });
-
-    ws.on('error', (err) => {
-      log.error(`WebSocket error for ${deviceName || 'unknown'}: ${err.message}`);
-    });
-  });
-
-  // Periodic heartbeat check — mark stale devices as offline
-  heartbeatCheckInterval = setInterval(() => {
-    const now = Date.now();
-    const toEvict: Array<{ name: string; info: DeviceInfo }> = [];
-    for (const [name, info] of devices) {
-      if (now - info.lastHeartbeat.getTime() > HEARTBEAT_TIMEOUT_MS) {
-        toEvict.push({ name, info });
-      }
-    }
-    for (const { name, info } of toEvict) {
-      // Guard: only evict if entry hasn't been replaced by a reconnect
-      if (devices.get(name) !== info) continue;
-      try { info.ws.close(4003, 'Heartbeat timeout'); } catch {}
-      dropDevice(name, 'Heartbeat timeout');
-    }
-  }, 5000);
-
+  wss.on('connection', onConnection);
   wss.on('error', (err) => {
     log.error(`Server error: ${err.message}`);
   });
+
+  heartbeatCheckInterval = setInterval(evictStaleDevices, 5000);
 }
 
 async function stopClientManager(): Promise<void> {
@@ -326,7 +325,7 @@ function getClientManagerPort(): number | null {
  * request/response round trip; the reverse channel's `open-stream` has no reply on this socket at
  * all — the device answers by dialing a new WebSocket back, so there is nothing to await here.
  */
-function sendControlMessage(device: string, message: Record<string, unknown>): void {
+function sendControlMessage(device: string, message: ServerFrame): void {
   openSocket(device).send(JSON.stringify(message));
 }
 
@@ -349,12 +348,8 @@ function sendCommand(device: string, command: CommandParams): Promise<any> {
     pendingCommands.set(commandId, { resolve, reject, timer, device });
 
     try {
-      ws.send(JSON.stringify({
-        type: 'command',
-        commandId,
-        action: command.action,
-        params: command.params,
-      }));
+      const frame: ServerFrame = { type: 'command', commandId, action: command.action, params: command.params };
+      ws.send(JSON.stringify(frame));
     } catch (err) {
       pendingCommands.delete(commandId);
       clearTimeout(timer);

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import WebSocket from 'ws';
 import { callbackUrl } from './reverse-stream.js';
 import { createLogger } from './log.js';
+import type { OpenFileStreamFrame } from './protocol.js';
 
 const log = createLogger('file-stream');
 
@@ -21,14 +22,8 @@ const log = createLogger('file-stream');
  * reported by closing the socket with a 4010 code and the reason text — never by a partial file
  * that looks complete, because the server also checks the byte count against the stat'd size.
  */
-export interface OpenFileStreamMessage {
-  type: 'open-file-stream';
-  streamId: string;
-  path: string;
-}
-
-export function isOpenFileStream(msg: unknown): msg is OpenFileStreamMessage {
-  const m = msg as OpenFileStreamMessage;
+export function isOpenFileStream(msg: unknown): msg is OpenFileStreamFrame {
+  const m = msg as OpenFileStreamFrame;
   return !!m && m.type === 'open-file-stream'
     && typeof m.streamId === 'string'
     && typeof m.path === 'string';
@@ -50,7 +45,7 @@ export interface FileStreamDeps {
  * Serve one open-file-stream request. Like `openReverseStream`, every failure is contained: the
  * sockets are closed and the control connection — which carries the whole device — is untouched.
  */
-export function openFileStream(msg: OpenFileStreamMessage, deps: FileStreamDeps): void {
+export function openFileStream(msg: OpenFileStreamFrame, deps: FileStreamDeps): void {
   const normalize = deps.normalizePath ?? ((p: string) => p);
   const connectWs = deps.connectWs ?? ((url, headers) => new WebSocket(url, headers ? { headers } : undefined));
   const openRead = deps.openRead ?? ((p: string) => fs.createReadStream(p));

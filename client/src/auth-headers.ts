@@ -1,3 +1,8 @@
+import type { AuthHeader } from './protocol.js';
+
+/** Must match the server's AUTH_HEADER (pinned by a server-side test). */
+export const AUTH_HEADER: AuthHeader = 'x-cortex-token';
+
 /**
  * Resolve the WS bearer token. Env (CORTEX_CLIENT_TOKEN) takes precedence so an operator can
  * override; otherwise the durable `clientToken` from cortex-client.json is used. The config
@@ -14,5 +19,5 @@ export function resolveClientToken(
 /** WS upgrade headers carrying the bearer token, or undefined when no token is configured. */
 export function buildClientHeaders(token: string): Record<string, string> | undefined {
   const t = token?.trim();
-  return t ? { 'x-cortex-token': t } : undefined;
+  return t ? { [AUTH_HEADER]: t } : undefined;
 }

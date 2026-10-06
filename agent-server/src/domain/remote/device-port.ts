@@ -3,6 +3,7 @@ import type { WebSocket } from 'ws';
 import { createLogger } from '@core/log.js';
 import { requestStream } from './reverse-stream.js';
 import { sendControlMessage } from './client-manager.js';
+import type { OpenStreamFrame } from './client-protocol.js';
 
 const log = createLogger('device-port');
 
@@ -86,10 +87,10 @@ function pipeStream(tcp: net.Socket, ws: WebSocket, label: string): void {
 }
 
 /** Injectable so tests can drive the handshake without a live device. */
-let sendControl: (device: string, message: Record<string, unknown>) => void = sendControlMessage;
+let sendControl: (device: string, message: OpenStreamFrame) => void = sendControlMessage;
 
 export function _setControlSenderForTesting(
-  fn: ((device: string, message: Record<string, unknown>) => void) | null,
+  fn: ((device: string, message: OpenStreamFrame) => void) | null,
 ): void {
   sendControl = fn ?? sendControlMessage;
 }

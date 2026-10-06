@@ -15,6 +15,7 @@ import {
   _testReset,
   type ClientBundle,
 } from '../src/domain/remote/client-hot-reload.js';
+import type { UpdateFrame } from '../src/domain/remote/client-protocol.js';
 
 afterEach(() => {
   _testReset();
@@ -60,7 +61,7 @@ test('shouldPush ignores stale attempts for a different bundle', () => {
 test('a diverged hello gets exactly one update push with the full artifact', () => {
   const bundle = makeBundle('v1');
   _setBundleForTesting(bundle);
-  const sent: Array<{ device: string; message: Record<string, unknown> }> = [];
+  const sent: Array<{ device: string; message: UpdateFrame }> = [];
   _setSendForTesting((device, message) => sent.push({ device, message }));
 
   onHello('lab', 'entry-abc');

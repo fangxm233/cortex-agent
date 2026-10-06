@@ -9,6 +9,7 @@ import {
   sendControlMessage,
 } from './client-manager.js';
 import { STORE_DIR } from '@core/paths.js';
+import type { UpdateFrame } from './client-protocol.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '@core/i18n.js';
@@ -183,7 +184,7 @@ function short(hash: string | null): string {
 }
 
 // Injectable so tests exercise push decisions without a live WebSocket.
-type SendControl = (device: string, message: Record<string, unknown>) => void;
+type SendControl = (device: string, message: UpdateFrame) => void;
 let _send: SendControl = sendControlMessage;
 
 function pushTo(device: string): void {

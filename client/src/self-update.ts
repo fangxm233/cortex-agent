@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { spawn } from 'child_process';
 import { DATA_DIR } from './paths.js';
 import { createLogger } from './log.js';
+import type { UpdateFrame } from './protocol.js';
 
 const log = createLogger('self-update');
 
@@ -16,14 +17,6 @@ export const CLIENT_INSTALL_DIR = path.join(DATA_DIR, 'client');
  *  so dropping it would strand every deployed client on its current version. Remove it from
  *  both ends together once no pre-removal client is left. */
 export const BUNDLE_FILES = ['client.mjs', 'cortex-run-watcher.mjs'] as const;
-
-export interface UpdateMessage {
-  type: 'update';
-  updateId?: string;
-  version?: string;
-  hash: string;
-  files: Array<{ name: string; data: string }>; // data is base64
-}
 
 export interface UpdateIo {
   sendResult: (ok: boolean, error?: string) => void;
@@ -61,7 +54,7 @@ export function computeSelfBundleHash(entryPath = process.argv[1]): string {
   }
 }
 
-function validateUpdateMessage(msg: UpdateMessage): string | null {
+function validateUpdateMessage(msg: UpdateFrame): string | null {
   if (typeof msg.hash !== 'string' || !msg.hash) return 'missing hash';
   if (!Array.isArray(msg.files)) return 'missing files';
   for (const name of BUNDLE_FILES) {
@@ -106,7 +99,7 @@ export function defaultRespawn(entryPath: string): void {
  * leaves the running version in place — the device never goes offline over a
  * failed update.
  */
-export function handleUpdateMessage(msg: UpdateMessage, io: UpdateIo): void {
+export function handleUpdateMessage(msg: UpdateFrame, io: UpdateIo): void {
   const invalid = validateUpdateMessage(msg);
   if (invalid) {
     io.sendResult(false, invalid);

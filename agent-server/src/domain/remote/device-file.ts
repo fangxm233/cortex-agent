@@ -6,6 +6,7 @@ import { WORKSPACE_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { sendCommand, sendControlMessage, getOnlineDevices } from './client-manager.js';
 import { requestFileStream } from './reverse-stream.js';
+import type { ClientCapability } from './client-protocol.js';
 
 const log = createLogger('device-file');
 
@@ -33,7 +34,7 @@ export interface RemoteFileStat {
 }
 
 /** Capability advertised in the device's `hello`. Absent on clients older than this feature. */
-const FILE_STREAM_CAPABILITY = 'file-stream';
+const FILE_STREAM_CAPABILITY: ClientCapability = 'file-stream';
 
 function assertCanStreamFiles(device: string): void {
   const info = getOnlineDevices().find(d => d.device === device);

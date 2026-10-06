@@ -565,7 +565,7 @@ test('sendCommand rejects pending commands when stopClientManager is called mid-
 //     and reverse streams fail now rather than at their timeouts, and recovery is armed.
 const SEND_PATHS: Array<[string, (device: string) => Promise<unknown>]> = [
   ['sendCommand', (device) => sendCommand(device, { action: 'bash', params: { cmd: 'true' } })],
-  ['sendControlMessage', async (device) => sendControlMessage(device, { type: 'ping' })],
+  ['sendControlMessage', async (device) => sendControlMessage(device, { type: 'open-stream', streamId: 's', host: '127.0.0.1', port: 8080 })],
 ];
 
 for (const [label, send] of SEND_PATHS) {
