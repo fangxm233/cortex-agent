@@ -2,7 +2,7 @@
 // hold moved out of `handleAgentSuccess` (T2.2): the five verdict assertions below are unchanged,
 // only the way they are driven is — `holdBackgroundContinuation` + `platformHoldRenderer` instead
 // of the terminal handler, which now only decides that the turn MAY be held.
-import { beforeAll, beforeEach, test } from 'vitest';
+import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { holdBackgroundContinuation } from '../../src/orchestration/turn/background-hold.js';
 import { platformHoldRenderer } from '../../src/orchestration/turn/hold-render-platform.js';
@@ -12,10 +12,7 @@ import { ToolTrace } from '../../src/platform/tool-trace.js';
 import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 import { costRepo } from '../../src/domain/costs/cost-tracker.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
 
-// finalizeBackgroundContinuation resolves the run's profile; a scoped run starts from an empty skeleton home.
-beforeAll(seedTestProfiles);
 beforeEach(() => sessionHolds.clear());
 
 function baseResult(overrides: Record<string, unknown> = {}) {
@@ -79,9 +76,8 @@ function harness() {
       adapter: adapter as any, statusMsg: statusMsg as any, channel: args.channel, stream,
       ownedCallback: onAssistantMessage,
       sessionName: 'cortex-test', sessionId: (result.sessionId as string) ?? null,
-      trackSessionId: args.trackSessionId, startTime: Date.now(), baseResult: result as any,
-      userMessageTs: null, executionId: args.executionId, trigger: 'user',
-      projectId: 'cortex-self', backend: 'claude',
+      startTime: Date.now(), baseResult: result as any,
+      userMessageTs: null, executionId: args.executionId,
       onToolUse: (name, input, toolUseId, subagent) => trace.onToolUse(name, input, subagent, toolUseId),
     }),
   });
@@ -132,24 +128,13 @@ test('undelivered-only completions hold the status waiting and subscribe to the 
   }));
   await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'status sealed done after continuation');
-  // The cost row is written AFTER the seal, on the same detached promise chain, so poll for it
-  // rather than assuming the seal implies it.
-  const readRows = async (): Promise<Array<Record<string, any>>> => {
-    await costRepo.flush();
-    return (await costRepo.readCosts()).entries
-      .filter(entry => entry.execution_id === h.args.executionId) as Array<Record<string, any>>;
-  };
-  let rows = await readRows();
-  await waitFor(async () => (rows = await readRows()).length > 0);
-  assert.equal(rows.length, 1);
-  assert.deepEqual({
-    session: rows[0].session_id, input: rows[0].input_tokens,
-    output: rows[0].output_tokens, cacheRead: rows[0].cache_read_tokens,
-    cacheCreation: rows[0].cache_creation_tokens, requests: rows[0].provider_requests,
-  }, {
-    session: h.args.trackSessionId, input: 0, output: 2,
-    cacheRead: 0, cacheCreation: 3, requests: 1,
-  });
+  // The continuation's cost row is the run's (domain/runs/attempt.ts records every cost_record it
+  // streams); the renderer writing one too would bill the continuation twice.
+  await new Promise(r => setTimeout(r, 50));
+  await costRepo.flush();
+  const rows = (await costRepo.readCosts()).entries
+    .filter(entry => entry.execution_id === h.args.executionId);
+  assert.deepEqual(rows, [], 'the platform renderer records no cost of its own');
 });
 
 test('background prose merges into the originating reply; a subagent\'s notes and foreground events do not', async () => {

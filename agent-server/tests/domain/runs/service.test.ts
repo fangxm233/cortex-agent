@@ -8,6 +8,7 @@ import { runRegistry } from '../../../src/core/run-registry.js';
 import * as executionRegistry from '../../../src/domain/executions/registry.js';
 import { startRun } from '../../../src/domain/runs/service.js';
 import { engines } from '../../../src/domain/runs/engines.js';
+import { costRepo } from '../../../src/domain/costs/cost-tracker.js';
 import type { RunEvent, RunPhase } from '../../../src/domain/runs/events.js';
 import type { RunObserver, RunRequest, RunResult } from '../../../src/domain/runs/request.js';
 
@@ -292,7 +293,7 @@ test('startRun enters the background phase and settles after the continuation re
     seen.events.filter((event) => event.type !== 'foreground_result').map((event) => event.type),
     [
       'engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'phase', 'phase',
-      'assistant_text', 'background_result', 'phase',
+      'assistant_text', 'cost_record', 'background_result', 'phase',
     ],
   );
   assert.ok(seen.events.some((event) => event.type === 'foreground_result'));
@@ -344,7 +345,7 @@ test('hold: a surface that subscribes on the foreground result still gets the wh
 
   assert.deepEqual(
     late.events.map((e) => e.type),
-    ['phase', 'assistant_text', 'background_result', 'phase'],
+    ['phase', 'assistant_text', 'cost_record', 'background_result', 'phase'],
   );
   assert.equal(late.isClosed(), true, 'the late subscriber is closed with the run');
 });
@@ -462,6 +463,47 @@ test('an expired wait never re-arms: the cap means stop waiting, not restart the
     'still in the background phase',
   );
 });
+
+// ── cost ledger ──────────────────────────────────────────────────────────
+//
+// The run records every cost row it streams, background continuations included, on every channel.
+// A surface must not record a continuation of its own (the Slack/Feishu renderer used to, the web
+// one never did — so web continuations went unbilled).
+
+async function ledgerRows(executionId: string): Promise<Array<Record<string, any>>> {
+  await costRepo.flush();
+  return (await costRepo.readCosts()).entries
+    .filter((entry) => entry.execution_id === executionId) as Array<Record<string, any>>;
+}
+
+for (const channel of ['web:sess-1', 'slack:D1']) {
+  test(`${channel}: the foreground turn and its background continuation each land in the ledger once`, async () => {
+    const policy = { ...makeRequest().policy, recordCost: true };
+    const { run, session } = startScriptedRun({
+      policy,
+      context: { ...makeRequest().context, channel },
+    });
+    session.handleLine(taskStarted('bg-1'));
+    session.handleLine(assistantLine('fg'));
+    session.handleLine(resultLine({ result: 'fg', total_cost_usd: 0.1 }));
+    await tick();
+    session.handleLine(taskNotification('bg-1'));
+    session.handleLine(assistantLine('bg'));
+    // The CLI reports `total_cost_usd` cumulatively; the engine bills the difference.
+    session.handleLine(resultLine({ result: 'bg', total_cost_usd: 0.15 }));
+    await run.settled;
+
+    let rows = await ledgerRows(run.executionId);
+    for (let i = 0; i < 50 && rows.length < 2; i++) { await delay(10); rows = await ledgerRows(run.executionId); }
+    assert.deepEqual(
+      rows.map((row) => ({ trigger: row.trigger, cost: row.cost_usd, session: row.session_id })),
+      [
+        { trigger: 'user', cost: 0.1, session: 'sess-1' },
+        { trigger: 'user:bg-continuation', cost: 0.15 - 0.1, session: 'sess-1' },
+      ],
+    );
+  });
+}
 
 // ── cancel ───────────────────────────────────────────────────────────────
 

@@ -70,10 +70,11 @@ export function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentRes
   };
 }
 
-/** The `cost_record` a continuation turn reports, or null when it reported no accounting. */
+/** The `cost_record` a continuation turn reports, or null when it reported neither a cost nor
+ *  usage — the same gate the foreground turn's own row passes (`claude/event-translator.ts`). */
 function continuationCostRecord(result: AgentResult): RunEvent | null {
   const accounting = result.reportedAccounting;
-  if (accounting?.usageReported !== true) return null;
+  if (result.total_cost_usd == null && accounting?.usageReported !== true) return null;
   return {
     type: 'cost_record', provider: 'anthropic', model: accounting?.model ?? 'unknown',
     tokens_in: accounting?.promptTokens ?? null,

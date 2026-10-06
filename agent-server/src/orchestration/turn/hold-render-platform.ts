@@ -2,8 +2,6 @@ import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { OutputStream, PlatformAdapter, MessageRef } from '@platform/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
-import { resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { recordCost } from '@domain/costs/cost-tracker.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { maybeNotifyTurnComplete } from '../turn-notify.js';
 import {
@@ -29,16 +27,11 @@ export interface PlatformHoldDeps {
   sessionName: string | null;
   /** Backend session id, for the status line's session tag. */
   sessionId: string | null;
-  /** Stable Cortex tracking id, for cost attribution. */
-  trackSessionId: string | null;
   startTime: number;
   /** The foreground result whose totals the final line adds to. */
   baseResult: AgentResult;
   userMessageTs: string | null;
   executionId: string | null;
-  trigger: string;
-  projectId: string;
-  backend: string;
   /** The turn's tool trace, when it is on. */
   onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
 }
@@ -96,7 +89,7 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
         case 'complete':
         case 'grace':
           if (kind === 'grace') log.info(`background grace timeout: sealing ${channel} without a continuation`);
-          void finalize(deps, totals.continuation, merged)
+          void finalize(deps, merged)
             .catch((e) => log.error('finalizeBackgroundContinuation failed:', (e as Error)?.message ?? e));
           return;
         case 'max-wait': {
@@ -133,8 +126,9 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
 }
 
 /** Seal a held turn once its background continuation completes: final line, push notification,
- *  ledger close, streaming teardown, and the continuation's own cost row. */
-async function finalize(deps: PlatformHoldDeps, cont: AgentResult | null, metrics: string): Promise<void> {
+ *  ledger close and streaming teardown. The continuation's cost row is the run's own
+ *  (`domain/runs/attempt.ts`), recorded as it streamed. */
+async function finalize(deps: PlatformHoldDeps, metrics: string): Promise<void> {
   const { adapter, statusMsg, channel, sessionName, sessionId, startTime } = deps;
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
   const statusText = renderTurnStatus({ kind: 'done' }, { sessionName, sessionId, elapsedStr, metrics });
@@ -148,36 +142,4 @@ async function finalize(deps: PlatformHoldDeps, cont: AgentResult | null, metric
       .catch((e) => log.error('completeTurn failed:', (e as Error).message));
   }
   activeTurns.releaseStreamingCallback(channel, deps.ownedCallback);
-  // A grace verdict has no continuation of its own — nothing was reported, so nothing is recorded.
-  if (!cont) return;
-  await recordBackgroundCost({
-    result: cont, projectId: deps.projectId, trigger: deps.trigger, backend: deps.backend,
-    mode: resolveRunConfig({ channel }).profile.mode,
-    sessionId: deps.trackSessionId ?? sessionId, executionId: deps.executionId,
-  }).catch((e) => log.warn('recordCost (bg-continuation) failed:', (e as Error).message));
-}
-
-async function recordBackgroundCost(input: {
-  result: AgentResult; projectId: string; trigger: string; backend: string;
-  /** The mode the continuation actually ran under — the channel's profile, not a global (D5). */
-  mode: string | null;
-  sessionId: string | null; executionId: string | null;
-}): Promise<void> {
-  const accounting = input.result.reportedAccounting;
-  if (input.result.total_cost_usd == null && accounting?.usageReported !== true) return;
-  await recordCost({
-    project: input.projectId,
-    trigger: input.trigger ? `${input.trigger}:bg-continuation` : 'bg-continuation',
-    cost_usd: input.result.total_cost_usd, backend: input.backend,
-    mode: input.mode ?? null, source: 'estimate',
-    input_tokens: accounting?.inputTokens ?? null,
-    output_tokens: accounting?.outputTokens ?? null,
-    prompt_tokens: accounting?.promptTokens ?? null,
-    cache_read_tokens: accounting?.cacheReadTokens ?? null,
-    cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
-    provider_requests: Number.isSafeInteger(input.result.num_turns)
-      && Number(input.result.num_turns) > 0 ? input.result.num_turns : null,
-    session_id: input.sessionId, execution_id: input.executionId,
-    provider: 'anthropic', model: accounting?.model ?? undefined,
-  });
 }

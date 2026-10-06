@@ -32,6 +32,7 @@ test('claude run (a): a background task outliving the turn is delivered by a con
     'phase',
     'phase',
     'assistant_text',
+    'cost_record',        // the continuation reported a cost; the run files it
     'background_result',
     'phase',
   ]);
@@ -126,6 +127,7 @@ test('claude run (c): an echo after the result opens a synthetic turn on the run
     // ...the injected message's reply opens its own turn...
     'phase',
     'assistant_text',
+    'cost_record',
     'background_result',
     // ...and the run ends by itself once that reply has landed. Nothing has to cancel it: the
     // obligation the injection created is released when the turn it opened does, and the turn's

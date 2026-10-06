@@ -13,7 +13,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
-import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveProfile } from '@domain/agents/index.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
@@ -407,12 +407,8 @@ export class Turn {
           ? ({ stream, backendSessionId: backendId }) => this.installHold({
             result, run, renderer: platformHoldRenderer({
               adapter, statusMsg, channel, stream, ownedCallback: callbacks.onAssistantMsg, sessionName,
-              sessionId: backendId, trackSessionId: sessionId, startTime: this.startTime,
+              sessionId: backendId, startTime: this.startTime,
               baseResult: result, userMessageTs, executionId: run.executionId,
-              trigger: this.input.trigger, projectId,
-              // Continuation cost is attributed to the session's bound project (threaded from the
-              // caller), NOT re-derived from the message text.
-              backend: resolveBackendForChannel(channel),
               onToolUse: callbacks.onToolUse,
             }),
             transcript: sink,

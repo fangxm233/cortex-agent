@@ -100,7 +100,8 @@ test('hold: settles at the foreground result but keeps streaming until the work 
     pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1,
   }));
 
-  assert.deepEqual(h.events.map((e) => e.type), ['phase', 'phase', 'assistant_text', 'background_result', 'phase']);
+  // A continuation that reports a cost files it, ahead of its result (the run records it).
+  assert.deepEqual(h.events.map((e) => e.type), ['phase', 'phase', 'assistant_text', 'cost_record', 'background_result', 'phase']);
   const text = h.events.find((e) => e.type === 'assistant_text');
   assert.deepEqual(text, { type: 'assistant_text', text: 'done: DONE', model: 'claude-opus-5', phase: 'background' });
   assert.deepEqual(h.events.at(-1), {

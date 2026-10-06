@@ -4,7 +4,8 @@
 // and hand back the stream plus the two results a caller can await. Everything downstream of
 // `engine.run()` — the background phase, the watchdog, when the run is really over — belongs to the
 // engine, so this module is wiring plus the two things that must happen per attempt and nowhere
-// else: the frozen identity a benchmark journal links to, and cost attribution.
+// else: the frozen identity a benchmark journal links to, and cost attribution (background
+// continuations included — no surface records cost on its own).
 //
 // Two results, deliberately: `foreground` is the turn the caller is waiting on, `settled` is the
 // whole attempt with its background phase folded in. A terminal tally must read `settled` — reading
@@ -78,17 +79,26 @@ function costAttribution(
   });
 }
 
-/** Record one backend cost event against this attempt. */
+/** The ledger trigger of a cost row. A background continuation is billed to the same turn, tagged
+ *  so the spend the background phase added stays visible in the trigger breakdown. */
+function costTrigger(trigger: string | undefined, continuation: boolean): string {
+  if (!continuation) return trigger || 'unknown';
+  return trigger ? `${trigger}:bg-continuation` : 'bg-continuation';
+}
+
+/** Record one backend cost event against this attempt. This is the only place a run's spend
+ *  reaches the ledger — foreground turn and background continuations alike, on every channel. */
 function recordAttemptCost(
   event: Extract<RunEvent, { type: 'cost_record' }>,
   input: StartAttemptInput,
   attribution: Readonly<CostAttribution>,
+  continuation: boolean,
 ): void {
   if (input.request.policy.recordCost === false) return;
   void recordCost({
     ...attribution,
     project: input.request.context.project || 'general',
-    trigger: input.request.context.trigger || 'unknown',
+    trigger: costTrigger(input.request.context.trigger, continuation),
     cost_usd: event.cost_usd, backend: input.attempt.backend,
     mode: input.attempt.mode || 'api', source: 'estimate',
     input_tokens: event.input_tokens, output_tokens: event.output_tokens,
@@ -224,15 +234,14 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
     throw error;
   }
 
-  // The foreground turn is over when the engine says so; an attempt bills only what it started.
+  // The foreground turn is over when the engine says so; every cost row after that belongs to a
+  // background continuation of the same attempt.
   let foregroundOver = false;
   const foreground = deferred<AgentResult>();
   const eventLoop = (async (): Promise<void> => {
     try {
       for await (const event of engineRun.events) {
-        if (event.type === 'cost_record' && !foregroundOver) {
-          recordAttemptCost(event, input, attribution);
-        }
+        if (event.type === 'cost_record') recordAttemptCost(event, input, attribution, foregroundOver);
         input.onEvent(event);
         if (event.type === 'foreground_result') {
           foregroundOver = true;
