@@ -1,7 +1,8 @@
-import { afterEach, test, vi } from 'vitest';
+import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 const STORE = path.join(process.env.CORTEX_HOME!, 'data');
 const STATE = path.join(STORE, 'agent-state.json');
@@ -15,9 +16,8 @@ function clean() {
 
 /** A fresh module registry per case: the store pins STORE_DIR at import time, and the migration
  *  it performs is exactly a first-import side effect. */
-async function freshModule() {
-  vi.resetModules();
-  return import('../../../src/domain/agents/agent-state.js');
+function freshModule() {
+  return importWithFreshRegistry(() => import('../../../src/domain/agents/agent-state.js'));
 }
 
 afterEach(() => clean());

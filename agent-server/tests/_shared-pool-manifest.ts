@@ -6,7 +6,7 @@
 //      are fine). Reading seeded config is fine.
 //   2. No imports of stateful module singletons (stores, registries, anything
 //      tests elsewhere reset via _testReset / fresh-import helpers).
-//   3. No fresh-import machinery (module-loader.ts, vi.resetModules, dynamic
+//   3. No fresh-import machinery (helpers/fresh-module.ts, vi.resetModules, dynamic
 //      import cache-busting) — pointless and misleading under isolate:false.
 //   4. No subprocess spawn, no listeners/sockets, no fs.watch.
 //   5. No process.env mutation (env persists across files in a worker) and no

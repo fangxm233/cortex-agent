@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, test, vi } from 'vitest';
+import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 // What `effectiveProfile` owes the selection feature: the channel's chosen model / provider /
 // thinking reach the primary attempt, the gateway route follows the provider, nothing the profile
@@ -35,9 +36,8 @@ function seed(state: Record<string, unknown>) {
 }
 
 /** config.ts caches the channel overrides at import, so each case needs its own registry. */
-async function freshResolver() {
-  vi.resetModules();
-  return import('../../../src/domain/runs/config-resolver.js');
+function freshResolver() {
+  return importWithFreshRegistry(() => import('../../../src/domain/runs/config-resolver.js'));
 }
 
 beforeEach(() => { rmSync(STATE, { force: true }); });

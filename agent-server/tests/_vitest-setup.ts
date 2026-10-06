@@ -53,4 +53,4 @@ process.env.NODE_TEST_CONTEXT = process.env.NODE_TEST_CONTEXT ?? '1';
 // (`t.onTestFinished(() => mod._testReset())`, an `afterEach`, or try/finally). Never write the
 // reset as the last statement of the test body: a failing assertion skips it, the leaked handle
 // keeps Node's event loop alive, and the run hangs after the last test.
-// Reference helper: `freshModuleWithCleanup` in tests/rate-limit-throttle.test.ts.
+// Reference helper: `importFreshWithReset` in tests/helpers/fresh-module.ts.

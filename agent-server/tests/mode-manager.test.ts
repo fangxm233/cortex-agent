@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { CONFIG_DIR } from '../src/core/paths.js';
-import { importFresh } from './module-loader.js';
+import { importFresh } from './helpers/fresh-module.js';
 
 // Standard import (no cache buster) — same singleton instance that mode-manager uses
 import { _testSetHealthy, GATEWAY_URL } from './../src/domain/costs/gateway-manager.js';
@@ -100,10 +100,10 @@ test('importing the credential and route modules does NOT mutate ANTHROPIC_API_K
   process.env.ANTHROPIC_BASE_URL = 'https://import-probe.example.test';
 
   for (const modulePath of [
-    './../src/domain/auth/anthropic-env.js',
-    './../src/domain/runs/mode-env.js',
-    './../src/domain/agents/config.js',
-  ]) await importFresh(modulePath);
+    '../src/domain/auth/anthropic-env.js',
+    '../src/domain/runs/mode-env.js',
+    '../src/domain/agents/config.js',
+  ]) await importFresh(new URL(modulePath, import.meta.url));
 
   assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-import-probe',
     'importing these modules must not delete/rewrite ANTHROPIC_API_KEY');

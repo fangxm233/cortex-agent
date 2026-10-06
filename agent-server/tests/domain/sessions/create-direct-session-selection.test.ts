@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, test, vi } from 'vitest';
+import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 // What a draft composer carries into the session it creates. Two things happen, and they are the
 // same rule the live picker runs (`applyChannelSelection`): the stated selection lands on the new
@@ -31,9 +32,8 @@ function seed(state: Record<string, unknown> = {}): void {
 }
 
 /** Re-import with the state file as written: config.ts reads agent-state.json at import time. */
-async function freshLifecycle() {
-  vi.resetModules();
-  return import('../../../src/domain/sessions/session-lifecycle.js');
+function freshLifecycle() {
+  return importWithFreshRegistry(() => import('../../../src/domain/sessions/session-lifecycle.js'));
 }
 
 function deps(): any {

@@ -3,7 +3,6 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'vitest';
-import { AGENT_SERVER_DIR } from './module-loader.js';
 import {
   planRebuildLanes,
   planRebuildStepNames,
@@ -11,6 +10,8 @@ import {
 } from '../src/entry/daemon.js';
 import { handleDaemonMessage } from '../src/entry/daemon-notice.js';
 import { MockAdapter } from '../src/platform/testing.js';
+
+const AGENT_SERVER_DIR = path.resolve(import.meta.dirname, '..');
 
 // A hanging daemon main loop never exits, so a generous budget still catches the
 // regression; the tight 1200ms budget merely produced load-flaky false failures

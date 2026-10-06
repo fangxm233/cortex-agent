@@ -3,13 +3,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
+import { importWithFreshRegistry } from './helpers/fresh-module.js';
 
 // AGENT_CWD binds at module load, so each case re-imports paths.ts under its own environment.
-async function loadPaths(agentCwd?: string) {
-  vi.resetModules();
+function loadPaths(agentCwd?: string) {
   if (agentCwd === undefined) delete process.env.CORTEX_AGENT_CWD;
   else process.env.CORTEX_AGENT_CWD = agentCwd;
-  return import('../src/core/paths.js');
+  return importWithFreshRegistry(() => import('../src/core/paths.js'));
 }
 
 afterEach(() => {

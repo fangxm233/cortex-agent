@@ -6,6 +6,7 @@
 // that the bytes the Python side emits parse on this side.
 
 import { describe, expect, it, vi } from 'vitest';
+import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -189,8 +190,7 @@ describe('purity', () => {
     });
     vi.doMock('node:fs', () => poison);
     vi.doMock('node:fs/promises', () => poison);
-    vi.resetModules();
-    const module = await import('../../../src/domain/benchmark/accounting-reconciliation.js');
+    const module = await importWithFreshRegistry(() => import('../../../src/domain/benchmark/accounting-reconciliation.js'));
 
     const proxyInput = proxyGolden('proxy-export-echoed.json');
     const journalInput = journal();

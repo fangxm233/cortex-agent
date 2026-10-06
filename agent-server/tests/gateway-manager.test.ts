@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { importFresh } from './helpers/fresh-module.js';
 
 async function importGatewayManagerWithMocks({ statusCode = 200 } = {}) {
   let spawnCalls = 0;
@@ -44,7 +45,9 @@ async function importGatewayManagerWithMocks({ statusCode = 200 } = {}) {
   (globalThis as any).__mockHttpGet = httpMock.get;
   (globalThis as any).__mockChildProcessSpawn = childProcessMock.spawn;
 
-  const gatewayManager = await import('./../src/domain/costs/gateway-manager.js?gateway-test=' + Date.now() + '-' + Math.random().toString(16).slice(2));
+  const gatewayManager = await importFresh<typeof import('../src/domain/costs/gateway-manager.js')>(
+    new URL('../src/domain/costs/gateway-manager.js', import.meta.url),
+  );
 
   return {
     gatewayManager,

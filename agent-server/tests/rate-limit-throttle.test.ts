@@ -2,7 +2,7 @@ import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { importFresh } from './module-loader.js';
+import { importFreshWithReset } from './helpers/fresh-module.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { CONFIG_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests, updateSettings } from '../src/core/settings.js';
@@ -48,19 +48,14 @@ function throttleQueries(mod: any, provider: string, mode: string) {
   };
 }
 
-async function freshModule() {
-  return await importFresh('./../src/domain/costs/rate-limit-throttle.js') as typeof import('../src/domain/costs/rate-limit-throttle.js');
-}
-
-// Production module owns a 5-min setTimeout (`_resumeTimer`). If a test asserts
-// before reaching its trailing `_testReset()`, the timer leaks and Node's event
-// loop refuses to drain — `npm test` hangs. Register reset via `t.after()` so
-// it runs even when assertions throw.
+// Production module owns a 5-min setTimeout (`_resumeTimer`), so its reset is registered on the
+// test (importFreshWithReset) rather than written as the test's last line.
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
 
 async function freshModuleWithCleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
-  const mod = await freshModule();
-  t.onTestFinished(() => mod._testReset());
+  const mod = await importFreshWithReset<typeof import('../src/domain/costs/rate-limit-throttle.js')>(
+    t, new URL('../src/domain/costs/rate-limit-throttle.js', import.meta.url),
+  );
   t.onTestFinished(() => {
     resetSettingsForTests();
     rmSync(SETTINGS_FILE, { force: true });

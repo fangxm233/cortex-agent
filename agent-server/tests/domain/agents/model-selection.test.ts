@@ -2,6 +2,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 // The write side of a channel's model selection. The rules under test are the product ones:
 // the profile is the base, a live conversation cannot change backend, a level must be one the
@@ -41,9 +42,8 @@ function seed(state: Record<string, unknown> = {}) {
   writeFileSync(STATE, JSON.stringify(state));
 }
 
-async function freshSelection() {
-  vi.resetModules();
-  return import('../../../src/domain/agents/model-selection.js');
+function freshSelection() {
+  return importWithFreshRegistry(() => import('../../../src/domain/agents/model-selection.js'));
 }
 
 function storedOverride(channel: string): unknown {

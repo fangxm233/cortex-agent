@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { importFresh } from './module-loader.js';
+import { importFreshWithReset } from './helpers/fresh-module.js';
 
 function makePersistenceStub(initial: any = []) {
   let savedState: any = initial;
@@ -11,14 +11,10 @@ function makePersistenceStub(initial: any = []) {
   };
 }
 
-async function freshModule() {
-  return await importFresh('./../src/domain/costs/resume-registry.js') as typeof import('../src/domain/costs/resume-registry.js');
-}
-
-async function freshModuleWithCleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
-  const mod = await freshModule();
-  t.onTestFinished(() => mod._testReset());
-  return mod;
+function freshModuleWithCleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
+  return importFreshWithReset<typeof import('../src/domain/costs/resume-registry.js')>(
+    t, new URL('../src/domain/costs/resume-registry.js', import.meta.url),
+  );
 }
 
 test('recordResume dedupes direct entries by channel (latest wins)', async (t) => {

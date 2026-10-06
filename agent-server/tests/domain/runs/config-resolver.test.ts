@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, test, vi } from 'vitest';
+import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 const HOME = process.env.CORTEX_HOME!;
 const PROFILES = path.join(HOME, 'config', 'profiles.json');
@@ -27,9 +28,8 @@ function seed(state: Record<string, unknown>) {
 
 /** The resolver reads through module-level caches in config.ts (activeProfile, channelProfiles,
  *  channelOverrides), all filled at import — so each case needs its own registry. */
-async function freshResolver() {
-  vi.resetModules();
-  return import('../../../src/domain/runs/config-resolver.js');
+function freshResolver() {
+  return importWithFreshRegistry(() => import('../../../src/domain/runs/config-resolver.js'));
 }
 
 beforeEach(() => { rmSync(STATE, { force: true }); });
