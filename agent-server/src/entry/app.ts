@@ -84,6 +84,7 @@ import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatch
 import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
+import { cancelWaitpointsForSessions } from '@domain/waitpoints/service.js';
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { getProjectDir } from '@domain/sessions/session-backup.js';
@@ -160,6 +161,7 @@ async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Pr
     ledgerRepo: conversationLedger,
     historyRepo: conversationHistory,
     candidateRepo: retentionCandidateRepo,
+    cancelWaitpoints: (sessionIds) => cancelWaitpointsForSessions(sessionIds),
     liveness: retentionLiveness(),
     paths: {
       historyDir: CONVERSATION_HISTORY_DIR,

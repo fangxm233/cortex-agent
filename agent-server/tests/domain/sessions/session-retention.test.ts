@@ -11,6 +11,8 @@ import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-r
 import { runSessionRetentionSweep } from '../../../src/domain/sessions/session-retention.js';
 import { SessionTotalsCarryRepo } from '../../../src/store/session-totals-repo.js';
 import { buildSessionRetentionLiveness } from '../../../src/orchestration/session-retention-liveness.js';
+import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
+import { cancelWaitpointsForSessions, createWaitpoint, productionWaitpointDeps } from '../../../src/domain/waitpoints/service.js';
 
 function registerOpts(id: string, extra: Record<string, unknown> = {}) {
   return {
@@ -765,4 +767,29 @@ test('retention sweep keeps liveness-protected, leased and dependent sessions ac
   } finally {
     release();
   }
+});
+
+test('retention sweep disarms the waitpoints of the sessions it deletes, before committing', async () => {
+  const h = await makeHarness();
+  await seedExpiredSessions(h, 2);
+  await h.registry.registerSession('cortex-live', registerOpts('track-live'));
+  const repo = new WaitpointRepo({ filePath: path.join(h.storeDir, 'waitpoints.json') });
+  const wpDeps = { ...productionWaitpointDeps, repo };
+  const owner = (id: string) => ({ sessionId: id, channel: `web:${id}` });
+  const gone = await createWaitpoint({ label: 'gone', intent: 'x', owner: owner('track-0') }, wpDeps);
+  const kept = await createWaitpoint({ label: 'kept', intent: 'x', owner: owner('track-live') }, wpDeps);
+
+  let busy = true;
+  const cancelWaitpoints = async (ids: string[]) => {
+    if (busy) { busy = false; throw new Error('waitpoint store busy'); }
+    return cancelWaitpointsForSessions(ids, wpDeps);
+  };
+  const first = await runSessionRetentionSweep(sweepDeps(h, { cancelWaitpoints }));
+  assert.equal(first.registryCommitted, 0, 'a session whose waitpoints are still armed is not deleted yet');
+  assert.equal((await repo.get(gone.waitpoint.id))!.state, 'armed');
+
+  const second = await runSessionRetentionSweep(sweepDeps(h, { cancelWaitpoints }));
+  assert.equal(second.registryCommitted, 2);
+  assert.equal((await repo.get(gone.waitpoint.id))!.state, 'cancelled', 'a late signal can no longer recreate it');
+  assert.equal((await repo.get(kept.waitpoint.id))!.state, 'armed');
 });

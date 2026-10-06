@@ -43,6 +43,9 @@ export interface SessionRetentionDeps {
    *  callers and fixtures keep working; absent ⇒ the carry is simply not pruned. */
   sessionTotals?: Pick<SessionTotalsCarryRepo, 'forget'>;
   candidateRepo: Pick<RetentionCandidateRepo, 'mark' | 'isConfirmed' | 'clear'>;
+  /** Disarm the waitpoints these sessions armed, before their deletion commits: a waitpoint firing
+   *  later would find-or-create a session on its channel. Absent ⇒ skipped. */
+  cancelWaitpoints?: (sessionIds: string[]) => Promise<unknown>;
   liveness: RetentionLivenessSnapshot;
   paths: SessionRetentionPaths;
   syncClaudeUserCleanupPeriodDays: (days: number) => Promise<ClaudeUserSettingsSyncResult>;
@@ -233,6 +236,7 @@ async function commitDeleteBatch(
   }
   if (cleaned.length === 0) return 0;
   try {
+    await deps.cancelWaitpoints?.(cleaned);
     // Otherwise the carry would outlive every session it describes and grow without bound.
     await (deps.sessionTotals ?? sessionTotalsCarry).forget(cleaned);
     return (await deps.registry.commitDeletions(cleaned)).length;

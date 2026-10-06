@@ -207,6 +207,8 @@ rule: a session sees and disarms its own waitpoints, never another session's.
 
 `wait_check` shows what you are waiting on; `wait_cancel` disarms one you no longer care about —
 worth doing, since an abandoned waitpoint wakes you days later about something nobody remembers.
+When session retention deletes a session, its armed waitpoints are cancelled with it, so a late
+signal cannot bring the session back.
 
 ## Security
 

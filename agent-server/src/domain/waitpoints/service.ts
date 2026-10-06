@@ -304,6 +304,29 @@ export async function cancelWaitpoint(
   return result ?? { cancelled: false };
 }
 
+/** Cancel every armed waitpoint these (deleted) sessions armed. Returns how many were disarmed. */
+export async function cancelWaitpointsForSessions(
+  sessionIds: Iterable<string>,
+  deps: WaitpointServiceDeps = productionWaitpointDeps,
+): Promise<number> {
+  const ids = new Set(sessionIds);
+  if (ids.size === 0) return 0;
+  const now = deps.now();
+  return deps.repo.mutate((data) => {
+    let cancelled = 0;
+    for (const wp of Object.values(data)) {
+      if (wp.state !== 'armed' || !ids.has(wp.owner.sessionId)) continue;
+      wp.state = 'cancelled';
+      wp.resolvedAt = now;
+      wp.wakeHeld = false;
+      wp.delivery.pending = false;
+      cancelled += 1;
+    }
+    if (cancelled > 0) log.info(`cancelled ${cancelled} waitpoint(s) of ${ids.size} deleted session(s)`);
+    return { next: data, result: cancelled };
+  });
+}
+
 /**
  * Mark every past-due armed waitpoint expired and purge resolved ones past the retention window.
  * Returns the newly expired records so the caller can tell their owner nobody ever signalled.
