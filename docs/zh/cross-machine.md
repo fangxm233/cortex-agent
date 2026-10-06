@@ -291,7 +291,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 ## 服务器端客户端生命周期 {#server-side-client-lifecycle}
 
-agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期：
+agent-server `domain/remote/` 下的两个模块共同管理远程客户端生命周期：`client-manager.ts` 持有设备连接（心跳与命令路由），`client-lifecycle.ts` 负责启动、追踪和重启客户端：
 
 1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上启动客户端。对于本地机器（无 `ssh` 字段），直接生成 `node ~/.cortex/client/current/client.mjs`。对于远程机器，通过 SSH 以 `nohup`/`echo $!`（Linux）或 WMI（Windows）运行启动命令。`ssh-reverse` 机器会先建立受监督的反向隧道；启动和自动重启共用同一个 route-aware launcher 与远程 PID 追踪。如果启动命令已经返回 PID 但 client 尚未发送 `hello`，server 会保持该设备的恢复 timer，直到连接建立。
 

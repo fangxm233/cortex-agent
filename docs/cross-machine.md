@@ -381,8 +381,10 @@ carry the complete artifact as base64):
 
 ## Server-side client lifecycle
 
-The `client-manager.ts` module in agent-server manages the remote client
-lifecycle:
+Two modules in agent-server's `domain/remote/` share the remote client
+lifecycle: `client-manager.ts` holds the device connections (heartbeats and
+command routing), and `client-lifecycle.ts` launches, tracks and restarts the
+clients:
 
 1. **At startup** — `startAllRemoteClients()` iterates `machines.json` and
    spawns or SSH-launches the client on each machine. For local machines
