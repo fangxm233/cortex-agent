@@ -120,3 +120,18 @@ test('writes are serialized in announcement order', async () => {
 
   assert.deepEqual(order, ['B-1', 'B-2']);
 });
+
+test('an announcement from a fallback on another backend does not replace the resume target', async () => {
+  const { writes, deps } = recorder();
+  // The run keeps the session's own-backend id across a cross-backend fallback; the sink follows
+  // the run, not the raw announcement.
+  const sink = createResumeTargetSink({
+    sessionName: 'cortex-cross', resumedFrom: 'claude-1', deps, liveBackendSessionId: () => 'claude-1',
+  });
+
+  await sink.onEvent(engineStarted('pi-fallback'));
+  await sink.drain();
+
+  assert.deepEqual(writes, []);
+  assert.equal(sink.written, 'claude-1');
+});

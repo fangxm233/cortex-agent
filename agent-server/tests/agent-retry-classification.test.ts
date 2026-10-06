@@ -29,6 +29,7 @@ import {
 } from '../src/domain/costs/rate-limit-throttle.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { RunRegistry } from '../src/core/run-registry.js';
+import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import { runRequestFixture, attemptFixture, type RunRequestFixtureInput } from './run-request-fixture.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 
@@ -469,6 +470,45 @@ test('run falls back after PI exhausts a generic provider-retry error', async ()
     text: 'fallback-ok',
     level: undefined,
   }]);
+});
+
+test('a fallback on another backend runs with its own capabilities but never names the resume target', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-primary' });
+  const fallbackAttempt = attemptFixture({ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' });
+  const request = claudeRequestWithScript(
+    { channel: 'web:retry', sessionKey: 'fallback-cross-backend', piProvider: 'deepseek' },
+    [textLine('fallback-ok'), resultLine({ result: 'fallback-ok', session_id: 'claude-fallback' })],
+  );
+  request.profile = {
+    ...request.profile,
+    model: 'deepseek-v4-pro', backend: 'pi', provider: 'deepseek', mode: 'deepseek',
+    fallback: [fallbackAttempt],
+  };
+  const registry = new RunRegistry();
+  const run = new AgentRunImpl({
+    request, observers: [], executionId: 'exec-cross-backend',
+    registry, onTerminal: () => {}, startedAt: Date.now(),
+  });
+  run.start();
+  assert.equal(run.capabilities, CAPABILITIES_BY_BACKEND.pi);
+  assert.equal(registry.getById('exec-cross-backend')?.backend, 'pi');
+
+  const runtime = await fixtures.current.runtime(0);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emitAgentEnd({ stopReason: 'error', errorMessage: 'read ECONNRESET' });
+
+  // The Claude fallback is registered before its stream ends.
+  for (let i = 0; i < 100 && registry.getById('exec-cross-backend')?.backend !== 'claude'; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(registry.getById('exec-cross-backend')?.backend, 'claude', 'the registry shows the attempt running');
+  assert.equal(run.capabilities, CAPABILITIES_BY_BACKEND.claude, 'and the run steers by its capabilities');
+
+  const result = await run.settled;
+  assert.equal(result.finalOutput, 'fallback-ok');
+  // A PI session resumed by Claude next turn (or the other way round) would start from nothing.
+  assert.equal(run.backendSessionId, 'pi-primary', 'the session keeps the resume target on its own backend');
 });
 
 test('run emits one terminal error notice for a deterministic authentication failure', async () => {

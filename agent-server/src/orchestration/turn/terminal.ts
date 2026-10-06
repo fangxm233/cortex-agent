@@ -39,14 +39,17 @@ export type BackgroundHoldInstaller = (ctx: {
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null }): Promise<void> {
-  // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
-  // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
-  // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
-  // bound to the track id, so publish/history/UI keep a stable identity across turns.
-  if (result?.sessionId && sessionName) {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null, resumeTarget }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null; resumeTarget?: string | null }): Promise<void> {
+  // Decoupling: the resume target is the BACKEND's own session id (Claude self-generated / PI
+  // bootstrap id), not the tracking id. Store it on the STABLE track record (keyed by sessionName)
+  // — do NOT rebind the channel or the registry key to it. The channel stays bound to the track
+  // id, so publish/history/UI keep a stable identity across turns. The run's `backendSessionId`
+  // is preferred over `result.sessionId`: a fallback on another backend reports its own id in the
+  // result, and the session's backend cannot resume it.
+  const backendSessionId = resumeTarget === undefined ? result?.sessionId : resumeTarget;
+  if (backendSessionId && sessionName) {
     await sessionStore.updateSession(sessionName, {
-      backendSessionId: result.sessionId,
+      backendSessionId,
       lastUsedAt: new Date().toISOString(),
     });
   }
@@ -230,10 +233,12 @@ export async function persistErrorSession(args: {
  * continuation callbacks — belonged to the background hold, which the Turn now builds and hands
  * down as one closure. This path decides only whether the turn MAY be held, never how.
  */
-export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null, request = null }: {
+export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null, request = null, resumeTarget }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string | null; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string | null;
+  /** The run's resume target (`AgentRun.backendSessionId`); defaults to `result.sessionId`. */
+  resumeTarget?: string | null;
   /** The request the turn ran with; a message-end hook's injected turn continues on its engine. */
   request?: RunRequest | null;
   /** Only the assistant stream is read here; the full `AgentCallbacks` shape stays in `turn.ts`. */
@@ -249,6 +254,6 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return 'rate-limited';
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request, resumeTarget });
   return 'completed';
 }

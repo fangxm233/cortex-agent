@@ -42,7 +42,13 @@ export interface AgentRun {
   readonly phase: RunPhase;
   readonly numTurns: number | null;
   readonly attempt: { index: number; config: RunAttemptConfig };
+  /**
+   * The session's resume target: the backend session id on the session's OWN backend (the
+   * profile's). A fallback attempt on another backend never names it — its id would be resumed by
+   * the wrong CLI next turn — so across such a fallback this keeps the primary's id.
+   */
   readonly backendSessionId: string | null;
+  /** What the attempt running now can do. Follows the chain onto a fallback's backend. */
   readonly capabilities: ReadonlySet<Capability>;
   /** The awaited foreground turn's result. */
   readonly result: Promise<RunResult>;
@@ -121,7 +127,6 @@ export class AgentRunImpl implements AgentRun {
   readonly id: string;
   readonly request: RunRequest;
   readonly executionId: string;
-  readonly capabilities: ReadonlySet<Capability>;
   readonly result: Promise<RunResult>;
   readonly settled: Promise<RunResult>;
 
@@ -180,7 +185,6 @@ export class AgentRunImpl implements AgentRun {
         ...(subagent ? { subagent } : {}),
       }),
     );
-    this.capabilities = CAPABILITIES_BY_BACKEND[args.request.profile.backend];
     this.backendSessionIdValue = args.request.session.backendSessionId;
     this.observers = [...args.observers];
     this.registry = args.registry;
@@ -201,6 +205,18 @@ export class AgentRunImpl implements AgentRun {
   get phase(): RunPhase { return this.phaseValue; }
   get numTurns(): number | null { return this.numTurnsValue; }
   get backendSessionId(): string | null { return this.backendSessionIdValue; }
+  get capabilities(): ReadonlySet<Capability> { return CAPABILITIES_BY_BACKEND[this.attemptValue.config.backend]; }
+
+  /** True while the running attempt is on the session's own backend, i.e. while its backend id
+   *  may become the session's resume target (see `backendSessionId`). */
+  private get onSessionBackend(): boolean {
+    return this.attemptValue.config.backend === this.request.profile.backend;
+  }
+
+  /** Adopt `id` as the resume target, unless the running attempt is on another backend. */
+  private adoptBackendSessionId(id: string | null | undefined): void {
+    if (id && this.onSessionBackend) this.backendSessionIdValue = id;
+  }
   get backgroundTranscriptOwned(): boolean { return this.backgroundTranscriptOwnedValue; }
 
   claimBackgroundTranscript(): void { this.backgroundTranscriptOwnedValue = true; }
@@ -436,7 +452,7 @@ export class AgentRunImpl implements AgentRun {
       executionId: this.executionId,
       kind: this.request.context.executionKind,
       kill: () => attempt.kill(),
-      backend: this.request.profile.backend,
+      backend: attempt.backend,
       run: this,
       trackSessionId: this.request.session.sessionId,
       backendSessionId: attempt.backendSessionId ?? this.request.session.backendSessionId,
@@ -445,7 +461,7 @@ export class AgentRunImpl implements AgentRun {
     // The engine's spawn-time backend id is authoritative even when it never emits a
     // `session_started` event (an interrupted first turn). Surfaces that persist the resume target
     // on settle read `run.backendSessionId`, so record it here.
-    if (attempt.backendSessionId) this.backendSessionIdValue = attempt.backendSessionId;
+    this.adoptBackendSessionId(attempt.backendSessionId);
   }
 
   // ── event flow ─────────────────────────────────────────────────────────
@@ -555,15 +571,14 @@ export class AgentRunImpl implements AgentRun {
    */
   private refreshBackendSessionId(): void {
     if (this.backendSessionIdValue) return;
-    const live = this.current?.backendSessionId;
-    if (live) this.backendSessionIdValue = live;
+    this.adoptBackendSessionId(this.current?.backendSessionId);
   }
 
   private absorb(event: RunEvent): void {
     if (this.terminal) return;
     switch (event.type) {
       case 'engine_started':
-        this.backendSessionIdValue = event.backendSessionId;
+        this.adoptBackendSessionId(event.backendSessionId);
         break;
       case 'turn_progress':
         this.setNumTurns(event.numTurns);
@@ -584,7 +599,7 @@ export class AgentRunImpl implements AgentRun {
 
   private absorbResultCounts(result: RunResult): void {
     if (typeof result.num_turns === 'number') this.setNumTurns(result.num_turns);
-    if (result.sessionId) this.backendSessionIdValue = result.sessionId;
+    this.adoptBackendSessionId(result.sessionId);
   }
 
   /** A continuation reports its own turns and cost, not the run's: add it to the tally the way the

@@ -91,7 +91,9 @@ export function createResumeTargetSink(opts: ResumeTargetSinkOptions): ResumeTar
     drain: () => queue,
     onEvent(event: RunEvent): void {
       if (event.type === 'engine_started') {
-        persist(event.backendSessionId);
+        // The run's view wins when there is one: it has already taken this announcement unless it
+        // came from a fallback on another backend, whose id this session must never resume.
+        persist(opts.liveBackendSessionId ? opts.liveBackendSessionId() : event.backendSessionId);
         return;
       }
       // Nothing to learn once an id is on disk; while there is none, any event proves the engine

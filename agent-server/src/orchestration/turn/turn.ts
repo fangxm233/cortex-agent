@@ -382,7 +382,8 @@ export class Turn {
         // Settle-time backstop for the early write (fix 9809d9a3's original job): an engine that
         // never announced its id still leaves a resume target behind, and a turn that ended on a
         // different backend session than it started on records the one the next turn must resume.
-        // Success-path handleAgentSuccess still overwrites with the result's authoritative id.
+        // Success-path handleAgentSuccess writes the same id (the run's, not the result's: a
+        // fallback on another backend reports an id this session cannot resume).
         resumeTarget?.persist(run.backendSessionId);
         await resumeTarget?.drain();
       }
@@ -401,6 +402,7 @@ export class Turn {
         result, channel, adapter, statusMsg, startTime: this.startTime,
         userMessage: this.input.user.text, executionId: run.executionId,
         sessionName, sessionId, threadAnchorId, messageTs: userMessageTs, callbacks, request,
+        resumeTarget: run.backendSessionId,
         // The platform hold REPLACES the seal, so it can only be installed from inside the terminal
         // handler — after the ask-user questions were sent, and with the reply stream it built.
         holdBackground: holdKind === 'platform'
