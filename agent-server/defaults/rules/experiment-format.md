@@ -21,7 +21,7 @@ Experiment, knowledge, and pattern entries have been migrated from a single mono
 ```
 context/projects/<project>/
   experiments/
-    index.md           # Auto-generated (memory-index-regen), do not manually edit
+    index.md           # Auto-generated (cortex memory regen), do not manually edit
     EXP-001.md ~ EXP-NNN.md
   knowledge/
     index.md           # Auto-generated
@@ -49,8 +49,6 @@ tags: [latency, optimization, variant-b, phase2]
 status: valid
 executor: "Cortex"
 links: []
-refs: 0
-last-ref: null
 ---
 
 ### EXP-042: Variant B Latency Sweep
@@ -87,8 +85,6 @@ project: <project-name>
 summary: "Connection pool size 32 is the optimal range under our peak load"
 tags: [pool-size, performance]
 evidence: [EXP-022, EXP-037, EXP-041, EXP-042]
-refs: 3
-last-ref: 2026-03-23
 ---
 
 ## K-005: Connection Pool Size Optimal Range
@@ -111,8 +107,6 @@ summary: "Tasks with high I/O concurrency consistently benefit from a connection
 tags: [pool-size, warm-up, performance]
 source-experiments: [EXP-031, EXP-035, EXP-038]
 evidence: [EXP-031, EXP-035, EXP-038]
-refs: 0
-last-ref: null
 ---
 
 ## PAT-001: <Title>
@@ -150,10 +144,10 @@ All entries share a unified `status` state:
 | `links` | Optional | Related entry IDs |
 | `evidence` | Recommended for K/PAT | List of experiment IDs supporting this conclusion (traceability) |
 | `source-experiments` | Required for PAT | Source experiments that this pattern was derived from |
-| `refs` | Auto | Reference count (computed by memory-index-regen) |
-| `last-ref` | Auto | Last reference time |
 | `invalidated-date` | Auto | Date of falsification (invalidated entries only) |
 | `invalidated-reason` | Auto | Reason for falsification (invalidated entries only) |
+
+Frontmatter is parsed as YAML: quote list items that contain a comma, `: ` or braces (`evidence: ["sweep.txt (55 configs, 10 seeds)", "runs/seed{1,2}/metrics.json"]`). Reference counts live only in the generated index.md; `refs` / `last-ref` fields left in older files are not maintained — do not add them.
 
 ## New Experiment Workflow
 
@@ -163,7 +157,7 @@ All entries share a unified `status` state:
    - Update the old experiment file's `status` field (`superseded:EXP-XXX` or `refined:EXP-XXX`)
    - Append `#### Downstream Impact` analysis at the end of the new experiment
    - Check if the overturned experiment is referenced by K/PAT entries (grep `evidence` field), if so mark as `challenged`
-4. **No need to manually update index.md** — the index is automatically rebuilt by `memory-index-regen.ts`
+4. **No need to manually update index.md** — the server rebuilds it automatically (by hand: `cortex memory regen --project <project>`)
 
 ## New Knowledge/Pattern Workflow
 

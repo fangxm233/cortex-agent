@@ -100,7 +100,7 @@ The thickest layer. Contains one subdirectory per domain concern; the table belo
 | `executions/` | Thin re-export over `store/execution-repo.ts` |
 | `costs/` | Cost tracking, gateway management, rate limiting with per-provider awareness |
 | `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules and opens a new session for each fire; built-in jobs such as the memory-index rebuild own daemon timers |
-| `memory/` | Memory/index management. `memory-index-regen.ts` rebuilds index.md from YAML frontmatter. File watcher for context changes. AGENTS.md scanning and injection |
+| `memory/` | Memory/index management. `index-regen.ts` rebuilds the generated index.md files from YAML frontmatter and the access log (CLI: `cortex memory regen`). File watcher for context changes. AGENTS.md scanning and injection |
 | `monitor/` | GPU and disk resource monitoring |
 | `system/` | Host-level concerns: doctor checks, update state and prompts, system notices and their history, and `rebuild-hold.ts` — the supervisor-pushed "no new turns" state consulted by admission |
 | `remote/` | Remote device management via WebSocket. SSH-based client bootstrap; clients self-update from server-pushed bundles |

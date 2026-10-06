@@ -103,7 +103,7 @@ Updated: YYYY-MM-DD
 
 ### experiments/ (required) — Experiment records (atomized)
 
-Create the `experiments/` directory. If the project has existing experiments, create individual `EXP-NNN.md` files with YAML frontmatter (see `.claude/rules/experiment-format.md` for format). Otherwise create an empty directory. Run `cd agent-server && node --import tsx src/memory-index-regen.ts <project>` to generate `index.md`.
+Create the `experiments/` directory. If the project has existing experiments, create individual `EXP-NNN.md` files with YAML frontmatter (see `.claude/rules/experiment-format.md` for format). Otherwise create an empty directory. Run `cortex memory regen --project <project>` to generate `index.md` (the server also rebuilds it on its own whenever an atomic file changes).
 
 ### knowledge/ (required) — Technical knowledge (atomized)
 

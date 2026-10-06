@@ -99,7 +99,7 @@ L5  entry/         → 所有层（组合根）
 | `executions/` | `store/execution-repo.ts` 的薄重导出 |
 | `costs/` | 费用追踪、网关管理、按提供商感知的速率限制 |
 | `scheduling/` | 持久化调度引擎与 settings-backed 内置作业控制器。`Scheduler` 热重载用户调度，每次触发都新开一个会话；记忆索引重建等内置作业拥有 daemon 计时器 |
-| `memory/` | 内存/索引管理。`memory-index-regen.ts` 从 YAML frontmatter 重建 index.md。上下文更改的文件监视器。AGENTS.md 扫描和注入 |
+| `memory/` | 内存/索引管理。`index-regen.ts` 从 YAML frontmatter 和访问日志重建生成的 index.md（CLI：`cortex memory regen`）。上下文更改的文件监视器。AGENTS.md 扫描和注入 |
 | `monitor/` | GPU 和磁盘资源监控 |
 | `system/` | 主机层面的事务：doctor 检查、更新状态与提示、系统通知及其历史，以及 `rebuild-hold.ts` —— 由监督器下推、供准入判断读取的"拒绝新 turn"状态 |
 | `remote/` | 通过 WebSocket 的远程设备管理。基于 SSH 的客户端部署，通过 npm update 的热重载 |
