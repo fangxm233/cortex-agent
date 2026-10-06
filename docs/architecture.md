@@ -47,7 +47,7 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 | `session-holds.ts` | `SessionHolds` — the other half of "is this session busy": a turn that ended while background work continues, with per-owner handles, supersede and stop |
 | `session-state.ts` | `sessionState(sessionId)` / `channelEngineBusy()` — the one join of live executions and holds, and the only place that answers whether a session is busy |
 | `types/agent-types.ts` | `AgentResult`, `AgentHandle`, `AgentProgress`, `AskUserQuestionInfo` |
-| `types/environment-types.ts` | Execution environment types: `AgentDefinition` (one `config/environments/*.json` file), its per-use overrides, and the resolved `AgentSlotConfig` a run opens with |
+| `types/environment-types.ts` | Execution environment types: `AgentDefinition` (one `config/environments/*.json` file) and the `ResolvedEnvironment` a run opens with |
 | `config-generator.ts` | Config file initialization for new installs |
 | `gateway-generator.ts` | API gateway YAML generation |
 | `profile-generator.ts` | Profile JSON generation |

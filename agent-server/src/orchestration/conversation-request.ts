@@ -4,7 +4,7 @@ import type { AttachmentFailure } from './routing/file-handler.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
 import { getDefaultProfileName, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { FALLBACK_ENVIRONMENT, resolveAgentSlotConfigByName } from '@domain/agents/environments/index.js';
+import { FALLBACK_ENVIRONMENT, resolveEnvironmentByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
 import { resolveSystemVars } from '@core/prompt-template.js';
 import { sessionEvidenceContext } from '@domain/benchmark/session-evidence.js';
@@ -22,7 +22,7 @@ import { isTeamLead, isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
-import type { AgentSlotConfig } from '@core/types/environment-types.js';
+import type { ResolvedEnvironment } from '@core/types/environment-types.js';
 import {
   buildPrompt as buildAgentPrompt, formatAttachmentFailures,
 } from '../agent-adapter/normalize/prompt-builder.js';
@@ -126,7 +126,7 @@ export function resolveConversationProject(args: {
  * opts out has an opinion.
  */
 export function conversationRunPolicy(
-  agentConfig: AgentSlotConfig,
+  agentConfig: ResolvedEnvironment,
   opts: { channel: string; browserCdpEndpoint?: string | null },
 ): RunRequest['policy'] {
   return {
@@ -155,8 +155,8 @@ export function conversationRunPolicy(
  */
 export function resolveConversationAgent(
   candidates: ReadonlyArray<string | null | undefined>,
-  resolve: (name: string) => AgentSlotConfig | null = resolveAgentSlotConfigByName,
-): { agentName: string; agentConfig: AgentSlotConfig } {
+  resolve: (name: string) => ResolvedEnvironment | null = resolveEnvironmentByName,
+): { agentName: string; agentConfig: ResolvedEnvironment } {
   for (const name of [...candidates, FALLBACK_ENVIRONMENT]) {
     if (!name) continue;
     const agentConfig = resolve(name);

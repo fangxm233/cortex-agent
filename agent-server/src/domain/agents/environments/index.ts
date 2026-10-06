@@ -5,5 +5,5 @@ export * from './paths.js';
 export * from './file-refs.js';
 export * from './schema.js';
 export * from './registry.js';
-export * from './slot-config.js';
+export * from './resolve.js';
 export * from './entities.js';

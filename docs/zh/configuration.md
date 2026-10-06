@@ -248,7 +248,6 @@ Cortex 随包提供两个：
 | `name` | string | 是 | 必须等于去掉 `.json` 的文件名 |
 | `description` | string | 否 | 一行用途说明，显示在选择器里 |
 | `profile` | string | 是 | `profiles.json` 中的某个 profile，或 `"__active__"` 表示跟随对话当前解析出的 profile。指定具体 profile 时，它只覆盖该环境下各轮的模型，不改写对话自己的 profile |
-| `persistSession` | boolean | 是 | 无论取值如何，对话都会跨轮保留后端会话；随包环境设为 `true` |
 | `directive` | string | 否 | 前置到提示前面的角色或身份说明 |
 | `systemPrompt` | string | 否 | 替换后端默认的系统提示 |
 | `promptTemplate` | string | 否 | 包裹每条消息；`{{input}}` 代表发送的内容 |
@@ -331,7 +330,6 @@ backend 内切换在下一轮生效，历史保留——也就是说模型会看
 {
   "name": "creative",
   "profile": "__active__",
-  "persistSession": true,
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
   "pluginDirs": [],

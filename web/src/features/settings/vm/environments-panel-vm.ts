@@ -36,7 +36,6 @@ export function starterBody(): Record<string, unknown> {
     name: '',
     description: '',
     profile: '__active__',
-    persistSession: false,
     promptTemplate: '{{input}}',
     tools: 'Read,Write,Edit,Glob,Grep,Bash',
   };

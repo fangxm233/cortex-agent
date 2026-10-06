@@ -33,14 +33,12 @@ import { DIRECT_RUN_POLICY } from '../src/domain/runs/builders.js';
 import { supportsBackgroundContinuation } from '../src/orchestration/turn/turn.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import type { ActiveCommissionContext, CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
-import type { AgentSlotConfig } from '../src/core/types/environment-types.js';
+import type { ResolvedEnvironment } from '../src/core/types/environment-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';
 
-function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotConfig {
+function makeAgentConfig(overrides: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
   return {
-    slotId: 'main',
     profile: '__active__',
-    persistSession: false,
     directive: '',
     systemPrompt: 'SYSTEM',
     promptTemplate: '{{input}}',
@@ -49,13 +47,13 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
     tools: 'Read',
     pluginDirs: null,
     ...overrides,
-  } as AgentSlotConfig;
+  } as ResolvedEnvironment;
 }
 
 /** A copy of the composition a conversation turn performs (orchestration/conversation-request.ts):
  *  a thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else. */
 function conversationPrompt(
-  agentConfig: AgentSlotConfig,
+  agentConfig: ResolvedEnvironment,
   input: string,
   opts: {
     includeUserContext?: boolean;
@@ -86,7 +84,7 @@ test('conversation prompt injects a project block naming the project id and cont
 
 // ── The agent template owns the execution environment ───────────────────────
 
-function policyFor(overrides: Partial<AgentSlotConfig>) {
+function policyFor(overrides: Partial<ResolvedEnvironment>) {
   return conversationRunPolicy(makeAgentConfig(overrides), { channel: 'web:abc123' });
 }
 
@@ -120,7 +118,7 @@ test('skills and settingSources travel from the agent to the policy verbatim', (
 
 test('the agent chain is session, then channel, then global, then main', () => {
   const known = new Set(['main', 'nimbus', 'orchard']);
-  const resolve = (name: string) => (known.has(name) ? makeAgentConfig({ slotId: name }) : null);
+  const resolve = (name: string) => (known.has(name) ? makeAgentConfig() : null);
   const pick = (candidates: Array<string | null>) =>
     resolveConversationAgent(candidates, resolve).agentName;
 
@@ -134,7 +132,7 @@ test('the agent chain is session, then channel, then global, then main', () => {
 
 test('an agent that no longer exists falls through instead of killing the turn', () => {
   // A session recorded `retired` and the template was deleted since. The channel's choice answers.
-  const resolve = (name: string) => (name === 'orchard' ? makeAgentConfig({ slotId: name }) : null);
+  const resolve = (name: string) => (name === 'orchard' ? makeAgentConfig() : null);
   assert.equal(resolveConversationAgent(['retired', 'orchard'], resolve).agentName, 'orchard');
 });
 

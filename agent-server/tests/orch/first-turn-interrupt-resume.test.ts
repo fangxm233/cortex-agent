@@ -35,10 +35,8 @@ vi.mock('@domain/agents/environments/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    resolveAgentSlotConfigByName: (name: string) => ({
-      slotId: name,
+    resolveEnvironmentByName: () => ({
       profile: '__active__',
-      persistSession: false,
       directive: '',
       systemPrompt: null,
       promptTemplate: '{{input}}',

@@ -2,7 +2,7 @@ import { resolveSystemVars } from '@core/prompt-template.js';
 import { roleToolsForBackend } from '@core/agents/roles.js';
 import type { AgentRole } from '@core/agents/roles.js';
 import type { Backend } from '@core/types/agent-types.js';
-import type { AgentSlotConfig } from '@core/types/environment-types.js';
+import type { ResolvedEnvironment } from '@core/types/environment-types.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
 
 /**
@@ -32,7 +32,7 @@ export interface AgentSpec {
   appendSystemPrompt?: string | null;
   /** Role/identity text prepended to the user prompt. */
   directive: string | null;
-  /** Template with `{{input}}` / `{{artifactPath}}` vars; null means the input verbatim. */
+  /** Template with an `{{input}}` var; null means the input verbatim. */
   promptTemplate: string | null;
   tools: ToolSurface;
   /** Plugin directories resolved for this agent. */
@@ -61,22 +61,22 @@ export function bareSpec(): AgentSpec {
 }
 
 /**
- * The spec for a configured agent. Takes the *resolved* slot config: an `AgentDefinition` merged
- * with any per-use overrides (`agents/environments` `buildSlotConfig`), which both callers hold.
+ * The spec for a configured agent, from its resolved environment (`agents/environments`
+ * `resolveEnvironment`).
  *
  * `mcpComposition` is the surface's default, which the agent may override: the caller passes what
  * the surface would otherwise run on (direct for a plain conversation) and resolves `config.mcpComposition` over it before calling, so an agent that
  * declares a narrower surface keeps it on every path.
  */
 export function fromAgentSlot(
-  config: AgentSlotConfig,
+  config: ResolvedEnvironment,
   opts: { mcpComposition: McpComposition },
 ): AgentSpec {
   return {
     systemPrompt: config.systemPrompt ? resolveSystemVars(config.systemPrompt) : null,
     directive: config.directive ?? null,
     promptTemplate: config.promptTemplate ?? null,
-    // `AgentSlotConfig.tools` is authored as a Claude-native comma string, so it travels as one.
+    // `ResolvedEnvironment.tools` is authored as a Claude-native comma string, so it travels as one.
     tools: config.tools || null,
     pluginDirs: config.pluginDirs || [],
     mcp: { composition: opts.mcpComposition, allowlist: config.mcpToolAllowlist ?? null },

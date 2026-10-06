@@ -129,7 +129,6 @@ Assignments are stored as `pluginDirs` in the environment's JSON file under `$CO
 {
   "name": "researcher",
   "profile": "claude-sonnet",
-  "persistSession": true,
   "pluginDirs": [
     "plugins/cortex-system",
     "plugins/my-plugin"

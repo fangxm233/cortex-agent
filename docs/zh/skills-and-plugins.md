@@ -129,7 +129,6 @@ Assignment 以 `pluginDirs` 的形式保存在 `$CORTEX_HOME/config/environments
 {
   "name": "researcher",
   "profile": "claude-sonnet",
-  "persistSession": true,
   "pluginDirs": [
     "plugins/cortex-system",
     "plugins/my-plugin"

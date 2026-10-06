@@ -89,9 +89,6 @@ export function composeUserPrompt(
 ): string {
   const vars: Record<string, string> = {
     input,
-    artifactPath: '',
-    previousOutput: '',
-    modifiedFiles: '',
     ...opts.vars,
     ...promptSystemVars(),
   };

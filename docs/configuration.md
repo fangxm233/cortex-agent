@@ -309,7 +309,6 @@ match its file name, is skipped and logged.
 | `name` | string | yes | Must equal the file name without `.json` |
 | `description` | string | no | One line describing what the environment is for, shown in pickers |
 | `profile` | string | yes | A profile from `profiles.json`, or `"__active__"` to run on whatever profile the conversation resolves to. A named profile overrides the model for this environment's turns without changing the conversation's own profile |
-| `persistSession` | boolean | yes | Conversations keep their backend session across turns either way; the shipped environments set `true` |
 | `directive` | string | no | Role or identity text prepended to the prompt |
 | `systemPrompt` | string | no | Replaces the backend's default system prompt |
 | `promptTemplate` | string | no | Wraps each message; `{{input}}` stands for what was sent |
@@ -414,7 +413,6 @@ image prompts, naming and copy, with the operational context stripped out:
 {
   "name": "creative",
   "profile": "__active__",
-  "persistSession": true,
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
   "pluginDirs": [],

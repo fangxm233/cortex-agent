@@ -46,7 +46,7 @@ L5  entry/         → 所有层（组合根）
 | `rebuild-progress.ts` | 监督器发布到 `daemon-rebuild.json` 的热重建进度记录：纯步骤状态迁移（`planRebuildProgress`、`startRebuildStep`、`finishRebuildStep`、`settleRebuildProgress`），以及一个永不抛异常的读取 |
 | `run-registry.ts` | `RunRegistry` — 活跃运行与后台 hold 的唯一内存索引。回答 `sessionState(sessionId)`，并向 EventBus 发布 `agent.*` 生命周期事件 |
 | `types/agent-types.ts` | `AgentResult`、`AgentHandle`、`AgentProgress`、`AskUserQuestionInfo` |
-| `types/environment-types.ts` | 执行环境类型：`AgentDefinition`（对应一个 `config/environments/*.json` 文件）、按次使用的覆盖字段，以及一次运行所用的解析结果 `AgentSlotConfig` |
+| `types/environment-types.ts` | 执行环境类型：`AgentDefinition`（对应一个 `config/environments/*.json` 文件），以及一次运行所用的解析结果 `ResolvedEnvironment` |
 | `config-generator.ts` | 新安装的配置文件初始化 |
 | `gateway-generator.ts` | API 网关 YAML 生成 |
 | `profile-generator.ts` | 配置 JSON 生成 |

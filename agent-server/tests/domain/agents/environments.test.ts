@@ -10,7 +10,7 @@ vi.mock('../../../src/domain/agents/config.js', async (importOriginal) => ({
 
 const {
   ENVIRONMENTS_DIR, getEnvironment, listEnvironments, loadEnvironments, mergeDefaultEnvironments,
-  readEnvironment, resolveAgentSlotConfigByName, saveEnvironment, validateEnvironment,
+  readEnvironment, resolveEnvironmentByName, saveEnvironment, validateEnvironment,
 } = await import('../../../src/domain/agents/environments/index.js');
 
 function seed(name: string, body: unknown): void {
@@ -19,7 +19,7 @@ function seed(name: string, body: unknown): void {
 }
 
 function env(name: string, extra: Record<string, unknown> = {}) {
-  return { name, profile: '__active__', persistSession: true, ...extra };
+  return { name, profile: '__active__', ...extra };
 }
 
 beforeEach(() => {
@@ -55,9 +55,9 @@ describe('environment registry', () => {
     seed('main', env('main', { tools: 'Read' }));
     seed('creative', env('creative', { tools: 'Write' }));
     loadEnvironments();
-    expect(resolveAgentSlotConfigByName('__active__', 'web:picked')?.slotId).toBe('creative');
-    expect(resolveAgentSlotConfigByName('__active__', 'web:other')?.tools).toBe('Read');
-    expect(resolveAgentSlotConfigByName('missing')).toBeNull();
+    expect(resolveEnvironmentByName('__active__', 'web:picked')?.tools).toBe('Write');
+    expect(resolveEnvironmentByName('__active__', 'web:other')?.tools).toBe('Read');
+    expect(resolveEnvironmentByName('missing')).toBeNull();
   });
 });
 

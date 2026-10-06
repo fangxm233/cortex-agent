@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { CONTEXT_DIR } from '../src/core/paths.js';
 import { loadUserContext } from '../src/domain/memory/user-context.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
-import type { AgentSlotConfig } from '../src/core/types/environment-types.js';
+import type { ResolvedEnvironment } from '../src/core/types/environment-types.js';
 import type { CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 
@@ -21,11 +21,9 @@ function removeUser(): void {
   try { fs.unlinkSync(USER_MD); } catch {}
 }
 
-function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotConfig {
+function makeAgentConfig(overrides: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
   return {
-    slotId: 'main',
     profile: '__active__',
-    persistSession: false,
     directive: '',
     systemPrompt: 'SYSTEM',
     promptTemplate: '{{input}}',
@@ -34,7 +32,7 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
     tools: 'Read',
     pluginDirs: null,
     ...overrides,
-  } as AgentSlotConfig;
+  } as ResolvedEnvironment;
 }
 
 /** The exact composition a chat turn performs (orchestration/conversation-request.ts): a
@@ -42,7 +40,7 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
  *  Kept here so these tests keep pinning that one call site after P3.3b moved the composition
  *  into domain/runs/prompt.ts. */
 function conversationPrompt(
-  agentConfig: AgentSlotConfig,
+  agentConfig: ResolvedEnvironment,
   input: string,
   opts: {
     includeUserContext?: boolean;

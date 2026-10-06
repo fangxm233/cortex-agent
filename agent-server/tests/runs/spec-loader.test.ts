@@ -7,11 +7,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { bareSpec, fromAgentSlot, fromRole } from '../../src/domain/runs/spec-loader.js';
-import type { AgentSlotConfig } from '../../src/core/types/environment-types.js';
+import type { ResolvedEnvironment } from '../../src/core/types/environment-types.js';
 import type { AgentRole } from '../../src/core/agents/roles.js';
 
-function slot(overrides: Partial<AgentSlotConfig> = {}): AgentSlotConfig {
-  return { slotId: 'coder', profile: '__active__', persistSession: true, ...overrides } as AgentSlotConfig;
+function slot(overrides: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
+  return { profile: '__active__', ...overrides } as ResolvedEnvironment;
 }
 function role(overrides: Partial<AgentRole> = {}): AgentRole {
   return { name: 'explore', description: 'd', systemPrompt: 'ROLE BODY', ...overrides };
