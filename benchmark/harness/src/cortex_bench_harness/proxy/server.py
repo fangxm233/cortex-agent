@@ -47,7 +47,11 @@ class ProxyState:
         self.request_lock = threading.Lock()
         self.active = True
         self.expired = False
+        # Requests that went (or may have gone) upstream: the same set the cap reserves for.
         self.request_count = 0
+        # Audited requests the proxy answered itself without sending them upstream: route and body
+        # refusals, an unavailable credential, a connect that never reached the provider.
+        self.unsent_count = 0
         self.input_tokens = 0
         self.output_tokens = 0
         self.cached_tokens = 0
@@ -63,7 +67,7 @@ class ProxyState:
         caller_error = self.caller_error(source_ip, authorization)
         if caller_error is not None:
             return caller_error
-        attempts = self.request_count + self.reserved_requests
+        attempts = self.request_count + self.unsent_count + self.reserved_requests
         if self.reserved_requests >= self.limits.max_requests:
             return 429, "requests_exhausted"
         if not self.allow_retry and attempts >= 1:
@@ -146,8 +150,11 @@ class ProxyState:
         upstream_model: str | None = None, diagnostic_code: str | None = None,
         upstream_status: int | None = None,
     ) -> str | None:
+        # A retained reservation is a request that may have reached the provider; a released one
+        # never left this process.
         error = self._record_outcome(
-            outcome, upstream_model, diagnostic_code, upstream_status)
+            outcome, upstream_model, diagnostic_code, upstream_status,
+            sent=retain_reservation)
         if error is not None:
             return error
         if not retain_reservation:
@@ -159,22 +166,27 @@ class ProxyState:
     def record_rejection(self, outcome: str) -> str | None:
         # A route or body refusal never reserved, so it must not touch the reservation
         # count: releasing an absent reservation would drive it negative.
-        return self._record_outcome(outcome, None)
+        return self._record_outcome(outcome, None, sent=False)
 
     def _record_outcome(
         self, outcome: str, upstream_model: str | None,
         diagnostic_code: str | None = None, upstream_status: int | None = None,
+        *, sent: bool,
     ) -> str | None:
         record = self._attempt_record(
-            outcome, upstream_model, diagnostic_code, upstream_status)
+            outcome, upstream_model, diagnostic_code, upstream_status, sent=sent)
         if not self._persist(record):
             return "audit_log_unavailable"
-        self.request_count += 1
+        if sent:
+            self.request_count += 1
+        else:
+            self.unsent_count += 1
         return None
 
     def _usage_record(self, usage: ProxyUsage) -> dict[str, object]:
         return self._record(
-            self.request_count + 1, self.input_tokens + usage.input_tokens,
+            self.request_count + 1, self.unsent_count,
+            self.input_tokens + usage.input_tokens,
             self.output_tokens + usage.output_tokens,
             _add_cached(self.cached_tokens, usage.cached_tokens),
             usage.upstream_model,
@@ -183,10 +195,11 @@ class ProxyState:
     def _attempt_record(
         self, outcome: str, upstream_model: str | None,
         diagnostic_code: str | None = None, upstream_status: int | None = None,
+        *, sent: bool,
     ) -> dict[str, object]:
         record = self._record(
-            self.request_count + 1, self.input_tokens, self.output_tokens,
-            self.cached_tokens, upstream_model,
+            self.request_count + int(sent), self.unsent_count + int(not sent),
+            self.input_tokens, self.output_tokens, self.cached_tokens, upstream_model,
         )
         record["outcome"] = outcome
         if diagnostic_code is not None:
@@ -198,11 +211,13 @@ class ProxyState:
         return record
 
     def _record(
-        self, count: int, input_tokens: int, output_tokens: int,
+        self, count: int, unsent: int, input_tokens: int, output_tokens: int,
         cached_tokens: int | None, upstream_model: str | None,
     ) -> dict[str, object]:
+        """One audit row, carrying the running totals as of this row."""
         return {
             "request_count": count,
+            "unsent_requests": unsent,
             "tokens": {"input": input_tokens, "output": output_tokens,
                        "total": input_tokens + output_tokens,
                        "cached": cached_tokens},

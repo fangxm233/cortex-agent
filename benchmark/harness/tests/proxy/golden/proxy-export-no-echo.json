@@ -11,6 +11,7 @@
         "output": 6,
         "total": 10
       },
+      "durable_unsent_requests": 0,
       "entries": 2,
       "outcomes": {}
     }
@@ -37,5 +38,9 @@
   },
   "schema_version": "cortex-bench-proxy-export/1",
   "source": "proxy_export",
-  "trial_id": "trial-export"
+  "trial_id": "trial-export",
+  "unsent_requests": {
+    "status": "available",
+    "value": 0
+  }
 }

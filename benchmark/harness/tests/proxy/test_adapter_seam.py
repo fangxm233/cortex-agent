@@ -78,7 +78,7 @@ def test_route_outside_the_allow_list_is_refused_before_any_upstream_or_reservat
     assert upstream.requests == []
     assert handle._server.state.reserved_requests == 0
     assert records(log_path) == [{
-        "outcome": outcome, "request_count": 1,
+        "outcome": outcome, "request_count": 0, "unsent_requests": 1,
         "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
         "upstream_model": None,
     }]
@@ -169,11 +169,19 @@ def test_refused_requests_leave_the_whole_request_count_for_an_admitted_one(tmp_
             proxy_request(handle.base_url, handle.dummy_token, "denied", model="claude-other-9")
             admitted, _ = proxy_request(handle.base_url, handle.dummy_token, "admitted")
             state = handle._server.state
+            export = handle.final_accounting_export()
         finally:
             handle.stop()
     assert admitted == 200
     assert state.reserved_requests == 1
     assert len(upstream.requests) == 1
+    # `requests` is what reached the provider, the same figure the cap reserved; the two local
+    # refusals are counted beside it rather than inside it.
+    assert export["requests"] == {"status": "available", "value": 1}
+    assert export["unsent_requests"] == {"status": "available", "value": 2}
+    assert export["audit_log"]["value"]["durable_requests"] == 1
+    assert export["audit_log"]["value"]["durable_unsent_requests"] == 2
+    assert export["audit_log"]["value"]["agrees_with_counters"] is True
 
 
 def test_missing_auth_form_refuses_and_forwards_nothing(tmp_path: Path) -> None:

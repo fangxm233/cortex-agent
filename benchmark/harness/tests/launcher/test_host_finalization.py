@@ -836,7 +836,7 @@ def assert_deadline_evidence(envelope: Mapping[str, object]) -> None:
     }
     assert envelope["proxy_usage"] == {
         "schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID,
-        "requests": 23, "input_tokens": 1411, "output_tokens": 97,
+        "requests": 23, "unsent_requests": 0, "input_tokens": 1411, "output_tokens": 97,
         "cached_tokens": {
             "status": "unavailable", "reason": "no_cache_breakdown_reported",
         },

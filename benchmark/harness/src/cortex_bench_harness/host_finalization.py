@@ -580,7 +580,7 @@ def _proxy_usage(
     if export is None:
         return {
             "schema_version": absent, "trial_id": trial_id, "requests": absent,
-            "input_tokens": absent, "output_tokens": absent, "cached_tokens": absent,
+            "unsent_requests": absent, "input_tokens": absent, "output_tokens": absent, "cached_tokens": absent,
             "audit_entries": absent, "audit_outcomes": absent,
             "lease_echo": _unavailable("unavailable_by_design"),
         }
@@ -588,6 +588,7 @@ def _proxy_usage(
     return {
         "schema_version": _field(export, "schema_version"), "trial_id": trial_id,
         "requests": _as_emitted(export.get("requests")),
+        "unsent_requests": _as_emitted(export.get("unsent_requests")),
         "input_tokens": _as_emitted(export.get("input_tokens")),
         "output_tokens": _as_emitted(export.get("output_tokens")),
         "cached_tokens": _as_emitted(export.get("cached_tokens")),

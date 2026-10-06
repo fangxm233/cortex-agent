@@ -293,7 +293,7 @@ def _proxy_counters(trial_root: Path) -> dict[str, int | float | None]:
     except (OSError, ValueError):
         source = {}
     return {name: _counter(source.get(name)) for name in (
-        "requests", "input_tokens", "output_tokens", "cached_tokens")}
+        "requests", "unsent_requests", "input_tokens", "output_tokens", "cached_tokens")}
 
 
 def _counter(value: object) -> int | float | None:

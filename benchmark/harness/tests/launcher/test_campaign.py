@@ -2025,7 +2025,7 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert persisted_result == public_result
     assert "result_path" not in public_result and "summary_path" not in public_result
     assert (trials_dir / "comparison-report.json").is_file()
-    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/4"
+    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/5"
     assert [trial["trial_id"] for trial in summary["trials"]] == [
         "camp-01-task-one-cortex-a", agent_failed, harness_incomplete, security_failed,
     ]

@@ -88,10 +88,12 @@ class FakeProxySession:
             manifest_block={"schema_version": "cortex-bench-proxy-manifest/1"},
             accounting_export={
                 "requests": {"status": "available", "value": request_count},
+                "unsent_requests": {"status": "available", "value": 0},
                 "audit_log": {
                     "status": "available",
                     "value": {
                         "durable_requests": request_count,
+                        "durable_unsent_requests": 0,
                         "agrees_with_counters": True,
                     },
                 },

@@ -8,9 +8,11 @@ from typing import Protocol
 from .campaign_config import CampaignConfig, TrialPlan
 
 RESULT_SUMMARY_FILENAME = "result-summary.json"
-RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/4"
+RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/5"
 PROXY_EXPORT_FILENAME = "proxy-export.json"
-_COUNTER_FIELDS = ("requests", "input_tokens", "output_tokens", "cached_tokens")
+_COUNTER_FIELDS = (
+    "requests", "unsent_requests", "input_tokens", "output_tokens", "cached_tokens",
+)
 _REVOCATION_BOOLEAN_FIELDS = ("route_active", "listener_present", "serving_thread_alive")
 _REVOCATION_COUNT_FIELDS = ("active_handlers", "body_handlers")
 

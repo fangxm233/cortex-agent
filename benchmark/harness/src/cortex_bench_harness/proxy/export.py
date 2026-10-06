@@ -18,13 +18,18 @@ UNAVAILABLE_REASONS = frozenset({
     "no_cache_breakdown_reported",
 })
 
-COUNTER_SLOTS = ("requests", "input_tokens", "output_tokens", "cached_tokens")
+# `requests` counts what went (or may have gone) upstream, the same set the request cap reserves
+# for; `unsent_requests` counts audited requests the proxy answered without sending them on.
+COUNTER_SLOTS = (
+    "requests", "unsent_requests", "input_tokens", "output_tokens", "cached_tokens",
+)
 
 
 class ProxyCounters(Protocol):
     """The proxy's own running totals. `ProxyState` satisfies this structurally."""
 
     request_count: int
+    unsent_count: int
     input_tokens: int
     output_tokens: int
     cached_tokens: int | None
@@ -71,6 +76,7 @@ def _counter_slots(counters: ProxyCounters | None) -> dict[str, object]:
         return {slot: unavailable("proxy_not_started") for slot in COUNTER_SLOTS}
     return {
         "requests": _read(counters, "request_count", _count),
+        "unsent_requests": _read(counters, "unsent_count", _count),
         "input_tokens": _read(counters, "input_tokens", _count),
         "output_tokens": _read(counters, "output_tokens", _count),
         "cached_tokens": _cached_slot(counters),
@@ -145,6 +151,7 @@ def _durable_totals(
     return {
         "entries": len(entries),
         "durable_requests": tail["request_count"] if tail else 0,
+        "durable_unsent_requests": tail["unsent_requests"] if tail else 0,
         "durable_tokens": tail["tokens"] if tail else {
             "input": 0, "output": 0, "total": 0, "cached": 0,
         },
@@ -175,11 +182,15 @@ def _agrees(tail: dict[str, Any] | None, counters: ProxyCounters | None) -> bool
         return False
     try:
         if tail is None:
-            return (0, 0, 0) == (
-                counters.request_count, counters.input_tokens, counters.output_tokens)
+            return (0, 0, 0, 0) == (
+                counters.request_count, counters.unsent_count, counters.input_tokens,
+                counters.output_tokens)
         tokens = tail["tokens"]
-        return (tail["request_count"], tokens["input"], tokens["output"], tokens["cached"]) == (
-            counters.request_count, counters.input_tokens, counters.output_tokens,
-            counters.cached_tokens)
+        return (
+            tail["request_count"], tail["unsent_requests"], tokens["input"], tokens["output"],
+            tokens["cached"],
+        ) == (
+            counters.request_count, counters.unsent_count, counters.input_tokens,
+            counters.output_tokens, counters.cached_tokens)
     except Exception:
         return False

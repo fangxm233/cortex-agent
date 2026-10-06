@@ -513,16 +513,17 @@ class CortexBenchAgent(BaseInstalledAgent):
 
     def _require_production_proxy_traffic(self) -> None:
         evidence = self._require_admitted_proxy().handle.accounting_export
-        requests = evidence.get("requests")
+        sent = _available_count(evidence.get("requests"))
+        unsent = _available_count(evidence.get("unsent_requests"))
         audit = evidence.get("audit_log")
-        count = requests.get("value") if isinstance(requests, Mapping) else None
         audit_value = audit.get("value") if isinstance(audit, Mapping) else None
+        # A request the proxy refused locally still reached it, which is all this proves.
         valid = (
-            isinstance(count, int) and not isinstance(count, bool) and count > 0
-            and requests.get("status") == "available"
+            sent is not None and unsent is not None and sent + unsent > 0
             and isinstance(audit_value, Mapping)
             and audit.get("status") == "available"
-            and audit_value.get("durable_requests") == count
+            and audit_value.get("durable_requests") == sent
+            and audit_value.get("durable_unsent_requests") == unsent
             and audit_value.get("agrees_with_counters") is True
         )
         if not valid:
@@ -572,3 +573,10 @@ class CortexBenchAgent(BaseInstalledAgent):
             scan_policy=self._host_scan_policy, npm_artifact=self._npm_artifact,
             bundle_root=str(self._installed_server.bundle_root),
         )
+
+
+def _available_count(slot: object) -> int | None:
+    value = slot.get("value") if isinstance(slot, Mapping) else None
+    if not isinstance(slot, Mapping) or slot.get("status") != "available":
+        return None
+    return value if isinstance(value, int) and not isinstance(value, bool) else None

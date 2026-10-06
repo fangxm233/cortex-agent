@@ -292,7 +292,7 @@ def test_unaccounted_stream_audits_diagnostic_without_content_and_keeps_revocati
     assert audit == [{
         "outcome": "usage_accounting_unavailable",
         "diagnostic_code": "deepseek_done_missing",
-        "request_count": 1,
+        "request_count": 1, "unsent_requests": 0,
         "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
         "upstream_model": MODEL,
     }]

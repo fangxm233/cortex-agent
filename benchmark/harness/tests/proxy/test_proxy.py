@@ -237,12 +237,14 @@ def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -
         handle.stop()
     records = [json.loads(line) for line in log_path.read_text().splitlines()]
     assert (first, second) == (502, 200)
+    # The connect never reached the provider, so it is unsent, not a provider request.
     assert records[0] == {
         "outcome": "upstream_unavailable",
-        "request_count": 1, "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
+        "request_count": 0, "unsent_requests": 1,
+        "tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
         "upstream_model": None,
     }
-    assert records[1]["request_count"] == 2
+    assert (records[1]["request_count"], records[1]["unsent_requests"]) == (1, 1)
 
 
 def test_interrupted_upstream_stream_keeps_route_retryable(tmp_path: Path) -> None:
@@ -566,7 +568,7 @@ def test_logs_only_aggregate_usage_and_model_identity(tmp_path: Path) -> None:
     log_bytes = log_path.read_bytes()
     record = json.loads(log_bytes)
     assert record == {
-        "request_count": 1, "upstream_model": "claude-synthetic-1",
+        "request_count": 1, "unsent_requests": 0, "upstream_model": "claude-synthetic-1",
         "tokens": {"input": 2, "output": 3, "total": 5, "cached": None},
     }
     assert REAL_CREDENTIAL.encode() not in log_bytes

@@ -85,7 +85,7 @@ def test_vendor_result_summary_projects_the_declared_thinking_when_present(
 ) -> None:
     summary = build_result_summary(summary_config(tmp_path, arm), [outcome(arm)])
 
-    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/4"
+    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/5"
     assert summary["trials"][0]["thinking"] == expected
 
 
@@ -120,3 +120,16 @@ def test_the_summary_counts_each_arm_against_the_denominator_it_earned(
         "tasks": 3, "reward_total": 1.0,
         "score_status": {"available": 2, "provider_unavailable": 1},
     }]
+
+
+def test_the_summary_counts_unsent_requests_beside_the_ones_that_reached_the_provider(
+    tmp_path: Path,
+) -> None:
+    arm = cortex_arm()
+    scored = outcome(arm)
+    scored.envelope = {"proxy_usage": {"requests": 4, "unsent_requests": 2}}
+
+    counters = build_result_summary(
+        summary_config(tmp_path, arm), [scored])["trials"][0]["counters"]
+
+    assert (counters["requests"], counters["unsent_requests"]) == (4, 2)

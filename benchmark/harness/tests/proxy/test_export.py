@@ -93,6 +93,7 @@ class RaisingCounters:
     """A counter source whose cached total is not readable. The export must not read it as zero."""
 
     request_count = 4
+    unsent_count = 1
     input_tokens = 8
     output_tokens = 16
 
@@ -105,6 +106,7 @@ class DefaultInitialisedCounters:
     """The A5 hazard in its most ordinary form: an object whose fields were never filled."""
 
     request_count = None
+    unsent_count = None
     input_tokens = None
     output_tokens = None
     cached_tokens = None
@@ -161,7 +163,7 @@ def test_default_initialised_counters_never_yield_zeros(tmp_path: Path) -> None:
         log_path=tmp_path / "absent.jsonl", lease_echo=None,
     )
 
-    for slot in ("requests", "input_tokens", "output_tokens"):
+    for slot in ("requests", "unsent_requests", "input_tokens", "output_tokens"):
         assert export[slot] == {"status": "unavailable", "reason": "counter_unreadable"}
     # A never-filled cached field is indistinguishable from a provider that reported no
     # breakdown. Either way it is not a zero.
@@ -176,7 +178,10 @@ def test_an_unstarted_proxy_is_unavailable_rather_than_a_zero_total(tmp_path: Pa
         log_path=None, lease_echo=None,
     )
 
-    for slot in ("requests", "input_tokens", "output_tokens", "cached_tokens", "lease_echo"):
+    for slot in (
+        "requests", "unsent_requests", "input_tokens", "output_tokens", "cached_tokens",
+        "lease_echo",
+    ):
         assert export[slot] == {"status": "unavailable", "reason": "proxy_not_started"}
     assert zero_valued_slots(export) == []
 
@@ -231,7 +236,7 @@ def test_a_log_holding_only_lease_lines_reports_a_read_zero(tmp_path: Path) -> N
             handle.stop()
 
     assert export["audit_log"]["value"] == {
-        "entries": 1, "durable_requests": 0,
+        "entries": 1, "durable_requests": 0, "durable_unsent_requests": 0,
         "durable_tokens": {"input": 0, "output": 0, "total": 0, "cached": 0},
         "agrees_with_counters": True, "outcomes": {},
     }
