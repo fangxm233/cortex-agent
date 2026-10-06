@@ -1,10 +1,7 @@
 package dev.cortex.notifications
 
 internal data class ExecutionRow(val id: String, val finishedAt: String)
-internal data class ExecutionDetail(
-    val status: String, val kind: String, val threadId: String?,
-    val sessionId: String?, val projectId: String?,
-)
+internal data class ExecutionDetail(val status: String, val sessionId: String?, val projectId: String?)
 internal data class Completion(val sessionId: String, val projectId: String?, val name: String?)
 
 /** Announceable completions plus the execution ids that never need another decision. */
@@ -53,7 +50,6 @@ internal object Completions {
         return Verdict(true, Completion(session.id, detail.projectId ?: session.projectId, session.name))
     }
 
-    /** The session of a finished interactive turn — never a thread step or a dispatch. */
-    private fun finishedTurn(detail: ExecutionDetail): String? = detail.sessionId
-        ?.takeIf { detail.status == "completed" && detail.threadId == null && detail.kind != "dispatch" }
+    private fun finishedTurn(detail: ExecutionDetail): String? =
+        detail.sessionId?.takeIf { detail.status == "completed" }
 }

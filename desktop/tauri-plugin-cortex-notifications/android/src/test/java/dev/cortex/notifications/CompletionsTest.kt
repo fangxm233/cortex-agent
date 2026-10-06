@@ -9,9 +9,8 @@ class CompletionsTest {
     private fun row(id: String, finished: String = "2026-01-01T00:00:01Z") =
         ExecutionRow(id, finished)
 
-    private fun detail(status: String = "completed", kind: String = "local", thread: String? = null,
-        session: String? = "one", project: String? = "project") =
-        ExecutionDetail(status, kind, thread, session, project)
+    private fun detail(status: String = "completed", session: String? = "one", project: String? = "project") =
+        ExecutionDetail(status, session, project)
 
     private fun scan(rows: List<ExecutionRow>, processed: Set<String> = emptySet(),
         sessions: List<Session> = listOf(idle), baseline: Boolean = true,
@@ -33,7 +32,7 @@ class CompletionsTest {
 
     @Test fun unsuccessfulOrForeignExecutionsAreDecidedWithoutAnnouncing() {
         val rejected = listOf(detail(status = "failed"), detail(status = "cancelled"), detail(status = "stale"),
-            detail(status = "running"), detail(thread = "thr_1"), detail(kind = "dispatch"), detail(session = null))
+            detail(status = "running"), detail(session = null))
         rejected.forEach { info ->
             val result = scan(listOf(row("a")), lookup = { info })
             assertTrue(info.toString(), result.announce.isEmpty())
@@ -64,7 +63,7 @@ class CompletionsTest {
     }
 
     @Test fun executionsOutsideTheDirectSessionListNeverAnnounce() {
-        val result = scan(listOf(row("a")), lookup = { detail(session = "thread-session") })
+        val result = scan(listOf(row("a")), lookup = { detail(session = "scheduled-session") })
         assertTrue(result.announce.isEmpty())
         assertEquals(listOf("a"), result.processed)
     }

@@ -142,16 +142,15 @@ class ProtocolTest {
         assertThrows(Exception::class.java) { Protocol.executions("""[{"sessionId":"one"}]""") }
     }
 
-    @Test fun executionDetailKeepsThreadOriginAndHidesAgentOutput() {
+    @Test fun executionDetailReadsOnlyOutcomeAndOwnerAndHidesAgentOutput() {
         val detail = Protocol.executionDetail(JSONObject("""{"id":"exec-1","status":"completed","kind":"local",
           "threadId":null,"sessionId":"one","projectId":"project",
           "text":{"finalOutput":"Private answer","label":"Private prompt"}}"""))
-        assertEquals(ExecutionDetail("completed", "local", null, "one", "project"), detail)
+        assertEquals(ExecutionDetail("completed", "one", "project"), detail)
         assertFalse(detail.toString().contains("Private"))
-        val step = Protocol.executionDetail(JSONObject(
-            """{"status":"completed","kind":"local","threadId":"thr_1","sessionId":"one","projectId":null}"""))
-        assertEquals("thr_1", step.threadId)
-        assertNull(step.projectId)
+        // Servers that no longer send the retired kind/threadId fields still parse.
+        val bare = Protocol.executionDetail(JSONObject("""{"status":"completed","sessionId":"one","projectId":null}"""))
+        assertEquals(ExecutionDetail("completed", "one", null), bare)
     }
 
     @Test fun trpcQueryEnvelopeMustContainResultData() {

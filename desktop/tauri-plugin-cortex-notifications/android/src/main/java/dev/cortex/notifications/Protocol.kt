@@ -82,8 +82,7 @@ internal object Protocol {
     }
 
     fun executionDetail(body: JSONObject): ExecutionDetail = ExecutionDetail(
-        body.getString("status"), body.getString("kind"), body.optional("threadId"),
-        body.optional("sessionId"), body.optional("projectId"))
+        body.getString("status"), body.optional("sessionId"), body.optional("projectId"))
 
     fun interactions(session: Session, body: JSONObject): List<Alert> =
         listOf("askUser", "plan").mapNotNull { kind -> interaction(session, body, kind) }
