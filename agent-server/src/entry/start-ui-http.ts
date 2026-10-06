@@ -18,7 +18,7 @@ import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
 import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
 import { createFileRoutes } from '@platform/ui-http/file-routes.js';
 import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
-import { openDevicePort, closeDevicePort } from '@domain/remote/device-port.js';
+import { openDevicePort, closeDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
@@ -183,6 +183,7 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
         },
         openDevicePort,
         closeDevicePort,
+        listDevicePorts,
       }),
     },
     portForward: env.CORTEX_PORT_FORWARD !== '0',

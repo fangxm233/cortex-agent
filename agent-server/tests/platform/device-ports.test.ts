@@ -10,8 +10,9 @@ const listDevices = vi.fn(() => [] as Array<{ device: string; platform: string }
 const runOnDevice = vi.fn(async (_d: string, _c: string) => '');
 const openDevicePort = vi.fn();
 const closeDevicePort = vi.fn((_d: string, _p: number) => true);
-const deps = { listDevices, runOnDevice, openDevicePort, closeDevicePort } as unknown as DevicePortDeps;
-const routes = createDevicePortRoutes(deps);
+const listDevicePorts = vi.fn(() => [] as Array<{ device: string; remotePort: number }>);
+const deps = { listDevices, runOnDevice, openDevicePort, closeDevicePort, listDevicePorts } as unknown as DevicePortDeps;
+let routes = createDevicePortRoutes(deps);
 
 interface Captured { status: number; body: any }
 
@@ -35,7 +36,22 @@ beforeEach(() => {
   runOnDevice.mockReset().mockResolvedValue('');
   openDevicePort.mockReset();
   closeDevicePort.mockReset().mockReturnValue(true);
+  listDevicePorts.mockReset().mockReturnValue([]);
+  routes = createDevicePortRoutes(deps);
 });
+
+const MAPPING = { device: 'desk', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41234 };
+
+async function call(path: string, port = 6006): Promise<Captured> {
+  const { res, out } = fakeRes();
+  await routes[path](fakeReq('POST', path, { device: 'desk', port }), res);
+  return out;
+}
+
+/** The domain's view after the first open: the mapping now exists. */
+function mappingExists(): void {
+  listDevicePorts.mockReturnValue([MAPPING]);
+}
 
 describe('device port routes', () => {
 
@@ -133,12 +149,32 @@ describe('device port routes', () => {
     expect(out.status).toBe(405);
   });
 
-  it('closes a mapping the UI no longer shows', async () => {
-    const { res, out } = fakeRes();
-    await routes[DEVICE_PORT_CLOSE_PATH](fakeReq('POST', DEVICE_PORT_CLOSE_PATH, { device: 'desk', port: 6006 }), res);
+  it('closes a mapping the UI opened once no view shows it', async () => {
+    openDevicePort.mockResolvedValue(MAPPING);
+    await call(DEVICE_PORT_OPEN_PATH);
+    const out = await call(DEVICE_PORT_CLOSE_PATH);
     expect(out.status).toBe(200);
     expect(out.body.data).toEqual({ closed: true });
     expect(closeDevicePort).toHaveBeenCalledWith('desk', 6006);
+  });
+
+  it('keeps a mapping another view (window, device) still uses', async () => {
+    openDevicePort.mockResolvedValue(MAPPING);
+    await call(DEVICE_PORT_OPEN_PATH);
+    mappingExists();
+    await call(DEVICE_PORT_OPEN_PATH);
+    expect((await call(DEVICE_PORT_CLOSE_PATH)).body.data).toEqual({ closed: false });
+    expect(closeDevicePort).not.toHaveBeenCalled();
+    expect((await call(DEVICE_PORT_CLOSE_PATH)).body.data).toEqual({ closed: true });
+    expect(closeDevicePort).toHaveBeenCalledTimes(1);
+  });
+
+  it('never closes a mapping that existed before the UI asked (an agent\'s browser)', async () => {
+    mappingExists();
+    openDevicePort.mockResolvedValue(MAPPING);
+    await call(DEVICE_PORT_OPEN_PATH);
+    expect((await call(DEVICE_PORT_CLOSE_PATH)).body.data).toEqual({ closed: false });
+    expect(closeDevicePort).not.toHaveBeenCalled();
   });
 
   it('validates a close like an open', async () => {

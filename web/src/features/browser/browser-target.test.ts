@@ -140,7 +140,7 @@ describe('frameRefusedEmbedding', () => {
 });
 
 describe('deviceForwardsInUse', () => {
-  it('lists ready device forwards once, skipping server ports and pending ones', () => {
+  it('lists device forwards once (opening ones too), skipping server ports', () => {
     const tab = (forward: BrowserTabState['forward']): BrowserTabState => ({ ...createBrowserTab('t'), forward });
     const inUse = deviceForwardsInUse([
       tab({ status: 'ready', device: 'desk', originalPort: 6006, targetUrl: 'http://127.0.0.1:41000/' }),
@@ -149,6 +149,6 @@ describe('deviceForwardsInUse', () => {
       tab({ status: 'connecting', operationId: 1, device: 'lab', originalPort: 8888 }),
       tab(null),
     ]);
-    expect([...inUse.values()]).toEqual([{ device: 'desk', port: 6006 }]);
+    expect([...inUse.values()]).toEqual([{ device: 'desk', port: 6006 }, { device: 'lab', port: 8888 }]);
   });
 });

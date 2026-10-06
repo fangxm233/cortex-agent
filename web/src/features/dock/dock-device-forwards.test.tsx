@@ -54,6 +54,19 @@ describe('dock: device port mappings follow the tabs that show them', () => {
     expect(closeDeviceForward).toHaveBeenCalledWith('desk', 6006);
   });
 
+  it('does not close a mapping the tab is re-opening (picking the same port again)', () => {
+    mount();
+    act(() => dock.openWeb());
+    const { id } = webTab();
+    forwardTo(id, 'desk', 6006);
+    act(() => dock.updateWeb(id, (tab) => ({
+      ...tab,
+      forward: { status: 'connecting', operationId: 2, device: 'desk', originalPort: 6006 },
+    })));
+    forwardTo(id, 'desk', 6006);
+    expect(closeDeviceForward).not.toHaveBeenCalled();
+  });
+
   it('keeps mappings while the dock is only hidden, and never closes server ports', () => {
     mount();
     act(() => dock.openWeb());

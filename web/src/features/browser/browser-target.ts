@@ -239,12 +239,13 @@ export interface DeviceForward {
   port: number;
 }
 
-/** Device port mappings the given tabs show, keyed by device+port. The server's own ports are not
- *  mappings (nothing to tear down), and a forward still connecting has nothing to close yet. */
+/** Device port mappings the given tabs show or are opening, keyed by device+port. A connecting
+ *  forward counts: its open is already on the wire and may hand back a mapping that is live now.
+ *  The server's own ports are not mappings, so there is nothing to tear down for them. */
 export function deviceForwardsInUse(tabs: readonly BrowserTabState[]): Map<string, DeviceForward> {
   const inUse = new Map<string, DeviceForward>();
   for (const { forward } of tabs) {
-    if (forward?.status !== 'ready' || forward.device === '') continue;
+    if (!forward || forward.device === '') continue;
     inUse.set(`${forward.device}\u0000${forward.originalPort}`, { device: forward.device, port: forward.originalPort });
   }
   return inUse;

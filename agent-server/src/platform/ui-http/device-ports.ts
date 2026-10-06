@@ -34,6 +34,8 @@ export interface DevicePortDeps {
   openDevicePort: (device: string, port: number) => Promise<DevicePortMapping>;
   /** False when no such mapping was open. */
   closeDevicePort: (device: string, port: number) => boolean;
+  /** Mappings open right now, whoever opened them. */
+  listDevicePorts: () => DevicePortMapping[];
 }
 
 /**
@@ -75,6 +77,15 @@ async function readDevicePort(
 }
 
 export function createDevicePortRoutes(deps: DevicePortDeps): Record<string, CustomRouteHandler> {
+  // A mapping is shared by everyone who asks for the same device port — another window, another
+  // device's app, an agent's browser — so a close from one view must not pull it from under the
+  // rest. Count the UI's opens of each mapping the UI itself created, and close on the last
+  // release. A mapping that already existed when the UI first asked (an agent's) is never closed
+  // from here. Miscounts err towards keeping a mapping open, which is the old behaviour anyway:
+  // it lives until the device disconnects.
+  const uiOpens = new Map<string, number>();
+  const keyOf = (device: string, port: number): string => `${device}\u0000${port}`;
+
   return {
     [DEVICES_PATH]: async (_req, res) => {
       const devices = deps.listDevices().map((d) => ({ device: d.device, platform: d.platform }));
@@ -90,17 +101,29 @@ export function createDevicePortRoutes(deps: DevicePortDeps): Record<string, Cus
     [DEVICE_PORT_OPEN_PATH]: async (req, res) => {
       const target = await readDevicePort(req, res);
       if (!target) return;
+      const key = keyOf(target.device, target.port);
+      const existed = deps.listDevicePorts()
+        .some((m) => m.device === target.device && m.remotePort === target.port);
+      let mapping: DevicePortMapping;
       try {
-        sendJson(res, 200, { ok: true, data: await deps.openDevicePort(target.device, target.port) });
+        mapping = await deps.openDevicePort(target.device, target.port);
       } catch (err) {
-        sendError(res, 500, 'open-failed', (err as Error).message);
+        return sendError(res, 500, 'open-failed', (err as Error).message);
       }
+      if (uiOpens.has(key)) uiOpens.set(key, uiOpens.get(key)! + 1);
+      else if (!existed) uiOpens.set(key, 1);
+      sendJson(res, 200, { ok: true, data: mapping });
     },
 
     [DEVICE_PORT_CLOSE_PATH]: async (req, res) => {
       const target = await readDevicePort(req, res);
       if (!target) return;
-      sendJson(res, 200, { ok: true, data: { closed: deps.closeDevicePort(target.device, target.port) } });
+      const key = keyOf(target.device, target.port);
+      const opens = uiOpens.get(key) ?? 0;
+      if (opens > 1) uiOpens.set(key, opens - 1);
+      else uiOpens.delete(key);
+      const closed = opens === 1 && deps.closeDevicePort(target.device, target.port);
+      sendJson(res, 200, { ok: true, data: { closed } });
     },
   };
 }
