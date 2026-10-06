@@ -6,7 +6,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 不想用终端？ {#prefer-not-to-use-a-terminal}
 
-[桌面应用](desktop-app.md)可以替你安装并配置服务端：在首屏选择**安装 Cortex**，填写机器设置后启动并连接。全新安装会打开 Provider 设置页，供你登录并选择默认 Profile。Node.js、npm 和 Git 是前置条件；Slack 与飞书设置会被跳过——应用本身就是交互界面。如果你还想让服务端接入聊天平台，请继续阅读本指南。
+[桌面应用](desktop-app.md)可以替你安装并配置服务端：在首屏选择**安装 Cortex**，填写机器设置后启动并连接。全新安装会打开 Provider 设置页，供你登录并选择默认 Profile。Node.js 和 npm 是前置条件；macOS/Linux 的 Git 为可选项，Windows 的 Git Bash 仍为必需项；Slack 与飞书设置会被跳过——应用本身就是交互界面。如果你还想让服务端接入聊天平台，请继续阅读本指南。
 
 ## 前置条件 {#prerequisites}
 
@@ -14,7 +14,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 - **一个 Slack 工作区或一个飞书（Lark）组织**，你可以在其中创建应用。
 - **大约 2 GB 空闲磁盘空间**，用于后端、插件和日志。
 
-你**不需要**预先安装编程智能体。PI 引擎随 Cortex 服务器包一起打包。Claude Code 是可选项；选择其登录流程时，若尚未安装，会提供安装选项。也不需要预先安装 `git`，不需要预先创建任何目录或 env 文件——`cortex init` 都会处理。
+你**不需要**预先安装编程智能体。PI 引擎随 Cortex 服务器包一起打包。Claude Code 是可选项；选择其登录流程时，若尚未安装，会提供安装选项。macOS/Linux 不要求安装 Git。`cortex init` 创建目录和 env 文件，仅在已有可用 Git 时初始化版本历史。版本历史和 Git 来源的扩展需要 Git，Windows shell 工具需要 Git Bash。
 
 ### 检查 Node.js 版本 {#checking-your-nodejs-version}
 
@@ -311,7 +311,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 
 ```
 ~/.cortex/
-├── .git/                       # 自动 git 初始化，所有状态均已提交
+├── .git/                       # 可选：已有可用 Git 时创建
 ├── AGENTS.md                   # 根智能体上下文（从默认值初始化）
 ├── config/
 │   ├── .env                    # CORTEX_PLATFORM 列表 + 平台令牌 + CORTEX_MACHINE

@@ -11,7 +11,7 @@ prompt and shows you exactly where to click.
 
 ## Prefer not to use a terminal?
 
-The [desktop app](desktop-app.md) can install and configure the server for you: choose **Install Cortex** on its first screen, enter the machine settings, then start and connect. A new installation opens provider setup for login and default-profile selection. Node.js, npm, and Git are prerequisites; Slack and Feishu setup is skipped — the app is the interface. Come back here when you want a server that also talks to a chat platform.
+The [desktop app](desktop-app.md) can install and configure the server for you: choose **Install Cortex** on its first screen, enter the machine settings, then start and connect. A new installation opens provider setup for login and default-profile selection. Node.js and npm are prerequisites; Git is optional on macOS/Linux and required for Windows Git Bash; Slack and Feishu setup is skipped — the app is the interface. Come back here when you want a server that also talks to a chat platform.
 
 ## Prerequisites
 
@@ -23,9 +23,7 @@ The [desktop app](desktop-app.md) can install and configure the server for you: 
 You do **not** need to install a coding agent beforehand. The PI engine
 ships inside the Cortex server package. Claude Code is optional; choosing
 its login flow offers installation if it is missing. You do not need to
-install `git` beforehand, and you do not need to pre-create any directories
-or env files —
-`cortex init` handles all of that.
+install Git on macOS/Linux. `cortex init` creates the directories and env files, and initializes version history only when usable Git is already installed. Git-based history and Git-sourced extensions require Git; Windows shell tools require Git Bash.
 
 ### Checking your Node.js version
 
@@ -424,7 +422,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 
 ```
 ~/.cortex/
-├── .git/                       # auto git-init'd, all state is committed
+├── .git/                       # optional: created when usable Git is installed
 ├── AGENTS.md                   # root agent context (seeded from defaults)
 ├── config/
 │   ├── .env                    # CORTEX_PLATFORM list + platform tokens + CORTEX_MACHINE

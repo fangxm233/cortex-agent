@@ -478,8 +478,9 @@ files as one JSONL record of the accessed filename, the tool, and a timestamp:
 {"file": "<entry>.md", "tool": "Read", "ts": "2026-05-19T10:30:00.000Z"}
 ```
 
-The log lives at `<project>/_meta/access-log.jsonl` and is auto-committed to git
-after each write. Memory index regeneration reads it to compute access counts
+The log lives at `<project>/_meta/access-log.jsonl`. Each write attempts a Git
+commit when Git is available and the context directory is in a repository.
+Without Git, access tracking still writes the log. Memory index regeneration reads it to compute access counts
 (`refs`) and last-access timestamps (`last-ref`), which drive index sorting and
 hot/cold classification.
 

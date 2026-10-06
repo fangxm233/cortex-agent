@@ -307,7 +307,7 @@ cat payload.json | cortex-hook test --id status-md-guard --payload -
 {"file": "<entry>.md", "tool": "Read", "ts": "2026-05-19T10:30:00.000Z"}
 ```
 
-日志位于 `<project>/_meta/access-log.jsonl`，每次写入后自动提交到 git。内存索引重建会读取它来计算访问计数（`refs`）和最后访问时间戳（`last-ref`），这些驱动索引排序与热/冷分类。
+日志位于 `<project>/_meta/access-log.jsonl`，在 Git 可用且上下文目录位于仓库中时尝试提交到 Git；无 Git 时仍正常写入日志。内存索引重建会读取它来计算访问计数（`refs`）和最后访问时间戳（`last-ref`），这些驱动索引排序与热/冷分类。
 
 ## 调试钩子 {#debugging-hooks}
 

@@ -208,7 +208,7 @@ The Dense Context system follows these operational conventions:
 2. **Create file → update index** — when adding a new file to a directory, update that directory's AGENTS.md
 3. **Overwrite vs. append** — STATUS.md overwrites (only current state); ISSUES.md appends then deletes; experiments/knowledge/patterns append and stay
 4. **Provenance is mandatory** — every factual claim must trace to a specific EXP-NNN, K-NNN, file:line, or inline calculation
-5. **Git as persistence** — all context updates are committed via git, incrementally after each logical work unit
+5. **Persist after each work unit** — save context updates to disk; when Git is available and the directory is a repository, commit your own changes incrementally. Git history is optional
 
 ## Who Loads AGENTS.md
 
