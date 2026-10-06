@@ -1,8 +1,8 @@
-import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import type { MachineEntry, MachineRegistry } from './machine-registry.js';
+import { sshExec } from './ssh-exec.js';
 
 /** Runs a shell command on a remote host and resolves with its stdout. */
 export type RemoteExec = (host: string, command: string) => Promise<string>;
@@ -64,13 +64,7 @@ function dropKey(file: string, key: string, trailingNewline = false): void {
 }
 
 function defaultRemoteExec(host: string, command: string): Promise<string> {
-  const args = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', '-o', 'StrictHostKeyChecking=no', host, command];
-  return new Promise((resolve, reject) => {
-    execFile('ssh', args, { timeout: 30_000 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message));
-      else resolve(stdout);
-    });
-  });
+  return sshExec(host, command, 30_000);
 }
 
 const BUNDLE_IN_COMMAND = /"([^"]+?)[\\/]client[\\/]current[\\/]client\.mjs"|(\S+?)[\\/]client[\\/]current[\\/]client\.mjs/;

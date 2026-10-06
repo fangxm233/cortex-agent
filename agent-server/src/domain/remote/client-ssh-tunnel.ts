@@ -1,9 +1,10 @@
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
+import { runSsh, SSH_BASE_OPTIONS } from './ssh-exec.js';
 
 const log = createLogger('client-ssh-tunnel');
 
@@ -63,12 +64,7 @@ interface TunnelRecord {
 const DEFAULT_CONTROL_DIR = path.join(STORE_DIR, 'client-ssh-tunnels');
 
 function defaultExecSsh(args: string[], timeoutMs = 5000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile('ssh', args, { timeout: timeoutMs }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message));
-      else resolve(stdout.trim());
-    });
-  });
+  return runSsh(args, timeoutMs);
 }
 
 function defaultSpawnSsh(args: string[]): ChildProcess {
@@ -81,9 +77,7 @@ export function buildSshTunnelArgs(spec: SshTunnelSpec, controlPath: string): st
     // A marker command replaces `-N`: the session has to run something for the far side to be
     // identifiable later. Both forms keep the forward alive for the life of the ssh process.
     ...(spec.markerCommand ? [] : ['-N']),
-    '-o', 'BatchMode=yes',
-    '-o', 'ConnectTimeout=5',
-    '-o', 'StrictHostKeyChecking=no',
+    ...SSH_BASE_OPTIONS,
     '-o', 'ExitOnForwardFailure=yes',
     '-o', 'ServerAliveInterval=15',
     '-o', 'ServerAliveCountMax=3',
@@ -212,7 +206,7 @@ export class SshTunnelSupervisor {
     const command = record.spec.freeRemotePortCommand;
     if (!command) return;
     try {
-      await this.execSsh(['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', record.spec.host, command], 15_000);
+      await this.execSsh([...SSH_BASE_OPTIONS, record.spec.host, command], 15_000);
     } catch (error) {
       // Best effort: a reachable-but-uncooperative host should still get a tunnel attempt, and an
       // unreachable one fails loudly a moment later on the spawn itself.

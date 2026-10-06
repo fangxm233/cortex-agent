@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { resolveBundle } from './client-hot-reload.js';
+import { sshExec, SSH_BASE_OPTIONS } from './ssh-exec.js';
 
 const log = createLogger('client-bootstrap');
 
@@ -43,18 +44,13 @@ if (!deviceName) {
 
 // --- SSH helpers ---
 
-function sshExec(command: string, timeout = 30000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile('ssh', ['-o', 'StrictHostKeyChecking=no', sshHost!, command], { timeout }, (err, stdout, stderr) => {
-      if (err) reject(new Error(`SSH error: ${err.message}\n${stderr}`));
-      else resolve(stdout.trim());
-    });
-  });
+function remoteExec(command: string, timeout = 30000): Promise<string> {
+  return sshExec(sshHost!, command, timeout);
 }
 
 function scpTo(localPath: string, remotePath: string, timeout = 60000): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile('scp', ['-o', 'StrictHostKeyChecking=no', localPath, `${sshHost}:${remotePath}`], { timeout }, (err, _stdout, stderr) => {
+    execFile('scp', [...SSH_BASE_OPTIONS, localPath, `${sshHost}:${remotePath}`], { timeout }, (err, _stdout, stderr) => {
       if (err) reject(new Error(`SCP error: ${err.message}\n${stderr}`));
       else resolve();
     });
@@ -73,7 +69,7 @@ async function main() {
   // Step 1: Check SSH connectivity
   console.log('[1/4] Checking SSH connectivity...');
   try {
-    const hostname = await sshExec('hostname');
+    const hostname = await remoteExec('hostname');
     console.log(`  Connected to: ${hostname}`);
   } catch (e) {
     log.error(`SSH connectivity check failed: ${(e as Error).message}`);
@@ -83,7 +79,7 @@ async function main() {
   // Step 2: Check Node.js >= 20
   console.log('[2/4] Checking Node.js...');
   try {
-    const nodeVersion = await sshExec('node --version');
+    const nodeVersion = await remoteExec('node --version');
     console.log(`  Node.js: ${nodeVersion}`);
   } catch {
     log.error('Node.js not found. Please install Node.js (v20+) on the target machine first.');
@@ -99,7 +95,7 @@ async function main() {
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-client-deploy-'));
   try {
-    await sshExec('mkdir -p ~/.cortex/client/current');
+    await remoteExec('mkdir -p ~/.cortex/client/current');
     for (const file of bundle.files) {
       const local = path.join(tmp, file.name);
       fs.writeFileSync(local, Buffer.from(file.data, 'base64'), { mode: 0o755 });
@@ -122,7 +118,7 @@ async function main() {
   });
   const escaped = config.replace(/'/g, "'\\''");
   try {
-    await sshExec(`mkdir -p ~/.cortex/config && echo '${escaped}' > ~/.cortex/config/cortex-client.json`, 15000);
+    await remoteExec(`mkdir -p ~/.cortex/config && echo '${escaped}' > ~/.cortex/config/cortex-client.json`, 15000);
     console.log(`  Written ~/.cortex/config/cortex-client.json`);
   } catch (e) {
     log.error(`Failed to write config: ${(e as Error).message}`);

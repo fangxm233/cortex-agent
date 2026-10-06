@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFile, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { getMachineRegistry, applyReportedGpuCount, type MachineEntry, type MachineRegistry } from './machine-registry.js';
 import { STORE_DIR, CONFIG_DIR, DATA_DIR } from '@core/paths.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
@@ -10,6 +10,7 @@ import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import { SshTunnelSupervisor, type SshTunnelSpec } from './client-ssh-tunnel.js';
+import { sshExec } from './ssh-exec.js';
 
 const log = createLogger('client-manager');
 
@@ -373,15 +374,6 @@ function savePids(pids: Record<string, number>): void {
 function getPid(device: string): number | undefined { return loadPids()[device]; }
 function setPid(device: string, pid: number): void { const p = loadPids(); p[device] = pid; savePids(p); }
 function deletePid(device: string): void { const p = loadPids(); delete p[device]; savePids(p); }
-
-function sshExec(host: string, command: string, timeout = 15000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile('ssh', ['-o', 'ConnectTimeout=5', '-o', 'StrictHostKeyChecking=no', host, command], { timeout }, (err, stdout, stderr) => {
-      if (err) reject(new Error(`SSH error: ${err.message}\n${stderr}`));
-      else resolve(stdout.trim());
-    });
-  });
-}
 
 // --- Indirection so tests can swap the SSH executor and registry without spawning ssh ---
 type SshExec = (host: string, command: string, timeout?: number) => Promise<string>;
