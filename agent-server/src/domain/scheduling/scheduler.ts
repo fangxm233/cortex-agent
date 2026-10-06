@@ -12,12 +12,12 @@ const log = createLogger('scheduler');
 
 export type { ScheduleTask } from '@store/schedule-repo.js';
 
-// Hash task config fields that affect scheduling (not timestamps)
+// Hash the task fields that affect when and how it fires (not run timestamps)
 function taskConfigHash(task: ScheduleTask): string {
   const keys: Record<string, string> = { interval: 'intervalMs', daily: 'time', once: 'runAt', weekly: 'dayOfWeek' };
   const key = keys[task.type] as keyof ScheduleTask;
   const extra = task.type === 'weekly' ? `${task.dayOfWeek}:${task.time}` : (String(task[key] || ''));
-  return `${task.type}:${extra}:${task.message}:${task.projectId}:${task.profile || ''}:${task.dispatchType || ''}:${task.preCheck || ''}`;
+  return `${task.type}:${extra}:${task.message}:${task.projectId}:${task.profile || ''}:${task.dispatchType || ''}:${task.preCheck || ''}:${task.isPaused ? 'paused' : ''}`;
 }
 
 // --- Scheduler class ---
@@ -42,6 +42,10 @@ interface SchedulerOptions {
   watchFile?: boolean;
 }
 
+// The daemon's live view of schedules.json. Other processes (the MCP schedule tools,
+// `cortex schedule`) write the file directly through schedule-ops; the file watcher re-reads it
+// and re-arms whatever changed. Every write here goes through the same file, so a reload that
+// follows the daemon's own write finds nothing to change.
 class Scheduler {
   runner: RunnerFn;
   programmaticHandlers: Record<string, ProgrammaticHandler>;
@@ -50,22 +54,12 @@ class Scheduler {
   timers: Map<string, ReturnType<typeof setTimeout>>;
   _repo: ScheduleRepo;
   _inFlight: Set<string>;
+  /** Config hash of every task this scheduler has armed (paused ones included), by id. */
   _taskConfigs: Map<string, string>;
   _watcher: FSWatcher | null;
   _reloadTimer: ReturnType<typeof setTimeout> | null;
-  _selfWriting: boolean;
   /** Admin notification callback for hot-reload → Slack messages. Set by app.ts after adapter creation. */
   _adminNotifier: ((text: string) => void) | null;
-
-  /** Set _selfWriting=true before a disk write, clear after 100ms to avoid triggering fs.watch hot-reload. */
-  async _withWriteGuard<T>(fn: () => Promise<T>): Promise<T> {
-    this._selfWriting = true;
-    try {
-      return await fn();
-    } finally {
-      setTimeout(() => { this._selfWriting = false; }, 100);
-    }
-  }
 
   constructor(
     runner: RunnerFn,
@@ -84,7 +78,6 @@ class Scheduler {
     this._taskConfigs = new Map();
     this._watcher = null;
     this._reloadTimer = null;
-    this._selfWriting = false;
     this._adminNotifier = null;
   }
 
@@ -96,7 +89,7 @@ class Scheduler {
     const now = Date.now();
 
     // Drop once tasks that are more than 1 minute overdue
-    const data = await this._withWriteGuard(() => this._repo.mutate((data) => {
+    const data = await this._repo.mutate((data) => {
       data.tasks = data.tasks.filter(task => {
         if (task.type === 'once' && task.runAt! < now - 60_000) {
           log.info(`Dropping overdue once task ${task.id}: "${task.message}"`);
@@ -105,7 +98,7 @@ class Scheduler {
         return true;
       });
       return { next: data, result: data };
-    }));
+    });
 
     for (const task of data.tasks) {
       this._scheduleTask(task);
@@ -123,16 +116,14 @@ class Scheduler {
     log.info('Stopped');
   }
 
-  // Watch schedules.json for external changes and hot-reload.
+  // Watch schedules.json for changes and hot-reload. atomicWrite replaces the file (a rename), so
+  // the watch is re-attached to the new inode after each one.
   _startWatching(): void {
     const setup = () => {
       try {
         if (this._watcher) this._watcher.close();
         this._watcher = watch(this.schedulesFile, (eventType) => {
-          if (eventType === 'rename') {
-            setTimeout(() => setup(), 100);
-          }
-          if (this._selfWriting) return;
+          if (eventType === 'rename') setTimeout(() => setup(), 100);
           if (this._reloadTimer) clearTimeout(this._reloadTimer);
           this._reloadTimer = setTimeout(() => {
             this._reloadTimer = null;
@@ -146,62 +137,41 @@ class Scheduler {
     setup();
   }
 
-  // Hot-reload: diff file vs in-memory timers — add, remove, or update as needed
+  // Hot-reload: diff the file against the armed tasks — add, remove, or re-arm what changed.
   async _hotReload(): Promise<void> {
-    // Must invalidate cache before reading so we see the actual on-disk state,
-    // not the stale in-memory cache from before the external write.
+    // Invalidate first so the read sees the on-disk state, not the cache from before the write.
     this._repo.invalidate();
-    const data = await this._repo.read();
-    const fileIds = new Set(data.tasks.map(t => t.id));
-    const memIds = new Set(this.timers.keys());
+    const { tasks } = await this._repo.read();
+    const fileIds = new Set(tasks.map(t => t.id));
+    const removed = [...this._taskConfigs.keys()].filter(id => !fileIds.has(id));
+    for (const id of removed) this._unschedule(id);
 
-    let added = 0, removed = 0, updated = 0;
-
-    // Remove timers for tasks no longer in file
-    for (const id of memIds) {
-      if (!fileIds.has(id)) {
-        clearTimeout(this.timers.get(id)!);
-        this.timers.delete(id);
-        this._taskConfigs.delete(id);
-        removed++;
-      }
+    let added = 0, updated = 0;
+    for (const task of tasks) {
+      const known = this._taskConfigs.get(task.id);
+      if (known === taskConfigHash(task)) continue;
+      if (known) updated++; else added++;
+      this._scheduleTask(task);
     }
+    this._reportReload(added, removed.length, updated);
+  }
 
-    for (const task of data.tasks) {
-      if (!memIds.has(task.id)) {
-        this._scheduleTask(task);
-        added++;
-      } else {
-        const oldHash = this._taskConfigs.get(task.id);
-        const newHash = taskConfigHash(task);
-        if (oldHash && oldHash !== newHash) {
-          clearTimeout(this.timers.get(task.id)!);
-          this.timers.delete(task.id);
-          this._scheduleTask(task);
-          updated++;
-        }
-      }
-    }
-
-    if (added || removed || updated) {
-      log.info(`Hot-reload: +${added} -${removed} ~${updated} task(s), total ${this.timers.size}`);
-      this._adminNotifier?.(`${Icons.refresh} \`schedules.json\` hot-reloaded: +${added} -${removed} ~${updated} task(s), ${this.timers.size} total`);
-    }
+  _reportReload(added: number, removed: number, updated: number): void {
+    if (!added && !removed && !updated) return;
+    log.info(`Hot-reload: +${added} -${removed} ~${updated} task(s), total ${this.timers.size}`);
+    this._adminNotifier?.(`${Icons.refresh} \`schedules.json\` hot-reloaded: +${added} -${removed} ~${updated} task(s), ${this.timers.size} total`);
   }
 
   async add(spec: ScheduleSpec): Promise<ScheduleTask> {
-    const { task } = await this._withWriteGuard(() => addSchedule(this._repo, spec));
+    const { task } = await addSchedule(this._repo, spec);
     this._scheduleTask(task);
     return task;
   }
 
   // Remove a task by id. Returns true if found and removed.
   async remove(id: string): Promise<boolean> {
-    const removed = await this._withWriteGuard(() => this._repo.removeTask(id));
-    if (removed) {
-      const timer = this.timers.get(id);
-      if (timer) { clearTimeout(timer); this.timers.delete(id); }
-    }
+    const removed = await this._repo.removeTask(id);
+    if (removed) this._unschedule(id);
     return removed;
   }
 
@@ -214,105 +184,107 @@ class Scheduler {
   }
 
   async update(id: string, patch: SchedulePatch): Promise<ScheduleTask | null> {
-    return this._applyAndReschedule(() => updateSchedule(this._repo, id, patch));
+    return this._applyAndReschedule(updateSchedule(this._repo, id, patch));
   }
 
   async pause(id: string): Promise<ScheduleTask | null> {
-    return this._applyAndReschedule(() => pauseSchedule(this._repo, id));
+    return this._applyAndReschedule(pauseSchedule(this._repo, id));
   }
 
   async resume(id: string): Promise<ScheduleTask | null> {
-    return this._applyAndReschedule(() => resumeSchedule(this._repo, id));
+    return this._applyAndReschedule(resumeSchedule(this._repo, id));
   }
 
-  async _applyAndReschedule(change: () => Promise<ScheduleTask | null>): Promise<ScheduleTask | null> {
-    const updated = await this._withWriteGuard(change);
-    if (updated) this._rescheduleTask(updated);
+  async _applyAndReschedule(change: Promise<ScheduleTask | null>): Promise<ScheduleTask | null> {
+    const updated = await change;
+    if (updated) this._scheduleTask(updated);
     return updated;
   }
 
-  _rescheduleTask(task: ScheduleTask): void {
-    const timer = this.timers.get(task.id);
-    if (timer) {
-      clearTimeout(timer);
-      this.timers.delete(task.id);
-    }
-    this._scheduleTask(task);
+  _unschedule(id: string): void {
+    clearTimeout(this.timers.get(id));
+    this.timers.delete(id);
+    this._taskConfigs.delete(id);
   }
 
-  // Internal: set up the timer(s) for a task
+  // Arm (or re-arm) the timer for a task, replacing any timer it already had.
   _scheduleTask(task: ScheduleTask): void {
+    this._unschedule(task.id);
     this._taskConfigs.set(task.id, taskConfigHash(task));
-
-    if (task.isPaused) {
-      return;
-    }
-
+    if (task.isPaused) return;
     if (task.type === 'once') {
-      const delay = Math.max(0, (task.runAt || 0) - Date.now());
-      const timer = setTimeout(async () => {
-        await this._runTask(task);
-        await this.remove(task.id);
-      }, delay);
-      this.timers.set(task.id, timer);
+      this._armOnce(task);
       return;
     }
-
     const initialDelay = task.type === 'interval'
       ? Math.max(0, (task.nextRun || 0) - Date.now())
       : nextFireDelayMs(task);
+    this._armRecurring(task, initialDelay);
+  }
 
-    const fire = async (): Promise<void> => {
-      try {
-        // Pre-check gate
-        if (task.preCheck) {
-          const freshTask = await this._repo.findTask(task.id);
-          if (freshTask?.preCheck) {
-            // Async: a preCheck is arbitrary user shell, so it must never block the event loop
-            // (execSync here stalled every session, socket and timer for up to the timeout).
-            const precheck = await runShell(freshTask.preCheck, {
-              timeoutMs: 15000,
-              env: { ...process.env, PRECHECK_LAST_RUN: String(freshTask.lastRun || 0) },
-              cwd: DATA_DIR,
-            });
-            if (!precheck.ok) {
-              const output = (precheck.stdout || precheck.stderr || '').trim();
-              const outcome = precheck.timedOut
-                ? 'timeout'
-                : `exit ${precheck.code ?? precheck.signal ?? 'unknown'}`;
-              log.info(`Pre-check skip for ${task.id}: ${output || outcome}`);
-              await this._withWriteGuard(() => this._repo.updateTask(task.id, (t) => {
-                const nextDelayMs = nextFireDelayMs(t);
-                t.nextRun = Date.now() + nextDelayMs;
-                t.lastSkipped = Date.now();
-              }));
-              this.timers.set(task.id, setTimeout(fire, nextFireDelayMs(freshTask)));
-              return;
-            }
-          }
-        }
+  _armOnce(task: ScheduleTask): void {
+    const delay = Math.max(0, (task.runAt || 0) - Date.now());
+    this.timers.set(task.id, setTimeout(async () => {
+      await this._runTask(task);
+      await this.remove(task.id);
+    }, delay));
+  }
 
-        if (this._inFlight.has(task.id)) {
-          log.info(`Task ${task.id} still in-flight, skipping this cycle`);
-        } else {
-          this._inFlight.add(task.id);
-          await this._runTask(task).finally(() => this._inFlight.delete(task.id));
-        }
+  _armRecurring(task: ScheduleTask, delayMs: number): void {
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => { void this._fireRecurring(task, timer); }, delayMs);
+    this.timers.set(task.id, timer);
+  }
 
-        // Update lastRun and reschedule
-        const t = await this._repo.findTask(task.id);
-        if (!t || t.isPaused) return;
-        const nextDelayMs = nextFireDelayMs(t);
-        await this._withWriteGuard(() => this._repo.updateTask(task.id, (tt) => {
-          tt.lastRun = Date.now();
-          tt.nextRun = Date.now() + nextDelayMs;
-        }));
-        this.timers.set(task.id, setTimeout(fire, nextDelayMs));
-      } catch (e) {
-        log.error(`Fire error for ${task.id}:`, (e as Error).message);
+  /** One fire of a recurring task, then re-arm. If the task was re-armed, paused or removed while
+   *  this fire was running, the newer timer owns it and this chain ends. */
+  async _fireRecurring(task: ScheduleTask, firedTimer: ReturnType<typeof setTimeout>): Promise<void> {
+    const stillOwned = () => this.timers.get(task.id) === firedTimer;
+    try {
+      if (!(await this._passesPreCheck(task))) {
+        if (stillOwned()) this._armRecurring(task, nextFireDelayMs(task));
+        return;
       }
-    };
-    this.timers.set(task.id, setTimeout(fire, initialDelay));
+      await this._runUnlessInFlight(task);
+      const nextDelayMs = nextFireDelayMs(task);
+      const fresh = await this._repo.updateTask(task.id, (t) => {
+        if (t.isPaused) return;
+        t.lastRun = Date.now();
+        t.nextRun = Date.now() + nextDelayMs;
+      });
+      if (fresh && !fresh.isPaused && stillOwned()) this._armRecurring(task, nextDelayMs);
+    } catch (e) {
+      log.error(`Fire error for ${task.id}:`, (e as Error).message);
+    }
+  }
+
+  async _runUnlessInFlight(task: ScheduleTask): Promise<void> {
+    if (this._inFlight.has(task.id)) {
+      log.info(`Task ${task.id} still in-flight, skipping this cycle`);
+      return;
+    }
+    this._inFlight.add(task.id);
+    await this._runTask(task).finally(() => this._inFlight.delete(task.id));
+  }
+
+  /** Run the task's preCheck shell gate. A failing check records the skip and returns false. */
+  async _passesPreCheck(task: ScheduleTask): Promise<boolean> {
+    const fresh = task.preCheck ? await this._repo.findTask(task.id) : null;
+    if (!fresh?.preCheck) return true;
+    // Async: a preCheck is arbitrary user shell, so it must never block the event loop.
+    const precheck = await runShell(fresh.preCheck, {
+      timeoutMs: 15000,
+      env: { ...process.env, PRECHECK_LAST_RUN: String(fresh.lastRun || 0) },
+      cwd: DATA_DIR,
+    });
+    if (precheck.ok) return true;
+    const output = (precheck.stdout || precheck.stderr || '').trim();
+    const outcome = precheck.timedOut ? 'timeout' : `exit ${precheck.code ?? precheck.signal ?? 'unknown'}`;
+    log.info(`Pre-check skip for ${task.id}: ${output || outcome}`);
+    await this._repo.updateTask(task.id, (t) => {
+      t.nextRun = Date.now() + nextFireDelayMs(t);
+      t.lastSkipped = Date.now();
+    });
+    return false;
   }
 
   // Internal: invoke the runner for a task

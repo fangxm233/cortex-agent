@@ -14,6 +14,9 @@ export interface JsonRepoOptions<T> {
   /** Serialize without pretty-printing. For multi-MB stores the indentation costs ~40% extra
    *  stringify CPU on every write (synchronous, blocks the event loop) — opt in for those. */
   compact?: boolean;
+  /** Other processes write this file too: mutate() re-reads it from disk instead of trusting the
+   *  cache, so their writes are not overwritten with a stale copy. */
+  sharedFile?: boolean;
 }
 
 interface Flushable {
@@ -145,6 +148,7 @@ export class JsonRepository<T> {
    */
   async mutate<R>(fn: (cur: T) => { next: T; result: R }): Promise<R> {
     return this.mutex.run(async () => {
+      if (this.opts.sharedFile) this.cache = null;
       const cur = await this.read();
       const { next, result } = fn(cur);
       await this.write(next);

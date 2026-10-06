@@ -103,6 +103,8 @@ export class ScheduleRepo {
       filePath,
       defaultValue: defaultData,
       migrate: makeMigrate(channelRegistryPath),
+      // The MCP schedule tools and `cortex schedule` write schedules.json from their own processes.
+      sharedFile: true,
     });
   }
 

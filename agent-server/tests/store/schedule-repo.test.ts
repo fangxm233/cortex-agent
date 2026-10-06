@@ -105,6 +105,21 @@ test('ScheduleRepo - updateTask applies callback and returns updated task', asyn
   assert.equal(found!.isPaused, true);
 });
 
+// ── Another process writes the same file (MCP tools, `cortex schedule`) ──
+
+test('ScheduleRepo - a write from another process survives the next local mutate', async () => {
+  const filePath = path.join(tmpDir, `schedules-${_testIdx++}.json`);
+  const daemon = new ScheduleRepo(filePath);
+  const cli = new ScheduleRepo(filePath);
+  await daemon.addTask(makeTask({ id: 'daemon-task' }));
+
+  await cli.addTask(makeTask({ id: 'cli-task' }));
+  await daemon.updateTask('daemon-task', (t) => { t.lastRun = 1; });
+
+  const raw = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  assert.deepEqual(raw.tasks.map((t: ScheduleTask) => t.id).sort(), ['cli-task', 'daemon-task']);
+});
+
 // ── On-disk schema matches SchedulesData ──────────────────────
 
 test('ScheduleRepo - on-disk schema contains schedule tasks only', async () => {

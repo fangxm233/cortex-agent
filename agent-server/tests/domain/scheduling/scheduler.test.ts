@@ -313,3 +313,48 @@ test('scheduler _hotReload picks up external additions from schedules.json', asy
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('scheduler _hotReload applies a pause and a resume written by another process', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-hot-reload-'));
+  const schedulesFile = path.join(tempDir, 'schedules.json');
+  const task = { id: 'ext', type: 'interval', intervalMs: 60_000, message: 'ext', projectId: 'p', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 };
+  fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [task] }));
+  const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
+  try {
+    await scheduler.start();
+    assert.ok(scheduler.timers.has('ext'));
+
+    fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{ ...task, isPaused: true, pausedBy: 'user', nextRun: null }] }));
+    await scheduler._hotReload();
+    assert.ok(!scheduler.timers.has('ext'), 'an outside pause must stop the timer');
+
+    fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{ ...task, isPaused: false, nextRun: Date.now() + 60_000 }] }));
+    await scheduler._hotReload();
+    assert.ok(scheduler.timers.has('ext'), 'an outside resume must re-arm the timer');
+  } finally {
+    scheduler.stop();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('scheduler _hotReload after its own writes reports nothing, paused and fired-once tasks included', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-hot-reload-'));
+  const schedulesFile = path.join(tempDir, 'schedules.json');
+  fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [] }));
+  const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
+  const notices: string[] = [];
+  scheduler.setAdminNotifier((text) => notices.push(text));
+  try {
+    await scheduler.start();
+    const recurring = await scheduler.add(normalizeScheduleSpec({ type: 'interval', interval: '1h', message: 'r', profile: 'plan' }));
+    await scheduler.pause(recurring.id);
+    const once = await scheduler.add(normalizeScheduleSpec({ type: 'once', delay: '1h', message: 'o', profile: 'plan' }));
+    await scheduler.remove(once.id);
+
+    await scheduler._hotReload();
+    assert.deepEqual(notices, []);
+  } finally {
+    scheduler.stop();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
