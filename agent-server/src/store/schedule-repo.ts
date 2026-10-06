@@ -6,26 +6,6 @@ import { STORE_DIR } from '@core/paths.js';
 export const SCHEDULES_FILE = path.join(STORE_DIR, 'schedules.json');
 export const CHANNEL_REGISTRY_FILE = path.join(STORE_DIR, 'channel-registry.json');
 
-/** Where a fired scheduled-task should land. Resolved by the cortex_schedule_add MCP tool
- *  (or schedule-cli) at create time — shorthand placeholders are concretized then, so list/get
- *  always show real IDs. Every fire opens a fresh session (scheduling/jobs/scheduled-task.ts). */
-export type ScheduleTarget =
-  | { kind: 'fresh' }
-  /** Fire into the project — the fresh session is bound to that project. */
-  | { kind: 'project'; projectId: string };
-
-/** A stored target this build can run, else null. Kinds that no longer exist (a thread target)
- *  and malformed records are read as null and land as a fresh session. */
-function readTarget(raw: unknown): ScheduleTarget | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const target = raw as { kind?: unknown; projectId?: unknown };
-  if (target.kind === 'fresh') return { kind: 'fresh' };
-  if (target.kind === 'project' && typeof target.projectId === 'string' && target.projectId) {
-    return { kind: 'project', projectId: target.projectId };
-  }
-  return null;
-}
-
 export interface ScheduleTask {
   id: string;
   type: 'interval' | 'daily' | 'weekly' | 'once';
@@ -41,14 +21,14 @@ export interface ScheduleTask {
   createdAt: number;
   isPaused?: boolean;
   pausedAt?: number | null;
-  pausedBy?: 'user' | 'rate-limit' | null;
+  pausedBy?: 'user' | null;
   lastRun?: number | null;
   lastSkipped?: number | null;
   dispatchType?: string;
   preCheck?: string;
   taskConfigHash?: string;
-  /** Dispatch routing — defaults to { kind: 'fresh' } for legacy records. */
-  target?: ScheduleTarget;
+  /** Set by `cortex schedule add --idempotency-key`; a retry with the same key returns this task. */
+  idempotencyKey?: string;
 }
 
 export interface SchedulesData {
@@ -104,12 +84,12 @@ function makeMigrate(channelRegistryPath?: string): (raw: unknown) => SchedulesD
       }
     }
 
-    // Backfill target=fresh on records persisted before targets existed, and on targets of a kind
-    // that no longer exists, so every reader sees one of the kinds above. `fallback` chose what a
-    // thread target did once its thread was gone; older records may still carry it.
+    // Every fire opens a new session in the task's project, so the retired dispatch `target` (and
+    // the `fallback` of the older thread target) no longer mean anything; drop them on read.
     for (const task of data.tasks) {
-      task.target = readTarget(task.target) ?? { kind: 'fresh' };
-      delete (task as unknown as Record<string, unknown>).fallback;
+      const t = task as unknown as Record<string, unknown>;
+      delete t.target;
+      delete t.fallback;
     }
     return data;
   };

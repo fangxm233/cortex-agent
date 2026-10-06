@@ -37,7 +37,7 @@ export interface BuiltinJobMigrationDeps {
 }
 
 function normalizedEnabled(task: ScheduleTask): boolean {
-  return !(task.isPaused && task.pausedBy !== 'rate-limit');
+  return !task.isPaused;
 }
 
 function validInterval(task: ScheduleTask): number | null {

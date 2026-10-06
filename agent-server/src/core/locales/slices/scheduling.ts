@@ -31,7 +31,6 @@ export const schedulingEn = {
   'schedule.add.scheduledWeekly': 'Scheduled weekly *${day} ${time}*: "${message}"',
   'schedule.add.scheduledOnce': 'Scheduled once in *${duration}*: "${message}"',
   'schedule.add.unknownType': 'Unknown type: `${type}`. Use `interval`, `daily`, `weekly`, or `once`',
-  'schedule.profileUsage': 'Usage: ${usage}',
 } as const;
 
 export const schedulingZh: Record<keyof typeof schedulingEn, string> = {
@@ -65,5 +64,4 @@ export const schedulingZh: Record<keyof typeof schedulingEn, string> = {
   'schedule.add.scheduledWeekly': '已设定每周 *${day} ${time}* 运行："${message}"',
   'schedule.add.scheduledOnce': '已设定 *${duration}* 后运行一次："${message}"',
   'schedule.add.unknownType': '未知的类型：`${type}`。请使用 `interval`、`daily`、`weekly` 或 `once`',
-  'schedule.profileUsage': '用法：${usage}',
 };

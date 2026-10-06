@@ -12,10 +12,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { Scheduler } from '../src/domain/scheduling/scheduler.js';
-import { runScheduleCli } from '../src/domain/scheduling/schedule-cli.js';
-import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
-import { SCHEDULES_FILE } from '../src/store/schedule-repo.js';
+import { Scheduler } from '../../../src/domain/scheduling/scheduler.js';
+import { normalizeScheduleSpec } from '../../../src/domain/scheduling/schedule-spec.js';
+import { getDefaultProfileName } from '../../../src/domain/agents/profile-manager.js';
+import { SCHEDULES_FILE } from '../../../src/store/schedule-repo.js';
+import { seedTestProfiles } from '../../_seed-profiles.js';
 
 // Tripwire: if any test accidentally binds Scheduler/ScheduleRepo to the production
 // schedules.json (rather than a tempdir), the stale entries leak and the daemon
@@ -32,7 +33,10 @@ function snapshotProductionTaskIds(): string {
 }
 
 let productionTaskIdSnapshot = '';
-beforeAll(() => { productionTaskIdSnapshot = snapshotProductionTaskIds(); });
+beforeAll(() => {
+  productionTaskIdSnapshot = snapshotProductionTaskIds();
+  seedTestProfiles();
+});
 beforeEach(() => {
   hookBus.emitCortexEvent.mockReset();
   hookBus.emitCortexEvent.mockResolvedValue([]);
@@ -50,7 +54,7 @@ afterAll(() => {
 
 function withTempSchedules(testFn) {
   return async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-cli-test-'));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scheduler-test-'));
     const schedulesFile = path.join(tempDir, 'schedules.json');
     fs.writeFileSync(schedulesFile, JSON.stringify({
       tasks: [
@@ -92,17 +96,12 @@ function withTempSchedules(testFn) {
 test('scheduler add persists default profile when profile is null or omitted', withTempSchedules(async ({ scheduler }) => {
   const defaultProfile = getDefaultProfileName();
 
-  const nullProfileTask = await scheduler.add('interval', {
-    intervalMs: 60000,
-    message: 'null profile task',
-    projectId: 'project-three',
-    profile: null,
-  });
-  const omittedProfileTask = await scheduler.add('interval', {
-    intervalMs: 60000,
-    message: 'omitted profile task',
-    projectId: 'project-four',
-  });
+  const nullProfileTask = await scheduler.add(normalizeScheduleSpec({
+    type: 'interval', interval: 60000, message: 'null profile task', projectId: 'project-three', profile: null,
+  }));
+  const omittedProfileTask = await scheduler.add(normalizeScheduleSpec({
+    type: 'interval', interval: 60000, message: 'omitted profile task', projectId: 'project-four',
+  }));
 
   assert.equal(nullProfileTask.profile, defaultProfile);
   assert.equal(omittedProfileTask.profile, defaultProfile);
@@ -111,12 +110,9 @@ test('scheduler add persists default profile when profile is null or omitted', w
 }));
 
 test('scheduler add preserves explicit profile', withTempSchedules(async ({ scheduler }) => {
-  const task = await scheduler.add('interval', {
-    intervalMs: 60000,
-    message: 'explicit profile task',
-    projectId: 'project-three',
-    profile: 'qa',
-  });
+  const task = await scheduler.add(normalizeScheduleSpec({
+    type: 'interval', interval: 60000, message: 'explicit profile task', projectId: 'project-three', profile: 'qa',
+  }));
 
   assert.equal(task.profile, 'qa');
   assert.equal((await scheduler.get(task.id))!.profile, 'qa');
@@ -210,12 +206,12 @@ test('scheduler get returns a task by id and null for missing ids', withTempSche
   assert.equal(await scheduler.get('missing'), null);
 }));
 
-test('scheduler setInterval updates interval tasks and refreshes nextRun', withTempSchedules(async ({ scheduler }) => {
+test('scheduler update of an interval refreshes nextRun', withTempSchedules(async ({ scheduler }) => {
   // ScheduleRepo.findTask returns a live reference into the JsonRepository cache;
   // updateTask then mutates that same object in-place, so capture primitives up front.
   const before = await scheduler.get('int1');
   const beforeNextRun = before.nextRun;
-  const updated = await scheduler.setInterval('int1', 7200000);
+  const updated = await scheduler.update('int1', { intervalMs: 7200000 });
 
   assert.equal(updated.intervalMs, 7200000);
   assert.ok(updated.nextRun >= Date.now());
@@ -239,17 +235,8 @@ test('scheduler pause marks a recurring task paused and resume reactivates it', 
   assert.equal((await scheduler.get('int1')).isPaused, false);
 }));
 
-test('scheduler pause accepts explicit pausedBy parameter', withTempSchedules(async ({ scheduler }) => {
-  const paused = await scheduler.pause('int1', 'rate-limit');
-  assert.equal(paused.isPaused, true);
-  assert.equal(paused.pausedBy, 'rate-limit');
-
-  const resumed = await scheduler.resume('int1');
-  assert.equal(resumed.pausedBy, null);
-}));
-
 test('scheduler pause rejects once tasks', withTempSchedules(async ({ scheduler }) => {
-  await scheduler.add('once', { delay: 60000, message: 'one shot', projectId: 'project-three', profile: null });
+  await scheduler.add(normalizeScheduleSpec({ type: 'once', delay: '1m', message: 'one shot', projectId: 'project-three' }));
   const onceTask = (await scheduler.list()).find(task => task.type === 'once');
 
   await assert.rejects(scheduler.pause(onceTask.id), /cannot pause once schedule/i);
@@ -257,113 +244,6 @@ test('scheduler pause rejects once tasks', withTempSchedules(async ({ scheduler 
 
 test('scheduler update rejects invalid fields for the task type', withTempSchedules(async ({ scheduler }) => {
   await assert.rejects(scheduler.update('daily1', { intervalMs: 5000 }), /invalid fields/i);
-}));
-
-test('schedule CLI get prints the selected task as JSON', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['get', 'int1'], { scheduler });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.id, 'int1');
-  assert.equal(parsed.intervalMs, 3600000);
-}));
-
-test('schedule CLI set interval updates the task interval', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['set', 'interval', 'int1', '2h'], { scheduler });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.task.id, 'int1');
-  assert.equal(parsed.task.intervalMs, 7200000);
-  assert.equal((await scheduler.get('int1')).intervalMs, 7200000);
-}));
-
-test('schedule CLI pause pauses a recurring task', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['pause', 'int1'], { scheduler });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.task.id, 'int1');
-  assert.equal(parsed.task.isPaused, true);
-  assert.equal(parsed.task.nextRun, null);
-  assert.equal((await scheduler.get('int1')).isPaused, true);
-}));
-
-test('schedule CLI resume resumes a paused recurring task', withTempSchedules(async ({ scheduler }) => {
-  await scheduler.pause('int1');
-
-  const result = await runScheduleCli(['resume', 'int1'], { scheduler });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.task.id, 'int1');
-  assert.equal(parsed.task.isPaused, false);
-  assert.ok(parsed.task.nextRun >= Date.now());
-  assert.equal((await scheduler.get('int1')).isPaused, false);
-}));
-
-test('schedule CLI update changes common fields and daily time', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['update', 'daily1', '--time', '10:30', '--message', 'updated daily'], { scheduler });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.task.time, '10:30');
-  assert.equal(parsed.task.message, 'updated daily');
-  assert.equal((await scheduler.get('daily1')).time, '10:30');
-}));
-
-test('schedule CLI remove deletes the target task', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['remove', 'int1'], { scheduler });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.removed, true);
-  assert.equal(await scheduler.get('int1'), null);
-}));
-
-// --- error message tests ---
-
-// --- ISS-CS-005 source-level guard: CLI must refuse to persist null/empty messages ---
-
-test('schedule CLI add --type interval rejects empty --message', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', ''], { scheduler });
-  assert.equal(result.exitCode, 1);
-  // Note: --message '' is caught by the early "--message is required" check
-  assert.match(result.stderr, /--message is required|null\/empty\/whitespace message/);
-}));
-
-test('schedule CLI add --type interval rejects literal "null" --message', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', 'null'], { scheduler });
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /null\/empty\/whitespace message/);
-}));
-
-test('schedule CLI add does not persist invalid schedule — list remains unchanged', withTempSchedules(async ({ scheduler }) => {
-  const before = await scheduler.list();
-  const r = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', '   '], { scheduler });
-  assert.equal(r.exitCode, 1);
-  const after = await scheduler.list();
-  assert.equal(after.length, before.length, 'rejected schedule must not be persisted');
-}));
-
-// --- flag-mode add tests ---
-
-test('schedule CLI add with flags creates interval schedule and persists default profile when omitted', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', 'test flag add'], { scheduler });
-  assert.equal(result.exitCode, 0);
-  const parsed = JSON.parse(result.stdout);
-  assert.ok(parsed.task);
-  assert.equal(parsed.task.type, 'interval');
-  assert.equal(parsed.task.intervalMs, 1800000);
-  assert.equal(parsed.task.message, 'test flag add');
-  assert.equal(parsed.task.profile, getDefaultProfileName());
-}));
-
-// --- dry-run tests ---
-
-test('schedule CLI remove --dry-run previews without deleting', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['remove', 'int1', '--dry-run'], { scheduler });
-  assert.equal(result.exitCode, 0);
-  const parsed = JSON.parse(result.stdout);
-  assert.equal(parsed.dry_run, true);
-  assert.ok(parsed.would_remove);
-  assert.equal(parsed.would_remove.id, 'int1');
-  // Task should still exist
-  assert.ok(await scheduler.get('int1'));
 }));
 
 // --- Hot-reload integration: external write → _hotReload() reads fresh state ---
@@ -385,7 +265,7 @@ test('scheduler _hotReload picks up external removal from schedules.json', async
     assert.equal(scheduler.timers.size, 2);
     assert.ok(scheduler.timers.has('remove-me'));
 
-    // External writer (e.g. schedule-cli remove) modifies the file directly, bypassing the repo.
+    // External writer (e.g. `cortex schedule remove`) modifies the file directly, bypassing the repo.
     fs.writeFileSync(schedulesFile, JSON.stringify({
       tasks: [
         { id: 'keep', type: 'interval', intervalMs: 60_000, message: 'keep', projectId: 'project-one', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 },

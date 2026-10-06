@@ -119,34 +119,9 @@ test('ScheduleRepo - on-disk schema contains schedule tasks only', async () => {
   assert.equal(raw.tasks[0].id, 'schema-1');
 });
 
-// ── target field round-trip ───────────────────────
+// ── retired dispatch target ───────────────────────
 
-test('ScheduleRepo - target field round-trips through addTask/findTask (project kind)', async () => {
-  const repo = createRepo();
-  const task = makeTask({
-    id: 'target-project',
-    target: { kind: 'project', projectId: 'cortex-self' },
-  });
-  await repo.addTask(task);
-  const found = await repo.findTask('target-project');
-  assert.ok(found);
-  assert.deepEqual(found.target, { kind: 'project', projectId: 'cortex-self' });
-});
-
-test('ScheduleRepo - migrate fills target=fresh for legacy records without target field', async () => {
-  const idx = _testIdx++;
-  const filePath = path.join(tmpDir, `schedules-${idx}.json`);
-  // Write an old-format record (no target field) directly to disk
-  await fs.writeFile(filePath, JSON.stringify({
-    tasks: [{ id: 'legacy-1', type: 'interval', intervalMs: 60000, message: 'old task', channel: 'C1', profile: 'plan', createdAt: Date.now() }],
-  }));
-  const repo = new ScheduleRepo(filePath);
-  const found = await repo.findTask('legacy-1');
-  assert.ok(found, 'legacy task should still load');
-  assert.deepEqual(found.target, { kind: 'fresh' }, 'migrate should default target to fresh');
-});
-
-test('ScheduleRepo - a stored thread target is read as fresh and its fallback dropped, the rest intact', async () => {
+test('ScheduleRepo - a stored target and its fallback are dropped on read, the rest intact', async () => {
   const idx = _testIdx++;
   const filePath = path.join(tmpDir, `schedules-${idx}.json`);
   await fs.writeFile(filePath, JSON.stringify({
@@ -155,18 +130,17 @@ test('ScheduleRepo - a stored thread target is read as fresh and its fallback dr
         id: 'thread-1', type: 'daily', time: '09:00', message: 'morning digest', projectId: 'p1',
         profile: 'plan', createdAt: 1, target: { kind: 'thread', threadId: 'thr_1', channel: 'C1' }, fallback: 'skip',
       },
-      { id: 'project-1', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', profile: null, createdAt: 1, target: { kind: 'project' } },
+      { id: 'project-1', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', profile: null, createdAt: 1, target: { kind: 'project', projectId: 'p1' } },
     ],
   }));
   const repo = new ScheduleRepo(filePath);
   const thread = await repo.findTask('thread-1');
   assert.ok(thread);
-  assert.deepEqual(thread.target, { kind: 'fresh' });
   assert.equal(thread.message, 'morning digest');
   assert.equal(thread.time, '09:00');
+  assert.equal('target' in thread, false);
   assert.equal('fallback' in thread, false);
-  // A project target without its projectId cannot be honoured either.
-  assert.deepEqual((await repo.findTask('project-1'))!.target, { kind: 'fresh' });
+  assert.equal('target' in (await repo.findTask('project-1'))!, false);
 });
 
 // ── Invalidate: clears cache so next read fetches from disk ────

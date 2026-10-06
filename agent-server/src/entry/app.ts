@@ -533,27 +533,7 @@ process.on('SIGTERM', async () => {
     checkServerUpdate: () => serverUpdateCoordinator.check(),
     projectStore,
     sessionStore,
-    scheduler: {
-      list: () => scheduler.list(),
-      get: (id) => scheduler.get(id),
-      pause: (id, pausedBy) => scheduler.pause(id, pausedBy),
-      resume: (id) => scheduler.resume(id),
-      remove: (id) => scheduler.remove(id),
-      // schedules.add: create via the real scheduler.add (timing math + persist), then backfill
-      // target through the shared scheduleRepo singleton (buildTask drops it) — mirrors
-      // domain/mcp/tools/schedule.ts::runScheduleAdd. scheduler._repo === scheduleRepo (default).
-      add: async (type, options) => {
-        const task = await scheduler.add(type, options);
-        if (options.target) {
-          await scheduleRepo.updateTask(task.id, (t) => {
-            t.target = options.target;
-          });
-          return (await scheduleRepo.findTask(task.id)) ?? task;
-        }
-        return task;
-      },
-      update: (id, patch) => scheduler.update(id, patch),
-    },
+    scheduler,
     executionRegistry,
     // Waitpoints (SessionInfo.waitingOn + the waitpoints.* ops). Injected here, at the entry layer,
     // so the ui-service domain never reaches into the waitpoint store. Only armed records are ever
@@ -787,17 +767,6 @@ process.on('SIGTERM', async () => {
   dailyUpdateCheck.unref?.();
 
   await scheduler.start();
-
-  // One-time migration: resume tasks left paused by the old scheduler-based rate-limit mechanism.
-  // The new provider-aware rate-limit-throttle no longer pauses tasks via the scheduler guard.
-  // Any tasks paused with pausedBy='rate-limit' by the old mechanism will never be resumed
-  // unless we do it here on startup. Idempotent — on subsequent restarts no such tasks remain.
-  for (const t of await scheduler.list()) {
-    if (t.isPaused && t.pausedBy === 'rate-limit') {
-      log.info(`Migration: resuming task ${t.id} ("${t.message}") paused by old rate-limit mechanism`);
-      await scheduler.resume(t.id);
-    }
-  }
 
   // Daily store archival: move week-old terminal execution records to data/archive/*.jsonl.
   // Keeps the hot stores small — their full-map sync stringify on every persist is the main

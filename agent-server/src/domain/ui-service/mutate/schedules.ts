@@ -1,7 +1,9 @@
 import { t } from '@core/i18n.js';
+import {
+  normalizeSchedulePatch, normalizeScheduleSpec, ScheduleSpecError, type SchedulePatch,
+} from '../../scheduling/schedule-spec.js';
 import type { UiServiceDeps, Result, ScheduleInfo, MutateArgs } from '../types.js';
 import { toScheduleInfo } from '../query/schedules.js';
-import type { ScheduleTask } from '@store/schedule-repo.js';
 
 export async function handlePauseSchedule(
   deps: UiServiceDeps,
@@ -48,70 +50,31 @@ export async function handleRemoveSchedule(
   }
 }
 
-// Create a schedule (DR-0018 §2.1 7c). Re-checks the per-type required fields (mirrors
-// domain/mcp/tools/schedule.ts::runScheduleAdd) so a direct facade / unit call is rejected as an Err
-// with nothing written; the zod router already rejects the same cases upstream. The injected
-// deps.scheduler.add composes the real scheduler.add + schedule-repo backfill of target.
+function invalidArgs(err: unknown): Result<never> | null {
+  return err instanceof ScheduleSpecError ? { ok: false, code: 'invalid-args', message: err.message } : null;
+}
+
+// Create a schedule (DR-0018 §2.1 7c). The spec is validated before deps.scheduler.add, so an invalid
+// request is an Err with nothing written.
 export async function handleAddSchedule(
   deps: UiServiceDeps,
   args: MutateArgs<'schedules.add'>,
 ): Promise<Result<ScheduleInfo>> {
-  // Per-type required-field validation — return Err BEFORE calling add() so nothing is written.
-  if (args.type === 'interval' && args.intervalMs === undefined) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.intervalRequired') };
-  }
-  if ((args.type === 'daily' || args.type === 'weekly') && !args.time) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.timeRequired', { type: args.type }) };
-  }
-  if (args.type === 'weekly' && args.dayOfWeek === undefined) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.dayOfWeekRequired') };
-  }
-  if (args.type === 'once' && args.delay === undefined) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.delayRequired') };
-  }
-  if (!args.message) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.messageRequired') };
-  }
-
   try {
-    const projectId = args.projectId ?? 'general';
-    const task = await deps.scheduler.add(args.type, {
-      message: args.message,
-      projectId,
-      profile: args.profile ?? null,
-      intervalMs: args.intervalMs,
-      time: args.time,
-      dayOfWeek: args.dayOfWeek,
-      delay: args.delay,
-      target: args.target,
-    });
-    return { ok: true, data: toScheduleInfo(task) };
+    const spec = normalizeScheduleSpec({ ...args, interval: args.intervalMs });
+    return { ok: true, data: toScheduleInfo(await deps.scheduler.add(spec)) };
   } catch (err: any) {
-    return { ok: false, code: 'internal', message: err?.message || String(err) };
+    return invalidArgs(err) ?? { ok: false, code: 'internal', message: err?.message || String(err) };
   }
 }
 
-/** Fields patchable per schedule type — mirrors scheduler.validateTaskPatch minus dispatchType/
- *  preCheck (not UI-editable). The type itself is immutable. */
-const UPDATE_TIMING_FIELDS: Record<ScheduleTask['type'], string[]> = {
-  interval: ['intervalMs'],
-  daily: ['time'],
-  weekly: ['dayOfWeek', 'time'],
-  once: [],
-};
-
-function buildUpdatePatch(args: MutateArgs<'schedules.update'>): Record<string, unknown> {
+function buildUpdatePatch(args: MutateArgs<'schedules.update'>): SchedulePatch {
   const { scheduleId: _id, ...rest } = args;
-  const patch: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(rest)) {
-    if (value !== undefined) patch[key] = value;
-  }
-  return patch;
+  return Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined));
 }
 
-// Patch an existing schedule. Field-allowedness is re-checked against the persisted task's type
-// BEFORE calling update, so a foreign timing field is an Err with nothing written (the real
-// scheduler.update would also throw — this keeps the error a typed Result instead).
+// Patch an existing schedule. The patch is checked against the persisted task's type BEFORE calling
+// update, so a foreign timing field is an Err with nothing written.
 export async function handleUpdateSchedule(
   deps: UiServiceDeps,
   args: MutateArgs<'schedules.update'>,
@@ -120,22 +83,13 @@ export async function handleUpdateSchedule(
   if (!task) {
     return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
   }
-  const patch = buildUpdatePatch(args);
-  if (Object.keys(patch).length === 0) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.emptyPatch') };
-  }
-  const allowed = new Set(['message', 'projectId', 'profile', ...UPDATE_TIMING_FIELDS[task.type]]);
-  const invalid = Object.keys(patch).filter((key) => !allowed.has(key));
-  if (invalid.length > 0) {
-    return { ok: false, code: 'invalid-args', message: t('ui.schedule.invalidFields', { type: task.type, fields: invalid.join(', ') }) };
-  }
   try {
-    const updated = await deps.scheduler.update(args.scheduleId, patch);
+    const updated = await deps.scheduler.update(args.scheduleId, normalizeSchedulePatch(task.type, buildUpdatePatch(args)));
     if (!updated) {
       return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
     }
     return { ok: true, data: toScheduleInfo(updated) };
   } catch (err: any) {
-    return { ok: false, code: 'internal', message: err?.message || String(err) };
+    return invalidArgs(err) ?? { ok: false, code: 'internal', message: err?.message || String(err) };
   }
 }

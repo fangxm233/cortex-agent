@@ -6,8 +6,9 @@ import * as path from 'path';
 
 import { Scheduler } from '../src/domain/scheduling/scheduler.js';
 import { SCHEDULES_FILE } from '../src/store/schedule-repo.js';
+import { seedTestProfiles } from './_seed-profiles.js';
 
-// Tripwire against ISS-CS-005-class pollution. See schedule-cli.test.ts for rationale.
+// Tripwire against ISS-CS-005-class pollution. See domain/scheduling/scheduler.test.ts for rationale.
 function snapshotProductionTaskIds(): string {
   try {
     const data = JSON.parse(fs.readFileSync(SCHEDULES_FILE, 'utf8'));
@@ -18,7 +19,10 @@ function snapshotProductionTaskIds(): string {
 }
 
 let productionTaskIdSnapshot = '';
-beforeAll(() => { productionTaskIdSnapshot = snapshotProductionTaskIds(); });
+beforeAll(() => {
+  productionTaskIdSnapshot = snapshotProductionTaskIds();
+  seedTestProfiles();
+});
 afterAll(() => {
   const current = snapshotProductionTaskIds();
   if (current !== productionTaskIdSnapshot) {

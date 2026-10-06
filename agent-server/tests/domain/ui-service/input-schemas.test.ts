@@ -215,11 +215,8 @@ test('schedules.add accepts valid per-type input', () => {
   assert.equal(s.parse({ type: 'daily', message: 'm', time: '09:00' }).type, 'daily');
   assert.equal(s.parse({ type: 'weekly', message: 'm', time: '09:00', dayOfWeek: 1 }).dayOfWeek, 1);
   assert.equal(s.parse({ type: 'once', message: 'm', delay: 5000 }).delay, 5000);
-  // optional target
-  assert.deepEqual(
-    s.parse({ type: 'once', message: 'm', delay: 1, target: { kind: 'project', projectId: 'p' } }).target,
-    { kind: 'project', projectId: 'p' },
-  );
+  // the retired target from an older client is dropped, not rejected
+  assert.equal('target' in s.parse({ type: 'once', message: 'm', delay: 1, target: { kind: 'project', projectId: 'p' } }), false);
 });
 
 test('schedules.add rejects missing/invalid per-type fields', () => {

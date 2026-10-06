@@ -451,22 +451,23 @@ test('!schedule add without --profile fixes task profile to defaultProfile', asy
   const adapter = new MockAdapter();
   const added = [];
   const scheduler = {
-    add(type, options) {
-      added.push({ type, options });
+    async add(spec) {
+      added.push(spec);
       return {
         id: 'abcd1234',
-        type,
-        intervalMs: options.intervalMs,
-        message: options.message,
-        channel: options.channel,
-        profile: options.profile,
-        nextRun: Date.now() + options.intervalMs,
+        type: spec.type,
+        intervalMs: spec.intervalMs,
+        message: spec.message,
+        projectId: spec.projectId,
+        profile: spec.profile,
+        nextRun: Date.now() + spec.intervalMs,
+        createdAt: Date.now(),
       };
     },
-    pause() { return null; },
-    resume() { return null; },
-    remove() { return false; },
-    list() { return []; },
+    async pause() { return null; },
+    async resume() { return null; },
+    async remove() { return false; },
+    async list() { return []; },
   };
   const dispatchCommand = createCommandDispatcher({
     scheduler,
@@ -477,7 +478,9 @@ test('!schedule add without --profile fixes task profile to defaultProfile', asy
 
   assert.equal(added.length, 1);
   assert.equal(added[0].type, 'interval');
-  assert.equal(added[0].options.profile, getDefaultProfileName());
+  assert.equal(added[0].intervalMs, 1_800_000);
+  assert.equal(added[0].message, 'test scheduled task');
+  assert.equal(added[0].profile, getDefaultProfileName());
   assert.match(adapter.posted[0].content.text, new RegExp(`profile: \\*${getDefaultProfileName()}\\*`));
 });
 
@@ -485,22 +488,23 @@ test('!schedule add with --profile preserves explicit profile override', async (
   const adapter = new MockAdapter();
   const added = [];
   const scheduler = {
-    add(type, options) {
-      added.push({ type, options });
+    async add(spec) {
+      added.push(spec);
       return {
         id: 'abcd1234',
-        type,
-        intervalMs: options.intervalMs,
-        message: options.message,
-        channel: options.channel,
-        profile: options.profile,
-        nextRun: Date.now() + options.intervalMs,
+        type: spec.type,
+        intervalMs: spec.intervalMs,
+        message: spec.message,
+        projectId: spec.projectId,
+        profile: spec.profile,
+        nextRun: Date.now() + spec.intervalMs,
+        createdAt: Date.now(),
       };
     },
-    pause() { return null; },
-    resume() { return null; },
-    remove() { return false; },
-    list() { return []; },
+    async pause() { return null; },
+    async resume() { return null; },
+    async remove() { return false; },
+    async list() { return []; },
   };
   const dispatchCommand = createCommandDispatcher({
     scheduler,
@@ -510,7 +514,8 @@ test('!schedule add with --profile preserves explicit profile override', async (
   await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(added.length, 1);
-  assert.equal(added[0].options.profile, 'qa');
+  assert.equal(added[0].profile, 'qa');
+  assert.equal(added[0].message, 'test scheduled task');
   assert.match(adapter.posted[0].content.text, /profile: \*qa\*/);
 });
 
@@ -519,20 +524,22 @@ test('!schedule pause/resume/remove accepts backtick-wrapped 8-char hex schedule
   const pausedIds = [];
   const resumedIds = [];
   const removedIds = [];
+  const task = (id: string, extra: object) => ({ id, type: 'interval' as const, intervalMs: 3600000, message: 'interval task', projectId: 'general', profile: null, createdAt: 1, ...extra });
   const scheduler = {
-    pause(id) {
+    async pause(id) {
       pausedIds.push(id);
-      return { id, type: 'interval', intervalMs: 3600000, message: 'interval task', profile: null, isPaused: true, pausedAt: Date.now(), nextRun: null };
+      return task(id, { isPaused: true, pausedAt: Date.now(), nextRun: null });
     },
-    resume(id) {
+    async resume(id) {
       resumedIds.push(id);
-      return { id, type: 'interval', intervalMs: 3600000, message: 'interval task', profile: null, isPaused: false, pausedAt: null, nextRun: Date.now() + 3600000 };
+      return task(id, { isPaused: false, pausedAt: null, nextRun: Date.now() + 3600000 });
     },
-    remove(id) {
+    async remove(id) {
       removedIds.push(id);
       return true;
     },
-    list() { return []; },
+    async add(): Promise<never> { throw new Error('not used'); },
+    async list() { return []; },
   };
   const dispatchCommand = createCommandDispatcher({
     scheduler,

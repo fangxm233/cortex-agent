@@ -1,64 +1,16 @@
 import { watch, FSWatcher } from 'fs';
-import { randomBytes } from 'crypto';
 import { runShell } from '@core/exec-async.js';
 import { Icons } from '../../core/icons.js';
 import { DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
-import { getDefaultProfileName } from '../agents/profile-manager.js';
 import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask } from '@store/schedule-repo.js';
+import { nextFireDelayMs, type ScheduleSpec, type SchedulePatch } from './schedule-spec.js';
+import { addSchedule, pauseSchedule, resolveTaskProfile, resumeSchedule, updateSchedule } from './schedule-ops.js';
 
 const log = createLogger('scheduler');
 
 export type { ScheduleTask } from '@store/schedule-repo.js';
-
-// Parse duration strings like "30s", "5m", "2h", "1d" → milliseconds
-function parseDuration(str: string | null | undefined): number | null {
-  const match = str?.match(/^(\d+(?:\.\d+)?)(s|m|h|d)$/i);
-  if (!match) return null;
-  const value = parseFloat(match[1]);
-  const unit = match[2].toLowerCase();
-  const ms: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
-  return Math.round(value * ms[unit]);
-}
-
-// Lower-case day abbreviations → Date#getDay() index
-const DAY_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-
-// Format milliseconds as a human-readable duration string
-function formatDuration(ms: number): string {
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
-  if (ms < 86_400_000) {
-    const h = ms / 3_600_000;
-    return Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`;
-  }
-  const d = ms / 86_400_000;
-  return Number.isInteger(d) ? `${d}d` : `${d.toFixed(1)}d`;
-}
-
-// Returns ms until the next occurrence of HH:MM today or tomorrow
-function nextDailyMs(timeStr: string): number {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  const now = new Date();
-  const next = new Date();
-  next.setHours(hours, minutes, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  return next.getTime() - now.getTime();
-}
-
-// Returns ms until the next occurrence of dayOfWeek at HH:MM
-// dayOfWeek: 0=Sun, 1=Mon, ..., 6=Sat
-function nextWeeklyMs(dayOfWeek: number, timeStr: string): number {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  const now = new Date();
-  const next = new Date();
-  next.setHours(hours, minutes, 0, 0);
-  let daysAhead = (dayOfWeek - next.getDay() + 7) % 7;
-  if (daysAhead === 0 && next <= now) daysAhead = 7;
-  next.setDate(next.getDate() + daysAhead);
-  return next.getTime() - now.getTime();
-}
 
 // Hash task config fields that affect scheduling (not timestamps)
 function taskConfigHash(task: ScheduleTask): string {
@@ -66,93 +18,6 @@ function taskConfigHash(task: ScheduleTask): string {
   const key = keys[task.type] as keyof ScheduleTask;
   const extra = task.type === 'weekly' ? `${task.dayOfWeek}:${task.time}` : (String(task[key] || ''));
   return `${task.type}:${extra}:${task.message}:${task.projectId}:${task.profile || ''}:${task.dispatchType || ''}:${task.preCheck || ''}`;
-}
-
-function validateTime(time: string): void {
-  if (!/^\d{2}:\d{2}$/.test(time)) throw new Error('time must be HH:MM');
-  const [hours, minutes] = time.split(':').map(Number);
-  if (hours > 23 || minutes > 59) throw new Error('time must be HH:MM');
-}
-
-function computeTaskTiming(type: string, task: ScheduleTask): { nextRun?: number | null; runAt?: number } {
-  const now = Date.now();
-  if (task.isPaused) {
-    return { nextRun: null };
-  }
-  if (type === 'interval') {
-    return { nextRun: now + (task.intervalMs || 0) };
-  }
-  if (type === 'daily') {
-    return { nextRun: now + nextDailyMs(task.time!) };
-  }
-  if (type === 'weekly') {
-    return { nextRun: now + nextWeeklyMs(task.dayOfWeek!, task.time!) };
-  }
-  if (type === 'once') {
-    return { runAt: task.runAt };
-  }
-  return {};
-}
-
-const BUILTIN_JOB_DISPATCH_TYPES = new Set(['memory-index-regen']);
-
-function validateTaskPatch(task: ScheduleTask, patch: Record<string, any>): void {
-  const commonFields = new Set(['message', 'projectId', 'profile', 'dispatchType', 'preCheck']);
-  const typeFields: Record<string, Set<string>> = {
-    interval: new Set(['intervalMs']),
-    daily: new Set(['time']),
-    weekly: new Set(['dayOfWeek', 'time']),
-    once: new Set(['runAt']),
-  };
-  const allowed = new Set([...commonFields, ...typeFields[task.type]]);
-  const invalid = Object.keys(patch).filter(key => !allowed.has(key));
-  if (invalid.length) throw new Error(`invalid fields for ${task.type}: ${invalid.join(', ')}`);
-  if ('dispatchType' in patch && BUILTIN_JOB_DISPATCH_TYPES.has(patch.dispatchType)) {
-    throw new Error(`built-in job dispatch type cannot be scheduled: ${patch.dispatchType}`);
-  }
-  if ('intervalMs' in patch && (!Number.isFinite(patch.intervalMs) || patch.intervalMs <= 0)) {
-    throw new Error('intervalMs must be a positive number');
-  }
-  if ('time' in patch) validateTime(patch.time);
-  if ('dayOfWeek' in patch && (!Number.isInteger(patch.dayOfWeek) || patch.dayOfWeek < 0 || patch.dayOfWeek > 6)) {
-    throw new Error('dayOfWeek must be an integer from 0 to 6');
-  }
-  if ('runAt' in patch && (!Number.isFinite(patch.runAt) || patch.runAt <= 0)) {
-    throw new Error('runAt must be a positive epoch ms');
-  }
-}
-
-function resolveTaskProfile(profile: string | null | undefined): string {
-  return profile || getDefaultProfileName();
-}
-
-function buildTask(type: string, id: string, now: number, options: Record<string, any>): ScheduleTask {
-  const { message, projectId, profile = null, preCheck = null } = options;
-  const resolvedProfile = resolveTaskProfile(profile);
-  const base: { preCheck?: string } = { preCheck: preCheck || undefined };
-
-  if (type === 'interval') {
-    const { intervalMs } = options;
-    if (!intervalMs) throw new Error('intervalMs required');
-    return { id, type: 'interval', intervalMs, message, projectId, profile: resolvedProfile, ...base, lastRun: null, nextRun: now + intervalMs, createdAt: now };
-  }
-  if (type === 'daily') {
-    const { time } = options;
-    if (!time) throw new Error('time required (HH:MM)');
-    return { id, type: 'daily', time, message, projectId, profile: resolvedProfile, ...base, lastRun: null, nextRun: now + nextDailyMs(time), createdAt: now };
-  }
-  if (type === 'weekly') {
-    const { dayOfWeek, time } = options;
-    if (dayOfWeek == null || dayOfWeek < 0 || dayOfWeek > 6) throw new Error('dayOfWeek required (0=Sun..6=Sat)');
-    if (!time) throw new Error('time required (HH:MM)');
-    return { id, type: 'weekly', dayOfWeek, time, message, projectId, profile: resolvedProfile, ...base, lastRun: null, nextRun: now + nextWeeklyMs(dayOfWeek, time), createdAt: now };
-  }
-  if (type === 'once') {
-    const { delay } = options;
-    if (!delay) throw new Error('delay required');
-    return { id, type: 'once', runAt: now + delay, message, projectId, profile: resolvedProfile, ...base, createdAt: now };
-  }
-  throw new Error(`Unknown type: ${type}. Use: interval, daily, weekly, once`);
 }
 
 // --- Scheduler class ---
@@ -324,13 +189,8 @@ class Scheduler {
     }
   }
 
-  // Add a new scheduled task and return it
-  async add(type: string, options: Record<string, any>): Promise<ScheduleTask> {
-    const id = randomBytes(4).toString('hex');
-    const now = Date.now();
-    const task = buildTask(type, id, now, options);
-
-    await this._withWriteGuard(() => this._repo.addTask(task));
+  async add(spec: ScheduleSpec): Promise<ScheduleTask> {
+    const { task } = await this._withWriteGuard(() => addSchedule(this._repo, spec));
     this._scheduleTask(task);
     return task;
   }
@@ -353,54 +213,22 @@ class Scheduler {
     return this._repo.findTask(id);
   }
 
-  async update(id: string, patch: Record<string, any>): Promise<ScheduleTask | null> {
-    const task = await this._repo.findTask(id);
-    if (!task) return null;
-    validateTaskPatch(task, patch);
-    const updated = await this._withWriteGuard(() => this._repo.updateTask(id, (t) => {
-      Object.assign(t, patch);
-      Object.assign(t, computeTaskTiming(t.type, t));
-    }));
-    if (updated) this._rescheduleTask(updated);
-    return updated;
+  async update(id: string, patch: SchedulePatch): Promise<ScheduleTask | null> {
+    return this._applyAndReschedule(() => updateSchedule(this._repo, id, patch));
   }
 
-  async pause(id: string, pausedBy: 'user' | 'rate-limit' = 'user'): Promise<ScheduleTask | null> {
-    const task = await this._repo.findTask(id);
-    if (!task) return null;
-    if (task.type === 'once') throw new Error(`cannot pause once schedule ${id}`);
-    if (task.isPaused) return task;
-    const now = Date.now();
-    const updated = await this._withWriteGuard(() => this._repo.updateTask(id, (t) => {
-      t.isPaused = true;
-      t.pausedAt = now;
-      t.pausedBy = pausedBy;
-      t.nextRun = null;
-    }));
-    if (updated) this._rescheduleTask(updated);
-    return updated;
+  async pause(id: string): Promise<ScheduleTask | null> {
+    return this._applyAndReschedule(() => pauseSchedule(this._repo, id));
   }
 
   async resume(id: string): Promise<ScheduleTask | null> {
-    const task = await this._repo.findTask(id);
-    if (!task) return null;
-    if (task.type === 'once') throw new Error(`cannot resume once schedule ${id}`);
-    if (!task.isPaused) return task;
-    const updated = await this._withWriteGuard(() => this._repo.updateTask(id, (t) => {
-      t.isPaused = false;
-      t.pausedAt = null;
-      t.pausedBy = null;
-      Object.assign(t, computeTaskTiming(t.type, t));
-    }));
-    if (updated) this._rescheduleTask(updated);
-    return updated;
+    return this._applyAndReschedule(() => resumeSchedule(this._repo, id));
   }
 
-  async setInterval(id: string, intervalMs: number): Promise<ScheduleTask | null> {
-    const task = await this.get(id);
-    if (!task) return null;
-    if (task.type !== 'interval') throw new Error(`task ${id} is not an interval schedule`);
-    return this.update(id, { intervalMs });
+  async _applyAndReschedule(change: () => Promise<ScheduleTask | null>): Promise<ScheduleTask | null> {
+    const updated = await this._withWriteGuard(change);
+    if (updated) this._rescheduleTask(updated);
+    return updated;
   }
 
   _rescheduleTask(task: ScheduleTask): void {
@@ -430,21 +258,9 @@ class Scheduler {
       return;
     }
 
-    const getNextDelay = (t: ScheduleTask): number => {
-      if (t.type === 'interval') return t.intervalMs || 60000;
-      if (t.type === 'daily') return nextDailyMs(t.time!);
-      if (t.type === 'weekly') return nextWeeklyMs(t.dayOfWeek!, t.time!);
-      return 60000;
-    };
-
-    let initialDelay: number;
-    if (task.type === 'daily') {
-      initialDelay = nextDailyMs(task.time!);
-    } else if (task.type === 'weekly') {
-      initialDelay = nextWeeklyMs(task.dayOfWeek!, task.time!);
-    } else {
-      initialDelay = Math.max(0, (task.nextRun || 0) - Date.now());
-    }
+    const initialDelay = task.type === 'interval'
+      ? Math.max(0, (task.nextRun || 0) - Date.now())
+      : nextFireDelayMs(task);
 
     const fire = async (): Promise<void> => {
       try {
@@ -466,11 +282,11 @@ class Scheduler {
                 : `exit ${precheck.code ?? precheck.signal ?? 'unknown'}`;
               log.info(`Pre-check skip for ${task.id}: ${output || outcome}`);
               await this._withWriteGuard(() => this._repo.updateTask(task.id, (t) => {
-                const nextDelayMs = getNextDelay(t);
+                const nextDelayMs = nextFireDelayMs(t);
                 t.nextRun = Date.now() + nextDelayMs;
                 t.lastSkipped = Date.now();
               }));
-              this.timers.set(task.id, setTimeout(fire, getNextDelay(freshTask)));
+              this.timers.set(task.id, setTimeout(fire, nextFireDelayMs(freshTask)));
               return;
             }
           }
@@ -486,7 +302,7 @@ class Scheduler {
         // Update lastRun and reschedule
         const t = await this._repo.findTask(task.id);
         if (!t || t.isPaused) return;
-        const nextDelayMs = getNextDelay(t);
+        const nextDelayMs = nextFireDelayMs(t);
         await this._withWriteGuard(() => this._repo.updateTask(task.id, (tt) => {
           tt.lastRun = Date.now();
           tt.nextRun = Date.now() + nextDelayMs;
@@ -531,4 +347,4 @@ class Scheduler {
   }
 }
 
-export { Scheduler, parseDuration, DAY_MAP, formatDuration };
+export { Scheduler };

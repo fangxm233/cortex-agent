@@ -354,13 +354,6 @@ export const scheduleActionInput = z.object({
   scheduleId: z.string(),
 });
 
-// ScheduleTarget mirror — kept structurally identical to `ScheduleTarget` in schedule-repo.ts; the
-// schedules.add handler hands it straight to the scheduler.
-const scheduleTargetInput = z.union([
-  z.object({ kind: z.literal('fresh') }),
-  z.object({ kind: z.literal('project'), projectId: z.string() }),
-]);
-
 // schedules.add (DR-0018 §2.1 7c). Field-level zod + per-type required-field superRefine so the
 // router rejects malformed input before the handler runs. intervalMs/delay are raw ms; dayOfWeek 0..6.
 export const scheduleAddInput = z
@@ -373,7 +366,6 @@ export const scheduleAddInput = z
     time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     dayOfWeek: z.number().int().min(0).max(6).optional(),
     delay: z.number().int().positive().optional(),
-    target: scheduleTargetInput.optional(),
   })
   .superRefine((val, ctx) => {
     if (val.type === 'interval' && val.intervalMs === undefined) {

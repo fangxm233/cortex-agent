@@ -1,75 +1,33 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { Scheduler, parseDuration, DAY_MAP } from '../../scheduling/scheduler.js';
-import { scheduleRepo, channelToProjectId, type ScheduleTarget, type ScheduleTask } from '@store/schedule-repo.js';
+import { normalizeScheduleSpec } from '../../scheduling/schedule-spec.js';
+import { addSchedule, pauseSchedule, resumeSchedule } from '../../scheduling/schedule-ops.js';
+import { scheduleRepo, channelToProjectId } from '@store/schedule-repo.js';
 import { resolveCortexContext, type CortexContextInternal, type CortexToolContext } from './context.js';
-
-// --- Target shorthand resolver (extracted for unit tests) ---
-
-/** Target spec accepted by cortex_schedule_add: shorthand string OR explicit object.
- *  Shorthand strings are resolved to concrete ScheduleTarget objects at create time, so list/get
- *  always show real IDs. */
-export type TargetSpec =
-  | undefined
-  | 'fresh'
-  | 'current-project'
-  | ScheduleTarget;
-
-export function resolveTargetShorthand(spec: TargetSpec, ctx: CortexContextInternal): ScheduleTarget {
-  if (spec === undefined || spec === 'fresh') return { kind: 'fresh' };
-
-  if (spec === 'current-project') {
-    if (!ctx.project) throw new Error('current-project requested but no project in current context');
-    return { kind: 'project', projectId: ctx.project };
-  }
-
-  // Object form — light validation per kind so we fail fast at create rather than at fire time.
-  if (typeof spec === 'object' && spec !== null && 'kind' in spec) {
-    if (spec.kind === 'fresh') return { kind: 'fresh' };
-    if (spec.kind === 'project') {
-      if (!spec.projectId) throw new Error('project target requires { projectId }');
-      return { kind: 'project', projectId: spec.projectId };
-    }
-  }
-
-  throw new Error(`Unknown target spec: ${JSON.stringify(spec)}`);
-}
-
-// --- Day-of-week parsing ---
-
-function parseDayOfWeek(value: string | number): number {
-  if (typeof value === 'number') return value;
-  if (/^\d+$/.test(value)) return Number(value);
-  const n = DAY_MAP[value.toLowerCase()];
-  if (n === undefined) throw new Error(`invalid dayOfWeek: ${value}`);
-  return n;
-}
-
-function parseIntervalSpec(spec: string | number): number {
-  if (typeof spec === 'number') return spec;
-  const parsed = parseDuration(spec);
-  if (parsed) return parsed;
-  if (/^\d+$/.test(spec)) return Number(spec);
-  throw new Error(`invalid interval: ${spec}`);
-}
-
-// --- Scheduler instance (no-op runners, no fs watcher; daemon will hot-reload) ---
-
-function makeWriteOnlyScheduler(): Scheduler {
-  // Mirrors schedule-cli's pattern: a throwaway Scheduler used purely for its add() timing
-  // math + atomic write through the shared scheduleRepo singleton. The daemon's live
-  // Scheduler picks the new task up via fs.watch within ~300ms.
-  return new Scheduler(async () => {}, {}, { watchFile: false });
-}
 
 // --- Tool implementation: cortex_schedule_add ---
 
+/** The `target` agents still pass out of habit. Every fire opens a new session, so all a target can
+ *  still say is which project that session belongs to. */
 const targetSchema = z.union([
   z.literal('fresh'),
   z.literal('current-project'),
   z.object({ kind: z.literal('fresh') }),
   z.object({ kind: z.literal('project'), projectId: z.string() }),
 ]).optional();
+
+/** The project a target names, or null when it leaves the project to projectId/channel. */
+export function projectFromTarget(target: z.infer<typeof targetSchema>, ctx: CortexContextInternal): string | null {
+  if (target === 'current-project') {
+    if (!ctx.project) throw new Error('current-project requested but no project in current context');
+    return ctx.project;
+  }
+  if (typeof target === 'object' && target.kind === 'project') {
+    if (!target.projectId) throw new Error('project target requires { projectId }');
+    return target.projectId;
+  }
+  return null;
+}
 
 const addInputShape = {
   type: z.enum(['interval', 'daily', 'weekly', 'once']).describe('Schedule type'),
@@ -78,7 +36,7 @@ const addInputShape = {
   time: z.string().optional().describe('For type=daily/weekly: HH:MM 24-hour'),
   dayOfWeek: z.union([z.string(), z.number()]).optional().describe('For type=weekly: 0-6 (0=Sun) or sun/mon/tue/wed/thu/fri/sat'),
   delay: z.union([z.string(), z.number()]).optional().describe('For type=once: delay from now (duration string or ms)'),
-  target: targetSchema.describe('Where to land the fired task. Every fire opens a new session; "current-project" binds it to the current project. Shorthand: "fresh" (default) | "current-project", or explicit { kind, ...ids }. Shorthand is resolved to concrete IDs at create time.'),
+  target: targetSchema.describe('Optional. "current-project" binds the schedule to the project of this session (same as passing projectId). Every fire opens a new session.'),
   profile: z.string().optional().describe('Agent profile name (defaults to active profile)'),
   preCheck: z.string().optional().describe('Optional shell command; non-zero exit → skip this fire. 15s timeout. Receives PRECHECK_LAST_RUN env var.'),
   channel: z.string().optional().describe('Channel used to resolve the project when projectId is omitted. Defaults to the current-context channel.'),
@@ -89,50 +47,14 @@ async function runScheduleAdd(
   ctx: CortexToolContext, input: z.infer<z.ZodObject<typeof addInputShape>>,
 ): Promise<unknown> {
   const ctxSnapshot = await resolveCortexContext(ctx);
-  const target = resolveTargetShorthand(input.target as TargetSpec, ctxSnapshot);
-
-  // Resolve projectId: explicit > the project target > channel-to-project reverse lookup > 'general'.
+  // Project: explicit projectId > the project a target names > channel-to-project lookup > 'general'.
   const channel = input.channel ?? ctxSnapshot.channel;
   const projectId = input.projectId
-    ?? (target.kind === 'project' ? target.projectId : null)
-    ?? (channel ? channelToProjectId(channel) : null)
-    ?? 'general';
-
-  const scheduler = makeWriteOnlyScheduler();
-  let task: ScheduleTask;
-  try {
-    if (input.type === 'interval') {
-      if (input.interval === undefined) throw new Error('interval is required for type=interval');
-      task = await scheduler.add('interval', {
-        intervalMs: parseIntervalSpec(input.interval),
-        message: input.message, projectId, profile: input.profile ?? null, preCheck: input.preCheck,
-      });
-    } else if (input.type === 'daily') {
-      if (!input.time) throw new Error('time is required for type=daily');
-      task = await scheduler.add('daily', { time: input.time, message: input.message, projectId, profile: input.profile ?? null, preCheck: input.preCheck });
-    } else if (input.type === 'weekly') {
-      if (input.dayOfWeek === undefined) throw new Error('dayOfWeek is required for type=weekly');
-      if (!input.time) throw new Error('time is required for type=weekly');
-      task = await scheduler.add('weekly', {
-        dayOfWeek: parseDayOfWeek(input.dayOfWeek),
-        time: input.time, message: input.message, projectId, profile: input.profile ?? null, preCheck: input.preCheck,
-      });
-    } else {  // once
-      if (input.delay === undefined) throw new Error('delay is required for type=once');
-      task = await scheduler.add('once', {
-        delay: parseIntervalSpec(input.delay),
-        message: input.message, projectId, profile: input.profile ?? null, preCheck: input.preCheck,
-      });
-    }
-    // Backfill the target after add() so timing math (which doesn't know about it) ran first.
-    await scheduleRepo.updateTask(task.id, (t) => {
-      t.target = target;
-    });
-    const updated = await scheduleRepo.findTask(task.id);
-    return updated ?? task;
-  } finally {
-    scheduler.stop();
-  }
+    ?? projectFromTarget(input.target, ctxSnapshot)
+    ?? (channel ? channelToProjectId(channel) : null);
+  const spec = normalizeScheduleSpec({ ...input, projectId });
+  // The running daemon arms the new task when its file watcher sees the write.
+  return (await addSchedule(scheduleRepo, spec)).task;
 }
 
 // --- Tool registrations ---
@@ -140,7 +62,7 @@ async function runScheduleAdd(
 export function registerScheduleTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_schedule_add',
-    'Create a scheduled task. Supports interval/daily/weekly/once. Each fire opens a new session. target shorthand "current-project" | "fresh" auto-resolves to concrete IDs against the running agent context — no need to call cortex_context first unless you need an explicit ID.',
+    'Create a scheduled task. Supports interval/daily/weekly/once. Each fire opens a new session in the schedule\'s project and sends it the message, so write a self-contained message. target: "current-project" binds the schedule to this session\'s project.',
     addInputShape,
     async (input) => {
       try {
@@ -154,7 +76,7 @@ export function registerScheduleTools(server: McpServer, ctx: CortexToolContext)
 
   server.tool(
     'cortex_schedule_list',
-    'List all scheduled tasks. Returns id, type, message, channel, profile, target, nextRun, lastRun, isPaused.',
+    'List all scheduled tasks. Returns id, type, message, projectId, profile, timing, nextRun, lastRun, isPaused.',
     { limit: z.number().int().positive().optional().describe('Max records to return (default 50).') },
     { readOnlyHint: true },
     async ({ limit }) => {
@@ -200,18 +122,13 @@ export function registerScheduleTools(server: McpServer, ctx: CortexToolContext)
 
   server.tool(
     'cortex_schedule_pause',
-    'Pause a scheduled task (recurring only — once tasks cannot be paused). pausedBy is recorded as "user" so the rate-limit auto-resume path skips it.',
+    'Pause a scheduled task (recurring only — once tasks cannot be paused). It stays paused until cortex_schedule_resume.',
     { id: z.string().describe('Schedule task id.') },
     async ({ id }) => {
       try {
-        const scheduler = makeWriteOnlyScheduler();
-        try {
-          const task = await scheduler.pause(id, 'user');
-          if (!task) return { content: [{ type: 'text', text: `No such schedule: ${id}` }], isError: true };
-          return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
-        } finally {
-          scheduler.stop();
-        }
+        const task = await pauseSchedule(scheduleRepo, id);
+        if (!task) return { content: [{ type: 'text', text: `No such schedule: ${id}` }], isError: true };
+        return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
       } catch (e) {
         return { content: [{ type: 'text', text: `Failed to pause schedule: ${(e as Error).message}` }], isError: true };
       }
@@ -224,14 +141,9 @@ export function registerScheduleTools(server: McpServer, ctx: CortexToolContext)
     { id: z.string().describe('Schedule task id.') },
     async ({ id }) => {
       try {
-        const scheduler = makeWriteOnlyScheduler();
-        try {
-          const task = await scheduler.resume(id);
-          if (!task) return { content: [{ type: 'text', text: `No such schedule: ${id}` }], isError: true };
-          return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
-        } finally {
-          scheduler.stop();
-        }
+        const task = await resumeSchedule(scheduleRepo, id);
+        if (!task) return { content: [{ type: 'text', text: `No such schedule: ${id}` }], isError: true };
+        return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
       } catch (e) {
         return { content: [{ type: 'text', text: `Failed to resume schedule: ${(e as Error).message}` }], isError: true };
       }

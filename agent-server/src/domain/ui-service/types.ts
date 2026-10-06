@@ -54,7 +54,8 @@ import type { ExecutionRecord } from '@store/execution-repo.js';
 import type { Waitpoint } from '@store/waitpoint-repo.js';
 import type { SessionTotals } from '@store/session-totals.js';
 export type { SessionTotals } from '@store/session-totals.js';
-import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
+import type { ScheduleTask } from '@store/schedule-repo.js';
+import type { ScheduleSpec, SchedulePatch } from '../scheduling/schedule-spec.js';
 import type { CommissionRecord } from '@store/commission-repo.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
@@ -597,8 +598,6 @@ export interface ScheduleInfo {
   intervalMs: number | null;
   time: string | null;
   dayOfWeek: number | null;
-  /** Persisted dispatch target; null when the record predates it (never fabricated). */
-  target: ScheduleTarget | null;
 }
 
 // ── Commission DTOs (DR-0037) ─────────────────────────────────────
@@ -1986,27 +1985,11 @@ export interface UiServiceDeps {
   scheduler: {
     list(): Promise<ScheduleTask[]>;
     get(id: string): Promise<ScheduleTask | null>;
-    pause(id: string, pausedBy?: 'user' | 'rate-limit'): Promise<ScheduleTask | null>;
+    pause(id: string): Promise<ScheduleTask | null>;
     resume(id: string): Promise<ScheduleTask | null>;
     remove(id: string): Promise<boolean>;
-    /** Create a schedule (schedules.add). The injected impl (app.ts) composes the real
-     *  scheduler.add + schedule-repo backfill of target, returning the final task. */
-    add(
-      type: ScheduleTask['type'],
-      options: {
-        message: string;
-        projectId: string;
-        profile?: string | null;
-        intervalMs?: number;
-        time?: string;
-        dayOfWeek?: number;
-        delay?: number;
-        target?: ScheduleTarget;
-      },
-    ): Promise<ScheduleTask>;
-    /** Patch an existing schedule (schedules.update). Maps to the real scheduler.update
-     *  (validateTaskPatch + retiming + reschedule). Returns null when the id is unknown. */
-    update(id: string, patch: Record<string, unknown>): Promise<ScheduleTask | null>;
+    add(spec: ScheduleSpec): Promise<ScheduleTask>;
+    update(id: string, patch: SchedulePatch): Promise<ScheduleTask | null>;
   };
   executionRegistry: {
     getExecution(id: string): ExecutionRecord | null;

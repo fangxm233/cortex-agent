@@ -6,7 +6,7 @@ import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 
 import { handleOrientCmd } from './orient.js';
-import { createScheduleHandler } from './schedule.js';
+import { createScheduleHandler, type ScheduleCommandScheduler } from './schedule.js';
 import { handleCostCmd, handleBudgetCmd } from './cost.js';
 import { handleModeCmd, handleBackendCmd, handleModelCmd, handleThinkingCmd, createProfileHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
 import { createStatusHandler, createHelpHandler } from './status.js';
@@ -27,7 +27,7 @@ import type { AuthLoginService, AuthStatusSnapshot } from '@domain/auth/index.js
 const log = createLogger('command-handler');
 
 export interface CommandDeps {
-  scheduler: any;
+  scheduler: ScheduleCommandScheduler | null;
   getExecutionStatusReport?: (() => string) | null;
   commandRouter?: CommandActionRouter;
   compactSessionByChannel?: CompactSessionByChannel | null;

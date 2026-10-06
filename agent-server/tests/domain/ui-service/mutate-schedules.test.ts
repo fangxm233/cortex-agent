@@ -9,6 +9,7 @@ import {
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 import type { ScheduleTask } from '../../../src/store/schedule-repo.js';
+import type { ScheduleSpec, SchedulePatch } from '../../../src/domain/scheduling/schedule-spec.js';
 
 function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
   return makeUiDeps(overrides);
@@ -29,31 +30,22 @@ test('schedules.remove returns not-found on missing schedule', async () => {
 // ── schedules.add ──────────────────────────────────────────────────
 
 interface AddSpy {
-  calls: Array<{ type: string; options: Record<string, any> }>;
+  calls: ScheduleSpec[];
   add: UiServiceDeps['scheduler']['add'];
 }
 
-/** A spyable scheduler.add that records calls and echoes a ScheduleTask built from the options
- *  (mirrors what the real injected add returns after buildTask + backfill — no real fs). */
+/** A spyable scheduler.add that records the spec and echoes a ScheduleTask built from it (no fs). */
 function makeAddSpy(): AddSpy {
-  const calls: AddSpy['calls'] = [];
-  const add: UiServiceDeps['scheduler']['add'] = async (type, options) => {
-    calls.push({ type, options });
+  const calls: ScheduleSpec[] = [];
+  const add: UiServiceDeps['scheduler']['add'] = async (spec) => {
+    calls.push(spec);
     return {
+      ...spec,
       id: 'sch_created',
-      type,
-      message: options.message,
-      projectId: options.projectId,
-      profile: options.profile ?? null,
-      intervalMs: options.intervalMs,
-      time: options.time,
-      dayOfWeek: options.dayOfWeek,
-      delay: options.delay,
       createdAt: 1_700_000_000_000,
       nextRun: 1_700_000_060_000,
       lastRun: null,
-      target: options.target,
-    } as ScheduleTask;
+    } as unknown as ScheduleTask;
   };
   return { calls, add };
 }
@@ -72,18 +64,18 @@ test('schedules.add interval creates a schedule and returns ScheduleInfo', async
   }
   assert.equal(spy.calls.length, 1);
   assert.equal(spy.calls[0].type, 'interval');
-  assert.equal(spy.calls[0].options.intervalMs, 60_000);
+  assert.deepEqual(spy.calls[0], { type: 'interval', intervalMs: 60_000, message: 'ping', projectId: 'general', profile: null });
 });
 
-test('schedules.add forwards target to scheduler.add', async () => {
+test('schedules.add rejects a whitespace message and an out-of-range time without writing', async () => {
   const spy = makeAddSpy();
   const deps = makeDeps({ scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: spy.add } });
-  const result = await handleAddSchedule(deps, {
-    type: 'interval', message: 'ping', intervalMs: 60_000,
-    target: { kind: 'project', projectId: 'general' },
-  });
-  assert.equal(result.ok, true);
-  assert.deepEqual(spy.calls[0].options.target, { kind: 'project', projectId: 'general' });
+  for (const args of [{ type: 'interval', message: '   ', intervalMs: 60_000 }, { type: 'daily', message: 'm', time: '25:00' }] as const) {
+    const result = await handleAddSchedule(deps, args);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, 'invalid-args');
+  }
+  assert.equal(spy.calls.length, 0);
 });
 
 test('schedules.add rejects interval without intervalMs and does not write', async () => {
@@ -107,7 +99,7 @@ test('schedules.add rejects weekly without dayOfWeek and does not write', async 
 // ── schedules.update ───────────────────────────────────────────────
 
 interface UpdateSpy {
-  calls: Array<{ id: string; patch: Record<string, any> }>;
+  calls: Array<{ id: string; patch: SchedulePatch }>;
   scheduler: UiServiceDeps['scheduler'];
 }
 

@@ -48,10 +48,10 @@ function harness(tasks: any[], overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('migration preserves intervals and maps pause provenance before removing legacy records', async () => {
+test('migration preserves intervals and the enabled state before removing legacy records', async () => {
   const kept = legacyTask('auth-expiry-scan');
   const h = harness([
-    legacyTask('memory-index-regen', { intervalMs: 43_200_000, isPaused: true, pausedBy: 'rate-limit' }),
+    legacyTask('memory-index-regen', { intervalMs: 43_200_000 }),
     kept,
   ]);
 
