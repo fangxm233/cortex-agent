@@ -26,14 +26,10 @@ import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fi
 import {
   attemptFromFixture, runRequestFixture, specFromFixture, type RunRequestFixtureInput,
 } from './run-request-fixture.js';
-import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
+import { ClaudeAdapter } from '../src/agent-adapter/claude/adapter.js';
+import { claudeProcessLaunch, launchFromSpec } from '../src/agent-adapter/claude/session-options.js';
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
-import {
-  buildClaudeEnv,
-  buildSpawnArgs,
-  claudeRouteIdentity,
-  resolveClaudeMcpBundles,
-} from '../src/agent-adapter/claude/spawn-args.js';
+import { buildSpawnArgs, claudeRouteIdentity } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
@@ -44,7 +40,6 @@ import { safeNativeComposite } from '@core/native-name.js';
 import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/session-options.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
-import { encodeMcpBundles, MCP_BUNDLES_ENV } from '../src/core/mcp-bundles.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { getSavedApiEnv } from '../src/domain/auth/anthropic-env.js';
@@ -57,9 +52,8 @@ import { GATEWAY_URL, _testSetHealthy } from '../src/domain/costs/gateway-manage
 import { generateConfigs, getResolvedPaths, type InitAnswers } from '../src/entry/init.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
-// GOLDEN PROVENANCE: captured from base 63fe0dad's production spawn path. That path mapped the
-// legacy thread boolean to the thread MCP configs; its old _test.computeSpawnArgs hook did not.
-// The current seam and production path agree, so re-deriving via the old hook gives a false mismatch.
+// GOLDEN PROVENANCE: captured from base 63fe0dad's production spawn path, and compared against
+// `claudeProcessLaunch` — the argv and env every Claude spawn is started with.
 // AMENDED once, in --tools only: the built-in `Agent` was replaced by the cortex-core `agent` /
 // `agent_stop` bridge pair, so every Claude spawn delegates through Cortex.
 // AMENDED a second time, in `environment` only: CORTEX_BACKEND=claude was added so hooks can tell
@@ -115,29 +109,20 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
+/** The child a spec launches, through the same function every Claude spawn uses. */
+function childLaunch(spec: EngineSpec): { args: string[]; env: NodeJS.ProcessEnv } {
+  return claudeProcessLaunch(launchFromSpec(spec));
+}
+
 function childEnvironment(spec: EngineSpec): NodeJS.ProcessEnv {
-  const channel = spec.context.channel ?? spec.engineKey;
-  const env = buildClaudeEnv(
-    channel, spec.resume.backendSessionId!, spec.context.callbackSource, spec.context.scheduleTaskId,
-    spec.route.anthropicBaseUrl, spec.env.sets, spec.env.context, spec.env.pinned, spec.env.unsets,
-  );
-  env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles({
-    tools: null,
-    needsResume: spec.resume.resume,
-    sessionId: spec.resume.backendSessionId!,
-    mcpComposition: spec.mcp.composition,
-    isUserInitiated: spec.flags.isUserInitiated,
-    loadSlackMcp: channel.startsWith('slack:'),
-    loadFeishuMcp: channel.startsWith('feishu:'),
-    loadWebMcp: channel.startsWith('web:'),
-  }));
-  return env;
+  return childLaunch(spec).env;
 }
 
 function resolvedGolden(spec: EngineSpec): string {
+  const launch = childLaunch(spec);
   const output = canonicalize({
-    argv: claudeTest.computeSpawnArgs(spec),
-    environment: sortedEnvironment(childEnvironment(spec)),
+    argv: launch.args,
+    environment: sortedEnvironment(launch.env),
   });
   return `${JSON.stringify(output, null, 2)}\n`;
 }

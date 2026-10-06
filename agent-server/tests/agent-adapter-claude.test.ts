@@ -37,10 +37,11 @@ import {
   getCurrentPlanFilePath,
 } from '../src/agent-adapter/claude/event-parser.js';
 import { ClaudeAdapter, _test as adapterTest } from '../src/agent-adapter/claude/adapter.js';
+import { claudeProcessLaunch, launchFromSpec } from '../src/agent-adapter/claude/session-options.js';
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
 import { safeNativeName } from '@core/native-name.js';
-import type { McpServerConfig } from '../src/agent-adapter/types.js';
+import type { EngineSpec, McpServerConfig } from '../src/agent-adapter/types.js';
 import type { HookEntry } from '../src/store/hook-registry.js';
 
 const HOOK_REGISTRY_DIR = path.join(CONFIG_DIR, 'hooks');
@@ -731,7 +732,7 @@ test('Claude print respawn revalidates supplemental MCP content before spawning 
     mcpServers: [pooledMcpServer('portable-a', 'a')],
   }));
   const session = pool.getPooledSession('revalidate-print') as any;
-  fs.writeFileSync(session.supplementalMcpConfigPath, '{"mcpServers":{}}\n');
+  fs.writeFileSync(session.options.supplementalMcpConfigPath, '{"mcpServers":{}}\n');
   assert.throws(() => session.spawnProcess(), /identity mismatch|content mismatch/i);
   assert.equal(counter.value, 1);
   await pool.close('revalidate-print');
@@ -1046,10 +1047,14 @@ test('ClaudeAdapter.open: config.unsetEnv removes the key from the spawned child
   }
 });
 
-// --- ClaudeAdapter.open — EngineSpec → CLI args parity (Blocker fix from Plan Review iter 1) ---
+// --- ClaudeAdapter.open — EngineSpec → CLI args, through the launch every spawn uses ---
+
+function launchArgs(spec: EngineSpec): string[] {
+  return claudeProcessLaunch(launchFromSpec(spec)).args;
+}
 
 test('ClaudeAdapter.open: full EngineSpec produces expected CLI args (canonical → native tool names)', () => {
-  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
+  const args = launchArgs(engineSpecFixture({
     sessionId: 'uuid-xxx',
     sessionKey: 'thr:e0b6:1',
     resume: false,
@@ -1084,7 +1089,7 @@ test('ClaudeAdapter.open: full EngineSpec produces expected CLI args (canonical 
 });
 
 test('ClaudeAdapter.open: resume:true swaps --session-id for --resume', () => {
-  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
+  const args = launchArgs(engineSpecFixture({
     sessionId: 'uuid-yyy',
     sessionKey: 'k',
     resume: true,
@@ -1093,10 +1098,9 @@ test('ClaudeAdapter.open: resume:true swaps --session-id for --resume', () => {
   assert.deepEqual(last2, ['--resume', 'uuid-yyy']);
 });
 
-// Regression: appendSystemPrompt must be propagated through deriveClaudeSpawnOptions()
-// to the --append-system-prompt CLI flag.
+// Regression: appendSystemPrompt must reach the --append-system-prompt CLI flag.
 test('ClaudeAdapter.open: appendSystemPrompt is propagated to --append-system-prompt (regression)', () => {
-  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
+  const args = launchArgs(engineSpecFixture({
     sessionId: 'uuid-append',
     sessionKey: 'k',
     resume: false,
@@ -1130,7 +1134,7 @@ function portableRuntimeServers(): McpServerConfig[] {
 }
 
 function portableRuntimeSpawnArgs(): string[] {
-  return adapterTest.computeSpawnArgs(engineSpecFixture({
+  return launchArgs(engineSpecFixture({
     sessionId: 'uuid-portable-mcp',
     sessionKey: 'portable-mcp',
     resume: false,
@@ -1160,11 +1164,10 @@ test('ClaudeAdapter.open: portable MCP runtime is passed only through a suppleme
   assertPortableRuntimeSpawnArgs(portableRuntimeSpawnArgs());
 });
 
-// task f7cf satisfied the previous "iterating rejects with task f7cf" test: ClaudeAdapter.open()
-// now hands back an EngineSession whose run() streams events from the pooled ClaudeSession. End-to-end coverage
-// lives in tests/run-with-adapter.test.ts (fake-adapter regression: callback ordering,
-// rate-limit surfacing via AgentResult, error, kill). Here we keep pure-function parity
-// tests for _test.computeSpawnArgs / buildSpawnArgs / buildHooksSettings.
+// ClaudeAdapter.open() hands back an EngineSession whose run() streams events from the pooled
+// ClaudeSession. End-to-end coverage lives in tests/run-with-adapter.test.ts (fake-adapter
+// regression: callback ordering, rate-limit surfacing via AgentResult, error, kill). Here we keep
+// pure-function tests for claudeProcessLaunch / buildSpawnArgs / buildHooksSettings.
 
 // --- native subagent attribution (print stream-json) -------------------------------------------
 //

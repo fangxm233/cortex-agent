@@ -1,11 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
-import * as crypto from 'crypto';
 import { AGENT_CWD, resolveSpawnCwd } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
-import { fromCanonical } from '@core/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import { resolveMcpComposition } from '../types.js';
 import type {
   AgentCompactResult, AgentProcessSpawner,
   AgentProcessSupervision, EngineAdapter, EngineSpec, Backend, BackgroundTurnSink,
@@ -13,15 +10,15 @@ import type {
   SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import { ClaudeEngineSession, type ClaudeEngineOpenHooks } from './engine.js';
-import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import {
   IDLE_SESSION_TIMEOUT,
   TURN_IDLE_TIMEOUT,
 } from './defaults.js';
+import { claudeRouteIdentity } from './spawn-args.js';
 import {
-  buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity, resolveClaudeMcpBundles,
-  ClaudeSpawnOptions, CortexAgentContext,
-} from './spawn-args.js';
+  claudeProcessLaunch, launchFromSpec, sessionOptionsFromSpec,
+  type ClaudeSessionLaunch, type ClaudeSessionOptions,
+} from './session-options.js';
 import { computeTranscriptPath, readRestoredSessionCost, resolveResumeAgainstTranscript } from './transcript-path.js';
 import {
   buildPrompt,
@@ -36,11 +33,7 @@ import {
 } from './event-translator.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { resolveClaudeCompactWindow } from './compact-window.js';
-import {
-  validateClaudeSupplementalMcpConfig,
-  writeClaudeSupplementalMcpConfig,
-} from './mcp-config.js';
-import { writeBrowserMcpConfig } from './browser-mcp.js';
+import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
 
 const log = createLogger('claude-bridge');
 
@@ -59,92 +52,13 @@ function spawnClaudeProcess(
 
 // --- Persistent session ---
 
-interface ClaudeSessionOptions {
-  needsResume: boolean;
-  model?: string | null;
-  isUserInitiated?: boolean;
-  teamLead?: boolean;
-  callbackSource?: string | null;
-  scheduleTaskId?: string | null;
-  sessionKey?: string | null;
-  claudeAgent?: string | null;
-  systemPrompt?: string | null;
-  appendSystemPrompt?: string | null;
-  outputStyle?: string | null;
-  tools?: string | null;
-  pluginDirs?: string[] | null;
-  anthropicBaseUrl?: string;
-  extraEnv?: Record<string, string>;
-  /** Keys deleted from the child env after `extraEnv` is applied (EngineSpec.env.unsets). */
-  unsetEnv?: string[];
-  cwd?: string;
-  mcpComposition: McpComposition;
-  mcpConfigPaths?: string[];
-  mcpToolAllowlist?: string[];
-  supplementalMcpConfigPath?: string | null;
-  supplementalMcpConfigIdentity?: string | null;
-  /** Playwright MCP config for a browser-enabled session. Kept separate from the supplemental
-   *  (plugin) config because a session can legitimately have both. */
-  browserMcpConfigPath?: string | null;
-  browserMcpConfigIdentity?: string | null;
-  pluginCapabilityFingerprint?: string | null;
-  disableHooks?: boolean;
-  /** Drop the CLI's whole skill layer; see {@link ClaudeSpawnOptions.disableSkills}. */
-  disableSkills?: boolean;
-  /** Setting files the CLI may load; see {@link ClaudeSpawnOptions.settingSources}. */
-  settingSources?: string[];
-  streamDeltas?: boolean;
-  captureTranscriptLogs?: boolean;
-  processSpawner?: AgentProcessSpawner;
-  /** Optional absolute Claude CLI path. */
-  cliPath?: string;
-  /** Exact allowlisted child environment for an isolated process. */
-  pinnedEnv?: NodeJS.ProcessEnv;
-  /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
-  extraOption?: Record<string, string>;
-  /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
-  thinking?: string | null;
-  /** Cortex execution context surfaced to the MCP server child as CORTEX_PROFILE/PROJECT/SESSION_NAME env vars.
-   *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
-  context?: CortexAgentContext;
-  /** Pool hooks: the owner's eviction callbacks. See `ClaudeEngineOpenHooks`. */
+/** The owner's hooks into one session. */
+interface ClaudeSessionHooks {
+  /** Pool eviction callbacks. See `ClaudeEngineOpenHooks`. */
   onSelfClose?: ClaudeEngineOpenHooks['onSelfClose'];
   onEvict?: ClaudeEngineOpenHooks['onEvict'];
   /** Host throttle entry point. Absent ⇒ observations are dropped; see `ClaudeAdapterHooks`. */
   onRateLimit?: RateLimitReporter;
-}
-
-interface ClaudeSpawnFields extends ClaudeSpawnOptions {
-  mcpComposition: McpComposition;
-  extraOption: Record<string, string> | undefined;
-  thinking: string | null;
-}
-
-/** Single source of truth for ClaudeSession fields → ClaudeSpawnOptions CLI args translation.
- *  Used by both ClaudeSession.toSpawnOptions() (production) and _test.computeSpawnArgs (lock-in test). */
-function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions {
-  return {
-    tools: fields.tools,
-    systemPrompt: fields.systemPrompt,
-    appendSystemPrompt: fields.appendSystemPrompt,
-    model: fields.model,
-    claudeAgent: fields.claudeAgent,
-    pluginDirs: fields.pluginDirs,
-    outputStyle: fields.outputStyle,
-    extraOption: fields.extraOption,
-    thinking: fields.thinking,
-    needsResume: fields.needsResume,
-    sessionId: fields.sessionId,
-    mcpComposition: fields.mcpComposition,
-    mcpConfigPaths: fields.mcpConfigPaths,
-    mcpToolAllowlist: fields.mcpToolAllowlist,
-    supplementalMcpConfigPath: fields.supplementalMcpConfigPath,
-    browserMcpConfigPath: fields.browserMcpConfigPath,
-    disableHooks: fields.disableHooks,
-    disableSkills: fields.disableSkills,
-    settingSources: fields.settingSources,
-    streamDeltas: fields.streamDeltas,
-  };
 }
 
 export interface ClaudeSpawnCompatibility {
@@ -254,43 +168,16 @@ function createContextUsageTracker(
 class ClaudeSession implements TurnHost {
   private proc: ChildProcess | null = null;
   private rl: Interface | null = null;
-  sessionId: string;
-  channel: string;
-  private sessionKey: string;
+  readonly sessionId: string;
+  readonly channel: string;
+  private readonly sessionKey: string;
+  /** Everything the process is (re)spawned with. Fixed for the session's life: a spec that differs
+   *  in identity gets a different session from the pool. */
+  private readonly options: ClaudeSessionOptions;
   /** Model name requested via --model CLI arg (used as fallback for cost_record). */
-  modelName: string | null;
-  private isUserInitiated: boolean;
-  private teamLead: boolean;
-  private callbackSource: string | null;
-  private scheduleTaskId: string | null;
-  private claudeAgent: string | null;
-  private systemPrompt: string | null;
-  private appendSystemPrompt: string | null;
-  private outputStyle: string | null;
-  private tools: string | null;
-  private pluginDirs: string[] | null;
-  anthropicBaseUrl: string | undefined;
-  private extraEnv: Record<string, string> | undefined;
-  private unsetEnv: string[] | undefined;
-  private cwd: string;
-  private mcpComposition: McpComposition;
-  private mcpConfigPaths: string[] | undefined;
-  private mcpToolAllowlist: string[] | undefined;
-  private supplementalMcpConfigPath: string | null;
-  private browserMcpConfigPath: string | null;
-  private compatibility: ClaudeSpawnCompatibility;
-  private disableHooks: boolean;
-  private disableSkills: boolean;
-  private settingSources: string[] | undefined;
-  private streamDeltas: boolean | undefined;
-  captureTranscriptLogs!: boolean;
-  private processSpawner!: AgentProcessSpawner | undefined;
-  private cliPath!: string | undefined;
-  private pinnedEnv!: NodeJS.ProcessEnv | undefined;
+  readonly modelName: string | null;
+  private readonly compatibility: ClaudeSpawnCompatibility;
   private supervision: AgentProcessSupervision | undefined;
-  private extraOption!: Record<string, string> | undefined;
-  private thinking!: string | null;
-  private context!: CortexAgentContext | undefined;
   /** Pool eviction hooks supplied by the owner: `onSelfClose` preserves the
    *  "only if this key still points at me" guard at the pool; `onEvict` is unconditional, matching
    *  the fatal stdin-write path it replaced. */
@@ -307,77 +194,29 @@ class ClaudeSession implements TurnHost {
   private turnIdleTimer: ReturnType<typeof setTimeout> | null = null;
   private stderr: string = '';
 
-  constructor(channel: string, sessionId: string, options: ClaudeSessionOptions) {
-    this.channel = channel;
-    this.sessionId = sessionId;
-    this.sessionKey = options.sessionKey || channel;
-    this.onRateLimit = options.onRateLimit;
-    this.needsResume = options.needsResume;
-    this.modelName = options.model || null;
-    this.cwd = resolveSpawnCwd(options.cwd);
-    this.turns = new ClaudeTurnMachine(this, createContextUsageTracker(this.modelName, this.cwd, options));
-    this.isUserInitiated = options.isUserInitiated || false;
-    this.teamLead = options.teamLead === true;
-    this.callbackSource = options.callbackSource || null;
-    this.scheduleTaskId = options.scheduleTaskId || null;
-    this.claudeAgent = options.claudeAgent || null;
-    this.systemPrompt = options.systemPrompt || null;
-    this.appendSystemPrompt = options.appendSystemPrompt ?? null;
-    this.outputStyle = options.outputStyle || null;
-    this.tools = options.tools || null;
-    this.pluginDirs = options.pluginDirs || null;
-    this.anthropicBaseUrl = options.anthropicBaseUrl;
-    this.extraEnv = options.extraEnv;
-    this.unsetEnv = options.unsetEnv;
-    this.mcpComposition = options.mcpComposition;
-    this.mcpConfigPaths = options.mcpConfigPaths;
-    this.mcpToolAllowlist = options.mcpToolAllowlist;
-    this.supplementalMcpConfigPath = options.supplementalMcpConfigPath ?? null;
-    this.browserMcpConfigPath = options.browserMcpConfigPath ?? null;
-    this.compatibility = compatibilityFromOptions(options);
-    this.disableHooks = options.disableHooks === true;
-    this.disableSkills = options.disableSkills === true;
-    this.settingSources = options.settingSources;
-    this.streamDeltas = options.streamDeltas;
-    this.onSelfClose = options.onSelfClose;
-    this.onEvict = options.onEvict;
-    this.initializeExecutionOptions(options);
+  constructor(launch: ClaudeSessionLaunch, hooks: ClaudeSessionHooks = {}) {
+    this.channel = launch.channel;
+    this.sessionId = launch.sessionId;
+    this.sessionKey = launch.sessionKey;
+    this.needsResume = launch.needsResume;
+    this.options = launch.options;
+    this.modelName = launch.options.model || null;
+    this.compatibility = compatibilityFromOptions(launch.options);
+    this.onSelfClose = hooks.onSelfClose;
+    this.onEvict = hooks.onEvict;
+    this.onRateLimit = hooks.onRateLimit;
+    this.turns = new ClaudeTurnMachine(
+      this, createContextUsageTracker(this.modelName, launch.options.cwd, launch.options),
+    );
     this.spawnProcess();
   }
 
-  private initializeExecutionOptions(options: ClaudeSessionOptions): void {
-    this.captureTranscriptLogs = options.captureTranscriptLogs !== false;
-    this.processSpawner = options.processSpawner;
-    this.cliPath = options.cliPath;
-    this.pinnedEnv = options.pinnedEnv;
-    this.extraOption = options.extraOption;
-    this.thinking = options.thinking ?? null;
-    this.context = options.context;
+  get captureTranscriptLogs(): boolean {
+    return this.options.captureTranscriptLogs !== false;
   }
 
-  private toSpawnOptions(): ClaudeSpawnOptions {
-    return deriveClaudeSpawnOptions({
-      tools: this.tools,
-      systemPrompt: this.systemPrompt,
-      appendSystemPrompt: this.appendSystemPrompt,
-      model: this.modelName,
-      claudeAgent: this.claudeAgent,
-      pluginDirs: this.pluginDirs,
-      outputStyle: this.outputStyle,
-      extraOption: this.extraOption,
-      thinking: this.thinking,
-      needsResume: this.needsResume,
-      sessionId: this.sessionId,
-      mcpComposition: this.mcpComposition,
-      mcpConfigPaths: this.mcpConfigPaths,
-      mcpToolAllowlist: this.mcpToolAllowlist,
-      supplementalMcpConfigPath: this.supplementalMcpConfigPath,
-      browserMcpConfigPath: this.browserMcpConfigPath,
-      disableHooks: this.disableHooks,
-      disableSkills: this.disableSkills,
-      settingSources: this.settingSources,
-      streamDeltas: this.streamDeltas,
-    });
+  get anthropicBaseUrl(): string | undefined {
+    return this.options.anthropicBaseUrl;
   }
 
   private handleProcessClose(code: number | null): void {
@@ -397,25 +236,10 @@ class ClaudeSession implements TurnHost {
   }
 
   private validateSupplementalMcpConfig(): void {
-    const configPath = this.supplementalMcpConfigPath;
+    const configPath = this.options.supplementalMcpConfigPath;
     const identity = this.compatibility.supplementalMcpConfigIdentity;
     if (!configPath || !identity) return;
     validateClaudeSupplementalMcpConfig(configPath, identity);
-  }
-
-  private buildProcessLaunch(): { args: string[]; env: NodeJS.ProcessEnv } {
-    const options = this.toSpawnOptions();
-    options.loadSlackMcp = this.channel.startsWith('slack:');
-    options.loadFeishuMcp = this.channel.startsWith('feishu:');
-    options.loadWebMcp = this.channel.startsWith('web:');
-    options.isUserInitiated = this.isUserInitiated;
-    options.teamLead = this.teamLead;
-    const env = buildClaudeEnv(
-      this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
-      this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
-    );
-    env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles(options));
-    return { args: buildSpawnArgs(options), env };
   }
 
   private attachSpawnedProcess(spawned: SpawnedAgentProcess): void {
@@ -435,14 +259,15 @@ class ClaudeSession implements TurnHost {
 
   private spawnProcess(): void {
     this.validateSupplementalMcpConfig();
-    const { args, env } = this.buildProcessLaunch();
+    const { args, env } = claudeProcessLaunch({
+      channel: this.channel, sessionId: this.sessionId, needsResume: this.needsResume, options: this.options,
+    });
+    const { cwd, processSpawner, cliPath } = this.options;
     const restoredCost = this.needsResume
-      ? readRestoredSessionCost(computeTranscriptPath(this.cwd, this.sessionId), this.sessionId) : 0;
+      ? readRestoredSessionCost(computeTranscriptPath(cwd, this.sessionId), this.sessionId) : 0;
     this.turns.resetCostBaseline(restoredCost);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? `(resume, restored cost $${restoredCost.toFixed(2)})` : '(new)'}`);
-    const spawned = spawnClaudeProcess(
-      this.processSpawner, args, { cwd: this.cwd, env }, this.cliPath,
-    );
+    const spawned = spawnClaudeProcess(processSpawner, args, { cwd, env }, cliPath);
     this.attachSpawnedProcess(spawned);
     this.armProcessTimers();
   }
@@ -651,131 +476,12 @@ export function resolveResumeForPrint(
   return resolveResumeAgainstTranscript(requestedResume, computeTranscriptPath(cwd, sessionId), exists);
 }
 
-// --- EngineSpec → ClaudeSession options ---
-//
-// The helpers below translate one EngineSpec into the fields a ClaudeSession needs:
-//   - EngineSpec.mcp.servers is projected into a private supplemental --mcp-config file;
-//     the base agent-server/mcp-config.json remains first in the composition.
-//   - EngineSpec carries no hook list; the `--settings` hooks are compiled from the resolved
-//     native tools string in spawn-args.ts (buildHooksSettings).
-//   - Claude-private fields (context.channel / backend.claudeAgent / context.callbackSource /
-//     context.scheduleTaskId / flags.isUserInitiated / tools.rawClaude / route.anthropicBaseUrl)
-//     are read directly off EngineSpec rather than modelled as backend-neutral fields.
-
-function canonicalToolsToNative(tools: string[] | undefined): string | null {
-  if (!tools || tools.length === 0) return null;
-  const native = tools
-    .map(t => fromCanonical('claude', t))
-    .filter((n): n is string => typeof n === 'string');
-  return native.length ? native.join(',') : null;
-}
-
-function supplementalMcpConfig(
-  spec: EngineSpec,
-  composition: McpComposition,
-): ReturnType<typeof writeClaudeSupplementalMcpConfig> | null {
-  if (!spec.mcp.servers) return null;
-  if (composition !== 'direct') return null;
-  return writeClaudeSupplementalMcpConfig(spec.mcp.servers);
-}
-
-function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOptions> {
-  const claudeBackend = spec.backend.kind === 'claude' ? spec.backend : undefined;
-  return {
-    model: spec.model.id ?? null,
-    systemPrompt: spec.prompt.system ?? null,
-    appendSystemPrompt: spec.prompt.append ?? null,
-    outputStyle: claudeBackend?.outputStyle ?? null,
-    tools: spec.tools.rawClaude ?? canonicalToolsToNative(spec.tools.canonical),
-    pluginDirs: spec.plugins.dirs ?? null,
-    isUserInitiated: !!spec.flags.isUserInitiated,
-    teamLead: spec.flags.teamLead === true,
-    callbackSource: spec.context.callbackSource ?? null,
-    scheduleTaskId: spec.context.scheduleTaskId ?? null,
-    claudeAgent: claudeBackend?.claudeAgent ?? null,
-    thinking: spec.model.thinking ?? null,
-  };
-}
-
-function sessionRuntimeOptions(
-  spec: EngineSpec,
-  composition: McpComposition,
-): Partial<ClaudeSessionOptions> & Pick<ClaudeSessionOptions, 'mcpComposition'> {
-  const supplemental = supplementalMcpConfig(spec, composition);
-  // Browser tools ride on the direct composition only: an agent configured with composition
-  // `none` gets no Cortex MCP servers, the browser included.
-  const browser = spec.mcp.browserCdpEndpoint && composition === 'direct'
-    ? writeBrowserMcpConfig(spec.mcp.browserCdpEndpoint)
-    : null;
-  return {
-    anthropicBaseUrl: spec.route.anthropicBaseUrl,
-    extraEnv: spec.env.sets,
-    unsetEnv: spec.env.unsets,
-    cwd: resolveSpawnCwd(spec.cwd),
-    mcpComposition: composition,
-    mcpConfigPaths: spec.mcp.configPaths,
-    mcpToolAllowlist: spec.mcp.allowlist,
-    supplementalMcpConfigPath: supplemental?.path ?? null,
-    supplementalMcpConfigIdentity: supplemental?.identity ?? null,
-    browserMcpConfigPath: browser?.path ?? null,
-    browserMcpConfigIdentity: browser?.identity ?? null,
-    pluginCapabilityFingerprint: spec.plugins.fingerprint ?? null,
-    disableHooks: spec.flags.disableHooks,
-    disableSkills: spec.flags.disableSkills,
-    settingSources: spec.flags.settingSources,
-    streamDeltas: spec.flags.streamDeltas,
-    captureTranscriptLogs: spec.flags.captureTranscripts,
-    processSpawner: spec.process.spawner,
-    cliPath: spec.process.cliPath,
-    pinnedEnv: spec.env.pinned,
-    extraOption: spec.extraOption,
-    context: spec.env.context,
-  };
-}
-
-function sessionOptionsFromSpec(
-  spec: EngineSpec,
-): ClaudeSessionOptions & { sessionIdEffective: string } {
-  const composition = resolveMcpComposition(spec.mcp.composition);
-  return {
-    sessionIdEffective: spec.resume.backendSessionId || crypto.randomUUID(),
-    needsResume: spec.resume.resume,
-    sessionKey: spec.engineKey,
-    ...sessionPresentationOptions(spec),
-    ...sessionRuntimeOptions(spec, composition),
-  };
-}
-
-/** Test hook: mirror of ClaudeSession.toSpawnOptions() for the EngineSpec entry point.
- *  Must stay in sync with ClaudeSession constructor + toSpawnOptions — both paths derive
- *  ClaudeSpawnOptions through deriveClaudeSpawnOptions(), so any field added to that helper
- *  is covered here without divergence. */
-function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
-  const opts = sessionOptionsFromSpec(spec);
-  const spawnOptions = deriveClaudeSpawnOptions({
-    tools: opts.tools ?? null,
-    systemPrompt: opts.systemPrompt ?? null,
-    appendSystemPrompt: opts.appendSystemPrompt ?? null,
-    model: opts.model ?? null,
-    claudeAgent: opts.claudeAgent ?? null,
-    pluginDirs: opts.pluginDirs ?? null,
-    outputStyle: opts.outputStyle ?? null,
-    extraOption: opts.extraOption,
-    thinking: opts.thinking ?? null,
-    needsResume: opts.needsResume,
-    sessionId: opts.sessionIdEffective,
-    mcpComposition: opts.mcpComposition,
-    mcpConfigPaths: opts.mcpConfigPaths,
-    mcpToolAllowlist: opts.mcpToolAllowlist,
-    supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
-    browserMcpConfigPath: opts.browserMcpConfigPath,
-    disableHooks: opts.disableHooks,
-    disableSkills: opts.disableSkills,
-    settingSources: opts.settingSources,
-    streamDeltas: opts.streamDeltas,
-  });
-  spawnOptions.isUserInitiated = spec.flags.isUserInitiated;
-  return buildSpawnArgs(spawnOptions);
+/** The resume gate: a pre-registered session id with no transcript yet must create, not resume. */
+function gateResume(launch: ClaudeSessionLaunch): ClaudeSessionLaunch {
+  const needsResume = resolveResumeForPrint(
+    launch.needsResume, launch.sessionId, undefined, launch.options.cwd,
+  );
+  return { ...launch, needsResume };
 }
 
 /** Collaborators the daemon owns and a trial replaces — the Claude twin of `PIAdapterHooks`.
@@ -805,20 +511,7 @@ export class ClaudeAdapter implements EngineAdapter {
    * only when you have decided to create, the way `acquire` does.
    */
   open(spec: EngineSpec, hooks: ClaudeEngineOpenHooks = {}): ClaudeEngineSession {
-    const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
-    // Same resume gate as the old spawn(): a pre-registered sessionId with no transcript yet must create.
-    sessionOptions.needsResume = resolveResumeForPrint(
-      sessionOptions.needsResume,
-      sessionIdEffective,
-      undefined,
-      sessionOptions.cwd,
-    );
-    const channel = spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey;
-    // The old pooled lookup keyed the session on `options.sessionKey || channel`; preserve that.
-    const key = sessionOptions.sessionKey || channel;
-    const session = new ClaudeSession(channel, sessionIdEffective, {
-      ...sessionOptions,
-      sessionKey: key,
+    const session = new ClaudeSession(gateResume(launchFromSpec(spec)), {
       onSelfClose: hooks.onSelfClose,
       onEvict: hooks.onEvict,
       onRateLimit: this.onRateLimit,
@@ -835,16 +528,8 @@ export class ClaudeAdapter implements EngineAdapter {
    *  The pool's fourth reuse clause compares this against a live session's `sessionId`: asked to
    *  resume transcript X while the pooled session sits on transcript Y ⇒ a fresh process. */
   claudeResumeTarget(spec: EngineSpec): { needsResume: boolean; sessionId: string } {
-    const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
-    return {
-      needsResume: resolveResumeForPrint(
-        sessionOptions.needsResume,
-        sessionIdEffective,
-        undefined,
-        sessionOptions.cwd,
-      ),
-      sessionId: sessionIdEffective,
-    };
+    const { needsResume, sessionId } = gateResume(launchFromSpec(spec));
+    return { needsResume, sessionId };
   }
 }
 
@@ -863,6 +548,7 @@ function makeSessionForTest(
   s.sessionId = 'test-session';
   s.channel = 'test';
   s.sessionKey = 'test';
+  s.options = { cwd: AGENT_CWD, mcpComposition: 'direct', captureTranscriptLogs: false };
   turns.bgTracker = new BgTaskTracker();
   turns.streamDeltaState = createStreamDeltaState();
   turns.contextUsageTracker = new ClaudeContextUsageTracker(modelName, autoCompactWindow);
@@ -882,6 +568,5 @@ function makeSessionForTest(
 }
 
 export const _test = {
-  computeSpawnArgs: computeSpawnArgsForSpec,
   makeSessionForTest,
 };

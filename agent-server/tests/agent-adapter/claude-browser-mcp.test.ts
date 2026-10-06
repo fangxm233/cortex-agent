@@ -2,10 +2,15 @@ import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
-import { _test as adapterTest } from '../../src/agent-adapter/claude/adapter.js';
+import { claudeProcessLaunch, launchFromSpec } from '../../src/agent-adapter/claude/session-options.js';
+import type { EngineSpec } from '../../src/agent-adapter/types.js';
 import { writeBrowserMcpConfig } from '../../src/agent-adapter/claude/browser-mcp.js';
 
 const ENDPOINT = 'http://127.0.0.1:9222';
+
+function launchArgs(spec: EngineSpec): string[] {
+  return claudeProcessLaunch(launchFromSpec(spec)).args;
+}
 
 /** `--mcp-config` is variadic: every path until the next flag belongs to it. */
 function mcpConfigs(args: string[]): string[] {
@@ -26,12 +31,12 @@ function readableConfigs(args: string[]): Array<{ path: string; text: string }> 
 
 describe('browser MCP is opt-in per session', () => {
   it('adds no browser config when the session did not opt in', () => {
-    const args = adapterTest.computeSpawnArgs(engineSpecFixture({ sessionId: 'a', sessionKey: 'k', resume: false }));
+    const args = launchArgs(engineSpecFixture({ sessionId: 'a', sessionKey: 'k', resume: false }));
     expect(readableConfigs(args).filter((c) => c.text.includes('playwright'))).toEqual([]);
   });
 
   it('adds exactly one Playwright config bound to the endpoint when it did', () => {
-    const args = adapterTest.computeSpawnArgs(engineSpecFixture({
+    const args = launchArgs(engineSpecFixture({
       sessionId: 'b', sessionKey: 'k', resume: false, browserCdpEndpoint: ENDPOINT,
     }));
     const configs = readableConfigs(args).map((c) => JSON.parse(c.text));
@@ -49,7 +54,7 @@ describe('browser MCP is opt-in per session', () => {
   it('refuses the browser layer outside a direct session', () => {
     // An unattended run sharing one browser is a side channel.
     for (const mcpComposition of ['none'] as const) {
-      const args = adapterTest.computeSpawnArgs(engineSpecFixture({
+      const args = launchArgs(engineSpecFixture({
         sessionId: 'c', sessionKey: 'k', resume: false, browserCdpEndpoint: ENDPOINT, mcpComposition,
       }));
       expect(readableConfigs(args).filter((c) => c.text.includes('playwright'))).toEqual([]);
