@@ -14,6 +14,8 @@ interface SignalRecipe {
   /** For a job that is ALREADY running: nothing can be appended to its command line any more, so
    *  watch its pid from the side. The only form that works when the waitpoint is armed too late. */
   attach_to_pid: string;
+  /** Present when members were declared: every line above carries a `<MEMBER>` placeholder. */
+  member_note?: string;
 }
 
 async function proxy(ctx: CortexToolContext, action: string, payload: Record<string, unknown>): Promise<any> {
@@ -39,25 +41,39 @@ function fail(message: string) {
  * The three forms a signal can take, filled in with a real id and secret.
  *
  * `shell` is the one that matters for a remote machine: it needs no Cortex binary and no route
- * back to the daemon — it drops a file the daemon comes and collects.
+ * back to the daemon — it drops a file the daemon comes and collects. Every file gets a fresh name:
+ * the drain treats the name as the signal's identity, so a monitor reporting twice from one shell
+ * must not reuse `$$` alone.
  */
-function buildRecipe(id: string, secret: string, port: number, device: string | null): SignalRecipe {
+export function buildSignalRecipe(
+  id: string,
+  secret: string,
+  port: number,
+  device: string | null,
+  members: string[] = [],
+): SignalRecipe {
+  const member = members.length > 0 ? '<MEMBER>' : null;
   const env = `export CORTEX_SIGNAL_ID=${id} CORTEX_SIGNAL_SECRET=${secret}`;
-  const cli = `cortex-signal --exit-code $?`;
+  const memberFlag = member ? `--member ${member} ` : '';
+  const memberField = member ? `"member":"${member}",` : '';
+  const cli = `cortex-signal ${memberFlag}--exit-code $?`;
   const curl = `curl -sS -XPOST http://127.0.0.1:${port}/webhook/signal `
     + `-H 'content-type: application/json' `
-    + `-d '{"id":"${id}","secret":"${secret}","status":"ok","message":"done"}'`;
+    + `-d '{"id":"${id}","secret":"${secret}",${memberField}"status":"ok","message":"done"}'`;
   // Write-then-rename: a same-directory rename is atomic, so the drain never reads a half file.
   const shell = [
-    `s=$?; d=~/.cortex/tmp/signals; mkdir -p "$d"`,
-    `printf '{"id":"${id}","secret":"${secret}","status":"%s","message":"exit=%s"}' `
-      + `"$([ $s -eq 0 ] && echo ok || echo fail)" "$s" > "$d/$$.tmp" && mv "$d/$$.tmp" "$d/$$.json"`,
+    `s=$?; d=~/.cortex/tmp/signals; f="$d/$(date +%s%N)-$$-$RANDOM"; mkdir -p "$d"`,
+    `printf '{"id":"${id}","secret":"${secret}",${memberField}"status":"%s","message":"exit=%s"}' `
+      + `"$([ $s -eq 0 ] && echo ok || echo fail)" "$s" > "$f.tmp" && mv "$f.tmp" "$f.json"`,
   ].join('\n');
   // On a device the daemon cannot be reached over HTTP at all, so the file drop is the only
   // form that works there; on this machine the CLI is shorter and reports failures immediately.
   const attachToPid = `(while kill -0 <PID> 2>/dev/null; do sleep 5; done; `
-    + `cortex-signal --status ok --message "pid <PID> exited") &`;
-  return { recommended: device ? 'shell' : 'cli', env, cli, curl, shell, attach_to_pid: attachToPid };
+    + `cortex-signal ${memberFlag}--status ok --message "pid <PID> exited") &`;
+  return {
+    recommended: device ? 'shell' : 'cli', env, cli, curl, shell, attach_to_pid: attachToPid,
+    ...(member ? { member_note: `Replace <MEMBER> with the job's own name, one of: ${members.join(', ')}.` } : {}),
+  };
 }
 
 export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext): void {
@@ -120,7 +136,8 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
           device: args.device,
         });
         const port = Number(new URL(ctx.webhookBaseUrl).port || 3001);
-        const recipe = buildRecipe(data.id, data.secret, port, args.device ?? null);
+        const members: string[] = Array.isArray(data.quorum?.members) ? data.quorum.members : [];
+        const recipe = buildSignalRecipe(data.id, data.secret, port, args.device ?? null, members);
         return ok({
           ...data,
           how_to_signal: recipe,

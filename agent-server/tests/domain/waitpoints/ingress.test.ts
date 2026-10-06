@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
 import { applySignal, createWaitpoint, type WaitpointServiceDeps } from '../../../src/domain/waitpoints/service.js';
 import {
@@ -13,6 +14,7 @@ import {
   type IngestDeps,
 } from '../../../src/orchestration/waitpoint-ingress.js';
 import { resetWaitpointTimers } from '../../../src/orchestration/waitpoint-notifier.js';
+import { buildSignalRecipe } from '../../../src/domain/mcp/tools/waitpoint.js';
 
 let tmpDir: string;
 const BASE = 1_700_000_000_000;
@@ -172,6 +174,36 @@ test('a spool file for an already-resolved waitpoint is cleared, not parked', as
   const badDir = path.join(h.spoolDir, 'bad');
   const parked = await fs.readdir(badDir).catch(() => []);
   assert.equal(parked.length, 0, 'a late-but-authentic signal is not a bad file');
+});
+
+test('the shell recipe run twice from one shell lands two signals, not one', async () => {
+  const h = await harness();
+  const { waitpoint, secret } = await createWaitpoint(
+    { label: 'monitor', intent: 'each report', owner: owner(), maxSignals: 5 },
+    h.service,
+  );
+  const { shell } = buildSignalRecipe(waitpoint.id, secret, 3001, 'trainer');
+  // Same shell, same $$: a monitor loop reporting twice before the next drain.
+  const home = await fs.mkdtemp(path.join(tmpDir, 'home-'));
+  execFileSync('bash', ['-c', `true\n${shell}\nfalse\n${shell}`], { env: { ...process.env, HOME: home } });
+
+  const spool = path.join(home, '.cortex', 'tmp', 'signals');
+  assert.equal((await fs.readdir(spool)).filter((f) => f.endsWith('.json')).length, 2);
+  assert.equal(await drainLocalSpool(h.deps, spool), 2);
+  await new Promise((r) => setTimeout(r, 20));
+  const stored = (await h.repo.get(waitpoint.id))!;
+  assert.deepEqual(stored.signals.map((s) => s.status), ['ok', 'fail']);
+  assert.equal(stored.fires, 2);
+});
+
+test('the recipe for a multi-member waitpoint names the member in every form', () => {
+  const recipe = buildSignalRecipe('wp_1', 's', 3001, null, ['arm2', 'arm6']);
+  assert.match(recipe.cli, /--member <MEMBER>/);
+  assert.match(recipe.attach_to_pid, /--member <MEMBER>/);
+  assert.match(recipe.curl, /"member":"<MEMBER>"/);
+  assert.match(recipe.shell, /"member":"<MEMBER>"/);
+  assert.match(recipe.member_note ?? '', /arm2, arm6/);
+  assert.equal(buildSignalRecipe('wp_1', 's', 3001, null).member_note, undefined);
 });
 
 test('draining an absent spool directory is a no-op', async () => {

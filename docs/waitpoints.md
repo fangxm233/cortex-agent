@@ -85,14 +85,16 @@ The daemon's webhook listens on loopback only, so a job on a trainer box cannot 
 connection the device already holds open, within a sweep tick (30s by default):
 
 ```bash
-python train.py; s=$?; d=~/.cortex/tmp/signals; mkdir -p "$d"
+python train.py; s=$?; d=~/.cortex/tmp/signals; f="$d/$(date +%s%N)-$$-$RANDOM"; mkdir -p "$d"
 printf '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"%s","message":"exit=%s"}' \
-  "$([ $s -eq 0 ] && echo ok || echo fail)" "$s" > "$d/$$.tmp" && mv "$d/$$.tmp" "$d/$$.json"
+  "$([ $s -eq 0 ] && echo ok || echo fail)" "$s" > "$f.tmp" && mv "$f.tmp" "$f.json"
 ```
 
 Write to `.tmp` and rename — a same-directory rename is atomic, so the collector never reads a
-half-written file. Nothing needs to be installed on the device. If the device is offline the files
-simply wait there.
+half-written file. Give every file a fresh name: the collector treats the name as the signal's
+identity, so a monitor that reused one name would be heard once. For a waitpoint with members, add
+`"member":"arm2"` to the JSON. Nothing needs to be installed on the device. If the device is
+offline the files simply wait there.
 
 That spool directory works on the daemon's own machine too, and `cortex-signal` falls back to it
 automatically when the daemon is down, so a signal written during a restart is not lost.
