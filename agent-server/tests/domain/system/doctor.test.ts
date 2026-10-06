@@ -77,7 +77,7 @@ const BASE_ENV = {
 /** All-green dependency set. Override fields per test. */
 function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
   return {
-    env: { ...BASE_ENV },
+    env: { ...BASE_ENV }, platform: 'linux',
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
     aistatusDir: '/h/.aistatus', nodeVersion: 'v20.11.0', requiredNodeMajor: 20,
     fileExists: p => BASE_PRESENT.has(p),
@@ -315,6 +315,12 @@ describe('runDiagnostics — gateway', () => {
 // ─── Runtime ──────────────────────────────────────────────────────
 
 describe('runDiagnostics — runtime', () => {
+
+  it('keeps missing Git as a Windows shell failure', async () => {
+    const report = await runDiagnostics(baseDeps({ platform: 'win32', commandExists: bin => bin !== 'git' }));
+    assert.equal(byId(report)['git'].status, 'fail');
+    assert.equal(report.ok, false);
+  });
 
   it('warns without blocking readiness when git is not on PATH', async () => {
     const report = await runDiagnostics(baseDeps({ commandExists: (b: string) => b !== 'git' }));

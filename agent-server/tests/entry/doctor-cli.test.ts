@@ -73,8 +73,14 @@ describe('cmdDoctor — text output + exit codes', () => {
     assert.equal(r.exitCode, 0);
   });
 
+  it('exits 1 when Windows Git Bash is missing', async () => {
+    const diag = greenDeps({ platform: 'win32', commandExists: bin => bin !== 'git' });
+    const r = await cmdDoctor([], { diag, fix: noopFix });
+    assert.equal(r.exitCode, 1);
+  });
+
   it('exits 0 when only optional Git is missing', async () => {
-    const diag = greenDeps({ commandExists: (b: string) => b !== 'git' });
+    const diag = greenDeps({ platform: 'linux', commandExists: (b: string) => b !== 'git' });
     const r = await cmdDoctor([], { diag, fix: noopFix });
     assert.equal(r.exitCode, 0);
   });

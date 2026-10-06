@@ -63,6 +63,7 @@ export interface DoctorPaths {
 
 /** Read-only environment probes — the diagnostic path never writes. */
 export interface DoctorDeps {
+  platform?: NodeJS.Platform;
   env: Record<string, string | undefined>;
   paths: DoctorPaths;
   aistatusDir: string;
@@ -146,6 +147,14 @@ function backendRuntimeCheck(deps: DoctorDeps): CheckResult {
     : { id: 'backend-runtime', label: 'Backend runtime', status: 'warn', detail: `claude not on PATH (backend: ${backend})`, hint: 'Install/login the claude CLI' };
 }
 
+function gitRuntimeCheck(deps: DoctorDeps): CheckResult {
+  if (deps.commandExists('git')) return { id: 'git', label: 'git', status: 'pass', detail: 'usable on PATH' };
+  if ((deps.platform ?? process.platform) === 'win32') {
+    return { id: 'git', label: 'git', status: 'fail', detail: 'unavailable', hint: 'Install Git for Windows — shell tools require Git Bash' };
+  }
+  return { id: 'git', label: 'git', status: 'warn', detail: 'unavailable (optional)', hint: 'Install Git to enable version history and Git-sourced extensions' };
+}
+
 function sectionRuntime(deps: DoctorDeps): DoctorSection {
   const checks: CheckResult[] = [];
 
@@ -154,9 +163,7 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
     ? { id: 'node-version', label: 'Node version', status: 'pass', detail: `${deps.nodeVersion} (>=${deps.requiredNodeMajor})` }
     : { id: 'node-version', label: 'Node version', status: 'warn', detail: `${deps.nodeVersion} — Cortex requires Node >=${deps.requiredNodeMajor}`, hint: 'Upgrade Node.js' });
 
-  checks.push(deps.commandExists('git')
-    ? { id: 'git', label: 'git', status: 'pass', detail: 'found on PATH' }
-    : { id: 'git', label: 'git', status: 'warn', detail: 'unavailable (optional)', hint: 'Install Git to enable version history and Git-sourced extensions; Windows shell tools require Git Bash' });
+  checks.push(gitRuntimeCheck(deps));
 
   checks.push(backendRuntimeCheck(deps));
 
