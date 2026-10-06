@@ -245,6 +245,47 @@ Options:
 - `--dry-run` — print the generated gateway.yaml to stdout without writing
 - `--output-dir <path>` — write gateway.yaml and profiles.json under `<path>` instead of defaults
 
+**`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
+
+Manage scheduled tasks — the same records the MCP schedule tools, `!schedule`
+and the Web UI manage. Each fire opens a new session in the schedule's project
+and sends it the message; see [Scheduling](./scheduling.md). Changes are written
+to `schedules.json`, and a running daemon picks them up within a second.
+
+Every command prints JSON with `ok: true` and the schedule (`schedule`, or
+`schedules` and `count` for `list`); timestamps are ISO 8601. Invalid input
+exits 1 with the valid values on stderr.
+
+- `list [--project <id>]` — all schedules, or one project's
+- `get <id>` — one schedule; an unknown id exits 1
+- `add --type <type> …` — create a schedule; prints `created: false` and the existing schedule when `--idempotency-key` matches one
+- `edit <id> …` — change the message, project, profile, pre-check, or the timing fields of the schedule's type; the type itself is fixed
+- `pause <id>` / `resume <id>` — pause or resume a recurring schedule; repeating either changes nothing
+- `remove <id> [--dry-run]` — delete a schedule (`removed: false` when it does not exist); `--dry-run` prints `would_remove` and deletes nothing
+
+Options:
+- `--type interval|daily|weekly|once` — schedule type (`add` only)
+- `--interval <duration>` — `interval`: repeat period, e.g. `30m`, `2h`, `1d`
+- `--time <HH:MM>` — `daily`/`weekly`: 24-hour time, server local time
+- `--day <day>` — `weekly`: `sun`..`sat` or `0`-`6`
+- `--delay <duration>` — `once`: fire this long from now; on `edit`, moves the fire time
+- `--message <text|->` — the prompt for the fired session; `-` reads it from stdin
+- `--project <id>` — project the fired session belongs to (default: `general`)
+- `--profile <name>` — agent profile to run under (default: the default profile)
+- `--pre-check <cmd>` — shell gate run before each fire; a non-zero exit skips that fire
+- `--idempotency-key <key>` — `add`: a retry with the same key returns the first schedule
+- `--help`, `-h` — show schedule help
+
+```bash
+cortex schedule add --type interval --interval 30m --project nimbus \
+  --message "Check GPU usage on lab2 and report a one-line summary"
+cortex schedule add --type weekly --day mon --time 21:00 --message "Weekly review"
+echo "Check training run r42 on lab2" | cortex schedule add --type once --delay 2h --message -
+cortex schedule list --project nimbus
+cortex schedule edit a1b2c3d4 --time 10:30
+cortex schedule remove a1b2c3d4 --dry-run
+```
+
 ### Exit codes
 
 | Code | Meaning |

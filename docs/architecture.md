@@ -69,7 +69,7 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 | `execution-repo.ts` | Pattern B repository. Full CRUD: `startLocalExecution`, `registerDispatchExecution`, `completeExecution`, `failExecution`. Async stale detection via `reconcileStaleDispatches` |
 | `channel-repo.ts` | `projectName → channelId` mapping |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` with reverse channel lookup |
-| `schedule-repo.ts` | Schedule persistence. `ScheduleTask` interface, `ScheduleTarget` union type |
+| `schedule-repo.ts` | Schedule persistence. `ScheduleTask` interface; `schedules.json` is shared with out-of-process writers |
 | `cost-repo.ts` | Costs in JSONL (append-only), budget in JSON. 90-day pruning at startup |
 | `profile-repo.ts` | Hybrid sync/async reader. `startProfileWatcher()` for hot-reload |
 

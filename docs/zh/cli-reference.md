@@ -168,6 +168,42 @@ cortex auth provider remove --name my-vllm --dry-run
 - `--dry-run` — 将生成的 gateway.yaml 打印到 stdout 而不写入
 - `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 profiles.json 而不是默认位置
 
+**`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
+
+管理定时任务——与 MCP 调度工具、`!schedule` 和 Web UI 管理的是同一批记录。每次触发都会在调度所属项目中新开一个会话并发送消息，见[调度](./scheduling.md)。变更写入 `schedules.json`，正在运行的 daemon 会在一秒内应用。
+
+每个命令都输出带 `ok: true` 的 JSON 和调度本身（`schedule`；`list` 输出 `schedules` 和 `count`），时间戳为 ISO 8601。输入无效时以退出码 1 结束，并在 stderr 列出有效取值。
+
+- `list [--project <id>]` — 列出全部调度，或某个项目的调度
+- `get <id>` — 查看一个调度；id 不存在时退出码为 1
+- `add --type <type> …` — 创建调度；`--idempotency-key` 命中已有调度时输出 `created: false` 和那个调度
+- `edit <id> …` — 修改消息、项目、profile、pre-check，或该调度类型对应的时间字段；类型本身不能改
+- `pause <id>` / `resume <id>` — 暂停或恢复周期性调度；重复执行不会改变任何东西
+- `remove <id> [--dry-run]` — 删除调度（不存在时输出 `removed: false`）；`--dry-run` 输出 `would_remove`，不删除
+
+选项：
+- `--type interval|daily|weekly|once` — 调度类型（仅 `add`）
+- `--interval <duration>` — `interval`：重复周期，如 `30m`、`2h`、`1d`
+- `--time <HH:MM>` — `daily`/`weekly`：24 小时制，服务器本地时间
+- `--day <day>` — `weekly`：`sun`..`sat` 或 `0`-`6`
+- `--delay <duration>` — `once`：从现在起多久后触发；用于 `edit` 时改到新的触发时间
+- `--message <text|->` — 触发会话收到的提示；`-` 从 stdin 读取
+- `--project <id>` — 触发会话所属的项目（默认 `general`）
+- `--profile <name>` — 运行所用的 agent profile（默认为默认 profile）
+- `--pre-check <cmd>` — 每次触发前运行的 shell 门控；非零退出则跳过这次触发
+- `--idempotency-key <key>` — `add`：用同一个 key 重试会返回第一次创建的调度
+- `--help`、`-h` — 显示 schedule 帮助
+
+```bash
+cortex schedule add --type interval --interval 30m --project nimbus \
+  --message "Check GPU usage on lab2 and report a one-line summary"
+cortex schedule add --type weekly --day mon --time 21:00 --message "Weekly review"
+echo "Check training run r42 on lab2" | cortex schedule add --type once --delay 2h --message -
+cortex schedule list --project nimbus
+cortex schedule edit a1b2c3d4 --time 10:30
+cortex schedule remove a1b2c3d4 --dry-run
+```
+
 ### 退出码 {#exit-codes}
 
 | 代码 | 含义 |

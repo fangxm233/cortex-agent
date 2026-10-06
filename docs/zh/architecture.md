@@ -68,7 +68,7 @@ L5  entry/         → 所有层（组合根）
 | `execution-repo.ts` | 模式 B 仓库。完整 CRUD：`startLocalExecution`、`registerDispatchExecution`、`completeExecution`、`failExecution`。通过 `reconcileStaleDispatches` 进行异步陈旧检测 |
 | `channel-repo.ts` | `projectName → channelId` 映射 |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` 带反向频道查找 |
-| `schedule-repo.ts` | 调度持久化。`ScheduleTask` 接口，`ScheduleTarget` 联合类型 |
+| `schedule-repo.ts` | 调度持久化。`ScheduleTask` 接口；`schedules.json` 也由其他进程直接写入 |
 | `cost-repo.ts` | JSONL 格式费用（仅追加），JSON 格式预算。启动时 90 天修剪 |
 | `profile-repo.ts` | 混合同步/异步读取器。`startProfileWatcher()` 用于热重载 |
 

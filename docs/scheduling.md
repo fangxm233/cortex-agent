@@ -18,9 +18,20 @@ Four trigger types are supported:
 | `interval` | Fire every N time units | `interval` (e.g., `"5m"`, `"1h"`, `"30s"`) | Run a status check every 5 minutes |
 | `daily` | Fire at a specific time each day | `time` (`HH:MM` 24-hour format) | Run a daily digest at 09:00 |
 | `weekly` | Fire on a specific day of week at a time | `dayOfWeek` (0-6, 0=Sun), `time` | Run a weekly review Monday at 21:00 |
-| `once` | Fire once after a delay | `delay` (duration string or ms) | Send a reminder in 2 hours |
+| `once` | Fire once after a delay | `delay` (duration string) | Send a reminder in 2 hours |
 
-Duration strings follow the format `<number><unit>` where unit is `s` (seconds), `m` (minutes), `h` (hours), or `d` (days). Examples: `"30s"`, `"5m"`, `"2h"`, `"1d"`.
+Duration strings follow the format `<number><unit>` where unit is `s` (seconds), `m` (minutes), `h` (hours), or `d` (days). Examples: `"30s"`, `"5m"`, `"2h"`, `"1d"`. A bare number in a string is rejected, so `"30"` never turns into 30 milliseconds; callers that pass JSON numbers (the MCP tools, the Web UI) give milliseconds. Weekdays are `sun`..`sat` or `0`-`6`, and times are 24-hour `HH:MM` in the server's local time. The message is trimmed and must not be empty.
+
+## Managing schedules
+
+Every entry point applies the same validation and writes the same `schedules.json`:
+
+| Entry point | Who uses it |
+|-------------|-------------|
+| MCP tools `cortex_schedule_*` | Agents inside a session (see [MCP Tools](#mcp-tools)) |
+| `cortex schedule` | Scripts and terminals (see [CLI](#cli)) |
+| `!schedule` | Chat commands in Slack or Feishu (see [Chat commands](#chat-commands)) |
+| Web UI / desktop app | The schedule list and editor |
 
 ## Schedule Records
 
@@ -38,8 +49,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
       "intervalMs": 3600000,
       "createdAt": 1747680000000,
       "nextRun": 1747683600000,
-      "lastRun": 1747680000000,
-      "target": { "kind": "fresh" }
+      "lastRun": 1747680000000
     }
   ]
 }
@@ -64,14 +74,14 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `lastSkipped` | Epoch ms of last skipped fire (preCheck failed) |
 | `isPaused` | Whether the schedule is currently paused |
 | `pausedAt` | Epoch ms when paused |
-| `pausedBy` | `"user"` or `"rate-limit"` — who paused it |
+| `pausedBy` | `"user"` while the schedule is paused |
 | `dispatchType` | Reserved internal handler key; ordinary user schedules omit it |
 | `preCheck` | Optional shell command; non-zero exit → skip this fire |
-| `target` | How the schedule's project was chosen (see [Where a fire lands](#where-a-fire-lands)) |
+| `idempotencyKey` | Set by `cortex schedule add --idempotency-key`; a retry with the same key returns this schedule |
 
 ## Built-in periodic jobs
 
-Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, the schedule CLI, or the Web schedule list. Their switches and intervals are configured under **Settings → Advanced → Built-in jobs** or with these `config/settings.json` pairs: `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`.
+Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, `cortex schedule list`, or the Web schedule list. Their switches and intervals are configured under **Settings → Advanced → Built-in jobs** or with these `config/settings.json` pairs: `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`.
 
 Enabled jobs run once when the daemon starts. Settings edits hot-reload: disabling a job clears its next timer, enabling it runs immediately, and changing an interval reschedules the next idle run. See [configuration.md](./configuration.md#configsettingsjson) for defaults and bounds.
 
@@ -84,28 +94,17 @@ schedule's run and labeled with the start of the message; open it to read the
 result or reply as in any other conversation. A fire never reuses an earlier
 run's session, so the runs of a recurring schedule stay in separate transcripts.
 
-The `target` field only decides which project the schedule belongs to, and is
-settled when the schedule is created:
-
-| Target | Behavior |
-|--------|----------|
-| `fresh` | Default. The project comes from `projectId`, else from the creating channel's registered project, else `general` |
-| `current-project` | Shorthand, resolved at create time to the project of the conversation creating the schedule |
-
-The stored form is always explicit:
-
-```json
-{ "kind": "fresh" }
-{ "kind": "project", "projectId": "my-project" }
-```
-
-A stored target of any other kind is read as `fresh`.
+The session opens in the schedule's `projectId`, which is settled when the
+schedule is created: an explicit project wins; otherwise the MCP tool uses the
+project named by `target: "current-project"` (the creating session's project),
+then the creating channel's registered project, then `general`. `cortex schedule`
+and the Web UI take the project directly and default to `general`.
 
 ## PreCheck
 
 The `preCheck` field is an optional shell command that acts as a gate: if the command exits with a non-zero status, the schedule's fire is **skipped** for that cycle. The schedule is rescheduled for its next normal interval — there is no fast retry.
 
-The command runs via `execSync` with a 15-second timeout. It receives the `PRECHECK_LAST_RUN` environment variable (epoch ms of the task's `lastRun` field). The working directory is `DATA_DIR` (`~/.cortex/`).
+The command runs in a shell, off the event loop, with a 15-second timeout. It receives the `PRECHECK_LAST_RUN` environment variable (epoch ms of the task's `lastRun` field). The working directory is `DATA_DIR` (`~/.cortex/`).
 
 **Use cases for preCheck:**
 
@@ -115,21 +114,24 @@ The command runs via `execSync` with a 15-second timeout. It receives the `PRECH
 
 ## Hot-Reload
 
-The scheduler watches `schedules.json` for external changes via `fs.watch`. When a change is detected (after a 300ms debounce), it:
+The daemon's scheduler is the only process that fires schedules, but it is not the only writer of
+`schedules.json`: the MCP schedule tools run in each agent's own MCP server process, and
+`cortex schedule` runs in yours. Both write the file directly. The scheduler watches it with
+`fs.watch` and, 300ms after the last change:
 
-1. Invalidates the in-memory cache
-2. Reads the fresh file from disk
-3. Diffs file task IDs against in-memory timer IDs
-4. **Removes** timers for tasks no longer in the file
-5. **Adds** timers for new tasks
-6. **Updates** timers for tasks whose scheduling config changed (detected via config hash comparison)
-7. Sends an admin notification to Slack: `:arrows_counterclockwise: schedules.json hot-reloaded: +N -M ~P task(s)`
+1. Reads the file from disk, bypassing its in-memory copy
+2. **Removes** timers for tasks no longer in the file
+3. **Adds** timers for new tasks
+4. **Re-arms** tasks whose scheduling config changed (detected via config hash comparison)
+5. Sends an admin notification: `:arrows_counterclockwise: schedules.json hot-reloaded: +N -M ~P task(s)`
 
-**Self-write guard:** When the scheduler itself writes to `schedules.json` (via `add`, `remove`, `pause`, etc.), it sets a `_selfWriting` flag for 100ms. The file watcher ignores changes during this window to avoid redundant hot-reloads.
+The scheduler's own writes trigger the watcher too; the reload that follows finds nothing changed
+and stays silent. Every write — the daemon's included — re-reads the file inside the write, so a
+change another process made a moment earlier is kept rather than overwritten by a stale copy.
 
 ### Config Hash for Change Detection
 
-Each task's scheduling-relevant fields are hashed: `type`, type-specific key (intervalMs/time/dayOfWeek), message, channel, profile, dispatchType, preCheck. If the hash of a task in the file differs from the in-memory hash, the timer is re-armed. This means edits to any scheduling field trigger an automatic re-schedule.
+Each task's scheduling-relevant fields are hashed: `type`, the type-specific timing (`intervalMs`, `time`, `dayOfWeek`, `runAt`), `message`, `projectId`, `profile`, `dispatchType`, `preCheck`, and whether it is paused. If the hash of a task in the file differs from the armed one, the timer is re-armed, so an edit, pause, or resume made by any writer takes effect without a restart.
 
 ## In-Flight Protection
 
@@ -142,11 +144,11 @@ If a schedule fires while its previous run is still going, the new fire is skipp
 Schedules of type `interval`, `daily`, and `weekly` can be paused. Once-type schedules cannot be paused (they either fire or get dropped).
 
 When paused:
-- `isPaused` is set to `true`, `pausedAt` records the timestamp, `pausedBy` records `"user"` or `"rate-limit"`
+- `isPaused` is set to `true`, `pausedAt` records the timestamp, `pausedBy` records `"user"`
 - `nextRun` is set to `null`
 - The in-memory timer is cleared and not re-armed
 
-The `pausedBy` field distinguishes user-initiated pauses from automatic rate-limit pauses. The rate-limit auto-resume path only considers `pausedBy: "rate-limit"` tasks.
+A paused schedule stays paused until it is resumed. Pausing a paused schedule, or resuming a running one, changes nothing.
 
 ### Resuming
 
@@ -170,18 +172,18 @@ On server startup, the scheduler:
 
 ## MCP Tools
 
-Schedules can be managed through MCP tools (used by the agent in Slack conversations):
+Agents manage schedules through MCP tools:
 
 | Tool | Description |
 |------|-------------|
-| `cortex_schedule_add` | Create a new schedule. Accepts `type`, `message`, `interval`/`time`/`dayOfWeek`/`delay`, `target`, `profile`, `preCheck`, `channel`, `projectId` |
+| `cortex_schedule_add` | Create a new schedule. Accepts `type`, `message`, `interval`/`time`/`dayOfWeek`/`delay`, `projectId`, `target`, `profile`, `preCheck`, `channel` |
 | `cortex_schedule_list` | List all schedules (default: 50) |
 | `cortex_schedule_get` | Get a schedule by ID |
 | `cortex_schedule_remove` | Delete a schedule by ID (idempotent) |
 | `cortex_schedule_pause` | Pause a recurring schedule |
 | `cortex_schedule_resume` | Resume a paused schedule |
 
-The `cortex_context` MCP tool returns the current execution context (sessionId, sessionName, profile, project, backend); `cortex_schedule_add` resolves `current-project` against the same context.
+`target` only chooses the project: `"current-project"` (or `{ "kind": "project", "projectId": "…" }`) binds the schedule to that project, while `"fresh"` or no target leaves it to `projectId`, the channel lookup, or `general`. `current-project` resolves against the same context `cortex_context` returns, and fails when the session has no project.
 
 ### Creating a Schedule via MCP
 
@@ -203,28 +205,40 @@ The `cortex_context` MCP tool returns the current execution context (sessionId, 
 }
 ```
 
-## Slack Commands
+## CLI
 
-The `!schedule` Slack command provides interactive schedule management.
-For the underlying CLI tools, see [cli-reference.md](./cli-reference.md).
+`cortex schedule` manages the same schedules from a terminal or script. Every command prints JSON, timing comes from explicit flags, and the long prompt can come from stdin:
+
+```bash
+cortex schedule add --type daily --time 09:00 --project nimbus --message "Summarize yesterday's sessions"
+echo "Check training run r42 on lab2" | cortex schedule add --type once --delay 2h --message -
+cortex schedule list --project nimbus
+cortex schedule edit a1b2c3d4 --time 10:30
+cortex schedule pause a1b2c3d4
+cortex schedule remove a1b2c3d4 --dry-run
+```
+
+A running daemon picks the change up within a second. See [cli-reference.md](./cli-reference.md) for every option.
+
+## Chat commands
+
+The `!schedule` command manages schedules from Slack or Feishu. A schedule added here belongs to the channel's registered project, or `general`.
 
 | Command | Description |
 |---------|-------------|
-| `!schedule list` | List all schedules with status, next run time, and type |
-| `!schedule add <type> <message>` | Add a new schedule interactively |
-| `!schedule remove <id>` | Remove a schedule |
-| `!schedule pause <id>` | Pause a schedule |
+| `!schedule` / `!schedule list` | List all schedules with status, next run time, and pause/resume/remove buttons |
+| `!schedule add interval <duration> [--profile <name>] <message>` | Repeat every duration |
+| `!schedule add daily <HH:MM> [--profile <name>] <message>` | Run every day at a time |
+| `!schedule add weekly <day> <HH:MM> [--profile <name>] <message>` | Run every week on a day |
+| `!schedule add once <duration> [--profile <name>] <message>` | Run once after a delay |
+| `!schedule pause <id>` | Pause a recurring schedule |
 | `!schedule resume <id>` | Resume a paused schedule |
+| `!schedule remove <id>` | Remove a schedule |
 
 ## Execution routing
 
 Ordinary schedule records use the `scheduled-task` runner, which opens a new session for each fire and sends the message with the `[Scheduled Task]` prefix. A small set of shipped schedules may use reserved internal handler keys, but unregistered `dispatchType` values are skipped rather than interpreted as agent prompts. Daemon-owned periodic infrastructure uses `builtin-jobs.ts` and is not routed through schedule persistence.
 
-## Rate-Limit Integration
+## Rate limits
 
-The scheduler integrates with Cortex's rate-limit throttling:
-
-- The `beforeRunGuard` callback can block fires when the system is rate-limited
-- Schedules can be auto-paused by the rate-limit system (`pausedBy: "rate-limit"`)
-- The throttle state (`resetsAt`, `activatedAt`, affected modes) is stored in `schedules.json` alongside tasks
-- On startup, previously rate-limit-paused tasks are evaluated for auto-resume
+When every configuration of a schedule's profile is rate-limited, the fire is skipped and the schedule keeps its timing: it fires again at its next time. A run that hits a rate limit after it has started is paused and resumed like any other session.
