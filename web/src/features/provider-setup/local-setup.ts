@@ -85,7 +85,7 @@ export class LocalSetupFlow {
       newInstall: this.state.newInstall ?? needsInit });
     if (!probe.nodeOk) throw new Error('NODE_REQUIRED');
     if (!probe.npm) throw new Error('NPM_REQUIRED');
-    if (!probe.git) throw new Error('GIT_REQUIRED');
+    if (probe.os === 'windows' && !probe.git) throw new Error('GIT_REQUIRED');
   }
 
   prepare = () => this.operation(async () => {

@@ -316,9 +316,10 @@ describe('runDiagnostics — gateway', () => {
 
 describe('runDiagnostics — runtime', () => {
 
-  it('fails when git is not on PATH', async () => {
-    const checks = byId(await runDiagnostics(baseDeps({ commandExists: (b: string) => b !== 'git' })));
-    assert.equal(checks['git'].status, 'fail');
+  it('warns without blocking readiness when git is not on PATH', async () => {
+    const report = await runDiagnostics(baseDeps({ commandExists: (b: string) => b !== 'git' }));
+    assert.equal(byId(report)['git'].status, 'warn');
+    assert.equal(report.ok, true);
   });
 });
 

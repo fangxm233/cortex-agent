@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { en, zh } from '@/i18n';
+import { en, zh } from '@/i18n/vocab';
 import type { NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
 import { LocalSetupFlow, localSetupErrorText, setupLogLine, type LocalSetupPorts } from './local-setup';
 
@@ -66,10 +66,25 @@ describe('local setup flow', () => {
     expect(flow.state.stage).toBe('configure');
   });
 
-  it.each([['npm', 'NPM_REQUIRED'], ['git', 'GIT_REQUIRED']] as const)('reports missing %s', async (field, error) => {
+  it.each([['npm', 'NPM_REQUIRED']] as const)('reports missing %s', async (field, error) => {
     const { flow, calls } = fixture({ probe: async () => ({ ...probe, [field]: null }) });
     await flow.prepare();
     expect(flow.state.error).toBe(error);
+    expect(calls).toEqual(['probe']);
+  });
+
+  it.each(['macos', 'linux'])('reaches provider setup without Git on %s', async os => {
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os, git: null }) });
+    await flow.prepare();
+    await flow.start(answers);
+    expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'connect']);
+    expect(flow.state).toMatchObject({ error: null, stage: 'ready', destination: 'index.html#/setup/providers' });
+  });
+
+  it('keeps the Git prerequisite on Windows', async () => {
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os: 'windows', git: null }) });
+    await flow.prepare();
+    expect(flow.state.error).toBe('GIT_REQUIRED');
     expect(calls).toEqual(['probe']);
   });
 

@@ -303,7 +303,12 @@ fn probe_machine() -> SetupProbe {
             .is_some_and(|v| version_at_least(v, &min_node_version())),
         node,
         npm: probe_output(npm_bin(), &["-v"]),
-        git: probe_output("git", &["--version"]),
+        // Git is only a prerequisite for the Windows shell. Avoid the macOS CLT shim.
+        git: if cfg!(target_os = "windows") {
+            probe_output("git", &["--version"])
+        } else {
+            None
+        },
         cortex_bin,
         server_ok: server_version
             .as_deref()

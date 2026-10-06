@@ -4,6 +4,7 @@ import * as http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
+import { isGitAvailable } from '@core/git-availability.js';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { AISTATUS_DIR, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
@@ -155,7 +156,7 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
 
   checks.push(deps.commandExists('git')
     ? { id: 'git', label: 'git', status: 'pass', detail: 'found on PATH' }
-    : { id: 'git', label: 'git', status: 'fail', detail: 'not found on PATH', hint: 'Install git — required for context sync' });
+    : { id: 'git', label: 'git', status: 'warn', detail: 'unavailable (optional)', hint: 'Install Git to enable version history and Git-sourced extensions; Windows shell tools require Git Bash' });
 
   checks.push(backendRuntimeCheck(deps));
 
@@ -497,6 +498,7 @@ export async function applySafeFixes(report: DoctorReport, deps: DoctorDeps, fix
 // ─── Default real-environment wiring ──────────────────────────────
 
 function commandExistsOnPath(bin: string): boolean {
+  if (bin === 'git') return isGitAvailable();
   const pathVar = process.env.PATH || '';
   const exts = process.platform === 'win32' ? (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';') : [''];
   for (const dir of pathVar.split(path.delimiter)) {

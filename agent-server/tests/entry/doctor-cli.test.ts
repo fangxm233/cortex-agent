@@ -73,10 +73,10 @@ describe('cmdDoctor — text output + exit codes', () => {
     assert.equal(r.exitCode, 0);
   });
 
-  it('exits 1 when a check fails', async () => {
+  it('exits 0 when only optional Git is missing', async () => {
     const diag = greenDeps({ commandExists: (b: string) => b !== 'git' });
     const r = await cmdDoctor([], { diag, fix: noopFix });
-    assert.equal(r.exitCode, 1);
+    assert.equal(r.exitCode, 0);
   });
 });
 

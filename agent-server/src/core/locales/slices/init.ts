@@ -230,6 +230,7 @@ export const initEn = {
   'init.outro': 'Cortex initialized at ${dataDir}. Run `cortex daemon` to launch.',
 
   // ── Git ──
+  'init.git.optional': 'Git is unavailable; continuing without version history. Install Git separately if you need it.',
   'init.git.required': 'Git is required but was not found on your system.',
   'init.git.initFailed': 'git init failed: ${message}',
   'init.git.autoInstalling': 'Attempting automatic git installation...',
@@ -477,6 +478,7 @@ export const initZh: Record<keyof typeof initEn, string> = {
   'init.outro': 'Cortex 已在 ${dataDir} 初始化。运行 `cortex daemon` 启动。',
 
   // ── Git ──
+  'init.git.optional': 'Git 不可用，将继续安装但不启用版本历史。需要时可自行安装 Git。',
   'init.git.required': '需要 Git，但在你的系统上未找到。',
   'init.git.initFailed': 'git init 失败：${message}',
   'init.git.autoInstalling': '正在尝试自动安装 git...',

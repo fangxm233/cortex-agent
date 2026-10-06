@@ -5,6 +5,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { createInterface } from 'readline/promises';
 import { stdin as processStdin } from 'process';
+import { ensureGitInstalled, ensureGitRepo } from './init-git.js';
+export { isGitInstalled, ensureGitInstalled, getGitInstallHint } from './init-git.js';
 import { onboardInitAuth } from './init-auth.js';
 import * as clack from '@clack/prompts';
 import * as yaml from 'yaml';
@@ -1171,112 +1173,6 @@ function createDirectories(paths: InitPaths): void {
   }
 }
 
-// ─── Git detection & installation ────────────────────────────────
-
-/** Check whether git is available on PATH. */
-export function isGitInstalled(): boolean {
-  const cmd = process.platform === 'win32' ? 'where' : 'which';
-  try {
-    execSync(`${cmd} git`, { stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Detect the system package manager on Linux and return its install command prefix.
- * Returns null if no known package manager is found.
- */
-function detectLinuxPkgInstall(): string | null {
-  const candidates: { bin: string; install: string }[] = [
-    { bin: '/usr/bin/apt-get', install: 'apt-get install -y' },
-    { bin: '/usr/bin/dnf',     install: 'dnf install -y' },
-    { bin: '/usr/bin/yum',     install: 'yum install -y' },
-    { bin: '/usr/bin/pacman',  install: 'pacman -S --noconfirm' },
-    { bin: '/usr/bin/zypper',  install: 'zypper install -y' },
-    { bin: '/sbin/apk',        install: 'apk add' },
-  ];
-  for (const c of candidates) {
-    if (existsSync(c.bin)) return c.install;
-  }
-  return null;
-}
-
-/** Return a human-readable install instruction for git on the current platform. */
-export function getGitInstallHint(): string {
-  switch (process.platform) {
-    case 'linux': {
-      const pkg = detectLinuxPkgInstall();
-      if (pkg) return `sudo ${pkg} git`;
-      return 'Install git via your package manager or download from https://git-scm.com/downloads/linux';
-    }
-    case 'darwin':
-      return 'xcode-select --install  (or  brew install git  if you use Homebrew)';
-    case 'win32':
-      return 'winget install --id Git.Git -e --source winget';
-    default:
-      return 'Download from https://git-scm.com/downloads';
-  }
-}
-
-/**
- * Ensure git is available on PATH. If missing, attempt automatic installation.
- * Returns true if git is now available, false otherwise.
- */
-export function ensureGitInstalled(): boolean {
-  if (isGitInstalled()) return true;
-
-  clack.log.warn(t('init.git.required'));
-
-  // Build the auto-install command for the current platform
-  let installCmd: string | null = null;
-  if (process.platform === 'linux') {
-    const pkg = detectLinuxPkgInstall();
-    if (pkg) installCmd = `sudo ${pkg} git`;
-  } else if (process.platform === 'darwin') {
-    // Prefer brew in headless contexts; xcode-select --install opens a GUI dialog
-    try {
-      execSync('which brew', { stdio: 'pipe' });
-      installCmd = 'brew install git';
-    } catch {
-      installCmd = 'xcode-select --install';
-    }
-  } else if (process.platform === 'win32') {
-    installCmd = 'winget install --id Git.Git -e --source winget --silent';
-  }
-
-  if (installCmd) {
-    const s = clack.spinner();
-    s.start(t('init.git.autoInstalling'));
-    try {
-      execSync(installCmd, { stdio: 'pipe', timeout: 120_000 });
-      s.stop(t('init.git.installed'));
-      // Verify the install actually put git on PATH
-      if (isGitInstalled()) return true;
-      clack.log.warn(t('init.git.notOnPath'));
-    } catch (err: any) {
-      s.stop(t('init.git.autoInstallFailed'));
-      clack.log.warn(err.message);
-    }
-  }
-
-  const hint = getGitInstallHint();
-  clack.log.info(t('init.git.manualHint', { hint }));
-  return false;
-}
-
-// ─── Git repo initialization ────────────────────────────────────
-
-function ensureGitRepo(dataDir: string): void {
-  if (existsSync(path.join(dataDir, '.git'))) return;
-  try {
-    execSync('git init', { cwd: dataDir, stdio: 'pipe' });
-  } catch (err: any) {
-    clack.log.warn(t('init.git.initFailed', { message: err.message }));
-  }
-}
-
 // ─── Safe copy helpers ──────────────────────────────────────────
 
 export function safeCopy(src: string, dst: string, force: boolean): boolean {
@@ -1734,10 +1630,10 @@ async function runInitSteps(
   await checkAndInstallBackends(answers.backends);
   emit({ step: 'backends', state: 'ok' });
 
-  // 3. Ensure git + directory structure
-  ensureGitInstalled();
+  // 3. Create the home; Git history is optional on macOS/Linux.
+  const gitAvailable = ensureGitInstalled();
   createDirectories(paths);
-  ensureGitRepo(paths.DATA_DIR);
+  if (gitAvailable) ensureGitRepo(paths.DATA_DIR);
   emit({ step: 'home', state: 'ok', home: paths.DATA_DIR });
 
   // 4. Write configs
