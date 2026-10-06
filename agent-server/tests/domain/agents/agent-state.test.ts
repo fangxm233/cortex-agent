@@ -111,13 +111,20 @@ test('save omits empty fields and round-trips channel overrides', async () => {
     defaultAgent: null,
     channelAgents: {},
     channelOverrides: { 'web:a': { model: 'sonnet' } },
-    claudeMode: 'plan',
   });
   const written = JSON.parse(readFileSync(STATE, 'utf8'));
-  assert.deepEqual(Object.keys(written).sort(), ['activeProfile', 'channelOverrides', 'claudeMode', 'mode'].sort());
-  // `mode` is written beside `claudeMode` so a rolled-back build still reads the Claude mode.
-  assert.equal(written.mode, 'plan');
+  assert.deepEqual(Object.keys(written).sort(), ['activeProfile', 'channelOverrides'].sort());
   assert.deepEqual(loadAgentState().channelOverrides, { 'web:a': { model: 'sonnet' } });
+});
+
+test('the legacy globals read from an old file are not written back', async () => {
+  clean();
+  writeFileSync(STATE, JSON.stringify({
+    activeProfile: 'execute', backend: 'claude', claudeMode: 'api', mode: 'api', claudeModel: 'opus',
+  }));
+  const { loadAgentState, saveAgentState } = await freshModule();
+  saveAgentState(loadAgentState());
+  assert.deepEqual(JSON.parse(readFileSync(STATE, 'utf8')), { activeProfile: 'execute' });
 });
 
 test('the per-channel agent selection round-trips, and an empty map is omitted', async () => {

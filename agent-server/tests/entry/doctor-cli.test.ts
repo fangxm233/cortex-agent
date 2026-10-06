@@ -55,6 +55,7 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
       generatedAt: '2026-08-02T00:00:00.000Z', accounts: [],
       piRuntime: { available: true, version: '0.82.1', entry: '/pi/index.js', error: null },
     }),
+    defaultProfile: () => ({ backend: 'claude', mode: 'plan' }),
     ...over,
   };
 }

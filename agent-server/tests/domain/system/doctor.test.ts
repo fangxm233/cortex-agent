@@ -90,6 +90,7 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
     resolvePiSdk: () => ({ ...PI_SDK }),
     loadPiRuntime: async () => healthyPiRuntime(),
     getAuthStatus: async () => authSnapshot(),
+    defaultProfile: () => ({ backend: 'claude', mode: 'api' }),
     ...over,
   };
 }
@@ -112,10 +113,8 @@ describe('runDiagnostics — all green', () => {
   });
 
   it('never looks for a pi binary when the PI backend is selected', async () => {
-    const deps = baseDeps();
-    const readText = deps.readText;
+    const deps = baseDeps({ defaultProfile: () => ({ backend: 'pi', mode: 'openai-codex' }) });
     const checked: string[] = [];
-    deps.readText = (p) => p === '/s/mode.json' ? '{"backend":"pi"}' : readText(p);
     deps.commandExists = (bin) => { checked.push(bin); return true; };
 
     const checks = byId(await runDiagnostics(deps));
@@ -240,14 +239,13 @@ describe('runDiagnostics — backend authentication', () => {
   });
 
   it('treats healthy-gateway API mode without a local key as informational', async () => {
-    const deps = baseDeps();
-    const readText = deps.readText;
-    const env = { ...deps.env };
+    const env = { ...baseDeps().env };
     delete env.ANTHROPIC_API_KEY;
     const report = await runDiagnostics(baseDeps({
       env,
-      readText: p => p === '/s/mode.json'
-        ? '{"backend":"claude","claudeMode":"api"}' : readText(p),
+      // The default profile decides (D5) — a stale `claudeMode` in agent-state.json does not.
+      readText: p => p === '/s/mode.json' ? '{"backend":"claude","claudeMode":"plan"}' : BASE_TEXTS[p] ?? null,
+      defaultProfile: () => ({ backend: 'claude', mode: 'api' }),
       probeGateway: async () => true,
       getAuthStatus: async () => authSnapshot([
         authAccount({ authType: null, state: 'logged-out', source: null }),
@@ -258,6 +256,18 @@ describe('runDiagnostics — backend authentication', () => {
     assert.equal(checks['backend-auth'].status, 'pass');
     assert.match(checks['backend-auth'].detail, /gateway.*anthropic|anthropic.*gateway/i);
     assert.equal(report.counts.warn, 0);
+  });
+
+  it('does not credit the gateway when the default profile runs plan, whatever agent-state says', async () => {
+    const env = { ...baseDeps().env };
+    delete env.ANTHROPIC_API_KEY;
+    const checks = byId(await runDiagnostics(baseDeps({
+      env,
+      readText: p => p === '/s/mode.json' ? '{"backend":"claude","claudeMode":"api"}' : BASE_TEXTS[p] ?? null,
+      defaultProfile: () => ({ backend: 'claude', mode: 'plan' }),
+      probeGateway: async () => true,
+    })));
+    assert.equal(checks['anthropic-key'].status, 'warn');
   });
 });
 

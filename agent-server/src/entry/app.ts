@@ -49,7 +49,7 @@ import { executionRepo } from '@store/execution-repo.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
-import { applyAuthEnv } from '@domain/agents/index.js';
+import { applyAuthEnv, defaultClaudeModel } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
 import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
@@ -155,6 +155,8 @@ if (!shouldSyncManagedStartupAssets()) {
 // it is explicit here so that CLI processes (cortex init / setup-gateway) importing that module
 // don't get their env mutated. Mode routing is resolved per spawn, never here.
 applyAuthEnv();
+// The "daemon's Claude model" PI's subagent catalog and the MCP tool context read.
+process.env.CORTEX_CLAUDE_MODEL = defaultClaudeModel();
 
 // Resolve the UI language for all system-generated user-facing text. Precedence:
 // CORTEX_LANG env (escape hatch, now that .env is loaded) > config/preferences.json > 'en'.
@@ -834,12 +836,6 @@ process.on('SIGTERM', async () => {
   // D5: there is no global backend any more — the default profile's is what a channel with no
   // selection of its own will use, and that is what belongs in the banner.
   const bootConfig = resolveRunConfig();
-  // The "daemon's Claude model" PI's subagent catalog and the MCP tool context read. Seeded from
-  // the migrated state at config.ts import; corrected here to the default profile's model, which
-  // is where D5 says a model lives.
-  if (bootConfig.profile.backend === 'claude' && bootConfig.profile.model) {
-    process.env.CORTEX_CLAUDE_MODEL = bootConfig.profile.model;
-  }
   log.info(
     `Cortex agent is running (${adapter.name}) — profile: ${bootConfig.profileName}`
     + ` · backend: ${bootConfig.profile.backend}`

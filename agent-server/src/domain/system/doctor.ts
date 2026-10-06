@@ -14,6 +14,8 @@ import {
   type AuthAccountStatus,
   type AuthStatusSnapshot,
 } from '../auth/auth-status.js';
+import { resolveRunConfig } from '../runs/config-resolver.js';
+import type { Backend } from '@core/types/agent-types.js';
 import {
   loadPiRuntime as loadInstalledPiRuntime,
   PI_SDK_PACKAGE,
@@ -76,6 +78,13 @@ export interface DoctorDeps {
   resolvePiSdk(): PiSdkInfo | null;
   loadPiRuntime(): Promise<PiRuntimeLoadResult>;
   getAuthStatus(): Promise<AuthStatusSnapshot>;
+  /** Backend and route of the profile a channel with no selection runs; null when unreadable. */
+  defaultProfile(): DefaultProfileInfo | null;
+}
+
+export interface DefaultProfileInfo {
+  backend: Backend;
+  mode: string | null;
 }
 
 /** Write actuators used only by `applySafeFixes` (idempotent, non-destructive). */
@@ -124,6 +133,18 @@ function buildEnvReader(deps: DoctorDeps): (name: string) => string | undefined 
 
 // ─── Section: Runtime & Process ───────────────────────────────────
 
+/** The default profile's backend (D5), else claude. PI runs in-process from the SDK bundled with
+ *  this package, so only the Claude backend still needs a CLI on PATH. */
+function backendRuntimeCheck(deps: DoctorDeps): CheckResult {
+  const backend = deps.defaultProfile()?.backend ?? 'claude';
+  if (backend === 'pi') {
+    return { id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: 'backend: pi runs in-process from the bundled SDK (no CLI needed)' };
+  }
+  return deps.commandExists('claude')
+    ? { id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: `claude found on PATH (backend: ${backend})` }
+    : { id: 'backend-runtime', label: 'Backend runtime', status: 'warn', detail: `claude not on PATH (backend: ${backend})`, hint: 'Install/login the claude CLI' };
+}
+
 function sectionRuntime(deps: DoctorDeps): DoctorSection {
   const checks: CheckResult[] = [];
 
@@ -136,18 +157,7 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
     ? { id: 'git', label: 'git', status: 'pass', detail: 'found on PATH' }
     : { id: 'git', label: 'git', status: 'fail', detail: 'not found on PATH', hint: 'Install git — required for context sync' });
 
-  // Backend runtime, per the stored backend selection. PI runs in-process from the SDK bundled
-  // with this package, so only the Claude backend still needs a CLI on PATH.
-  const modeText = readAgentStateText(deps);
-  let backend = 'claude';
-  try { if (modeText) { const m = JSON.parse(modeText); if (typeof m.backend === 'string') backend = m.backend; } } catch { /* fall back to claude */ }
-  if (backend === 'pi') {
-    checks.push({ id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: 'backend: pi runs in-process from the bundled SDK (no CLI needed)' });
-  } else {
-    checks.push(deps.commandExists('claude')
-      ? { id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: `claude found on PATH (backend: ${backend})` }
-      : { id: 'backend-runtime', label: 'Backend runtime', status: 'warn', detail: `claude not on PATH (backend: ${backend})`, hint: 'Install/login the claude CLI' });
-  }
+  checks.push(backendRuntimeCheck(deps));
 
   // Daemon — informational only.
   const pidPath = path.join(deps.paths.STORE_DIR, 'daemon.pid');
@@ -190,20 +200,11 @@ function pushEnvAndTokenChecks(
     : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
 }
 
-/** agent-state.json, falling back to mode.json on a home that has not migrated yet. */
-function readAgentStateText(deps: DoctorDeps): string | null {
-  return deps.readText(path.join(deps.paths.STORE_DIR, 'agent-state.json'))
-    ?? deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json'));
-}
-
+/** Whether the default profile runs Claude on a key-billed route. Mirrors the run path: a profile
+ *  without a mode routes as `api` (resolveRunRoute), and every route but `plan` carries a key. */
 function usesClaudeApiMode(deps: DoctorDeps): boolean {
-  try {
-    const parsed = JSON.parse(readAgentStateText(deps) ?? '');
-    return parsed.claudeMode === 'api'
-      || (parsed.backend === 'claude' && parsed.mode === 'api');
-  } catch {
-    return false;
-  }
+  const profile = deps.defaultProfile();
+  return profile?.backend === 'claude' && (profile.mode || 'api') !== 'plan';
 }
 
 function gatewayBacksClaudeApi(
@@ -561,7 +562,17 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     resolvePiSdk: resolveBundledPiSdk,
     loadPiRuntime: () => loadInstalledPiRuntime(),
     getAuthStatus: () => readAuthStatus(),
+    defaultProfile: readDefaultProfile,
   };
+}
+
+function readDefaultProfile(): DefaultProfileInfo | null {
+  try {
+    const { profile } = resolveRunConfig();
+    return { backend: profile.backend, mode: profile.mode };
+  } catch {
+    return null;
+  }
 }
 
 export function createDefaultFixActuators(): FixActuators {

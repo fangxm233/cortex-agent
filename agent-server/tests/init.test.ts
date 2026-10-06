@@ -319,21 +319,9 @@ test('generateDotEnvContent writes comma-joined CORTEX_PLATFORM and both platfor
 
 // ─── generateDefaultModeJson ────────────────────────────────────
 
-test('generateDefaultModeJson returns valid JSON with expected fields', () => {
-  const json = generateDefaultModeJson();
-  const parsed = JSON.parse(json);
-  assert.equal(typeof parsed, 'object');
-  assert.equal(parsed.mode, 'plan');
-  assert.equal(parsed.backend, 'claude');
-  assert.equal(parsed.claudeModel, 'opus');
-  assert.equal(parsed.activeProfile, '__active__');
-  assert.equal(parsed.defaultAgent, 'main');
-});
-
-test('generateDefaultModeJson uses provided backend', () => {
-  const json = generateDefaultModeJson('pi');
-  const parsed = JSON.parse(json);
-  assert.equal(parsed.backend, 'pi');
+test('generateDefaultModeJson writes the selection only — backend/mode/model live on the profile', () => {
+  const parsed = JSON.parse(generateDefaultModeJson());
+  assert.deepEqual(parsed, { activeProfile: '__active__', defaultAgent: 'main' });
 });
 
 // ─── safeCopy ───────────────────────────────────────────────────

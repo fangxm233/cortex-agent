@@ -278,11 +278,8 @@ export function generateDotEnvContent(answers: InitAnswers): string {
 // ─── Configuration generation ────────────────────────────────────
 
 /** Generate default agent-state.json content (compact JSON, single line). */
-export function generateDefaultModeJson(primaryBackend: InitBackend = 'claude'): string {
+export function generateDefaultModeJson(): string {
   return JSON.stringify({
-    mode: 'plan',
-    backend: primaryBackend,
-    claudeModel: 'opus',
     activeProfile: '__active__',
     defaultAgent: 'main',
   });
@@ -1383,7 +1380,7 @@ export function generateConfigs(paths: InitPaths, answers: InitAnswers, force: b
   // customized it, and a fresh write here would shadow a home that has not migrated yet.
   const modeJsonPath = path.join(paths.STORE_DIR, 'agent-state.json');
   if ((!existsSync(modeJsonPath) && !existsSync(path.join(paths.STORE_DIR, 'mode.json'))) || force) {
-    writeFileSync(modeJsonPath, generateDefaultModeJson(answers.backends[0]));
+    writeFileSync(modeJsonPath, generateDefaultModeJson());
   }
 
   // preferences.json — operator UI language (read at startup by domain/system/preferences.ts).

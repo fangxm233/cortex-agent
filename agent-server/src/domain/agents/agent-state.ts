@@ -58,10 +58,9 @@ export interface AgentState {
   /** Seed for the next conversation's composer — see {@link SelectionDefault}. */
   selectionDefault?: SelectionDefault;
 
-  // ── Legacy globals, still written until their last reader is gone ──────────
-  // D5 moves backend/mode/model onto the profile: the run path resolves them per channel, and a
-  // stored global can only disagree with the profile it shadows. The fields are carried through
-  // migration so a rollback to the previous build finds the state it expects.
+  // ── Legacy globals: parsed from old files, never written ──────────
+  // D5 moved backend/mode/model onto the profile: the run path resolves them per channel, and a
+  // stored global can only disagree with the profile it shadows.
   /** @deprecated Read the resolved profile's backend. */
   backend?: Backend;
   /** @deprecated Read the resolved profile's mode. */
@@ -186,8 +185,5 @@ export function saveAgentState(state: AgentState): void {
   if (state.selectionDefault && Object.keys(state.selectionDefault).length > 0) {
     data.selectionDefault = state.selectionDefault;
   }
-  if (state.backend) data.backend = state.backend;
-  if (state.claudeMode) { data.claudeMode = state.claudeMode; data.mode = state.claudeMode; }
-  if (state.claudeModel) data.claudeModel = state.claudeModel;
   writeFileSync(STATE_FILE, JSON.stringify(data));
 }

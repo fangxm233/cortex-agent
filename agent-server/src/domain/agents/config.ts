@@ -20,8 +20,6 @@ import type { Backend } from '../../agent-adapter/types.js';
 const log = createLogger('config');
 
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
-const DEFAULT_CLAUDE_MODE = 'plan';
-const DEFAULT_CLAUDE_MODEL = 'opus';
 
 export type ApiEnv = DotenvCredentials;
 
@@ -145,27 +143,13 @@ function savedOAuthToken(saved: ApiEnv): string | null {
   return saved.CLAUDE_CODE_OAUTH_TOKEN ?? null;
 }
 
-function normalizeClaudeMode(mode: string): string {
-  return mode === 'plan' ? 'plan' : 'api';
-}
-
 let agentState: AgentState = loadAgentState();
 let activeProfile: string | null = agentState.activeProfile;
 let channelProfiles: Record<string, string> = agentState.channelProfiles;
 let defaultAgent: string | null = agentState.defaultAgent;
 let channelAgents: Record<string, string> = agentState.channelAgents;
-// Seeded from the migrated state so a CLI process that never reaches the daemon's composition root
-// still has a value; `entry/app.ts` overwrites it at boot with the default profile's model, which
-// is the D5-correct answer. Read by PI's subagent catalog and the MCP tool context.
-process.env.CORTEX_CLAUDE_MODEL = agentState.claudeModel || DEFAULT_CLAUDE_MODEL;
 
-/** Persist every field this module owns. `agentState` stays the one object on disk, so a field
- *  this module does not know about (channelOverrides, written by the command layer) survives.
- *
- *  backend / claudeMode / claudeModel are carried through UNCHANGED. Nothing writes them any more
- *  (D5 moved all three onto the profile), so they stay at whatever the migrated mode.json held —
- *  which is exactly what a rollback to an older build should find, since this build never
- *  acted on them either. */
+/** Persist every field this module owns. `agentState` stays the one object on disk. */
 function persist(): void {
   agentState = { ...agentState, activeProfile, channelProfiles, defaultAgent, channelAgents };
   saveAgentState(agentState);
@@ -181,6 +165,20 @@ export function getActiveProfile(channel?: string): string | null {
     } catch { return null; }
   }
   return activeProfile;
+}
+
+const DEFAULT_CLAUDE_MODEL = 'opus';
+
+/** The Claude model a channel with no selection of its own runs — the default profile's (D5) —
+ *  else the stock alias when that profile is not a Claude one or cannot be read. */
+export function defaultClaudeModel(): string {
+  try {
+    const profile = resolveProfileConfig(getActiveProfile());
+    if (profile.backend === 'claude' && profile.model) return profile.model;
+  } catch {
+    // Unreadable profiles.json — the stock alias.
+  }
+  return DEFAULT_CLAUDE_MODEL;
 }
 
 /**
