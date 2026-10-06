@@ -130,7 +130,6 @@ export const enExtra = {
   skLoadingBody: 'Loading skills…',
   skFailedBody: "Failed to load skills.",
   skEmpty: "No skills found.",
-  skUserSkills: 'user skills',
   apPending: 'PENDING',
   apFrom: 'from',
   apTask: 'task',

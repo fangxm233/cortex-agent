@@ -1,78 +1,71 @@
-import { test } from 'vitest';
+import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { CONFIG_DIR, PLUGINS_DIR } from '../../../src/core/paths.js';
 import { handleSkillsList } from '../../../src/domain/ui-service/query/skills.js';
-import { clearSkillScanCache } from '../../../src/domain/memory/skill-scanner.js';
-import type { SkillGroup } from '../../../src/domain/ui-service/types.js';
+import { listSkillGroups } from '../../../src/domain/plugins/catalog.js';
+import { AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL as SCHEMA } from '../../../src/domain/plugins/agent-plugins-v1.js';
+import { loadEnvironments } from '../../../src/domain/agents/environments/registry.js';
+import { handleSkillsCmd } from '../../../src/orchestration/routing/commands/mode.js';
+import { MockAdapter } from '../../../src/platform/testing.js';
 
-// skill-scanner reads DATA_DIR at import time, but SKILL_SCAN_CACHE_MS is 60s.
-// We must read DATA_DIR AFTER the vitest setup file has set CORTEX_HOME so we get
-// the isolated directory path, not the live ~/.cortex.
-// We do a fresh dynamic import of DATA_DIR each time — paths.ts exports it
-// as a const evaluated at module-load, so the workaround is to read it from
-// the env variable directly (which the vitest setup file sets before paths.ts loads).
-const getDataDir = () => process.env['CORTEX_HOME'] ?? '';
+// Skill listings come from the plugin catalog, the same discovery a spawn uses: a skill the
+// catalog rejects (bad frontmatter, nested too deep, plugin without a manifest) is not offered.
 
-function makeSkillDir(root: string, skillName: string) {
-  const dir = path.join(root, skillName);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'SKILL.md'), `# ${skillName}`);
+function writePlugin(id: string): string {
+  const root = path.join(PLUGINS_DIR, id);
+  fs.mkdirSync(path.join(root, 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ $schema: SCHEMA, name: id }));
+  return root;
 }
 
-// Empty deps — handler ignores all deps (reads fs directly via skill-scanner)
-const DEPS: any = {};
+function writeSkill(pluginRoot: string, relDir: string, frontmatterName = path.basename(relDir)): void {
+  const dir = path.join(pluginRoot, 'skills', relDir);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), `---\nname: ${frontmatterName}\ndescription: test skill\n---\n`);
+}
 
-test('skills.list: returns user skills group (plugin=null) when .claude/skills has skills', async () => {
-  clearSkillScanCache(); // bust 60s cache before creating fixtures
-  const dataDir = getDataDir();
-  const claudeSkillsRoot = path.join(dataDir, '.claude', 'skills');
-  fs.mkdirSync(claudeSkillsRoot, { recursive: true });
-  // Create two skill dirs
-  makeSkillDir(claudeSkillsRoot, 'commit');
-  makeSkillDir(claudeSkillsRoot, 'analyze');
-
-  const result: SkillGroup[] = await handleSkillsList(DEPS, {});
-
-  // Must find the user-owned group (plugin === null)
-  const userGroup = result.find((g) => g.plugin === null);
-  assert.ok(userGroup, 'must have a user-owned group with plugin=null');
-  assert.ok(userGroup.skills.includes('commit'), 'must include commit');
-  assert.ok(userGroup.skills.includes('analyze'), 'must include analyze');
-  // Skills are sorted alphabetically
-  const sorted = [...userGroup.skills].sort();
-  assert.deepStrictEqual(userGroup.skills, sorted, 'skills must be sorted');
+beforeEach(() => {
+  fs.rmSync(PLUGINS_DIR, { recursive: true, force: true });
+  const alpha = writePlugin('alpha');
+  writeSkill(alpha, 'zebra');
+  writeSkill(alpha, 'apple');
+  writeSkill(alpha, 'mismatch', 'other-name');
+  writeSkill(alpha, path.join('group', 'nested'));
+  const beta = writePlugin('beta');
+  writeSkill(beta, 'review');
+  // No manifest: not a catalog plugin, so its skills never load and are not listed.
+  fs.mkdirSync(path.join(PLUGINS_DIR, 'stray', 'skills', 'ghost'), { recursive: true });
+  fs.writeFileSync(path.join(PLUGINS_DIR, 'stray', 'skills', 'ghost', 'SKILL.md'), '---\nname: ghost\ndescription: x\n---\n');
 });
 
-test('skills.list: returns plugin groups from plugins/ directory', async () => {
-  clearSkillScanCache(); // bust 60s cache before creating fixtures
-  const dataDir = getDataDir();
-  const pluginsRoot = path.join(dataDir, 'plugins');
-  const pluginSkillsRoot = path.join(pluginsRoot, 'cortex-test', 'skills');
-  fs.mkdirSync(pluginSkillsRoot, { recursive: true });
-  makeSkillDir(pluginSkillsRoot, 'zebra');
-  makeSkillDir(pluginSkillsRoot, 'alpha');
-
-  const result: SkillGroup[] = await handleSkillsList(DEPS, {});
-
-  const pluginGroup = result.find((g) => g.plugin === 'cortex-test');
-  assert.ok(pluginGroup, 'must have cortex-test plugin group');
-  assert.ok(pluginGroup.skills.includes('zebra'), 'must include zebra');
-  assert.ok(pluginGroup.skills.includes('alpha'), 'must include alpha');
-  const sorted = [...pluginGroup.skills].sort();
-  assert.deepStrictEqual(pluginGroup.skills, sorted, 'plugin skills must be sorted');
+test('skills.list lists every catalog plugin with its loadable skills, sorted', async () => {
+  const result = await handleSkillsList({} as never, {});
+  assert.deepEqual(result, [
+    { plugin: 'alpha', skills: ['apple', 'zebra'] },
+    { plugin: 'beta', skills: ['review'] },
+  ]);
 });
 
-test('skills.list: each returned group has independent copy (not shared cache reference)', async () => {
-  const result1 = await handleSkillsList(DEPS, {});
-  const result2 = await handleSkillsList(DEPS, {});
-  // Mutating result1 must not affect result2 arrays
-  if (result1.length > 0 && result1[0].skills.length > 0) {
-    const origLen = result2[0]?.skills.length ?? 0;
-    result1[0].skills.push('__injected__');
-    const newLen = result2[0]?.skills.length ?? 0;
-    assert.strictEqual(newLen, origLen, 'mutating one result must not affect the other');
-  }
-  // If no groups, this test is vacuously satisfied — still passes
-  assert.ok(Array.isArray(result1), 'result is an array');
+test('listSkillGroups with plugin dirs lists only those plugins, in selection order', () => {
+  assert.deepEqual(listSkillGroups({ pluginDirs: ['plugins/beta', path.join(PLUGINS_DIR, 'alpha'), 'plugins/stray'] }), [
+    { plugin: 'beta', skills: ['review'] },
+    { plugin: 'alpha', skills: ['apple', 'zebra'] },
+  ]);
+  assert.deepEqual(listSkillGroups({ pluginDirs: [] }), []);
+});
+
+test('!skills lists only the plugins of the environment the channel runs', async () => {
+  const envDir = path.join(CONFIG_DIR, 'environments');
+  fs.mkdirSync(envDir, { recursive: true });
+  fs.writeFileSync(path.join(envDir, 'main.json'), JSON.stringify({
+    name: 'main', profile: '__active__', pluginDirs: ['plugins/beta'],
+  }));
+  loadEnvironments();
+  const adapter = new MockAdapter();
+  await handleSkillsCmd('C-skills', adapter);
+  const text = String(adapter.posted.at(-1)?.content.text ?? '');
+  assert.match(text, /_beta_\n• `review`/);
+  assert.doesNotMatch(text, /alpha|apple|zebra/);
 });

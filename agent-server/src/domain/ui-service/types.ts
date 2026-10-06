@@ -1112,13 +1112,12 @@ export interface EnvironmentsDeleteReturn {
 }
 
 // ── skills.list DTO (plan §12 A item 2 / 8a) ────────────────────────────────
-// One group per skill root: null plugin = user-mutable .claude/skills; non-null plugin = a
-// plugins/<plugin>/skills directory. Skills within each group are sorted alphabetically.
-// Data comes from domain/memory/skill-scanner.ts getDisplaySkillGroups() (60s cache).
+// One group per catalog plugin that offers valid skills, from domain/plugins/catalog.ts
+// listSkillGroups(). Skills within each group are sorted alphabetically.
 
 export interface SkillGroup {
-  /** Plugin name (e.g. 'cortex-common'); null for user-owned skills under DATA_DIR/.claude/skills */
-  plugin: string | null;
+  /** Plugin id (e.g. 'cortex-common'). */
+  plugin: string;
   /** Sorted list of skill names in this group */
   skills: string[];
 }

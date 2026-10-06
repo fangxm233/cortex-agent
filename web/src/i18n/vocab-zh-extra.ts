@@ -130,7 +130,6 @@ export const zhExtra = {
   skLoadingBody: '正在加载技能…',
   skFailedBody: "加载技能失败。",
   skEmpty: "未找到技能。",
-  skUserSkills: '用户技能',
   apPending: '待审批',
   apFrom: '来自',
   apTask: '任务',

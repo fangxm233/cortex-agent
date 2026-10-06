@@ -46,7 +46,6 @@ function skillSummary(L: Vocab, skills: number, groups: number): string {
 
 function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
   const L = useVocab();
-  const label = group.plugin ?? L.skUserSkills;
   return (
     <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)' }}>
       <div
@@ -61,7 +60,7 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
           fontFamily: MONO,
         }}
       >
-        {label}
+        {group.plugin}
         <span
           style={{
             marginLeft: 8,
@@ -135,7 +134,7 @@ export function SkillsView(): JSX.Element {
           <div style={{ fontSize: 12, color: 'var(--proto-muted)', fontFamily: MONO }}>{L.skEmpty}</div>
         )}
         {groups.map((g) => (
-          <GroupSection key={g.plugin ?? '__user__'} group={g} />
+          <GroupSection key={g.plugin} group={g} />
         ))}
       </div>
     </div>

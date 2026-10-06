@@ -7,7 +7,12 @@ import { applyChannelSelection, getActiveProfile, setActiveProfile, clearChannel
 import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLevel, listProfiles, resolveProfile } from '@domain/agents/profile-manager.js';
 import { resolveRunConfig, type ResolvedRunConfig } from '@domain/runs/config-resolver.js';
 import type { Backend } from '@core/types/agent-types.js';
-import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
+import { listSkillGroups } from '@domain/plugins/catalog.js';
+import { filterScopedPlugins } from '@domain/runs/engine-spec.js';
+import { getSessionAsync } from '@domain/sessions/session.js';
+import { sessionStore } from '@store/session-registry-repo.js';
+import { getSettings } from '@core/settings.js';
+import { resolveConversationAgent } from '../../conversation-request.js';
 import { getEnvironment, listEnvironments } from '@domain/agents/environments/registry.js';
 import { handleNewCmd } from './session.js';
 
@@ -306,8 +311,23 @@ export function createProfileHandler(router?: CommandActionRouter) {
   };
 }
 
+/** The plugin dirs this channel's next turn would load, through the same agent resolution and
+ *  scope filter the turn itself uses. Empty when the agent switches skills off. */
+async function channelPluginDirs(channel: string): Promise<string[]> {
+  const sessionId = await getSessionAsync(channel);
+  const session = sessionId ? await sessionStore.getById(sessionId) : null;
+  const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
+  if (agentConfig.skills === false) return [];
+  const settings = getSettings();
+  return filterScopedPlugins(agentConfig.pluginDirs ?? [], {
+    channel,
+    commissionMode: settings.commissionEnabled && !!session?.commissionId,
+    feishuSkillsInWeb: settings.feishuSkillsInWeb,
+  }) ?? [];
+}
+
 export async function handleSkillsCmd(channel: string, adapter: PlatformAdapter): Promise<void> {
-  const groups = getDisplaySkillGroups();
+  const groups = listSkillGroups({ pluginDirs: await channelPluginDirs(channel) });
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   if (groups.length === 0) {
     await adapter.postMessage(dest, { text: t('cmd.skills.none') });
@@ -315,7 +335,7 @@ export async function handleSkillsCmd(channel: string, adapter: PlatformAdapter)
   }
   const lines = [t('cmd.skills.header')];
   for (const { plugin, skills } of groups) {
-    lines.push(plugin ? `_${plugin}_` : `_${t('cmd.skills.localGroup')}_`);
+    lines.push(`_${plugin}_`);
     for (const skill of skills) {
       lines.push(`• \`${skill}\``);
     }

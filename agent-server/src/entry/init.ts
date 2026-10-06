@@ -1333,7 +1333,7 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
   );
   // Seed asset trees — per-file safeCopy semantics: new files always added, existing files
   // preserved unless force=true. These directories are referenced at runtime; without them
-  // skill-scanner / rules-loader can't find their inputs.
+  // the plugin catalog / rules-loader can't find their inputs.
   safeCopyDir(path.join(DEFAULTS_DIR, 'prompts'), path.join(paths.DATA_DIR, 'prompts'), force);
   safeCopyDir(path.join(DEFAULTS_DIR, 'rules'), path.join(paths.DATA_DIR, 'rules'), force);
   safeCopyDir(path.join(DEFAULTS_DIR, 'plugins'), path.join(paths.DATA_DIR, 'plugins'), force);

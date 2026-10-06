@@ -8,6 +8,7 @@ import {
   isRegularFile,
   listImmediateChildNames,
   pathExists,
+  realPath,
   resolveContainedAbsolutePath,
 } from './fs-helpers.js';
 import { loadPortableMcpCatalog } from './mcp.js';
@@ -437,4 +438,49 @@ export function loadPluginCatalog(
   const pluginsRoot = fs.realpathSync(pluginsDir);
   return listImmediateChildNames(pluginsRoot)
     .map((id) => safePluginEntry(id, pluginsRoot, dataDir));
+}
+
+export interface PluginSkillGroup {
+  plugin: string;
+  skills: string[];
+}
+
+function selectedEntries(
+  entries: readonly PluginCatalogEntry[],
+  pluginsRoot: string,
+  dataDir: string,
+  pluginDirs: readonly string[],
+): PluginCatalogEntry[] {
+  const byRealpath = new Map<string, PluginCatalogEntry>();
+  for (const entry of entries) {
+    const real = realPath(path.join(pluginsRoot, entry.id));
+    if (real) byRealpath.set(real, entry);
+  }
+  const picked: PluginCatalogEntry[] = [];
+  for (const value of pluginDirs) {
+    const real = realPath(path.isAbsolute(value) ? value : path.resolve(dataDir, value));
+    const entry = real ? byRealpath.get(real) : undefined;
+    if (entry && !picked.includes(entry)) picked.push(entry);
+  }
+  return picked;
+}
+
+/** The skills a reader can invoke, grouped by plugin id: every catalog plugin, or — given the plugin
+ *  dirs a session resolved — only those, in their selection order. Directories outside the plugins
+ *  root are not catalog plugins and are not listed. */
+export function listSkillGroups(
+  options: { pluginDirs?: readonly string[]; pluginsDir?: string; dataDir?: string } = {},
+): PluginSkillGroup[] {
+  const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
+  const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
+  const entries = loadPluginCatalog({ pluginsDir, dataDir });
+  const listed = options.pluginDirs
+    ? selectedEntries(entries, pluginsDir, dataDir, options.pluginDirs)
+    : entries;
+  return listed
+    .filter((entry) => entry.valid && entry.skills.length > 0)
+    .map((entry) => ({
+      plugin: entry.id,
+      skills: entry.skills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)),
+    }));
 }
