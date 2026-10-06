@@ -12,15 +12,7 @@ import {
   type RailCommissionRow,
   type RailSessionRow,
 } from './rail-tree';
-import {
-  loadManualOrder,
-  loadSortMode,
-  moveInOrder,
-  reconcileManualOrder,
-  saveManualOrder,
-  saveSortMode,
-  type RailSortMode,
-} from './rail-order';
+import type { RailSortMode } from './rail-order';
 import { RailTree, SearchIcon } from './RailTree';
 import { useApprovals } from '@/features/approvals/useApprovals';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
@@ -41,36 +33,13 @@ import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
 import { setRailCollapsed, useRailCollapsed } from './rail-collapsed';
 import { RailResizeHandle } from './RailResizeHandle';
 import { loadRailWidth, saveRailWidth } from './rail-width';
-import { useStarredGroups } from '@/features/session/list/useStarredGroups';
+import { useNowTick } from '@/lib/useNowTick';
+import { useRailTreeState } from './useRailTreeState';
 
 const mono = "'IBM Plex Mono',monospace";
 // A 30px square of content inside 8px gutters — the buttons are the widest thing the collapsed
 // column ever holds.
 const RAIL_COLLAPSED_WIDTH = 46;
-const EXPANDED_KEY = 'cortex.railExpanded';
-const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
-const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
-const COMM_OPEN_KEY = 'cortex.railCommOpen';
-const LEADS_OPEN_KEY = 'cortex.railLeadsOpen';
-
-function loadIdSet(key: string): Set<string> {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveIdSet(key: string, value: Set<string>): void {
-  try {
-    window.localStorage.setItem(key, JSON.stringify([...value]));
-  } catch {
-    /* persistence is best-effort */
-  }
-}
 
 // 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c)
 function BrandMark({ size }: { size: number }): JSX.Element {
@@ -209,22 +178,8 @@ export function LeftRail(): JSX.Element {
     [scheduledSessionsQuery.data],
   );
 
-  // Tree UI state. Expansion and the scheduled sub-groups persist; "show all" is per-visit, because
-  // an uncapped folder is a deliberate act for one look, not a standing preference.
-  const [expanded, setExpanded] = useState<Set<string>>(() => loadIdSet(EXPANDED_KEY));
-  const [schedExpanded, setSchedExpanded] = useState<Set<string>>(() => loadIdSet(SCHED_EXPANDED_KEY));
-  const [commExpanded, setCommExpanded] = useState<Set<string>>(() => loadIdSet(COMM_EXPANDED_KEY));
-  const [openCommissions, setOpenCommissions] = useState<Set<string>>(() => loadIdSet(COMM_OPEN_KEY));
-  const [openLeads, setOpenLeads] = useState<Set<string>>(() => loadIdSet(LEADS_OPEN_KEY));
-  const { collapsed: starsCollapsed, toggle: toggleStars, reveal: revealStars } = useStarredGroups();
-  const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filter, setFilter] = useState('');
-  const [sort, setSort] = useState<RailSortMode>(loadSortMode);
-  const [manualOrder, setManualOrder] = useState<string[]>(loadManualOrder);
-  // A drag in ACTIVITY mode holds only until activity moves again — that is what the mode means.
-  // The flag lives in state (not storage) so a reload lands back on the honest activity order.
-  const [dragged, setDragged] = useState(false);
+  const rail = useRailTreeState();
+  const { openProject, revealStars, retireDrag } = rail;
   const [runModalId, setRunModalId] = useState<string | null>(null);
   const markMany = useMarkManyRead();
   const [hover, setHover] = useState<string | null>(null);
@@ -238,49 +193,9 @@ export function LeftRail(): JSX.Element {
     if (done) saveRailWidth(width);
   };
 
-  const toggleId = (
-    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
-    storageKey: string,
-  ) => (id: string) => {
-    setter((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      saveIdSet(storageKey, next);
-      return next;
-    });
-  };
-  const showFewer = (id: string) => {
-    setShowAll((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
-  // Closing a folder also forgets that it was uncapped, so re-opening it starts at the cap again
-  // rather than dumping every session back into the rail.
-  const toggleSchedules = toggleId(setSchedExpanded, SCHED_EXPANDED_KEY);
-  const toggleCommissions = toggleId(setCommExpanded, COMM_EXPANDED_KEY);
-  const toggleCommission = toggleId(setOpenCommissions, COMM_OPEN_KEY);
-  const toggleWorkers = toggleId(setOpenLeads, LEADS_OPEN_KEY);
-  const toggleProjectExpansion = toggleId(setExpanded, EXPANDED_KEY);
-  const toggleProject = (id: string) => {
-    if (expanded.has(id)) showFewer(id);
-    toggleProjectExpansion(id);
-  };
-  const openProject = (id: string) => {
-    setExpanded((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev).add(id);
-      saveIdSet(EXPANDED_KEY, next);
-      return next;
-    });
-  };
-
-  // One `now` per render feeds both the row ages and the schedule sublines, so a row can never show
-  // an age computed against a different clock than its neighbours.
-  const now = Date.now();
+  // One minute-tick `now` feeds both the row ages and the schedule sublines, so a row can never show
+  // an age computed against a different clock than its neighbours, and ages advance while idle.
+  const now = useNowTick(true, 60_000);
   const tree = useMemo(
     () =>
       buildRailTree({
@@ -291,26 +206,14 @@ export function LeftRail(): JSX.Element {
         commissions: commissionsQuery.data ?? [],
         selectedSessionId,
         fallbackProjectId: currentProjectId,
-        expanded,
-        schedulesExpanded: schedExpanded,
-        starsCollapsed,
-        commissionsExpanded: commExpanded,
-        expandedCommissions: openCommissions,
-        showAll,
         teamEnabled,
-        expandedLeads: openLeads,
-        filter,
-        sort,
-        manualOrder,
-        dragged,
+        ...rail.view,
         now,
         lang,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
-      selectedSessionId, currentProjectId, expanded, schedExpanded,
-      commExpanded, openCommissions, starsCollapsed, showAll, teamEnabled, openLeads, filter, sort, manualOrder, dragged, lang,
+      selectedSessionId, currentProjectId, teamEnabled, rail.view, now, lang,
     ],
   );
 
@@ -323,6 +226,7 @@ export function LeftRail(): JSX.Element {
 
   // Publish the exact visible project order for project pickers. A search temporarily filters the
   // tree, so it must not replace the full order shared with the new-session selector.
+  const filter = rail.view.filter;
   useEffect(() => {
     if (!filter.trim()) setProjectOrder(tree.projects.map((project) => project.id));
   }, [filter, tree.projects, setProjectOrder]);
@@ -342,7 +246,7 @@ export function LeftRail(): JSX.Element {
   useEffect(() => {
     if (seededRef.current || !currentProjectId) return;
     seededRef.current = true;
-    if (expanded.size === 0) openProject(currentProjectId);
+    if (rail.view.expanded.size === 0) openProject(currentProjectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProjectId]);
 
@@ -350,8 +254,8 @@ export function LeftRail(): JSX.Element {
   const activityStamp = directSessions.length + ':' + scheduledSessions.length + ':' +
     directSessions.reduce((max, s) => Math.max(max, Date.parse(s.lastUsedAt || s.createdAt) || 0), 0);
   useEffect(() => {
-    setDragged(false);
-  }, [activityStamp]);
+    retireDrag();
+  }, [activityStamp, retireDrag]);
 
   const openSession = (projectId: string, sessionId: string) => {
     // Both writes leave in the same event: React batches them into one commit, so the selection's
@@ -366,16 +270,10 @@ export function LeftRail(): JSX.Element {
   // to the lead.
   const onToggleWorkers = (row: RailSessionRow) => {
     if (!row.workersExpanded || !row.workers?.some((w) => w.selected)) {
-      toggleWorkers(row.sessionId);
+      rail.toggleWorkers(row.sessionId);
       return;
     }
-    setOpenLeads((prev) => {
-      if (!prev.has(row.sessionId)) return prev;
-      const next = new Set(prev);
-      next.delete(row.sessionId);
-      saveIdSet(LEADS_OPEN_KEY, next);
-      return next;
-    });
+    rail.closeWorkers(row.sessionId);
     onOpenSession(row);
   };
 
@@ -426,37 +324,17 @@ export function LeftRail(): JSX.Element {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [openProject]);
 
-  const onSort = (mode: RailSortMode) => {
-    // Switching to manual freezes exactly what is on screen right now, drag or not.
-    setManualOrder((prev) => reconcileManualOrder(prev, tree.projects.map((p) => p.id)));
-    setSort(mode);
-    saveSortMode(mode);
-    if (mode === 'activity') setDragged(false);
-  };
-  const onReorder = (draggedId: string, targetId: string) => {
-    const visible = tree.projects.map((p) => p.id);
-    const base = reconcileManualOrder(manualOrder, visible);
-    const next = moveInOrder(base, draggedId, targetId);
-    setManualOrder(next);
-    saveManualOrder(next);
-    setDragged(true);
-  };
+  const visibleProjectIds = (): string[] => tree.projects.map((p) => p.id);
+  const onSort = (mode: RailSortMode) => rail.sortBy(mode, visibleProjectIds());
+  const onReorder = (draggedId: string, targetId: string) => rail.reorder(draggedId, targetId, visibleProjectIds());
 
   // From the collapsed rail: expand first, then open the field — the caller is one icon wide and
   // has nowhere to show what the search finds.
   const openSearchExpanded = () => {
     setRailCollapsed(false);
-    setSearchOpen(true);
-  };
-
-  const onToggleSearch = () => {
-    setSearchOpen((open) => {
-      if (open) setFilter('');
-      return !open;
-    });
+    rail.openSearch();
   };
 
   // Click routing: repeat → run-list modal; once with a run → open the session; a live schedule with
@@ -621,23 +499,23 @@ export function LeftRail(): JSX.Element {
           <RailTree
             nodes={tree.projects}
             projectCount={projects.length}
-            sort={sort}
+            sort={rail.view.sort}
             onSort={onSort}
             filter={filter}
-            onFilter={setFilter}
-            searchOpen={searchOpen}
-            onToggleSearch={onToggleSearch}
+            onFilter={rail.setFilter}
+            searchOpen={rail.searchOpen}
+            onToggleSearch={rail.toggleSearch}
             onNewProject={() => newProject.open()}
-            onToggleProject={toggleProject}
-            onToggleSchedules={toggleSchedules}
-            onToggleStars={toggleStars}
-            onToggleCommissions={toggleCommissions}
-            onToggleCommission={toggleCommission}
+            onToggleProject={rail.toggleProject}
+            onToggleSchedules={rail.toggleSchedules}
+            onToggleStars={rail.toggleStars}
+            onToggleCommissions={rail.toggleCommissions}
+            onToggleCommission={rail.toggleCommission}
             onToggleWorkers={onToggleWorkers}
             onOpenCommission={commissionBoard.openCommission}
             onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
-            onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
-            onShowFewer={showFewer}
+            onShowAll={rail.showAllIn}
+            onShowFewer={rail.showFewer}
             onOpenSession={onOpenSession}
             onNewSessionIn={newSessionIn}
             onOverview={onOverview}
