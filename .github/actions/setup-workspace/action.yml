@@ -1,0 +1,55 @@
+name: Set up the release workspace
+description: >-
+  Check the release tag against the server and app versions, install the pnpm workspace, and
+  optionally build the Web SPA. Expects the tagged commit to be checked out already.
+
+inputs:
+  tag:
+    description: The server-v* tag being built
+    required: true
+  build-web:
+    description: Build the Web SPA and the workspace packages it depends on
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Validate release version
+      shell: bash
+      env:
+        REL_TAG: ${{ inputs.tag }}
+      # Exports VERSION for the rest of the job. tauri.conf.json carries a path to
+      # agent-server/package.json; tags cut before that change carry the version literally, and a
+      # dispatched rebuild of one of those still runs this check.
+      run: |
+        [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+        node -e '
+          const fs = require("fs");
+          const path = require("path");
+          const v = process.argv[1];
+          const conf = path.resolve("desktop/src-tauri/tauri.conf.json");
+          const server = require(path.resolve("agent-server/package.json")).version;
+          let tauri = require(conf).version;
+          if (tauri.endsWith(".json")) tauri = require(path.resolve(path.dirname(conf), tauri)).version;
+          if (server !== v || tauri !== v) throw new Error(`tag=${v} server=${server} tauri=${tauri}`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`);
+        ' "${REL_TAG#server-v}"
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4   # version comes from package.json `packageManager`
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+
+    - name: Install workspace dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Build Web SPA
+      if: inputs.build-web == 'true'
+      shell: bash
+      run: pnpm --filter '@cortex-agent/web...' run build

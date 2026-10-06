@@ -8,8 +8,7 @@
 // AppImage swaps itself in place and relaunches, deb/rpm/dmg are copied to Downloads and opened,
 // Android fires the system package installer via the cortex-download plugin.
 //
-// Dev builds are protected by `is_calver`: a non-CalVer own version (e.g. tauri.conf.json's dev
-// `0.0.1`) disables the whole check, so only release-stamped builds ever prompt.
+// `is_calver` guards the whole check: a build whose own version is not CalVer never prompts.
 
 use std::cmp::Ordering;
 use std::io::{self, Read, Write};
@@ -95,8 +94,8 @@ pub fn compare_calver(a: &str, b: &str) -> Ordering {
     parse_calver(a).cmp(&parse_calver(b))
 }
 
-/// True when `v` parses as a CalVer version with a plausible year (>= 2000). The dev build version
-/// (tauri.conf.json `0.0.1`) fails this, which disables the update check on dev builds entirely.
+/// True when `v` parses as a CalVer version with a plausible year (>= 2000). A version that fails
+/// this disables the update check entirely.
 pub fn is_calver(v: &str) -> bool {
     let dotted: Vec<&str> = v.split('.').collect();
     if dotted.len() != 3 {

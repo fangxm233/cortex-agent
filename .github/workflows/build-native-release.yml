@@ -25,6 +25,10 @@ env:
   # A tag push builds its own tag; a manual run builds the tag it was given.
   REL_TAG: ${{ inputs.tag || github.ref_name }}
 
+# Every platform job checks out the tag, then runs the shared setup (version check, install, SPA
+# build) from main rather than from ./: a dispatched rebuild takes this workflow from main and the
+# source from the tag, and the setup has to follow the workflow so CI-only fixes reach old tags.
+
 jobs:
   windows:
     runs-on: windows-2022
@@ -34,31 +38,10 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
 
-      - name: Validate release version
-        shell: bash
-        run: |
-          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
-          VERSION="${REL_TAG#server-v}"
-          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Set up workspace
+        uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
-          version: 10.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Web SPA
-        shell: bash
-        run: pnpm --filter '@cortex-agent/web...' run build
+          tag: ${{ env.REL_TAG }}
 
       - name: Build Windows installer
         shell: pwsh
@@ -99,30 +82,10 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
 
-      - name: Validate release version
-        shell: bash
-        run: |
-          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
-          VERSION="${REL_TAG#server-v}"
-          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Set up workspace
+        uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
-          version: 10.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Web SPA
-        run: pnpm --filter '@cortex-agent/web...' run build
+          tag: ${{ env.REL_TAG }}
 
       - name: Build universal macOS disk image
         run: |
@@ -171,12 +134,10 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
 
-      - name: Validate release version
-        shell: bash
-        run: |
-          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
-          VERSION="${REL_TAG#server-v}"
-          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
+      - name: Set up workspace
+        uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
+        with:
+          tag: ${{ env.REL_TAG }}
 
       - name: Install Tauri system dependencies
         run: |
@@ -191,24 +152,6 @@ jobs:
             file \
             patchelf \
             rpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Web SPA
-        run: pnpm --filter '@cortex-agent/web...' run build
 
       - name: Build Linux bundles
         run: pnpm --dir desktop exec tauri build --bundles deb,appimage,rpm -- --locked
@@ -259,29 +202,16 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
 
-      - name: Validate release version
-        shell: bash
-        run: |
-          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
-          VERSION="${REL_TAG#server-v}"
-          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
+      - name: Set up workspace
+        uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
+        with:
+          tag: ${{ env.REL_TAG }}
+          build-web: false
 
       - name: Install ImageMagick
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends imagemagick
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -308,9 +238,6 @@ jobs:
 
       - name: Add Android Rust target
         run: rustup target add aarch64-linux-android
-
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Stage keystore and toolchain config
         shell: bash
