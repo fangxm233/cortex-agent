@@ -8,8 +8,7 @@ import type { PlatformAdapter } from '@platform/index.js';
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { startClientHotReloadJob, startStoreArchiveJob } from '@entry/boot-jobs.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
-import { moveDraftAttachments } from '@entry/draft-attachments.js';
-import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, CONTEXT_DIR } from '@core/paths.js';
+import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR } from '@core/paths.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
@@ -22,18 +21,16 @@ import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
-import { cancelChannelRuns, cancelLiveExecution } from '@orch/routing/commands/cancel.js';
-import { waitpointRepo } from '@store/waitpoint-repo.js';
-import { cancelWaitpoint } from '@domain/waitpoints/service.js';
 import { recoverWaitpoints, startWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { installSigtermShutdown, type ShutdownHandles } from './shutdown.js';
+import { buildUiService } from './ui-service-wiring.js';
 import { startPlatformAdapters } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
-import { startClientManager, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
+import { startClientManager } from '@domain/remote/client-manager.js';
 import { startAllRemoteClients, releaseUnregisteredDevices } from '@domain/remote/client-lifecycle.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
@@ -41,7 +38,6 @@ import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { TOOL_IMAGES_DIR } from '@store/tool-image-files.js';
-import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
@@ -58,9 +54,7 @@ import { createLogger } from '@core/log.js';
 import { captureAuthTokensForRuntime, ensureAuthTokens } from '@core/auth.js';
 import { runRegistry } from '@core/run-registry.js';
 import { sessionHolds } from '@core/session-holds.js';
-import { sessionStates } from '@core/session-state.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
-import { sessionTodos } from '@core/session-todos.js';
 import { buildSessionRetentionLiveness } from '@orch/session-retention-liveness.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
@@ -71,8 +65,6 @@ import { startBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
-import { respondToPlan } from '@orch/interactions/plan-response.js';
-import { answerQuestion } from '@orch/interactions/answer-question.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { createUiUpdatePrompt } from '@orch/interactions/ui-update-prompt.js';
@@ -83,7 +75,6 @@ import {
   dispatchPendingResumes,
   registerResumeWakeOnAgentSettle,
 } from '../orchestration/resume-dispatcher.js';
-import { scheduleRepo } from '@store/schedule-repo.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
 import { syncManagedHooks } from '@store/hook-sync.js';
@@ -94,39 +85,29 @@ import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
-import { createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
-import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
+import { getSessionAsync } from '@domain/sessions/session.js';
 import { getProjectDir } from '@domain/sessions/session-backup.js';
-import {
-  applyChannelSelection, clearChannelAgentSelection, getActiveProfile, getChannelOverride,
-  getSelectionDefault, resolveBackendForChannel, switchChannelAgent, switchChannelProfile,
-} from '@domain/agents/index.js';
-import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
-import { loadMachinesFromFile, startMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/remote/machine-registry.js';
+import { loadMachinesFromFile, startMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener } from '@domain/remote/machine-registry.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { flushTeamOutbox, installTeamDelivery } from '@orch/team-delivery.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outbound-queue.js';
-import { createUiService } from '@domain/ui-service/index.js';
-import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
-import { deliverToSession, deliverToSessionDetached } from '@orch/session-gateway.js';
+import { deliverToSession } from '@orch/session-gateway.js';
 import { setOrchestrationRuntime } from '@orch/runtime.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
 import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { rewindWebSession } from '../orchestration/session-rewind.js';
-import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
+import { compactActiveSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
 import { createTuiSessionService } from '@domain/tui-session/index.js';
 import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
-import { getCostSummary } from '@domain/costs/cost-tracker.js';
 import { initAuthEvents } from '@domain/auth/auth-events.js';
 import { registerAuthWatch } from '@domain/auth/auth-watch.js';
 import { onLoginSuccess } from '@domain/auth/login-flow.js';
@@ -482,127 +463,8 @@ installSigtermShutdown(shutdownHandles);
     log.info(`Recovered ${recoveredWaitpoints.delivered} waitpoint wake(s), ${recoveredWaitpoints.spooled} spooled signal(s)`);
   }
 
-  // ── Wire UI service into the TUI gateway ────────────────────────────────
-  //
-  // UI service (M3) provides store-backed query/mutate/subscribe capabilities
-  // to the TUI gateway via a transport-agnostic facade.
-  const uiService = createUiService({
-    checkServerUpdate: () => serverUpdateCoordinator.check(),
-    projectStore,
-    sessionStore,
-    scheduler,
-    executionRegistry,
-    // Waitpoints (SessionInfo.waitingOn + the waitpoints.* ops). Injected here, at the entry layer,
-    // so the ui-service domain never reaches into the waitpoint store. Only armed records are ever
-    // listed: a settled waitpoint has already announced itself in the session transcript.
-    waitpointRegistry: {
-      listArmed: () => waitpointRepo.listArmed(),
-      cancel: (id: string) => cancelWaitpoint(id),
-    },
-    approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
-    runningExecutions: sessionStates,
-    costSummary: getCostSummary,
-    conversationHistory,
-    getSubagentChildStatuses,
-    pendingInjections: pendingInjectionRepo,
-    // S4 chat send: inject a genuine user turn into a session via the orchestration send path.
-    // Injected here (entry layer) so the ui-service domain never imports orchestration.
-    sendSessionMessage: ({ channel, text, attachments }) => deliverToSessionDetached({ channel, text, attachments, origin: 'web-user' }),
-    // Machines screen: join static config (getMachineRegistry) + live WebSocket state (getOnlineDevices/
-    // isDeviceOnline). Injected here (entry layer) so the ui-service domain never imports remote/.
-    clientRegistry: {
-      getOnlineDevices,
-      isDeviceOnline,
-      getMachineRegistry,
-      // machines.detail expand: run the read-only telemetry probe over the existing client WebSocket.
-      probeMachine: async (device, command, timeout) => {
-        const result = await sendCommand(device, { action: 'bash', params: { command }, timeout });
-        return typeof result?.stdout === 'string' ? result.stdout : '';
-      },
-    },
-    // S4 chat Stop: cancel the agent(s) running on the session's channel via the orchestration
-    // channel-cancel path (same code the no-arg/`--all` !cancel command uses). Injected here so the
-    // ui-service domain never imports orchestration.
-    cancelSessionRun: ({ channel }) => cancelChannelRuns(channel),
-    cancelLiveExecution,
-    // Manual context compact: both the Web mutation and !compact command share the idle-only
-    // orchestration coordinator; sessions.list receives the matching display capability hint.
-    supportsSessionCompaction: (session) => isSessionCompactionSupported(session),
-    getSessionTodos: (sessionId) => sessionTodos.get(sessionId),
-    compactSession: ({ sessionId }) => compactSessionContext(sessionId),
-    // Message edit + rewind (sessions.rewind, desktop design 23 / mobile 7): roll the session back
-    // to the edited turn and re-send. Injected here so the ui-service domain never imports
-    // orchestration.
-    rewindSession: (opts) => rewindWebSession({ ...opts, adapter }),
-    // Workbench "+ New session": create a fresh live direct session. Wired here (entry layer) to the
-    // domain primitive with the real session/ledger singletons, so ui-service never imports store.
-    createDirectSession: (opts) => createDirectSession({
-      sessionStore,
-      setChannelSession: setSessionAsync,
-      initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
-      resolveBackend: resolveBackendForChannel,
-    }, opts),
-    // Replying to a scheduled run (design 27b): adopt it as a normal direct session on its own
-    // web:<sid> conduit before the send. Wired here so ui-service never imports the lifecycle.
-    adoptScheduledSession: ({ sessionId }) => adoptScheduledSession(sessionStore, sessionId),
-    // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
-    // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
-    switchSessionProfile: (opts) => switchChannelProfile(opts),
-    // Web agent picker: the same per-channel agent-switch rule the `!agent` command applies. A null
-    // name is the "follow the global default" row, which clears the channel's selection instead.
-    switchSessionAgent: async ({ channel, name }) => {
-      if (name === null) {
-        await clearChannelAgentSelection(channel);
-        return { ok: true, agentName: null, effectiveProfile: getActiveProfile(channel) ?? '', backendChanged: false };
-      }
-      const res = await switchChannelAgent({ channel, name });
-      return res.ok === true
-        ? { ok: true, agentName: res.agentName, effectiveProfile: res.effectiveProfile, backendChanged: res.backendChanged }
-        : {
-          ok: false, agentName: null, effectiveProfile: '', backendChanged: false,
-          reason: res.reason, currentBackend: res.currentBackend, targetBackend: res.targetBackend,
-        };
-    },
-    // Web model picker: the composer's profile / model / provider / thinking choice, applied under
-    // the one domain rule. Wired here for the same reason as the profile switch above.
-    applySessionSelection: (opts) => applyChannelSelection(opts),
-    getChannelSelectionOverride: (channel) => getChannelOverride(channel),
-    // What a draft composer starts on before any session exists.
-    getSelectionDefault: () => getSelectionDefault(),
-    // Draft uploads are promoted into the newly-created session before its first turn is sent.
-    moveDraftAttachments,
-    bus,
-    adapter,
-    // Web UI: pending interactions for a channel (sessions.pendingInteraction query) —
-    // served from the interaction entity index, so the plan card rehydrates with FULL content.
-    getPendingAskUser: (channel) => {
-      const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'ask-user');
-      if (!entry) return null;
-      // `blocking` distinguishes a session stalled on the answer from one that asked and kept
-      // going (cortex_ask_user blocking:false) — only the former is "awaiting user action".
-      return { requestId: entry.id, questions: entry.payload.questions ?? [], blocking: entry.payload.blocking !== false };
-    },
-    getPendingPlan: (channel) => {
-      const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'plan-approval');
-      if (!entry) return null;
-      return { requestId: entry.id, planContent: entry.payload.planContent ?? '', planFilePath: entry.payload.planFilePath ?? null };
-    },
-    // Transcript materialization liveness signal (pending rows with no live entry derive to expired).
-    isInteractionPending: (id) => interactionRecords.isPending(id),
-    // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
-    // on the HTTP response; this callback collects answers, resolves the entity (which persists
-    // the record and broadcasts session.interaction to every client), and unblocks the tool.
-    answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'web'),
-    // Web UI plan-approval: resolve or reject a pending plan by requestId. First-writer-wins;
-    // the entity resolve persists + broadcasts, so no separate history/session-message writes.
-    respondPlan: (requestId, approved, feedback) => respondToPlan(
-      { planApprovals, interactionRecords },
-      requestId,
-      approved,
-      feedback,
-      'web',
-    ),
-  });
+  // The UI service backs both the TUI gateway and the Web UI transport.
+  const uiService = buildUiService({ adapter, bus, scheduler, serverUpdateCoordinator });
   extractTuiAdapter(adapter)?.setUiService(uiService);
 
   // ── Web UI tRPC HTTP+SSE transport-host (opt-in via CORTEX_UI_HTTP) ──────
