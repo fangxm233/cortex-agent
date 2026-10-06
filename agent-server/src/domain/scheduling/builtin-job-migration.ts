@@ -1,7 +1,9 @@
 import {
   assertSettingsFileValid, getSettingsSnapshot, updateSettings, type Settings,
 } from '@core/settings.js';
-import { scheduleRepo, type ScheduleTask, type SchedulesData } from '@store/schedule-repo.js';
+import {
+  RETIRED_SCHEDULE_TYPES, scheduleRepo, type ScheduleTask, type SchedulesData,
+} from '@store/schedule-repo.js';
 
 const MIN_INTERVAL_MS = 1_000;
 const MAX_INTERVAL_MS = 2_147_483_647;
@@ -15,9 +17,8 @@ interface JobMigrationSpec {
 const JOB_SPECS: JobMigrationSpec[] = [
   { dispatchType: 'memory-index-regen', enabledKey: 'memoryIndexRegenEnabled', intervalKey: 'memoryIndexRegenIntervalMs' },
 ];
-/** Jobs that no longer exist at all: a legacy schedule for one is dropped and carries nothing over. */
-const RETIRED_TYPES = ['task-dispatch', 'task-archive'];
-const MOVED_TYPES = new Set([...JOB_SPECS.map((spec) => spec.dispatchType), ...RETIRED_TYPES]);
+/** A legacy schedule for a retired job is dropped and carries nothing over. */
+const MOVED_TYPES = new Set([...JOB_SPECS.map((spec) => spec.dispatchType), ...RETIRED_SCHEDULE_TYPES]);
 
 interface SnapshotEntry {
   key: string;

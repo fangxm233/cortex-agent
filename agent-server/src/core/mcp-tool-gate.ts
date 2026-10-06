@@ -29,7 +29,7 @@ const ALL_MCP_TOOLS = new Set(Object.values(MCP_TOOLS_BY_SERVER).flat());
 
 /** Tools an older release served. An allowlist written before their removal may still name them;
  *  they are dropped silently instead of being rejected as typos. */
-const RETIRED_MCP_TOOLS = new Set([
+export const RETIRED_MCP_TOOLS: ReadonlySet<string> = new Set([
   'task_status', 'task_result', 'task_list', 'answer_subtask',
   'thread_abort', 'thread_split', 'thread_wait', 'ask_manager', 'thread_run',
 ]);

@@ -177,3 +177,6 @@ export class ScheduleRepo {
 }
 
 export const scheduleRepo = new ScheduleRepo();  // default singleton for production use
+
+/** Dispatch types of built-in jobs that no longer exist. */
+export const RETIRED_SCHEDULE_TYPES: ReadonlySet<string> = new Set(['task-dispatch', 'task-archive']);

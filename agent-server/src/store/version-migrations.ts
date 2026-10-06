@@ -5,9 +5,11 @@ import { CORTEX_VERSION, CORTEX_DOCS_URL } from '@core/version.js';
 import { AISTATUS_DIR, DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { compareCalVer } from '@core/calver.js';
 import { atomicWrite } from '@core/atomic-write.js';
+import { RETIRED_MCP_TOOLS } from '@core/mcp-tool-gate.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
+import { RETIRED_SCHEDULE_TYPES } from './schedule-repo.js';
 import { importLegacySessionStores } from './session-registry-import.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
@@ -586,14 +588,9 @@ export async function seedEnvironmentsFromThreadAgents(
 /** Generated MCP configs for the removed thread, task and manager-Q&A surfaces. */
 const RETIRED_MCP_CONFIG_FILES = ['mcp-config-thread.json', 'mcp-config-tasks.json', 'mcp-config-manager-qa.json'];
 const RETIRED_MCP_BUNDLES = new Set(['cortex-tasks', 'cortex-manager-qa', 'cortex-thread', 'cortex-benchmark-thread']);
-const RETIRED_MCP_TOOLS = new Set([
-  'task_status', 'task_result', 'task_list', 'answer_subtask',
-  'thread_abort', 'thread_split', 'thread_wait', 'ask_manager', 'thread_run',
-]);
 const RETIRED_SETTING_KEYS = new Set([
   'dispatchReconcilerEnabled', 'taskArtifactTemplates', 'managerRotateSteps', 'threadMaxDepth', 'waitingSweepMs',
 ]);
-const RETIRED_SCHEDULE_TYPES = new Set(['task-dispatch', 'task-archive']);
 /** Thread and task state under the store directory. */
 const RETIRED_STORE_PATHS = [
   'threads.json', path.join('archive', 'threads-archive.jsonl'), 'production-topology',
