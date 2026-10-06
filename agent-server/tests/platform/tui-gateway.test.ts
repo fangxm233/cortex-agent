@@ -850,6 +850,51 @@ test('postMessage sends chat.post to matching project and notification to cross-
   assert.equal(ref.messageId, ws1Frame.ref.messageId);
 });
 
+// ── Project binding: the connection is the one owner of its project ───────
+
+test('after a TUI bind, that project\'s reports reach the bound connection', async (t) => {
+  const { adapter, port, stop } = await startEphemeralGateway();
+  t.onTestFinished(() => stop());
+  const ws = await wsConnect(port);
+  const coll = makeFrameCollector(ws);
+  t.onTestFinished(() => ws.close());
+  const { conduitId } = await handshake(ws, coll);
+  coll.drain();
+
+  await adapter.bindProjectConduit('bound-project', conduitId);
+
+  assert.equal(await adapter.resolveInboundProject(conduitId), 'bound-project');
+  assert.equal((await adapter.getProjectConduits())['bound-project'], conduitId);
+  await adapter.postMessage(
+    { type: 'project-report', projectId: 'bound-project', trigger: 'test', sessionId: '' },
+    { text: 'bound report' },
+  );
+  const frame = await coll.read(2000);
+  assert.equal(frame.type, 'chat.post');
+  assert.equal(frame.content.text, 'bound report');
+});
+
+test('unbinding a project moves its connections off it for routing and reports alike', async (t) => {
+  const { adapter, port, stop } = await startEphemeralGateway();
+  t.onTestFinished(() => stop());
+  const ws = await wsConnect(port);
+  const coll = makeFrameCollector(ws);
+  t.onTestFinished(() => ws.close());
+  const { conduitId } = await handshake(ws, coll, { project: 'left-project' });
+  coll.drain();
+
+  await adapter.unbindProjectConduit('left-project');
+
+  assert.equal(await adapter.resolveInboundProject(conduitId), 'general');
+  assert.equal(adapter.lookupConduit(conduitId)?.projectId, 'general');
+  await adapter.postMessage(
+    { type: 'project-report', projectId: 'left-project', trigger: 'test', sessionId: '' },
+    { text: 'stale report' },
+  );
+  const frame = await coll.read(2000);
+  assert.equal(frame.type, 'notification', 'an unbound connection only sees the cross-project notice');
+});
+
 // ── OpenOutputStream ──────────────────────────────────────────────────
 
 test('openOutputStream creates TuiOutputStream for matching connection', async (t) => {

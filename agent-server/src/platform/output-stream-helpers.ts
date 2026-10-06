@@ -15,3 +15,15 @@ export async function postOnce(
   await stream.flush();
   return stream.getParentRef();
 }
+
+/** A stream that drops everything — for destinations nothing is listening on. */
+export function noopOutputStream(): OutputStream {
+  return {
+    emitText: () => {},
+    openMutable: () => ({ update: () => {} }),
+    postInteractive: async () => null,
+    flush: async () => {},
+    getRefs: () => [],
+    getParentRef: () => null,
+  };
+}

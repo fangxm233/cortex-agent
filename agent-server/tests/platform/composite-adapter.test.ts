@@ -1,4 +1,4 @@
-import { test, afterEach } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { MockAdapter } from '../../src/platform/testing.js';
@@ -9,7 +9,6 @@ import {
   setPlatformAdminChannel,
 } from '../../src/platform/adapters/composite-adapter.js';
 import { TuiGatewayAdapter, TuiConnection } from '../../src/platform/adapters/tui/index.js';
-import { tuiConduitStates, setConduitState } from '../../src/platform/adapters/tui/tui-conduit-state.js';
 import type { OutputStream, MutableRegion } from '../../src/platform/output-stream.js';
 import type { MessageRef, RichBlock, ActionElement } from '../../src/platform/types.js';
 
@@ -50,11 +49,6 @@ class RecordingOutputStream implements OutputStream {
     return this.parentRef;
   }
 }
-
-// Clean up global conduit states after each test
-afterEach(() => {
-  tuiConduitStates.clear();
-});
 
 test('setPlatformAdminChannel keeps Slack/test and Feishu hot updates isolated', async () => {
   const slack = new MockAdapter({ adminChannel: 'C-slack-old' });
@@ -109,8 +103,6 @@ test('CompositeAdapter: project-report fan-out to primary and gateway', async ()
   } as unknown as WebSocket;
   const conn = new TuiConnection('tui-test-1', mockWs, 'test-project');
   gateway.connections.set('tui-test-1', conn);
-  // Set conduit state so gateway.getProjectConduits() includes this project
-  setConduitState('tui-test-1', { sessionId: null, projectId: 'test-project' });
 
   // Bind primary conduit
   await primary.bindProjectConduit('test-project', 'C12345');
@@ -148,7 +140,6 @@ test('CompositeAdapter: project-report fans out to gateway with cross-project TU
   } as unknown as WebSocket;
   const conn = new TuiConnection('tui-cross-1', mockWs, 'project-a');
   gateway.connections.set('tui-cross-1', conn);
-  setConduitState('tui-cross-1', { sessionId: null, projectId: 'project-a' });
 
   // Primary conduit in project-b
   await primary.bindProjectConduit('project-b', 'C12345');
@@ -409,17 +400,8 @@ test('CompositeAdapter: project-report targets ALL real primaries (unbound prima
 test('CompositeAdapter: project-report does NOT target TUI gateway when it has no live conduit', async () => {
   const primary = new MockAdapter({ adminChannel: 'C-admin' });
   const gateway = new TuiGatewayAdapter({ port: 0, host: '127.0.0.1' });
+  const gatewayPost = vi.spyOn(gateway, 'postMessage');
   const composite = new CompositeAdapter([primary, gateway]);
-
-  const sentFrames: any[] = [];
-  const mockWs = {
-    send: (data: string) => { sentFrames.push(JSON.parse(data)); },
-    close: () => {},
-    on: () => {},
-  } as unknown as WebSocket;
-  const conn = new TuiConnection('tui-none-1', mockWs, 'general');
-  gateway.connections.set('tui-none-1', conn);
-  // No setConduitState → gateway.getProjectConduits() is empty.
 
   await composite.postMessage(
     { type: 'project-report', projectId: 'orphan-proj', trigger: 'test', sessionId: '' },
@@ -429,7 +411,7 @@ test('CompositeAdapter: project-report does NOT target TUI gateway when it has n
   // Primary is always targeted (falls back to its admin DM internally);
   // TUI gateway is NOT, since it has no admin-DM concept and no live conduit.
   assert.equal(primary.posted.length, 1);
-  assert.equal(sentFrames.length, 0, 'gateway not targeted without a live conduit');
+  assert.equal(gatewayPost.mock.calls.length, 0, 'gateway not targeted without a live conduit');
 });
 
 test('CompositeAdapter: downloadFile routes by fileRef.conduit, falls back to first', async () => {

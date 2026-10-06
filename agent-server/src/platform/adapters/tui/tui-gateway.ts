@@ -38,16 +38,11 @@ import {
 } from '../../tui/protocol.js';
 import { TuiConnection } from './tui-connection.js';
 import { TuiOutputStream } from './tui-output-stream.js';
-import {
-  tuiConduitStates,
-  getConduitState,
-  setConduitState,
-  deleteConduitState,
-} from './tui-conduit-state.js';
+import { noopOutputStream } from '../../output-stream-helpers.js';
 import { buildTranscriptReplay } from './tui-transcript.js';
 import { createLogger } from '@core/log.js';
 import { t } from '@core/i18n.js';
-import type { ConduitQueuePort, TuiSessionService } from './ports.js';
+import type { ConduitQueuePort, TuiSessionService, SwitchResolution } from './ports.js';
 
 const log = createLogger('tui-gateway');
 
@@ -98,7 +93,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
   private _modalHandlers = new Map<string, (ctx: ModalSubmitContext) => Promise<void>>();
 
   constructor(opts?: { port?: number; host?: string }) {
-    this._port = opts?.port ?? parseInt(process.env.CORTEX_TUI_PORT ?? '3003', 10);
+    this._port = opts?.port ?? (Number(process.env.CORTEX_TUI_PORT) || 3003);
     this._host = opts?.host ?? '127.0.0.1';
   }
 
@@ -121,9 +116,9 @@ export class TuiGatewayAdapter implements PlatformAdapter {
    * conduit provider by app.ts so session lookups can resolve ephemeral TUI conduits.
    */
   lookupConduit(conduitId: string): { sessionId: string; projectId: string } | null {
-    const state = getConduitState(conduitId);
-    if (!state) return null;
-    return { sessionId: state.sessionId ?? '', projectId: state.projectId };
+    const conn = this._connections.get(conduitId);
+    if (!conn) return null;
+    return { sessionId: conn.activeSessionId ?? '', projectId: conn.activeProjectId };
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────
@@ -383,58 +378,35 @@ export class TuiGatewayAdapter implements PlatformAdapter {
   openOutputStream(destination: Destination, _opts?: OpenOutputStreamOpts): OutputStream {
     const conns = this._resolveTargetConnections(destination);
     const conn = conns[0];
-    if (!conn) {
-      // Return a no-op output stream if no matching connection
-      return this._createNoopOutputStream();
-    }
-    return new TuiOutputStream(conn, destination, this);
-  }
-
-  private _createNoopOutputStream(): OutputStream {
-    const noopRefs: MessageRef[] = [];
-    return {
-      emitText: () => {},
-      openMutable: () => ({ update: () => {} }),
-      postInteractive: async () => null,
-      flush: async () => {},
-      getRefs: () => noopRefs,
-      getParentRef: () => null,
-    };
+    return conn ? new TuiOutputStream(conn, destination, this) : noopOutputStream();
   }
 
   // ── Project conduit mapping ─────────────────────────────────────
 
+  // A TUI conduit's project binding is its connection's activeProjectId — the one place that
+  // routing, inbound resolution and project-report delivery all read.
+
   async bindProjectConduit(projectId: string, conduitHint: string): Promise<void> {
-    // TUI conduits are already project-bound via activeProjectId
-    // conduitHint is the tui conduitId
-    const state = getConduitState(conduitHint);
-    if (state) {
-      setConduitState(conduitHint, { ...state, projectId });
-    }
+    const conn = this._connections.get(conduitHint);
+    if (conn) conn.activeProjectId = projectId;
   }
 
   async unbindProjectConduit(projectId: string): Promise<void> {
-    // Remove project binding from all conduits matching this project
-    for (const [conduitId, state] of tuiConduitStates) {
-      if (state.projectId === projectId) {
-        setConduitState(conduitId, { ...state, projectId: 'general' });
-      }
+    for (const conn of this._connections.values()) {
+      if (conn.activeProjectId === projectId) conn.activeProjectId = 'general';
     }
   }
 
   async getProjectConduits(): Promise<Record<string, string>> {
     const result: Record<string, string> = {};
-    for (const [conduitId, state] of tuiConduitStates) {
-      if (!result[state.projectId]) {
-        result[state.projectId] = conduitId;
-      }
+    for (const conn of this._connections.values()) {
+      result[conn.activeProjectId] ??= conn.conduitId;
     }
     return result;
   }
 
   async resolveInboundProject(conduit: string): Promise<string | null> {
-    const state = getConduitState(conduit);
-    return state?.projectId ?? null;
+    return this._connections.get(conduit)?.activeProjectId ?? null;
   }
 
   /** TUI conduits are `tui-<uuid>` and triggerIds are `tui:<conduitId>:<uuid>`. */
@@ -461,7 +433,6 @@ export class TuiGatewayAdapter implements PlatformAdapter {
     const projectId = 'general';
     const conn = new TuiConnection(conduitId, ws, projectId);
     this._connections.set(conduitId, conn);
-    setConduitState(conduitId, { sessionId: null, projectId });
 
     log.info(`New TUI connection: ${conduitId}`);
 
@@ -620,7 +591,6 @@ export class TuiGatewayAdapter implements PlatformAdapter {
     // Resolve initial project
     const projectId = frame.project ?? 'general';
     conn.activeProjectId = projectId;
-    setConduitState(conn.conduitId, { sessionId: null, projectId });
 
     // Handle session resume or fresh — delegated to the injected session service
     if (!this._sessionService) {
@@ -632,7 +602,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
     if (!resumeSessionId) {
       // Lazy session creation: a plain launch (no resume) no longer mints a session at
       // handshake — that was creating an empty `cortex-XXXX` on every open. We leave the
-      // conduit session-less (conduitState already holds sessionId:null from above) and emit
+      // conduit session-less (activeSessionId stays null) and emit
       // NO session.switched. The first `msg.user` creates and announces the session instead
       // (see _ensureSession in _handleMsgUser). Reconnects carry resume.sessionId, so an
       // active conversation still re-attaches below.
@@ -651,22 +621,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
         message: `Session ${resumeSessionId} not found, creating fresh session`,
       });
     }
-    conn.activeSessionId = res.sessionId;
-    conn.activeProjectId = res.projectId;
-    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId });
-    conn.send({
-      type: 'session.switched',
-      id: '',
-      projectId: res.projectId,
-      sessionId: res.sessionId,
-      sessionName: res.sessionName,
-      isFresh: res.isFresh,
-      seq: 1,
-    });
-    if (res.transcript) {
-      const replay = buildTranscriptReplay(res.transcript);
-      if (replay) conn.send(replay);
-    }
+    this._applySession(conn, res, '');
   }
 
   /**
@@ -681,18 +636,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
       projectId: conn.activeProjectId ?? 'general',
       sessionId: null,
     });
-    conn.activeSessionId = res.sessionId;
-    conn.activeProjectId = res.projectId;
-    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId });
-    conn.send({
-      type: 'session.switched',
-      id: '',
-      projectId: res.projectId,
-      sessionId: res.sessionId,
-      sessionName: res.sessionName,
-      isFresh: res.isFresh,
-      seq: 1,
-    });
+    this._applySession(conn, res, '');
   }
 
   // ── Private: session switch ─────────────────────────────────────
@@ -710,9 +654,13 @@ export class TuiGatewayAdapter implements PlatformAdapter {
       projectId,
       sessionId: sessionId ?? null,
     });
+    this._applySession(conn, res, id);
+  }
+
+  /** Attach the connection to a resolved session and tell the client, replaying any transcript. */
+  private _applySession(conn: TuiConnection, res: SwitchResolution, id: string): void {
     conn.activeSessionId = res.sessionId;
     conn.activeProjectId = res.projectId;
-    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId });
     conn.send({
       type: 'session.switched',
       id,
@@ -722,10 +670,8 @@ export class TuiGatewayAdapter implements PlatformAdapter {
       isFresh: res.isFresh,
       seq: 1,
     });
-    if (res.transcript) {
-      const replay = buildTranscriptReplay(res.transcript);
-      if (replay) conn.send(replay);
-    }
+    const replay = res.transcript ? buildTranscriptReplay(res.transcript) : null;
+    if (replay) conn.send(replay);
   }
 
   // ── Private: inbound message handling ───────────────────────────
@@ -857,7 +803,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
         type: 'ui.queryResult',
         id: frame.id,
         ok: false,
-        error: { code: 'ui-service-unavailable', message: 'UI service not yet available (M3)' },
+        error: { code: 'ui-service-unavailable', message: 'UI service unavailable' },
       });
       return;
     }
@@ -896,7 +842,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
         type: 'ui.mutateResult',
         id: frame.id,
         ok: false,
-        error: { code: 'ui-service-unavailable', message: 'UI service not yet available (M3)' },
+        error: { code: 'ui-service-unavailable', message: 'UI service unavailable' },
       });
       return;
     }
@@ -929,7 +875,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
       conn.send({
         type: 'error',
         code: 4100,
-        message: 'UI service not yet available (M3)',
+        message: 'UI service unavailable',
         refId: frame.id,
       });
       return;
@@ -1041,7 +987,6 @@ export class TuiGatewayAdapter implements PlatformAdapter {
 
     // Drop from registry
     this._connections.delete(conduitId);
-    deleteConduitState(conduitId);
     this._conduitQueue?.remove(conduitId);
 
     log.info(`TUI connection cleaned up: ${conduitId}`);
