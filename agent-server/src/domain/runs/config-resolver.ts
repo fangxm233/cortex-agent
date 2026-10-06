@@ -1,3 +1,4 @@
+import { profileRepo } from '@store/profile-repo.js';
 import type { ChannelOverride } from '../agents/agent-state.js';
 import { getActiveProfile, getChannelOverride } from '../agents/config.js';
 import { resolveModeEnv, type ModeEnv } from './mode-env.js';
@@ -36,6 +37,19 @@ export interface ResolvedRunConfig {
    *  so it can open an execution record with a truthful backend, and still has the bad name to
    *  fail on. Callers that simply want to run should treat false as an error. */
   resolved: boolean;
+}
+
+/** Startup and login exist before a first profile. Only a missing file is unconfigured. */
+export function resolveConfiguredDefaultRun(): ResolvedRunConfig | null {
+  try {
+    profileRepo.readSync();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+  // Validate existing configuration even when the active selection could use a synthetic fallback.
+  getDefaultProfileName();
+  return resolveRunConfig();
 }
 
 const FALLBACK_BACKEND = 'claude' as const;

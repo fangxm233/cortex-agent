@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'vitest';
+import { profileRepo, PROFILES_FILE } from '../../src/store/profile-repo.js';
 import { getSavedApiEnv } from '../../src/domain/auth/anthropic-env.js';
 import {
   getAuthStatus,
@@ -456,5 +457,27 @@ test('PI import and export failures degrade without suppressing Claude status', 
     assert.equal(snapshot.piRuntime.available, false);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('fresh install auth status does not require a configured profile', async () => {
+  const fixture = createPiFixture();
+  const options = baseStatusOptions(fixture, await loadFixture(fixture), path.join(fixture.root, 'missing'));
+  try {
+    const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getClaudeMode: undefined,
+      listProfiles: undefined, getActiveProfileConfig: undefined });
+    assert.ok(snapshot.accounts.length > 0);
+    assert.ok(snapshot.accounts.every(item => !item.inUse));
+  } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test('auth status still rejects an existing corrupt profile file', async () => {
+  fs.writeFileSync(PROFILES_FILE, '{ broken');
+  profileRepo.invalidate();
+  try {
+    await assert.rejects(() => getAuthStatus(), /JSON|Unexpected|property name/i);
+  } finally {
+    fs.rmSync(PROFILES_FILE, { force: true });
+    profileRepo.invalidate();
   }
 });

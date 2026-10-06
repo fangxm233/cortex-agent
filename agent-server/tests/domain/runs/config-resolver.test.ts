@@ -133,3 +133,24 @@ test('a corrupt profiles.json yields the documented floor instead of throwing', 
   assert.equal(cfg.profile.backend, 'claude');
   assert.equal(cfg.profile.mode, 'plan');
 });
+
+test('configured default is absent before provider setup, without inventing a profile', async () => {
+  const { resolveConfiguredDefaultRun } = await freshResolver();
+  assert.equal(resolveConfiguredDefaultRun(), null);
+});
+
+test('configured default retains the selected profile and rejects a corrupt file', async () => {
+  seed({ activeProfile: 'global' });
+  const first = await freshResolver();
+  assert.equal(first.resolveConfiguredDefaultRun()?.profileName, 'global');
+  writeFileSync(PROFILES, '{ broken');
+  const second = await freshResolver();
+  assert.throws(() => second.resolveConfiguredDefaultRun());
+});
+
+test('configured default rejects invalid profile schema rather than treating it as first install', async () => {
+  seed({ activeProfile: 'global' });
+  writeFileSync(PROFILES, JSON.stringify({ defaultProfile: 'missing', profiles: {} }));
+  const { resolveConfiguredDefaultRun } = await freshResolver();
+  assert.throws(() => resolveConfiguredDefaultRun());
+});

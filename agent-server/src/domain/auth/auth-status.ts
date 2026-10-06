@@ -4,7 +4,7 @@
 import { readClaudeStore } from '@core/claude-credentials.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
-import { resolveRunConfig } from '../runs/config-resolver.js';
+import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
 import { getActiveProfile } from '../agents/config.js';
 import { getSavedApiEnv as readSavedApiEnv } from './anthropic-env.js';
 import {
@@ -382,12 +382,12 @@ function defaultActiveProfileConfig(): ActiveProfileReference {
 
 /** The backend and Claude mode a channel with no selection of its own will run (D5): the default
  *  profile's, replacing the retired daemon-wide `backend` / `claudeMode` fields. */
-function defaultRunBackend(): Backend {
-  return resolveRunConfig().profile.backend;
+function defaultRunBackend(): Backend | null {
+  return resolveConfiguredDefaultRun()?.profile.backend ?? null;
 }
 
 function defaultClaudeMode(): string {
-  return resolveRunConfig().profile.mode ?? 'plan';
+  return resolveConfiguredDefaultRun()?.profile.mode ?? 'plan';
 }
 
 function collectInUse(options: GetAuthStatusOptions): InUseAccounts {

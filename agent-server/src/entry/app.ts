@@ -101,7 +101,7 @@ import { deliverToSession } from '@orch/session-gateway.js';
 import { setOrchestrationRuntime } from '@orch/runtime.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
 import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
-import { resolveRunConfig } from '@domain/runs/config-resolver.js';
+import { resolveConfiguredDefaultRun } from '@domain/runs/config-resolver.js';
 import { compactActiveSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
 import { createTuiSessionService } from '@domain/tui-session/index.js';
@@ -604,10 +604,12 @@ installSigtermShutdown(shutdownHandles);
   }).catch(() => {});
   // D5: there is no global backend any more — the default profile's is what a channel with no
   // selection of its own will use, and that is what belongs in the banner.
-  const bootConfig = resolveRunConfig();
+  const bootConfig = resolveConfiguredDefaultRun();
+  const profileSummary = bootConfig
+    ? `profile: ${bootConfig.profileName} · backend: ${bootConfig.profile.backend}`
+    : 'provider setup required';
   log.info(
-    `Cortex agent is running (${adapter.name}) — profile: ${bootConfig.profileName}`
-    + ` · backend: ${bootConfig.profile.backend}`
+    `Cortex agent is running (${adapter.name}) — ${profileSummary}`
     + ` · boot ${Math.round(performance.now())}ms (imports ${importsMs}ms)`,
   );
 })();
