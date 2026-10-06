@@ -77,7 +77,17 @@ export function splitFrontmatter(content: string): { frontmatter: Frontmatter | 
   return { frontmatter: { entries, summary }, body };
 }
 
-const INLINE_RE = /(?<bold>\*\*[^*]+\*\*)|(?<code>(?<ticks>`+)(?<codeText>.*?)\k<ticks>)|(?<image>!\[(?<alt>[^\]]*)\]\((?<src>[^)]+)\))|(?<link>\[(?<linkText>[^\]]+)\]\((?<href>[^)]+)\))|(?<italicStar>\*[^*]+\*)|(?<italicUnderscore>_[^_]+_)/;
+/** A link or image target: any run without parentheses, plus balanced pairs nested up to two deep,
+ *  so `https://en.wikipedia.org/wiki/Rust_(programming_language)` stays whole. */
+const TARGET = String.raw`(?:[^()]|\((?:[^()]|\([^()]*\))*\))+`;
+const INLINE_RE = new RegExp([
+  String.raw`(?<bold>\*\*[^*]+\*\*)`,
+  String.raw`(?<code>(?<ticks>\x60+)(?<codeText>.*?)\k<ticks>)`,
+  String.raw`(?<image>!\[(?<alt>[^\]]*)\]\((?<src>${TARGET})\))`,
+  String.raw`(?<link>\[(?<linkText>[^\]]+)\]\((?<href>${TARGET})\))`,
+  String.raw`(?<italicStar>\*[^*]+\*)`,
+  String.raw`(?<italicUnderscore>_[^_]+_)`,
+].join('|'));
 const INLINE_KINDS = ['bold', 'code', 'image', 'link', 'italicStar', 'italicUnderscore'] as const;
 
 type InlineKind = (typeof INLINE_KINDS)[number];

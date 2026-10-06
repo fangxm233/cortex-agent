@@ -232,3 +232,44 @@ describe('link scheme filter', () => {
     expect(parseInline(`see [click me](${href}) now`)).toEqual([{ type: 'text', text: 'see click me now' }]);
   });
 });
+
+describe('link targets with parentheses', () => {
+  it('keeps balanced parentheses inside a link target', () => {
+    const href = 'https://en.wikipedia.org/wiki/Rust_(programming_language)';
+    expect(parseInline(`see [Rust](${href}) for more`)).toEqual([
+      { type: 'text', text: 'see ' },
+      { type: 'link', text: 'Rust', href },
+      { type: 'text', text: ' for more' },
+    ]);
+  });
+
+  it('keeps two levels of nesting and several pairs', () => {
+    expect(parseInline('[a](https://x.org/A_(B_(C)))')).toEqual([{ type: 'link', text: 'a', href: 'https://x.org/A_(B_(C))' }]);
+    expect(parseInline('[a](https://x.org/(1)_(2))')).toEqual([{ type: 'link', text: 'a', href: 'https://x.org/(1)_(2)' }]);
+  });
+
+  it('still ends the target at the first unmatched parenthesis', () => {
+    expect(parseInline('[a](https://x.org/b) (note)')).toEqual([
+      { type: 'link', text: 'a', href: 'https://x.org/b' },
+      { type: 'text', text: ' (note)' },
+    ]);
+    expect(parseInline('([a](https://x.org/b))')).toEqual([
+      { type: 'text', text: '(' },
+      { type: 'link', text: 'a', href: 'https://x.org/b' },
+      { type: 'text', text: ')' },
+    ]);
+  });
+
+  it('keeps balanced parentheses in an image source', () => {
+    expect(parseInline('![plot](figs/run_(3).png)')).toEqual([{ type: 'image', alt: 'plot', src: 'figs/run_(3).png' }]);
+  });
+
+  it('applies the scheme filter to the whole target', () => {
+    expect(parseInline('[x](javascript:alert(document.cookie)) after')).toEqual([{ type: 'text', text: 'x after' }]);
+    expect(parseInline('[x](JaVaScRiPt:void(0))')).toEqual([{ type: 'text', text: 'x' }]);
+  });
+
+  it('leaves code spans that contain links untouched', () => {
+    expect(parseInline('`[a](b(c))`')).toEqual([{ type: 'code', text: '[a](b(c))' }]);
+  });
+});
