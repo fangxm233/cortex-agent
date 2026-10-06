@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVocab, type Vocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
@@ -22,6 +22,7 @@ import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './Debug
 import { MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote } from './MessageEdit';
 import { ChatNotice } from './ChatNotice';
 import { useTranscriptWindow } from './useTranscriptWindow';
+import { useStickToBottom } from './useStickToBottom';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
@@ -616,9 +617,6 @@ function scrollToAnchor(el: HTMLElement | null, row: number): void {
 export function MessageStream({ rows, loading, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
-  // scrolling back to the bottom re-pins it.
-  const stickRef = useRef(true);
 
   // The session's own table of contents — one mark per prompt (see ChatNavRail).
   const marks = useMemo(() => buildNavMarks(rows), [rows]);
@@ -654,12 +652,12 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
 
   // Only the tail of a long transcript is mounted; scrolling toward the top mounts more.
   const win = useTranscriptWindow({ total: rows.length, streamKey, settled: !loading, scrollRef });
+  // Pinned to the latest message while it streams; a scroll-up releases it, scrolling back re-pins.
+  // The stream outlives a session switch (same pane, new rows), so another session re-pins too.
+  const stick = useStickToBottom(scrollRef, contentRef, { streamKey, changes: [rows, loading] });
 
   const onScroll = (): void => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickRef.current = distanceFromBottom < 40;
+    stick.onScroll();
     scheduleSync();
     win.onScroll();
   };
@@ -668,24 +666,9 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
   // Releasing the pin first matters — without it the next streamed frame would yank the view back
   // to the bottom mid-scroll. A prompt above the mounted window is mounted first.
   const jumpTo = (row: number): void => {
-    stickRef.current = false;
+    stick.release();
     win.reveal(row, () => scrollToAnchor(scrollRef.current, row));
   };
-
-  // The stream outlives a session switch (same pane, new rows), so without this a session would open
-  // at whatever offset the previous one was left at, with its released pin. Another session always
-  // opens at its latest message. Layout phase, so the old offset is never painted.
-  useLayoutEffect(() => {
-    stickRef.current = true;
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [streamKey]);
-
-  // After every content change, keep the view pinned to the bottom IF the user hasn't scrolled up.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [rows, loading]);
 
   // New rows move every mark below them, so the active one is re-read after each change too.
   useEffect(() => {
@@ -694,23 +677,6 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
 
   useEffect(() => () => {
     if (syncRaf.current && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(syncRaf.current);
-  }, []);
-
-  // …and keep it pinned while the content GROWS between row changes. The streamed reply is revealed
-  // character by character, so the block gets taller many times per row change; without this the
-  // line being written slides under the bottom edge (measured: up to one line) and snaps back only
-  // when the next delta arrives, which reads as a twitch under otherwise smooth text. Observing the
-  // content box catches every cause of growth (the reveal, a late-loading image, markdown reflow)
-  // and writes scrollTop directly — no React state, so it costs no render.
-  useEffect(() => {
-    const el = scrollRef.current;
-    const content = contentRef.current;
-    if (!el || !content || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => {
-      if (stickRef.current) el.scrollTop = el.scrollHeight;
-    });
-    ro.observe(content);
-    return () => ro.disconnect();
   }, []);
 
   // Publish the pane's usable width so a block that should not obey the prose column can break out

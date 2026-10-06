@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
 import { useTranscriptWindow } from '@/features/session/transcript/useTranscriptWindow';
+import { useStickToBottom } from '@/features/session/transcript/useStickToBottom';
 import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/session/transcript/SubagentTranscriptDetail';
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
@@ -319,6 +320,9 @@ function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): J
 
 const DIM: CSSProperties = { opacity: 0.35, pointerEvents: 'none' };
 
+/** How long a tap inside the stream holds auto-scroll, so what it expanded stays in view. */
+const TAP_FREEZE_MS = 800;
+
 interface StreamContext {
   interactions?: MChatInteractions;
   streamKey?: string;
@@ -564,52 +568,21 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
   );
 }
 
-/** Open the session at the latest message and keep it pinned to the bottom as content streams in —
- *  releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the desktop
- *  MessageStream stick-to-bottom behaviour. Only the tail of a long transcript is mounted; scrolling
- *  toward the top mounts more. */
+/** Only the tail of a long transcript is mounted; scrolling toward the top mounts more. The view
+ *  opens at the latest message and stays pinned while it streams (the desktop MessageStream's
+ *  rule), except just after a tap inside the stream, which may have expanded a row. */
 function useTranscriptScroll(props: MChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
-  // Suppress auto-scroll briefly after user taps inside the stream (e.g. expanding a tool row),
-  // so expanded content doesn't scroll out of view on the next streaming tick.
-  const tapFreezeUntil = useRef(0);
   const win = useTranscriptWindow({ total: props.rows.length, streamKey: props.sessionId, settled: !props.loading, scrollRef });
+  const stick = useStickToBottom(scrollRef, contentRef, {
+    streamKey: props.sessionId, changes: [props.rows, props.systemLines], freezeMs: TAP_FREEZE_MS,
+  });
   const onScroll = (): void => {
-    const el = scrollRef.current;
-    if (!el) return;
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    stick.onScroll();
     win.onScroll();
   };
-  const onContentClick = (): void => {
-    tapFreezeUntil.current = Date.now() + 800;
-  };
-  // After every content change (entry, streaming delta, profile system-line) keep the view pinned to
-  // the bottom IF the user hasn't scrolled up — identical to the desktop MessageStream effect.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el && stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
-  }, [props.rows, props.systemLines]);
-
-  // …and keep it pinned while the content GROWS between row changes. Token-level streaming reveals
-  // the reply character by character, so the block gets taller many times per row change; without
-  // this the line being written slides under the bottom edge and snaps back only when the next delta
-  // lands, which reads as a twitch under otherwise smooth text. Observing the content box catches
-  // every cause of growth (the reveal, a late-loading image, markdown reflow) and writes scrollTop
-  // directly — no React state, so it costs no render. Mirrors the desktop MessageStream observer,
-  // and respects the same tap freeze as the row effect above.
-  useEffect(() => {
-    const el = scrollRef.current;
-    const content = contentRef.current;
-    if (!el || !content || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => {
-      if (stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
-    });
-    ro.observe(content);
-    return () => ro.disconnect();
-  }, []);
-  return { scrollRef, contentRef, win, onScroll, onContentClick };
+  return { scrollRef, contentRef, win, onScroll, onContentClick: stick.freeze };
 }
 
 const HEADER_BOTTOM = `var(${HEADER_BOTTOM_VAR})`;
