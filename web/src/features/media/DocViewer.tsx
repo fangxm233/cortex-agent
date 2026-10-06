@@ -1,11 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { PDFPageProxy } from 'pdfjs-dist';
 import '@/design/content-surfaces.css';
-import { fileDownloadUrl } from '@/lib/files';
 import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { useVocabOptional } from '@/i18n';
-import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { useDockIntake } from '@/design/dock-intake';
 import { isMarkdownName } from './doc-kind';
@@ -13,12 +12,14 @@ import type { DocItem } from './preview-item';
 import { HtmlBody } from './HtmlBody';
 import { useWorkspaceText } from './useWorkspaceText';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
+import { PDF_RENDER_SCALE, PdfPreview, type PdfPageCanvas, type PdfPageSize } from './pdf-preview';
+import { fetchWorkspaceBytes } from './workspace-bytes';
 
 // Shared in-app document previewer — the single inline viewer for agent-sent (and user-uploaded)
 // PDF + text files on web AND mobile. Opening a document NEVER opens a new browser tab (a no-op in the
 // Tauri WebView); it raises this full-screen modal (scrim + rendered document + download/close).
 // - text/markdown: fetched as text, rendered as Markdown (.md) or a monospace <pre>.
-// - pdf: pdf.js renders each page to a <canvas> (reliable in webkit2gtk / Android System WebView, which
+// - pdf: pdf.js draws pages to <canvas> as they near the viewport (reliable in webkit2gtk / Android System WebView, which
 //   have NO built-in PDF viewer — an <iframe src=blob:pdf> would silently blank there).
 // One instance is mounted per shell (ShellProviders) and opened via useDocViewer().openDoc(item).
 //
@@ -28,6 +29,7 @@ import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 // dock beside the chat, and from then on `openDoc` opens (or focuses) a tab instead of a modal.
 
 const TEXT_PREVIEW_LIMIT = 2 * 1024 * 1024; // 2 MB — beyond this, prompt to download instead.
+const PDF_PREVIEW_LIMIT = 50 * 1024 * 1024; // 50 MB — likewise for a PDF.
 const mono = "'IBM Plex Mono',monospace";
 
 interface DocViewerContextValue {
@@ -72,7 +74,8 @@ export function TextBody({ item, source = false }: { item: DocItem; source?: boo
   );
 }
 
-/** PDF body — pdf.js renders each page to a canvas. Loads pdf.js lazily on first PDF open.
+/** PDF body — pdf.js draws the pages near the viewport to canvases (see `pdf-preview.ts`). Loads
+ *  pdf.js lazily on first PDF open; a file over `PDF_PREVIEW_LIMIT` is offered as a download.
  *  A page pager (counter + prev/next + jump-to-page) tracks the page under the viewport center.
  *  `actions` are host controls (the dock hangs its download there, since a docked tab has no header
  *  of its own); they keep the bar alive even before the pages exist, so a PDF that fails to render
@@ -83,64 +86,58 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<HTMLDivElement[]>([]);
-  const [state, setState] = useState<'loading' | 'ok' | 'failed'>('loading');
+  const [state, setState] = useState<'loading' | 'ok' | 'toolarge' | 'failed'>('loading');
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const { containerRef: zoomRef, style: zoomStyle, zoom, zoomIn, zoomOut, resetZoom } = useZoom({ mode: 'css-zoom', maxScale: 5 });
 
   useEffect(() => {
-    let cancelled = false;
     const container = containerRef.current;
-    if (container) container.innerHTML = '';
+    if (!container) return undefined;
+    let cancelled = false;
+    let observer: IntersectionObserver | null = null;
+    container.replaceChildren();
     pagesRef.current = [];
     setState('loading');
     setNumPages(0);
     setCurrentPage(1);
 
-    (async () => {
-      const [{ getPdfjs }, res] = await Promise.all([
-        import('./pdf-worker'),
-        fetch(fileDownloadUrl(item.path, 'inline'), { headers: authHeaders() }),
-      ]);
-      if (!res.ok) throw new Error(`download failed: ${res.status}`);
-      const data = await res.arrayBuffer();
-      if (cancelled) return;
-      const pdfjs = getPdfjs();
-      const pdf = await pdfjs.getDocument({ data }).promise;
-      if (cancelled) return;
-      setNumPages(pdf.numPages);
-
-      const target = containerRef.current;
-      if (!target) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        if (cancelled) return;
-        const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.5 });
-        const wrapper = document.createElement('div');
-        wrapper.style.maxWidth = `${Math.floor(viewport.width)}px`;
-        wrapper.style.margin = '0 auto 12px';
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
-        canvas.style.width = '100%';
-        canvas.style.height = 'auto';
-        canvas.style.display = 'block';
-        canvas.style.borderRadius = 'var(--r-control)';
-        canvas.style.background = 'var(--media-paper-bg)';
-        canvas.style.boxShadow = 'var(--media-paper-shadow)';
-        ctx.scale(dpr, dpr);
-        wrapper.appendChild(canvas);
-        target.appendChild(wrapper);
-        pagesRef.current.push(wrapper);
-        await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+    const slots: HTMLDivElement[] = [];
+    const preview = new PdfPreview<PDFPageProxy>(pageCanvas(slots, Math.min(window.devicePixelRatio || 1, 2)));
+    preview.open({
+      fetchBytes: (signal) => fetchWorkspaceBytes(item.path, PDF_PREVIEW_LIMIT, signal),
+      loadPdfjs: async () => (await import('./pdf-worker')).getPdfjs(),
+    }).then((opened) => {
+      if (cancelled || opened.kind === 'closed') return;
+      if (opened.kind === 'toolarge') {
+        setState('toolarge');
+        return;
       }
-      if (!cancelled) setState('ok');
-    })().catch(() => { if (!cancelled) setState('failed'); });
+      for (let pageNumber = 1; pageNumber <= opened.numPages; pageNumber++) {
+        const slot = pageSlot(opened.pageSize);
+        slot.dataset.page = String(pageNumber);
+        container.appendChild(slot);
+        slots.push(slot);
+      }
+      pagesRef.current = slots;
+      // Pages within a screen above or below the visible part are drawn; the rest stay blank sheets.
+      observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          const pageNumber = Number((entry.target as HTMLElement).dataset.page);
+          if (entry.isIntersecting) preview.show(pageNumber);
+          else preview.hide(pageNumber);
+        }
+      }, { root: scrollRef.current, rootMargin: '100% 0px' });
+      for (const slot of slots) observer.observe(slot);
+      setNumPages(opened.numPages);
+      setState('ok');
+    }).catch(() => { if (!cancelled) setState('failed'); });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      preview.close();
+    };
   }, [item.path]);
 
   const pageBoxes = useCallback((): PageBox[] => {
@@ -186,10 +183,55 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
       >
         {state === 'loading' && <Centered>{L.mediaPdfLoading}</Centered>}
         {state === 'failed' && <Centered failed>{L.mediaPdfFailed.replace('{name}', item.name)}</Centered>}
+        {state === 'toolarge' && <Centered>{L.mediaTextTooLarge}</Centered>}
         <div ref={containerRef} style={{ ...zoomStyle, maxWidth: 900, margin: '0 auto' }} />
       </div>
     </div>
   );
+}
+
+/** A page's place in the document: sized like the page before it is drawn, so the scroll height,
+ *  the pager and jump-to-page are right from the start. */
+function pageSlot(size: PdfPageSize): HTMLDivElement {
+  const slot = document.createElement('div');
+  slot.style.margin = '0 auto 12px';
+  slot.style.overflow = 'hidden';
+  slot.style.borderRadius = 'var(--r-control)';
+  slot.style.background = 'var(--media-paper-bg)';
+  slot.style.boxShadow = 'var(--media-paper-shadow)';
+  sizeSlot(slot, size);
+  return slot;
+}
+
+function sizeSlot(slot: HTMLDivElement, size: PdfPageSize): void {
+  slot.style.maxWidth = `${Math.floor(size.width)}px`;
+  slot.style.aspectRatio = `${size.width} / ${size.height}`;
+}
+
+function pageCanvas(slots: HTMLDivElement[], dpr: number): PdfPageCanvas<PDFPageProxy> {
+  return {
+    draw(pageNumber, page) {
+      const slot = slots[pageNumber - 1];
+      const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
+      sizeSlot(slot, viewport);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.display = 'block';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      slot.replaceChildren(canvas);
+      return page.render({ canvas, viewport, transform: dpr === 1 ? undefined : [dpr, 0, 0, dpr, 0, 0] });
+    },
+    clear(pageNumber) {
+      const canvas = slots[pageNumber - 1]?.querySelector('canvas');
+      if (!canvas) return;
+      // Zero the backing store so the memory goes now, not whenever the canvas is collected.
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas.remove();
+    },
+  };
 }
 
 /** Page pager toolbar — prev/next + an editable "N / total" jump field + zoom controls, plus any
