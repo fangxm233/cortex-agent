@@ -147,21 +147,21 @@ def test_every_committed_bundle_ships_what_its_arm_declares() -> None:
         assert profiles["defaultProfile"] == bundle.profile_name
         assert bundle.profile_name in profiles["profiles"]
         assert profiles["profiles"][bundle.profile_name]["thinking"] == bundle.thinking
-        mode = read_json(home / "data/mode.json")
-        assert mode["activeProfile"] == bundle.profile_name
-        assert mode["defaultAgent"] == bundle.environment
+        state = read_json(home / "data/agent-state.json")
+        assert state == {
+            "activeProfile": bundle.profile_name, "defaultAgent": bundle.environment,
+        }
         for field, kind in (("directive", "directives"), ("systemPrompt", "systemPrompts")):
             reference = str(environment[field])
             assert reference.startswith("file:")
             assert (home / "prompts" / kind / reference[len("file:"):]).is_file()
         for required in (
-            "config/machines.json", "config/settings.json",
-            "context/projects/general/TASKS.yaml", "data/schedules.json",
+            "config/machines.json", "config/settings.json", "data/schedules.json",
         ):
             assert (home / required).is_file()
 
 
-def test_the_provider_pair_differs_in_exactly_two_files() -> None:
+def test_the_provider_pair_differs_in_exactly_one_file() -> None:
     """The direct arm exists twice, once per provider. If the pair differed anywhere else, a
     provider comparison would be measuring that difference too."""
     pair = {bundle.provider: bundle for bundle in PRODUCTION_ARM_BUNDLES}
@@ -174,7 +174,7 @@ def test_the_provider_pair_differs_in_exactly_two_files() -> None:
         for path in sorted(left.rglob("*")) if path.is_file()
         and (right / path.relative_to(left)).read_bytes() != path.read_bytes()
     }
-    assert differing == {"config/profiles.json", "data/mode.json"}
+    assert differing == {"config/profiles.json"}
     assert sorted(path.relative_to(left).as_posix()
                   for path in left.rglob("*") if path.is_file()) == sorted(
         path.relative_to(right).as_posix()

@@ -120,9 +120,9 @@ def _assert_bundle_environment(bundle: ProductionArmBundle) -> None:
         )
 
 
-# The direct arm exists twice, once per provider. The pair differs in exactly two committed files --
-# the profile's provider/model/thinking and the mode's claudeModel -- and in nothing else, so the
-# pair is a controlled comparison of providers rather than of two arms that happen to share a name.
+# The direct arm exists twice, once per provider. The pair differs in exactly one committed file --
+# the profile's provider/model/thinking -- and in nothing else, so the pair is a controlled
+# comparison of providers rather than of two arms that happen to share a name.
 # Written out per bundle rather than generated, because the bundle directory it names is a
 # committed tree that has to exist.
 CODEX_PROVIDER = {

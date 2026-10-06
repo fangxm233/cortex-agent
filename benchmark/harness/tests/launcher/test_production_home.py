@@ -71,6 +71,8 @@ EXPECTED_ENVIRONMENT = {
     "pluginDirs": [], "mcpComposition": "none", "mcpToolAllowlist": [],
     "disableHooks": True,
 }
+# The server's own agent-state shape: the selection only, no retired backend/model globals.
+EXPECTED_AGENT_STATE = {"activeProfile": "direct", "defaultAgent": "main"}
 EXPECTED_CODEX_PROFILE = {
     "defaultProfile": "direct",
     "profiles": {"direct": {
@@ -238,12 +240,9 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
     assert not (home / "config/thread-templates").exists()
     assert read_json(home / "config/machines.json") == {}
     assert read_json(home / "data/schedules.json") == {"tasks": []}
-    assert read_json(home / "data/mode.json") == {
-        "mode": "api", "claudeMode": "api", "backend": "pi",
-        "claudeModel": "deepseek-v4-flash", "activeProfile": "direct",
-        "defaultAgent": "main", "channelProfiles": {},
-    }
-    assert (home / "context/projects/general/TASKS.yaml").read_text() == "tasks: []\n"
+    assert read_json(home / "data/agent-state.json") == EXPECTED_AGENT_STATE
+    assert not (home / "data/mode.json").exists()
+    assert list((home / "context/projects/general").iterdir()) == []
     # The bundle is the only copy of these prompts. `agent-server/defaults` carried a second one
     # that this test byte-compared against, but the architecture that read it (arm_resolution.py
     # and policy-compiler.ts) was removed in 6102a101 and the orphaned copy was deleted with it.
@@ -258,11 +257,7 @@ def test_direct_openai_codex_bundle_seals_its_xhigh_profile(tmp_path: Path) -> N
 
     assert read_json(home / "config/profiles.json") == EXPECTED_CODEX_PROFILE
     assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
-    assert read_json(home / "data/mode.json") == {
-        "mode": "api", "claudeMode": "api", "backend": "pi",
-        "claudeModel": "gpt-5.6-sol", "activeProfile": "direct",
-        "defaultAgent": "main", "channelProfiles": {},
-    }
+    assert read_json(home / "data/agent-state.json") == EXPECTED_AGENT_STATE
 
 
 def test_declared_output_cap_is_projected_into_the_sealed_profile(tmp_path: Path) -> None:
@@ -464,8 +459,6 @@ def test_the_whole_context_tree_stays_read_only(tmp_path: Path) -> None:
     home = materialize(tmp_path).cortex_home
 
     assert stat.S_IMODE((home / "context/projects/general").stat().st_mode) == 0o555
-    assert stat.S_IMODE(
-        (home / "context/projects/general/TASKS.yaml").stat().st_mode) == 0o444
 
 
 def test_the_evidence_context_reaches_the_server_only_through_the_session_start(

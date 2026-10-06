@@ -20,6 +20,9 @@ LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
 # directory may not be called `home`: that spelling made the gateway logging its own config path
 # indistinguishable from a host home path and refused an otherwise complete trial.
 CONTAINER_HOME_DIR = "container-home"
+# The project every benchmark session opens in. It has to exist before boot: the server scaffolds a
+# missing one by writing STATUS.md/AGENTS.md into the home, and the sealed `context` tree is read-only.
+GENERAL_PROJECT_DIR = "context/projects/general"
 BACKEND_CLI_NAME = "pi"
 PI_DUMMY_OAUTH_EXPIRES_MS = 4_102_444_800_000
 PI_DUMMY_OAUTH_REFRESH = "dummy-refresh-never-forward"
@@ -189,6 +192,7 @@ def _write_bytes(path: Path, payload: bytes) -> None:
 def _copy_snapshot(snapshot: _TreeSnapshot, destination: Path) -> None:
     for relative, payload in snapshot.files:
         _write_bytes(destination / relative, payload)
+    (destination / GENERAL_PROJECT_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def _pi_auth(bundle: ProductionArmBundle, dummy_token_ref: str) -> dict[str, object]:
