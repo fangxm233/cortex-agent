@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
-import { fmt, type Vocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import { clockTime } from '@/i18n/time-format';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
@@ -50,15 +50,15 @@ function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 
  * Bare message actions: copy, optional edit, and an optional composed action. Copy flips to a green
  * ✓ + tooltip for 1.5s; edit greys out while running. Attachment-only rows can hide copy.
  */
-export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = true, extraAction }: {
+export function MessageActions({ text, onEdit, editDisabled, showCopy = true, extraAction }: {
   text: string;
-  copy: Vocab;
   /** Present → the edit button renders (user messages only). */
   onEdit?: () => void;
   editDisabled?: boolean;
   showCopy?: boolean;
   extraAction?: React.ReactNode;
 }): JSX.Element {
+  const copy = useVocab();
   const { copiedKey, copy: writeCopy } = useClipboardFeedback<true>(1500);
   const [editHover, setEditHover] = useState(false);
   const copied = copiedKey === true;
@@ -112,13 +112,13 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
  * In-place bubble edit box (23a middle column): the user bubble becomes an accent-ringed editor
  * with an Esc/⌘↩ hint + 取消 / 发送并回退 footer. `busy` disables the send while the mutation runs.
  */
-export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
+export function EditBox({ initialText, onCancel, onSubmit, busy }: {
   initialText: string;
-  copy: Vocab;
   onCancel: () => void;
   onSubmit: (text: string) => void;
   busy: boolean;
 }): JSX.Element {
+  const copy = useVocab();
   const [text, setText] = useState(initialText);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -187,7 +187,8 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
 }
 
 /** Amber discard note under the edit box (23a): 发送后回退其后 N 条回复 · M 次工具调用作废. */
-export function RewindNote({ replies, toolCalls, copy }: { replies: number; toolCalls: number; copy: Vocab }): JSX.Element {
+export function RewindNote({ replies, toolCalls }: { replies: number; toolCalls: number }): JSX.Element {
+  const copy = useVocab();
   return (
     <div style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, font: `500 11px ${mono}`, color: 'var(--proto-amber-text)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
@@ -201,7 +202,8 @@ export function RewindNote({ replies, toolCalls, copy }: { replies: number; tool
 
 /** Dimmed to-be-rewound tail (23a right of the edit box): a「将被回退」badge over the 35%-opacity
  *  block of every row after the one being edited. */
-export function RewindTail({ children, copy }: { children: React.ReactNode; copy: Vocab }): JSX.Element {
+export function RewindTail({ children }: { children: React.ReactNode }): JSX.Element {
+  const copy = useVocab();
   return (
     <div style={{ position: 'relative', marginTop: 6 }}>
       <span style={{ position: 'absolute', top: -4, right: 0, font: `600 11px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2px 7px', borderRadius: 'var(--r-chip)', zIndex: 1 }}>
@@ -225,12 +227,12 @@ function timeHHMM(ts: string | undefined): string | null {
  * 「已编辑」badge under an edited user bubble (23a right column) — hover raises the original-message
  * card (原消息 · HH:MM + original text).
  */
-export function EditedBadge({ edited, ts, copy }: {
+export function EditedBadge({ edited, ts }: {
   edited: { originalText: string; originalTs: string };
   /** The edited (current) message's ts — stamps 已编辑 · HH:MM. */
   ts?: string;
-  copy: Vocab;
 }): JSX.Element {
+  const copy = useVocab();
   const [hover, setHover] = useState(false);
   const editedAt = timeHHMM(ts);
   const originalAt = timeHHMM(edited.originalTs);
@@ -267,7 +269,8 @@ export function EditedBadge({ edited, ts, copy }: {
 }
 
 /** 「由编辑重新生成」footnote atop the first regenerated reply after an edited message. */
-export function RegenNote({ copy }: { copy: Vocab }): JSX.Element {
+export function RegenNote(): JSX.Element {
+  const copy = useVocab();
   return (
     <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />

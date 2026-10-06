@@ -1,14 +1,14 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { en } from '@/i18n';
+import { LangProvider } from '@/i18n';
 import { EditBox } from './MessageEdit';
 
 describe('inline message editor', () => {
   it('uses an unfiltered card and stable input without changing keyboard actions', () => {
     const onCancel = vi.fn();
     const onSubmit = vi.fn();
-    const tree = create(<EditBox initialText="Revised prompt" copy={en}
-      onCancel={onCancel} onSubmit={onSubmit} busy={false} />);
+    const tree = create(<LangProvider><EditBox initialText="Revised prompt"
+      onCancel={onCancel} onSubmit={onSubmit} busy={false} /></LangProvider>);
     const input = tree.root.findByType('textarea');
     expect(input.parent!.props.style.background).toBe('var(--material-card-bg)');
     expect(input.parent!.props.style.backdropFilter).toBeUndefined();
@@ -22,8 +22,8 @@ describe('inline message editor', () => {
 
   it('keeps busy submission disabled', () => {
     const onSubmit = vi.fn();
-    const tree = create(<EditBox initialText="Revised prompt" copy={en}
-      onCancel={vi.fn()} onSubmit={onSubmit} busy />);
+    const tree = create(<LangProvider><EditBox initialText="Revised prompt"
+      onCancel={vi.fn()} onSubmit={onSubmit} busy /></LangProvider>);
     expect(tree.root.findAllByType('button').at(-1)!.props.disabled).toBe(true);
     act(() => tree.root.findByType('textarea').props.onKeyDown({ key: 'Enter', metaKey: true, preventDefault: vi.fn() }));
     expect(onSubmit).not.toHaveBeenCalled();

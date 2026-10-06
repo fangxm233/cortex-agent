@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useVocab, type Vocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
 import { ChatNavRail } from './ChatNavRail';
@@ -74,7 +74,7 @@ function Divider({ text }: { text: string }): JSX.Element {
   );
 }
 
-function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending, debug, anchor, label }: {
+function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdit, editDisabled, pending, debug, anchor, label }: {
   text: string;
   /** Who sent it when it was not the human at this keyboard (a lead session, in team mode). */
   label?: string;
@@ -84,8 +84,8 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
    *  Absent in nested (subagent) transcripts, which have no rail. */
   anchor?: number;
   edited?: { originalText: string; originalTs: string };
-  /** Present → the sec-23 hover copy/edit affordances render. */
-  editCopy?: Vocab;
+  /** True → the sec-23 hover copy/edit affordances and the edited badge render. */
+  actions?: boolean;
   /** Present → the pill carries the edit button (rewind-capable rows only). */
   onStartEdit?: () => void;
   editDisabled?: boolean;
@@ -151,7 +151,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           </div>
         </div>
       )}
-      {(timeLabel || (editCopy && (text || debug))) && (
+      {(timeLabel || (actions && (text || debug))) && (
         <div
           className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
           style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}
@@ -161,10 +161,9 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
               {timeLabel}
             </span>
           )}
-          {editCopy && (text || debug) && (
+          {actions && (text || debug) && (
             <MessageActions
               text={text}
-              copy={editCopy}
               showCopy={!!text}
               onEdit={text ? onStartEdit : undefined}
               editDisabled={editDisabled}
@@ -180,7 +179,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
       )}
       <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
       {/* 已编辑 badge + hover original card (sec-23 right column) */}
-      {editCopy && edited && <EditedBadge edited={edited} ts={ts} copy={editCopy} />}
+      {actions && edited && <EditedBadge edited={edited} ts={ts} />}
     </div>
   );
 }
@@ -285,26 +284,24 @@ function SystemHintRow({ origin, text, ts, pending, debug, expandable = false }:
   );
 }
 
-function TurnCopyAction({ text, copy }: { text?: string; copy?: Vocab }): JSX.Element | null {
-  if (!text || !copy) return null;
+function TurnCopyAction({ text }: { text?: string }): JSX.Element | null {
+  if (!text) return null;
   return (
     <div
       data-assistant-turn-copy="true"
       className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
       style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}
     >
-      <MessageActions text={text} copy={copy} />
+      <MessageActions text={text} />
     </div>
   );
 }
 
-function AssistantBlock({ text, attachments, decisions, editCopy, copyText, regen, preview, streamKey }: {
+function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey }: {
   text: string;
   attachments?: Attachment[];
   /** Decisions announced with this row (send_decision) — cards hang under the text. */
   decisions?: DecisionItem[];
-  /** Shared copy labels for regenerated notes and the optional whole-turn copy action. */
-  editCopy?: Vocab;
   /** Present only on the final assistant row in a turn. */
   copyText?: string;
   /** True → the「由编辑重新生成」footnote renders atop this block. */
@@ -321,14 +318,14 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
       className="group"
       style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.7, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
     >
-      {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
+      {regen && <div style={{ marginBottom: 4 }}><RegenNote /></div>}
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
           composer already reports the running turn, so a blinking block only adds noise. The
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
       {shown.trim() && <ChatMarkdown text={shown} renderMath wideTables />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
       {!!decisions && decisions.length > 0 && <DecisionCardGroup decisions={decisions} sessionId={streamKey} />}
-      <TurnCopyAction text={copyText} copy={editCopy} />
+      <TurnCopyAction text={copyText} />
     </div>
   );
 }
@@ -410,10 +407,11 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor }: {
+function Row({ row, interactionActions, actions = false, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor }: {
   row: ChatRow;
   interactionActions?: InteractionActions;
-  editCopy?: Vocab;
+  /** True → user bubbles carry their copy/edit affordances (off for the rows around an open edit). */
+  actions?: boolean;
   assistantCopyText?: string;
   onStartEdit?: () => void;
   editDisabled?: boolean;
@@ -431,7 +429,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       if (row.systemOrigin && systemOriginDisplay(row.systemOrigin) === 'bubble') {
         // A lead's message to its worker: the bubble it is, labelled with its sender; copyable but
         // not editable — there is no human turn here to rewind to.
-        return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} editCopy={editCopy} pending={row.pending} debug={row.debug} label={systemOriginLabel(row.systemOrigin, L)} />;
+        return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} actions={actions} pending={row.pending} debug={row.debug} label={systemOriginLabel(row.systemOrigin, L)} />;
       }
       if (row.systemOrigin) {
         // No affordance of its own (see SystemHintRow) — but it can be the last row of a running
@@ -440,11 +438,11 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
           <div className="group">
             <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug}
               expandable={systemOriginDisplay(row.systemOrigin) === 'expandable'} />
-            <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+            <TurnCopyAction text={assistantCopyText} />
           </div>
         );
       }
-      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
+      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} actions={actions} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
     case 'tools':
       return (
         <div className="group" data-row="tools">
@@ -452,11 +450,11 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
             calls={row.calls.map((c) => ({ kind: c.kind, input: c.input, ...(c.images ? { images: c.images } : {}), ...(c.debug ? { debug: c.debug } : {}) }))}
             sessionId={streamKey}
           />
-          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+          <TurnCopyAction text={assistantCopyText} />
         </div>
       );
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} editCopy={editCopy} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':
       return (
         <div className="group">
@@ -466,14 +464,14 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
             onNoticeAction={interactionActions?.cancelResume}
             noticeActionDone={interactionActions?.resumeCancelled}
           />
-          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+          <TurnCopyAction text={assistantCopyText} />
         </div>
       );
     case 'interaction':
       return (
         <div className="group" style={{ display: 'flex', flexDirection: 'column' }}>
           <InteractionRowCard row={row} actions={interactionActions} />
-          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+          <TurnCopyAction text={assistantCopyText} />
         </div>
       );
     case 'subagent':
@@ -500,7 +498,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
               <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} turnCopy={false} />
             )}
           </SubagentBlock>
-          <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+          <TurnCopyAction text={assistantCopyText} />
         </div>
       );
     default:
@@ -521,7 +519,6 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   anchors?: boolean;
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
   start?: number }): JSX.Element {
-  const editCopy = useVocab();
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
   // shape enough that the anchor no longer matches (guard inside the render below).
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -546,7 +543,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
 
   if (editingValid) {
     return (
-      <EditingRows rows={rows} editingIdx={editingIdx!} from={Math.min(start, editingIdx!)} edit={edit!} editCopy={editCopy}
+      <EditingRows rows={rows} editingIdx={editingIdx!} from={Math.min(start, editingIdx!)} edit={edit!}
         plainRows={plainRows} onDone={() => setEditingIdx(null)} />
     );
   }
@@ -560,7 +557,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
             key={rowKey(row, i)}
             row={row}
             interactionActions={interactionActions}
-            editCopy={editCopy}
+            actions
             assistantCopyText={assistantCopies.get(i)}
             regen={regenIdx.has(i)}
             onStartEdit={edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
@@ -576,12 +573,11 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
 
 /** sec-23 edit mode: the edited bubble becomes an in-place EditBox and the rows after it dim under
  *  the「将被回退」badge. */
-function EditingRows({ rows, editingIdx, from, edit, editCopy, plainRows, onDone }: {
+function EditingRows({ rows, editingIdx, from, edit, plainRows, onDone }: {
   rows: ChatRow[];
   editingIdx: number;
   from: number;
   edit: MessageEditCtx;
-  editCopy: Vocab;
   plainRows: (from: number, to?: number) => JSX.Element[];
   onDone: () => void;
 }): JSX.Element {
@@ -592,7 +588,6 @@ function EditingRows({ rows, editingIdx, from, edit, editCopy, plainRows, onDone
       {plainRows(from, editingIdx)}
       <EditBox
         initialText={er.text}
-        copy={editCopy}
         busy={edit.busy}
         onCancel={onDone}
         onSubmit={(text) => {
@@ -600,8 +595,8 @@ function EditingRows({ rows, editingIdx, from, edit, editCopy, plainRows, onDone
           onDone();
         }}
       />
-      {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} copy={editCopy} />}
-      {editingIdx + 1 < rows.length && <RewindTail copy={editCopy}>{plainRows(editingIdx + 1)}</RewindTail>}
+      {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} />}
+      {editingIdx + 1 < rows.length && <RewindTail>{plainRows(editingIdx + 1)}</RewindTail>}
     </div>
   );
 }
