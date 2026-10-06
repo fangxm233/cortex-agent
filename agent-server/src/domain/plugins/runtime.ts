@@ -6,9 +6,9 @@ import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
 import type { Backend, McpComposition, McpServerConfig } from '../../agent-adapter/types.js';
 import { atomicWriteSync } from '../../core/atomic-write.js';
 import { loadPluginCatalog } from './catalog.js';
-import { pluginMcpRuntime, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
+import { pluginMcpRuntime, portableNamespace, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
 import { realPath } from './fs-helpers.js';
-import { safeClaudeManifestName, safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
+import { safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
 import {
   buildProjectedSkillTree,
   copyProjectedSkillTree,
@@ -50,7 +50,6 @@ interface PortableSkillDetail {
 }
 
 interface PortableRuntimeDetail {
-  namespace: string;
   skills: PortableSkillDetail[];
   projectionDir: string | null;
   mcpServers: McpServerConfig[];
@@ -140,10 +139,6 @@ function catalogEntriesByPath(
     byRealpath.set(root.real, entry);
   }
   return { byAbsolute, byRealpath };
-}
-
-function portableNamespace(entry: PluginCatalogEntry): string {
-  return safeClaudeManifestName(entry.manifest.name?.trim() || entry.id);
 }
 
 function portableRuntimeName(entry: PluginCatalogEntry, serverName: string): string {
@@ -478,7 +473,6 @@ function portableRuntimeDetail(
     selection, claimPortableSkills(selection, portableSkills(selection), claims), runtimeDir, backend,
   );
   return {
-    namespace: portableNamespace(selection.entry),
     skills,
     projectionDir: backend === 'claude'
       ? optionalProjection(selection, skills, runtimeDir, backend)
@@ -577,11 +571,6 @@ function classifySelections(
   return result;
 }
 
-function addUniqueName(seen: Set<string>, name: string, label: string): void {
-  if (seen.has(name)) throw new Error(`Duplicate portable ${label}: ${name}`);
-  seen.add(name);
-}
-
 /** Skill name -> the portable plugin id providing it. A second plugin offering the same name loses
  *  it: two skills answering to one name is a coin flip for the model, and the alternative — refusing
  *  to spawn at all — lets one stale directory turn every agent into a dead one. First selected wins,
@@ -622,8 +611,29 @@ function releaseUnusedClaims(
   }
 }
 
-function collectMcpNames(detail: PortableRuntimeDetail, mcpNames: Set<string>): void {
-  for (const server of detail.mcpServers) addUniqueName(mcpNames, server.name, 'MCP namespace');
+/** Server names are composed from the plugin id and the server's own key, both unique already;
+ *  a collision here means the composition itself is broken, not that the operator erred. */
+function assertUniqueMcpNames(detail: PortableRuntimeDetail, mcpNames: Set<string>): void {
+  for (const server of detail.mcpServers) {
+    if (mcpNames.has(server.name)) throw new Error(`Duplicate portable MCP server name: ${server.name}`);
+    mcpNames.add(server.name);
+  }
+}
+
+/** Plugin namespace -> the portable plugin id holding it. Claude Code addresses a plugin's skills as
+ *  `<namespace>:<skill>`, so two selected plugins under one name are ambiguous. Same rule as a
+ *  duplicated skill: the first selected keeps it and the later plugin is skipped whole, rather than
+ *  failing every spawn of every session that selects both. The catalog reports the clash too. */
+function claimNamespace(namespaces: Map<string, string>, selection: PortableSelection): boolean {
+  const namespace = portableNamespace(selection.entry);
+  const owner = namespaces.get(namespace);
+  if (owner !== undefined) {
+    log.warn(`Skipping plugin '${selection.entry.id}': its name '${namespace}' is already used by `
+      + `selected plugin '${owner}'.`);
+    return false;
+  }
+  namespaces.set(namespace, selection.entry.id);
+  return true;
 }
 
 function collectPortableDetails(
@@ -633,14 +643,14 @@ function collectPortableDetails(
   includePortableMcp: boolean,
 ): { details: Map<string, PortableRuntimeDetail>; skillClaims: SkillClaims } {
   const details = new Map<string, PortableRuntimeDetail>();
-  const namespaces = new Set<string>();
+  const namespaces = new Map<string, string>();
   const claims: SkillClaims = new Map();
   const mcpNames = new Set<string>();
   for (const [id, selection] of portableSelections) {
+    if (!claimNamespace(namespaces, selection)) continue;
     const detail = portableRuntimeDetail(selection, backend, runtimeDir, includePortableMcp, claims);
-    addUniqueName(namespaces, detail.namespace, 'MCP namespace');
     releaseUnusedClaims(claims, id, detail.skills);
-    collectMcpNames(detail, mcpNames);
+    assertUniqueMcpNames(detail, mcpNames);
     details.set(id, detail);
   }
   return { details, skillClaims: claims };

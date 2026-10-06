@@ -6,6 +6,7 @@ import { afterEach, test } from 'vitest';
 import { AGENT_PLUGIN_V1_MCP_SCHEMA_URL, AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL } from '../../../src/domain/plugins/agent-plugins-v1.js';
 import { safeClaudeManifestName, safeNativeComposite } from '@core/native-name.js';
 import { resolvePluginRuntime } from '../../../src/domain/plugins/runtime.js';
+import { loadPluginCatalog } from '../../../src/domain/plugins/catalog.js';
 import { buildProjectedSkillTree, copyProjectedSkillTree } from '../../../src/domain/plugins/skill-projection.js';
 
 interface Harness {
@@ -366,34 +367,44 @@ test('a duplicated skill name does not cost the plugin its other skills', () => 
   assert.ok(resolved.pluginSkillDirs?.some((dir) => /own-skill/.test(dir)));
 });
 
-test('rejects duplicate portable MCP namespaces', () => {
+test('a second plugin under an already-selected name is skipped whole, not fatal', () => {
   const harness = makeHarness();
   portablePlugin(harness, {
     id: 'portable-one',
     name: 'shared.namespace',
+    skills: [{ name: 'one-skill' }],
     mcpServers: { first: { type: 'sse', url: 'https://one.example.com/sse' } },
   });
   portablePlugin(harness, {
     id: 'portable-two',
     name: 'shared.namespace',
+    skills: [{ name: 'two-skill' }],
     mcpServers: { second: { type: 'sse', url: 'https://two.example.com/sse' } },
   });
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-one', 'plugins/portable-two']),
-    /Duplicate portable MCP namespace:/,
-  );
+  const claude = resolveRuntime(harness, ['plugins/portable-one', 'plugins/portable-two']);
+  assert.equal(claude.pluginDirs?.length, 1);
+  assert.match(claude.pluginDirs?.[0] ?? '', /portable-one/);
+  assert.deepEqual(claude.mcpServers?.map((server) => server.name), [safeNativeComposite(['portable-one', 'first'], 'plugin')]);
+
+  // Selection order is the tie-break, as for a duplicated skill name.
+  const pi = resolveRuntime(harness, ['plugins/portable-two', 'plugins/portable-one'], { backend: 'pi' });
+  assert.equal(pi.pluginSkillDirs?.length, 1);
+  assert.match(pi.pluginSkillDirs?.[0] ?? '', /two-skill/);
 });
 
-test('rejects duplicate portable namespaces even when no MCP servers are declared', () => {
+test('the catalog reports a plugin name shared by two portable plugins on both of them', () => {
   const harness = makeHarness();
   portablePlugin(harness, { id: 'portable-one', name: 'shared.namespace' });
   portablePlugin(harness, { id: 'portable-two', name: 'shared.namespace' });
+  portablePlugin(harness, { id: 'portable-three' });
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-one', 'plugins/portable-two']),
-    /Duplicate portable MCP namespace:/,
-  );
+  const entries = loadPluginCatalog({ pluginsDir: harness.pluginsDir, dataDir: harness.dataDir });
+  const codes = (id: string) => entries.find((entry) => entry.id === id)?.issues.map((issue) => issue.code);
+  assert.ok(codes('portable-one')?.includes('manifest_name_duplicate'));
+  assert.ok(codes('portable-two')?.includes('manifest_name_duplicate'));
+  assert.deepEqual(codes('portable-three'), []);
+  assert.equal(entries.find((entry) => entry.id === 'portable-one')?.valid, true);
 });
 
 test('fails closed when an assigned portable package is invalid', () => {

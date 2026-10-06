@@ -17,6 +17,7 @@ import { buildProjectedSkillTree } from './skill-projection.js';
 import {
   formatPath,
   makeIssue,
+  portableNamespace,
   type PluginCatalogEntry,
   type PluginCatalogIssue,
   type PluginCatalogManifest,
@@ -436,8 +437,29 @@ export function loadPluginCatalog(
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
   if (!pathExists(pluginsDir)) return [];
   const pluginsRoot = fs.realpathSync(pluginsDir);
-  return listImmediateChildNames(pluginsRoot)
+  const entries = listImmediateChildNames(pluginsRoot)
     .map((id) => safePluginEntry(id, pluginsRoot, dataDir));
+  flagSharedNamespaces(entries);
+  return entries;
+}
+
+/** A session that selects two portable plugins under one name loads only the first (runtime.ts
+ *  `claimNamespace`). Say so on each of them, where the operator looks at plugin problems. */
+function flagSharedNamespaces(entries: PluginCatalogEntry[]): void {
+  const holders = new Map<string, string[]>();
+  for (const entry of entries) {
+    if (entry.kind !== 'portable' || !entry.valid) continue;
+    const namespace = portableNamespace(entry);
+    holders.set(namespace, [...(holders.get(namespace) ?? []), entry.id]);
+  }
+  for (const entry of entries) {
+    if (entry.kind !== 'portable' || !entry.valid) continue;
+    const others = (holders.get(portableNamespace(entry)) ?? []).filter((id) => id !== entry.id);
+    if (others.length === 0) continue;
+    entry.issues.push(makeIssue('manifest_name_duplicate', 'manifest', 'plugin.json.name',
+      `Plugin name "${portableNamespace(entry)}" is also used by ${others.map((id) => `'${id}'`).join(', ')}; `
+      + 'a session that selects more than one of them loads only the first selected.'));
+  }
 }
 
 export interface PluginSkillGroup {

@@ -1,3 +1,5 @@
+import { safeClaudeManifestName } from '@core/native-name.js';
+
 export type PluginCatalogKind = 'portable' | 'legacy' | 'unknown';
 export type PluginCatalogManifestSource = 'root' | 'legacy' | 'none';
 export type PluginMcpStatus = 'missing' | 'valid' | 'invalid';
@@ -7,6 +9,7 @@ export type PluginCatalogIssueCode =
   | 'manifest_extensions_ignored'
   | 'manifest_invalid'
   | 'manifest_missing'
+  | 'manifest_name_duplicate'
   | 'manifest_unknown_field'
   | 'mcp_invalid'
   | 'mcp_server_invalid'
@@ -130,4 +133,9 @@ export interface PluginCatalogEntry {
   skills: PluginCatalogSkill[];
   mcp: PluginCatalogMcp;
   issues: PluginCatalogIssue[];
+}
+
+/** The name a portable plugin goes by in a Claude projection (`<namespace>:<skill>`). */
+export function portableNamespace(entry: Pick<PluginCatalogEntry, 'id' | 'manifest'>): string {
+  return safeClaudeManifestName(entry.manifest.name?.trim() || entry.id);
 }
