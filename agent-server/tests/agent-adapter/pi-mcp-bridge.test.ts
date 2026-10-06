@@ -360,7 +360,7 @@ test('buildServerStates loads the shared interaction bridge only for eligible di
   }
 });
 
-test('buildServerStates validates interaction tools only when the shared bridge is eligible', () => {
+test('buildServerStates composes interaction tools only when the shared bridge is eligible', () => {
   const allowed = JSON.stringify(['cortex_ask_user']);
   const states = buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
@@ -368,10 +368,20 @@ test('buildServerStates validates interaction tools only when the shared bridge 
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
   });
   assert.ok(selectedBundles(states).includes('cortex-interaction-bridge'));
-  assert.throws(() => buildServerStates({
+  // An allowlist is an upper bound on the surface: naming a real tool whose bundle this session
+  // does not compose leaves it absent rather than failing the spawn.
+  const ineligible = buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
-  }), /Unknown MCP tool.*cortex_ask_user/);
+  });
+  assert.equal(selectedBundles(ineligible).includes('cortex-interaction-bridge'), false);
+});
+
+test('buildServerStates rejects an allowlisted name that exists in no bundle', () => {
+  assert.throws(() => buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'direct',
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['cortex_ask_usr']),
+  }), /Unknown MCP tool.*cortex_ask_usr/);
 });
 
 test('the bundled core env carries the session env plus the delegation gate for the bridge', () => {
