@@ -9,7 +9,6 @@ import {
   appendSessionRegistryEvents,
   compactSessionRegistry,
   createSessionRegistryState,
-  deriveSessionOrigin,
   loadSessionRegistryState,
   shouldCompactSessionRegistry,
   PATCH_KEYS,
@@ -31,7 +30,6 @@ import {
 export const REGISTRY_FILE = path.join(STORE_DIR, 'session-registry.jsonl');
 
 export {
-  deriveSessionOrigin,
   type SessionOrigin,
   type TurnRecord,
   type ConversationFields,
@@ -200,7 +198,7 @@ export class SessionRegistryRepo {
       channel: opts.channel,
       backend: opts.backend,
       kind: opts.kind,
-      origin: opts.origin ?? deriveSessionOrigin(opts.kind, opts.label ?? null),
+      origin: opts.origin ?? (opts.kind === 'scheduled' ? 'scheduled' : 'direct'),
       createdAt: now,
       lastUsedAt: now,
       label: trimLabel(opts.label),

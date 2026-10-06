@@ -180,7 +180,8 @@ export function legacyBackupPathFor(filePath: string): string {
   return `${legacyPathFor(filePath)}.bak`;
 }
 
-export function deriveSessionOrigin(kind: SessionKind, label: string | null | undefined): SessionOrigin {
+/** Origin for records imported from formats that predate the stored `origin` field. */
+function deriveLegacySessionOrigin(kind: SessionKind, label: string | null | undefined): SessionOrigin {
   if (kind === 'scheduled') return 'scheduled';
   if (label && THREAD_LABEL_RE.test(label)) return 'thread';
   return 'direct';
@@ -366,7 +367,7 @@ function newFormatSessions(entries: Array<[string, unknown]>): SessionRecord[] {
     const row = value as Record<string, unknown>;
     const kind = toKindValue(row.kind);
     const label = toNullableString(row.label);
-    return assertSessionRecord(row.origin === undefined ? { ...row, origin: deriveSessionOrigin(kind, label) } : row, id);
+    return assertSessionRecord(row.origin === undefined ? { ...row, origin: deriveLegacySessionOrigin(kind, label) } : row, id);
   });
 }
 
@@ -416,7 +417,7 @@ function normalizeLegacyRecord(
     channel: toStringValue(raw.channel),
     backend: toStringValue(raw.backend),
     kind,
-    origin: deriveSessionOrigin(kind, label),
+    origin: deriveLegacySessionOrigin(kind, label),
     createdAt: toStringValue(raw.createdAt),
     lastUsedAt: toStringValue(raw.lastUsedAt),
     label,

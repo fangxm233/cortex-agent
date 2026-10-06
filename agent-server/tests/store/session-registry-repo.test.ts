@@ -301,6 +301,17 @@ test('session registry compacts to live puts plus pending delete-intents and sur
   assert.deepEqual((await reopened.listPendingDeletions()).map(entry => entry.session.sessionId), ['sess-b']);
 });
 
+test('registerSession defaults origin from kind, not from a bracketed label', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession('cortex-bracket', registerOpts('sess-bracket', { label: '[fix:login]' }));
+  await repo.registerSession('cortex-sched', registerOpts('sess-sched', { kind: 'scheduled', label: '[a:b]' }));
+
+  assert.equal((await repo.lookupSession('cortex-bracket'))?.origin, 'direct');
+  assert.equal((await repo.lookupSession('cortex-sched'))?.origin, 'scheduled');
+  assert.deepEqual((await repo.listByOrigin('direct')).map(s => s.sessionId), ['sess-bracket']);
+});
+
 test('session registry preserves explicit origin, markRead, and name index after invalidate', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
