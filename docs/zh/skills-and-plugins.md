@@ -158,7 +158,7 @@ Plugins 页面管理 inventory 与 package 内容，assignment 则由执行环�
 
 ## 技能发现与调用 {#skill-discovery-and-invocation}
 
-`!skills` 命令按插件分组列出当前对话会加载的技能：即其执行环境的插件经 scope 过滤后、由 catalog 发现的技能。Skills 视图以同样方式列出所有 catalog 插件的技能。只有显式的 `/name`才会调用 skill；只是以 skill 名开头的消息会按原文发送。
+`!skills` 命令按插件分组列出当前对话会加载的技能：即其执行环境的插件经 scope 过滤后、由 catalog 发现的技能。Skills 视图以同样方式列出所有 catalog 插件的技能。只有显式的 `/name` 才会调用 skill；只是以 skill 名开头的消息会按原文发送。
 
 通过 `Skill` 工具调用技能时，Cortex hook bridge 会由 session activity tracker 记录活动。它复用 experiment 与 knowledge 文件的 access-tracking infrastructure；hook bridge 详见 [hooks.md](./hooks.md)。
 
