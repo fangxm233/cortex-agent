@@ -14,7 +14,7 @@ import { t } from '../../core/i18n.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
-import { isApiRateLimitError, type FallbackReason } from './retryable-errors.js';
+import { isApiRateLimitError, isNotRetriedFailure, type FallbackReason } from './retryable-errors.js';
 import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
 import { attemptLabel } from './fallback.js';
 
@@ -143,10 +143,24 @@ export class AttemptNoticeTracker {
     const message = typeof value?.message === 'string' && value.message.length > 0
       ? value.message
       : String(error);
+    if (isNotRetriedFailure(error)) {
+      this.emitNotRetried(message);
+      return;
+    }
     const resumableDirectError = this.ctx.trigger !== 'edit-retry'
       && isApiRateLimitError(message)
       && this.emitAutoResume(value?.rateLimitProvider);
     if (!resumableDirectError) this.emitTerminal(message);
+  }
+
+  /** A failure the chain chose not to retry is told as is: its message already carries the
+   *  provider's own error and says why nothing was retried, so neither a held card nor an earlier
+   *  error line (which say less) stands in for it, and a rate limit in it is not auto-resumed. */
+  private emitNotRetried(message: string): void {
+    this.heldError = null;
+    if (!this.synthesize || !this.emit) return;
+    this.attemptHasErrorNotice = true;
+    this.emit(terminalErrorText(message), undefined, 'error');
   }
 
   emitTerminalRateLimit(result: AgentResult): void {

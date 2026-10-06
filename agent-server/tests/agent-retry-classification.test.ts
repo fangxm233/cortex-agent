@@ -86,6 +86,9 @@ function scriptedChild(scripts: unknown[][] = []) {
 }
 
 const textLine = (text: string) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
+const toolUseLine = (id: string, name: string, input: Record<string, unknown>) => ({
+  type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] },
+});
 const resultLine = (overrides: Record<string, unknown> = {}) => ({
   type: 'result', subtype: 'success', is_error: false,
   num_turns: 1, total_cost_usd: 0, session_id: 'fixture-session', result: 'fallback-ok', ...overrides,
@@ -513,12 +516,13 @@ test('a fallback on another backend runs with its own capabilities but never nam
 });
 
 // A fallback re-runs the turn in a fresh conversation. After a tool ran that would run it again
-// (a second `rm`, a second deploy), so a transport failure past that point ends the turn instead.
+// (a second `rm`, a second deploy), so a transport failure or a rate limit past that point ends the
+// turn instead.
 
-function piPrimaryWithClaudeFallback(sessionKey: string): RunRequest {
+function piPrimaryWithClaudeFallback(sessionKey: string, extra: Partial<RunRequestFixtureInput> = {}): RunRequest {
   const fallbackAttempt = attemptFixture({ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' });
   const request = claudeRequestWithScript(
-    { channel: 'web:retry', sessionKey, piProvider: 'deepseek' },
+    { channel: 'web:retry', sessionKey, piProvider: 'deepseek', ...extra },
     [textLine('fallback-ok'), resultLine({ result: 'fallback-ok', session_id: 'claude-fallback' })],
   );
   request.profile = {
@@ -567,24 +571,92 @@ test('a transport error before any tool ran still falls back, and says it was a 
   );
 });
 
-test('a thrown rate limit still falls back after a tool ran: the no-retry rule covers transport errors only', async () => {
+function fallbackReasons(events: RunEvent[]): string[] {
+  return events
+    .filter((event): event is Extract<RunEvent, { type: 'run_fallback' }> => event.type === 'run_fallback')
+    .map((event) => event.reason);
+}
+
+/** The PI primary starts a tool, then the provider refuses on quota. */
+async function rateLimitAfterTool(): Promise<void> {
+  const runtime = await fixtures.current.runtime(fixtures.current.runtimes.length - 1);
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  runtime.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'make deploy' } });
+  runtime.emitAgentEnd({ stopReason: 'error', errorMessage: 'HTTP 429 rate limit exceeded' });
+}
+
+test('a thrown rate limit after a tool ran ends the turn instead of re-running it on the fallback', async () => {
   fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-tool-then-429' });
   const seen = collector();
   const run = openRun(piPrimaryWithClaudeFallback('rate-limit-after-tool'), [seen.observer]);
+  await rateLimitAfterTool();
+
+  await assert.rejects(run.settled, /Rate limited mid-turn \(HTTP 429 rate limit exceeded\).*not retried/);
+  assert.equal(spawnedChildren.length, 0, 'the fallback never started');
+  assert.deepEqual(fallbackReasons(seen.events), []);
+  const lastNotice = notices(seen.events).at(-1);
+  assert.equal(lastNotice?.level, 'error');
+  assert.match(lastNotice?.text ?? '', /Rate limited mid-turn.*not retried on the fallback model/);
+});
+
+test('a rate-limited result after a tool ran ends the turn instead of re-running it on the fallback', async () => {
+  const scripts = [
+    [toolUseLine('tool-1', 'Bash', { command: 'make deploy' }), rateLimitScript[0]],
+    [textLine('fallback-ok'), resultLine({ result: 'fallback-ok' })],
+  ];
+  const request = runRequestFixture({
+    channel: 'web:retry', sessionKey: 'rl-result-after-tool',
+    processSpawner: (() => ({ process: scriptedChild([scripts.shift()!]) })) as never,
+  }, CLAUDE);
+  withFallback(request, attemptFixture({ model: 'claude-haiku-4-5', backend: 'claude', mode: 'plan' }));
+  const seen = collector();
+  const run = openRun(request, [seen.observer]);
+
+  await assert.rejects(run.settled, /Rate limited mid-turn \(rate limit exceeded\).*not retried/);
+  assert.equal(spawnedChildren.length, 1, 'the fallback never started');
+  assert.deepEqual(fallbackReasons(seen.events), []);
+});
+
+test('a rate limit before any tool ran still falls back, and says it was a rate limit', async () => {
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-429-early' });
+  const seen = collector();
+  const run = openRun(piPrimaryWithClaudeFallback('rate-limit-before-tool'), [seen.observer]);
 
   const runtime = await fixtures.current.runtime(0);
   await runtime.nextCall('prompt');
   runtime.emitAgentStart();
-  runtime.emit({ type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'ls' } });
   runtime.emitAgentEnd({ stopReason: 'error', errorMessage: 'HTTP 429 rate limit exceeded' });
 
   const result = await run.settled;
   assert.equal(result.finalOutput, 'fallback-ok');
-  assert.deepEqual(
-    seen.events.filter((event) => event.type === 'run_fallback').map((event) => (event as Extract<RunEvent, { type: 'run_fallback' }>).reason),
-    ['rate-limited'],
-  );
+  assert.deepEqual(fallbackReasons(seen.events), ['rate-limited']);
   assert.equal(notices(seen.events)[0]?.text, 'deepseek-v4-pro/deepseek is rate limited; falling back to claude-sonnet-4-6/plan.');
+});
+
+test('after a mid-turn rate limit, the throttle still sends the next automated turn to the fallback', async (t) => {
+  // The window the provider reported while the turn ran; the run itself never writes it.
+  await activateProviderThrottle('deepseek');
+  t.onTestFinished(() => throttleReset());
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-throttled' });
+
+  // A person is waiting, so the throttled primary is tried; it starts a tool and is refused.
+  const first = collector();
+  const interrupted = openRun(
+    piPrimaryWithClaudeFallback('throttle-steer-user', { isUserInitiated: true }), [first.observer],
+  );
+  await rateLimitAfterTool();
+  await assert.rejects(interrupted.settled, /Rate limited mid-turn/);
+  // A plain error, not the auto-resume warning: the message asks for the turn to be sent again.
+  assert.deepEqual(notices(first.events).map((notice) => notice.level), ['error']);
+  assert.equal(spawnedChildren.length, 0);
+
+  // The next automated turn skips the throttled primary and runs on the fallback, as before.
+  const next = openRun(piPrimaryWithClaudeFallback('throttle-steer-next'), [collector().observer]);
+  const result = await next.settled;
+  assert.equal(result.finalOutput, 'fallback-ok');
+  assert.equal(fixtures.current.runtimes.length, 1, 'the primary was not spawned again');
+  assert.equal(spawnedChildren.length, 1, 'the fallback ran');
 });
 
 test('run emits one terminal error notice for a deterministic authentication failure', async () => {

@@ -17,6 +17,7 @@ export const statusEn = {
   'status.supersededSeeNewReply': 'see new reply',
   'status.errorBody': 'Error: ${message}',
   'status.notRetriedAfterTools': '${message} — the turn had already run tools, so it was not retried on the fallback model (that would run them again). Send the message again to continue.',
+  'status.rateLimitedMidTurn': 'Rate limited mid-turn (${message}). The turn had already run tools, so it was not retried on the fallback model (that would run them again). Send the message again to continue.',
   // --- Turn-completion notification ---
   'notify.turnComplete': 'Turn complete',
   'notify.turnFailed': 'Turn failed',
@@ -75,6 +76,7 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'status.supersededSeeNewReply': '查看新回复',
   'status.errorBody': '错误：${message}',
   'status.notRetriedAfterTools': '${message}——本回合已执行过工具，切换备用模型重试会重复执行它们，因此没有重试。请重新发送消息继续。',
+  'status.rateLimitedMidTurn': '回合进行中触发限流（${message}）。本回合已执行过工具，切换备用模型重试会重复执行它们，因此没有重试。请重新发送消息继续。',
   // --- Turn-completion notification ---
   'notify.turnComplete': '回合完成',
   'notify.turnFailed': '回合失败',

@@ -34,3 +34,17 @@ export type FallbackReason = 'rate-limited' | 'transport-error';
 export function fallbackReasonOf(error: Error): FallbackReason {
   return isApiRateLimitError(error.message) ? 'rate-limited' : 'transport-error';
 }
+
+/**
+ * A retryable failure the chain deliberately did not retry: the attempt had already started a tool
+ * call, and re-running the turn on a fallback would run that tool again. It ends the turn as a
+ * plain failure — no fallback, and no automatic resume either, which is what a rate-limit message
+ * would otherwise get. The message itself says what happened and asks the user to send again.
+ */
+export function notRetriedFailure(message: string): Error {
+  return Object.assign(new Error(message), { notRetried: true as const });
+}
+
+export function isNotRetriedFailure(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { notRetried?: unknown }).notRetried === true;
+}

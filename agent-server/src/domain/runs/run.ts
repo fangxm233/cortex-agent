@@ -9,7 +9,7 @@ import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
 import type { ModeEnv } from './mode-env.js';
 import {
-  fallbackReasonOf, isRetryableError, isRetryableResult, type FallbackReason,
+  fallbackReasonOf, isRetryableError, isRetryableResult, notRetriedFailure, type FallbackReason,
 } from './retryable-errors.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
@@ -112,10 +112,11 @@ function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-/** The error a turn ends with when a transport failure hit after it ran a tool. It keeps the
- *  original message — auth classification and provider attribution read it. */
-function notRetriedAfterTools(failure: Error): Error {
-  return new Error(t('status.notRetriedAfterTools', { message: failure.message }));
+/** The error a turn ends with when a retryable failure hit after it had started a tool call. It
+ *  keeps the original message — auth classification and provider attribution read it. */
+function notRetriedAfterTools(reason: FallbackReason, message: string): Error {
+  const key = reason === 'rate-limited' ? 'status.rateLimitedMidTurn' : 'status.notRetriedAfterTools';
+  return notRetriedFailure(t(key, { message }));
 }
 
 function cancellationError(reason: string): Error {
@@ -269,10 +270,10 @@ export class AgentRunImpl implements AgentRun {
   /**
    * One attempt. Returns 'settled' when the run is over, or why the chain should advance.
    *
-   * A fallback re-runs the whole turn in a fresh backend conversation. That is safe for a rate
-   * limit (the provider refused before doing anything) and for a transport failure that hit before
-   * the turn ran any tool; after a tool ran, re-running would repeat its side effects, so the turn
-   * ends with an error that says why it was not retried.
+   * A fallback re-runs the whole turn in a fresh backend conversation. That is only safe before
+   * the turn started any tool call — a rate limit or a transport failure alike; after one, the
+   * re-run would repeat its side effects, so the turn ends with an error that says why it was not
+   * retried. The last attempt has nothing to fall back to and settles as it always did.
    */
   private async runAttempt(
     attempt: RunAttemptConfig, index: number, isLast: boolean,
@@ -311,6 +312,12 @@ export class AgentRunImpl implements AgentRun {
         this.settleAttemptResult(current, result);
         return 'settled';
       }
+      if (toolStarted) {
+        log.info(`${attemptLabel(attempt)} rate limited after a tool ran; not retrying on fallback[${index}]`);
+        const detail = result.rateLimitMessage || t('status.rateLimitedExhausted');
+        this.onAttemptError(current, attempt, notRetriedAfterTools('rate-limited', detail));
+        return 'settled';
+      }
       log.info(`${attemptLabel(attempt)} rate limited, trying fallback[${index}]`);
       abandoned = true;
       return 'rate-limited';
@@ -321,9 +328,9 @@ export class AgentRunImpl implements AgentRun {
         return 'settled';
       }
       const reason = fallbackReasonOf(failure);
-      if (reason === 'transport-error' && toolStarted) {
-        log.info(`${attemptLabel(attempt)} transport error after a tool ran; not retrying on fallback[${index}]`);
-        this.onAttemptError(current, attempt, notRetriedAfterTools(failure));
+      if (toolStarted) {
+        log.info(`${attemptLabel(attempt)} ${reason} after a tool ran; not retrying on fallback[${index}]`);
+        this.onAttemptError(current, attempt, notRetriedAfterTools(reason, failure.message));
         return 'settled';
       }
       log.info(`${attemptLabel(attempt)} retryable error (${reason}), trying fallback[${index}]`);

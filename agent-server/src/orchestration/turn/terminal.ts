@@ -15,7 +15,7 @@ import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index
 
 import { maybeNotifyTurnComplete } from '../turn-notify.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
-import { isApiRateLimitError } from '@domain/runs/retryable-errors.js';
+import { isApiRateLimitError, isNotRetriedFailure } from '@domain/runs/retryable-errors.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { durablePost, getOutboundQueue } from '@store/outbound-queue.js';
 
@@ -140,8 +140,10 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   // edit-retry below). The execution record and the live-run registry were already closed by the
   // run's own terminal handler (domain/runs/service); this handler owns the SURFACE. Only when a
   // userMessage is available (direct/TUI turns) — edit callers without it fall through to the
-  // normal error path.
-  if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
+  // normal error path. A failure the run chose not to retry (it had already run tools) is a plain
+  // error: its message asks the user to send again, and a resume would contradict it.
+  if (userMessage && !isNotRetriedFailure(error) && isApiRateLimitError(error.message)
+    && isProviderRateLimited(error.rateLimitProvider)) {
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
