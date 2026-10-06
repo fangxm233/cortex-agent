@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
@@ -11,25 +11,24 @@ import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards'
 import { fmt, useVocab, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
-import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MComposer, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard } from './MInteractionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
 import {
-  AttachMenu, BrowserChip, CommissionChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
+  ComposerAbove, ComposerKeys, ComposerTools, MobileSlashMenu, useFilePicker,
 } from './MChatComposerPresentation';
-import { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
-import { MChatSessionMenu } from './MChatSessionMenu';
+import { MChatOverlays } from './MChatOverlays';
+import { selectionView, type MChatSelectionView } from './m-chat-selection';
+import { useChatOverlay, type ChatOverlay } from './useChatOverlay';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import { WorkerStrip } from '@/features/team/WorkerStrip';
 import { isRetiredWorker } from '@/features/team/worker-groups';
-import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
+import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export type {
-  MChatCopy, MChatEditCopy, MChatInteractions, MEditMode, MMsgMenu, MRejectBar,
-} from './MChatView.types';
+export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
 
 // ── floating header — back chevron · title + status line · context ring · ⋯ ───
 interface MChatHeaderProps {
@@ -311,172 +310,223 @@ function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): J
   );
 }
 
-export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
+const DIM: CSSProperties = { opacity: 0.35, pointerEvents: 'none' };
+
+interface StreamContext {
+  interactions?: MChatInteractions;
+  streamKey?: string;
+  editing?: MEditMode | null;
+  /** Long-press handlers for a row that can be held right now; null otherwise. */
+  holdFor: (row: ChatRow, index: number) => ReturnType<typeof longPressHandlers> | null;
+  /** The sec-7 edit affordances are on (编辑中 / 将被回退 / 已编辑 / regen note). */
+  editable: boolean;
+  /** Rows that open with the 由编辑重新生成 note. */
+  regen: Set<number> | null;
+  onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
+}
+
+interface RowProps<K extends ChatRow['kind']> {
+  row: Extract<ChatRow, { kind: K }>;
+  index: number;
+  /** 7b edit mode: rows after the held one dim under the 将被回退 badge. */
+  dimmed: boolean;
+  /** The turn's whole answer when this row closes it; the copy action rides the last row. */
+  copyText?: string;
+  ctx: StreamContext;
+}
+
+function DividerRow({ row, dimmed }: RowProps<'divider'>): JSX.Element {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, ...(dimmed ? { opacity: 0.35 } : {}) }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>{row.text}</div>
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
+    </div>
+  );
+}
+
+function userBubbleStyle(pending: boolean | undefined, held: boolean, editingRow: boolean): CSSProperties {
+  return {
+    background: 'var(--material-card-bg)',
+    border: '1px solid var(--proto-line)',
+    // A message written into the running turn's backend that the model has not read yet dims its
+    // TEXT and nothing else — same bubble, full opacity, no icon, badge or spinner. The row is
+    // provisional, not disabled or failing, and any marker heavier than the ink would read as one.
+    // It clears the instant it is delivered.
+    color: pending ? MC.muted : MC.ink,
+    borderRadius: '18px 18px 6px 18px',
+    padding: '10px 14px',
+    fontSize: 15,
+    lineHeight: 1.5,
+    boxShadow: 'var(--material-card-shadow)',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'break-word',
+    wordBreak: 'break-word',
+    WebkitUserSelect: held ? 'none' : undefined,
+    userSelect: held ? 'none' : undefined,
+    WebkitTouchCallout: held ? 'none' : undefined,
+    ...(editingRow ? { boxShadow: `var(--material-card-shadow), 0 0 0 1.5px ${MC.run}` } : {}),
+  } as CSSProperties;
+}
+
+/** 7b — the 将被回退 badge opens the dimmed tail right after the edited bubble. */
+function WillRewindBadge({ editing }: { editing: MEditMode }): JSX.Element {
+  const L = useVocabOptional();
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <span style={{ font: `600 11px ${MONO}`, color: 'var(--m-amber-ink)', background: MC.amberBg, padding: '2px 7px', borderRadius: 4 }}>
+        {fmt(L.chatWillRewind, {
+          replies: fmt(editing.replies === 1 ? L.msgReplyOne : L.msgReplyMany, { n: editing.replies }),
+          tools: fmt(editing.toolCalls === 1 ? L.msgToolCallOne : L.msgToolCallMany, { n: editing.toolCalls }),
+        })}
+      </span>
+    </div>
+  );
+}
+
+/** 已编辑 note — tap opens the original-message sheet. */
+function EditedNote({ onTap }: { onTap?: () => void }): JSX.Element {
+  return (
+    <span role="button" onClick={onTap} style={{ font: `400 11px ${MONO}`, color: MC.muted, cursor: 'pointer' }}>
+      <span style={{ borderBottom: `1px dotted ${MC.muted}` }}>{useVocabOptional().msgEdited}</span>
+    </span>
+  );
+}
+
+function UserBubbleRow({ row, index, dimmed, ctx }: RowProps<'user'>): JSX.Element {
+  const L = useVocabOptional();
+  const editingRow = ctx.editing?.rowIndex === index;
+  const hold = ctx.holdFor(row, index);
+  const edited = ctx.editable && row.edited && !editingRow ? row.edited : null;
+  return (
+    <>
+      {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
+      <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? DIM : {}) }}>
+        {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
+        {editingRow && (
+          <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{L.chatEditingBadge}</span>
+        )}
+        {row.systemOrigin && (
+          <span data-bubble-label="" style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
+        )}
+        <div {...(hold ?? {})} data-msg-bubble={hold ? index : undefined} style={userBubbleStyle(row.pending, !!hold, editingRow)}>
+          {row.text}
+        </div>
+        {edited && <EditedNote onTap={ctx.onShowOriginal ? () => ctx.onShowOriginal!(edited) : undefined} />}
+      </div>
+      {editingRow && ctx.editing && <WillRewindBadge editing={ctx.editing} />}
+    </>
+  );
+}
+
+function UserRow(props: RowProps<'user'>): JSX.Element {
+  const { row, dimmed, copyText } = props;
+  if (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') return <UserBubbleRow {...props} />;
+  return (
+    <div style={dimmed ? DIM : undefined}>
+      <MSystemHintRow row={row} />
+      {/* The hint line is the machine steering itself INSIDE the turn, so it can be the turn's last
+          row while the reply is still running — the copy action rides it so it stays at the bottom
+          of the answer instead of above the hints. */}
+      <AssistantTurnCopyAction text={copyText} />
+    </div>
+  );
+}
+
+function AssistantRow({ row, index, dimmed, copyText, ctx }: RowProps<'assistant'>): JSX.Element {
+  const L = useVocabOptional();
+  return (
+    <div style={{ fontSize: 15, lineHeight: 1.6, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', ...(dimmed ? DIM : {}) }}>
+      {/* 由编辑重新生成 — footnote atop the first regenerated reply after an edit */}
+      {ctx.regen?.has(index) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `400 11px ${MONO}`, color: MC.muted, marginBottom: 4 }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
+          {L.msgRegenNote}
+        </div>
+      )}
+      <MAssistantBlock text={row.text} preview={row.preview} streamKey={ctx.streamKey} />
+      {row.attachments && row.attachments.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <AttachmentGroup attachments={row.attachments} side="left" />
+        </div>
+      )}
+      {row.decisions && row.decisions.length > 0 && (
+        <DecisionCardGroup decisions={row.decisions} sessionId={ctx.streamKey} touch />
+      )}
+      <AssistantTurnCopyAction text={copyText} />
+    </div>
+  );
+}
+
+function Dimmable({ dimmed, copyText, children }: { dimmed: boolean; copyText?: string; children: ReactNode }): JSX.Element {
+  return <div style={dimmed ? DIM : undefined}>{children}<AssistantTurnCopyAction text={copyText} /></div>;
+}
+
+type RowRenderer<K extends ChatRow['kind']> = (props: RowProps<K>) => JSX.Element | null;
+
+const ROW_RENDERERS: { [K in ChatRow['kind']]: RowRenderer<K> } = {
+  divider: DividerRow,
+  user: UserRow,
+  assistant: AssistantRow,
+  subagent: ({ row, dimmed, copyText, ctx }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><MSubagentBlock row={row} sessionId={ctx.streamKey} /></Dimmable>
+  ),
+  tools: ({ row, dimmed, copyText, ctx }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><MToolCallsRow row={row} sessionId={ctx.streamKey} /></Dimmable>
+  ),
+  notice: ({ row, dimmed, copyText, ctx }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}>
+      <ChatNotice level={row.level} text={row.text} authAction={row.authAction} noticeAction={row.noticeAction}
+        onNoticeAction={ctx.interactions?.onCancelResume} noticeActionDone={ctx.interactions?.resumeCancelled} />
+    </Dimmable>
+  ),
+  interaction: ({ row, dimmed, copyText, ctx }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', ...(dimmed ? DIM : {}) }}>
+      <MInteractionRow row={row} interactions={ctx.interactions} />
+      <AssistantTurnCopyAction text={copyText} />
+    </div>
+  ),
+};
+
+function StreamRow(props: RowProps<ChatRow['kind']>): JSX.Element | null {
+  // Keyed by kind, so the renderer picked is always the one for the row it is handed.
+  const Render = ROW_RENDERERS[props.row.kind] as RowRenderer<ChatRow['kind']>;
+  return <Render {...props} />;
+}
+
+export function MChatStream({ rows, start = 0, interactions, editing, onLongPress, onShowOriginal, streamKey }: {
   rows: ChatRow[];
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
   start?: number;
-  copyLabel: string;
-  copiedLabel: string;
   interactions?: MChatInteractions;
   /** Identity of the live stream these rows belong to (the session) — a change settles the reveal
    *  instead of pacing the next chat's reply onward from this one's progress. */
   streamKey?: string;
-  /** Present → the sec-7 edit affordances render (long-press menu, 编辑中/将被回退, 已编辑 note). */
-  editCopy?: MChatEditCopy;
   /** 7b edit mode: the held row rings 编辑中, later rows dim under the 将被回退 badge. */
   editing?: MEditMode | null;
-  /** Long-press on a user/assistant bubble (opens the 7a action menu), with the bubble's viewport top. */
+  /** Long-press on a user bubble (opens the 7a action menu), with the bubble's viewport top. Present
+   *  ⇒ the sec-7 edit affordances render (long-press menu, 编辑中/将被回退, 已编辑 note). */
   onLongPress?: (rowIndex: number, anchorTop: number) => void;
   /** Tap on the 已编辑 note (opens the original-message sheet). */
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
 }): JSX.Element {
-  const regenIdx = editCopy ? regenNoteIndexes(rows) : null;
   const assistantCopies = assistantTurnCopyTargets(rows);
   const editingIdx = editing?.rowIndex ?? null;
-  const L = useVocabOptional();
+  const ctx: StreamContext = {
+    interactions, streamKey, editing, onShowOriginal,
+    editable: !!onLongPress,
+    regen: onLongPress ? regenNoteIndexes(rows) : null,
+    // Long-press (复制 / 编辑消息) is human-messages-only — agent messages carry no copy.
+    holdFor: (row, index) => (onLongPress && editingIdx == null && row.kind === 'user' && !row.systemOrigin
+      ? longPressHandlers((anchorTop) => onLongPress(index, anchorTop)) : null),
+  };
   return (
     <>
       {rows.slice(start).map((row, j) => {
         const i = start + j;
-        const dimmed = editingIdx != null && i > editingIdx;
-        const isEditingRow = editingIdx === i;
-        // Long-press affordance (复制 / 编辑消息) is user-messages-only — agent messages carry no copy.
-        const canHold = !!editCopy && !!onLongPress && editingIdx == null && row.kind === 'user' && !row.systemOrigin;
-        const hold = canHold ? longPressHandlers((anchorTop) => onLongPress!(i, anchorTop)) : null;
         return (
-        <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
-          {row.kind === 'divider' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, ...(dimmed ? { opacity: 0.35 } : {}) }}>
-              <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>{row.text}</div>
-              <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-            </div>
-          )}
-          {row.kind === 'user' && row.systemOrigin && systemOriginDisplay(row.systemOrigin) !== 'bubble' && (
-            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <MSystemHintRow row={row} />
-              {/* The hint line is the machine steering itself INSIDE the turn, so it can be the
-                  turn's last row while the reply is still running — the copy action rides it so it
-                  stays at the bottom of the answer instead of above the hints. */}
-              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
-            </div>
-          )}
-          {row.kind === 'user' && (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') && (
-            <>
-              {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
-              <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
-                {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
-                {isEditingRow && editCopy && (
-                  <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.chatEditingBadge}</span>
-                )}
-                {row.systemOrigin && (
-                  <span data-bubble-label="" style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
-                )}
-                <div
-                  {...(hold ?? {})}
-                  data-msg-bubble={canHold ? i : undefined}
-                  style={{
-                    background: 'var(--material-card-bg)',
-                    border: '1px solid var(--proto-line)',
-                    // A message written into the running turn's backend that the model has not read
-                    // yet dims its TEXT and nothing else — same bubble, full opacity, no icon, badge
-                    // or spinner. The row is provisional, not disabled or failing, and any marker
-                    // heavier than the ink would read as one. It clears the instant it is delivered.
-                    color: row.pending ? MC.muted : MC.ink,
-                    borderRadius: '18px 18px 6px 18px',
-                    padding: '10px 14px',
-                    fontSize: 15,
-                    lineHeight: 1.5,
-                    boxShadow: 'var(--material-card-shadow)',
-                    whiteSpace: 'pre-wrap',
-                    overflowWrap: 'break-word',
-                    wordBreak: 'break-word',
-                    WebkitUserSelect: canHold ? 'none' : undefined,
-                    userSelect: canHold ? 'none' : undefined,
-                    WebkitTouchCallout: canHold ? 'none' : undefined,
-                    ...(isEditingRow ? { boxShadow: `var(--material-card-shadow), 0 0 0 1.5px ${MC.run}` } : {}),
-                  } as React.CSSProperties}
-                >
-                  {row.text}
-                </div>
-                {/* 已编辑 note — tap opens the original-message sheet */}
-                {editCopy && row.edited && !isEditingRow && (
-                  <span
-                    role="button"
-                    onClick={onShowOriginal ? () => onShowOriginal(row.edited!) : undefined}
-                    style={{ font: `400 11px ${MONO}`, color: MC.muted, cursor: 'pointer' }}
-                  >
-                    <span style={{ borderBottom: `1px dotted ${MC.muted}` }}>{editCopy.msgEdited}</span>
-                  </span>
-                )}
-              </div>
-              {/* 7b — the 将被回退 badge opens the dimmed tail right after the edited bubble */}
-              {isEditingRow && editCopy && editing && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <span style={{ font: `600 11px ${MONO}`, color: 'var(--m-amber-ink)', background: MC.amberBg, padding: '2px 7px', borderRadius: 4 }}>
-                    {fmt(editCopy.chatWillRewind, {
-                      replies: fmt(editing.replies === 1 ? editCopy.msgReplyOne : editCopy.msgReplyMany, { n: editing.replies }),
-                      tools: fmt(editing.toolCalls === 1 ? editCopy.msgToolCallOne : editCopy.msgToolCallMany, { n: editing.toolCalls }),
-                    })}
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-          {row.kind === 'subagent' && (
-            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <MSubagentBlock row={row} sessionId={streamKey} />
-              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
-            </div>
-          )}
-          {row.kind === 'tools' && (
-            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <MToolCallsRow row={row} sessionId={streamKey} />
-              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
-            </div>
-          )}
-          {row.kind === 'notice' && (
-            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <ChatNotice
-                level={row.level} text={row.text} authAction={row.authAction}
-                noticeAction={row.noticeAction}
-                onNoticeAction={interactions?.onCancelResume}
-                noticeActionDone={interactions?.resumeCancelled}
-              />
-              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
-            </div>
-          )}
-          {row.kind === 'assistant' && (
-            <div
-              {...(hold ?? {})}
-              style={{ fontSize: 15, lineHeight: 1.6, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}), WebkitUserSelect: canHold ? 'none' : undefined, userSelect: canHold ? 'none' : undefined, WebkitTouchCallout: canHold ? 'none' : undefined } as React.CSSProperties}
-            >
-              {/* 由编辑重新生成 — footnote atop the first regenerated reply after an edit */}
-              {editCopy && regenIdx?.has(i) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `400 11px ${MONO}`, color: MC.muted, marginBottom: 4 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
-                  {editCopy.msgRegenNote}
-                </div>
-              )}
-              <MAssistantBlock text={row.text} preview={row.preview} streamKey={streamKey} />
-              {row.attachments && row.attachments.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <AttachmentGroup attachments={row.attachments} side="left" />
-                </div>
-              )}
-              {row.decisions && row.decisions.length > 0 && (
-                <DecisionCardGroup decisions={row.decisions} sessionId={streamKey} touch />
-              )}
-              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
-            </div>
-          )}
-          {row.kind === 'interaction' && (
-            <div style={{ display: 'flex', flexDirection: 'column', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
-              <MInteractionRow row={row} interactions={interactions} />
-              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
-            </div>
-          )}
-        </Fragment>
+          <StreamRow key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}
+            row={row} index={i} dimmed={editingIdx != null && i > editingIdx} copyText={assistantCopies.get(i)} ctx={ctx} />
         );
       })}
     </>
@@ -507,33 +557,18 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
   );
 }
 
-export function MChatView(props: MChatViewProps): JSX.Element {
-  const { copy } = props;
-  const { composerRef, tailHeight, shellHeight } = useComposerClearance();
-  // The transcript dissolves over the 48px above the floating shell instead of sliding under it
-  // legibly, so the composer's blur samples the ground rather than smeared text. The fade ends at the
-  // shell top (its 20px offset + measured height), and the tail clearance keeps the last row 52px
-  // clear of it, so a transcript scrolled to the end stays fully opaque.
-  const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
-  // Hide text beneath the header and safe area; fade in across its existing 12px clearance.
-  // Only the transcript is masked, leaving the floating title and its glass unchanged.
-  // Team mode: a lead's worker chips float in a 36px row under the header, so the transcript's top
-  // clearance grows by that much while the row is there.
-  const workerRow = !!props.onOpenWorker && (props.workers ?? []).some((w) => !isRetiredWorker(w));
-  const topClear = workerRow ? 108 : 72;
-  const transcriptFade = `linear-gradient(to bottom, transparent calc(${topClear - 12}px + env(safe-area-inset-top)), #000 calc(${topClear}px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
-
-  // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
-  // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
-  // desktop MessageStream stick-to-bottom behavior.
+/** Open the session at the latest message and keep it pinned to the bottom as content streams in —
+ *  releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the desktop
+ *  MessageStream stick-to-bottom behaviour. Only the tail of a long transcript is mounted; scrolling
+ *  toward the top mounts more. */
+function useTranscriptScroll(props: MChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   // Suppress auto-scroll briefly after user taps inside the stream (e.g. expanding a tool row),
   // so expanded content doesn't scroll out of view on the next streaming tick.
   const tapFreezeUntil = useRef(0);
-  // Only the tail of a long transcript is mounted; scrolling toward the top mounts more.
-  const win = useTranscriptWindow({ total: props.rows.length, streamKey: props.streamKey, settled: !props.loading, scrollRef });
+  const win = useTranscriptWindow({ total: props.rows.length, streamKey: props.sessionId, settled: !props.loading, scrollRef });
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
@@ -567,168 +602,133 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     ro.observe(content);
     return () => ro.disconnect();
   }, []);
+  return { scrollRef, contentRef, win, onScroll, onContentClick };
+}
 
-  const commandMenu = !props.editing && !props.rejectBar && props.slashSuggestions?.length && props.onSlashPick
+function MChatTranscript({ props, topClear, shellHeight, tailHeight, onShowOriginal }: {
+  props: MChatViewProps;
+  topClear: number;
+  shellHeight: number;
+  tailHeight: number;
+  onShowOriginal: (text: string) => void;
+}): JSX.Element {
+  const { scrollRef, contentRef, win, onScroll, onContentClick } = useTranscriptScroll(props);
+  // The transcript dissolves over the 48px above the floating shell instead of sliding under it
+  // legibly, so the composer's blur samples the ground rather than smeared text. The fade ends at the
+  // shell top (its 20px offset + measured height), and the tail clearance keeps the last row 52px
+  // clear of it, so a transcript scrolled to the end stays fully opaque.
+  const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
+  // Hide text beneath the header and safe area; fade in across its existing 12px clearance.
+  // Only the transcript is masked, leaving the floating title and its glass unchanged.
+  const transcriptFade = `linear-gradient(to bottom, transparent calc(${topClear - 12}px + env(safe-area-inset-top)), #000 calc(${topClear}px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
+  return (
+    // Plain-block scroll container (like the desktop MessageStream) with an inner flex-column content
+    // wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. Isolate
+    // sticky headers so their z-index cannot escape over the composer or overlays.
+    <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': `calc(${topClear}px + env(safe-area-inset-top))` } as CSSProperties}>
+      {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
+      <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
+          onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} streamKey={props.sessionId} />
+        {props.systemLines?.map((t, i) => <SystemLine key={i} text={t} />)}
+        {/* Tail clearance for the floating composer, which no longer takes flow height. */}
+        <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
+      </div>
+    </div>
+  );
+}
+
+function MChatComposer({ props, shellRef, overlay, selection }: {
+  props: MChatViewProps;
+  shellRef: ReturnType<typeof useComposerClearance>['composerRef'];
+  overlay: ChatOverlay;
+  selection: MChatSelectionView;
+}): JSX.Element {
+  const L = useVocabOptional();
+  const takenOver = !!(props.editing || props.rejectBar);
+  const commandMenu = !takenOver && props.slashSuggestions?.length && props.onSlashPick
     ? <MobileSlashMenu suggestions={props.slashSuggestions} onPick={props.onSlashPick} />
     : undefined;
+  return (
+    <MComposer
+      shellRef={shellRef}
+      placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? L.chatAttachPlaceholder : L.chatComposerPh)}
+      value={props.composerValue} onChange={props.onComposerChange} onSend={props.onSend} sendEnabled={props.sendEnabled}
+      running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
+      leading={takenOver ? undefined : <ComposerKeys browser={props.browser} commission={props.commission} overlay={overlay} />}
+      tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
+      above={<ComposerAbove props={props} />}
+      commandMenu={commandMenu}
+      onPlus={() => overlay.toggle('attach')}
+      lineUnit={L.chatLineUnit}
+      charUnit={L.chatCharUnit}
+      tone={props.editing ? 'accent' : props.rejectBar ? 'amber' : 'default'}
+    />
+  );
+}
 
+/** Body region — a position:relative frame holding the scroll transcript + the floating composer,
+ *  both anchored to it. The full-screen editor (2b) mounts as an absolute overlay of THIS region;
+ *  since the header now floats over the same box, the editor outranks it. */
+function MChatBody({ props, topClear, overlay, selection }: {
+  props: MChatViewProps;
+  topClear: number;
+  overlay: ChatOverlay;
+  selection: MChatSelectionView;
+}): JSX.Element {
+  const { composerRef, tailHeight, shellHeight } = useComposerClearance();
+  const heldRow = props.msgMenu ? props.rows[props.msgMenu.rowIndex] : undefined;
+  return (
+    <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <MChatTranscript props={props} topClear={topClear} shellHeight={shellHeight} tailHeight={tailHeight}
+        onShowOriginal={overlay.showOriginal} />
+      <MChatComposer props={props} shellRef={composerRef} overlay={overlay} selection={selection} />
+      {/* 7a long-press overlay — an absolute overlay of the BODY region, like the 2b editor above.
+          Anchoring the floated bubble to the held one only works against a box whose top is the
+          top of the transcript; hanging it off the screen root would put the header (and its
+          safe-area inset) inside the coordinate space for no gain. */}
+      {props.msgMenu && heldRow && <MsgActionMenu row={heldRow} menu={props.msgMenu} />}
+    </div>
+  );
+}
+
+function headerContextControl(props: MChatViewProps, onOpen: () => void): ReactNode {
+  if (!props.contextUsageSupported && props.contextUsage == null) return null;
+  return (
+    <ContextUsageRing
+      usage={props.contextUsage ?? null}
+      variant="mobile"
+      onClick={onOpen}
+      data-context-usage-position="chat-header"
+      data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
+      style={HEADER_CONTEXT_KEY}
+    />
+  );
+}
+
+export function MChatView(props: MChatViewProps): JSX.Element {
+  const overlay = useChatOverlay(props.sessionId ?? '');
+  const files = useFilePicker(props.onAddFiles);
+  const selection = selectionView(props.selection, useVocabOptional());
+  // Team mode: a lead's worker chips float in a 36px row under the header, so the transcript's top
+  // clearance grows by that much while the row is there.
+  const workerRow = !!props.onOpenWorker && (props.workers ?? []).some((w) => !isRetiredWorker(w));
+  const topClear = workerRow ? 108 : 72;
   return (
     <div
       data-screen-label="1b chat detail"
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
     >
-      <MChatHeader
-        title={props.title}
-        parent={props.parent}
-        status={props.status}
-        project={props.project}
-        onBack={props.onBack}
-        onMore={props.onMoreToggle}
-        contextControl={(props.contextUsageSupported || props.contextUsage != null) ? (
-          <ContextUsageRing
-            usage={props.contextUsage ?? null}
-            variant="mobile"
-            onClick={props.onContextUsageOpen}
-            data-context-usage-position="chat-header"
-            data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
-            style={HEADER_CONTEXT_KEY}
-          />
-        ) : null}
-      />
+      {files.input}
+      <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
+        onBack={props.onBack} onMore={() => overlay.toggle('more')}
+        contextControl={headerContextControl(props, () => overlay.open('context'))} />
       {workerRow && (
         <WorkerStrip workers={props.workers ?? []} onOpen={props.onOpenWorker!} touch
           style={{ position: 'absolute', top: 'calc(66px + env(safe-area-inset-top))', left: 16, right: 16, zIndex: 5 }} />
       )}
-      {/* Body region — a position:relative frame holding the scroll transcript + the floating
-          composer, both anchored to it. The full-screen editor (2b) mounts as an absolute overlay of
-          THIS region; since the header now floats over the same box, the editor outranks it. */}
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
-            content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
-            Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': `calc(${topClear}px + env(safe-area-inset-top))` } as CSSProperties}>
-          {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
-          <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <MChatStream
-              rows={props.rows}
-              start={win.start}
-              copyLabel={copy.cmCopy}
-              copiedLabel={copy.cmCopied}
-              interactions={props.interactions}
-              editCopy={props.editCopy}
-              editing={props.editing}
-              onLongPress={props.onLongPress}
-              onShowOriginal={props.onShowOriginal}
-              streamKey={props.streamKey}
-            />
-            {props.systemLines?.map((t, i) => (
-              <SystemLine key={i} text={t} />
-            ))}
-            {/* Tail clearance for the floating composer, which no longer takes flow height. */}
-            <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
-          </div>
-        </div>
-        <MComposer
-          shellRef={composerRef}
-          placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? copy.chatAttachPlaceholder : copy.chatComposerPh)}
-          value={props.composerValue}
-          onChange={props.onComposerChange}
-          onSend={props.onSend}
-          sendEnabled={props.sendEnabled}
-          running={props.status.running}
-          onStop={props.onStop}
-          stopEnabled={props.stopEnabled}
-          leading={props.editing || props.rejectBar ? undefined : (
-            <>
-              <ComposerLeading onClick={props.onPlus} />
-              {props.browserDevice && <BrowserChip device={props.browserDevice}
-                label={copy.chatAttachBrowser} onClick={props.onOpenBrowser} />}
-              {props.commissionValue && <CommissionChip value={props.commissionValue}
-                text={props.commissionLabel || copy.chatAttachCommission}
-                label={copy.chatAttachCommission} onClick={props.onOpenCommission} />}
-            </>
-          )}
-          tools={<ComposerTools props={props} />}
-          above={<ComposerAbove props={props} />}
-          commandMenu={commandMenu}
-          onPlus={props.onPlus}
-          lineUnit={copy.chatLineUnit}
-          charUnit={copy.chatCharUnit}
-          tone={props.editing ? 'accent' : props.rejectBar ? 'amber' : 'default'}
-        />
-        {/* 7a long-press overlay — an absolute overlay of the BODY region, like the 2b editor above.
-            Anchoring the floated bubble to the held one only works against a box whose top is the
-            top of the transcript; hanging it off the screen root would put the header (and its
-            safe-area inset) inside the coordinate space for no gain. */}
-        {props.msgMenu && props.editCopy && props.rows[props.msgMenu.rowIndex] && (
-          <MsgActionMenu row={props.rows[props.msgMenu.rowIndex]} menu={props.msgMenu} copy={props.editCopy} />
-        )}
-      </div>
-      <MChatSessionMenu metadataSession={props.metadataSession} copy={copy} moreOpen={props.moreOpen}
-        onMoreClose={props.onMoreClose} onSessionIdOpen={props.onSessionIdOpen}
-        sessionStatsRows={props.sessionStatsRows} onSessionStatsOpen={props.onSessionStatsOpen} />
-      {props.sessionStatsOpen && props.sessionStatsRows?.length && (
-        <SessionStatsSheet copy={copy} rows={props.sessionStatsRows} onClose={props.onSessionStatsClose} />
-      )}
-      {props.sessionIdOpen && (
-        <SessionIdSheet
-          copy={copy}
-          cortexId={props.cortexId}
-          backendUuid={props.backendUuid}
-          onClose={props.onSessionIdClose}
-        />
-      )}
-      {props.originalSheet && props.editCopy && (
-        <MBottomSheet onClose={props.originalSheet.onClose}>
-          <div style={{ font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em', padding: '0 2px 8px' }}>{props.editCopy.chatOriginalMessage}</div>
-          <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px', fontSize: 13, lineHeight: 1.6, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '50vh', overflow: 'auto' }}>
-            {props.originalSheet.text}
-          </div>
-        </MBottomSheet>
-      )}
-      {props.attachMenuOpen && (
-        <AttachMenu
-          copy={copy}
-          onClose={props.onAttachClose}
-          onCamera={props.onCamera}
-          onLibrary={props.onLibrary}
-          onFile={props.onFile}
-          browser={(props.onOpenBrowser || props.browserDevice) ? { device: props.browserDevice ?? null, onOpen: props.onOpenBrowser } : undefined}
-          commission={(props.onOpenCommission || props.commissionValue) ? { label: props.commissionLabel ?? props.commissionValue ?? null, onOpen: props.onOpenCommission } : undefined}
-          onCommands={() => props.onComposerChange('/')}
-        />
-      )}
-      {props.browserSheet && (
-        <BrowserSheet
-          items={props.browserSheet.items}
-          title={props.browserSheet.title}
-          current={props.browserDevice ?? null}
-          onClose={props.browserSheet.onClose}
-          onPick={props.browserSheet.onPick}
-        />
-      )}
-      {props.commissionSheet && (
-        <CommissionSheet
-          items={props.commissionSheet.items}
-          title={props.commissionSheet.title}
-          current={props.commissionValue ?? null}
-          onClose={props.commissionSheet.onClose}
-          onPick={props.commissionSheet.onPick}
-        />
-      )}
-      {props.selectionSheet && (
-        <SelectionSheet vm={props.selectionSheet.vm} pending={props.selectionSheet.pending} copy={copy} onClose={props.selectionSheet.onClose} onPick={props.selectionSheet.onPick} />
-      )}
-      {props.agentSheet && (
-        <AgentSheet rows={props.agentSheet.rows} title={props.agentSheet.title} copy={copy} onClose={props.agentSheet.onClose} onPick={props.agentSheet.onPick} />
-      )}
-      {props.contextUsageOpen && (props.contextUsageSupported || props.contextUsage != null) ? (
-        <ContextUsageSheet
-          usage={props.contextUsage ?? null}
-          compactAction={props.contextCompactAction}
-          onClose={props.onContextUsageClose}
-        />
-      ) : null}
+      <MChatBody props={props} topClear={topClear} overlay={overlay} selection={selection} />
+      <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />
     </div>
   );
 }

@@ -99,13 +99,14 @@ vi.mock('@/features/attachments/useAttachmentUploads', () => ({
 }));
 vi.mock('./MChatView', async () => {
   const React = await import('react');
+  const { selectionChipParts } = await import('@/features/session/list/selection-menu');
   return {
     MChatView: (props: any) => React.createElement(
       'm-chat-view',
       {
         onComposerChange: props.onComposerChange,
         onSend: props.onSend,
-        'data-chip': props.selectionChipLabel,
+        'data-chip': selectionChipParts(props.selection.effective).main,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')

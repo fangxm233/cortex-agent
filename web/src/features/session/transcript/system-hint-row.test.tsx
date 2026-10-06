@@ -93,7 +93,7 @@ describe('team origins', () => {
 
   it('renders the same three ways on mobile', () => {
     let r!: ReactTestRenderer;
-    act(() => { r = create(<LangProvider><MChatStream rows={[lead, report, systemRow()]} copyLabel="copy" copiedLabel="copied" /></LangProvider>); });
+    act(() => { r = create(<LangProvider><MChatStream rows={[lead, report, systemRow()]} /></LangProvider>); });
     expect(r.root.findAll((n) => n.type === 'span' && n.props['data-bubble-label'] !== undefined)).toHaveLength(1);
     const hint = (origin: string) => r.root.find((n) => n.type === 'div' && n.props['data-system-origin'] === origin);
     expect(r.root.findAll((n) => n.type === 'div' && n.props['data-system-origin'] === 'team-lead')).toHaveLength(0);

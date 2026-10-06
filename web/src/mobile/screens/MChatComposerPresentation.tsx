@@ -1,13 +1,15 @@
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { TodoRail } from '@/features/session/rail/TodoRail';
 import { WaitRail } from '@/features/session/rail/WaitRail';
 import { PlusGlyph } from '@/design';
-import { useVocabOptional } from '@/i18n';
+import { useLangOptional, useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 import { EditBar } from './MChatMessageActions';
-import type { MChatCopy, MChatViewProps } from './MChatView.types';
+import type { MChatViewProps } from './MChatView.types';
+import type { MChatSelection, MChatSelectionView } from './m-chat-selection';
+import type { ChatOverlay } from './useChatOverlay';
 
 function CameraIcon(): JSX.Element {
   return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.5"><rect x="1.5" y="4" width="13" height="9.5" rx="2" /><circle cx="8" cy="8.7" r="2.6" /><path d="M5.5 4l1-1.7h3l1 1.7" /></svg>;
@@ -50,8 +52,7 @@ function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   );
 }
 
-export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser, commission, onCommands }: {
-  copy: MChatCopy;
+export function AttachMenu({ onClose, onCamera, onLibrary, onFile, browser, commission, onCommands }: {
   onClose: () => void;
   onCamera: () => void;
   onLibrary: () => void;
@@ -65,6 +66,7 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+  const copy = useVocabOptional();
   // Mounted beside (not inside) the blurred composer, outside the isolated
   // transcript; the small menu samples the route. Preserve composer clearance.
   return (
@@ -94,8 +96,9 @@ function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null 
 }
 
 export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element {
+  const lang = useLangOptional();
   let mode: ReactNode = <ComposerAttachmentStrip attachments={props.attachments} onRetry={props.onRetryAttachment} onRemove={props.onRemoveAttachment} />;
-  if (props.editing && props.editCopy) mode = <EditBar title={props.editCopy.chatEditBarTitle} onCancel={props.editing.onCancel} />;
+  if (props.editing) mode = <EditBar onCancel={props.editing.onCancel} />;
   else if (props.rejectBar) mode = <RejectHeader props={props} />;
   return (
     <>
@@ -103,7 +106,7 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
       {props.sessionId && props.waitpoints ? (
         <WaitRail
           sessionId={props.sessionId}
-          lang={props.railLang ?? 'en'}
+          lang={lang}
           waitpoints={props.waitpoints.waitpoints}
           onCancel={props.waitpoints.cancel}
           cancelling={props.waitpoints.cancelling}
@@ -240,24 +243,73 @@ export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Eleme
   );
 }
 
+/** The left of the toolbar: ＋, then the browser and commission keys while their mode is on. */
+export function ComposerKeys({ browser, commission, overlay }: Pick<MChatViewProps, 'browser' | 'commission'> & {
+  overlay: ChatOverlay;
+}): JSX.Element {
+  const L = useVocabOptional();
+  return (
+    <>
+      <ComposerLeading onClick={() => overlay.toggle('attach')} />
+      {browser?.device && <BrowserChip device={browser.device} label={L.chatAttachBrowser}
+        onClick={browser.onPick ? () => overlay.open('browser') : undefined} />}
+      {commission?.value && <CommissionChip value={commission.value} text={commission.label || L.chatAttachCommission}
+        label={L.chatAttachCommission} onClick={commission.onPick ? () => overlay.open('commission') : undefined} />}
+    </>
+  );
+}
+
 /** The right-hand end of the composer toolbar. Context usage used to sit here too; it moved to the
  *  header, next to ⋯ — it reports on the session rather than on the message being written, and the
  *  width it took was width the engine chip needed once browser/commission keys joined the row. */
-export function ComposerTools({ props }: { props: MChatViewProps }): JSX.Element | null {
-  if (props.editing || props.rejectBar) return null;
+export function ComposerTools({ selection, view }: {
+  selection: MChatSelection;
+  view: MChatSelectionView;
+}): JSX.Element {
+  const axis = useVocabOptional().wbAgent;
   return (
     <>
-      {props.agentChip && props.onOpenAgent ? (
+      {view.agentChip ? (
         <AgentChip
-          axis={props.copy.wbAgent}
-          label={props.agentChip.label}
-          followingDefault={props.agentChip.followingDefault}
-          onClick={props.onOpenAgent}
+          axis={axis}
+          label={view.agentChip.label}
+          followingDefault={view.agentChip.followingDefault}
+          onClick={() => selection.setAgentOpen(true)}
         />
       ) : null}
-      <SelectionChip label={props.selectionChipLabel} sub={props.selectionChipSub} onClick={props.onOpenSelection} />
+      <SelectionChip label={view.chip.main} sub={view.chip.sub} onClick={() => selection.setOpen(true)} />
     </>
   );
+}
+
+/** The hidden file input behind the ＋ menu's camera / library / file rows. */
+export function useFilePicker(onFiles: (files: FileList) => void): {
+  input: JSX.Element;
+  camera: () => void;
+  library: () => void;
+  file: () => void;
+} {
+  const ref = useRef<HTMLInputElement>(null);
+  const pick = (accept: string, capture?: string): void => {
+    const el = ref.current;
+    if (!el) return;
+    el.accept = accept;
+    if (capture) el.setAttribute('capture', capture);
+    else el.removeAttribute('capture');
+    el.click();
+  };
+  const input = (
+    <input ref={ref} type="file" multiple style={{ display: 'none' }} onChange={(e) => {
+      if (e.target.files && e.target.files.length > 0) onFiles(e.target.files);
+      e.target.value = '';
+    }} />
+  );
+  return {
+    input,
+    camera: () => pick('image/*', 'environment'),
+    library: () => pick('image/*,video/*'),
+    file: () => pick('*/*'),
+  };
 }
 
 export function MobileSlashMenu({ suggestions, onPick }: {

@@ -6,18 +6,8 @@ import type { ContextCompactAction } from '@/features/session/composer/ContextUs
 import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
-import type { Vocab } from '@/i18n';
-import type { TimeLang } from '@/i18n/time-format';
-import type {
-  ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetVM,
-} from './m-chat-vm';
-
-/** The shared-vocab words the chat view and its sheets/menus render. */
-export type MChatCopy = Pick<Vocab,
-  | 'chatComposerPh' | 'wbSessionId' | 'wbSessionStats' | 'wbSessionStatsHint' | 'wbCortexId' | 'wbBackendUuid'
-  | 'cmCopy' | 'cmCopied' | 'chatAttachCamera' | 'chatAttachLibrary' | 'chatAttachFile' | 'chatAttachBrowser'
-  | 'chatAttachCommission' | 'chatAttachCommands' | 'chatAttachPlaceholder' | 'chatProfileTitle' | 'chatProfileSubtitle'
-  | 'chatProfileCurrent' | 'chatProfileFooter' | 'wbAgent' | 'wbModelsPending' | 'chatLineUnit' | 'chatCharUnit'>;
+import type { ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow } from './m-chat-vm';
+import type { MChatSelection } from './m-chat-selection';
 
 export interface MChatInteractions {
   askState: (requestId: string) => AskAnswerState;
@@ -39,11 +29,6 @@ export interface MRejectBar {
   onCancel: () => void;
 }
 
-/** Message edit / rewind words (long-press menu, edit mode, edited badge, regen note). */
-export type MChatEditCopy = Pick<Vocab,
-  | 'cmCopy' | 'msgEdit' | 'chatEditingBadge' | 'chatWillRewind' | 'msgReplyOne' | 'msgReplyMany' | 'msgToolCallOne'
-  | 'msgToolCallMany' | 'chatEditBarTitle' | 'msgEdited' | 'chatOriginalMessage' | 'msgRegenNote'>;
-
 export interface MMsgMenu {
   rowIndex: number;
   anchorTop?: number | null;
@@ -60,19 +45,6 @@ export interface MEditMode {
   onCancel: () => void;
 }
 
-export interface BrowserSheetItem {
-  device: string | null;
-  label: string;
-  sub: string;
-}
-
-/** A commission-mode option: null is off, 'new' drills a fresh contract, anything else is an id. */
-export interface CommissionSheetItem {
-  value: string | null;
-  label: string;
-  sub: string;
-}
-
 export interface MChatViewProps {
   title: string;
   /** Team mode: the worker's lead, named before the title; tapping it opens the lead. */
@@ -86,37 +58,23 @@ export interface MChatViewProps {
   rows: ChatRow[];
   /** The session's history is still loading — the transcript window follows the tail until it lands. */
   loading?: boolean;
-  copy: MChatCopy;
   onBack: () => void;
   /** Null for a draft; omitted in metadata-free presentation previews. */
   metadataSession?: MetadataSession | null;
-  moreOpen: boolean;
-  onMoreToggle: () => void;
-  onMoreClose: () => void;
-  sessionIdOpen: boolean;
-  onSessionIdOpen: () => void;
-  onSessionIdClose: () => void;
   /** Whole-session totals rows, already formatted. Absent ⇒ the ⋯ menu hides the entry. */
   sessionStatsRows?: SessionStatsRow[] | null;
-  sessionStatsOpen: boolean;
-  onSessionStatsOpen: () => void;
-  onSessionStatsClose: () => void;
   cortexId: string | null;
   backendUuid: string | null;
   systemLines?: string[];
   interactions?: MChatInteractions;
   rejectBar?: MRejectBar;
-  editCopy?: MChatEditCopy;
   msgMenu?: MMsgMenu | null;
+  /** Long-press on a bubble; present ⇒ the message edit affordances render. */
   onLongPress?: (rowIndex: number, anchorTop: number) => void;
   editing?: MEditMode | null;
-  onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
-  originalSheet?: { text: string; onClose: () => void } | null;
-  streamKey?: string;
+  /** The open session ('' for a draft): keys the live stream and scopes the rails above the composer. */
   sessionId?: string;
   todos?: TodoSnapshot | null;
-  /** Time-label language for the WaitRail's expiry spans. */
-  railLang?: TimeLang;
   /** What this session is waiting on from outside Cortex (WaitRail), supplied by the screen. */
   waitpoints?: SessionWaitpoints | null;
   composerValue: string;
@@ -128,50 +86,20 @@ export interface MChatViewProps {
   composerPlaceholder?: string;
   onStop?: () => void;
   stopEnabled?: boolean;
-  /** What the next turn will run: the model (or, with no model pinned, the profile name). */
-  selectionChipLabel: string;
-  /** The thinking level beside it, rendered muted and dropped first when the toolbar is short of
-   *  width. Null when the selection has no level. */
-  selectionChipSub?: string | null;
-  onOpenSelection: () => void;
-  /** The environment capsule: the agent this conversation runs in, or — `followingDefault` — the
-   *  one it falls back to. Absent on a host with fewer than two agents: nothing to choose. */
-  agentChip?: { label: string; followingDefault: boolean } | null;
-  onOpenAgent?: () => void;
-  agentSheet?: {
-    rows: SelectionSheetRow[];
-    title: string;
-    onClose: () => void;
-    onPick: (row: SelectionSheetRow) => void;
-  };
-  browserDevice?: string | null;
-  onOpenBrowser?: () => void;
-  browserSheet?: { items: BrowserSheetItem[]; title: string; onClose: () => void; onPick: (device: string | null) => void };
-  /** Commission mode: the value on a draft, or on a live session what it was created with. `label`
-   *  is the commission title once one has landed; a session still drilling has none. */
-  commissionValue?: string | null;
-  commissionLabel?: string | null;
-  onOpenCommission?: () => void;
-  commissionSheet?: { items: CommissionSheetItem[]; title: string; onClose: () => void; onPick: (value: string | null) => void };
+  /** Engine + environment: what the next turn will run. The view draws the chips and sheets off it. */
+  selection: MChatSelection;
+  /** A sheet row was tapped: send its change. */
+  onPickSelection: (row: SelectionSheetRow) => void;
+  /** Browser control: the device in force; `onPick` only where it can still be chosen (a draft). */
+  browser?: { device: string | null; onPick?: (device: string | null) => void };
+  /** Commission mode: the value on a draft, or on a live session what it serves. `label` is the
+   *  commission title once one has landed; `onPick` only where it can still be chosen. */
+  commission?: { value: string | null; label: string | null; onPick?: (value: string | null) => void };
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextCompactAction?: ContextCompactAction;
-  contextUsageOpen: boolean;
-  onContextUsageOpen: () => void;
-  onContextUsageClose: () => void;
   attachments: PendingAttachmentVM[];
   onRemoveAttachment: (id: string) => void;
   onRetryAttachment: (id: string) => void;
-  onPlus: () => void;
-  attachMenuOpen: boolean;
-  onAttachClose: () => void;
-  onCamera: () => void;
-  onLibrary: () => void;
-  onFile: () => void;
-  selectionSheet?: {
-    vm: SelectionSheetVM;
-    pending: boolean;
-    onClose: () => void;
-    onPick: (row: SelectionSheetRow) => void;
-  };
+  onAddFiles: (files: FileList) => void;
 }

@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatSessionMenu } from './ChatSessionMenu';
 import { MChatSessionMenu } from '@/mobile/screens/MChatSessionMenu';
-import type { MChatCopy } from '@/mobile/screens/MChatView.types';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 
 const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), lang: 'en' as 'en' | 'zh' }));
@@ -23,14 +22,13 @@ vi.mock('@/design/Modal', () => ({ Modal: ({ open, children, footer }: any) =>
 const first = { sessionId: 'stable-1', title: 'Display title', starred: false };
 const onId = vi.fn();
 const onStats = vi.fn();
-const copy = { wbSessionId: 'Session ID', wbSessionStats: 'Session stats' } as unknown as MChatCopy;
 let renderer: ReactTestRenderer;
 let client: QueryClient;
 function Mobile({ session }: { session: MetadataSession | null }) {
   const [open, setOpen] = useState(false);
   return <><button data-chip="more" onClick={() => setOpen(true)}>⋯</button>
-    <MChatSessionMenu metadataSession={session} copy={copy} moreOpen={open} onMoreClose={() => setOpen(false)}
-      onSessionIdOpen={onId} sessionStatsRows={[{ key: 'span', label: 'Time', value: '1m' }]} onSessionStatsOpen={onStats} />
+    <MChatSessionMenu metadataSession={session} open={open} onClose={() => setOpen(false)}
+      onSessionId={onId} onSessionStats={onStats} />
   </>;
 }
 function tree(mobile: boolean, session: MetadataSession | null) {

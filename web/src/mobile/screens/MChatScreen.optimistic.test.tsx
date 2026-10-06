@@ -166,14 +166,15 @@ vi.mock('@/features/attachments/useAttachmentUploads', () => ({
 }));
 vi.mock('./MChatView', async () => {
   const React = await import('react');
+  const { en } = await import('@/i18n');
+  // The view's own derivation, so the sheet rows asserted here are the ones it would draw.
+  const { selectionView } = await import('./m-chat-selection');
   return {
     MChatView: (props: any) => React.createElement(
       'm-chat-view',
       {
         'data-composer-value': props.composerValue,
         metadataSession: props.metadataSession,
-        moreOpen: props.moreOpen,
-        onMoreToggle: props.onMoreToggle,
         'data-system-lines': JSON.stringify(props.systemLines ?? []),
         onComposerChange: props.onComposerChange,
         onSend: props.onSend,
@@ -184,13 +185,9 @@ vi.mock('./MChatView', async () => {
         'data-status-running': props.status.running,
         'data-status-tone': props.status.tone,
         'data-send-enabled': props.sendEnabled,
-        selectionChipLabel: props.selectionChipLabel,
-        selectionChipSub: props.selectionChipSub,
-        onOpenSelection: props.onOpenSelection,
-        selectionSheet: props.selectionSheet,
-        agentChip: props.agentChip,
-        onOpenAgent: props.onOpenAgent,
-        agentSheet: props.agentSheet,
+        selection: props.selection,
+        onPickSelection: props.onPickSelection,
+        selectionView: selectionView(props.selection, en),
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -283,16 +280,13 @@ afterEach(() => {
 });
 
 describe('mobile chat metadata target', () => {
-  it('passes the current stable ID/title and clears the menu on a draft switch', () => {
+  it('passes the current stable ID/title, and none on a draft switch', () => {
     harness.sessions = [{ ...SESSION, label: 'Renamed', starred: true }];
     mounted = mountChat();
     expect(view(mounted).props.metadataSession).toEqual({ sessionId: 's1', title: 'Renamed', starred: true });
-    act(() => view(mounted!).props.onMoreToggle());
-    expect(view(mounted).props.moreOpen).toBe(true);
     harness.routeParam = 'new';
     act(() => mounted!.update(<LangProvider><MChatScreen /></LangProvider>));
     expect(view(mounted).props.metadataSession).toBeNull();
-    expect(view(mounted).props.moreOpen).toBe(false);
   });
   it('does not offer metadata actions for an unresolved route', () => {
     harness.sessions = [];
@@ -586,19 +580,22 @@ describe('mobile optimistic sender wiring', () => {
 // pinned here is the screen's half: which selection reaches `sessions.setSelection`, and that a
 // draft keeps it locally until the session exists.
 
+/** The view opens a sheet through the selection controller, then hands a picked row back. */
 function openSelection(renderer: ReactTestRenderer) {
-  act(() => { view(renderer).props.onOpenSelection(); });
-  return view(renderer).props.selectionSheet;
+  act(() => { view(renderer).props.selection.setOpen(true); });
+  return { ...view(renderer).props.selectionView.sheet, onPick: view(renderer).props.onPickSelection };
 }
 
 /** The environment has a capsule and a sheet of its own, beside the engine's. */
 function openAgent(renderer: ReactTestRenderer) {
-  act(() => { view(renderer).props.onOpenAgent(); });
-  return view(renderer).props.agentSheet;
+  act(() => { view(renderer).props.selection.setAgentOpen(true); });
+  const rows = view(renderer).props.selectionView.agentRows;
+  return rows ? { rows, onPick: view(renderer).props.onPickSelection } : null;
 }
 
 function tapAgent(renderer: ReactTestRenderer, rowId: string): void {
   const sheet = openAgent(renderer);
+  if (!sheet) throw new Error('no agent sheet');
   const row = sheet.rows.find((entry: any) => entry.id === rowId);
   if (!row) throw new Error(`no such agent row: ${rowId}`);
   act(() => { sheet.onPick(row); });
@@ -686,13 +683,13 @@ describe('mobile environment picker', () => {
 
   it('the capsule names the fallback a session following the host default will run', () => {
     mounted = mountChat();
-    expect(view(mounted).props.agentChip).toEqual({ label: 'main', followingDefault: true });
+    expect(view(mounted).props.selectionView.agentChip).toEqual({ label: 'main', followingDefault: true });
   });
 
   it('no capsule, and no sheet to open, where there is nothing to choose', () => {
     harness.agents = [{ name: 'main', description: 'the default environment', profile: '__active__' }];
     mounted = mountChat();
-    expect(view(mounted).props.agentChip).toBeNull();
-    expect(openAgent(mounted)).toBeUndefined();
+    expect(view(mounted).props.selectionView.agentChip).toBeNull();
+    expect(openAgent(mounted)).toBeNull();
   });
 });

@@ -6,13 +6,14 @@ import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SelectionRootRow } from '@/features/session/list/selection-menu';
 import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
-import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
+import type { MChatSelection, MChatSelectionView } from './m-chat-selection';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 import { SelectionPane } from '@/design/SelectionPane';
 import { useVocabOptional } from '@/i18n';
+import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
+import { useCommissionOptions } from '@/features/commission/CommissionOptIn';
 
-export function MoreMenu({ copy, onClose, onSessionId, onSessionStats, metadataItems }: {
-  copy: MChatCopy;
+export function MoreMenu({ onClose, onSessionId, onSessionStats, metadataItems }: {
   onClose: () => void;
   onSessionId: () => void;
   /** Absent until the session has finished a run — there is nothing to total up before that. */
@@ -24,6 +25,7 @@ export function MoreMenu({ copy, onClose, onSessionId, onSessionStats, metadataI
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+  const copy = useVocabOptional();
   // The header status line is ~10px mono and already ellipsised, so the desktop's second segment
   // does not fit there: on mobile the whole-session totals live behind this menu instead.
   const items = [
@@ -43,12 +45,12 @@ export function MoreMenu({ copy, onClose, onSessionId, onSessionStats, metadataI
 
 interface SessionIdRowProps {
   row: { key: string; label: string; value: string };
-  copy: MChatCopy;
   copied: boolean;
   onCopy: () => void;
 }
 
-function SessionIdRow({ row, copy, copied, onCopy }: SessionIdRowProps): JSX.Element {
+function SessionIdRow({ row, copied, onCopy }: SessionIdRowProps): JSX.Element {
+  const copy = useVocabOptional();
   return (
     <div>
       <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>{row.label}</div>
@@ -60,12 +62,12 @@ function SessionIdRow({ row, copy, copied, onCopy }: SessionIdRowProps): JSX.Ele
   );
 }
 
-export function SessionIdSheet({ copy, cortexId, backendUuid, onClose }: {
-  copy: MChatCopy;
+export function SessionIdSheet({ cortexId, backendUuid, onClose }: {
   cortexId: string | null | undefined;
   backendUuid: string | null | undefined;
   onClose: () => void;
 }): JSX.Element {
+  const copy = useVocabOptional();
   const rows = buildSessionIdRows({ cortexId, backendUuid, cortexIdLabel: copy.wbCortexId, backendUuidLabel: copy.wbBackendUuid });
   const { copiedKey, copy: writeCopy } = useClipboardFeedback<string>();
   const doCopy = (key: string, value: string): void => {
@@ -74,16 +76,16 @@ export function SessionIdSheet({ copy, cortexId, backendUuid, onClose }: {
   return (
     <MBottomSheet onClose={onClose}>
       <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{copy.wbSessionId}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>{rows.map((row) => <SessionIdRow key={row.key} row={row} copy={copy} copied={copiedKey === row.key} onCopy={() => doCopy(row.key, row.value)} />)}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>{rows.map((row) => <SessionIdRow key={row.key} row={row} copied={copiedKey === row.key} onCopy={() => doCopy(row.key, row.value)} />)}</div>
     </MBottomSheet>
   );
 }
 
-export function SessionStatsSheet({ copy, rows, onClose }: {
-  copy: MChatCopy;
+export function SessionStatsSheet({ rows, onClose }: {
   rows: SessionStatsRow[];
   onClose: () => void;
 }): JSX.Element {
+  const copy = useVocabOptional();
   return (
     <MBottomSheet onClose={onClose}>
       <div data-mobile-session-stats-sheet="true">
@@ -123,12 +125,12 @@ export function ContextUsageSheet({ usage, compactAction, onClose }: {
   );
 }
 
-function SelectionRow({ row, last, copy, onPick }: {
+function SelectionRow({ row, last, onPick }: {
   row: SelectionSheetRow;
   last: boolean;
-  copy: MChatCopy;
   onPick: (row: SelectionSheetRow) => void;
 }): JSX.Element {
+  const copy = useVocabOptional();
   return (
     <div
       data-selection-row={row.id}
@@ -177,15 +179,14 @@ function SheetNote({ text }: { text: string }): JSX.Element {
   return <div style={{ font: `400 11px ${MONO}`, color: MC.muted, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
 }
 
-function SectionRows({ section, copy, onPick }: {
+function SectionRows({ section, onPick }: {
   section: SelectionSheetSection;
-  copy: MChatCopy;
   onPick: (row: SelectionSheetRow) => void;
 }): JSX.Element {
   return (
     <SheetCard>
       {section.rows.map((row, index) => (
-        <SelectionRow key={row.id} row={row} last={index === section.rows.length - 1} copy={copy} onPick={onPick} />
+        <SelectionRow key={row.id} row={row} last={index === section.rows.length - 1} onPick={onPick} />
       ))}
     </SheetCard>
   );
@@ -199,33 +200,34 @@ function SectionRows({ section, copy, onPick }: {
  *  draws them. */
 interface SelectionSheetProps {
   vm: SelectionSheetVM;
-  copy: MChatCopy;
   /** PI is configured but has not reported its models yet. */
   pending?: boolean;
   onClose: () => void;
   onPick: (row: SelectionSheetRow) => void;
 }
 
-function SelectionSection({ section, copy, pending, back, onPick }: {
+function SelectionSection({ section, pending, back, onPick }: {
   section: SelectionSheetSection;
   back: () => void;
-} & Pick<SelectionSheetProps, 'copy' | 'pending' | 'onPick'>): JSX.Element {
+} & Pick<SelectionSheetProps, 'pending' | 'onPick'>): JSX.Element {
+  const copy = useVocabOptional();
   return (
     <>
       <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
       </div>
-      <SectionRows section={section} copy={copy} onPick={(row) => { back(); onPick(row); }} />
+      <SectionRows section={section} onPick={(row) => { back(); onPick(row); }} />
       {section.key === 'model' && pending && <SheetNote text={copy.wbModelsPending} />}
       {section.footer && <SheetNote text={section.footer} />}
     </>
   );
 }
 
-function SelectionRoot({ vm, copy, onClose, onPick, setPane }: SelectionSheetProps & {
+function SelectionRoot({ vm, onClose, onPick, setPane }: SelectionSheetProps & {
   setPane: (pane: SelectionRootRow['key']) => void;
 }): JSX.Element {
+  const copy = useVocabOptional();
   const pick = (row: SelectionSheetRow): void => { onClose(); onPick(row); };
   return (
     <>
@@ -233,7 +235,7 @@ function SelectionRoot({ vm, copy, onClose, onPick, setPane }: SelectionSheetPro
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
         {vm.sections[0] && (
           <div>
-            <SectionRows section={vm.sections[0]} copy={copy} onPick={pick} />
+            <SectionRows section={vm.sections[0]} onPick={pick} />
             {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
           </div>
         )}
@@ -241,7 +243,7 @@ function SelectionRoot({ vm, copy, onClose, onPick, setPane }: SelectionSheetPro
           {vm.rootRows.map((row, index) => (
             <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
           ))}
-          {vm.clearRow && <SelectionRow row={vm.clearRow} last copy={copy} onPick={pick} />}
+          {vm.clearRow && <SelectionRow row={vm.clearRow} last onPick={pick} />}
         </SheetCard>
       </div>
       <SheetNote text={copy.chatProfileFooter} />
@@ -269,13 +271,12 @@ export function SelectionSheet(props: SelectionSheetProps): JSX.Element {
  *  where there is something to choose between; the screen decides that, the same `> 1 agent` rule
  *  the desktop chip obeys.
  *  Its rows come from `buildAgentSheet` — the desktop menu's arithmetic. */
-export function AgentSheet({ rows, title, copy, onClose, onPick }: {
+export function AgentSheet({ rows, onClose, onPick }: {
   rows: SelectionSheetRow[];
-  title: string;
-  copy: MChatCopy;
   onClose: () => void;
   onPick: (row: SelectionSheetRow) => void;
 }): JSX.Element {
+  const title = useVocabOptional().wbAgent;
   return (
     <MBottomSheet onClose={onClose}>
       <div data-mobile-agent-sheet="true">
@@ -286,7 +287,6 @@ export function AgentSheet({ rows, title, copy, onClose, onPick }: {
               key={row.id}
               row={row}
               last={index === rows.length - 1}
-              copy={copy}
               onPick={(picked) => { onClose(); onPick(picked); }}
             />
           ))}
@@ -329,32 +329,48 @@ function OptionSheet({ items, attr, title, current, onClose, onPick }: {
   );
 }
 
-export function BrowserSheet({ items, title, current, onClose, onPick }: {
-  items: BrowserSheetItem[];
-  title: string;
+/** The device list is read each time the sheet opens, so it cannot offer a machine that has since
+ *  disconnected. */
+export function BrowserSheet({ current, onClose, onPick }: {
   current: string | null;
   onClose: () => void;
   onPick: (device: string | null) => void;
 }): JSX.Element {
+  const items = useBrowserDeviceOptions(true);
   return (
     <OptionSheet
       items={items.map((i) => ({ value: i.device, label: i.label, sub: i.sub }))}
-      attr="data-device" title={title} current={current} onClose={onClose} onPick={onPick}
+      attr="data-device" title={useVocabOptional().wbBrowser} current={current} onClose={onClose} onPick={onPick}
     />
   );
 }
 
-export function CommissionSheet({ items, title, current, onClose, onPick }: {
-  items: CommissionSheetItem[];
-  title: string;
+export function CommissionSheet({ current, onClose, onPick }: {
   current: string | null;
   onClose: () => void;
   onPick: (value: string | null) => void;
 }): JSX.Element {
+  const items = useCommissionOptions(true);
   return (
     <OptionSheet
-      items={items} attr="data-commission-option"
-      title={title} current={current} onClose={onClose} onPick={onPick}
+      items={items.map((o) => ({ value: o.value, label: o.label, sub: o.sub }))} attr="data-commission-option"
+      title={useVocabOptional().wbCommissionMode} current={current} onClose={onClose} onPick={onPick}
     />
+  );
+}
+
+/** The engine and environment sheets, open while the shared selection controller says so. */
+export function SelectionSheets({ selection, view, onPick }: {
+  selection: MChatSelection;
+  view: MChatSelectionView;
+  onPick: (row: SelectionSheetRow) => void;
+}): JSX.Element {
+  return (
+    <>
+      {view.sheet && (
+        <SelectionSheet vm={view.sheet.vm} pending={view.sheet.pending} onClose={() => selection.setOpen(false)} onPick={onPick} />
+      )}
+      {view.agentRows && <AgentSheet rows={view.agentRows} onClose={() => selection.setAgentOpen(false)} onPick={onPick} />}
+    </>
   );
 }

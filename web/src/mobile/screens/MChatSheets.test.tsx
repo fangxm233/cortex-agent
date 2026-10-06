@@ -1,6 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MChatCopy } from './MChatView.types';
 import type { SelectionSheetRow, SelectionSheetVM } from './m-chat-vm';
 
 // MBottomSheet's entrance animation needs rAF and window.history; this suite is about what the
@@ -15,13 +14,9 @@ const { AttachMenu } = await import('./MChatComposerPresentation');
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
-const menuCopy = {
-  wbSessionId: 'Session ID', chatAttachCamera: 'Take photo', chatAttachLibrary: 'Photo library',
-  chatAttachFile: 'Choose file', chatAttachCommands: 'Commands',
-} as unknown as MChatCopy;
 const floatingMenus = [
-  { name: 'More', render: (onClose: () => void) => <MoreMenu copy={menuCopy} onClose={onClose} onSessionId={vi.fn()} /> },
-  { name: 'Attach', render: (onClose: () => void) => <AttachMenu copy={menuCopy} onClose={onClose} onCamera={vi.fn()} onLibrary={vi.fn()} onFile={vi.fn()} onCommands={vi.fn()} /> },
+  { name: 'More', render: (onClose: () => void) => <MoreMenu onClose={onClose} onSessionId={vi.fn()} /> },
+  { name: 'Attach', render: (onClose: () => void) => <AttachMenu onClose={onClose} onCamera={vi.fn()} onLibrary={vi.fn()} onFile={vi.fn()} onCommands={vi.fn()} /> },
 ];
 
 function press(target: EventTarget, key: string): void {
@@ -72,11 +67,6 @@ describe.each(floatingMenus)('$name menu dismissal', ({ render }) => {
 // which pick closes the sheet — a profile is the wholesale move, a pane pick leaves it open so the
 // next facet can be chosen in the same visit.
 
-const selectionCopy = {
-  chatProfileTitle: 'Engine', chatProfileSubtitle: 'this session', chatProfileCurrent: 'current',
-  chatProfileFooter: 'next turns only', wbModelsPending: 'loading models…',
-} as unknown as MChatCopy;
-
 const vm: SelectionSheetVM = {
   sections: [
     { key: 'profile', title: 'PROFILE', rows: [
@@ -104,7 +94,7 @@ function renderSheet(pending = true) {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <SelectionSheet vm={vm} pending={pending} copy={selectionCopy} onClose={onClose} onPick={onPick} />,
+      <SelectionSheet vm={vm} pending={pending} onClose={onClose} onPick={onPick} />,
     );
   });
   const open = (pane: string): void => {
@@ -190,7 +180,7 @@ function renderAgentSheet() {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <AgentSheet rows={agentRows} title="agent" copy={selectionCopy} onClose={onClose} onPick={onPick} />,
+      <AgentSheet rows={agentRows} onClose={onClose} onPick={onPick} />,
     );
   });
   const tap = (id: string): void => {

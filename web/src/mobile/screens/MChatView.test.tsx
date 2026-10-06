@@ -39,72 +39,49 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
+// MBottomSheet's entrance animation needs rAF and window.history; these suites are about which
+// sheet is up, so the chrome is stubbed as in MChatSheets' suite.
+vi.mock('@/mobile/ui/kit', async () => ({
+  ...(await vi.importActual<typeof import('@/mobile/ui/kit')>('@/mobile/ui/kit')),
+  MBottomSheet: ({ children, onClose }: any) => <div data-bottom-sheet="" data-close={onClose}>{children}</div>,
+}));
+vi.mock('@/features/browser/BrowserOptIn', () => ({
+  useBrowserDeviceOptions: () => [{ device: null, label: 'Off', sub: '' }, { device: 'laptop', label: 'laptop', sub: '' }],
+}));
+
 import { LangProvider } from '@/i18n';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
-import { MChatStream, MChatView, type MChatCopy } from './MChatView';
+import { MChatStream, MChatView } from './MChatView';
 import { ComposerAttachmentStrip } from './MChatAttachments';
+import type { MChatSelection } from './m-chat-selection';
 
-const copy: MChatCopy = {
-  chatComposerPh: 'composer',
-  wbSessionId: 'session-id',
-  wbSessionStats: 'session-stats',
-  wbSessionStatsHint: 'session-stats-hint',
-  wbCortexId: 'cortex-id',
-  wbBackendUuid: 'backend-id',
-  cmCopy: 'copy',
-  cmCopied: 'copied',
-  chatAttachCamera: 'camera',
-  chatAttachLibrary: 'library',
-  chatAttachFile: 'file',
-  chatAttachBrowser: 'browser',
-  chatAttachCommission: 'commission',
-  chatAttachCommands: 'commands',
-  chatAttachPlaceholder: 'attachment',
-  chatProfileTitle: 'profile',
-  chatProfileSubtitle: 'profile-subtitle',
-  chatProfileCurrent: 'current',
-  chatProfileFooter: 'profile-footer',
-  wbAgent: 'agent',
-  wbModelsPending: 'loading models',
-  chatLineUnit: 'rows',
-  chatCharUnit: 'chars',
+const selection: MChatSelection = {
+  open: false, setOpen: () => {}, agentOpen: false, setAgentOpen: () => {},
+  profiles: [], defaultProfile: null, agents: [], catalog: null, catalogLoading: false, modelsReady: true,
+  effective: {
+    profileName: 'plan', backend: 'claude', model: 'claude-opus-5', provider: null, thinking: 'high', mode: null,
+    modelOverridden: false, thinkingOverridden: false, modeOverridden: false,
+  },
+  override: null, hasHistory: false, agentOptions: [], agentName: null,
 };
 
 const baseProps = {
   title: 'session',
-  copy,
   onBack: () => {},
-  moreOpen: false,
-  onMoreToggle: () => {},
-  onMoreClose: () => {},
-  sessionIdOpen: false,
-  sessionStatsOpen: false,
-  onSessionStatsOpen: () => {},
-  onSessionStatsClose: () => {},
-  onSessionIdOpen: () => {},
-  onSessionIdClose: () => {},
   cortexId: null,
   backendUuid: null,
   composerValue: '',
   onComposerChange: () => {},
   onSend: () => {},
   sendEnabled: false,
-  selectionChipLabel: 'claude-opus-5 · high',
-  onOpenSelection: () => {},
-  contextUsageOpen: false,
-  onContextUsageOpen: () => {},
-  onContextUsageClose: () => {},
+  selection,
+  onPickSelection: () => {},
   attachments: [],
   onRemoveAttachment: () => {},
   onRetryAttachment: () => {},
-  onPlus: () => {},
-  attachMenuOpen: false,
-  onAttachClose: () => {},
-  onCamera: () => {},
-  onLibrary: () => {},
-  onFile: () => {},
+  onAddFiles: () => {},
 };
 
 function button(html: string, label: string): string | null {
@@ -277,7 +254,7 @@ describe('MChatStream assistant turn copy', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" />
+          <MChatStream rows={rows} />
         </LangProvider>,
       );
     });
@@ -298,7 +275,7 @@ describe('MChatStream window', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} start={4} copyLabel="copy" copiedLabel="copied" editCopy={{} as any} onLongPress={onLongPress} />
+          <MChatStream rows={rows} start={4} onLongPress={onLongPress} />
         </LangProvider>,
       );
     });
@@ -322,7 +299,7 @@ describe('MChatStream subagent prompt', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" />
+          <MChatStream rows={rows} />
         </LangProvider>,
       );
     });
@@ -351,7 +328,7 @@ describe('MChatStream subagent prompt', () => {
     ];
     let renderer!: ReactTestRenderer;
     act(() => {
-      renderer = create(<LangProvider><MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" /></LangProvider>);
+      renderer = create(<LangProvider><MChatStream rows={rows} /></LangProvider>);
     });
     act(() => renderer.root.findAllByProps({ role: 'button' }).at(-1)!.props.onClick());
     const passed = renderer.root.findAllByType(ToolCallsRow).map((row) => row.props.calls[0].images);
@@ -368,7 +345,7 @@ describe('MChatStream subagent prompt', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" streamKey="s1" />
+          <MChatStream rows={rows} streamKey="s1" />
         </LangProvider>,
       );
     });
@@ -479,5 +456,78 @@ describe('MChatView team context', () => {
     act(() => crumb.props.onClick());
     expect(onSelect).toHaveBeenCalledOnce();
     act(() => r.unmount());
+  });
+});
+
+// Which menu or sheet is up is the view's own state now; the screen only hands it domain actions.
+describe('MChatView overlays', () => {
+  const status = { running: false, tone: 'idle' as const, text: 'idle' };
+  const mount = (extra: Record<string, unknown> = {}) => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s1" {...extra} /></LangProvider>); });
+    return renderer;
+  };
+  const byLabel = (r: ReactTestRenderer, label: string) =>
+    r.root.findAll((n) => typeof n.type === 'string' && n.children.includes(label) && n.props.onClick)[0];
+  const sheets = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'div' && n.props['data-bottom-sheet'] !== undefined);
+
+  beforeEach(() => { vi.stubGlobal('window', new EventTarget()); });
+
+  it('hands the ⋯ menu over to the Session ID sheet, and closes everything on another session', () => {
+    const r = mount();
+    act(() => r.root.findByProps({ 'aria-label': 'More' }).props.onClick());
+    act(() => byLabel(r, 'Session ID').props.onClick());
+    expect(byLabel(r, 'Session ID')).toBeUndefined();
+    expect(sheets(r)).toHaveLength(1);
+    act(() => r.update(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s2" /></LangProvider>));
+    expect(sheets(r)).toHaveLength(0);
+    act(() => r.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it('opens the browser sheet from ＋ and sends the picked device', () => {
+    const onPick = vi.fn();
+    const r = mount({ browser: { device: null, onPick } });
+    act(() => r.root.findByProps({ 'aria-label': 'Attach' }).props.onClick());
+    act(() => r.root.findByProps({ 'data-plus-item': 'browser' }).props.onClick());
+    expect(r.root.findAll((n) => n.props['data-plus-item'] !== undefined)).toHaveLength(0);
+    act(() => r.root.findByProps({ 'data-device': 'laptop' }).props.onClick());
+    expect(onPick).toHaveBeenCalledWith('laptop');
+    expect(sheets(r)).toHaveLength(0);
+    act(() => r.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it('reports a live session\'s browser without offering to change it', () => {
+    const r = mount({ browser: { device: 'laptop' } });
+    expect(r.root.findByProps({ 'data-chip': 'browser' }).props.onClick).toBeUndefined();
+    act(() => r.root.findByProps({ 'aria-label': 'Attach' }).props.onClick());
+    expect(r.root.findByProps({ 'data-plus-item': 'browser' }).props['data-editable']).toBe('false');
+    act(() => r.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it('draws the engine chip off the selection and opens its sheet through it', () => {
+    const setOpen = vi.fn();
+    const r = mount({ selection: { ...selection, setOpen } });
+    const chip = r.root.findByProps({ 'data-chip': 'selection' });
+    expect(chip.props['aria-label']).toBe('opus-5 · high');
+    act(() => chip.props.onClick());
+    expect(setOpen).toHaveBeenCalledWith(true);
+    expect(r.root.findAll((n) => n.props['data-chip'] === 'agent')).toHaveLength(0);
+    act(() => r.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it('hands an engine-sheet pick to the screen and closes the sheet', () => {
+    const setOpen = vi.fn();
+    const onPickSelection = vi.fn();
+    const profiles = [{ name: 'plan', backend: 'claude' }, { name: 'fast', backend: 'claude' }] as MChatSelection['profiles'];
+    const r = mount({ selection: { ...selection, open: true, setOpen, profiles }, onPickSelection });
+    act(() => r.root.findByProps({ 'data-selection-row': 'profile:fast' }).props.onClick());
+    expect(setOpen).toHaveBeenCalledWith(false);
+    expect(onPickSelection.mock.calls[0][0]).toMatchObject({ id: 'profile:fast', label: 'fast' });
+    act(() => r.unmount());
+    vi.unstubAllGlobals();
   });
 });

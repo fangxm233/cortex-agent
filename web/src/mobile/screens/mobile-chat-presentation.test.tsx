@@ -6,7 +6,6 @@ import { MPlanCard } from './MInteractionCards';
 import { MoreMenu } from './MChatSheets';
 import { AttachMenu } from './MChatComposerPresentation';
 import { MNotificationToaster } from './MNotificationToaster';
-import type { MChatCopy } from './MChatView.types';
 import type { PlanCardModel } from '@/features/session/interaction/interaction-vm';
 
 const noop = () => {};
@@ -34,10 +33,9 @@ describe('mobile chat presentation', () => {
   });
 
   it('gives only the small menus a backdrop sample', () => {
-    const copy = { wbSessionId: 'Session ID' } as unknown as MChatCopy;
     const menus = [
-      renderToStaticMarkup(<MoreMenu copy={copy} onClose={noop} onSessionId={noop} />),
-      renderToStaticMarkup(<AttachMenu copy={copy} onClose={noop} onCamera={noop}
+      renderToStaticMarkup(<MoreMenu onClose={noop} onSessionId={noop} />),
+      renderToStaticMarkup(<AttachMenu onClose={noop} onCamera={noop}
         onLibrary={noop} onFile={noop} onCommands={noop} />),
     ];
     for (const html of menus) {

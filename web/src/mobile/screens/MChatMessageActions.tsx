@@ -3,7 +3,7 @@ import { messageTimeLabel, type ChatRow } from '@/features/session/transcript/tr
 import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, msgMenuSafeTop, MSG_MENU_SAFE_BOTTOM } from './m-chat-vm';
-import type { MChatEditCopy, MMsgMenu } from './MChatView.types';
+import type { MMsgMenu } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 export function longPressHandlers(fire: (anchorTop: number) => void): {
@@ -23,11 +23,8 @@ export function longPressHandlers(fire: (anchorTop: number) => void): {
   };
 }
 
-export function AssistantCopyButton({ text, label, copiedLabel }: {
-  text: string;
-  label: string;
-  copiedLabel: string;
-}): JSX.Element {
+export function AssistantCopyButton({ text }: { text: string }): JSX.Element {
+  const { cmCopy: label, cmCopied: copiedLabel } = useVocabOptional();
   const { copiedKey, copy: writeCopy } = useClipboardFeedback<true>();
   const copied = copiedKey === true;
   const copy = (): void => { void writeCopy(text, true); };
@@ -38,15 +35,11 @@ export function AssistantCopyButton({ text, label, copiedLabel }: {
   );
 }
 
-export function AssistantTurnCopyAction({ text, label, copiedLabel }: {
-  text?: string;
-  label: string;
-  copiedLabel: string;
-}): JSX.Element | null {
+export function AssistantTurnCopyAction({ text }: { text?: string }): JSX.Element | null {
   if (!text) return null;
   return (
     <div style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}>
-      <AssistantCopyButton text={text} label={label} copiedLabel={copiedLabel} />
+      <AssistantCopyButton text={text} />
     </div>
   );
 }
@@ -110,7 +103,8 @@ function useMsgMenuTop(anchorTop: number | null | undefined): {
   return { overlayRef, groupRef, top, safeTop };
 }
 
-function MessageMenuCard({ menu, copy }: { menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
+function MessageMenuCard({ menu }: { menu: MMsgMenu }): JSX.Element {
+  const copy = useVocabOptional();
   return (
     <div onClick={(event) => event.stopPropagation()} style={{ flex: 'none', width: 196, background: 'var(--material-overlay-bg)', border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden' }}>
       <MsgMenuItem label={copy.cmCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
@@ -119,10 +113,9 @@ function MessageMenuCard({ menu, copy }: { menu: MMsgMenu; copy: MChatEditCopy }
   );
 }
 
-function ActionGroup({ row, menu, copy, groupRef, top, safeTop }: {
+function ActionGroup({ row, menu, groupRef, top, safeTop }: {
   row: ChatRow;
   menu: MMsgMenu;
-  copy: MChatEditCopy;
   groupRef: React.RefObject<HTMLDivElement>;
   top: number | null;
   safeTop: number;
@@ -135,26 +128,22 @@ function ActionGroup({ row, menu, copy, groupRef, top, safeTop }: {
     <div ref={groupRef} data-msg-menu-group="true" style={style}>
       <HeldBubbleCopy isUser={isUser} text={text} />
       {timeLabel && <div style={{ flex: 'none', font: `500 11px ${MONO}`, color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>{timeLabel}</div>}
-      <MessageMenuCard menu={menu} copy={copy} />
+      <MessageMenuCard menu={menu} />
     </div>
   );
 }
 
-export function MsgActionMenu({ row, menu, copy }: {
-  row: ChatRow;
-  menu: MMsgMenu;
-  copy: MChatEditCopy;
-}): JSX.Element {
+export function MsgActionMenu({ row, menu }: { row: ChatRow; menu: MMsgMenu }): JSX.Element {
   const { overlayRef, groupRef, top, safeTop } = useMsgMenuTop(menu.anchorTop);
   return (
     <div ref={overlayRef} onClick={menu.onClose} style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'var(--overlay-scrim-interaction)', backdropFilter: 'var(--material-scrim-filter)', WebkitBackdropFilter: 'var(--material-scrim-filter)', overflow: 'hidden' }}>
-      <ActionGroup row={row} menu={menu} copy={copy} groupRef={groupRef} top={top} safeTop={safeTop} />
+      <ActionGroup row={row} menu={menu} groupRef={groupRef} top={top} safeTop={safeTop} />
     </div>
   );
 }
 
-export function EditBar({ title, onCancel }: { title: string; onCancel: () => void }): JSX.Element {
-  const cancelLabel = useVocabOptional().chatCancelEdit;
+export function EditBar({ onCancel }: { onCancel: () => void }): JSX.Element {
+  const { chatCancelEdit: cancelLabel, chatEditBarTitle: title } = useVocabOptional();
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--material-inset-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />
