@@ -43,7 +43,7 @@ function backgroundResults(events: RunEvent[]): BackgroundResult[] {
 function engineRun(
   t: { onTestFinished: (fn: () => void) => void },
   opts: {
-    awaitBackground?: 'none' | 'hold' | 'inline' | 'completion-only';
+    awaitBackground?: 'none' | 'hold';
     model?: string | null;
     preserveUnreportedAccounting?: boolean;
   } = {},

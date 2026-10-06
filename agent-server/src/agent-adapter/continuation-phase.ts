@@ -1,34 +1,24 @@
-//
 // A run's life does not end with its foreground result. Claude opens a *spontaneous* turn of its
 // own when a background task finishes (or when an injected message is consumed after the result),
 // and the engine has to keep the turn open, keep the stream open, and decide when the run is
 // really over. This module is that decision, in one place, for both engines:
 //
-//   none             settle at the foreground result; no continuation is possible.
-//   hold             settle at the foreground result, keep streaming the background phase until
-//                    the backend reports nothing left (or the grace/max-wait watchdog fires).
-//                    Interactive surfaces hold a status message for exactly this window.
-//   inline           settle with the MERGED result once the background phase ends. Thread/dispatch
-//                    steps have no status message to hold, so their step result must carry the
-//                    continuation's work.
-//   completion-only  inline, but the grace/max-wait caps are disabled: only the backend finishing
-//                    or the caller's process-stop boundary ends the wait. Supervised one-shot runs
-//                    use this so an ambient cap can never publish success while work remains.
+//   none   settle at the foreground result; no continuation is possible.
+//   hold   settle at the foreground result, keep streaming the background phase until the backend
+//          reports nothing left (or the grace/max-wait watchdog fires). Interactive surfaces hold a
+//          status message for exactly this window.
 //
 // The watchdog bounds the WAIT for a continuation, never the continuation itself: a background
 // turn that runs longer than the window must not be sealed mid-stream. `onTurnOpen` therefore
 // pauses the timers and the turn's own result re-arms or finishes.
 
-import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { BackgroundTurnSink } from './types.js';
 import { getBgGraceMs, getBgMaxWaitMs, remainingBg } from './bg-wait.js';
 import type { RunEvent } from './run-events.js';
 
-const log = createLogger('bg-wait');
-
 /** What the caller asked the engine to do about a run's background work. */
-export type AwaitBackground = 'none' | 'hold' | 'inline' | 'completion-only';
+export type AwaitBackground = 'none' | 'hold';
 
 /** Timer seam. Production timers are unref'd so a waiting run never keeps the process alive. */
 export interface RunTimers {
@@ -48,29 +38,23 @@ const realTimers: RunTimers = {
 export interface ContinuationPhasePort {
   /** Fan one event out to the run's observers. */
   push(event: RunEvent): void;
-  /** Resolve the engine run's `result`: the value the caller's foreground await gets. Called at
-   *  most once, and only for the policies whose foreground turn settles on its own. */
+  /** Resolve the engine run's `result`: the value the caller's foreground await gets, when the
+   *  run goes on into a background phase. Called at most once. */
   settleForeground(result: AgentResult): void;
   /** Resolve the engine run's `settled`: the accumulated result of the whole run. Idempotent, and
-   *  it also releases `result` (a run that only ever settles here — `inline` — still has a
-   *  foreground await to satisfy). */
+   *  it also releases `result` (a run that ends at its foreground turn only ever settles here). */
   settleRun(result: AgentResult): void;
-  /** Reject both promises (the backend died mid-continuation). Called at most once. */
-  reject(error: Error): void;
   /** Force-close the event stream (the run is over). */
   close(): void;
   timers?: RunTimers;
   graceMs?: number;
   maxWaitMs?: number;
-  /** `completion-only` runs end at this boundary (the process stopping), not at a timer. */
-  stopPromise?: Promise<unknown>;
 }
 
 /** Merge a continuation turn into the accumulated result: costs and turns summed, latest non-empty
- *  output wins, rate-limit and remaining counts taken from the continuation. The merged result is
- *  what an `inline`/`completion-only` caller awaits and what every terminal tally is derived from,
- *  so a multi-continuation run reports the whole run rather than whichever turn happened to be
- *  last. */
+ *  output wins, rate-limit and remaining counts taken from the continuation. Every terminal tally
+ *  is derived from the merged result, so a multi-continuation run reports the whole run rather
+ *  than whichever turn happened to be last. */
 export function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentResult {
   const bothCostNull = acc.total_cost_usd == null && cont.total_cost_usd == null;
   const bothTurnsNull = acc.num_turns == null && cont.num_turns == null;
@@ -145,9 +129,8 @@ export class ContinuationPhase {
     this.mode = mode;
     this.port = port;
     this.timers = port.timers ?? realTimers;
-    const completionOnly = mode === 'completion-only';
-    this.graceMs = completionOnly ? 0 : (port.graceMs ?? getBgGraceMs());
-    this.maxWaitMs = completionOnly ? 0 : (port.maxWaitMs ?? getBgMaxWaitMs());
+    this.graceMs = port.graceMs ?? getBgGraceMs();
+    this.maxWaitMs = port.maxWaitMs ?? getBgMaxWaitMs();
   }
 
   /** The background-turn sink the engine hands its transport for this run. The
@@ -164,7 +147,7 @@ export class ContinuationPhase {
 
   /**
    * The foreground turn settled. `none` — and any result with no background work — ends the run
-   * here; everything else keeps the phase open and (for `inline`) defers `settle` to the merge.
+   * here; otherwise the caller gets the foreground result now and the phase stays open.
    */
   start(base: AgentResult): void {
     if (this.started) return;
@@ -176,19 +159,7 @@ export class ContinuationPhase {
       for (const result of queued) this.onResult(result);
       return;
     }
-    if (this.mode !== 'inline' && this.mode !== 'completion-only') this.port.settleForeground(this.acc);
-    if (this.mode === 'completion-only') {
-      if (!this.port.stopPromise) {
-        // No stop boundary: nothing could ever end the wait, so wait for the backend instead of
-        // leaving the run open forever.
-        log.warn('completion-only background wait has no stop promise — waiting for the backend instead');
-      } else {
-        void this.port.stopPromise.then(
-          () => this.rejectWith(new Error('Agent process stopped before background continuation completed')),
-          (error) => this.rejectWith(error),
-        );
-      }
-    }
+    this.port.settleForeground(this.acc);
     this.enterBackground();
     this.arm(
       Math.max(base.pendingBackgroundTasks ?? 0, this.outstandingInjections),
@@ -265,12 +236,7 @@ export class ContinuationPhase {
     if (!this.started) { this.queued.push(result); return; }
     if (this.settled) return;
     if (result.backgroundInterrupted) {
-      // The process died mid-continuation. `completion-only` runs treat that as a failure (they
-      // have no cap to release them); everyone else finalizes the accumulated work normally.
-      if (this.mode === 'completion-only') {
-        this.rejectWith(new Error('Agent process stopped before background continuation completed'));
-        return;
-      }
+      // The process died mid-continuation: finalize the work accumulated so far.
       this.port.push({ type: 'background_result', result });
       this.acc = { ...(this.acc as AgentResult), backgroundInterrupted: true };
       this.finish();
@@ -304,12 +270,10 @@ export class ContinuationPhase {
     this.clearTimer();
     if (this.settled || this.waitExpired) return;
     if (running > 0) {
-      if (this.mode === 'completion-only') return;
       this.handle = this.timers.set(() => this.onTimeout('max-wait'), this.maxWaitMs);
       return;
     }
     if (undelivered > 0) {
-      if (this.mode === 'completion-only') return;
       this.handle = this.timers.set(() => this.onTimeout('grace'), this.graceMs);
     }
   }
@@ -342,16 +306,6 @@ export class ContinuationPhase {
     this.settled = true;
     this.clearTimer();
     if (this.acc) this.port.settleRun(this.acc);
-    this.close();
-  }
-
-  private rejectWith(error: unknown): void {
-    if (this.settled) return;
-    this.settled = true;
-    this.clearTimer();
-    const failure = error instanceof Error ? error : new Error(String(error));
-    this.port.push({ type: 'error', message: failure.message, fatal: true });
-    this.port.reject(failure);
     this.close();
   }
 

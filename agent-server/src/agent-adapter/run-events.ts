@@ -54,7 +54,6 @@ export type RunEvent =
       status: 'completed' | 'failed' | 'killed'; phase: RunPhase;
     }
   | { type: 'plan_written'; toolUseId: string; path: string; content: string; phase: RunPhase }
-  | { type: 'plan_mode_entered'; toolUseId: string; planFilePath: string; phase: RunPhase }
   | {
       type: 'dialog_request'; dialogId: string;
       kind: 'ask_user' | 'plan_approval' | 'select' | 'confirm' | 'input'; payload: unknown;
@@ -146,8 +145,6 @@ export function toRunEvent(event: NormalizedEvent, phase: RunPhase): RunEvent {
         kind: 'ask_user',
         payload: event.questions,
       };
-    case 'plan_mode_entered':
-      return { ...event, phase };
     case 'plan_written':
       return { ...event, phase };
     case 'context_compacted':

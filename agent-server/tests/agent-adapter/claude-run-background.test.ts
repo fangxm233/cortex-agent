@@ -5,6 +5,7 @@ import { PassThrough } from 'node:stream';
 
 import { ClaudeAdapter } from '../../src/agent-adapter/claude/adapter.js';
 import type { RunEvent } from '../../src/agent-adapter/run-events.js';
+import type { AwaitBackground } from '../../src/agent-adapter/continuation-phase.js';
 import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 /**
@@ -83,9 +84,9 @@ async function drain(iterable: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
 
 /** Run one turn and hand back the events as they arrive, so a test can react to the foreground
  *  result before the continuation lands. */
-function drive(adapter: ClaudeAdapter, sessionKey: string, children: any[], awaitBackground: string) {
+function drive(adapter: ClaudeAdapter, sessionKey: string, children: any[], awaitBackground: AwaitBackground) {
   const engine = adapter.open(specFor(sessionKey, [FOREGROUND], children));
-  const run = engine.run({ text: 'go' } as any, { awaitBackground: awaitBackground as any });
+  const run = engine.run({ text: 'go' } as any, { awaitBackground });
   const events: RunEvent[] = [];
   const collect = (async () => {
     for await (const event of run.events) events.push(event);
@@ -155,29 +156,4 @@ test('none: the run ends at its foreground result and the late continuation is n
   ]);
   const settled = await run.result;
   assert.equal(settled.total_cost_usd, 0.25, 'a foreground-only run reports its own turn');
-});
-
-test('inline: the run awaits the continuation and settles with the merged tally', async (t) => {
-  const adapter = new ClaudeAdapter();
-  const children: any[] = [];
-  const { engine, run, events, collect } = drive(adapter, 'bg-run-inline', children, 'inline');
-  t.onTestFinished(() => { void engine.close(); });
-
-  await untilEvent(events, 'foreground_result');
-  children[0].emitLines(CONTINUATION);
-  await collect;
-
-  assert.deepEqual(events.map((e) => e.type), [
-    'engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'foreground_result',
-    'phase', 'phase', 'assistant_text', 'context_usage', 'cost_record', 'background_result', 'phase',
-  ]);
-  const settled = await run.result;
-  // "The whole run" is what the tally proves: the continuation's turns and its final output are in
-  // the value the caller awaits. (Its own cost lands as a separate `cost_record` event — a
-  // task-notification result reports cost 0 of its own, which the merge does not invent.)
-  assert.equal(settled.num_turns, 2, 'an inline caller gets the whole run, not one turn');
-  assert.equal(settled.finalOutput, 'task finished: DONE');
-  assert.equal(settled.total_cost_usd, 0.25);
-  const background = events.find((e) => e.type === 'background_result') as Extract<RunEvent, { type: 'background_result' }>;
-  assert.equal(background.result.reportedAccounting?.usageReported, true, 'the continuation reported usage');
 });

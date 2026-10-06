@@ -43,25 +43,22 @@ function fakeTimers() {
   };
 }
 
-function harness(mode: 'none' | 'hold' | 'inline' | 'completion-only', base: AgentResult, stopPromise?: Promise<unknown>) {
+function harness(mode: 'none' | 'hold', base: AgentResult) {
   const events: RunEvent[] = [];
   const clock = fakeTimers();
   const settled: { value?: AgentResult } = {};
   const foreground: { value?: AgentResult } = {};
-  const rejected: { error?: Error } = {};
   let closed = 0;
   const phase = new ContinuationPhase(mode, {
     push: (event) => events.push(event),
     settleForeground: (value) => { foreground.value = value; },
     settleRun: (value) => { settled.value = value; foreground.value ??= value; },
-    reject: (error) => { rejected.error = error; },
     close: () => { closed += 1; },
     timers: clock.timers,
     graceMs: 1000,
     maxWaitMs: 10_000,
-    stopPromise,
   });
-  return { phase, events, clock, settled, foreground, rejected, closedCount: () => closed };
+  return { phase, events, clock, settled, foreground, closedCount: () => closed };
 }
 
 test('none: settles at the foreground result and closes, whatever the counts say', () => {
@@ -115,24 +112,6 @@ test('hold: settles at the foreground result but keeps streaming until the work 
   assert.equal(h.settled.value?.num_turns, 3);
 });
 
-test('inline: the settle waits for the continuation and carries the merged result', () => {
-  const base = result({ pendingBackgroundTasks: 1, total_cost_usd: 0.25, num_turns: 2 });
-  const h = harness('inline', base);
-  h.phase.start(base);
-
-  assert.equal(h.foreground.value, undefined, 'an inline caller awaits the whole phase');
-  assert.equal(h.closedCount(), 0);
-
-  const sink = h.phase.sink();
-  sink.onTurnOpen?.();
-  sink.onResult(result({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }));
-
-  closeTo(h.settled.value?.total_cost_usd, 0.26);
-  assert.equal(h.settled.value?.num_turns, 3);
-  assert.equal(h.closedCount(), 1);
-  assert.deepEqual(h.events.map((e) => e.type), ['phase', 'phase', 'background_result', 'phase']);
-});
-
 test('grace watchdog: releases a finished-but-unnotified task and reports the timeout', () => {
   const base = result({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
   const h = harness('hold', base);
@@ -165,24 +144,6 @@ test('max-wait cap: stops holding, but never finalizes the run', () => {
   });
 });
 
-test('completion-only: no ambient cap, and the stop boundary rejects', async () => {
-  let stop!: (error?: unknown) => void;
-  const stopPromise = new Promise<unknown>((_resolve, reject) => { stop = reject; });
-  const base = result({ pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 0 });
-  const h = harness('completion-only', base, stopPromise);
-  h.phase.start(base);
-
-  assert.equal(h.settled.value, undefined);
-  assert.equal(h.clock.live().length, 0, 'caps are disabled: only the backend or the stop ends it');
-
-  stop(new Error('killed'));
-  await stopPromise.catch(() => undefined);
-  await Promise.resolve();
-  assert.equal(h.rejected.error?.message, 'killed');
-  assert.deepEqual(h.events.map((e) => e.type), ['phase', 'error', 'phase']);
-  assert.equal(h.closedCount(), 1);
-});
-
 test('a rate-limited continuation ends the phase at once', () => {
   const base = result({ pendingBackgroundTasks: 1 });
   const h = harness('hold', base);
@@ -208,7 +169,7 @@ test('a process that dies mid-continuation finalizes the accumulated work', () =
 test('a continuation that finishes inside the foreground turn is not lost', () => {
   // A task can complete while the foreground turn is still running: the sink reports it before
   // `start()` has a base to merge into.
-  const h = harness('inline', result({ pendingBackgroundTasks: 0, total_cost_usd: 0.1 }));
+  const h = harness('hold', result({ pendingBackgroundTasks: 0, total_cost_usd: 0.1 }));
   h.phase.sink().onResult(result({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0, total_cost_usd: 0.05, num_turns: 1 }));
   h.phase.start(result({ pendingBackgroundTasks: 1, total_cost_usd: 0.1, num_turns: 1 }));
 

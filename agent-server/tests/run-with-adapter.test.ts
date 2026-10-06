@@ -563,11 +563,11 @@ test('attempt: kill() forwards to the engine session', async () => {
   assert.equal(children[0].killed, true, 'the engine killed the Claude child');
 });
 
-// ── background phase: hold / inline / none ───────────────────────────────
+// ── background phase: hold / none ──────────────────────────────────────────
 
-test('attempt: an inline continuation merges cost, output and turns into settled', async () => {
+test('attempt: a continuation merges cost, output and turns into settled', async () => {
   const { run, events, children } = claudeAttempt(
-    { sessionKey: 'bg-inline' }, [FOREGROUND_BG], { background: 'inline' },
+    { sessionKey: 'bg-merge' }, [FOREGROUND_BG], { background: 'hold' },
   );
   await waitFor(() => children.length === 1);
   await waitFor(() => events.some((event) => event.type === 'foreground_result'));
@@ -612,7 +612,7 @@ test('attempt: a held background phase stays open until the continuation lands',
 test('attempt: the background phase emits its continuation cost_record before background_result', async () => {
   const { run, events, children } = claudeAttempt(
     { sessionKey: 'bg-accounting', project: 'bg-accounting-test', trigger: 'test' },
-    [FOREGROUND_BG], { background: 'inline' },
+    [FOREGROUND_BG], { background: 'hold' },
   );
   await waitFor(() => children.length === 1);
   await waitFor(() => events.some((event) => event.type === 'foreground_result'));

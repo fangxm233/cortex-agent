@@ -137,11 +137,10 @@ export type NormalizedEvent =
   // Derived semantic event emitted ALONGSIDE the raw `tool_use` for a TodoWrite call, never
   // instead of it: the raw call is required-sink evidence (production-attempt-journal → ATIF
   // tool_calls) and dropping it would put a hole in the trajectory. Same family as
-  // plan_mode_entered / ask_user_question / plan_written. Subagent calls do NOT produce one —
+  // ask_user_question / plan_written. Subagent calls do NOT produce one —
   // a subagent keeps its own list, and letting it through would clobber the main agent's.
   | { type: 'todo_update'; toolUseId: string; snapshot: TodoSnapshot }
   | { type: 'ask_user_question'; toolUseId: string; questions: QuestionSpec[] }
-  | { type: 'plan_mode_entered'; toolUseId: string; planFilePath: string }
   | { type: 'plan_written'; toolUseId: string; path: string; content: string }
   | { type: 'context_compacted'; trigger: string; preTokens?: number }
   | { type: 'model_fallback'; originalModel: string; fallbackModel: string }

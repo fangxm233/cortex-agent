@@ -176,12 +176,11 @@ function deferred<T>(): {
  * backend does next, so waiting for the stream to close would withhold the reply for the whole
  * background window (see `foreground` below).
  *
- * Every other policy settles the engine's result through `ContinuationPhase.settleRun`, which runs
- * at the phase's own finish — i.e. the stream is already ending — so releasing early would buy
- * nothing and cost a real ordering guarantee: a caller that awaits `foreground` would once again
- * see a run whose attempt sinks have not been closed (the benchmark journal writes its index row
- * in `onClose`). `inline` / `completion-only` additionally must carry the merged result, and
- * `none` ends at this same turn either way.
+ * `none` settles the engine's result through `ContinuationPhase.settleRun`, which runs at the
+ * phase's own finish — i.e. the stream is already ending — so releasing early would buy nothing
+ * and cost a real ordering guarantee: a caller that awaits `foreground` would once again see a run
+ * whose attempt sinks have not been closed (the benchmark journal writes its index row in
+ * `onClose`).
  */
 function releasesAtForegroundResult(mode: AwaitBackground): boolean {
   return mode === 'hold';
@@ -254,9 +253,8 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
 
   const settled = settleWithStream(engineRun, eventLoop);
   // Whatever ends the attempt also ends the foreground await: a turn that failed, a stream that
-  // closed without ever reporting a foreground result (cancel), and the `inline` policies whose
-  // caller waits for the merged result all land here. Already-settled is a no-op, so the early
-  // release above wins when it happened.
+  // closed without ever reporting a foreground result (cancel), and every `none` run land here.
+  // Already-settled is a no-op, so the early release above wins when it happened.
   void settled.then(foreground.resolve, foreground.reject);
   // Neither promise may become an unhandled rejection: the run attaches its handlers only once the
   // foreground turn has settled, and a retried attempt is abandoned without any handler at all.

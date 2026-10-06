@@ -50,7 +50,7 @@ export interface RunRequest {
     teamLead?: boolean;
   };
   policy: {
-    background: 'none' | 'inline' | 'hold' | 'completion-only';
+    background: 'none' | 'hold';
     recordCost: boolean;
     hooks: boolean;
     streamDeltas?: boolean;

@@ -108,7 +108,6 @@ export class PIEngineSession implements EngineSession {
       push: (event) => queue.push(event),
       settleForeground: (result_) => deferred.resolve(result_),
       settleRun: (result_) => { settled.resolve(result_); deferred.resolve(result_); },
-      reject: (error) => { deferred.reject(error); settled.reject(error); },
       close: () => queue.close(),
     });
     active.phase = phase;

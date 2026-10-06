@@ -133,7 +133,6 @@ export class ClaudeEngineSession implements EngineSession {
       push: (event) => queue.push(event),
       settleForeground: (result) => deferred.resolve(result),
       settleRun: (result) => { settled.resolve(result); deferred.resolve(result); },
-      reject: (error) => { deferred.reject(error); settled.reject(error); },
       close: () => queue.close(),
     });
     active.phase = phase;

@@ -34,7 +34,6 @@ function sample(kind: NormalizedEvent['type']): NormalizedEvent {
     case 'todo_update': return { type: 'todo_update', toolUseId: 'tu-2', snapshot };
     case 'ask_user_question':
       return { type: 'ask_user_question', toolUseId: 'tu-3', questions: [{ question: 'Pick', multi: true, options: ['a', 'b'] }] };
-    case 'plan_mode_entered': return { type: 'plan_mode_entered', toolUseId: 'tu-4', planFilePath: '/p/plan.md' };
     case 'plan_written': return { type: 'plan_written', toolUseId: 'tu-5', path: '/p/plan.md', content: 'plan' };
     case 'context_compacted': return { type: 'context_compacted', trigger: 'auto', preTokens: 1000 };
     case 'model_fallback': return { type: 'model_fallback', originalModel: 'a', fallbackModel: 'b' };
@@ -57,7 +56,7 @@ function sample(kind: NormalizedEvent['type']): NormalizedEvent {
 
 const PHASED_KINDS: NormalizedEvent['type'][] = [
   'assistant_text', 'assistant_delta', 'tool_use', 'tool_result', 'todo_update',
-  'plan_mode_entered', 'plan_written', 'context_compacted', 'model_fallback',
+  'plan_written', 'context_compacted', 'model_fallback',
   'context_usage', 'subagent_activity', 'subagent_end',
 ];
 

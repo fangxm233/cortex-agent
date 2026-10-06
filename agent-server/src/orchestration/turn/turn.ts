@@ -321,7 +321,6 @@ export class Turn {
           case 'cost_record':
           case 'subagent_activity':
           case 'plan_written':
-          case 'plan_mode_entered':
           // The run's background watchdog giving up is a lifecycle fact, not transcript content:
           // the hold observers react to it, the foreground transcript has nothing to record.
           case 'background_timeout':

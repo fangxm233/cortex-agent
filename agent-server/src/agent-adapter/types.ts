@@ -1,5 +1,4 @@
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
-import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
@@ -217,17 +216,11 @@ export interface EngineRun {
   /** The run's events. Does NOT close at the foreground result: a session that owes background
    *  work keeps emitting with `phase: 'background'` until it emits `phase: 'done'` (D1). */
   events: AsyncIterable<RunEvent>;
-  /**
-   * The run's result. What it means depends on the `awaitBackground` policy the run was opened
-   * with: `none`/`hold` resolve at the foreground turn, `inline`/`completion-only` resolve with the
-   * merged result once the background phase ends.
-   */
+  /** The foreground turn's result: what the caller's foreground await gets. */
   result: Promise<AgentResult>;
   /**
    * The accumulated result of the WHOLE run — every chained continuation merged in — resolved when
-   * the run ends, whatever the `awaitBackground` policy. `result` is what the caller's foreground
-   * await gets (the same value for `none`/`hold`, the merged one for `inline`); this one is what a
-   * terminal tally (execution metrics, cost) must read.
+   * the run ends. This is what a terminal tally (execution metrics, cost) must read.
    */
   settled: Promise<AgentResult>;
   cancel(): void;
@@ -283,15 +276,13 @@ export interface EngineSession {
 }
 
 /**
- * Stateless engine factory (plan §3.3). Implemented by `PIAdapter` and `ClaudeAdapter`.
- * This is the only adapter contract: the pooled `AgentAdapter`/`AgentProcess` pair it replaced
- * (start/close/kill/list a session, then push turns into it) is gone, and the per-backend usage
- * probe a caller needs is asked of the adapter directly.
+ * Stateless engine factory (plan §3.3). Implemented by `PIAdapter` and `ClaudeAdapter`. A backend's
+ * provider-usage pull is not part of this contract: the usage service reads it off the adapter it
+ * resolves (`getUsage`, PI only).
  */
 export interface EngineAdapter {
   readonly backend: Backend;
   /** Pure construction: no pool, no registration, no side effects. The caller
    *  (`domain/runs/engines.ts: SessionEngines`) owns lifetime and reuse. */
   open(spec: EngineSpec): EngineSession;
-  usage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 }

@@ -349,25 +349,6 @@ test('hold: a surface that subscribes on the foreground result still gets the wh
   assert.equal(late.isClosed(), true, 'the late subscriber is closed with the run');
 });
 
-test('inline: the caller waits for the merged result, not the foreground turn', async () => {
-  const seen = collector();
-  const { run, session } = startScriptedRun(
-    { policy: { ...makeRequest().policy, background: 'inline' } }, [seen.observer],
-  );
-  session.handleLine(taskStarted('bg-1'));
-  session.handleLine(assistantLine('fg'));
-  session.handleLine(resultLine({ result: 'fg' }));
-  await tick();
-
-  const early = await Promise.race([run.result, delay(50).then(() => 'still-waiting' as const)]);
-  assert.equal(early, 'still-waiting', 'an inline caller has no status message to hold');
-
-  session.handleLine(taskNotification('bg-1'));
-  session.handleLine(assistantLine('bg'));
-  session.handleLine(resultLine({ result: 'bg' }));
-  assert.equal((await run.result).finalOutput, 'bg', 'the merged result reaches the caller');
-});
-
 // ── the background watchdog ──────────────────────────────────────────────
 //
 // The engine owns the grace / max-wait bounds. Before the engine path they lived in each

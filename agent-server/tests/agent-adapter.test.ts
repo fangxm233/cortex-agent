@@ -61,7 +61,6 @@ void function normalizedEventExhaustive(event: NormalizedEvent): string {
     case 'tool_result': return event.toolUseId;
     case 'todo_update': return event.toolUseId;
     case 'ask_user_question': return event.toolUseId;
-    case 'plan_mode_entered': return event.planFilePath;
     case 'plan_written': return event.path;
     case 'context_compacted': return event.trigger;
     case 'model_fallback': return `${event.originalModel}:${event.fallbackModel}`;
