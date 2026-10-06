@@ -86,7 +86,6 @@ import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
-import { getSessionAsync } from '@domain/sessions/session.js';
 import { getProjectDir } from '@domain/sessions/session-backup.js';
 import { initDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
@@ -297,9 +296,7 @@ planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
 initInteractionHandlers(bus); // BLK-1: wire ask-user.answered publisher
 
-const TEMP_DIR = WORKSPACE_DIR;
-mkdirSync(TEMP_DIR, { recursive: true });
-mkdirSync(path.join(TEMP_DIR, 'threads'), { recursive: true });
+mkdirSync(WORKSPACE_DIR, { recursive: true });
 ensurePIAgentDirs();
 
 // --- Load machine registry (must happen before any module that uses getMachineRegistry()) ---
@@ -508,10 +505,7 @@ installSigtermShutdown(shutdownHandles);
   await initResumeRegistry({
     save: (entries) => providerStateRepo.setResumeQueue(entries),
     load: () => providerStateRepo.getResumeQueue(),
-  }, () => { bus.publish({ type: 'rate-limit.changed' }); }, async (entry) => {
-    const bound = await getSessionAsync(entry.channel);
-    return bound && await sessionStore.getById(bound) ? bound : null;
-  });
+  }, () => { bus.publish({ type: 'rate-limit.changed' }); });
   await initRateLimitThrottle(adapter, {
     save: (state) => providerStateRepo.setRateLimitThrottle(state),
     load: () => providerStateRepo.getRateLimitThrottle(),

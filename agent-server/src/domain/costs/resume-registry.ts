@@ -66,7 +66,6 @@ function takeReadyFrom(map: Map<string, ResumeEntry>, active: Set<string>): Resu
 async function initResumeRegistry(
   persistence: ResumePersistence,
   onChange?: () => void,
-  resolveLegacyDirectTrackSessionId?: (entry: ResumeEntry) => Promise<string | null>,
 ): Promise<void> {
   _persistence = persistence;
   _onChange = onChange ?? null;
@@ -77,13 +76,6 @@ async function initResumeRegistry(
       // An entry of another kind (a thread queued before threads were retired) has nothing left
       // to resume: it is dropped, and the rewrite below forgets it.
       if (entry.kind !== 'direct') { migrated = true; continue; }
-      if (!entry.trackSessionId && resolveLegacyDirectTrackSessionId) {
-        const trackSessionId = await resolveLegacyDirectTrackSessionId(entry);
-        if (trackSessionId) {
-          entry.trackSessionId = trackSessionId;
-          migrated = true;
-        }
-      }
       _direct.set(entry.channel, entry);
     }
     if (migrated) await persistence.save(snapshot());

@@ -120,7 +120,7 @@ export function cancelSubagentRuns(channel: string, deps: SubagentCancelDeps = {
 
 /** Cancel every live execution running on a channel; returns the number cancelled. Shared by the
  *  no-arg / `--all` `!cancel` branches and the Web UI Stop path (ui-service `sessions.cancel`, wired
- *  via the `cancelSessionRun` dep in entry/app.ts). Also ends a web background-task hold on the
+ *  via the `cancelSessionRun` dep in entry/ui-service-wiring.ts). Also ends a web background-task hold on the
  *  channel — a held session has no live execution, so without this Stop did nothing (see
  *  {@link cancelBgHolds}). Stops any delegated `agent` runs those sessions own (see
  *  {@link cancelSubagentRuns}). Clears the conduit queue when anything ran. */

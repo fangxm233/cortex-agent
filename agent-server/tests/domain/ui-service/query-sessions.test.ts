@@ -210,7 +210,7 @@ test('sessions.list numTurns: running session but no progress yet → null (no s
   assert.equal(result.find(s => s.sessionId === 's1')!.numTurns, null);
 });
 
-test('sessions.list numTurns: idle session → last non-thread execution numTurns (latest by startedAt)', async () => {
+test('sessions.list numTurns: idle session → last execution numTurns (latest by startedAt)', async () => {
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
@@ -221,13 +221,11 @@ test('sessions.list numTurns: idle session → last non-thread execution numTurn
       getAll: () => [
         { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2 } },
         { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7 } },
-        // A thread execution on the same channel must be ignored.
-        { channel: 'C1', session: { sessionId: 's1' }, thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99 } },
       ],
     } as any,
   });
   const result = await handleSessionsList(deps, { projectId: 'proj1' });
-  assert.equal(result.find(s => s.sessionId === 's1')!.numTurns, 7, 'latest non-thread run');
+  assert.equal(result.find(s => s.sessionId === 's1')!.numTurns, 7, 'latest run');
   // s3 (channel C3) has no executions → null.
   assert.equal(result.find(s => s.sessionId === 's3')!.numTurns, null);
 });
@@ -384,7 +382,7 @@ test('sessions.list numTurns/costUsd: a run belonging to ANOTHER session on the 
   assert.equal(byId['s1-new'].costUsd, 0.07);
 });
 
-test('sessions.list costUsd: idle session → last non-thread execution costUsd (latest by startedAt)', async () => {
+test('sessions.list costUsd: idle session → last execution costUsd (latest by startedAt)', async () => {
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
@@ -395,13 +393,11 @@ test('sessions.list costUsd: idle session → last non-thread execution costUsd 
       getAll: () => [
         { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2, costUsd: 0.11 } },
         { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
-        // A thread execution on the same channel must be ignored.
-        { channel: 'C1', session: { sessionId: 's1' }, thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99, costUsd: 9.99 } },
       ],
     } as any,
   });
   const result = await handleSessionsList(deps, { projectId: 'proj1' });
-  assert.equal(result.find(s => s.sessionId === 's1')!.costUsd, 0.42, 'latest non-thread run cost');
+  assert.equal(result.find(s => s.sessionId === 's1')!.costUsd, 0.42, 'latest run cost');
   // s3 (channel C3) has no executions → null.
   assert.equal(result.find(s => s.sessionId === 's3')!.costUsd, null);
 });

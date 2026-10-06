@@ -83,7 +83,7 @@ export const PROJECTS_DIR = process.env.CORTEX_PROJECTS_DIR
   ? path.resolve(process.env.CORTEX_PROJECTS_DIR)
   : path.join(CONTEXT_DIR, 'projects');
 
-/** Temporary workspace directory for thread artifacts, tool results, etc. */
+/** Temporary workspace directory for attachments, tool results, etc. */
 export const WORKSPACE_DIR = path.join(DATA_DIR, 'tmp');
 
 /** Resolve a UI-relative `workspace/…` path to an absolute path strictly inside WORKSPACE_DIR.

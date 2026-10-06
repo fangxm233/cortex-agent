@@ -31,7 +31,7 @@ export async function handleSessionsList(
   let sessions: any[];
   if (origin) {
     // Origin filter takes precedence: the workbench left rail passes origin='direct' so only
-    // user conversations show (thread/scheduled sessions live in their own views).
+    // user conversations show (scheduled sessions live in their own view).
     sessions = await deps.sessionStore.listByOrigin(origin, projectId);
   } else if (resumable) {
     sessions = await deps.sessionStore.listResumable(projectId);
@@ -75,7 +75,7 @@ export async function handleSessionsList(
     foldExecution(totalsBySession, e, carry?.carriedThrough ?? null);
     const runSessionId: string | undefined = e?.session?.sessionId ?? undefined;
     const numTurns: unknown = e?.metrics?.numTurns;
-    if (!runSessionId || e?.thread?.threadId || typeof numTurns !== 'number') continue;
+    if (!runSessionId || typeof numTurns !== 'number') continue;
     const startedAt: string = e?.runtime?.startedAt ?? '';
     const costUsd: unknown = e?.metrics?.costUsd;
     const prev = lastRunBySession.get(runSessionId);
@@ -136,8 +136,7 @@ export async function handleSessionsList(
     // Busy snapshot: the registry's single answer for this session. Snapshot + delta — this field
     // is the queryable snapshot, the `session.status` event stream is the delta.
     const state = deps.runningExecutions.sessionState(s.sessionId);
-    // Foreground turn = a live non-thread execution belonging to THIS session (threads run beside
-    // their parent and never make the session itself busy). Keyed off the session's id, not its
+    // Foreground turn = a live execution belonging to THIS session. Keyed off the session's id, not its
     // CHANNEL, so a session switch does not leave the old record looking busy while the NEW session
     // on that channel runs.
     const inTurn = state.executionId !== null;

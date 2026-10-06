@@ -261,7 +261,7 @@ function makeFakeUiService(): UiService {
       return { ok: false, code: 'not-found', message: `unexpected scope ${scope}` };
     }) as UiService['query'],
     mutate: (async (op: string) => {
-      if (op === 'threads.cancel') return { ok: true, data: { cancelled: true } };
+      if (op === 'executions.cancel') return { ok: true, data: { cancelled: true } };
       if (op === 'system.checkUpdate') return { ok: true, data: { status: 'current' } };
       return { ok: false, code: 'not-found', message: `unexpected op ${op}` };
     }) as UiService['mutate'],
@@ -448,9 +448,9 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes
 
   test('mutate: HTTP mutation roundtrip routes to the injected UiService and unwraps Result', async () => {
     const { statusCode, body } = await req(
-      w.port, 'POST', '/trpc/threads.cancel',
+      w.port, 'POST', '/trpc/executions.cancel',
       { 'x-cortex-token': TOKEN, 'content-type': 'application/json' },
-      JSON.stringify({ threadId: 'abc' }),
+      JSON.stringify({ executionId: 'abc' }),
     );
     assert.equal(statusCode, 200);
     assert.deepEqual(JSON.parse(body).result.data, { cancelled: true });

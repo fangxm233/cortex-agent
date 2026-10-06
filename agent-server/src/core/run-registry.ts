@@ -1,6 +1,6 @@
 //
 // The single in-memory index of the executions that are live right now: keyed by executionId,
-// indexed by thread and channel, and the publisher of the agent.* lifecycle events.
+// indexed by channel and session, and the publisher of the agent.* lifecycle events.
 //
 // It answers "what is running", NOT "is this session busy" — background holds live in
 // `session-holds.ts` and the join of the two is `session-state.ts`

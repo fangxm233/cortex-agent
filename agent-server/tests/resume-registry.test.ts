@@ -34,22 +34,17 @@ test('recordResume dedupes direct entries by channel (latest wins)', async (t) =
   assert.equal((all[0] as any).userMessage, 'second');
 });
 
-test('init backfills stable ids for legacy direct resumes and drops a leftover thread entry', async (t) => {
+test('init drops a leftover thread entry and keeps the direct resumes', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub([
-    { kind: 'direct', channel: 'legacy', userMessage: 'legacy', recordedAt: 1 },
+    { kind: 'direct', channel: 'untracked', userMessage: 'untracked', recordedAt: 1 },
     { kind: 'direct', channel: 'tracked', trackSessionId: 'track-1', userMessage: 'tracked', recordedAt: 2 },
     { kind: 'thread', threadId: 'thr-a', channel: 'thread', userMessage: 'thread', recordedAt: 3 },
   ]);
-  await mod.initResumeRegistry(
-    persistence as any,
-    undefined,
-    async entry => entry.channel === 'legacy' ? 'track-legacy' : null,
-  );
+  await mod.initResumeRegistry(persistence as any);
 
-  assert.deepEqual(new Set(mod.pendingDirectTrackSessionIds()), new Set(['track-legacy', 'track-1']));
-  assert.equal(persistence.getSaved()[0].trackSessionId, 'track-legacy');
-  assert.deepEqual(persistence.getSaved().map((e: any) => e.kind), ['direct', 'direct']);
+  assert.deepEqual(mod.pendingDirectTrackSessionIds(), ['track-1']);
+  assert.deepEqual(persistence.getSaved().map((e: any) => e.channel), ['untracked', 'tracked']);
   assert.equal(mod.getResumeCount(), 2);
 });
 
