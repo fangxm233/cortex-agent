@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from cortex_bench_harness.launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
+from cortex_bench_harness.launcher.admission_contract import ADMISSION_EVIDENCE_FILENAME
 from cortex_bench_harness.synthetic_deepseek import SyntheticDeepSeekUpstream
 from docker_gate import docker_opt_in
 from launcher.test_vendor_lifecycle_docker import (

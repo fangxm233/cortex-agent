@@ -16,7 +16,7 @@ from cortex_bench_harness.container_boundary import (
     ContainerBoundaryProbe,
     ContainerBoundaryUnproven,
 )
-from cortex_bench_harness.launcher.trial_admission import AdmittedDockerEnvironment
+from cortex_bench_harness.launcher.admitted_environment import AdmittedDockerEnvironment
 from cortex_bench_harness.launcher.trial_admission_io import PullDisabledDockerEnvironment
 
 CONTAINER_ID = "a" * 64

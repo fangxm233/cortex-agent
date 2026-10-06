@@ -19,11 +19,9 @@ import cortex_bench_harness.trial_lifecycle as trial_lifecycle
 import cortex_bench_harness.vendor_agents as vendor_agents
 from cortex_bench_harness import campaign
 from cortex_bench_harness.host_finalization import OUTER_ENVELOPE_FILENAME
-from cortex_bench_harness.launcher.trial_admission import (
-    ADMISSION_EVIDENCE_FILENAME,
-    AdmittedDockerEnvironment,
-    VendorRuntimeProjection,
-)
+from cortex_bench_harness.launcher.admission_contract import ADMISSION_EVIDENCE_FILENAME
+from cortex_bench_harness.launcher.admitted_environment import AdmittedDockerEnvironment
+from cortex_bench_harness.launcher.sealed_environment import VendorRuntimeProjection
 from cortex_bench_harness.synthetic_deepseek import SyntheticDeepSeekUpstream
 from cortex_bench_harness.vendor_agents import PreinstalledPi, VendorLifecycleMixin
 from docker_gate import docker_opt_in

@@ -30,7 +30,7 @@ from .launcher.production_home import (
     committed_input_bundle_files,
 )
 from .launcher.production_session import SESSION_OUTCOME_FILENAME
-from .launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
+from .launcher.admission_contract import ADMISSION_EVIDENCE_FILENAME
 from .launcher.trial_proxy import TrialRevocation
 from .manifest import MANIFEST_FILENAME
 from .scan import (

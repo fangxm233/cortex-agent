@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from harbor.agents.installed.base import with_prompt_template
 from harbor.agents.installed.claude_code import ClaudeCode
@@ -18,6 +18,7 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.paths import EnvironmentPaths
 
 from .container_boundary import ContainerBoundaryObservation
+from .launcher.sealed_environment import VendorRuntimeProjection, trial_scratch_command
 from .launcher.trial_admission_io import (
     TRIAL_ROOT,
     HarborTrialAdmissionError,
@@ -35,9 +36,6 @@ from .launcher.trial_seed import TrialSeed, parse_trial_seed
 from .manifest import MANIFEST_FILENAME, SCHEMA_VERSION
 from .scan.models import ArtifactInventory, ScanPolicy
 from .trial_lifecycle import TrialLifecycle, consume_host_credential
-
-if TYPE_CHECKING:
-    from .launcher.trial_admission import VendorRuntimeProjection
 
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
 PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
@@ -191,11 +189,9 @@ class VendorLifecycleMixin:
     def proxy_session(self) -> TrialProxySession | None:
         return self._lifecycle.proxy_session if self._lifecycle is not None else None
 
-    def project_vendor_runtime(self, session: object) -> "VendorRuntimeProjection":
+    def project_vendor_runtime(self, session: object) -> VendorRuntimeProjection:
         if session is not self.proxy_session:
             raise HarborTrialAdmissionError("vendor projection names another proxy session")
-        from .launcher.trial_admission import VendorRuntimeProjection
-
         return VendorRuntimeProjection(
             self.VENDOR_AGENT, self._projection_environment(session),
         )
@@ -429,9 +425,6 @@ class VendorLifecycleMixin:
 
     async def _prepare_trial_scratch(self, environment: BaseEnvironment) -> None:
         """Create the directories the sealed environment names before anything writes to them."""
-        # Imported here because trial_admission imports this module's fixed environment.
-        from .launcher.trial_admission import trial_scratch_command
-
         await self.exec_as_agent(environment, command=trial_scratch_command())
 
     async def _link_staged_runtimes(self, environment: BaseEnvironment) -> None:

@@ -35,11 +35,11 @@ from cortex_bench_harness.launcher.production_session import (
     ProductionServerSession,
     ProductionSessionResult,
 )
-from cortex_bench_harness.launcher.trial_admission import (
+from cortex_bench_harness.launcher.admission_contract import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_SCHEMA_VERSION,
-    environment_digest,
 )
+from cortex_bench_harness.launcher.trial_admission_io import environment_digest
 from cortex_bench_harness.launcher.trial_proxy import (
     ADAPTER_SELECTION_FILENAME,
     ADAPTER_SELECTION_SCHEMA_VERSION,

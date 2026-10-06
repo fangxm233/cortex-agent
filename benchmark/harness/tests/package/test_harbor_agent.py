@@ -17,10 +17,8 @@ from cortex_bench_harness.launcher.production_session import (
     ProductionSessionError,
     ProductionSessionResult,
 )
-from cortex_bench_harness.launcher.trial_admission import (
-    HarborTrialAdmissionError,
-    trial_scratch_command,
-)
+from cortex_bench_harness.launcher.sealed_environment import trial_scratch_command
+from cortex_bench_harness.launcher.trial_admission_io import HarborTrialAdmissionError
 from launcher.trial_proxy_fixtures import write_npm_artifact
 
 ARTIFACT_NAME = "cortex-agent-server-test.tgz"

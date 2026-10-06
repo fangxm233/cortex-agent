@@ -36,6 +36,13 @@ class HarborTrialAdmissionError(ValueError):
     """The final Harbor construction cannot enforce the standalone boundary."""
 
 
+def required_text(values: Mapping[str, object], field: str) -> str:
+    value = values.get(field)
+    if not isinstance(value, str) or not value:
+        raise HarborTrialAdmissionError(f"{field} must be a non-empty string")
+    return value
+
+
 def cpuset_for_slot(index: int, slots: int, *, cores: int | None = None) -> str:
     """The fixed host CPU range that concurrency slot `index` owns.
 

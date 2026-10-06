@@ -21,21 +21,25 @@ from harbor.trial.trial import Trial
 from capability_admission import admit_capability
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
-from cortex_bench_harness.launcher import trial_admission
+from cortex_bench_harness.launcher import admitted_environment, trial_admission
 from cortex_bench_harness.launcher.network_policy import NetworkAccess
-from cortex_bench_harness.launcher.trial_admission_io import cpuset_for_slot
-from cortex_bench_harness.launcher.trial_admission import (
-    ADMISSION_EVIDENCE_FILENAME,
-    ADMISSION_ENVIRONMENT_IMPORT_PATH,
-    TRIAL_SCRATCH_CENSUS_SCHEMA,
+from cortex_bench_harness.launcher.trial_admission_io import (
     TRIAL_SCRATCH_DIRECTORIES,
-    AdmittedDockerEnvironment,
     HarborTrialAdmissionError,
+    cpuset_for_slot,
+)
+from cortex_bench_harness.launcher.admission_contract import ADMISSION_EVIDENCE_FILENAME
+from cortex_bench_harness.launcher.admitted_environment import AdmittedDockerEnvironment
+from cortex_bench_harness.launcher.sealed_environment import (
+    TRIAL_SCRATCH_CENSUS_SCHEMA,
     VendorRuntimeProjection,
     agent_search_path,
+    trial_scratch_discard_command,
+)
+from cortex_bench_harness.launcher.trial_admission import (
+    ADMISSION_ENVIRONMENT_IMPORT_PATH,
     build_harbor_trial_config,
     create_harbor_trial,
-    trial_scratch_discard_command,
 )
 
 DIGEST = f"sha256:{'a' * 64}"
@@ -705,7 +709,7 @@ def test_a_started_trial_states_the_cpus_it_got_and_the_load_it_started_under(
         AdmittedDockerEnvironment, "_main_container_id", AsyncMock(return_value="container"),
     )
     monkeypatch.setattr(
-        trial_admission, "subprocess",
+        admitted_environment, "subprocess",
         SimpleNamespace(run=lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args, returncode=0, stdout="8-15\n", stderr="")),
         raising=False,
@@ -727,7 +731,7 @@ def test_a_container_that_lost_its_cpu_pin_refuses_the_trial(
         AdmittedDockerEnvironment, "_main_container_id", AsyncMock(return_value="container"),
     )
     monkeypatch.setattr(
-        trial_admission, "subprocess",
+        admitted_environment, "subprocess",
         SimpleNamespace(run=lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args, returncode=0, stdout="\n", stderr="")),
         raising=False,

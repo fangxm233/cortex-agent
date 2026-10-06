@@ -237,10 +237,10 @@ def test_the_sealed_environment_only_names_directories_the_trial_creates() -> No
     the two tasks that produced less output passed -- so the sealed environment had been naming
     four directories that nothing created, and had been getting away with it.
     """
-    from cortex_bench_harness.launcher.trial_admission import (
+    from cortex_bench_harness.launcher.trial_admission import _common_trial_environment
+    from cortex_bench_harness.launcher.trial_admission_io import (
         TRIAL_ROOT,
         TRIAL_SCRATCH_DIRECTORIES,
-        _common_trial_environment,
     )
 
     # The sealed PATH is the pinned image's own, so the seed has to name an image.

@@ -31,11 +31,11 @@ from .launcher.production_session import (
     ProductionSessionError,
     ProductionSessionSpec,
 )
-from .launcher.trial_admission import (
+from .launcher.sealed_environment import trial_scratch_command
+from .launcher.trial_admission_io import (
     HarborTrialAdmissionError,
-    trial_scratch_command,
+    validate_admission_environment,
 )
-from .launcher.trial_admission_io import validate_admission_environment
 from .launcher.runtime_mounts import (
     RuntimeMountError,
     arm_runtime_names,
