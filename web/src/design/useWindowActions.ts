@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { safeInvoke } from '@/lib/native-bridge';
 import { desktopPlatform } from '@/lib/desktop-platform';
-import { useToastOptional } from '@/design/Toast';
+import { useToastOptional } from './Toast';
 import { useVocab } from '@/i18n';
 import { checked, createFullscreenController } from './window-commands';
 

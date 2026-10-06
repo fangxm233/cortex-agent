@@ -4,11 +4,9 @@ import { ExecutionDrawerHost } from '@/features/execution/useExecutionDrawer';
 import { IssuesModalHost } from '@/features/issues/useIssues';
 import { ScheduleModalHost } from '@/features/schedule/useScheduleModal';
 import { SettingsModalHost } from '@/features/settings/useSettings';
-import {
-  AboutModalHost,
-  DaemonStatusModalHost,
-  NewProjectModalHost,
-} from './useShellModals';
+import { NewProjectModalHost } from '@/features/projects/useNewProjectModal';
+import { DaemonStatusModalHost } from '@/features/daemon/useDaemonStatusModal';
+import { AboutModalHost } from './AboutModal';
 
 // The one mount point for the desktop shell's always-available overlays. Each host reads its own
 // key out of the modal registry (design/modal-registry) and renders nothing until it is opened, so

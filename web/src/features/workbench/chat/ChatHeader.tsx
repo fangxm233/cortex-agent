@@ -7,7 +7,6 @@ import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { NotesGlyph } from '@/features/notes/NotesGlyph';
 import { useDockIntake } from '@/design/dock-intake';
-import { useShellModals } from '@/shell/useShellModals';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -149,9 +148,7 @@ export function ChatHeader({
 }): JSX.Element {
   const L = useVocab();
   const notes = useNotes();
-  // Edit → Copy session ID and this menu both reach the same modal, so its open flag lives in
-  // the shell modal registry (shell/useShellModals). The modal itself stays here: it needs the ids from this subtree.
-  const shellModals = useShellModals();
+  const [sessionIdOpen, setSessionIdOpen] = useState(false);
 
   return (
     <div
@@ -246,13 +243,13 @@ export function ChatHeader({
             </span>
           )}
         </span>
-        <ChatSessionMenu session={metadataSession} onSessionId={shellModals.openSessionId} />
+        <ChatSessionMenu session={metadataSession} onSessionId={() => setSessionIdOpen(true)} />
       </div>
-      {shellModals.sessionIdOpen ? (
+      {sessionIdOpen ? (
         <SessionIdModal
           cortexId={sessionName}
           backendUuid={backendSessionId}
-          onClose={shellModals.closeSessionId}
+          onClose={() => setSessionIdOpen(false)}
         />
       ) : null}
     </div>

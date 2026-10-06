@@ -36,7 +36,7 @@ import {
 // workbench frame) — so the ◧ button never appears, and the dock never swallows a preview, on a
 // surface that has nowhere to put it (mobile shell, thread detail route, …).
 //
-// `useDock()` is for the dock's own chrome and its host (DockPane, WorkbenchPage, the View menu).
+// `useDock()` is for the dock's own chrome and its host (DockPane, WorkbenchView, the View menu).
 // Everything that opens INTO the dock — the two preview modals, the Web button, an agent view card
 // — goes through `design/dock-intake`, which this provider also supplies: those surfaces live in
 // features the dock renders bodies from, so pointing them at `features/dock` is what used to make

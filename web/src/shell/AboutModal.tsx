@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, ModalClose } from '@/design/Modal';
+import { defineModal, type ModalActions } from '@/design/modal-registry';
 import { useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { openExternalUrl } from '@/lib/external-navigation';
@@ -99,4 +100,16 @@ export function AboutModal({ onClose }: { onClose: () => void }): JSX.Element {
       <AboutLinks />
     </Modal>
   );
+}
+
+const aboutModal = defineModal('shell.about');
+
+export function useAboutModal(): ModalActions<void> {
+  return aboutModal.useModalActions();
+}
+
+export function AboutModalHost(): JSX.Element | null {
+  const { isOpen, close } = aboutModal.useModal();
+  if (!isOpen) return null;
+  return <AboutModal onClose={close} />;
 }

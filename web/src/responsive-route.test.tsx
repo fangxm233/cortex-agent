@@ -17,8 +17,11 @@ vi.mock('@/router-factory', () => ({
 }));
 vi.mock('@/shell/AppShell', () => ({ AppShell: () => <Outlet /> }));
 vi.mock('@/mobile/MobileShell', () => ({ MobileShell: () => <Outlet /> }));
-vi.mock('@/features/workbench/WorkbenchPage', () => ({ WorkbenchPage: () => <span>workbench</span> }));
-vi.mock('@/features/overview/OverviewPage', () => ({ OverviewPage: () => <span>overview</span> }));
+vi.mock('@/shell/DesktopWorkspaceLayout', () => ({ DesktopWorkspaceLayout: () => <Outlet /> }));
+vi.mock('@/features/workbench/WorkbenchView', () => ({ WorkbenchView: () => <span>workbench</span> }));
+vi.mock('@/features/overview/OverviewView', () => ({ OverviewView: () => <span>overview</span> }));
+vi.mock('@/features/memory/MemoryView', () => ({ MemoryView: () => <span>memory</span> }));
+vi.mock('@/features/skills/SkillsView', () => ({ SkillsView: () => <span>skills</span> }));
 vi.mock('@/features/provider-setup/ProviderSetupPage', () => ({ ProviderSetupPage: () => <span>setup</span> }));
 vi.mock('@/mobile/screens/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
 vi.mock('@/mobile/screens/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));

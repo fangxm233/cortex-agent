@@ -1,8 +1,8 @@
 import { useLang, useSetLang, useVocab } from '@/i18n';
 import { useToggleTheme } from '@/theme';
 import { captionInsetLeft, titleBarMode } from '@/lib/desktop-platform';
-import { WindowControls } from '@/shell/WindowControls';
-import { useWindowActions } from '@/shell/menu/useWindowActions';
+import { WindowControls } from '@/design/WindowControls';
+import { useWindowActions } from '@/design/useWindowActions';
 
 function BrandMark() {
   return <span className="setup-brand-mark"><svg width="19" height="19" viewBox="0 0 64 64" fill="none" aria-hidden="true">

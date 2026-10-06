@@ -23,11 +23,11 @@ vi.mock('@/features/workbench/rail/LeftRail', () => ({
   BrandBadge: ({ label, onClick }: { label: string; onClick: () => void }) => <button aria-label={label} onClick={onClick} />,
   GearIcon: () => <svg />,
 }));
-vi.mock('./PaneStateProvider', () => ({ usePaneState: () => ({ railCollapsed: false, toggleRail: actions.rail }) }));
+vi.mock('@/features/workbench/rail/rail-collapsed', () => ({ useRailCollapsed: () => false, toggleRail: actions.rail }));
 vi.mock('./NavigationHistoryProvider', () => ({
   useNavigationHistory: () => ({ canBack: true, canForward: true, back: actions.back, forward: actions.forward }),
 }));
-vi.mock('./useShellModals', () => ({ useShellModals: () => ({ openDaemonStatus: actions.daemon }) }));
+vi.mock('@/features/daemon/useDaemonStatusModal', () => ({ useDaemonStatusModal: () => ({ open: actions.daemon }) }));
 vi.mock('./menu/useAppMenus', () => ({ useAppMenus: () => ({
   menus: ['File', 'Edit', 'View', 'Help'].map((label) => ({ id: label, label, items: [] })),
   windowActions: { ...actions, isFullscreen: chrome.fullscreen, isMaximized: false },

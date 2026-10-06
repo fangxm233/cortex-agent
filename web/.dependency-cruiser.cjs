@@ -65,6 +65,16 @@ module.exports = {
       to: { path: '^src/mobile/', ...COMMON_OPTS },
     },
     {
+      name: 'features-not-to-shell',
+      severity: 'error',
+      comment:
+        'shell/ is the desktop chrome built on top of features/, so a feature importing it runs '
+        + 'the stack backwards. Window primitives go in design/; a modal a feature opens is '
+        + 'declared by that feature (defineModal) and only mounted by shell/ShellModals.',
+      from: { path: '^src/features/', ...NOT_A_TEST },
+      to: { path: '^src/shell/', ...COMMON_OPTS },
+    },
+    {
       name: 'shell-not-to-mobile',
       severity: 'error',
       comment: 'the desktop chrome and the mobile chrome are siblings; neither imports the other',

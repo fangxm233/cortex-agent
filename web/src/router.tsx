@@ -4,10 +4,11 @@ import { createShellRouter } from '@/router-factory';
 import { ResponsiveRoute } from '@/responsive-route';
 import { mobileRoutes } from '@/mobile/mobile-routes';
 import { AppShell } from '@/shell/AppShell';
-import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
-import { OverviewPage } from '@/features/overview/OverviewPage';
-import { MemoryPage } from '@/features/memory/MemoryPage';
-import { SkillsPage } from '@/features/skills/SkillsPage';
+import { DesktopWorkspaceLayout } from '@/shell/DesktopWorkspaceLayout';
+import { WorkbenchView } from '@/features/workbench/WorkbenchView';
+import { OverviewView } from '@/features/overview/OverviewView';
+import { MemoryView } from '@/features/memory/MemoryView';
+import { SkillsView } from '@/features/skills/SkillsView';
 import { ProviderSetupPage } from '@/features/provider-setup/ProviderSetupPage';
 
 // `dev/` holds demo surfaces, not product routes: /base is the prototype specimen. It ships
@@ -33,10 +34,15 @@ export const router = createShellRouter([
     element: <ResponsiveRoute mobile={false}><AppShell /></ResponsiveRoute>,
     children: [
       { index: true, element: <Navigate to="/workbench" replace /> },
-      { path: 'workbench', element: <WorkbenchPage /> },
-      { path: 'overview', element: <OverviewPage /> },
-      { path: 'memory', element: <MemoryPage /> },
-      { path: 'skills', element: <SkillsPage /> },
+      {
+        element: <DesktopWorkspaceLayout />,
+        children: [
+          { path: 'workbench', element: <WorkbenchView /> },
+          { path: 'overview', element: <OverviewView /> },
+          { path: 'memory', element: <MemoryView /> },
+          { path: 'skills', element: <SkillsView /> },
+        ],
+      },
       ...devRoutes(),
     ],
   },

@@ -94,7 +94,7 @@ function DraftHero({ title, projectName }: { title: string; projectName: string 
 }
 
 // `grow` is the pane's share of the fluid center region — 1 normally, `1 - split` while a preview
-// is pinned beside the chat (WorkbenchPage owns the split).
+// is pinned beside the chat (WorkbenchView owns the split).
 export function CenterChat({ grow = 1, onOpenSettings }: {
   grow?: number;
   onOpenSettings?: () => void;

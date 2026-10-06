@@ -7,17 +7,15 @@ import { UpdateMount } from '@/features/update-prompt/UpdateMount';
 import { DockProvider } from '@/features/dock/DockProvider';
 import { NotesProvider } from '@/features/notes/NotesProvider';
 import { ShellProviders } from './ShellProviders';
-import { PaneStateProvider } from './PaneStateProvider';
 import { NavigationHistoryProvider } from './NavigationHistoryProvider';
 import { ShellModalHost } from './ShellModals';
 
-// App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
-// frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
-// frame including its own left rail; other routes render full-bleed. The old token-summary nav
-// LeftRail was removed (superseded). The global ⌘K command palette (design 6c) and every
-// always-available overlay — the execution log drawer, Settings, New-schedule,
-// approvals, … — stay mounted here so any surface can open them without route navigation. The
-// overlays share one registry (ShellProviders' ModalRegistry) and are rendered by ShellModalHost.
+// App shell: a pass-through layout. The workspace routes render inside DesktopWorkspaceLayout (top
+// bar, left rail, workspace pane); other routes render full-bleed. The global ⌘K command palette
+// (design 6c) and every always-available overlay — the execution log drawer, Settings,
+// New-schedule, approvals, … — stay mounted here so any surface can open them without route
+// navigation. The overlays share one registry (ShellProviders' ModalRegistry) and are rendered by
+// ShellModalHost.
 //
 // Three layers, outside in:
 //   DockProvider     desktop-only, and OUTSIDE the shared set because it supplies the dock intake
@@ -26,19 +24,19 @@ import { ShellModalHost } from './ShellModals';
 //                    raising their modal.
 //   ShellProviders   the set both chromes mount — live stream, connection, current project, the
 //                    modal registry and the two viewers.
-//   the rest         desktop-only state: selected session, navigation history, pane layout, notes.
+//   the rest         desktop-only state: selected session, navigation history, notes.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
     <DockProvider>
       <ShellProviders>
-        <SelectedSessionProvider><NavigationHistoryProvider><PaneStateProvider><NotesProvider>
+        <SelectedSessionProvider><NavigationHistoryProvider><NotesProvider>
           <Outlet />
           <CommandPalette open={open} onOpenChange={setOpen} />
           <NotificationMount />
           <UpdateMount />
           <ShellModalHost />
-        </NotesProvider></PaneStateProvider></NavigationHistoryProvider></SelectedSessionProvider>
+        </NotesProvider></NavigationHistoryProvider></SelectedSessionProvider>
       </ShellProviders>
     </DockProvider>
   );

@@ -13,9 +13,6 @@ vi.mock('@/design/dock-intake', () => ({
   useDockIntake: () => ({ canDock: false, active: false, activeKind: null, openWeb: vi.fn() }),
 }));
 vi.mock('@/features/workbench/chat/ChatSessionMenu', () => ({ ChatSessionMenu: () => null }));
-vi.mock('@/shell/useShellModals', () => ({
-  useShellModals: () => ({ sessionIdOpen: false, openSessionId: vi.fn(), closeSessionId: vi.fn() }),
-}));
 
 const session = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInfo =>
   ({

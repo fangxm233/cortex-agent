@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import { desktopPlatform } from '@/lib/desktop-platform';
-import type { WindowActions } from './menu/useWindowActions';
+import type { WindowActions } from './useWindowActions';
 
 // 46px wide, full bar height, no gap — the Windows caption convention, which Linux desktops read
 // as "this app draws its own chrome" too. macOS never renders these: it keeps native decorations

@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { TopBar } from './TopBar';
 
-// Four routes used to repeat this frame verbatim (workbench, overview, memory, skills). It is one
-// component now, and the only place that knows the window is a column: top bar, then the panes.
+// The only place that knows the window is a column: top bar, then the panes (DesktopWorkspaceLayout).
 //
 // The window itself is the mesh ground; the panes float on it inside a gutter. The gutter is on the
 // PANE ROW, not on the whole column, so the top bar still spans the full width — it carries the

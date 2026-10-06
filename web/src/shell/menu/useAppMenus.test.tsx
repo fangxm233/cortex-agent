@@ -19,13 +19,13 @@ vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
 }));
 vi.mock('@/features/dock/DockProvider', () => ({ useDock: () => ({ open: true, canDock: true, toggleDock: vi.fn() }) }));
 vi.mock('@/theme/ThemeProvider', () => ({ useTheme: () => 'dark', useSetTheme: () => vi.fn() }));
-vi.mock('../PaneStateProvider', () => ({ usePaneState: () => ({ toggleRail: vi.fn() }) }));
+vi.mock('@/features/workbench/rail/rail-collapsed', () => ({ useRailCollapsed: () => false, toggleRail: vi.fn() }));
 const machines = vi.hoisted(() => ({ open: vi.fn(), close: vi.fn() }));
 vi.mock('@/features/machines/MachinesMenu', () => ({ useMachinesMenuActions: () => machines }));
-vi.mock('../useShellModals', () => ({ useShellModals: () => ({
-  openNewProject: vi.fn(), openAbout: vi.fn(), openDaemonStatus: vi.fn(),
-}) }));
-vi.mock('./useWindowActions', () => ({ useWindowActions: () => ({
+vi.mock('@/features/projects/useNewProjectModal', () => ({ useNewProjectModal: () => ({ open: vi.fn() }) }));
+vi.mock('@/features/daemon/useDaemonStatusModal', () => ({ useDaemonStatusModal: () => ({ open: vi.fn() }) }));
+vi.mock('../AboutModal', async (original) => ({ ...await original<object>(), useAboutModal: () => ({ open: vi.fn() }) }));
+vi.mock('@/design/useWindowActions', () => ({ useWindowActions: () => ({
   close: vi.fn(), zoomIn: vi.fn(), zoomOut: vi.fn(), zoomReset: vi.fn(), toggleFullscreen: vi.fn(), toggleDevTools: vi.fn(),
 }) }));
 

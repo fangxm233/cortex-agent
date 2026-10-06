@@ -9,15 +9,15 @@ import { MachinesMenu } from '@/features/machines/MachinesMenu';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
 import { BrandBadge, GearIcon } from '@/features/workbench/rail/LeftRail';
-import { usePaneState } from './PaneStateProvider';
+import { toggleRail, useRailCollapsed } from '@/features/workbench/rail/rail-collapsed';
+import { useDaemonStatusModal } from '@/features/daemon/useDaemonStatusModal';
 import { useNavigationHistory } from './NavigationHistoryProvider';
-import { useShellModals } from './useShellModals';
 import { MenuBar } from './menu/MenuBar';
 import { formatAccel } from './menu/menu-model';
 import { useAppMenus } from './menu/useAppMenus';
 import { useMenuShortcuts } from './menu/useMenuShortcuts';
 import { useNativeMenu } from './menu/useNativeMenu';
-import { WindowControls } from './WindowControls';
+import { WindowControls } from '@/design/WindowControls';
 
 export const TOP_BAR_HEIGHT = 44;
 
@@ -156,7 +156,7 @@ function CommandPill({ label, accel, onClick }: { label: string; accel: string; 
 
 export function TopBar(): JSX.Element {
   const L = useVocab();
-  const panes = usePaneState();
+  const railCollapsed = useRailCollapsed();
   const history = useNavigationHistory();
   const theme = useTheme();
   const setTheme = useSetTheme();
@@ -166,7 +166,7 @@ export function TopBar(): JSX.Element {
   const connStatus = useConnectionStatus();
   const connDot = connectionDot(connStatus);
   const connLabel = L[connectionLabelKey(connStatus)];
-  const shellModals = useShellModals();
+  const daemonStatus = useDaemonStatusModal();
   const { menus, windowActions } = useAppMenus();
   // On macOS the shell installs a real system menu and owns the accelerators; everywhere else this
   // reports inactive and the bar draws the menus itself.
@@ -214,13 +214,13 @@ export function TopBar(): JSX.Element {
         <BrandBadge
           dot={connDot}
           label={`${L.dmDaemon} · ${connLabel}`}
-          onClick={() => shellModals.openDaemonStatus()}
+          onClick={() => daemonStatus.open()}
         />
         <div className="shell-brand-label" style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none' }}>
-        <IconButton label={L.tbToggleRail} active={!panes.railCollapsed} onClick={panes.toggleRail}>
+        <IconButton label={L.tbToggleRail} active={!railCollapsed} onClick={toggleRail}>
           <PanelGlyph />
         </IconButton>
         <IconButton label={L.tbBack} disabled={!history.canBack} onClick={history.back}>

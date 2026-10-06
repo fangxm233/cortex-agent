@@ -35,10 +35,10 @@ import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
 import type { ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
-import { glassPanelStyle } from '@/shell/GlassPanel';
+import { glassPanelStyle } from '@/design/GlassPanel';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
-import { usePaneState } from '@/shell/PaneStateProvider';
-import { useShellModals } from '@/shell/useShellModals';
+import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
+import { setRailCollapsed, useRailCollapsed } from './rail-collapsed';
 import { RailResizeHandle } from './RailResizeHandle';
 import { loadRailWidth, saveRailWidth } from './rail-width';
 import { useStarredGroups } from '@/features/session/list/useStarredGroups';
@@ -178,10 +178,8 @@ export function LeftRail(): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
   const lang = useLang();
-  const { railCollapsed: collapsed, setRailCollapsed: setCollapsed } = usePaneState();
-  // New project is opened from the menu bar too, so its modal is a shell modal-registry key
-  // (shell/useShellModals) rather than state in this component.
-  const shellModals = useShellModals();
+  const collapsed = useRailCollapsed();
+  const newProject = useNewProjectModal();
   const rateLimitStatus = useRateLimitStatus();
 
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
@@ -450,7 +448,7 @@ export function LeftRail(): JSX.Element {
   // From the collapsed rail: expand first, then open the field — the caller is one icon wide and
   // has nowhere to show what the search finds.
   const openSearchExpanded = () => {
-    setCollapsed(false);
+    setRailCollapsed(false);
     setSearchOpen(true);
   };
 
@@ -629,7 +627,7 @@ export function LeftRail(): JSX.Element {
             onFilter={setFilter}
             searchOpen={searchOpen}
             onToggleSearch={onToggleSearch}
-            onNewProject={() => shellModals.openNewProject()}
+            onNewProject={() => newProject.open()}
             onToggleProject={toggleProject}
             onToggleSchedules={toggleSchedules}
             onToggleStars={toggleStars}

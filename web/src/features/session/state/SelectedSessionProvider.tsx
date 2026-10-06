@@ -18,7 +18,7 @@ import { useDraftSelection } from './useDraftSelection';
 // Effective selection = override (while still in the list) else the most-recent session, which is
 // then latched as the override so later activity cannot move the chat. Because the session list is
 // scoped to the current project, switching project re-points the chat automatically.
-// Scoped to WorkbenchPage, inside CurrentProjectProvider (it reads the current project).
+// Mounted by AppShell, inside CurrentProjectProvider (it reads the current project).
 
 interface SelectedSessionContextValue {
   selectedSessionId: string | null;

@@ -14,10 +14,11 @@ import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
-import { DOCS_URL } from '../AboutModal';
-import { usePaneState } from '../PaneStateProvider';
-import { useShellModals } from '../useShellModals';
-import { useWindowActions, type WindowActions } from './useWindowActions';
+import { DOCS_URL, useAboutModal } from '../AboutModal';
+import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
+import { useDaemonStatusModal } from '@/features/daemon/useDaemonStatusModal';
+import { toggleRail, useRailCollapsed } from '@/features/workbench/rail/rail-collapsed';
+import { useWindowActions, type WindowActions } from '@/design/useWindowActions';
 import type { MenuDef, MenuNode } from './menu-model';
 
 // Every menu item is declared exactly once, here. The HTML menu bar (Windows / Linux) and the
@@ -53,8 +54,10 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
   const toast = useToastOptional();
   const settings = useSettings();
   const scheduleModal = useScheduleModal();
-  const modals = useShellModals();
-  const panes = usePaneState();
+  const newProject = useNewProjectModal();
+  const daemonStatus = useDaemonStatusModal();
+  const about = useAboutModal();
+  const railCollapsed = useRailCollapsed();
   const dock = useDock();
   const machinesMenu = useMachinesMenuActions();
   const theme = useTheme();
@@ -76,7 +79,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
           kind: 'item', id: 'file.newSession', label: L.mFileNewSession, accel: 'mod+n',
           run: () => { setSelectedSession(DRAFT_SENTINEL); navigate('/workbench'); },
         },
-        { kind: 'item', id: 'file.newProject', label: L.mFileNewProject, run: modals.openNewProject },
+        { kind: 'item', id: 'file.newProject', label: L.mFileNewProject, run: newProject.open },
         {
           kind: 'item', id: 'file.newSchedule', label: L.mFileNewSchedule,
           run: () => scheduleModal.open(currentProjectId ? { projectId: currentProjectId } : undefined),
@@ -131,7 +134,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
       items: [
         {
           kind: 'item', id: 'view.leftRail', label: L.mViewLeftRail, accel: 'mod+b',
-          checked: !panes.railCollapsed, run: panes.toggleRail,
+          checked: !railCollapsed, run: toggleRail,
         },
         {
           kind: 'item', id: 'view.dock', label: L.mViewDock, accel: 'mod+j',
@@ -172,20 +175,20 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
       items: [
         { kind: 'item', id: 'help.docs', label: L.mHelpDocs, run: () => void openExternalUrl(DOCS_URL).catch(() => {}) },
         separator,
-        { kind: 'item', id: 'help.daemon', label: L.mHelpDaemon, run: modals.openDaemonStatus },
+        { kind: 'item', id: 'help.daemon', label: L.mHelpDaemon, run: daemonStatus.open },
         {
           kind: 'item', id: 'help.updates', label: checkingUpdates ? L.updateCheckBusy : L.mHelpUpdates,
           disabled: checkingUpdates, run: () => void checkUpdates(),
         },
         { kind: 'item', id: 'help.devtools', label: L.mHelpDevTools, disabled: !native, run: windowActions.toggleDevTools },
         separator,
-        { kind: 'item', id: 'help.about', label: L.mHelpAbout, run: modals.openAbout },
+        { kind: 'item', id: 'help.about', label: L.mHelpAbout, run: about.open },
       ],
     };
 
     return [file, edit, view, help];
-  }, [L, navigate, toast, settings, scheduleModal, modals, panes, dock, machinesMenu, theme, setTheme,
-    currentProjectId, selectedSessionId, setSelectedSession, windowActions, native, checkingUpdates, checkUpdates]);
+  }, [L, navigate, toast, settings, scheduleModal, newProject, daemonStatus, about, railCollapsed, dock, machinesMenu, theme,
+    setTheme, currentProjectId, selectedSessionId, setSelectedSession, windowActions, native, checkingUpdates, checkUpdates]);
 
   return { menus, windowActions };
 }
