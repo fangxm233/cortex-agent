@@ -22,6 +22,8 @@ interface BottomSheetProps {
   className?: string;
   /** Opt in to natural content height transitions; other sheets keep their existing layout. */
   animateHeight?: boolean;
+  /** False keeps the sheet open on a tap on the dimmed area; drag, back and Escape still close it. */
+  dimDismiss?: boolean;
 }
 
 /** Close past ~28% of the sheet height, or on a fast downward flick (px/ms). */
@@ -161,7 +163,7 @@ function SheetSurface({ size, motion, animateHeight, children }: { size: SheetSi
 
 /** Dimmed overlay + bottom-anchored sheet. Dim and drag share the animated close. */
 export function MBottomSheet(props: BottomSheetProps): JSX.Element {
-  const { animateHeight = false, children, behind, className } = props;
+  const { animateHeight = false, dimDismiss = true, children, behind, className } = props;
   const size = useSheetHeight(animateHeight, children);
   const motion = useSheetMotion(props, size.sheetRef);
   return (
@@ -171,7 +173,7 @@ export function MBottomSheet(props: BottomSheetProps): JSX.Element {
         paddingTop: animateHeight ? 'max(12px, env(safe-area-inset-top))' : undefined,
       }}>
         {behind && <div style={{ position: 'absolute', inset: 0 }}>{behind}</div>}
-        <div onClick={motion.close} style={{
+        <div onClick={dimDismiss ? motion.close : undefined} style={{
           position: 'absolute', inset: 0, background: 'var(--overlay-ink)', opacity: motion.dimOpacity,
           transition: motion.dragging ? 'none' : `opacity ${SHEET_MS}ms ${SHEET_EASE}`,
         }} />
