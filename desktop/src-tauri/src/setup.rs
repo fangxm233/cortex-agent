@@ -443,16 +443,21 @@ pub async fn setup_enable_ui(
     app: AppHandle,
     run: String,
     bin: String,
-    port: u16,
+    port: Option<u16>,
 ) -> Result<UiEndpoint, String> {
     tauri::async_runtime::spawn_blocking(move || enable_ui(&app, &run, &bin, port))
         .await
         .map_err(|e| format!("SETUP_TASK_FAILED: UI: {e}"))?
 }
 
-fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: u16) -> Result<UiEndpoint, String> {
-    let port = port.to_string();
-    let outcome = run_streaming(app, run, bin, &["ui", "enable", "--port", &port, "--json"])?;
+fn ui_enable_args(port: Option<u16>) -> Vec<String> {
+    let mut args = vec!["ui".into(), "enable".into(), "--json".into()];
+    if let Some(port) = port { args.extend(["--port".into(), port.to_string()]); }
+    args
+}
+
+fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: Option<u16>) -> Result<UiEndpoint, String> {
+    let outcome = run_streaming(app, run, bin, &ui_enable_args(port))?;
     if !outcome.ok() {
         return Err(format!("UI_ENABLE_FAILED: {}", outcome.combined()));
     }
@@ -486,35 +491,7 @@ pub fn ensure_local_daemon(app: &AppHandle, bin: &str, url: &str, token: &str) -
     }
 }
 
-/// The command that turns the service `cortex init` wrote into an actual autostart.
-///
-/// init writes the unit or plist but deliberately stops there — a terminal wizard can only print the
-/// enable command. The app can run it, which is the difference between a checkbox that means
-/// something and one that writes a file nobody loads. None where the server registers no service at
-/// all (Windows), where the app's own launch-time start is the only autostart there is.
-#[cfg(any(test, not(any(target_os = "macos", target_os = "linux"))))]
-pub fn autostart_plan(os: &str, home: &str) -> Option<(String, Vec<String>)> {
-    match os {
-        "linux" => Some((
-            "systemctl".to_string(),
-            ["--user", "enable", "--now", "cortex.service"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        )),
-        "macos" => Some((
-            "launchctl".to_string(),
-            vec![
-                "load".to_string(),
-                "-w".to_string(),
-                format!("{home}/Library/LaunchAgents/cc.cortex.agent-server.plist"),
-            ],
-        )),
-        _ => None,
-    }
-}
-
-/// Enable the autostart service init just wrote. Ok(false) = this platform has none.
+/// Register native-owned user autostart. Ok(false) = this platform has none.
 ///
 /// A failure here is reported but never fatal: the install itself is complete and usable, and the
 /// user can still start Cortex by opening the app.
@@ -530,17 +507,9 @@ fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
     let selected =
         process::selected_runtime()?.ok_or("RUNTIME_MISSING: installation record unavailable")?;
     let server = selected.server.as_ref().ok_or("CLI_NOT_ON_PATH")?;
-    let mut args = Vec::new();
-    let program = if server.managed {
-        args.push(server.bin.clone().into_os_string());
-        selected.node.clone()
-    } else {
-        server.bin.clone()
-    };
-    args.push("daemon".into());
     let launch = service::ServiceLaunch {
-        program,
-        args,
+        program: selected.node.clone(),
+        args: vec![daemon_service_entry(&server.bin)?.into_os_string()],
         home: cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?,
         path: selected.path(&process::inherited_path())?,
         npm_prefix: Some(selected.prefix.clone()),
@@ -548,19 +517,17 @@ fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
     service::enable_user_service(app, run, &launch)
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn daemon_service_entry(bin: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    let cli = bin.canonicalize().map_err(|_| "AUTOSTART_FAILED: server entry is missing")?;
+    let daemon = cli.parent().ok_or("AUTOSTART_FAILED: server directory is missing")?.join("daemon.js");
+    if !daemon.is_file() { return Err("AUTOSTART_FAILED: foreground daemon entry is missing".into()); }
+    Ok(daemon)
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let Some((program, args)) = autostart_plan(std::env::consts::OS, &home) else {
-        return Ok(false);
-    };
-    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
-    let outcome = run_streaming(app, run, &program, &borrowed)?;
-    if outcome.ok() {
-        Ok(true)
-    } else {
-        Err(format!("AUTOSTART_FAILED: {}", outcome.combined()))
-    }
+fn enable_autostart(_app: &AppHandle, _run: &str) -> Result<bool, String> {
+    Ok(false)
 }
 
 /// Start the local daemon and wait for it to answer. False = it never came up in the budget.
@@ -693,23 +660,24 @@ mod tests {
     }
 
     #[test]
-    fn autostart_is_enabled_through_the_platform_service_manager() {
-        let (program, args) =
-            autostart_plan("linux", "/home/u").expect("linux uses systemd --user");
-        assert_eq!(program, "systemctl");
-        assert_eq!(args, vec!["--user", "enable", "--now", "cortex.service"]);
-
-        let (program, args) = autostart_plan("macos", "/Users/u").expect("macos uses launchd");
-        assert_eq!(program, "launchctl");
-        assert_eq!(
-            args.last().unwrap(),
-            "/Users/u/Library/LaunchAgents/cc.cortex.agent-server.plist"
-        );
+    fn automatic_connection_omits_the_port_but_explicit_repair_passes_it() {
+        assert_eq!(ui_enable_args(None), vec!["ui", "enable", "--json"]);
+        assert_eq!(ui_enable_args(Some(14321)), vec!["ui", "enable", "--json", "--port", "14321"]);
     }
 
     #[test]
-    fn autostart_is_not_offered_where_the_server_registers_no_service() {
-        assert!(autostart_plan("windows", "C:\\Users\\u").is_none());
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fn service_uses_the_foreground_entry_not_the_detaching_cli() {
+        let dir = tempfile::tempdir().unwrap();
+        let cli = dir.path().join("cortex-cli.js");
+        let daemon = dir.path().join("daemon.js");
+        std::fs::write(&cli, "fixture").unwrap();
+        assert!(daemon_service_entry(&cli).is_err());
+        std::fs::write(&daemon, "fixture").unwrap();
+        assert_eq!(daemon_service_entry(&cli).unwrap(), daemon);
+        let link = dir.path().join("cortex");
+        std::os::unix::fs::symlink(&cli, &link).unwrap();
+        assert_eq!(daemon_service_entry(&link).unwrap(), daemon);
     }
 
     #[test]
