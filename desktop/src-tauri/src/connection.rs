@@ -307,6 +307,80 @@ mod tests {
     }
 
     #[test]
+    fn explicit_skip_or_continue_persists_false_without_changing_transport_or_cli() {
+        let mut current = local_config(true);
+        let expected = snapshot(&local_config(false));
+        let mut saves = 0;
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |candidate| {
+            saves += 1;
+            assert_eq!(snapshot(candidate), expected);
+            Ok(())
+        }).unwrap();
+        assert_eq!(saves, 1);
+        assert_eq!(snapshot(&current), expected);
+        assert!(!PageConfig::from(&current).provider_setup_pending);
+    }
+
+    #[test]
+    fn repeated_completion_is_idempotent_and_does_not_save_again() {
+        let mut current = local_config(true);
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |_| Ok(())).unwrap();
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
+            |_| panic!("completed setup must not save again")).unwrap();
+        assert!(!current.provider_setup_pending);
+    }
+
+    #[test]
+    fn completion_save_failure_retains_pending_and_allows_retry_without_leaking_tokens() {
+        let mut current = local_config(true);
+        let before = snapshot(&current);
+        let error = finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |candidate| {
+            assert!(!candidate.provider_setup_pending);
+            Err(format!("backend echoed {TEST_TOKEN}"))
+        }).unwrap_err();
+        assert_eq!(error, "provider_setup_save_failed");
+        assert!(!error.contains(TEST_TOKEN));
+        assert_eq!(snapshot(&current), before);
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |_| Ok(())).unwrap();
+        assert!(!current.provider_setup_pending);
+    }
+
+    #[test]
+    fn stale_url_or_token_cannot_finish_a_replacement_connection() {
+        for (url, token) in [("http://127.0.0.1:3010", TEST_TOKEN), (LOCAL_URL, "stale-token")] {
+            let mut current = local_config(true);
+            let before = snapshot(&current);
+            let error = finish_with_saver(&mut current, url, token,
+                |_| panic!("stale pages must never write credentials")).unwrap_err();
+            assert_eq!(error, "provider_setup_connection_changed");
+            assert_eq!(snapshot(&current), before);
+        }
+    }
+
+    #[test]
+    fn completion_is_a_noop_for_matching_remote_or_nonpending_connections() {
+        let mut remote = local_config(true);
+        remote.mode = ConnectionMode::Remote;
+        for mut current in [remote, local_config(false)] {
+            let before = snapshot(&current);
+            finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
+                |_| panic!("remote/nonpending completion must not save")).unwrap();
+            assert_eq!(snapshot(&current), before);
+        }
+    }
+
+    #[test]
+    fn completion_scope_guard_precedes_noop_even_after_disconnect() {
+        for mut current in [ConnectionConfig::default(), local_config(false)] {
+            let before = snapshot(&current);
+            let error = finish_with_saver(&mut current, LOCAL_URL, "stale-token",
+                |_| panic!("mismatched completion must not save")).unwrap_err();
+            assert_eq!(error, "provider_setup_connection_changed");
+            assert_eq!(snapshot(&current), before);
+        }
+    }
+
+    #[test]
     fn legacy_connections_serialize_provider_setup_pending_as_false() {
         for mode in ["local", "remote"] {
             let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
