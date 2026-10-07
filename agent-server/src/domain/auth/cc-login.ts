@@ -1,5 +1,4 @@
 import { t } from '@core/i18n.js';
-import { createLogger } from '@core/log.js';
 import {
   applyAuthEnv,
   saveAnthropicApiKey,
@@ -11,8 +10,6 @@ import {
   type AuthInteraction,
   type LoginOutcome,
 } from './login-flow.js';
-
-const log = createLogger('cc-login');
 
 export interface ClaudeApiKeyLoginOutcome extends LoginOutcome {
   provider: 'anthropic';
@@ -30,9 +27,8 @@ export async function loginClaudeApiKey(
   try {
     await saveAnthropicApiKey(apiKey);
   } catch (error) {
-    log.warn('Anthropic API key could not be saved:', error);
     const message = loginFailureMessage(t('ux.auth.apiKeySaveFailed'), error);
-    throw new LoginFlowError('claude_api_key_save_failed', message);
+    throw new LoginFlowError('claude_api_key_save_failed', message, error);
   }
   applyAuthEnv();
   publishAuthRecovered({ backend: 'claude', provider: 'anthropic' });

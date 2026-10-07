@@ -1,5 +1,4 @@
 import { t } from '@core/i18n.js';
-import { createLogger } from '@core/log.js';
 import {
   applyAuthEnv,
   removeClaudeCodeOAuthToken,
@@ -18,7 +17,6 @@ import {
 } from './login-flow.js';
 
 const OUTCOME_DETAIL = 'Credential managed by Claude Code.';
-const log = createLogger('cc-subscription');
 
 export interface ClaudeSubscriptionLoginDependencies {
   login?: typeof loginClaudeAuth;
@@ -43,8 +41,8 @@ function loginError(error: unknown): LoginFlowError {
       return new LoginFlowError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
     }
   }
-  log.warn('Claude subscription login failed:', error);
-  return new LoginFlowError('claude_subscription_failed', loginFailureMessage(t('ux.auth.ccFailed'), error));
+  const message = loginFailureMessage(t('ux.auth.ccFailed'), error);
+  return new LoginFlowError('claude_subscription_failed', message, error);
 }
 
 function loginOptions(interaction: AuthInteraction): ClaudeAuthLoginOptions {
@@ -67,10 +65,10 @@ async function clearLegacyToken(
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
     (dependencies.reloadAuth ?? applyAuthEnv)();
   } catch (error) {
-    log.warn('Claude subscription legacy token cleanup failed:', error);
     throw new LoginFlowError(
       'claude_subscription_cleanup_failed',
       loginFailureMessage(t('ux.auth.ccCleanupFailed'), error),
+      error,
     );
   }
 }

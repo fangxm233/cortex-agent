@@ -24,6 +24,8 @@ export type PiApiKeyLoginErrorCode =
 export interface PiApiKeyLoginError {
   code: PiApiKeyLoginErrorCode;
   message: string;
+  /** The upstream error, for the server log only. */
+  cause?: unknown;
 }
 
 export type PiApiKeyLoginResult =
@@ -53,8 +55,10 @@ function failed(
   provider: string,
   code: PiApiKeyLoginErrorCode,
   message: string,
+  cause?: unknown,
 ): PiApiKeyLoginFailure {
-  return { ok: false, provider, authType: 'api_key', error: { code, message } };
+  const error = cause === undefined ? { code, message } : { code, message, cause };
+  return { ok: false, provider, authType: 'api_key', error };
 }
 
 async function loadRuntime(
@@ -108,8 +112,8 @@ export async function loginPiApiKey(
   try {
     await target.runtime.login(providerId, 'api_key', interaction);
   } catch (error) {
-    log.warn(`PI API-key login for ${providerId} failed:`, error);
-    return failed(providerId, 'login_failed', loginFailureMessage(t('ux.auth.piApiKeyFailed'), error));
+    const message = loginFailureMessage(t('ux.auth.piApiKeyFailed'), error);
+    return failed(providerId, 'login_failed', message, error);
   }
   return finishLogin(providerId, dependencies);
 }
@@ -120,7 +124,9 @@ export function createPiApiKeyLoginConsumer(
 ): LoginFlowConsumer {
   return async (interaction) => {
     const result = await loginPiApiKey(providerId, interaction, dependencies);
-    if (result.ok === false) throw new LoginFlowError(result.error.code, result.error.message);
+    if (result.ok === false) {
+      throw new LoginFlowError(result.error.code, result.error.message, result.error.cause);
+    }
     return {
       provider: result.provider,
       authType: result.authType,

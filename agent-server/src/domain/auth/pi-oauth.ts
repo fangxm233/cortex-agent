@@ -25,6 +25,8 @@ export type PiOAuthLoginErrorCode =
 export interface PiOAuthLoginError {
   code: PiOAuthLoginErrorCode;
   message: string;
+  /** The upstream error, for the server log only. */
+  cause?: unknown;
 }
 
 export type PiOAuthLoginResult =
@@ -54,13 +56,15 @@ function failed(
   provider: string,
   code: PiOAuthLoginErrorCode,
   message: string,
+  cause?: unknown,
 ): PiOAuthLoginFailure {
-  return { ok: false, provider, authType: 'oauth', error: { code, message } };
+  const error = cause === undefined ? { code, message } : { code, message, cause };
+  return { ok: false, provider, authType: 'oauth', error };
 }
 
 function loginFailed(provider: string, error: unknown): PiOAuthLoginFailure {
-  log.warn(`PI OAuth login for ${provider} failed:`, error);
-  return failed(provider, 'login_failed', loginFailureMessage(t('ux.auth.piOAuthFailed'), error));
+  const message = loginFailureMessage(t('ux.auth.piOAuthFailed'), error);
+  return failed(provider, 'login_failed', message, error);
 }
 
 async function loadRuntime(
@@ -140,7 +144,9 @@ export function createPiOAuthLoginConsumer(
 ): LoginFlowConsumer {
   return async (interaction) => {
     const result = await loginPiOAuth(providerId, interaction, dependencies);
-    if (result.ok === false) throw new LoginFlowError(result.error.code, result.error.message);
+    if (result.ok === false) {
+      throw new LoginFlowError(result.error.code, result.error.message, result.error.cause);
+    }
     return {
       provider: result.provider,
       authType: result.authType,

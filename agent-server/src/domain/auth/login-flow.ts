@@ -5,14 +5,17 @@ import type { AuthType } from './auth-status.js';
 
 export const LOGIN_FLOW_TTL_MS = 30 * 60 * 1000;
 const FAILURE_DETAIL_LIMIT = 200;
+const MIN_SCRUBBED_LENGTH = 8;
+const SCRUB_MASK = '***';
 
 const log = createLogger('login-flow');
 
 export class LoginFlowError extends Error {
   readonly name = 'LoginFlowError';
 
-  constructor(readonly code: string, message: string) {
-    super(message);
+  /** `cause` is the upstream error, kept for the server log only. */
+  constructor(readonly code: string, message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
   }
 }
 
@@ -31,7 +34,7 @@ function upstreamDetail(error: unknown): string {
 }
 
 /** A localized failure followed by the first line of the upstream reason, when it adds one.
- *  Upstream login errors are status codes and protocol messages, never credentials. */
+ *  The flow scrubs submitted secrets from it before anyone sees it. */
 export function loginFailureMessage(prefix: string, error: unknown): string {
   const detail = upstreamDetail(error);
   const base = prefix.replace(/[.。]\s*$/u, '');
@@ -147,6 +150,8 @@ interface InternalFlow {
   /** A response reached the consumer and it has not asked for anything since: it may be saving
    *  the credential, so the flow can no longer be cancelled or replaced. */
   handedOff: boolean;
+  /** Secrets and codes answered in this flow, kept in memory only to scrub failure reasons. */
+  secrets: Set<string>;
 }
 
 const TERMINAL_STEPS = new Set<LoginFlowStep>(['done', 'failed', 'cancelled']);
@@ -219,6 +224,7 @@ function expireFlow(flow: InternalFlow): void {
   flows.delete(flow.state.flowId);
   releasePair(flow);
   clearTimeout(flow.timer);
+  flow.secrets.clear();
   if (!isTerminal(flow)) abortFlow(flow, 'Login flow expired.');
   takePending(flow)?.reject(abortError('Login flow expired.'));
 }
@@ -347,6 +353,7 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
   flow.state.outcome = cloneOutcome(outcome);
   flow.state.error = null;
   flow.state.errorCode = null;
+  flow.secrets.clear();
   releasePair(flow);
   notifyLoginSuccess({
     backend: flow.state.backend,
@@ -355,16 +362,38 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
   });
 }
 
+export function scrubSecrets(text: string, secrets: Iterable<string>): string {
+  const ordered = [...secrets].filter(secret => secret.length >= MIN_SCRUBBED_LENGTH)
+    .sort((a, b) => b.length - a.length);
+  return ordered.reduce((scrubbed, secret) => scrubbed.split(secret).join(SCRUB_MASK), text);
+}
+
+function rememberSecret(flow: InternalFlow, kind: LoginPendingPrompt['kind'], value: string): void {
+  if (kind !== 'secret' && kind !== 'manual_code') return;
+  flow.secrets.add(value);
+  flow.secrets.add(value.trim());
+}
+
+/** The full upstream reason for the server log: the wrapped error's cause when there is one. */
+function failureReason(error: unknown): string {
+  const source = isLoginFlowError(error) && error.cause !== undefined ? error.cause : error;
+  if (!(source instanceof Error)) return String(source);
+  return isLoginFlowError(source) ? source.message : source.stack ?? source.message;
+}
+
 function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
   if (!canSettleConsumer(flow)) return;
   const flowError = isLoginFlowError(error) ? error : null;
-  if (!flowError) log.warn(`login ${flow.state.backend}/${flow.state.provider} failed:`, error);
+  const label = `login ${flow.state.backend}/${flow.state.provider} failed (${flowError?.code ?? 'unexpected'}):`;
+  log.warn(label, scrubSecrets(failureReason(error), flow.secrets));
   flow.state.step = 'failed';
   flow.state.pendingPrompt = null;
   touch(flow);
   flow.state.outcome = null;
-  flow.state.error = flowError?.message ?? loginFailureMessage(t('ux.auth.loginFailed'), error);
+  const message = flowError?.message ?? loginFailureMessage(t('ux.auth.loginFailed'), error);
+  flow.state.error = scrubSecrets(message, flow.secrets);
   flow.state.errorCode = flowError?.code ?? null;
+  flow.secrets.clear();
   releasePair(flow);
 }
 
@@ -392,6 +421,7 @@ function endCancelled(flow: InternalFlow): void {
   flow.state.outcome = null;
   flow.state.error = null;
   flow.state.errorCode = null;
+  flow.secrets.clear();
   releasePair(flow);
   abortFlow(flow, 'Login flow cancelled.');
   pending?.reject(abortError('Login flow cancelled.'));
@@ -416,7 +446,7 @@ function createFlow(input: StartLoginFlowInput): InternalFlow {
   };
   const flow = {
     state, pairKey: pairKey(input), expiresAtMs: now + LOGIN_FLOW_TTL_MS,
-    controller: new AbortController(), pending: null, handedOff: false,
+    controller: new AbortController(), pending: null, handedOff: false, secrets: new Set<string>(),
   } as InternalFlow;
   flow.timer = setTimeout(() => expireFlow(flow), LOGIN_FLOW_TTL_MS);
   flow.timer.unref();
@@ -445,8 +475,10 @@ export async function respondPrompt(
   if (promptId !== undefined && flow.state.pendingPrompt && flow.state.pendingPrompt.id !== promptId) {
     throw new LoginFlowError('stale_prompt', t('ux.auth.flowNotWaiting'));
   }
+  const kind = flow.state.pendingPrompt?.kind;
   const pending = takePending(flow);
   if (!pending) throw new Error(t('ux.auth.flowNotWaiting'));
+  if (kind) rememberSecret(flow, kind, value);
   flow.state.step = 'running';
   flow.handedOff = true;
   pending.resolve(value);

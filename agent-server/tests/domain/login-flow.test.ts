@@ -174,6 +174,29 @@ test('consumer rejection keeps the first line of its reason and releases the act
   assert.notEqual(replacement.flowId, flow.flowId);
 });
 
+test('a failure reason and its log line never repeat a submitted secret', async () => {
+  const secret = 'sk-live-0123456789abcdef';
+  const logged: unknown[][] = [];
+  for (const method of ['log', 'warn', 'error'] as const) {
+    vi.spyOn(console, method).mockImplementation((...args) => { logged.push(args); });
+  }
+  try {
+    const flow = await startFlow(input('echoing-provider'), async (interaction) => {
+      const key = await interaction.prompt({ type: 'secret', message: 'API key' });
+      throw new Error(`invalid API key: ${key.trim()}\n    at check (provider.js:1:1)`);
+    });
+    await flush();
+    await respondPrompt(flow.flowId, ` ${secret} `);
+    await flush();
+
+    assert.equal(requireState(flow.flowId).error, 'Login failed: invalid API key: ***');
+    assert.ok(JSON.stringify(logged).includes('invalid API key: ***'));
+    assert.equal(JSON.stringify([requireState(flow.flowId), logged]).includes(secret), false);
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
 test('branded LoginFlowError exposes only safe message and code', async () => {
   const causeSecret = '\uE204\uE205-sensitive-consumer-cause';
   const stackSecret = '\uE206\uE207-sensitive-consumer-stack';

@@ -206,23 +206,21 @@ test('runtime and provider failures are structured and fail the flow', async () 
   assert.equal(inertLogin.mock.calls.length, 0);
 });
 
-test('runtime rejection keeps the upstream reason and is never unhandled', async (context) => {
+test('runtime rejection keeps the upstream reason without the submitted key and is never unhandled', async (context) => {
   const unhandled: unknown[] = [];
   const onUnhandled = (error: unknown) => { unhandled.push(error); };
   process.on('unhandledRejection', onUnhandled);
   context.onTestFinished(() => { process.off('unhandledRejection', onUnhandled); });
   const consoleCalls = spyOnConsole();
   const login = vi.fn(async (_id, _type, auth: AuthInteraction): Promise<PiCredential> => {
-    await auth.prompt({ type: 'secret', message: 'API key' });
-    throw new Error('401 Unauthorized: invalid x-api-key\n    at validate (provider.js:1:1)');
+    const key = await auth.prompt({ type: 'secret', message: 'API key' });
+    throw new Error(`401 Unauthorized: invalid key: ${key}\n    at validate (provider.js:1:1)`);
   });
   const deps = dependencies(available(runtime([provider()], login)));
   const direct = await loginPiApiKey('deepseek', interaction(), deps);
-  const expected = 'PI API-key login failed: 401 Unauthorized: invalid x-api-key';
-  assert.deepEqual(direct, {
-    ok: false, provider: 'deepseek', authType: 'api_key',
-    error: { code: 'login_failed', message: expected },
-  });
+  assert.equal(direct.ok, false);
+  assert.equal(direct.ok === false && direct.error.code, 'login_failed');
+  assert.ok(direct.ok === false && direct.error.cause instanceof Error);
 
   const flow = await startFlow(startInput('deepseek'), createPiApiKeyLoginConsumer('deepseek', deps));
   await flush();
@@ -232,7 +230,8 @@ test('runtime rejection keeps the upstream reason and is never unhandled', async
 
   assert.equal(getFlowState(flow.flowId)?.step, 'failed');
   assert.equal(getFlowState(flow.flowId)?.errorCode, 'login_failed');
-  assert.equal(getFlowState(flow.flowId)?.error, expected);
-  assert.equal(JSON.stringify({ direct, state: getFlowState(flow.flowId), consoleCalls }).includes(SECRET), false);
+  assert.equal(getFlowState(flow.flowId)?.error, 'PI API-key login failed: 401 Unauthorized: invalid key: ***');
+  assert.ok(JSON.stringify(consoleCalls).includes('invalid key: ***'));
+  assert.equal(JSON.stringify({ state: getFlowState(flow.flowId), consoleCalls }).includes(SECRET), false);
   assert.deepEqual(unhandled, []);
 });
