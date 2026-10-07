@@ -93,6 +93,8 @@ async function readStatus(
   }
 }
 
+/** The credential of the requested type a logout acts on: one Cortex can remove wins over one it
+ *  cannot (a stored key next to an environment key), then the one the account is using. */
 function selectedCredential(
   snapshot: AuthStatusSnapshot,
   input: LogoutAccountInput,
@@ -101,13 +103,12 @@ function selectedCredential(
     item.backend === input.backend && item.provider === input.provider
   ));
   if (!account) return null;
-  if (account.authType === input.authType) {
-    const current = account.credentials.find(item => (
-      item.authType === input.authType && item.source === account.source
-    ));
-    if (current) return current;
-  }
-  return account.credentials.find(item => item.authType === input.authType) ?? null;
+  const candidates = account.credentials.filter(item => item.authType === input.authType);
+  const current = account.authType === input.authType
+    ? candidates.find(item => item.source === account.source)
+    : undefined;
+  if (current?.manageable) return current;
+  return candidates.find(item => item.manageable) ?? current ?? candidates[0] ?? null;
 }
 
 function reloadClaude(dependencies: LogoutAccountDependencies): void {

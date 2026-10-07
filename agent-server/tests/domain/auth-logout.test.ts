@@ -331,6 +331,42 @@ test('PI logout admission uses the manageable field without a second source poli
   }
 });
 
+test('PI logout removes a stored key even while an environment key is the active one', async () => {
+  const logout = vi.fn(async () => {});
+  const runtime = { getProviders: () => [], logout } as unknown as PiModelRuntime;
+  const credential = (source: string, manageable: boolean) => ({
+    authType: 'api_key' as const, state: 'logged-in' as const, source, expiresAt: null,
+    refreshExpiresAt: null, manageable,
+  });
+  const snapshot: AuthStatusSnapshot = {
+    generatedAt: new Date(0).toISOString(),
+    accounts: [{
+      backend: 'pi', provider: 'openrouter', label: 'OpenRouter', capabilities: ['api_key'],
+      authType: 'api_key', state: 'logged-in', source: 'env', expiresAt: null,
+      refreshExpiresAt: null, inUse: true,
+      credentials: [credential('env', false), credential('stored', true)],
+    }],
+    piRuntime: { available: true, version: 'fixture', entry: '/fixture/pi.js', error: null },
+  };
+  const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
+
+  const result = await logoutAccount(
+    { backend: 'pi', provider: 'openrouter', authType: 'api_key' },
+    {
+      piAuthPath: path.join(os.tmpdir(), 'cortex-logout-env-and-stored.json'),
+      getAuthStatus: async () => snapshot,
+      loadPiRuntime: async () => ({
+        available: true, version: 'fixture', entry: '/fixture/pi.js', error: null,
+        runtime, readStoredCredential: () => undefined,
+      }),
+      refreshProviders: vi.fn(),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(logout.mock.calls, [['openrouter']]);
+});
+
 async function assertGatewayPlaceholderIgnored(
   logoutAccount: LogoutModule['logoutAccount'],
   options: GetAuthStatusOptions,
