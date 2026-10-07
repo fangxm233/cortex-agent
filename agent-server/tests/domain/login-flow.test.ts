@@ -42,11 +42,6 @@ function outcome(provider: string, detail?: string): LoginOutcome {
   return { provider, authType: 'api_key', expiresAt: null, ...(detail ? { detail } : {}) };
 }
 
-function waitForAbort(signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
-}
-
 async function delayedOutcome(release: Deferred<void>, provider: string): Promise<LoginOutcome> {
   await release.promise;
   return outcome(provider);

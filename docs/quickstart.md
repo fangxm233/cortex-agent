@@ -405,7 +405,7 @@ or **Settings → Accounts**. Claude Code also supports `claude` plus `/login`.
 ![Backend login prompt](./images/backend-login.png)
 
 Cortex also notices this for you. When a running agent hits expired
-authentication, it posts a card naming the backend and provider with a
+authentication, it posts a card naming the provider with a
 one-click re-login button, and a daily scan warns about credentials that
 are close to expiring.
 
