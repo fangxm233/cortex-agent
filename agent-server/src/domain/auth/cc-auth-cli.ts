@@ -4,9 +4,11 @@ import {
   type SpawnOptionsWithoutStdio,
 } from 'node:child_process';
 import { CLAUDE_CONFIG_HOME } from '@core/paths.js';
+import { scrubSecrets } from './login-flow.js';
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_OUTPUT_CHARS = 64 * 1024;
+const OUTPUT_DETAIL_LIMIT = 200;
 const AUTH_PROMPT = 'Paste code here if prompted >';
 const AUTH_URL_PATTERN = /https:\/\/claude\.com\/cai\/oauth\/authorize\?[^\s\x1b]+/;
 const ANSI_PATTERN = /\x1B\[[0-?]*[ -/]*[@-~]/g;
@@ -53,14 +55,25 @@ export interface ClaudeAuthLoginOptions {
   onCodeSubmitted?: () => void;
 }
 
+/** Everything a command printed, and the values written to it that must never be echoed back. */
+interface CapturedOutput {
+  text: string;
+  secrets: string[];
+}
+
 interface CommandOptions {
   signal?: AbortSignal;
   failureCode: string;
+  output: CapturedOutput;
   onStop?: (error: Error) => void;
 }
 
 function cliError(code: string, message: string): ClaudeAuthCliError {
   return new ClaudeAuthCliError(code, message);
+}
+
+function withDetail(message: string, detail: string): string {
+  return detail ? `${message.replace(/\.$/, '')}: ${detail}` : message;
 }
 
 /** Login, status and logout act on Cortex's own Claude config dir, never an inherited one. */
@@ -83,13 +96,13 @@ function spawnAuth(
   });
 }
 
-function commandError(code: string): ClaudeAuthCliError {
+function commandError(code: string, detail = ''): ClaudeAuthCliError {
   const messages: Record<string, string> = {
     claude_auth_login_failed: 'Claude authentication login failed.',
     claude_auth_logout_failed: 'Claude authentication logout failed.',
     claude_auth_status_failed: 'Claude authentication status check failed.',
   };
-  return cliError(code, messages[code] ?? 'Claude authentication command failed.');
+  return cliError(code, withDetail(messages[code] ?? 'Claude authentication command failed.', detail));
 }
 
 class ExitWaiter {
@@ -111,8 +124,10 @@ class ExitWaiter {
       dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     );
     options.signal?.addEventListener('abort', this.onAbort, { once: true });
-    child.once('error', () => this.finish(commandError(options.failureCode)));
-    child.once('close', code => this.finish(code === 0 ? undefined : commandError(options.failureCode)));
+    child.once('error', error => this.finish(commandError(options.failureCode, error.message)));
+    child.once('close', code => this.finish(
+      code === 0 ? undefined : commandError(options.failureCode, lastOutputLine(options.output)),
+    ));
     if (options.signal?.aborted) this.onAbort();
   }
 
@@ -162,9 +177,22 @@ function normalizeCode(value: string): string | null {
   return code && !/[\r\n]/.test(code) ? code : null;
 }
 
-function drain(child: ChildProcessWithoutNullStreams): void {
-  child.stdout.resume();
-  child.stderr.resume();
+function captureOutput(child: ChildProcessWithoutNullStreams): CapturedOutput {
+  const captured: CapturedOutput = { text: '', secrets: [] };
+  const append = (chunk: unknown) => { captured.text = appendBounded(captured.text, chunk); };
+  child.stdout.on('data', append);
+  child.stderr.on('data', append);
+  return captured;
+}
+
+/** The command's last word on a failure: its final output line other than the login prompt and
+ *  authorization URL, without terminal codes or anything written to it. */
+function lastOutputLine(output: CapturedOutput): string {
+  const lines = stripTerminal(output.text).split(AUTH_PROMPT).join('\n')
+    .split(/\r\n|\r|\n/).map(line => line.trim())
+    .filter(line => line && !AUTH_URL_PATTERN.test(line));
+  const line = scrubSecrets(lines.at(-1) ?? '', output.secrets);
+  return line.length > OUTPUT_DETAIL_LIMIT ? `${line.slice(0, OUTPUT_DETAIL_LIMIT - 1)}…` : line;
 }
 
 async function runStatusCommand(
@@ -172,11 +200,11 @@ async function runStatusCommand(
   signal?: AbortSignal,
 ): Promise<string> {
   const child = spawnAuth(['auth', 'status', '--json'], dependencies);
-  let output = '';
-  child.stdout.on('data', chunk => { output = appendBounded(output, chunk); });
-  child.stderr.resume();
-  await waitForExit(child, dependencies, { signal, failureCode: 'claude_auth_status_failed' });
-  return output;
+  let stdout = '';
+  child.stdout.on('data', chunk => { stdout = appendBounded(stdout, chunk); });
+  const output = captureOutput(child);
+  await waitForExit(child, dependencies, { signal, failureCode: 'claude_auth_status_failed', output });
+  return stdout;
 }
 
 function parseStatus(output: string): ClaudeAuthStatus {
@@ -203,6 +231,7 @@ export async function readClaudeAuthStatus(
 interface AuthorizationContext {
   child: ChildProcessWithoutNullStreams;
   options: ClaudeAuthLoginOptions;
+  output: CapturedOutput;
   buffer: string;
   started: boolean;
   settled: boolean;
@@ -225,6 +254,7 @@ function failAuthorization(
 
 function writeAuthorization(context: AuthorizationContext, code: string): void {
   context.settled = true;
+  context.output.secrets.push(code);
   try {
     context.child.stdin.write(`${code}\n`);
     context.options.onCodeSubmitted?.();
@@ -258,11 +288,12 @@ function inspectAuthorization(context: AuthorizationContext, chunk: unknown): vo
 function authorizationPromise(
   child: ChildProcessWithoutNullStreams,
   options: ClaudeAuthLoginOptions,
+  output: CapturedOutput,
   terminationError: () => Error | null,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const context: AuthorizationContext = {
-      child, options, buffer: '', started: false, settled: false, resolve, reject,
+      child, options, output, buffer: '', started: false, settled: false, resolve, reject,
     };
     const inspect = (chunk: unknown) => inspectAuthorization(context, chunk);
     child.stdout.on('data', inspect);
@@ -271,7 +302,7 @@ function authorizationPromise(
       context,
       terminationError() ?? cliError(
         'claude_auth_login_protocol',
-        'Claude authentication did not complete browser authorization.',
+        withDetail('Claude authentication did not complete browser authorization.', lastOutputLine(output)),
       ),
       false,
     ));
@@ -283,13 +314,15 @@ export async function loginClaudeAuth(
   dependencies: ClaudeAuthCliDependencies = {},
 ): Promise<ClaudeAuthStatus> {
   const child = spawnAuth(['auth', 'login', '--claudeai'], dependencies);
+  const output = captureOutput(child);
   let stoppedWith: Error | null = null;
-  const authorization = authorizationPromise(child, options, () => stoppedWith);
+  const authorization = authorizationPromise(child, options, output, () => stoppedWith);
   await Promise.all([
     authorization,
     waitForExit(child, dependencies, {
       signal: options.signal,
       failureCode: 'claude_auth_login_failed',
+      output,
       onStop: error => { stoppedWith = error; },
     }),
   ]);
@@ -304,8 +337,8 @@ export async function logoutClaudeAuth(
   dependencies: ClaudeAuthCliDependencies = {},
 ): Promise<void> {
   const child = spawnAuth(['auth', 'logout'], dependencies);
-  drain(child);
-  await waitForExit(child, dependencies, { failureCode: 'claude_auth_logout_failed' });
+  const output = captureOutput(child);
+  await waitForExit(child, dependencies, { failureCode: 'claude_auth_logout_failed', output });
   const status = await readClaudeAuthStatus(dependencies);
   if (status.loggedIn) {
     throw cliError('claude_auth_still_logged_in', 'Claude Code remained logged in after logout.');
