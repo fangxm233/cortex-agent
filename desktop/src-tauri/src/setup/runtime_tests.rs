@@ -3,6 +3,8 @@
 #[path = "runtime.rs"]
 #[allow(dead_code)]
 mod runtime;
+#[path = "runtime_regression_tests.rs"]
+mod runtime_regression_tests;
 
 use runtime::*;
 use std::ffi::OsStr;
