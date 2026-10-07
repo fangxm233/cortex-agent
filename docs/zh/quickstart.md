@@ -6,9 +6,13 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 不想用终端？ {#prefer-not-to-use-a-terminal}
 
-[桌面应用](desktop-app.md)可以替你安装并配置服务端：在首屏选择**安装 Cortex**，填写机器设置后启动并连接。全新安装会打开 Provider 设置页，供你登录并选择默认 Profile。Node.js 和 npm 是前置条件；macOS/Linux 的 Git 为可选项，Windows 的 Git Bash 仍为必需项；Slack 与飞书设置会被跳过——应用本身就是交互界面。如果你还想让服务端接入聊天平台，请继续阅读本指南。
+[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以替你安装并配置 Cortex：选择**安装 Cortex**，确认机器设置，再登录并选择默认 Profile。在受支持的 macOS 和 Linux 上，应用自动准备所需依赖，本地服务端设置不需要终端、Homebrew、Git 或管理员权限。Windows 需要另行安装 Node.js、npm 和 Git Bash。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
+
+自动安装依赖支持 macOS 13.5+ 与 glibc Linux（glibc 2.28+），架构为 x64 和 arm64。较旧系统已有兼容运行时时可以复用。此能力需要包含自动依赖安装功能的原生应用构建，单独更新前端无法提供；详见桌面应用指南。以下内容介绍终端安装与聊天平台设置。
 
 ## 前置条件 {#prerequisites}
+
+以下要求与命令适用于终端安装。
 
 - **Node.js ≥ 22.19.0**，服务端内置 PI SDK 要求此版本或更高。
 - **一个 Slack 工作区或一个飞书（Lark）组织**，你可以在其中创建应用。

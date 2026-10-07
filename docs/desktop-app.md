@@ -33,17 +33,23 @@ The Android APK is intended for arm64 devices and is distributed outside the Pla
 
 ## Installing a server from the app
 
-Choose **Install Cortex** on the first screen. The app automatically checks Node.js, npm, and any existing Cortex installation, then installs or upgrades the server as needed. Node.js 22.19.0 or newer and npm must already be available. Git is optional on macOS/Linux; Windows also requires Git for its Bash shell. Version history and Git-sourced extensions need Git, but macOS/Linux installation, startup, and provider login do not. Setup does not install Git on macOS/Linux. Missing prerequisites stop setup with instructions. If Node was installed through nvm and the app cannot see it, launch the app from a terminal so it inherits that shell's `PATH`.
+Choose **Install Cortex** on the first screen and wait for installation to finish. On supported macOS and Linux systems, the app prepares the dependencies and installs Cortex automatically, without a terminal, Homebrew, Git, Command Line Tools, or administrator access. Progress stays brief; **Activity log** is a folded troubleshooting entry. If installation fails, follow the message and choose **Try again**. **Cancel** during installation stops the active download or initial installation, not an existing server; it does not undo files already installed.
 
-Installation uses `npm install -g @cortex-agent/server@latest`; a supported existing installation is reused. Progress remains visible while commands run, and **Activity log** expands their output. Failures show the failing operation and a retry action.
+Automatic dependency installation supports macOS 13.5+ and glibc Linux with glibc 2.28+, on x64 and arm64. The app reuses compatible Node.js (meeting the server's Node.js 22.19.0 minimum) and npm when available, including on older systems where that runtime and the app can run. Otherwise it installs its managed runtime in the user directory. Unsupported platforms cannot use the automatic download path; they can connect to an existing server.
+
+The app keeps its managed Node.js and private npm prefix under `~/.cortex/runtime`. It does not change global npm settings, shell profiles, or the system `PATH`. A compatible external Cortex installation is reused, not overwritten. If an external installation is unsupported, update it separately and retry. Git is optional on macOS/Linux and is not installed by setup; Git-based history and Git-sourced extensions require it.
+
+Windows requires Node.js 22.19.0 or newer, npm, and an external Git for Windows installation with Git Bash. Its existing global npm installation and upgrade behavior applies; automatic dependency installation is a macOS/Linux feature.
 
 Once installation is ready, enter the machine name and optionally enable auto-start or change the port under **Advanced settings**. PI is bundled with Cortex; this step does not ask you to choose backends. Clicking **Start Cortex** saves the configuration, starts the server, and connects. A new installation then opens provider setup at `/setup/providers` before entering the workbench.
+
+Automatic dependency setup requires a native app built with this installer and its matching bundled setup page. Updating the Web frontend or replacing `web/dist` does not add this capability to an already-built app.
 
 For local development, launch the native app with `CORTEX_SETUP_SERVER_PACKAGE` set to an absolute path to a locally packed `.tgz`. The installer uses that package through npm and checks its reported version against the app's minimum. This does not publish the package; use an isolated home, npm prefix, credential store, and network for fresh-install testing.
 
 The installation step asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. Provider login and the default profile are configured after the server connects.
 
-A machine that already has a Cortex configuration keeps it. Setup enables or updates only the local connection endpoint; existing installations and connections do not automatically enter provider setup. Choosing **Install Cortex** also authorizes upgrading an installed server that is older than the app requires.
+A machine that already has a Cortex configuration keeps it. Setup enables or updates only the local connection endpoint; existing installations and connections do not automatically enter provider setup. On macOS/Linux, setup checks the selected installation even when it is already usable, so later launches use the same environment.
 
 Because a local server has nothing else to start it, the app starts the daemon at launch whenever it is not already answering. Enabling autostart in the wizard additionally registers the service the server writes — a systemd user unit on Linux, a launchd agent on macOS — so scheduled tasks fire while the app is closed. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
@@ -57,7 +63,7 @@ This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_
 
 ## Provider setup
 
-The provider setup page detects local credentials and offers a searchable list of PI providers. Detected credentials appear first. Choose a provider and a supported OAuth or API-key method to open the same login modal used by **Settings → Accounts**. PI needs no separate installation.
+The provider setup page detects local credentials and offers a searchable list of PI providers. Detected credentials appear first. Choose a provider and a supported OAuth or API-key method to open the same login modal used by **Settings → Accounts**. PI needs no separate installation. OAuth may open your browser and require authorization or MFA; login is not guaranteed to stay inside the app.
 
 **Claude Code** is optional and separate from the Anthropic provider in PI. In local desktop setup, **Install and sign in** authorizes installing Claude Code on this computer, then opens its login flow. This is the only onboarding step that offers its installation. An existing Claude Code installation is reused.
 
@@ -199,9 +205,11 @@ Confirm that the app contains the value of `CORTEX_CLIENT_TOKEN`, not the webhoo
 
 Confirm that the daemon is running, `CORTEX_UI_HTTP=1` is loaded, the URL reaches the configured port, and the tunnel is active. A successful page load with failed API calls usually indicates a token or CORS problem. Confirm that the current `cortexui` origins are present in the `uiCorsOrigins` setting in `config/settings.json`; retain the `tauri` origins when older app builds also connect to the server.
 
-### The wizard cannot find Node.js
+### Local installation cannot finish {#the-wizard-cannot-find-nodejs}
 
-A GUI launch inherits a reduced `PATH`, so a Node installed through nvm or a shell profile may be invisible to the app even though `node --version` works in a terminal. The wizard resolves the login shell's `PATH` and shows the one it used in the check step. If Node is still not found, launch the app once from a terminal so it inherits that environment, or install Node system-wide.
+For a download failure, check the network connection and choose **Try again**. Missing installation files can also be repaired by retrying installation. Open **Activity log** only when you need diagnostic details. An unsupported system needs a compatible existing runtime or a connection to another server; an unsupported external Cortex installation needs a separate update.
+
+On Windows, follow missing-prerequisite messages to install or repair Node.js, npm, or Git Bash, then retry. On macOS/Linux, verify that the installed native app includes automatic dependency setup; a frontend-only update cannot supply the native installer.
 
 ### The server does not answer after the wizard starts it
 

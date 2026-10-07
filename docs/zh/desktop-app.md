@@ -31,17 +31,23 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 ## 从应用内安装服务端 {#installing-a-server-from-the-app}
 
-在首屏选择**安装 Cortex**。应用会自动检查 Node.js、npm 与已有 Cortex，然后按需安装或升级服务端。本机需已有 Node.js 22.19.0 或更高版本和 npm；macOS/Linux 的 Git 为可选项，Windows 还需要 Git 提供 Bash shell。版本历史和 Git 来源的扩展需要 Git，但 macOS/Linux 的安装、启动和 Provider 登录不需要。安装流程不会在 macOS/Linux 上自动安装 Git。缺少依赖时会停止并给出指引。如果 Node 通过 nvm 安装而应用看不到它，可从终端启动应用，让它继承该 shell 的 `PATH`。
+在首屏选择**安装 Cortex**并等待完成。在受支持的 macOS 和 Linux 上，应用会自动准备依赖并安装 Cortex，无需终端、Homebrew、Git、Command Line Tools 或管理员权限。界面仅显示简短进度，**查看运行日志**是折叠的排查入口。安装失败时，按提示处理并选择**重试**。安装期间的**取消**只停止当前下载或初始安装，不停止已有服务端，也不会撤销已经安装的文件。
 
-安装使用 `npm install -g @cortex-agent/server@latest`；已有受支持版本时直接复用。命令运行期间持续显示当前进度，**查看运行日志**可展开详细输出。失败时会显示出错的操作与重试入口。
+自动安装依赖支持 macOS 13.5+ 与 glibc Linux（glibc 2.28+），架构为 x64 和 arm64。已有兼容 Node.js（满足服务端最低 Node.js 22.19.0 要求）及 npm 时直接复用，包括能够运行该运行时与应用的较旧系统；否则在用户目录安装托管运行时。不支持的平台不能使用自动下载路径，但可以连接已有服务器。
+
+应用将托管 Node.js 和私有 npm prefix 保存在 `~/.cortex/runtime` 下，不修改全局 npm 设置、shell profile 或系统 `PATH`。兼容的外部 Cortex 安装会被复用而非覆盖；不兼容时需自行更新该安装后重试。macOS/Linux 的 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
+
+Windows 需要已有 Node.js 22.19.0 或更高版本、npm，以及包含 Git Bash 的外部 Git for Windows 安装。该平台使用全局 npm 安装与升级服务端；自动安装依赖属于 macOS/Linux 功能。
 
 安装就绪后，填写机器名称，可选登录系统时自动启动，也可在**高级设置**中调整端口。Cortex 已内置 PI，此步骤不询问后端选择。点击**启动 Cortex**即自动保存配置、启动服务端并连接。全新安装随后进入 `/setup/providers` 的 Provider 设置页，完成后再进入工作台。
+
+自动依赖安装需要包含该安装器及匹配内置设置页的原生应用构建。更新 Web 前端或替换 `web/dist` 无法给已构建的应用增加此能力。
 
 本地开发时，可将 `CORTEX_SETUP_SERVER_PACKAGE` 设置为本地打包 `.tgz` 的绝对路径，再启动原生应用。安装器通过 npm 安装该包，并检查其报告的版本是否达到最低要求；这一操作不会发布软件包。全新安装测试应使用独立的 home、npm prefix、凭据存储和网络。
 
 安装步骤不询问 Slack 或飞书：应用本身就是交互界面，没有消息平台的服务端使用内置 gateway 运行。Provider 登录和默认 Profile 在服务端连接成功后配置。
 
-已有 Cortex 配置的机器会保留原设置，只开启或更新本地连接端点；已有安装及连接不会自动进入 Provider 设置页。选择**安装 Cortex**也表示允许将低于应用要求的已有服务端升级。
+已有 Cortex 配置的机器会保留原设置，只开启或更新本地连接端点；已有安装及连接不会自动进入 Provider 设置页。在 macOS/Linux 上，即使已有安装可用，也会检查选定的安装，使后续启动使用同一环境。
 
 本机服务端没有其他进程负责拉起它，因此应用在启动时若发现服务端未响应就会启动 daemon。在向导中勾选开机自启，还会启用服务端写入的服务单元——Linux 上是 systemd user unit，macOS 上是 launchd agent——使定时任务在应用关闭时也能触发。Windows 没有服务注册，应用启动时拉起 daemon 是该平台上唯一的自启方式。
 
@@ -55,7 +61,7 @@ cortex ui enable
 
 ## Provider 设置 {#provider-setup}
 
-Provider 设置页检测本地凭据，并提供可搜索的 PI Provider 列表，优先显示已检测到凭据的项。选择 Provider 及其支持的 OAuth 或 API key 认证方式，即可打开与**设置 → 账号**共用的登录弹窗。PI 无需单独安装。
+Provider 设置页检测本地凭据，并提供可搜索的 PI Provider 列表，优先显示已检测到凭据的项。选择 Provider 及其支持的 OAuth 或 API key 认证方式，即可打开与**设置 → 账号**共用的登录弹窗。PI 无需单独安装。OAuth 可能打开浏览器并要求授权或 MFA，登录不保证全程留在应用内。
 
 **Claude Code** 是可选项，与 PI 中的 Anthropic Provider 相互独立。在本机桌面初始化中，点击**安装并登录**即授权在这台电脑上安装 Claude Code，成功后打开登录流程。这是初始化过程中唯一提供 Claude Code 安装的步骤；已有 Claude Code 安装会被直接复用。
 
@@ -197,9 +203,11 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 确认 daemon 正在运行、`CORTEX_UI_HTTP=1` 已加载、URL 能访问配置端口，且隧道正在工作。页面可加载但 API 全部失败时，通常是 token 或 CORS 问题。确认 `config/settings.json` 中的 `uiCorsOrigins` 设置包含当前的 `cortexui` origins；如果还有旧版应用连接服务器，请保留 `tauri` origins。
 
-### 向导找不到 Node.js {#the-wizard-cannot-find-nodejs}
+### 本地安装未能完成 {#the-wizard-cannot-find-nodejs}
 
-图形界面启动继承的 `PATH` 通常被裁剪过，因此通过 nvm 或 shell 配置安装的 Node 可能对应用不可见，即使在终端里 `node --version` 正常。向导会解析登录 shell 的 `PATH`，并在检查步骤中显示实际使用的值。若仍找不到 Node，从终端启动一次应用以继承该环境，或将 Node 安装到系统级路径。
+下载失败时，请检查网络连接后选择**重试**。安装文件缺失时，也可重试安装以修复。需要诊断详情时再展开**查看运行日志**。不支持的系统需要已有兼容运行时，或连接其他服务器；不支持的外部 Cortex 安装需要单独更新。
+
+在 Windows 上，按缺失依赖提示安装或修复 Node.js、npm 或 Git Bash 后重试。在 macOS/Linux 上，请确认所安装的原生应用包含自动依赖安装能力；仅更新前端无法提供原生安装器。
 
 ### 向导启动后服务端没有响应 {#the-server-does-not-answer-after-the-wizard-starts-it}
 

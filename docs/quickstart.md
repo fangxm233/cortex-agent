@@ -11,9 +11,13 @@ prompt and shows you exactly where to click.
 
 ## Prefer not to use a terminal?
 
-The [desktop app](desktop-app.md) can install and configure the server for you: choose **Install Cortex** on its first screen, enter the machine settings, then start and connect. A new installation opens provider setup for login and default-profile selection. Node.js and npm are prerequisites; Git is optional on macOS/Linux and required for Windows Git Bash; Slack and Feishu setup is skipped — the app is the interface. Come back here when you want a server that also talks to a chat platform.
+The [desktop app](desktop-app.md#installing-a-server-from-the-app) can install and configure Cortex for you: choose **Install Cortex**, confirm the machine settings, then sign in and select a default profile. On supported macOS and Linux systems, the app prepares its dependencies automatically; no terminal, Homebrew, Git, or administrator access is needed for local server setup. Windows requires Node.js, npm, and Git Bash to be installed separately. Slack and Feishu setup is skipped — the app is the interface. Login may open your browser for authorization or MFA, and macOS may require Gatekeeper approval when opening the app.
+
+Automatic dependency installation supports macOS 13.5+ and glibc Linux (glibc 2.28+), on x64 and arm64. An existing compatible runtime can be reused on an older system. This requires a native app build with automatic dependency setup; a frontend update alone cannot add it. See the desktop guide for details. Continue below for terminal installation and chat-platform setup.
 
 ## Prerequisites
+
+The following requirements and commands apply to terminal installation.
 
 - **Node.js ≥ 22.19.0**, required by the PI SDK included with the server.
 - **A Slack workspace or a Feishu (Lark) organization** where you can
