@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
-import type { PlatformAdapter } from '../src/platform/index.js';
 
 const builtinHarness = vi.hoisted(() => ({
   callbacks: new Set<(keys: string[]) => void>(),
@@ -77,7 +76,7 @@ test('provider usage collection is serial and awaited at shutdown', async () => 
     .mockReturnValueOnce(first.promise.then(() => []))
     .mockReturnValueOnce(second.promise.then(() => []));
 
-  startBuiltinJobs({} as PlatformAdapter);
+  startBuiltinJobs();
   await vi.advanceTimersByTimeAsync(0);
   builtinHarness.settings.providerUsageCollectionIntervalMs = 5_000;
   notifyBuiltin('providerUsageCollectionIntervalMs');
@@ -99,7 +98,7 @@ test('provider usage collection is serial and awaited at shutdown', async () => 
 test('provider usage settings reschedule, disable, and re-enable collection', async () => {
   builtinHarness.collect.mockResolvedValue([]);
   builtinHarness.settings.providerUsageCollectionEnabled = false;
-  startBuiltinJobs({} as PlatformAdapter);
+  startBuiltinJobs();
   await vi.advanceTimersByTimeAsync(10_000);
   assert.equal(builtinHarness.collect.mock.calls.length, 0);
 

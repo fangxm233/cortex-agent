@@ -603,7 +603,7 @@ installSigtermShutdown(shutdownHandles);
   // Waitpoints: drains the signal spool, ages out expired waitpoints and retries any wake whose
   // delivery failed. Every in-memory fast path dies with the process; this does not.
   startWaitpointSweep();
-  startBuiltinJobs(adapter);
+  startBuiltinJobs();
 
   void emitCortexEvent('cortex:server.start', {
     version: CORTEX_VERSION,
