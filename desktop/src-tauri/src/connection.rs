@@ -97,6 +97,19 @@ pub async fn connect(
 ) -> Result<(), String> {
     let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
     mobile_notifications::clear(&app)?;
+    connect_with_saver(&mut state.config.lock().unwrap(), server_url, token, local,
+        |config| creds::save(&app, config))?;
+    Ok(())
+}
+
+/// Keep connection transitions testable without accessing a platform credential store.
+fn connect_with_saver(
+    current: &mut ConnectionConfig,
+    server_url: String,
+    token: String,
+    local: Option<LocalInstall>,
+    save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
+) -> Result<PageConfig, String> {
     let config = ConnectionConfig {
         server_url: Some(server_url),
         token: Some(token),
@@ -104,14 +117,14 @@ pub async fn connect(
         cortex_bin: local.map(|l| l.cortex_bin),
         provider_setup_pending: false,
     };
-    if let Err(e) = creds::save(&app, &config) {
+    if let Err(e) = save(&config) {
         shell_log!(
             "[cortex-desktop] credential store save failed ({e}); \
              credentials are session-only (lost on restart)"
         );
     }
-    *state.config.lock().unwrap() = config;
-    Ok(())
+    *current = config;
+    Ok(PageConfig::from(&*current))
 }
 
 /// Clear credentials from the platform store and AppState.
@@ -151,6 +164,134 @@ pub fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const LOCAL_URL: &str = "http://127.0.0.1:3004";
+    const TEST_TOKEN: &str = "test-transport-token";
+    const CLI: &str = "/opt/cortex/bin/cortex";
+
+    fn local_install(pending: bool) -> Option<LocalInstall> {
+        Some(LocalInstall { cortex_bin: CLI.into(), provider_setup_pending: pending })
+    }
+
+    fn local_config(pending: bool) -> ConnectionConfig {
+        ConnectionConfig {
+            server_url: Some(LOCAL_URL.into()),
+            token: Some(TEST_TOKEN.into()),
+            mode: ConnectionMode::Local,
+            cortex_bin: Some(CLI.into()),
+            provider_setup_pending: pending,
+        }
+    }
+
+    fn snapshot(config: &ConnectionConfig) -> serde_json::Value {
+        serde_json::to_value(config).unwrap()
+    }
+
+    #[test]
+    fn local_install_accepts_legacy_and_fresh_payloads() {
+        let legacy: LocalInstall = serde_json::from_value(serde_json::json!({
+            "cortexBin": CLI
+        })).unwrap();
+        assert!(!legacy.provider_setup_pending);
+        let fresh: LocalInstall = serde_json::from_value(serde_json::json!({
+            "cortexBin": CLI, "providerSetupPending": true
+        })).unwrap();
+        assert!(fresh.provider_setup_pending);
+    }
+
+    #[test]
+    fn fresh_local_connect_saves_pending_atomically_with_transport_and_cli() {
+        let mut current = ConnectionConfig::default();
+        let mut saved = Vec::new();
+        let page = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
+            local_install(true), |candidate| { saved.push(snapshot(candidate)); Ok(()) }).unwrap();
+        assert_eq!(saved, vec![snapshot(&local_config(true))]);
+        assert_eq!(snapshot(&current), saved[0]);
+        assert!(page.provider_setup_pending);
+        assert_eq!(page.server_url.as_deref(), Some(LOCAL_URL));
+        assert_eq!(page.token.as_deref(), Some(TEST_TOKEN));
+    }
+
+    #[test]
+    fn fresh_pending_save_failure_keeps_previous_connection_and_redacts_error() {
+        let mut current = ConnectionConfig::default();
+        let before = snapshot(&current);
+        let error = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
+            local_install(true), |_| Err(format!("store error: {TEST_TOKEN}"))).unwrap_err();
+        assert_eq!(error, "provider_setup_save_failed");
+        assert!(!error.contains(TEST_TOKEN));
+        assert_eq!(snapshot(&current), before);
+    }
+
+    #[test]
+    fn ordinary_reconnect_and_stale_fresh_payload_preserve_true_and_false_even_on_port_repair() {
+        for pending in [false, true] {
+            for incoming in [false, true] {
+                for url in [LOCAL_URL, "http://127.0.0.1:3010"] {
+                    let mut current = local_config(pending);
+                    let page = connect_with_saver(&mut current, url.into(), TEST_TOKEN.into(),
+                        local_install(incoming), |candidate| {
+                            assert_eq!(candidate.provider_setup_pending, pending);
+                            Ok(())
+                        }).unwrap();
+                    assert_eq!(page.provider_setup_pending, pending);
+                    assert_eq!(current.server_url.as_deref(), Some(url));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pending_reconnect_save_failure_cannot_update_endpoint_or_clear_pending() {
+        let mut current = local_config(true);
+        let before = snapshot(&current);
+        let error = connect_with_saver(&mut current, "http://127.0.0.1:3010".into(),
+            TEST_TOKEN.into(), local_install(false), |_| Err(TEST_TOKEN.into())).unwrap_err();
+        assert_eq!(error, "provider_setup_save_failed");
+        assert_eq!(snapshot(&current), before);
+    }
+
+    #[test]
+    fn only_matching_local_cli_and_token_preserve_existing_intent() {
+        for changed in ["mode", "cli", "token"] {
+            for incoming in [false, true] {
+                let mut current = local_config(!incoming);
+                match changed {
+                    "mode" => current.mode = ConnectionMode::Remote,
+                    "cli" => current.cortex_bin = Some("/other/cortex".into()),
+                    _ => current.token = Some("other-test-token".into()),
+                }
+                let page = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
+                    local_install(incoming), |_| Ok(())).unwrap();
+                assert_eq!(page.provider_setup_pending, incoming, "changed {changed}");
+            }
+        }
+    }
+
+    #[test]
+    fn remote_connect_resets_pending_and_keeps_best_effort_persistence() {
+        let mut current = local_config(true);
+        let page = connect_with_saver(&mut current, "https://remote.example.com".into(),
+            "remote-test-token".into(), None, |candidate| {
+                assert_eq!(candidate.mode, ConnectionMode::Remote);
+                assert!(candidate.cortex_bin.is_none());
+                assert!(!candidate.provider_setup_pending);
+                Err("unavailable".into())
+            }).unwrap();
+        assert!(!page.provider_setup_pending);
+        assert_eq!(current.mode, ConnectionMode::Remote);
+        assert_eq!(current.server_url, page.server_url);
+        assert_eq!(current.token, page.token);
+    }
+
+    #[test]
+    fn nonpending_local_connect_keeps_legacy_best_effort_persistence() {
+        let mut current = ConnectionConfig::default();
+        let page = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
+            local_install(false), |_| Err("unavailable".into())).unwrap();
+        assert!(!page.provider_setup_pending);
+        assert_eq!(snapshot(&current), snapshot(&local_config(false)));
+    }
 
     #[test]
     fn legacy_connections_serialize_provider_setup_pending_as_false() {
