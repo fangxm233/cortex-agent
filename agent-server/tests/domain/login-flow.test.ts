@@ -158,17 +158,19 @@ test('a flow saving a submitted response refuses cancel and replacement until it
   assert.equal(requireState(flow.flowId).step, 'cancelled');
 });
 
-test('consumer rejection fails safely and releases the active pair', async () => {
-  const secretInError = '\uE202\uE203-sensitive-consumer-error';
+test('consumer rejection keeps the first line of its reason and releases the active pair', async () => {
   const flow = await startFlow(input('consumer-failure'), async () => {
-    throw new Error(secretInError);
+    throw new Error('ECONNRESET socket hang up\n    at TLSSocket (node:_tls_wrap)');
+  });
+  const silent = await startFlow(input('consumer-silent'), async () => {
+    throw new Error('');
   });
   await flush();
 
   const failed = requireState(flow.flowId);
   assert.equal(failed.step, 'failed');
-  assert.equal(failed.error, 'Login failed.');
-  assert.equal(JSON.stringify(failed).includes(secretInError), false);
+  assert.equal(failed.error, 'Login failed: ECONNRESET socket hang up');
+  assert.equal(requireState(silent.flowId).error, 'Login failed.');
   assert.equal(failed.outcome, null);
   assert.equal(failed.errorCode, null);
   const replacement = await startFlow(

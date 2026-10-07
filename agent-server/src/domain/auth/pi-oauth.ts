@@ -1,8 +1,10 @@
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
+  loginFailureMessage,
   type AuthInteraction,
   type LoginFlowConsumer,
 } from './login-flow.js';
@@ -41,6 +43,8 @@ export type PiOAuthLoginResult =
 
 type PiOAuthLoginFailure = Extract<PiOAuthLoginResult, { ok: false }>;
 
+const log = createLogger('pi-oauth');
+
 export interface PiOAuthLoginDependencies {
   loadRuntime?: () => Promise<PiRuntimeLoadResult>;
   refreshProviders?: () => void;
@@ -54,12 +58,18 @@ function failed(
   return { ok: false, provider, authType: 'oauth', error: { code, message } };
 }
 
+function loginFailed(provider: string, error: unknown): PiOAuthLoginFailure {
+  log.warn(`PI OAuth login for ${provider} failed:`, error);
+  return failed(provider, 'login_failed', loginFailureMessage(t('ux.auth.piOAuthFailed'), error));
+}
+
 async function loadRuntime(
   dependencies: PiOAuthLoginDependencies,
 ): Promise<PiRuntimeLoadResult | null> {
   try {
     return await (dependencies.loadRuntime ?? loadPiRuntime)();
-  } catch {
+  } catch (error) {
+    log.warn('PI runtime failed to load:', error);
     return null;
   }
 }
@@ -90,7 +100,8 @@ type LoginTarget =
 
 function resolveTarget(result: PiRuntimeLoadResult | null, providerId: string): LoginTarget {
   if (!result?.available) {
-    return { failure: failed(providerId, 'runtime_unavailable', t('ux.auth.piRuntimeUnavailable')) };
+    const message = loginFailureMessage(t('ux.auth.piRuntimeUnavailable'), result?.error);
+    return { failure: failed(providerId, 'runtime_unavailable', message) };
   }
   const provider = result.runtime.getProviders().find(candidate => candidate.id === providerId);
   if (!provider) {
@@ -111,15 +122,15 @@ export async function loginPiOAuth(
   let target: LoginTarget;
   try {
     target = resolveTarget(await loadRuntime(dependencies), providerId);
-  } catch {
-    return failed(providerId, 'login_failed', t('ux.auth.piOAuthFailed'));
+  } catch (error) {
+    return loginFailed(providerId, error);
   }
   if ('failure' in target) return target.failure;
   try {
     const credential = await target.runtime.login(providerId, 'oauth', interaction);
     return finishLogin(providerId, credentialExpiresAt(credential), dependencies);
-  } catch {
-    return failed(providerId, 'login_failed', t('ux.auth.piOAuthFailed'));
+  } catch (error) {
+    return loginFailed(providerId, error);
   }
 }
 

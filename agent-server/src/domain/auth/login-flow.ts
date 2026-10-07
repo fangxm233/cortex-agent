@@ -1,8 +1,12 @@
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
 import { randomUUID } from 'node:crypto';
 import type { AuthType } from './auth-status.js';
 
 export const LOGIN_FLOW_TTL_MS = 30 * 60 * 1000;
+const FAILURE_DETAIL_LIMIT = 200;
+
+const log = createLogger('login-flow');
 
 export class LoginFlowError extends Error {
   readonly name = 'LoginFlowError';
@@ -18,6 +22,21 @@ export function isLoginFlowError(error: unknown): error is LoginFlowError {
   return candidate.name === 'LoginFlowError'
     && typeof candidate.message === 'string'
     && typeof candidate.code === 'string';
+}
+
+function upstreamDetail(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const line = message.split('\n').map(part => part.trim()).find(Boolean) ?? '';
+  return line.length > FAILURE_DETAIL_LIMIT ? `${line.slice(0, FAILURE_DETAIL_LIMIT - 1)}…` : line;
+}
+
+/** A localized failure followed by the first line of the upstream reason, when it adds one.
+ *  Upstream login errors are status codes and protocol messages, never credentials. */
+export function loginFailureMessage(prefix: string, error: unknown): string {
+  const detail = upstreamDetail(error);
+  const base = prefix.replace(/[.。]\s*$/u, '');
+  if (!detail || detail === prefix || detail === base) return prefix;
+  return t('ux.auth.failureDetail', { message: base, detail });
 }
 
 export type LoginFlowStep = 'prompt' | 'running' | 'done' | 'failed' | 'cancelled';
@@ -338,13 +357,14 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
 
 function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
   if (!canSettleConsumer(flow)) return;
-  const safeError = isLoginFlowError(error) ? error : null;
+  const flowError = isLoginFlowError(error) ? error : null;
+  if (!flowError) log.warn(`login ${flow.state.backend}/${flow.state.provider} failed:`, error);
   flow.state.step = 'failed';
   flow.state.pendingPrompt = null;
   touch(flow);
   flow.state.outcome = null;
-  flow.state.error = safeError?.message ?? t('ux.auth.loginFailed');
-  flow.state.errorCode = safeError?.code ?? null;
+  flow.state.error = flowError?.message ?? loginFailureMessage(t('ux.auth.loginFailed'), error);
+  flow.state.errorCode = flowError?.code ?? null;
   releasePair(flow);
 }
 

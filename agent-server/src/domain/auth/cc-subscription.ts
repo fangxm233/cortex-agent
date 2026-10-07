@@ -1,4 +1,5 @@
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
 import {
   applyAuthEnv,
   removeClaudeCodeOAuthToken,
@@ -11,11 +12,13 @@ import {
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
+  loginFailureMessage,
   type AuthInteraction,
   type LoginOutcome,
 } from './login-flow.js';
 
 const OUTCOME_DETAIL = 'Credential managed by Claude Code.';
+const log = createLogger('cc-subscription');
 
 export interface ClaudeSubscriptionLoginDependencies {
   login?: typeof loginClaudeAuth;
@@ -31,7 +34,7 @@ export interface ClaudeSubscriptionLoginOutcome extends LoginOutcome {
   detail: string;
 }
 
-function safeLoginError(error: unknown): LoginFlowError {
+function loginError(error: unknown): LoginFlowError {
   if (error instanceof ClaudeAuthCliError) {
     if (error.code === 'claude_auth_cancelled') {
       return new LoginFlowError('claude_subscription_cancelled', t('ux.auth.ccCancelled'));
@@ -40,7 +43,8 @@ function safeLoginError(error: unknown): LoginFlowError {
       return new LoginFlowError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
     }
   }
-  return new LoginFlowError('claude_subscription_failed', t('ux.auth.ccFailed'));
+  log.warn('Claude subscription login failed:', error);
+  return new LoginFlowError('claude_subscription_failed', loginFailureMessage(t('ux.auth.ccFailed'), error));
 }
 
 function loginOptions(interaction: AuthInteraction): ClaudeAuthLoginOptions {
@@ -62,10 +66,11 @@ async function clearLegacyToken(
   try {
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
     (dependencies.reloadAuth ?? applyAuthEnv)();
-  } catch {
+  } catch (error) {
+    log.warn('Claude subscription legacy token cleanup failed:', error);
     throw new LoginFlowError(
       'claude_subscription_cleanup_failed',
-      t('ux.auth.ccCleanupFailed'),
+      loginFailureMessage(t('ux.auth.ccCleanupFailed'), error),
     );
   }
 }
@@ -77,7 +82,7 @@ export async function loginClaudeSubscription(
   try {
     await (dependencies.login ?? loginClaudeAuth)(loginOptions(interaction));
   } catch (error) {
-    throw safeLoginError(error);
+    throw loginError(error);
   }
   await clearLegacyToken(dependencies);
   (dependencies.publishRecovered ?? publishAuthRecovered)({

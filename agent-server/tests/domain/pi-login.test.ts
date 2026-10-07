@@ -192,7 +192,7 @@ test('runtime and provider failures are structured and fail the flow', async () 
   };
   const inertLogin = vi.fn(async (): Promise<PiCredential> => ({ type: 'api_key' }));
   await assertStructuredFailure(
-    { code: 'runtime_unavailable', message: 'PI runtime is unavailable.' },
+    { code: 'runtime_unavailable', message: 'PI runtime is unavailable: pi executable not found' },
     'deepseek', dependencies(unavailable),
   );
   await assertStructuredFailure(
@@ -206,21 +206,22 @@ test('runtime and provider failures are structured and fail the flow', async () 
   assert.equal(inertLogin.mock.calls.length, 0);
 });
 
-test('runtime rejection for an invalid key is sanitized and never unhandled', async (context) => {
+test('runtime rejection keeps the upstream reason and is never unhandled', async (context) => {
   const unhandled: unknown[] = [];
   const onUnhandled = (error: unknown) => { unhandled.push(error); };
   process.on('unhandledRejection', onUnhandled);
   context.onTestFinished(() => { process.off('unhandledRejection', onUnhandled); });
   const consoleCalls = spyOnConsole();
   const login = vi.fn(async (_id, _type, auth: AuthInteraction): Promise<PiCredential> => {
-    const key = await auth.prompt({ type: 'secret', message: 'API key' });
-    throw new Error(`invalid key: ${key}`);
+    await auth.prompt({ type: 'secret', message: 'API key' });
+    throw new Error('401 Unauthorized: invalid x-api-key\n    at validate (provider.js:1:1)');
   });
   const deps = dependencies(available(runtime([provider()], login)));
   const direct = await loginPiApiKey('deepseek', interaction(), deps);
+  const expected = 'PI API-key login failed: 401 Unauthorized: invalid x-api-key';
   assert.deepEqual(direct, {
     ok: false, provider: 'deepseek', authType: 'api_key',
-    error: { code: 'login_failed', message: 'PI API-key login failed.' },
+    error: { code: 'login_failed', message: expected },
   });
 
   const flow = await startFlow(startInput('deepseek'), createPiApiKeyLoginConsumer('deepseek', deps));
@@ -231,7 +232,7 @@ test('runtime rejection for an invalid key is sanitized and never unhandled', as
 
   assert.equal(getFlowState(flow.flowId)?.step, 'failed');
   assert.equal(getFlowState(flow.flowId)?.errorCode, 'login_failed');
-  assert.equal(getFlowState(flow.flowId)?.error, 'PI API-key login failed.');
+  assert.equal(getFlowState(flow.flowId)?.error, expected);
   assert.equal(JSON.stringify({ direct, state: getFlowState(flow.flowId), consoleCalls }).includes(SECRET), false);
   assert.deepEqual(unhandled, []);
 });

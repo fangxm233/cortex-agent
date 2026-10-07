@@ -1,8 +1,10 @@
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
+  loginFailureMessage,
   type AuthInteraction,
   type LoginFlowConsumer,
 } from './login-flow.js';
@@ -40,6 +42,8 @@ export type PiApiKeyLoginResult =
 
 type PiApiKeyLoginFailure = Extract<PiApiKeyLoginResult, { ok: false }>;
 
+const log = createLogger('pi-login');
+
 export interface PiApiKeyLoginDependencies {
   loadRuntime?: () => Promise<PiRuntimeLoadResult>;
   refreshProviders?: () => void;
@@ -58,7 +62,8 @@ async function loadRuntime(
 ): Promise<PiRuntimeLoadResult | null> {
   try {
     return await (dependencies.loadRuntime ?? loadPiRuntime)();
-  } catch {
+  } catch (error) {
+    log.warn('PI runtime failed to load:', error);
     return null;
   }
 }
@@ -79,7 +84,8 @@ type LoginTarget =
 
 function resolveTarget(result: PiRuntimeLoadResult | null, providerId: string): LoginTarget {
   if (!result?.available) {
-    return { failure: failed(providerId, 'runtime_unavailable', t('ux.auth.piRuntimeUnavailable')) };
+    const message = loginFailureMessage(t('ux.auth.piRuntimeUnavailable'), result?.error);
+    return { failure: failed(providerId, 'runtime_unavailable', message) };
   }
   const provider = result.runtime.getProviders().find(candidate => candidate.id === providerId);
   if (!provider) {
@@ -101,8 +107,9 @@ export async function loginPiApiKey(
   if ('failure' in target) return target.failure;
   try {
     await target.runtime.login(providerId, 'api_key', interaction);
-  } catch {
-    return failed(providerId, 'login_failed', t('ux.auth.piApiKeyFailed'));
+  } catch (error) {
+    log.warn(`PI API-key login for ${providerId} failed:`, error);
+    return failed(providerId, 'login_failed', loginFailureMessage(t('ux.auth.piApiKeyFailed'), error));
   }
   return finishLogin(providerId, dependencies);
 }
