@@ -123,6 +123,20 @@ async function startDaemon(f: Fixture) {
   }, 'managed daemon environment');
 }
 
+async function verifyForegroundService(f: Fixture, endpoint: { uiUrl: string; clientToken: string }) {
+  const entry = join(dirname(f.cli), 'daemon.js');
+  const child = spawn(f.node, [entry], { cwd: f.home, env: f.env, stdio: 'ignore' });
+  const closed = once(child, 'close');
+  try {
+    await waitUntil(() => query(endpoint, 'auth.status'), 'foreground service readiness');
+    const pid = Number(readFileSync(join(f.env.CORTEX_HOME!, 'data/daemon.pid'), 'utf8'));
+    expect(pid).toBe(child.pid);
+    expect(child.exitCode).toBeNull();
+    await stopDaemon(f);
+    expect((await closed)[0]).toBe(0);
+  } finally { if (child.exitCode === null) child.kill('SIGTERM'); }
+}
+
 async function stopDaemon(f: Fixture) {
   const pidFile = join(f.env.CORTEX_HOME!, 'data/daemon.pid');
   if (!existsSync(pidFile) || !existsSync(f.cli)) return;
@@ -143,6 +157,7 @@ test.skipIf(!enabled)('thin package installs and restarts a real daemon with onl
     expect(await query(endpoint, 'config.get')).toBeTruthy();
     await stopDaemon(f);
   }
+  await verifyForegroundService(f, endpoint);
   writeFileSync(join(f.home, 'verification.json'), JSON.stringify({ ok: true, tarball: resolve(tarball!),
-    node: f.node, prefix: f.prefix, daemonLaunches: 2, providerReady: true }, null, 2));
+    node: f.node, prefix: f.prefix, daemonLaunches: 2, foregroundService: true, providerReady: true }, null, 2));
 }, 300_000);
