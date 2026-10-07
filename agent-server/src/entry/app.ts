@@ -386,7 +386,11 @@ const dispatchCommand = registerCommands({
 // (Slack/Feishu/headless installs have no SPA open).
 const chatUpdatePrompt = createUpdatePrompt(adapter, commandRouter);
 const updatePrompt = createUiUpdatePrompt(chatUpdatePrompt);
-const serverUpdateCoordinator = createServerUpdateCoordinator({ prompt: updatePrompt });
+const serverUpdateCoordinator = createServerUpdateCoordinator({
+  prompt: updatePrompt,
+  // An agreed update installs only while no turn runs — the same idle the daemon restarts on.
+  idle: { isIdle: () => busyTracker.count === 0, onIdle: (listener) => busyTracker.onIdle(listener) },
+});
 
 // Bind command action handlers (buttons, modals) to the platform adapter
 commandRouter.bindToAdapter(adapter);

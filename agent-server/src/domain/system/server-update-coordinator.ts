@@ -4,7 +4,7 @@ import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import type { UpdateState } from './update-state.js';
 import {
-  answerServerUpdatePrompt, getServerUpdateStatus, reportServerUpdateFailed, startServerUpdateInstall,
+  answerServerUpdatePrompt, getServerUpdateStatus, queueAutoServerUpdate, reportServerUpdateFailed,
 } from './update-ui-state.js';
 
 export interface SystemUpdateCheckResult {
@@ -16,7 +16,8 @@ export interface SystemUpdateCheckResult {
 export interface ServerUpdateCoordinatorDeps {
   prompt: UpdatePrompt;
   getLatest: () => string | null | Promise<string | null>;
-  spawnInstall: () => void;
+  /** Install `version` once no turn is running; reports its own progress and failure. */
+  installWhenIdle: (version: string) => void;
   loadState: () => UpdateState | null;
   saveState: (state: UpdateState) => void;
   now: () => string;
@@ -77,7 +78,7 @@ export class ServerUpdateCoordinator {
     if (getSettings().serverUpdateDisable) return 'disabled';
     if (this.deps.isDevMode()) return 'dev_mode';
     const { state } = getServerUpdateStatus();
-    if (state === 'installing' || state === 'restarting') return 'update_in_progress';
+    if (state === 'waiting' || state === 'installing' || state === 'restarting') return 'update_in_progress';
     return null;
   }
 
@@ -106,13 +107,13 @@ export class ServerUpdateCoordinator {
     return this.openPrompt(version, state);
   }
 
-  /** The setting is the consent: install now and let the daemon restart app.js once idle. */
+  /** The setting is the consent: install and restart as soon as no turn is running. */
   private autoInstall(version: string, state: UpdateState): SystemUpdateCheckResult {
     this.deps.saveState({ ...state, lastCheckedAt: this.deps.now() });
     this.pending = null;
-    startServerUpdateInstall(version);
+    queueAutoServerUpdate(version);
     try {
-      this.deps.spawnInstall();
+      this.deps.installWhenIdle(version);
     } catch (error) {
       reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
       this.decision = Promise.resolve(null);
@@ -169,7 +170,7 @@ export class ServerUpdateCoordinator {
   private acceptChoice(choice: UpdateChoice | null, version: string, state: UpdateState): UpdateChoice | null {
     if (choice === 'apply') {
       this.deps.saveState({ ...state, skippedVersion: undefined });
-      this.deps.spawnInstall();
+      this.deps.installWhenIdle(version);
     }
     if (choice === 'skip') this.deps.saveState({ ...state, skippedVersion: version });
     return choice;

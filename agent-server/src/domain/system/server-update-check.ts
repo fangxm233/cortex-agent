@@ -6,7 +6,7 @@ import { runFile } from '@core/exec-async.js';
 import { withServerNpmPrefix } from '@core/utils.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
-import { reportServerUpdateFailed, reportServerUpdateInstalled } from './update-ui-state.js';
+import { ALWAYS_IDLE, createIdleInstaller, type IdleSignal } from './server-update-install.js';
 
 // ── Dev mode detection ──────────────────────────────────────────
 // In dev mode (CORTEX_REPO set), server auto-update is skipped entirely
@@ -28,7 +28,10 @@ export interface CheckServerUpdateDeps {
   prompt: UpdatePrompt;
   /** May be async: the default implementation shells out to `npm view` without blocking. */
   getLatest?: () => string | null | Promise<string | null>;
-  spawnInstall?: () => void;
+  /** Install an agreed version once no turn is running. Overrides `idle`. */
+  installWhenIdle?: (version: string) => void;
+  /** When the server has no turn running; defaults to always idle. */
+  idle?: IdleSignal;
   loadState?: () => UpdateState | null;
   saveState?: (s: UpdateState) => void;
   now?: () => string;
@@ -62,11 +65,12 @@ function describeInstallFailure(
   return tail ? `npm install -g ${how}\n${tail}` : `npm install -g ${how}`;
 }
 
-function defaultSpawnInstall(): void {
-  const child = spawn('npm', withServerNpmPrefix(['install', '-g', '@cortex-agent/server@latest']), {
-    // Detached + unref'd as before: the package's postinstall touches $STORE_DIR/.restart and the
-    // daemon respawns app.js, so the install has to outlive this process. Only stderr changes —
-    // piping it is what lets the SPA dialog report a real failure instead of pretending success.
+/** Install exactly the version that was checked, into the prefix of the running install. */
+function runNpmInstall(version: string, done: (error: string | null) => void): void {
+  const child = spawn('npm', withServerNpmPrefix(['install', '-g', `@cortex-agent/server@${version}`]), {
+    // Detached + unref'd: the package's postinstall touches $STORE_DIR/.restart and the daemon
+    // respawns app.js, possibly before npm itself exits, so the install has to outlive this process.
+    // stderr is piped so the SPA dialog can report a real failure.
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
     cwd: '/tmp',
@@ -80,13 +84,8 @@ function defaultSpawnInstall(): void {
   // cannot hold this event loop open. Typed as Readable, but a spawned pipe is a net.Socket.
   (child.stderr as unknown as { unref?: () => void } | null)?.unref?.();
 
-  child.on('error', (err: Error) => {
-    reportServerUpdateFailed(`npm install -g could not start: ${err.message}`);
-  });
-  child.on('exit', (code, signal) => {
-    if (code === 0) reportServerUpdateInstalled();
-    else reportServerUpdateFailed(describeInstallFailure(code, signal, stderr));
-  });
+  child.on('error', (err: Error) => done(`npm install -g could not start: ${err.message}`));
+  child.on('exit', (code, signal) => done(code === 0 ? null : describeInstallFailure(code, signal, stderr)));
 
   child.unref();
 }
@@ -108,7 +107,7 @@ export function createServerUpdateCoordinator(deps: CheckServerUpdateDeps): Serv
   return new ServerUpdateCoordinator({
     prompt: deps.prompt,
     getLatest: deps.getLatest ?? defaultGetLatest,
-    spawnInstall: deps.spawnInstall ?? defaultSpawnInstall,
+    installWhenIdle: deps.installWhenIdle ?? createIdleInstaller(deps.idle ?? ALWAYS_IDLE, runNpmInstall),
     loadState: deps.loadState ?? loadUpdateState,
     saveState: deps.saveState ?? saveUpdateState,
     now: deps.now ?? defaultNow,

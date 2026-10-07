@@ -20,11 +20,11 @@ function fixture(fallback: UpdatePrompt = { ask: async () => null }, fallbackMs 
   const prompt = createUiUpdatePrompt(fallback, { fallbackMs });
   const ask = vi.spyOn(prompt, 'ask');
   const getLatest = vi.fn(async () => '9999.1.1' as string | null);
-  const spawnInstall = vi.fn();
+  const installWhenIdle = vi.fn();
   const loadState = vi.fn(() => state);
   const saveState = vi.fn((next: UpdateState) => { state = next; });
-  const coordinator = createServerUpdateCoordinator({ prompt, getLatest, spawnInstall, loadState, saveState });
-  return { coordinator, ask, getLatest, spawnInstall, loadState, saveState };
+  const coordinator = createServerUpdateCoordinator({ prompt, getLatest, installWhenIdle, loadState, saveState });
+  return { coordinator, ask, getLatest, installWhenIdle, loadState, saveState };
 }
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ describe('shared server update discovery', () => {
     const f = fixture();
     expect(await f.coordinator.check()).toEqual(available);
     expect(getServerUpdateStatus()).toEqual({ state: 'prompting', available: '9999.1.1' });
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
     expect(f.saveState).toHaveBeenCalledTimes(1);
   });
 
@@ -67,7 +67,7 @@ describe('shared server update discovery', () => {
     answerServerUpdatePrompt('apply');
     expect(answerServerUpdatePrompt('apply')).toBe(false);
     await tick();
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
   });
 
   it('supersedes changed releases without losing the new prompt ownership', async () => {
@@ -82,10 +82,10 @@ describe('shared server update discovery', () => {
     expect(await f.coordinator.check()).toEqual(next);
     expect(f.ask).toHaveBeenCalledTimes(2);
     expect(f.getLatest).toHaveBeenCalledTimes(3);
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
     answerServerUpdatePrompt('apply');
     await tick();
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
     expect(f.saveState).toHaveBeenLastCalledWith(expect.objectContaining({ lastPromptedVersion: '9999.1.2' }));
   });
 
@@ -100,14 +100,14 @@ describe('shared server update discovery', () => {
     if (choice === 'reject') reject(new Error('stale failure'));
     else resolve(choice);
     await tick();
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
     expect(f.saveState).toHaveBeenCalledTimes(2);
     expect(getServerUpdateStatus()).toEqual({ state: 'prompting', available: '9999.1.2' });
     await f.coordinator.check();
     expect(f.ask).toHaveBeenCalledTimes(2);
     answerServerUpdatePrompt('apply');
     await tick();
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
   });
 
   it.each(['null', 'invalid', 'reject'])('reports a fresh %s lookup failure despite pending consent', async (failure) => {
@@ -118,7 +118,7 @@ describe('shared server update discovery', () => {
     expect(await f.coordinator.check()).toEqual(failed);
     expect(f.getLatest).toHaveBeenCalledTimes(2);
     expect(f.ask).toHaveBeenCalledTimes(1);
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
     expect(await f.coordinator.check()).toEqual(available);
     expect(f.ask).toHaveBeenCalledTimes(1);
   });
@@ -132,7 +132,7 @@ describe('shared server update discovery', () => {
     expect(getServerUpdateStatus()).toEqual({ state: 'idle', available: null });
     expect(await answer).toBe('cancel');
     expect(answerServerUpdatePrompt('apply')).toBe(false);
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
   });
 
   it('does not reopen consent if installation starts during fresh discovery', async () => {
@@ -147,8 +147,8 @@ describe('shared server update discovery', () => {
     resolve('9999.1.2');
     expect(await check).toEqual({ status: 'skipped', reason: 'update_in_progress' });
     expect(f.ask).toHaveBeenCalledTimes(1);
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
-    expect(getServerUpdateStatus().state).toBe('installing');
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus().state).toBe('waiting');
   });
 
   it('performs fresh discovery after current and after a cancelled prompt', async () => {
@@ -171,7 +171,7 @@ describe('shared server update discovery', () => {
     expect(first.ok && first.data.accepted).toBe(true);
     expect(second.ok && second.data.accepted).toBe(false);
     await tick();
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
     expect(await f.coordinator.check()).toEqual({ status: 'skipped', reason: 'update_in_progress' });
     reportServerUpdateInstalled();
     expect(await f.coordinator.check()).toEqual({ status: 'skipped', reason: 'update_in_progress' });
@@ -242,14 +242,14 @@ describe('shared server update discovery', () => {
     await vi.advanceTimersByTimeAsync(5);
     expect(settled).toHaveBeenCalledWith(null);
     expect(getServerUpdateStatus()).toEqual({ state: 'idle', available: null });
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
     expect(await f.coordinator.check()).toEqual(available);
     expect(f.ask).toHaveBeenCalledTimes(2);
     expect(f.getLatest).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(5);
     expect(fallback.ask).toHaveBeenCalledTimes(2);
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
-    expect(getServerUpdateStatus().state).toBe('installing');
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus().state).toBe('waiting');
   });
 
   it('contains asynchronous prompt failures rather than leaking a rejection', async () => {
@@ -258,7 +258,7 @@ describe('shared server update discovery', () => {
     expect(await f.coordinator.check()).toEqual(failed);
     await tick();
     expect(getServerUpdateStatus()).toMatchObject({ state: 'failed', error: 'prompt failed' });
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
   });
 
   it('contains a prompt rejection arriving after discovery has returned', async () => {
@@ -269,7 +269,7 @@ describe('shared server update discovery', () => {
     reject(new Error('late prompt failure'));
     await tick();
     expect(getServerUpdateStatus()).toMatchObject({ state: 'failed', error: 'late prompt failure' });
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
   });
 
   it('does not install if saving the consent decision fails', async () => {
@@ -279,12 +279,12 @@ describe('shared server update discovery', () => {
     answerServerUpdatePrompt('apply');
     await tick();
     expect(getServerUpdateStatus()).toMatchObject({ state: 'failed', error: 'disk full' });
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
   });
 
   it('reports synchronous installation failures and allows retry', async () => {
     const f = fixture();
-    f.spawnInstall.mockImplementation(() => { throw new Error('spawn failed'); });
+    f.installWhenIdle.mockImplementation(() => { throw new Error('spawn failed'); });
     await f.coordinator.check();
     answerServerUpdatePrompt('apply');
     await tick();
@@ -297,16 +297,16 @@ describe('server auto-update', () => {
   const autoAvailable = { ...available, reason: 'auto_install' };
   beforeEach(() => { settings.serverAutoUpdate = true; });
 
-  it('installs a newer release without prompting and blocks a second install', async () => {
+  it('queues a newer release without prompting and blocks a second install', async () => {
     const f = fixture();
     expect(await f.coordinator.check()).toEqual(autoAvailable);
     expect(f.ask).not.toHaveBeenCalled();
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
-    expect(getServerUpdateStatus()).toEqual({ state: 'installing', available: '9999.1.1', auto: true });
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus()).toEqual({ state: 'waiting', available: '9999.1.1', auto: true });
     expect(await f.coordinator.check()).toEqual({ status: 'skipped', reason: 'update_in_progress' });
     reportServerUpdateInstalled();
     expect(getServerUpdateStatus()).toEqual({ state: 'restarting', available: '9999.1.1', auto: true });
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
   });
 
   it('retires a prompt left open from before auto-update was turned on', async () => {
@@ -319,23 +319,23 @@ describe('server auto-update', () => {
     expect(await answer).toBeNull();
     expect(answerServerUpdatePrompt('apply')).toBe(false);
     await tick();
-    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
-    expect(getServerUpdateStatus()).toEqual({ state: 'installing', available: '9999.1.1', auto: true });
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus()).toEqual({ state: 'waiting', available: '9999.1.1', auto: true });
   });
 
   it('keeps a skipped version skipped', async () => {
     const f = fixture();
     f.saveState({ skippedVersion: '9999.1.1' });
     expect(await f.coordinator.check()).toEqual({ status: 'skipped', reason: 'version_skipped' });
-    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.installWhenIdle).not.toHaveBeenCalled();
   });
 
   it('reports a failed install start and retries on the next check', async () => {
     const f = fixture();
-    f.spawnInstall.mockImplementationOnce(() => { throw new Error('spawn failed'); });
+    f.installWhenIdle.mockImplementationOnce(() => { throw new Error('spawn failed'); });
     expect(await f.coordinator.check()).toEqual(failed);
     expect(getServerUpdateStatus()).toEqual({ state: 'failed', available: '9999.1.1', error: 'spawn failed' });
     expect(await f.coordinator.check()).toEqual(autoAvailable);
-    expect(f.spawnInstall).toHaveBeenCalledTimes(2);
+    expect(f.installWhenIdle).toHaveBeenCalledTimes(2);
   });
 });

@@ -222,13 +222,16 @@ The check is enabled by default. To disable it, set
 `CORTEX_SERVER_UPDATE_DISABLE=1` variable in `.env` is still read as a
 deprecated fallback.
 
-With `serverAutoUpdate` on (the default), a newer version is installed as
-soon as the check finds it. Cortex runs
-`npm install -g @cortex-agent/server@latest` in a detached process; the
-package's post-install hook touches `.restart`, and the daemon restarts
-`app.js` once no turn is running. Remote clients receive the matching client
-release when they reconnect. A failed install is reported in the Web
-workbench and retried on the next check.
+With `serverAutoUpdate` on (the default), a newer version is installed
+without asking. Installation waits until no turn is running; from then until
+the restart, Cortex refuses new turns and tells the sender to resend. It runs
+`npm install -g @cortex-agent/server@<version>` for the exact version it
+found, with `--prefix` pinned to the running install: `CORTEX_NPM_PREFIX` if
+set, otherwise the prefix the server is installed under, otherwise the prefix
+of the `cortex` binary on `PATH`. The package's post-install hook touches
+`.restart`, and the daemon restarts `app.js`. Remote clients receive the
+matching client release when they reconnect. A failed install is reported in
+the Web workbench and retried on the next check.
 
 With `"serverAutoUpdate": false`, Cortex asks first. The Web workbench shows
 the question as a dialog; if nobody answers it within 10 minutes, Cortex also
@@ -236,7 +239,7 @@ sends an interactive message to the admin DM:
 
 | Button             | Behaviour                                                                                    |
 |--------------------|----------------------------------------------------------------------------------------------|
-| **Update**         | Starts the same detached install and restart. |
+| **Update**         | Agrees to the same install and restart, which wait until no turn is running. |
 | **Release Note**   | Posts the release notes for the offered version. |
 | **Skip this version** | Dismisses the prompt and records the version in `update-state.json`. The same version will not be prompted again; the next release will trigger a new prompt. |
 | **Cancel**         | Dismisses the prompt. The next 24-hour check will re-prompt.                                 |

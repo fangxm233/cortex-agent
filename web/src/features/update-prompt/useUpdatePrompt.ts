@@ -40,7 +40,7 @@ export function useUpdatePrompt(): UpdatePrompt {
     };
   }
   // Later hides the server dialog, not its priority. Do not offer an older frontend during install.
-  if (checking || ['prompting', 'installing', 'restarting'].includes(server.status.state)) return null;
+  if (checking || ['prompting', 'waiting', 'installing', 'restarting'].includes(server.status.state)) return null;
   if (browser.update) return { kind: 'page', apply: browser.apply, dismiss: browser.dismiss };
   return nativePrompt(app, hot);
 }

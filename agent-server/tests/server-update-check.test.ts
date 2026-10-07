@@ -120,7 +120,7 @@ describe('checkServerUpdate (non-dev mode)', () => {
     assert.deepEqual(result, { action: null, latestVersion: '9999.1.1' });
   });
 
-  test('apply calls spawnInstall and clears skippedVersion', async () => {
+  test('apply calls installWhenIdle and clears skippedVersion', async () => {
     const mod = await freshModule();
     let installCalled = false;
     let savedState: any = null;
@@ -128,7 +128,7 @@ describe('checkServerUpdate (non-dev mode)', () => {
     const result = await mod.checkServerUpdate({
       prompt: mockPrompt('apply'),
       getLatest: () => '9999.1.1',
-      spawnInstall: () => { installCalled = true; },
+      installWhenIdle: () => { installCalled = true; },
       loadState: () => ({ skippedVersion: '2025.1.1' }),
       saveState: (s: any) => { savedState = s; },
       now: () => '2026-06-01T00:00:00.000Z',
@@ -136,7 +136,7 @@ describe('checkServerUpdate (non-dev mode)', () => {
 
     assert.equal(result.action, 'apply');
     assert.equal(result.latestVersion, '9999.1.1');
-    assert.equal(installCalled, true, 'spawnInstall should have been called');
+    assert.equal(installCalled, true, 'installWhenIdle should have been called');
     assert.equal(savedState.skippedVersion, undefined, 'skippedVersion should be cleared');
     assert.equal(savedState.lastCheckedAt, '2026-06-01T00:00:00.000Z');
     assert.equal(savedState.lastPromptedVersion, '9999.1.1');
@@ -150,7 +150,7 @@ describe('checkServerUpdate (non-dev mode)', () => {
     const result = await mod.checkServerUpdate({
       prompt: mockPrompt('skip'),
       getLatest: () => '9999.1.1',
-      spawnInstall: () => { installCalled = true; },
+      installWhenIdle: () => { installCalled = true; },
       loadState: () => ({ skippedVersion: '2025.1.1', lastCheckedAt: 'old' }),
       saveState: (s: any) => { savedState = s; },
       now: () => '2026-06-01T00:00:00.000Z',
@@ -158,13 +158,13 @@ describe('checkServerUpdate (non-dev mode)', () => {
 
     assert.equal(result.action, 'skip');
     assert.equal(result.latestVersion, '9999.1.1');
-    assert.equal(installCalled, false, 'spawnInstall should NOT be called on skip');
+    assert.equal(installCalled, false, 'installWhenIdle should NOT be called on skip');
     assert.equal(savedState.skippedVersion, '9999.1.1', 'skippedVersion should be set to latest');
     assert.equal(savedState.lastCheckedAt, '2026-06-01T00:00:00.000Z');
     assert.equal(savedState.lastPromptedVersion, '9999.1.1');
   });
 
-  test('cancel returns cancel without spawnInstall', async () => {
+  test('cancel returns cancel without installWhenIdle', async () => {
     const mod = await freshModule();
     let installCalled = false;
     let savedState: any = null;
@@ -172,7 +172,7 @@ describe('checkServerUpdate (non-dev mode)', () => {
     const result = await mod.checkServerUpdate({
       prompt: mockPrompt('cancel'),
       getLatest: () => '9999.1.1',
-      spawnInstall: () => { installCalled = true; },
+      installWhenIdle: () => { installCalled = true; },
       loadState: () => ({ skippedVersion: '2025.1.1' }),
       saveState: (s: any) => { savedState = s; },
       now: () => '2026-06-01T00:00:00.000Z',
@@ -180,7 +180,7 @@ describe('checkServerUpdate (non-dev mode)', () => {
 
     assert.equal(result.action, 'cancel');
     assert.equal(result.latestVersion, '9999.1.1');
-    assert.equal(installCalled, false, 'spawnInstall should NOT be called on cancel');
+    assert.equal(installCalled, false, 'installWhenIdle should NOT be called on cancel');
     assert.ok(savedState !== null);
     assert.equal(savedState.skippedVersion, '2025.1.1', 'skippedVersion unchanged');
   });

@@ -3,6 +3,7 @@ import type { EventBus } from '@events/index.js';
 export class BusyTracker {
   private _count = 0;
   private _bus: EventBus | null = null;
+  private readonly _idleListeners = new Set<() => void>();
 
   setBus(bus: EventBus): void {
     this._bus = bus;
@@ -11,10 +12,18 @@ export class BusyTracker {
     // Transition detection: 0→1 sends IPC busy, 1→0 sends IPC idle (S13 NTH-A fix).
     bus.subscribe('llm.active-count-delta', (e) => {
       this._count += e.delta;
-      if (!process.send) return;
-      if (this._count === 1 && e.delta > 0) process.send({ type: 'busy' });
-      if (this._count === 0 && e.delta < 0) process.send({ type: 'idle' });
+      if (this._count === 1 && e.delta > 0) process.send?.({ type: 'busy' });
+      if (this._count === 0 && e.delta < 0) {
+        process.send?.({ type: 'idle' });
+        for (const listener of [...this._idleListeners]) listener();
+      }
     });
+  }
+
+  /** Called on every busy→idle transition — the same moment the daemon is told `idle`. */
+  onIdle(listener: () => void): () => void {
+    this._idleListeners.add(listener);
+    return () => { this._idleListeners.delete(listener); };
   }
 
   trackPendingTask(delta: number): void {

@@ -67,7 +67,7 @@ describe('createUiUpdatePrompt', () => {
 
     chat.answer('apply');
     expect(await answer).toBe('apply');
-    expect(getServerUpdateStatus().state).toBe('installing');
+    expect(getServerUpdateStatus().state).toBe('waiting');
   });
 
   it('never arms the chat prompt when the dialog answers in time', async () => {
@@ -171,7 +171,7 @@ describe('system.applyUpdate / system.skipUpdate', () => {
     const result = await handleSystemApplyUpdate({});
     expect(result.ok && result.data).toEqual({
       accepted: true,
-      status: { available: '2026.9.20', state: 'installing' },
+      status: { available: '2026.9.20', state: 'waiting' },
     });
     expect(await answer).toBe('apply');
   });

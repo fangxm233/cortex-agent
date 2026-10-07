@@ -6,9 +6,11 @@ import { useTRPC } from '@/lib/trpc';
 
 const IDLE: SystemUpdateStatus = { available: null, state: 'idle' };
 
-/** Watch closely while an install is in flight; idle needs no chatter. */
+/** Watch closely while an install is in flight; idle needs no chatter, and waiting for running
+ *  tasks to finish can take long. */
 export function updateStatusPollMs(state: SystemUpdateStatus['state']): number {
-  return state === 'idle' ? 60_000 : 2_000;
+  if (state === 'idle') return 60_000;
+  return state === 'waiting' ? 10_000 : 2_000;
 }
 
 /** The dialog is up for everything except `idle`, unless the user waved this version away.
@@ -38,7 +40,7 @@ function useManualServerResult(reopen: (value: null) => void) {
       reopen(null);
       const available = server.update.version;
       queryClient.setQueryData(trpc.system.updateStatus.queryKey({}), (old) => {
-        if (old?.state === 'installing' || old?.state === 'restarting') return old;
+        if (old?.state === 'waiting' || old?.state === 'installing' || old?.state === 'restarting') return old;
         return { available, state: 'prompting' as const };
       });
     }

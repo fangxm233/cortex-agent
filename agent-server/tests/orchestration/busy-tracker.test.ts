@@ -164,3 +164,25 @@ test('(e) non-tracker aggregate +1+1 then -1-1 produces single busy+idle IPC', (
   assert.deepEqual(ipc, [{ type: 'busy' }, { type: 'idle' }],
     'exactly one busy + one idle from non-tracker aggregate');
 });
+
+test('onIdle fires on each busy→idle transition, also without a daemon, until unsubscribed', (t) => {
+  const bus = new EventBus();
+  const tracker = new BusyTracker();
+  const origSend = process.send;
+  process.send = undefined;
+  t.onTestFinished(() => { process.send = origSend; });
+  tracker.setBus(bus);
+  let calls = 0;
+  const off = tracker.onIdle(() => { calls++; });
+
+  tracker.trackPendingTask(+1);
+  tracker.trackPendingTask(+1);
+  tracker.trackPendingTask(-1);
+  assert.equal(calls, 0, 'still busy');
+  tracker.trackPendingTask(-1);
+  assert.equal(calls, 1);
+  off();
+  tracker.trackPendingTask(+1);
+  tracker.trackPendingTask(-1);
+  assert.equal(calls, 1, 'unsubscribed');
+});

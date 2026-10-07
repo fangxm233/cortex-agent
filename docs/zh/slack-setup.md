@@ -171,17 +171,19 @@ cortex restart        # 触碰 $STORE_DIR/.restart
 `"serverUpdateDisable": true`（见 [configuration.md](./configuration.md#configsettingsjson)）；
 `.env` 中的旧变量 `CORTEX_SERVER_UPDATE_DISABLE=1` 仍作为已弃用的回退被读取。
 
-`serverAutoUpdate` 开启时（默认），检查一发现新版本就直接安装：Cortex 以分离进程执行
-`npm install -g @cortex-agent/server@latest`，包的 post-install 钩子触碰 `.restart`，
-守护进程在没有轮次运行时重启 `app.js`。远程客户端在重连时收到对应版本的客户端。
-安装失败会在 Web 工作台中提示，并在下一次检查时重试。
+`serverAutoUpdate` 开启时（默认），新版本不经询问直接安装。安装要等到没有轮次运行时才开始；
+从开始安装到重启之间，Cortex 拒收新轮次并提示发送者稍后重发。安装命令是针对检查到的具体版本的
+`npm install -g @cortex-agent/server@<version>`，`--prefix` 固定为当前安装所在位置：
+设置了 `CORTEX_NPM_PREFIX` 就用它，否则用服务器所在的安装前缀，再否则用 `PATH` 上 `cortex`
+所在的前缀。包的 post-install 钩子触碰 `.restart`，守护进程随即重启 `app.js`。
+远程客户端在重连时收到对应版本的客户端。安装失败会在 Web 工作台中提示，并在下一次检查时重试。
 
 设置 `"serverAutoUpdate": false` 时，Cortex 会先询问。Web 工作台以对话框提问；
 若 10 分钟内无人回应，Cortex 还会向管理员私信发送一条交互消息：
 
 | 按钮 | 行为 |
 |------|------|
-| **Update** | 启动同样的分离安装与重启。 |
+| **Update** | 同意同样的安装与重启，同样等没有轮次运行时才执行。 |
 | **Release Note** | 发送所提供版本的发布说明。 |
 | **Skip this version** | 关闭提示并将版本号记录到 `update-state.json` 中。同一版本不会再次提示；下一个新版本会触发新提示。 |
 | **Cancel** | 关闭提示。下一次 24 小时检查会重新提示。 |

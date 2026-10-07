@@ -393,7 +393,7 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `diskMonitor` | boolean | `true` | 每五分钟检查 `$CORTEX_HOME` 所在文件系统的可用空间，低于 500 MiB 时发送系统通知。设为 `false` 会停止计时器；重新设为 `true` 会立即检查一次 | `CORTEX_DISK_MONITOR` |
 | `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入） | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
-| `serverAutoUpdate` | boolean | `true` | 更新检查发现更新的服务器版本时直接安装，不再询问；守护进程在 `app.js` 空闲后重启它。设为 `false` 则改为先请求确认。已跳过的版本仍保持跳过 | — |
+| `serverAutoUpdate` | boolean | `true` | 更新检查发现更新的服务器版本时直接安装，不再询问。安装在没有轮次运行时才开始，装完立即重启。设为 `false` 则先请求确认，确认后同样等空闲再安装。已跳过的版本仍保持跳过 | — |
 | `commissionEnabled` | boolean | `true` | 委托（commission）模式的总开关——以契约锚定的长任务。默认开启：任何会话都能中途进入该模式，既可以由 agent 自己调用 `cortex_commission_start`，也可以由你在输入框的委托胶囊里切换。关掉它会拒绝所有入口（创建、输入框、start webhook）并停止注入契约块；已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `false` | 实验性的团队模式：任何网页会话都能用 `worker_*` 工具创建并管理持久的 worker 会话。关闭后，下一轮起不再提供这些工具，已有的 worker 变回普通会话。见 [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | waitpoint 扫描的间隔（毫秒）：收取落盘的信号（本机以及已连接设备上的）、让逾期的 waitpoint 过期、重试失败的投递。参见 [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |

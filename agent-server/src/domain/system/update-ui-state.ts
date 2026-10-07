@@ -1,6 +1,7 @@
 import type { UpdateChoice } from './update-prompt.js';
 
-export type ServerUpdateState = 'idle' | 'prompting' | 'installing' | 'restarting' | 'failed';
+/** `waiting`: installation is agreed and starts once no turn is running. */
+export type ServerUpdateState = 'idle' | 'prompting' | 'waiting' | 'installing' | 'restarting' | 'failed';
 
 export interface ServerUpdateStatus {
   /** Version the server could move to, or null when there is nothing pending. */
@@ -8,7 +9,7 @@ export interface ServerUpdateStatus {
   state: ServerUpdateState;
   /** Set only in the `failed` state — the npm exit code / stderr tail. */
   error?: string;
-  /** The install was started by auto-update rather than by an answered prompt. */
+  /** The update was started by auto-update rather than by an answered prompt. */
   auto?: true;
 }
 
@@ -57,16 +58,25 @@ export function answerServerUpdatePrompt(choice: UpdateChoice): boolean {
 export function settleServerUpdatePrompt(choice: UpdateChoice | null): void {
   settleSink = null;
   status = choice === 'apply'
-    ? { available: status.available, state: 'installing' }
+    ? { available: status.available, state: 'waiting' }
     : IDLE;
 }
 
-/** Auto-update starts an install with no prompt: any open prompt is retired without an answer. */
-export function startServerUpdateInstall(version: string): void {
+/** Auto-update agrees to an install with no prompt: any open prompt is retired without an answer. */
+export function queueAutoServerUpdate(version: string): void {
   const superseded = settleSink;
   settleSink = null;
   superseded?.(null);
-  status = { available: version, state: 'installing', auto: true };
+  status = { available: version, state: 'waiting', auto: true };
+}
+
+function keepAuto(): { auto?: true } {
+  return status.auto ? { auto: true } : {};
+}
+
+/** No turn is running any more: `npm install -g` has started. */
+export function reportServerUpdateInstalling(): void {
+  status = { available: status.available, state: 'installing', ...keepAuto() };
 }
 
 /**
@@ -75,7 +85,7 @@ export function startServerUpdateInstall(version: string): void {
  * is idle, so `restarting` is the honest label for the window the SPA has to wait through.
  */
 export function reportServerUpdateInstalled(): void {
-  status = { available: status.available, state: 'restarting', ...(status.auto ? { auto: true } : {}) };
+  status = { available: status.available, state: 'restarting', ...keepAuto() };
 }
 
 export function reportServerUpdateFailed(error: string): void {

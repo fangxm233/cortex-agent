@@ -29,6 +29,7 @@ export function serverUpdateSummaryLine(status: SystemUpdateStatus): string {
 
 export function serverUpdateTitle(state: SystemUpdateStatus['state'], L: Vocab): string {
   switch (state) {
+    case 'waiting': return L.updateWaiting;
     case 'installing': return L.updateInstalling;
     case 'restarting': return L.updateReconnecting;
     case 'failed': return L.updateFailed;
@@ -39,6 +40,8 @@ export function serverUpdateTitle(state: SystemUpdateStatus['state'], L: Vocab):
 export function serverUpdateDescription(status: SystemUpdateStatus, L: Vocab): string {
   const version = status.available ?? L.updateNewVersion;
   switch (status.state) {
+    case 'waiting':
+      return L.updateWaitingHint;
     case 'installing':
       return L.updateInstallingHint;
     case 'restarting':
