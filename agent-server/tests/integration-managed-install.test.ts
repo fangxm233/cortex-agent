@@ -10,7 +10,9 @@ import { tmpdir } from 'node:os';
 const nodeDir = process.env.CORTEX_TEST_NODE_DIR;
 const tarball = process.env.CORTEX_TEST_SERVER_TGZ;
 const output = process.env.CORTEX_TEST_OUTPUT_DIR;
-const enabled = process.platform === 'linux' && !!nodeDir && !!tarball;
+// Continue the native Rust harness's real installation, without reinstalling through this test.
+const runtimeHome = process.env.CORTEX_TEST_RUNTIME_HOME;
+const enabled = process.platform === 'linux' && (!!runtimeHome || (!!nodeDir && !!tarball));
 interface Fixture { home: string; prefix: string; node: string; cli: string; env: NodeJS.ProcessEnv }
 const fixtures: Fixture[] = [];
 
@@ -52,14 +54,28 @@ function restrictedTools(root: string): string {
   return bin;
 }
 
-async function fixture(): Promise<Fixture> {
+function installationPaths() {
+  if (runtimeHome) {
+    const home = resolve(runtimeHome);
+    expect(existsSync(join(home, 'config'))).toBe(false); // Never initialize an existing operator home.
+    const saved = JSON.parse(readFileSync(join(home, 'runtime/selection.json'), 'utf8'));
+    expect(saved.server.managed).toBe(true);
+    expect(saved.prefix.startsWith(`${home}/runtime/`)).toBe(true);
+    expect(saved.server.bin.startsWith(`${saved.prefix}/`)).toBe(true);
+    return { home, prefix: String(saved.prefix), node: String(saved.node), cli: String(saved.server.bin), cortexHome: home };
+  }
   const base = output ? resolve(output) : tmpdir();
   mkdirSync(base, { recursive: true });
   const home = mkdtempSync(join(base, 'managed install '));
   const prefix = join(home, '.cortex/runtime/npm');
-  const node = join(resolve(nodeDir!), 'bin/node');
-  const cli = join(prefix, 'lib/node_modules/@cortex-agent/server/dist/entry/cortex-cli.js');
-  const env = { HOME: home, CORTEX_HOME: join(home, '.cortex'), CORTEX_NPM_PREFIX: prefix,
+  return { home, prefix, node: join(resolve(nodeDir!), 'bin/node'), cortexHome: join(home, '.cortex'),
+    cli: join(prefix, 'lib/node_modules/@cortex-agent/server/dist/entry/cortex-cli.js') };
+}
+
+async function fixture(): Promise<Fixture> {
+  const { home, prefix, node, cli, cortexHome } = installationPaths();
+  const env = { HOME: home, CORTEX_HOME: cortexHome, CORTEX_NPM_PREFIX: prefix,
+    NPM_CONFIG_PREFIX: prefix, npm_config_prefix: prefix,
     PATH: [dirname(node), join(prefix, 'bin'), restrictedTools(home)].join(':'),
     CORTEX_PLATFORM: 'test', CORTEX_UI_PORT: await unusedPort(),
     WEBHOOK_PORT: await unusedPort(), CORTEX_CLIENT_PORT: await unusedPort(), CORTEX_TUI_PORT: await unusedPort(),
@@ -157,7 +173,7 @@ async function stopDaemon(f: Fixture) {
 
 test.skipIf(!enabled)('thin package installs and restarts a real daemon with only its selected Node/npm', async () => {
   const f = await fixture();
-  await install(f);
+  if (!runtimeHome) await install(f);
   const endpoint = await initialize(f);
   await preserveExistingEndpoint(f, endpoint);
   for (let launch = 0; launch < 2; launch++) {
@@ -168,6 +184,6 @@ test.skipIf(!enabled)('thin package installs and restarts a real daemon with onl
     await stopDaemon(f);
   }
   await verifyForegroundService(f, endpoint);
-  writeFileSync(join(f.home, 'verification.json'), JSON.stringify({ ok: true, tarball: resolve(tarball!),
+  writeFileSync(join(f.home, 'verification.json'), JSON.stringify({ ok: true, tarball: tarball ? resolve(tarball) : null, nativeRuntimeHome: runtimeHome ?? null,
     node: f.node, prefix: f.prefix, daemonLaunches: 2, foregroundService: true, providerReady: true }, null, 2));
 }, 300_000);
