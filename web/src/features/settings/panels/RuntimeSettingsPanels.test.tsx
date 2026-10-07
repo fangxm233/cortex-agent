@@ -60,6 +60,17 @@ const snapshot: ConfigSnapshot = {
 };
 
 describe('runtime settings panel save gates', () => {
+  it.each([true, false])('shows DEBUG enabled=%s even when the variable is present', (enabled) => {
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<LangProvider><AdvancedPanelView
+        snapshot={{ ...snapshot, env: [{ key: 'DEBUG', present: true, masked: '••••••••', enabled }] }}
+        pending={false} onToggle={() => {}} onSet={() => {}} />
+      </LangProvider>);
+    });
+    expect(renderer!.root.findByProps({ 'data-env-key': 'DEBUG' }).props['data-env-present']).toBe(String(enabled));
+  });
+
 
   it('gates session retention save on the same max bound the server validates', () => {
     let renderer: ReturnType<typeof create>;

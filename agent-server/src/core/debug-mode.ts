@@ -1,8 +1,8 @@
 export const DEFAULT_DEBUG_TOOL_WARNING_CHARS = 10_000;
 
-/** Preserve Cortex's established DEBUG semantics: every non-empty value enables the mode. */
+/** Debug payloads and logs require an explicit opt-in. */
 export function isDebugMode(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.DEBUG);
+  return env.DEBUG === '1';
 }
 
 export function debugToolWarningChars(env: NodeJS.ProcessEnv = process.env): number {

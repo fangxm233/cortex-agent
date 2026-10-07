@@ -248,13 +248,14 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   return <NotificationsPanelView snapshot={snapshot} pending={write.pending} onToggle={write.onToggle} />;
 }
 
-/** DEBUG is read from the process env, so the row reports presence instead of offering a control. */
+/** DEBUG is configured through the environment, not an editable runtime setting. */
 function ReadOnlyEnvRow({ snapshot, title }: {
   snapshot: ConfigSnapshot;
   title: string;
 }) {
   const L = useVocab();
-  const present = indexEnv(snapshot.env).DEBUG?.present === true;
+  const debug = indexEnv(snapshot.env).DEBUG;
+  const present = debug?.enabled ?? debug?.present === true;
   return (
     <SRow
       data-env-key="DEBUG"

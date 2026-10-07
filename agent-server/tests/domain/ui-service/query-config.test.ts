@@ -262,3 +262,12 @@ test('readConfigSnapshot returns empty hooks for malformed registry JSON', async
 // `lang` is what the Web UI picks its vocabulary from AND what every server-side t() renders in.
 // It is passed in rather than read off the configDir: the live process locale (post-!lang) is the
 // honest answer, and readConfigSnapshot must stay hermetic over its directory argument.
+
+test('DEBUG settings report exact opt-in without changing variable presence', async () => {
+  const { configDir } = await makeFixture();
+  for (const [value, enabled] of [['1', true], ['"1"', true], ['0', false], ['false', false], ['true', false], ['', false], ['" 1 "', false]] as const) {
+    await fs.writeFile(path.join(configDir, '.env'), `DEBUG=${value}\n`);
+    const snap = await readConfigSnapshot(configDir, [], LANG);
+    assert.deepEqual(snap.env[0], { key: 'DEBUG', present: value.length > 0, masked: value ? '••••••••' : '', enabled });
+  }
+});

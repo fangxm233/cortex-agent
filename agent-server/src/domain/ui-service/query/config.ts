@@ -1,3 +1,5 @@
+import { parse } from 'dotenv';
+import { isDebugMode } from '@core/debug-mode.js';
 import fs from 'node:fs/promises';
 import { readPlatformSettings } from '../platform-settings.js';
 import path from 'node:path';
@@ -139,8 +141,7 @@ function parseMcp(raw: any): ConfigMcp | null {
   return { servers: Object.keys(raw.mcpServers).sort() };
 }
 
-// Parse a .env file into redacted entries. Only the key, a present flag, and a fixed mask are
-// returned — no character of any value is ever exposed.
+// Redact values while reporting whether the DEBUG flag is enabled.
 function parseEnv(text: string): ConfigEnvEntry[] {
   const entries: ConfigEnvEntry[] = [];
   for (const line of text.split(/\r?\n/)) {
@@ -152,7 +153,9 @@ function parseEnv(text: string): ConfigEnvEntry[] {
     if (!key) continue;
     const value = trimmed.slice(eq + 1).trim();
     const present = value.length > 0;
-    entries.push({ key, present, masked: present ? MASK : '' });
+    entries.push({ key, present, masked: present ? MASK : '',
+      ...(key === 'DEBUG' ? { enabled: isDebugMode(parse(text)) } : {}),
+    });
   }
   return entries;
 }

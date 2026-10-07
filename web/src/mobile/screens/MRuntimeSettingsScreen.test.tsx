@@ -94,6 +94,15 @@ describe('mobile runtime Advanced settings', () => {
     adapter.history = { entries: [], cap: 0, loading: false, error: false };
   });
 
+  it.each([true, false])('shows DEBUG enabled=%s even when the variable is present', (enabled) => {
+    adapter.snapshot = { ...snapshot, env: [{ key: 'DEBUG', present: true, masked: '••••••••', enabled }] };
+    const renderer = mountAdvanced();
+    const row = renderer.root.findByProps({ 'data-settings-row': 'DEBUG' });
+    const toggle = row.findByProps({ role: 'switch' });
+    expect(toggle.props['aria-checked']).toBe(enabled);
+    expect(toggle.props.disabled).toBe(true);
+  });
+
   it('writes retention by its descriptor key and rejects unsafe integer drafts', () => {
     const renderer = mountAdvanced();
     const row = renderer.root.findByProps({ 'data-settings-row': 'sessionRetentionDays' });

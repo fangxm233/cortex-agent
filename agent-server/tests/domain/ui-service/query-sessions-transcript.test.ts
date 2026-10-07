@@ -48,9 +48,12 @@ test('sessions.transcript exposes debug metadata and forwards the folded large-t
   } as SessionHistory);
   const payload = { toolRef: 'toolu_1', toolInput: { command: 'echo full' }, toolResult: { content: 'full\noutput', isError: false } };
 
-  delete process.env.DEBUG;
-  const hidden = await handleSessionsTranscript(makeDeps(makeHistory(payload)), { sessionId: 'sess-debug' });
-  assert.ok(hidden.turns[0].messages.every((message) => !('debug' in message)), 'disabled responses contain no sensitive debug key');
+  for (const value of [undefined, '', '0', 'false', 'true', '2', ' 1 ']) {
+    if (value === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = value;
+    const hidden = await handleSessionsTranscript(makeDeps(makeHistory(payload)), { sessionId: 'sess-debug' });
+    assert.ok(hidden.turns[0].messages.every((message) => !('debug' in message)), `DEBUG=${value} must hide debug metadata`);
+  }
 
   process.env.DEBUG = '1';
   const visible = await handleSessionsTranscript(makeDeps(makeHistory(payload)), { sessionId: 'sess-debug' });
@@ -103,8 +106,11 @@ test('sessions.debugDetails fetches one full tool payload only while DEBUG is en
     },
   } as UiDepsOverrides);
 
-  delete process.env.DEBUG;
-  assert.equal(await handleSessionsDebugDetails(deps, { sessionId: 's', ref: 'toolu_1' }), null);
+  for (const value of [undefined, '', '0', 'false', 'true', '2', ' 1 ']) {
+    if (value === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = value;
+    assert.equal(await handleSessionsDebugDetails(deps, { sessionId: 's', ref: 'toolu_1' }), null, `DEBUG=${value}`);
+  }
   process.env.DEBUG = '1';
   assert.deepEqual(
     await handleSessionsDebugDetails(deps, { sessionId: 's', ref: 'toolu_1' }),

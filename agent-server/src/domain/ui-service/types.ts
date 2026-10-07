@@ -815,6 +815,7 @@ export interface ConfigAgentEntry {
 
 export interface ConfigEnvEntry {
   key: string;
+  enabled?: boolean;
   present: boolean;
   masked: string;
 }

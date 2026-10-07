@@ -98,7 +98,8 @@ function EnvFlagRow(props: {
   snapshot: ConfigSnapshot;
 }) {
   const L = useVocab();
-  const value = indexEnv(props.snapshot.env)[props.descriptor.env]?.present === true;
+  const entry = indexEnv(props.snapshot.env)[props.descriptor.env];
+  const value = entry?.enabled ?? entry?.present === true;
   return <MSettingsRow dataKey={props.descriptor.env} title={L[props.descriptor.titleKey]}
     trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]} disabled />} />;
 }
