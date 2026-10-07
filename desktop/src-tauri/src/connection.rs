@@ -142,6 +142,37 @@ fn persist_connection(
     Ok(())
 }
 
+/// Explicit skip and eligible Continue share this durable exit. Provider authentication itself
+/// does not complete onboarding. Scope to the transport credentials captured by the calling page.
+#[tauri::command]
+pub fn finish_provider_setup(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    server_url: String,
+    token: String,
+) -> Result<(), String> {
+    let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
+    finish_with_saver(&mut state.config.lock().unwrap(), &server_url, &token,
+        |config| creds::save(&app, config))
+}
+
+fn finish_with_saver(
+    current: &mut ConnectionConfig,
+    server_url: &str,
+    token: &str,
+    save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
+) -> Result<(), String> {
+    if current.server_url.as_deref() != Some(server_url) || current.token.as_deref() != Some(token) {
+        return Err("provider_setup_connection_changed".into());
+    }
+    if current.mode != ConnectionMode::Local || !current.provider_setup_pending { return Ok(()); }
+    let mut completed = current.clone();
+    completed.provider_setup_pending = false;
+    save(&completed).map_err(|_| "provider_setup_save_failed".to_string())?;
+    *current = completed;
+    Ok(())
+}
+
 /// Clear credentials from the platform store and AppState.
 ///
 /// Called by the SPA daemon interface's Disconnect action (web/src/lib/shell-connection.ts).

@@ -121,6 +121,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             connection::get_connection_config,
             connection::connect,
+            connection::finish_provider_setup,
             connection::disconnect,
             mobile_notifications::mobile_notifications_configure,
             mobile_notifications::mobile_notifications_status,
