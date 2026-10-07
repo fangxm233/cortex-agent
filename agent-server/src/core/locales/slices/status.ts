@@ -39,7 +39,7 @@ export const statusEn = {
   'notify.authRequired.kind.unauthorized': 'unauthorized request',
   'notify.authRequired.kind.invalidGrant': 'invalid OAuth grant',
   'notify.authRequired.guide.action': 'Use the one-click login action below to sign in again.',
-  'notify.authRequired.guide.claude': 'SSH to the Cortex host and run `claude /login` to sign in again.',
+  'notify.authRequired.guide.claude': 'Sign in again from Settings > Accounts, with `!login cc` in chat, or by running `cortex auth login --backend claude` on the Cortex host.',
   'notify.authRequired.guide.pi': 'SSH to the Cortex host, run `pi`, then enter `/login` and select provider `${provider}`.',
   // --- Scheduled authentication status warning ---
   'notify.authExpiry.title': 'Authentication status warning',
@@ -98,7 +98,7 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.authRequired.kind.unauthorized': '请求未获授权',
   'notify.authRequired.kind.invalidGrant': 'OAuth 授权已失效',
   'notify.authRequired.guide.action': '请使用下方的一键登录操作重新认证。',
-  'notify.authRequired.guide.claude': '请 SSH 到 Cortex 主机并运行 `claude /login` 重新登录。',
+  'notify.authRequired.guide.claude': '请在 设置 > 账号 中重新登录，或在聊天里发送 `!login cc`，或在 Cortex 主机上运行 `cortex auth login --backend claude`。',
   'notify.authRequired.guide.pi': '请 SSH 到 Cortex 主机，运行 `pi`，然后输入 `/login` 并选择 Provider `${provider}`。',
   // --- Scheduled authentication status warning ---
   'notify.authExpiry.title': '认证状态预警',

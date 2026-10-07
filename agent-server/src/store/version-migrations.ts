@@ -11,6 +11,7 @@ import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
 import { RETIRED_SCHEDULE_TYPES } from './schedule-repo.js';
 import { importLegacySessionStores } from './session-registry-import.js';
+import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -503,6 +504,15 @@ const stepMigrations: StepMigration[] = [
     run: async ({ dataDir, storeDir, defaultsDir }) => {
       await retireThreadAndTaskState(dataDir, storeDir, defaultsDir);
     },
+  },
+  // S7: Claude Code runs with Cortex's own config dir (data/claude) instead of the terminal's
+  // ~/.claude. Each live claude session in the registry has its transcript, turn backups and
+  // sidecar directory moved across so it still resumes; files no session owns are the user's own
+  // terminal sessions and stay. A file that fails is logged and left; the step still completes.
+  {
+    key: 'sentinel:claude-config-home',
+    version: '2026.10.6',
+    run: async ({ storeDir }) => { await migrateClaudeConfigHome(storeDir); },
   },
 ];
 

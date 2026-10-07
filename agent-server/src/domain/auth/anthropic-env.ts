@@ -107,8 +107,8 @@ export async function removeClaudeCodeOAuthToken(): Promise<void> {
 }
 
 /**
- * Which OAuth token the daemon may hold. Two stores can answer — `CONFIG_DIR/.env` and
- * `~/.claude/.credentials.json` — and the two old writers disagreed: `applySavedApiEnv`
+ * Which OAuth token the daemon may hold. Two stores can answer — `CONFIG_DIR/.env` and Claude's
+ * own store in Cortex's Claude config dir — and the two old writers disagreed: `applySavedApiEnv`
  * projected the .env copy unconditionally while `applySavedOAuthToken` deleted it as soon as
  * Claude owned a credential, so which one won came down to call order.
  *

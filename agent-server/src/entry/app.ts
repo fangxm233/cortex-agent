@@ -86,7 +86,7 @@ import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import { cancelWaitpointsForSessions } from '@domain/waitpoints/service.js';
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
-import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
+import { seedClaudeUserSettings, syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { getProjectDir } from '@domain/sessions/session-backup.js';
 import { initDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
@@ -236,6 +236,9 @@ process.on('exit', () => releaseSingletonLock(APP_PID_FILE));
 // become externally visible. Provider-state extraction runs before schedule cleanup.
 await runMigrations();
 await migrateBuiltinJobSchedules();
+// Before any Claude spawn: a fresh Cortex Claude config dir takes its model/effort/context
+// settings over from the terminal's once, so the first sessions behave as they did before.
+await seedClaudeUserSettings().catch((error: Error) => log.warn(`Claude settings seed failed: ${error.message}`));
 
 // --- Crash safety net ---
 // A single failed outbound post while handling an inbound message must never take

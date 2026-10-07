@@ -1,20 +1,20 @@
 import { unlinkSync, readdirSync } from 'fs';
 import { copyFile, readdir } from 'node:fs/promises';
 import * as path from 'path';
-import * as os from 'os';
-import { DATA_DIR } from '@core/paths.js';
+import { CLAUDE_CONFIG_HOME, DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { selectPISessionFilename } from '@core/pi-session-filename.js';
+import { relocateLegacyClaudePath } from '@store/claude-transcript-migration.js';
 
 const log = createLogger('session-backup');
 
 /**
- * The Claude Code project directory for DATA_DIR.
+ * The Claude Code project directory for DATA_DIR, inside Cortex's own Claude config dir.
  * Claude Code encodes project directories by replacing '/' and '.' with '-'.
  * e.g. /home/user/.cortex → -home-user--cortex
  */
 function getProjectDir(): string {
-  return path.join(os.homedir(), '.claude', 'projects', DATA_DIR.replace(/[\/.]/g, '-'));
+  return path.join(CLAUDE_CONFIG_HOME, 'projects', DATA_DIR.replace(/[\/.]/g, '-'));
 }
 
 /**
@@ -55,11 +55,12 @@ async function backupSessionFile(filePath: string, turnIndex: number): Promise<s
   }
 }
 
-/** Derive the exact transcript path encoded by a recorded turn backup. */
+/** Derive the exact transcript path encoded by a recorded turn backup. A backup recorded under the
+ *  shared `~/.claude` resolves to where the config-dir migration moved it. */
 function sessionFileFromBackupPath(backupPath: string, turnIndex: number): string | null {
   const suffix = `.turn-${turnIndex}.bak`;
   if (!backupPath.endsWith(suffix)) return null;
-  const filePath = backupPath.slice(0, -suffix.length);
+  const filePath = relocateLegacyClaudePath(backupPath).slice(0, -suffix.length);
   return filePath.length > 0 ? filePath : null;
 }
 
@@ -78,7 +79,7 @@ async function restoreFromPaths(backupPath: string, filePath: string, turnIndex:
 /** Restore from an immutable backup pathname recorded in the conversation ledger. */
 async function restoreSessionBackup(backupPath: string, turnIndex: number): Promise<boolean> {
   const filePath = sessionFileFromBackupPath(backupPath, turnIndex);
-  return filePath ? restoreFromPaths(backupPath, filePath, turnIndex) : false;
+  return filePath ? restoreFromPaths(relocateLegacyClaudePath(backupPath), filePath, turnIndex) : false;
 }
 
 /** Restore a session file from a turn backup without blocking the event loop. */

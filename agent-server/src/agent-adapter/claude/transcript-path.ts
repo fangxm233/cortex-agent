@@ -4,7 +4,8 @@ import { CLAUDE_TRANSCRIPTS_DIR } from './defaults.js';
 
 /**
  * Mirror Claude Code's convention: the jsonl session transcript lives at
- *   ~/.claude/projects/<dash-encoded-cwd>/<sessionId>.jsonl
+ *   <CLAUDE_CONFIG_DIR>/projects/<dash-encoded-cwd>/<sessionId>.jsonl
+ * and Cortex always runs Claude with its own config dir ({@link CLAUDE_TRANSCRIPTS_DIR}).
  * where dash-encoded-cwd is the absolute cwd with BOTH `/` AND `.` replaced by `-`
  * (leading slash → leading `-`; dotfiles like `.cortex` → `--cortex`).
  *

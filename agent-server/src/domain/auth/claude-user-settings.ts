@@ -1,46 +1,19 @@
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
+import { CLAUDE_CONFIG_HOME, USER_CLAUDE_CONFIG_DIR } from '@core/paths.js';
 
 const SETTINGS_FILE = 'settings.json';
-const REAL_CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const DIR_MODE = 0o700;
 const FILE_MODE = 0o600;
-const MAX_RENAME_RETRIES = 2;
 
-interface FsLike {
-  mkdir: typeof fs.mkdir;
-  readFile: typeof fs.readFile;
-  writeFile: typeof fs.writeFile;
-  stat: typeof fs.stat;
-  lstat: typeof fs.lstat;
-  chmod: typeof fs.chmod;
-  rename: typeof fs.rename;
-  rm: typeof fs.rm;
-  realpath: typeof fs.realpath;
-  open: typeof fs.open;
-}
+/** What a fresh Cortex config dir takes over from the terminal's settings, once. */
+const SEEDED_KEYS = ['model', 'effortLevel', 'modelSettings', 'autoCompactWindow', 'autoMemoryEnabled', 'env'] as const;
 
-interface FileSnapshot {
-  dev: string;
-  ino: string;
-  size: number;
-  mtimeMs: number;
-}
-
-interface ReadSettingsResult {
-  filePath: string;
-  targetPath: string;
-  mode: number | undefined;
-  snapshot: FileSnapshot | null;
-  settings: Record<string, unknown> | null;
-}
-
-export interface SyncClaudeUserCleanupPeriodDaysOptions {
-  claudeConfigDir?: string;
-  env?: NodeJS.ProcessEnv;
-  homedir?: () => string;
-  fs?: FsLike;
+export interface ClaudeUserSettingsOptions {
+  /** The settings' own config dir; defaults to Cortex's (CLAUDE_CONFIG_HOME). */
+  configDir?: string;
+  /** Where the first seed reads from; defaults to the terminal's `~/.claude`. */
+  seedFromDir?: string;
 }
 
 export interface ClaudeUserSettingsSyncResult {
@@ -48,42 +21,31 @@ export interface ClaudeUserSettingsSyncResult {
   changed: boolean;
 }
 
-class ExternalSettingsChangeError extends Error {
-  constructor(filePath: string) {
-    super(`Claude settings changed during sync: ${filePath}`);
+function isNotFound(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
   }
 }
 
-function expandHome(input: string, homeDir: string): string {
-  return input === '~' || input.startsWith(`~${path.sep}`)
-    ? path.join(homeDir, input.slice(2))
-    : input;
-}
-
-function resolveConfigDir(options: SyncClaudeUserCleanupPeriodDaysOptions): string {
-  const homeDir = (options.homedir ?? os.homedir)();
-  const configured = options.claudeConfigDir ?? options.env?.CLAUDE_CONFIG_DIR ?? '~/.claude';
-  return path.resolve(expandHome(configured, homeDir));
-}
-
-function isWithinPath(root: string, target: string): boolean {
-  const relative = path.relative(root, target);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-async function assertSafeTestPath(configDir: string, deps: FsLike): Promise<void> {
-  if (!process.env.NODE_TEST_CONTEXT) return;
-  const candidates = [path.resolve(configDir)];
-  try { candidates.push(await deps.realpath(configDir)); } catch { /* best-effort */ }
-  if (candidates.some(candidate => isWithinPath(REAL_CLAUDE_DIR, candidate))) {
-    throw new Error(`syncClaudeUserCleanupPeriodDays blocked write to real ~/.claude (${configDir})`);
+async function readSettings(filePath: string): Promise<Record<string, unknown> | null> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
   }
-}
-
-function parseSettings(raw: Buffer, filePath: string): Record<string, unknown> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw.toString('utf8'));
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error(`Claude settings.json is malformed: ${filePath}`);
   }
@@ -93,168 +55,62 @@ function parseSettings(raw: Buffer, filePath: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function sameCleanupPeriod(settings: Record<string, unknown>, days: number): boolean {
-  return settings.cleanupPeriodDays === days;
+/** The seed is a convenience: an unreadable terminal file seeds nothing rather than failing. */
+async function readSeedSource(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    return await readSettings(filePath) ?? {};
+  } catch {
+    return {};
+  }
 }
 
-function toSnapshot(stats: Awaited<ReturnType<FsLike['stat']>>): FileSnapshot {
-  return {
-    dev: String(stats.dev),
-    ino: String(stats.ino),
-    size: Number(stats.size),
-    mtimeMs: Number(stats.mtimeMs),
-  };
+function seededKeys(source: Record<string, unknown>): Record<string, unknown> {
+  const seeded: Record<string, unknown> = {};
+  for (const key of SEEDED_KEYS) {
+    if (key in source) seeded[key] = source[key];
+  }
+  return seeded;
 }
 
-function sameSnapshot(left: FileSnapshot | null, right: FileSnapshot | null): boolean {
-  return !!left
-    && !!right
-    && left.dev === right.dev
-    && left.ino === right.ino
-    && left.size === right.size
-    && left.mtimeMs === right.mtimeMs;
-}
-
-function serializeSettings(settings: Record<string, unknown>): string {
+function serialize(settings: Record<string, unknown>): string {
   return `${JSON.stringify(settings, null, 2)}\n`;
 }
 
-function tempPathFor(targetPath: string): string {
-  return `${targetPath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}`;
-}
-
-async function statOrNull(filePath: string, deps: FsLike): Promise<Awaited<ReturnType<FsLike['stat']>> | null> {
+/**
+ * Create the config dir's settings.json from the keys the terminal's settings define. Runs only
+ * while that file does not exist — the dir itself may already hold a login — so a later change to
+ * `~/.claude` never reaches Cortex. Resolves whether it wrote the file.
+ */
+export async function seedClaudeUserSettings(options: ClaudeUserSettingsOptions = {}): Promise<boolean> {
+  const configDir = options.configDir ?? CLAUDE_CONFIG_HOME;
+  const filePath = path.join(configDir, SETTINGS_FILE);
+  if (await fileExists(filePath)) return false;
+  const source = await readSeedSource(path.join(options.seedFromDir ?? USER_CLAUDE_CONFIG_DIR, SETTINGS_FILE));
+  await fs.mkdir(configDir, { recursive: true, mode: DIR_MODE });
   try {
-    return await deps.stat(filePath);
+    await fs.writeFile(filePath, serialize(seededKeys(source)), { mode: FILE_MODE, flag: 'wx' });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
     throw error;
   }
+  return true;
 }
 
-async function lstatOrNull(filePath: string, deps: FsLike): Promise<Awaited<ReturnType<FsLike['lstat']>> | null> {
-  try {
-    return await deps.lstat(filePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
-}
-
-async function removeIfExists(filePath: string, deps: FsLike): Promise<void> {
-  try {
-    await deps.rm(filePath, { force: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-}
-
-async function syncPath(filePath: string, deps: FsLike): Promise<void> {
-  const handle = await deps.open(filePath, 'r');
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
-async function ensureConfigDir(configDir: string, deps: FsLike): Promise<void> {
-  const existing = await statOrNull(configDir, deps);
-  if (existing) return;
-  await deps.mkdir(configDir, { recursive: true, mode: DIR_MODE });
-  await deps.chmod(configDir, DIR_MODE);
-}
-
-async function resolveTargetPath(filePath: string, deps: FsLike): Promise<string> {
-  const entry = await lstatOrNull(filePath, deps);
-  if (!entry?.isSymbolicLink()) return filePath;
-  return deps.realpath(filePath);
-}
-
-async function readSettings(filePath: string, deps: FsLike): Promise<ReadSettingsResult> {
-  const targetPath = await resolveTargetPath(filePath, deps);
-  const stats = await statOrNull(targetPath, deps);
-  if (!stats) {
-    return { filePath, targetPath, mode: undefined, snapshot: null, settings: null };
-  }
-  const raw = await deps.readFile(targetPath) as Buffer;
-  return {
-    filePath,
-    targetPath,
-    mode: Number(stats.mode) & 0o777,
-    snapshot: toSnapshot(stats),
-    settings: parseSettings(raw, filePath),
-  };
-}
-
-async function assertUnchanged(result: ReadSettingsResult, deps: FsLike): Promise<void> {
-  const latest = await statOrNull(result.targetPath, deps);
-  if (result.snapshot === null) {
-    if (latest === null) return;
-    throw new ExternalSettingsChangeError(result.filePath);
-  }
-  if (!sameSnapshot(result.snapshot, latest ? toSnapshot(latest) : null)) {
-    throw new ExternalSettingsChangeError(result.filePath);
-  }
-}
-
-async function writeTempFile(
-  tempPath: string,
-  mode: number,
-  content: string,
-  deps: FsLike,
-): Promise<void> {
-  await deps.writeFile(tempPath, content, { mode, flag: 'wx' });
-  await syncPath(tempPath, deps);
-}
-
-async function replaceSettingsFile(
-  result: ReadSettingsResult,
-  next: Record<string, unknown>,
-  deps: FsLike,
-): Promise<void> {
-  const tempPath = tempPathFor(result.targetPath);
-  try {
-    await writeTempFile(tempPath, result.mode ?? FILE_MODE, serializeSettings(next), deps);
-    await assertUnchanged(result, deps);
-    await deps.rename(tempPath, result.targetPath);
-    await syncPath(path.dirname(result.targetPath), deps);
-  } catch (error) {
-    await removeIfExists(tempPath, deps);
-    throw error;
-  }
-}
-
-async function syncWithRetry(
-  cleanupPeriodDays: number,
-  filePath: string,
-  deps: FsLike,
-): Promise<boolean> {
-  for (let attempt = 0; attempt <= MAX_RENAME_RETRIES; attempt += 1) {
-    const current = await readSettings(filePath, deps);
-    if (current.settings && sameCleanupPeriod(current.settings, cleanupPeriodDays)) return false;
-    try {
-      await replaceSettingsFile(current, { ...(current.settings ?? {}), cleanupPeriodDays }, deps);
-      return true;
-    } catch (error) {
-      if (error instanceof ExternalSettingsChangeError && attempt < MAX_RENAME_RETRIES) continue;
-      throw error;
-    }
-  }
-  throw new ExternalSettingsChangeError(filePath);
-}
-
+/**
+ * Keep Claude's own transcript cleanup in step with Cortex's session retention: merge
+ * `cleanupPeriodDays` into Cortex's Claude settings, leaving every other key as it is. The file
+ * belongs to Cortex, so a plain read-merge-rename is enough.
+ */
 export async function syncClaudeUserCleanupPeriodDays(
   cleanupPeriodDays: number,
-  options: SyncClaudeUserCleanupPeriodDaysOptions = {},
+  options: ClaudeUserSettingsOptions = {},
 ): Promise<ClaudeUserSettingsSyncResult> {
-  const deps = options.fs ?? fs;
-  const configDir = resolveConfigDir(options);
-  const filePath = path.join(configDir, SETTINGS_FILE);
-  await assertSafeTestPath(configDir, deps);
-  await ensureConfigDir(configDir, deps);
-  return {
-    filePath,
-    changed: await syncWithRetry(cleanupPeriodDays, filePath, deps),
-  };
+  await seedClaudeUserSettings(options);
+  const filePath = path.join(options.configDir ?? CLAUDE_CONFIG_HOME, SETTINGS_FILE);
+  const current = await readSettings(filePath) ?? {};
+  if (current.cleanupPeriodDays === cleanupPeriodDays) return { filePath, changed: false };
+  const tempPath = `${filePath}.tmp.${process.pid}`;
+  await fs.writeFile(tempPath, serialize({ ...current, cleanupPeriodDays }), { mode: FILE_MODE });
+  await fs.rename(tempPath, filePath);
+  return { filePath, changed: true };
 }

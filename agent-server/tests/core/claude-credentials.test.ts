@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 import { test } from 'vitest';
 
 import {
+  claudeCredentialsPath,
   claudeKeychainService,
   claudeOwnsOAuthCredential,
   resolveClaudeCredential,
 } from '../../src/core/claude-credentials.js';
-import { CONFIG_DIR } from '../../src/core/paths.js';
+import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../../src/core/paths.js';
 
 const CLAUDE_DIR = '/fixture/.claude';
 const CREDENTIALS = path.join(CLAUDE_DIR, '.credentials.json');
@@ -141,8 +143,16 @@ test('off macOS the file is the whole answer — no keychain probe is ever spawn
   assert.equal(probed, 0);
 });
 
-test('the keychain item name carries a config-dir digest only when one was configured', () => {
-  assert.equal(claudeKeychainService({ env: {} }), 'Claude Code-credentials');
-  assert.match(claudeKeychainService({ env: { CLAUDE_CONFIG_DIR: '/a' } }),
-    /^Claude Code-credentials-[0-9a-f]{8}$/);
+test('the keychain item name always carries the digest of Cortex\'s config dir, as the CLI derives it', () => {
+  const digest = (dir: string) => createHash('sha256').update(dir).digest('hex').slice(0, 8);
+  assert.equal(claudeKeychainService(), `Claude Code-credentials-${digest(CLAUDE_CONFIG_HOME)}`);
+  assert.equal(claudeKeychainService({ env: { CLAUDE_CONFIG_DIR: '/elsewhere' } }),
+    `Claude Code-credentials-${digest(CLAUDE_CONFIG_HOME)}`, 'an inherited CLAUDE_CONFIG_DIR is not ours');
+  assert.equal(claudeKeychainService({ claudeConfigDir: '/a' }), `Claude Code-credentials-${digest('/a')}`);
+});
+
+test('the credential store defaults to Cortex\'s own Claude config dir, never an inherited one', () => {
+  const expected = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
+  assert.equal(claudeCredentialsPath(), expected);
+  assert.equal(claudeCredentialsPath({ env: { CLAUDE_CONFIG_DIR: '/elsewhere' } }), expected);
 });

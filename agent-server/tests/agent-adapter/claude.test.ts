@@ -10,6 +10,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 import { resetSettingsForTests, updateSettings } from '../../src/core/settings.js';
+import { CLAUDE_CONFIG_HOME } from '../../src/core/paths.js';
 import {
   buildSpawnArgs, buildClaudeEnv, resolveClaudeMcpBundles,
 } from '../../src/agent-adapter/claude/spawn-args.js';
@@ -904,6 +905,25 @@ test('buildClaudeEnv — unsetEnv applies to a pinnedEnv child and leaves CORTEX
   assert.equal(env.PATH, '/usr/bin');
   // Context keys are resolved after unsetEnv: the authoritative context still wins.
   assert.equal(env.CORTEX_PROJECT, 'atlas');
+});
+
+test('buildClaudeEnv — a host spawn runs with Cortex\'s own Claude config dir over an inherited one', () => {
+  const previous = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = '/home/someone/.claude';
+  try {
+    assert.equal(buildClaudeEnv('C1', 'sid-1').CLAUDE_CONFIG_DIR, CLAUDE_CONFIG_HOME);
+  } finally {
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = previous;
+  }
+});
+
+test('buildClaudeEnv — a pinned trial keeps its own CLAUDE_CONFIG_DIR, or none', () => {
+  const pinned = (env: NodeJS.ProcessEnv) =>
+    buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, undefined, env);
+  assert.equal(pinned({ PATH: '/usr/bin', CLAUDE_CONFIG_DIR: '/trial/claude-config' }).CLAUDE_CONFIG_DIR,
+    '/trial/claude-config');
+  assert.equal(Object.prototype.hasOwnProperty.call(pinned({ PATH: '/usr/bin' }), 'CLAUDE_CONFIG_DIR'), false);
 });
 
 // --- buildClaudeEnv: cortex context env vars (CORTEX_PROFILE/PROJECT/SESSION_NAME) ---

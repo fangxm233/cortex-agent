@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { test, vi } from 'vitest';
+import { CLAUDE_CONFIG_HOME } from '../../src/core/paths.js';
 import {
   loginClaudeAuth,
   logoutClaudeAuth,
@@ -88,6 +89,7 @@ test('login uses claude auth login pipes, forwards code once, and verifies CLI-o
   fixture.dependencies.env = {
     HOME: '/fixture/home', PATH: '/fixture/bin', LANG: 'C.UTF-8',
     SLACK_BOT_TOKEN: 'xoxb-fixture-secret', AWS_SECRET_ACCESS_KEY: 'fixture-cloud-secret',
+    CLAUDE_CONFIG_DIR: '/fixture/home/.claude',
   };
   let offeredUrl = '';
 
@@ -111,6 +113,7 @@ test('login uses claude auth login pipes, forwards code once, and verifies CLI-o
     assert.equal(call.env.HOME, '/fixture/home');
     assert.equal(call.env.PATH, '/fixture/bin');
     assert.equal(call.env.LANG, 'C.UTF-8');
+    assert.equal(call.env.CLAUDE_CONFIG_DIR, CLAUDE_CONFIG_HOME, 'never the inherited config dir');
     assert.equal(call.env.SLACK_BOT_TOKEN, undefined);
     assert.equal(call.env.AWS_SECRET_ACCESS_KEY, undefined);
     assert.equal(call.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);

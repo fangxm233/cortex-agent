@@ -9,6 +9,7 @@ import {
   INTERACTION_STRIP_TOOLS,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
+import { CLAUDE_CONFIG_HOME } from '@core/paths.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import { SUBAGENT_TOOLS } from '@core/mcp-tool-gate.js';
@@ -42,8 +43,8 @@ export interface ClaudeSpawnOptions {
   /** Omit all configured ambient hooks. */
   disableHooks?: boolean;
   /** Drop the CLI's whole skill layer (`--disable-slash-commands`). This is the only lever that
-   *  reaches the skills Cortex never supplied — user-level plugins, `~/.claude/skills/` and the
-   *  CLI's built-ins — since `--plugin-dir` only ever adds Cortex's own. */
+   *  reaches the skills Cortex never supplied — user-level plugins and skills in Cortex's Claude
+   *  config dir, and the CLI's built-ins — since `--plugin-dir` only ever adds Cortex's own. */
   disableSkills?: boolean;
   /** Setting files the CLI may load (`--setting-sources`). Absent keeps its default set; an empty
    *  array is passed as an empty value, which the CLI accepts as "load none". */
@@ -427,9 +428,11 @@ const MAX_SUBAGENT_PI_MODELS = 64;
 /** The same bound on the Anthropic side: an env var, not a manifest. */
 const MAX_SUBAGENT_CLAUDE_MODELS = 64;
 
-/** Cortex's context cap reaches the CLI as its own window override, which beats every settings
- *  file. A pinned trial keeps its exact environment. */
-function applyContextCap(env: NodeJS.ProcessEnv): void {
+/** What only a host spawn gets; a pinned trial keeps its exact environment. Cortex's own config
+ *  dir replaces any inherited CLAUDE_CONFIG_DIR, and Cortex's context cap reaches the CLI as its
+ *  own window override, which beats every settings file. */
+function applyHostClaudeEnv(env: NodeJS.ProcessEnv): void {
+  env.CLAUDE_CONFIG_DIR = CLAUDE_CONFIG_HOME;
   const cap = getSettings().maxContextTokens;
   if (cap !== null) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(cap);
 }
@@ -492,7 +495,7 @@ export function buildClaudeEnv(
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
-  if (!pinnedEnv) applyContextCap(env);
+  if (!pinnedEnv) applyHostClaudeEnv(env);
   applySubagentModelEnv(env);
   applyEnvOverrides(env, extraEnv, unsetEnv);
   applyCortexContextEnv(env, context);

@@ -8,6 +8,7 @@ import {
   resolveAutoCompactWindow, resolveClaudeCompactWindow,
 } from '../../src/agent-adapter/claude/compact-window.js';
 import { updateSettings } from '../../src/core/settings.js';
+import { CLAUDE_CONFIG_HOME } from '../../src/core/paths.js';
 
 interface Layout {
   local?: unknown;
@@ -72,6 +73,23 @@ describe('resolveAutoCompactWindow', () => {
     const { cwd, userConfigDir } = layout({ project: '{ not json', user: { autoCompactWindow: 350_000 } });
     assert.equal(resolveAutoCompactWindow(cwd, userConfigDir), 350_000);
     assert.equal(resolveAutoCompactWindow(path.join(cwd, 'missing'), path.join(userConfigDir, 'missing')), null);
+  });
+});
+
+describe('resolveAutoCompactWindow default user dir', () => {
+  test('reads Cortex\'s own Claude settings, not an inherited CLAUDE_CONFIG_DIR', () => {
+    const { cwd, userConfigDir } = layout({ user: { autoCompactWindow: 350_000 } });
+    const previous = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = userConfigDir;
+    fs.mkdirSync(CLAUDE_CONFIG_HOME, { recursive: true });
+    fs.writeFileSync(path.join(CLAUDE_CONFIG_HOME, 'settings.json'), JSON.stringify({ autoCompactWindow: 200_000 }));
+    try {
+      assert.equal(resolveAutoCompactWindow(cwd), 200_000);
+    } finally {
+      fs.rmSync(path.join(CLAUDE_CONFIG_HOME, 'settings.json'), { force: true });
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previous;
+    }
   });
 });
 

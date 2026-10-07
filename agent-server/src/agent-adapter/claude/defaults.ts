@@ -1,6 +1,5 @@
 import * as path from 'path';
-import * as os from 'os';
-import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/paths.js';
+import { DATA_DIR, CONFIG_DIR, HOOKS_DIR, CLAUDE_CONFIG_HOME } from '../../core/paths.js';
 import { SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
 
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
@@ -8,7 +7,7 @@ export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
 
 /** Base directory where Claude writes per-session jsonl transcripts (per-cwd encoded).
  *  Read by {@link computeTranscriptPath} to gate `--resume` vs `--session-id`. */
-export const CLAUDE_TRANSCRIPTS_DIR = path.join(os.homedir(), '.claude', 'projects');
+export const CLAUDE_TRANSCRIPTS_DIR = path.join(CLAUDE_CONFIG_HOME, 'projects');
 
 export const LOGS_DIR = path.join(DATA_DIR, 'logs', 'sessions');
 

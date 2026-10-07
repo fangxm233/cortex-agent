@@ -34,12 +34,10 @@ for (const d of ['data', 'config', 'context', path.join('context', 'projects'), 
 }
 
 process.env.CORTEX_HOME = home;
-// Same isolation, for the OTHER config root the server reads: without this, anything resolving a
-// Claude user setting (resolveAutoCompactWindow, auth probes) falls through to the developer's real
-// ~/.claude/settings.json, so a machine with `autoCompactWindow` set fails tests that assert
-// reported context windows. Always overwritten, never inherited: a dev shell that exports
-// CLAUDE_CONFIG_DIR would otherwise hand its real dir to every test. Tests that need a populated
-// dir set the variable themselves.
+// Cortex's own Claude config dir (CLAUDE_CONFIG_HOME = <home>/data/claude) follows CORTEX_HOME, so
+// the server's Claude settings, credential probes and transcripts are already isolated above. This
+// keeps a CLAUDE_CONFIG_DIR exported by a dev shell or a Cortex session out of anything a test
+// spawns outside buildClaudeEnv. Always overwritten, never inherited.
 process.env.CLAUDE_CONFIG_DIR = path.join(home, '.claude');
 // Keep the temp dirs the test files allocate themselves inside the run-scoped root too.
 redirectTmpdir();

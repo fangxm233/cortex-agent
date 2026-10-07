@@ -59,6 +59,8 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 // AMENDED a second time, in `environment` only: CORTEX_BACKEND=claude was added so hooks can tell
 // which backend loaded the AGENTS.md chain natively. The agents-md-injector defaults to the PI
 // coverage model when the variable is absent, so a Claude spawn has to say so explicitly.
+// AMENDED a third time, in `environment` only: CLAUDE_CONFIG_DIR=<CORTEX_HOME>/data/claude was added,
+// so every host spawn runs against Cortex's own Claude config dir instead of the terminal's ~/.claude.
 // Everything else in the goldens is still the untouched base capture.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
 const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };

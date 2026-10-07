@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { CONFIG_DIR } from '../src/core/paths.js';
+import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../src/core/paths.js';
 import { importFresh } from './helpers/fresh-module.js';
 
 // Standard import (no cache buster) — same singleton instance that mode-manager uses
@@ -237,23 +237,19 @@ test('resolveModeEnv decides without touching process.env', async (t) => {
 
 // --- applyAuthEnv: the daemon env carries saved credentials, never a mode route (plan §4.6) ---
 
-/** Pins the Claude-owned credential probe, which otherwise reads the developer's real
- *  ~/.claude/.credentials.json and makes the arbitration result depend on the machine. */
+/** Pins the Claude-owned credential probe to Cortex's own Claude config dir (inside this test
+ *  file's temp home), so the arbitration result never depends on the machine. */
 function pinClaudeCredential(
   t: { onTestFinished: (fn: () => void) => void },
   owned: boolean,
 ): void {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-claude-'));
-  const previous = process.env.CLAUDE_CONFIG_DIR;
-  t.onTestFinished(() => {
-    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
-    else process.env.CLAUDE_CONFIG_DIR = previous;
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
-  process.env.CLAUDE_CONFIG_DIR = dir;
+  const file = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
+  t.onTestFinished(() => fs.rmSync(file, { force: true }));
+  fs.rmSync(file, { force: true });
   if (!owned) return;
+  fs.mkdirSync(CLAUDE_CONFIG_HOME, { recursive: true });
   fs.writeFileSync(
-    path.join(dir, '.credentials.json'),
+    file,
     JSON.stringify({ claudeAiOauth: { accessToken: 'fixture-access', refreshToken: 'fixture-refresh' } }),
     { mode: 0o600 },
   );

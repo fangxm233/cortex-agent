@@ -3,8 +3,8 @@
 // They moved out of the deleted adapter-tui.ts; the resume helper's old TUI name was historical.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import * as os from 'node:os';
 import * as path from 'node:path';
+import { CLAUDE_CONFIG_HOME } from '../../src/core/paths.js';
 import {
   computeTranscriptPath,
   resolveResumeAgainstTranscript,
@@ -25,7 +25,7 @@ test('resume is never forced when the caller did not request it', () => {
 
 test('computeTranscriptPath encodes BOTH slashes and dots (dotfiles like .cortex)', () => {
   const expected = path.join(
-    os.homedir(), '.claude', 'projects', '-home-alice--cortex', 'sid.jsonl',
+    CLAUDE_CONFIG_HOME, 'projects', '-home-alice--cortex', 'sid.jsonl',
   );
   assert.equal(computeTranscriptPath('/home/alice/.cortex', 'sid'), expected);
 });

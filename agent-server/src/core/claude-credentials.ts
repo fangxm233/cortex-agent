@@ -10,11 +10,10 @@
 import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { parse as parseDotenv } from 'dotenv';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
-import { CONFIG_DIR } from './paths.js';
+import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from './paths.js';
 
 /** OAuth tokens go on `Authorization: Bearer` and need this beta opt-in; API keys use `x-api-key`. */
 const OAUTH_BETA = 'oauth-2025-04-20';
@@ -35,7 +34,7 @@ export interface ClaudeCredential {
 
 export interface ClaudeCredentialDeps {
   env?: NodeJS.ProcessEnv;
-  /** Claude Code's config dir; defaults to CLAUDE_CONFIG_DIR, else ~/.claude. */
+  /** Claude Code's config dir; defaults to Cortex's own (CLAUDE_CONFIG_HOME). */
   claudeConfigDir?: string;
   readFile?: (filePath: string) => string;
   now?: () => number;
@@ -126,9 +125,10 @@ function oauthHeaders(token: string): Record<string, string> {
   };
 }
 
+/** The config dir every Cortex-spawned `claude` runs with, so its credential store is this one —
+ *  never the inherited CLAUDE_CONFIG_DIR or the terminal's `~/.claude`. */
 export function claudeConfigDir(deps: ClaudeCredentialDeps = {}): string {
-  const env = deps.env ?? process.env;
-  return deps.claudeConfigDir ?? (env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'));
+  return deps.claudeConfigDir ?? CLAUDE_CONFIG_HOME;
 }
 
 export function claudeCredentialsPath(deps: ClaudeCredentialDeps = {}): string {
@@ -217,18 +217,16 @@ export function resolveClaudeCredential(deps: ClaudeCredentialDeps = {}): Claude
 }
 
 /**
- * The keychain service name Claude Code stores its credential under. Mirrors the CLI's own scheme:
- * `Claude Code-credentials`, suffixed with the first 8 hex of sha256(config dir) when
- * CLAUDE_CONFIG_DIR is set. Private to the CLI and therefore fragile by nature — a rename there
- * makes the probe answer false, which is exactly this module's pre-existing behaviour on macOS.
+ * The keychain service name Claude Code stores its credential under. Mirrors the CLI's own scheme
+ * (read from 2.1.280): `Claude Code-credentials`, suffixed with the first 8 hex of
+ * sha256(CLAUDE_CONFIG_DIR as given, NFC) whenever that variable is set — and Cortex always sets
+ * it, so the suffix is always there. Private to the CLI and therefore fragile by nature — a rename
+ * there makes the probe answer false, which is exactly this module's pre-existing behaviour on macOS.
  */
 export function claudeKeychainService(deps: ClaudeCredentialDeps = {}): string {
-  const env = deps.env ?? process.env;
-  const base = 'Claude Code-credentials';
-  const configured = deps.claudeConfigDir ?? env.CLAUDE_CONFIG_DIR;
-  if (!configured) return base;
-  const digest = createHash('sha256').update(configured.normalize('NFC')).digest('hex').slice(0, 8);
-  return `${base}-${digest}`;
+  const digest = createHash('sha256')
+    .update(claudeConfigDir(deps).normalize('NFC')).digest('hex').slice(0, 8);
+  return `Claude Code-credentials-${digest}`;
 }
 
 /** Attributes only — no `-w`, so nothing is decrypted and no authorization dialog can appear. */

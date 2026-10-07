@@ -305,7 +305,7 @@ test('getAuthStatus exposes both Claude credentials and mirrors the mode-selecte
   }
 });
 
-test('Claude status reads expiry metadata from a custom CLAUDE_CONFIG_DIR', async () => {
+test('Claude status reads expiry metadata from an explicitly named Claude config dir', async () => {
   const fixture = createPiFixture();
   const configDir = path.join(fixture.root, 'custom-claude');
   const expiry = NOW_MS + 30 * DAY_MS;

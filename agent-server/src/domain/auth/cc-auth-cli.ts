@@ -3,6 +3,7 @@ import {
   type ChildProcessWithoutNullStreams,
   type SpawnOptionsWithoutStdio,
 } from 'node:child_process';
+import { CLAUDE_CONFIG_HOME } from '@core/paths.js';
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_OUTPUT_CHARS = 64 * 1024;
@@ -14,7 +15,7 @@ const AUTH_ENV_ALLOWLIST = [
   'HOME', 'PATH', 'SHELL', 'USER', 'LOGNAME',
   'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TZ',
   'TMPDIR', 'TMP', 'TEMP',
-  'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'CLAUDE_CONFIG_DIR',
+  'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME',
   'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'https_proxy', 'http_proxy', 'no_proxy',
   'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS',
 ] as const;
@@ -62,8 +63,9 @@ function cliError(code: string, message: string): ClaudeAuthCliError {
   return new ClaudeAuthCliError(code, message);
 }
 
+/** Login, status and logout act on Cortex's own Claude config dir, never an inherited one. */
 export function buildClaudeAuthEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { BROWSER: 'true' };
+  const env: NodeJS.ProcessEnv = { BROWSER: 'true', CLAUDE_CONFIG_DIR: CLAUDE_CONFIG_HOME };
   for (const key of AUTH_ENV_ALLOWLIST) {
     if (source[key] !== undefined) env[key] = source[key];
   }

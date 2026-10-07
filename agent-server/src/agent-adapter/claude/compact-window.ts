@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { CLAUDE_CONFIG_HOME } from '@core/paths.js';
 import { getSettings } from '@core/settings.js';
 
 /** The CLI schema accepts an integer in this range and drops anything else. */
@@ -25,15 +25,16 @@ function readWindow(file: string): number | null {
  * next file exactly as the CLI schema drops them. An ambient `CLAUDE_CODE_AUTO_COMPACT_WINDOW` is
  * not consulted: buildClaudeEnv strips every inherited `CLAUDE_CODE*` variable and sets that one
  * only from Cortex's own cap, which {@link resolveClaudeCompactWindow} applies on top.
+ * The user settings file is Cortex's own Claude config dir unless the caller names another.
  */
-export function resolveAutoCompactWindow(cwd: string, userConfigDir?: string): number | null {
-  const configDir = userConfigDir
-    ?? process.env.CLAUDE_CONFIG_DIR
-    ?? path.join(os.homedir(), '.claude');
+export function resolveAutoCompactWindow(
+  cwd: string,
+  userConfigDir: string = CLAUDE_CONFIG_HOME,
+): number | null {
   const files = [
     path.join(cwd, '.claude', 'settings.local.json'),
     path.join(cwd, '.claude', 'settings.json'),
-    path.join(configDir, 'settings.json'),
+    path.join(userConfigDir, 'settings.json'),
   ];
   for (const file of files) {
     const window = readWindow(file);

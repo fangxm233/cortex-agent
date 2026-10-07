@@ -68,6 +68,15 @@ export const CONFIG_DIR = path.join(DATA_DIR, 'config');
 /** Persistent store for runtime JSON state files (DATA_DIR/data/). */
 export const STORE_DIR = path.join(DATA_DIR, 'data');
 
+/** Cortex's own Claude Code config dir (DATA_DIR/data/claude). Every `claude` process Cortex
+ *  starts gets it as CLAUDE_CONFIG_DIR, so Cortex's transcripts, settings, plugins and login stay
+ *  apart from the user's terminal `~/.claude`. */
+export const CLAUDE_CONFIG_HOME = path.join(STORE_DIR, 'claude');
+
+/** The terminal's own Claude Code config dir. Cortex never runs Claude against it; only the
+ *  one-time transcript migration and the first settings seed read from it. */
+export const USER_CLAUDE_CONFIG_DIR = path.join(os.homedir(), '.claude');
+
 /** The daemon supervisor's own pid (its singleton lock). */
 export const DAEMON_PID_FILE = path.join(STORE_DIR, 'daemon.pid');
 /** The pid of the app.js child the daemon is supervising. */

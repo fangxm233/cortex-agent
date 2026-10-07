@@ -9,6 +9,7 @@ import { sessionTotalsCarry, type SessionTotalsCarryRepo } from '@store/session-
 import { activeSessionUseIds } from '@domain/sessions/session-use.js';
 import { toolImageSessionDir } from '@store/tool-image-files.js';
 import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-settings.js';
+import { relocateLegacyClaudePath } from '@store/claude-transcript-migration.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CAPTURE_PREFIX = 'claude-output-';
@@ -270,7 +271,7 @@ async function prepareDeleteCleanup(
   if (session.backend !== 'claude') return { claudeBackupPaths: [] };
   const backendId = effectiveBackendSessionId(session);
   if (!backendId) return { claudeBackupPaths: [] };
-  const candidates = turns.map(turn => turn.backupPath);
+  const candidates = turns.map(turn => turn.backupPath && relocateLegacyClaudePath(turn.backupPath));
   return {
     claudeBackupPaths: await trustedClaudeBackupPaths(deps.paths.claudeProjectDir, backendId, candidates),
   };
