@@ -173,6 +173,49 @@ test('login rejects when the CLI exits after prompting but before code submissio
   );
 });
 
+test('a failed login names the CLI reason without terminal codes or the pasted code', async () => {
+  const fixture = fakeDependencies(call => {
+    call.child.stdout.write(`${AUTH_URL}\nPaste code here if prompted > `);
+    call.child.onWrite = () => {
+      call.child.stderr.write(`\u001b[31mOAuth error: invalid code ${CODE}\u001b[0m\n\n`);
+      setImmediate(() => call.child.close(1));
+    };
+  });
+
+  await assert.rejects(
+    loginClaudeAuth({ onAuthorization: async () => CODE }, fixture.dependencies),
+    (error: any) => error?.code === 'claude_auth_login_failed'
+      && error.message === 'Claude authentication login failed: OAuth error: invalid code ***',
+  );
+});
+
+test('failed logout and status commands carry their last output line, bounded', async () => {
+  const logout = fakeDependencies(call => {
+    call.child.stdout.write('Logging out…\n');
+    call.child.stderr.end('Error: keychain is locked\n');
+    setImmediate(() => call.child.close(1));
+  });
+  const status = fakeDependencies(call => {
+    call.child.stderr.end(`${'x'.repeat(300)}\n`);
+    setImmediate(() => call.child.close(2));
+  });
+  const missing = fakeDependencies(call => {
+    call.child.emit('error', new Error('spawn claude-fixture ENOENT'));
+  });
+
+  await assert.rejects(logoutClaudeAuth(logout.dependencies), (error: any) => (
+    error?.code === 'claude_auth_logout_failed'
+    && error.message === 'Claude authentication logout failed: Error: keychain is locked'
+  ));
+  await assert.rejects(readClaudeAuthStatus(status.dependencies), (error: any) => (
+    error?.code === 'claude_auth_status_failed'
+    && error.message === `Claude authentication status check failed: ${'x'.repeat(199)}…`
+  ));
+  await assert.rejects(readClaudeAuthStatus(missing.dependencies), (error: any) => (
+    error?.message === 'Claude authentication status check failed: spawn claude-fixture ENOENT'
+  ));
+});
+
 test('login cancellation kills the child without waiting for authorization input', async () => {
   const fixture = fakeDependencies(call => {
     call.child.stdout.write(`${AUTH_URL}\nPaste code here if prompted > `);

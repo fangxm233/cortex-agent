@@ -213,15 +213,15 @@ test('PI OAuth failures distinguish unavailable, missing, and unsupported provid
   const inertLogin = vi.fn(async (): Promise<PiCredential> => credential());
   await assertFailure(
     'future-oauth', dependencies(unavailable()),
-    { code: 'runtime_unavailable', message: 'PI runtime is unavailable.' },
+    { code: 'runtime_unavailable', message: 'The model provider runtime is unavailable: pi executable not found' },
   );
   await assertFailure(
     'missing', dependencies(available(runtime([], inertLogin))),
-    { code: 'provider_not_found', message: 'PI provider was not found.' },
+    { code: 'provider_not_found', message: 'Provider not found.' },
   );
   await assertFailure(
     'anthropic', dependencies(available(runtime([provider('anthropic', false)], inertLogin))),
-    { code: 'oauth_unsupported', message: 'PI provider does not support OAuth login.' },
+    { code: 'oauth_unsupported', message: 'anthropic does not support OAuth login.' },
   );
   assert.equal(inertLogin.mock.calls.length, 0);
 });
@@ -232,7 +232,7 @@ test('PI OAuth maps a rejected runtime loader to a safe unavailable failure', as
   };
   await assertFailure(
     'future-oauth', deps,
-    { code: 'runtime_unavailable', message: 'PI runtime is unavailable.' },
+    { code: 'runtime_unavailable', message: 'The model provider runtime is unavailable.' },
   );
 });
 
@@ -290,14 +290,14 @@ test('an aborted manual-code prompt does not end the callback OAuth flow', async
   });
 });
 
-test('PI OAuth runtime rejection is structured, secret-free, and handled', async (context) => {
+test('PI OAuth runtime rejection keeps the upstream reason and is handled', async (context) => {
   const unhandled: unknown[] = [];
   const onUnhandled = (error: unknown) => { unhandled.push(error); };
   process.on('unhandledRejection', onUnhandled);
   context.onTestFinished(() => { process.off('unhandledRejection', onUnhandled); });
   const consoleCalls = spyOnConsole();
   const login = vi.fn(async (): Promise<PiCredential> => {
-    throw new Error(`token exchange failed: ${SECRET}`);
+    throw new Error(`Token exchange failed (400): invalid_grant ${'x'.repeat(300)}\nsecond line`);
   });
   const deps = dependencies(available(runtime([provider('broken-oauth')], login)));
 
@@ -308,13 +308,13 @@ test('PI OAuth runtime rejection is structured, secret-free, and handled', async
   await waitForStep(flow.flowId, 'failed');
   await new Promise<void>(resolve => setImmediate(resolve));
 
-  assert.deepEqual(result, {
-    ok: false, provider: 'broken-oauth', authType: 'oauth',
-    error: { code: 'login_failed', message: 'PI OAuth login failed.' },
-  });
+  const message = result.ok === false ? result.error.message : '';
+  assert.equal(result.ok, false);
+  assert.match(message, /^broken-oauth OAuth login failed: Token exchange failed \(400\): invalid_grant x+…$/);
+  assert.equal(message.length, 'broken-oauth OAuth login failed: '.length + 200);
+  assert.equal(message.includes('second line'), false);
   assert.equal(getFlowState(flow.flowId)?.errorCode, 'login_failed');
-  assert.equal(getFlowState(flow.flowId)?.error, 'PI OAuth login failed.');
-  assert.equal(JSON.stringify({ result, state: getFlowState(flow.flowId), consoleCalls }).includes(SECRET), false);
+  assert.equal(getFlowState(flow.flowId)?.error, message);
   assert.deepEqual(unhandled, []);
 });
 

@@ -299,7 +299,7 @@ Re-authenticate to continue.
 
 ![后端登录提示](./images/backend-login.png)
 
-Cortex 也会主动提醒。运行中的智能体一旦撞上认证过期，就会发出点名后端与 provider 的通知卡，卡上带一键重登按钮；每日扫描还会对临近过期的凭据发出预警。
+Cortex 也会主动提醒。运行中的智能体一旦撞上认证过期，就会发出点名 provider 的通知卡，卡上带一键重登按钮；每日扫描还会对临近过期的凭据发出预警。
 
 登录完成后，刷新的凭据会在下一次智能体运行时被识别。如果端点或模型发生了变化，重新运行 `cortex setup-gateway`，让 `plan` 与 `execute` 配置指向新的后端。
 

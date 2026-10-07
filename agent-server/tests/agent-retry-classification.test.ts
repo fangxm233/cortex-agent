@@ -279,8 +279,10 @@ for (const message of [
 
 interface AuthBackendCase {
   backend: 'claude' | 'pi';
+  attempt?: Partial<RunAttemptConfig>;
   provider?: string;
   expectedProvider: string;
+  expectedAuthType: 'oauth' | 'api_key' | null;
   message: string;
   kind: AuthErrorKind;
 }
@@ -306,11 +308,16 @@ afterEach(() => initAuthEvents(null));
 
 const AUTH_BACKEND_CASES: AuthBackendCase[] = [
   {
-    backend: 'claude', expectedProvider: 'anthropic',
+    backend: 'claude', expectedProvider: 'anthropic', expectedAuthType: 'oauth',
     message: 'Please run /login: credential-fragment-claude', kind: 'login_required',
   },
   {
-    backend: 'pi', provider: 'deepseek', expectedProvider: 'deepseek',
+    backend: 'claude', attempt: { backend: 'claude', mode: 'api' },
+    expectedProvider: 'anthropic', expectedAuthType: 'api_key',
+    message: 'invalid x-api-key: credential-fragment-claude', kind: 'invalid_api_key',
+  },
+  {
+    backend: 'pi', provider: 'deepseek', expectedProvider: 'deepseek', expectedAuthType: null,
     message: 'authentication failed: credential-fragment-pi', kind: 'invalid_api_key',
   },
 ];
@@ -367,7 +374,8 @@ function createAuthRunHarness(authCase: AuthBackendCase): AuthRunHarness {
       const request = authCase.backend === 'claude'
         ? claudeRequestWithScript(partial, outcome.kind === 'error'
           ? errorScript(outcome.message)[0]
-          : outcome.kind === 'rate-limit-result' ? rateLimitScript[0] : resultLine())
+          : outcome.kind === 'rate-limit-result' ? rateLimitScript[0] : resultLine(),
+        authCase.attempt)
         : runRequestFixture(partial, PI);
       const run = openRun(request, [collector().observer]);
       if (authCase.backend === 'claude') {
@@ -390,7 +398,7 @@ async function assertInitialAuthFailure(h: AuthRunHarness, authCase: AuthBackend
   const { ts: _requiredTs, ...payload } = h.required[0];
   assert.deepEqual(payload, {
     type: 'auth.required', backend: authCase.backend, provider: authCase.expectedProvider,
-    authType: null, kind: authCase.kind, channel: `web:auth-${authCase.backend}`,
+    authType: authCase.expectedAuthType, kind: authCase.kind, channel: `web:auth-${authCase.backend}`,
     sessionId: `track-${authCase.backend}`,
   });
   assert.equal(JSON.stringify(h.required[0]).includes('credential-fragment'), false);
@@ -418,7 +426,8 @@ async function assertSingleRecovery(h: AuthRunHarness, authCase: AuthBackendCase
 }
 
 for (const authCase of AUTH_BACKEND_CASES) {
-  test(`run publishes auth required and recovered through the ${authCase.backend} engine path`, async () => {
+  const route = authCase.attempt?.mode ? ` (${authCase.attempt.mode} mode)` : '';
+  test(`run publishes auth required and recovered through the ${authCase.backend} engine path${route}`, async () => {
     const harness = createAuthRunHarness(authCase);
     await assertInitialAuthFailure(harness, authCase);
     await assertPendingAcrossOtherFailures(harness);

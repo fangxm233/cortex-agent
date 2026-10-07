@@ -10,7 +10,7 @@ import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { EventBus } from '../../../src/events/event-bus.js';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import type { AuthLoginService } from '../../../src/domain/auth/login-service.js';
-import type { LoginFlowState } from '../../../src/domain/auth/login-flow.js';
+import { LoginFlowError, type LoginFlowState } from '../../../src/domain/auth/login-flow.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const STATE: LoginFlowState = {
@@ -81,29 +81,64 @@ test('auth mutation handlers start, answer, and cancel through the injected serv
   assert.deepEqual(fixture.calls.cancellations, ['flow-web']);
 });
 
-test('Web notice starts once, then returns terminal or expired state across clients', async () => {
-  const fixture = makeAuthService();
-  let current: LoginFlowState | null = STATE;
-  fixture.service.getState = () => current;
-  const deps = { authLogin: fixture.service } as UiServiceDeps;
-  const args = {
-    backend: 'pi' as const, provider: 'deepseek', authType: 'api_key' as const,
-    noticeId: 'notice-across-clients',
+function makeNoticeService() {
+  const states = new Map<string, LoginFlowState | null>();
+  let starts = 0;
+  const service: AuthLoginService = {
+    start: async input => {
+      starts += 1;
+      const state = { ...STATE, flowId: `flow-notice-${starts}`, provider: input.provider };
+      states.set(state.flowId, state);
+      return state;
+    },
+    getState: flowId => states.get(flowId) ?? null,
+    respond: async () => STATE,
+    cancel: async () => STATE,
   };
+  return { service, states, starts: () => starts };
+}
 
-  const first = await handleAuthStartLogin(deps, args);
-  current = { ...STATE, step: 'done', pendingPrompt: null,
-    outcome: { provider: 'deepseek', authType: 'api_key', expiresAt: null } };
-  const terminal = await handleAuthStartLogin(deps, args);
-  current = null;
-  const expired = await handleAuthStartLogin(deps, args);
+const NOTICE_ARGS = {
+  backend: 'pi' as const, provider: 'deepseek', authType: 'api_key' as const,
+  noticeId: 'notice-across-clients',
+};
 
-  assert.equal(first.ok, true);
-  assert.equal(terminal.ok && terminal.data.step, 'done');
-  assert.equal(fixture.calls.starts.length, 1);
-  assert.deepEqual(expired, {
-    ok: false, code: 'not-found', message: 'Login flow not found or expired.',
+test('Web notice resumes its running flow and replays a success', async () => {
+  const fixture = makeNoticeService();
+  const deps = { authLogin: fixture.service } as UiServiceDeps;
+
+  const first = await handleAuthStartLogin(deps, NOTICE_ARGS);
+  const resumed = await handleAuthStartLogin(deps, NOTICE_ARGS);
+  assert.equal(resumed.ok && resumed.data.flowId, first.ok && first.data.flowId);
+  fixture.states.set('flow-notice-1', {
+    ...STATE, flowId: 'flow-notice-1', step: 'done', pendingPrompt: null,
+    outcome: { provider: 'deepseek', authType: 'api_key', expiresAt: null },
   });
+  const replayed = await handleAuthStartLogin(deps, NOTICE_ARGS);
+
+  assert.equal(replayed.ok && replayed.data.step, 'done');
+  assert.equal(fixture.starts(), 1);
+});
+
+test.each([
+  ['failed', { step: 'failed' as const, error: 'Login failed.' }],
+  ['cancelled', { step: 'cancelled' as const }],
+  ['expired', null],
+  ['owned by a chat channel', { channel: 'slack:C1' }],
+])('Web notice whose flow is %s starts a fresh login and rebinds to it', async (_name, change) => {
+  const fixture = makeNoticeService();
+  const deps = { authLogin: fixture.service } as UiServiceDeps;
+  await handleAuthStartLogin(deps, NOTICE_ARGS);
+  fixture.states.set('flow-notice-1', change && {
+    ...STATE, flowId: 'flow-notice-1', pendingPrompt: null, ...change,
+  });
+
+  const retried = await handleAuthStartLogin(deps, NOTICE_ARGS);
+  const resumed = await handleAuthStartLogin(deps, NOTICE_ARGS);
+
+  assert.equal(retried.ok && retried.data.flowId, 'flow-notice-2');
+  assert.equal(resumed.ok && resumed.data.flowId, 'flow-notice-2');
+  assert.equal(fixture.starts(), 2);
 });
 
 test('auth mutations map missing and inactive flows without exposing response values', async () => {
@@ -139,6 +174,21 @@ test('duplicate auth response is a client error instead of an internal failure',
     message: 'Login flow is not waiting for a prompt response.',
   });
   assert.ok(!JSON.stringify(result).includes('duplicate-secret'));
+});
+
+test('a response to a superseded prompt maps to a conflict, not a bad request', async () => {
+  const fixture = makeAuthService();
+  fixture.service.respond = async () => {
+    throw new LoginFlowError('stale_prompt', 'Login flow is not waiting for a prompt response.');
+  };
+  const result = await handleAuthRespondPrompt(
+    { authLogin: fixture.service } as UiServiceDeps,
+    { flowId: 'flow-web', value: 'late-secret', promptId: 1 },
+  );
+
+  assert.deepEqual(result, {
+    ok: false, code: 'conflict', message: 'Login flow is not waiting for a prompt response.',
+  });
 });
 
 test('Web auth mutations cannot answer or cancel a chat-owned flow', async () => {

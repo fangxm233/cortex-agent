@@ -7,7 +7,9 @@ import type { ButtonElement, MessageContent, PlatformAdapter } from '@platform/i
 import {
   getAuthStatus,
   preferredAuthType,
+  type AuthAccountStatus,
   type AuthStatusSnapshot,
+  type AuthType,
 } from './auth-status.js';
 
 const log = createLogger('auth-watch');
@@ -58,43 +60,78 @@ export function wasAuthRecentlyNotified(
   return recentNotificationQuery(backend, provider);
 }
 
+function providerLabel(event: AuthRequiredEvent, account: AuthAccountStatus | null): string {
+  if (event.backend === 'claude') return 'Claude';
+  return account?.label || event.provider;
+}
+
 function buildNotice(
   event: AuthRequiredEvent,
+  account: AuthAccountStatus | null,
   actionable: boolean,
 ): { title: string; text: string } {
+  const provider = providerLabel(event, account);
   const guidance = actionable
     ? t('notify.authRequired.guide.action')
     : event.backend === 'claude'
       ? t('notify.authRequired.guide.claude')
-      : t('notify.authRequired.guide.pi', { provider: event.provider });
+      : t('notify.authRequired.guide.pi', { provider });
   return {
     title: t('notify.authRequired.title'),
     text: t('notify.authRequired.body', {
-      backend: event.backend,
-      provider: event.provider,
+      provider,
       kind: t(AUTH_KIND_KEYS[event.kind]),
       guidance,
     }),
   };
 }
 
-async function resolveAction(
-  event: AuthRequiredEvent,
+async function readSnapshot(
   readStatus: () => Promise<AuthStatusSnapshot>,
-): Promise<AuthNoticeAction | null> {
+): Promise<AuthStatusSnapshot | null> {
   try {
-    const authType = preferredAuthType(await readStatus(), event.backend, event.provider);
-    if (!authType) return null;
-    return {
-      kind: 'auth-login',
-      noticeId: `${event.backend}:${event.provider}:${event.ts}`,
-      backend: event.backend,
-      provider: event.provider,
-      authType,
-    };
+    return await readStatus();
   } catch {
     return null;
   }
+}
+
+function findAccount(
+  snapshot: AuthStatusSnapshot | null,
+  event: AuthRequiredEvent,
+): AuthAccountStatus | null {
+  return snapshot?.accounts.find(account => (
+    account.backend === event.backend && account.provider === event.provider
+  )) ?? null;
+}
+
+/** The credential that failed, else the one the account runs on, else the preferred login. */
+function noticeAuthType(
+  event: AuthRequiredEvent,
+  account: AuthAccountStatus,
+  snapshot: AuthStatusSnapshot,
+): AuthType | null {
+  const supported = (authType: AuthType | null) => (
+    authType && account.capabilities.includes(authType) ? authType : null
+  );
+  return supported(event.authType) ?? supported(account.authType)
+    ?? preferredAuthType(snapshot, event.backend, event.provider);
+}
+
+function resolveAction(
+  event: AuthRequiredEvent,
+  snapshot: AuthStatusSnapshot | null,
+): AuthNoticeAction | null {
+  const account = findAccount(snapshot, event);
+  const authType = account && snapshot ? noticeAuthType(event, account, snapshot) : null;
+  if (!authType) return null;
+  return {
+    kind: 'auth-login',
+    noticeId: `${event.backend}:${event.provider}:${event.ts}`,
+    backend: event.backend,
+    provider: event.provider,
+    authType,
+  };
 }
 
 function platformContent(text: string, button: ButtonElement | null): MessageContent {
@@ -139,13 +176,10 @@ async function deliverNotice(
   dependencies: AuthWatchDependencies,
 ): Promise<void> {
   const web = event.channel?.startsWith('web:') ?? false;
-  const actionableNotice = buildNotice(event, true);
-  const fallbackNotice = buildNotice(event, false);
-  const action = event.channel
-    ? await resolveAction(event, dependencies.readStatus ?? getAuthStatus)
-    : null;
+  const snapshot = await readSnapshot(dependencies.readStatus ?? getAuthStatus);
+  const action = event.channel ? resolveAction(event, snapshot) : null;
   const actionable = !!action && (web || !!dependencies.buildPlatformAction);
-  const notice = actionable ? actionableNotice : fallbackNotice;
+  const notice = buildNotice(event, findAccount(snapshot, event), actionable);
   if (event.channel === null) {
     await emitSystemNotice(adapter, { ...notice, level: 'error' });
   } else if (web) {

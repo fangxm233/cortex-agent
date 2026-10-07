@@ -11,6 +11,7 @@ import {
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
+  failureWithDetail,
   type AuthInteraction,
   type LoginOutcome,
 } from './login-flow.js';
@@ -31,7 +32,7 @@ export interface ClaudeSubscriptionLoginOutcome extends LoginOutcome {
   detail: string;
 }
 
-function safeLoginError(error: unknown): LoginFlowError {
+function loginError(error: unknown): LoginFlowError {
   if (error instanceof ClaudeAuthCliError) {
     if (error.code === 'claude_auth_cancelled') {
       return new LoginFlowError('claude_subscription_cancelled', t('ux.auth.ccCancelled'));
@@ -40,7 +41,8 @@ function safeLoginError(error: unknown): LoginFlowError {
       return new LoginFlowError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
     }
   }
-  return new LoginFlowError('claude_subscription_failed', t('ux.auth.ccFailed'));
+  const message = failureWithDetail(t('ux.auth.ccFailed'), error);
+  return new LoginFlowError('claude_subscription_failed', message, error);
 }
 
 function loginOptions(interaction: AuthInteraction): ClaudeAuthLoginOptions {
@@ -62,10 +64,11 @@ async function clearLegacyToken(
   try {
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
     (dependencies.reloadAuth ?? applyAuthEnv)();
-  } catch {
+  } catch (error) {
     throw new LoginFlowError(
       'claude_subscription_cleanup_failed',
-      t('ux.auth.ccCleanupFailed'),
+      failureWithDetail(t('ux.auth.ccCleanupFailed'), error),
+      error,
     );
   }
 }
@@ -77,7 +80,7 @@ export async function loginClaudeSubscription(
   try {
     await (dependencies.login ?? loginClaudeAuth)(loginOptions(interaction));
   } catch (error) {
-    throw safeLoginError(error);
+    throw loginError(error);
   }
   await clearLegacyToken(dependencies);
   (dependencies.publishRecovered ?? publishAuthRecovered)({

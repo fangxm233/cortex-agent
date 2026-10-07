@@ -131,6 +131,10 @@ Claude Code。`!login pi` 先打开 PI provider 选择器；附带 provider 时�
 Provider 支持多种认证类型时，认证类型同样在交互中选择。不要在命令后追加 `oauth`、
 API key、授权码或 provider 专用 OAuth 参数。
 
+同一 backend/provider 组合同时最多只有一个进行中的登录。发起登录会取消该组合尚未结束的登录，
+无论它由哪个渠道发起；唯一例外是那次登录已在保存提交的凭据，此时新的登录会被拒绝，直到它结束。
+登录失败时，先显示 Cortex 的提示，再附上 provider 返回原因的第一行。
+
 只有当已安装 PI provider 的 `provider.auth.oauth.login` 是函数时，界面才提供 OAuth。
 参考安装环境的本机实测结果是 39 个 provider 中 7 个满足该判据；清单由运行时动态发现，
 因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 的 API key
@@ -144,8 +148,9 @@ Cortex 不读取也不保存最终 token。订阅登出同样交给 `claude auth
 旧版 Cortex-managed subscription token 仅在 Claude Code 尚未登录时作为可删除的 runtime
 credential 保持兼容；它不会让账号显示为已登录，并会在 CC 拥有凭据后被抑制。
 
-运行中的 backend 报告认证过期时，Cortex 会发送点名 backend/provider 的通知卡，卡片上的
-一键重登按钮会预填已有选择。每日过期扫描只检查使用中的账号，并对即将过期、已过期或缺失
+运行中的 backend 报告认证过期时，Cortex 会发送点名 provider 的通知卡，卡片上的一键重登按钮
+预填失败的那种认证方式：Claude Code 在 `api` 模式下是 API key，其他模式是订阅。该登录进行中时，
+按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描只检查使用中的账号，并对即将过期、已过期或缺失
 的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知提醒过，每日扫描会跳过它，
 因此定时预警不会重复你刚收到的通知。反方向是有意不去重的：即使当天扫描已预警过，运行时失败仍会通知——
 你正撞上失败的那一刻，最需要的就是那条提示。

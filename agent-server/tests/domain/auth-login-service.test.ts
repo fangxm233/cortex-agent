@@ -160,24 +160,7 @@ test('shared login service rejects unsupported targets before starting a flow', 
   assert.equal(fixture.calls.length, 0);
 });
 
-test('shared login service rejects reuse owned by another channel surface', async () => {
-  const fixture = makeDependencies();
-  fixture.dependencies.startFlow = async () => ({
-    ...STATE,
-    channel: 'slack:C1',
-  });
-  const service = createAuthLoginService(fixture.dependencies);
-
-  await assert.rejects(
-    () => service.start({
-      backend: 'claude', provider: 'anthropic', authType: 'api_key',
-      channel: null, sessionId: null,
-    }),
-    (error: any) => error?.code === 'flow_conflict',
-  );
-});
-
-test('shared login service rejects pair reuse with a different auth type', async () => {
+test('a new start supersedes an unfinished same-pair flow from any auth type or surface', async () => {
   const blockingConsumer = (authType: StartLoginFlowInput['authType']): LoginFlowConsumer => (
     async interaction => {
       await interaction.prompt({ type: 'secret', message: 'credential' });
@@ -194,40 +177,39 @@ test('shared login service rejects pair reuse with a different auth type', async
   });
   await waitForStep(service, first.flowId, 'prompt');
 
+  const second = await service.start({
+    backend: 'claude', provider: 'anthropic', authType: 'oauth', channel: null, sessionId: null,
+  });
   try {
-    await assert.rejects(
-      () => service.start({
-        backend: 'claude', provider: 'anthropic', authType: 'oauth',
-        channel: 'slack:C1', sessionId: null,
-      }),
-      (error: any) => error?.code === 'flow_conflict',
-    );
-    const reused = await service.start({
-      backend: 'claude', provider: 'anthropic', authType: 'oauth',
-      channel: 'slack:C1', sessionId: null,
-    }, { reuseExistingPair: true });
-    assert.equal(reused.flowId, first.flowId);
-    assert.equal(reused.authType, 'api_key');
+    assert.notEqual(second.flowId, first.flowId);
+    assert.equal(second.authType, 'oauth');
+    assert.equal(second.channel, null);
+    assert.equal(service.getState(first.flowId)?.step, 'cancelled');
   } finally {
-    await service.cancel(first.flowId);
+    await service.cancel(second.flowId);
   }
 });
 
-test('shared login service rejects cancellation after credential handoff begins', async () => {
-  const fixture = makeDependencies();
-  let cancelCalls = 0;
-  fixture.dependencies.cancelFlow = async flowId => {
-    cancelCalls += 1;
-    return { ...STATE, flowId, step: 'cancelled' };
-  };
-  const service = createAuthLoginService(fixture.dependencies);
+test('a multi-step flow can be cancelled again once it asks its next prompt', async () => {
+  const service = createAuthLoginService({
+    piConsumerFactory: provider => async interaction => {
+      await interaction.prompt({ type: 'secret', message: 'key' });
+      await interaction.prompt({ type: 'text', message: 'account id' });
+      return { provider, authType: 'api_key', expiresAt: null };
+    },
+  });
+  const started = await service.start({
+    backend: 'pi', provider: 'cloudflare-workers-ai', authType: 'api_key', channel: null, sessionId: null,
+  });
+  const first = await waitForStep(service, started.flowId, 'prompt');
+  await service.respond(started.flowId, 'sentinel', first.pendingPrompt!.id);
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (service.getState(started.flowId)?.pendingPrompt?.kind === 'text') break;
+    await setImmediate();
+  }
 
-  await service.respond('flow-1', 'sentinel');
-  await assert.rejects(
-    () => service.cancel('flow-1'),
-    (error: any) => error?.code === 'flow_conflict',
-  );
-  assert.equal(cancelCalls, 0);
+  const cancelled = await service.cancel(started.flowId);
+  assert.equal(cancelled.step, 'cancelled');
 });
 
 test('blocked credential persistence cannot be reported as cancelled after handoff', async () => {
@@ -252,6 +234,12 @@ test('blocked credential persistence cannot be reported as cancelled after hando
   );
 
   await assert.rejects(() => service.cancel(started.flowId), (error: any) => error?.code === 'flow_conflict');
+  await assert.rejects(
+    () => service.start({
+      backend: 'claude', provider: 'anthropic', authType: 'api_key', channel: null, sessionId: null,
+    }),
+    (error: any) => error?.code === 'flow_conflict',
+  );
   assert.equal(service.getState(started.flowId)?.step, 'running');
   writer.resolve();
   assert.equal((await waitForStep(service, started.flowId, 'done')).step, 'done');

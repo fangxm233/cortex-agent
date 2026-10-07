@@ -13,12 +13,9 @@ import {
 import { createPiApiKeyLoginConsumer } from './pi-login.js';
 import { createPiOAuthLoginConsumer } from './pi-oauth.js';
 
-export interface AuthLoginStartOptions {
-  reuseExistingPair?: boolean;
-}
-
 export interface AuthLoginService {
-  start(input: StartLoginFlowInput, options?: AuthLoginStartOptions): Promise<LoginFlowState>;
+  /** Starts a fresh flow; an unfinished one for the same backend and provider is cancelled. */
+  start(input: StartLoginFlowInput): Promise<LoginFlowState>;
   getState(flowId: string): LoginFlowState | null;
   respond(flowId: string, value: string, promptId?: number): Promise<LoginFlowState>;
   cancel(flowId: string): Promise<LoginFlowState>;
@@ -58,6 +55,14 @@ export function resolveAuthNoticeFlow(
   return state ? { kind: 'state', state } : { kind: 'expired' };
 }
 
+/** The flow a notice's login button reopens: one still running, or a success to replay. A notice
+ *  whose flow failed, was cancelled or expired starts a fresh login instead. */
+export function resumableNoticeFlow(resolution: AuthNoticeFlowResolution): LoginFlowState | null {
+  if (resolution.kind !== 'state') return null;
+  const { step } = resolution.state;
+  return step === 'failed' || step === 'cancelled' ? null : resolution.state;
+}
+
 export interface AuthLoginServiceDependencies {
   startFlow?: typeof startFlow;
   getFlowState?: typeof getFlowState;
@@ -86,15 +91,13 @@ function selectPiConsumer(
   dependencies: AuthLoginServiceDependencies,
 ): LoginFlowConsumer {
   if (!input.provider.trim()) {
-    throw new LoginFlowError('provider_not_found', 'PI provider is required.');
+    throw new LoginFlowError('provider_not_found', 'A provider is required.');
   }
   const factory = input.authType === 'oauth'
     ? dependencies.piOAuthConsumerFactory ?? createPiOAuthLoginConsumer
     : dependencies.piConsumerFactory ?? createPiApiKeyLoginConsumer;
   return factory(input.provider);
 }
-
-const TERMINAL_STEPS = new Set(['done', 'failed', 'cancelled']);
 
 function selectConsumer(
   input: StartLoginFlowInput,
@@ -105,51 +108,18 @@ function selectConsumer(
     : selectPiConsumer(input, dependencies);
 }
 
-function createFlowOperations(
-  dependencies: AuthLoginServiceDependencies,
-): Pick<AuthLoginService, 'getState' | 'respond' | 'cancel'> {
-  const handedOff = new Set<string>();
-  return {
-    getState(flowId) {
-      const state = (dependencies.getFlowState ?? getFlowState)(flowId);
-      if (!state || TERMINAL_STEPS.has(state.step)) handedOff.delete(flowId);
-      return state;
-    },
-    async respond(flowId, value, promptId) {
-      const previouslyHandedOff = handedOff.has(flowId);
-      handedOff.add(flowId);
-      try {
-        return await (dependencies.respondPrompt ?? respondPrompt)(flowId, value, promptId);
-      } catch (error) {
-        if (!previouslyHandedOff) handedOff.delete(flowId);
-        throw error;
-      }
-    },
-    async cancel(flowId) {
-      if (handedOff.has(flowId)) {
-        throw new LoginFlowError('flow_conflict', 'Login credential handoff is already in progress.');
-      }
-      return (dependencies.cancelFlow ?? cancelFlow)(flowId);
-    },
-  };
-}
-
 export function createAuthLoginService(
   dependencies: AuthLoginServiceDependencies = {},
 ): AuthLoginService {
   return {
-    async start(input, options) {
-      const consumer = selectConsumer(input, dependencies);
-      const state = await (dependencies.startFlow ?? startFlow)(input, consumer);
-      if (state.authType !== input.authType && !options?.reuseExistingPair) {
-        throw new LoginFlowError('flow_conflict', 'Login is already active with another auth type.');
-      }
-      if (state.channel !== input.channel || state.sessionId !== input.sessionId) {
-        throw new LoginFlowError('flow_conflict', 'Login is already active on another surface.');
-      }
-      return state;
+    async start(input) {
+      return (dependencies.startFlow ?? startFlow)(input, selectConsumer(input, dependencies));
     },
-    ...createFlowOperations(dependencies),
+    getState: flowId => (dependencies.getFlowState ?? getFlowState)(flowId),
+    respond: (flowId, value, promptId) => (
+      (dependencies.respondPrompt ?? respondPrompt)(flowId, value, promptId)
+    ),
+    cancel: flowId => (dependencies.cancelFlow ?? cancelFlow)(flowId),
   };
 }
 

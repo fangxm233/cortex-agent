@@ -197,7 +197,10 @@ test('Claude API-key login rejects the gateway placeholder without side effects'
     prompt: async () => PLACEHOLDER,
     notify: () => {},
   };
-  await assert.rejects(loginClaudeApiKey(interaction), /valid Anthropic API key/i);
+  await assert.rejects(loginClaudeApiKey(interaction), (error: any) => (
+    error?.code === 'claude_api_key_save_failed'
+    && error.message === 'Could not save the Anthropic API key: Enter a valid Anthropic API key.'
+  ));
   assert.equal(fs.readFileSync(fixture.envFile, 'utf8'), fixture.initialEnv);
   assert.deepEqual(recovered, []);
 });
