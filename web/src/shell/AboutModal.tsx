@@ -9,6 +9,7 @@ import './about-modal.css';
 
 export const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
 const PROJECT_URL = 'https://github.com/fangxm233/cortex-agent';
+export const ISSUES_URL = `${PROJECT_URL}/issues`;
 
 function useShellVersion(): NativeInvokeResult<string> | null {
   const [version, setVersion] = useState<NativeInvokeResult<string> | null>(null);
@@ -67,7 +68,7 @@ function ExternalArrow(): JSX.Element {
 function AboutLinks(): JSX.Element {
   const L = useVocab();
   const [failed, setFailed] = useState(false);
-  const links = [[DOCS_URL, L.aboutDocs], [PROJECT_URL, L.aboutProject]];
+  const links = [[DOCS_URL, L.aboutDocs], [PROJECT_URL, L.aboutProject], [ISSUES_URL, L.aboutIssues]];
   return (
     <footer className="about-footer">
       <div className="about-links">

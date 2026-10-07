@@ -14,7 +14,7 @@ import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
-import { DOCS_URL, useAboutModal } from '../AboutModal';
+import { DOCS_URL, ISSUES_URL, useAboutModal } from '../AboutModal';
 import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
 import { useDaemonStatusModal } from '@/features/daemon/useDaemonStatusModal';
 import { toggleRail, useRailCollapsed } from '@/features/workbench/rail/rail-collapsed';
@@ -174,6 +174,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
       label: L.menuHelp,
       items: [
         { kind: 'item', id: 'help.docs', label: L.mHelpDocs, run: () => void openExternalUrl(DOCS_URL).catch(() => {}) },
+        { kind: 'item', id: 'help.feedback', label: L.mHelpFeedback, run: () => void openExternalUrl(ISSUES_URL).catch(() => {}) },
         separator,
         { kind: 'item', id: 'help.daemon', label: L.mHelpDaemon, run: daemonStatus.open },
         {
