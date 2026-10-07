@@ -539,8 +539,15 @@ test('sessions.list: a worker blocked on a question routed to its lead waits on 
     delete process.env.CORTEX_TEAM_ENABLED;
     resetSettingsForTests();
   }
-  const [off] = await handleSessionsList(deps, { projectId: 'proj1' });
-  assert.equal(off.awaitingInput, true, 'team mode off: the worker is an ordinary session');
+  process.env.CORTEX_TEAM_ENABLED = '0';
+  resetSettingsForTests();
+  try {
+    const [off] = await handleSessionsList(deps, { projectId: 'proj1' });
+    assert.equal(off.awaitingInput, true, 'team mode off: the worker is an ordinary session');
+  } finally {
+    delete process.env.CORTEX_TEAM_ENABLED;
+    resetSettingsForTests();
+  }
 });
 
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {

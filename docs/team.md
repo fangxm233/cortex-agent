@@ -5,8 +5,8 @@ hands work to persistent **worker** sessions, continues them later, answers thei
 tells you what came back. You never open a session to give a piece of work its own context, or
 decide which conversation should carry on with what; the lead does that.
 
-Team mode is experimental and off by default. Turn it on in **Settings → Advanced → Team
-(experimental)**, or set `teamEnabled` in `settings.json` (`CORTEX_TEAM_ENABLED=1`).
+Team mode is experimental and on by default. Turn it off in **Settings → Advanced → Team
+(experimental)**, or set `teamEnabled` to `false` in `settings.json` (`CORTEX_TEAM_ENABLED=0`).
 
 ## Leads and workers
 

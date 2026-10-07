@@ -4,8 +4,8 @@
 **worker** 会话，之后可以让它们接着干，替你回答它们的问题，并告诉你结果。你不用为了给某件事一份独立
 的上下文去新开会话，也不用操心哪个对话该接着做什么；这些由主会话负责。
 
-团队模式是实验性功能，默认关闭。在 **设置 → 高级 → 团队（实验性）** 中开启，或在 `settings.json`
-里设置 `teamEnabled`（`CORTEX_TEAM_ENABLED=1`）。
+团队模式是实验性功能，默认开启。可在 **设置 → 高级 → 团队（实验性）** 中关闭，或在 `settings.json`
+里把 `teamEnabled` 设为 `false`（`CORTEX_TEAM_ENABLED=0`）。
 
 ## 主会话与 worker {#leads-and-workers}
 

@@ -225,11 +225,12 @@ export const SETTINGS_SPEC = {
     default: true,
     legacyParse: (raw: string) => raw === '1',
   },
-  // Experimental team mode: web sessions may spawn and manage persistent worker sessions.
+  // Experimental team mode: web sessions may spawn and manage persistent worker sessions. On by
+  // default; turning it off removes the worker tools from the next turn.
   teamEnabled: {
     envVar: 'CORTEX_TEAM_ENABLED',
     type: 'boolean',
-    default: false,
+    default: true,
     legacyParse: (raw: string) => raw === '1',
   },
   waitpointSweepMs: {
