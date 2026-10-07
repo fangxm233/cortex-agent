@@ -6,7 +6,7 @@ import {
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
-  loginFailureMessage,
+  failureWithDetail,
   type AuthInteraction,
   type LoginOutcome,
 } from './login-flow.js';
@@ -27,7 +27,7 @@ export async function loginClaudeApiKey(
   try {
     await saveAnthropicApiKey(apiKey);
   } catch (error) {
-    const message = loginFailureMessage(t('ux.auth.apiKeySaveFailed'), error);
+    const message = failureWithDetail(t('ux.auth.apiKeySaveFailed'), error);
     throw new LoginFlowError('claude_api_key_save_failed', message, error);
   }
   applyAuthEnv();

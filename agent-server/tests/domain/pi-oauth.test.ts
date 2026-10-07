@@ -213,15 +213,15 @@ test('PI OAuth failures distinguish unavailable, missing, and unsupported provid
   const inertLogin = vi.fn(async (): Promise<PiCredential> => credential());
   await assertFailure(
     'future-oauth', dependencies(unavailable()),
-    { code: 'runtime_unavailable', message: 'PI runtime is unavailable: pi executable not found' },
+    { code: 'runtime_unavailable', message: 'The model provider runtime is unavailable: pi executable not found' },
   );
   await assertFailure(
     'missing', dependencies(available(runtime([], inertLogin))),
-    { code: 'provider_not_found', message: 'PI provider was not found.' },
+    { code: 'provider_not_found', message: 'Provider not found.' },
   );
   await assertFailure(
     'anthropic', dependencies(available(runtime([provider('anthropic', false)], inertLogin))),
-    { code: 'oauth_unsupported', message: 'PI provider does not support OAuth login.' },
+    { code: 'oauth_unsupported', message: 'anthropic does not support OAuth login.' },
   );
   assert.equal(inertLogin.mock.calls.length, 0);
 });
@@ -232,7 +232,7 @@ test('PI OAuth maps a rejected runtime loader to a safe unavailable failure', as
   };
   await assertFailure(
     'future-oauth', deps,
-    { code: 'runtime_unavailable', message: 'PI runtime is unavailable.' },
+    { code: 'runtime_unavailable', message: 'The model provider runtime is unavailable.' },
   );
 });
 
@@ -310,8 +310,8 @@ test('PI OAuth runtime rejection keeps the upstream reason and is handled', asyn
 
   const message = result.ok === false ? result.error.message : '';
   assert.equal(result.ok, false);
-  assert.match(message, /^PI OAuth login failed: Token exchange failed \(400\): invalid_grant x+…$/);
-  assert.equal(message.length, 'PI OAuth login failed: '.length + 200);
+  assert.match(message, /^broken-oauth OAuth login failed: Token exchange failed \(400\): invalid_grant x+…$/);
+  assert.equal(message.length, 'broken-oauth OAuth login failed: '.length + 200);
   assert.equal(message.includes('second line'), false);
   assert.equal(getFlowState(flow.flowId)?.errorCode, 'login_failed');
   assert.equal(getFlowState(flow.flowId)?.error, message);

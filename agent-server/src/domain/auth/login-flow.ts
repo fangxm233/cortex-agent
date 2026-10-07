@@ -35,7 +35,7 @@ function upstreamDetail(error: unknown): string {
 
 /** A localized failure followed by the first line of the upstream reason, when it adds one.
  *  The flow scrubs submitted secrets from it before anyone sees it. */
-export function loginFailureMessage(prefix: string, error: unknown): string {
+export function failureWithDetail(prefix: string, error: unknown): string {
   const detail = upstreamDetail(error);
   const base = prefix.replace(/[.。]\s*$/u, '');
   if (!detail || detail === prefix || detail === base) return prefix;
@@ -375,7 +375,7 @@ function rememberSecret(flow: InternalFlow, kind: LoginPendingPrompt['kind'], va
 }
 
 /** The full upstream reason for the server log: the wrapped error's cause when there is one. */
-function failureReason(error: unknown): string {
+export function failureReason(error: unknown): string {
   const source = isLoginFlowError(error) && error.cause !== undefined ? error.cause : error;
   if (!(source instanceof Error)) return String(source);
   return isLoginFlowError(source) ? source.message : source.stack ?? source.message;
@@ -390,7 +390,7 @@ function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
   flow.state.pendingPrompt = null;
   touch(flow);
   flow.state.outcome = null;
-  const message = flowError?.message ?? loginFailureMessage(t('ux.auth.loginFailed'), error);
+  const message = flowError?.message ?? failureWithDetail(t('ux.auth.loginFailed'), error);
   flow.state.error = scrubSecrets(message, flow.secrets);
   flow.state.errorCode = flowError?.code ?? null;
   flow.secrets.clear();

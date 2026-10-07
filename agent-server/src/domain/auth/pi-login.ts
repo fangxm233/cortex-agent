@@ -4,7 +4,7 @@ import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
-  loginFailureMessage,
+  failureWithDetail,
   type AuthInteraction,
   type LoginFlowConsumer,
 } from './login-flow.js';
@@ -83,23 +83,24 @@ function finishLogin(provider: string, dependencies: PiApiKeyLoginDependencies):
 }
 
 type LoginTarget =
-  | { runtime: PiModelRuntime }
+  | { runtime: PiModelRuntime; label: string }
   | { failure: PiApiKeyLoginFailure };
 
 function resolveTarget(result: PiRuntimeLoadResult | null, providerId: string): LoginTarget {
   if (!result?.available) {
-    const message = loginFailureMessage(t('ux.auth.piRuntimeUnavailable'), result?.error);
+    const message = failureWithDetail(t('ux.auth.piRuntimeUnavailable'), result?.error);
     return { failure: failed(providerId, 'runtime_unavailable', message) };
   }
   const provider = result.runtime.getProviders().find(candidate => candidate.id === providerId);
   if (!provider) {
     return { failure: failed(providerId, 'provider_not_found', t('ux.auth.piProviderNotFound')) };
   }
+  const label = provider.name || providerId;
   if (!supportsApiKeyLogin(provider)) {
-    const message = t('ux.auth.piApiKeyUnsupported');
+    const message = t('ux.auth.piApiKeyUnsupported', { provider: label });
     return { failure: failed(providerId, 'api_key_login_unsupported', message) };
   }
-  return { runtime: result.runtime };
+  return { runtime: result.runtime, label };
 }
 
 export async function loginPiApiKey(
@@ -112,7 +113,7 @@ export async function loginPiApiKey(
   try {
     await target.runtime.login(providerId, 'api_key', interaction);
   } catch (error) {
-    const message = loginFailureMessage(t('ux.auth.piApiKeyFailed'), error);
+    const message = failureWithDetail(t('ux.auth.piApiKeyFailed', { provider: target.label }), error);
     return failed(providerId, 'login_failed', message, error);
   }
   return finishLogin(providerId, dependencies);

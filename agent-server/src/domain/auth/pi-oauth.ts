@@ -4,7 +4,7 @@ import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
-  loginFailureMessage,
+  failureWithDetail,
   type AuthInteraction,
   type LoginFlowConsumer,
 } from './login-flow.js';
@@ -62,8 +62,8 @@ function failed(
   return { ok: false, provider, authType: 'oauth', error };
 }
 
-function loginFailed(provider: string, error: unknown): PiOAuthLoginFailure {
-  const message = loginFailureMessage(t('ux.auth.piOAuthFailed'), error);
+function loginFailed(provider: string, label: string, error: unknown): PiOAuthLoginFailure {
+  const message = failureWithDetail(t('ux.auth.piOAuthFailed', { provider: label }), error);
   return failed(provider, 'login_failed', message, error);
 }
 
@@ -99,23 +99,24 @@ function finishLogin(
 }
 
 type LoginTarget =
-  | { runtime: PiModelRuntime }
+  | { runtime: PiModelRuntime; label: string }
   | { failure: PiOAuthLoginFailure };
 
 function resolveTarget(result: PiRuntimeLoadResult | null, providerId: string): LoginTarget {
   if (!result?.available) {
-    const message = loginFailureMessage(t('ux.auth.piRuntimeUnavailable'), result?.error);
+    const message = failureWithDetail(t('ux.auth.piRuntimeUnavailable'), result?.error);
     return { failure: failed(providerId, 'runtime_unavailable', message) };
   }
   const provider = result.runtime.getProviders().find(candidate => candidate.id === providerId);
   if (!provider) {
     return { failure: failed(providerId, 'provider_not_found', t('ux.auth.piProviderNotFound')) };
   }
+  const label = provider.name || providerId;
   if (!supportsOAuthLogin(provider)) {
-    const message = t('ux.auth.piOAuthUnsupported');
+    const message = t('ux.auth.piOAuthUnsupported', { provider: label });
     return { failure: failed(providerId, 'oauth_unsupported', message) };
   }
-  return { runtime: result.runtime };
+  return { runtime: result.runtime, label };
 }
 
 export async function loginPiOAuth(
@@ -127,14 +128,14 @@ export async function loginPiOAuth(
   try {
     target = resolveTarget(await loadRuntime(dependencies), providerId);
   } catch (error) {
-    return loginFailed(providerId, error);
+    return loginFailed(providerId, providerId, error);
   }
   if ('failure' in target) return target.failure;
   try {
     const credential = await target.runtime.login(providerId, 'oauth', interaction);
     return finishLogin(providerId, credentialExpiresAt(credential), dependencies);
   } catch (error) {
-    return loginFailed(providerId, error);
+    return loginFailed(providerId, target.label, error);
   }
 }
 

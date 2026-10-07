@@ -270,6 +270,9 @@ test('PI runtime failures return structured errors without refresh or credential
     );
     assert.equal(unavailable.ok, false);
     if (!unavailable.ok) assert.equal(unavailable.error.code, 'runtime_unavailable');
+    if (!unavailable.ok) {
+      assert.equal(unavailable.error.message, 'The model provider runtime is unavailable: fixture unavailable');
+    }
 
     const rejectedLogout = vi.fn(async () => { throw new Error(API_KEY); });
     fixture.runtime.logout = rejectedLogout;
@@ -280,6 +283,8 @@ test('PI runtime failures return structured errors without refresh or credential
     );
     assert.equal(rejected.ok, false);
     if (!rejected.ok) assert.equal(rejected.error.code, 'logout_failed');
+    if (!rejected.ok) assert.equal(rejected.error.message, 'Account logout failed: ***');
+    assert.ok(JSON.stringify(consoleCalls).includes('logout pi/deepseek failed (logout_failed)'));
     assert.equal(rejectedLogout.mock.calls.length, 1);
     assert.equal(fixture.refresh.mock.calls.length, 0);
     assert.equal(fs.readFileSync(fixture.authPath, 'utf8'), authBefore);
@@ -400,6 +405,7 @@ test('Claude credential removal failures are structured and skip environment rel
     );
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error.code, 'logout_failed');
+    if (!result.ok) assert.equal(result.error.message, 'Account logout failed: ***');
     assert.equal(reload.mock.calls.length, 0);
     assert.equal((await accountStatus(options)).state, 'logged-in');
     expectSecretFree([result, consoleCalls], [API_KEY]);
@@ -489,6 +495,33 @@ test('Claude CLI logout clears its credential and the legacy Cortex token', asyn
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     assertLiveFilesUnchanged(liveBefore);
+  }
+});
+
+test('a failed Claude CLI logout reports the CLI reason', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-cli-failure-'));
+  const options = claudeStatusOptions(root, 'plan');
+  writeFile(path.join(options.claudeConfigDir!, '.credentials.json'), JSON.stringify({ claudeAiOauth: {
+    accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
+  } }));
+  const { ClaudeAuthCliError } = await import('../../src/domain/auth/cc-auth-cli.js');
+  const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
+  try {
+    const result = await logoutAccount(
+      { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
+      { getAuthStatusOptions: options, logoutClaudeAuth: async () => {
+        throw new ClaudeAuthCliError(
+          'claude_auth_logout_failed', 'Claude authentication logout failed: Error: keychain is locked',
+        );
+      } },
+    );
+    assert.equal(result.ok, false);
+    assert.equal(
+      !result.ok && result.error.message,
+      'Account logout failed: Claude authentication logout failed: Error: keychain is locked',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

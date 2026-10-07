@@ -91,7 +91,7 @@ function selectPiConsumer(
   dependencies: AuthLoginServiceDependencies,
 ): LoginFlowConsumer {
   if (!input.provider.trim()) {
-    throw new LoginFlowError('provider_not_found', 'PI provider is required.');
+    throw new LoginFlowError('provider_not_found', 'A provider is required.');
   }
   const factory = input.authType === 'oauth'
     ? dependencies.piOAuthConsumerFactory ?? createPiOAuthLoginConsumer

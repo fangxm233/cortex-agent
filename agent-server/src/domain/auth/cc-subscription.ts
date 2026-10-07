@@ -11,7 +11,7 @@ import {
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
-  loginFailureMessage,
+  failureWithDetail,
   type AuthInteraction,
   type LoginOutcome,
 } from './login-flow.js';
@@ -41,7 +41,7 @@ function loginError(error: unknown): LoginFlowError {
       return new LoginFlowError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
     }
   }
-  const message = loginFailureMessage(t('ux.auth.ccFailed'), error);
+  const message = failureWithDetail(t('ux.auth.ccFailed'), error);
   return new LoginFlowError('claude_subscription_failed', message, error);
 }
 
@@ -67,7 +67,7 @@ async function clearLegacyToken(
   } catch (error) {
     throw new LoginFlowError(
       'claude_subscription_cleanup_failed',
-      loginFailureMessage(t('ux.auth.ccCleanupFailed'), error),
+      failureWithDetail(t('ux.auth.ccCleanupFailed'), error),
       error,
     );
   }

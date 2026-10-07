@@ -192,15 +192,15 @@ test('runtime and provider failures are structured and fail the flow', async () 
   };
   const inertLogin = vi.fn(async (): Promise<PiCredential> => ({ type: 'api_key' }));
   await assertStructuredFailure(
-    { code: 'runtime_unavailable', message: 'PI runtime is unavailable: pi executable not found' },
+    { code: 'runtime_unavailable', message: 'The model provider runtime is unavailable: pi executable not found' },
     'deepseek', dependencies(unavailable),
   );
   await assertStructuredFailure(
-    { code: 'provider_not_found', message: 'PI provider was not found.' },
+    { code: 'provider_not_found', message: 'Provider not found.' },
     'missing', dependencies(available(runtime([], inertLogin))),
   );
   await assertStructuredFailure(
-    { code: 'api_key_login_unsupported', message: 'PI provider does not support API-key login.' },
+    { code: 'api_key_login_unsupported', message: 'ambient does not support API key login.' },
     'ambient', dependencies(available(runtime([provider('ambient', false)], inertLogin))),
   );
   assert.equal(inertLogin.mock.calls.length, 0);
@@ -230,7 +230,7 @@ test('runtime rejection keeps the upstream reason without the submitted key and 
 
   assert.equal(getFlowState(flow.flowId)?.step, 'failed');
   assert.equal(getFlowState(flow.flowId)?.errorCode, 'login_failed');
-  assert.equal(getFlowState(flow.flowId)?.error, 'PI API-key login failed: 401 Unauthorized: invalid key: ***');
+  assert.equal(getFlowState(flow.flowId)?.error, 'deepseek API key login failed: 401 Unauthorized: invalid key: ***');
   assert.ok(JSON.stringify(consoleCalls).includes('invalid key: ***'));
   assert.equal(JSON.stringify({ state: getFlowState(flow.flowId), consoleCalls }).includes(SECRET), false);
   assert.deepEqual(unhandled, []);
