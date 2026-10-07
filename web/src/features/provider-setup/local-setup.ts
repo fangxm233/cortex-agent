@@ -1,5 +1,5 @@
 import type { Vocab } from '@/i18n';
-import type { NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
+import type { NativePageConfig, NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
 import { parseNativeError } from '@/lib/native-error';
 
 // POSIX setup automatically installs, initializes, starts and connects. Windows keeps its manual
@@ -18,7 +18,7 @@ export interface LocalSetupPorts {
   enableUi: (bin: string, port?: number) => Promise<Endpoint>;
   startDaemon: (bin: string, endpoint: Endpoint, restart?: boolean) => Promise<boolean>;
   enableAutostart: () => Promise<unknown>;
-  connect: (endpoint: Endpoint, cortexBin: string) => Promise<unknown>;
+  connect: (endpoint: Endpoint, cortexBin: string, newInstall?: boolean) => Promise<NativePageConfig | null | void>;
 }
 
 export interface LocalSetupState {
@@ -146,9 +146,10 @@ export class LocalSetupFlow {
     this.mark('daemon', 'done');
     if (answers.installService) await this.autostart();
     this.mark('connect', 'running');
-    await this.ports.connect(endpoint, bin);
+    const connection = await this.ports.connect(endpoint, bin, this.state.newInstall === true);
+    const pending = connection?.providerSetupPending ?? this.state.newInstall;
     this.mark('connect', 'done');
-    this.patch({ stage: 'ready', destination: this.state.newInstall ? PROVIDER_SETUP_PAGE : WORKBENCH_PAGE });
+    this.patch({ stage: 'ready', destination: pending ? PROVIDER_SETUP_PAGE : WORKBENCH_PAGE });
   }
 
   /** Back to the settings form after a failed start; the next start repairs instead of re-initializing. */

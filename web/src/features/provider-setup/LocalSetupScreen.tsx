@@ -15,7 +15,9 @@ const nativePorts: LocalSetupPorts = {
   enableUi: (bin, port) => invokeNative('setup_enable_ui', { run: 'start', bin, port }),
   startDaemon: (bin, { url, token }, restart) => invokeNative('setup_start_daemon', { run: 'start', bin, url, token, restart }),
   enableAutostart: () => invokeNative('setup_enable_autostart', { run: 'start' }),
-  connect: ({ url, token }, cortexBin) => invokeNative('connect', { serverUrl: url, token, local: { cortexBin } }),
+  connect: ({ url, token }, cortexBin, newInstall) => invokeNative('connect', {
+    serverUrl: url, token, local: { cortexBin, ...(newInstall === true ? { providerSetupPending: true } : {}) },
+  }),
 };
 
 const STEP_LABEL: Record<LocalSetupStep, keyof Vocab> = {

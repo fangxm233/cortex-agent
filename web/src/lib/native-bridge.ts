@@ -83,6 +83,13 @@ export interface DesktopNotificationAction {
   projectId?: string;
 }
 
+/** Connection metadata returned/injected by the shell; older shells omit onboarding intent. */
+export interface NativePageConfig {
+  serverUrl: string | null;
+  token: string | null;
+  providerSetupPending?: boolean;
+}
+
 interface NativeCommandMap {
   desktop_notifications_post: {
     args: { title: string; body: string; data?: { sessionId?: string; projectId?: string }; action?: string };
@@ -105,11 +112,12 @@ interface NativeCommandMap {
   };
   'plugin:cortex-notifications|ack_action': { args: { actionId: string }; result: unknown };
   'plugin:cortex-notifications|visible_session': { args: { sessionId: string }; result: unknown };
-  get_connection_config: { args: undefined; result: { serverUrl: string | null; token: string | null } };
+  get_connection_config: { args: undefined; result: NativePageConfig };
   connect: {
-    args: { serverUrl: string; token: string; local?: { cortexBin: string } };
-    result: unknown;
+    args: { serverUrl: string; token: string; local?: { cortexBin: string; providerSetupPending?: boolean } };
+    result: NativePageConfig | null;
   };
+  finish_provider_setup: { args: { serverUrl: string; token: string }; result: void };
   disconnect: { args: undefined; result: unknown };
   // Local install (desktop only). `run` tags the `setup-log` lines the command streams.
   setup_probe: { args: undefined; result: NativeSetupProbe };

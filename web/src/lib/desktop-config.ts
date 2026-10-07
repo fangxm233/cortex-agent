@@ -1,4 +1,9 @@
 import type { RemoteConfig } from './trpc';
+import type { NativePageConfig } from './native-bridge';
+
+export interface DesktopConfig extends RemoteConfig {
+  providerSetupPending?: boolean;
+}
 
 /**
  * Read desktop-mode credentials injected by the Tauri initialization_script.
@@ -13,14 +18,15 @@ import type { RemoteConfig } from './trpc';
  * Reads from `globalThis` rather than `window` so this function is testable
  * in the vitest Node environment without requiring jsdom.
  */
-export function readDesktopConfig(): RemoteConfig | undefined {
+export function readDesktopConfig(): DesktopConfig | undefined {
   const cfg = (
     globalThis as unknown as {
-      __CORTEX_DESKTOP_CONFIG?: { serverUrl?: string | null; token?: string | null };
+      __CORTEX_DESKTOP_CONFIG?: Partial<NativePageConfig>;
     }
   ).__CORTEX_DESKTOP_CONFIG;
   if (cfg?.serverUrl && cfg?.token) {
-    return { serverUrl: cfg.serverUrl, token: cfg.token };
+    return { serverUrl: cfg.serverUrl, token: cfg.token,
+      ...(typeof cfg.providerSetupPending === 'boolean' ? { providerSetupPending: cfg.providerSetupPending } : {}) };
   }
   return undefined;
 }
