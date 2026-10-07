@@ -2,9 +2,8 @@ import type { Vocab } from '@/i18n';
 import type { NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
 import { parseNativeError } from '@/lib/native-error';
 
-// The local install, as the native shell drives it: check this computer, install the server, then
-// (after the user confirms the settings) initialize or repair it, start the daemon, optionally
-// enable auto-start, and connect. Every step is a native command (desktop/src-tauri/src/setup.rs).
+// POSIX setup automatically installs, initializes, starts and connects. Windows keeps its manual
+// settings step; failed starts offer repair settings. Commands are owned by the native shell.
 
 export type LocalSetupStage = 'prepare' | 'configure' | 'start' | 'ready';
 export type LocalSetupStep = 'check' | 'install' | 'config' | 'daemon' | 'autostart' | 'connect';
@@ -16,7 +15,7 @@ export interface LocalSetupPorts {
   installServer: () => Promise<{ cortexBin: string; serverVersion: string | null }>;
   cancelInstall: () => Promise<unknown>;
   runInit: (bin: string, answers: NativeSetupAnswers) => Promise<{ version: string | null; clientToken: string | null; uiUrl: string | null }>;
-  enableUi: (bin: string, port: number) => Promise<Endpoint>;
+  enableUi: (bin: string, port?: number) => Promise<Endpoint>;
   startDaemon: (bin: string, endpoint: Endpoint) => Promise<boolean>;
   enableAutostart: () => Promise<unknown>;
   connect: (endpoint: Endpoint, cortexBin: string) => Promise<unknown>;
@@ -37,6 +36,8 @@ export interface LocalSetupState {
   answers: NativeSetupAnswers | null;
   warning: 'AUTOSTART_FAILED' | null;
   newInstall: boolean | null;
+  /** Condense automatic POSIX installation and startup into one visible step. */
+  automatic: boolean;
   /** Where the SPA continues once connected: provider setup after a fresh install. */
   destination: string | null;
 }
@@ -50,7 +51,7 @@ export class LocalSetupFlow {
   state: LocalSetupState = {
     stage: 'prepare', busy: false, cancelling: false, error: null, active: null, probe: null, bin: null, version: null,
     needsInit: true, endpoint: null, progress: {}, answers: null, warning: null, newInstall: null,
-    destination: null,
+    destination: null, automatic: false,
   };
   private listeners = new Set<() => void>();
   /** `ready` resolves once the activity-log listener is registered, before the first command. */
@@ -94,10 +95,11 @@ export class LocalSetupFlow {
     if (!probe.git) throw new Error('GIT_REQUIRED');
   }
 
-  prepare = () => this.operation(async () => {
+  prepare = (lang?: string) => this.operation(async () => {
     this.patch({ stage: 'prepare', progress: {} });
     this.mark('check', 'running');
     this.acceptProbe(await this.ports.probe());
+    this.patch({ automatic: lang !== undefined && this.state.probe?.os !== 'windows' });
     this.mark('check', 'done');
     // POSIX setup also validates and persists the selected environment for existing installs.
     if (this.state.probe?.os !== 'windows' || !this.state.probe.serverOk) {
@@ -106,8 +108,14 @@ export class LocalSetupFlow {
       this.patch({ bin: result.cortexBin, version: result.serverVersion });
     }
     this.mark('install', 'done');
-    this.patch({ stage: 'configure', error: null });
+    if (this.state.automatic) await this.startConfigured(this.defaultAnswers(lang!));
+    else this.patch({ stage: 'configure', error: null });
   });
+
+  private defaultAnswers(lang: string): NativeSetupAnswers {
+    return { lang, machineName: this.state.probe?.hostname ?? '', backends: ['pi'],
+      port: 3004, installService: false, ...(!this.state.needsInit ? { preserveEndpoint: true } : {}) };
+  }
 
   cancelInstall = async () => {
     if (!this.state.busy || this.state.cancelling) return;
@@ -144,8 +152,8 @@ export class LocalSetupFlow {
 
   /** Back to the settings form after a failed start; the next start repairs instead of re-initializing. */
   configure = () => {
-    if (this.state.busy) return;
-    this.patch({ stage: 'configure', error: null, endpoint: null });
+    if (this.state.busy || this.state.stage !== 'start' || !this.state.error) return;
+    this.patch({ stage: 'configure', error: null, endpoint: null, automatic: false });
   };
 
   private async initialize(answers: NativeSetupAnswers): Promise<Endpoint> {
@@ -159,7 +167,7 @@ export class LocalSetupFlow {
       endpoint = { url: result.uiUrl, token: result.clientToken };
       this.patch({ version: result.version || this.state.version });
     } else {
-      endpoint = await this.ports.enableUi(bin, answers.port);
+      endpoint = await this.ports.enableUi(bin, answers.preserveEndpoint ? undefined : answers.port);
     }
     this.patch({ endpoint, needsInit: false });
     this.mark('config', 'done');

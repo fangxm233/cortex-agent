@@ -29,14 +29,14 @@ const STATUS_LABEL: Record<LocalStepStatus, keyof Vocab> = {
 const STATUS_ICON: Partial<Record<LocalStepStatus, string>> = { done: '✓', error: '!', warning: '!' };
 
 function visibleSteps(state: LocalSetupState): LocalSetupStep[] {
-  if (state.stage === 'prepare') return ['install'];
+  if (state.stage === 'prepare' || state.automatic) return ['install'];
   return state.answers?.installService ? ['config', 'daemon', 'autostart', 'connect'] : ['config', 'daemon', 'connect'];
 }
 
 function stepStatus(step: LocalSetupStep, state: LocalSetupState): LocalStepStatus {
-  // The probe and native ensure/install are a single visible installation step.
-  const checking = step === 'install' && state.active === 'check';
-  return state.progress[checking ? 'check' : step] ?? 'pending';
+  // Automatic setup stays one installation row through init, daemon and connection.
+  const combined = step === 'install' && (state.stage === 'prepare' || state.automatic);
+  return state.progress[combined ? state.active ?? 'check' : step] ?? 'pending';
 }
 
 function StepRow({ step, state }: { step: LocalSetupStep; state: LocalSetupState }) {
@@ -51,12 +51,12 @@ function StepRow({ step, state }: { step: LocalSetupStep; state: LocalSetupState
 
 function ProgressSection({ state, log }: { state: LocalSetupState; log: string }) {
   const L = useVocab();
-  const starting = state.stage === 'start' || state.stage === 'ready';
+  const starting = !state.automatic && (state.stage === 'start' || state.stage === 'ready');
   const logView = useRef<HTMLPreElement>(null);
   useEffect(() => { if (logView.current) logView.current.scrollTop = logView.current.scrollHeight; }, [log]);
   const title = state.stage === 'ready' ? L.onbReadyTitle : starting ? L.onbOpeningTitle : L.onbPreparingTitle;
   const intro = state.stage === 'ready' && state.warning ? L.onbAutostartWarning
-    : starting ? L.onbOpeningIntro : L.onbPreparingIntro;
+    : state.automatic ? L.onbAutomaticIntro : starting ? L.onbOpeningIntro : L.onbPreparingIntro;
   return <section>
     <div className="setup-eyebrow">{starting ? L.onbAlmostThere : L.onbLocalInstallation}</div>
     <h1>{title}</h1>
@@ -163,7 +163,7 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
     void flow.start({ lang, machineName, backends: ['pi'], installService, port });
   };
   const retry = () => {
-    if (state.stage === 'prepare') void flow.prepare();
+    if (state.stage === 'prepare') void flow.prepare(lang);
     else if (state.answers) void flow.start(state.answers);
   };
   return <>
@@ -176,21 +176,14 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   </>;
 }
 
-/** The local install. Once connected it hands off to the SPA: provider setup after a fresh install. */
-export function LocalSetupScreen({ otherOptions, leave = page => window.location.replace(page) }: {
-  otherOptions: () => void;
-  leave?: (page: string) => void;
-}) {
+function useLocalSetup() {
+  const lang = useLang();
   const [log, setLog] = useState('');
   const [setup] = useState(() => {
     let listening!: () => void;
     const ready = new Promise<void>(resolve => { listening = resolve; });
-    return { flow: new LocalSetupFlow(nativePorts, ready), listening };
+    return { flow: new LocalSetupFlow(nativePorts, ready), listening, lang };
   });
-  const state = useSyncExternalStore(setup.flow.subscribe, setup.flow.snapshot);
-  const leaveRef = useRef(leave);
-  leaveRef.current = leave;
-
   useEffect(() => {
     let disposed = false;
     let stop = () => {};
@@ -201,10 +194,21 @@ export function LocalSetupScreen({ otherOptions, leave = page => window.location
       if (disposed) unlisten(); else stop = unlisten;
       setup.listening();
     });
-    void setup.flow.prepare();
+    void setup.flow.prepare(setup.lang);
     return () => { disposed = true; stop(); };
   }, [setup]);
+  return { flow: setup.flow, log, clearLog: () => setLog('') };
+}
 
+/** The local install. Once connected it hands off to the SPA: provider setup after a fresh install. */
+export function LocalSetupScreen({ otherOptions, leave = page => window.location.replace(page) }: {
+  otherOptions: () => void;
+  leave?: (page: string) => void;
+}) {
+  const setup = useLocalSetup();
+  const state = useSyncExternalStore(setup.flow.subscribe, setup.flow.snapshot);
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
   useEffect(() => {
     if (state.stage !== 'ready' || !state.destination) return;
     const destination = state.destination;
@@ -212,5 +216,5 @@ export function LocalSetupScreen({ otherOptions, leave = page => window.location
     return () => clearTimeout(timer);
   }, [state.stage, state.destination, state.warning]);
 
-  return <LocalSetupView flow={setup.flow} log={log} otherOptions={otherOptions} clearLog={() => setLog('')} />;
+  return <LocalSetupView {...setup} otherOptions={otherOptions} />;
 }

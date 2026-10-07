@@ -70,6 +70,8 @@ export interface NativeSetupAnswers {
   backends: string[];
   installService: boolean;
   port: number;
+  /** Internal setup intent: reuse the configured UI port when enabling an existing endpoint. */
+  preserveEndpoint?: boolean;
 }
 
 export interface DesktopNotificationAction {
@@ -118,7 +120,7 @@ interface NativeCommandMap {
     args: { run: string; bin: string; answers: NativeSetupAnswers };
     result: { version: string | null; clientToken: string | null; uiUrl: string | null };
   };
-  setup_enable_ui: { args: { run: string; bin: string; port: number }; result: { url: string; token: string } };
+  setup_enable_ui: { args: { run: string; bin: string; port?: number }; result: { url: string; token: string } };
   setup_start_daemon: { args: { run: string; bin: string; url: string; token: string }; result: boolean };
   setup_enable_autostart: { args: { run: string }; result: boolean };
   check_for_updates: { args: undefined; result: NativeCheckReport };
