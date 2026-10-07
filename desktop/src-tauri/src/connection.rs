@@ -82,9 +82,9 @@ pub struct LocalInstall {
 /// Persist credentials to the platform credential store and update AppState.
 ///
 /// Called by the connect screen after the user's test-connection probe
-/// succeeds. Always returns Ok — a store failure is logged to stderr but
-/// the session continues (credentials are in AppState; lost on restart if the
-/// store is unavailable, e.g. headless Linux without a secret-service daemon).
+/// succeeds. Pending local onboarding must persist before publishing the connection.
+/// Legacy/nonpending and remote connections keep session-only fallback if the store
+/// is unavailable (e.g. headless Linux without a secret-service daemon).
 /// Backend is platform-branched (OS keychain on desktop, app-private file on
 /// Android) — see `creds.rs`.
 #[tauri::command]
@@ -94,12 +94,11 @@ pub async fn connect(
     server_url: String,
     token: String,
     local: Option<LocalInstall>,
-) -> Result<(), String> {
+) -> Result<PageConfig, String> {
     let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
     mobile_notifications::clear(&app)?;
     connect_with_saver(&mut state.config.lock().unwrap(), server_url, token, local,
-        |config| creds::save(&app, config))?;
-    Ok(())
+        |config| creds::save(&app, config))
 }
 
 /// Keep connection transitions testable without accessing a platform credential store.
@@ -110,21 +109,37 @@ fn connect_with_saver(
     local: Option<LocalInstall>,
     save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
 ) -> Result<PageConfig, String> {
+    let pending = local.as_ref().is_some_and(|install| local_pending(current, &token, install));
     let config = ConnectionConfig {
         server_url: Some(server_url),
         token: Some(token),
         mode: if local.is_some() { ConnectionMode::Local } else { ConnectionMode::Remote },
         cortex_bin: local.map(|l| l.cortex_bin),
-        provider_setup_pending: false,
+        provider_setup_pending: pending,
     };
-    if let Err(e) = save(&config) {
-        shell_log!(
-            "[cortex-desktop] credential store save failed ({e}); \
-             credentials are session-only (lost on restart)"
-        );
-    }
+    persist_connection(&config, save)?;
     *current = config;
     Ok(PageConfig::from(&*current))
+}
+
+/// CLI + token identify the local installation; its port may be explicitly repaired.
+/// A stale fresh-setup payload cannot rearm intent after an explicit skip/completion.
+fn local_pending(current: &ConnectionConfig, token: &str, local: &LocalInstall) -> bool {
+    let same_install = current.mode == ConnectionMode::Local
+        && current.cortex_bin.as_deref() == Some(local.cortex_bin.as_str())
+        && current.token.as_deref() == Some(token);
+    if same_install { current.provider_setup_pending } else { local.provider_setup_pending }
+}
+
+fn persist_connection(
+    config: &ConnectionConfig,
+    save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
+) -> Result<(), String> {
+    if save(config).is_ok() { return Ok(()); }
+    if config.provider_setup_pending { return Err("provider_setup_save_failed".into()); }
+    // Never echo store errors: a backend may include the serialized credentials.
+    shell_log!("[cortex-desktop] credential store save failed; credentials are session-only (lost on restart)");
+    Ok(())
 }
 
 /// Clear credentials from the platform store and AppState.
@@ -225,18 +240,16 @@ mod tests {
 
     #[test]
     fn ordinary_reconnect_and_stale_fresh_payload_preserve_true_and_false_even_on_port_repair() {
-        for pending in [false, true] {
-            for incoming in [false, true] {
-                for url in [LOCAL_URL, "http://127.0.0.1:3010"] {
-                    let mut current = local_config(pending);
-                    let page = connect_with_saver(&mut current, url.into(), TEST_TOKEN.into(),
-                        local_install(incoming), |candidate| {
-                            assert_eq!(candidate.provider_setup_pending, pending);
-                            Ok(())
-                        }).unwrap();
-                    assert_eq!(page.provider_setup_pending, pending);
-                    assert_eq!(current.server_url.as_deref(), Some(url));
-                }
+        for (pending, incoming) in [(false, false), (false, true), (true, false), (true, true)] {
+            for url in [LOCAL_URL, "http://127.0.0.1:3010"] {
+                let mut current = local_config(pending);
+                let page = connect_with_saver(&mut current, url.into(), TEST_TOKEN.into(),
+                    local_install(incoming), |candidate| {
+                        assert_eq!(candidate.provider_setup_pending, pending);
+                        Ok(())
+                    }).unwrap();
+                assert_eq!(page.provider_setup_pending, pending);
+                assert_eq!(current.server_url.as_deref(), Some(url));
             }
         }
     }
