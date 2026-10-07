@@ -104,12 +104,18 @@ mod initial_route_tests {
             provider_setup_pending: true,
             ..ConnectionConfig::default()
         };
-        assert_eq!(initial_url(&config, false), "cortexui://localhost/index.html?launch#/setup/providers");
+        assert_eq!(
+            initial_url(&config, false),
+            "cortexui://localhost/index.html?launch#/setup/providers"
+        );
     }
 
     #[test]
     fn repair_launch_keeps_query_before_local_fragment() {
-        assert_eq!(initial_url(&ConnectionConfig::default(), true), "cortexui://localhost/connect.html?launch#/local");
+        assert_eq!(
+            initial_url(&ConnectionConfig::default(), true),
+            "cortexui://localhost/connect.html?launch#/local"
+        );
     }
 }
 

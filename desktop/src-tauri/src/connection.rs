@@ -97,8 +97,13 @@ pub async fn connect(
 ) -> Result<PageConfig, String> {
     let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
     mobile_notifications::clear(&app)?;
-    connect_with_saver(&mut state.config.lock().unwrap(), server_url, token, local,
-        |config| creds::save(&app, config))
+    connect_with_saver(
+        &mut state.config.lock().unwrap(),
+        server_url,
+        token,
+        local,
+        |config| creds::save(&app, config),
+    )
 }
 
 /// Keep connection transitions testable without accessing a platform credential store.
@@ -109,11 +114,17 @@ fn connect_with_saver(
     local: Option<LocalInstall>,
     save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
 ) -> Result<PageConfig, String> {
-    let pending = local.as_ref().is_some_and(|install| local_pending(current, &token, install));
+    let pending = local
+        .as_ref()
+        .is_some_and(|install| local_pending(current, &token, install));
     let config = ConnectionConfig {
         server_url: Some(server_url),
         token: Some(token),
-        mode: if local.is_some() { ConnectionMode::Local } else { ConnectionMode::Remote },
+        mode: if local.is_some() {
+            ConnectionMode::Local
+        } else {
+            ConnectionMode::Remote
+        },
         cortex_bin: local.map(|l| l.cortex_bin),
         provider_setup_pending: pending,
     };
@@ -128,15 +139,23 @@ fn local_pending(current: &ConnectionConfig, token: &str, local: &LocalInstall) 
     let same_install = current.mode == ConnectionMode::Local
         && current.cortex_bin.as_deref() == Some(local.cortex_bin.as_str())
         && current.token.as_deref() == Some(token);
-    if same_install { current.provider_setup_pending } else { local.provider_setup_pending }
+    if same_install {
+        current.provider_setup_pending
+    } else {
+        local.provider_setup_pending
+    }
 }
 
 fn persist_connection(
     config: &ConnectionConfig,
     save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
 ) -> Result<(), String> {
-    if save(config).is_ok() { return Ok(()); }
-    if config.provider_setup_pending { return Err("provider_setup_save_failed".into()); }
+    if save(config).is_ok() {
+        return Ok(());
+    }
+    if config.provider_setup_pending {
+        return Err("provider_setup_save_failed".into());
+    }
     // Never echo store errors: a backend may include the serialized credentials.
     shell_log!("[cortex-desktop] credential store save failed; credentials are session-only (lost on restart)");
     Ok(())
@@ -152,8 +171,12 @@ pub fn finish_provider_setup(
     token: String,
 ) -> Result<(), String> {
     let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
-    finish_with_saver(&mut state.config.lock().unwrap(), &server_url, &token,
-        |config| creds::save(&app, config))
+    finish_with_saver(
+        &mut state.config.lock().unwrap(),
+        &server_url,
+        &token,
+        |config| creds::save(&app, config),
+    )
 }
 
 fn finish_with_saver(
@@ -162,10 +185,13 @@ fn finish_with_saver(
     token: &str,
     save: impl FnOnce(&ConnectionConfig) -> Result<(), String>,
 ) -> Result<(), String> {
-    if current.server_url.as_deref() != Some(server_url) || current.token.as_deref() != Some(token) {
+    if current.server_url.as_deref() != Some(server_url) || current.token.as_deref() != Some(token)
+    {
         return Err("provider_setup_connection_changed".into());
     }
-    if current.mode != ConnectionMode::Local || !current.provider_setup_pending { return Ok(()); }
+    if current.mode != ConnectionMode::Local || !current.provider_setup_pending {
+        return Ok(());
+    }
     let mut completed = current.clone();
     completed.provider_setup_pending = false;
     save(&completed).map_err(|_| "provider_setup_save_failed".to_string())?;
@@ -197,9 +223,16 @@ pub fn has_credentials(config: &ConnectionConfig) -> bool {
 }
 
 /// Select the launch document and fragment without inspecting provider authentication state.
-pub fn initial_route(config: &ConnectionConfig, runtime_repair: bool) -> (&'static str, &'static str) {
-    if runtime_repair { return ("connect.html", "#/local"); }
-    if !has_credentials(config) { return ("connect.html", ""); }
+pub fn initial_route(
+    config: &ConnectionConfig,
+    runtime_repair: bool,
+) -> (&'static str, &'static str) {
+    if runtime_repair {
+        return ("connect.html", "#/local");
+    }
+    if !has_credentials(config) {
+        return ("connect.html", "");
+    }
     if config.mode == ConnectionMode::Local && config.provider_setup_pending {
         return ("index.html", "#/setup/providers");
     }
@@ -226,7 +259,10 @@ mod tests {
     const CLI: &str = "/opt/cortex/bin/cortex";
 
     fn local_install(pending: bool) -> Option<LocalInstall> {
-        Some(LocalInstall { cortex_bin: CLI.into(), provider_setup_pending: pending })
+        Some(LocalInstall {
+            cortex_bin: CLI.into(),
+            provider_setup_pending: pending,
+        })
     }
 
     fn local_config(pending: bool) -> ConnectionConfig {
@@ -247,11 +283,13 @@ mod tests {
     fn local_install_accepts_legacy_and_fresh_payloads() {
         let legacy: LocalInstall = serde_json::from_value(serde_json::json!({
             "cortexBin": CLI
-        })).unwrap();
+        }))
+        .unwrap();
         assert!(!legacy.provider_setup_pending);
         let fresh: LocalInstall = serde_json::from_value(serde_json::json!({
             "cortexBin": CLI, "providerSetupPending": true
-        })).unwrap();
+        }))
+        .unwrap();
         assert!(fresh.provider_setup_pending);
     }
 
@@ -259,8 +297,17 @@ mod tests {
     fn fresh_local_connect_saves_pending_atomically_with_transport_and_cli() {
         let mut current = ConnectionConfig::default();
         let mut saved = Vec::new();
-        let page = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
-            local_install(true), |candidate| { saved.push(snapshot(candidate)); Ok(()) }).unwrap();
+        let page = connect_with_saver(
+            &mut current,
+            LOCAL_URL.into(),
+            TEST_TOKEN.into(),
+            local_install(true),
+            |candidate| {
+                saved.push(snapshot(candidate));
+                Ok(())
+            },
+        )
+        .unwrap();
         assert_eq!(saved, vec![snapshot(&local_config(true))]);
         assert_eq!(snapshot(&current), saved[0]);
         assert!(page.provider_setup_pending);
@@ -272,8 +319,14 @@ mod tests {
     fn fresh_pending_save_failure_keeps_previous_connection_and_redacts_error() {
         let mut current = ConnectionConfig::default();
         let before = snapshot(&current);
-        let error = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
-            local_install(true), |_| Err(format!("store error: {TEST_TOKEN}"))).unwrap_err();
+        let error = connect_with_saver(
+            &mut current,
+            LOCAL_URL.into(),
+            TEST_TOKEN.into(),
+            local_install(true),
+            |_| Err(format!("store error: {TEST_TOKEN}")),
+        )
+        .unwrap_err();
         assert_eq!(error, "provider_setup_save_failed");
         assert!(!error.contains(TEST_TOKEN));
         assert_eq!(snapshot(&current), before);
@@ -284,11 +337,17 @@ mod tests {
         for (pending, incoming) in [(false, false), (false, true), (true, false), (true, true)] {
             for url in [LOCAL_URL, "http://127.0.0.1:3010"] {
                 let mut current = local_config(pending);
-                let page = connect_with_saver(&mut current, url.into(), TEST_TOKEN.into(),
-                    local_install(incoming), |candidate| {
+                let page = connect_with_saver(
+                    &mut current,
+                    url.into(),
+                    TEST_TOKEN.into(),
+                    local_install(incoming),
+                    |candidate| {
                         assert_eq!(candidate.provider_setup_pending, pending);
                         Ok(())
-                    }).unwrap();
+                    },
+                )
+                .unwrap();
                 assert_eq!(page.provider_setup_pending, pending);
                 assert_eq!(current.server_url.as_deref(), Some(url));
             }
@@ -299,8 +358,14 @@ mod tests {
     fn pending_reconnect_save_failure_cannot_update_endpoint_or_clear_pending() {
         let mut current = local_config(true);
         let before = snapshot(&current);
-        let error = connect_with_saver(&mut current, "http://127.0.0.1:3010".into(),
-            TEST_TOKEN.into(), local_install(false), |_| Err(TEST_TOKEN.into())).unwrap_err();
+        let error = connect_with_saver(
+            &mut current,
+            "http://127.0.0.1:3010".into(),
+            TEST_TOKEN.into(),
+            local_install(false),
+            |_| Err(TEST_TOKEN.into()),
+        )
+        .unwrap_err();
         assert_eq!(error, "provider_setup_save_failed");
         assert_eq!(snapshot(&current), before);
     }
@@ -315,8 +380,14 @@ mod tests {
                     "cli" => current.cortex_bin = Some("/other/cortex".into()),
                     _ => current.token = Some("other-test-token".into()),
                 }
-                let page = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
-                    local_install(incoming), |_| Ok(())).unwrap();
+                let page = connect_with_saver(
+                    &mut current,
+                    LOCAL_URL.into(),
+                    TEST_TOKEN.into(),
+                    local_install(incoming),
+                    |_| Ok(()),
+                )
+                .unwrap();
                 assert_eq!(page.provider_setup_pending, incoming, "changed {changed}");
             }
         }
@@ -325,13 +396,19 @@ mod tests {
     #[test]
     fn remote_connect_resets_pending_and_keeps_best_effort_persistence() {
         let mut current = local_config(true);
-        let page = connect_with_saver(&mut current, "https://remote.example.com".into(),
-            "remote-test-token".into(), None, |candidate| {
+        let page = connect_with_saver(
+            &mut current,
+            "https://remote.example.com".into(),
+            "remote-test-token".into(),
+            None,
+            |candidate| {
                 assert_eq!(candidate.mode, ConnectionMode::Remote);
                 assert!(candidate.cortex_bin.is_none());
                 assert!(!candidate.provider_setup_pending);
                 Err("unavailable".into())
-            }).unwrap();
+            },
+        )
+        .unwrap();
         assert!(!page.provider_setup_pending);
         assert_eq!(current.mode, ConnectionMode::Remote);
         assert_eq!(current.server_url, page.server_url);
@@ -341,8 +418,14 @@ mod tests {
     #[test]
     fn nonpending_local_connect_keeps_legacy_best_effort_persistence() {
         let mut current = ConnectionConfig::default();
-        let page = connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(),
-            local_install(false), |_| Err("unavailable".into())).unwrap();
+        let page = connect_with_saver(
+            &mut current,
+            LOCAL_URL.into(),
+            TEST_TOKEN.into(),
+            local_install(false),
+            |_| Err("unavailable".into()),
+        )
+        .unwrap();
         assert!(!page.provider_setup_pending);
         assert_eq!(snapshot(&current), snapshot(&local_config(false)));
     }
@@ -356,7 +439,8 @@ mod tests {
             saves += 1;
             assert_eq!(snapshot(candidate), expected);
             Ok(())
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(saves, 1);
         assert_eq!(snapshot(&current), expected);
         assert!(!PageConfig::from(&current).provider_setup_pending);
@@ -366,8 +450,10 @@ mod tests {
     fn repeated_completion_is_idempotent_and_does_not_save_again() {
         let mut current = local_config(true);
         finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |_| Ok(())).unwrap();
-        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
-            |_| panic!("completed setup must not save again")).unwrap();
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |_| {
+            panic!("completed setup must not save again")
+        })
+        .unwrap();
         assert!(!current.provider_setup_pending);
     }
 
@@ -378,7 +464,8 @@ mod tests {
         let error = finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |candidate| {
             assert!(!candidate.provider_setup_pending);
             Err(format!("backend echoed {TEST_TOKEN}"))
-        }).unwrap_err();
+        })
+        .unwrap_err();
         assert_eq!(error, "provider_setup_save_failed");
         assert!(!error.contains(TEST_TOKEN));
         assert_eq!(snapshot(&current), before);
@@ -388,11 +475,16 @@ mod tests {
 
     #[test]
     fn stale_url_or_token_cannot_finish_a_replacement_connection() {
-        for (url, token) in [("http://127.0.0.1:3010", TEST_TOKEN), (LOCAL_URL, "stale-token")] {
+        for (url, token) in [
+            ("http://127.0.0.1:3010", TEST_TOKEN),
+            (LOCAL_URL, "stale-token"),
+        ] {
             let mut current = local_config(true);
             let before = snapshot(&current);
-            let error = finish_with_saver(&mut current, url, token,
-                |_| panic!("stale pages must never write credentials")).unwrap_err();
+            let error = finish_with_saver(&mut current, url, token, |_| {
+                panic!("stale pages must never write credentials")
+            })
+            .unwrap_err();
             assert_eq!(error, "provider_setup_connection_changed");
             assert_eq!(snapshot(&current), before);
         }
@@ -404,8 +496,10 @@ mod tests {
         remote.mode = ConnectionMode::Remote;
         for mut current in [remote, local_config(false)] {
             let before = snapshot(&current);
-            finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
-                |_| panic!("remote/nonpending completion must not save")).unwrap();
+            finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |_| {
+                panic!("remote/nonpending completion must not save")
+            })
+            .unwrap();
             assert_eq!(snapshot(&current), before);
         }
     }
@@ -414,8 +508,10 @@ mod tests {
     fn completion_scope_guard_precedes_noop_even_after_disconnect() {
         for mut current in [ConnectionConfig::default(), local_config(false)] {
             let before = snapshot(&current);
-            let error = finish_with_saver(&mut current, LOCAL_URL, "stale-token",
-                |_| panic!("mismatched completion must not save")).unwrap_err();
+            let error = finish_with_saver(&mut current, LOCAL_URL, "stale-token", |_| {
+                panic!("mismatched completion must not save")
+            })
+            .unwrap_err();
             assert_eq!(error, "provider_setup_connection_changed");
             assert_eq!(snapshot(&current), before);
         }
@@ -425,21 +521,43 @@ mod tests {
     fn fresh_saved_connection_resumes_providers_before_any_page_navigation() {
         let mut current = ConnectionConfig::default();
         let mut saved = None;
-        connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(), local_install(true),
-            |candidate| { saved = Some(snapshot(candidate)); Ok(()) }).unwrap();
+        connect_with_saver(
+            &mut current,
+            LOCAL_URL.into(),
+            TEST_TOKEN.into(),
+            local_install(true),
+            |candidate| {
+                saved = Some(snapshot(candidate));
+                Ok(())
+            },
+        )
+        .unwrap();
         let reloaded: ConnectionConfig = serde_json::from_value(saved.unwrap()).unwrap();
-        assert_eq!(initial_route(&reloaded, false), ("index.html", "#/setup/providers"));
+        assert_eq!(
+            initial_route(&reloaded, false),
+            ("index.html", "#/setup/providers")
+        );
     }
 
     #[test]
     fn explicit_exit_persists_workbench_route_and_failed_exit_retains_provider_route() {
         let mut current = local_config(true);
-        assert!(finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
-            |_| Err("unavailable".into())).is_err());
-        assert_eq!(initial_route(&current, false), ("index.html", "#/setup/providers"));
+        assert!(
+            finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |_| Err(
+                "unavailable".into()
+            ))
+            .is_err()
+        );
+        assert_eq!(
+            initial_route(&current, false),
+            ("index.html", "#/setup/providers")
+        );
         let mut saved = None;
-        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
-            |candidate| { saved = Some(snapshot(candidate)); Ok(()) }).unwrap();
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN, |candidate| {
+            saved = Some(snapshot(candidate));
+            Ok(())
+        })
+        .unwrap();
         let reloaded: ConnectionConfig = serde_json::from_value(saved.unwrap()).unwrap();
         assert_eq!(initial_route(&reloaded, false), ("index.html", ""));
     }
@@ -449,7 +567,8 @@ mod tests {
         for mode in ["local", "remote"] {
             let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
                 "serverUrl": LOCAL_URL, "token": TEST_TOKEN, "mode": mode
-            })).unwrap();
+            }))
+            .unwrap();
             assert_eq!(initial_route(&config, false), ("index.html", ""));
         }
     }
@@ -475,7 +594,11 @@ mod tests {
 
     #[test]
     fn runtime_repair_has_priority_over_credentials_and_provider_setup() {
-        for config in [ConnectionConfig::default(), local_config(true), local_config(false)] {
+        for config in [
+            ConnectionConfig::default(),
+            local_config(true),
+            local_config(false),
+        ] {
             assert_eq!(initial_route(&config, true), ("connect.html", "#/local"));
         }
     }
@@ -485,8 +608,12 @@ mod tests {
         for mode in ["local", "remote"] {
             let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
                 "serverUrl": "http://127.0.0.1:3004", "token": "test-token", "mode": mode
-            })).unwrap();
-            assert_eq!(serde_json::to_value(&config).unwrap()["providerSetupPending"], false);
+            }))
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(&config).unwrap()["providerSetupPending"],
+                false
+            );
         }
     }
 
@@ -496,7 +623,8 @@ mod tests {
             let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
                 "serverUrl": "http://127.0.0.1:3004", "token": "test-token",
                 "mode": mode, "providerSetupPending": true
-            })).unwrap();
+            }))
+            .unwrap();
             let page = serde_json::to_value(PageConfig::from(&config)).unwrap();
             assert_eq!(page["providerSetupPending"], expected);
             assert!(page.get("mode").is_none());
@@ -527,7 +655,10 @@ mod tests {
             serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
         assert!(restored.provider_setup_pending);
         assert_eq!(restored.mode, ConnectionMode::Local);
-        assert_eq!(restored.cortex_bin.as_deref(), Some("/usr/local/bin/cortex"));
+        assert_eq!(
+            restored.cortex_bin.as_deref(),
+            Some("/usr/local/bin/cortex")
+        );
     }
 
     #[test]
