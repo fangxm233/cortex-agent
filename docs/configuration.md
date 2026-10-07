@@ -695,7 +695,7 @@ the keychain item `Claude Code-credentials-<first 8 hex of sha256(config dir)>`.
 
 **`settings.json`.** The user settings file belongs to Cortex. When it does not
 exist, the server creates it at startup from the `model`, `effortLevel`,
-`modelSettings`, `autoCompactWindow`, `autoMemoryEnabled` and `env` keys of
+`modelSettings`, `autoCompactWindow`, `autoMemoryEnabled`, `env` and `attribution` keys of
 `~/.claude/settings.json`; once it exists the terminal file is never read again.
 The session-retention coordinator keeps one key in it current —
 `cleanupPeriodDays`, from the `sessionRetentionDays` runtime setting — and

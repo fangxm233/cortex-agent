@@ -36,6 +36,7 @@ const TERMINAL = {
   autoCompactWindow: 450_000,
   autoMemoryEnabled: false,
   env: { ENABLE_CLAUDEAI_MCP_SERVERS: 'false' },
+  attribution: { commit: '', pr: '' },
   enabledPlugins: { 'feature-dev@claude-plugins-official': true },
   hooks: { Stop: [] },
   cleanupPeriodDays: 30,

@@ -484,7 +484,7 @@ macOS 上 CLI 把登录保存在钥匙串条目 `Claude Code-credentials-<sha256
 
 **`settings.json`。** 用户设置文件归 Cortex 所有。文件不存在时，服务器在启动时用
 `~/.claude/settings.json` 中的 `model`、`effortLevel`、`modelSettings`、`autoCompactWindow`、
-`autoMemoryEnabled`、`env` 这几个键创建它；文件存在之后就不再读取终端那份。会话保留协调器
+`autoMemoryEnabled`、`env`、`attribution` 这几个键创建它；文件存在之后就不再读取终端那份。会话保留协调器
 只维护其中一个键——`cleanupPeriodDays`，取自运行时设置 `sessionRetentionDays`——其余键保持原样。
 要改变 Cortex 的 Claude 会话使用的设置，直接编辑这个文件。
 

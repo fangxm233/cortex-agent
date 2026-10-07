@@ -7,7 +7,9 @@ const DIR_MODE = 0o700;
 const FILE_MODE = 0o600;
 
 /** What a fresh Cortex config dir takes over from the terminal's settings, once. */
-const SEEDED_KEYS = ['model', 'effortLevel', 'modelSettings', 'autoCompactWindow', 'autoMemoryEnabled', 'env'] as const;
+const SEEDED_KEYS = [
+  'model', 'effortLevel', 'modelSettings', 'autoCompactWindow', 'autoMemoryEnabled', 'env', 'attribution',
+] as const;
 
 export interface ClaudeUserSettingsOptions {
   /** The settings' own config dir; defaults to Cortex's (CLAUDE_CONFIG_HOME). */
