@@ -162,19 +162,13 @@ mod service {
         }
 
         #[test]
-        fn mac_registration_creates_launchagents_and_uses_gui_domain_only() {
+        fn mac_registration_defers_launch_until_next_login_without_a_second_daemon() {
             let home = scratch();
             let path = home.join("Library/LaunchAgents/cc.cortex.agent-server.plist");
             let mut steps = launchd_probes(false);
             steps.push(step(
                 "/bin/launchctl",
                 &["enable", "gui/501/cc.cortex.agent-server"],
-                false,
-                "",
-            ));
-            steps.push(step(
-                "/bin/launchctl",
-                &["bootstrap", "gui/501", path.to_str().unwrap()],
                 false,
                 "",
             ));
@@ -356,7 +350,11 @@ mod service {
             assert!(render_launchd(&value)
                 .unwrap()
                 .contains("<key>CORTEX_NPM_PREFIX</key>"));
-            assert_eq!(environment(&value).unwrap().len(), 3);
+            for key in ["NPM_CONFIG_PREFIX", "npm_config_prefix"] {
+                assert!(render_systemd(&value).unwrap().contains(&format!("Environment=\"{key}=/space dir/%%h/$literal\"")));
+                assert!(render_launchd(&value).unwrap().contains(&format!("<key>{key}</key>")));
+            }
+            assert_eq!(environment(&value).unwrap().len(), 5);
             value.npm_prefix = None;
             assert_eq!(environment(&value).unwrap().len(), 2);
         }

@@ -117,7 +117,8 @@ fn environment(launch: &ServiceLaunch) -> Result<Vec<(&str, &str)>, String> {
         if !prefix.is_absolute() {
             return Err("service npm prefix must be absolute".into());
         }
-        entries.push(("CORTEX_NPM_PREFIX", text(prefix.as_os_str())?));
+        let prefix = text(prefix.as_os_str())?;
+        entries.extend([("CORTEX_NPM_PREFIX", prefix), ("NPM_CONFIG_PREFIX", prefix), ("npm_config_prefix", prefix)]);
     }
     Ok(entries)
 }
@@ -427,20 +428,6 @@ fn verify_launchd(
     Ok(true)
 }
 
-fn bootstrap_launchd(runner: &mut Runner<'_>, domain: &str, path: &Path) -> Result<(), String> {
-    invoke(
-        runner,
-        "/bin/launchctl",
-        &[
-            OsStr::new("bootstrap"),
-            OsStr::new(domain),
-            path.as_os_str(),
-        ],
-        false,
-    )?;
-    Ok(())
-}
-
 fn enable_launchd(
     home: &Path,
     launch: &ServiceLaunch,
@@ -451,8 +438,8 @@ fn enable_launchd(
         .join(format!("{LABEL}.plist"));
     let content = render_launchd(launch)?;
     let matched = matches_file(&path, &content)?;
-    let (domain, target) = launchd_target(runner)?;
-    let loaded = verify_launchd(runner, &target, &path, launch, matched)?;
+    let (_, target) = launchd_target(runner)?;
+    verify_launchd(runner, &target, &path, launch, matched)?;
     ensure_file(&path, &content)?;
     invoke(
         runner,
@@ -460,8 +447,7 @@ fn enable_launchd(
         &[OsStr::new("enable"), OsStr::new(&target)],
         false,
     )?;
-    if !loaded {
-        bootstrap_launchd(runner, &domain, &path)?;
-    }
+    // LaunchAgents is loaded at the next login. Setup already owns the running daemon;
+    // bootstrapping now would repeatedly fail its singleton lock under KeepAlive.
     Ok(())
 }
