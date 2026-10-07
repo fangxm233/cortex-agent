@@ -13,7 +13,7 @@ const nativePorts: LocalSetupPorts = {
   cancelInstall: () => invokeNative('setup_cancel_install'),
   runInit: (bin, answers) => invokeNative('setup_run_init', { run: 'start', bin, answers }),
   enableUi: (bin, port) => invokeNative('setup_enable_ui', { run: 'start', bin, port }),
-  startDaemon: (bin, { url, token }) => invokeNative('setup_start_daemon', { run: 'start', bin, url, token }),
+  startDaemon: (bin, { url, token }, restart) => invokeNative('setup_start_daemon', { run: 'start', bin, url, token, restart }),
   enableAutostart: () => invokeNative('setup_enable_autostart', { run: 'start' }),
   connect: ({ url, token }, cortexBin) => invokeNative('connect', { serverUrl: url, token, local: { cortexBin } }),
 };
@@ -160,7 +160,8 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   const lang = useLang();
   const start = (machineName: string, installService: boolean, port: number) => {
     clearLog();
-    void flow.start({ lang, machineName, backends: ['pi'], installService, port });
+    void flow.start({ lang, machineName, backends: ['pi'], installService, port,
+      ...(state.probe?.os !== 'windows' ? { restartDaemon: true } : {}) });
   };
   const retry = () => {
     if (state.stage === 'prepare') void flow.prepare(lang);

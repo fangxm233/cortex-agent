@@ -237,24 +237,23 @@ fn wait_until_ready(url: &str, token: &str, budget: Duration) -> bool {
 
 /// Start (or restart) the local daemon and wait for it to answer.
 ///
-/// `restart` first, `daemon` when that reports nothing was running: a wizard run that just changed
-/// `.env` needs the *running* process replaced, because the file is read once at start — while a
-/// fresh install has nothing to restart. Doing both in that order covers install and repair with one
-/// path.
+/// Automatic POSIX setup preserves a running daemon. Only explicit failed-start repair may
+/// restart it after changing its endpoint. Windows retains its existing restart-first behavior.
 pub fn start_local_daemon(
     app: &AppHandle,
     run: &str,
     bin: &str,
     url: &str,
     token: &str,
+    restart: bool,
 ) -> Result<bool, String> {
-    let restarted = run_streaming(app, run, bin, &["daemon", "restart"])?;
-    if !restarted.ok() {
-        let started = run_streaming(app, run, bin, &["daemon"])?;
-        if !started.ok() {
-            return Err(format!("DAEMON_START_FAILED: {}", started.combined()));
-        }
+    if !restart && endpoint_answers(url, token) { return Ok(true); }
+    if restart {
+        let restarted = run_streaming(app, run, bin, &["daemon", "restart"])?;
+        if restarted.ok() { return Ok(wait_until_ready(url, token, DAEMON_READY_TIMEOUT)); }
     }
+    let started = run_streaming(app, run, bin, &["daemon"])?;
+    if !started.ok() { return Err(format!("DAEMON_START_FAILED: {}", started.combined())); }
     Ok(wait_until_ready(url, token, DAEMON_READY_TIMEOUT))
 }
 
@@ -538,8 +537,10 @@ pub async fn setup_start_daemon(
     bin: String,
     url: String,
     token: String,
+    restart: Option<bool>,
 ) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token))
+    let restart = restart.unwrap_or(cfg!(target_os = "windows"));
+    tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token, restart))
         .await
         .map_err(|e| format!("SETUP_TASK_FAILED: daemon: {e}"))?
 }

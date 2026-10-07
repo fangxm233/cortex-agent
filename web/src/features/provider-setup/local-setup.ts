@@ -16,7 +16,7 @@ export interface LocalSetupPorts {
   cancelInstall: () => Promise<unknown>;
   runInit: (bin: string, answers: NativeSetupAnswers) => Promise<{ version: string | null; clientToken: string | null; uiUrl: string | null }>;
   enableUi: (bin: string, port?: number) => Promise<Endpoint>;
-  startDaemon: (bin: string, endpoint: Endpoint) => Promise<boolean>;
+  startDaemon: (bin: string, endpoint: Endpoint, restart?: boolean) => Promise<boolean>;
   enableAutostart: () => Promise<unknown>;
   connect: (endpoint: Endpoint, cortexBin: string) => Promise<unknown>;
 }
@@ -141,7 +141,8 @@ export class LocalSetupFlow {
     const endpoint = await this.initialize(answers);
     const bin = this.state.bin ?? '';
     this.mark('daemon', 'running');
-    if (!await this.ports.startDaemon(bin, endpoint)) throw new Error('DAEMON_TIMEOUT');
+    const restart = this.state.probe?.os === 'windows' ? undefined : answers.restartDaemon === true;
+    if (!await this.ports.startDaemon(bin, endpoint, restart)) throw new Error('DAEMON_TIMEOUT');
     this.mark('daemon', 'done');
     if (answers.installService) await this.autostart();
     this.mark('connect', 'running');

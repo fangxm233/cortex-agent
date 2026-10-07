@@ -100,6 +100,18 @@ describe('local setup flow', () => {
     expect(calls).toEqual(['probe', 'probe', 'installServer']);
   });
 
+  it('automatic POSIX setup never requests a restart, while explicit repair can', async () => {
+    const restarts: (boolean | undefined)[] = [];
+    let ready = false;
+    const { flow } = fixture({ startDaemon: async (_bin, _endpoint, restart) => { restarts.push(restart); return ready; } });
+    await flow.prepare('en');
+    expect(restarts).toEqual([false]);
+    flow.configure();
+    ready = true;
+    await flow.start({ ...answers, restartDaemon: true });
+    expect(restarts).toEqual([false, true]);
+  });
+
   it('checks, installs and opens configuration', async () => {
     const { flow, calls } = fixture();
     await flow.prepare();

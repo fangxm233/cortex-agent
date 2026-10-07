@@ -65,6 +65,8 @@ export interface NativeSetupProbe {
 
 /** The `cortex init --answers` document the local setup sends. */
 export interface NativeSetupAnswers {
+  /** Only an explicit failed-start repair may replace the current POSIX daemon. */
+  restartDaemon?: boolean;
   lang: string;
   machineName: string;
   backends: string[];
@@ -121,7 +123,7 @@ interface NativeCommandMap {
     result: { version: string | null; clientToken: string | null; uiUrl: string | null };
   };
   setup_enable_ui: { args: { run: string; bin: string; port?: number }; result: { url: string; token: string } };
-  setup_start_daemon: { args: { run: string; bin: string; url: string; token: string }; result: boolean };
+  setup_start_daemon: { args: { run: string; bin: string; url: string; token: string; restart?: boolean }; result: boolean };
   setup_enable_autostart: { args: { run: string }; result: boolean };
   check_for_updates: { args: undefined; result: NativeCheckReport };
   get_app_update: { args: undefined; result: unknown };
