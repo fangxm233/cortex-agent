@@ -6,7 +6,9 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 不想用终端？ {#prefer-not-to-use-a-terminal}
 
-[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以替你安装并配置 Cortex：选择**安装 Cortex**，确认机器设置，再登录并选择默认 Profile。在受支持的 macOS 和 Linux 上，应用自动准备所需依赖，本地服务端设置不需要终端、Homebrew、Git 或管理员权限。Windows 需要另行安装 Node.js、npm 和 Git Bash。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
+[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以替你安装并配置 Cortex。在受支持的 macOS 和 Linux 上，选择**安装 Cortex**，等待安装与启动自动完成，再登录并选择默认 Profile。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；已有机器、端口和服务设置会被保留。只有初始化、启动或连接失败才提供修复设置。本地服务端设置不需要终端、Homebrew、Git 或管理员权限。
+
+Windows 需要另行安装 Node.js、npm 和 Git Bash，再在应用中填写机器设置并点击**启动 Cortex**确认。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
 
 自动安装依赖支持 macOS 13.5+ 与 glibc Linux（glibc 2.28+），架构为 x64 和 arm64。较旧系统已有兼容运行时时可以复用。此能力需要包含自动依赖安装功能的原生应用构建，单独更新前端无法提供；详见桌面应用指南。以下内容介绍终端安装与聊天平台设置。
 

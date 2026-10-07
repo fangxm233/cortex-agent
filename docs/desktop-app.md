@@ -41,7 +41,11 @@ The app keeps its managed Node.js and private npm prefix under `~/.cortex/runtim
 
 Windows requires Node.js 22.19.0 or newer, npm, and an external Git for Windows installation with Git Bash. Its existing global npm installation and upgrade behavior applies; automatic dependency installation is a macOS/Linux feature.
 
-Once installation is ready, enter the machine name and optionally enable auto-start or change the port under **Advanced settings**. PI is bundled with Cortex; this step does not ask you to choose backends. Clicking **Start Cortex** saves the configuration, starts the server, and connects. A new installation then opens provider setup at `/setup/providers` before entering the workbench.
+On macOS/Linux, installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, port 3004, and no login service. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default profile before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
+
+On Windows, enter the machine name after installation and optionally change the port under **Advanced settings**, then click **Start Cortex** to save the configuration, start the server, and connect. Windows does not offer service registration.
+
+If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; an explicitly selected port is applied when starting again. Download and installation failures offer retry, not machine settings.
 
 Automatic dependency setup requires a native app built with this installer and its matching bundled setup page. Updating the Web frontend or replacing `web/dist` does not add this capability to an already-built app.
 
@@ -49,9 +53,9 @@ For local development, launch the native app with `CORTEX_SETUP_SERVER_PACKAGE` 
 
 The installation step asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. Provider login and the default profile are configured after the server connects.
 
-A machine that already has a Cortex configuration keeps it. Setup enables or updates only the local connection endpoint; existing installations and connections do not automatically enter provider setup. On macOS/Linux, setup checks the selected installation even when it is already usable, so later launches use the same environment.
+A machine that already has a Cortex configuration keeps its machine identity and service settings. On macOS/Linux, automatic setup enables the local connection endpoint without overriding its configured port or running initialization again. It checks the selected installation even when it is already usable, so later launches use the same environment. Existing installations and connections open the workbench rather than automatically entering provider setup.
 
-Because a local server has nothing else to start it, the app starts the daemon at launch whenever it is not already answering. Enabling autostart in the wizard additionally registers the service the server writes — a systemd user unit on Linux, a launchd agent on macOS — so scheduled tasks fire while the app is closed. Windows has no service registration, so the app's launch-time start is the only autostart there.
+The app starts the local daemon at launch whenever it is not already answering. Automatic macOS/Linux setup does not create or change a login service. If initialization needs repair, the new-install settings form offers **Start at login**: the native app writes and registers a systemd user unit on Linux or a launchd agent on macOS, so scheduled tasks can fire while the app is closed. Existing service settings are preserved. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
 To enable the endpoint on an existing install without the wizard, run one command on the server:
 
