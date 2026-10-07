@@ -108,6 +108,27 @@ test('enableLocalUi keeps existing credentials and unrelated env lines', async (
   assert.equal(result.url, 'http://127.0.0.1:4100');
 });
 
+test('automatic setup preserves a configured port and machine without rewriting env', async () => {
+  const configDir = makeConfigDir();
+  await enableLocalUi({ configDir, port: 14321 });
+  const envPath = path.join(configDir, '.env');
+  fs.appendFileSync(envPath, '\nCORTEX_MACHINE=existing-machine\n');
+  const before = fs.readFileSync(envPath, 'utf8');
+  const result = await enableLocalUi({ configDir });
+  assert.equal(result.port, 14321);
+  assert.equal(result.url, 'http://127.0.0.1:14321');
+  assert.equal(result.changed, false);
+  assert.equal(fs.readFileSync(envPath, 'utf8'), before);
+});
+
+test.each(['invalid', '0', '65536', '1.5'])('automatic setup rejects invalid configured port %s without overwriting it', async value => {
+  const configDir = makeConfigDir();
+  const envPath = path.join(configDir, '.env');
+  fs.writeFileSync(envPath, `CORTEX_UI_PORT=${value}\n`);
+  await assert.rejects(() => enableLocalUi({ configDir }), /port/i);
+  assert.equal(fs.readFileSync(envPath, 'utf8'), `CORTEX_UI_PORT=${value}\n`);
+});
+
 test('enableLocalUi re-points an existing endpoint when the port changes', async () => {
   const configDir = makeConfigDir();
   await enableLocalUi({ configDir });

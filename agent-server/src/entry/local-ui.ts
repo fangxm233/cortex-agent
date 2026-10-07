@@ -92,9 +92,9 @@ export async function enableLocalUi(options: {
   configDir: string;
   port?: number;
 }): Promise<LocalUiResult> {
-  const port = options.port ?? DEFAULT_LOCAL_UI_PORT;
   const envPath = path.join(options.configDir, '.env');
   const existing = existsSync(envPath) ? dotenv.parse(readFileSync(envPath, 'utf-8')) : {};
+  const port = resolveLocalUiPort(options.port, existing.CORTEX_UI_PORT);
 
   // Generate + append any missing auth token. Operates on a copy of the file's contents, never on
   // process.env, so a CLI run does not inherit or leak tokens from an unrelated running server.
@@ -112,10 +112,14 @@ export async function enableLocalUi(options: {
   }
   if (await mergeCorsOrigins(options.configDir)) changed = true;
 
-  return {
-    url: `http://127.0.0.1:${port}`,
-    token: clientToken,
-    port,
-    changed,
-  };
+  return { url: `http://127.0.0.1:${port}`, token: clientToken, port, changed };
+}
+
+/** Omitted port preserves configuration; an explicit repair can replace an invalid value. */
+function resolveLocalUiPort(requested: number | undefined, configured: string | undefined): number {
+  const port = requested ?? (configured?.trim() ? Number(configured) : DEFAULT_LOCAL_UI_PORT);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('Invalid local UI port; choose a port between 1 and 65535 and retry.');
+  }
+  return port;
 }
