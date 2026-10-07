@@ -15,6 +15,11 @@ pub fn redact_line(line: &str) -> String {
         "secret",
         "api_key",
         "apikey",
+        "_auth",
+        "bearer ",
+        "credential",
+        "signature",
+        "key=",
     ]
     .iter()
     .any(|key| lower.contains(key));

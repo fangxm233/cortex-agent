@@ -186,6 +186,8 @@ fn credentials_never_reach_install_events() {
         "token=fixture",
         "Authorization: Bearer fixture",
         "api_key=fixture",
+        "npm ERR! _auth=fixture",
+        "https://registry.example/package?X-Amz-Signature=fixture",
     ] {
         assert!(!redact_line(line).contains("fixture"));
         assert!(redact_line(line).contains("redacted"));
