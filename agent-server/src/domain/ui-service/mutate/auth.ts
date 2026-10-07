@@ -30,14 +30,18 @@ const FLOW_STATE_ERRORS: ReadonlyArray<[key: string, code: string]> = [
   ['ux.auth.flowNotWaiting', 'invalid-args'],
 ];
 
+const LOGIN_FLOW_ERROR_CODES: Readonly<Record<string, string>> = {
+  flow_conflict: 'already-exists',
+  stale_prompt: 'conflict',
+};
+
 function failure(error: unknown): Result<never> {
+  if (isLoginFlowError(error)) {
+    return { ok: false, code: LOGIN_FLOW_ERROR_CODES[error.code] ?? 'invalid-args', message: error.message };
+  }
   const message = error instanceof Error ? error.message : String(error);
   const stateError = FLOW_STATE_ERRORS.find(([key]) => message === t(key));
   if (stateError) return { ok: false, code: stateError[1], message };
-  if (isLoginFlowError(error)) {
-    const code = error.code === 'flow_conflict' ? 'already-exists' : 'invalid-args';
-    return { ok: false, code, message: error.message };
-  }
   return { ok: false, code: 'internal', message: t('ux.auth.flowFailed') };
 }
 

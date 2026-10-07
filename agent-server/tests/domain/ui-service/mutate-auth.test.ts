@@ -10,7 +10,7 @@ import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { EventBus } from '../../../src/events/event-bus.js';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import type { AuthLoginService } from '../../../src/domain/auth/login-service.js';
-import type { LoginFlowState } from '../../../src/domain/auth/login-flow.js';
+import { LoginFlowError, type LoginFlowState } from '../../../src/domain/auth/login-flow.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const STATE: LoginFlowState = {
@@ -174,6 +174,21 @@ test('duplicate auth response is a client error instead of an internal failure',
     message: 'Login flow is not waiting for a prompt response.',
   });
   assert.ok(!JSON.stringify(result).includes('duplicate-secret'));
+});
+
+test('a response to a superseded prompt maps to a conflict, not a bad request', async () => {
+  const fixture = makeAuthService();
+  fixture.service.respond = async () => {
+    throw new LoginFlowError('stale_prompt', 'Login flow is not waiting for a prompt response.');
+  };
+  const result = await handleAuthRespondPrompt(
+    { authLogin: fixture.service } as UiServiceDeps,
+    { flowId: 'flow-web', value: 'late-secret', promptId: 1 },
+  );
+
+  assert.deepEqual(result, {
+    ok: false, code: 'conflict', message: 'Login flow is not waiting for a prompt response.',
+  });
 });
 
 test('Web auth mutations cannot answer or cancel a chat-owned flow', async () => {
