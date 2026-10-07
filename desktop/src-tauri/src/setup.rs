@@ -464,6 +464,14 @@ fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: Option<u16>) -> Result
         .ok_or_else(|| format!("UI_ENABLE_FAILED: {}", outcome.combined()))
 }
 
+/// A saved runtime must be repaired explicitly, never replaced from a changed login PATH.
+pub fn local_runtime_needs_repair() -> bool {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    return process::selected_runtime().is_err();
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    false
+}
+
 /// Bring the local daemon up at launch, if it is not already answering.
 ///
 /// A local install makes this app responsible for the server's lifecycle: without autostart (Windows

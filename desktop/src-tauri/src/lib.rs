@@ -197,6 +197,7 @@ pub fn run() {
 
             // A local install has no one else to start it: bring the daemon up before the workbench
             // opens onto a dead server. Bounded — see setup::ensure_local_daemon.
+            let mut runtime_repair = false;
             if initial_config.mode == ConnectionMode::Local {
                 match (
                     initial_config.cortex_bin.as_deref(),
@@ -205,13 +206,14 @@ pub fn run() {
                 ) {
                     (Some(bin), Some(url), Some(token)) => {
                         let ready = setup::ensure_local_daemon(app.handle(), bin, url, token);
+                        runtime_repair = !ready && setup::local_runtime_needs_repair();
                         shell_log!("[cortex-desktop] local daemon ready={ready}");
                     }
                     _ => shell_log!("[cortex-desktop] local mode without a usable install record"),
                 }
             }
 
-            let open_workbench = connection::has_credentials(&initial_config);
+            let open_workbench = connection::has_credentials(&initial_config) && !runtime_repair;
             shell_log!("[cortex-desktop] initial credentials present={open_workbench}");
             // Bake the page's view of these credentials into the window's initialization_script
             // (below), so the launch document sees them before any bundle code runs.
@@ -260,7 +262,9 @@ pub fn run() {
             shell_log!("[cortex-desktop] title bar mode: {title_bar_mode}");
 
             // ── Open the window against the cortexui:// scheme (both platforms) ──
-            let url = webview_scripts::launch_url(initial_file);
+            let mut url = webview_scripts::launch_url(initial_file);
+            // Reuse the existing actionable installer error, without clearing credentials/config.
+            if runtime_repair { url.push_str("#/local"); }
             #[allow(unused_mut)]
             let mut win = tauri::WebviewWindowBuilder::new(
                 app,

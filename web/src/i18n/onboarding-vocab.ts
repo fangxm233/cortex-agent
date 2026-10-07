@@ -97,7 +97,7 @@ export const onboardingEn = {
   onbErrRuntimeDownloadFailed: 'Could not finish downloading. Check your connection and try again.',
   onbErrRuntimeIntegrityFailed: 'The download could not be used. Try again.',
   onbErrRuntimeUnsupported: 'Automatic installation is not supported on this computer. Use a supported system or connect to an existing server.',
-  onbErrRuntimeMissing: 'Some installation files are missing. Try installing again.',
+  onbErrRuntimeMissing: 'Some installation files are missing or unusable. Restore the original installation before trying again.',
   onbErrServerExternalUnsupported: 'Update your existing Cortex installation, then try again.',
   onbErrSetupCancelled: 'Installation cancelled. Try again when you’re ready.',
 };
@@ -198,7 +198,7 @@ export const onboardingZh: Record<keyof typeof onboardingEn, string> = {
   onbErrRuntimeDownloadFailed: '下载未能完成，请检查网络连接后重试。',
   onbErrRuntimeIntegrityFailed: '下载的文件无法使用，请重试。',
   onbErrRuntimeUnsupported: '此电脑不支持自动安装，请使用受支持的系统或连接已有服务器。',
-  onbErrRuntimeMissing: '部分安装文件缺失，请重试安装。',
+  onbErrRuntimeMissing: '部分安装文件缺失或不可用，请先恢复原有安装，再重试。',
   onbErrServerExternalUnsupported: '请更新已有的 Cortex 安装后重试。',
   onbErrSetupCancelled: '安装已取消，准备好后可重试。',
 };
