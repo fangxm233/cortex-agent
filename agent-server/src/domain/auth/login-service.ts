@@ -55,6 +55,14 @@ export function resolveAuthNoticeFlow(
   return state ? { kind: 'state', state } : { kind: 'expired' };
 }
 
+/** The flow a notice's login button reopens: one still running, or a success to replay. A notice
+ *  whose flow failed, was cancelled or expired starts a fresh login instead. */
+export function resumableNoticeFlow(resolution: AuthNoticeFlowResolution): LoginFlowState | null {
+  if (resolution.kind !== 'state') return null;
+  const { step } = resolution.state;
+  return step === 'failed' || step === 'cancelled' ? null : resolution.state;
+}
+
 export interface AuthLoginServiceDependencies {
   startFlow?: typeof startFlow;
   getFlowState?: typeof getFlowState;

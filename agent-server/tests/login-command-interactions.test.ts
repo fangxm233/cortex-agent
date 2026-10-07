@@ -81,6 +81,7 @@ function makeAuthService(
   const starts: StartLoginFlowInput[] = [];
   const responses: Array<{ flowId: string; value: string }> = [];
   const states = new Map<string, LoginFlowState>();
+  const pairStarts = new Map<string, number>();
   const service: AuthLoginService = {
     start: async input => {
       const pair = `flow-${input.backend}-${input.provider}`;
@@ -90,8 +91,9 @@ function makeAuthService(
         }
       }
       starts.push(input);
-      const sameIds = [...states.keys()].filter(id => id === pair || id.startsWith(`${pair}#`));
-      const flowId = sameIds.length === 0 ? pair : `${pair}#${sameIds.length + 1}`;
+      const count = (pairStarts.get(pair) ?? 0) + 1;
+      pairStarts.set(pair, count);
+      const flowId = count === 1 ? pair : `${pair}#${count}`;
       const state = { ...flowState(input, startStep, startNotice, expiresAt), flowId };
       states.set(flowId, state);
       return state;
@@ -292,10 +294,34 @@ test('Slack expired-card action reuses its flow and reports terminal or expired 
   });
   await clickRequiredAction(fixture, channel, bound);
   assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /succeeded/i);
-  fixture.auth.states.delete(current.flowId);
-  await clickRequiredAction(fixture, channel, bound);
-  assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /expired/i);
   assert.equal(fixture.auth.starts.length, 1);
+});
+
+test('Slack notice action starts a fresh login after its flow failed, was cancelled or expired', async () => {
+  const fixture = setup();
+  const channel = 'slack:C-retry';
+  const initial = requiredLoginAction(channel);
+  const reboundAction = () => {
+    const blocks = fixture.adapter.updated.at(-1)?.content.richBlocks ?? [];
+    const actions = blocks.find(block => block.type === 'actions');
+    assert.ok(actions?.type === 'actions');
+    return actions.elements[0];
+  };
+
+  await clickRequiredAction(fixture, channel, initial);
+  fixture.auth.states.set('flow-pi-dual-auth', {
+    ...fixture.auth.states.get('flow-pi-dual-auth')!, step: 'failed', pendingPrompt: null,
+  });
+  await clickRequiredAction(fixture, channel, reboundAction());
+  assert.equal(JSON.parse(reboundAction().value).flowId, 'flow-pi-dual-auth#2');
+  await fixture.auth.service.cancel('flow-pi-dual-auth#2');
+  await clickRequiredAction(fixture, channel, reboundAction());
+  fixture.auth.states.delete('flow-pi-dual-auth#3');
+  await clickRequiredAction(fixture, channel, reboundAction());
+
+  assert.equal(fixture.auth.starts.length, 4);
+  assert.equal(JSON.parse(reboundAction().value).flowId, 'flow-pi-dual-auth#4');
+  assert.equal(fixture.adapter.modals.length, 4);
 });
 
 test('Feishu expired-card action opens the existing inline login form', async () => {

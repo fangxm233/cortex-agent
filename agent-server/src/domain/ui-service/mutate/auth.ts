@@ -5,6 +5,7 @@ import {
   isLoginFlowError,
   logoutAccount,
   resolveAuthNoticeFlow,
+  resumableNoticeFlow,
   syncGatewayFromBackends,
   type AuthLoginService,
   type LoginFlowState,
@@ -70,11 +71,8 @@ async function startWebNoticeFlow(
   service: AuthLoginService,
   args: MutateArgs<'auth.startLogin'> & { noticeId: string },
 ): Promise<Result<LoginFlowState>> {
-  const resolved = resolveAuthNoticeFlow(service, args.noticeId);
-  if (resolved.kind === 'expired') return missingWebFlow();
-  if (resolved.kind === 'state' && isWebOwnedState(resolved.state)) {
-    return { ok: true, data: resolved.state };
-  }
+  const resumable = resumableNoticeFlow(resolveAuthNoticeFlow(service, args.noticeId));
+  if (resumable && isWebOwnedState(resumable)) return { ok: true, data: resumable };
   const result = await asResult(() => startWebFlow(service, args));
   if (result.ok) bindAuthNoticeFlow(service, args.noticeId, result.data.flowId);
   return result;
