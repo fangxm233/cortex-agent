@@ -94,6 +94,8 @@ export const zhExtra = {
   stAdvToolCallsTitle: '内联工具调用渲染',
   stAdvDisableUserTitle: '禁用 USER.md 注入',
   stAdvDisableUpdateTitle: '禁用自动更新检查',
+  stAdvAutoUpdateTitle: '自动更新服务器',
+  stAdvAutoUpdateDesc: '发现新版本直接安装，空闲时重启',
   stAdvCommissionTitle: '委托模式',
   stAdvCommissionDesc: '可由你或 agent 发起的长任务',
   stAdvTeamTitle: '团队（实验性）',

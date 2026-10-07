@@ -80,6 +80,7 @@ export const updateCheckEn = {
   updateCheckInProgress: "An update is in progress. Try again later.",
   updateCheckRestartPending: 'An install or restart is already pending.',
   updateCheckNotScheduled: "Not checked this time.",
+  updateCheckAutoInstall: "Installing automatically; the server restarts when idle.",
 };
 
 export const updateCheckZh: Record<keyof typeof updateCheckEn, string> = {
@@ -164,4 +165,5 @@ export const updateCheckZh: Record<keyof typeof updateCheckEn, string> = {
   updateCheckInProgress: "正在更新，请稍后重试。",
   updateCheckRestartPending: '已有待执行的安装或重启。',
   updateCheckNotScheduled: "本次未检查。",
+  updateCheckAutoInstall: "正在自动安装，服务器空闲时重启。",
 };

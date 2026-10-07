@@ -11,9 +11,11 @@ export function updateStatusPollMs(state: SystemUpdateStatus['state']): number {
   return state === 'idle' ? 60_000 : 2_000;
 }
 
-/** The dialog is up for everything except `idle`, unless the user waved this version away. */
+/** The dialog is up for everything except `idle`, unless the user waved this version away.
+ *  An auto-update needs no dialog until it fails. */
 export function serverUpdateVisible(status: SystemUpdateStatus, dismissed: string | null): boolean {
   if (status.state === 'idle') return false;
+  if (status.auto && status.state !== 'failed') return false;
   return dismissed !== (status.available ?? '');
 }
 
@@ -32,7 +34,7 @@ function useManualServerResult(reopen: (value: null) => void) {
   const queryClient = useQueryClient();
   useEffect(() => subscribeManualCheckResult(({ server }) => {
     if (!server) return;
-    if (server.status === 'available' && server.update) {
+    if (server.status === 'available' && server.update && server.reason !== 'auto_install') {
       reopen(null);
       const available = server.update.version;
       queryClient.setQueryData(trpc.system.updateStatus.queryKey({}), (old) => {

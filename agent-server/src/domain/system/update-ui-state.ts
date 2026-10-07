@@ -8,6 +8,8 @@ export interface ServerUpdateStatus {
   state: ServerUpdateState;
   /** Set only in the `failed` state — the npm exit code / stderr tail. */
   error?: string;
+  /** The install was started by auto-update rather than by an answered prompt. */
+  auto?: true;
 }
 
 const IDLE: ServerUpdateStatus = { available: null, state: 'idle' };
@@ -59,13 +61,21 @@ export function settleServerUpdatePrompt(choice: UpdateChoice | null): void {
     : IDLE;
 }
 
+/** Auto-update starts an install with no prompt: any open prompt is retired without an answer. */
+export function startServerUpdateInstall(version: string): void {
+  const superseded = settleSink;
+  settleSink = null;
+  superseded?.(null);
+  status = { available: version, state: 'installing', auto: true };
+}
+
 /**
  * The npm install exited 0. That means "install finished", NOT "the server is already new":
  * the package's postinstall touches $STORE_DIR/.restart and the daemon respawns app.js when it
  * is idle, so `restarting` is the honest label for the window the SPA has to wait through.
  */
 export function reportServerUpdateInstalled(): void {
-  status = { available: status.available, state: 'restarting' };
+  status = { available: status.available, state: 'restarting', ...(status.auto ? { auto: true } : {}) };
 }
 
 export function reportServerUpdateFailed(error: string): void {

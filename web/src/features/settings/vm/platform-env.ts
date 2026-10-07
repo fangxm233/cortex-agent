@@ -50,6 +50,7 @@ export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'showToolCalls',
   'disableUserContext',
   'serverUpdateDisable',
+  'serverAutoUpdate',
   'commissionEnabled',
   'teamEnabled',
   'memoryIndexRegenEnabled',
@@ -98,6 +99,12 @@ export const ADVANCED_FLAGS: AdvancedFlag[] = [
   { kind: 'setting', setting: 'showToolCalls', titleKey: 'stAdvToolCallsTitle' },
   { kind: 'setting', setting: 'disableUserContext', titleKey: 'stAdvDisableUserTitle' },
   { kind: 'setting', setting: 'serverUpdateDisable', titleKey: 'stAdvDisableUpdateTitle' },
+  {
+    kind: 'setting',
+    setting: 'serverAutoUpdate',
+    titleKey: 'stAdvAutoUpdateTitle',
+    descKey: 'stAdvAutoUpdateDesc',
+  },
   {
     kind: 'setting',
     setting: 'commissionEnabled',

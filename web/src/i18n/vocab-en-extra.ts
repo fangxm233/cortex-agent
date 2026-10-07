@@ -94,6 +94,8 @@ export const enExtra = {
   stAdvToolCallsTitle: 'Inline tool-call rendering',
   stAdvDisableUserTitle: 'Disable USER.md injection',
   stAdvDisableUpdateTitle: 'Disable auto-update check',
+  stAdvAutoUpdateTitle: 'Auto-update server',
+  stAdvAutoUpdateDesc: 'installs new versions without asking; restarts when idle',
   stAdvCommissionTitle: 'Commission mode',
   stAdvCommissionDesc: 'long tasks you or the agent can start',
   stAdvTeamTitle: 'Team (experimental)',

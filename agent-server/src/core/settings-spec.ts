@@ -26,6 +26,7 @@ export interface Settings {
   diskMonitor: boolean;
   disableUserContext: boolean;
   serverUpdateDisable: boolean;
+  serverAutoUpdate: boolean;
   clientHotReloadEnabled: boolean;
   commissionEnabled: boolean;
   teamEnabled: boolean;
@@ -206,6 +207,9 @@ export const SETTINGS_SPEC = {
     default: false,
     legacyParse: (raw: string) => raw === '1',
   },
+  // A newer release found by the update check is installed without asking; the daemon restarts
+  // app.js once it is idle. Off falls back to the consent prompt.
+  serverAutoUpdate: { type: 'boolean', default: true },
   clientHotReloadEnabled: {
     type: 'boolean',
     default: true,

@@ -3,7 +3,9 @@ import { getSettings } from '@core/settings.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import type { UpdateState } from './update-state.js';
-import { answerServerUpdatePrompt, getServerUpdateStatus, reportServerUpdateFailed } from './update-ui-state.js';
+import {
+  answerServerUpdatePrompt, getServerUpdateStatus, reportServerUpdateFailed, startServerUpdateInstall,
+} from './update-ui-state.js';
 
 export interface SystemUpdateCheckResult {
   status: 'available' | 'current' | 'skipped' | 'error';
@@ -99,8 +101,25 @@ export class ServerUpdateCoordinator {
     if (compareCalVer(version, CORTEX_VERSION) <= 0) return this.current();
     const state = this.deps.loadState() ?? {};
     if (state.skippedVersion === version) return { status: 'skipped', reason: 'version_skipped' };
+    if (getSettings().serverAutoUpdate) return this.autoInstall(version, state);
     if (this.pending?.version === version) return available(version);
     return this.openPrompt(version, state);
+  }
+
+  /** The setting is the consent: install now and let the daemon restart app.js once idle. */
+  private autoInstall(version: string, state: UpdateState): SystemUpdateCheckResult {
+    this.deps.saveState({ ...state, lastCheckedAt: this.deps.now() });
+    this.pending = null;
+    startServerUpdateInstall(version);
+    try {
+      this.deps.spawnInstall();
+    } catch (error) {
+      reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
+      this.decision = Promise.resolve(null);
+      return CHECK_FAILED;
+    }
+    this.decision = Promise.resolve('apply');
+    return { ...available(version), reason: 'auto_install' };
   }
 
   private current(): SystemUpdateCheckResult {

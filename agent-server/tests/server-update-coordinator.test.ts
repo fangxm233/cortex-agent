@@ -9,7 +9,7 @@ import {
 } from '../src/domain/system/update-ui-state.js';
 import { handleSystemApplyUpdate } from '../src/domain/ui-service/mutate/system.js';
 
-const settings = vi.hoisted(() => ({ serverUpdateDisable: false }));
+const settings = vi.hoisted(() => ({ serverUpdateDisable: false, serverAutoUpdate: false }));
 vi.mock('../src/core/settings.js', () => ({ getSettings: () => settings }));
 const available = { status: 'available', update: { version: '9999.1.1' } };
 const failed = { status: 'error', reason: 'check_failed' };
@@ -30,6 +30,7 @@ function fixture(fallback: UpdatePrompt = { ask: async () => null }, fallbackMs 
 beforeEach(() => {
   vi.stubEnv('CORTEX_REPO', '');
   settings.serverUpdateDisable = false;
+  settings.serverAutoUpdate = false;
   _resetServerUpdateStatus();
 });
 afterEach(async () => {
@@ -289,5 +290,52 @@ describe('shared server update discovery', () => {
     await tick();
     expect(getServerUpdateStatus()).toMatchObject({ state: 'failed', error: 'spawn failed' });
     expect(await f.coordinator.check()).toEqual(available);
+  });
+});
+
+describe('server auto-update', () => {
+  const autoAvailable = { ...available, reason: 'auto_install' };
+  beforeEach(() => { settings.serverAutoUpdate = true; });
+
+  it('installs a newer release without prompting and blocks a second install', async () => {
+    const f = fixture();
+    expect(await f.coordinator.check()).toEqual(autoAvailable);
+    expect(f.ask).not.toHaveBeenCalled();
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus()).toEqual({ state: 'installing', available: '9999.1.1', auto: true });
+    expect(await f.coordinator.check()).toEqual({ status: 'skipped', reason: 'update_in_progress' });
+    reportServerUpdateInstalled();
+    expect(getServerUpdateStatus()).toEqual({ state: 'restarting', available: '9999.1.1', auto: true });
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('retires a prompt left open from before auto-update was turned on', async () => {
+    settings.serverAutoUpdate = false;
+    const f = fixture();
+    await f.coordinator.check();
+    const answer = f.ask.mock.results[0].value;
+    settings.serverAutoUpdate = true;
+    expect(await f.coordinator.check()).toEqual(autoAvailable);
+    expect(await answer).toBeNull();
+    expect(answerServerUpdatePrompt('apply')).toBe(false);
+    await tick();
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus()).toEqual({ state: 'installing', available: '9999.1.1', auto: true });
+  });
+
+  it('keeps a skipped version skipped', async () => {
+    const f = fixture();
+    f.saveState({ skippedVersion: '9999.1.1' });
+    expect(await f.coordinator.check()).toEqual({ status: 'skipped', reason: 'version_skipped' });
+    expect(f.spawnInstall).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed install start and retries on the next check', async () => {
+    const f = fixture();
+    f.spawnInstall.mockImplementationOnce(() => { throw new Error('spawn failed'); });
+    expect(await f.coordinator.check()).toEqual(failed);
+    expect(getServerUpdateStatus()).toEqual({ state: 'failed', available: '9999.1.1', error: 'spawn failed' });
+    expect(await f.coordinator.check()).toEqual(autoAvailable);
+    expect(f.spawnInstall).toHaveBeenCalledTimes(2);
   });
 });

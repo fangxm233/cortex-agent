@@ -492,6 +492,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `diskMonitor` | boolean | `true` | Check free space on the filesystem containing `$CORTEX_HOME` every five minutes and send a system notice below 500 MiB. `false` stops the timer; switching back to `true` runs an immediate check | `CORTEX_DISK_MONITOR` |
 | `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
+| `serverAutoUpdate` | boolean | `true` | When the update check finds a newer server release, install it without asking; the daemon restarts `app.js` once it is idle. `false` asks for confirmation instead. A skipped version stays skipped | — |
 | `commissionEnabled` | boolean | `true` | Kill switch for commission mode — contract-anchored long tasks. On by default: any session can enter the mode mid-conversation, either because the agent calls `cortex_commission_start` or because you flip the composer's commission capsule. Turn it off to refuse every entry point (create, composer, the start webhook) and stop injecting contract blocks; existing commissions stay readable on the board | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `false` | Experimental team mode: any web session can start and manage persistent worker sessions with the `worker_*` tools. Turning it off removes those tools from the next turn and leaves existing workers as ordinary sessions. See [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | Interval, in milliseconds, of the waitpoint sweep: it drains spooled signals (locally and from connected devices), expires overdue waitpoints, and retries deliveries that failed. See [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
@@ -510,7 +511,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`, `commissionEnabled`, `teamEnabled`, `sessionRetentionDays`,
+`serverUpdateDisable`, `serverAutoUpdate`, `commissionEnabled`, `teamEnabled`, `sessionRetentionDays`,
 `maxContextTokens`, `piCompactReserveTokens`, and the
 built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.

@@ -70,6 +70,9 @@ describe('server update visibility', () => {
     expect(serverUpdateVisible({ available: '2026.9.20', state: 'prompting' }, null)).toBe(true);
     expect(serverUpdateVisible({ available: '2026.9.20', state: 'prompting' }, '2026.9.20')).toBe(false);
     expect(serverUpdateVisible({ available: '2026.9.21', state: 'prompting' }, '2026.9.20')).toBe(true);
+    expect(serverUpdateVisible({ available: '2026.9.21', state: 'installing', auto: true }, null)).toBe(false);
+    expect(serverUpdateVisible({ available: '2026.9.21', state: 'restarting', auto: true }, null)).toBe(false);
+    expect(serverUpdateVisible({ available: '2026.9.21', state: 'failed', error: 'x' }, null)).toBe(true);
   });
 });
 

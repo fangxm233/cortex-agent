@@ -19,6 +19,7 @@ function reasonText(reason: string | undefined, L: Vocab): string | undefined {
     update_in_progress: L.updateCheckInProgress,
     restart_or_install_pending: L.updateCheckRestartPending,
     not_scheduled: L.updateCheckNotScheduled,
+    auto_install: L.updateCheckAutoInstall,
   };
   if (reason?.startsWith('dev version ')) return L.updateCheckDev;
   return reason ? reasons[reason] : undefined;
@@ -30,7 +31,9 @@ function channelFeedback(title: string, outcome: ChannelOutcome<unknown>, L: Voc
     skipped: L.updateCheckSkipped, error: L.updateCheckError,
   };
   // Unknown native errors can contain URLs/paths. Do not echo them into UI feedback.
-  const description = [descriptions[outcome.status], reasonText(outcome.reason, L)];
+  // An auto-install replaces the "ready for confirmation" wording rather than following it.
+  const status = outcome.reason === 'auto_install' ? undefined : descriptions[outcome.status];
+  const description = [status, reasonText(outcome.reason, L)];
   if (outcome.update && outcome.status !== 'available') description.push(L.updateCheckCached);
   return {
     title, description: description.filter(Boolean).join(' '), duration: 12_000,

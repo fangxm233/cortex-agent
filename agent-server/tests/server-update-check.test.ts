@@ -1,9 +1,15 @@
-import { describe, test, beforeAll, afterAll } from 'vitest';
+import { describe, test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { importFresh } from './helpers/fresh-module.js';
+
+// These cases cover the consent prompt; auto-update is covered in server-update-coordinator.test.ts.
+vi.mock('../src/core/settings.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/core/settings.js')>();
+  return { ...actual, getSettings: () => ({ ...actual.getSettings(), serverAutoUpdate: false }) };
+});
 
 // ── Helpers ─────────────────────────────────────────────────────
 

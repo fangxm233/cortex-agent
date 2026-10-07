@@ -216,18 +216,28 @@ When Cortex runs in release mode (no `CORTEX_REPO` environment variable),
 it periodically checks npm for a newer `@cortex-agent/server` version.
 The first check runs 60 seconds after startup, then every 24 hours.
 
-Auto-update is enabled by default. To disable it, set
+The check is enabled by default. To disable it, set
 `"serverUpdateDisable": true` in `$CORTEX_HOME/config/settings.json`
 (see [configuration.md](./configuration.md#configsettingsjson)); the legacy
 `CORTEX_SERVER_UPDATE_DISABLE=1` variable in `.env` is still read as a
 deprecated fallback.
 
-When a newer version is found, Cortex sends an interactive message to the
-admin DM with three buttons:
+With `serverAutoUpdate` on (the default), a newer version is installed as
+soon as the check finds it. Cortex runs
+`npm install -g @cortex-agent/server@latest` in a detached process; the
+package's post-install hook touches `.restart`, and the daemon restarts
+`app.js` once no turn is running. Remote clients receive the matching client
+release when they reconnect. A failed install is reported in the Web
+workbench and retried on the next check.
+
+With `"serverAutoUpdate": false`, Cortex asks first. The Web workbench shows
+the question as a dialog; if nobody answers it within 10 minutes, Cortex also
+sends an interactive message to the admin DM:
 
 | Button             | Behaviour                                                                                    |
 |--------------------|----------------------------------------------------------------------------------------------|
-| **Update**         | Spawns `npm install -g @cortex-agent/server@latest` in a detached process. The daemon's post-install hook touches `.restart`, which restarts `app.js` within ~30 seconds. |
+| **Update**         | Starts the same detached install and restart. |
+| **Release Note**   | Posts the release notes for the offered version. |
 | **Skip this version** | Dismisses the prompt and records the version in `update-state.json`. The same version will not be prompted again; the next release will trigger a new prompt. |
 | **Cancel**         | Dismisses the prompt. The next 24-hour check will re-prompt.                                 |
 

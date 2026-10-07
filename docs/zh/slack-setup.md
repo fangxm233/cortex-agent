@@ -167,15 +167,22 @@ cortex restart        # 触碰 $STORE_DIR/.restart
 它会定期检查 npm 上是否有更新的 `@cortex-agent/server` 版本。
 首次检查在启动后 60 秒进行，之后每 24 小时检查一次。
 
-自动更新默认开启。如需禁用，在 `$CORTEX_HOME/config/settings.json` 中设置
+更新检查默认开启。如需禁用，在 `$CORTEX_HOME/config/settings.json` 中设置
 `"serverUpdateDisable": true`（见 [configuration.md](./configuration.md#configsettingsjson)）；
 `.env` 中的旧变量 `CORTEX_SERVER_UPDATE_DISABLE=1` 仍作为已弃用的回退被读取。
 
-当发现新版本时，Cortex 会向管理员私信发送一条带三个按钮的交互消息：
+`serverAutoUpdate` 开启时（默认），检查一发现新版本就直接安装：Cortex 以分离进程执行
+`npm install -g @cortex-agent/server@latest`，包的 post-install 钩子触碰 `.restart`，
+守护进程在没有轮次运行时重启 `app.js`。远程客户端在重连时收到对应版本的客户端。
+安装失败会在 Web 工作台中提示，并在下一次检查时重试。
+
+设置 `"serverAutoUpdate": false` 时，Cortex 会先询问。Web 工作台以对话框提问；
+若 10 分钟内无人回应，Cortex 还会向管理员私信发送一条交互消息：
 
 | 按钮 | 行为 |
 |------|------|
-| **Update** | 以分离进程方式执行 `npm install -g @cortex-agent/server@latest`。守护进程的 post-install 钩子会触碰 `.restart`，从而在大约 30 秒内重启 `app.js`。 |
+| **Update** | 启动同样的分离安装与重启。 |
+| **Release Note** | 发送所提供版本的发布说明。 |
 | **Skip this version** | 关闭提示并将版本号记录到 `update-state.json` 中。同一版本不会再次提示；下一个新版本会触发新提示。 |
 | **Cancel** | 关闭提示。下一次 24 小时检查会重新提示。 |
 
