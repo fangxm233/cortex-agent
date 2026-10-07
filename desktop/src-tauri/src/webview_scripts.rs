@@ -144,13 +144,14 @@ mod tests {
             token: Some(token.into()),
             mode: ConnectionMode::Local,
             cortex_bin: Some("/home/someone/.npm/bin/cortex".into()),
+            provider_setup_pending: false,
         })
     }
 
     #[test]
     fn the_page_never_sees_the_local_install() {
         let script = init_script(&page_config("http://127.0.0.1:3004", "t"), "native");
-        assert!(script.contains(r#"{"serverUrl":"http://127.0.0.1:3004","token":"t"}"#));
+        assert!(script.contains(r#"{"serverUrl":"http://127.0.0.1:3004","token":"t","providerSetupPending":false}"#));
         assert!(!script.contains("cortexBin"));
         assert!(!script.contains("/home/someone"));
         assert!(!script.contains("\"mode\""));
@@ -161,7 +162,7 @@ mod tests {
         let script = init_script(&page_config("https://cortex.example.com", "t"), "native");
         assert!(launch_url("index.html").ends_with("/index.html?launch"));
         assert!(script.contains("has('launch')"));
-        assert!(script.contains(r#"launch ? {"serverUrl":"https://cortex.example.com","token":"t"} : null"#));
+        assert!(script.contains(r#"launch ? {"serverUrl":"https://cortex.example.com","token":"t","providerSetupPending":false} : null"#));
     }
 
     #[test]

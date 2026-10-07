@@ -34,6 +34,9 @@ pub struct ConnectionConfig {
     /// start the daemon without re-resolving it through a PATH the GUI may not have.
     #[serde(rename = "cortexBin", default, skip_serializing_if = "Option::is_none")]
     pub cortex_bin: Option<String>,
+    /// First local provider setup has not yet been explicitly finished or skipped.
+    #[serde(rename = "providerSetupPending", default)]
+    pub provider_setup_pending: bool,
 }
 
 /// The part of the connection the page may see: enough to reach the server. `mode` and `cortexBin`
@@ -43,11 +46,18 @@ pub struct PageConfig {
     #[serde(rename = "serverUrl")]
     pub server_url: Option<String>,
     pub token: Option<String>,
+    #[serde(rename = "providerSetupPending")]
+    pub provider_setup_pending: bool,
 }
 
 impl From<&ConnectionConfig> for PageConfig {
     fn from(config: &ConnectionConfig) -> Self {
-        PageConfig { server_url: config.server_url.clone(), token: config.token.clone() }
+        PageConfig {
+            server_url: config.server_url.clone(),
+            token: config.token.clone(),
+            provider_setup_pending: config.mode == ConnectionMode::Local
+                && config.provider_setup_pending,
+        }
     }
 }
 
@@ -64,6 +74,9 @@ pub fn get_connection_config(state: State<AppState>) -> PageConfig {
 pub struct LocalInstall {
     /// Absolute path of the `cortex` executable that owns this install.
     pub cortex_bin: String,
+    /// Only fresh local setup may request onboarding; omitted by older frontends.
+    #[serde(default)]
+    pub provider_setup_pending: bool,
 }
 
 /// Persist credentials to the platform credential store and update AppState.
@@ -89,6 +102,7 @@ pub async fn connect(
         token: Some(token),
         mode: if local.is_some() { ConnectionMode::Local } else { ConnectionMode::Remote },
         cortex_bin: local.map(|l| l.cortex_bin),
+        provider_setup_pending: false,
     };
     if let Err(e) = creds::save(&app, &config) {
         shell_log!(
@@ -179,9 +193,11 @@ mod tests {
             token: Some("t".into()),
             mode: ConnectionMode::Local,
             cortex_bin: Some("/usr/local/bin/cortex".into()),
+            provider_setup_pending: true,
         };
         let restored: ConnectionConfig =
             serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        assert!(restored.provider_setup_pending);
         assert_eq!(restored.mode, ConnectionMode::Local);
         assert_eq!(restored.cortex_bin.as_deref(), Some("/usr/local/bin/cortex"));
     }
