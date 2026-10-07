@@ -111,7 +111,8 @@ fn install_claude(app: &AppHandle) -> Result<ClaudeStatus, String> {
     guard_local_connection(app)?;
     ensure_installed(probe_claude, || {
         guard_local_connection(app)?;
-        let outcome = run_streaming(app, INSTALL_RUN, npm_bin(), &INSTALL_ARGS)?;
+        let args = install_args()?;
+        let outcome = run_streaming(app, INSTALL_RUN, npm_bin(), &args)?;
         if outcome.ok() {
             return Ok(());
         }
@@ -119,8 +120,25 @@ fn install_claude(app: &AppHandle) -> Result<ClaudeStatus, String> {
         if super::is_npm_permission_error(&log) {
             return Err("claude_npm_eacces".into());
         }
-        Err(format!("claude_install_failed: exit {}: {log}", outcome.code))
+        Err(format!(
+            "claude_install_failed: exit {}: {log}",
+            outcome.code
+        ))
     })
+}
+
+fn install_args() -> Result<Vec<std::ffi::OsString>, String> {
+    let args = INSTALL_ARGS
+        .iter()
+        .map(std::ffi::OsString::from)
+        .collect::<Vec<_>>();
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if let Some(selected) = super::process::selected_runtime()? {
+        let mut private = args;
+        private.extend(["--prefix".into(), selected.prefix.into_os_string()]);
+        return Ok(private);
+    }
+    Ok(args)
 }
 
 #[tauri::command]

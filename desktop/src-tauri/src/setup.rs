@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 use std::ffi::OsStr;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -6,6 +7,10 @@ use tauri::AppHandle;
 pub mod claude;
 mod package;
 mod process;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod runtime;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod service;
 
 use package::{server_package, validate_server_version};
 use process::{
@@ -179,7 +184,7 @@ pub fn answers_json(answers: &SetupAnswers) -> String {
         "machineName": answers.machine_name,
         "backends": answers.backends,
         "platforms": [],
-        "installService": answers.install_service,
+        "installService": answers.install_service && !cfg!(any(target_os = "macos", target_os = "linux")),
         "localUi": { "enabled": true, "port": answers.port },
     })
     .to_string()
@@ -290,14 +295,16 @@ pub struct SetupProbe {
 pub async fn setup_probe() -> Result<SetupProbe, String> {
     tauri::async_runtime::spawn_blocking(probe_machine)
         .await
-        .map_err(|e| format!("SETUP_TASK_FAILED: probe: {e}"))
+        .map_err(|e| format!("SETUP_TASK_FAILED: probe: {e}"))?
 }
 
-fn probe_machine() -> SetupProbe {
+fn probe_machine() -> Result<SetupProbe, String> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    process::selected_runtime()?;
     let node = probe_output("node", &["-v"]);
     let cortex_bin = resolve_cortex_bin();
     let server_version = cortex_bin.as_deref().and_then(probe_server_version);
-    SetupProbe {
+    Ok(SetupProbe {
         node_ok: node
             .as_deref()
             .is_some_and(|v| version_at_least(v, &min_node_version())),
@@ -318,7 +325,7 @@ fn probe_machine() -> SetupProbe {
         hostname: probe_output("hostname", &[]).map(|h| h.trim().to_string()),
         os: std::env::consts::OS,
         path: login_path().map(str::to_string),
-    }
+    })
 }
 
 /// Result of the install step: where the binary landed and what version it is.
@@ -338,6 +345,41 @@ pub async fn setup_install_server(app: AppHandle, run: String) -> Result<Install
         .map_err(|e| format!("SETUP_TASK_FAILED: install: {e}"))?
 }
 
+#[tauri::command]
+pub fn setup_cancel_install() {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    runtime::cancel_install();
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> {
+    let owner = runtime::InstallGuard::begin()?;
+    let home = cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
+    let package = server_package()?;
+    let selected = runtime::ensure_server(
+        &home,
+        &process::inherited_path(),
+        package.as_os_str(),
+        &min_node_version(),
+        MIN_SERVER_VERSION,
+        owner.token(),
+        &|line| process::install_log(app, line),
+    )?;
+    let cortex_bin = selected
+        .server
+        .ok_or("CLI_NOT_ON_PATH")?
+        .bin
+        .to_string_lossy()
+        .into_owned();
+    let server_version = probe_server_version(&cortex_bin);
+    validate_server_version(server_version.as_deref())?;
+    Ok(InstallResult {
+        cortex_bin,
+        server_version,
+    })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
     let package = server_package()?;
     let outcome = run_streaming(
@@ -354,8 +396,7 @@ fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
             format!("SERVER_INSTALL_FAILED: {log}")
         });
     }
-    let cortex_bin = resolve_cortex_bin()
-        .ok_or_else(|| "CLI_NOT_ON_PATH".to_string())?;
+    let cortex_bin = resolve_cortex_bin().ok_or_else(|| "CLI_NOT_ON_PATH".to_string())?;
     let server_version = probe_server_version(&cortex_bin);
     validate_server_version(server_version.as_deref())?;
     Ok(InstallResult {
@@ -387,7 +428,8 @@ fn run_init(
     answers: &SetupAnswers,
 ) -> Result<InitResult, String> {
     let file = std::env::temp_dir().join(format!("cortex-init-{}.json", std::process::id()));
-    std::fs::write(&file, answers_json(answers)).map_err(|e| format!("ANSWERS_FILE_FAILED: {e}"))?;
+    std::fs::write(&file, answers_json(answers))
+        .map_err(|e| format!("ANSWERS_FILE_FAILED: {e}"))?;
     let path = file.to_string_lossy().to_string();
     let outcome = run_streaming(app, run, bin, &["init", "--answers", &path, "--json"]);
     let _ = std::fs::remove_file(&file);
@@ -487,6 +529,30 @@ pub async fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool,
         .map_err(|e| format!("SETUP_TASK_FAILED: autostart: {e}"))?
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
+    let selected =
+        process::selected_runtime()?.ok_or("RUNTIME_MISSING: installation record unavailable")?;
+    let server = selected.server.as_ref().ok_or("CLI_NOT_ON_PATH")?;
+    let mut args = Vec::new();
+    let program = if server.managed {
+        args.push(server.bin.clone().into_os_string());
+        selected.node.clone()
+    } else {
+        server.bin.clone()
+    };
+    args.push("daemon".into());
+    let launch = service::ServiceLaunch {
+        program,
+        args,
+        home: cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?,
+        path: selected.path(&process::inherited_path())?,
+        npm_prefix: Some(selected.prefix.clone()),
+    };
+    service::enable_user_service(app, run, &launch)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
     let home = std::env::var("HOME").unwrap_or_default();
     let Some((program, args)) = autostart_plan(std::env::consts::OS, &home) else {
@@ -617,7 +683,10 @@ mod tests {
         assert_eq!(doc["machineName"], "workbench");
         assert_eq!(doc["lang"], "zh");
         assert_eq!(doc["backends"], serde_json::json!(["pi"]));
-        assert_eq!(doc["installService"], true);
+        assert_eq!(
+            doc["installService"],
+            !cfg!(any(target_os = "macos", target_os = "linux"))
+        );
         assert_eq!(doc["localUi"]["enabled"], true);
         assert_eq!(doc["localUi"]["port"], 3004);
         assert_eq!(

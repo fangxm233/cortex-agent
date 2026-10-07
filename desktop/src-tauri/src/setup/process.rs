@@ -98,21 +98,57 @@ fn pump_stream(
                 SetupLogLine {
                     run: &run,
                     stream,
-                    line,
+                    line: redact_log_line(&line),
                 },
             );
         })
     })
 }
 
-fn setup_command(program: &str, args: &[impl AsRef<OsStr>]) -> Command {
+pub(super) fn inherited_path() -> std::ffi::OsString {
+    login_path()
+        .map(Into::into)
+        .unwrap_or_else(|| std::env::var_os("PATH").unwrap_or_default())
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub(super) fn selected_runtime() -> Result<Option<super::runtime::Selection>, String> {
+    let home = super::cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
+    super::runtime::Selection::load(&home)
+}
+
+fn redact_log_line(line: &str) -> String {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    return super::runtime::redact_line(line);
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    line.to_string()
+}
+
+pub(super) fn install_log(app: &AppHandle, line: &str) {
+    let _ = app.emit(
+        SETUP_LOG_EVENT,
+        SetupLogLine {
+            run: "install",
+            stream: "stdout",
+            line: redact_log_line(line),
+        },
+    );
+}
+
+fn setup_command(program: &str, args: &[impl AsRef<OsStr>]) -> Result<Command, String> {
     let mut command = Command::new(program);
-    // Output is piped to the setup UI; on Windows `npm.cmd` would otherwise flash a console.
-    crate::no_console_window(&mut command).args(args).stdin(Stdio::null());
-    if let Some(path) = login_path() {
-        command.env("PATH", path);
+    command.env("PATH", inherited_path());
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if let Some(selected) = selected_runtime()? {
+        command = selected.command(OsStr::new(program));
+        let home = super::cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
+        selected.apply(&mut command, &home, &inherited_path())?;
     }
-    command
+    // Output is piped to the setup UI; on Windows `npm.cmd` would otherwise flash a console.
+    crate::no_console_window(&mut command)
+        .args(args)
+        .stdin(Stdio::null());
+    Ok(command)
 }
 
 /// Each pipe has its own reader so a chatty stderr cannot deadlock stdout during npm/init.
@@ -122,7 +158,7 @@ pub(super) fn run_streaming(
     program: &str,
     args: &[impl AsRef<OsStr>],
 ) -> Result<RunOutcome, String> {
-    let mut child = setup_command(program, args)
+    let mut child = setup_command(program, args)?
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -139,7 +175,9 @@ pub(super) fn run_streaming(
         child.stderr.take().map(|s| Box::new(s) as _),
         "stderr",
     );
-    let status = child.wait().map_err(|e| format!("PROGRAM_FAILED: {program}: {e}"))?;
+    let status = child
+        .wait()
+        .map_err(|e| format!("PROGRAM_FAILED: {program}: {e}"))?;
     Ok(RunOutcome {
         code: status.code().unwrap_or(-1),
         stdout: out.join().unwrap_or_default(),
@@ -149,7 +187,7 @@ pub(super) fn run_streaming(
 
 /// Missing/failing probes mean "absent", not a wizard error.
 pub(super) fn probe_output(program: &str, args: &[&str]) -> Option<String> {
-    let out = setup_command(program, args).output().ok()?;
+    let out = setup_command(program, args).ok()?.output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -175,6 +213,18 @@ pub(super) fn resolve_cortex_bin() -> Option<String> {
 }
 
 pub(super) fn resolve_cli_bin(name: &str) -> Option<String> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if let Some(selected) = selected_runtime().ok()? {
+        if name == "cortex" {
+            return selected
+                .server
+                .map(|s| s.bin.to_string_lossy().into_owned());
+        }
+        let found = super::runtime::find_bin(name, &selected.path(&inherited_path()).ok()?);
+        if let Some(found) = found {
+            return Some(found.to_string_lossy().into_owned());
+        }
+    }
     let finder = if cfg!(target_os = "windows") {
         "where"
     } else {

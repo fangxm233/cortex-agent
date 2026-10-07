@@ -142,6 +142,7 @@ pub fn run() {
             setup::claude::setup_claude_status,
             setup::claude::setup_install_claude,
             setup::setup_install_server,
+            setup::setup_cancel_install,
             setup::setup_run_init,
             setup::setup_enable_ui,
             setup::setup_start_daemon,
