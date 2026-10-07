@@ -170,11 +170,12 @@ function StandaloneNotice({ notice }: { notice: LoginFlowNotice }) {
   return <div data-auth-notice="progress"><StatusLine>{notice.message}</StatusLine></div>;
 }
 
+// `border-solid` is needed: the global base rule strips input borders. Focus uses the
+// content-surface outline shared by every dialog control.
 const INPUT_CLASS =
-  'box-border min-h-9 w-full min-w-0 rounded-[var(--r-control)] border border-proto-line-3 ' +
+  'box-border min-h-9 w-full min-w-0 rounded-[var(--r-control)] border border-solid border-proto-line-3 ' +
   '[background:var(--material-control-bg)] px-1.5g py-1g text-ui text-state-ink ' +
-  'placeholder:text-proto-muted-3 focus-visible:border-state-run focus-visible:outline-none ' +
-  'focus-visible:ring-2 focus-visible:ring-state-run/30';
+  'placeholder:text-proto-muted-3 focus-visible:border-proto-accent';
 
 function PromptSelect({ prompt, value, onChange }: {
   prompt: PendingPrompt; value: string; onChange: (value: string) => void;
@@ -184,8 +185,10 @@ function PromptSelect({ prompt, value, onChange }: {
     value: option.id, label: option.label, description: option.description,
   }));
   if (!isMobile) {
+    // The option labels are the provider's own sentences, so the popup uses the dialog's font.
     return <Select data-auth-select density="bare" aria-labelledby="auth-login-prompt-label"
-      value={value} options={options} onValueChange={onChange} className={INPUT_CLASS} />;
+      value={value} options={options} onValueChange={onChange} className={INPUT_CLASS}
+      popupClassName="![font-family:inherit] !text-ui" />;
   }
   return (
     <select data-auth-select aria-labelledby="auth-login-prompt-label" value={value}
@@ -293,7 +296,7 @@ function LoginBody({ vm, controller, value, setValue, submit }: {
     cancelled: () => <p data-auth-cancelled className="break-words text-proto-muted">{vm.message}</p>,
   };
   return (
-    <div data-auth-flow-step={vm.kind} className="min-w-0 space-y-2g overflow-x-hidden">
+    <div data-auth-flow-step={vm.kind} className="min-w-0 space-y-2g">
       {controller.respondError && vm.kind === 'prompt' ? <FlowError detail={controller.respondError} /> : null}
       {content[vm.kind]()}
     </div>
