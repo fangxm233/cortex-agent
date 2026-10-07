@@ -99,15 +99,15 @@ Claude Code sessions are pooled by engine key for reuse (`SessionEngines`,
 `domain/runs/engines.ts`). Cost reporting reverse-derives USD from
 `message.usage` token counts using Anthropic's published pricing.
 
-The session-retention coordinator also syncs Claude's user-level
-`cleanupPeriodDays` into `$CLAUDE_CONFIG_DIR/settings.json` (or
-`~/.claude/settings.json`) using the same `sessionRetentionDays` value from
-Cortex runtime settings. That write is a merge into the user settings file only:
-it preserves every other Claude key, does not touch project-local
-`.claude/settings.local.json` or `.claude/settings.json` files in the spawn cwd,
-and does not take ownership of hook/permission configuration outside that one
-helper key. If the user file already has the same `cleanupPeriodDays`, nothing is
-rewritten.
+Every `claude` process Cortex starts runs with
+`CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude`, Cortex's own Claude Code config
+directory, so its transcripts, user settings, plugins and login stay apart from
+a terminal `claude` using `~/.claude`. A pinned benchmark trial keeps the
+config directory its own environment names. The directory, its one-time seed
+from `~/.claude/settings.json`, and the plugin install command are described in
+[Configuration → Claude Code config directory](./configuration.md#claude-code-config-directory).
+The session-retention coordinator keeps that directory's `cleanupPeriodDays` equal
+to the `sessionRetentionDays` runtime setting, preserving every other key.
 
 ## PI
 
@@ -310,9 +310,10 @@ criterion was true for 7 of 39 providers; the list is discovered dynamically,
 so API-key-only providers never show a non-functional OAuth option. Claude Code
 similarly offers API-key and subscription choices through the selector.
 
-For a Claude Code subscription, Cortex starts `claude auth login --claudeai`,
-sends the command's authorization URL to the initiating channel, and writes the
-returned code to that command's standard input. Claude Code owns the OAuth
+For a Claude Code subscription, Cortex starts `claude auth login --claudeai`
+against its own Claude config directory, sends the command's authorization URL
+to the initiating channel, and writes the returned code to that command's
+standard input. Claude Code owns the OAuth
 exchange and credential persistence. Cortex marks the flow complete only after
 an authentication-environment-scrubbed `claude auth status --json` reports
 `loggedIn: true`; it never reads or stores the resulting token. Subscription

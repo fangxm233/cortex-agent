@@ -30,7 +30,9 @@ $CORTEX_HOME/
 │   ├── session-registry.jsonl    # Session records, channel bindings, conversation headers + turns (single owner)
 │   ├── *.pre-2026.9.14.bak       # Retired sessions.json / conversation-ledger.json, kept one release after migration
 │   ├── retention-candidates.json # Two-sweep orphan retention markers
-│   └── conversation-history/     # Per-session transcript/history JSONL
+│   ├── conversation-history/     # Per-session transcript/history JSONL
+│   ├── claude/                   # Cortex's own Claude Code config dir (CLAUDE_CONFIG_DIR)
+│   └── pi/                       # Cortex's PI agent dir
 ├── .claude/
 │   └── settings.json             # Cortex-scaffolded Claude Code project settings
 ├── hooks/                        # Hook scripts (.mjs)
@@ -61,10 +63,10 @@ $CORTEX_HOME/
 5. **`$CORTEX_HOME/.claude/settings.json`** is the Cortex-scaffolded
    Claude Code project settings file. Claude Code may also read
    `<spawn cwd>/.claude/settings.local.json`, `<spawn cwd>/.claude/settings.json`,
-   and the user settings file at `$CLAUDE_CONFIG_DIR/settings.json`
-   (or `~/.claude/settings.json`). Cortex only scaffolds the `$CORTEX_HOME`
-   file; the retention helper separately syncs `cleanupPeriodDays` in the
-   user file.
+   and its user settings file, which for every Cortex-started `claude` is
+   `$CORTEX_HOME/data/claude/settings.json` (see
+   [Claude Code config directory](#claude-code-config-directory)). The
+   terminal's `~/.claude/settings.json` is not read.
 
 The `.env` file supports standard `KEY=VALUE` syntax and `#` comments.
 Environment variables already set in the shell take precedence over the
@@ -438,9 +440,9 @@ still refused at spawn — that is a typo, not a surface.
 ### Skills outside `pluginDirs`
 
 `pluginDirs` is not the whole skill layer. Claude Code loads its own on every
-spawn no matter what Cortex passes: the plugins enabled in
-`~/.claude/settings.json`, anything under `~/.claude/skills/`, and the CLI's
-built-in skills. Two environment fields reach them. `settingSources: []` stops the
+spawn no matter what Cortex passes: the plugins enabled in its setting files
+(installed under Cortex's Claude config directory, `$CORTEX_HOME/data/claude`),
+anything under `$CORTEX_HOME/data/claude/skills/`, and the CLI's built-in skills. Two environment fields reach them. `settingSources: []` stops the
 setting files being read at all, which removes the enabled plugins' skills;
 `skills: false` removes the layer outright, built-ins included, and takes the
 `Skill` tool with it. An environment that sets both sees no skills and no slash
@@ -661,23 +663,63 @@ Cortex-scaffolded Claude Code project settings file under the Cortex data root.
 never overwrites that path on later runs.
 
 Claude Code itself can also read higher-precedence project files in the spawn
-cwd (`.claude/settings.local.json`, then `.claude/settings.json`) and the user
-settings file at `$CLAUDE_CONFIG_DIR/settings.json` or `~/.claude/settings.json`.
-Cortex does not scaffold, sync, or overwrite those project-local cwd files at
-all; "never overwrite" here applies only to the `$CORTEX_HOME/.claude/settings.json`
-seed path above.
-
-The session-retention coordinator has one separate Claude housekeeping write:
-it merges `cleanupPeriodDays` into the user settings file
-(`$CLAUDE_CONFIG_DIR/settings.json` or `~/.claude/settings.json`) with a
-guarded read-merge-temp-sync-rename flow. That helper owns exactly one key,
-preserves every other Claude setting verbatim, and does not rewrite
-hook/permission ownership or any project-local `.claude` files.
+cwd (`.claude/settings.local.json`, then `.claude/settings.json`) and its user
+settings file in Cortex's Claude config directory (next section). Cortex does
+not scaffold, sync, or overwrite those project-local cwd files at all; "never
+overwrite" here applies only to the `$CORTEX_HOME/.claude/settings.json` seed
+path above.
 
 The file follows Claude Code's settings format with `hooks` and
 `permissions` sections. See [hooks.md](./hooks.md) for the hook
 system documentation. It has nothing to do with the Cortex runtime
 settings in [`config/settings.json`](#configsettingsjson).
+
+## Claude Code config directory
+
+Every `claude` process Cortex starts — session engines, subagent children, and
+the `claude auth login`, `status` and `logout` commands behind the login flow —
+runs with `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude`, whatever the daemon's
+own environment holds. It is Cortex's private Claude Code home, the counterpart
+of PI's `$CORTEX_HOME/data/pi`: transcripts (`projects/<encoded cwd>/<id>.jsonl`),
+the user settings file, user- and local-scope plugins, `.claude.json` and the
+login all live there. A terminal `claude` working from `~/.claude` and Cortex
+never see each other's sessions, settings or plugins. The `claude` binary itself
+still comes from `PATH`.
+
+**Login.** The directory has a login of its own; Cortex never copies or links
+the terminal's `.credentials.json`, because each OAuth refresh rotates the token
+and two copies would invalidate each other. Sign in from **Settings → Accounts**,
+with `!login cc` in chat, or with `cortex auth login --backend claude` (see
+[Remote login](./backends.md#remote-login)). On macOS the CLI keeps the login in
+the keychain item `Claude Code-credentials-<first 8 hex of sha256(config dir)>`.
+
+**`settings.json`.** The user settings file belongs to Cortex. When it does not
+exist, the server creates it at startup from the `model`, `effortLevel`,
+`modelSettings`, `autoCompactWindow`, `autoMemoryEnabled` and `env` keys of
+`~/.claude/settings.json`; once it exists the terminal file is never read again.
+The session-retention coordinator keeps one key in it current —
+`cleanupPeriodDays`, from the `sessionRetentionDays` runtime setting — and
+leaves every other key as it is. Edit the file directly to change what Cortex's
+Claude sessions use.
+
+**Plugins.** Plugins Cortex's Claude sessions should load are installed into
+this directory:
+
+```bash
+cd ~/.cortex
+CLAUDE_CONFIG_DIR=$HOME/.cortex/data/claude claude plugin install <plugin>@<marketplace> --scope project
+```
+
+Project- and local-scope installs record the plugin in
+`$CORTEX_HOME/.claude/settings*.json` and the plugin files under
+`$CORTEX_HOME/data/claude/plugins/`.
+
+**Sessions from `~/.claude`.** At startup the server moves, once, every file a
+live Claude session in the session registry owns under `~/.claude/projects` —
+its transcript, its turn backups and its sidecar directory — to the same path
+under `$CORTEX_HOME/data/claude/projects`, so those sessions keep resuming. A
+destination that already exists is never overwritten, and files no registry
+session owns stay where they are.
 
 ## defaults/config/ layout
 

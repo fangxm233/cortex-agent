@@ -29,7 +29,9 @@ $CORTEX_HOME/
 │   ├── session-registry.jsonl    # 会话记录、频道绑定、对话头与轮次（唯一所有者）
 │   ├── *.pre-2026.9.14.bak       # 已退役的 sessions.json / conversation-ledger.json，迁移后保留一个版本
 │   ├── retention-candidates.json # 两轮确认的孤儿保留标记
-│   └── conversation-history/     # 按会话分文件的 transcript/history JSONL
+│   ├── conversation-history/     # 按会话分文件的 transcript/history JSONL
+│   ├── claude/                   # Cortex 自己的 Claude Code 配置目录（CLAUDE_CONFIG_DIR）
+│   └── pi/                       # Cortex 的 PI agent 目录
 ├── .claude/
 │   └── settings.json             # Cortex 脚手架生成的 Claude Code 项目设置
 ├── hooks/                        # 钩子脚本（.mjs）
@@ -50,7 +52,7 @@ $CORTEX_HOME/
 2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。启动环境中已有的变量优先于文件，worker 继承 daemon 的环境。
 3. **`$CORTEX_HOME/config/settings.json`** 保存运行时行为设置。它在使用点按需读取，改动热更新生效；对它显式声明的每个键，它的优先级高于同一设置的旧环境变量。
 4. **`$CORTEX_HOME/config/profiles.json`** 在每次生成智能体时读取，用于解析模型、后端和额外环境变量。
-5. **`$CORTEX_HOME/.claude/settings.json`** 是 Cortex 脚手架生成的 Claude Code 项目设置文件。Claude Code 还可能读取 `<spawn cwd>/.claude/settings.local.json`、`<spawn cwd>/.claude/settings.json`，以及用户设置文件 `$CLAUDE_CONFIG_DIR/settings.json`（或 `~/.claude/settings.json`）。Cortex 只脚手架 `$CORTEX_HOME` 这一份；保留期助手会单独同步用户文件里的 `cleanupPeriodDays`。
+5. **`$CORTEX_HOME/.claude/settings.json`** 是 Cortex 脚手架生成的 Claude Code 项目设置文件。Claude Code 还可能读取 `<spawn cwd>/.claude/settings.local.json`、`<spawn cwd>/.claude/settings.json`，以及它的用户设置文件；对 Cortex 启动的每个 `claude`，这个文件是 `$CORTEX_HOME/data/claude/settings.json`（见 [Claude Code 配置目录](#claude-code-config-directory)）。终端的 `~/.claude/settings.json` 不会被读取。
 
 `.env` 文件支持标准的 `KEY=VALUE` 语法和 `#` 注释。已在 shell 中设置的环境变量优先于 `.env` 文件（dotenv 默认行为）。
 
@@ -353,8 +355,8 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 ### `pluginDirs` 之外的 skill {#skills-outside-plugindirs}
 
 `pluginDirs` 并不是 skill 层的全部。无论 Cortex 传什么，Claude Code 每次 spawn 都会加载
-它自己的那一份：`~/.claude/settings.json` 里启用的 plugin、`~/.claude/skills/` 下的内容，
-以及 CLI 的内置 skill。有两个执行环境字段能够到它们。`settingSources: []` 让设置文件根本
+它自己的那一份：其设置文件里启用的 plugin（安装在 Cortex 的 Claude 配置目录
+`$CORTEX_HOME/data/claude` 下）、`$CORTEX_HOME/data/claude/skills/` 下的内容，以及 CLI 的内置 skill。有两个执行环境字段能够到它们。`settingSources: []` 让设置文件根本
 不被读取，于是启用的 plugin 带来的 skill 随之消失；`skills: false` 直接移除整层，内置的
 也不剩，连 `Skill` 工具一起拿掉。两个都设的执行环境看到的是零 skill、零斜杠命令。
 
@@ -462,11 +464,44 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 位于 `$CORTEX_HOME/.claude/settings.json`。这是 Cortex 数据根目录下由 Cortex 脚手架生成的 Claude Code 项目设置文件。`cortex init` 会从 `defaults/.claude/settings.json` 为它做一次初始化，之后 Cortex 不会再覆盖这个路径。
 
-但 Claude Code 自己还可能读取 spawn cwd 下更高优先级的项目文件（`.claude/settings.local.json`，然后 `.claude/settings.json`），以及用户设置文件 `$CLAUDE_CONFIG_DIR/settings.json` 或 `~/.claude/settings.json`。Cortex 完全不会脚手架、同步或覆盖这些 cwd 下的项目级 `.claude` 文件；这里说的“从不覆盖”只针对上面这个 `$CORTEX_HOME/.claude/settings.json` 种子路径。
-
-会话保留协调器另有一项独立的 Claude housekeeping 写入：它会用 guarded read-merge-temp-sync-rename 流程，把 `cleanupPeriodDays` 合并到用户设置文件（`$CLAUDE_CONFIG_DIR/settings.json` 或 `~/.claude/settings.json`）里。这个 helper 只拥有那一个键，保留其它所有 Claude 设置原样，不会接管 hooks/permissions 的归属，也不会改任何项目级 `.claude` 文件。
+但 Claude Code 自己还可能读取 spawn cwd 下更高优先级的项目文件（`.claude/settings.local.json`，然后 `.claude/settings.json`），以及 Cortex 的 Claude 配置目录里的用户设置文件（见下一节）。Cortex 完全不会脚手架、同步或覆盖这些 cwd 下的项目级 `.claude` 文件；这里说的“从不覆盖”只针对上面这个 `$CORTEX_HOME/.claude/settings.json` 种子路径。
 
 文件遵循 Claude Code 的设置格式，包含 `hooks` 和 `permissions` 部分。钩子系统文档参见 [hooks.md](./hooks.md)。它与 [`config/settings.json`](#configsettingsjson) 中的 Cortex 运行时设置毫无关系。
+
+## Claude Code 配置目录 {#claude-code-config-directory}
+
+Cortex 启动的每个 `claude` 进程——会话 engine、子智能体子进程，以及登录流程背后的
+`claude auth login`、`status`、`logout`——都以 `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude`
+运行，与 daemon 自身环境里的值无关。这是 Cortex 私有的 Claude Code 主目录，与 PI 的
+`$CORTEX_HOME/data/pi` 对应：transcript（`projects/<编码后的 cwd>/<id>.jsonl`）、用户设置文件、
+user 与 local 作用域的 plugin、`.claude.json` 和登录状态都在这里。使用 `~/.claude` 的终端
+`claude` 与 Cortex 互相看不到对方的会话、设置和 plugin。`claude` 二进制本身仍从 `PATH` 解析。
+
+**登录。** 这个目录有自己的登录；Cortex 从不复制或软链终端的 `.credentials.json`，因为每次
+OAuth 刷新都会轮换 token，两份副本会让彼此失效。在 **设置 → 账号**、聊天里的 `!login cc`，
+或 `cortex auth login --backend claude` 中登录（见[远程登录](./backends.md#remote-login)）。
+macOS 上 CLI 把登录保存在钥匙串条目 `Claude Code-credentials-<sha256(配置目录) 前 8 位十六进制>` 中。
+
+**`settings.json`。** 用户设置文件归 Cortex 所有。文件不存在时，服务器在启动时用
+`~/.claude/settings.json` 中的 `model`、`effortLevel`、`modelSettings`、`autoCompactWindow`、
+`autoMemoryEnabled`、`env` 这几个键创建它；文件存在之后就不再读取终端那份。会话保留协调器
+只维护其中一个键——`cleanupPeriodDays`，取自运行时设置 `sessionRetentionDays`——其余键保持原样。
+要改变 Cortex 的 Claude 会话使用的设置，直接编辑这个文件。
+
+**Plugin。** Cortex 的 Claude 会话要加载的 plugin 安装到这个目录：
+
+```bash
+cd ~/.cortex
+CLAUDE_CONFIG_DIR=$HOME/.cortex/data/claude claude plugin install <plugin>@<marketplace> --scope project
+```
+
+project 与 local 作用域的安装会把 plugin 记录在 `$CORTEX_HOME/.claude/settings*.json`，
+plugin 文件放在 `$CORTEX_HOME/data/claude/plugins/` 下。
+
+**来自 `~/.claude` 的会话。** 服务器启动时会一次性地把会话注册表中每个存活 Claude 会话在
+`~/.claude/projects` 下拥有的文件——transcript、turn 备份和 sidecar 目录——移动到
+`$CORTEX_HOME/data/claude/projects` 下的相同路径，这些会话因此可以继续 resume。已存在的目标
+文件从不覆盖；不属于任何注册表会话的文件原地保留。
 
 ## defaults/config/ 布局 {#defaultsconfig-layout}
 

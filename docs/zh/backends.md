@@ -45,7 +45,7 @@ Cortex 定义了后端可能支持的四种能力。编排层在尝试后端特�
 
 Claude Code 会话按 engine key 池化以复用（`SessionEngines`，`domain/runs/engines.ts`）。费用报告从 `message.usage` 令牌计数逆向推导 USD 费用，使用 Anthropic 发布的定价。
 
-session-retention 协调器还会把 Claude 用户级 `cleanupPeriodDays` 同步到 `$CLAUDE_CONFIG_DIR/settings.json`（或 `~/.claude/settings.json`）里，值来源于 Cortex 运行时设置中的 `sessionRetentionDays`。这次写入只会 merge 进用户设置文件：保留所有其它 Claude 键，不会碰 spawn cwd 下的项目级 `.claude/settings.local.json` 或 `.claude/settings.json`，也不会借此接管 hook/permission 配置的归属。若用户文件里已是相同的 `cleanupPeriodDays`，则不会重写文件。
+Cortex 启动的每个 `claude` 进程都以 `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude` 运行，这是 Cortex 自己的 Claude Code 配置目录，因此它的 transcript、用户设置、plugin 和登录都与使用 `~/.claude` 的终端 `claude` 分开。pinned 基准测试 trial 保留其自身环境指定的配置目录。该目录、从 `~/.claude/settings.json` 的一次性 seed，以及 plugin 安装命令见 [配置 → Claude Code 配置目录](./configuration.md#claude-code-config-directory)。session-retention 协调器让该目录的 `cleanupPeriodDays` 与运行时设置 `sessionRetentionDays` 保持一致，其余键保持原样。
 
 ## PI
 
@@ -136,7 +136,7 @@ API key、授权码或 provider 专用 OAuth 参数。
 因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 的 API key
 与订阅登录也通过选择器提供。
 
-Claude Code 订阅登录由 Cortex 启动 `claude auth login --claudeai`：命令输出的授权 URL
+Claude Code 订阅登录由 Cortex 针对自己的 Claude 配置目录启动 `claude auth login --claudeai`：命令输出的授权 URL
 发送到发起渠道，用户通过渠道表单提交返回的 code，Cortex 再把 code 写入该命令的标准输入。
 OAuth 交换和凭据持久化完全由 Claude Code 负责。只有在清空认证相关环境变量后执行
 `claude auth status --json` 并得到 `loggedIn: true`，Cortex 才会把流程标记为成功；
