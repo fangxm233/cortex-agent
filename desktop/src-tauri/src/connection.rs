@@ -200,6 +200,9 @@ pub fn has_credentials(config: &ConnectionConfig) -> bool {
 pub fn initial_route(config: &ConnectionConfig, runtime_repair: bool) -> (&'static str, &'static str) {
     if runtime_repair { return ("connect.html", "#/local"); }
     if !has_credentials(config) { return ("connect.html", ""); }
+    if config.mode == ConnectionMode::Local && config.provider_setup_pending {
+        return ("index.html", "#/setup/providers");
+    }
     ("index.html", "")
 }
 
