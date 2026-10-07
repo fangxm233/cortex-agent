@@ -92,6 +92,15 @@ async function initialize(f: Fixture) {
   return endpoint;
 }
 
+async function preserveExistingEndpoint(f: Fixture, endpoint: { uiUrl: string; clientToken: string }) {
+  const envPath = join(f.env.CORTEX_HOME!, 'config/.env');
+  const before = readFileSync(envPath, 'utf8');
+  const result = await command(f, [f.cli, 'ui', 'enable', '--json']);
+  expect(result.code, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ url: endpoint.uiUrl, token: endpoint.clientToken, changed: false });
+  expect(readFileSync(envPath, 'utf8')).toBe(before);
+}
+
 async function waitUntil<T>(action: () => Promise<T>, message: string): Promise<T> {
   const deadline = Date.now() + 60_000;
   let last: unknown;
@@ -150,6 +159,7 @@ test.skipIf(!enabled)('thin package installs and restarts a real daemon with onl
   const f = await fixture();
   await install(f);
   const endpoint = await initialize(f);
+  await preserveExistingEndpoint(f, endpoint);
   for (let launch = 0; launch < 2; launch++) {
     await startDaemon(f);
     const auth = await waitUntil(() => query(endpoint, 'auth.status'), 'provider readiness') as { piRuntime: { available: boolean } };
