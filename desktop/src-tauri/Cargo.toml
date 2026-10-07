@@ -82,6 +82,11 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 # Reuse the locked native notification backend without pulling it into Android.
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 notify-rust = "=4.18.0"
+# Official runtime archives are verified and unpacked in-process (no system tar/installer).
+flate2 = "1"
+tar = "0.4"
+tempfile = "3"
+libc = "0.2"
 
 # objc2: measures the title bar buttons in src/traffic_lights.rs. Same versions tao and wry lock.
 [target.'cfg(target_os = "macos")'.dependencies]
