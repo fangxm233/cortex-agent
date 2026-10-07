@@ -44,7 +44,11 @@ function pendingSave(invoke: ReturnType<typeof vi.fn>) {
 }
 
 it.each(['skip', 'continue'])('actual page persists %s before navigating and blocks repeat exits', async action => {
-  const { invoke, sync, select } = pageFixture('ready');
+  const { invoke, sync, select, status, config } = pageFixture('ready');
+  if (action === 'skip') {
+    status.mockResolvedValue({ accounts: [], piRuntime: { available: true } });
+    config.mockResolvedValue({ profiles: null });
+  }
   const resolve = pendingSave(invoke);
   const view = await renderPage();
   const click = exitButton(view, action).props.onClick;
@@ -88,16 +92,16 @@ it('login completion refreshes readiness but never finishes onboarding', async (
   act(() => view.unmount());
 });
 
-it('keeps the page on save failure, hides raw details and permits a scoped retry', async () => {
-  const { invoke } = pageFixture();
+it.each(['skip', 'continue'])('%s keeps the page on save failure, hides raw details and permits retry', async action => {
+  const { invoke } = pageFixture('ready');
   invoke.mockRejectedValueOnce(new Error('save failed: fixture-original /private/credentials'));
   const view = await renderPage();
-  await act(async () => exitButton(view, 'skip').props.onClick());
+  await act(async () => exitButton(view, action).props.onClick());
   expect(navigate).not.toHaveBeenCalled();
   expect(view.root.findByProps({ role: 'alert' }).children).toEqual(['Could not save setup progress. Try again.']);
   expect(JSON.stringify(view.toJSON())).not.toContain('fixture-original');
-  expect(exitButton(view, 'skip').props.disabled).toBe(false);
-  await act(async () => exitButton(view, 'skip').props.onClick());
+  expect(exitButton(view, action).props.disabled).toBe(false);
+  await act(async () => exitButton(view, action).props.onClick());
   expect(invoke).toHaveBeenCalledTimes(2);
   expect(navigate).toHaveBeenCalledTimes(1);
   act(() => view.unmount());
@@ -119,7 +123,10 @@ it('captures original identity and pending once, despite a later injected connec
   act(() => view.unmount());
 });
 
-it.each(['browser', 'legacy', 'unmarked', 'remote'])('%s manual provider visits never invoke completion', async mode => {
+it.each([
+  ['browser', 'skip'], ['browser', 'continue'], ['legacy', 'skip'], ['legacy', 'continue'],
+  ['unmarked', 'skip'], ['unmarked', 'continue'], ['remote', 'skip'], ['remote', 'continue'],
+])('%s manual provider visits never invoke completion on %s', async (mode, action) => {
   const { invoke } = pageFixture('ready');
   if (mode === 'browser') vi.stubGlobal('__CORTEX_DESKTOP__', false);
   else vi.stubGlobal('__CORTEX_DESKTOP_CONFIG', { serverUrl: mode === 'remote' ? 'https://remote.example' : initialConnection.serverUrl,
@@ -127,7 +134,7 @@ it.each(['browser', 'legacy', 'unmarked', 'remote'])('%s manual provider visits 
   const view = await renderPage();
   vi.stubGlobal('__CORTEX_DESKTOP_CONFIG', { ...initialConnection });
   act(() => view.update(<ProviderSetupPage />));
-  await act(async () => exitButton(view, 'skip').props.onClick());
+  await act(async () => exitButton(view, action).props.onClick());
   expect(invoke).not.toHaveBeenCalled();
   expect(navigate).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledWith('/workbench', { replace: true });
