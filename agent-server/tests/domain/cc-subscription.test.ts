@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
+import { CLAUDE_CONFIG_HOME } from '../../src/core/paths.js';
 import {
   getFlowState,
   respondPrompt,
@@ -155,15 +156,10 @@ test('subscription maps CLI cancellation and timeout to stable LoginFlow errors'
 });
 
 test('the daemon env admits a legacy token only until Claude owns a credential', async (t) => {
-  const previousHome = process.env.HOME;
   const home = process.env.CORTEX_HOME!;
-  const credentialsPath = path.join(home, '.claude', '.credentials.json');
-  t.onTestFinished(() => {
-    if (previousHome === undefined) delete process.env.HOME;
-    else process.env.HOME = previousHome;
-  });
-  process.env.HOME = home;
-  fs.rmSync(path.dirname(credentialsPath), { recursive: true, force: true });
+  const credentialsPath = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
+  t.onTestFinished(() => fs.rmSync(credentialsPath, { force: true }));
+  fs.rmSync(credentialsPath, { force: true });
   fs.mkdirSync(path.join(home, 'config'), { recursive: true });
   fs.writeFileSync(
     path.join(home, 'config', '.env'),
