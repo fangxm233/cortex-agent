@@ -22,12 +22,15 @@ fn select_server_package(package: Option<&OsStr>) -> Result<OsString, String> {
 }
 
 pub(super) fn validate_server_version(version: Option<&str>) -> Result<(), String> {
-    if version.is_some_and(|v| super::version_at_least(v, super::MIN_SERVER_VERSION)) {
+    let version = version
+        .filter(|v| super::parse_version(v).is_some())
+        .ok_or("PROGRAM_FAILED: cortex version probe unavailable or invalid")?;
+    if super::version_at_least(version, super::MIN_SERVER_VERSION) {
         return Ok(());
     }
     Err(format!(
         "SERVER_TOO_OLD: {} < {}",
-        version.unwrap_or("unknown"),
+        version,
         super::MIN_SERVER_VERSION
     ))
 }
@@ -87,9 +90,17 @@ mod tests {
     }
 
     #[test]
-    fn installed_version_must_be_reported_and_meet_the_floor() {
-        for version in [None, Some(""), Some("unknown"), Some("2026.8.19")] {
+    fn unavailable_or_invalid_server_version_is_a_program_failure() {
+        for version in [None, Some(""), Some("unknown"), Some("not a version")] {
             let error = validate_server_version(version).unwrap_err();
+            assert!(error.starts_with("PROGRAM_FAILED: "), "{error}");
+        }
+    }
+
+    #[test]
+    fn installed_version_must_meet_the_floor() {
+        for version in ["2026.8.19", "2026.8.19-2"] {
+            let error = validate_server_version(Some(version)).unwrap_err();
             assert!(error.starts_with("SERVER_TOO_OLD: "));
             assert!(error.contains(super::super::MIN_SERVER_VERSION));
         }
