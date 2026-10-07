@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthAccountStatus, ConfigProfileEntry } from '@cortex-agent/ui-contract';
-import { ProviderSetupController, readyProfiles, orderedProviders, setupErrorText } from './provider-setup';
+import { ProviderSetupController, readyProfiles, setupErrorText } from './provider-setup';
 import { en, zh } from '@/i18n';
 
 const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => ({
@@ -26,11 +26,6 @@ function fixture() {
 }
 
 describe('provider onboarding', () => {
-  it('prioritizes configured providers and searches other dynamic capabilities', () => {
-    const rows = orderedProviders([account({ provider: 'z', label: 'Z' }), account({ provider: 'a', label: 'A', state: 'unknown', capabilities: ['api_key'] })], '');
-    expect(rows.map(row => row.provider)).toEqual(['z', 'a']);
-    expect(orderedProviders(rows, 'a')[0].capabilities).toEqual(['api_key']);
-  });
   it.each(['unknown', 'expired', 'logged-out'] as const)('does not count %s credentials as ready', state => {
     expect(readyProfiles([profile()], [account({ state })], true, true)).toEqual([]);
   });

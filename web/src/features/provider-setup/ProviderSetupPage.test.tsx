@@ -5,7 +5,7 @@ import type { AuthAccountStatus } from '@cortex-agent/ui-contract';
 import { ProviderSetupPage, ProviderSetupView } from './ProviderSetupPage';
 import { useTRPCClient } from '@/lib/trpc';
 import { ProviderSetupController } from './provider-setup';
-vi.mock('@/i18n', () => ({ useVocab: () => en, useLang: () => 'en' }));
+vi.mock('@/i18n', async importOriginal => ({ ...await importOriginal<typeof import('@/i18n')>(), useVocab: () => en, useLang: () => 'en' }));
 vi.mock('@/features/auth/LoginFlowModal', () => ({ LoginFlowModal: (props: object) => <aside {...props} /> }));
 vi.mock('@/lib/trpc', () => ({ useTRPCClient: vi.fn() }));
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
@@ -84,7 +84,7 @@ it.each(['', 'nondefault'])('actual page refuses Continue without a ready defaul
 it('login completion refreshes readiness but never finishes onboarding', async () => {
   const { invoke, sync } = pageFixture('ready');
   const view = await renderPage();
-  await act(async () => view.root.findByType('aside').props.onFlowStateChange({ step: 'done', flowId: 'fixture-login' }));
+  await act(async () => view.root.findByType('aside').props.onDone({ step: 'done', flowId: 'fixture-login' }));
   expect(sync).toHaveBeenCalledTimes(1);
   expect(exitButton(view, 'continue').props.disabled).toBe(false);
   expect(invoke).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ it('always offers warned skip, disables unready continuation and refreshes login
   expect(view.root.findByProps({ 'data-action': 'setup-continue' }).props.disabled).toBe(true);
   act(() => view.root.findByProps({ 'data-action': 'setup-skip' }).props.onClick());
   expect(leave).toHaveBeenCalledTimes(1);
-  await act(async () => view.root.findByType('aside').props.onFlowStateChange({ step: 'done', flowId: 'login' }));
+  await act(async () => view.root.findByType('aside').props.onDone({ step: 'done', flowId: 'login' }));
   expect(sync).toHaveBeenCalledTimes(1);
   view.unmount();
 });
@@ -168,9 +168,11 @@ it('opens the login target for the tapped provider row', async () => {
   });
   let view!: ReturnType<typeof create>;
   await act(async () => { await controller.load(); view = create(<ProviderSetupView controller={controller} leave={vi.fn()} />); });
-  const row = view.root.findAllByProps({ 'data-account-state': 'logged-out' })[0];
-  const provider = row.find(node => node.type === 'span' && !!node.props['data-provider-icon']).props['data-provider-icon'];
+  const rows = view.root.findAll(node => node.type === 'div' && node.props['data-account-row'] !== undefined);
+  expect(rows.map(row => row.props['data-account-row'])).toEqual(['anthropic', 'custom-provider', 'deepseek', 'openai-codex']);
+  expect(view.root.findAll(node => node.props['data-provider-brand'] === 'server')).toHaveLength(1);
+  const row = rows.find(node => node.props['data-account-row'] === 'deepseek')!;
   act(() => row.findByType('button').props.onClick());
-  expect(view.root.findByType('aside').props.target).toEqual({ backend: 'pi', provider, authType: 'api_key' });
+  expect(view.root.findByType('aside').props.target).toEqual({ backend: 'pi', provider: 'deepseek', authType: 'api_key', label: 'deepseek' });
   view.unmount();
 });
