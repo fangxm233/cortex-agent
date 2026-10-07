@@ -25,11 +25,12 @@ function authSnapshot() {
   return {
     generatedAt: '2030-01-01T00:00:00.000Z',
     accounts: [
-      { backend: 'claude', provider: 'anthropic', capabilities: ['api_key', 'oauth'] },
+      { backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'] },
       { backend: 'pi', provider: 'deepseek', capabilities: ['api_key'] },
-      { backend: 'pi', provider: 'openai-codex', capabilities: ['oauth'] },
+      { backend: 'pi', provider: 'openai-codex', label: 'OpenAI Codex', capabilities: ['oauth'] },
       { backend: 'pi', provider: 'openrouter', capabilities: ['api_key'] },
       { backend: 'pi', provider: 'dual-auth', capabilities: ['api_key', 'oauth'] },
+      { backend: 'pi', provider: 'dual-current', capabilities: ['api_key', 'oauth'], authType: 'api_key' },
     ],
     piRuntime: { available: true, version: 'test', entry: null, error: null },
   } as any;
@@ -75,14 +76,16 @@ function assertWebDelivery(messages: Extract<CortexEvent, { type: 'session.messa
   assert.equal(messages[0].sessionId, 'web-session');
   assert.equal(messages[0].channel, 'web:web-session');
   assert.equal(messages[0].noticeLevel, 'error');
-  assert.match(messages[0].text, /claude/);
-  assert.match(messages[0].text, /anthropic/);
+  assert.equal(
+    messages[0].text,
+    'Authentication for Claude failed (invalid API key). Use the sign-in button on this message to sign in again.',
+  );
   assert.deepEqual((messages[0] as any).authAction, {
     kind: 'auth-login',
     noticeId: (messages[0] as any).authAction.noticeId,
     backend: 'claude',
     provider: 'anthropic',
-    authType: 'oauth',
+    authType: 'api_key',
   });
   assert.equal(messages[0].text.includes('backend-session-456'), false);
   assert.equal(JSON.stringify((messages[0] as any).authAction).includes('backend-session-456'), false);
@@ -94,10 +97,9 @@ function assertPlatformDeliveries(posts: PostedMessage[]): void {
     { type: 'interactive-reply', conduit: 'feishu:oc_chat', sessionId: 'session-internal-123' },
     { type: 'interactive-reply', conduit: 'slack:C2', sessionId: 'session-internal-123' },
   ]);
-  const feishuText = posts[0].content.text;
-  assert.match(feishuText, /pi/);
-  assert.match(feishuText, /openai-codex/);
-  assert.match(posts[1].content.text, /openrouter/);
+  assert.equal(posts[0].content.text, 'OpenAI Codex 的认证已失效（OAuth 登录已过期）。请点击此消息中的登录按钮重新认证。');
+  assert.match(posts[1].content.text, /^Authentication for openrouter failed/);
+  assert.equal(JSON.stringify(posts).includes('`'), false);
   const actions = posts.map(post => post.content.richBlocks?.find(block => block.type === 'actions'));
   assert.ok(actions.every(block => block?.type === 'actions'));
   const metadata = actions.map(block => JSON.parse((block as any).elements[0].value));
@@ -115,11 +117,13 @@ test('a single auth.required routes once through Web, Feishu, and Slack with loc
     backend: 'claude', provider: 'anthropic', authType: 'api_key',
     channel: 'web:web-session', sessionId: 'backend-session-456',
   });
+  await flush();
   setLocale('zh');
   publishRequired(bus, {
     provider: 'openai-codex', authType: 'oauth', kind: 'oauth_expired',
     channel: 'feishu:oc_chat',
   });
+  await flush();
   setLocale('en');
   publishRequired(bus, { provider: 'openrouter', channel: 'slack:C2' });
   await flush();
@@ -128,17 +132,22 @@ test('a single auth.required routes once through Web, Feishu, and Slack with loc
   assertPlatformDeliveries(adapter.posted);
 });
 
-test('a dual-capability account receives an OAuth-prefilled action', async () => {
+test.each([
+  ['the failing credential', 'dual-auth', 'api_key', 'api_key'],
+  ['the account\'s current credential', 'dual-current', null, 'api_key'],
+  ['OAuth when nothing else is known', 'dual-auth', null, 'oauth'],
+  ['a supported type instead of an unsupported failing one', 'openai-codex', 'api_key', 'oauth'],
+] as const)('the login action prefills %s', async (_name, provider, authType, expected) => {
   const { bus, adapter } = setup();
 
-  publishRequired(bus, { provider: 'dual-auth', channel: 'slack:C-dual' });
+  publishRequired(bus, { provider, authType, channel: 'slack:C-dual' });
   await flush();
 
   const actions = adapter.posted[0].content.richBlocks?.find(block => block.type === 'actions');
   assert.ok(actions?.type === 'actions');
   const metadata = JSON.parse(actions.elements[0].value);
-  assert.equal(metadata.provider, 'dual-auth');
-  assert.equal(metadata.authType, 'oauth');
+  assert.equal(metadata.provider, provider);
+  assert.equal(metadata.authType, expected);
 });
 
 test('a repeated unresolved pair within 24 hours is suppressed', async () => {
