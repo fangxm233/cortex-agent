@@ -47,7 +47,7 @@ fn install_fixture(home: &Path, path: &OsStr) -> Result<Selection, String> {
     ensure_server(
         home,
         path,
-        OsStr::new("fixture.tgz"),
+        || Ok("fixture.tgz".into()),
         "22.19.0",
         "2026.8.20",
         &CancelToken::default(),
@@ -90,6 +90,16 @@ fn qualified_external_server_is_reused_but_old_server_is_not_overwritten() {
     assert!(!saved.server.as_ref().unwrap().managed);
     assert_eq!(saved.command(bin.as_os_str()).get_program(), bin);
     assert!(!home.join("install-count").exists());
+    ensure_server(
+        &home,
+        &path,
+        || panic!("reuse must not resolve an install package"),
+        "22.19.0",
+        "2026.8.20",
+        &CancelToken::default(),
+        &|_| {},
+    )
+    .unwrap();
     script(&bin, "echo 2025.1.1");
     let old = root.path().join("old");
     assert!(install_fixture(&old, &path)
@@ -99,9 +109,39 @@ fn qualified_external_server_is_reused_but_old_server_is_not_overwritten() {
 }
 
 #[test]
+fn external_server_is_reprobed_after_runtime_becomes_available() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("home");
+    let release = release_for(std::env::consts::OS, std::env::consts::ARCH).unwrap();
+    let staged = home
+        .join("runtime")
+        .join(release.archive.trim_end_matches(".tar.gz"));
+    fixture_runtime(root.path());
+    std::fs::create_dir_all(staged.parent().unwrap()).unwrap();
+    std::fs::rename(root.path().join("external"), &staged).unwrap();
+    let external = root.path().join("shebang/bin");
+    std::fs::create_dir_all(&external).unwrap();
+    let cortex = external.join("cortex");
+    std::fs::write(&cortex, "#!/usr/bin/env node\necho 2026.10.6\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&cortex, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut before = std::process::Command::new(&cortex);
+    before.env("PATH", &external);
+    assert!(output(before, &["--version"]).is_none());
+    let selected = install_fixture(&home, external.as_os_str()).unwrap();
+    assert_eq!(selected.node, staged.join("bin/node"));
+    assert!(!selected.server.unwrap().managed);
+    assert!(!home.join("install-count").exists());
+}
+
+#[test]
 fn npm_cancellation_kills_only_the_owned_process_group() {
     let _serial = CANCEL_TEST.lock().unwrap();
     let owner = InstallGuard::begin().unwrap();
+    let mut unrelated = std::process::Command::new("/bin/sleep")
+        .arg("30")
+        .spawn()
+        .unwrap();
     let mut command = std::process::Command::new("/bin/sh");
     command.args(["-c", "sleep 30 & wait"]);
     std::thread::scope(|scope| {
@@ -114,6 +154,29 @@ fn npm_cancellation_kills_only_the_owned_process_group() {
             "SETUP_CANCELLED"
         );
     });
+    assert!(unrelated.try_wait().unwrap().is_none());
+    unrelated.kill().unwrap();
+    unrelated.wait().unwrap();
+}
+
+#[test]
+fn failed_initial_npm_install_can_retry_without_reselecting_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let path = fixture_runtime(root.path());
+    let home = root.path().join("home");
+    script(
+        &root.path().join("external/bin/npm"),
+        "if [ \"$1\" = --version ]; then echo 11.0.0; else exit 17; fi",
+    );
+    assert!(install_fixture(&home, &path)
+        .unwrap_err()
+        .starts_with("SERVER_INSTALL_FAILED"));
+    let before = Selection::load(&home).unwrap().unwrap();
+    assert!(before.server.is_none());
+    fixture_runtime(root.path());
+    let after = install_fixture(&home, &path).unwrap();
+    assert_eq!(before.node, after.node);
+    assert!(after.server.unwrap().managed);
 }
 
 #[test]
@@ -134,21 +197,12 @@ fn credentials_never_reach_install_events() {
 }
 
 /// Deliberately opt-in: parent runs real bootstrap + npm install against an isolated thin tgz.
-/// HOME is not changed; CORTEX_HOME and npm prefix are child-local. No init/daemon/service is started.
+/// The dedicated test process isolates HOME/npm config. No init/daemon/service is started.
 #[test]
 #[ignore = "downloads official Node and installs the explicitly supplied server tgz"]
 fn isolated_real_bootstrap_and_install() {
-    let home = std::path::PathBuf::from(
-        std::env::var_os("CORTEX_RUNTIME_TEST_HOME").expect("set a NEW absolute isolated home"),
-    );
-    let package = std::path::PathBuf::from(
-        std::env::var_os("CORTEX_RUNTIME_TEST_PACKAGE").expect("set an absolute thin server tgz"),
-    );
-    assert!(
-        home.is_absolute() && !home.exists(),
-        "test home must not exist"
-    );
-    assert!(package.is_absolute() && package.is_file());
+    let (home, package) = integration_inputs();
+    isolate_integration_environment(&home);
     let owner = InstallGuard::begin().unwrap();
     let log = |line: &str| eprintln!("{}", redact_line(line));
     bootstrap(
@@ -162,7 +216,7 @@ fn isolated_real_bootstrap_and_install() {
     let selected = ensure_server(
         &home,
         OsStr::new("/usr/bin:/bin"),
-        package.as_os_str(),
+        || Ok(package.into_os_string()),
         "22.19.0",
         "2026.8.20",
         owner.token(),
@@ -170,12 +224,44 @@ fn isolated_real_bootstrap_and_install() {
     )
     .unwrap();
     assert!(selected.server.as_ref().unwrap().managed);
-    eprintln!(
-        "Isolated selection: {}",
-        home.join("runtime/selection.json").display()
-    );
+    let record = home.join("runtime/selection.json");
+    eprintln!("Isolated selection: {}", record.display());
     let reloaded = install_fixture(&home, OsStr::new("/nonexistent")).unwrap();
     assert_eq!(selected.node, reloaded.node);
+}
+
+// Only the explicitly filtered, ignored integration test calls this. Never run it alongside tests
+// that use process environment; the documented invocation runs exactly this one test.
+fn isolate_integration_environment(home: &Path) {
+    let login = home.join("test-login-home");
+    std::fs::create_dir_all(&login).unwrap();
+    for (key, _) in std::env::vars_os() {
+        if key
+            .to_string_lossy()
+            .to_ascii_lowercase()
+            .starts_with("npm_config_")
+        {
+            std::env::remove_var(key);
+        }
+    }
+    std::env::remove_var("CORTEX_NPM_PREFIX");
+    std::env::set_var("HOME", login);
+    std::env::set_var("CORTEX_HOME", home);
+}
+
+fn integration_inputs() -> (std::path::PathBuf, std::path::PathBuf) {
+    let home = std::path::PathBuf::from(
+        std::env::var_os("CORTEX_RUNTIME_TEST_HOME").expect("set a NEW absolute isolated home"),
+    );
+    let package = std::path::PathBuf::from(
+        std::env::var_os("CORTEX_RUNTIME_TEST_PACKAGE").expect("set an absolute thin server tgz"),
+    );
+    assert!(
+        home.is_absolute() && !home.exists(),
+        "test home must not exist"
+    );
+    assert!(package.is_absolute() && package.is_file());
+    (home, package)
 }
 
 #[test]

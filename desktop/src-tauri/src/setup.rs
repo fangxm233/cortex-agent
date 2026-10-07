@@ -13,9 +13,7 @@ mod runtime;
 mod service;
 
 use package::{server_package, validate_server_version};
-use process::{
-    login_path, npm_bin, probe_output, probe_server_version, resolve_cortex_bin, run_streaming,
-};
+use process::{npm_bin, probe_output, probe_server_version, resolve_cortex_bin, run_streaming};
 
 /// The oldest server release that understands `init --answers` / `ui enable`, i.e. the machine-driven
 /// surface this wizard drives. Both an existing install and the result of an npm install must
@@ -311,11 +309,9 @@ fn probe_machine() -> Result<SetupProbe, String> {
         node,
         npm: probe_output(npm_bin(), &["-v"]),
         // Git is only a prerequisite for the Windows shell. Avoid the macOS CLT shim.
-        git: if cfg!(target_os = "windows") {
-            probe_output("git", &["--version"])
-        } else {
-            None
-        },
+        git: cfg!(target_os = "windows")
+            .then(|| probe_output("git", &["--version"]))
+            .flatten(),
         cortex_bin,
         server_ok: server_version
             .as_deref()
@@ -324,7 +320,7 @@ fn probe_machine() -> Result<SetupProbe, String> {
         home_exists: cortex_home().is_some_and(|p| p.join("config").is_dir()),
         hostname: probe_output("hostname", &[]).map(|h| h.trim().to_string()),
         os: std::env::consts::OS,
-        path: login_path().map(str::to_string),
+        path: process::effective_path(),
     })
 }
 
@@ -355,11 +351,10 @@ pub fn setup_cancel_install() {
 fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> {
     let owner = runtime::InstallGuard::begin()?;
     let home = cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
-    let package = server_package()?;
     let selected = runtime::ensure_server(
         &home,
         &process::inherited_path(),
-        package.as_os_str(),
+        server_package,
         &min_node_version(),
         MIN_SERVER_VERSION,
         owner.token(),
@@ -497,6 +492,7 @@ pub fn ensure_local_daemon(app: &AppHandle, bin: &str, url: &str, token: &str) -
 /// enable command. The app can run it, which is the difference between a checkbox that means
 /// something and one that writes a file nobody loads. None where the server registers no service at
 /// all (Windows), where the app's own launch-time start is the only autostart there is.
+#[cfg(any(test, not(any(target_os = "macos", target_os = "linux"))))]
 pub fn autostart_plan(os: &str, home: &str) -> Option<(String, Vec<String>)> {
     match os {
         "linux" => Some((

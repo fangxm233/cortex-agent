@@ -10,29 +10,35 @@ use std::{
 pub fn ensure_server(
     home: &Path,
     path: &OsStr,
-    package: &OsStr,
+    package: impl FnOnce() -> Result<std::ffi::OsString, String>,
     node_floor: &str,
     server_floor: &str,
     token: &CancelToken,
     log: &(impl Fn(&str) + Sync),
 ) -> Result<Selection, String> {
     let mut selected = super::bootstrap(home, path, node_floor, token, log)?;
-    if selected.server.is_some() {
-        check_server(&selected, home, path, server_floor)?;
-        return Ok(selected);
-    }
-    if let Some(bin) = external_server(&selected, home, path) {
-        selected.server = Some(Server {
+    if selected.server.is_none() {
+        selected.server = external_server(&selected, home, path).map(|bin| Server {
             bin,
             managed: false,
         });
+    }
+    if selected.server.is_some() {
         check_server(&selected, home, path, server_floor)?;
         token.check()?;
         selected.save(home)?;
-        log("Reusing supported external Cortex installation");
+        log("Reusing supported Cortex installation");
         return Ok(selected);
     }
-    install_managed(&mut selected, home, path, package, server_floor, token, log)?;
+    install_managed(
+        &mut selected,
+        home,
+        path,
+        &package()?,
+        server_floor,
+        token,
+        log,
+    )?;
     Ok(selected)
 }
 

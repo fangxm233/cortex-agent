@@ -15,30 +15,38 @@ pub struct Release {
 
 // Verified against https://nodejs.org/dist/v24.21.0/SHASUMS256.txt.
 // Platform floors: https://github.com/nodejs/node/blob/v24.21.0/BUILDING.md.
+const RELEASES: &[(&str, &str, &str, &str)] = &[
+    (
+        "macos",
+        "x86_64",
+        "darwin-x64",
+        "1462cb3b3046b815cf8ea436d3da450ec1a9f11dac7e5a46b0ada5305d7e8097",
+    ),
+    (
+        "macos",
+        "aarch64",
+        "darwin-arm64",
+        "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+    ),
+    (
+        "linux",
+        "x86_64",
+        "linux-x64",
+        "6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff",
+    ),
+    (
+        "linux",
+        "aarch64",
+        "linux-arm64",
+        "724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5",
+    ),
+];
+
 pub fn release_for(os: &str, arch: &str) -> Result<Release, String> {
-    let (target, sha256) = match (os, arch) {
-        ("macos", "x86_64") => (
-            "darwin-x64",
-            "1462cb3b3046b815cf8ea436d3da450ec1a9f11dac7e5a46b0ada5305d7e8097",
-        ),
-        ("macos", "aarch64") => (
-            "darwin-arm64",
-            "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
-        ),
-        ("linux", "x86_64") => (
-            "linux-x64",
-            "6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff",
-        ),
-        ("linux", "aarch64") => (
-            "linux-arm64",
-            "724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5",
-        ),
-        _ => {
-            return Err(
-                "RUNTIME_UNSUPPORTED: supported targets are macOS and glibc Linux x64/arm64".into(),
-            )
-        }
-    };
+    let (_, _, target, sha256) = RELEASES
+        .iter()
+        .find(|r| (r.0, r.1) == (os, arch))
+        .ok_or("RUNTIME_UNSUPPORTED: supported targets are macOS and glibc Linux x64/arm64")?;
     Ok(Release {
         archive: format!("node-v24.21.0-{target}.tar.gz"),
         sha256,
@@ -63,10 +71,9 @@ pub fn safe_link(member: &Path, target: &Path) -> Result<(), String> {
         .unwrap_or(Path::new(""))
         .components()
         .count();
-    for part in target.components() {
+    for part in target.components().filter(|c| *c != Component::CurDir) {
         match part {
             Component::Normal(_) => depth += 1,
-            Component::CurDir => (),
             Component::ParentDir if depth > 0 => depth -= 1,
             _ => return Err(integrity("unsafe archive link")),
         }
@@ -264,7 +271,11 @@ pub(super) fn extract(
             return Err(integrity("archive escaped staging directory"));
         }
     }
-    let root = stage.join(root).canonicalize().map_err(integrity)?;
+    validate_extracted_links(&stage.join(root), &links)
+}
+
+fn validate_extracted_links(root: &Path, links: &[PathBuf]) -> Result<(), String> {
+    let root = root.canonicalize().map_err(integrity)?;
     for link in links {
         if !link.canonicalize().map_err(integrity)?.starts_with(&root) {
             return Err(integrity("archive link escapes runtime root"));

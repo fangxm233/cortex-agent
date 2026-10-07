@@ -105,6 +105,17 @@ fn pump_stream(
     })
 }
 
+pub(super) fn effective_path() -> Option<String> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if let Some(selected) = selected_runtime().ok()? {
+        return selected
+            .path(&inherited_path())
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned());
+    }
+    login_path().map(str::to_string)
+}
+
 pub(super) fn inherited_path() -> std::ffi::OsString {
     login_path()
         .map(Into::into)
@@ -225,6 +236,10 @@ pub(super) fn resolve_cli_bin(name: &str) -> Option<String> {
             return Some(found.to_string_lossy().into_owned());
         }
     }
+    resolve_legacy_cli_bin(name)
+}
+
+fn resolve_legacy_cli_bin(name: &str) -> Option<String> {
     let finder = if cfg!(target_os = "windows") {
         "where"
     } else {
