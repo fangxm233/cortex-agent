@@ -10,6 +10,7 @@ import { ChevronIcon, MonitorIcon } from './onboarding-icons';
 const nativePorts: LocalSetupPorts = {
   probe: () => invokeNative('setup_probe'),
   installServer: () => invokeNative('setup_install_server', { run: 'install' }),
+  cancelInstall: () => invokeNative('setup_cancel_install'),
   runInit: (bin, answers) => invokeNative('setup_run_init', { run: 'start', bin, answers }),
   enableUi: (bin, port) => invokeNative('setup_enable_ui', { run: 'start', bin, port }),
   startDaemon: (bin, { url, token }) => invokeNative('setup_start_daemon', { run: 'start', bin, url, token }),
@@ -28,25 +29,22 @@ const STATUS_LABEL: Record<LocalStepStatus, keyof Vocab> = {
 const STATUS_ICON: Partial<Record<LocalStepStatus, string>> = { done: '✓', error: '!', warning: '!' };
 
 function visibleSteps(state: LocalSetupState): LocalSetupStep[] {
-  if (state.stage === 'prepare') return ['check', 'install'];
+  if (state.stage === 'prepare') return ['install'];
   return state.answers?.installService ? ['config', 'daemon', 'autostart', 'connect'] : ['config', 'daemon', 'connect'];
 }
 
-function stepDetail(step: LocalSetupStep, state: LocalSetupState): string | null {
-  if (step === 'check' && state.probe) {
-    return [state.probe.node && `Node ${state.probe.node}`, state.probe.npm && `npm ${state.probe.npm}`, state.probe.git]
-      .filter(Boolean).join(' · ');
-  }
-  return step === 'install' && state.version ? `Cortex ${state.version}` : null;
+function stepStatus(step: LocalSetupStep, state: LocalSetupState): LocalStepStatus {
+  // The probe and native ensure/install are a single visible installation step.
+  const checking = step === 'install' && state.active === 'check';
+  return state.progress[checking ? 'check' : step] ?? 'pending';
 }
 
 function StepRow({ step, state }: { step: LocalSetupStep; state: LocalSetupState }) {
   const L = useVocab();
-  const status = state.progress[step] ?? 'pending';
-  const detail = stepDetail(step, state);
+  const status = stepStatus(step, state);
   return <div className="onb-status-row" data-status={status}>
     <span className="onb-status-icon" aria-hidden="true">{STATUS_ICON[status] ?? ''}</span>
-    <div><strong>{L[STEP_LABEL[step]]}</strong>{detail ? <p className="onb-probe-details">{detail}</p> : null}</div>
+    <div><strong>{L[STEP_LABEL[step]]}</strong></div>
     <span className="onb-status-value">{L[STATUS_LABEL[status]]}</span>
   </div>;
 }
@@ -54,9 +52,7 @@ function StepRow({ step, state }: { step: LocalSetupStep; state: LocalSetupState
 function ProgressSection({ state, log }: { state: LocalSetupState; log: string }) {
   const L = useVocab();
   const starting = state.stage === 'start' || state.stage === 'ready';
-  const details = useRef<HTMLDetailsElement>(null);
   const logView = useRef<HTMLPreElement>(null);
-  useEffect(() => { if (state.error && details.current) details.current.open = true; }, [state.error]);
   useEffect(() => { if (logView.current) logView.current.scrollTop = logView.current.scrollHeight; }, [log]);
   const title = state.stage === 'ready' ? L.onbReadyTitle : starting ? L.onbOpeningTitle : L.onbPreparingTitle;
   const intro = state.stage === 'ready' && state.warning ? L.onbAutostartWarning
@@ -72,13 +68,15 @@ function ProgressSection({ state, log }: { state: LocalSetupState; log: string }
       <div className="onb-progress-body" role="status" aria-live="polite">
         {visibleSteps(state).map(step => <StepRow key={step} step={step} state={state} />)}
       </div>
-      <details ref={details} className="onb-log-details"><summary>{L.onbActivityLog}</summary>
-        <pre ref={logView} className="setup-log">{log}</pre></details>
+      <details className="onb-log-details"><summary>{L.onbActivityLog}</summary>
+        <pre ref={logView} className="setup-log">{log}{state.error ? `\n${state.error}` : ''}</pre></details>
     </div>
   </section>;
 }
 
-function ConfigureSection({ state, start }: { state: LocalSetupState; start: (machine: string, autostart: boolean, port: number) => void }) {
+type StartLocal = (machine: string, autostart: boolean, port: number) => void;
+
+function useMachineSettings(state: LocalSetupState, start: StartLocal) {
   const L = useVocab();
   // Editing after a failed start reopens this form with what was submitted.
   const [machine, setMachine] = useState(state.answers?.machineName ?? state.probe?.hostname ?? '');
@@ -96,36 +94,47 @@ function ConfigureSection({ state, start }: { state: LocalSetupState; start: (ma
     }
     start(machine.trim(), autostart && autostartOffered && state.needsInit, Number(port));
   };
+  return { machine, setMachine, autostart, setAutostart, port, setPort, machineInput, form, autostartOffered, submit };
+}
+
+function ConfigureSection({ state, start }: { state: LocalSetupState; start: StartLocal }) {
+  const L = useVocab();
+  const settings = useMachineSettings(state, start);
   return <section>
     <div className="setup-eyebrow">{L.onbSetupEyebrow}</div>
     <h1>{L.onbSetupTitle}</h1>
     <p className="setup-intro">{L.onbSetupIntro}</p>
-    <form ref={form} className="setup-card" onSubmit={submit} onInput={() => machineInput.current?.setCustomValidity('')}>
-      <div className="setup-card-header"><MonitorIcon /><h2>{L.onbThisComputer}</h2>
-        <span className="setup-pill setup-good">{`Cortex ${state.version ?? ''}`}</span></div>
-      <div className="setup-card-body">
-        {state.needsInit ? null : <div className="onb-notice">{L.onbExistingKept}</div>}
-        <fieldset className="onb-fieldset" hidden={!state.needsInit} disabled={!state.needsInit}>
-          <label className="onb-field" htmlFor="onb-machine"><span className="onb-label">{L.onbMachineName}</span>
-            <input ref={machineInput} id="onb-machine" className="setup-input" required maxLength={80} autoComplete="off"
-              spellCheck={false} value={machine} onChange={event => setMachine(event.target.value)} />
-            <span className="setup-hint">{L.onbMachineHint}</span></label>
-          {autostartOffered ? <label className="onb-toggle-row">
-            <div><strong>{L.onbStartAtLogin}</strong><p className="setup-hint">{L.onbStartAtLoginHint}</p></div>
-            <input className="onb-toggle" type="checkbox" checked={autostart} onChange={event => setAutostart(event.target.checked)} />
-          </label> : null}
-        </fieldset>
-        <details className="onb-advanced"><summary>{L.onbAdvanced}</summary>
-          <label className="onb-field" htmlFor="onb-port"><span className="onb-label">{L.onbLocalPort}</span>
-            <input id="onb-port" className="setup-input onb-mono" type="number" min={1} max={65535} required
-              value={port} onChange={event => setPort(event.target.value)} /></label>
-        </details>
-      </div>
+    <form ref={settings.form} className="setup-card" onSubmit={settings.submit}
+      onInput={() => settings.machineInput.current?.setCustomValidity('')}>
+      <div className="setup-card-header"><MonitorIcon /><h2>{L.onbThisComputer}</h2></div>
+      <MachineFields needsInit={state.needsInit} settings={settings} />
       <div className="onb-action-bar"><p className="setup-hint">{L.onbChangeLater}</p>
-        <button type="submit" className="setup-button setup-primary" data-action="onb-start" disabled={state.busy}>
+        <button type="submit" className="setup-button setup-primary" data-action="onb-start" disabled={state.busy || state.cancelling}>
           {L.onbStart}<ChevronIcon /></button></div>
     </form>
   </section>;
+}
+
+function MachineFields({ needsInit, settings: s }: { needsInit: boolean; settings: ReturnType<typeof useMachineSettings> }) {
+  const L = useVocab();
+  return <div className="setup-card-body">
+    {needsInit ? null : <div className="onb-notice">{L.onbExistingKept}</div>}
+    <fieldset className="onb-fieldset" hidden={!needsInit} disabled={!needsInit}>
+      <label className="onb-field" htmlFor="onb-machine"><span className="onb-label">{L.onbMachineName}</span>
+        <input ref={s.machineInput} id="onb-machine" className="setup-input" required maxLength={80} autoComplete="off"
+          spellCheck={false} value={s.machine} onChange={event => s.setMachine(event.target.value)} />
+        <span className="setup-hint">{L.onbMachineHint}</span></label>
+      {s.autostartOffered ? <label className="onb-toggle-row">
+        <div><strong>{L.onbStartAtLogin}</strong><p className="setup-hint">{L.onbStartAtLoginHint}</p></div>
+        <input className="onb-toggle" type="checkbox" checked={s.autostart} onChange={event => s.setAutostart(event.target.checked)} />
+      </label> : null}
+    </fieldset>
+    <details className="onb-advanced"><summary>{L.onbAdvanced}</summary>
+      <label className="onb-field" htmlFor="onb-port"><span className="onb-label">{L.onbLocalPort}</span>
+        <input id="onb-port" className="setup-input onb-mono" type="number" min={1} max={65535} required
+          value={s.port} onChange={event => s.setPort(event.target.value)} /></label>
+    </details>
+  </div>;
 }
 
 function ErrorBox({ state, retry, edit, otherOptions }: {
@@ -136,7 +145,7 @@ function ErrorBox({ state, retry, edit, otherOptions }: {
   return <div className="onb-error-box" role="alert">
     <strong>{L.onbStepFailed}</strong><p>{localSetupErrorText(state.error, L)}</p>
     <div className="onb-error-actions">
-      <button type="button" className="setup-button setup-primary" data-action="onb-retry" disabled={state.busy} onClick={retry}>{L.onbTryAgain}</button>
+      <button type="button" className="setup-button setup-primary" data-action="onb-retry" disabled={state.busy || state.cancelling} onClick={retry}>{L.onbTryAgain}</button>
       {state.stage === 'start' ? <button type="button" className="setup-button" onClick={edit}>{L.onbEditSettings}</button> : null}
       <button type="button" className="onb-link" onClick={otherOptions}>{L.onbOtherOptions}</button>
     </div>
@@ -159,6 +168,9 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   };
   return <>
     {state.stage === 'configure' ? <ConfigureSection state={state} start={start} /> : <ProgressSection state={state} log={log} />}
+    {state.stage === 'prepare' && state.busy && state.active === 'install' ?
+      <button type="button" className="onb-link" data-action="onb-cancel" disabled={state.cancelling}
+        onClick={() => void flow.cancelInstall()}>{L.onbCancelInstall}</button> : null}
     <ErrorBox state={state} retry={retry} edit={flow.configure} otherOptions={otherOptions} />
     {state.stage === 'configure' || state.error ? null : <p className="setup-footnote">{L.onbKeepOpen}</p>}
   </>;

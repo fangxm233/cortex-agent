@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   hasNativeCapability,
+  invokeNative,
   listenNativeBack,
   listenNativeEvent,
   nativeCapabilities,
@@ -42,6 +43,25 @@ describe('native bridge capabilities and invocation', () => {
     invoke.mockImplementationOnce(() => { throw new Error('bridge torn down'); });
     const failed = await safeInvoke('disconnect');
     expect(failed.ok).toBe(false);
+  });
+});
+
+describe('native setup contract', () => {
+  it('cancels the active installation without arguments', async () => {
+    const invoke = vi.fn(async () => undefined);
+    installBridge({ core: { invoke } });
+    await invokeNative('setup_cancel_install');
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('setup_cancel_install', undefined);
+  });
+
+  it('preserves install arguments, selected executable and native cancellation errors', async () => {
+    const result = { cortexBin: '/private/bin/cortex', serverVersion: null };
+    const invoke = vi.fn().mockResolvedValueOnce(result).mockRejectedValueOnce('SETUP_CANCELLED');
+    installBridge({ core: { invoke } });
+    expect(await invokeNative('setup_install_server', { run: 'install' })).toEqual(result);
+    expect(invoke).toHaveBeenCalledWith('setup_install_server', { run: 'install' });
+    await expect(invokeNative('setup_install_server', { run: 'install' })).rejects.toBe('SETUP_CANCELLED');
   });
 });
 

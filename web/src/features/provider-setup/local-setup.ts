@@ -14,6 +14,7 @@ interface Endpoint { url: string; token: string }
 export interface LocalSetupPorts {
   probe: () => Promise<NativeSetupProbe>;
   installServer: () => Promise<{ cortexBin: string; serverVersion: string | null }>;
+  cancelInstall: () => Promise<unknown>;
   runInit: (bin: string, answers: NativeSetupAnswers) => Promise<{ version: string | null; clientToken: string | null; uiUrl: string | null }>;
   enableUi: (bin: string, port: number) => Promise<Endpoint>;
   startDaemon: (bin: string, endpoint: Endpoint) => Promise<boolean>;
@@ -24,6 +25,7 @@ export interface LocalSetupPorts {
 export interface LocalSetupState {
   stage: LocalSetupStage;
   busy: boolean;
+  cancelling: boolean;
   error: string | null;
   active: LocalSetupStep | null;
   probe: NativeSetupProbe | null;
@@ -46,7 +48,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 
 export class LocalSetupFlow {
   state: LocalSetupState = {
-    stage: 'prepare', busy: false, error: null, active: null, probe: null, bin: null, version: null,
+    stage: 'prepare', busy: false, cancelling: false, error: null, active: null, probe: null, bin: null, version: null,
     needsInit: true, endpoint: null, progress: {}, answers: null, warning: null, newInstall: null,
     destination: null,
   };
@@ -65,7 +67,7 @@ export class LocalSetupFlow {
   }
 
   private async operation(action: () => Promise<void>) {
-    if (this.state.busy) return;
+    if (this.state.busy || this.state.cancelling) return;
     this.patch({ busy: true, error: null });
     try {
       await this.ready;
@@ -83,9 +85,13 @@ export class LocalSetupFlow {
     // Keep the entry identity even after init creates config or a retry re-probes.
     this.patch({ probe, bin: probe.cortexBin, version: probe.serverVersion, needsInit,
       newInstall: this.state.newInstall ?? needsInit });
+    if (probe.os === 'windows') this.requireWindowsTools(probe);
+  }
+
+  private requireWindowsTools(probe: NativeSetupProbe) {
     if (!probe.nodeOk) throw new Error('NODE_REQUIRED');
     if (!probe.npm) throw new Error('NPM_REQUIRED');
-    if (probe.os === 'windows' && !probe.git) throw new Error('GIT_REQUIRED');
+    if (!probe.git) throw new Error('GIT_REQUIRED');
   }
 
   prepare = () => this.operation(async () => {
@@ -93,16 +99,36 @@ export class LocalSetupFlow {
     this.mark('check', 'running');
     this.acceptProbe(await this.ports.probe());
     this.mark('check', 'done');
-    if (!this.state.probe?.serverOk) {
+    // POSIX setup also validates and persists the selected environment for existing installs.
+    if (this.state.probe?.os !== 'windows' || !this.state.probe.serverOk) {
       this.mark('install', 'running');
       const result = await this.ports.installServer();
       this.patch({ bin: result.cortexBin, version: result.serverVersion });
     }
     this.mark('install', 'done');
-    this.patch({ stage: 'configure' });
+    this.patch({ stage: 'configure', error: null });
   });
 
-  start = (answers: NativeSetupAnswers) => this.operation(async () => {
+  cancelInstall = async () => {
+    if (!this.state.busy || this.state.cancelling) return;
+    if (this.state.stage !== 'prepare' || this.state.active !== 'install') return;
+    this.patch({ cancelling: true });
+    try {
+      await this.ports.cancelInstall();
+      // The install command owns settlement: an acknowledgement is not cancellation completion.
+    } catch (error) {
+      if (this.state.stage === 'prepare' && this.state.busy) this.patch({ error: message(error) });
+    } finally {
+      this.patch({ cancelling: false });
+    }
+  };
+
+  start = (answers: NativeSetupAnswers) => {
+    if (this.state.stage !== 'configure' && this.state.stage !== 'start') return Promise.resolve();
+    return this.operation(() => this.startConfigured(answers));
+  };
+
+  private async startConfigured(answers: NativeSetupAnswers) {
     this.patch({ stage: 'start', progress: {}, answers });
     const endpoint = await this.initialize(answers);
     const bin = this.state.bin ?? '';
@@ -114,7 +140,7 @@ export class LocalSetupFlow {
     await this.ports.connect(endpoint, bin);
     this.mark('connect', 'done');
     this.patch({ stage: 'ready', destination: this.state.newInstall ? PROVIDER_SETUP_PAGE : WORKBENCH_PAGE });
-  });
+  }
 
   /** Back to the settings form after a failed start; the next start repairs instead of re-initializing. */
   configure = () => {
@@ -161,14 +187,16 @@ const ERROR_KEYS: Record<string, keyof Vocab> = {
   ANSWERS_FILE_FAILED: 'onbErrAnswersFileFailed', INIT_FAILED: 'onbErrInitFailed', INIT_NO_RESULT: 'onbErrInitNoResult',
   UI_ENABLE_FAILED: 'onbErrUiEnableFailed', DAEMON_START_FAILED: 'onbErrDaemonStartFailed',
   PROGRAM_FAILED: 'onbErrProgramFailed', SETUP_TASK_FAILED: 'onbErrSetupTaskFailed',
+  RUNTIME_DOWNLOAD_FAILED: 'onbErrRuntimeDownloadFailed', RUNTIME_INTEGRITY_FAILED: 'onbErrRuntimeIntegrityFailed',
+  RUNTIME_UNSUPPORTED: 'onbErrRuntimeUnsupported', RUNTIME_MISSING: 'onbErrRuntimeMissing',
+  SERVER_EXTERNAL_UNSUPPORTED: 'onbErrServerExternalUnsupported', SETUP_CANCELLED: 'onbErrSetupCancelled',
 };
 
-/** A known code as its sentence with the detail (often raw process output) under it; anything else as it came. */
+/** Show only the actionable sentence; native details belong in the folded activity log. */
 export function localSetupErrorText(error: string, L: Vocab): string {
   const parts = parseNativeError(error);
-  if (!parts || !Object.hasOwn(ERROR_KEYS, parts.code)) return error;
-  const sentence = L[ERROR_KEYS[parts.code]!];
-  return parts.detail ? `${sentence}\n\n${parts.detail}` : sentence;
+  if (!parts || !Object.hasOwn(ERROR_KEYS, parts.code)) return L.onbErrSetupTaskFailed;
+  return L[ERROR_KEYS[parts.code]!];
 }
 
 /** One `setup-log` line of the install/start runs, without terminal colour codes. */

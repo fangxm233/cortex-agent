@@ -5,7 +5,7 @@ import { LocalSetupFlow, localSetupErrorText, setupLogLine, type LocalSetupPorts
 
 const answers: NativeSetupAnswers = { lang: 'en', machineName: 'test-machine', backends: ['pi'], port: 13004, installService: false };
 const probe: NativeSetupProbe = {
-  node: 'v22.0.0', nodeOk: true, npm: '10', git: 'git version 2', cortexBin: null, serverVersion: null,
+  node: 'v22.19.0', nodeOk: true, npm: '10', git: 'git version 2', cortexBin: null, serverVersion: null,
   serverOk: false, homeExists: false, hostname: 'host', os: 'linux',
 };
 const endpoint = { url: 'http://127.0.0.1:13004', token: 'fixture-token' };
@@ -15,6 +15,7 @@ function fixture(overrides: Partial<LocalSetupPorts> = {}, ready: Promise<unknow
   const ports: LocalSetupPorts = {
     probe: async () => ({ ...probe }),
     installServer: async () => ({ cortexBin: '/isolated/bin/cortex', serverVersion: '2026.9.7' }),
+    cancelInstall: async () => undefined,
     runInit: async () => ({ version: null, uiUrl: endpoint.url, clientToken: endpoint.token }),
     enableUi: async () => endpoint,
     startDaemon: async () => true,
@@ -46,17 +47,21 @@ describe('local setup flow', () => {
     expect(flow.state.destination).toBe('index.html#/setup/providers');
   });
 
-  it('skips npm for a supported install and keeps its configuration', async () => {
-    const { flow, calls } = fixture({ probe: async () => ({ ...probe, serverOk: true, homeExists: true, cortexBin: '/existing/cortex' }) });
+  it.each(['macos', 'linux'])('ensures an existing %s install on each preparation and keeps its configuration', async os => {
+    const { flow, calls } = fixture({
+      probe: async () => ({ ...probe, os, serverOk: true, homeExists: true, cortexBin: '/existing/cortex' }),
+      installServer: async () => ({ cortexBin: '/existing/cortex', serverVersion: '2026.9.7' }),
+    });
+    await flow.prepare();
     await flow.prepare();
     await flow.start(answers);
-    expect(calls).toEqual(['probe', 'enableUi', 'startDaemon', 'connect']);
-    expect(flow.state.destination).toBe('index.html');
+    expect(calls).toEqual(['probe', 'installServer', 'probe', 'installServer', 'enableUi', 'startDaemon', 'connect']);
+    expect(flow.state).toMatchObject({ destination: 'index.html', bin: '/existing/cortex', newInstall: false });
   });
 
-  it('stops before installing when a prerequisite is missing, and can recheck', async () => {
+  it('stops on Windows when Node is missing, and can recheck', async () => {
     let valid = false;
-    const { flow, calls } = fixture({ probe: async () => ({ ...probe, nodeOk: valid }) });
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os: 'windows', nodeOk: valid }) });
     await flow.prepare();
     expect(flow.state.error).toBe('NODE_REQUIRED');
     expect(flow.state.progress.check).toBe('error');
@@ -67,14 +72,14 @@ describe('local setup flow', () => {
   });
 
   it.each([['npm', 'NPM_REQUIRED']] as const)('reports missing %s', async (field, error) => {
-    const { flow, calls } = fixture({ probe: async () => ({ ...probe, [field]: null }) });
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os: 'windows', [field]: null }) });
     await flow.prepare();
     expect(flow.state.error).toBe(error);
     expect(calls).toEqual(['probe']);
   });
 
-  it.each(['macos', 'linux'])('reaches provider setup without Git on %s', async os => {
-    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os, git: null }) });
+  it.each(['macos', 'linux'])('reaches provider setup without Node, npm or Git on %s', async os => {
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os, node: null, nodeOk: false, npm: null, git: null }) });
     await flow.prepare();
     await flow.start(answers);
     expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'connect']);
@@ -86,6 +91,31 @@ describe('local setup flow', () => {
     await flow.prepare();
     expect(flow.state.error).toBe('GIT_REQUIRED');
     expect(calls).toEqual(['probe']);
+  });
+
+  it('reuses a supported Windows server without invoking installation', async () => {
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, os: 'windows', serverOk: true, cortexBin: '/existing/cortex' }) });
+    await flow.prepare();
+    expect(calls).toEqual(['probe']);
+    expect(flow.state.bin).toBe('/existing/cortex');
+  });
+
+  it.each(['RUNTIME_DOWNLOAD_FAILED', 'RUNTIME_INTEGRITY_FAILED', 'RUNTIME_UNSUPPORTED',
+    'RUNTIME_MISSING', 'SERVER_EXTERNAL_UNSUPPORTED', 'SETUP_CANCELLED'])('can retry %s without connecting early', async code => {
+    let succeeds = false;
+    const { flow, calls } = fixture({ installServer: async () => {
+      if (!succeeds) throw new Error(`${code}: internal detail`);
+      return { cortexBin: '/isolated/bin/cortex', serverVersion: null };
+    } });
+    await flow.prepare();
+    expect(flow.state).toMatchObject({ stage: 'prepare', busy: false, destination: null, error: `${code}: internal detail` });
+    await flow.start(answers);
+    expect(calls).toEqual(['probe', 'installServer']);
+    succeeds = true;
+    await flow.prepare();
+    await flow.start(answers);
+    expect(calls.filter(name => name === 'installServer')).toHaveLength(2);
+    expect(flow.state).toMatchObject({ stage: 'ready', error: null, destination: 'index.html#/setup/providers' });
   });
 
   it('retries the daemon without rewriting a successful initialization', async () => {
@@ -127,6 +157,63 @@ describe('local setup flow', () => {
     expect(flow.state.destination).toBe('index.html#/setup/providers');
   });
 
+  it('cancels only an active preparation install and waits for native settlement', async () => {
+    let reject!: (error: Error) => void;
+    const install = new Promise<never>((_, fail) => { reject = fail; });
+    const { flow, calls } = fixture({ installServer: () => install });
+    await flow.cancelInstall();
+    const preparing = flow.prepare();
+    await Promise.resolve();
+    await flow.cancelInstall(); // Still probing.
+    await Promise.resolve();
+    expect(flow.state.active).toBe('install');
+    await flow.cancelInstall();
+    expect(calls).toEqual(['probe', 'installServer', 'cancelInstall']);
+    expect(flow.state).toMatchObject({ stage: 'prepare', busy: true, destination: null });
+    reject(new Error('SETUP_CANCELLED'));
+    await preparing;
+    expect(flow.state).toMatchObject({ stage: 'prepare', busy: false, error: 'SETUP_CANCELLED' });
+    await flow.cancelInstall();
+    expect(calls.filter(name => name === 'cancelInstall')).toHaveLength(1);
+  });
+
+  it('does not allow retry while a cancellation acknowledgement is pending', async () => {
+    let reject!: (error: Error) => void;
+    let acknowledge!: () => void;
+    const install = new Promise<never>((_, fail) => { reject = fail; });
+    const cancel = new Promise<void>(resolve => { acknowledge = resolve; });
+    const { flow, calls } = fixture({ installServer: () => install, cancelInstall: () => cancel });
+    const preparing = flow.prepare();
+    await Promise.resolve();
+    await Promise.resolve();
+    const cancelling = flow.cancelInstall();
+    await flow.cancelInstall();
+    reject(new Error('SETUP_CANCELLED'));
+    await preparing;
+    await flow.prepare();
+    expect(calls).toEqual(['probe', 'installServer', 'cancelInstall']);
+    expect(flow.state.cancelling).toBe(true);
+    acknowledge();
+    await cancelling;
+    expect(flow.state).toMatchObject({ cancelling: false, stage: 'prepare', destination: null });
+  });
+
+  it('does not cancel configuration, startup or an existing daemon', async () => {
+    let finish!: (ready: boolean) => void;
+    const daemon = new Promise<boolean>(resolve => { finish = resolve; });
+    const { flow, calls } = fixture({ startDaemon: () => daemon });
+    await flow.prepare();
+    await flow.cancelInstall();
+    const starting = flow.start(answers);
+    await Promise.resolve();
+    await flow.cancelInstall();
+    finish(true);
+    await starting;
+    await flow.cancelInstall();
+    expect(calls).not.toContain('cancelInstall');
+    expect(flow.state.stage).toBe('ready');
+  });
+
   it('waits for the log listener and ignores a second click while busy', async () => {
     let release!: () => void;
     const { flow, calls } = fixture({}, new Promise<void>(resolve => { release = resolve; }));
@@ -155,10 +242,23 @@ describe('local setup flow', () => {
 });
 
 describe('local setup copy', () => {
-  it('words known codes in the UI language and keeps the process output under them', () => {
-    expect(localSetupErrorText('SERVER_INSTALL_FAILED: npm ERR! 404', en)).toBe(`${en.onbErrServerInstallFailed}\n\nnpm ERR! 404`);
+  it('shows translated actions without raw technical output', () => {
+    expect(localSetupErrorText('SERVER_INSTALL_FAILED: npm ERR! 404', en)).toBe(en.onbErrServerInstallFailed);
     expect(localSetupErrorText('NODE_REQUIRED', zh)).toBe(zh.onbErrNodeRequired);
-    expect(localSetupErrorText('something else', en)).toBe('something else');
+    expect(localSetupErrorText('something else', en)).toBe(en.onbErrSetupTaskFailed);
+  });
+
+  it.each([
+    ['RUNTIME_DOWNLOAD_FAILED', 'onbErrRuntimeDownloadFailed'],
+    ['RUNTIME_INTEGRITY_FAILED', 'onbErrRuntimeIntegrityFailed'],
+    ['RUNTIME_UNSUPPORTED', 'onbErrRuntimeUnsupported'],
+    ['RUNTIME_MISSING', 'onbErrRuntimeMissing'],
+    ['SERVER_EXTERNAL_UNSUPPORTED', 'onbErrServerExternalUnsupported'],
+    ['SETUP_CANCELLED', 'onbErrSetupCancelled'],
+  ] as const)('translates %s without exposing details', (code, key) => {
+    for (const vocab of [en, zh]) {
+      expect(localSetupErrorText(`${code}: Node /private/runtime checksum`, vocab)).toBe(vocab[key]);
+    }
   });
 
   it('shows only the install and start runs of the log, without colour codes', () => {

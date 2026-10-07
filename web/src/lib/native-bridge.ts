@@ -112,6 +112,8 @@ interface NativeCommandMap {
   setup_install_server: {
     args: { run: string }; result: { cortexBin: string; serverVersion: string | null };
   };
+  // Cancels only the active download / initial installation, never an existing daemon.
+  setup_cancel_install: { args: undefined; result: unknown };
   setup_run_init: {
     args: { run: string; bin: string; answers: NativeSetupAnswers };
     result: { version: string | null; clientToken: string | null; uiUrl: string | null };
