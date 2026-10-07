@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ButtonHTMLAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthAccountStatus, LoginFlowState } from '@cortex-agent/ui-contract';
@@ -8,7 +8,8 @@ import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowM
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { orderedProviders, ProviderSetupController, setupErrorText } from './provider-setup';
 import { canSetupClaude, setupClaude, claudeInstallLine } from './setup-native';
-import { listenNativeEvent } from '@/lib/native-bridge';
+import { invokeNative, listenNativeEvent } from '@/lib/native-bridge';
+import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
 import { SetupHeader } from './SetupHeader';
 import './provider-setup.css';
 
@@ -96,16 +97,18 @@ function ProfileSection({ controller }: { controller: ProviderSetupController })
     </div>
   </section>;
 }
-function SetupFooter({ controller, leave }: { controller: ProviderSetupController; leave: () => void }) {
+interface SetupExit { leave: () => void; saving?: boolean; failed?: boolean }
+function SetupFooter({ controller, leave, saving = false, failed = false }: { controller: ProviderSetupController } & SetupExit) {
   const L = useVocab();
   return <footer className="setup-footer">
     <div className="setup-footer-actions">
-      <SetupButton data-action="setup-skip" onClick={leave}>{L.setupSkip}</SetupButton>
-      <SetupButton data-action="setup-continue" primary disabled={!controller.canContinue()}
-        onClick={() => { if (controller.canContinue()) leave(); }}>{L.setupContinue}
+      <SetupButton data-action="setup-skip" disabled={saving} onClick={leave}>{L.setupSkip}</SetupButton>
+      <SetupButton data-action="setup-continue" primary disabled={saving || !controller.canContinue()}
+        onClick={() => { if (!saving && controller.canContinue()) leave(); }}>{L.setupContinue}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
       </SetupButton>
     </div>
+    {failed ? <p role="alert" className="setup-error">{L.setupSaveFailed}</p> : null}
     <p className="setup-footnote">{L.setupSkipWarning}</p>
     <p className="setup-footnote">{L.setupHonesty}</p>
   </footer>;
@@ -131,7 +134,7 @@ function SetupFeedback({ controller }: { controller: ProviderSetupController }) 
     {s.error ? <p role="alert" className="setup-error">{L.setupSyncFailed}: {setupErrorText(s.error, L)}</p> : null}
   </>;
 }
-export function ProviderSetupView({ controller, leave }: { controller: ProviderSetupController; leave: () => void }) {
+export function ProviderSetupView({ controller, ...exit }: { controller: ProviderSetupController } & SetupExit) {
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const L = useVocab();
   const [target, setTarget] = useState<LoginFlowTarget | null>(null);
@@ -145,12 +148,38 @@ export function ProviderSetupView({ controller, leave }: { controller: ProviderS
     <SetupFeedback controller={controller} />
     <ClaudeSection controller={controller} login={setTarget} />
     <ProfileSection controller={controller} />
-    <SetupFooter controller={controller} leave={leave} />
+    <SetupFooter controller={controller} {...exit} />
   </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onFlowStateChange={flowChanged} /></>;
+}
+function useProviderSetupExit(): SetupExit {
+  const navigate = useNavigate();
+  // Keep the page's original identity, not a later IPC refresh or replacement connection.
+  const [connection] = useState(() => isNativeShell() ? readDesktopConfig() : undefined);
+  const exiting = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const leave = async () => {
+    if (exiting.current) return;
+    exiting.current = true;
+    setSaving(true);
+    setFailed(false);
+    try {
+      if (connection?.providerSetupPending === true) {
+        await invokeNative('finish_provider_setup', { serverUrl: connection.serverUrl, token: connection.token });
+      }
+      navigate('/workbench', { replace: true });
+    } catch {
+      // Never display native persistence details: they can include connection credentials.
+      exiting.current = false;
+      setSaving(false);
+      setFailed(true);
+    }
+  };
+  return { leave, saving, failed };
 }
 export function ProviderSetupPage() {
   const client = useTRPCClient();
-  const navigate = useNavigate();
+  const exit = useProviderSetupExit();
   const controller = useMemo(() => new ProviderSetupController({
     status: () => client.auth.status.query({}), config: () => client.config.get.query({}),
     sync: () => client.auth.syncGateway.mutate({}),
@@ -160,6 +189,6 @@ export function ProviderSetupPage() {
   useEffect(() => { void controller.load(); }, [controller]);
   return <div className="provider-setup">
     <SetupHeader />
-    <div className="setup-scroll"><ProviderSetupView controller={controller} leave={() => navigate('/workbench', { replace: true })} /></div>
+    <div className="setup-scroll"><ProviderSetupView controller={controller} {...exit} /></div>
   </div>;
 }
