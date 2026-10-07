@@ -6,6 +6,8 @@ export const startupEn = {
   'startup.reason': ' Reason: ${reason}.',
   'startup.rebuildHold': 'Cortex is rebuilding itself (${phase}) and is about to restart, so this message was not processed. Send it again in a moment.',
   'startup.rebuildHoldDropped': 'A message for ${channel} arrived during the rebuild (${phase}) and was not processed: ${preview}',
+  'startup.updateHold': 'Cortex is installing a server update and is about to restart, so this message was not processed. Send it again in a moment.',
+  'startup.updateHoldDropped': 'A message for ${channel} arrived during the server update and was not processed: ${preview}',
 } as const;
 
 export const startupZh: Record<keyof typeof startupEn, string> = {
@@ -14,4 +16,6 @@ export const startupZh: Record<keyof typeof startupEn, string> = {
   'startup.reason': ' 原因：${reason}。',
   'startup.rebuildHold': 'Cortex 正在热重建（${phase}）并即将重启，这条消息没有被处理。请稍后重发。',
   'startup.rebuildHoldDropped': '重建期间（${phase}）收到一条发往 ${channel} 的消息，未被处理：${preview}',
+  'startup.updateHold': 'Cortex 正在安装服务器更新并即将重启，这条消息没有被处理。请稍后重发。',
+  'startup.updateHoldDropped': '服务器更新期间收到一条发往 ${channel} 的消息，未被处理：${preview}',
 };

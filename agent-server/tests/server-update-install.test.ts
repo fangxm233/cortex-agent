@@ -42,10 +42,10 @@ describe('idle-gated server install', () => {
     createIdleInstaller(idle.signal, r.run, { supervised: () => true })('9999.1.1');
     expect(r.run).toHaveBeenCalledWith('9999.1.1', expect.any(Function));
     expect(getServerUpdateStatus()).toEqual({ state: 'installing', available: '9999.1.1', auto: true });
-    expect(rebuildHold()).toEqual({ phase: 'update' });
+    expect(rebuildHold()).toEqual({ phase: 'server-update' });
     r.calls[0].done(null);
     expect(getServerUpdateStatus()).toEqual({ state: 'restarting', available: '9999.1.1', auto: true });
-    expect(rebuildHold()).toEqual({ phase: 'restart' });
+    expect(rebuildHold()).toEqual({ phase: 'server-update' });
   });
 
   it('waits for the next idle transition while a turn is running', () => {
@@ -58,7 +58,7 @@ describe('idle-gated server install', () => {
     idle.setIdle(true);
     expect(r.run).toHaveBeenCalledTimes(1);
     expect(idle.listeners.size).toBe(0);
-    expect(rebuildHold()).toEqual({ phase: 'update' });
+    expect(rebuildHold()).toEqual({ phase: 'server-update' });
   });
 
   it('releases the hold when no daemon will restart the app', () => {

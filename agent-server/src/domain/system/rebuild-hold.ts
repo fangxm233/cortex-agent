@@ -14,6 +14,9 @@ import { Icons } from '@core/icons.js';
 import { t } from '@core/i18n.js';
 import { emitSystemNotice } from './system-notice.js';
 
+/** Hold phase of a server update, from its install through the restart that follows. */
+export const SERVER_UPDATE_HOLD_PHASE = 'server-update';
+
 /** How long a single 'hold' message is trusted. The supervisor re-sends on every phase change, and
  *  the longest single phase (web build, or `npm install -g` rewriting the vendored closure) runs
  *  well inside this. Fails open by design. */
@@ -88,16 +91,19 @@ export async function refuseTurnForRebuild(p: {
   interactive: boolean;
 }): Promise<void> {
   const phase = rebuildHold()?.phase ?? 'restart';
+  const update = phase === SERVER_UPDATE_HOLD_PHASE;
   if (p.interactive) {
     const destination: Destination = { type: 'interactive-reply', conduit: p.channel, sessionId: '' };
-    await p.adapter
-      .postMessage(destination, { text: `${Icons.warning} ${t('startup.rebuildHold', { phase })}` })
-      .catch(() => {});
+    const text = update ? t('startup.updateHold') : t('startup.rebuildHold', { phase });
+    await p.adapter.postMessage(destination, { text: `${Icons.warning} ${text}` }).catch(() => {});
     return;
   }
+  const dropped = { channel: p.channel, preview: preview(p.text) };
   await emitSystemNotice(p.adapter, {
     level: 'warning',
-    title: t('notice.rebuild.title'),
-    text: t('startup.rebuildHoldDropped', { phase, channel: p.channel, preview: preview(p.text) }),
+    title: update ? t('notice.serverUpdate.title') : t('notice.rebuild.title'),
+    text: update
+      ? t('startup.updateHoldDropped', dropped)
+      : t('startup.rebuildHoldDropped', { phase, ...dropped }),
   }).catch(() => {});
 }

@@ -6,6 +6,7 @@ import {
   rebuildHold,
   refuseTurnForRebuild,
   releaseNewTurnHold,
+  SERVER_UPDATE_HOLD_PHASE,
 } from '../../../src/domain/system/rebuild-hold.js';
 import { handleDaemonMessage } from '../../../src/entry/daemon-notice.js';
 import {
@@ -95,4 +96,19 @@ test('the supervisor message sets and clears the hold, and stays out of the noti
   const released = await handleDaemonMessage({ type: 'rebuild-hold', hold: false }, adapter as any);
   assert.equal(released, true);
   assert.equal(isRebuildHeld(), false);
+});
+
+test('a server update hold is named as an update, not as a rebuild', async () => {
+  const adapter = new MockAdapter();
+  holdNewTurns({ phase: SERVER_UPDATE_HOLD_PHASE });
+
+  await refuseTurnForRebuild({ adapter: adapter as any, channel: 'web:s1', text: 'status?', interactive: true });
+  assert.match(adapter.posted[0].content.text!, /installing a server update/);
+  assert.doesNotMatch(adapter.posted[0].content.text!, /rebuild/);
+
+  await refuseTurnForRebuild({ adapter: adapter as any, channel: 'web:s2', text: 'report', interactive: false });
+  const notices = listSystemNotices();
+  assert.equal(notices.at(-1)?.title, 'Server update');
+  assert.match(notices.at(-1)!.text, /during the server update/);
+  assert.match(notices.at(-1)!.text, /web:s2/);
 });

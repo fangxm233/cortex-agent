@@ -3,7 +3,7 @@
 // so the install has to wait for idle and new turns are refused from the moment it starts until
 // the restart: a turn admitted in between would run on half-replaced files and then be killed.
 
-import { holdNewTurns, releaseNewTurnHold } from './rebuild-hold.js';
+import { holdNewTurns, releaseNewTurnHold, SERVER_UPDATE_HOLD_PHASE } from './rebuild-hold.js';
 import {
   reportServerUpdateFailed, reportServerUpdateInstalled, reportServerUpdateInstalling,
 } from './update-ui-state.js';
@@ -24,7 +24,6 @@ export interface IdleInstallerOptions {
   renewMs?: number;
 }
 
-const HOLD_PHASE = 'update';
 const DEFAULT_RENEW_MS = 60_000;
 
 export const ALWAYS_IDLE: IdleSignal = { isIdle: () => true, onIdle: () => () => {} };
@@ -49,7 +48,7 @@ export function createIdleInstaller(
     }
     reportServerUpdateInstalled();
     // The restart is the daemon's; without one nothing replaces this process, so stop refusing.
-    if (supervised()) holdNewTurns({ phase: 'restart' });
+    if (supervised()) holdNewTurns({ phase: SERVER_UPDATE_HOLD_PHASE });
     else releaseNewTurnHold();
   };
 
@@ -60,8 +59,8 @@ export function createIdleInstaller(
     unsubscribe?.();
     unsubscribe = null;
     running = true;
-    holdNewTurns({ phase: HOLD_PHASE });
-    const renew = setInterval(() => holdNewTurns({ phase: HOLD_PHASE }), renewMs);
+    holdNewTurns({ phase: SERVER_UPDATE_HOLD_PHASE });
+    const renew = setInterval(() => holdNewTurns({ phase: SERVER_UPDATE_HOLD_PHASE }), renewMs);
     renew.unref?.();
     reportServerUpdateInstalling();
     let settled = false;
