@@ -196,6 +196,13 @@ pub fn has_credentials(config: &ConnectionConfig) -> bool {
     non_blank(&config.server_url) && non_blank(&config.token)
 }
 
+/// Select the launch document and fragment without inspecting provider authentication state.
+pub fn initial_route(config: &ConnectionConfig, runtime_repair: bool) -> (&'static str, &'static str) {
+    if runtime_repair { return ("connect.html", "#/local"); }
+    if !has_credentials(config) { return ("connect.html", ""); }
+    ("index.html", "")
+}
+
 /// Load initial credentials: platform credential store first, then env-var fallback
 /// (`CORTEX_SERVER_URL` / `CORTEX_TOKEN`, dev convenience). Loaded inside `setup` because the
 /// Android store backend needs the `AppHandle` to resolve the app-private data dir.
@@ -408,6 +415,65 @@ mod tests {
                 |_| panic!("mismatched completion must not save")).unwrap_err();
             assert_eq!(error, "provider_setup_connection_changed");
             assert_eq!(snapshot(&current), before);
+        }
+    }
+
+    #[test]
+    fn fresh_saved_connection_resumes_providers_before_any_page_navigation() {
+        let mut current = ConnectionConfig::default();
+        let mut saved = None;
+        connect_with_saver(&mut current, LOCAL_URL.into(), TEST_TOKEN.into(), local_install(true),
+            |candidate| { saved = Some(snapshot(candidate)); Ok(()) }).unwrap();
+        let reloaded: ConnectionConfig = serde_json::from_value(saved.unwrap()).unwrap();
+        assert_eq!(initial_route(&reloaded, false), ("index.html", "#/setup/providers"));
+    }
+
+    #[test]
+    fn explicit_exit_persists_workbench_route_and_failed_exit_retains_provider_route() {
+        let mut current = local_config(true);
+        assert!(finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
+            |_| Err("unavailable".into())).is_err());
+        assert_eq!(initial_route(&current, false), ("index.html", "#/setup/providers"));
+        let mut saved = None;
+        finish_with_saver(&mut current, LOCAL_URL, TEST_TOKEN,
+            |candidate| { saved = Some(snapshot(candidate)); Ok(()) }).unwrap();
+        let reloaded: ConnectionConfig = serde_json::from_value(saved.unwrap()).unwrap();
+        assert_eq!(initial_route(&reloaded, false), ("index.html", ""));
+    }
+
+    #[test]
+    fn unmarked_legacy_local_and_remote_connections_do_not_force_provider_setup() {
+        for mode in ["local", "remote"] {
+            let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
+                "serverUrl": LOCAL_URL, "token": TEST_TOKEN, "mode": mode
+            })).unwrap();
+            assert_eq!(initial_route(&config, false), ("index.html", ""));
+        }
+    }
+
+    #[test]
+    fn remote_pending_record_never_forces_provider_setup() {
+        let mut config = local_config(true);
+        config.mode = ConnectionMode::Remote;
+        assert_eq!(initial_route(&config, false), ("index.html", ""));
+    }
+
+    #[test]
+    fn missing_or_blank_transport_credentials_take_priority_over_pending_setup() {
+        for missing in [None, Some(""), Some("   ")] {
+            let mut config = local_config(true);
+            config.server_url = missing.map(str::to_string);
+            assert_eq!(initial_route(&config, false), ("connect.html", ""));
+            config = local_config(true);
+            config.token = missing.map(str::to_string);
+            assert_eq!(initial_route(&config, false), ("connect.html", ""));
+        }
+    }
+
+    #[test]
+    fn runtime_repair_has_priority_over_credentials_and_provider_setup() {
+        for config in [ConnectionConfig::default(), local_config(true), local_config(false)] {
+            assert_eq!(initial_route(&config, true), ("connect.html", "#/local"));
         }
     }
 

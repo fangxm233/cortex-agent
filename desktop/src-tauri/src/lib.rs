@@ -83,6 +83,36 @@ pub(crate) fn no_console_window(command: &mut std::process::Command) -> &mut std
     command
 }
 
+fn initial_url(config: &ConnectionConfig, runtime_repair: bool) -> String {
+    let (document, fragment) = connection::initial_route(config, runtime_repair);
+    let mut url = webview_scripts::launch_url(document);
+    // launch_url adds the launch query; a hash route must follow it, never precede it.
+    url.push_str(fragment);
+    url
+}
+
+#[cfg(test)]
+mod initial_route_tests {
+    use super::*;
+
+    #[test]
+    fn pending_launch_keeps_query_before_provider_fragment() {
+        let config = ConnectionConfig {
+            server_url: Some("http://127.0.0.1:3004".into()),
+            token: Some("test-token".into()),
+            mode: ConnectionMode::Local,
+            provider_setup_pending: true,
+            ..ConnectionConfig::default()
+        };
+        assert_eq!(initial_url(&config, false), "cortexui://localhost/index.html?launch#/setup/providers");
+    }
+
+    #[test]
+    fn repair_launch_keeps_query_before_local_fragment() {
+        assert_eq!(initial_url(&ConnectionConfig::default(), true), "cortexui://localhost/connect.html?launch#/local");
+    }
+}
+
 // ─── App entry point ───────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -219,10 +249,8 @@ pub fn run() {
             // Bake the page's view of these credentials into the window's initialization_script
             // (below), so the launch document sees them before any bundle code runs.
             let baked_config = connection::PageConfig::from(&initial_config);
+            let url = initial_url(&initial_config, runtime_repair);
             *app.state::<AppState>().config.lock().unwrap() = initial_config;
-
-            // Open the workbench directly when credentials are available; otherwise the connect screen.
-            let initial_file = if open_workbench { "index.html" } else { "connect.html" };
 
             // ── Pre-window: apply any staged update, then guarantee a servable frontend on disk ──
             // Promote first so this launch serves a bundle downloaded in a previous session, and the
@@ -263,9 +291,6 @@ pub fn run() {
             shell_log!("[cortex-desktop] title bar mode: {title_bar_mode}");
 
             // ── Open the window against the cortexui:// scheme (both platforms) ──
-            let mut url = webview_scripts::launch_url(initial_file);
-            // Reuse the existing actionable installer error, without clearing credentials/config.
-            if runtime_repair { url.push_str("#/local"); }
             #[allow(unused_mut)]
             let mut win = tauri::WebviewWindowBuilder::new(
                 app,
