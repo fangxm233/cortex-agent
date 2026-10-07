@@ -89,11 +89,9 @@ async function bindFlow(
   }).catch(() => {});
 }
 
-function failureText(error: unknown): string {
-  if (isLoginFlowError(error) && error.code === 'flow_conflict') {
-    return t('cmd.auth.loginAlreadyActive');
-  }
-  return t('cmd.auth.loginUnknownFailure');
+/** A login that could not start: the coordinator's own errors are localized and safe to show. */
+export function loginStartFailureText(error: unknown): string {
+  return isLoginFlowError(error) ? error.message : t('cmd.auth.loginUnknownFailure');
 }
 
 async function postStartFailure(
@@ -102,7 +100,7 @@ async function postStartFailure(
   dependencies: AuthRequiredLoginDependencies,
 ): Promise<void> {
   await dependencies.adapter.postMessage(loginDestination(metadata.channel), {
-    text: t('cmd.auth.loginFailed', { error: failureText(error) }),
+    text: t('cmd.auth.loginFailed', { error: loginStartFailureText(error) }),
   });
 }
 
@@ -117,7 +115,7 @@ async function startNotificationFlow(
     authType: metadata.authType,
     channel: metadata.channel,
     sessionId: null,
-  }, { reuseExistingPair: true });
+  });
   const effective = metadataForState(metadata, state);
   await bindFlow(context, effective, state, dependencies);
   const actionable = await dependencies.waitForActionable(state);

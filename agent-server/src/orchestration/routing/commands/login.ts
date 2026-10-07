@@ -28,6 +28,7 @@ import type {
 import type { CommandResult } from './command-context.js';
 import { handleCustomProviderCommand } from './login-custom.js';
 import {
+  loginStartFailureText,
   openAuthRequiredLoginAction,
   type AuthRequiredLoginMetadata,
 } from './login-notice.js';
@@ -533,11 +534,12 @@ const log = createLogger('login');
 function postBackgroundFailure(
   metadata: LoginOpenMetadata,
   dependencies: InteractiveLoginDependencies,
+  error?: unknown,
 ): void {
   const adapter = dependencies.router.getAdapter();
   if (!adapter) return;
   void adapter.postMessage(loginDestination(metadata.channel), {
-    text: t('cmd.auth.loginFailed', { error: t('cmd.auth.loginUnknownFailure') }),
+    text: t('cmd.auth.loginFailed', { error: loginStartFailureText(error) }),
   }).catch((e) => log.warn('login failure notice could not be posted:', (e as Error).message));
 }
 
@@ -571,7 +573,7 @@ function startSelectedFlow(
     backend: metadata.backend, provider: metadata.provider!, authType: metadata.authType!,
     channel: metadata.channel, sessionId: null,
   }).then(state => monitorFlow(state, { ...metadata, flowId: state.flowId }, dependencies))
-    .catch(() => postBackgroundFailure(metadata, dependencies));
+    .catch(error => postBackgroundFailure(metadata, dependencies, error));
 }
 
 async function postAuthTypeAction(

@@ -5,11 +5,12 @@ import {
   createAuthLoginService,
   type AuthLoginService,
 } from '../src/domain/auth/login-service.js';
-import type {
-  LoginFlowConsumer,
-  LoginFlowNotice,
-  LoginFlowState,
-  StartLoginFlowInput,
+import {
+  LoginFlowError,
+  type LoginFlowConsumer,
+  type LoginFlowNotice,
+  type LoginFlowState,
+  type StartLoginFlowInput,
 } from '../src/domain/auth/login-flow.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
 import { buildAuthRequiredLoginAction } from '../src/orchestration/routing/commands/login-notice.js';
@@ -82,12 +83,17 @@ function makeAuthService(
   const states = new Map<string, LoginFlowState>();
   const service: AuthLoginService = {
     start: async input => {
-      const flowId = `flow-${input.backend}-${input.provider}`;
-      const existing = states.get(flowId);
-      if (existing && !['done', 'failed', 'cancelled'].includes(existing.step)) return existing;
+      const pair = `flow-${input.backend}-${input.provider}`;
+      for (const [id, existing] of states) {
+        if (id.startsWith(pair) && !['done', 'failed', 'cancelled'].includes(existing.step)) {
+          await cancelFakeFlow(states, id);
+        }
+      }
       starts.push(input);
-      const state = flowState(input, startStep, startNotice, expiresAt);
-      states.set(state.flowId, state);
+      const sameIds = [...states.keys()].filter(id => id === pair || id.startsWith(`${pair}#`));
+      const flowId = sameIds.length === 0 ? pair : `${pair}#${sameIds.length + 1}`;
+      const state = { ...flowState(input, startStep, startNotice, expiresAt), flowId };
+      states.set(flowId, state);
       return state;
     },
     getState: flowId => states.get(flowId) ?? null,
@@ -250,7 +256,7 @@ async function clickRequiredAction(
   });
 }
 
-test('expired-card action adopts the auth type of an existing same-pair flow', async () => {
+test('expired-card action replaces an unfinished same-pair flow with its own auth type', async () => {
   const fixture = setup();
   const channel = 'slack:C-existing-type';
   await fixture.auth.service.start({
@@ -259,10 +265,11 @@ test('expired-card action adopts the auth type of an existing same-pair flow', a
 
   await clickRequiredAction(fixture, channel);
 
-  assert.equal(fixture.auth.starts.length, 1);
+  assert.equal(fixture.auth.starts.length, 2);
+  assert.equal(fixture.auth.states.get('flow-pi-dual-auth')?.step, 'cancelled');
   const metadata = JSON.parse(fixture.adapter.modals.at(-1)?.modal.privateMetadata ?? '{}');
-  assert.equal(metadata.authType, 'api_key');
-  assert.equal(metadata.flowId, 'flow-pi-dual-auth');
+  assert.equal(metadata.authType, 'oauth');
+  assert.equal(metadata.flowId, 'flow-pi-dual-auth#2');
 });
 
 test('Slack expired-card action reuses its flow and reports terminal or expired state', async () => {
@@ -341,6 +348,20 @@ test('a running explicit flow does not expose the secret form before its prompt 
 
   assert.equal(fixture.adapter.posted.length, postsBeforePrompt + 1);
   assert.equal(actionButton(fixture.adapter).actionId, 'cmd:login:open');
+});
+
+test('a login refused while the previous one completes reports the coordinator reason', async () => {
+  const fixture = setup();
+  fixture.auth.service.start = async () => {
+    throw new LoginFlowError('flow_conflict', 'The previous login is still completing. Try again in a moment.');
+  };
+  await chooseClaudeAuth(fixture, 'api_key');
+  await flush();
+
+  assert.equal(
+    fixture.adapter.posted.at(-1)?.content.text,
+    'Login failed: The previous login is still completing. Try again in a moment.',
+  );
 });
 
 test('a pre-prompt flow disappearance posts a localized expiry failure', async () => {

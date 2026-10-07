@@ -48,9 +48,13 @@ async function asResult(operation: () => Promise<LoginFlowState>): Promise<Resul
   }
 }
 
+function isWebOwnedState(state: LoginFlowState): boolean {
+  return state.channel === null && state.sessionId === null;
+}
+
 function isWebOwned(service: AuthLoginService, flowId: string): boolean {
   const state = service.getState(flowId);
-  return !!state && state.channel === null && state.sessionId === null;
+  return !!state && isWebOwnedState(state);
 }
 
 function missingWebFlow(): Result<never> {
@@ -58,9 +62,8 @@ function missingWebFlow(): Result<never> {
 }
 
 function startWebFlow(service: AuthLoginService, args: MutateArgs<'auth.startLogin'>) {
-  const { noticeId, ...input } = args;
-  const options = noticeId ? { reuseExistingPair: true } : undefined;
-  return service.start({ ...input, channel: null, sessionId: null }, options);
+  const { noticeId: _noticeId, ...input } = args;
+  return service.start({ ...input, channel: null, sessionId: null });
 }
 
 async function startWebNoticeFlow(
@@ -69,10 +72,8 @@ async function startWebNoticeFlow(
 ): Promise<Result<LoginFlowState>> {
   const resolved = resolveAuthNoticeFlow(service, args.noticeId);
   if (resolved.kind === 'expired') return missingWebFlow();
-  if (resolved.kind === 'state') {
-    return resolved.state.channel === null && resolved.state.sessionId === null
-      ? { ok: true, data: resolved.state }
-      : { ok: false, code: 'already-exists', message: t('ux.auth.activeElsewhere') };
+  if (resolved.kind === 'state' && isWebOwnedState(resolved.state)) {
+    return { ok: true, data: resolved.state };
   }
   const result = await asResult(() => startWebFlow(service, args));
   if (result.ok) bindAuthNoticeFlow(service, args.noticeId, result.data.flowId);
