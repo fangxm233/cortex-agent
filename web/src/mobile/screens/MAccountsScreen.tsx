@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
@@ -23,7 +23,8 @@ export function MAccountsScreen() {
   const { openLogin } = useLoginFlow();
   const accounts = useAccountsController();
   const custom = useCustomProvidersController();
-  const vm = useMemo(() => buildAccountsVm(accounts.status ?? EMPTY_STATUS), [accounts.status]);
+  const [filter, setFilter] = useState('');
+  const vm = useMemo(() => buildAccountsVm(accounts.status ?? EMPTY_STATUS, filter), [accounts.status, filter]);
   return (
     <>
       {accounts.statusLoading
@@ -32,7 +33,7 @@ export function MAccountsScreen() {
         : accounts.statusError
           ? <MSettingsPage title={L.accountsTitle} onBack={() => navigate('/m/settings')}>
               <div style={{ color: MC.fail }}>{L.accountsLoadFailed}</div></MSettingsPage>
-          : <MAccountsView vm={vm} onBack={() => navigate('/m/settings')}
+          : <MAccountsView vm={vm} filter={filter} onFilter={setFilter} onBack={() => navigate('/m/settings')}
               onLogin={openLogin} onLogout={accounts.logout}
               actionsDisabled={accounts.logoutPending}
               onRescan={accounts.syncGateway} rescanning={accounts.syncPending}

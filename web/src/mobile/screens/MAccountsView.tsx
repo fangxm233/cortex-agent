@@ -1,152 +1,12 @@
-import type { ReactNode } from 'react';
-import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';
-import { ProviderIcon } from '@/features/auth/ProviderIcon';
+import type { CustomProviderView } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import {
-  MButton,
-  MPill,
-  MC,
-  MONO,
-} from '@/mobile/ui/kit';
+import { MPill, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
+import type { AccountActionTarget, AccountsVm } from '@/features/settings/vm/accounts-vm';
 import {
-  authTypeLabelKey,
-  type AccountActionTarget,
-  type AccountCredentialVm,
-  type ClaudeAccountVm,
-  type MAccountsVm,
-  type PiProviderVm,
-} from '@/features/settings/vm/accounts-vm';
-
-function Metadata({ value }: { value: AccountCredentialVm }) {
-  const L = useVocab();
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-      <span><MPill tone={value.tone}>{L[value.labelKey]}</MPill></span>
-      <span style={{ fontSize: 12, color: MC.muted, overflowWrap: 'anywhere' }}>
-        {L.accountsSource}: {value.source ?? '—'}
-      </span>
-      {value.expiresAt ? <span style={{ fontSize: 12, color: MC.muted, overflowWrap: 'anywhere' }}>{L.accountsExpires}: {value.expiresAt}</span> : null}
-    </div>
-  );
-}
-
-function ActionButton({ children, target, action, disabled, onClick }: {
-  children: ReactNode;
-  target: AccountActionTarget;
-  action: 'login' | 'logout';
-  disabled: boolean;
-  onClick: (target: AccountActionTarget) => void;
-}) {
-  return (
-    <MButton
-      compact variant={action === 'logout' ? 'danger-outline' : 'accent-outline'}
-      data-auth-action={action} data-backend={target.backend}
-      data-provider={target.provider} data-auth-type={target.authType}
-      disabled={disabled} onClick={() => onClick(target)}
-    >
-      {children}
-    </MButton>
-  );
-}
-
-function AccountActions({ backend, provider, loginTypes, logoutTypes, disabled, onLogin, onLogout }: {
-  backend: 'claude' | 'pi';
-  provider: string;
-  loginTypes: AuthType[];
-  logoutTypes: AuthType[];
-  disabled: boolean;
-  onLogin: (target: AccountActionTarget) => void;
-  onLogout: (target: AccountActionTarget) => void;
-}) {
-  const L = useVocab();
-  const target = (authType: AuthType): AccountActionTarget => ({ backend, provider, authType });
-  return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-      {loginTypes.map(authType => (
-        <ActionButton
-          key={`login:${authType}`} target={target(authType)} action="login"
-          disabled={disabled} onClick={onLogin}
-        >
-          {L.accountsLogin} {L[authTypeLabelKey(authType, backend)]}
-        </ActionButton>
-      ))}
-      {logoutTypes.map(authType => (
-        <ActionButton
-          key={`logout:${authType}`} target={target(authType)} action="logout"
-          disabled={disabled} onClick={onLogout}
-        >
-          {L.accountsLogout} {L[authTypeLabelKey(authType, backend)]}
-        </ActionButton>
-      ))}
-    </div>
-  );
-}
-
-interface ClaudeCardProps {
-  account: ClaudeAccountVm;
-  actionsDisabled: boolean;
-  onLogin: (target: AccountActionTarget) => void;
-  onLogout: (target: AccountActionTarget) => void;
-}
-
-function ClaudeCard({ account, actionsDisabled, onLogin, onLogout }: ClaudeCardProps) {
-  const L = useVocab();
-  return (
-    <MCard>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <ProviderIcon provider="claude-code" label="Claude Code" size={16} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: MC.ink }}>Claude Code</span>
-        {account.inUse ? <MPill tone="done">{L.accountsInUse}</MPill> : null}
-      </div>
-      {account.slots.map((slot, index) => (
-        <div key={slot.authType} style={{ padding: '9px 0', borderTop: index > 0 ? `1px solid ${MC.divider}` : undefined }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: MC.ink, marginBottom: 7 }}>
-            {L[authTypeLabelKey(slot.authType, 'claude')]}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {slot.credentials.map((credential, credentialIndex) => <Metadata key={`${credential.source ?? 'none'}:${credentialIndex}`} value={credential} />)}
-          </div>
-          <AccountActions
-            backend="claude" provider={account.provider}
-            loginTypes={slot.canLogin ? [slot.authType] : []}
-            logoutTypes={slot.canLogout ? [slot.authType] : []}
-            disabled={actionsDisabled} onLogin={onLogin} onLogout={onLogout}
-          />
-        </div>
-      ))}
-    </MCard>
-  );
-}
-
-function ProviderCard({ provider, actionsDisabled, onLogin, onLogout }: {
-  provider: PiProviderVm;
-  actionsDisabled: boolean;
-  onLogin: (target: AccountActionTarget) => void;
-  onLogout: (target: AccountActionTarget) => void;
-}) {
-  const L = useVocab();
-  const metadata: AccountCredentialVm = {
-    ...provider.status, source: provider.source, expiresAt: provider.expiresAt,
-  };
-  return (
-    <MCard>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <ProviderIcon provider={provider.provider} label={provider.label} size={15} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: MC.ink }}>{provider.label}</span>
-        <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>{provider.provider}</span>
-        {provider.loginTypes.map(authType => <MPill key={authType} tone="running">{L[authTypeLabelKey(authType, 'pi')]}</MPill>)}
-      </div>
-      <div style={{ marginTop: 8 }}><Metadata value={metadata} /></div>
-      <AccountActions
-        backend="pi" provider={provider.provider}
-        loginTypes={provider.loginTypes} logoutTypes={provider.logoutTypes}
-        disabled={actionsDisabled} onLogin={onLogin} onLogout={onLogout}
-      />
-    </MCard>
-  );
-}
+  AvailableGrid, ClaudeHeading, ClaudeSlots, ConnectedList, ProviderSearch, useLogoutConfirm,
+} from '@/features/settings/ui/account-rows';
 
 /**
  * Custom providers carry no login: the credential sits in the gateway route, so the card offers an
@@ -216,8 +76,12 @@ export interface MCustomProvidersProps {
   onDelete: (name: string) => void;
 }
 
-export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, custom, onRescan, rescanning }: {
-  vm: MAccountsVm;
+export function MAccountsView({
+  vm, filter, onFilter, onBack, onLogin, onLogout, actionsDisabled, custom, onRescan, rescanning,
+}: {
+  vm: AccountsVm;
+  filter: string;
+  onFilter: (value: string) => void;
   onBack: () => void;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
@@ -227,6 +91,8 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
   rescanning: boolean;
 }) {
   const L = useVocab();
+  const confirm = useLogoutConfirm();
+  const handlers = { onLogin, onLogout, disabled: actionsDisabled };
   const trailing = (
     <button type="button" data-accounts-sync disabled={rescanning} onClick={onRescan}
       style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 8px',
@@ -243,23 +109,24 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
     <MScreen label={L.accountsTitle} header={header}>
       <MScrollBody>
         {vm.claude ? (
-          <ClaudeCard
-            account={vm.claude} actionsDisabled={actionsDisabled}
-            onLogin={onLogin} onLogout={onLogout}
-          />
-        ) : null}
-        {vm.groups.map(group => (
-          <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <MGroupLabel>{L[group.labelKey]} · {group.providers.length}</MGroupLabel>
-            {group.providers.map(provider => (
-              <ProviderCard
-                key={provider.provider} provider={provider} actionsDisabled={actionsDisabled}
-                onLogin={onLogin} onLogout={onLogout}
-              />
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <MGroupLabel><ClaudeHeading inUse={vm.claude.inUse} /></MGroupLabel>
+            <ClaudeSlots account={vm.claude} handlers={handlers} confirm={confirm} />
           </div>
-        ))}
-        {vm.piProviders.length === 0 ? <MCard><span style={{ fontSize: 12, color: MC.muted }}>{L.accountsNoProviders}</span></MCard> : null}
+        ) : null}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <MGroupLabel>{L.accountsConnected} · {vm.connected.length}</MGroupLabel>
+          <ConnectedList providers={vm.connected} handlers={handlers} confirm={confirm} />
+        </div>
+        {vm.availableTotal > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <MGroupLabel>{L.accountsAddProvider} · {vm.availableTotal}</MGroupLabel>
+            <div>
+              <ProviderSearch value={filter} onChange={onFilter} />
+              <AvailableGrid providers={vm.available} handlers={handlers} />
+            </div>
+          </div>
+        ) : null}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <MGroupLabel>
             {L.cpvTitle} · {custom.providers.length}

@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import type { AccountActionTarget } from '@/features/settings/vm/accounts-vm';
+import { CLAUDE_CODE_LABEL, type AccountActionTarget } from '@/features/settings/vm/accounts-vm';
 
 export interface AccountsController {
   status: AuthStatusSnapshot | undefined;
@@ -15,6 +15,10 @@ export interface AccountsController {
   syncPending: boolean;
 }
 
+function accountLabel(target: AccountActionTarget): string {
+  return target.label ?? (target.backend === 'claude' ? CLAUDE_CODE_LABEL : target.provider);
+}
+
 export function useAccountsController(): AccountsController {
   const L = useVocab();
   const trpc = useTRPC();
@@ -24,7 +28,7 @@ export function useAccountsController(): AccountsController {
   const logout = useMutation(trpc.auth.logout.mutationOptions({
     onSuccess: () => {
       void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
-      toast({ title: L.accountsLogoutDone, tone: 'done' });
+      void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
     },
     onError: error => toast({ title: `${L.accountsLogoutFailed}: ${error.message}`, tone: 'failed' }),
   }));
@@ -39,7 +43,11 @@ export function useAccountsController(): AccountsController {
   }));
   return {
     status: status.data, statusLoading: status.isLoading, statusError: status.error,
-    logout: logout.mutate, syncGateway: () => sync.mutate({}),
+    logout: target => logout.mutate(
+      { backend: target.backend, provider: target.provider, authType: target.authType },
+      { onSuccess: () => toast({ title: fmt(L.accountsLogoutDone, { provider: accountLabel(target) }), tone: 'done' }) },
+    ),
+    syncGateway: () => sync.mutate({}),
     logoutPending: logout.isPending, syncPending: sync.isPending,
   };
 }
