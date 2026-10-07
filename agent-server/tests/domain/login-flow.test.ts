@@ -42,11 +42,6 @@ function outcome(provider: string, detail?: string): LoginOutcome {
   return { provider, authType: 'api_key', expiresAt: null, ...(detail ? { detail } : {}) };
 }
 
-function waitForAbort(signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
-}
-
 async function delayedOutcome(release: Deferred<void>, provider: string): Promise<LoginOutcome> {
   await release.promise;
   return outcome(provider);
@@ -84,16 +79,18 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-test('startFlow reuses one active flow per backend and provider', async () => {
+test('startFlow supersedes an unfinished flow for the same backend and provider', async () => {
   const release = deferred<void>();
-  let firstRuns = 0;
+  let promptError: unknown;
+  let firstSignal: AbortSignal | undefined;
   let duplicateRuns = 0;
-  const first = await startFlow(input('same-pair'), async () => {
-    firstRuns += 1;
-    return delayedOutcome(release, 'same-pair');
-  });
-  const duplicate = await startFlow(input('same-pair'), async () => {
-    duplicateRuns += 1;
+  const first = await startFlow(input('same-pair'), async (interaction) => {
+    firstSignal = interaction.signal;
+    try {
+      await interaction.prompt({ type: 'secret', message: 'API key' });
+    } catch (error) {
+      promptError = error;
+    }
     return outcome('same-pair');
   });
   const other = await startFlow(
@@ -104,33 +101,100 @@ test('startFlow reuses one active flow per backend and provider', async () => {
     () => delayedOutcome(release, 'same-pair'),
   );
   await flush();
+  const duplicate = await startFlow(
+    { ...input('same-pair'), authType: 'oauth', channel: null, sessionId: null },
+    async () => {
+      duplicateRuns += 1;
+      return delayedOutcome(release, 'same-pair');
+    },
+  );
+  await flush();
 
-  assert.equal(duplicate.flowId, first.flowId);
-  assert.notEqual(other.flowId, first.flowId);
-  assert.notEqual(otherBackend.flowId, first.flowId);
-  assert.equal(firstRuns, 1);
-  assert.equal(duplicateRuns, 0);
+  assert.notEqual(duplicate.flowId, first.flowId);
+  assert.equal(duplicate.authType, 'oauth');
+  assert.equal(duplicate.channel, null);
+  assert.equal(duplicateRuns, 1);
+  const superseded = requireState(first.flowId);
+  assert.equal(superseded.step, 'cancelled');
+  assert.equal(superseded.pendingPrompt, null);
+  assert.equal(firstSignal?.aborted, true);
+  assert.equal((promptError as Error).name, 'AbortError');
+  assert.equal(requireState(other.flowId).step, 'running');
+  assert.equal(requireState(otherBackend.flowId).step, 'running');
   release.resolve();
   await flush();
+  assert.equal(requireState(duplicate.flowId).step, 'done');
 });
 
-test('consumer rejection fails safely and releases the active pair', async () => {
-  const secretInError = '\uE202\uE203-sensitive-consumer-error';
+test('a flow saving a submitted response refuses cancel and replacement until it prompts again', async () => {
+  const saving = deferred<void>();
+  const flow = await startFlow(input('handoff'), async (interaction) => {
+    await interaction.prompt({ type: 'secret', message: 'API key' });
+    await saving.promise;
+    await interaction.prompt({ type: 'text', message: 'Account id' });
+    return outcome('handoff');
+  });
+  await flush();
+  await respondPrompt(flow.flowId, 'submitted-key');
+
+  await assert.rejects(() => cancelFlow(flow.flowId), (error: any) => (
+    error?.code === 'flow_conflict' && error.message === 'This login is already completing and can no longer be cancelled.'
+  ));
+  await assert.rejects(() => startFlow(input('handoff'), async () => outcome('handoff')), (error: any) => (
+    error?.code === 'flow_conflict' && error.message === 'The previous login is still completing. Try again in a moment.'
+  ));
+  assert.equal(requireState(flow.flowId).step, 'running');
+
+  saving.resolve();
+  await flush();
+  assert.equal(requireState(flow.flowId).pendingPrompt?.kind, 'text');
+  const replacement = await startFlow(input('handoff'), async () => outcome('handoff'));
+  assert.notEqual(replacement.flowId, flow.flowId);
+  assert.equal(requireState(flow.flowId).step, 'cancelled');
+});
+
+test('consumer rejection keeps the first line of its reason and releases the active pair', async () => {
   const flow = await startFlow(input('consumer-failure'), async () => {
-    throw new Error(secretInError);
+    throw new Error('ECONNRESET socket hang up\n    at TLSSocket (node:_tls_wrap)');
+  });
+  const silent = await startFlow(input('consumer-silent'), async () => {
+    throw new Error('');
   });
   await flush();
 
   const failed = requireState(flow.flowId);
   assert.equal(failed.step, 'failed');
-  assert.equal(failed.error, 'Login failed.');
-  assert.equal(JSON.stringify(failed).includes(secretInError), false);
+  assert.equal(failed.error, 'Login failed: ECONNRESET socket hang up');
+  assert.equal(requireState(silent.flowId).error, 'Login failed.');
   assert.equal(failed.outcome, null);
   assert.equal(failed.errorCode, null);
   const replacement = await startFlow(
     input('consumer-failure'), async () => outcome('consumer-failure'),
   );
   assert.notEqual(replacement.flowId, flow.flowId);
+});
+
+test('a failure reason and its log line never repeat a submitted secret', async () => {
+  const secret = 'sk-live-0123456789abcdef';
+  const logged: unknown[][] = [];
+  for (const method of ['log', 'warn', 'error'] as const) {
+    vi.spyOn(console, method).mockImplementation((...args) => { logged.push(args); });
+  }
+  try {
+    const flow = await startFlow(input('echoing-provider'), async (interaction) => {
+      const key = await interaction.prompt({ type: 'secret', message: 'API key' });
+      throw new Error(`invalid API key: ${key.trim()}\n    at check (provider.js:1:1)`);
+    });
+    await flush();
+    await respondPrompt(flow.flowId, ` ${secret} `);
+    await flush();
+
+    assert.equal(requireState(flow.flowId).error, 'Login failed: invalid API key: ***');
+    assert.ok(JSON.stringify(logged).includes('invalid API key: ***'));
+    assert.equal(JSON.stringify([requireState(flow.flowId), logged]).includes(secret), false);
+  } finally {
+    vi.restoreAllMocks();
+  }
 });
 
 test('branded LoginFlowError exposes only safe message and code', async () => {
@@ -193,14 +257,16 @@ test('AuthInteraction resolves all four prompt types with metadata-only state', 
   });
 
   const expected = [
-    { kind: 'text', message: 'Account' },
-    { kind: 'secret', message: 'API key' },
+    { kind: 'text', message: 'Account', placeholder: 'name' },
+    { kind: 'secret', message: 'API key', placeholder: 'secret' },
     { kind: 'select', message: 'Region', options: [{ id: 'us', label: 'US', description: 'United States' }] },
-    { kind: 'manual_code', message: 'Code' },
+    { kind: 'manual_code', message: 'Code', placeholder: 'paste' },
   ];
   for (const [index, value] of ['alice', 'key-value', 'us', 'manual-value'].entries()) {
     await flush();
-    assert.deepEqual(requireState(flow.flowId).pendingPrompt, expected[index]);
+    const { id, ...prompt } = requireState(flow.flowId).pendingPrompt!;
+    assert.equal(id, requireState(flow.flowId).revision);
+    assert.deepEqual(prompt, expected[index]);
     await respondPrompt(flow.flowId, value);
   }
   await flush();
@@ -291,31 +357,6 @@ test('cancelFlow aborts the flow-wide signal without a pending prompt', async ()
   assert.equal(cancelled.step, 'cancelled');
   assert.equal(probe.signal.aborted, true);
   assert.equal((reason as Error).name, 'AbortError');
-});
-
-test('cancelFlow wakes a consumer waiting between prompts', async () => {
-  let consumerExited = false;
-  let interactionSignal: AbortSignal | undefined;
-  const flow = await startFlow(input('between-prompts'), async (interaction) => {
-    await interaction.prompt({ type: 'secret', message: 'API key' });
-    interactionSignal = interaction.signal;
-    assert.ok(interactionSignal);
-    await waitForAbort(interactionSignal);
-    consumerExited = true;
-    return outcome('between-prompts');
-  });
-  await flush();
-
-  await respondPrompt(flow.flowId, 'submitted-key');
-  await flush();
-  assert.equal(requireState(flow.flowId).step, 'running');
-  const cancelled = await cancelFlow(flow.flowId);
-  await flush();
-
-  assert.equal(interactionSignal?.aborted, true);
-  assert.equal(consumerExited, true);
-  assert.equal(cancelled.step, 'cancelled');
-  assert.equal(cancelled.outcome, null);
 });
 
 test('exact TTL expiry aborts the flow-wide signal without a pending prompt', async () => {

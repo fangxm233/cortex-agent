@@ -50,7 +50,7 @@ function mount(
     renderer = create(
       <LangProvider>
         <MAccountsView
-          vm={buildAccountsVm(status)}
+          vm={buildAccountsVm(status)} filter="" onFilter={() => {}}
           onBack={() => {}}
           onLogin={onLogin}
           onLogout={onLogout}
@@ -70,25 +70,27 @@ function actions(renderer: ReactTestRenderer, provider: string, action: string) 
 }
 
 describe('MAccountsView', () => {
-  it('only offers OAuth where capabilities include OAuth', () => {
+  it('lists connected providers with re-login and loginable ones with their capabilities', () => {
     const renderer = mount();
 
-    expect(actions(renderer, 'deepseek', 'login').map(node => node.props['data-auth-type'])).toEqual(['api_key']);
-    expect(actions(renderer, 'openrouter', 'login').map(node => node.props['data-auth-type'])).toEqual(['api_key', 'oauth']);
+    expect(actions(renderer, 'deepseek', 'login').map(node => node.props.children)).toEqual(['Replace key']);
+    expect(actions(renderer, 'openrouter', 'login').map(node => node.props.children)).toEqual(['Use API key', 'Log in again']);
+    expect(actions(renderer, 'unused', 'login').map(node => node.props.children)).toEqual(['API key']);
   });
 
-  it('only offers logout for manageable credentials and forwards both actions', () => {
+  it('confirms a logout before forwarding it, and forwards logins with the label', () => {
     const onLogin = vi.fn();
     const onLogout = vi.fn();
     const renderer = mount(onLogin, onLogout);
 
     expect(actions(renderer, 'deepseek', 'logout')).toHaveLength(0);
-    const login = actions(renderer, 'deepseek', 'login')[0];
-    const logout = actions(renderer, 'openrouter', 'logout')[0];
-    act(() => { login?.props.onClick(); logout?.props.onClick(); });
+    act(() => { actions(renderer, 'deepseek', 'login')[0]?.props.onClick(); });
+    act(() => { actions(renderer, 'openrouter', 'logout')[0]?.props.onClick(); });
+    expect(onLogout).not.toHaveBeenCalled();
+    act(() => { actions(renderer, 'openrouter', 'logout-confirm')[0]?.props.onClick(); });
 
-    expect(onLogin).toHaveBeenCalledWith({ backend: 'pi', provider: 'deepseek', authType: 'api_key' });
-    expect(onLogout).toHaveBeenCalledWith({ backend: 'pi', provider: 'openrouter', authType: 'oauth' });
+    expect(onLogin).toHaveBeenCalledWith({ backend: 'pi', provider: 'deepseek', authType: 'api_key', label: 'DeepSeek' });
+    expect(onLogout).toHaveBeenCalledWith({ backend: 'pi', provider: 'openrouter', authType: 'oauth', label: 'OpenRouter' });
   });
 
   it('disables account actions while a logout mutation is pending', () => {
@@ -98,7 +100,7 @@ describe('MAccountsView', () => {
     expect(actions(renderer, 'openrouter', 'logout')[0]?.props.disabled).toBe(true);
   });
 
-  it('shows only status, source, and expiry metadata, never credential detail', () => {
+  it('never shows credential detail, provider ids or raw sources', () => {
     const withSensitiveDetail: AuthStatusSnapshot = {
       ...status,
       accounts: status.accounts.map(account => ({
@@ -112,7 +114,7 @@ describe('MAccountsView', () => {
       renderer = create(
         <LangProvider>
           <MAccountsView
-            vm={buildAccountsVm(withSensitiveDetail)} onBack={() => {}}
+            vm={buildAccountsVm(withSensitiveDetail)} filter="" onFilter={() => {}} onBack={() => {}}
             onLogin={() => {}} onLogout={() => {}} actionsDisabled={false}
             custom={custom} onRescan={() => {}} rescanning={false}
           />
@@ -123,5 +125,13 @@ describe('MAccountsView', () => {
 
     expect(html).not.toContain('sentinel-account-secret');
     expect(html).not.toContain('sentinel-slot-secret');
+    const parts: string[] = [];
+    const walk = (node: unknown): void => {
+      if (typeof node === 'string') parts.push(node);
+      else if (Array.isArray(node)) node.forEach(walk);
+      else if (node && typeof node === 'object' && 'children' in node) walk((node as { children: unknown }).children);
+    };
+    walk(renderer.toJSON());
+    expect(parts.join(' ')).not.toMatch(/deepseek|openrouter|stored|credentials\.json|2030-|2031-/);
   });
 });

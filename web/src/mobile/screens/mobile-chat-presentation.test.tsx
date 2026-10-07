@@ -49,7 +49,7 @@ describe('mobile chat presentation', () => {
   it('keeps notification material low-cost without fading text', () => {
     const html = renderToStaticMarkup(<MNotificationToaster now={1} lang="en" onDismiss={noop}
       items={[{ id: 'notice', level: 'info', title: 'Ready', ts: '2026-01-01T00:00:00Z', duration: 0 }]} />);
-    expect(html).toContain('background:var(--material-overlay-bg)');
+    expect(html).toContain('background:var(--proto-card)');
     expect(html).not.toContain('backdrop-filter');
     expect(html).not.toContain('opacity:');
   });

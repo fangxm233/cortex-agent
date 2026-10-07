@@ -93,17 +93,20 @@ describe('useAccountsController', () => {
     const gate = deferred<unknown>();
     adapter.logout.mockReturnValue(gate.promise);
     const mounted = await mount();
-    const target = { backend: 'pi' as const, provider: 'openrouter', authType: 'oauth' as const };
+    const target = { backend: 'pi' as const, provider: 'openrouter', authType: 'oauth' as const, label: 'OpenRouter' };
 
     act(() => { controller?.logout(target); });
     await vi.waitFor(() => expect(controller?.logoutPending).toBe(true));
     expect(controller?.syncPending).toBe(false);
-    expect(adapter.logout).toHaveBeenCalledWith(target);
+    expect(adapter.logout).toHaveBeenCalledWith({ backend: 'pi', provider: 'openrouter', authType: 'oauth' });
 
     gate.resolve({});
     await vi.waitFor(() => expect(controller?.logoutPending).toBe(false));
-    expect(mounted.invalidate).toHaveBeenCalledTimes(1);
-    expect(mounted.invalidate).toHaveBeenCalledWith({ queryKey: ['auth.status', {}] });
+    expect(mounted.invalidate.mock.calls.map(call => call[0])).toEqual([
+      { queryKey: ['auth.status', {}] },
+      { queryKey: ['config.get', {}] },
+    ]);
+    await vi.waitFor(() => expect(adapter.toast).toHaveBeenCalledWith({ title: 'Logged out of OpenRouter', tone: 'done' }));
     mounted.renderer.unmount();
     mounted.queryClient.clear();
   });

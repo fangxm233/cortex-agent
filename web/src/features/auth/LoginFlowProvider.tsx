@@ -3,47 +3,30 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
-import type { LoginFlowState } from '@cortex-agent/ui-contract';
 import { LoginFlowModal, type LoginFlowTarget } from './LoginFlowModal';
 
 interface LoginFlowContextValue {
-  openLogin: (target?: LoginFlowTarget) => void;
-}
-
-interface LoginRequest {
-  target: LoginFlowTarget | null;
-  initialState: LoginFlowState | null;
+  openLogin: (target: LoginFlowTarget) => void;
 }
 
 const LoginFlowContext = createContext<LoginFlowContextValue | null>(null);
 
+/**
+ * One login dialog for the whole app. It opens on the nested modal layer, so a login started from
+ * Settings stacks above it and the user lands back in Accounts when it closes.
+ */
 export function LoginFlowProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const [request, setRequest] = useState<LoginRequest>({ target: null, initialState: null });
-  const noticeStates = useRef(new Map<string, LoginFlowState>());
-  const openLogin = useCallback((target?: LoginFlowTarget) => {
-    setRequest({
-      target: target ?? null,
-      initialState: target?.noticeId ? noticeStates.current.get(target.noticeId) ?? null : null,
-    });
-    setOpen(true);
-  }, []);
-  const closeLogin = useCallback(() => setOpen(false), []);
-  const rememberState = useCallback((state: LoginFlowState) => {
-    if (request.target?.noticeId) noticeStates.current.set(request.target.noticeId, state);
-  }, [request.target]);
+  const [request, setRequest] = useState<{ target: LoginFlowTarget; open: boolean } | null>(null);
+  const openLogin = useCallback((target: LoginFlowTarget) => setRequest({ target: { ...target }, open: true }), []);
+  const closeLogin = useCallback(() => setRequest(current => (current ? { ...current, open: false } : null)), []);
   const value = useMemo(() => ({ openLogin }), [openLogin]);
   return (
     <LoginFlowContext.Provider value={value}>
       {children}
-      <LoginFlowModal
-        open={open} onClose={closeLogin} target={request.target}
-        initialState={request.initialState} onFlowStateChange={rememberState}
-      />
+      <LoginFlowModal open={request?.open ?? false} onClose={closeLogin} target={request?.target ?? null} />
     </LoginFlowContext.Provider>
   );
 }

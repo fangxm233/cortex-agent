@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ButtonHTMLAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { AuthAccountStatus, LoginFlowState } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import type { LoginFlowState } from '@cortex-agent/ui-contract';
+import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowModal';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
-import { orderedProviders, ProviderSetupController, setupErrorText } from './provider-setup';
+import { buildAccountsVm, type ClaudeAccountVm } from '@/features/settings/vm/accounts-vm';
+import {
+  AvailableGrid, ClaudeSlots, ConnectedList, ProviderSearch, useLogoutConfirm,
+} from '@/features/settings/ui/account-rows';
+import { ProviderSetupController, setupErrorText } from './provider-setup';
 import { canSetupClaude, setupClaude, claudeInstallLine } from './setup-native';
 import { invokeNative, listenNativeEvent } from '@/lib/native-bridge';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
@@ -15,24 +19,6 @@ import './provider-setup.css';
 
 function SetupButton({ primary, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { primary?: boolean }) {
   return <button type="button" className={`setup-button ${primary ? 'setup-primary' : ''} ${className}`} {...props} />;
-}
-function statusCopy(account: AuthAccountStatus, L: Vocab): string {
-  return { 'logged-in': L.setupConfigured, expiring: L.setupExpiring,
-    'logged-out': L.setupMissing, expired: L.setupExpired, unknown: L.setupUnknown }[account.state];
-}
-function AccountRow({ account, login, disabled }: {
-  account: AuthAccountStatus; login: (target: LoginFlowTarget) => void; disabled: boolean;
-}) {
-  const L = useVocab();
-  const icon = account.backend === 'claude' ? 'claude-code' : account.provider;
-  return <div className="setup-account" data-account-state={account.state}>
-    <span className="setup-provider-icon"><ProviderIcon provider={icon} label={account.label} size={20} /></span>
-    <div className="setup-account-copy"><strong>{account.label}</strong>
-      <p className="setup-account-status"><span className="setup-state-dot" />{statusCopy(account, L)}</p></div>
-    <div className="setup-account-actions">{account.capabilities.map(authType => <SetupButton key={authType}
-      disabled={disabled} onClick={() => login({ backend: account.backend, provider: account.provider, authType })}>
-      {authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}</SetupButton>)}</div>
-  </div>;
 }
 function useClaudeLog() {
   const [log, setLog] = useState('');
@@ -49,18 +35,23 @@ function useClaudeLog() {
   return log;
 }
 function ClaudeActions({ controller, account, login }: {
-  controller: ProviderSetupController; account?: AuthAccountStatus; login: (target: LoginFlowTarget) => void;
+  controller: ProviderSetupController; account: ClaudeAccountVm | null; login: (target: LoginFlowTarget) => void;
 }) {
   const L = useVocab(), s = controller.state;
+  const confirm = useLogoutConfirm();
   const start = async (target: LoginFlowTarget) => { if (await controller.prepareClaude()) login(target); };
   if (!canSetupClaude()) return <p className="setup-hint">{L.setupCcLocal}</p>;
   if (s.claude === null) return <SetupButton disabled={s.claudeBusy} onClick={controller.detectClaude}>{L.setupRetry}</SetupButton>;
   if (!account) return null;
-  return s.claude.installed ? <AccountRow account={account} disabled={s.claudeBusy || s.busy} login={start} />
-    : <div className="setup-install-row"><p className="setup-hint">{L.setupCcConsent}</p>
-      <SetupButton disabled={s.claudeBusy || s.busy || !account.capabilities.length}
-        onClick={() => start({ backend: 'claude', provider: account.provider, authType: account.capabilities.includes('oauth') ? 'oauth' : account.capabilities[0]! })}>
-        {L.setupCcInstall}</SetupButton></div>;
+  if (s.claude.installed) {
+    return <ClaudeSlots account={account} confirm={confirm}
+      handlers={{ onLogin: target => void start(target), disabled: s.claudeBusy || s.busy }} />;
+  }
+  const subscription = account.slots.find(slot => slot.authType === 'oauth' && slot.canLogin) ?? account.slots.find(slot => slot.canLogin);
+  return <div className="setup-install-row"><p className="setup-hint">{L.setupCcConsent}</p>
+    <SetupButton disabled={s.claudeBusy || s.busy || !subscription}
+      onClick={() => subscription && void start({ backend: 'claude', provider: account.provider, authType: subscription.authType, label: account.label })}>
+      {L.setupCcInstall}</SetupButton></div>;
 }
 function ClaudeSection({ controller, login }: {
   controller: ProviderSetupController; login: (target: LoginFlowTarget) => void;
@@ -72,7 +63,7 @@ function ClaudeSection({ controller, login }: {
     <div className="setup-card-header"><ProviderIcon provider="claude-code" label="Claude Code" size={20} />
       <h2>Claude Code</h2><span className="setup-pill">{L.setupOptional} · {installed}</span></div>
     <div className="setup-card-body setup-cc-body">
-      <ClaudeActions controller={controller} account={s.status?.accounts.find(a => a.backend === 'claude')} login={login} />
+      <ClaudeActions controller={controller} account={s.status ? buildAccountsVm(s.status).claude : null} login={login} />
       {s.claudeBusy ? <p className="setup-hint" role="status">{L.setupWorking}</p> : null}
       {log ? <pre className="setup-log">{log}</pre> : null}
       {s.claudeError ? <p role="alert" className="setup-error">{setupErrorText(s.claudeError, L)}</p> : null}
@@ -116,15 +107,25 @@ function SetupFooter({ controller, leave, saving = false, failed = false }: { co
 function PiSection({ controller, login }: { controller: ProviderSetupController; login: (target: LoginFlowTarget) => void }) {
   const L = useVocab();
   const [search, setSearch] = useState('');
+  const confirm = useLogoutConfirm();
   const s = controller.state;
+  const vm = s.status ? buildAccountsVm(s.status, search) : null;
+  const handlers = { onLogin: login, disabled: s.busy || !s.status?.piRuntime.available };
   return <section className="setup-card">
-    <div className="setup-card-header"><h2>PI</h2><span className="setup-pill setup-good">{L.setupBundled}</span>
+    <div className="setup-card-header"><h2>{L.setupProviders}</h2>
       <SetupButton className="setup-rescan" disabled={s.busy} onClick={controller.refresh}>{s.busy ? L.setupWorking : L.setupRescan}</SetupButton></div>
     {s.status && !s.status.piRuntime.available ? <p role="alert" className="setup-error">{L.setupRuntimeError}: {s.status.piRuntime.error}</p> : null}
-    <div className="setup-search"><input type="search" aria-label={L.setupSearch} placeholder={L.setupSearch} value={search}
-      onChange={event => setSearch(event.target.value)} className="setup-input" /></div>
-    <div className="setup-providers">{orderedProviders(s.status?.accounts ?? [], search).map(account =>
-      <AccountRow key={account.provider} account={account} disabled={s.busy || !s.status?.piRuntime.available} login={login} />)}</div>
+    {vm ? <div className="setup-card-body setup-accounts">
+      {vm.connected.length > 0 ? <div className="setup-accounts-group">
+        <h3>{L.accountsConnected} · {vm.connected.length}</h3>
+        <ConnectedList providers={vm.connected} handlers={handlers} confirm={confirm} />
+      </div> : null}
+      {vm.availableTotal > 0 ? <div className="setup-accounts-group">
+        <h3>{L.accountsAddProvider} · {vm.availableTotal}</h3>
+        <ProviderSearch value={search} onChange={setSearch} />
+        <AvailableGrid providers={vm.available} handlers={handlers} />
+      </div> : null}
+    </div> : null}
   </section>;
 }
 function SetupFeedback({ controller }: { controller: ProviderSetupController }) {
@@ -138,9 +139,7 @@ export function ProviderSetupView({ controller, ...exit }: { controller: Provide
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const L = useVocab();
   const [target, setTarget] = useState<LoginFlowTarget | null>(null);
-  const flowChanged = useCallback((state: LoginFlowState) => {
-    if (state.step === 'done') void controller.loginDone(state.flowId);
-  }, [controller]);
+  const loginDone = useCallback((state: LoginFlowState) => { void controller.loginDone(state.flowId); }, [controller]);
   return <><main className="setup-workspace">
     <header><div className="setup-eyebrow">{L.setupEyebrow}</div><h1>{L.setupTitle}</h1>
       <p className="setup-intro">{L.setupDescription}</p></header>
@@ -149,7 +148,7 @@ export function ProviderSetupView({ controller, ...exit }: { controller: Provide
     <ClaudeSection controller={controller} login={setTarget} />
     <ProfileSection controller={controller} />
     <SetupFooter controller={controller} {...exit} />
-  </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onFlowStateChange={flowChanged} /></>;
+  </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onDone={loginDone} /></>;
 }
 function useProviderSetupExit(): SetupExit {
   const navigate = useNavigate();

@@ -4,8 +4,8 @@ import { handleAuthFlowState } from '../../../src/domain/ui-service/query/auth.j
 import type { LoginFlowState } from '../../../src/domain/auth/login-flow.js';
 
 const FLOW_STATE: LoginFlowState = {
-  flowId: 'flow-web', backend: 'claude', provider: 'anthropic', authType: 'api_key',
-  step: 'prompt', pendingPrompt: { kind: 'secret', message: 'Enter key' }, notice: null,
+  flowId: 'flow-web', revision: 1, backend: 'claude', provider: 'anthropic', authType: 'api_key',
+  step: 'prompt', pendingPrompt: { id: 1, kind: 'secret', message: 'Enter key' }, notice: null,
   channel: null, sessionId: null,
   createdAt: '2030-01-01T00:00:00.000Z', expiresAt: '2030-01-01T00:30:00.000Z',
   outcome: null, error: null, errorCode: null,

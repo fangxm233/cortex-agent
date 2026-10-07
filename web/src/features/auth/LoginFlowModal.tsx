@@ -1,764 +1,396 @@
 import '@/design/content-surfaces.css';
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  AuthAccountStatus,
-  AuthType,
-  LoginFlowNotice,
-  LoginFlowState,
-} from '@cortex-agent/ui-contract';
-import { Button, MBottomSheet, Modal, Select, type SelectOption } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import type { LoginFlowNotice, LoginFlowState } from '@cortex-agent/ui-contract';
+import { Button, MBottomSheet, Modal, Select } from '@/design';
+import { useClipboardFeedback } from '@/design/useClipboardFeedback';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useMobileLayout } from '@/lib/use-mobile-layout';
-import { trpcErrorCode, useTRPC, useTRPCClient } from '@/lib/trpc';
-import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';
+import { ProviderIcon } from './ProviderIcon';
+import {
+  authTypeLabel,
+  buildLoginFlowVm,
+  canSubmitPrompt,
+  deviceCodeRemaining,
+  formatClock,
+  type LoginFlowVm,
+} from './login-flow-vm';
+import {
+  useLoginFlowController,
+  useProviderLabel,
+  type LoginFlowController,
+  type LoginFlowTarget,
+} from './useLoginFlowController';
 
-const FLOW_POLL_MS = 500;
-const TERMINAL_STEPS = new Set(['done', 'failed', 'cancelled']);
-
-type Setter<T> = Dispatch<SetStateAction<T>>;
-
-export interface LoginFlowTarget {
-  backend: 'claude' | 'pi';
-  provider: string;
-  authType: AuthType;
-  noticeId?: string;
-}
+export type { LoginFlowTarget } from './useLoginFlowController';
 
 export interface LoginFlowModalProps {
   open: boolean;
   onClose: () => void;
-  target?: LoginFlowTarget | null;
-  initialState?: LoginFlowState | null;
-  onFlowStateChange?: (state: LoginFlowState) => void;
+  target: LoginFlowTarget | null;
+  /** Called once when the flow finishes successfully. */
+  onDone?: (state: LoginFlowState) => void;
 }
 
-interface ProviderOption {
-  provider: string;
-  label: string;
-  capabilities: AuthType[];
-}
+type PendingPrompt = NonNullable<LoginFlowState['pendingPrompt']>;
 
-interface AuthSelectProps<T extends string> {
-  field: 'secret' | 'backend' | 'type' | 'provider';
-  value: T;
-  options: readonly SelectOption<T>[];
-  onValueChange: (value: T) => void;
-  className: string;
-  ariaLabel?: string;
-  ariaLabelledBy?: string;
-}
+const IN_PROGRESS = new Set<LoginFlowVm['kind']>(['starting', 'running', 'notice', 'prompt']);
 
-function AuthSelect<T extends string>(props: AuthSelectProps<T>): JSX.Element {
-  const isMobile = useMobileLayout();
-  const dataProps = { [`data-auth-${props.field}`]: true };
-  if (!isMobile) {
-    // `bare` so the class below — shared with the plain text prompt input — owns the whole box; the
-    // default compact density is inline and would shrink the selection out of line with it.
-    return <Select {...dataProps} density="bare" aria-label={props.ariaLabel}
-      aria-labelledby={props.ariaLabelledBy} value={props.value} options={props.options}
-      onValueChange={props.onValueChange} className={props.className} />;
-  }
-  const hasValue = props.options.some((option) => option.value === props.value);
+function Spinner() {
   return (
-    <select {...dataProps} aria-label={props.ariaLabel} aria-labelledby={props.ariaLabelledBy}
-      value={props.value} onChange={(event) => props.onValueChange(event.target.value as T)}
-      className={props.className}>
-      {!hasValue ? <option value="" /> : null}
-      {props.options.map((option) => (
-        <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
-      ))}
-    </select>
+    <span aria-hidden="true"
+      className="inline-block h-3.5 w-3.5 flex-none animate-spin rounded-full border-2 border-proto-line-3 border-t-state-run motion-reduce:animate-none" />
   );
 }
 
-interface LoginController {
-  backend: 'claude' | 'pi';
-  authType: AuthType;
-  noticeId?: string;
-  authTypes: AuthType[];
-  provider: string;
-  providerLabel: string;
-  backendLabel: string;
-  providers: ProviderOption[];
-  latest: LoginFlowState | null;
-  response: string;
-  error: string | null;
-  canCancel: boolean;
-  canStart: boolean;
-  chooseBackend: (backend: 'claude' | 'pi') => void;
-  chooseProvider: (provider: string) => void;
-  chooseAuthType: (authType: AuthType) => void;
-  setResponse: (value: string) => void;
-  start: () => Promise<void>;
-  submit: () => Promise<void>;
-  cancel: () => Promise<void>;
+function StatusLine({ children }: { children: ReactNode }) {
+  return (
+    <p role="status" data-auth-status className="flex min-w-0 items-center gap-1g break-words text-proto-muted">
+      <Spinner /><span className="min-w-0">{children}</span>
+    </p>
+  );
 }
 
-function isTerminal(state: LoginFlowState | null): boolean {
-  return !!state && TERMINAL_STEPS.has(state.step);
-}
-
-function expiredState(state: LoginFlowState): LoginFlowState {
-  return {
-    ...state,
-    step: 'failed',
-    pendingPrompt: null,
-    notice: null,
-    outcome: null,
-    error: null,
-    errorCode: 'flow_not_found',
-  };
-}
-
-function isStateRegression(
-  current: LoginFlowState | null,
-  incoming: LoginFlowState,
-  responseSent: boolean,
-): boolean {
-  if (!current) return false;
-  if (isTerminal(current) && !isTerminal(incoming)) return true;
-  return responseSent && current.step === 'running' && incoming.step === 'prompt';
-}
-
-function OpenUrlButton({ href, children, action }: {
-  href: string;
-  children: string;
-  action?: string;
+function OpenUrlButton({ href, children, action, primary }: {
+  href: string; children: string; action?: string; primary?: boolean;
 }) {
   return (
-    <Button
-      data-action={action} data-auth-external-url={href} variant="secondary"
-      onClick={() => openExternalUrl(href)}
-    >
+    <Button data-action={action} data-auth-external-url={href} size="sm"
+      variant={primary ? 'primary' : 'secondary'} onClick={() => openExternalUrl(href)}>
       {children}<span aria-hidden="true">↗</span>
     </Button>
   );
 }
 
-function InfoNotice({ notice, L }: {
-  notice: Extract<LoginFlowNotice, { kind: 'info' }>;
-  L: Vocab;
+function CopyButton({ text, action, copyKey, clipboard }: {
+  text: string; action: string; copyKey: string;
+  clipboard: ReturnType<typeof useClipboardFeedback<string>>;
 }) {
+  const L = useVocab();
+  return (
+    <Button data-action={action} size="sm" variant="secondary"
+      onClick={() => { void clipboard.copy(text, copyKey); }}>
+      {clipboard.copiedKey === copyKey ? L.authLoginCopied : L.authLoginCopy}
+    </Button>
+  );
+}
+
+const STEP_BADGE =
+  'flex h-5 w-5 flex-none items-center justify-center rounded-full bg-state-run text-[11px] font-semibold text-[var(--accent-fg)]';
+
+function Step({ index, children, data }: { index: number; children: ReactNode; data: string }) {
+  return (
+    <section {...{ [data]: true }} className="flex min-w-0 items-start gap-1.5g py-1.5g first:pt-0 [&+&]:border-t [&+&]:border-proto-line-2">
+      <span className={STEP_BADGE}>{index}</span>
+      <div className="min-w-0 flex-1 space-y-1g break-words">{children}</div>
+    </section>
+  );
+}
+
+function AuthUrlStep({ notice, waiting }: {
+  notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
+  /** No prompt follows: the provider finishes on its own once the browser step is done. */
+  waiting: boolean;
+}) {
+  const L = useVocab();
+  const clipboard = useClipboardFeedback<string>();
+  return (
+    <Step index={1} data="data-auth-open-step">
+      <p className="font-medium text-state-ink">{L.authLoginOpenStep}</p>
+      <div data-auth-notice="auth_url" className="flex flex-wrap gap-1g">
+        <OpenUrlButton href={notice.url} action="auth-open-url" primary={waiting}>
+          {L.authLoginOpenAuthorization}
+        </OpenUrlButton>
+        <CopyButton text={notice.url} action="auth-copy-url" copyKey="url" clipboard={clipboard} />
+      </div>
+      {waiting ? <StatusLine>{notice.instructions ?? L.authLoginWaitingBrowser}</StatusLine> : null}
+    </Step>
+  );
+}
+
+function useCountdown(notice: Extract<LoginFlowNotice, { kind: 'device_code' }>): number | null {
+  const shownAt = useRef<{ code: string; at: number } | null>(null);
+  if (shownAt.current?.code !== notice.userCode) shownAt.current = { code: notice.userCode, at: Date.now() };
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (notice.expiresInSeconds === undefined) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [notice.expiresInSeconds]);
+  if (notice.expiresInSeconds === undefined) return null;
+  return deviceCodeRemaining(notice.expiresInSeconds, shownAt.current.at, now);
+}
+
+function DeviceCodeNotice({ notice }: { notice: Extract<LoginFlowNotice, { kind: 'device_code' }> }) {
+  const L = useVocab();
+  const clipboard = useClipboardFeedback<string>();
+  const remaining = useCountdown(notice);
+  const expiry = remaining === null ? null
+    : remaining > 0 ? fmt(L.authLoginExpiresIn, { time: formatClock(remaining) }) : L.authLoginCodeExpired;
+  return (
+    <div data-auth-notice="device_code" className="min-w-0 space-y-1.5g">
+      <p className="text-state-ink">{L.authLoginDeviceStep}</p>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5g rounded-[var(--r-card)] border border-dashed border-proto-accent-border bg-proto-accent-bg px-2g py-1.5g">
+        <span data-auth-device-code className="min-w-0 flex-1 break-all font-mono text-xl font-semibold tracking-wider text-state-ink">
+          {notice.userCode}
+        </span>
+        <CopyButton text={notice.userCode} action="auth-copy-code" copyKey="code" clipboard={clipboard} />
+        <OpenUrlButton href={notice.verificationUri} action="auth-open-verification" primary>
+          {L.authLoginOpenVerification}
+        </OpenUrlButton>
+      </div>
+      <StatusLine>
+        {expiry ? `${L.authLoginWaitingBrowser} · ${expiry}` : L.authLoginWaitingBrowser}
+      </StatusLine>
+    </div>
+  );
+}
+
+function InfoNotice({ notice, L }: { notice: Extract<LoginFlowNotice, { kind: 'info' }>; L: Vocab }) {
   return (
     <div data-auth-notice="info" className="min-w-0 space-y-1g break-words">
       <p>{notice.message}</p>
-      {(notice.links ?? []).map(link => (
-        <OpenUrlButton key={link.url} href={link.url}>
-          {link.label ?? L.authLoginOpenLink}
-        </OpenUrlButton>
-      ))}
-    </div>
-  );
-}
-
-const OAUTH_STEP_CLASS =
-  'min-w-0 rounded-[var(--r-card)] border border-proto-line-2 [background:var(--material-card-bg)] shadow-[shadow:var(--material-card-shadow)] p-2g';
-
-function AuthUrlNotice({ notice, L, hideInstructions }: {
-  notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
-  L: Vocab;
-  hideInstructions: boolean;
-}) {
-  return (
-    <section
-      data-auth-notice="auth_url" data-auth-open-step className={OAUTH_STEP_CLASS}
-    >
-      <div className="flex min-w-0 items-start gap-1.5g">
-        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-state-run text-caption font-semibold text-surface-card">1</span>
-        <div className="min-w-0 flex-1 space-y-1g break-words">
-          <p className="font-medium text-state-ink">{L.authLoginOpenStep}</p>
-          {!hideInstructions && notice.instructions ? <p>{notice.instructions}</p> : null}
-          <OpenUrlButton href={notice.url} action="auth-open-url">
-            {L.authLoginOpenAuthorization}
-          </OpenUrlButton>
+      {(notice.links ?? []).length > 0 ? (
+        <div className="flex flex-wrap gap-1g">
+          {(notice.links ?? []).map(link => (
+            <OpenUrlButton key={link.url} href={link.url}>{link.label ?? L.authLoginOpenLink}</OpenUrlButton>
+          ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function DeviceCodeNotice({ notice, L }: {
-  notice: Extract<LoginFlowNotice, { kind: 'device_code' }>;
-  L: Vocab;
-}) {
-  const expiry = notice.expiresInSeconds === undefined
-    ? null
-    : L.authLoginExpiresIn.replace('{seconds}', String(notice.expiresInSeconds));
-  return (
-    <div data-auth-notice="device_code" className="min-w-0 space-y-1g break-words">
-      <div data-auth-device-code className="font-mono text-xl font-semibold tracking-wider text-state-ink">
-        {notice.userCode}
-      </div>
-      <OpenUrlButton href={notice.verificationUri}>{L.authLoginOpenVerification}</OpenUrlButton>
-      {expiry ? <p className="text-caption text-state-muted">{expiry}</p> : null}
+      ) : null}
     </div>
   );
 }
 
-function NoticeBody({ state }: { state: LoginFlowState }) {
+/** A notice shown on its own (no prompt beside it). */
+function StandaloneNotice({ notice }: { notice: LoginFlowNotice }) {
   const L = useVocab();
-  const notice = state.notice;
-  if (!notice) return null;
-  if (notice.kind === 'info') return <InfoNotice notice={notice} L={L} />;
-  if (notice.kind === 'auth_url') {
-    return <AuthUrlNotice notice={notice} L={L}
-      hideInstructions={notice.instructions === state.pendingPrompt?.message} />;
-  }
-  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} L={L} />;
-  return (
-    <div data-auth-notice="progress" data-auth-progress className="min-w-0 break-words text-state-run" role="status">
-      {notice.message}
-    </div>
-  );
+  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} />;
+  if (notice.kind === 'auth_url') return <AuthUrlStep notice={notice} waiting />;
+  if (notice.kind === 'info') return <><InfoNotice notice={notice} L={L} /><StatusLine>{L.authLoginRunning}</StatusLine></>;
+  return <div data-auth-notice="progress"><StatusLine>{notice.message}</StatusLine></div>;
 }
 
-const PROMPT_CONTROL_CLASS =
-  'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-2 ' +
-  '[background:var(--material-inset-bg)] px-2g py-1.5g text-ui text-state-ink ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
+// `border-solid` is needed: the global base rule strips input borders. The dialog's focus outline
+// is drawn over the border: a full-width field would have it clipped by the scrolling body.
+const INPUT_CLASS =
+  'box-border min-h-9 w-full min-w-0 rounded-[var(--r-control)] border border-solid border-proto-line-3 ' +
+  '[background:var(--material-control-bg)] px-1.5g py-1g text-ui text-state-ink ' +
+  'placeholder:text-proto-muted-3 focus-visible:![outline-offset:-1px]';
 
-function PromptSelect({ state, value, onChange }: {
-  state: LoginFlowState; value: string; onChange: (value: string) => void;
+function PromptSelect({ prompt, value, onChange }: {
+  prompt: PendingPrompt; value: string; onChange: (value: string) => void;
 }) {
-  const options = (state.pendingPrompt?.options ?? []).map(option => ({
+  const isMobile = useMobileLayout();
+  const options = (prompt.options ?? []).map(option => ({
     value: option.id, label: option.label, description: option.description,
   }));
-  return (
-    <AuthSelect field="secret" ariaLabelledBy="auth-login-prompt-label"
-      value={value} options={options} onValueChange={onChange}
-      className={PROMPT_CONTROL_CLASS} />
-  );
-}
-
-function PromptControl({ state, value, onChange }: {
-  state: LoginFlowState; value: string; onChange: (value: string) => void;
-}) {
-  const L = useVocab();
-  const prompt = state.pendingPrompt;
-  if (!prompt) return null;
-  if (prompt.kind === 'select') {
-    return <PromptSelect state={state} value={value} onChange={onChange} />;
+  if (!isMobile) {
+    // The option labels are the provider's own sentences, so the popup uses the dialog's font.
+    return <Select data-auth-select density="bare" aria-labelledby="auth-login-prompt-label"
+      value={value} options={options} onValueChange={onChange} className={INPUT_CLASS}
+      popupClassName="![font-family:inherit] !text-ui" />;
   }
-  const manual = prompt.kind === 'manual_code';
   return (
-    <input data-auth-secret aria-labelledby="auth-login-prompt-label"
-      type={prompt.kind === 'secret' ? 'password' : 'text'} value={value}
-      autoComplete={manual ? 'one-time-code' : 'off'}
-      placeholder={manual ? L.authLoginCodePlaceholder : undefined}
-      onChange={event => onChange(event.target.value)} className={PROMPT_CONTROL_CLASS} />
+    <select data-auth-select aria-labelledby="auth-login-prompt-label" value={value}
+      onChange={event => onChange(event.target.value)} className={INPUT_CLASS}>
+      {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
   );
 }
 
-function SelectionBody({ controller }: { controller: LoginController }) {
-  const L = useVocab();
+function PromptInput({ prompt, value, onChange, onSubmit }: {
+  prompt: PendingPrompt; value: string; onChange: (value: string) => void; onSubmit: () => void;
+}) {
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    onSubmit();
+  };
+  if (prompt.kind === 'select') return <PromptSelect prompt={prompt} value={value} onChange={onChange} />;
   return (
-    <div className="space-y-2g">
-      <label className="block space-y-1g text-ui">
-        <span>{L.authLoginBackend}</span>
-        <AuthSelect
-          field="backend"
-          ariaLabel={L.authLoginBackend}
-          value={controller.backend}
-          options={[
-            { value: 'claude', label: 'Claude Code' },
-            { value: 'pi', label: 'PI' },
-          ]}
-          onValueChange={controller.chooseBackend}
-          className="w-full rounded-[var(--r-control)] border border-card [background:var(--material-inset-bg)] px-2g py-1g"
-        />
-      </label>
-      {controller.backend === 'pi' ? <ProviderSelect controller={controller} /> : null}
-      {controller.authTypes.length > 1 ? <AuthTypeSelect controller={controller} /> : null}
+    <input data-auth-input={prompt.kind} aria-labelledby="auth-login-prompt-label" autoFocus
+      type={prompt.kind === 'secret' ? 'password' : 'text'} value={value}
+      autoComplete={prompt.kind === 'manual_code' ? 'one-time-code' : 'off'} spellCheck={false}
+      placeholder={prompt.placeholder} onKeyDown={onKeyDown}
+      onChange={event => onChange(event.target.value)} className={INPUT_CLASS} />
+  );
+}
+
+function PromptField({ prompt, value, onChange, onSubmit }: {
+  prompt: PendingPrompt; value: string; onChange: (value: string) => void; onSubmit: () => void;
+}) {
+  return (
+    <label className="block min-w-0 space-y-1g">
+      <span id="auth-login-prompt-label" data-auth-prompt-copy className="block break-words font-medium text-state-ink">
+        {prompt.message}
+      </span>
+      <PromptInput prompt={prompt} value={value} onChange={onChange} onSubmit={onSubmit} />
+    </label>
+  );
+}
+
+function PromptBody({ state, value, onChange, onSubmit }: {
+  state: LoginFlowState; value: string; onChange: (value: string) => void; onSubmit: () => void;
+}) {
+  const prompt = state.pendingPrompt!;
+  const notice = state.notice;
+  const field = <PromptField prompt={prompt} value={value} onChange={onChange} onSubmit={onSubmit} />;
+  if (notice?.kind === 'auth_url') {
+    return (
+      <div className="min-w-0">
+        <AuthUrlStep notice={notice} waiting={false} />
+        <Step index={2} data="data-auth-code-step">{field}</Step>
+      </div>
+    );
+  }
+  return (
+    <div className="min-w-0 space-y-2g">
+      {notice ? <StandaloneNoticeForPrompt notice={notice} /> : null}
+      {field}
     </div>
   );
 }
 
-function AuthTypeSelect({ controller }: { controller: LoginController }) {
+/** A notice that accompanies a prompt: no waiting spinner, the prompt is what the user acts on. */
+function StandaloneNoticeForPrompt({ notice }: { notice: LoginFlowNotice }) {
   const L = useVocab();
+  if (notice.kind === 'info') return <InfoNotice notice={notice} L={L} />;
+  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} />;
+  if (notice.kind === 'progress') return <p data-auth-notice="progress" className="text-proto-muted">{notice.message}</p>;
+  return null;
+}
+
+function FlowError({ title, detail }: { title?: string; detail?: string }) {
   return (
-    <label className="block space-y-1g text-ui">
-      <span>{L.authLoginType}</span>
-      <AuthSelect
-        field="type"
-        ariaLabel={L.authLoginType}
-        value={controller.authType}
-        options={controller.authTypes.map(authType => ({
-          value: authType,
-          label: authType === 'api_key'
-            ? L.authLoginApiKey
-            : controller.backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth,
-        }))}
-        onValueChange={controller.chooseAuthType}
-        className="w-full rounded-[var(--r-control)] border border-card [background:var(--material-inset-bg)] px-2g py-1g"
-      />
-    </label>
+    <div data-auth-error role="alert"
+      className="min-w-0 rounded-[var(--r-card)] border border-state-fail/20 bg-pill-failed-bg px-1.5g py-1g text-state-fail">
+      {title ? <p className="font-medium">{title}</p> : null}
+      {detail ? <p data-auth-error-detail className="mt-0.5 max-h-40 overflow-y-auto break-words text-[12px] [overflow-wrap:anywhere]">{detail}</p> : null}
+    </div>
   );
 }
 
-function ProviderSelect({ controller }: { controller: LoginController }) {
-  const L = useVocab();
-  return (
-    <label className="block space-y-1g text-ui">
-      <span>{L.authLoginProvider}</span>
-      <AuthSelect
-        field="provider"
-        ariaLabel={L.authLoginProvider}
-        value={controller.provider}
-        options={controller.providers.map(option => ({
-          value: option.provider,
-          label: option.label,
-        }))}
-        onValueChange={controller.chooseProvider}
-        className="w-full rounded-[var(--r-control)] border border-card [background:var(--material-inset-bg)] px-2g py-1g"
-      />
-    </label>
-  );
+/** The typed answer belongs to one prompt of one flow; prompt ids restart in every flow (Retry). */
+function usePromptValue(flowId: string | null, prompt: PendingPrompt | null): [string, (value: string) => void] {
+  const [entry, setEntry] = useState<{ id: string | null; value: string }>({ id: null, value: '' });
+  const id = prompt ? `${flowId}:${prompt.id}` : null;
+  const fallback = prompt?.kind === 'select' ? prompt.options?.[0]?.id ?? '' : '';
+  const value = entry.id === id ? entry.value : fallback;
+  return [value, next => setEntry({ id, value: next })];
 }
 
-function piProviderOptions(accounts: AuthAccountStatus[]): ProviderOption[] {
-  return accounts.filter(account => (
-    account.backend === 'pi' && account.capabilities.length > 0
-  )).map(account => ({
-    provider: account.provider,
-    label: account.label,
-    capabilities: account.capabilities,
-  }));
-}
-
-function selectedAuthTypes(
-  accounts: AuthAccountStatus[],
-  providers: ProviderOption[],
-  backend: 'claude' | 'pi',
-  provider: string,
-): AuthType[] {
-  const selected = backend === 'claude'
-    ? accounts.find(account => account.backend === 'claude' && account.provider === provider)
-    : providers.find(option => option.provider === provider);
-  return selected?.capabilities ?? [];
-}
-
-function selectedProviderLabel(
-  accounts: AuthAccountStatus[],
-  providers: ProviderOption[],
-  backend: 'claude' | 'pi',
-  provider: string,
-): string {
-  if (backend === 'claude') {
-    return accounts.find(account => (
-      account.backend === 'claude' && account.provider === provider
-    ))?.label ?? provider;
-  }
-  return providers.find(option => option.provider === provider)?.label ?? provider;
-}
-
-function useTargetSelection(
-  open: boolean,
-  target: LoginFlowTarget | null | undefined,
-  setBackend: Setter<'claude' | 'pi'>,
-  setProvider: Setter<string>,
-  setAuthType: Setter<AuthType>,
-): void {
-  useEffect(() => {
-    if (!open || !target) return;
-    setBackend(target.backend);
-    setProvider(target.provider);
-    setAuthType(target.authType);
-  }, [open, target, setBackend, setProvider, setAuthType]);
-}
-
-function useAvailableSelection(
-  backend: 'claude' | 'pi',
-  provider: string,
-  providers: ProviderOption[],
-  authType: AuthType,
-  authTypes: AuthType[],
-  setProvider: Setter<string>,
-  setAuthType: Setter<AuthType>,
-): void {
-  useEffect(() => {
-    if (backend === 'pi' && providers.length > 0
-      && !providers.some(option => option.provider === provider)) {
-      setProvider(providers[0]?.provider ?? '');
-    }
-  }, [backend, provider, providers, setProvider]);
-  useEffect(() => {
-    if (!authTypes.includes(authType) && authTypes[0]) setAuthType(authTypes[0]);
-  }, [authType, authTypes, setAuthType]);
-}
-
-function useLoginSelection(open: boolean, target?: LoginFlowTarget | null) {
-  const trpc = useTRPC();
-  const [backend, setBackend] = useState<'claude' | 'pi'>('claude');
-  const [authType, setAuthType] = useState<AuthType>('api_key');
-  const [provider, setProvider] = useState('anthropic');
-  const status = useQuery({ ...trpc.auth.status.queryOptions({}), enabled: open });
-  const accounts = status.data?.accounts ?? [];
-  const providers = useMemo(() => piProviderOptions(accounts), [accounts]);
-  const authTypes = selectedAuthTypes(accounts, providers, backend, provider);
-  const providerLabel = selectedProviderLabel(accounts, providers, backend, provider);
-  const backendLabel = backend === 'claude' ? 'Claude Code' : 'PI';
-  useTargetSelection(open, target, setBackend, setProvider, setAuthType);
-  useAvailableSelection(
-    backend, provider, providers, authType, authTypes, setProvider, setAuthType,
-  );
-  const chooseBackend = (next: 'claude' | 'pi') => {
-    setBackend(next);
-    setProvider(next === 'claude' ? 'anthropic' : (providers[0]?.provider ?? ''));
-  };
-  return { backend, backendLabel, authType, authTypes, provider, providerLabel,
-    providers, chooseBackend, chooseProvider: setProvider, chooseAuthType: setAuthType,
-    ...(target ? { noticeId: target.noticeId } : {}) };
-}
-
-function useFlowData(
-  open: boolean,
-  flowId: string | null,
-  latest: LoginFlowState | null,
-  responseSent: boolean,
-  setLatest: Setter<LoginFlowState | null>,
-): void {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const flow = useQuery({
-    ...trpc.auth.flowState.queryOptions({ flowId: flowId ?? '' }),
-    enabled: open && !!flowId,
-    refetchInterval: open && flowId && !isTerminal(latest) ? FLOW_POLL_MS : false,
-  });
-  useEffect(() => {
-    if (flow.data && !isStateRegression(latest, flow.data, responseSent)) {
-      setLatest(flow.data);
-    } else if (!flow.data && flow.isSuccess && flowId && latest && !isTerminal(latest)) {
-      setLatest(expiredState(latest));
-    }
-  }, [flow.data, flow.isSuccess, flowId, latest, responseSent, setLatest]);
-  useEffect(() => {
-    if (latest?.step === 'done') {
-      void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
-    }
-  }, [latest?.step, queryClient, trpc.auth.status]);
-}
-
-function errorMessage(
-  reason: unknown,
-  expiredMessage: string,
-  conflictMessage: string,
-): string {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  if (trpcErrorCode(reason) === 'NOT_FOUND' || message === 'Login flow not found or expired.') return expiredMessage;
-  return message.includes('active on another surface') ? conflictMessage : message;
-}
-
-interface LoginActionState {
-  selection: ReturnType<typeof useLoginSelection>;
-  flowId: string | null;
-  response: string;
-  generation: { current: number };
-  setFlowId: Setter<string | null>;
-  setLatest: Setter<LoginFlowState | null>;
-  setResponse: Setter<string>;
-  setResponseSent: Setter<boolean>;
-  setError: Setter<string | null>;
-  expiredMessage: string;
-  conflictMessage: string;
-}
-
-type LoginClient = ReturnType<typeof useTRPCClient>;
-
-function isCurrent(input: LoginActionState, request: number): boolean {
-  return input.generation.current === request;
-}
-
-async function startLogin(client: LoginClient, input: LoginActionState): Promise<void> {
-  const request = ++input.generation.current;
-  input.setError(null); input.setResponseSent(false);
-  try {
-    const state = await client.auth.startLogin.mutate({
-      backend: input.selection.backend,
-      provider: input.selection.provider,
-      authType: input.selection.authType,
-      ...(input.selection.noticeId ? { noticeId: input.selection.noticeId } : {}),
-    });
-    if (!isCurrent(input, request)) return;
-    input.setFlowId(state.flowId); input.setLatest(state); input.setResponse('');
-  } catch (reason) {
-    if (isCurrent(input, request)) {
-      input.setError(errorMessage(reason, input.expiredMessage, input.conflictMessage));
-    }
-  }
-}
-
-async function submitLogin(client: LoginClient, input: LoginActionState): Promise<void> {
-  if (!input.flowId || !input.response) return;
-  const request = input.generation.current;
-  const value = input.response;
-  input.setResponse(''); input.setResponseSent(true); input.setError(null);
-  try {
-    const state = await client.auth.respondPrompt.mutate({ flowId: input.flowId, value });
-    if (isCurrent(input, request)) input.setLatest(state);
-  } catch (reason) {
-    if (isCurrent(input, request)) {
-      input.setError(errorMessage(reason, input.expiredMessage, input.conflictMessage));
-    }
-  }
-}
-
-async function cancelLogin(client: LoginClient, input: LoginActionState): Promise<void> {
-  if (!input.flowId) return;
-  const request = ++input.generation.current;
-  try {
-    const state = await client.auth.cancelFlow.mutate({ flowId: input.flowId });
-    if (isCurrent(input, request)) input.setLatest(state);
-  } catch (reason) {
-    if (isCurrent(input, request)) {
-      input.setError(errorMessage(reason, input.expiredMessage, input.conflictMessage));
-    }
-  }
-}
-
-function useLoginActions(input: LoginActionState) {
-  const client = useTRPCClient();
-  return {
-    start: () => startLogin(client, input),
-    submit: () => submitLogin(client, input),
-    cancel: () => cancelLogin(client, input),
-  };
-}
-
-function selectionMatchesTarget(
-  selection: ReturnType<typeof useLoginSelection>,
-  target: LoginFlowTarget,
-): boolean {
-  return selection.backend === target.backend
-    && selection.provider === target.provider
-    && selection.authType === target.authType;
-}
-
-interface LoginResetState {
-  generation: { current: number };
-  autoStarted: { current: string | null };
-  setFlowId: Setter<string | null>;
-  setLatest: Setter<LoginFlowState | null>;
-  setResponse: Setter<string>;
-  setResponseSent: Setter<boolean>;
-  setError: Setter<string | null>;
-}
-
-function targetKey(target: LoginFlowTarget): string {
-  return target.noticeId ?? `settings:${target.backend}:${target.provider}:${target.authType}`;
-}
-
-function useLoginReset(
-  open: boolean,
-  target: LoginFlowTarget | null | undefined,
-  initialState: LoginFlowState | null | undefined,
-  state: LoginResetState,
-): void {
-  useEffect(() => {
-    state.generation.current += 1;
-    state.setFlowId(open && initialState ? initialState.flowId : null);
-    state.setLatest(open ? initialState ?? null : null);
-    state.setResponse(''); state.setResponseSent(false); state.setError(null);
-    state.autoStarted.current = initialState && target ? targetKey(target) : null;
-  }, [open, target, initialState]);
-}
-
-function useNoticeAutoStart(
-  open: boolean,
-  target: LoginFlowTarget | null | undefined,
-  initialState: LoginFlowState | null | undefined,
-  controller: Pick<LoginController, 'canStart' | 'start'>,
-  matches: boolean,
-  autoStarted: { current: string | null },
-): void {
-  useEffect(() => {
-    if (!open || !target?.noticeId || initialState || !controller.canStart || !matches) return;
-    const key = targetKey(target);
-    if (autoStarted.current === key) return;
-    autoStarted.current = key;
-    void controller.start();
-  }, [open, target, initialState, controller.canStart, controller.start, matches, autoStarted]);
-}
-
-function useLoginController(
-  open: boolean,
-  target?: LoginFlowTarget | null,
-  initialState?: LoginFlowState | null,
-  onFlowStateChange?: (state: LoginFlowState) => void,
-): LoginController {
-  const L = useVocab();
-  const selection = useLoginSelection(open, target);
-  const [flowId, setFlowId] = useState<string | null>(null);
-  const [latest, setLatest] = useState<LoginFlowState | null>(null);
-  const [response, setResponse] = useState('');
-  const [responseSent, setResponseSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const generation = useRef(0);
-  const autoStarted = useRef<string | null>(null);
-  useFlowData(open, flowId, latest, responseSent, setLatest);
-  const actions = useLoginActions({ selection, flowId, response, generation,
-    setFlowId, setLatest, setResponse, setResponseSent, setError,
-    expiredMessage: L.authLoginExpired,
-    conflictMessage: L.authLoginAlreadyActive });
-  const canStart = !!selection.provider && selection.authTypes.includes(selection.authType);
-  useLoginReset(open, target, initialState, { generation, autoStarted,
-    setFlowId, setLatest, setResponse, setResponseSent, setError });
-  useNoticeAutoStart(open, target, initialState, { canStart, start: actions.start },
-    !!target && selectionMatchesTarget(selection, target), autoStarted);
-  useEffect(() => { if (latest) onFlowStateChange?.(latest); }, [latest, onFlowStateChange]);
-  return { ...selection, latest, response, error, canCancel: !responseSent,
-    canStart, setResponse, ...actions };
-}
-
-function FlowError({ children }: { children: string }) {
-  return (
-    <p data-auth-error role="alert"
-      className="max-h-48 min-w-0 overflow-y-auto break-words rounded-[var(--r-card)] border border-state-fail/20 bg-pill-failed-bg p-1.5g text-state-fail [overflow-wrap:anywhere]">
-      {children}
-    </p>
-  );
-}
-
-function PromptSection({ controller, vm, L }: {
-  controller: LoginController;
-  vm: LoginFlowVm;
-  L: Vocab;
+function LoginBody({ vm, controller, value, setValue, submit }: {
+  vm: LoginFlowVm; controller: LoginFlowController;
+  value: string; setValue: (value: string) => void; submit: () => void;
 }) {
-  const state = controller.latest!;
-  const stepped = state.notice?.kind === 'auth_url';
-  const copy = stepped ? L.authLoginCodeStep : vm.message;
+  const state = controller.latest;
+  const content: Record<LoginFlowVm['kind'], () => ReactNode> = {
+    starting: () => <StatusLine>{vm.message}</StatusLine>,
+    running: () => <StatusLine>{vm.message}</StatusLine>,
+    notice: () => (state?.notice ? <StandaloneNotice notice={state.notice} /> : null),
+    prompt: () => (state ? <PromptBody state={state} value={value} onChange={setValue} onSubmit={submit} /> : null),
+    done: () => (
+      <p data-auth-success role="status"
+        className="rounded-[var(--r-card)] bg-pill-done-bg px-1.5g py-1g font-medium text-state-done">{vm.message}</p>
+    ),
+    failed: () => <FlowError title={vm.message} detail={vm.detail} />,
+    cancelled: () => <p data-auth-cancelled className="break-words text-proto-muted">{vm.message}</p>,
+  };
   return (
-    <section data-auth-code-step className={stepped ? OAUTH_STEP_CLASS : 'min-w-0'}>
-      <div className="flex min-w-0 items-start gap-1.5g">
-        {stepped ? <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-state-run text-caption font-semibold text-surface-card">2</span> : null}
-        <label className="min-w-0 flex-1 space-y-1g">
-          <span id="auth-login-prompt-label" data-auth-prompt-copy
-            className="block break-words font-medium text-state-ink">{copy}</span>
-          <PromptControl state={state} value={controller.response}
-            onChange={controller.setResponse} />
-        </label>
-      </div>
-    </section>
+    <div data-auth-flow-step={vm.kind} className="min-w-0 space-y-2g">
+      {controller.respondError && vm.kind === 'prompt' ? <FlowError detail={controller.respondError} /> : null}
+      {content[vm.kind]()}
+    </div>
   );
 }
 
-function LoginBody({ controller, vm, L }: {
-  controller: LoginController;
-  vm: LoginFlowVm;
-  L: Vocab;
-}): JSX.Element {
-  if (vm.kind === 'selection') {
-    return <div className="min-w-0 space-y-2g"><SelectionBody controller={controller} />
-      {controller.error ? <FlowError>{controller.error}</FlowError> : null}</div>;
-  }
-  const latest = controller.latest;
-  const content: Record<Exclude<LoginFlowVm['kind'], 'selection'>, ReactNode> = {
-    prompt: latest ? <><NoticeBody state={latest} />
-      <PromptSection controller={controller} vm={vm} L={L} /></> : null,
-    notice: latest ? <NoticeBody state={latest} /> : null,
-    running: <p role="status" className="break-words text-state-run">{vm.message}</p>,
-    done: <p data-auth-success role="status"
-      className="rounded-[var(--r-card)] bg-pill-done-bg p-2g font-medium text-state-done">{vm.message}</p>,
-    failed: <FlowError>{vm.message}</FlowError>,
-    cancelled: <p className="break-words text-state-muted">{vm.message}</p>,
-  };
-  return <div className="min-w-0 space-y-2g overflow-x-hidden"
-    data-auth-flow-step={vm.kind}>
-    {controller.error ? <FlowError>{controller.error}</FlowError> : null}
-    {content[vm.kind]}
-  </div>;
-}
-
-function loginFooter(
-  controller: LoginController,
-  vm: LoginFlowVm,
-  onClose: () => void,
-  L: Vocab,
-): ReactNode {
-  const cancel = controller.canCancel
-    ? <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button>
-    : null;
-  const close = <Button data-action="auth-close" onClick={onClose}>{L.authLoginClose}</Button>;
-  const footer: Record<LoginFlowVm['kind'], ReactNode> = {
-    selection: <Button data-action="auth-start" variant="primary"
-      disabled={!controller.canStart} onClick={controller.start}>{L.authLoginStart}</Button>,
-    prompt: <>{cancel}<Button data-action="auth-submit" variant="primary"
-      disabled={!controller.response} onClick={controller.submit}>{L.authLoginSubmit}</Button></>,
-    running: cancel, notice: cancel,
-    done: close, failed: close, cancelled: close,
-  };
-  return footer[vm.kind];
-}
-
-function flowTitle(controller: LoginController): string {
-  return controller.providerLabel
-    ? `${controller.backendLabel} · ${controller.providerLabel}`
-    : controller.backendLabel;
-}
-
-function flowDescription(controller: LoginController, vm: LoginFlowVm, L: Vocab): string {
-  return vm.kind === 'prompt' && controller.latest?.notice?.kind === 'auth_url'
-    ? L.authLoginAuthorizationSequence
-    : vm.message;
-}
-
-function MobileLoginSheet({
-  open, title, description, closeLabel, body, footer, onClose,
-}: {
-  open: boolean;
-  title: string;
-  description: string;
-  closeLabel: string;
-  body: ReactNode;
-  footer: ReactNode;
-  onClose: () => void;
+function LoginFooter({ vm, controller, canSubmit, submit, close, L }: {
+  vm: LoginFlowVm; controller: LoginFlowController; canSubmit: boolean;
+  submit: () => void; close: () => void; L: Vocab;
 }) {
-  if (!open) return null;
+  const cancel = <Button data-action="auth-cancel" onClick={close}>{L.cancel}</Button>;
+  if (vm.kind === 'done') {
+    return <Button data-action="auth-done" variant="primary" onClick={close}>{L.authLoginDone}</Button>;
+  }
+  if (vm.kind === 'failed' || vm.kind === 'cancelled') {
+    return <>
+      <Button data-action="auth-close" onClick={close}>{L.authLoginClose}</Button>
+      <Button data-action="auth-retry" variant="primary" onClick={controller.retry}>{L.authLoginRetry}</Button>
+    </>;
+  }
+  if (vm.kind !== 'prompt') return cancel;
+  return <>
+    {cancel}
+    <Button data-action="auth-submit" variant="primary" disabled={!canSubmit || controller.responding} onClick={submit}>
+      {controller.responding ? <Spinner /> : null}{L.authLoginSubmit}
+    </Button>
+  </>;
+}
+
+function LoginTitle({ target, label, L }: { target: LoginFlowTarget | null; label: string | null; L: Vocab }) {
+  const icon = target?.backend === 'claude' ? 'claude-code' : target?.provider ?? '';
   return (
-    <MBottomSheet onClose={onClose}>
-      <section data-auth-sheet role="dialog" aria-modal="true"
-        aria-labelledby="auth-sheet-title" aria-describedby="auth-sheet-description"
-        className="content-surface flex max-h-[78dvh] min-h-[18rem] min-w-0 flex-col">
-        <p id="auth-sheet-description" className="sr-only">{description}</p>
+    <span className="flex min-w-0 items-center gap-1g">
+      {target ? <ProviderIcon provider={icon} label={label ?? ''} size={18} /> : null}
+      <span data-auth-title className="min-w-0 break-words font-semibold text-state-ink">
+        {label ? fmt(L.authLoginTitle, { provider: label }) : L.authLoginTitleGeneric}
+      </span>
+      {target ? (
+        <span data-auth-subtitle className="flex-none text-[12px] font-normal text-proto-muted">
+          {authTypeLabel(target.backend, target.authType, L)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function MobileLoginSheet({ title, titleText, body, footer, inProgress, onClose, closeLabel }: {
+  title: ReactNode; titleText: string; body: ReactNode; footer: ReactNode;
+  inProgress: boolean; onClose: () => void; closeLabel: string;
+}) {
+  return (
+    <MBottomSheet onClose={onClose} dimDismiss={!inProgress}>
+      <section data-auth-sheet role="dialog" aria-modal="true" aria-label={titleText}
+        className="content-surface flex min-w-0 flex-col">
         <header className="flex flex-none items-center justify-between gap-2g pb-2g">
-          <h2 id="auth-sheet-title" className="min-w-0 break-words text-body font-semibold text-state-ink">{title}</h2>
-          <button type="button" aria-label={closeLabel} onClick={onClose}
-            className="flex h-9 w-9 flex-none items-center justify-center rounded-full [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink/70">✕</button>
+          <h2 className="min-w-0 text-body">{title}</h2>
+          <button type="button" aria-label={closeLabel} data-action="auth-dismiss" onClick={onClose}
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-full [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink/70">✕</button>
         </header>
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-2g">{body}</div>
-        {footer ? <footer className="flex flex-none flex-wrap gap-1g border-t border-card pt-2g [&>*]:flex-1">{footer}</footer> : null}
+        <div className="min-w-0 pb-2g">{body}</div>
+        <footer className="flex flex-none flex-wrap gap-1g border-t border-card pt-2g [&>*]:flex-1">{footer}</footer>
       </section>
     </MBottomSheet>
   );
 }
 
-export function LoginFlowModal({
-  open, onClose, target, initialState, onFlowStateChange,
-}: LoginFlowModalProps) {
+export function LoginFlowModal({ open, onClose, target, onDone }: LoginFlowModalProps) {
   const L = useVocab();
   const isMobile = useMobileLayout();
-  const controller = useLoginController(open, target, initialState, onFlowStateChange);
-  const vm = buildLoginFlowVm(controller.latest, L);
-  const title = flowTitle(controller);
-  const description = flowDescription(controller, vm, L);
-  const body = <LoginBody controller={controller} vm={vm} L={L} />;
-  const footer = loginFooter(controller, vm, onClose, L);
+  const label = useProviderLabel(open, target);
+  const controller = useLoginFlowController(open, target, onDone);
+  const vm = buildLoginFlowVm({ state: controller.latest, label: label ?? '', startError: controller.startError }, L);
+  const prompt = vm.kind === 'prompt' ? controller.latest?.pendingPrompt ?? null : null;
+  const [value, setValue] = usePromptValue(controller.latest?.flowId ?? null, prompt);
+  const canSubmit = !!prompt && canSubmitPrompt(prompt, value);
+  const submit = () => { if (canSubmit && !controller.responding) controller.respond(value); };
+  const inProgress = IN_PROGRESS.has(vm.kind);
+  const title = <LoginTitle target={target} label={label} L={L} />;
+  const titleText = label ? fmt(L.authLoginTitle, { provider: label }) : L.authLoginTitleGeneric;
+  const body = <LoginBody vm={vm} controller={controller} value={value} setValue={setValue} submit={submit} />;
+  const footer = <LoginFooter vm={vm} controller={controller} canSubmit={canSubmit} submit={submit} close={onClose} L={L} />;
   if (isMobile) {
-    return <MobileLoginSheet open={open} title={title} description={description}
-      closeLabel={L.authLoginClose} body={body} footer={footer} onClose={onClose} />;
+    return open ? <MobileLoginSheet title={title} titleText={titleText} body={body} footer={footer}
+      inProgress={inProgress} onClose={onClose} closeLabel={L.authLoginClose} /> : <></>;
   }
   return (
-    <Modal contentClassName="content-surface" open={open} onOpenChange={next => { if (!next) onClose(); }}
-      title={title} description={description} hideDescription footer={footer}>
+    <Modal contentClassName="content-surface" layer="nested" open={open}
+      onOpenChange={next => { if (!next) onClose(); }}
+      // A click beside an unfinished login is not a decision to abandon it; × and Cancel are.
+      onPointerDownOutside={event => { if (inProgress) event.preventDefault(); }}
+      onOpenAutoFocus={event => { event.preventDefault(); (event.target as HTMLElement | null)?.focus?.(); }}
+      contentDataAttributes={{ 'data-auth-dialog': true }}
+      title={title} description={vm.detail ?? vm.message} hideDescription footer={footer}>
       {body}
     </Modal>
   );

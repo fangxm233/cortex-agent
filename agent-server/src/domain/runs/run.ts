@@ -15,8 +15,8 @@ import { NO_SPEND, addSpend, countSpend, spendOfResult, type RunSpend } from './
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
-  attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt, planAttempts,
-  attemptLabel,
+  attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
+  planAttempts, attemptLabel,
 } from './fallback.js';
 import { requestRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
@@ -439,7 +439,7 @@ export class AgentRunImpl implements AgentRun {
     const kind = classifyAuthError(error?.message ?? '');
     if (!kind) return;
     publishAuthRequired({
-      ...identity, authType: null, kind,
+      ...identity, authType: attemptAuthType(attempt), kind,
       channel: this.request.context.channel,
       sessionId: this.request.session.sessionId
         ?? this.backendSessionIdValue

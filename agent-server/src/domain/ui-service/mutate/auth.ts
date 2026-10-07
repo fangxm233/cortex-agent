@@ -5,6 +5,7 @@ import {
   isLoginFlowError,
   logoutAccount,
   resolveAuthNoticeFlow,
+  resumableNoticeFlow,
   syncGatewayFromBackends,
   type AuthLoginService,
   type LoginFlowState,
@@ -29,14 +30,18 @@ const FLOW_STATE_ERRORS: ReadonlyArray<[key: string, code: string]> = [
   ['ux.auth.flowNotWaiting', 'invalid-args'],
 ];
 
+const LOGIN_FLOW_ERROR_CODES: Readonly<Record<string, string>> = {
+  flow_conflict: 'already-exists',
+  stale_prompt: 'conflict',
+};
+
 function failure(error: unknown): Result<never> {
+  if (isLoginFlowError(error)) {
+    return { ok: false, code: LOGIN_FLOW_ERROR_CODES[error.code] ?? 'invalid-args', message: error.message };
+  }
   const message = error instanceof Error ? error.message : String(error);
   const stateError = FLOW_STATE_ERRORS.find(([key]) => message === t(key));
   if (stateError) return { ok: false, code: stateError[1], message };
-  if (isLoginFlowError(error)) {
-    const code = error.code === 'flow_conflict' ? 'already-exists' : 'invalid-args';
-    return { ok: false, code, message: error.message };
-  }
   return { ok: false, code: 'internal', message: t('ux.auth.flowFailed') };
 }
 
@@ -48,9 +53,13 @@ async function asResult(operation: () => Promise<LoginFlowState>): Promise<Resul
   }
 }
 
+function isWebOwnedState(state: LoginFlowState): boolean {
+  return state.channel === null && state.sessionId === null;
+}
+
 function isWebOwned(service: AuthLoginService, flowId: string): boolean {
   const state = service.getState(flowId);
-  return !!state && state.channel === null && state.sessionId === null;
+  return !!state && isWebOwnedState(state);
 }
 
 function missingWebFlow(): Result<never> {
@@ -58,22 +67,16 @@ function missingWebFlow(): Result<never> {
 }
 
 function startWebFlow(service: AuthLoginService, args: MutateArgs<'auth.startLogin'>) {
-  const { noticeId, ...input } = args;
-  const options = noticeId ? { reuseExistingPair: true } : undefined;
-  return service.start({ ...input, channel: null, sessionId: null }, options);
+  const { noticeId: _noticeId, ...input } = args;
+  return service.start({ ...input, channel: null, sessionId: null });
 }
 
 async function startWebNoticeFlow(
   service: AuthLoginService,
   args: MutateArgs<'auth.startLogin'> & { noticeId: string },
 ): Promise<Result<LoginFlowState>> {
-  const resolved = resolveAuthNoticeFlow(service, args.noticeId);
-  if (resolved.kind === 'expired') return missingWebFlow();
-  if (resolved.kind === 'state') {
-    return resolved.state.channel === null && resolved.state.sessionId === null
-      ? { ok: true, data: resolved.state }
-      : { ok: false, code: 'already-exists', message: t('ux.auth.activeElsewhere') };
-  }
+  const resumable = resumableNoticeFlow(resolveAuthNoticeFlow(service, args.noticeId));
+  if (resumable && isWebOwnedState(resumable)) return { ok: true, data: resumable };
   const result = await asResult(() => startWebFlow(service, args));
   if (result.ok) bindAuthNoticeFlow(service, args.noticeId, result.data.flowId);
   return result;
@@ -94,7 +97,7 @@ export async function handleAuthRespondPrompt(
 ): Promise<Result<LoginFlowState>> {
   const service = serviceFor(deps);
   if (!isWebOwned(service, args.flowId)) return missingWebFlow();
-  return asResult(() => service.respond(args.flowId, args.value));
+  return asResult(() => service.respond(args.flowId, args.value, args.promptId));
 }
 
 export async function handleAuthCancelFlow(

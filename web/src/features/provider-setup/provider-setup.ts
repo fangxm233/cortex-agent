@@ -43,11 +43,6 @@ export function setupErrorText(error: string, L: Vocab): string {
   return nativeErrorText(error, Object.fromEntries(Object.entries(NATIVE_ERROR_KEYS).map(([code, key]) => [code, L[key]])));
 }
 
-export function orderedProviders(accounts: AuthAccountStatus[], search: string): AuthAccountStatus[] {
-  const needle = search.trim().toLowerCase();
-  return accounts.filter(a => a.backend === 'pi' && `${a.label} ${a.provider}`.toLowerCase().includes(needle))
-    .sort((a, b) => Number(usable(b.state)) - Number(usable(a.state)) || a.label.localeCompare(b.label));
-}
 function matchesAccount(profile: ConfigProfileEntry, account: AuthAccountStatus): boolean {
   const backend = profile.backend ?? 'claude';
   const provider = backend === 'claude' ? 'anthropic' : profile.provider;

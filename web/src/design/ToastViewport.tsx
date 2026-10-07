@@ -135,7 +135,9 @@ function OverflowControl({ count, onExpand }: { count: number; onExpand: () => v
   );
 }
 
-// Mount once in the desktop shell: newest three bubbles, older ones folded into a +N pill.
+// Mount once in the desktop shell: newest three bubbles, older ones folded into a +N pill. The stack
+// sits above every modal layer (settings 60/61, nested dialogs 80/90) so feedback from a dialog is
+// readable while the dialog is still open.
 export function ToastViewport() {
   const ctx = useToastOptional();
   const items = useToastItems();
@@ -145,7 +147,7 @@ export function ToastViewport() {
   const { visible, overflow } = splitVisible(items);
   const shown = expanded ? items : visible;
   return (
-    <div className="pointer-events-none fixed bottom-0 right-0 z-50 m-2g flex w-[380px] max-w-[calc(100vw-2rem)] flex-col items-end gap-[10px]">
+    <div className="pointer-events-none fixed bottom-0 right-0 z-[100] m-2g flex w-[380px] max-w-[calc(100vw-2rem)] flex-col items-end gap-[10px]">
       {shown.map((item) => (
         <div key={item.id} className="pointer-events-auto w-full">
           <ToastBubble item={item} onDismiss={dismiss} />

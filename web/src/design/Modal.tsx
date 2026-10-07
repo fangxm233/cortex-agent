@@ -1,5 +1,5 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
-import type { CSSProperties, ReactNode } from 'react';
+import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { useVocabOptional } from '@/i18n';
 
 // Radix owns focus trapping, Escape dismissal, aria-modal, scroll lock, and focus restore in both
@@ -78,6 +78,10 @@ export interface ModalProps {
   bodyStyle?: CSSProperties;
   contentDataAttributes?: ModalDataAttributes;
   overlayDataAttributes?: ModalDataAttributes;
+  /** Called before an outside pointer-down dismisses the dialog; preventDefault keeps it open. */
+  onPointerDownOutside?: (event: Event) => void;
+  /** Called when the dialog would move focus inside on open; preventDefault keeps the default off. */
+  onOpenAutoFocus?: (event: Event) => void;
 }
 
 function CloseControl(): JSX.Element {
@@ -107,11 +111,15 @@ function ModalBody({ children, chrome, bodyStyle }: Pick<ModalProps, 'children' 
   return <div data-modal-body={true} className={className} style={bodyStyle}>{children}</div>;
 }
 
-function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element {
+// Direct children of the Radix portal receive a ref from Presence/Portal (`asChild`), so each panel
+// forwards it to the Radix element it renders.
+const StandardPanel = forwardRef<HTMLDivElement, ModalProps & { showClose: boolean }>(function StandardPanel(props, ref) {
   const { title, description, hideTitle, hideDescription, children, footer, bodyStyle,
-    contentStyle, contentClassName = '', contentDataAttributes, size = 'default', layer = 'default', showClose } = props;
+    contentStyle, contentClassName = '', contentDataAttributes, size = 'default', layer = 'default', showClose,
+    onPointerDownOutside, onOpenAutoFocus } = props;
   return (
-    <RadixDialog.Content {...contentDataAttributes} className={`${modalContentClass(size, layer)} ${contentClassName}`} style={contentStyle}>
+    <RadixDialog.Content ref={ref} {...contentDataAttributes} className={`${modalContentClass(size, layer)} ${contentClassName}`}
+      style={contentStyle} onPointerDownOutside={onPointerDownOutside} onOpenAutoFocus={onOpenAutoFocus}>
       <ModalHeader title={title} hideTitle={hideTitle} showClose={showClose} />
       {description ? <RadixDialog.Description
         className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]'}
@@ -120,29 +128,30 @@ function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element 
       {footer ? <div className="flex flex-wrap items-center justify-end gap-1g pt-1g">{footer}</div> : null}
     </RadixDialog.Content>
   );
-}
+});
 
-function BarePanel(props: ModalProps & { showClose: boolean }): JSX.Element {
+const BarePanel = forwardRef<HTMLDivElement, ModalProps & { showClose: boolean }>(function BarePanel(props, ref) {
   const { title, description, children, contentStyle, contentClassName = '', bodyStyle, contentDataAttributes,
-    layer = 'default', showClose } = props;
+    layer = 'default', showClose, onPointerDownOutside, onOpenAutoFocus } = props;
   const style = { ...contentStyle, zIndex: BARE_LAYER[layer].content };
   return (
-    <RadixDialog.Content {...contentDataAttributes} className={`focus:outline-none ${contentClassName}`} style={style}>
+    <RadixDialog.Content ref={ref} {...contentDataAttributes} className={`focus:outline-none ${contentClassName}`} style={style}
+      onPointerDownOutside={onPointerDownOutside} onOpenAutoFocus={onOpenAutoFocus}>
       <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
       <RadixDialog.Description className="sr-only">{description ?? title}</RadixDialog.Description>
       {showClose ? <CloseControl /> : null}
       <ModalBody chrome="bare" bodyStyle={bodyStyle}>{children}</ModalBody>
     </RadixDialog.Content>
   );
-}
+});
 
-function ModalOverlay({ chrome, layer, data }: {
+const ModalOverlay = forwardRef<HTMLDivElement, {
   chrome: ModalChrome; layer: ModalLayer; data?: ModalDataAttributes;
-}): JSX.Element {
-  if (chrome === 'standard') return <RadixDialog.Overlay {...data} className={modalOverlayClass(layer)} />;
-  return <RadixDialog.Overlay {...data} className="fixed inset-0"
+}>(function ModalOverlay({ chrome, layer, data }, ref) {
+  if (chrome === 'standard') return <RadixDialog.Overlay ref={ref} {...data} className={modalOverlayClass(layer)} />;
+  return <RadixDialog.Overlay ref={ref} {...data} className="fixed inset-0"
     style={{ background: 'var(--overlay-scrim)', animation: 'cxfade .18s ease', zIndex: BARE_LAYER[layer].overlay }} />;
-}
+});
 
 export function Modal({ trigger, open, onOpenChange, chrome = 'standard', layer = 'default',
   showClose, ...panel }: ModalProps): JSX.Element {

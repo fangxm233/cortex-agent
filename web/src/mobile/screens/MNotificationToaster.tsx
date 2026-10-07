@@ -48,8 +48,9 @@ function MBanner({ item, now, lang, onDismiss }: { item: ToastItem; now: number;
       onClick={activate ? () => { activate(); onDismiss(item.id); } : undefined}
       style={{
         pointerEvents: 'auto',
-        // Dense overlay fill without a per-notification backdrop sample.
-        background: 'var(--material-overlay-bg)',
+        // Opaque card fill without a per-notification backdrop sample: the banner sits over headers
+        // and other banners, and a translucent fill lets their text show through.
+        background: 'var(--proto-card)',
         border: '1px solid var(--panel-translucent-border)',
         borderRadius: 'var(--r-float)',
         boxShadow: 'var(--material-overlay-shadow)',

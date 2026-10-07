@@ -1,4 +1,5 @@
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
@@ -15,9 +16,11 @@ import {
   type AuthType,
   type GetAuthStatusOptions,
 } from './auth-status.js';
+import { failureReason, failureWithDetail, scrubSecrets } from './login-flow.js';
 import {
   loadPiRuntime,
   type LoadPiRuntimeOptions,
+  type PiCredential,
   type PiRuntimeLoadResult,
 } from './pi-runtime.js';
 
@@ -63,11 +66,36 @@ const ERROR_KEYS: Record<AuthLogoutErrorCode, string> = {
   logout_failed: 'ux.auth.logoutFailed',
 };
 
+const log = createLogger('logout');
+
+/** A logout failure, followed by the first line of its upstream reason when there is one. The
+ *  credential being removed is masked out of both the message and the log line. */
 function failed(
   input: LogoutAccountInput,
   code: AuthLogoutErrorCode,
+  cause?: unknown,
+  secrets: readonly string[] = [],
 ): AuthLogoutFailure {
-  return { ok: false, ...input, error: { code, message: t(ERROR_KEYS[code]) } };
+  const prefix = t(ERROR_KEYS[code]);
+  if (cause === undefined) return { ok: false, ...input, error: { code, message: prefix } };
+  log.warn(`logout ${input.backend}/${input.provider} failed (${code}):`,
+    scrubSecrets(failureReason(cause), secrets));
+  const message = scrubSecrets(failureWithDetail(prefix, cause), secrets);
+  return { ok: false, ...input, error: { code, message } };
+}
+
+function credentialValues(credential: PiCredential | undefined): string[] {
+  if (!credential) return [];
+  return Object.values(credential).flatMap(value => (
+    typeof value === 'string' ? [value]
+      : value && typeof value === 'object' ? Object.values(value).filter(item => typeof item === 'string')
+        : []
+  ));
+}
+
+function savedClaudeSecrets(): string[] {
+  const saved = getSavedApiEnv();
+  return [saved.ANTHROPIC_API_KEY, saved.CLAUDE_CODE_OAUTH_TOKEN].filter(value => !!value) as string[];
 }
 
 function succeeded(input: LogoutAccountInput): AuthLogoutSuccess {
@@ -78,21 +106,13 @@ function piAuthPath(dependencies: LogoutAccountDependencies): string {
   return dependencies.piAuthPath ?? piUserAuthPath();
 }
 
-async function readStatus(
-  dependencies: LogoutAccountDependencies,
-): Promise<AuthStatusSnapshot | null> {
+function readStatus(dependencies: LogoutAccountDependencies): Promise<AuthStatusSnapshot> {
   const reader = dependencies.getAuthStatus ?? getAuthStatus;
-  const options = {
-    ...dependencies.getAuthStatusOptions,
-    piAuthPath: piAuthPath(dependencies),
-  };
-  try {
-    return await reader(options);
-  } catch {
-    return null;
-  }
+  return reader({ ...dependencies.getAuthStatusOptions, piAuthPath: piAuthPath(dependencies) });
 }
 
+/** The credential of the requested type a logout acts on: one Cortex can remove wins over one it
+ *  cannot (a stored key next to an environment key), then the one the account is using. */
 function selectedCredential(
   snapshot: AuthStatusSnapshot,
   input: LogoutAccountInput,
@@ -101,13 +121,12 @@ function selectedCredential(
     item.backend === input.backend && item.provider === input.provider
   ));
   if (!account) return null;
-  if (account.authType === input.authType) {
-    const current = account.credentials.find(item => (
-      item.authType === input.authType && item.source === account.source
-    ));
-    if (current) return current;
-  }
-  return account.credentials.find(item => item.authType === input.authType) ?? null;
+  const candidates = account.credentials.filter(item => item.authType === input.authType);
+  const current = account.authType === input.authType
+    ? candidates.find(item => item.source === account.source)
+    : undefined;
+  if (current?.manageable) return current;
+  return candidates.find(item => item.manageable) ?? current ?? candidates[0] ?? null;
 }
 
 function reloadClaude(dependencies: LogoutAccountDependencies): void {
@@ -120,12 +139,13 @@ async function removeClaudeSavedCredential(
   remove: () => Promise<void>,
   dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
+  const secrets = savedClaudeSecrets();
   try {
     await remove();
     reloadClaude(dependencies);
     return succeeded(input);
-  } catch {
-    return failed(input, 'logout_failed');
+  } catch (error) {
+    return failed(input, 'logout_failed', error, secrets);
   }
 }
 
@@ -146,24 +166,28 @@ async function logoutClaude(
   if (credential.source === 'legacy-env') {
     return removeClaudeSavedCredential(input, removeClaudeCodeOAuthToken, dependencies);
   }
+  const secrets = savedClaudeSecrets();
   try {
     await (dependencies.logoutClaudeAuth ?? logoutClaudeAuth)();
     await clearLegacyClaudeOAuth();
     reloadClaude(dependencies);
     return succeeded(input);
-  } catch {
-    return failed(input, 'logout_failed');
+  } catch (error) {
+    return failed(input, 'logout_failed', error, secrets);
   }
 }
 
 async function loadRuntime(
   dependencies: LogoutAccountDependencies,
-): Promise<PiRuntimeLoadResult | null> {
+): Promise<PiRuntimeLoadResult> {
   const loader = dependencies.loadPiRuntime ?? loadPiRuntime;
   try {
     return await loader({ authPath: piAuthPath(dependencies) });
-  } catch {
-    return null;
+  } catch (error) {
+    return {
+      available: false, version: null, entry: null, error: failureReason(error),
+      runtime: null, readStoredCredential: null,
+    };
   }
 }
 
@@ -174,8 +198,20 @@ function finishPiLogout(
   try {
     (dependencies.refreshProviders ?? (() => piProviderDiscovery.refresh()))();
     return succeeded(input);
+  } catch (error) {
+    return failed(input, 'logout_failed', error);
+  }
+}
+
+function storedPiSecrets(
+  loaded: Extract<PiRuntimeLoadResult, { available: true }>,
+  input: LogoutAccountInput,
+  dependencies: LogoutAccountDependencies,
+): string[] {
+  try {
+    return credentialValues(loaded.readStoredCredential(input.provider, piAuthPath(dependencies)));
   } catch {
-    return failed(input, 'logout_failed');
+    return [];
   }
 }
 
@@ -184,11 +220,12 @@ async function logoutPi(
   dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
   const loaded = await loadRuntime(dependencies);
-  if (!loaded?.available) return failed(input, 'runtime_unavailable');
+  if (!loaded.available) return failed(input, 'runtime_unavailable', loaded.error ?? undefined);
+  const secrets = storedPiSecrets(loaded, input, dependencies);
   try {
     await loaded.runtime.logout(input.provider);
-  } catch {
-    return failed(input, 'logout_failed');
+  } catch (error) {
+    return failed(input, 'logout_failed', error, secrets);
   }
   return finishPiLogout(input, dependencies);
 }
@@ -197,8 +234,12 @@ export async function logoutAccount(
   input: LogoutAccountInput,
   dependencies: LogoutAccountDependencies = {},
 ): Promise<AuthLogoutResult> {
-  const snapshot = await readStatus(dependencies);
-  if (!snapshot) return failed(input, 'logout_failed');
+  let snapshot: AuthStatusSnapshot;
+  try {
+    snapshot = await readStatus(dependencies);
+  } catch (error) {
+    return failed(input, 'logout_failed', error);
+  }
   const credential = selectedCredential(snapshot, input);
   if (!credential?.manageable) return failed(input, 'not_manageable');
   return input.backend === 'pi'

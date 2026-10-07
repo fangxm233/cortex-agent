@@ -20,7 +20,7 @@ vi.mock('@radix-ui/react-dialog', async importOriginal => ({
 }));
 
 vi.mock('@/features/auth/LoginFlowModal', () => ({
-  LoginFlowModal: ({ open }: any) => open ? <div data-login-flow-dialog /> : null,
+  LoginFlowModal: ({ open, target }: any) => open ? <div data-login-flow-dialog data-target={JSON.stringify(target)} /> : null,
 }));
 
 vi.mock('@/design', async importOriginal => ({
@@ -190,17 +190,21 @@ describe('Settings outside dismissal', () => {
 });
 
 describe('desktop authentication settings entry', () => {
-  it('closes Settings before opening the shared LoginFlow dialog', () => {
+  it('opens the shared LoginFlow dialog over Settings and keeps Settings open', () => {
     const renderer = create(<SettingsHarness />);
     act(() => { renderer.root.findByProps({ 'data-settings-nav': 'accounts' }).props.onClick(); });
     const login = renderer.root.findAll(node => (
-      node.props['data-provider'] === 'anthropic'
+      node.type === 'button'
+      && node.props['data-provider'] === 'anthropic'
       && node.props['data-auth-action'] === 'login'
       && node.props['data-auth-type'] === 'oauth'
     ))[0];
     act(() => { login?.props.onClick(); });
 
-    expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-login-flow-dialog': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(1);
+    const dialog = renderer.root.findByProps({ 'data-login-flow-dialog': true });
+    expect(JSON.parse(dialog.props['data-target'])).toEqual({
+      backend: 'claude', provider: 'anthropic', authType: 'oauth', label: 'Claude Code',
+    });
   });
 });

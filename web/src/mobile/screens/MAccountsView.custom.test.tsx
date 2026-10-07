@@ -42,7 +42,7 @@ function mountView(over: {
     renderer = create(
       <LangProvider>
         <MAccountsView
-          vm={buildAccountsVm(EMPTY_STATUS)}
+          vm={buildAccountsVm(EMPTY_STATUS)} filter="" onFilter={() => {}}
           onBack={() => {}} onLogin={() => {}} onLogout={() => {}} actionsDisabled={false}
           onRescan={() => {}} rescanning={false}
           custom={{

@@ -1,433 +1,428 @@
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthNoticeAction, LoginFlowState } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
+type Prompt = NonNullable<LoginFlowState['pendingPrompt']>;
+type Respond = { flowId: string; value: string; promptId?: number };
+
 const harness = vi.hoisted(() => ({
   startCalls: [] as unknown[],
-  respondCalls: [] as unknown[],
+  respondCalls: [] as Respond[],
   cancelCalls: [] as unknown[],
-  flowQueries: [] as any[],
-  invalidations: [] as unknown[],
-  mutationKinds: [] as string[],
-  startState: null as LoginFlowState | null,
-  respondState: null as LoginFlowState | null,
-  cancelState: null as LoginFlowState | null,
-  queryState: null as LoginFlowState | null,
-  startError: null as string | null,
-  startPromise: null as Promise<LoginFlowState> | null,
-  respondPromise: null as Promise<LoginFlowState> | null,
-  externalUrls: [] as string[],
+  pollCalls: [] as string[],
+  invalidations: [] as Array<{ __kind: string }>,
+  onStart: null as null | ((input: unknown) => Promise<LoginFlowState> | LoginFlowState),
+  onRespond: null as null | ((input: Respond) => Promise<LoginFlowState> | LoginFlowState),
+  onPoll: null as null | ((flowId: string) => Promise<LoginFlowState | null> | LoginFlowState | null),
+  modalProps: null as any,
+  mobile: false,
+  client: null as any,
 }));
 
 vi.mock('@/design', () => ({
-  Modal: ({ open, title, description, hideDescription, children, footer }: any) => open
-    ? <div data-auth-modal="true" data-description-hidden={hideDescription}>
-      <h1>{title}</h1>
-      {description ? <p hidden={hideDescription}>{description}</p> : null}
-      {children}<footer>{footer}</footer>
-    </div>
-    : null,
-  Button: (props: any) => <button {...props}>{props.children}</button>,
+  Modal: (props: any) => {
+    harness.modalProps = props;
+    return props.open
+      ? <div data-auth-modal="true"><h1>{props.title}</h1>{props.children}<footer>{props.footer}</footer></div>
+      : null;
+  },
+  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
   Select: ({ options, value, ...props }: any) => (
-    <div data-select-control data-select-value={String(value)} {...props}>
-      {options.map((option: any) => (
-        <span key={String(option.value)} data-option-value={String(option.value)}>{option.label}</span>
-      ))}
+    <div data-select-value={String(value)} {...props}>
+      {options.map((option: any) => <span key={option.value}>{option.label}</span>)}
     </div>
   ),
-  MBottomSheet: ({ children }: any) => <div data-mobile-bottom-sheet>{children}</div>,
+  MBottomSheet: ({ children, dimDismiss }: any) => <div data-mobile-bottom-sheet data-dim-dismiss={String(dimDismiss)}>{children}</div>,
 }));
 
-vi.mock('@/lib/external-navigation', () => ({
-  openExternalUrl: async (url: string) => { harness.externalUrls.push(url); },
-}));
+vi.mock('@/lib/use-mobile-layout', () => ({ useMobileLayout: () => harness.mobile }));
+vi.mock('@/lib/external-navigation', () => ({ openExternalUrl: async () => {} }));
 
-vi.mock('@/lib/trpc', () => ({
-  useTRPCClient: () => ({
+vi.mock('@/lib/trpc', () => {
+  const query = (kind: string) => ({
+    queryOptions: (input: unknown) => ({ __kind: kind, input }),
+    queryFilter: () => ({ __kind: kind }),
+  });
+  harness.client = {
     auth: {
-      startLogin: {
-        mutate: async (variables: unknown) => {
-          harness.startCalls.push(variables);
-          if (harness.startError) throw new Error(harness.startError);
-          if (harness.startPromise) return harness.startPromise;
-          return harness.startState;
-        },
-      },
-      respondPrompt: {
-        mutate: async (variables: unknown) => {
-          harness.respondCalls.push(variables);
-          if (harness.respondPromise) return harness.respondPromise;
-          return harness.respondState;
-        },
-      },
-      cancelFlow: {
-        mutate: async (variables: unknown) => {
-          harness.cancelCalls.push(variables);
-          return harness.cancelState;
-        },
-      },
+      startLogin: { mutate: async (input: unknown) => { harness.startCalls.push(input); return harness.onStart!(input); } },
+      respondPrompt: { mutate: async (input: Respond) => { harness.respondCalls.push(input); return harness.onRespond!(input); } },
+      cancelFlow: { mutate: async (input: unknown) => { harness.cancelCalls.push(input); return null; } },
+      flowState: { query: async ({ flowId }: { flowId: string }) => { harness.pollCalls.push(flowId); return harness.onPoll!(flowId); } },
     },
-  }),
-  useTRPC: () => {
-    const query = (kind: string) => ({
-      queryOptions: (input: unknown, options: unknown = {}) => ({ __kind: kind, input, ...options as object }),
-      queryFilter: (input: unknown = {}) => ({ __kind: kind, input }),
-    });
-    const mutation = (kind: string) => ({
-      mutationOptions: (options: unknown = {}) => ({ __kind: kind, ...options as object }),
-    });
-    return {
-      auth: {
-        status: query('auth.status'),
-        flowState: query('auth.flowState'),
-        startLogin: mutation('auth.startLogin'),
-        respondPrompt: mutation('auth.respondPrompt'),
-        cancelFlow: mutation('auth.cancelFlow'),
-      },
-    };
-  },
-}));
-
-vi.mock('@tanstack/react-query', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  };
   return {
-    ...actual,
-    useQuery: (options: any) => {
-      if (options.__kind === 'auth.status') return { data: authStatus(), isPending: false };
-      if (options.__kind === 'auth.flowState') {
-        harness.flowQueries.push(options);
-        return {
-          data: options.enabled ? harness.queryState : undefined,
-          isPending: false,
-          isSuccess: options.enabled,
-        };
-      }
-      throw new Error(`Unexpected query ${String(options.__kind)}`);
-    },
-    useMutation: (options: any) => {
-      harness.mutationKinds.push(options.__kind);
-      return { isPending: false, mutate: () => {} };
-    },
-    useQueryClient: () => ({
-      invalidateQueries: (filter: unknown) => { harness.invalidations.push(filter); },
-    }),
+    useTRPCClient: () => harness.client,
+    useTRPC: () => ({ auth: { status: query('auth.status'), flowState: query('auth.flowState') }, config: { get: query('config.get') } }),
+    trpcErrorCode: (error: any) => error?.data?.code ?? null,
   };
 });
 
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@tanstack/react-query')>(),
+  useQuery: (options: any) => ({ data: options.__kind === 'auth.status' ? AUTH_STATUS : undefined }),
+  useQueryClient: () => ({ invalidateQueries: (filter: { __kind: string }) => { harness.invalidations.push(filter); } }),
+}));
+
 import { ChatNotice } from '@/features/session/transcript/ChatNotice';
-import { LoginFlowModal, type LoginFlowModalProps } from './LoginFlowModal';
+import { LoginFlowModal, type LoginFlowModalProps, type LoginFlowTarget } from './LoginFlowModal';
 import { LoginFlowProvider } from './LoginFlowProvider';
 
-function state(
-  step: LoginFlowState['step'],
-  overrides: Partial<LoginFlowState> = {},
-): LoginFlowState {
+const AUTH_STATUS = {
+  generatedAt: '2030-01-01T00:00:00.000Z',
+  accounts: [
+    { backend: 'pi', provider: 'openai-codex', label: 'OpenAI Codex', capabilities: ['oauth'] },
+    { backend: 'pi', provider: 'cloudflare-ai-gateway', label: 'Cloudflare AI Gateway', capabilities: ['api_key'] },
+  ],
+  piRuntime: { available: true, version: 'test', entry: null, error: null },
+};
+
+const DEEPSEEK: LoginFlowTarget = { backend: 'pi', provider: 'deepseek', authType: 'api_key', label: 'DeepSeek' };
+const CODEX: LoginFlowTarget = { backend: 'pi', provider: 'openai-codex', authType: 'oauth' };
+
+function snapshot(revision: number, overrides: Partial<LoginFlowState> = {}): LoginFlowState {
   return {
-    flowId: 'flow-web', backend: 'claude', provider: 'anthropic', authType: 'api_key',
-    step,
-    pendingPrompt: step === 'prompt' ? { kind: 'secret', message: 'Enter key' } : null,
-    notice: null, channel: null, sessionId: null,
+    flowId: 'flow-1', revision, backend: 'pi', provider: 'deepseek', authType: 'api_key',
+    step: 'running', pendingPrompt: null, notice: null, channel: null, sessionId: null,
     createdAt: '2030-01-01T00:00:00.000Z', expiresAt: '2030-01-01T00:30:00.000Z',
-    outcome: step === 'done'
-      ? { provider: 'anthropic', authType: 'api_key', expiresAt: null }
-      : null,
-    error: null, errorCode: null,
-    ...overrides,
+    outcome: null, error: null, errorCode: null, ...overrides,
   };
 }
 
-function authStatus() {
-  return {
-    generatedAt: '2030-01-01T00:00:00.000Z',
-    accounts: [
-      { backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'] },
-      { backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'] },
-      { backend: 'pi', provider: 'oauth-only', label: 'OAuth only', capabilities: ['oauth'] },
-      { backend: 'pi', provider: 'dual-auth', label: 'Dual auth', capabilities: ['api_key', 'oauth'] },
-      { backend: 'pi', provider: 'metadata-only', label: 'Metadata only', capabilities: [] },
-    ],
-    piRuntime: { available: true, version: 'test', entry: null, error: null },
-  };
+function prompt(revision: number, value: Omit<Prompt, 'id'>, overrides: Partial<LoginFlowState> = {}): LoginFlowState {
+  return snapshot(revision, { step: 'prompt', pendingPrompt: { id: revision, ...value }, ...overrides });
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => { resolve = done; });
-  return { promise, resolve };
+/**
+ * A server that walks a list of prompts the way the real coordinator does: an answer returns a
+ * `running` snapshot, and the next prompt (or the final state) only shows up on a later poll.
+ */
+function scriptedServer(steps: Array<{ prompt: Omit<Prompt, 'id'>; notice?: LoginFlowState['notice'] }>, final: Partial<LoginFlowState>) {
+  let revision = 1;
+  let index = 0;
+  let advancing = false;
+  let current = prompt(revision, steps[0]!.prompt, { notice: steps[0]!.notice ?? null });
+  harness.onStart = () => current;
+  harness.onRespond = (input) => {
+    if (input.promptId !== current.pendingPrompt?.id) throw new Error('stale prompt');
+    revision += 1; index += 1; advancing = true;
+    current = snapshot(revision);
+    return current;
+  };
+  harness.onPoll = () => {
+    if (!advancing) return current;
+    advancing = false;
+    revision += 1;
+    const step = steps[index];
+    current = step ? prompt(revision, step.prompt, { notice: step.notice ?? null }) : snapshot(revision, final);
+    return current;
+  };
 }
 
 function mount(props: Partial<LoginFlowModalProps> = {}): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(
-      <LangProvider><LoginFlowModal open onClose={() => {}} {...props} /></LangProvider>,
-    );
+    renderer = create(<LangProvider><LoginFlowModal open onClose={() => {}} target={DEEPSEEK} {...props} /></LangProvider>);
   });
   return renderer;
 }
 
-const NOTICE_TARGET: AuthNoticeAction = {
-  kind: 'auth-login', noticeId: 'notice-web',
-  backend: 'pi', provider: 'dual-auth', authType: 'oauth',
-};
-
-function NoticeLauncher(): JSX.Element {
-  return <ChatNotice level="error" text="Authentication expired" authAction={NOTICE_TARGET} />;
+async function flush(): Promise<void> {
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 }
 
-function mountProvider(): ReactTestRenderer {
-  let renderer!: ReactTestRenderer;
-  act(() => {
-    renderer = create(
-      <LangProvider><LoginFlowProvider><NoticeLauncher /></LoginFlowProvider></LangProvider>,
-    );
-  });
-  return renderer;
+async function poll(): Promise<void> {
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 }
 
-function click(renderer: ReactTestRenderer, action: string): void {
-  act(() => { renderer.root.findByProps({ 'data-action': action }).props.onClick(); });
+function find(renderer: ReactTestRenderer, props: Record<string, unknown>): ReactTestInstance {
+  return renderer.root.findByProps(props);
 }
 
-function clickNotice(renderer: ReactTestRenderer): void {
-  act(() => { renderer.root.findByProps({ 'data-auth-notice-action': true }).props.onClick(); });
+function flowStep(renderer: ReactTestRenderer): string {
+  return renderer.root.findAll(node => node.props['data-auth-flow-step'] !== undefined)[0]!.props['data-auth-flow-step'];
 }
 
-function pick(renderer: ReactTestRenderer, field: string, value: string): void {
-  act(() => { renderer.root.findByProps({ [`data-auth-${field}`]: true }).props.onValueChange(value); });
+function text(renderer: ReactTestRenderer): string {
+  return JSON.stringify(renderer.toJSON());
 }
 
-async function clickAsync(renderer: ReactTestRenderer, action: string): Promise<void> {
-  await act(async () => {
-    await renderer.root.findByProps({ 'data-action': action }).props.onClick();
-  });
+/** Only what a user reads: text nodes, not data attributes. */
+function visibleText(renderer: ReactTestRenderer): string {
+  const parts: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') parts.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === 'object' && 'children' in node) walk((node as { children: unknown }).children);
+  };
+  walk(renderer.toJSON());
+  return parts.join(' ');
+}
+
+function type(renderer: ReactTestRenderer, value: string): void {
+  const input = renderer.root.findAll(node => node.type === 'input' && node.props['data-auth-input'])[0]!;
+  act(() => { input.props.onChange({ target: { value } }); });
+}
+
+async function submit(renderer: ReactTestRenderer): Promise<void> {
+  await act(async () => { find(renderer, { 'data-action': 'auth-submit' }).props.onClick(); });
+  await flush();
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
   harness.startCalls = [];
   harness.respondCalls = [];
   harness.cancelCalls = [];
-  harness.flowQueries = [];
+  harness.pollCalls = [];
   harness.invalidations = [];
-  harness.mutationKinds = [];
-  harness.startState = state('prompt');
-  harness.respondState = state('done');
-  harness.cancelState = state('cancelled');
-  harness.queryState = state('prompt');
-  harness.startError = null;
-  harness.startPromise = null;
-  harness.respondPromise = null;
-  harness.externalUrls = [];
+  harness.modalProps = null;
+  harness.mobile = false;
+  harness.onStart = () => prompt(1, { kind: 'secret', message: 'Enter DeepSeek API key' });
+  harness.onRespond = () => snapshot(2);
+  harness.onPoll = () => null;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('LoginFlowModal', () => {
-  it('auto-starts a notice target with the server-selected OAuth capability', async () => {
-    harness.startState = state('prompt', {
-      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
-      pendingPrompt: { kind: 'manual_code', message: 'Enter code' },
-    });
-    harness.queryState = harness.startState;
-    mount({ target: NOTICE_TARGET });
-    await act(async () => { await Promise.resolve(); });
-
-    expect(harness.startCalls).toEqual([{
-      backend: 'pi', provider: 'dual-auth', authType: 'oauth', noticeId: 'notice-web',
-    }]);
-  });
-
-  it('waits for confirmation before starting a settings target', async () => {
-    harness.startState = state('prompt', {
-      backend: 'pi', provider: 'deepseek', authType: 'api_key',
-    });
-    harness.queryState = harness.startState;
-    const renderer = mount({
-      target: { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
-    });
-    await act(async () => { await Promise.resolve(); });
-
-    expect(harness.startCalls).toHaveLength(0);
-    await clickAsync(renderer, 'auth-start');
-    expect(harness.startCalls).toEqual([{
-      backend: 'pi', provider: 'deepseek', authType: 'api_key',
-    }]);
-  });
-
-  it('reopens a terminal notice flow instead of creating another flow', async () => {
-    harness.startState = state('done', {
-      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
-      outcome: { provider: 'dual-auth', authType: 'oauth', expiresAt: null },
-    });
-    harness.queryState = harness.startState;
-    const renderer = mountProvider();
-    clickNotice(renderer);
-    await act(async () => { await Promise.resolve(); });
-    click(renderer, 'auth-close');
-    clickNotice(renderer);
-    await act(async () => { await Promise.resolve(); });
-
-    expect(harness.startCalls).toHaveLength(1);
-    expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
-  });
-
-  it('shows cached terminal feedback for an already-bound notice target', () => {
-    const terminal = state('done', {
-      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
-      outcome: { provider: 'dual-auth', authType: 'oauth', expiresAt: null },
-    });
-    const renderer = mount({ target: NOTICE_TARGET, initialState: terminal });
-
-    expect(harness.startCalls).toHaveLength(0);
-    expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
-  });
-
-  it('lists all PI providers and skips auth selection for an API-key-only provider', async () => {
+  it('starts the target on open and shows the server prompt under a provider title', async () => {
     const renderer = mount();
-    pick(renderer, 'backend', 'pi');
-    const provider = renderer.root.findByProps({ 'data-auth-provider': true });
-    expect(provider.props.options.map((option: any) => option.value)).toEqual([
-      'deepseek', 'oauth-only', 'dual-auth',
-    ]);
-    pick(renderer, 'provider', 'deepseek');
-    expect(renderer.root.findAllByProps({ 'data-auth-type': true })).toHaveLength(0);
-    await clickAsync(renderer, 'auth-start');
+    await flush();
 
     expect(harness.startCalls).toEqual([{ backend: 'pi', provider: 'deepseek', authType: 'api_key' }]);
-    expect(harness.flowQueries.at(-1)).toMatchObject({ enabled: true, input: { flowId: 'flow-web' } });
-  });
-
-  it('shows auth selection after a dual-capability PI provider', async () => {
-    const renderer = mount();
-    pick(renderer, 'backend', 'pi');
-    pick(renderer, 'provider', 'dual-auth');
-    const authType = renderer.root.findByProps({ 'data-auth-type': true });
-    expect(authType.props.options.map((option: any) => option.value)).toEqual([
-      'api_key', 'oauth',
-    ]);
-    pick(renderer, 'type', 'oauth');
-    await clickAsync(renderer, 'auth-start');
-
-    expect(harness.startCalls).toEqual([{
-      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
-    }]);
-  });
-
-  it('skips auth selection and starts OAuth for an OAuth-only provider', async () => {
-    const renderer = mount();
-    pick(renderer, 'backend', 'pi');
-    pick(renderer, 'provider', 'oauth-only');
-    expect(renderer.root.findAllByProps({ 'data-auth-type': true })).toHaveLength(0);
-    await clickAsync(renderer, 'auth-start');
-
-    expect(harness.startCalls).toEqual([{
-      backend: 'pi', provider: 'oauth-only', authType: 'oauth',
-    }]);
-  });
-
-  it('submits the exact id selected by an interactive login prompt', async () => {
-    harness.startState = state('prompt', {
-      pendingPrompt: {
-        kind: 'select', message: 'Region',
-        options: [{ id: 'us', label: 'US' }, { id: 'eu', label: 'EU' }],
-      },
-    });
-    harness.queryState = harness.startState;
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-
-    const prompt = renderer.root.findByProps({ 'data-auth-secret': true });
-    expect(prompt.props.options.map((option: any) => option.value)).toEqual(['us', 'eu']);
-    act(() => { prompt.props.onValueChange('eu'); });
-    await clickAsync(renderer, 'auth-submit');
-
-    expect(harness.respondCalls).toEqual([{ flowId: 'flow-web', value: 'eu' }]);
-  });
-
-  it('does not echo a submitted OAuth redirect URL', async () => {
-    harness.startState = state('prompt', {
-      authType: 'oauth',
-      pendingPrompt: { kind: 'manual_code', message: 'Paste redirect URL' },
-    });
-    harness.queryState = harness.startState;
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-    const redirect = 'https://localhost/callback?code=sentinel-web-code&state=private';
-    act(() => {
-      renderer.root.findByProps({ 'data-auth-secret': true }).props.onChange({ target: { value: redirect } });
-    });
-    await clickAsync(renderer, 'auth-submit');
-
-    expect(harness.respondCalls).toEqual([{ flowId: 'flow-web', value: redirect }]);
-    expect(JSON.stringify(renderer.toJSON())).not.toContain(redirect);
-  });
-
-  it('uses an uncached direct mutation and never re-renders a submitted secret', async () => {
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-    const input = renderer.root.findByProps({ 'data-auth-secret': true });
+    expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to DeepSeek');
+    expect(find(renderer, { 'data-auth-subtitle': true }).props.children).toBe('API key');
+    expect(find(renderer, { 'data-auth-prompt-copy': true }).props.children).toBe('Enter DeepSeek API key');
+    const input = find(renderer, { 'data-auth-input': 'secret' });
     expect(input.props.type).toBe('password');
-
-    const secret = 'sentinel-web-secret';
-    act(() => { input.props.onChange({ target: { value: secret } }); });
-    expect(renderer.root.findByProps({ 'data-auth-secret': true }).props.value).toBe(secret);
-    await clickAsync(renderer, 'auth-submit');
-
-    expect(harness.respondCalls).toEqual([{ flowId: 'flow-web', value: secret }]);
-    expect(harness.mutationKinds).not.toContain('auth.respondPrompt');
-    expect(JSON.stringify(renderer.toJSON())).not.toContain(secret);
-    expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
-    expect(harness.invalidations.some((entry: any) => entry.__kind === 'auth.status')).toBe(true);
+    expect(find(renderer, { 'data-action': 'auth-submit' }).props.disabled).toBe(true);
+    expect(visibleText(renderer)).not.toMatch(/\bPI\b|deepseek/);
   });
 
-  it('hides cancellation while the credential response is pending', async () => {
-    const pending = deferred<LoginFlowState>();
-    harness.respondPromise = pending.promise;
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-    const input = renderer.root.findByProps({ 'data-auth-secret': true });
-    act(() => { input.props.onChange({ target: { value: 'sentinel-web-secret' } }); });
-    click(renderer, 'auth-submit');
+  it('walks a select prompt into the browser step and answers the manual code', async () => {
+    const message = 'Complete login in your browser, or paste the authorization code / redirect URL here:';
+    scriptedServer([
+      { prompt: { kind: 'select', message: 'Select OpenAI Codex login method:', options: [
+        { id: 'browser', label: 'Browser login (default)' }, { id: 'device', label: 'Device code login (headless)' },
+      ] } },
+      {
+        prompt: { kind: 'manual_code', message, placeholder: 'http://localhost:1455/auth/callback' },
+        notice: { kind: 'auth_url', url: 'https://auth.openai.com/authorize?x=1', instructions: 'A browser window should open.' },
+      },
+    ], { step: 'done', outcome: { provider: 'openai-codex', authType: 'oauth', expiresAt: null } });
+    const renderer = mount({ target: CODEX });
+    await flush();
 
-    expect(renderer.root.findAllByProps({ 'data-action': 'auth-cancel' })).toHaveLength(0);
-    await act(async () => { pending.resolve(state('running')); await pending.promise; });
+    expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to OpenAI Codex');
+    expect(find(renderer, { 'data-auth-select': true }).props.value).toBe('browser');
+    await submit(renderer);
+    expect(harness.respondCalls).toEqual([{ flowId: 'flow-1', value: 'browser', promptId: 1 }]);
+    expect(flowStep(renderer)).toBe('running');
+    expect(find(renderer, { 'data-action': 'auth-cancel' })).toBeTruthy();
+
+    await poll();
+    expect(flowStep(renderer)).toBe('prompt');
+    expect(find(renderer, { 'data-auth-open-step': true })).toBeTruthy();
+    expect(find(renderer, { 'data-auth-code-step': true })).toBeTruthy();
+    expect(find(renderer, { 'data-auth-prompt-copy': true }).props.children).toBe(message);
+    expect(find(renderer, { 'data-auth-input': 'manual_code' }).props.placeholder).toBe('http://localhost:1455/auth/callback');
+    expect(find(renderer, { 'data-action': 'auth-copy-url' })).toBeTruthy();
+
+    type(renderer, 'http://localhost:1455/auth/callback?code=abc&state=s');
+    await submit(renderer);
+    expect(harness.respondCalls[1]).toEqual({ flowId: 'flow-1', value: 'http://localhost:1455/auth/callback?code=abc&state=s', promptId: 3 });
+    await poll();
+    expect(flowStep(renderer)).toBe('done');
+    expect(text(renderer)).toContain('Logged in to OpenAI Codex.');
   });
 
-  it('cancels the active flow and stops polling terminal state', async () => {
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-    await clickAsync(renderer, 'auth-cancel');
+  it('answers a secret then two text prompts in turn', async () => {
+    scriptedServer([
+      { prompt: { kind: 'secret', message: 'Enter Cloudflare API key' } },
+      { prompt: { kind: 'text', message: 'Enter Cloudflare account ID' } },
+      { prompt: { kind: 'text', message: 'Enter Cloudflare AI Gateway ID' } },
+    ], { step: 'done', outcome: { provider: 'cloudflare-ai-gateway', authType: 'api_key', expiresAt: null } });
+    const renderer = mount({ target: { backend: 'pi', provider: 'cloudflare-ai-gateway', authType: 'api_key' } });
+    await flush();
 
-    expect(harness.cancelCalls).toEqual([{ flowId: 'flow-web' }]);
-    const latest = harness.flowQueries.at(-1);
-    expect(typeof latest.refetchInterval === 'function' || latest.refetchInterval === false).toBe(true);
+    for (const [index, message] of ['Enter Cloudflare API key', 'Enter Cloudflare account ID', 'Enter Cloudflare AI Gateway ID'].entries()) {
+      expect(find(renderer, { 'data-auth-prompt-copy': true }).props.children).toBe(message);
+      type(renderer, `value-${index}`);
+      await submit(renderer);
+      await poll();
+    }
+    expect(harness.respondCalls.map(call => [call.value, call.promptId])).toEqual([['value-0', 1], ['value-1', 3], ['value-2', 5]]);
+    expect(flowStep(renderer)).toBe('done');
   });
 
-  it('resets a terminal flow when the modal closes and reopens', async () => {
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-    act(() => { renderer.update(<LangProvider><LoginFlowModal open={false} onClose={() => {}} /></LangProvider>); });
-    act(() => { renderer.update(<LangProvider><LoginFlowModal open onClose={() => {}} /></LangProvider>); });
+  it('submits an empty answer to a text prompt but not to a secret', async () => {
+    harness.onStart = () => prompt(1, { kind: 'text', message: 'Configure AWS credentials, then press Enter to continue' });
+    const renderer = mount({ target: { backend: 'pi', provider: 'amazon-bedrock', authType: 'api_key', label: 'Amazon Bedrock' } });
+    await flush();
 
-    expect(renderer.root.findByProps({ 'data-action': 'auth-start' })).toBeTruthy();
+    expect(find(renderer, { 'data-action': 'auth-submit' }).props.disabled).toBe(false);
+    await act(async () => {
+      find(renderer, { 'data-auth-input': 'text' }).props.onKeyDown({ key: 'Enter', nativeEvent: {}, preventDefault: () => {} });
+    });
+    await flush();
+    expect(harness.respondCalls).toEqual([{ flowId: 'flow-1', value: '', promptId: 1 }]);
   });
 
-  it('ignores a start response that settles after close and reopen', async () => {
-    const pending = deferred<LoginFlowState>();
-    harness.startPromise = pending.promise;
+  it('keeps the newest revision when an older snapshot arrives late', async () => {
+    const polls = [
+      snapshot(3, { notice: { kind: 'progress', message: 'Exchanging the code' } }),
+      prompt(2, { kind: 'secret', message: 'Enter DeepSeek API key' }),
+    ];
+    harness.onPoll = () => polls.shift() ?? null;
     const renderer = mount();
-    click(renderer, 'auth-start');
-    act(() => { renderer.update(<LangProvider><LoginFlowModal open={false} onClose={() => {}} /></LangProvider>); });
-    act(() => { renderer.update(<LangProvider><LoginFlowModal open onClose={() => {}} /></LangProvider>); });
-    await act(async () => { pending.resolve(state('prompt')); await pending.promise; });
-
-    expect(renderer.root.findByProps({ 'data-action': 'auth-start' })).toBeTruthy();
+    await flush();
+    await poll();
+    expect(flowStep(renderer)).toBe('notice');
+    await poll();
+    expect(flowStep(renderer)).toBe('notice');
+    expect(text(renderer)).toContain('Exchanging the code');
   });
 
-  it('renders an expired error when flowState returns null', async () => {
-    harness.queryState = null;
+  it('drops and cancels a start that settles after the dialog closed', async () => {
+    let settle!: (state: LoginFlowState) => void;
+    harness.onStart = () => new Promise(resolve => { settle = resolve; });
     const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
+    act(() => { renderer.update(<LangProvider><LoginFlowModal open={false} onClose={() => {}} target={DEEPSEEK} /></LangProvider>); });
+    await act(async () => { settle(prompt(1, { kind: 'secret', message: 'late' })); await vi.advanceTimersByTimeAsync(0); });
 
-    expect(renderer.root.findByProps({ 'data-auth-flow-step': 'failed' })).toBeTruthy();
+    expect(harness.cancelCalls).toEqual([{ flowId: 'flow-1' }]);
+    expect(text(renderer)).not.toContain('late');
+  });
+
+  it('cancels an unfinished flow when the dialog closes, and keeps it open on an outside click', async () => {
+    const renderer = mount();
+    await flush();
+    const outside = { preventDefault: vi.fn() };
+    harness.modalProps.onPointerDownOutside(outside);
+    expect(outside.preventDefault).toHaveBeenCalled();
+
+    act(() => { renderer.update(<LangProvider><LoginFlowModal open={false} onClose={() => {}} target={DEEPSEEK} /></LangProvider>); });
+    expect(harness.cancelCalls).toEqual([{ flowId: 'flow-1' }]);
+  });
+
+  it('closes from Cancel and lets an outside click close a finished flow', async () => {
+    const onClose = vi.fn();
+    harness.onStart = () => snapshot(1, { step: 'done', outcome: { provider: 'deepseek', authType: 'api_key', expiresAt: null } });
+    const renderer = mount({ onClose });
+    await flush();
+    const outside = { preventDefault: vi.fn() };
+    harness.modalProps.onPointerDownOutside(outside);
+    expect(outside.preventDefault).not.toHaveBeenCalled();
+    act(() => { find(renderer, { 'data-action': 'auth-done' }).props.onClick(); });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the upstream reason of a failure and retries with a new flow', async () => {
+    harness.onStart = () => snapshot(1, { step: 'failed', error: 'OpenAI Codex login failed: State mismatch', errorCode: 'login_failed' });
+    const renderer = mount({ target: CODEX });
+    await flush();
+
+    expect(flowStep(renderer)).toBe('failed');
+    expect(find(renderer, { 'data-auth-error-detail': true }).props.children).toBe('OpenAI Codex login failed: State mismatch');
+    harness.onStart = () => prompt(1, { kind: 'manual_code', message: 'Paste code' }, { flowId: 'flow-2' });
+    await act(async () => { find(renderer, { 'data-action': 'auth-retry' }).props.onClick(); });
+    await flush();
+    expect(harness.startCalls).toHaveLength(2);
+    expect(flowStep(renderer)).toBe('prompt');
+  });
+
+  it('does not carry a typed answer into the retried flow, whose prompt ids start over', async () => {
+    harness.onStart = () => prompt(1, { kind: 'manual_code', message: 'Paste code' });
+    harness.onRespond = () => snapshot(2, { step: 'failed', error: 'Token exchange failed', errorCode: 'login_failed' });
+    const renderer = mount({ target: CODEX });
+    await flush();
+    type(renderer, 'expired-code');
+    await submit(renderer);
+    expect(flowStep(renderer)).toBe('failed');
+
+    harness.onStart = () => prompt(1, { kind: 'manual_code', message: 'Paste code' }, { flowId: 'flow-2' });
+    await act(async () => { find(renderer, { 'data-action': 'auth-retry' }).props.onClick(); });
+    await flush();
+    const input = renderer.root.findAll(node => node.type === 'input' && node.props['data-auth-input'])[0]!;
+    expect(input.props.value).toBe('');
+  });
+
+  it('shows a refused start with Retry', async () => {
+    harness.onStart = () => { throw new Error('The previous login is still completing.'); };
+    const renderer = mount();
+    await flush();
+
+    expect(find(renderer, { 'data-auth-error-detail': true }).props.children).toBe('The previous login is still completing.');
+    expect(find(renderer, { 'data-action': 'auth-retry' })).toBeTruthy();
+  });
+
+  it('refreshes accounts and config once when the login is done', async () => {
+    const onDone = vi.fn();
+    harness.onRespond = () => snapshot(2, { step: 'done', outcome: { provider: 'deepseek', authType: 'api_key', expiresAt: null } });
+    const renderer = mount({ onDone });
+    await flush();
+    type(renderer, 'sk-test');
+    await submit(renderer);
+    await poll();
+
+    expect(flowStep(renderer)).toBe('done');
+    expect(text(renderer)).not.toContain('sk-test');
+    expect(harness.invalidations.map(entry => entry.__kind).sort()).toEqual(['auth.status', 'config.get']);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(harness.pollCalls).toHaveLength(0);
+  });
+
+  it('turns a flow the server no longer knows into an expired failure', async () => {
+    harness.onPoll = () => null;
+    const renderer = mount();
+    await flush();
+    await poll();
+
+    expect(flowStep(renderer)).toBe('failed');
+    expect(text(renderer)).toContain('This login expired. Try again.');
+  });
+
+  it('counts a device code down from when it was shown', async () => {
+    harness.onStart = () => snapshot(1, { notice: { kind: 'device_code', userCode: 'A1B2-C3D4', verificationUri: 'https://github.com/login/device', expiresInSeconds: 900 } });
+    harness.onPoll = () => snapshot(1, { notice: { kind: 'device_code', userCode: 'A1B2-C3D4', verificationUri: 'https://github.com/login/device', expiresInSeconds: 900 } });
+    const renderer = mount({ target: { backend: 'pi', provider: 'github-copilot', authType: 'oauth', label: 'GitHub Copilot' } });
+    await flush();
+    expect(text(renderer)).toContain('expires in 15:00');
+    await act(async () => { await vi.advanceTimersByTimeAsync(61_000); });
+    expect(text(renderer)).toContain('expires in 13:59');
+    expect(find(renderer, { 'data-action': 'auth-copy-code' })).toBeTruthy();
+  });
+
+  it('keeps a mobile sheet open on a dim tap while the flow runs', async () => {
+    harness.mobile = true;
+    const renderer = mount();
+    await flush();
+    expect(find(renderer, { 'data-mobile-bottom-sheet': true }).props['data-dim-dismiss']).toBe('false');
+  });
+});
+
+describe('LoginFlowProvider', () => {
+  const NOTICE: AuthNoticeAction = {
+    kind: 'auth-login', noticeId: 'notice-1', backend: 'pi', provider: 'openai-codex', authType: 'oauth',
+  };
+
+  it('starts a chat-notice login with its notice id and the provider label', async () => {
+    harness.onStart = () => prompt(1, { kind: 'manual_code', message: 'Paste code' }, { provider: 'openai-codex', authType: 'oauth' });
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<LangProvider><LoginFlowProvider>
+        <ChatNotice level="error" text="Authentication expired" authAction={NOTICE} />
+      </LoginFlowProvider></LangProvider>);
+    });
+    act(() => { find(renderer, { 'data-auth-notice-action': true }).props.onClick(); });
+    await flush();
+
+    expect(harness.startCalls).toEqual([{ backend: 'pi', provider: 'openai-codex', authType: 'oauth', noticeId: 'notice-1' }]);
+    expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to OpenAI Codex');
+    expect(harness.modalProps.layer).toBe('nested');
   });
 });

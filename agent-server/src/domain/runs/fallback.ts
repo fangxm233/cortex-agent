@@ -69,6 +69,15 @@ export function attemptProvider(attempt: Parameters<typeof resolveRateLimitProvi
   return resolveRateLimitProvider(attempt);
 }
 
+/** The credential an attempt ran on: Claude's `api` mode uses the API key and its other modes the
+ *  subscription. A PI provider's credential type is not visible from the attempt. */
+export function attemptAuthType(
+  attempt: Pick<RunAttemptConfig, 'backend' | 'mode'>,
+): 'oauth' | 'api_key' | null {
+  if (attempt.backend !== 'claude') return null;
+  return attempt.mode === 'api' ? 'api_key' : 'oauth';
+}
+
 /**
  * The same attribution, but honest about not knowing: null when the attempt carries no engine
  * selection at all.

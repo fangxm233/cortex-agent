@@ -54,29 +54,16 @@
 .provider-setup .setup-primary { background: var(--proto-accent); border-color: var(--proto-accent); color: var(--ink-solid-fg); box-shadow: var(--accent-glow); }
 .provider-setup .setup-primary:hover:not(:disabled) { background: var(--proto-accent-strong); border-color: var(--proto-accent-strong); }
 .provider-setup .setup-rescan { margin-left: auto; font-size: 11px; font-weight: 500; min-height: 26px; padding: 2px 0; border: 0; color: var(--proto-muted); background: transparent; box-shadow: none; }
-.provider-setup .setup-search { padding: 12px 20px 4px; }
 .provider-setup .setup-input { width: 100%; border: 1px solid var(--proto-line); border-radius: var(--r-control); background: var(--material-inset-bg); color: var(--proto-ink); padding: 8px 11px; font-size: 12px; line-height: 1.55; }
 .provider-setup .setup-input:focus { border-color: var(--proto-accent); }
 .provider-setup .setup-input::placeholder { color: var(--proto-muted-3); }
 .provider-setup .setup-input:disabled { opacity: .65; }
-.provider-setup .setup-providers { padding: 0 20px; max-height: 250px; overflow-y: auto; }
-.provider-setup .setup-account { display: flex; align-items: center; gap: 12px; padding: 11px 0; min-height: 58px; }
-.provider-setup .setup-account + .setup-account { border-top: 1px solid var(--proto-line-2); }
-.provider-setup .setup-provider-icon { display: flex; align-items: center; justify-content: center; width: 26px; flex: none; color: var(--proto-ink-2); }
-.provider-setup .setup-account-copy { flex: 1; min-width: 0; }
-.provider-setup .setup-account-copy strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
-.provider-setup .setup-account-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--proto-muted-3); margin-top: 2px; }
-.provider-setup .setup-state-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
-.provider-setup [data-account-state='logged-in'] .setup-account-status { color: var(--proto-accent); }
-.provider-setup [data-account-state='expiring'] .setup-account-status { color: var(--state-wait); }
-.provider-setup [data-account-state='expired'] .setup-account-status { color: var(--state-fail); }
-.provider-setup .setup-account-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.provider-setup .setup-account-actions .setup-button { min-height: 28px; padding: 4px 9px; font-size: 11px; font-weight: 550; border-radius: var(--r-chip); }
+.provider-setup .setup-accounts { display: flex; flex-direction: column; gap: 16px; }
+.provider-setup .setup-accounts-group h3 { margin: 0 0 8px 2px; font-size: 12px; font-weight: 600; color: var(--proto-muted); }
 .provider-setup .setup-install-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; }
 .provider-setup .setup-install-row .setup-button { flex: none; }
 .provider-setup .setup-hint { color: var(--proto-muted); font-size: 12px; }
 .provider-setup .setup-profile-body .setup-hint { margin-top: 7px; font-size: 11px; }
-.provider-setup .setup-cc-body .setup-account { padding: 0; min-height: 36px; }
 .provider-setup .setup-footer { margin-top: 20px; }
 .provider-setup .setup-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .provider-setup .setup-footnote { margin-top: 14px; color: var(--proto-muted-3); font-size: 11px; text-align: center; }
@@ -91,7 +78,5 @@
   .provider-setup .setup-workspace { width: calc(100% - 32px); margin-top: 36px; }
   .provider-setup h1 { font-size: 24px; }
   .provider-setup .setup-card-header, .provider-setup .setup-card-body { padding-left: 16px; padding-right: 16px; }
-  .provider-setup .setup-account { flex-wrap: wrap; }
-  .provider-setup .setup-account-actions { margin-left: auto; }
   .provider-setup .setup-install-row { flex-wrap: wrap; gap: 10px; }
 }

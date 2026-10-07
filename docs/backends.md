@@ -304,6 +304,12 @@ is also selected interactively when a provider supports more than one type.
 Do not append `oauth`, API keys, authorization codes, or provider-specific
 OAuth flags to the command.
 
+One backend/provider pair has at most one login in progress. Starting a login
+cancels an unfinished one for the same pair, whichever channel started it,
+unless that login is already saving a submitted credential; then the new start
+is refused until it finishes. A failed login shows Cortex's message followed by
+the first line of the provider's own reason.
+
 OAuth is offered only when the installed PI provider exposes
 `provider.auth.oauth.login` as a function. On the reference installation this
 criterion was true for 7 of 39 providers; the list is discovered dynamically,
@@ -323,8 +329,11 @@ runtime credential while Claude Code is logged out, but it does not make the
 account appear logged in and is suppressed as soon as Claude owns a credential.
 
 When a running backend reports expired authentication, Cortex posts a card that
-names the backend/provider and offers one-click re-login with the selection
-pre-filled. A daily expiration scan checks in-use accounts and sends the same
+names the provider and offers one-click re-login, pre-filled with the
+authentication type that failed: for Claude Code, the API key when the run used
+`api` mode and the subscription otherwise. While that login runs, the button
+reopens it; after it fails, is cancelled or expires, the button starts a new
+one. A daily expiration scan checks in-use accounts and sends the same
 actionable warning for credentials that are expiring, expired, or missing. The
 daily scan skips any provider the runtime notification already reported within
 the reminder window, so a scheduled warning never repeats a notice you just

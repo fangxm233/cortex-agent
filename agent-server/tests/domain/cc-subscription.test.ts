@@ -102,7 +102,7 @@ test('subscription relays URL/code to claude auth login and completes only after
     kind: 'auth_url', url: AUTH_URL, instructions: undefined,
   });
   assert.deepEqual(waiting.pendingPrompt, {
-    kind: 'manual_code', message: 'Paste code here if prompted.',
+    id: waiting.pendingPrompt?.id, kind: 'manual_code', message: 'Paste code here if prompted.',
   });
   await respondPrompt(flow.flowId, CODE);
   const completed = await waitForStep(flow.flowId, 'done');
@@ -130,7 +130,8 @@ test('subscription does not publish recovery when legacy token cleanup fails', a
       prompt: async () => CODE,
       notify: () => {},
     }, evidence.dependencies),
-    safeFailure('claude_subscription_cleanup_failed'),
+    (error: any) => safeFailure('claude_subscription_cleanup_failed')(error)
+      && error.message.endsWith('cleanup failed: fixture cleanup'),
   );
 
   assert.equal(evidence.reload.mock.calls.length, 0);
@@ -179,15 +180,16 @@ test('the daemon env admits a legacy token only until Claude owns a credential',
   assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
 });
 
-test('subscription maps unsuccessful CLI postconditions without leaking command output', async () => {
+test('subscription failures keep the CLI reason after the localized prefix', async () => {
   const evidence = successEvidence();
   evidence.dependencies.login = async () => {
-    throw new ClaudeAuthCliError('claude_auth_not_logged_in', `unsafe-${CODE}`);
+    throw new ClaudeAuthCliError('claude_auth_not_logged_in', 'Claude Code did not persist the login.');
   };
 
   await assert.rejects(
     loginClaudeSubscription({ prompt: async () => CODE, notify: () => {} }, evidence.dependencies),
-    safeFailure('claude_subscription_failed'),
+    (error: any) => error?.code === 'claude_subscription_failed'
+      && error.message === 'Claude subscription login failed: Claude Code did not persist the login.',
   );
 
   assert.equal(evidence.cleanup.mock.calls.length, 0);
