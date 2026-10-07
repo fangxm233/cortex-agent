@@ -335,6 +335,22 @@ describe('LoginFlowModal', () => {
     expect(flowStep(renderer)).toBe('prompt');
   });
 
+  it('does not carry a typed answer into the retried flow, whose prompt ids start over', async () => {
+    harness.onStart = () => prompt(1, { kind: 'manual_code', message: 'Paste code' });
+    harness.onRespond = () => snapshot(2, { step: 'failed', error: 'Token exchange failed', errorCode: 'login_failed' });
+    const renderer = mount({ target: CODEX });
+    await flush();
+    type(renderer, 'expired-code');
+    await submit(renderer);
+    expect(flowStep(renderer)).toBe('failed');
+
+    harness.onStart = () => prompt(1, { kind: 'manual_code', message: 'Paste code' }, { flowId: 'flow-2' });
+    await act(async () => { find(renderer, { 'data-action': 'auth-retry' }).props.onClick(); });
+    await flush();
+    const input = renderer.root.findAll(node => node.type === 'input' && node.props['data-auth-input'])[0]!;
+    expect(input.props.value).toBe('');
+  });
+
   it('shows a refused start with Retry', async () => {
     harness.onStart = () => { throw new Error('The previous login is still completing.'); };
     const renderer = mount();

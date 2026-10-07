@@ -270,9 +270,10 @@ function FlowError({ title, detail }: { title?: string; detail?: string }) {
   );
 }
 
-function usePromptValue(prompt: PendingPrompt | null): [string, (value: string) => void] {
-  const [entry, setEntry] = useState<{ id: number | null; value: string }>({ id: null, value: '' });
-  const id = prompt?.id ?? null;
+/** The typed answer belongs to one prompt of one flow; prompt ids restart in every flow (Retry). */
+function usePromptValue(flowId: string | null, prompt: PendingPrompt | null): [string, (value: string) => void] {
+  const [entry, setEntry] = useState<{ id: string | null; value: string }>({ id: null, value: '' });
+  const id = prompt ? `${flowId}:${prompt.id}` : null;
   const fallback = prompt?.kind === 'select' ? prompt.options?.[0]?.id ?? '' : '';
   const value = entry.id === id ? entry.value : fallback;
   return [value, next => setEntry({ id, value: next })];
@@ -370,7 +371,7 @@ export function LoginFlowModal({ open, onClose, target, onDone }: LoginFlowModal
   const controller = useLoginFlowController(open, target, onDone);
   const vm = buildLoginFlowVm({ state: controller.latest, label: label ?? '', startError: controller.startError }, L);
   const prompt = vm.kind === 'prompt' ? controller.latest?.pendingPrompt ?? null : null;
-  const [value, setValue] = usePromptValue(prompt);
+  const [value, setValue] = usePromptValue(controller.latest?.flowId ?? null, prompt);
   const canSubmit = !!prompt && canSubmitPrompt(prompt, value);
   const submit = () => { if (canSubmit && !controller.responding) controller.respond(value); };
   const inProgress = IN_PROGRESS.has(vm.kind);
