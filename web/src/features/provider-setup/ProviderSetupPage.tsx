@@ -138,9 +138,7 @@ export function ProviderSetupView({ controller, ...exit }: { controller: Provide
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const L = useVocab();
   const [target, setTarget] = useState<LoginFlowTarget | null>(null);
-  const flowChanged = useCallback((state: LoginFlowState) => {
-    if (state.step === 'done') void controller.loginDone(state.flowId);
-  }, [controller]);
+  const loginDone = useCallback((state: LoginFlowState) => { void controller.loginDone(state.flowId); }, [controller]);
   return <><main className="setup-workspace">
     <header><div className="setup-eyebrow">{L.setupEyebrow}</div><h1>{L.setupTitle}</h1>
       <p className="setup-intro">{L.setupDescription}</p></header>
@@ -149,7 +147,7 @@ export function ProviderSetupView({ controller, ...exit }: { controller: Provide
     <ClaudeSection controller={controller} login={setTarget} />
     <ProfileSection controller={controller} />
     <SetupFooter controller={controller} {...exit} />
-  </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onFlowStateChange={flowChanged} /></>;
+  </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onDone={loginDone} /></>;
 }
 function useProviderSetupExit(): SetupExit {
   const navigate = useNavigate();

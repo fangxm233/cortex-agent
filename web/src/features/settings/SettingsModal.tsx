@@ -304,7 +304,7 @@ const INDEPENDENT_PANEL_RENDERERS: Partial<Record<SettingsSectionKey, Independen
 function IndependentSettingsPanel(props: IndependentPanelProps) {
   const { openLogin } = useLoginFlow();
   if (props.section === 'accounts') {
-    return <AccountsPanel onLogin={(target) => { props.onClose(); openLogin(target); }} />;
+    return <AccountsPanel onLogin={openLogin} />;
   }
   const render = INDEPENDENT_PANEL_RENDERERS[props.section];
   return render ? render() : null;
