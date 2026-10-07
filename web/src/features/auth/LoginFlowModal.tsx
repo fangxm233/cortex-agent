@@ -170,12 +170,12 @@ function StandaloneNotice({ notice }: { notice: LoginFlowNotice }) {
   return <div data-auth-notice="progress"><StatusLine>{notice.message}</StatusLine></div>;
 }
 
-// `border-solid` is needed: the global base rule strips input borders. Focus uses the
-// content-surface outline shared by every dialog control.
+// `border-solid` is needed: the global base rule strips input borders. The dialog's focus outline
+// is drawn over the border: a full-width field would have it clipped by the scrolling body.
 const INPUT_CLASS =
   'box-border min-h-9 w-full min-w-0 rounded-[var(--r-control)] border border-solid border-proto-line-3 ' +
   '[background:var(--material-control-bg)] px-1.5g py-1g text-ui text-state-ink ' +
-  'placeholder:text-proto-muted-3 focus-visible:border-proto-accent';
+  'placeholder:text-proto-muted-3 focus-visible:![outline-offset:-1px]';
 
 function PromptSelect({ prompt, value, onChange }: {
   prompt: PendingPrompt; value: string; onChange: (value: string) => void;
