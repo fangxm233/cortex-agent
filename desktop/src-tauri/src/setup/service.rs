@@ -270,7 +270,11 @@ fn property<'a>(output: &'a str, name: &str) -> Option<&'a str> {
 }
 
 fn check_systemd_state(output: &str, path: &Path, file_matches: bool) -> Result<(), String> {
-    if property(output, "LoadState") == Some("not-found") {
+    let absent = property(output, "LoadState") == Some("not-found")
+        && property(output, "ActiveState") == Some("inactive")
+        && property(output, "FragmentPath") == Some("")
+        && property(output, "DropInPaths") == Some("");
+    if absent {
         return Ok(());
     }
     let valid = file_matches
@@ -292,7 +296,9 @@ fn systemd_state(runner: &mut Runner<'_>) -> Result<String, String> {
             OsStr::new("--user"),
             OsStr::new("show"),
             OsStr::new(UNIT),
-            OsStr::new("--property=LoadState,FragmentPath,DropInPaths,NeedDaemonReload"),
+            OsStr::new(
+                "--property=LoadState,ActiveState,FragmentPath,DropInPaths,NeedDaemonReload",
+            ),
         ],
         true,
     )

@@ -70,7 +70,7 @@ mod service {
                     "--user",
                     "show",
                     UNIT,
-                    "--property=LoadState,FragmentPath,DropInPaths,NeedDaemonReload",
+                    "--property=LoadState,ActiveState,FragmentPath,DropInPaths,NeedDaemonReload",
                 ],
                 true,
                 stdout,
@@ -88,7 +88,9 @@ mod service {
         fn linux_registration_is_user_only_and_never_starts_or_restarts_a_daemon() {
             let home = scratch();
             let steps = vec![
-                systemd_show("LoadState=not-found\n"),
+                systemd_show(
+                    "LoadState=not-found\nActiveState=inactive\nFragmentPath=\nDropInPaths=\n",
+                ),
                 step(
                     "/usr/bin/systemctl",
                     &["--user", "daemon-reload"],
@@ -245,6 +247,24 @@ mod service {
         }
 
         #[test]
+        fn missing_unit_file_does_not_authorize_replacing_a_running_unit() {
+            let path = Path::new("/home/u/.config/systemd/user/cortex.service");
+            let active = "LoadState=not-found\nActiveState=active\nFragmentPath=\nDropInPaths=\n";
+            assert!(check_systemd_state(active, path, false).is_err());
+            assert!(check_systemd_state("LoadState=not-found\n", path, false).is_err());
+        }
+
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        #[test]
+        fn public_failure_has_autostart_code_without_echoing_launch_values() {
+            let mut value = launch();
+            value.program = "relative-private-test-value".into();
+            let error = enable_user_service(&crate::AppHandle, "test", &value).unwrap_err();
+            assert!(error.starts_with("AUTOSTART_FAILED:"));
+            assert!(!error.contains("private-test-value"));
+        }
+
+        #[test]
         fn unsupported_platform_has_no_service_side_effects() {
             assert_eq!(run_steps("windows", &scratch(), vec![]), Ok(false));
         }
@@ -387,7 +407,12 @@ mod service {
                 true
             )
             .is_err());
-            assert!(check_systemd_state("LoadState=not-found\n", path, false).is_ok());
+            assert!(check_systemd_state(
+                "LoadState=not-found\nActiveState=inactive\nFragmentPath=\nDropInPaths=\n",
+                path,
+                false
+            )
+            .is_ok());
             assert!(check_systemd_state("LoadState=masked\n", path, true).is_err());
         }
 
