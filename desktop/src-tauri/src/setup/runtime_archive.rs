@@ -96,7 +96,7 @@ pub(super) fn bootstrap(
     token: &CancelToken,
     log: &impl Fn(&str),
 ) -> Result<Selection, String> {
-    supported_host()?;
+    supported_host(token)?;
     let release = release_for(std::env::consts::OS, std::env::consts::ARCH)?;
     let root = release.archive.trim_end_matches(".tar.gz");
     let dir = home.join("runtime");
@@ -110,18 +110,18 @@ pub(super) fn bootstrap(
     if !destination.exists() {
         install_archive(&release, &dir, &destination, token, log)?;
     }
-    if !super::qualified(&selected, home, path, floor) {
+    if !super::qualified_install(&selected, home, path, floor, token)? {
         return Err("RUNTIME_UNSUPPORTED: selected Node/npm cannot run on this system".into());
     }
     Ok(selected)
 }
 
-fn supported_host() -> Result<(), String> {
+fn supported_host(token: &CancelToken) -> Result<(), String> {
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     {
         let version =
             unsafe { std::ffi::CStr::from_ptr(libc::gnu_get_libc_version()) }.to_string_lossy();
-        let kernel = super::output(std::process::Command::new("/usr/bin/uname"), &["-r"])
+        let kernel = super::probe::output(std::process::Command::new("/usr/bin/uname"), &["-r"], token)?
             .unwrap_or_default();
         if super::version_at_least(&version, "2.28") && super::version_at_least(&kernel, "4.18") {
             return Ok(());
@@ -129,10 +129,11 @@ fn supported_host() -> Result<(), String> {
     }
     #[cfg(target_os = "macos")]
     {
-        let version = super::output(
+        let version = super::probe::output(
             std::process::Command::new("/usr/bin/sw_vers"),
             &["-productVersion"],
-        )
+            token,
+        )?
         .unwrap_or_default();
         if super::version_at_least(&version, "13.5") {
             return Ok(());

@@ -12,6 +12,8 @@ mod archive;
 mod cancel;
 #[path = "runtime_install.rs"]
 mod install;
+#[path = "runtime_probe.rs"]
+mod probe;
 #[path = "runtime_process.rs"]
 mod process;
 #[cfg(test)]
@@ -83,12 +85,32 @@ impl Selection {
     }
 
     pub fn path(&self, inherited: &OsStr) -> Result<OsString, String> {
-        let mut paths = vec![
-            self.node.parent().ok_or("RUNTIME_MISSING")?.to_path_buf(),
-            self.prefix.join("bin"),
-        ];
+        let node_dir = self.node.parent().ok_or("RUNTIME_MISSING")?;
+        let mut paths = vec![node_dir.to_path_buf(), self.prefix.join("bin")];
+        if self.npm.parent() != Some(node_dir) {
+            paths.insert(0, self.pinned_bin()?);
+        }
         paths.extend(std::env::split_paths(inherited));
         std::env::join_paths(paths).map_err(storage_error)
+    }
+
+    // A node-directory-first PATH alone can select a different npm. Only our private
+    // runtime directory is changed; the persisted external paths remain authoritative.
+    fn pinned_bin(&self) -> Result<PathBuf, String> {
+        let runtime = self.prefix.parent().ok_or("RUNTIME_MISSING")?;
+        let bin = runtime.join("bin");
+        std::fs::create_dir_all(&bin).map_err(storage_error)?;
+        for (name, target) in [("node", &self.node), ("npm", &self.npm)] {
+            let link = bin.join(name);
+            if std::fs::read_link(&link).ok().as_ref() == Some(target) {
+                continue;
+            }
+            let stage = tempfile::tempdir_in(runtime).map_err(storage_error)?;
+            let staged = stage.path().join(name);
+            std::os::unix::fs::symlink(target, &staged).map_err(storage_error)?;
+            std::fs::rename(staged, link).map_err(storage_error)?;
+        }
+        Ok(bin)
     }
 
     pub fn apply(
@@ -148,6 +170,8 @@ fn executable(path: &Path) -> bool {
             .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
 }
 
+// Read-only native helpers keep their existing contract. INSTALL qualification must
+// use `probe` so cancellation/deadlines only signal newly owned probe groups.
 pub fn output(mut command: Command, args: &[&str]) -> Option<String> {
     let out = command
         .args(args)
@@ -197,11 +221,12 @@ pub fn bootstrap(
     token: &CancelToken,
     log: &impl Fn(&str),
 ) -> Result<Selection, String> {
+    token.check()?;
     if let Some(saved) = Selection::load(home)? {
+        requalify_saved(&saved, home, path, floor, token)?;
         return Ok(saved);
     }
-    token.check()?;
-    let selected = match external_runtime(home, path, floor) {
+    let selected = match external_runtime(home, path, floor, token)? {
         Some(selected) => {
             log("Reusing qualified external runtime");
             selected
@@ -210,16 +235,65 @@ pub fn bootstrap(
     };
     token.check()?;
     selected.save(home)?;
+    token.check()?;
     Ok(selected)
 }
 
-fn external_runtime(home: &Path, path: &OsStr, floor: &str) -> Option<Selection> {
-    let selected = Selection::new(
-        find_bin("node", path)?,
-        find_bin("npm", path)?,
-        home.join("runtime/prefix"),
-    );
-    qualified(&selected, home, path, floor).then_some(selected)
+fn requalify_saved(
+    saved: &Selection,
+    home: &Path,
+    path: &OsStr,
+    floor: &str,
+    token: &CancelToken,
+) -> Result<(), String> {
+    if !qualified_install(saved, home, path, floor, token)? {
+        return Err(
+            "RUNTIME_MISSING: selected Node/npm cannot run or is too old; restore it and retry"
+                .into(),
+        );
+    }
+    token.check()
+}
+
+fn external_runtime(
+    home: &Path,
+    path: &OsStr,
+    floor: &str,
+    token: &CancelToken,
+) -> Result<Option<Selection>, String> {
+    let (Some(node), Some(npm)) = (find_bin("node", path), find_bin("npm", path)) else {
+        return Ok(None);
+    };
+    let selected = Selection::new(node, npm, home.join("runtime/prefix"));
+    Ok(qualified_install(&selected, home, path, floor, token)?.then_some(selected))
+}
+
+fn qualified_install(
+    selected: &Selection,
+    home: &Path,
+    path: &OsStr,
+    floor: &str,
+    token: &CancelToken,
+) -> Result<bool, String> {
+    token.check()?;
+    if !executable(&selected.node) || !executable(&selected.npm) {
+        return Ok(false);
+    }
+    for (tool, minimum) in [("node", floor), ("npm", "1.0.0")] {
+        let version = probe::selected_output(
+            selected,
+            home,
+            path,
+            OsStr::new(tool),
+            &["--version"],
+            token,
+        )?;
+        if !version.is_some_and(|v| version_at_least(&v, minimum)) {
+            return Ok(false);
+        }
+    }
+    token.check()?;
+    Ok(true)
 }
 
 pub fn qualified(selected: &Selection, home: &Path, path: &OsStr, floor: &str) -> bool {
