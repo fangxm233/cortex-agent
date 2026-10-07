@@ -1,5 +1,3 @@
-export const NP_PLACEHOLDER = 'nimbus';
-
 /** A trimmed project name must contain content before either surface may submit it. */
 export function canCreateProject(name: string): boolean {
   return name.trim().length > 0;

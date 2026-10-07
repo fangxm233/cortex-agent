@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import { canCreateProject, NP_PLACEHOLDER } from './new-project';
+import { canCreateProject } from './new-project';
 import { useCreateProject } from './useCreateProject';
 
 // NEW PROJECT MODAL — 1:1 from prototype.dc.html L1407-1429 (+ backdrop L1291), task c551. Raw inline
@@ -95,6 +95,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             {L.npProjectName}
           </div>
           <div
+            className="focus-within:outline focus-within:outline-2 focus-within:outline-proto-accent"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -108,7 +109,6 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             <input
               aria-label={L.npProjectName}
               aria-invalid={Boolean(error)}
-              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -118,8 +118,8 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
                 if (e.key === 'Enter') submit();
               }}
               autoFocus
-              placeholder={NP_PLACEHOLDER}
-              style={{ flex: 1, minWidth: 0, font: `500 13px ${mono}`, color: 'var(--proto-ink)' }}
+              placeholder={L.npNamePlaceholder}
+              style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', font: `500 13px ${mono}`, color: 'var(--proto-ink)' }}
             />
           </div>
           {error && (
