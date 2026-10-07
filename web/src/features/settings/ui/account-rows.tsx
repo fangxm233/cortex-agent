@@ -118,21 +118,24 @@ function ConfirmLogout({ target, inUse, handlers, confirm }: {
 }) {
   const L = useVocab();
   return (
-    <span data-logout-confirm role="group" style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
+    <span data-logout-confirm role="group" style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minWidth: 0, marginLeft: 'auto' }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>
         {L.accountsLogoutConfirm}{inUse ? ` ${L.accountsLogoutConfirmInUse}` : ''}
       </span>
-      <button type="button" data-auth-action="logout-confirm" data-backend={target.backend}
-        data-provider={target.provider} data-auth-type={target.authType} disabled={handlers.disabled}
-        onClick={() => { confirm.disarm(); handlers.onLogout?.(target); }}
-        style={{
-          fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: '3px 9px', borderRadius: 7,
-          border: '1px solid var(--proto-danger-bg)', color: 'var(--proto-danger)',
-          background: 'var(--material-control-bg)', cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>
-        {L.accountsLogout}
-      </button>
-      <SLinkAction tone="muted" data-auth-action="logout-cancel" onClick={confirm.disarm}>{L.cancel}</SLinkAction>
+      {/* The two answers wrap as one unit, never apart. */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flex: 'none', marginLeft: 'auto' }}>
+        <button type="button" data-auth-action="logout-confirm" data-backend={target.backend}
+          data-provider={target.provider} data-auth-type={target.authType} disabled={handlers.disabled}
+          onClick={() => { confirm.disarm(); handlers.onLogout?.(target); }}
+          style={{
+            fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: '3px 9px', borderRadius: 7,
+            border: '1px solid var(--proto-danger-bg)', color: 'var(--proto-danger)',
+            background: 'var(--material-control-bg)', cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>
+          {L.accountsLogout}
+        </button>
+        <SLinkAction tone="muted" data-auth-action="logout-cancel" onClick={confirm.disarm}>{L.cancel}</SLinkAction>
+      </span>
     </span>
   );
 }
@@ -178,15 +181,15 @@ function ManageActions(props: ManageProps) {
   }
   const logins = props.loginTypes.map(type => {
     const attrs = {
-      key: `login:${type}`, 'data-auth-action': 'login', 'data-backend': props.backend,
+      'data-auth-action': 'login', 'data-backend': props.backend,
       'data-provider': props.provider, 'data-auth-type': type, disabled: props.handlers.disabled,
       onClick: () => props.handlers.onLogin(target(type)),
     };
     const text = loginActionLabel(type, props.activeType, props.backend, L);
     // An expired credential needs the login; it gets the button rather than a quiet link.
     return props.health === 'expired' && type === props.activeType
-      ? <AccountButton {...attrs}>{text}</AccountButton>
-      : <SLinkAction tone="muted" {...attrs}>{text}</SLinkAction>;
+      ? <AccountButton key={`login:${type}`} {...attrs}>{text}</AccountButton>
+      : <SLinkAction key={`login:${type}`} tone="muted" {...attrs}>{text}</SLinkAction>;
   });
   const logouts = props.handlers.onLogout ? props.logoutTypes.map(type => (
     <SLinkAction key={`logout:${type}`} tone="danger" data-auth-action="logout" data-backend={props.backend}
