@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { en, zh } from '@/i18n/vocab';
 import type { NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
 import { LocalSetupFlow, localSetupErrorText, setupLogLine, type LocalSetupPorts } from './local-setup';
@@ -29,6 +29,77 @@ function fixture(overrides: Partial<LocalSetupPorts> = {}, ready: Promise<unknow
 }
 
 describe('local setup flow', () => {
+  it.each(['macos', 'linux'])('automatically installs and initializes %s with defaults through provider setup', async os => {
+    const runInit = vi.fn(async () => ({ version: null, uiUrl: endpoint.url, clientToken: endpoint.token }));
+    const { flow, calls } = fixture({
+      probe: async () => ({ ...probe, os, node: null, nodeOk: false, npm: null, git: null }), runInit,
+    });
+    const stages: string[] = [];
+    flow.subscribe(() => stages.push(flow.state.stage));
+    await flow.prepare('zh');
+    expect(runInit).toHaveBeenCalledWith('/isolated/bin/cortex', {
+      lang: 'zh', machineName: 'host', port: 3004, installService: false, backends: ['pi'],
+    });
+    expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'connect']);
+    expect(stages).not.toContain('configure');
+    expect(flow.state).toMatchObject({ stage: 'ready', destination: 'index.html#/setup/providers' });
+  });
+
+  it('automatically starts an existing configuration without init, service changes or a port override', async () => {
+    const enableUi = vi.fn(async () => endpoint);
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, homeExists: true }), enableUi });
+    await flow.prepare('en');
+    expect(enableUi).toHaveBeenCalledWith('/isolated/bin/cortex', undefined);
+    expect(calls).toEqual(['probe', 'installServer', 'enableUi', 'startDaemon', 'connect']);
+    expect(flow.state).toMatchObject({ stage: 'ready', destination: 'index.html' });
+  });
+
+  it('retries initialization with the original automatic defaults', async () => {
+    const runInit = vi.fn().mockRejectedValueOnce(new Error('INIT_FAILED'))
+      .mockResolvedValue({ uiUrl: endpoint.url, clientToken: endpoint.token });
+    const { flow } = fixture({ runInit });
+    await flow.prepare('zh');
+    expect(flow.state).toMatchObject({ stage: 'start', error: 'INIT_FAILED' });
+    const original = flow.state.answers!;
+    await flow.start(original);
+    expect(runInit.mock.calls.map(call => call[1])).toEqual([original, original]);
+    expect(original).toMatchObject({ lang: 'zh', machineName: 'host', port: 3004, installService: false });
+    expect(flow.state.destination).toBe('index.html#/setup/providers');
+  });
+
+  it('keeps the configured endpoint on automatic retry but sends an explicit repair port', async () => {
+    const enableUi = vi.fn().mockRejectedValueOnce(new Error('UI_ENABLE_FAILED')).mockResolvedValue(endpoint);
+    const { flow, calls } = fixture({ probe: async () => ({ ...probe, homeExists: true }), enableUi,
+      startDaemon: async () => false });
+    await flow.prepare('en');
+    await flow.start(flow.state.answers!);
+    expect(enableUi.mock.calls.map(call => call[1])).toEqual([undefined, undefined]);
+    flow.configure();
+    expect(flow.state.stage).toBe('configure');
+    await flow.start({ ...answers, port: 14004 });
+    expect(enableUi).toHaveBeenLastCalledWith('/isolated/bin/cortex', 14004);
+    expect(calls).not.toContain('runInit');
+    expect(calls).not.toContain('enableAutostart');
+  });
+
+  it('does not expose repair settings without a start failure', async () => {
+    const { flow } = fixture({ installServer: async () => { throw new Error('SERVER_INSTALL_FAILED'); } });
+    await flow.prepare('en');
+    flow.configure();
+    expect(flow.state.stage).toBe('prepare');
+  });
+
+  it('keeps Windows prerequisite checks and manual configuration with automatic entry', async () => {
+    const probeWindows = vi.fn().mockResolvedValueOnce({ ...probe, os: 'windows', nodeOk: false })
+      .mockResolvedValue({ ...probe, os: 'windows' });
+    const { flow, calls } = fixture({ probe: probeWindows });
+    await flow.prepare('en');
+    expect(flow.state.error).toBe('NODE_REQUIRED');
+    await flow.prepare('en');
+    expect(flow.state.stage).toBe('configure');
+    expect(calls).toEqual(['probe', 'probe', 'installServer']);
+  });
+
   it('checks, installs and opens configuration', async () => {
     const { flow, calls } = fixture();
     await flow.prepare();

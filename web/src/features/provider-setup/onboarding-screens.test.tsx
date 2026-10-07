@@ -2,12 +2,102 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';
 import { RemoteConnectScreen } from './ConnectScreen';
-import { LocalSetupView } from './LocalSetupScreen';
+import { LocalSetupScreen, LocalSetupView } from './LocalSetupScreen';
 import { LocalSetupFlow, type LocalSetupPorts } from './local-setup';
 vi.mock('@/i18n', () => ({ useVocab: () => en, useLang: () => 'en' }));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 const text = (view: ReactTestRenderer) => JSON.stringify(view.toJSON());
+
+function nativeSetup(os = 'linux', homeExists = false) {
+  const results: Record<string, unknown> = {
+    setup_probe: { node: 'v22.19.0', nodeOk: true, npm: '10', git: 'git', cortexBin: '/bin/cortex',
+      serverVersion: '2026.10.1', serverOk: true, homeExists, hostname: 'host', os },
+    setup_install_server: { cortexBin: '/bin/cortex', serverVersion: '2026.10.1' },
+    setup_run_init: { version: null, uiUrl: 'http://127.0.0.1:3004', clientToken: 't' },
+    setup_enable_ui: { url: 'http://127.0.0.1:14004', token: 't' },
+    setup_start_daemon: true,
+  };
+  const invoke = vi.fn(async (command: string, _args?: unknown) => results[command]);
+  vi.stubGlobal('__TAURI__', { core: { invoke } });
+  return { invoke, results };
+}
+
+it.each(['setup_install_server', 'setup_run_init', 'setup_start_daemon', 'connect'])(
+  'keeps the real POSIX screen to one row without a form while awaiting %s', async pending => {
+    vi.useFakeTimers();
+    const { invoke, results } = nativeSetup();
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    invoke.mockImplementation(async command => { if (command === pending) await waiting; return results[command]; });
+    const leave = vi.fn();
+    let view!: ReactTestRenderer;
+    await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={leave} />); });
+    expect(invoke.mock.calls.map(call => call[0])).toContain(pending);
+    expect(view.root.findAllByType('form')).toHaveLength(0);
+    expect(view.root.findAllByType('input')).toHaveLength(0);
+    expect(view.root.findAllByProps({ 'data-action': 'onb-start' })).toHaveLength(0);
+    expect(view.root.findAllByProps({ className: 'onb-status-row' })).toHaveLength(1);
+    expect(view.root.findByProps({ className: 'onb-status-row' }).props['data-status']).toBe('running');
+    expect(leave).not.toHaveBeenCalled();
+    await act(async () => { release(); });
+    await act(async () => { vi.advanceTimersByTime(600); });
+    expect(leave).toHaveBeenCalledWith('index.html#/setup/providers');
+    act(() => view.unmount());
+  });
+
+it('retries installation from the real screen and continues automatically with defaults', async () => {
+  vi.useFakeTimers();
+  const { invoke, results } = nativeSetup();
+  let failing = true;
+  invoke.mockImplementation(async command => {
+    if (command === 'setup_install_server' && failing) throw new Error('SERVER_INSTALL_FAILED');
+    return results[command];
+  });
+  let view!: ReactTestRenderer;
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
+  expect(view.root.findAllByType('form')).toHaveLength(0);
+  expect(text(view)).not.toContain(en.onbEditSettings);
+  failing = false;
+  await act(async () => view.root.findByProps({ 'data-action': 'onb-retry' }).props.onClick());
+  expect(invoke).toHaveBeenCalledWith('setup_run_init', { run: 'start', bin: '/bin/cortex',
+    answers: { lang: 'en', machineName: 'host', backends: ['pi'], port: 3004, installService: false } });
+  expect(invoke).toHaveBeenCalledWith('connect', expect.anything());
+  expect(view.root.findAllByType('form')).toHaveLength(0);
+  act(() => view.unmount());
+});
+
+it('preserves the existing port until a failed start is explicitly repaired in the view', async () => {
+  vi.useFakeTimers();
+  const { invoke, results } = nativeSetup('linux', true);
+  results.setup_start_daemon = false;
+  let view!: ReactTestRenderer;
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
+  expect(invoke).toHaveBeenCalledWith('setup_enable_ui', { run: 'start', bin: '/bin/cortex', port: undefined });
+  expect(view.root.findAllByType('form')).toHaveLength(0);
+  act(() => view.root.findByProps({ children: en.onbEditSettings }).props.onClick());
+  act(() => view.root.findByProps({ id: 'onb-port' }).props.onChange({ target: { value: '15004' } }));
+  results.setup_start_daemon = true;
+  await act(async () => view.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  expect(invoke).toHaveBeenCalledWith('setup_enable_ui', { run: 'start', bin: '/bin/cortex', port: 15004 });
+  expect(invoke.mock.calls.map(call => call[0])).not.toContain('setup_run_init');
+  expect(invoke.mock.calls.map(call => call[0])).not.toContain('setup_enable_autostart');
+  act(() => view.unmount());
+});
+
+it('keeps the Windows configuration form and Start confirmation', async () => {
+  vi.useFakeTimers();
+  const { invoke } = nativeSetup('windows');
+  let view!: ReactTestRenderer;
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
+  expect(view.root.findByProps({ id: 'onb-machine' }).props.value).toBe('host');
+  expect(view.root.findAllByProps({ type: 'checkbox' })).toHaveLength(0);
+  expect(view.root.findAllByProps({ 'data-action': 'onb-start' })).toHaveLength(1);
+  expect(invoke.mock.calls.map(call => call[0])).toEqual(['setup_probe']);
+  await act(async () => view.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  expect(invoke).toHaveBeenCalledWith('connect', expect.anything());
+  act(() => view.unmount());
+});
 
 it('verifies, saves the connection and opens the workbench', async () => {
   const invoke = vi.fn(async (command: string) =>
