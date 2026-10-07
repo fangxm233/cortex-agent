@@ -45,7 +45,7 @@ On macOS/Linux, installation continues automatically through initialization, ser
 
 On Windows, enter the machine name after installation and optionally change the port under **Advanced settings**, then click **Start Cortex** to save the configuration, start the server, and connect. Windows does not offer service registration.
 
-If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; an explicitly selected port is applied when starting again. Download and installation failures offer retry, not machine settings.
+If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; starting from this form can restart the local server to apply an explicitly selected port. Automatic setup preserves a responding server. Download and installation failures offer retry, not machine settings.
 
 Automatic dependency setup requires a native app built with this installer and its matching bundled setup page. Updating the Web frontend or replacing `web/dist` does not add this capability to an already-built app.
 
@@ -55,7 +55,7 @@ The installation step asks nothing about Slack or Feishu: the app is the interfa
 
 A machine that already has a Cortex configuration keeps its machine identity and service settings. On macOS/Linux, automatic setup enables the local connection endpoint without overriding its configured port or running initialization again. It checks the selected installation even when it is already usable, so later launches use the same environment. Existing installations and connections open the workbench rather than automatically entering provider setup.
 
-The app starts the local daemon at launch whenever it is not already answering. Automatic macOS/Linux setup does not create or change a login service. If initialization needs repair, the new-install settings form offers **Start at login**: the native app writes and registers a systemd user unit on Linux or a launchd agent on macOS, so scheduled tasks can fire while the app is closed. Existing service settings are preserved. Windows has no service registration, so the app's launch-time start is the only autostart there.
+The app starts the local daemon at launch whenever it is not already answering. Automatic macOS/Linux setup does not create or change a login service. If initialization needs repair, the new-install settings form offers **Start at login**: the native app writes and registers a systemd user unit on Linux or a launchd agent on macOS, so scheduled tasks can fire while the app is closed. Registration takes effect at the next login and does not replace the daemon already running. Existing service settings are preserved. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
 To enable the endpoint on an existing install without the wizard, run one command on the server:
 
