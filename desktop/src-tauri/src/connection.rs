@@ -139,6 +139,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn legacy_connections_serialize_provider_setup_pending_as_false() {
+        for mode in ["local", "remote"] {
+            let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
+                "serverUrl": "http://127.0.0.1:3004", "token": "test-token", "mode": mode
+            })).unwrap();
+            assert_eq!(serde_json::to_value(&config).unwrap()["providerSetupPending"], false);
+        }
+    }
+
+    #[test]
+    fn page_config_exposes_pending_only_for_local_connections() {
+        for (mode, expected) in [("local", true), ("remote", false)] {
+            let config: ConnectionConfig = serde_json::from_value(serde_json::json!({
+                "serverUrl": "http://127.0.0.1:3004", "token": "test-token",
+                "mode": mode, "providerSetupPending": true
+            })).unwrap();
+            let page = serde_json::to_value(PageConfig::from(&config)).unwrap();
+            assert_eq!(page["providerSetupPending"], expected);
+            assert!(page.get("mode").is_none());
+            assert!(page.get("cortexBin").is_none());
+        }
+    }
+
+    #[test]
     fn a_credential_entry_written_before_local_mode_existed_loads_as_remote() {
         // Existing keychain entries have no `mode` key; they must keep working, as remote.
         let config: ConnectionConfig =
