@@ -53,7 +53,7 @@ For local development, launch the native app with `CORTEX_SETUP_SERVER_PACKAGE` 
 
 The installation step asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. Provider login and the default profile are configured after the server connects.
 
-A machine that already has a Cortex configuration keeps its machine identity and service settings. On macOS/Linux, automatic setup enables the local connection endpoint without overriding its configured port or running initialization again. It checks the selected installation even when it is already usable, so later launches use the same environment. Existing installations and connections open the workbench rather than automatically entering provider setup.
+A machine that already has a Cortex configuration keeps its machine identity and service settings. On macOS/Linux, automatic setup enables the local connection endpoint without overriding its configured port or running initialization again. It checks the selected installation even when it is already usable, so later launches use the same environment. Existing installations and connections open the workbench unless a new local installation still has unfinished provider setup.
 
 The app starts the local daemon at launch whenever it is not already answering. Automatic macOS/Linux setup does not create or change a login service. If initialization needs repair, the new-install settings form offers **Start at login**: the native app writes and registers a systemd user unit on Linux or a launchd agent on macOS, so scheduled tasks can fire while the app is closed. Registration takes effect at the next login and does not replace the daemon already running. Existing service settings are preserved. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
@@ -76,6 +76,8 @@ Credential detection is not a live inference test: setup sends no paid inference
 After login, the page refreshes credentials and synchronizes models and profiles. **Rescan and sync models** also picks up credentials configured elsewhere. Select an actual profile with a model and a matching configured account as the **Default profile**; a login alone is not enough to enable **Enter workbench**. If the current default does not match, choose an available profile explicitly. Existing profile definitions are preserved.
 
 Choose **Enter workbench** when the configuration is ready, or **Set up later** to skip. The skip warning explains that the Agent may be unavailable until you finish **Settings → Accounts** and **Settings → Profiles**.
+
+After a new local installation connects, quitting on this page and reopening the app resumes provider setup—even if you have not signed in. Login alone does not finish setup. **Enter workbench** and deliberate **Set up later** save your choice before leaving, so later launches open the workbench. If saving fails, stay on this page and try again. Older unmarked installations and remote connections keep their usual startup behavior.
 
 ## Server configuration
 
