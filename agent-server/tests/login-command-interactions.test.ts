@@ -27,11 +27,12 @@ function flowState(
   const promptKind = input.authType === 'oauth' ? 'manual_code' : 'secret';
   return {
     flowId: `flow-${input.backend}-${input.provider}`,
+    revision: 1,
     backend: input.backend,
     provider: input.provider,
     authType: input.authType,
     step,
-    pendingPrompt: step === 'prompt' ? { kind: promptKind, message: 'Enter credential' } : null,
+    pendingPrompt: step === 'prompt' ? { id: 1, kind: promptKind, message: 'Enter credential' } : null,
     notice,
     channel: input.channel,
     sessionId: input.sessionId,
@@ -334,7 +335,7 @@ test('a running explicit flow does not expose the secret form before its prompt 
   fixture.auth.states.set(running.flowId, {
     ...running,
     step: 'prompt',
-    pendingPrompt: { kind: 'secret', message: 'Enter key' },
+    pendingPrompt: { id: 1, kind: 'secret', message: 'Enter key' },
   });
   await delay(150);
 

@@ -29,8 +29,11 @@ export interface LoginPromptOption {
 }
 
 export interface LoginPendingPrompt {
+  /** The flow revision that opened this prompt; a response names it so a stale answer is refused. */
+  id: number;
   kind: 'text' | 'secret' | 'select' | 'manual_code';
   message: string;
+  placeholder?: string;
   options?: LoginPromptOption[];
 }
 
@@ -56,6 +59,8 @@ export interface LoginOutcome {
 
 export interface LoginFlowState {
   flowId: string;
+  /** Increments on every state change, so a client can keep the newest snapshot it has seen. */
+  revision: number;
   backend: 'claude' | 'pi';
   provider: string | null;
   authType: AuthType | null;
@@ -156,6 +161,10 @@ function cloneOutcome(outcome: LoginOutcome | null): LoginOutcome | null {
   return outcome ? { ...outcome } : null;
 }
 
+function touch(flow: InternalFlow): void {
+  flow.state.revision += 1;
+}
+
 function snapshot(flow: InternalFlow): LoginFlowState {
   return {
     ...flow.state,
@@ -175,6 +184,7 @@ function takePending(flow: InternalFlow): PendingResponse | null {
   pending.signal?.removeEventListener('abort', pending.onAbort!);
   flow.pending = null;
   flow.state.pendingPrompt = null;
+  touch(flow);
   return pending;
 }
 
@@ -211,9 +221,10 @@ function requireActiveFlow(flowId: string): InternalFlow {
   return flow;
 }
 
-function promptMetadata(prompt: AuthPrompt): LoginPendingPrompt {
-  const metadata: LoginPendingPrompt = { kind: prompt.type, message: prompt.message };
+function promptMetadata(prompt: AuthPrompt, id: number): LoginPendingPrompt {
+  const metadata: LoginPendingPrompt = { id, kind: prompt.type, message: prompt.message };
   if (prompt.type === 'select') metadata.options = prompt.options.map(option => ({ ...option }));
+  else if (prompt.placeholder) metadata.placeholder = prompt.placeholder;
   return metadata;
 }
 
@@ -228,8 +239,9 @@ async function promptForFlow(flowId: string, prompt: AuthPrompt): Promise<string
   const flow = requireActiveFlow(flowId);
   if (flow.pending) throw new Error('Login flow already has a pending prompt.');
   if (prompt.signal?.aborted) throw abortError('Authentication prompt aborted.');
+  touch(flow);
   flow.state.step = 'prompt';
-  flow.state.pendingPrompt = promptMetadata(prompt);
+  flow.state.pendingPrompt = promptMetadata(prompt, flow.state.revision);
   return new Promise<string>((resolve, reject) => {
     const pending: PendingResponse = { resolve, reject, signal: prompt.signal };
     pending.onAbort = () => rejectAbortedPrompt(flow, pending);
@@ -260,6 +272,7 @@ function createInteraction(flow: InternalFlow): AuthInteraction {
     notify: event => {
       const active = requireActiveFlow(flow.state.flowId);
       active.state.notice = noticeMetadata(event);
+      touch(active);
     },
   };
 }
@@ -307,6 +320,7 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
   if (!canSettleConsumer(flow)) return;
   flow.state.step = 'done';
   flow.state.pendingPrompt = null;
+  touch(flow);
   flow.state.outcome = cloneOutcome(outcome);
   flow.state.error = null;
   flow.state.errorCode = null;
@@ -323,6 +337,7 @@ function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
   const safeError = isLoginFlowError(error) ? error : null;
   flow.state.step = 'failed';
   flow.state.pendingPrompt = null;
+  touch(flow);
   flow.state.outcome = null;
   flow.state.error = safeError?.message ?? t('ux.auth.loginFailed');
   flow.state.errorCode = safeError?.code ?? null;
@@ -350,7 +365,7 @@ function createFlow(input: StartLoginFlowInput): InternalFlow {
   const now = Date.now();
   const flowId = randomUUID();
   const state: LoginFlowState = {
-    flowId, backend: input.backend, provider: input.provider, authType: input.authType,
+    flowId, revision: 0, backend: input.backend, provider: input.provider, authType: input.authType,
     step: 'running', pendingPrompt: null, notice: null,
     channel: input.channel, sessionId: input.sessionId,
     createdAt: new Date(now).toISOString(), expiresAt: new Date(now + LOGIN_FLOW_TTL_MS).toISOString(),
@@ -378,8 +393,15 @@ export async function startFlow(
   return snapshot(flow);
 }
 
-export async function respondPrompt(flowId: string, value: string): Promise<LoginFlowState> {
+export async function respondPrompt(
+  flowId: string,
+  value: string,
+  promptId?: number,
+): Promise<LoginFlowState> {
   const flow = requireActiveFlow(flowId);
+  if (promptId !== undefined && flow.state.pendingPrompt && flow.state.pendingPrompt.id !== promptId) {
+    throw new LoginFlowError('stale_prompt', t('ux.auth.flowNotWaiting'));
+  }
   const pending = takePending(flow);
   if (!pending) throw new Error(t('ux.auth.flowNotWaiting'));
   flow.state.step = 'running';
@@ -391,6 +413,7 @@ export async function cancelFlow(flowId: string): Promise<LoginFlowState> {
   const flow = requireActiveFlow(flowId);
   const pending = takePending(flow);
   flow.state.step = 'cancelled';
+  touch(flow);
   flow.state.outcome = null;
   flow.state.error = null;
   flow.state.errorCode = null;

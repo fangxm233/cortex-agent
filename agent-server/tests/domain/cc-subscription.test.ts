@@ -102,7 +102,7 @@ test('subscription relays URL/code to claude auth login and completes only after
     kind: 'auth_url', url: AUTH_URL, instructions: undefined,
   });
   assert.deepEqual(waiting.pendingPrompt, {
-    kind: 'manual_code', message: 'Paste code here if prompted.',
+    id: waiting.pendingPrompt?.id, kind: 'manual_code', message: 'Paste code here if prompted.',
   });
   await respondPrompt(flow.flowId, CODE);
   const completed = await waitForStep(flow.flowId, 'done');

@@ -193,14 +193,16 @@ test('AuthInteraction resolves all four prompt types with metadata-only state', 
   });
 
   const expected = [
-    { kind: 'text', message: 'Account' },
-    { kind: 'secret', message: 'API key' },
+    { kind: 'text', message: 'Account', placeholder: 'name' },
+    { kind: 'secret', message: 'API key', placeholder: 'secret' },
     { kind: 'select', message: 'Region', options: [{ id: 'us', label: 'US', description: 'United States' }] },
-    { kind: 'manual_code', message: 'Code' },
+    { kind: 'manual_code', message: 'Code', placeholder: 'paste' },
   ];
   for (const [index, value] of ['alice', 'key-value', 'us', 'manual-value'].entries()) {
     await flush();
-    assert.deepEqual(requireState(flow.flowId).pendingPrompt, expected[index]);
+    const { id, ...prompt } = requireState(flow.flowId).pendingPrompt!;
+    assert.equal(id, requireState(flow.flowId).revision);
+    assert.deepEqual(prompt, expected[index]);
     await respondPrompt(flow.flowId, value);
   }
   await flush();

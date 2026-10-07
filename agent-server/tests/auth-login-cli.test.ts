@@ -26,7 +26,7 @@ describe('auth login CLI', () => {
   it.each(['secret', 'select'] as const)('SIGINT aborts a pending %s promptly with 130 and removes its listener', async kind => {
     const d = deps();
     const listeners = process.listenerCount('SIGINT');
-    d.service.start = vi.fn(async () => ({ ...state('prompt'), pendingPrompt: { kind, message: 'Fixture prompt', options: [{ id: 'fixture', label: 'Fixture' }] } }));
+    d.service.start = vi.fn(async () => ({ ...state('prompt'), pendingPrompt: { id: 1, kind, message: 'Fixture prompt', options: [{ id: 'fixture', label: 'Fixture' }] } }));
     let entered!: () => void;
     const ready = new Promise<void>(resolve => { entered = resolve; });
     let promptSignal: AbortSignal | undefined;

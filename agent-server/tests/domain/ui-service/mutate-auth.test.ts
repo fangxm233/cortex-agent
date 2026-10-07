@@ -15,11 +15,12 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const STATE: LoginFlowState = {
   flowId: 'flow-web',
+  revision: 1,
   backend: 'pi',
   provider: 'deepseek',
   authType: 'api_key',
   step: 'prompt',
-  pendingPrompt: { kind: 'secret', message: 'Enter key' },
+  pendingPrompt: { id: 1, kind: 'secret', message: 'Enter key' },
   notice: null,
   channel: null,
   sessionId: null,

@@ -14,11 +14,12 @@ import type {
 
 const STATE: LoginFlowState = {
   flowId: 'flow-1',
+  revision: 1,
   backend: 'claude',
   provider: 'anthropic',
   authType: 'api_key',
   step: 'prompt',
-  pendingPrompt: { kind: 'secret', message: 'key' },
+  pendingPrompt: { id: 1, kind: 'secret', message: 'key' },
   notice: null,
   channel: 'slack:C1',
   sessionId: null,

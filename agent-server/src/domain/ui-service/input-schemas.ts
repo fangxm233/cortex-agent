@@ -106,7 +106,8 @@ export const authStartLoginInput = z.object({
 
 export const authRespondPromptInput = z.object({
   flowId: z.string().min(1),
-  value: z.string().min(1),
+  value: z.string(),
+  promptId: z.number().int().nonnegative().optional(),
 });
 
 export const authCancelFlowInput = z.object({

@@ -20,7 +20,7 @@ export interface AuthLoginStartOptions {
 export interface AuthLoginService {
   start(input: StartLoginFlowInput, options?: AuthLoginStartOptions): Promise<LoginFlowState>;
   getState(flowId: string): LoginFlowState | null;
-  respond(flowId: string, value: string): Promise<LoginFlowState>;
+  respond(flowId: string, value: string, promptId?: number): Promise<LoginFlowState>;
   cancel(flowId: string): Promise<LoginFlowState>;
 }
 
@@ -115,11 +115,11 @@ function createFlowOperations(
       if (!state || TERMINAL_STEPS.has(state.step)) handedOff.delete(flowId);
       return state;
     },
-    async respond(flowId, value) {
+    async respond(flowId, value, promptId) {
       const previouslyHandedOff = handedOff.has(flowId);
       handedOff.add(flowId);
       try {
-        return await (dependencies.respondPrompt ?? respondPrompt)(flowId, value);
+        return await (dependencies.respondPrompt ?? respondPrompt)(flowId, value, promptId);
       } catch (error) {
         if (!previouslyHandedOff) handedOff.delete(flowId);
         throw error;

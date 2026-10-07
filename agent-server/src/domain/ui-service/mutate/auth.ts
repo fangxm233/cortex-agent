@@ -94,7 +94,7 @@ export async function handleAuthRespondPrompt(
 ): Promise<Result<LoginFlowState>> {
   const service = serviceFor(deps);
   if (!isWebOwned(service, args.flowId)) return missingWebFlow();
-  return asResult(() => service.respond(args.flowId, args.value));
+  return asResult(() => service.respond(args.flowId, args.value, args.promptId));
 }
 
 export async function handleAuthCancelFlow(
