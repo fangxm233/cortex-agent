@@ -29,6 +29,23 @@ function fixture(overrides: Partial<LocalSetupPorts> = {}, ready: Promise<unknow
 }
 
 describe('local setup flow', () => {
+  it.each([
+    [true, true, 'index.html#/setup/providers'],
+    [false, false, 'index.html'],
+  ] as const)('honors native pending=%s over transient homeExists=%s', async (pending, homeExists, destination) => {
+    const connect = vi.fn(async () => ({ serverUrl: endpoint.url, token: endpoint.token, providerSetupPending: pending }));
+    const { flow } = fixture({ probe: async () => ({ ...probe, homeExists }), connect });
+    await flow.prepare('en');
+    expect(connect).toHaveBeenCalledWith(endpoint, '/isolated/bin/cortex', !homeExists);
+    expect(flow.state.destination).toBe(destination);
+  });
+
+  it.each([true, false])('falls back to install identity for legacy null connect (homeExists=%s)', async homeExists => {
+    const { flow } = fixture({ probe: async () => ({ ...probe, homeExists }), connect: async () => null });
+    await flow.prepare('en');
+    expect(flow.state.destination).toBe(homeExists ? 'index.html' : 'index.html#/setup/providers');
+  });
+
   it.each(['macos', 'linux'])('automatically installs and initializes %s with defaults through provider setup', async os => {
     const runInit = vi.fn(async () => ({ version: null, uiUrl: endpoint.url, clientToken: endpoint.token }));
     const { flow, calls } = fixture({
@@ -125,7 +142,7 @@ describe('local setup flow', () => {
     await flow.prepare();
     await flow.start(answers);
     expect(calls.slice(2)).toEqual(['runInit', 'startDaemon', 'connect']);
-    expect(connected).toEqual([[endpoint, '/isolated/bin/cortex']]);
+    expect(connected).toEqual([[endpoint, '/isolated/bin/cortex', true]]);
     expect(flow.state.stage).toBe('ready');
     expect(flow.state.destination).toBe('index.html#/setup/providers');
   });

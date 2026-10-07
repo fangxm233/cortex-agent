@@ -5,7 +5,7 @@ import { readDesktopConfig, isDesktopShell, isMobileShell, isNativeShell, apiBas
 // from globalThis (≡ window in browsers), so we can mock the global directly here.
 
 type MockGlobal = typeof globalThis & {
-  __CORTEX_DESKTOP_CONFIG?: { serverUrl?: string | null; token?: string | null };
+  __CORTEX_DESKTOP_CONFIG?: { serverUrl?: string | null; token?: string | null; providerSetupPending?: boolean };
   __CORTEX_DESKTOP__?: boolean;
   __CORTEX_MOBILE__?: boolean;
 };
@@ -61,6 +61,12 @@ describe('readDesktopConfig', () => {
       serverUrl: 'https://cortex.example.com',
       token: 'tok-abc123',
     });
+  });
+
+  it.each([true, false])('preserves native pending=%s without inferring intent', providerSetupPending => {
+    const config = { serverUrl: 'http://127.0.0.1:3004', token: 'fixture-token', providerSetupPending };
+    (globalThis as MockGlobal).__CORTEX_DESKTOP_CONFIG = config;
+    expect(readDesktopConfig()).toEqual(config);
   });
 
   it('returns undefined when the global is not set', () => {

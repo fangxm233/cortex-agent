@@ -46,6 +46,23 @@ it.each(['setup_install_server', 'setup_run_init', 'setup_start_daemon', 'connec
     act(() => view.unmount());
   });
 
+it.each([false, true])('real connect marks only fresh installs (homeExists=%s) and respects saved intent', async homeExists => {
+  vi.useFakeTimers();
+  const { invoke, results } = nativeSetup('linux', homeExists);
+  results.connect = { serverUrl: 'http://127.0.0.1:3004', token: 't', providerSetupPending: homeExists };
+  const leave = vi.fn();
+  let view!: ReactTestRenderer;
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={leave} />); });
+  expect(invoke).toHaveBeenCalledWith('connect', {
+    serverUrl: homeExists ? 'http://127.0.0.1:14004' : 'http://127.0.0.1:3004', token: 't',
+    local: { cortexBin: '/bin/cortex', ...(!homeExists ? { providerSetupPending: true } : {}) },
+  });
+  expect(leave).not.toHaveBeenCalled();
+  await act(async () => { vi.advanceTimersByTime(600); });
+  expect(leave).toHaveBeenCalledWith(homeExists ? 'index.html#/setup/providers' : 'index.html');
+  act(() => view.unmount());
+});
+
 it('retries installation from the real screen and continues automatically with defaults', async () => {
   vi.useFakeTimers();
   const { invoke, results } = nativeSetup();
