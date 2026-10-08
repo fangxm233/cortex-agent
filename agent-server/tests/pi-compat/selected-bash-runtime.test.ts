@@ -62,7 +62,8 @@ for (const kind of ['main', 'child'] as const) {
     try {
       const session = handle.session as sdk.AgentSession;
       expect(session.settingsManager.getShellPath()).toBe(explicit ?? selected);
-      await session.settingsManager.reload();
+      // Exercise SDK /reload, including rebuilding the Bash tool from runtime settings.
+      await session.reload();
       expect(session.settingsManager.getShellPath()).toBe(explicit ?? selected);
       const bash = session.agent.state.tools.find(tool => tool.name === 'bash')!;
       // Deliberately nonexistent Windows fixture: SDK resolves our exact path and fails before
