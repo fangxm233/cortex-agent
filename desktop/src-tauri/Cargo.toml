@@ -132,6 +132,10 @@ log = "0.4"
 [dev-dependencies]
 include_dir = "0.7"
 
+# The reader's focused tests also compile when the native owner wires it on Windows.
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+tempfile = "3"
+
 [profile.release]
 panic = "abort"   # Strip expensive panic clean-up logic
 codegen-units = 1 # Compile the entire crate as one unit

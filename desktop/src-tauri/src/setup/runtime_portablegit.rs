@@ -16,6 +16,12 @@ mod pin;
 #[cfg(test)]
 #[path = "runtime_portablegit/cancel_tests.rs"]
 mod cancel_tests;
+#[cfg(test)]
+#[path = "runtime_portablegit/guard_tests.rs"]
+mod guard_tests;
+#[cfg(test)]
+#[path = "runtime_portablegit/reader_tests.rs"]
+mod reader_tests;
 
 pub use cancel::{Cancellation, ExtractionError};
 use sevenz_rust2::{ArchiveReader, Password};
