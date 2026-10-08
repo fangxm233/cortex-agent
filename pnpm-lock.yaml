@@ -37,8 +37,8 @@ importers:
         specifier: ^11
         version: 11.18.0(typescript@7.0.2)
       aistatus:
-        specifier: ~0.0.9
-        version: 0.0.9
+        specifier: ~0.0.11
+        version: 0.0.11
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -2282,8 +2282,8 @@ packages:
     resolution: {integrity: sha512-TQf59BsZnytt8GdJKLPfUZ54g/iaUL2OWDSFCCvMOhsHduDQxO8xC4PNeyIkVcA5KwL2phPSv0douC0fgWzmnA==}
     engines: {node: '>= 20'}
 
-  aistatus@0.0.9:
-    resolution: {integrity: sha512-y4fp/AcWt545qEtlowg3ck1oTonuWB7Vb4xrIDt4yRFC7ELijjr1c63hLNVEhb+ExQqKWPxzdGOIbuNwNCDWiA==}
+  aistatus@0.0.11:
+    resolution: {integrity: sha512-b7LSwmsVBUqrdGlzz1xUsVleQWlIqyAblN6DUMp9Za0Gf0c8Umad+dceW2cvVjUcg/8q2p/ladOIFSXMmTidLQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -5907,7 +5907,7 @@ snapshots:
 
   agent-base@9.0.0: {}
 
-  aistatus@0.0.9:
+  aistatus@0.0.11:
     dependencies:
       yaml: 2.9.0
 
