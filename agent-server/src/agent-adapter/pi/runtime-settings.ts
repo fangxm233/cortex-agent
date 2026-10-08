@@ -35,6 +35,17 @@ function capCompactionReserve(settingsManager: PiSettingsManager): void {
   );
 }
 
+/** Native owns qualification and PATH. Only supply its selected Bash when PI has no setting. */
+function applySelectedWindowsBash(settingsManager: PiSettingsManager): void {
+  if (process.platform !== 'win32') return;
+  const selectedBash = process.env.CORTEX_GIT_BASH_PATH;
+  if (!selectedBash) return;
+  const nativeShellPath = settingsManager.getShellPath.bind(settingsManager);
+  // applyOverrides() is lost on SDK reload; setters persist. A getter fallback keeps both
+  // reload and explicit global/project/runtime settings authoritative without writing a default.
+  settingsManager.getShellPath = () => nativeShellPath() ?? selectedBash;
+}
+
 export function createRuntimeSettings(sdk: PiSdkModule, cwd: string, agentDir: string) {
   const settingsManager = sdk.SettingsManager.create(cwd, agentDir, {
     projectTrusted: projectTrusted(sdk, cwd, agentDir),
@@ -45,5 +56,6 @@ export function createRuntimeSettings(sdk: PiSdkModule, cwd: string, agentDir: s
   // the policy also survives settings reloads without changing user configuration.
   settingsManager.getCacheWarmingMode = () => 'off';
   capCompactionReserve(settingsManager);
+  applySelectedWindowsBash(settingsManager);
   return settingsManager;
 }
