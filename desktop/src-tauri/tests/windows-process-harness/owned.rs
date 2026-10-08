@@ -1,17 +1,44 @@
 #![allow(dead_code)]
 #[path = "../../src/setup/runtime_cancel.rs"]
 mod cancel;
-use cancel::{CancelToken, InstallGuard};
-#[path = "../../src/setup/runtime_process.rs"]
-mod process;
+use cancel::CancelToken;
 #[path = "../../src/setup/runtime_windows_process_output.rs"]
 mod output;
+#[path = "../../src/setup/runtime_process.rs"]
+mod process;
+
+#[cfg(windows)]
+#[path = "../../src/setup/runtime_probe.rs"]
+mod probe;
+#[cfg(windows)]
+mod windows;
+
+// Only selected_output's unrelated environment-selection boundary is stubbed.
+// Process execution, probe output/deadline and cancellation use production source.
+#[cfg(windows)]
+struct Selection;
+#[cfg(windows)]
+impl Selection {
+    fn command(&self, program: &std::ffi::OsStr) -> std::process::Command {
+        std::process::Command::new(program)
+    }
+    fn apply(
+        &self,
+        _: &mut std::process::Command,
+        _: &std::path::Path,
+        _: &std::ffi::OsStr,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+}
 
 #[test]
 fn capture_is_bounded_but_logging_continues() {
     let mut stream = output::Capture::default();
     let mut lines = Vec::new();
-    stream.push(&vec![b'a'; output::LIMIT + 1], &mut |s| lines.push(s.to_owned()));
+    stream.push(&vec![b'a'; output::LIMIT + 1], &mut |s| {
+        lines.push(s.to_owned())
+    });
     stream.push(b"\nafter\n", &mut |s| lines.push(s.to_owned()));
     assert_eq!(stream.bytes.len(), output::LIMIT);
     assert!(stream.truncated);
