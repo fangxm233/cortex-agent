@@ -75,6 +75,8 @@ Credential detection is not a live inference test: setup sends no paid inference
 
 After login, the page refreshes credentials and synchronizes models and profiles. **Rescan and sync models** also picks up credentials configured elsewhere. Select an actual profile with a model and a matching configured account as the **Default profile**; a login alone is not enough to enable **Enter workbench**. If the current default does not match, choose an available profile explicitly. Existing profile definitions are preserved.
 
+The optional **Public usage leaderboard** card puts your token usage on the public [aistatus.cc leaderboard](https://aistatus.cc/leaderboard), which shows your name, organization, and token counts. It is off unless you have already joined. Switch it on, enter a name and an email (the organization is optional), and choose **Save**; the email only identifies you and is never displayed. The card does not affect **Enter workbench** or **Set up later**, and the same card stays available under **Settings → Usage**.
+
 Choose **Enter workbench** when the configuration is ready, or **Set up later** to skip. The skip warning explains that the Agent may be unavailable until you finish **Settings → Accounts** and **Settings → Profiles**.
 
 After a new local installation connects, quitting on this page and reopening the app resumes provider setup—even if you have not signed in. Login alone does not finish setup. **Enter workbench** and deliberate **Set up later** save your choice before leaving, so later launches open the workbench. If saving fails, stay on this page and try again. Older unmarked installations and remote connections keep their usual startup behavior.

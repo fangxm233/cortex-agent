@@ -329,10 +329,16 @@ don't have an NVIDIA GPU, it prints 0 — perfectly fine for most usage.
 
 ### 2.8 aistatus token-usage reporting?
 
-Optional opt-in to share anonymous token counts on the public
-leaderboard at [aistatus.cc](https://aistatus.cc). If you answer yes,
-provide a name, org, and email (email is identity only, never
-displayed).
+Optional. Answering yes puts your token usage on the public
+[aistatus.cc leaderboard](https://aistatus.cc/leaderboard), which shows
+your name, organization, and token counts. Provide a name and an email;
+the organization is optional. The email only identifies you and is never
+displayed.
+
+The same choice appears as an optional **Public usage leaderboard** card
+on the desktop app's provider setup page, and you can turn it on or off
+at any time under **Settings → Usage**. Turning it off keeps your name,
+organization, and email for the next time you turn it on.
 
 ### 2.9 Register as a system service?
 

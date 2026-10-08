@@ -254,7 +254,9 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 ### 2.8 aistatus 令牌使用报告？ {#28-aistatus-token-usage-reporting}
 
-可选的，选择是否在 [aistatus.cc](https://aistatus.cc) 的公共排行榜上分享匿名令牌计数。如果选择是，需提供姓名、组织和邮箱（邮箱仅用于身份识别，不会显示）。
+可选。选择是会把你的 token 用量放到 [aistatus.cc 公开排行榜](https://aistatus.cc/leaderboard)上，排行榜显示你的名称、组织和 token 数。需要填写名称和邮箱，组织可选；邮箱只用于识别身份，不会公开显示。
+
+桌面应用的 Provider 设置页也以可选的**公开用量排行榜**卡片提供同一选项，之后可随时在**设置 → 用量**中开启或关闭。关闭后会保留已填写的名称、组织和邮箱，再次开启时沿用。
 
 ### 2.9 注册为系统服务？ {#29-register-as-a-system-service}
 
