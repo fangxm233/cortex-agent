@@ -87,6 +87,8 @@ export type {
   CustomProviderModelSpec,
   CustomProviderView,
 } from '@domain/pi-providers/index.js';
+import type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
+export type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
 export type {
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
@@ -1663,6 +1665,7 @@ export interface QueryReturnMap {
   'auth.status': AuthStatusSnapshot;
   'auth.flowState': LoginFlowState | null;
   'auth.customProviders': CustomProviderView[];
+  'usageSharing.get': UsageSharingSettings;
   'models.catalog': ModelCatalogSnapshot;
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
@@ -1731,6 +1734,7 @@ export interface MutateReturnMap {
   'auth.syncGateway': AuthSyncGatewayReturn;
   'auth.upsertCustomProvider': CustomProviderView;
   'auth.removeCustomProvider': AuthRemoveCustomProviderReturn;
+  'usageSharing.set': UsageSharingSettings;
   'hooks.create': HooksCreateReturn;
   'hooks.update': HooksUpdateReturn;
   'hooks.setEnabled': HooksSetEnabledReturn;
@@ -1785,6 +1789,8 @@ export interface UiServiceDeps {
   syncGateway?: (options: { backends?: string[] }) => Promise<AuthSyncGatewayReturn>;
   /** Files custom providers are read from and written to; defaults to the host's own two files. */
   customProviderStores?: CustomProviderStores;
+  /** Directory holding the aistatus `config.yaml`; defaults to `~/.aistatus`. */
+  usageSharingDir?: string;
   projectStore: {
     list(): Project[];
     get(id: string): Project | undefined;

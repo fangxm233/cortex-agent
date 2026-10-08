@@ -27,6 +27,7 @@ import { handlePlatformSettingsSet } from './mutate/platform-settings.js';
 import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
 import { handleCustomProvidersList } from './query/custom-providers.js';
+import { handleUsageSharingGet } from './query/usage-sharing.js';
 import { handleModelsCatalog } from './query/models.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
@@ -114,6 +115,7 @@ import {
   handleCustomProviderRemove,
   handleCustomProviderUpsert,
 } from './mutate/custom-providers.js';
+import { handleUsageSharingSet } from './mutate/usage-sharing.js';
 import { createSubscription } from './subscribe.js';
 import { AssistantSnapshots } from './assistant-snapshots.js';
 
@@ -150,6 +152,7 @@ export const queryHandlers = {
   'auth.status': (deps, params) => handleAuthStatus(params, deps.getAuthStatus),
   'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),
   'auth.customProviders': (deps, params) => handleCustomProvidersList(deps, params),
+  'usageSharing.get': (deps, params) => handleUsageSharingGet(deps, params),
   'models.catalog': (deps, params) => handleModelsCatalog(deps, params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
@@ -215,6 +218,7 @@ export const mutateHandlers = {
   'auth.syncGateway': (deps, args) => handleAuthSyncGateway(deps, args),
   'auth.upsertCustomProvider': (deps, args) => handleCustomProviderUpsert(deps, args),
   'auth.removeCustomProvider': (deps, args) => handleCustomProviderRemove(deps, args),
+  'usageSharing.set': (deps, args) => handleUsageSharingSet(deps, args),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
   'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
@@ -243,20 +247,24 @@ export const mutateHandlers = {
   'system.skipUpdate': (_deps, args) => handleSystemSkipUpdate(args),
 } satisfies MutateHandlerMap;
 
+type AuditArgs = Record<string, unknown>;
+
+/** Ops whose arguments carry secrets or personal data the audit event must not record. */
+const AUDIT_REDACTORS: Partial<Record<MutateOp, (args: AuditArgs) => unknown>> = {
+  'auth.respondPrompt': ({ flowId }) => ({ flowId }),
+  'auth.upsertCustomProvider': ({ apiKey: _upstreamKey, ...safe }) => safe,
+  'usageSharing.set': ({ enabled }) => ({ enabled }),
+};
+
+function dropNoteText({ text: _privateText, ...safe }: AuditArgs): AuditArgs {
+  return safe;
+}
+
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
   if (op === 'config.setPlatform') return { redacted: true };
   if (!args || typeof args !== 'object') return args;
-  if (op === 'auth.respondPrompt') {
-    const { flowId } = args as { flowId?: unknown };
-    return { flowId };
-  }
-  if (op === 'auth.upsertCustomProvider') {
-    const { apiKey: _upstreamKey, ...safe } = args as Record<string, unknown>;
-    return safe;
-  }
-  if (!op.startsWith('notes.')) return args;
-  const { text: _privateText, ...safe } = args as Record<string, unknown>;
-  return safe;
+  const redact = AUDIT_REDACTORS[op] ?? (op.startsWith('notes.') ? dropNoteText : undefined);
+  return redact ? redact(args as AuditArgs) : args;
 }
 
 export function createUiService(deps: UiServiceDeps): UiService {

@@ -185,6 +185,8 @@ export const initEn = {
   'init.gateway.orgPlaceholder': 'your organization',
   'init.gateway.emailPrompt': 'Email (identity only, not displayed):',
   'init.gateway.emailPlaceholder': 'you@example.com',
+  'usageSharing.issue.name-required': 'A name is required to join the leaderboard.',
+  'usageSharing.issue.email-invalid': 'A valid email is required to join the leaderboard.',
 
   // ── Service registration prompt ──
   'init.serviceRegister.prompt': 'Register Cortex as a system service (auto-start on boot)?',
@@ -433,6 +435,8 @@ export const initZh: Record<keyof typeof initEn, string> = {
   'init.gateway.orgPlaceholder': '你的组织',
   'init.gateway.emailPrompt': '邮箱（仅用于身份标识，不会展示）：',
   'init.gateway.emailPlaceholder': 'you@example.com',
+  'usageSharing.issue.name-required': '加入排行榜需要填写名称。',
+  'usageSharing.issue.email-invalid': '加入排行榜需要填写有效的邮箱。',
 
   // ── Service registration prompt ──
   'init.serviceRegister.prompt': '将 Cortex 注册为系统服务（开机自启）？',

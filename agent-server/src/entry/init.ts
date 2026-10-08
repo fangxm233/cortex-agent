@@ -9,7 +9,6 @@ import { ensureGitInstalled, ensureGitRepo } from './init-git.js';
 export { isGitInstalled, ensureGitInstalled, getGitInstallHint } from './init-git.js';
 import { onboardInitAuth } from './init-auth.js';
 import * as clack from '@clack/prompts';
-import * as yaml from 'yaml';
 import {
   buildCoreConfig,
   buildEmptyConfig,
@@ -21,7 +20,8 @@ import { generateProfiles, writeProfilesJson, listChoices } from '@core/profile-
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
 import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
-import { AISTATUS_DIR, INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
+import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
+import { writeUsageSharing, type UsageSharingUpdate } from '@domain/costs/aistatus-config.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -83,12 +83,7 @@ export interface FeishuInitConfig {
   authMode?: 'bot' | 'user';
 }
 
-export interface GatewayUsageConfig {
-  enabled: boolean;
-  name?: string;
-  org?: string;
-  email?: string;
-}
+export type GatewayUsageConfig = UsageSharingUpdate;
 
 export interface InitAnswers {
   /** UI language for system-generated messages. Persisted to config/preferences.json. */
@@ -571,40 +566,6 @@ async function checkAndInstallBackends(backends: InitBackend[]): Promise<void> {
 
     // Authentication is detected and offered after local configuration, not during installation.
   }
-}
-
-// ─── Gateway usage config ────────────────────────────────────────
-
-/** Path to aistatus config file. */
-export function getAistatusConfigPath(): string {
-  return path.join(AISTATUS_DIR, 'config.yaml');
-}
-
-/** Write gateway usage config to ~/.aistatus/config.yaml, or <configDir>/config.yaml if configDir is given (for testing). */
-function writeGatewayUsageConfig(config: GatewayUsageConfig, configDir?: string): void {
-  const configPath = configDir
-    ? path.join(configDir, 'config.yaml')
-    : getAistatusConfigPath();
-  const configDirPath = path.dirname(configPath);
-  mkdirSync(configDirPath, { recursive: true });
-
-  // Preserve existing fields (e.g. gateway.yaml keys) if config.yaml already exists
-  let existing: Record<string, unknown> = {};
-  if (existsSync(configPath)) {
-    try {
-      existing = yaml.parse(readFileSync(configPath, 'utf-8')) || {};
-    } catch { /* ignore parse errors, overwrite */ }
-  }
-
-  const merged = {
-    ...existing,
-    name: config.enabled ? (config.name || '') : (existing.name ?? ''),
-    org: config.enabled ? (config.org || '') : (existing.org ?? ''),
-    email: config.enabled ? (config.email || '') : (existing.email ?? ''),
-    uploadEnabled: config.enabled,
-  };
-
-  writeFileSync(configPath, yaml.stringify(merged));
 }
 
 // ─── Service registration ────────────────────────────────────────
@@ -1646,7 +1607,7 @@ async function runInitSteps(
 
   // 5. Gateway usage — omitted scripted answers preserve the existing user choice.
   if (answers.gatewayUsage) {
-    writeGatewayUsageConfig(answers.gatewayUsage, options.gatewayConfigDir);
+    writeUsageSharing(answers.gatewayUsage, options.gatewayConfigDir);
   }
 
   // 5b. Local Web UI endpoint — opt-in, driven by the desktop setup wizard. Must run after the

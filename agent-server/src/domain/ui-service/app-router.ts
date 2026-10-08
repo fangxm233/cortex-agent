@@ -69,6 +69,8 @@ import {
   authCustomProvidersInput,
   authUpsertCustomProviderInput,
   authRemoveCustomProviderInput,
+  usageSharingGetInput,
+  usageSharingSetInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -342,6 +344,14 @@ function authRouter(service: UiService) {
   });
 }
 
+// The aistatus.cc public leaderboard opt-in. Only the choice and identity are read and written here.
+function usageSharingRouter(service: UiService) {
+  return router({
+    get: makeQuery(service, 'usageSharing.get', usageSharingGetInput),
+    set: makeMutation(service, 'usageSharing.set', usageSharingSetInput),
+  });
+}
+
 function systemRouter(service: UiService) {
   return router({
     daemonStatus: makeQuery(service, 'system.daemonStatus', systemDaemonStatusInput),
@@ -442,6 +452,7 @@ export function createAppRouter(service: UiService) {
     profiles: profilesRouter(service),
     models: modelsRouter(service),
     auth: authRouter(service),
+    usageSharing: usageSharingRouter(service),
     hooks: hooksRouter(service),
     machines: machinesRouter(service),
     skills: skillsRouter(service),

@@ -67,6 +67,17 @@ export const authFlowStateInput = z.object({
 
 export const authCustomProvidersInput = z.object({});
 
+// usageSharing.get / usageSharing.set — the aistatus.cc leaderboard opt-in. Shape gate only; the
+// name and email rule lives in usageSharingIssues() with the writer it guards.
+export const usageSharingGetInput = z.object({});
+
+export const usageSharingSetInput = z.object({
+  enabled: z.boolean(),
+  name: z.string().trim().optional(),
+  org: z.string().trim().optional(),
+  email: z.string().trim().optional(),
+});
+
 // models.catalog — what a profile's `model`, `provider` and `mode` may be SELECTED from. It is a
 // union of every source that knows about an endpoint, so it never narrows what profiles.json
 // accepts: the editor keeps a free-text escape for anything the host cannot enumerate.
@@ -821,6 +832,7 @@ export const queryInputSchemas = {
   'auth.status': authStatusInput,
   'auth.flowState': authFlowStateInput,
   'auth.customProviders': authCustomProvidersInput,
+  'usageSharing.get': usageSharingGetInput,
   'models.catalog': modelsCatalogInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
@@ -886,6 +898,7 @@ export const mutateInputSchemas = {
   'auth.syncGateway': authSyncGatewayInput,
   'auth.upsertCustomProvider': authUpsertCustomProviderInput,
   'auth.removeCustomProvider': authRemoveCustomProviderInput,
+  'usageSharing.set': usageSharingSetInput,
   'hooks.create': hooksCreateInput,
   'hooks.update': hooksUpdateInput,
   'hooks.setEnabled': hooksSetEnabledInput,
