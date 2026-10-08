@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { execFileSync } from 'child_process';
 import { scanAgentsMDChain, type AgentsMDEntry } from './agents-md-scanner.js';
-import { execBash, execBashBackground, spawnCommand } from './command-exec.js';
+import { execBash, execBashBackground, resolveBash, spawnCommand, type CommandResult } from './command-exec.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
 import { resolveClientToken, buildClientHeaders } from './auth-headers.js';
@@ -415,8 +415,10 @@ async function handleGlob(params: any): Promise<{ files?: string[]; truncated?: 
       return { error: `Directory not found: ${cwd}` };
     }
 
+    const shell = resolveBash('bash');
+    if (!shell) return { files: [], truncated: false };
     const limit = GLOB_MAX_RESULTS + 1;
-    const result = await spawnCommand('bash', [
+    const result = await spawnCommand(shell, [
       '-c',
       `shopt -s globstar nullglob 2>/dev/null; cd -- "$1" 2>/dev/null || exit 1; i=0; for f in $2; do echo "$f"; i=$((i+1)); [ $i -ge ${limit} ] && break; done`,
       '--',
@@ -424,25 +426,25 @@ async function handleGlob(params: any): Promise<{ files?: string[]; truncated?: 
       pattern,
     ], 30000);
 
-    if (result.exitCode !== 0 && !result.stdout.trim()) {
-      return { files: [], truncated: false };
-    }
-
-    let files = result.stdout.trim().split('\n').filter(Boolean);
-    const truncated = files.length > GLOB_MAX_RESULTS;
-    if (truncated) files = files.slice(0, GLOB_MAX_RESULTS);
-
-    files = files.map(f => path.isAbsolute(f) ? f : path.resolve(cwd, f));
-
-    files = files.filter(f => {
-      const parts = path.relative(cwd, f).split(path.sep);
-      return !parts.some(p => VCS_DIRS.has(p));
-    });
-
-    return { files, truncated };
+    return formatGlobResult(result, cwd);
   } catch (err) {
     return { error: (err as Error).message };
   }
+}
+
+function formatGlobResult(result: CommandResult, cwd: string): { files: string[]; truncated: boolean } {
+  if (result.exitCode !== 0 && !result.stdout.trim()) {
+    return { files: [], truncated: false };
+  }
+  let files = result.stdout.trim().split('\n').filter(Boolean);
+  const truncated = files.length > GLOB_MAX_RESULTS;
+  if (truncated) files = files.slice(0, GLOB_MAX_RESULTS);
+  files = files.map(f => path.isAbsolute(f) ? f : path.resolve(cwd, f));
+  files = files.filter(f => {
+    const parts = path.relative(cwd, f).split(path.sep);
+    return !parts.some(p => VCS_DIRS.has(p));
+  });
+  return { files, truncated };
 }
 
 // --- Tool: Grep ---
