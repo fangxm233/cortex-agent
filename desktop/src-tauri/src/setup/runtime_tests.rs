@@ -5,6 +5,8 @@
 mod runtime;
 #[path = "runtime_regression_tests.rs"]
 mod runtime_regression_tests;
+#[path = "runtime_selection_tests.rs"]
+mod runtime_selection_tests;
 
 use runtime::*;
 use std::ffi::OsStr;
