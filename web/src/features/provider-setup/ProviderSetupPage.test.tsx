@@ -23,13 +23,15 @@ function pageFixture(defaultProfile = '') {
   ] } });
   const sync = vi.fn().mockResolvedValue({ configured: true });
   const select = vi.fn();
+  const sharingSet = vi.fn();
+  const sharing = { get: { query: vi.fn().mockResolvedValue({ enabled: false, name: '', org: '', email: '' }) }, set: { mutate: sharingSet } };
   vi.mocked(useTRPCClient).mockReturnValue({ auth: { status: { query: status }, syncGateway: { mutate: sync } },
-    config: { get: { query: config }, set: { mutate: select } } } as unknown as ReturnType<typeof useTRPCClient>);
+    config: { get: { query: config }, set: { mutate: select } }, usageSharing: sharing } as unknown as ReturnType<typeof useTRPCClient>);
   const invoke = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('__TAURI__', { core: { invoke } });
   vi.stubGlobal('__CORTEX_DESKTOP__', true);
   vi.stubGlobal('__CORTEX_DESKTOP_CONFIG', { ...initialConnection });
-  return { invoke, sync, config, status, select };
+  return { invoke, sync, config, status, select, sharingSet };
 }
 async function renderPage() {
   let view!: ReturnType<typeof create>;
@@ -78,6 +80,22 @@ it.each(['', 'nondefault'])('actual page refuses Continue without a ready defaul
   await act(async () => exitButton(view, 'skip').props.onClick());
   expect(invoke).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledTimes(1);
+  act(() => view.unmount());
+});
+
+it.each([['ready', false], ['', true]])('the optional leaderboard card leaves Continue as it was (default %j)', async (defaultProfile, blocked) => {
+  const { invoke, sharingSet } = pageFixture(defaultProfile);
+  const view = await renderPage();
+  const card = view.root.findByProps({ 'data-usage-sharing': 'setup' });
+  expect(card.findByProps({ role: 'switch' }).props['aria-checked']).toBe(false);
+  expect(exitButton(view, 'continue').props.disabled).toBe(blocked);
+  // Switched on with an unsaved, incomplete identity.
+  act(() => card.findByProps({ role: 'switch' }).props.onClick());
+  expect(exitButton(view, 'continue').props.disabled).toBe(blocked);
+  await act(async () => exitButton(view, blocked ? 'skip' : 'continue').props.onClick());
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(navigate).toHaveBeenCalledTimes(1);
+  expect(sharingSet).not.toHaveBeenCalled();
   act(() => view.unmount());
 });
 

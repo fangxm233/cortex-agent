@@ -16,6 +16,8 @@ import {
 } from '@/features/settings/ui/settings-ui';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
 import { useUsage } from '@/features/usage/useUsage';
+import { useUsageSharingController } from '@/features/settings/controllers/useUsageSharingController';
+import { UsageSharingCard } from './UsageSharingCard';
 import {
   type ProviderLegacyFallbackView,
   type ProviderUsageView,
@@ -448,10 +450,12 @@ function UsageContent({ usage }: { usage: ReturnType<typeof useUsage> }): ReactN
 
 export function UsagePanel() {
   const usage = useUsage();
+  const sharing = useUsageSharingController();
   return (
     <>
       <SHeaderActions><div data-usage-header><RefreshToolbar usage={usage} /></div></SHeaderActions>
       <UsageContent usage={usage} />
+      <div style={{ marginTop: 12 }}><UsageSharingCard controller={sharing} variant="settings" /></div>
     </>
   );
 }

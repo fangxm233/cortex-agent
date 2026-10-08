@@ -1,5 +1,6 @@
 // Usage quota window names, mobile Usage screen wording that differs from the desktop panel,
-// and the provider rate-limit status (rail banner, mobile pill, details popover).
+// the provider rate-limit status (rail banner, mobile pill, details popover), and the public
+// leaderboard opt-in card (setup page and Settings → Usage).
 export const usageEn = {
   usageThrottleToggle: 'Usage throttle {key}',
   usageMobileEmpty: 'No usage data',
@@ -23,6 +24,21 @@ export const usageEn = {
   rlWaitingOne: '{n} session waiting',
   rlWaitingMany: '{n} sessions waiting',
   rlAggregate: '{count} providers limited · first {countdown}',
+  usageShareTitle: 'Public usage leaderboard',
+  usageShareDescription: 'Share your token usage on the public leaderboard at aistatus.cc. It shows your name, organization and token counts; your email only identifies you and is never shown.',
+  usageShareLink: 'View leaderboard',
+  usageShareName: 'Name',
+  usageShareOrg: 'Organization',
+  usageShareEmail: 'Email',
+  usageShareOptional: 'Optional',
+  usageShareEmailPlaceholder: 'you@example.com',
+  usageShareNameRequired: 'Enter the name to show on the leaderboard.',
+  usageShareEmailInvalid: 'Enter a valid email.',
+  usageShareSave: 'Save',
+  usageShareSaving: 'Saving…',
+  usageShareSaved: 'Saved',
+  usageShareSaveFailed: 'Could not save',
+  usageShareLoadFailed: 'Could not load the leaderboard setting',
 };
 export const usageZh: Record<keyof typeof usageEn, string> = {
   usageThrottleToggle: '限流开关 {key}',
@@ -47,4 +63,19 @@ export const usageZh: Record<keyof typeof usageEn, string> = {
   rlWaitingOne: '{n} 个会话等待恢复',
   rlWaitingMany: '{n} 个会话等待恢复',
   rlAggregate: '{count} 个 provider 限流 · 首个 {countdown}',
+  usageShareTitle: '公开用量排行榜',
+  usageShareDescription: '在 aistatus.cc 的公开排行榜上分享你的 token 用量。排行榜会显示你的名称、组织和 token 数；邮箱只用于识别你的身份，不会公开显示。',
+  usageShareLink: '查看排行榜',
+  usageShareName: '名称',
+  usageShareOrg: '组织',
+  usageShareEmail: '邮箱',
+  usageShareOptional: '可选',
+  usageShareEmailPlaceholder: 'you@example.com',
+  usageShareNameRequired: '请填写要在排行榜上显示的名称。',
+  usageShareEmailInvalid: '请填写有效的邮箱。',
+  usageShareSave: '保存',
+  usageShareSaving: '保存中…',
+  usageShareSaved: '已保存',
+  usageShareSaveFailed: '保存失败',
+  usageShareLoadFailed: '无法读取排行榜设置',
 };

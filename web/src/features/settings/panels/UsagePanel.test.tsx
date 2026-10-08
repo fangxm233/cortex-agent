@@ -82,9 +82,11 @@ const harness = vi.hoisted(() => ({
   configError: null as Error | null,
   deferredPolicySaves: {} as Record<string, Promise<unknown>>,
   policyErrorsByTarget: {} as Record<string, Error | null>,
+  sharing: { enabled: false, name: '', org: '', email: '' },
 }));
 
 vi.mock('@/lib/trpc', () => ({
+  useTRPCClient: () => ({ usageSharing: { get: { query: async () => harness.sharing } } }),
   useTRPC: () => ({
     system: {
       usageStatus: {
@@ -223,6 +225,17 @@ beforeEach(() => {
 });
 
 describe('desktop Settings Usage panel', () => {
+
+  it('offers the leaderboard opt-in below the provider cards with the stored choice', async () => {
+    harness.sharing = { enabled: true, name: 'Ada', org: '', email: 'ada@example.com' };
+    const renderer = mount();
+    await act(async () => {});
+
+    const card = renderer.root.findByProps({ 'data-usage-sharing': 'settings' });
+    expect(card.findByProps({ role: 'switch' }).props['aria-checked']).toBe(true);
+    expect(card.findByProps({ 'data-usage-sharing-field': 'name' }).props.value).toBe('Ada');
+    act(() => renderer.unmount());
+  });
 
   it('hides row policy controls while config is loading, missing, or failed without hiding usage', () => {
     const cases = [
