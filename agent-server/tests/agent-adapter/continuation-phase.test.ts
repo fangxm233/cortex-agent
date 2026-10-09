@@ -113,6 +113,38 @@ test('hold: settles at the foreground result but keeps streaming until the work 
   assert.equal(h.settled.value?.num_turns, 3);
 });
 
+test('handOff: a held phase ends with what it accumulated, even after the max-wait cap', () => {
+  const base = result({ pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 0 });
+  const h = harness('hold', base);
+  h.phase.start(base);
+  h.clock.fire(); // max-wait: by itself this never ends the run
+
+  assert.equal(h.settled.value, undefined);
+  h.phase.handOff();
+
+  assert.equal(h.settled.value, base);
+  assert.equal(h.closedCount(), 1);
+  assert.equal(h.clock.live().length, 0);
+  assert.deepEqual(h.events.at(-1), {
+    type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0,
+  });
+  // A continuation that still reaches the old sink belongs to the later run, not this one.
+  h.phase.sink().onResult(result({ pendingBackgroundTasks: 0 }));
+  assert.equal(h.events.filter((e) => e.type === 'background_result').length, 0);
+});
+
+test('handOff before the foreground result: the run ends at that result', () => {
+  const base = result({ pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 0 });
+  const h = harness('hold', base);
+  h.phase.handOff();
+  assert.equal(h.closedCount(), 0, 'nothing ends before the foreground turn does');
+
+  h.phase.start(base);
+  assert.equal(h.settled.value, base);
+  assert.equal(h.closedCount(), 1);
+  assert.equal(h.clock.live().length, 0, 'no wait is armed for work the later run owns');
+});
+
 test('grace watchdog: releases a finished-but-unnotified task and reports the timeout', () => {
   const base = result({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
   const h = harness('hold', base);

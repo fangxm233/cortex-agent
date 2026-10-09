@@ -50,8 +50,11 @@ export class EngineInjections {
   /** `idPrefix` names the injection ids this engine mints, e.g. `claude-run-inj`. */
   constructor(private readonly session: InjectableSession, private readonly idPrefix: string) {}
 
-  /** Make `queue` the live run's and install the session's ack sink for it. */
+  /** Make `queue` the live run's and install the session's ack sink for it. The previous run's
+   *  background phase is handed off first: once its sinks belong to the new run it can never be
+   *  fed again, and left open it would keep its execution registered (and its session busy). */
   beginRun(queue: RunEventQueue): InjectionRun {
+    this.active?.phase?.handOff();
     const run: ActiveRun = { queue, pending: [], phase: null };
     this.active = run;
     this.session.setInjectionAckSink(this.ackSink(run));

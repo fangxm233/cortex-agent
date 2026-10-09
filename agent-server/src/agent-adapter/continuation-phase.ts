@@ -121,6 +121,8 @@ export class ContinuationPhase {
   /** A fired watchdog never re-arms: the cap means "stop holding anything open for this", not
    *  "restart the clock on the next report". */
   private waitExpired = false;
+  /** A later run on the same backend session took over the sinks this phase listens on. */
+  private handedOff = false;
 
   constructor(mode: AwaitBackground, port: ContinuationPhasePort) {
     this.mode = mode;
@@ -151,7 +153,7 @@ export class ContinuationPhase {
     this.started = true;
     this.acc = base;
     const queued = this.queued.splice(0);
-    if (this.mode === 'none' || !this.owesWork(base)) {
+    if (this.mode === 'none' || this.handedOff || !this.owesWork(base)) {
       this.finish();
       for (const result of queued) this.onResult(result);
       return;
@@ -163,6 +165,18 @@ export class ContinuationPhase {
       base.undeliveredBackgroundTasks ?? 0,
     );
     for (const result of queued) this.onResult(result);
+  }
+
+  /**
+   * A later run on the same backend session has started. The session routes every continuation
+   * turn and injection ack to that run from now on, so nothing this phase waits for can reach it
+   * again: end the run with what it accumulated. Background work still running in the backend is
+   * not lost — the later run's own result reports it, and its phase receives the continuation.
+   * Before the foreground result lands, the flag makes `start()` end the run there.
+   */
+  handOff(): void {
+    this.handedOff = true;
+    if (this.started) this.finish();
   }
 
   /** True while this run still owes the caller something: unstamped background work, or a reply to
