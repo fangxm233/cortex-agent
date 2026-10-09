@@ -6,6 +6,7 @@ interface LaunchHooks {
   launch(device: string): void;
 }
 const RECONNECT_MS = 5_000;
+const UNCONFIRMED_RECONNECT_MS = 1_000;
 const POLL_MS = 250;
 
 export function ownedLocalEnvironment(
@@ -54,8 +55,9 @@ export class OwnedLocalLaunchGate {
   }
 
   private async waitForReconnect(device: string, signal: AbortSignal): Promise<void> {
-    if (!this.hooks.pidAlive(device)) return;
-    const deadline = Date.now() + RECONNECT_MS;
+    // Self-update respawns the client, so a dead/missing recorded PID does not prove absence.
+    const graceMs = this.hooks.pidAlive(device) ? RECONNECT_MS : UNCONFIRMED_RECONNECT_MS;
+    const deadline = Date.now() + graceMs;
     while (!signal.aborted && !this.hooks.online(device) && Date.now() < deadline) await pause(signal);
   }
 

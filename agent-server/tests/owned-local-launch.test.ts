@@ -34,7 +34,9 @@ test('already hello-online skips recovery and spawn', async () => {
   expect(launch).not.toHaveBeenCalled();
 });
 test('concurrent starts single-flight recovery before one launch', async () => {
-  await Promise.all([gate.start('local'), gate.start('local'), gate.start('local')]);
+  const pending = Promise.all([gate.start('local'), gate.start('local'), gate.start('local')]);
+  await vi.advanceTimersByTimeAsync(1000);
+  await pending;
   expect(recover).toHaveBeenCalledTimes(1);
   expect(launch).toHaveBeenCalledTimes(1);
 });
@@ -84,13 +86,17 @@ test('stop while recovering prevents late spawn even after resume', async () => 
   finish();
   await pending;
   expect(launch).not.toHaveBeenCalled();
-  await gate.start('local');
+  const retry = gate.start('local');
+  await vi.advanceTimersByTimeAsync(1000);
+  await retry;
   expect(launch).toHaveBeenCalledOnce();
 });
 test('recovery failure is real and a later retry can proceed', async () => {
   recover.mockRejectedValueOnce(new Error('invalid payload'));
   await expect(gate.start('local')).rejects.toThrow('invalid payload');
   expect(launch).not.toHaveBeenCalled();
-  await gate.start('local');
+  const retry = gate.start('local');
+  await vi.advanceTimersByTimeAsync(1000);
+  await retry;
   expect(launch).toHaveBeenCalledOnce();
 });

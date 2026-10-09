@@ -39,7 +39,9 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   vi.stubEnv('Path', 'private-node;private-git');
   vi.stubEnv('CORTEX_GIT_BASH_PATH', 'private-git/bash.exe');
   vi.stubEnv('npm_config_prefix', 'private-npm');
-  await Promise.all([startRemoteClient('local'), startRemoteClient('local')]);
+  const pending = Promise.all([startRemoteClient('local'), startRemoteClient('local')]);
+  await vi.advanceTimersByTimeAsync(1000);
+  await pending;
   expect(hooks.recover).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local');
   expect(hooks.spawn).toHaveBeenCalledOnce();
   expect(hooks.spawn).toHaveBeenCalledWith(process.execPath, [join(DATA_DIR, 'client/current/client.mjs')], expect.objectContaining({
@@ -62,7 +64,7 @@ test('bad payload recovery schedules existing retry without launching', async ()
   await startRemoteClient('local');
   expect(hooks.spawn).not.toHaveBeenCalled();
   expect(_getRestartTimerCount()).toBe(1);
-  await vi.advanceTimersByTimeAsync(60000);
+  await vi.advanceTimersByTimeAsync(61000);
   expect(hooks.spawn).toHaveBeenCalledOnce();
 });
 test('hub stop cancels pending recovery continuation and does not rearm retries', async () => {
