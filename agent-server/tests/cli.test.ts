@@ -34,6 +34,7 @@ test('normal CLI daemon fork hides the window without changing lifecycle or envi
     const [entry, args, options] = fork.mock.calls[0];
     assert.ok(entry.endsWith('/daemon.js'));
     assert.deepEqual(args, []);
+    assert.equal(options.windowsHide, true); // Fail before a full inherited-env diff.
     assert.deepEqual(options, {
       cwd: DATA_DIR, windowsHide: true, detached: true, stdio: 'ignore', env: { ...process.env },
     });

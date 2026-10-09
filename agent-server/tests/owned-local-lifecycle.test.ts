@@ -45,6 +45,7 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   await pending;
   expect(hooks.recover).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local', undefined, expect.any(AbortSignal));
   expect(hooks.spawn).toHaveBeenCalledOnce();
+  expect(hooks.spawn.mock.calls[0][2].windowsHide).toBe(true); // Avoid an inherited-env diff on flag failure.
   expect(hooks.spawn).toHaveBeenCalledWith(process.execPath, [join(DATA_DIR, 'client/current/client.mjs')], expect.objectContaining({
     windowsHide: true, detached: true, stdio: 'ignore', env: expect.objectContaining({
       CORTEX_HOME: DATA_DIR, CORTEX_CLIENT_TOKEN: 'isolated-token', CORTEX_SERVER_URL: 'ws://127.0.0.1:4312',
