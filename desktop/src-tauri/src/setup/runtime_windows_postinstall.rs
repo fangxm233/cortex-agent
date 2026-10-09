@@ -1,11 +1,12 @@
 //! Post-install is callable only after extract_x64 authenticates the full pinned payload.
-//! The sole exit-1 signature is the observed GB18030 terminal self-delete error.
-//! Other locales are NOT qualified. Never use this exception in ordinary run_install.
+//! Exit 1 requires the current system's verified terminal batch self-delete diagnostic.
+//! Never use this single-purpose exception in ordinary run_install.
 use super::CancelToken;
-use std::{io::Read, path::Path, process::Command};
-
-const SELF_DELETE: &[u8] =
-    b"\xd5\xd2\xb2\xbb\xb5\xbd\xc5\xfa\xb4\xa6\xc0\xed\xce\xc4\xbc\xfe\xa1\xa3\x0d\x0a";
+use std::{
+    io::{Read, Write},
+    path::Path,
+    process::Command,
+};
 const NETWORK_FILES: &[(&str, &str)] = &[
     ("hosts", "hosts"),
     ("protocol", "protocols"),
@@ -18,7 +19,11 @@ fn failure(_: impl std::fmt::Display) -> String {
 }
 
 #[cfg(windows)]
-pub(super) fn run(stage: &Path, home: &Path, token: &CancelToken) -> Result<super::GitSelection, String> {
+pub(super) fn run(
+    stage: &Path,
+    home: &Path,
+    token: &CancelToken,
+) -> Result<super::GitSelection, String> {
     token.check()?;
     let system = std::env::var_os("SystemRoot")
         .map(std::path::PathBuf::from)
@@ -33,10 +38,11 @@ pub(super) fn run(stage: &Path, home: &Path, token: &CancelToken) -> Result<supe
         outcome.stdout_truncated || outcome.stderr_truncated,
         ready,
         &system.to_string_lossy(),
+        || calibrate_self_delete(stage, home, &system, token),
     )?;
     check_msys(stage, home, &system, token)?;
-    let git =
-        super::GitSelection::from_root(stage.to_path_buf(), true).ok_or_else(|| failure("Git layout"))?;
+    let git = super::GitSelection::from_root(stage.to_path_buf(), true)
+        .ok_or_else(|| failure("Git layout"))?;
     if !git.qualify(token)? {
         return Err(failure("Git/Bash qualification"));
     }
@@ -55,15 +61,103 @@ fn run_upstream(
         return Err(failure("SystemRoot"));
     }
     std::fs::create_dir_all(home.join(".config")).map_err(failure)?;
+    let command = postinstall_command(stage, stage, home, system)?;
+    super::process::windows::run(
+        command,
+        token,
+        Some(std::time::Duration::from_secs(180)),
+        &|_| {},
+    )
+}
+
+fn postinstall_command(
+    stage: &Path,
+    cwd: &Path,
+    home: &Path,
+    system: &Path,
+) -> Result<Command, String> {
     let mut command = Command::new(stage.join("git-bash.exe"));
-    command.current_dir(stage).args([
+    command.current_dir(cwd).args([
         "--no-needs-console",
         "--hide",
         "--no-cd",
         "--command=post-install.bat",
     ]);
     sanitize(&mut command, home, stage, system)?;
-    super::process::windows::run(command, token, Some(std::time::Duration::from_secs(180)), &|_| {})
+    Ok(command)
+}
+
+#[cfg(windows)]
+fn calibrate_self_delete(
+    stage: &Path,
+    home: &Path,
+    system: &Path,
+    token: &CancelToken,
+) -> Result<SelfDeleteDiagnostic, String> {
+    token.check()?;
+    let directory = self_delete_directory(stage, home)?;
+    let command = postinstall_command(stage, directory.path(), home, system)?;
+    let out = super::process::windows::run(
+        command,
+        token,
+        Some(std::time::Duration::from_secs(10)),
+        &|_| {},
+    )?;
+    SelfDeleteDiagnostic::validate(
+        out.exit_code,
+        &out.stdout,
+        &out.stderr,
+        out.stdout_truncated || out.stderr_truncated,
+        &directory.path().join("post-install.bat"),
+        token,
+    )
+}
+
+fn self_delete_directory(stage: &Path, home: &Path) -> Result<tempfile::TempDir, String> {
+    let stage = stage.canonicalize().map_err(failure)?;
+    let home = home.canonicalize().map_err(failure)?;
+    if home.starts_with(&stage) {
+        return Err(failure("diagnostic HOME overlaps payload"));
+    }
+    let directory = tempfile::Builder::new()
+        .prefix("self-delete-")
+        .tempdir_in(home)
+        .map_err(failure)?;
+    // Fresh cwd outside the authenticated payload: never overwrite or replay its batch.
+    let mut batch = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(directory.path().join("post-install.bat"))
+        .map_err(failure)?;
+    batch
+        .write_all(b"@DEL post-install.bat\r\n")
+        .map_err(failure)?;
+    Ok(directory)
+}
+
+// Opaque bytes exist only after the synthetic command's outcome and deletion qualify.
+struct SelfDeleteDiagnostic(Vec<u8>);
+
+impl SelfDeleteDiagnostic {
+    fn validate(
+        code: u32,
+        stdout: &[u8],
+        stderr: &[u8],
+        truncated: bool,
+        batch: &Path,
+        token: &CancelToken,
+    ) -> Result<Self, String> {
+        token.check()?;
+        if code != 1 || !stdout.is_empty() || stderr.is_empty() || stderr.len() > 1024 || truncated
+        {
+            return Err(failure("self-delete calibration outcome"));
+        }
+        match std::fs::symlink_metadata(batch) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            _ => return Err(failure("synthetic batch not deleted")),
+        }
+        Ok(Self(stderr.to_vec()))
+    }
 }
 
 fn accept_outcome(
@@ -73,9 +167,19 @@ fn accept_outcome(
     truncated: bool,
     ready: bool,
     system: &str,
+    calibrate: impl FnOnce() -> Result<SelfDeleteDiagnostic, String>,
 ) -> Result<(), String> {
-    let exit_ok = (code == 0 && stderr.is_empty()) || (code == 1 && stderr == SELF_DELETE);
-    if !exit_ok || truncated || !ready || stdout != expected_stdout(system) {
+    if truncated || !ready || stdout != expected_stdout(system) {
+        return Err(failure("post-install outcome"));
+    }
+    // cmd.exe can report exit 1 when the upstream batch deletes itself. Prove that
+    // exact system behavior with only DEL; never interpret localized diagnostic text.
+    let exit_ok = match code {
+        0 => stderr.is_empty(),
+        1 => stderr == calibrate()?.0,
+        _ => false,
+    };
+    if !exit_ok {
         return Err(failure("post-install outcome"));
     }
     Ok(())
@@ -95,7 +199,14 @@ fn remove_key(key: &str) -> bool {
     let upper = key.to_ascii_uppercase();
     matches!(
         upper.as_str(),
-        "BASH_ENV" | "ENV" | "SYSCONFDIR" | "HOME" | "SHELLOPTS" | "BASHOPTS" | "CDPATH" | "GLOBIGNORE"
+        "BASH_ENV"
+            | "ENV"
+            | "SYSCONFDIR"
+            | "HOME"
+            | "SHELLOPTS"
+            | "BASHOPTS"
+            | "CDPATH"
+            | "GLOBIGNORE"
     ) || ["GIT_", "MSYS", "ORIGINAL_", "XDG_", "BASH_FUNC_"]
         .iter()
         .any(|prefix| upper.starts_with(prefix))
@@ -176,7 +287,9 @@ fn dll_copies(stage: &Path, token: &CancelToken) -> Result<(), String> {
         }
         same_file(
             &entry.path(),
-            &stage.join("ucrt64/libexec/git-core").join(entry.file_name()),
+            &stage
+                .join("ucrt64/libexec/git-core")
+                .join(entry.file_name()),
             token,
         )?;
     }
@@ -214,8 +327,12 @@ fn check_msys(stage: &Path, home: &Path, system: &Path, token: &CancelToken) -> 
     sanitize(&mut command, home, stage, system)?;
     command.current_dir(stage).args(["--noprofile", "--norc", "-c",
         "test -d /dev/shm && test -d /dev/mqueue && test -L /etc/mtab && test \"$(/usr/bin/readlink /etc/mtab)\" = /proc/mounts && /usr/bin/cmp /etc/mtab /proc/mounts"]);
-    let out =
-        super::process::windows::run(command, token, Some(std::time::Duration::from_secs(15)), &|_| {})?;
+    let out = super::process::windows::run(
+        command,
+        token,
+        Some(std::time::Duration::from_secs(15)),
+        &|_| {},
+    )?;
     if out.exit_code != 0
         || out.stdout_truncated
         || out.stderr_truncated

@@ -278,14 +278,40 @@ existing install). Failed/cancelled attempts clean only their own fresh stage.
 Already promoted healthy tools remain if a later step fails; no user data is
 removed. Qualification and cancellation checks precede selection saves.
 
-**Locale limitation:** exit 1 is accepted only with the exact observed GB18030
-stderr bytes `d5d2b2bbb5bdc5fab4a6c0edcec4bcfea1a30d0a`, exact expected upstream
-stdout, complete nontruncated outcome and all readiness/functional checks.
-English/other localized errors are deliberately unqualified. Exit 0 still
-requires clean expected diagnostics/readiness. All other nonzero outcomes,
-timeouts, cancellation and truncation fail. Ordinary `run_install` still rejects
-*every* nonzero exit. Native runtime PASS is not inferred from the earlier gate
-or from the parent's still-separate owned-process tests.
+**Locale handling — correction `104bc7b32`:** only a real upstream exit 1 can
+trigger a 10-second owned calibration through the same authenticated
+`stage/git-bash.exe`, hidden flags and sanitized child environment. A fresh
+TempDir beneath private preparation HOME (canonicalized outside the payload)
+contains a create-new `post-install.bat` with only `@DEL post-install.bat\r\n`.
+The official batch/stage is never written or replayed. Calibration must exit 1,
+produce empty stdout and 1–1024 nontruncated raw stderr bytes, and actually delete
+its synthetic batch before those bytes can qualify the real stderr byte-for-byte.
+Exact upstream stdout, cleanup/network/DLL/MSYS readiness and Git/Bash qualification
+remain mandatory. Exit 0 requires clean diagnostics/readiness and never calibrates;
+other exits, mismatches, timeouts, cancellation and truncation fail. Ordinary
+`run_install` still rejects *every* nonzero exit. The mechanism derives current-system
+diagnostics; **only the Chinese system has prior runtime evidence**, not empirical
+coverage of other languages. Integrated Windows compilation/execution remains
+parent-owned; original gate/evidence is unchanged and does not imply runtime PASS.
+
+Correction status: source and **16 focused Linux fixture tests PASS**, no package
+execution. `windows_postinstall::run(stage, home, token)` is unchanged; calibration
+and validated opaque bytes are private to this module. RED: the English fixture
+failed against the fixed allowlist (`/tmp/win-post-diagnostic-red.log`); construction
+API tests then failed before implementation (`/tmp/win-post-diagnostic-api-red.log`).
+GREEN log: `/tmp/win-post-diagnostic-green.log`. Tests cover raw mismatch, bounds,
+stdout, deletion, cancellation/error propagation, exit-only calibration, private
+artifacts, launcher/environment parity and retained readiness. Verification:
+
+```sh
+cd /home/fangxin/Cortex-wt-win-post-diagnostic
+export PATH=/home/fangxin/.cortex/data/windows-managed-runtime/decoder-gate/.rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin:$PATH
+cargo test --manifest-path desktop/src-tauri/tests/runtime-harness/Cargo.toml --locked --offline --lib windows_postinstall
+git diff --check
+```
+
+Rust 1.90.0; owned files/functions remain <=800/<=30 lines. No remote action,
+package rerun, full audit, dependency change or merge was performed.
 
 ### Exact scoped verification
 
