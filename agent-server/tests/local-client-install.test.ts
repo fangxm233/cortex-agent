@@ -90,6 +90,15 @@ test('recovery after atomic publication verifies pending hash, then commits read
   await completeLocalClientInstall(paths, 'local', installRoot);
   expect(readLocalClientIntent(paths)?.state).toBe('ready');
 });
+test('stop aborts recovery waiting for the install lock before any config or files are written', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  const controller = new AbortController();
+  const pending = completeLocalClientInstall(paths, 'local', installRoot, controller.signal);
+  controller.abort();
+  await expect(pending).rejects.toThrow(/abort/i);
+  expect(fs.existsSync(path.join(paths.CONFIG_DIR, 'cortex-client.json'))).toBe(false);
+  expect(fs.existsSync(path.join(paths.DATA_DIR, 'client/current'))).toBe(false);
+});
 test('partial owned stage after config write is recoverable and republished atomically', async () => {
   await beginLocalClientInstall(paths, 'local', installRoot);
   const config = JSON.stringify({ deviceName: 'local', serverHost: '127.0.0.1', serverPort: 3002 }, null, 2) + '\n';
