@@ -53,7 +53,7 @@ mod selection_windows_tests;
 #[cfg(test)]
 pub use archive::{release_for, safe_link, safe_member};
 pub use cancel::{cancel_install, CancelToken, InstallGuard};
-pub use install::ensure_server;
+pub use install::{ensure_server, install_server_version};
 pub use process::{redact_line, run_install};
 #[cfg(test)]
 pub(crate) static CANCEL_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -192,18 +192,10 @@ fn executable(path: &Path) -> bool {
             .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
 }
 
-// Read-only native helpers keep their existing contract. INSTALL qualification must
-// use `probe` so cancellation/deadlines only signal newly owned probe groups.
-pub fn output(mut command: Command, args: &[&str]) -> Option<String> {
-    let out = command
-        .args(args)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    out.status
-        .success()
-        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
-        .filter(|s| !s.is_empty())
+// Read-only probes own temporary children and have the same output/deadline bounds.
+// Install callers use install_server_version with their active cancellation token.
+pub fn output(command: Command, args: &[&str]) -> Option<String> {
+    probe::output(command, args, &CancelToken::default()).ok().flatten()
 }
 
 pub fn selected_output(

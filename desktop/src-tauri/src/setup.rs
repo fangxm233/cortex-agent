@@ -359,13 +359,15 @@ fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> 
         owner.token(),
         &|line| process::install_log(app, line),
     )?;
+    let server_version = runtime::install_server_version(
+        &selected, &home, &process::inherited_path(), owner.token(),
+    )?;
     let cortex_bin = selected
         .server
         .ok_or("CLI_NOT_ON_PATH")?
         .bin
         .to_string_lossy()
         .into_owned();
-    let server_version = probe_server_version(&cortex_bin);
     validate_server_version(server_version.as_deref())?;
     Ok(InstallResult {
         cortex_bin,

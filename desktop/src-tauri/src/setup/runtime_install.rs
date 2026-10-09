@@ -250,7 +250,7 @@ pub fn server_version(selected: &Selection, home: &Path, path: &OsStr) -> Option
         .or_else(|| super::selected_output(selected, home, path, program, &["daemon", "--version"]))
 }
 
-fn install_server_version(
+pub fn install_server_version(
     selected: &Selection,
     home: &Path,
     path: &OsStr,

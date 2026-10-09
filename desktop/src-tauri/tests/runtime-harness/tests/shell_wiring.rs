@@ -149,3 +149,21 @@ fn legacy_windows_discovery_keeps_cmd_exe_order_and_rejects_other_shims() {
     assert!(lookup.contains("path.ends_with(\".cmd\") || path.ends_with(\".exe\")"));
     assert!(!lookup.contains(".sort"));
 }
+
+#[test]
+fn final_install_probe_keeps_the_install_token() {
+    let install = section(SETUP, "fn install_server(", "/// `cortex init");
+    let managed = install.split("#[cfg(not(any(").next().unwrap();
+    assert!(managed.contains("runtime::install_server_version("));
+    assert!(!managed.contains("probe_server_version(&cortex_bin)"));
+}
+
+#[test]
+fn desktop_readonly_probes_use_bounded_runtime_output() {
+    let probe = section(PROCESS, "pub(super) fn probe_output(", "pub(super) fn probe_server_version");
+    assert!(probe.contains("super::runtime::output("));
+    let runtime = include_str!("../../../src/setup/runtime.rs");
+    let output = section(runtime, "pub fn output(", "pub fn selected_output(");
+    assert!(output.contains("probe::output("));
+    assert!(!output.contains(".output()"));
+}

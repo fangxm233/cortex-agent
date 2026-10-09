@@ -208,15 +208,14 @@ pub(super) fn run_streaming(
 
 /// Missing/failing probes mean "absent", not a wizard error.
 pub(super) fn probe_output(program: &str, args: &[&str]) -> Option<String> {
-    let out = setup_command(program, args).ok()?.output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    return super::runtime::output(setup_command(program, args).ok()?, &[]);
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        let out = setup_command(program, args).ok()?.output().ok()?;
+        out.status.success()
+            .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .filter(|text| !text.is_empty())
     }
 }
 
