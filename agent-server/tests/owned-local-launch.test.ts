@@ -35,35 +35,37 @@ test('already hello-online skips recovery and spawn', async () => {
 });
 test('concurrent starts single-flight recovery before one launch', async () => {
   const pending = Promise.all([gate.start('local'), gate.start('local'), gate.start('local')]);
-  await vi.advanceTimersByTimeAsync(1000);
+  await vi.advanceTimersByTimeAsync(35_000);
   await pending;
   expect(recover).toHaveBeenCalledTimes(1);
   expect(launch).toHaveBeenCalledTimes(1);
 });
-test('surviving PID gets bounded reconnect opportunity; real hello avoids spawn', async () => {
+test('surviving client at maximum reconnect backoff gets time for hello without a spawn', async () => {
   pidAlive.mockReturnValue(true);
   const pending = gate.start('local');
-  await vi.advanceTimersByTimeAsync(1000);
+  await vi.advanceTimersByTimeAsync(30_500);
   expect(launch).not.toHaveBeenCalled();
   online.mockReturnValue(true);
   await vi.advanceTimersByTimeAsync(250);
   await pending;
   expect(launch).not.toHaveBeenCalled();
 });
-test('a surviving self-updated client gets a reconnect window even when the old PID is gone', async () => {
+test('self-updated survivor at maximum backoff gets the same grace when its old PID is gone', async () => {
   pidAlive.mockReturnValue(false);
   const pending = gate.start('local');
-  await vi.advanceTimersByTimeAsync(500);
+  await vi.advanceTimersByTimeAsync(30_500);
   expect(launch).not.toHaveBeenCalled();
   online.mockReturnValue(true);
   await vi.advanceTimersByTimeAsync(250);
   await pending;
   expect(launch).not.toHaveBeenCalled();
 });
-test('reused live PID never suppresses launch forever', async () => {
-  pidAlive.mockReturnValue(true);
+test.each([true, false])('nonconnecting client eventually spawns with PID alive=%s', async alive => {
+  pidAlive.mockReturnValue(alive);
   const pending = gate.start('local');
-  await vi.advanceTimersByTimeAsync(5000);
+  await vi.advanceTimersByTimeAsync(34_750);
+  expect(launch).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(250);
   await pending;
   expect(launch).toHaveBeenCalledOnce();
 });
@@ -73,7 +75,7 @@ test('stop cancels reconnect wait and its continuation', async () => {
   await vi.advanceTimersByTimeAsync(500);
   gate.stop();
   await pending;
-  await vi.advanceTimersByTimeAsync(10000);
+  await vi.advanceTimersByTimeAsync(40_000);
   expect(launch).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
 });
@@ -88,7 +90,7 @@ test('stop while recovering prevents late spawn even after resume', async () => 
   await pending;
   expect(launch).not.toHaveBeenCalled();
   const retry = gate.start('local');
-  await vi.advanceTimersByTimeAsync(1000);
+  await vi.advanceTimersByTimeAsync(35_000);
   await retry;
   expect(launch).toHaveBeenCalledOnce();
 });
@@ -97,7 +99,7 @@ test('recovery failure is real and a later retry can proceed', async () => {
   await expect(gate.start('local')).rejects.toThrow('invalid payload');
   expect(launch).not.toHaveBeenCalled();
   const retry = gate.start('local');
-  await vi.advanceTimersByTimeAsync(1000);
+  await vi.advanceTimersByTimeAsync(35_000);
   await retry;
   expect(launch).toHaveBeenCalledOnce();
 });

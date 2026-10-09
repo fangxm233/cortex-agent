@@ -40,7 +40,7 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   vi.stubEnv('CORTEX_GIT_BASH_PATH', 'private-git/bash.exe');
   vi.stubEnv('npm_config_prefix', 'private-npm');
   const pending = Promise.all([startRemoteClient('local'), startRemoteClient('local')]);
-  await vi.advanceTimersByTimeAsync(1000);
+  await vi.advanceTimersByTimeAsync(35_000);
   await pending;
   expect(hooks.recover).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local', undefined, expect.any(AbortSignal));
   expect(hooks.spawn).toHaveBeenCalledOnce();
@@ -53,6 +53,17 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   expect(JSON.stringify(hooks.spawn.mock.calls[0].slice(0, 2))).not.toContain('isolated-token');
   expect(_getRestartTimerCount()).toBe(1);
 });
+test.each([process.pid, 2147483647, undefined])('30s-backoff survivor reconnects with recorded PID %s without a duplicate', async pid => {
+  writeFileSync(join(STORE_DIR, 'client-pids.json'), JSON.stringify({ local: pid }));
+  const pending = startRemoteClient('local');
+  await vi.advanceTimersByTimeAsync(30_500);
+  expect(hooks.spawn.mock.calls.length).toBe(0);
+  hooks.online.mockReturnValue(true);
+  await vi.advanceTimersByTimeAsync(250);
+  await pending;
+  expect(hooks.spawn).not.toHaveBeenCalled();
+  expect(_getRestartTimerCount()).toBe(0);
+});
 test('warm hello-online does not spawn or touch prepared files', async () => {
   hooks.online.mockReturnValue(true);
   await startRemoteClient('local');
@@ -64,7 +75,7 @@ test('bad payload recovery schedules existing retry without launching', async ()
   await startRemoteClient('local');
   expect(hooks.spawn).not.toHaveBeenCalled();
   expect(_getRestartTimerCount()).toBe(1);
-  await vi.advanceTimersByTimeAsync(61000);
+  await vi.advanceTimersByTimeAsync(95_000);
   expect(hooks.spawn).toHaveBeenCalledOnce();
 });
 test('hub stop cancels pending recovery continuation and does not rearm retries', async () => {
