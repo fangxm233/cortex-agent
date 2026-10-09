@@ -88,8 +88,18 @@ was removed would otherwise refuse every future update.
 └── previous/   # the prior version, kept for manual rollback
 ```
 
-Nothing is installed through npm on the device; the only requirement is Node.js.
-The server's bootstrap CLI installs the device files — it checks SSH and Node.js,
+New local desktop installations explicitly request client preparation during init.
+The server package carries the two client files built from the same source checkout;
+init prepares them under `<CORTEX_HOME>/client/current/` and creates the local client
+configuration. The server records ownership in `client/local-install.json` and
+recovers interrupted preparation when starting its client. Existing unowned client
+files or user-edited configuration are not taken over. Ordinary init and remote
+connections do not request this preparation. The local client uses the server's Node
+and selected environment, with the loopback WebSocket URL and token supplied at launch.
+App-only reopen preserves the running daemon; server startup handles client recovery.
+
+Nothing is installed through npm on a remote device; the only requirement is Node.js.
+The server's bootstrap CLI installs the remote device files — it checks SSH and Node.js,
 ships the bundle into `~/.cortex/client/current/`, and writes the client config.
 It does not start the client or create a device-side service:
 
@@ -417,13 +427,15 @@ clients:
 
 ## Client updates
 
-Clients update themselves; the server only publishes the desired bundle. At
-startup the server resolves that bundle — in dev mode by building the client
-repo with esbuild, in release mode by fetching the latest published
-`@cortex-agent/client` from npm (cached per version) — and computes its hash.
-Every device hello carries the client's own bundle hash; when it differs from
-the desired hash, the server pushes an `update` message with the complete
-artifact over the existing WebSocket.
+Clients update themselves; the server publishes the desired bundle. For an
+App-enrolled local client, that bundle comes from the installed server package,
+with its ordered file hash verified; a missing or invalid payload does not fall
+back to npm. For other clients, dev mode builds the client repo with esbuild and
+release mode fetches the latest published `@cortex-agent/client` from npm (cached
+per version). Every device hello carries the client's own bundle hash; when it
+differs from the desired hash, the server pushes an `update` message with the
+complete artifact over the existing WebSocket. With client hot reload disabled,
+an existing local client version is preserved rather than replaced during preparation.
 
 The client writes the files into `~/.cortex/client/next/`, verifies the hash,
 rotates `current/` to `previous/` and `next/` to `current/`, reports

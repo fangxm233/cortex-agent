@@ -72,7 +72,9 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 └── previous/   # 上一个版本，保留用于手动回滚
 ```
 
-设备上不经由 npm 安装任何东西；唯一要求是 Node.js。服务器的 bootstrap CLI 只安装设备文件——检查 SSH 与 Node.js、把 bundle 传到 `~/.cortex/client/current/` 并写入客户端配置。它不会启动 client，也不会创建设备侧 service：
+新本地桌面安装会在 init 中显式请求准备 client。Server 包携带同一源码构建的两个 client 文件；init 将其准备到 `<CORTEX_HOME>/client/current/` 并创建本机 client 配置。Server 在 `client/local-install.json` 中记录所有权，启动 client 时恢复中断的准备；不接管无所有权记录的已有文件或用户修改的配置。普通 init 和远端连接不请求这项准备。本机 client 使用 server 的 Node 和选定环境，启动时注入 loopback WebSocket 地址与 token。仅重开 App 保留运行中的 daemon，server 启动负责恢复 client。
+
+远端设备上不经由 npm 安装任何东西；唯一要求是 Node.js。服务器的 bootstrap CLI 只安装远端设备文件——检查 SSH 与 Node.js、把 bundle 传到 `~/.cortex/client/current/` 并写入客户端配置。它不会启动 client，也不会创建设备侧 service：
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
@@ -305,7 +307,7 @@ agent-server `domain/remote/` 下的两个模块共同管理远程客户端生�
 
 ## 客户端更新 {#client-updates}
 
-客户端自我更新；服务器只负责发布期望的 bundle。服务器启动时解析该 bundle——dev 模式用 esbuild 从 client repo 构建，release 模式从 npm 拉取最新发布的 `@cortex-agent/client`（按版本缓存）——并计算其 hash。每个设备的 hello 携带客户端自己的 bundle hash；与期望 hash 不一致时，服务器通过既有 WebSocket 推送带完整 artifact 的 `update` 消息。
+客户端自我更新；服务器负责发布期望的 bundle。App 显式登记的托管本机 client 使用已安装 server 包中的 bundle，并校验两文件的有序 hash；payload 缺失或无效时不回退到 npm。其他 client 在 dev 模式用 esbuild 从 client repo 构建，在 release 模式从 npm 拉取最新发布的 `@cortex-agent/client`（按版本缓存）。每个设备的 hello 携带客户端自己的 bundle hash；与期望 hash 不一致时，服务器通过既有 WebSocket 推送带完整 artifact 的 `update` 消息。关闭 client hot reload 时保留已有本机 client 版本，准备过程不替换它。
 
 客户端把文件写入 `~/.cortex/client/next/`、校验 hash、把 `current/` 轮换到 `previous/`、`next/` 轮换到 `current/`，回报 `update-result`，关闭 socket，从 `current/` 生成后继进程并退出。后继进程带新 hash 重连，服务器据此记录收敛。任何失败（hash 错误、磁盘不可写）都不触碰正在运行的版本——设备继续以旧 bundle 在线，服务器得知原因。同一设备上失败的安装 10 分钟内不重试。
 
