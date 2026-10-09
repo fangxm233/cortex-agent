@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 const hooks = vi.hoisted(() => ({
-  spawn: vi.fn(), recover: vi.fn(async () => {}), intent: vi.fn(), online: vi.fn(() => false),
+  spawn: vi.fn(), recover: vi.fn(async () => {}), markAttempt: vi.fn(async () => {}), intent: vi.fn(), online: vi.fn(() => false),
   port: vi.fn(() => 4312), lifecycle: null as null | { onStart(): void; onStop(): Promise<void> },
 }));
 vi.mock('child_process', async original => ({ ...await original<typeof import('child_process')>(), spawn: hooks.spawn }));
@@ -12,6 +12,7 @@ vi.mock('../src/domain/remote/client-manager.js', () => ({
 vi.mock('../src/domain/remote/local-client-install.js', async original => ({
   ...await original<typeof import('../src/domain/remote/local-client-install.js')>(),
   readLocalClientIntent: hooks.intent, completeLocalClientInstall: hooks.recover,
+  markLocalClientLaunchAttempted: hooks.markAttempt,
 }));
 import { DATA_DIR, CONFIG_DIR, STORE_DIR } from '../src/core/paths.js';
 import { captureAuthTokensForRuntime } from '../src/core/auth.js';
@@ -52,6 +53,17 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   }));
   expect(JSON.stringify(hooks.spawn.mock.calls[0].slice(0, 2))).not.toContain('isolated-token');
   expect(_getRestartTimerCount()).toBe(1);
+});
+test('fresh enrolled lifecycle launches without reconnect delay after persisting the attempt', async () => {
+  hooks.intent.mockReturnValue({ device: 'local', launchAttempted: false });
+  hooks.spawn.mockImplementationOnce(() => {
+    expect(hooks.markAttempt).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local', expect.any(AbortSignal));
+    return Object.assign(new EventEmitter(), { unref: vi.fn() });
+  });
+  const pending = startRemoteClient('local');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(hooks.spawn).toHaveBeenCalledOnce();
+  await pending;
 });
 test.each([process.pid, 2147483647, undefined])('30s-backoff survivor reconnects with recorded PID %s without a duplicate', async pid => {
   writeFileSync(join(STORE_DIR, 'client-pids.json'), JSON.stringify({ local: pid }));

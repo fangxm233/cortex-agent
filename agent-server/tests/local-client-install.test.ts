@@ -3,8 +3,9 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
+import { OwnedLocalLaunchGate } from '../src/domain/remote/owned-local-launch.js';
 import { loadPackageClientBundle } from '../src/domain/remote/package-client-bundle.js';
-import { beginLocalClientInstall, completeLocalClientInstall, readLocalClientIntent } from '../src/domain/remote/local-client-install.js';
+import { beginLocalClientInstall, completeLocalClientInstall, markLocalClientLaunchAttempted, readLocalClientIntent } from '../src/domain/remote/local-client-install.js';
 
 vi.mock('node:fs', async original => {
   const actual = await original<typeof import('node:fs')>();
@@ -109,6 +110,75 @@ test('explicit intent precedes config writes and daemon can finish it without in
   expect(readLocalClientIntent(paths)?.state).toBe('ready');
   expect(fs.readFileSync(path.join(paths.DATA_DIR, 'client/current/client.mjs'), 'utf8')).toContain('one');
   expect(JSON.parse(fs.readFileSync(path.join(paths.CONFIG_DIR, 'cortex-client.json'), 'utf8'))).toEqual({ deviceName: 'local', serverHost: '127.0.0.1', serverPort: 3002 });
+});
+test('fresh enrollment and recovery preserve provably never-attempted launch history', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  expect(readLocalClientIntent(paths)).toMatchObject({ state: 'pending', launchAttempted: false });
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  expect(readLocalClientIntent(paths)).toMatchObject({ state: 'ready', launchAttempted: false });
+});
+test.each([undefined, false, true])('recovery preserves launch history %s', async launchAttempted => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  const file = path.join(paths.DATA_DIR, 'client/local-install.json');
+  fs.writeFileSync(file, JSON.stringify({ ...readLocalClientIntent(paths), launchAttempted }));
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  expect(readLocalClientIntent(paths)?.launchAttempted).toBe(launchAttempted);
+});
+test.each([null, 0, 'false', {}])('rejects invalid optional launchAttempted %j', async launchAttempted => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  const file = path.join(paths.DATA_DIR, 'client/local-install.json');
+  fs.writeFileSync(file, JSON.stringify({ ...readLocalClientIntent(paths), launchAttempted }));
+  expect(() => readLocalClientIntent(paths)).toThrow(/ownership/i);
+});
+test('attempt marker is committed under the existing lock and survives restart before spawn', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  const { renameSync } = await vi.importActual<typeof import('node:fs')>('node:fs');
+  vi.mocked(fs.renameSync).mockImplementationOnce((from, to) => {
+    expect(fs.statSync(`${to}.mutation-lock`).isDirectory()).toBe(true);
+    expect(JSON.parse(fs.readFileSync(from, 'utf8')).launchAttempted).toBe(true);
+    renameSync(from, to);
+  });
+  const gate = new OwnedLocalLaunchGate({
+    online: () => false,
+    recover: async () => readLocalClientIntent(paths)?.launchAttempted,
+    markLaunchAttempted: (device, signal) => markLocalClientLaunchAttempted(paths, device, signal),
+    launch: () => {
+      expect(readLocalClientIntent(paths)?.launchAttempted).toBe(true);
+      throw new Error('interrupted before child spawn');
+    },
+  });
+  try { await expect(gate.start('local')).rejects.toThrow('interrupted before child spawn'); }
+  finally { gate.stop(); }
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  expect(readLocalClientIntent(paths)?.launchAttempted).toBe(true);
+  vi.useFakeTimers();
+  const launch = vi.fn();
+  const restarted = new OwnedLocalLaunchGate({ online: () => false,
+    recover: async () => readLocalClientIntent(paths)?.launchAttempted,
+    markLaunchAttempted: async () => {}, launch });
+  try {
+    const pending = restarted.start('local');
+    await vi.advanceTimersByTimeAsync(34_750);
+    expect(launch).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(250);
+    await pending;
+    expect(launch).toHaveBeenCalledOnce();
+  } finally { restarted.stop(); vi.useRealTimers(); }
+});
+test('cancelled attempt persistence leaves fresh history unchanged', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  const controller = new AbortController();
+  const pending = markLocalClientLaunchAttempted(paths, 'local', controller.signal);
+  controller.abort();
+  await expect(pending).rejects.toThrow(/abort/i);
+  expect(readLocalClientIntent(paths)?.launchAttempted).toBe(false);
+});
+test('attempt marker cannot claim a different device', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  await expect(markLocalClientLaunchAttempted(paths, 'other', new AbortController().signal)).rejects.toThrow(/different device/);
+  expect(readLocalClientIntent(paths)?.launchAttempted).toBe(false);
 });
 test('concurrent explicit preparation is idempotent', async () => {
   await Promise.all([beginLocalClientInstall(paths, 'local', installRoot), beginLocalClientInstall(paths, 'local', installRoot)]);

@@ -2,14 +2,16 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { OwnedLocalLaunchGate, ownedLocalEnvironment } from '../src/domain/remote/owned-local-launch.js';
 
 const online = vi.fn(() => false);
-const recover = vi.fn(async (_device: string) => {});
+const recover = vi.fn(async (_device: string): Promise<boolean | undefined> => undefined);
+const markLaunchAttempted = vi.fn(async (_device: string, _signal: AbortSignal) => {});
 const launch = vi.fn((_device: string) => {});
 let gate: OwnedLocalLaunchGate;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   online.mockReturnValue(false);
-  gate = new OwnedLocalLaunchGate({ online, recover, launch });
+  recover.mockResolvedValue(undefined);
+  gate = new OwnedLocalLaunchGate({ online, recover, markLaunchAttempted, launch });
 });
 afterEach(() => { gate.stop(); vi.useRealTimers(); });
 
@@ -38,7 +40,8 @@ test('concurrent starts single-flight recovery before one launch', async () => {
   expect(recover).toHaveBeenCalledTimes(1);
   expect(launch).toHaveBeenCalledTimes(1);
 });
-test('surviving client at maximum reconnect backoff gets time for hello without a spawn', async () => {
+test.each([undefined, true])('launch history %s allows a 30s-backoff survivor to reconnect', async history => {
+  recover.mockResolvedValue(history);
   const pending = gate.start('local');
   await vi.advanceTimersByTimeAsync(30_500);
   expect(launch).not.toHaveBeenCalled();
@@ -47,7 +50,8 @@ test('surviving client at maximum reconnect backoff gets time for hello without 
   await pending;
   expect(launch).not.toHaveBeenCalled();
 });
-test('nonconnecting client eventually spawns after the bounded reconnect grace', async () => {
+test.each([undefined, true])('launch history %s keeps the full 35s grace when offline', async history => {
+  recover.mockResolvedValue(history);
   const pending = gate.start('local');
   await vi.advanceTimersByTimeAsync(34_750);
   expect(launch).not.toHaveBeenCalled();
@@ -66,7 +70,7 @@ test('stop cancels reconnect wait and its continuation', async () => {
 });
 test('stop while recovering prevents late spawn even after resume', async () => {
   let finish!: () => void;
-  recover.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  recover.mockImplementationOnce(() => new Promise<undefined>(resolve => { finish = () => resolve(undefined); }));
   const pending = gate.start('local');
   gate.stop();
   expect(recover).toHaveBeenCalledWith('local', expect.objectContaining({ aborted: true }));
@@ -78,6 +82,42 @@ test('stop while recovering prevents late spawn even after resume', async () => 
   await vi.advanceTimersByTimeAsync(35_000);
   await retry;
   expect(launch).toHaveBeenCalledOnce();
+});
+test('fresh intent skips grace, single-flights and awaits the durable attempt before spawning', async () => {
+  recover.mockResolvedValue(false);
+  let finish!: () => void;
+  markLaunchAttempted.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  const pending = Promise.all([gate.start('local'), gate.start('local')]);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(markLaunchAttempted).toHaveBeenCalledOnce();
+  expect(launch).not.toHaveBeenCalled();
+  finish();
+  await pending;
+  expect(launch).toHaveBeenCalledOnce();
+  expect(vi.getTimerCount()).toBe(0);
+});
+test.each(['stop', 'online'])('%s during the durable attempt latch prevents late spawn', async action => {
+  recover.mockResolvedValue(false);
+  let finish!: () => void;
+  markLaunchAttempted.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  const pending = gate.start('local');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(markLaunchAttempted).toHaveBeenCalledWith('local', expect.any(AbortSignal));
+  if (action === 'stop') { gate.stop(); gate.resume(); }
+  else online.mockReturnValue(true);
+  finish();
+  await pending;
+  expect(launch).not.toHaveBeenCalled();
+});
+test('attempt persistence failure prevents spawn', async () => {
+  recover.mockResolvedValue(false);
+  markLaunchAttempted.mockRejectedValueOnce(new Error('intent write failed'));
+  const pending = gate.start('local');
+  await Promise.all([
+    expect(pending).rejects.toThrow('intent write failed'),
+    vi.advanceTimersByTimeAsync(35_000),
+  ]);
+  expect(launch).not.toHaveBeenCalled();
 });
 test('recovery failure is real and a later retry can proceed', async () => {
   recover.mockRejectedValueOnce(new Error('invalid payload'));
