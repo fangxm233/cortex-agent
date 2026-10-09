@@ -16,7 +16,7 @@ const log = createLogger('background-hold');
 
 /** Owner key of the Claude background-continuation hold. One per session: a session has at most
  *  one turn whose continuation is being awaited. */
-const HOLD_OWNER_BG_CONTINUATION = 'bg-continuation';
+export const HOLD_OWNER_BG_CONTINUATION = 'bg-continuation';
 
 // ── the hold itself ───────────────────────────────────────────────────────────
 

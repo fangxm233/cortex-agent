@@ -65,8 +65,9 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
     + 'you consume immediately, use the one-shot `agent` tool instead. Write a self-contained prompt: '
     + 'the worker does not see this conversation. The worker keeps your current model unless you pass '
     + 'backend or model. The user can open the worker and talk to it directly. '
-    + 'Each worker turn reports back to you with its final reply; its questions and plan approvals are '
-    + `routed to you (answer with worker_answer). ${NON_BLOCKING}`,
+    + 'The worker reports back with its final reply once it has finished with nothing left running or '
+    + 'waited on; its questions and plan approvals are routed to you (answer with worker_answer). '
+    + NON_BLOCKING,
     {
       name: z.string().describe('Short unique slug for this worker, e.g. "api-refactor" (lowercase letters, digits, hyphens; max 32).'),
       prompt: z.string().describe('Complete, self-contained task for the worker.'),

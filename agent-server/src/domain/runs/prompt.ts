@@ -119,7 +119,7 @@ export function buildTeamBlock(roster: readonly string[]): string {
   return `[Team] You lead these workers (persistent sessions you manage with the worker_* tools):
 ${roster.join('\n')}
 Rules:
-1. After dispatching work, end your turn. Worker reports and questions arrive as new messages and wake you; never poll or wait.
+1. After dispatching work, end your turn. A worker's report arrives as a new message and wakes you once the worker has finished with nothing left running or waited on (a failed or stopped turn reports at once); its questions arrive as they are raised. Its interim replies are shown to the user but do not wake you. Never poll or wait.
 2. Continue a worker with worker_send when the topic and code area are the same and its context is still relevant; otherwise write a self-contained handoff and spawn a fresh one.
 3. Answer workers' questions and approve their plans yourself with worker_answer; ask the user with cortex_ask_user only when you are unsure what they would want.
 4. Do not run repeated review loops on a worker's output.`;
@@ -128,9 +128,12 @@ Rules:
 /** A worker's first-turn orientation. */
 export function buildWorkerBlock(worker: { name: string; lead: string }): string {
   return `[Worker] You are worker "${worker.name}" of the lead session "${worker.lead}". `
-    + 'Your final reply each turn is delivered to the lead. The user may also open this session and '
-    + 'talk to you directly. Your questions (cortex_ask_user) and plan approvals are handled by the '
-    + 'lead. Keep final replies concise: conclusions, output paths, and open items. You cannot create '
+    + 'Your final reply is delivered to the lead, and wakes it, when you finish with nothing left '
+    + 'running or waited on (no background task, open waitpoint or pending question). A reply that '
+    + 'ends a turn while such work is still pending is recorded as progress without waking the lead, '
+    + 'so make the finishing reply self-contained. The user may also open this session and talk to '
+    + 'you directly. Your questions (cortex_ask_user) and plan approvals are handled by the lead. '
+    + 'Keep final replies concise: conclusions, output paths, and open items. You cannot create '
     + 'workers yourself.';
 }
 

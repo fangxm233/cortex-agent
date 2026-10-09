@@ -130,3 +130,48 @@ test('replaying deltas converges on exactly the whole transcript, append after a
   );
   assert.notEqual(afterRewind.cursor!.split(':')[0], cursor!.split(':')[0]);
 });
+
+test('team rows read back on whole and delta reads: tool rows keep their action, progress opens no turn', async () => {
+  const repo = new ConversationHistoryRepo(DIR);
+  const sid = 'sess-team-rows';
+  const deps = makeUiDeps({ conversationHistory: repo } as UiDepsOverrides);
+  const read = (since?: string) =>
+    handleSessionsTranscript(deps, { sessionId: sid, compactSubagents: true, ...(since ? { since } : {}) });
+  const worker = { name: 'alpha', sessionId: 'w-1' };
+  const teamAction = { op: 'spawn' as const, worker: 'alpha', text: 'Train the model', model: 'pi' };
+
+  await repo.clear(sid);
+  await repo.appendUser(sid, { text: 'start a worker', ts: '2026-10-01T00:00:00.000Z' });
+  await repo.appendTool(sid, {
+    toolName: 'mcp__cortex-workers__worker_spawn', toolInput: 'Train the model', teamAction,
+    ts: '2026-10-01T00:00:01.000Z', toolUseId: 'toolu-spawn',
+  });
+  await repo.appendAssistant(sid, { text: 'Started alpha.', ts: '2026-10-01T00:00:02.000Z' });
+  let transcript = await read();
+  let rows = flatten(transcript);
+  const cursor = transcript.cursor;
+
+  await repo.appendWorkerProgress(sid, { text: 'Job submitted.', worker, ts: '2026-10-01T00:00:03.000Z' });
+  transcript = await read(cursor);
+  assert.deepEqual(transcript.delta!.changed.map((row) => row.message.type), ['worker-progress'], 'the delta carries the new row');
+  rows = applyDelta(rows, transcript);
+  const whole = await read();
+  assert.deepEqual(rows, flatten(whole));
+
+  assert.deepEqual(whole.turns.map((turn) => turn.turnIndex), [0], 'a progress row is not a turn');
+  const [user, tool, assistant, progress] = whole.turns[0].messages;
+  assert.equal(user.type, 'user');
+  assert.deepEqual(tool.teamAction, teamAction);
+  assert.equal(assistant.text, 'Started alpha.');
+  assert.deepEqual(
+    { type: progress.type, text: progress.text, worker: progress.worker, toolName: progress.toolName },
+    { type: 'worker-progress', text: 'Job submitted.', worker, toolName: null },
+  );
+  const full = await handleSessionsTranscript(deps, { sessionId: sid });
+  assert.deepEqual(full.turns[0].messages.at(-1)!.worker, worker, 'the uncompacted read carries it too');
+
+  await repo.appendUser(sid, { text: 'next', ts: '2026-10-01T00:00:04.000Z' });
+  await repo.truncateFromTurn(sid, 1);
+  const afterRewind = await read();
+  assert.equal(afterRewind.turns[0].messages.at(-1)!.type, 'worker-progress', 'rewinding a later turn keeps it');
+});

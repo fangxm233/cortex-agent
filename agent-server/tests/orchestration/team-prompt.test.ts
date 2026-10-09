@@ -7,7 +7,7 @@ import type { WorkerView } from '../../src/orchestration/team-state.js';
 
 function view(name: string, extra: Partial<WorkerView> = {}): WorkerView {
   return {
-    name, sessionId: `s-${name}`, channel: `web:s-${name}`, status: 'idle', waitingOn: [], brief: 'Fix the flaky test',
+    name, sessionId: `s-${name}`, channel: `web:s-${name}`, status: 'idle', waitingOn: [], waitpoints: 0, brief: 'Fix the flaky test',
     lastReport: { status: 'completed', text: 'done', at: 0 }, userTouched: false, retired: false,
     ...extra,
   };

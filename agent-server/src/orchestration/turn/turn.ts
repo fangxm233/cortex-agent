@@ -469,6 +469,8 @@ export class Turn {
     publishSessionTurnCompleted({
       sessionId: this.sessionId, channel: this.channel, ...this.ending,
       trigger: this.input.origin ?? this.input.trigger,
+      // A held turn reports from its seal, after the queue slot it ran in was released.
+      held: this.bgHeld,
     });
   }
 

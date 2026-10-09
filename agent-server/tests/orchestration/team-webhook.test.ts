@@ -2,7 +2,9 @@ import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resetSettingsForTests } from '../../src/core/settings.js';
 import { handleTeamWebhook, type TeamWebhookDeps } from '../../src/orchestration/team-webhook.js';
-import { _resetTeamState, describeTeam, type WorkerViewDeps } from '../../src/orchestration/team-state.js';
+import {
+  _resetTeamState, clearDispatch, describeTeam, noteWorkerRequest, workerNameForRequest, type WorkerViewDeps,
+} from '../../src/orchestration/team-state.js';
 import { MAX_RUNNING_WORKERS } from '../../src/domain/sessions/team.js';
 import type {
   ApplySelectionRequest, ApplySelectionResult, ChannelSelection,
@@ -20,6 +22,7 @@ interface World {
   sessions: Map<string, any>;
   running: Set<string>;
   pending: Map<string, { id: string }[]>;
+  waitpoints: Map<string, number>;
   delivered: Array<{ channel: string; text: string; origin: string }>;
   cancelled: string[];
   answered: any[];
@@ -39,6 +42,7 @@ function world(): World {
     sessions: new Map<string, any>([['lead', session('lead')]]),
     running: new Set<string>(),
     pending: new Map<string, { id: string }[]>(),
+    waitpoints: new Map<string, number>(),
     delivered: [] as World['delivered'],
     cancelled: [] as string[],
     answered: [] as any[],
@@ -57,6 +61,7 @@ function world(): World {
     isRunning: (id) => w.running.has(id),
     isQueued: () => false,
     pendingInteractions: (channel) => w.pending.get(channel) ?? [],
+    openWaitpoints: async (id) => w.waitpoints.get(id) ?? 0,
     history: async () => null,
     now: () => 0,
   };
@@ -220,6 +225,28 @@ test('list with a name shows the worker detail; waiting lists its request ids', 
   assert.match(text, /^Model: claude claude-opus-5:high$/m);
   assert.match(text, /Brief: Investigate the flake/);
   assert.match(text, /No report yet/);
+});
+
+test('a worker with no turn running but an open waitpoint is waiting on external, not idle', async () => {
+  const w = world();
+  await call(w, { action: 'spawn', name: 'alpha', prompt: 'Train the model' });
+  clearDispatch('w1');
+  assert.match(((await call(w, { action: 'list' })).data as any).text, /^- alpha · idle · /m);
+  w.waitpoints.set('w1', 2);
+  assert.match(((await call(w, { action: 'list' })).data as any).text, /^- alpha · waiting on external \(2 waitpoints\) · /m);
+  assert.match(((await call(w, { action: 'list', worker: 'alpha' })).data as any).text, /^Status: waiting on external \(2 waitpoints\)$/m);
+  w.running.add('w1');
+  assert.match(((await call(w, { action: 'list' })).data as any).text, /^- alpha · running · /m, 'a running turn wins');
+});
+
+test('a forwarded request names its worker; an unknown one falls back to the interaction session', async () => {
+  const w = world();
+  await call(w, { action: 'spawn', name: 'alpha', prompt: 'p' });
+  await call(w, { action: 'list' });
+  noteWorkerRequest('req-a', 'beta');
+  assert.equal(workerNameForRequest('req-a', () => null), 'beta');
+  assert.equal(workerNameForRequest('req-b', (id) => (id === 'req-b' ? 'w1' : null)), 'alpha');
+  assert.equal(workerNameForRequest('req-c', () => null), null);
 });
 
 test('answer only resolves requests raised by this lead’s own workers, by kind', async () => {

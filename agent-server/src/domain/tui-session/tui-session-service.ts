@@ -35,11 +35,13 @@ async function assembleTranscript(
   const hist = await deps.conversationHistory.getHistory(sessionId);
   if (!hist || hist.events.length === 0) return null;
 
-  const messages: TranscriptMessage[] = hist.events.map((e) =>
-    e.type === 'tool'
+  // A worker's interim reply is shown in its lead's web chat only; the TUI replays the turns.
+  const messages: TranscriptMessage[] = hist.events.flatMap((e): TranscriptMessage[] => {
+    if (e.type === 'worker-progress') return [];
+    return [e.type === 'tool'
       ? { role: 'tool' as const, text: '', toolName: e.toolName ?? '', toolInput: e.toolInput ?? '' }
-      : { role: e.type, text: e.text ?? '' },
-  );
+      : { role: e.type, text: e.text ?? '' }];
+  });
 
   return { sessionId, messages };
 }

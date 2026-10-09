@@ -235,6 +235,7 @@ function pushTool(state: ParseState, ev: RawEvent, chars: number): void {
     toolName: ev.toolName ?? '',
     toolInput: ev.toolInput ?? '',
     ...(ev.toolDevice ? { toolDevice: ev.toolDevice } : {}),
+    ...(ev.teamAction ? { teamAction: ev.teamAction } : {}),
     ts: ev.ts,
     turnIndex: turnFor(state),
     ...(debug ? { debug } : {}),
@@ -243,6 +244,14 @@ function pushTool(state: ParseState, ev: RawEvent, chars: number): void {
   };
   const index = pushEvent(state, tool);
   if (ev.toolUseId) state.toolByUseId.set(ev.toolUseId, index);
+}
+
+/** A worker's interim reply in its lead's history: a row of the current turn, never a boundary. */
+function pushWorkerProgress(state: ParseState, ev: RawEvent): void {
+  if (!ev.worker) return;
+  pushEvent(state, {
+    type: 'worker-progress', text: ev.text ?? '', worker: ev.worker, ts: ev.ts, turnIndex: turnFor(state),
+  });
 }
 
 function mergeResolvedInteraction(prior: HistoryEvent, ev: RawEvent): void {
@@ -300,6 +309,7 @@ function consumeParsedEvent(state: ParseState, ev: RawEvent, chars: number): voi
   if (ev.type === 'user') return pushUser(state, ev);
   if (ev.type === 'assistant') return pushAssistant(state, ev);
   if (ev.type === 'tool') return pushTool(state, ev, chars);
+  if (ev.type === 'worker-progress') return pushWorkerProgress(state, ev);
   pushInteraction(state, ev);
 }
 

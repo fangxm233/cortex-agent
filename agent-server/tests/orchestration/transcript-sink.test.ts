@@ -129,6 +129,35 @@ test('tool_use attributes a subagent call and its spawn prompt', () => {
   assert.equal(h.published[0].subagentType, 'explore');
 });
 
+test('a lead worker call carries its team action on the row and the live event, whatever DEBUG says', () => {
+  const h = harness({ deps: { workerForRequest: (id) => (id === 'req-7' ? 'alpha' : null) } });
+  h.sink.onEvent({
+    type: 'tool_use', toolUseId: 'tu-send', name: 'mcp__cortex-workers__worker_send',
+    input: { worker: 'alpha', message: 'Also cover the edge case' }, phase: 'foreground',
+  });
+  h.sink.onEvent({
+    type: 'tool_use', toolUseId: 'tu-answer', name: 'mcp__cortex-workers__worker_answer',
+    input: { request_id: 'req-7', approved: true }, phase: 'foreground',
+  });
+  h.sink.onEvent({
+    type: 'tool_use', toolUseId: 'tu-list', name: 'mcp__cortex-workers__worker_list', input: {}, phase: 'foreground',
+  });
+  const send = { op: 'send', worker: 'alpha', text: 'Also cover the edge case' };
+  const answer = { op: 'answer', worker: 'alpha', approved: true };
+  assert.deepEqual(h.history.map((c) => c.opts.teamAction), [send, answer, undefined]);
+  assert.deepEqual(h.published.map((p) => p.teamAction), [send, answer, undefined]);
+  assert.equal(h.history[0].opts.fullInput, undefined, 'the team action does not need DEBUG');
+});
+
+test('a subagent calling a tool of the same name carries no team action', () => {
+  const h = harness();
+  h.sink.onEvent({
+    type: 'tool_use', toolUseId: 'tu-sub-send', name: 'worker_send', input: { worker: 'alpha', message: 'x' },
+    subagent, phase: 'foreground',
+  });
+  assert.equal(h.history[0].opts.teamAction, undefined);
+});
+
 // ── tool_result ──────────────────────────────────────────────────────────────
 
 test('tool_result persists the full result and refreshes the transcript only in DEBUG mode', async () => {

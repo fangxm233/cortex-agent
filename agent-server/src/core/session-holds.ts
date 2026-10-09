@@ -136,6 +136,11 @@ export class SessionHolds {
     return false;
   }
 
+  /** The owners still holding this session (`bg-continuation`, `agent-run:<id>`, ...). */
+  holdOwners(sessionId: string): string[] {
+    return [...(this.holds.get(sessionId)?.keys() ?? [])];
+  }
+
   /** Drop one owner's handles (its work settled). Leaves the other owners holding the session. */
   dropHoldHandles(sessionId: string, owner: string): void {
     const byOwner = this.holds.get(sessionId);

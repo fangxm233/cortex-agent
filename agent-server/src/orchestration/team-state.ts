@@ -8,6 +8,8 @@
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationHistory, type SessionHistory } from '@store/conversation-history-repo.js';
+import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
+import { ownsWaitpoint } from '@domain/waitpoints/view.js';
 import { sessionState } from '@core/session-state.js';
 import { conduitQueues } from './conduit-queue.js';
 import { interactionRecords, type InteractionIndexEntry } from './interactions/interaction-records.js';
@@ -21,7 +23,9 @@ export interface WorkerReport {
   at: number;
 }
 
-export type WorkerStatus = 'running' | 'idle' | 'waiting' | 'error' | 'retired';
+/** `waiting`: on a question or plan of its own. `external`: no turn running, but an open
+ *  waitpoint will wake it. */
+export type WorkerStatus = 'running' | 'idle' | 'waiting' | 'external' | 'error' | 'retired';
 
 export interface WorkerView {
   name: string;
@@ -30,6 +34,8 @@ export interface WorkerView {
   status: WorkerStatus;
   /** Pending interaction ids, when `waiting`. */
   waitingOn: string[];
+  /** Open waitpoints the worker armed (armed, or fired with the wake not yet delivered). */
+  waitpoints: number;
   brief: string | null;
   lastReport: WorkerReport | null;
   userTouched: boolean;
@@ -45,6 +51,11 @@ const briefs = new Map<string, string>();
 const userTouched = new Set<string>();
 const dispatchedAt = new Map<string, number>();
 const historyLoaded = new Set<string>();
+/** sessionId → worker name, learned whenever a worker is described. */
+const workerNames = new Map<string, string>();
+/** Request id of a forwarded question or plan → the worker that raised it. */
+const requestWorkers = new Map<string, string>();
+const REQUEST_WORKERS_MAX = 500;
 
 export function briefOf(prompt: string): string {
   const line = prompt.split('\n').map(l => l.trim()).find(Boolean) ?? '';
@@ -74,14 +85,46 @@ export function recordWorkerReport(workerId: string, report: WorkerReport): void
   reports.set(workerId, report);
 }
 
+/** A worker's question or plan was forwarded to its lead under this request id. */
+export function noteWorkerRequest(requestId: string, workerName: string): void {
+  requestWorkers.delete(requestId);
+  requestWorkers.set(requestId, workerName);
+  if (requestWorkers.size > REQUEST_WORKERS_MAX) requestWorkers.delete(requestWorkers.keys().next().value!);
+}
+
+/** The worker behind a request id the lead answers, or null when it is not known. Falls back to
+ *  the interaction's session for a request forwarded before a restart. */
+export function workerNameForRequest(
+  requestId: string,
+  sessionOfRequest: (id: string) => string | null = (id) => interactionRecords.get(id)?.sessionId ?? null,
+): string | null {
+  const known = requestWorkers.get(requestId);
+  if (known) return known;
+  const sessionId = sessionOfRequest(requestId);
+  return sessionId ? workerNames.get(sessionId) ?? null : null;
+}
+
 export function _resetTeamState(): void {
   reports.clear(); briefs.clear(); userTouched.clear(); dispatchedAt.clear(); historyLoaded.clear();
+  workerNames.clear(); requestWorkers.clear();
+}
+
+/** A waitpoint that will still wake its owner: armed, or fired with the wake not yet delivered. */
+export function isOpenWaitpoint(wp: Waitpoint): boolean {
+  return wp.state === 'armed' || wp.delivery.pending;
+}
+
+/** How many open waitpoints this session owns (the ownership rule `SessionInfo.waitingOn` uses). */
+export async function countOpenWaitpoints(sessionId: string, channel: string | null): Promise<number> {
+  const all = await waitpointRepo.list();
+  return all.filter(wp => isOpenWaitpoint(wp) && ownsWaitpoint(wp, sessionId, channel)).length;
 }
 
 export interface WorkerViewDeps {
   isRunning: (sessionId: string) => boolean;
   isQueued: (channel: string) => boolean;
   pendingInteractions: (channel: string) => Pick<InteractionIndexEntry, 'id'>[];
+  openWaitpoints: (sessionId: string, channel: string) => Promise<number>;
   history: (sessionId: string) => Promise<SessionHistory | null>;
   now: () => number;
 }
@@ -90,6 +133,7 @@ const defaultViewDeps: WorkerViewDeps = {
   isRunning: (id) => sessionState(id).running,
   isQueued: (channel) => conduitQueues.has(channel),
   pendingInteractions: (channel) => interactionRecords.getPendingByChannel(channel),
+  openWaitpoints: (id, channel) => countOpenWaitpoints(id, channel),
   history: (id) => conversationHistory.getHistory(id, { includeToolDebug: false }),
   now: () => Date.now(),
 };
@@ -117,25 +161,34 @@ async function recoverFromHistory(worker: Session, deps: WorkerViewDeps): Promis
   }
 }
 
-export async function describeWorker(worker: Session, deps: WorkerViewDeps = defaultViewDeps): Promise<WorkerView> {
+/** `running` overrides the live busy test: a report written as a turn ends knows better than the
+ *  run registry, which still holds the ending turn. */
+export async function describeWorker(
+  worker: Session, deps: WorkerViewDeps = defaultViewDeps, opts: { running?: boolean } = {},
+): Promise<WorkerView> {
   await recoverFromHistory(worker, deps);
   const retired = worker.workerRetiredAt != null;
   const dispatched = dispatchedAt.get(worker.sessionId);
-  const running = deps.isRunning(worker.sessionId) || deps.isQueued(worker.channel)
-    || (dispatched !== undefined && deps.now() - dispatched < DISPATCH_PENDING_MS);
+  const running = opts.running ?? (deps.isRunning(worker.sessionId) || deps.isQueued(worker.channel)
+    || (dispatched !== undefined && deps.now() - dispatched < DISPATCH_PENDING_MS));
   const waitingOn = deps.pendingInteractions(worker.channel).map(e => e.id);
+  const waitpoints = await deps.openWaitpoints(worker.sessionId, worker.channel);
   const lastReport = reports.get(worker.sessionId) ?? null;
   const status: WorkerStatus = waitingOn.length > 0 ? 'waiting'
     : running ? 'running'
-      : retired ? 'retired'
-        : lastReport?.status === 'failed' ? 'error'
-          : 'idle';
+      : waitpoints > 0 ? 'external'
+        : retired ? 'retired'
+          : lastReport?.status === 'failed' ? 'error'
+            : 'idle';
+  const name = worker.workerName ?? worker.name;
+  workerNames.set(worker.sessionId, name);
   return {
-    name: worker.workerName ?? worker.name,
+    name,
     sessionId: worker.sessionId,
     channel: worker.channel,
     status,
     waitingOn,
+    waitpoints,
     brief: briefs.get(worker.sessionId) ?? null,
     lastReport,
     userTouched: userTouched.has(worker.sessionId),
@@ -166,7 +219,11 @@ export function formatAge(ms: number): string {
 }
 
 export function statusLabel(view: WorkerView): string {
-  return view.status === 'waiting' ? `waiting(${view.waitingOn.join(', ')})` : view.status;
+  if (view.status === 'waiting') return `waiting(${view.waitingOn.join(', ')})`;
+  if (view.status === 'external') {
+    return `waiting on external (${view.waitpoints} waitpoint${view.waitpoints === 1 ? '' : 's'})`;
+  }
+  return view.status;
 }
 
 /** One compact roster line: name · status · last report · user-touched — brief. */

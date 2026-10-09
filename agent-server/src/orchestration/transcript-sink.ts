@@ -7,6 +7,7 @@ import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory
 import { sessionStore } from '@store/session-registry-repo.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '@core/subagent-spawn.js';
+import { teamActionFromToolCall } from '@core/team-action.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import type { RunEvent, RunPhase } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';
@@ -16,6 +17,7 @@ import {
 } from './session-events.js';
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { writeToolImages } from '@store/tool-image-files.js';
+import { workerNameForRequest } from './team-state.js';
 
 const log = createLogger('transcript-sink');
 
@@ -84,6 +86,8 @@ export interface TranscriptSinkDeps extends ToolImageDeps {
   publishTodos: typeof publishSessionTodos;
   publishDebugUpdated: typeof publishSessionDebugUpdated;
   persistContextUsage: typeof persistSessionContextUsage;
+  /** The worker that raised a request a lead's `worker_answer` names, when known. */
+  workerForRequest: (requestId: string) => string | null;
 }
 
 const DEFAULT_DEPS: TranscriptSinkDeps = {
@@ -97,6 +101,7 @@ const DEFAULT_DEPS: TranscriptSinkDeps = {
   publishTodos: publishSessionTodos,
   publishDebugUpdated: publishSessionDebugUpdated,
   persistContextUsage: persistSessionContextUsage,
+  workerForRequest: (requestId) => workerNameForRequest(requestId),
 };
 
 export interface TranscriptSinkOptions {
@@ -158,11 +163,15 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
       ? { id: subagentSpawns[0].id }
       : undefined;
     const rowRef = ref ?? legacyAnchor;
+    // A lead's worker call carries what it did to which worker, so the chat can show it as an
+    // action instead of a tool chip. Not DEBUG-gated: it is the transcript's own content.
+    const teamAction = subagent ? null : teamActionFromToolCall(name, input, deps.workerForRequest);
     recordHistory(
       deps.appendTool(sessionId, {
         toolName: name,
         toolInput,
         ...(toolDevice ? { toolDevice } : {}),
+        ...(teamAction ? { teamAction } : {}),
         ts,
         ...(rowRef ? { subagent: rowRef } : {}),
         ...(subagentSpawns.length ? { subagentSpawns } : {}),
@@ -174,6 +183,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     deps.publishMessage({
       sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
       ...(toolDevice ? { toolDevice } : {}),
+      ...(teamAction ? { teamAction } : {}),
       ...(subagentSpawns.length ? { subagentSpawns } : {}),
       ...subagentPayloadFields(rowRef),
     });

@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { conduitQueues, enqueue, enqueueAndWait } from '../../src/orchestration/conduit-queue.js';
+import { conduitQueueDepth, conduitQueues, enqueue, enqueueAndWait } from '../../src/orchestration/conduit-queue.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -153,4 +153,20 @@ test('a rejecting fn is logged by the queue — never an unhandledRejection — 
 
   await tick();
   assert.deepEqual(unhandled, [], 'the rejection was observed by the queue itself');
+});
+
+test('depth counts the running entry and everything queued behind it, failures included', async () => {
+  const channel = freshChannel();
+  const d1 = makeDeferred();
+  let seenByFirst = -1;
+  enqueue(channel, async () => { seenByFirst = conduitQueueDepth(channel); await d1.promise; });
+  enqueue(channel, async () => { throw new Error('second failed'); });
+  enqueue(channel, async () => {});
+  await tick();
+  assert.equal(seenByFirst, 3, 'the running entry counts itself');
+  assert.equal(conduitQueueDepth(channel), 3);
+  d1.resolve();
+  await enqueueAndWait(channel, async () => {});
+  await tick();
+  assert.equal(conduitQueueDepth(channel), 0);
 });

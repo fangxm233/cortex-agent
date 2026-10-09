@@ -185,6 +185,8 @@ export function publishSessionTurn(p: { sessionId: string; channel: string; numT
 /** Emit `session.turn.completed` once a conversation turn has really ended (Turn owns the call). */
 export function publishSessionTurnCompleted(p: {
   sessionId: string; channel: string; status: 'completed' | 'failed' | 'stopped'; finalOutput: string; trigger: string;
+  /** Ended from its background hold's seal, after its conduit-queue slot was released. */
+  held: boolean;
 }): void {
   orchestrationBus()?.publish({ type: 'session.turn.completed', ...p });
 }

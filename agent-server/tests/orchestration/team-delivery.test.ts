@@ -1,4 +1,4 @@
-import { beforeEach, test } from 'vitest';
+import { afterEach, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { EventBus } from '../../src/events/event-bus.js';
@@ -10,8 +10,8 @@ import { initHookBridge, registerAskQuestion, registerPlanApproval } from '../..
 import { answerQuestion } from '../../src/orchestration/interactions/answer-question.js';
 import { respondToPlan } from '../../src/orchestration/interactions/plan-response.js';
 import {
-  flushTeamOutbox, installTeamDelivery, notifyLeadOfWorkerRequest, onWorkerTurnCompleted, REPORT_MAX_CHARS,
-  type TeamDeliveryDeps,
+  _resetTeamDelivery, checkWorkerSettled, flushTeamOutbox, hasOwedReport, installTeamDelivery, notifyLeadOfWorkerRequest,
+  onWorkerTurnCompleted, REPORT_MAX_CHARS, settledAtTurnEnd, settledNow, type TeamDeliveryDeps, type WorkerActivity,
 } from '../../src/orchestration/team-delivery.js';
 import { _resetTeamState, describeTeam, type WorkerView } from '../../src/orchestration/team-state.js';
 import { TeamOutboxRepo } from '../../src/store/team-outbox-repo.js';
@@ -21,7 +21,7 @@ const WORKER = { sessionId: 'worker', name: 'cortex-w', channel: 'web:worker', o
 
 function view(extra: Partial<WorkerView> = {}): WorkerView {
   return {
-    name: 'alpha', sessionId: 'worker', channel: 'web:worker', status: 'idle', waitingOn: [], brief: null,
+    name: 'alpha', sessionId: 'worker', channel: 'web:worker', status: 'idle', waitingOn: [], waitpoints: 0, brief: null,
     lastReport: null, userTouched: false, retired: false, ...extra,
   };
 }
@@ -35,6 +35,9 @@ function deps(opts: { enabled?: boolean; lead?: boolean; outbox?: TeamOutboxRepo
   const busy = { count: 0, idleAt: [] as number[] };
   /** When true, delivery is refused the way the runner refuses under a rebuild hold. */
   const hold = { on: false };
+  /** The worker as a turn ends: its own turn still occupies its queue slot and the run registry. */
+  const activity: WorkerActivity = { running: true, queueDepth: 1, holdOwners: [], waitpoints: 0, interactions: 0 };
+  const progress: Array<{ lead: string; text: string; worker: { name: string; sessionId: string }; ts: string }> = [];
   let retries = 0;
   const d: TeamDeliveryDeps = {
     enabled: () => opts.enabled ?? true,
@@ -54,11 +57,14 @@ function deps(opts: { enabled?: boolean; lead?: boolean; outbox?: TeamOutboxRepo
     },
     outbox: opts.outbox ?? new TeamOutboxRepo(path.join(process.env.CORTEX_HOME!, 'data', `team-outbox-${++outboxSeq}.json`)),
     scheduleRetry: () => { retries += 1; },
+    activity: async () => ({ ...activity, holdOwners: [...activity.holdOwners] }),
+    recordProgress: async (lead, row) => { progress.push({ lead: lead.sessionId, ...row }); },
   };
-  return { d, delivered, sessions, busy, hold, retries: () => retries };
+  return { d, delivered, sessions, busy, hold, activity, progress, retries: () => retries };
 }
 
-beforeEach(() => _resetTeamState());
+beforeEach(() => { _resetTeamState(); _resetTeamDelivery(); });
+afterEach(() => { vi.useRealTimers(); });
 
 const completed = (extra: Record<string, unknown> = {}) => ({
   sessionId: 'worker', status: 'completed' as const, finalOutput: 'Done. Output in out/report.md', trigger: 'team-lead', ...extra,
@@ -90,7 +96,8 @@ test('a turn the human started in the worker is not reported, only flagged on th
   await onWorkerTurnCompleted(completed({ trigger: 'web-user' }), d);
   assert.equal(delivered.length, 0);
   const team = await describeTeam('lead', {
-    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], history: async () => null, now: () => 0,
+    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], openWaitpoints: async () => 0,
+    history: async () => null, now: () => 0,
   }, async () => [WORKER as any]);
   assert.equal(team[0].userTouched, true);
   assert.equal(team[0].lastReport, null, 'the human turn is not the lead’s report');
@@ -112,7 +119,8 @@ test('a long report is capped with a pointer to the full text, which worker_list
   await onWorkerTurnCompleted(completed({ finalOutput: 'y'.repeat(REPORT_MAX_CHARS + 50) }), d);
   assert.match(delivered[0].text, /Truncated\. Call worker_list\("alpha"\)/);
   const team = await describeTeam('lead', {
-    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], history: async () => null, now: () => 0,
+    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], openWaitpoints: async () => 0,
+    history: async () => null, now: () => 0,
   }, async () => [WORKER as any]);
   assert.equal(team[0].lastReport!.text.length, REPORT_MAX_CHARS + 50);
 });
@@ -124,6 +132,162 @@ test('installTeamDelivery reports from the session.turn.completed event', async 
   bus.publish({ type: 'session.turn.completed', channel: 'web:worker', ...completed() });
   await new Promise(r => setTimeout(r, 10));
   assert.equal(delivered.length, 1);
+});
+
+// ── settled gating ──────────────────────────────────────────────────────────
+
+const idle: WorkerActivity = { running: false, queueDepth: 0, holdOwners: [], waitpoints: 0, interactions: 0 };
+
+test('settled at a turn end excludes the ending turn: its queue slot unless held, and its own continuation hold', () => {
+  const ending = { ...idle, running: true, queueDepth: 1 };
+  assert.deepEqual(settledAtTurnEnd(ending, false), { settled: true, queued: false, workHeld: false });
+  assert.deepEqual(settledAtTurnEnd({ ...ending, queueDepth: 2 }, false), { settled: false, queued: true, workHeld: false });
+  assert.equal(settledAtTurnEnd({ ...ending, queueDepth: 1 }, true).queued, true, 'a held turn holds no slot: one entry is another turn');
+  assert.equal(settledAtTurnEnd({ ...ending, queueDepth: 0, holdOwners: ['bg-continuation'] }, true).settled, true);
+  assert.deepEqual(settledAtTurnEnd({ ...ending, holdOwners: ['bg-continuation', 'agent-run:r1'] }, false),
+    { settled: false, queued: false, workHeld: true });
+  assert.equal(settledAtTurnEnd({ ...ending, waitpoints: 1 }, false).settled, false);
+  assert.equal(settledAtTurnEnd({ ...ending, interactions: 1 }, false).settled, false);
+});
+
+test('settled with no turn ending needs nothing running, queued, held, waited on or asked', () => {
+  assert.equal(settledNow(idle), true);
+  for (const busy of [{ running: true }, { queueDepth: 1 }, { holdOwners: ['bg-continuation'] }, { waitpoints: 1 }, { interactions: 1 }]) {
+    assert.equal(settledNow({ ...idle, ...busy }), false, JSON.stringify(busy));
+  }
+});
+
+for (const [what, busy] of [
+  ['a background agent still holds it', { holdOwners: ['agent-run:r1'] }],
+  ['a waitpoint is open', { waitpoints: 1 }],
+  ['a message is queued behind the turn', { queueDepth: 2 }],
+  ['a question is pending', { interactions: 1 }],
+] as const) {
+  test(`a busy worker's reply is progress, not a wake, when ${what}`, async () => {
+    const { d, delivered, activity, progress } = deps();
+    Object.assign(activity, busy);
+    await onWorkerTurnCompleted(completed({ finalOutput: 'Job submitted; waiting for it.' }), d);
+    assert.equal(delivered.length, 0, 'the lead is not woken');
+    assert.deepEqual(progress, [{
+      lead: 'lead', text: 'Job submitted; waiting for it.', worker: { name: 'alpha', sessionId: 'worker' },
+      ts: new Date(1_000).toISOString(),
+    }]);
+    assert.equal(hasOwedReport('worker'), true);
+    const team = await describeTeam('lead', {
+      isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], openWaitpoints: async () => 0,
+      history: async () => null, now: () => 0,
+    }, async () => [WORKER as any]);
+    assert.equal(team[0].lastReport!.text, 'Job submitted; waiting for it.', 'worker_list shows the progress');
+  });
+}
+
+test('a held turn whose only hold is its own continuation reports when it seals', async () => {
+  const { d, delivered, activity, progress } = deps();
+  Object.assign(activity, { queueDepth: 0, holdOwners: ['bg-continuation'] });
+  await onWorkerTurnCompleted(completed({ held: true }), d);
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0].origin, 'worker-result');
+  assert.deepEqual(progress, []);
+});
+
+test('busy → settled wakes the lead exactly once, with the latest reply', async () => {
+  const { d, delivered, activity, progress } = deps();
+  activity.waitpoints = 1;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'step 1 running' }), d);
+  await onWorkerTurnCompleted(completed({ finalOutput: 'step 2 running', trigger: 'external-signal' }), d);
+  assert.deepEqual(progress.map(p => p.text), ['step 1 running', 'step 2 running']);
+  assert.equal(delivered.length, 0);
+  activity.waitpoints = 0;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'All done: out/run.md', trigger: 'external-signal' }), d);
+  assert.equal(delivered.length, 1);
+  assert.match(delivered[0].text, /^\[Worker alpha · completed\]\nstatus idle\n\nAll done: out\/run\.md$/);
+  assert.equal(hasOwedReport('worker'), false);
+  await checkWorkerSettled('worker', d);
+  assert.equal(delivered.length, 1, 'nothing left to deliver');
+});
+
+test('a report owed when the worker settles without a turn is delivered on the re-check, once', async () => {
+  const { d, delivered, activity } = deps();
+  activity.waitpoints = 1;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Waiting on the job' }), d);
+  Object.assign(activity, { running: false, queueDepth: 0 });
+  await checkWorkerSettled('worker', d);
+  assert.equal(delivered.length, 0, 'the waitpoint is still open');
+  activity.waitpoints = 0;
+  activity.running = true;
+  await checkWorkerSettled('worker', d);
+  assert.equal(delivered.length, 0, 'a running turn reports for itself when it ends');
+  activity.running = false;
+  await checkWorkerSettled('worker', d);
+  await checkWorkerSettled('worker', d);
+  assert.equal(delivered.length, 1);
+  assert.match(delivered[0].text, /^\[Worker alpha · completed\]\nstatus idle\n\nWaiting on the job$/);
+});
+
+test('a failed turn, and a stop that is not a takeover, wake the lead even while work is pending', async () => {
+  for (const status of ['failed', 'stopped'] as const) {
+    const { d, delivered, activity, progress } = deps();
+    activity.waitpoints = 1;
+    await onWorkerTurnCompleted(completed({ status, finalOutput: 'x' }), d);
+    assert.equal(delivered.length, 1, status);
+    assert.match(delivered[0].text, new RegExp(`^\\[Worker alpha · ${status}\\]`));
+    assert.deepEqual(progress, []);
+    assert.equal(hasOwedReport('worker'), false);
+  }
+});
+
+test('a held turn stopped because a new turn took the worker over is progress', async () => {
+  const { d, delivered, activity, progress } = deps();
+  Object.assign(activity, { queueDepth: 1, holdOwners: ['bg-continuation'] });
+  await onWorkerTurnCompleted(completed({ status: 'stopped', held: true, finalOutput: 'partial' }), d);
+  assert.equal(delivered.length, 0);
+  assert.deepEqual(progress.map(p => p.text), ['partial']);
+});
+
+test('an empty interim reply writes no progress row but is still owed', async () => {
+  const { d, delivered, activity, progress } = deps();
+  activity.waitpoints = 1;
+  await onWorkerTurnCompleted(completed({ finalOutput: '  ' }), d);
+  assert.deepEqual(progress, []);
+  assert.equal(delivered.length, 0);
+  assert.equal(hasOwedReport('worker'), true);
+});
+
+test('the worker going idle re-checks an owed report after the ending turn has decided', async () => {
+  vi.useFakeTimers();
+  const bus = new EventBus();
+  const { d, delivered, activity } = deps();
+  installTeamDelivery(bus, d);
+  activity.waitpoints = 1;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Waiting on the job' }), d);
+  Object.assign(activity, { running: false, queueDepth: 0, waitpoints: 0 });
+  bus.publish({ type: 'session.status', sessionId: 'worker', channel: 'web:worker', running: false });
+  assert.equal(delivered.length, 0, 'not before the re-check delay');
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.equal(delivered.length, 1);
+  bus.publish({ type: 'session.status', sessionId: 'worker', channel: 'web:worker', running: false });
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.equal(delivered.length, 1, 'nothing is owed any more');
+});
+
+test('a resolved worker question re-checks an owed report; the slow sweep catches silent settles', async () => {
+  vi.useFakeTimers();
+  const bus = new EventBus();
+  const { d, delivered, activity } = deps();
+  installTeamDelivery(bus, d);
+  activity.interactions = 1;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Asked the lead' }), d);
+  Object.assign(activity, { running: false, queueDepth: 0, interactions: 0 });
+  bus.publish({ type: 'session.interaction', sessionId: 'worker', channel: 'web:worker', interactionId: 'q1', kind: 'ask-user', status: 'answered' });
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.equal(delivered.length, 1);
+
+  activity.waitpoints = 1;
+  Object.assign(activity, { running: true, queueDepth: 1 });
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Armed a waitpoint' }), d);
+  Object.assign(activity, { running: false, queueDepth: 0, waitpoints: 0 });
+  await vi.advanceTimersByTimeAsync(60_000 + 1_000);
+  assert.equal(delivered.length, 2, 'a waitpoint cancelled from the UI raises no event; the sweep delivers');
 });
 
 // ── restart safety ──────────────────────────────────────────────────────────
@@ -175,7 +339,7 @@ test('kept reports survive a fresh process and are delivered to the lead, then c
   assert.deepEqual(await new TeamOutboxRepo(file).list(), []);
   assert.equal(after.busy.count, 0);
   const team = await describeTeam('lead', {
-    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [],
+    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], openWaitpoints: async () => 0,
     history: async () => ({ events: [{ type: 'assistant', text: 'something else', ts: '' }] } as any), now: () => 0,
   }, async () => [WORKER as any]);
   assert.equal(team[0].lastReport!.text, 'All tests pass', 'worker_list shows what the lead was just given');

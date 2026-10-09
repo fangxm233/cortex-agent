@@ -19,6 +19,7 @@ import {
 import type { AttachmentMeta, ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '@core/todo.js';
 import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
+import type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
 import { registerFlushable } from '@core/json-repository.js';
 
 /** Where every session's transcript lives, one `<sessionId>.jsonl` per session. */
@@ -26,7 +27,9 @@ export const CONVERSATION_HISTORY_DIR = path.join(STORE_DIR, 'conversation-histo
 
 // --- Types ---
 
-export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction';
+/** `worker-progress`: a team worker's interim final reply, recorded in its LEAD's history for
+ *  display. It is not a user turn (no turn boundary) and never reaches the lead model. */
+export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction' | 'worker-progress';
 
 /** Terminal state of one native subagent, as the backend's own task lifecycle reports it. */
 export type SubagentEndStatus = 'completed' | 'failed' | 'killed';
@@ -115,6 +118,10 @@ export interface HistoryEvent {
   toolInput?: string;
   /** Remote execution target (remote tool events only). */
   toolDevice?: string;
+  /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool events only). */
+  teamAction?: TeamActionRef;
+  /** The worker a `worker-progress` event came from. */
+  worker?: TeamWorkerRef;
   /** Native-subagent grouping key: the `Agent`/`Task` call's tool_use id. Set BOTH on that
    *  spawning call itself (which therefore anchors the group) and on every row the subagent
    *  produced under it. Absent = main agent. `sidechain` when the source attests a subagent
@@ -178,6 +185,9 @@ export interface RawEvent {
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
+  teamAction?: TeamActionRef;
+  /** `worker-progress` lines only. */
+  worker?: TeamWorkerRef;
   subagentId?: string;
   subagentSpawns?: SubagentSpawnRef[];
   subagentType?: string;
@@ -605,17 +615,26 @@ export class ConversationHistoryRepo {
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; teamAction?: TeamActionRef; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'tool',
       toolName: opts.toolName,
       toolInput: opts.toolInput ?? '',
       toolDevice: opts.toolDevice,
+      ...(opts.teamAction ? { teamAction: opts.teamAction } : {}),
       ts: opts.ts ?? nowIso(),
       toolUseId: opts.toolUseId,
       fullInput: opts.fullInput,
       ...(opts.subagentSpawns?.length ? { subagentSpawns: opts.subagentSpawns } : {}),
       ...subagentRowFields(opts.subagent),
+    });
+  }
+
+  /** Record a team worker's interim reply in its lead's history. Display only: it opens no turn
+   *  and is never replayed to the lead model. */
+  appendWorkerProgress(sessionId: string, opts: { text: string; worker: TeamWorkerRef; ts?: string }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'worker-progress', text: opts.text, worker: opts.worker, ts: opts.ts ?? nowIso(),
     });
   }
 

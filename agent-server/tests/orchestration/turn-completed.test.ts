@@ -89,7 +89,7 @@ test('a completed turn reports its final output and the origin of its opening me
     { ...completed[0] },
     {
       type: 'session.turn.completed', sessionId: 'track-web:tc-ok', channel: 'web:tc-ok',
-      status: 'completed', finalOutput: 'the answer', trigger: 'team-lead',
+      status: 'completed', finalOutput: 'the answer', trigger: 'team-lead', held: false,
     },
   );
 });
@@ -137,4 +137,5 @@ test('a held turn reports when its hold seals, not when the foreground ends', as
   assert.equal(completed.length, 1);
   assert.equal(completed[0].status, 'stopped');
   assert.equal(completed[0].finalOutput, 'the answer');
+  assert.equal(completed[0].held, true, 'reported from the seal, after its queue slot was released');
 });
