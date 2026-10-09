@@ -272,11 +272,12 @@ Paths below are relative to `desktop/src-tauri/src/setup/`:
   overwritten. Legacy suffix discovery is retained; `process.rs` is untouched.
 
 Attempt directories are fresh `runtime/node-v24.21.0-win-x64-*` and
-`runtime/git-2.56.0.2-x64-*` directories. Promotion disarms TempDir cleanup only
-**after** qualification, retaining the exact tested paths (no rename onto an
-existing install). Failed/cancelled attempts clean only their own fresh stage.
-Already promoted healthy tools remain if a later step fails; no user data is
-removed. Qualification and cancellation checks precede selection saves.
+`runtime/git-2.56.0.2-x64-*` directories. Fresh attempt guards remain armed through tool qualification and
+selection persistence, retaining the exact tested paths (no rename onto an
+existing install). Pre-publication failures/cancellation clean only these new
+stages. Successful publication immediately disarms all guards before any further
+cancellation check. Saved or external installations never receive cleanup guards;
+subsequent server-install retries reuse the published tools.
 
 **Locale handling — correction `104bc7b32`:** only a real upstream exit 1 can
 trigger a 10-second owned calibration through the same authenticated
