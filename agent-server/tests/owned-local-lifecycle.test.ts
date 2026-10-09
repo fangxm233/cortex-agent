@@ -15,7 +15,7 @@ vi.mock('../src/domain/remote/local-client-install.js', async original => ({
 }));
 import { DATA_DIR, CONFIG_DIR, STORE_DIR } from '../src/core/paths.js';
 import { captureAuthTokensForRuntime } from '../src/core/auth.js';
-import { startRemoteClient, _setMachineRegistryProviderForTesting, _getRestartTimerCount, _testReset } from '../src/domain/remote/client-lifecycle.js';
+import { startRemoteClient, _setMachineRegistryProviderForTesting, _setSshExecForTesting, _getRestartTimerCount, _testReset } from '../src/domain/remote/client-lifecycle.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 let restoreAuth: () => void;
@@ -76,6 +76,16 @@ test('hub stop cancels pending recovery continuation and does not rearm retries'
   await pending;
   expect(hooks.spawn).not.toHaveBeenCalled();
   expect(_getRestartTimerCount()).toBe(0);
+});
+test('invalid local intent cannot disable unrelated SSH lifecycle', async () => {
+  hooks.intent.mockImplementation(() => { throw new Error('invalid local ownership'); });
+  _setMachineRegistryProviderForTesting(() => ({ remote: { cortexPath: '/remote', gpuCount: 0, ssh: 'external-host' } }));
+  const ssh = vi.fn(async () => '12345');
+  _setSshExecForTesting(ssh);
+  await startRemoteClient('remote');
+  expect(ssh).toHaveBeenCalledOnce();
+  expect(hooks.recover).not.toHaveBeenCalled();
+  expect(hooks.spawn).not.toHaveBeenCalled();
 });
 test.each([{ ssh: 'remote' }, { clientCommand: 'custom' }])('changed owned machine %j cannot be launched/adopted', async extra => {
   _setMachineRegistryProviderForTesting(() => ({ local: { cortexPath: DATA_DIR, gpuCount: 0, ...extra } }));

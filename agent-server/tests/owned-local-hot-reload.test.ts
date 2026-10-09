@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-const hooks = vi.hoisted(() => ({ intent: vi.fn(), validate: vi.fn(), payload: vi.fn(), register: vi.fn(), online: vi.fn(() => []), registry: vi.fn() }));
+const hooks = vi.hoisted(() => ({ intent: vi.fn(), validate: vi.fn(), payload: vi.fn(), register: vi.fn(), online: vi.fn(() => []), registry: vi.fn(), machines: vi.fn() }));
 vi.mock('../src/domain/remote/local-client-install.js', () => ({ readLocalClientIntent: hooks.intent, validateLocalClientOwnership: hooks.validate }));
 vi.mock('../src/domain/remote/package-client-bundle.js', () => ({ loadPackageClientBundle: hooks.payload }));
 vi.mock('../src/domain/remote/client-manager.js', () => ({ setClientUpdateHooks: hooks.register, getOnlineDevices: hooks.online, sendControlMessage: vi.fn() }));
 vi.mock('@core/exec-async.js', () => ({ runFile: hooks.registry, runShell: hooks.registry }));
+vi.mock('../src/domain/remote/machine-registry.js', () => ({ getMachineRegistry: hooks.machines }));
 import { initClientHotReload, _onHelloForTesting as hello, _setBundleForTesting, _setSendForTesting, _testReset } from '../src/domain/remote/client-hot-reload.js';
 const packaged = { version: '2.0.0', hash: 'package-local', files: [] };
 const published = { version: '1.0.0', hash: 'npm-latest', files: [] };
@@ -13,6 +14,7 @@ beforeEach(() => {
   _testReset();
   hooks.intent.mockReturnValue({ device: 'local' });
   hooks.payload.mockReturnValue(packaged);
+  hooks.machines.mockReturnValue({ remote: { ssh: 'external-host' } });
   _setSendForTesting(send);
 });
 afterEach(() => _testReset());
@@ -39,6 +41,14 @@ test('external/remote devices retain existing desired bundle', () => {
   hello('remote', 'old');
   expect(send).toHaveBeenCalledWith('remote', expect.objectContaining({ hash: 'npm-latest' }));
   expect(hooks.payload).not.toHaveBeenCalled();
+});
+test('a broken local ownership marker cannot disable unrelated SSH client updates', () => {
+  _setBundleForTesting(published);
+  hooks.intent.mockImplementation(() => { throw new Error('invalid local ownership'); });
+  hello('remote', 'old');
+  expect(send).toHaveBeenCalledWith('remote', expect.objectContaining({ hash: 'npm-latest' }));
+  hello('local', 'old');
+  expect(send).toHaveBeenCalledTimes(1);
 });
 test('first online sweep is independent of a never-resolving npm query', async () => {
   hooks.online.mockReturnValue([{ device: 'local', bundleHash: 'old' }] as never);
