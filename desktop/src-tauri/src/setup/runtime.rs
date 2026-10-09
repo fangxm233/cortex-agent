@@ -14,6 +14,15 @@ mod windows_archive;
 #[cfg(any(windows, test))]
 #[path = "runtime_windows_download.rs"]
 mod windows_download;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_postinstall.rs"]
+mod windows_postinstall;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_bootstrap.rs"]
+mod windows_bootstrap;
+#[cfg(windows)]
+#[path = "runtime_portablegit.rs"]
+mod portablegit;
 #[path = "runtime_cancel.rs"]
 mod cancel;
 #[path = "runtime_git_selection.rs"]
@@ -227,6 +236,16 @@ pub fn bootstrap(
     floor: &str,
     token: &CancelToken,
     log: &impl Fn(&str),
+) -> Result<Selection, String> {
+    #[cfg(windows)]
+    return windows_bootstrap::bootstrap(home, path, floor, token, log);
+    #[cfg(unix)]
+    bootstrap_posix(home, path, floor, token, log)
+}
+
+#[cfg(unix)]
+fn bootstrap_posix(
+    home: &Path, path: &OsStr, floor: &str, token: &CancelToken, log: &impl Fn(&str),
 ) -> Result<Selection, String> {
     token.check()?;
     if let Some(saved) = Selection::load(home)? {
