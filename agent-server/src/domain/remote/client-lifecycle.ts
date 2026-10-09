@@ -265,14 +265,9 @@ async function prepareAndStartClient(device: string, reg: MachineEntry): Promise
   await startRemoteWithRetry(device);
 }
 
-function isExternalDirectClient(reg: MachineEntry): boolean {
-  // A direct-WS device at an external home cannot be launched via this server's local bundle.
-  return !reg.ssh && !!reg.cortexPath?.trim() && path.resolve(reg.cortexPath) !== path.resolve(DATA_DIR);
-}
-
 export async function startRemoteClient(device: string): Promise<void> {
   const reg = managedEntry(device);
-  if (!reg || lifecycleStopped || isExternalDirectClient(reg)) return;
+  if (!reg || lifecycleStopped) return;
   if (isDeviceOnline(device) && reg.clientConnection !== 'ssh-reverse') return;
   try {
     await prepareAndStartClient(device, reg);
