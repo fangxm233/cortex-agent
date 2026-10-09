@@ -2,9 +2,13 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { stageClientBundle } from './client-bundle.js';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(scriptDir, '..');
+
+// Ship the same-checkout client even when publish skips npm lifecycle scripts.
+stageClientBundle(pkgRoot);
 
 // --- 1. Shebang injection, for every command package.json `bin` publishes ---
 
