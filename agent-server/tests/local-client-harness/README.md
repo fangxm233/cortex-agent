@@ -132,9 +132,11 @@ Each phase verifies harmless Bash Node identity, allowlisted environment, actual
 remote write/read, and `exit 7`:
 
 1. Initial: actual authenticated hello with full packaged hash; exactly one client.
-2. Warm: three repeated real `daemon` commands; same daemon/app/client PID+start
-   identities and no new startup records. This tests CLI/App-equivalent reopen,
-   not native GUI navigation or a new online-launch API.
+2. Warm: three repeated real `daemon` commands; same persistent daemon/app/client
+   PID+start identities. Each CLI call forks one daemon contender, which must exit
+   after singleton-lock rejection; exactly three rejected contender births are allowed.
+   Any extra app/client start still fails, including short-lived processes. This tests
+   CLI reopen/idempotence, not the native GUI's healthy-endpoint fast path.
 3. Cold with surviving client: stop only the owned daemon/app, prove the exact
    client survived, start daemon, require its new app to receive that client's
    reconnect hello and execute tools; no new client birth.
@@ -158,8 +160,9 @@ raw init JSON, and the scratch `.env` contains real generated tokens. Logs, stat
 raw stdout, tokens and command headers must never enter a final report or Git.
 Failure reports intentionally omit assertion values and raw exception messages.
 
-**Unresolved by design:** no integrated tgz run, no actual product lifecycle/tool
-acceptance yet, no fresh dependency install, no Windows/native/UI acceptance,
+**Acceptance boundary:** a successful complete run is needed for the supplied tgz;
+preflight alone does not establish product lifecycle/tool acceptance. No fresh
+ dependency install, Windows/native/UI acceptance,
 no login/model/network test. The final artifact may expose missing exact libraries
 or a changed runtime contract; stop and report, do not fix product/build fixtures
 or loosen isolation here. This Linux harness uses the existing kernel and selected

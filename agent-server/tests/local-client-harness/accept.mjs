@@ -2,11 +2,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import { CORTEX, EVIDENCE, SERVER, inventory, identity, key, births, monitor } from './processes.mjs';
+import { CORTEX, EVIDENCE, SERVER, inventory, identity, key, births, monitor, assertBirthSummary } from './processes.mjs';
 import { initialize, cli, until, delay, webhook, tools } from './product.mjs';
 
 let phase = 'initialize';
 const report = { ok: false, productRun: true, phases: [] };
+const daemonLeaders = new Set();
+let rejectedContenders = 0;
 
 function running() {
   const entries = inventory();
@@ -62,12 +64,12 @@ async function authGates(context) {
 }
 
 function birthCounts(clients, servers) {
-  assert.equal(births('client').length, clients);
-  assert.equal(births('app').length, servers);
-  assert.equal(births('daemon').length, servers);
+  const records = { client: births('client'), app: births('app'), daemon: births('daemon') };
+  assertBirthSummary(records, { client: clients, app: servers, daemon: servers + rejectedContenders }, daemonLeaders);
 }
 
 async function recordPhase(context, processes) {
+  daemonLeaders.add(key(processes.daemon));
   const results = await tools(context.tokens);
   report.phases.push({ phase, processes, helloHash: context.hash, tools: results });
 }
@@ -86,11 +88,14 @@ async function initial(context) {
 
 async function warm(context, previous) {
   phase = 'warm';
-  for (let repeat = 0; repeat < 3; repeat++) await cli(['daemon']);
+  for (let repeat = 0; repeat < 3; repeat++) {
+    await cli(['daemon']);
+    rejectedContenders++; // CLI forks a contender; the daemon's singleton lock must reject it.
+  }
   await delay(2000);
   const current = await ready(context);
   assert.deepEqual(current, previous);
-  birthCounts(1, 1); // Includes short-lived starts that 10ms /proc sampling could miss.
+  birthCounts(1, 1); // Extra app/client starts still fail, including short-lived ones.
   await recordPhase(context, current);
   return current;
 }
@@ -147,6 +152,7 @@ async function main() {
     report.processes = watching.stop();
     assert.equal(report.processes.maximumClients, 1);
     report.clientBirths = births('client');
+    report.rejectedDaemonContenders = rejectedContenders;
     report.ok = true;
   } catch {
     report.failedPhase = phase; // Never serialize assertions, tokens, headers, or raw CLI output.

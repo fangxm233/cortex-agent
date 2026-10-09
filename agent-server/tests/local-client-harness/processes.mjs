@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 
 export const HOME = '/home/tester';
 export const CORTEX = `${HOME}/.cortex`;
@@ -34,6 +35,13 @@ export function births(role) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter(n => n.startsWith(`${role}-`))
     .map(n => JSON.parse(fs.readFileSync(`${dir}/${n}`, 'utf8')));
+}
+
+export function assertBirthSummary(records, expected, leaders, lookup = identity) {
+  for (const role of ['daemon', 'app', 'client']) assert.equal(records[role].length, expected[role]);
+  for (const contender of records.daemon.filter(p => !leaders.has(key(p)))) {
+    assert.notEqual(lookup(contender.pid)?.start, contender.start, 'Daemon contender must have exited');
+  }
 }
 
 export function monitor() {
