@@ -175,7 +175,8 @@ pub struct SetupAnswers {
 ///
 /// `platforms` is deliberately empty: the desktop app *is* the interface, so Slack/Feishu are not
 /// asked about — a platform-less install falls back to the built-in gateway. `localUi` is what turns
-/// this install into something the shell can reach at all.
+/// this install into something the shell can reach at all. `localClient` explicitly opts this
+/// new local App installation into client preparation; existing connections bypass init.
 pub fn answers_json(answers: &SetupAnswers) -> String {
     serde_json::json!({
         "lang": answers.lang,
@@ -184,6 +185,7 @@ pub fn answers_json(answers: &SetupAnswers) -> String {
         "platforms": [],
         "installService": answers.install_service && !cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows")),
         "localUi": { "enabled": true, "port": answers.port },
+        "localClient": { "enabled": true },
     })
     .to_string()
 }
@@ -645,6 +647,25 @@ mod tests {
     }
 
     #[test]
+    fn local_client_progress_preserves_the_existing_init_result() {
+        let stream = concat!(
+            "{\"step\":\"local-client\",\"state\":\"ok\"}\n",
+            "{\"step\":\"result\",\"state\":\"ok\",\"home\":\"/h\",",
+            "\"clientToken\":\"fixture\",\"uiUrl\":\"http://127.0.0.1:3004\"}\n",
+        );
+        let result = parse_init_result(stream).unwrap();
+        assert_eq!(result.home.as_deref(), Some("/h"));
+        assert_eq!(result.client_token.as_deref(), Some("fixture"));
+        assert_eq!(result.ui_url.as_deref(), Some("http://127.0.0.1:3004"));
+    }
+
+    #[test]
+    fn local_client_failure_is_not_an_init_result() {
+        let stream = "{\"step\":\"local-client\",\"state\":\"error\",\"error\":\"CLIENT_CONFLICT\"}\n";
+        assert!(parse_init_result(stream).is_none());
+    }
+
+    #[test]
     fn the_answers_document_carries_the_choices_and_no_messaging_platform() {
         let answers = SetupAnswers {
             lang: "zh".into(),
@@ -663,6 +684,7 @@ mod tests {
         );
         assert_eq!(doc["localUi"]["enabled"], true);
         assert_eq!(doc["localUi"]["port"], 3004);
+        assert_eq!(doc["localClient"], serde_json::json!({ "enabled": true }));
         assert_eq!(
             doc["platforms"].as_array().map(|a| a.len()),
             Some(0),
