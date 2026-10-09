@@ -107,11 +107,15 @@ async function remote(tokens, action, params) {
   return result.data;
 }
 
-async function nodeIdentity(tokens) {
+export function nodeIdentityCommand() {
   const script = `console.log(JSON.stringify({node:process.execPath,version:process.version,` +
-    `env:Object.fromEntries(['HOME','CORTEX_HOME','PATH','CORTEX_NPM_PREFIX','npm_config_cache',` +
-    `'CLAUDE_CONFIG_DIR'].map(k=>[k,process.env[k]]))}))`;
-  const result = await remote(tokens, 'bash', { command: `node -e '${script}'` });
+    `env:Object.fromEntries(["HOME","CORTEX_HOME","PATH","CORTEX_NPM_PREFIX","npm_config_cache",` +
+    `"CLAUDE_CONFIG_DIR"].map(k=>[k,process.env[k]]))}))`;
+  return `node -e '${script}'`;
+}
+
+async function nodeIdentity(tokens) {
+  const result = await remote(tokens, 'bash', { command: nodeIdentityCommand() });
   assert.equal(result.exitCode, 0);
   const value = JSON.parse(result.stdout);
   assert.equal(value.node, NODE);
