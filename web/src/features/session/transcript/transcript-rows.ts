@@ -13,6 +13,10 @@ import {
   type TranscriptMessageWithSpawns,
 } from './live-message';
 import type { PendingUserMessage } from './pending-user';
+import {
+  addWorkerUpdate, createTeamBuild, finishTeamRows, parseWorkerMessage, placeTeamAction, progressUpdate,
+  teamActionOf, type TeamBuild,
+} from './team-rows';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
 // `sessions.transcript` DTO (+ a live `session.message` tail) into the prototype's exact message-row
@@ -182,6 +186,7 @@ interface BuildState {
   summaryAuthority: boolean;
   /** Ends are order-independent, including an end arriving before its anchor or late output. */
   reportedEnds: Set<string>;
+  team: TeamBuild;
 }
 
 /** The transcript, then the live tail, deduplicated by message key. */
@@ -212,6 +217,7 @@ function createBuildState(transcript: SessionTranscript, flat: FlatMessage[]): B
     summaries,
     summaryAuthority: transcript.subagentSummaries !== undefined,
     reportedEnds: new Set(flat.filter(m => m.subagentEnded && m.subagentId).map(m => m.subagentId!)),
+    team: createTeamBuild(),
   };
 }
 
@@ -361,7 +367,8 @@ function routeMessage(state: BuildState, m: FlatMessage): { sink: RowSink; block
     return null;
   }
   const block = m.subagentId ? openBlock(state, m, m.subagentId) : null;
-  if (!block && !(m.type === 'user' && m.systemOrigin)) closeBlocksTheMainAgentOutran(state.blocks);
+  // A worker's interim reply is not the main agent acting, any more than a system-authored turn is.
+  if (!block && !(m.type === 'user' && m.systemOrigin) && m.type !== 'worker-progress') closeBlocksTheMainAgentOutran(state.blocks);
   return { sink: block ? block.sink : state.top, block };
 }
 
@@ -438,9 +445,42 @@ function applySummaries(blocks: Map<string, SubagentBlockState>, sessionLive: bo
   }
 }
 
+/**
+ * Team traffic at the top level of a lead's chat: a worker-tool call becomes its own row (or folds
+ * into the card of the request it answers), and a worker's report, request or progress joins the
+ * open update card. True when the message was placed; false leaves it to the ordinary rows — a
+ * worker message whose header is not the server's keeps its plain hint form.
+ */
+function placeTeamMessage(state: BuildState, m: FlatMessage): boolean {
+  const sink = state.top;
+  if (m.type === 'tool') {
+    const action = teamActionOf(m);
+    if (!action) return false;
+    const row = placeTeamAction(state.team, sink.rows, action, sink.toolBuf.length === 0);
+    if (row) {
+      flushTools(sink);
+      sink.rows.push(row);
+    }
+    return true;
+  }
+  if (m.type === 'worker-progress') {
+    flushTools(sink);
+    addWorkerUpdate(state.team, sink.rows, progressUpdate(m));
+    return true;
+  }
+  if (m.type === 'user' && m.systemOrigin) {
+    const update = parseWorkerMessage(m.systemOrigin, m.text ?? '', m.ts ?? null);
+    if (!update) return false;
+    flushTools(sink);
+    addWorkerUpdate(state.team, sink.rows, update);
+    return true;
+  }
+  return false;
+}
+
 /** Rows after every persisted/live message: the in-flight block, the streaming flag, then the
  *  messages the model has not read yet. */
-function appendTail(rows: ChatRow[], opts: BuildOpts): void {
+function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the
   // smooth reveal paces.
@@ -459,6 +499,11 @@ function appendTail(rows: ChatRow[], opts: BuildOpts): void {
   // Last of all: the messages the model has not read yet. Everything above them — including the
   // block being written right now — was produced without them, so they cannot sit any higher.
   for (const p of opts.pendingUser ?? []) {
+    const update = p.systemOrigin ? parseWorkerMessage(p.systemOrigin, p.text, p.ts ?? null) : null;
+    if (update) {
+      addWorkerUpdate(team, rows, update, true);
+      continue;
+    }
     rows.push({
       kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true,
       ...(p.systemOrigin ? { systemOrigin: p.systemOrigin } : {}),
@@ -495,6 +540,7 @@ export function buildTranscriptRows(
     }
     const route = routeMessage(state, m);
     if (!route) continue;
+    if (!route.block && placeTeamMessage(state, m)) continue;
     if (m.type === 'tool') {
       if (route.block && !route.block.summary) route.block.row.toolCount += 1;
       route.sink.toolBuf.push(toolEntry(m));
@@ -510,6 +556,7 @@ export function buildTranscriptRows(
   const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText);
   if (!sessionLive) closeOpenBlocks(state.blocks);
   if (state.summaryAuthority) applySummaries(state.blocks, sessionLive);
-  appendTail(state.rows, opts);
+  appendTail(state.rows, opts, state.team);
+  finishTeamRows(state.rows);
   return state.rows;
 }

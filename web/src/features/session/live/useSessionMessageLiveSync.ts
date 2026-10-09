@@ -369,9 +369,9 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; systemOrigin?: LiveSessionMessage['systemOrigin']; toolName?: string; toolInput?: string; toolDevice?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
+        | { sessionId?: string; role?: string; text?: string; systemOrigin?: LiveSessionMessage['systemOrigin']; toolName?: string; toolInput?: string; toolDevice?: string; teamAction?: LiveSessionMessage['teamAction']; worker?: LiveSessionMessage['worker']; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
         | undefined;
-      if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
+      if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool' && p.role !== 'worker-progress')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
       // no history entry, and everything the agent is emitting right now was produced without it —
       // so it is held out of the ordered tail entirely until its delivered event commits it. It
@@ -404,6 +404,8 @@ export function useSessionMessageLiveSync(
         toolName: p.toolName,
         toolInput: p.toolInput,
         toolDevice: p.toolDevice,
+        teamAction: p.teamAction,
+        worker: p.worker,
         noticeLevel: p.noticeLevel,
         noticeAction: p.noticeAction,
         authAction: p.authAction,
@@ -425,7 +427,9 @@ export function useSessionMessageLiveSync(
       if (p.role === 'assistant' && !p.noticeLevel && !p.subagentId) {
         setAssistantPreview((prev) => finalizeAssistantPreview(prev, p.blockId));
       }
-      if (!p.noticeLevel) {
+      // A worker's interim reply is not the lead producing output: it must not read as the lead
+      // streaming, which would flip an idle lead to running until the quiet gap elapses.
+      if (!p.noticeLevel && p.role !== 'worker-progress') {
         setStreaming(true);
         if (idleTimer.current) clearTimeout(idleTimer.current);
         idleTimer.current = setTimeout(() => setStreaming(false), STREAM_IDLE_MS);

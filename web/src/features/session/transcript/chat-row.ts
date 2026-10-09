@@ -9,6 +9,7 @@ import type {
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 import type { ToolCallImage } from '@/features/session/composer/chat-content';
 import { systemOriginDisplay } from './system-origin';
+import type { TeamChatRow } from './team-rows';
 
 // The chat-row model the transcript builder produces, and the queries both streams run over it.
 
@@ -64,7 +65,10 @@ export type ChatRow =
   // subagent has said something — the anchor alone cannot know it.
   | { kind: 'subagent'; id: string; agentType: string | null; description: string | null;
       prompt: string | null; model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[];
-      hasDetails?: boolean; detailMode?: 'lazy' };
+      hasDetails?: boolean; detailMode?: 'lazy' }
+  // Team mode, in a lead's chat: one lead action on a worker (spawn / send / answer / stop), lifted
+  // out of the tool-chip run, and one card per consecutive run of worker traffic. See team-rows.
+  | TeamChatRow;
 
 /**
  * What an edit at `rowIndex` (a user row) would discard: the count of assistant replies and tool
@@ -78,6 +82,7 @@ export function rewindStats(rows: ChatRow[], rowIndex: number): { replies: numbe
     const r = rows[i];
     if (r.kind === 'assistant') replies++;
     else if (r.kind === 'tools') toolCalls += r.count;
+    else if (r.kind === 'team-action') toolCalls += 1;
   }
   return { replies, toolCalls };
 }

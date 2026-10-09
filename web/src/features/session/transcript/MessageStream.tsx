@@ -23,6 +23,7 @@ import { MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote
 import { ChatNotice } from './ChatNotice';
 import { useTranscriptWindow } from './useTranscriptWindow';
 import { useStickToBottom } from './useStickToBottom';
+import { useTeamRowSlot } from './team-row-slot';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
@@ -422,7 +423,18 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
   anchor?: number;
 }): JSX.Element | null {
   const L = useVocab();
+  const team = useTeamRowSlot();
   switch (row.kind) {
+    case 'team-action':
+    case 'team-updates':
+      // Drawn by the team feature (it knows each worker's live status); see team-row-slot.
+      if (!team) return null;
+      return (
+        <div className="group" data-row={row.kind}>
+          {team.row(row)}
+          <TurnCopyAction text={assistantCopyText} />
+        </div>
+      );
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
@@ -532,6 +544,8 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     if (row.kind === 'interaction' && row.detail) return `int-${row.detail.id}`;
     // Keyed by identity so the block keeps its expanded/collapsed state while it is still growing.
     if (row.kind === 'subagent') return `sub-${row.id}`;
+    // Keyed by its first update so an open card stays open while the run grows.
+    if (row.kind === 'team-updates') return `team-${row.id}`;
     return i;
   };
 
@@ -650,6 +664,7 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
   // Pinned to the latest message while it streams; a scroll-up releases it, scrolling back re-pins.
   // The stream outlives a session switch (same pane, new rows), so another session re-pins too.
   const stick = useStickToBottom(scrollRef, contentRef, { streamKey, changes: [rows, loading] });
+  const team = useTeamRowSlot();
 
   const onScroll = (): void => {
     stick.onScroll();
@@ -703,6 +718,7 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0, scrollbarGutter: 'stable both-edges' }}>
         <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
+          {team?.tail}
         </div>
       </div>
       <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />

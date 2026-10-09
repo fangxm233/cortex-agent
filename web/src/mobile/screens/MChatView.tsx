@@ -1,4 +1,5 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
@@ -27,6 +28,7 @@ import { useComposerClearance } from './useComposerClearance';
 import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import { hasActiveWorker, MTeamRow } from './MChatTeam';
+import { LeadWaitingLine, TeamActionRow, TeamStreamProvider, TeamUpdateCard } from '@/features/team/TeamStreamRows';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
@@ -197,6 +199,7 @@ function MToolCallsRow({ row, sessionId }: {
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──
 
 const NOOP = (): void => {};
+const NO_WORKERS: SessionInfo[] = [];
 
 /**
  * One assistant block. `preview` marks the block being written RIGHT NOW (the token-level
@@ -497,6 +500,12 @@ const ROW_RENDERERS: { [K in ChatRow['kind']]: RowRenderer<K> } = {
       <AssistantTurnCopyAction text={copyText} />
     </div>
   ),
+  'team-action': ({ row, dimmed, copyText }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><TeamActionRow action={row.action} touch /></Dimmable>
+  ),
+  'team-updates': ({ row, dimmed, copyText }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><TeamUpdateCard row={row} touch /></Dimmable>
+  ),
 };
 
 function StreamRow(props: RowProps<ChatRow['kind']>): JSX.Element | null {
@@ -536,7 +545,7 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
       {rows.slice(start).map((row, j) => {
         const i = start + j;
         return (
-          <StreamRow key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}
+          <StreamRow key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : row.kind === 'team-updates' ? `team-${row.id}` : i}
             row={row} index={i} dimmed={editingIdx != null && i > editingIdx} copyText={assistantCopies.get(i)} ctx={ctx} />
         );
       })}
@@ -612,6 +621,7 @@ function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal }: {
       <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
           onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} streamKey={props.sessionId} />
+        <LeadWaitingLine touch />
         {props.systemLines?.map((t, i) => <SystemLine key={i} text={t} />)}
         {/* Tail clearance for the floating composer, which no longer takes flow height. */}
         <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
@@ -695,20 +705,23 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   // Team mode: a lead's team summary floats in a row under the header, inside the measured stack.
   const teamRow = !!props.onOpenWorker && hasActiveWorker(props.workers);
   return (
-    <div
-      ref={clearance.rootRef}
-      data-screen-label="1b chat detail"
-      style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
-    >
-      {files.input}
-      <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
-        <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
-          onBack={props.onBack} onMore={() => overlay.toggle('more')}
-          contextControl={headerContextControl(props, () => overlay.open('context'))} />
-        {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
+    <TeamStreamProvider workers={props.workers ?? NO_WORKERS} leadRunning={props.status.running}
+      onOpenWorker={props.onOpenWorkerFromChat ?? props.onOpenWorker}>
+      <div
+        ref={clearance.rootRef}
+        data-screen-label="1b chat detail"
+        style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
+      >
+        {files.input}
+        <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
+          <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
+            onBack={props.onBack} onMore={() => overlay.toggle('more')}
+            contextControl={headerContextControl(props, () => overlay.open('context'))} />
+          {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
+        </div>
+        <MChatBody props={props} overlay={overlay} selection={selection} />
+        <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />
       </div>
-      <MChatBody props={props} overlay={overlay} selection={selection} />
-      <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />
-    </div>
+    </TeamStreamProvider>
   );
 }

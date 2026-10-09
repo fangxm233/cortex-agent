@@ -15,6 +15,7 @@ import { CommissionBanner } from '@/features/commission/CommissionBanner';
 import { useSessionCommission } from '@/features/commission/CommissionOptIn';
 import { useTeamContext } from '@/features/team/useTeamContext';
 import { TeamCapsule } from '@/features/team/TeamRoster';
+import { TeamStreamProvider } from '@/features/team/TeamStreamRows';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -219,13 +220,15 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         {preFirstMessage ? (
           <DraftHero title={L.wbNewConversation} projectName={projectName} />
         ) : (
-          <MessageStream
-            rows={rows}
-            loading={!!sessionId && chat.transcriptPending}
-            interactionActions={chat.interactionActions}
-            edit={edit}
-            streamKey={sessionId}
-          />
+          <TeamStreamProvider workers={team.workers} leadRunning={chat.running} onOpenWorker={setSelectedSession}>
+            <MessageStream
+              rows={rows}
+              loading={!!sessionId && chat.transcriptPending}
+              interactionActions={chat.interactionActions}
+              edit={edit}
+              streamKey={sessionId}
+            />
+          </TeamStreamProvider>
         )}
         <Composer
           sessionId={sessionId}

@@ -4,6 +4,8 @@ import type {
   DecisionItem,
   NoticeAction,
   SystemTurnOrigin,
+  TeamActionRef,
+  TeamWorkerRef,
   TranscriptMessage,
 } from '@cortex-agent/ui-contract';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
@@ -19,13 +21,18 @@ export type TranscriptMessageWithSpawns = TranscriptMessage & {
 /** A live `session.message` event payload (the tRPC subscribe UiEvent.payload for that event). */
 export interface LiveSessionMessage {
   sessionId: string;
-  role: 'user' | 'assistant' | 'tool';
+  /** `worker-progress`: a team worker's interim reply, shown in its lead's chat (see `worker`). */
+  role: 'user' | 'assistant' | 'tool' | 'worker-progress';
   text: string;
   /** User messages only: Cortex authored this turn rather than a human. */
   systemOrigin?: SystemTurnOrigin;
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
+  /** Lead worker-tool rows only: what the call did to which worker. */
+  teamAction?: TeamActionRef;
+  /** `worker-progress` rows only: the worker that sent it. */
+  worker?: TeamWorkerRef;
   noticeLevel?: ChatNoticeLevel;
   noticeAction?: NoticeAction;
   authAction?: AuthNoticeAction;
@@ -56,6 +63,8 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     toolName: isTool ? (m.toolName ?? '') : null,
     toolInput: isTool ? (m.toolInput ?? '') : null,
     ...(isTool && m.toolDevice ? { toolDevice: m.toolDevice } : {}),
+    ...(isTool && m.teamAction ? { teamAction: m.teamAction } : {}),
+    ...(m.role === 'worker-progress' && m.worker ? { worker: m.worker } : {}),
     ts: m.ts,
     elapsedMs: null,
     attachments: m.attachments,

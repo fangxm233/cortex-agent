@@ -53,6 +53,9 @@ export interface MChatViewProps {
    *  `onOpenWorker` runs from that sheet, so it should replace the sheet's history entry. */
   workers?: SessionInfo[];
   onOpenWorker?: (sessionId: string) => void;
+  /** Opens a worker from a team row in the transcript. Unlike `onOpenWorker` no sheet is open, so it
+   *  should add a history entry: back returns to this lead. Falls back to `onOpenWorker`. */
+  onOpenWorkerFromChat?: (sessionId: string) => void;
   status: ChatHeaderStatus;
   /** Project the session belongs to; prefixes the header status line when known. */
   project?: string;

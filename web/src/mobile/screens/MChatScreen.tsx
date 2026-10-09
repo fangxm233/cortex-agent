@@ -262,6 +262,7 @@ export function MChatScreen(): JSX.Element {
       workers={team.workers}
       // Opened from the team sheet: replacing its back-guard entry keeps back from the worker on the lead.
       onOpenWorker={(id) => navigate(`/m/session/${id}`, { replace: true })}
+      onOpenWorkerFromChat={(id) => navigate(`/m/session/${id}`)}
       metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
       status={status}
       project={route.projectId ?? undefined}
