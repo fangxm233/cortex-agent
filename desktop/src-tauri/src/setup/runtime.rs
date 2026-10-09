@@ -8,27 +8,15 @@ use std::{
 
 #[path = "runtime_archive.rs"]
 mod archive;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_archive.rs"]
-mod windows_archive;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_download.rs"]
-mod windows_download;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_postinstall.rs"]
-mod windows_postinstall;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_bootstrap.rs"]
-mod windows_bootstrap;
-#[cfg(windows)]
-#[path = "runtime_portablegit.rs"]
-mod portablegit;
 #[path = "runtime_cancel.rs"]
 mod cancel;
 #[path = "runtime_git_selection.rs"]
 mod git_selection;
 #[path = "runtime_install.rs"]
 mod install;
+#[cfg(windows)]
+#[path = "runtime_portablegit.rs"]
+mod portablegit;
 #[path = "runtime_probe.rs"]
 mod probe;
 #[path = "runtime_process.rs"]
@@ -39,6 +27,21 @@ mod selection;
 mod selection_discovery;
 #[path = "runtime_selection_environment.rs"]
 mod selection_environment;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_archive.rs"]
+mod windows_archive;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_bootstrap.rs"]
+mod windows_bootstrap;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_download.rs"]
+mod windows_download;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_postinstall.rs"]
+mod windows_postinstall;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_server.rs"]
+mod windows_server;
 pub use git_selection::GitSelection;
 pub use selection::RepairNeeds;
 #[cfg(all(test, unix))]
@@ -76,6 +79,10 @@ pub struct Server {
     pub bin: PathBuf,
     /// Managed packages are launched as node + actual CLI, never through PATH.
     pub managed: bool,
+    /// Qualified external Windows package entry. Retain the original wrapper identity
+    /// and ownership, but never execute it or let it choose an unrelated Node.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_entry: Option<PathBuf>,
 }
 
 impl Selection {
@@ -107,8 +114,8 @@ impl Selection {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err("RUNTIME_MISSING: cannot read saved selection".into()),
         };
-        let selected: Self = serde_json::from_slice(&bytes)
-            .map_err(|_| "RUNTIME_MISSING: invalid saved selection")?;
+        let selected: Self =
+            serde_json::from_slice(&bytes).map_err(|_| "RUNTIME_MISSING: invalid saved selection")?;
         Ok(Some(selected))
     }
 
@@ -117,9 +124,7 @@ impl Selection {
             return Err("RUNTIME_MISSING: invalid selected paths".into());
         }
         if !self.node.is_file() || !self.npm.is_file() {
-            return Err(
-                "RUNTIME_MISSING: selected runtime was removed; restore it and retry".into(),
-            );
+            return Err("RUNTIME_MISSING: selected runtime was removed; restore it and retry".into());
         }
         self.validate_optional_tools()
     }
@@ -130,8 +135,7 @@ impl Selection {
         let mut file = tempfile::NamedTempFile::new_in(&dir).map_err(storage_error)?;
         serde_json::to_writer(&mut file, self).map_err(storage_error)?;
         file.as_file().sync_all().map_err(storage_error)?;
-        file.persist(dir.join("selection.json"))
-            .map_err(storage_error)?;
+        file.persist(dir.join("selection.json")).map_err(storage_error)?;
         Ok(())
     }
 
@@ -146,13 +150,13 @@ impl Selection {
     }
 
     fn server_command(&self, program: &OsStr) -> Command {
-        let managed = self
+        let bound = self
             .server
             .as_ref()
-            .filter(|s| s.managed && s.bin.as_os_str() == program);
-        if let Some(server) = managed {
+            .filter(|s| (s.managed || s.node_entry.is_some()) && s.bin.as_os_str() == program);
+        if let Some(server) = bound {
             let mut command = Command::new(&self.node);
-            command.arg(&server.bin);
+            command.arg(server.node_entry.as_ref().unwrap_or(&server.bin));
             return command;
         }
         Command::new(program)
@@ -245,7 +249,11 @@ pub fn bootstrap(
 
 #[cfg(unix)]
 fn bootstrap_posix(
-    home: &Path, path: &OsStr, floor: &str, token: &CancelToken, log: &impl Fn(&str),
+    home: &Path,
+    path: &OsStr,
+    floor: &str,
+    token: &CancelToken,
+    log: &impl Fn(&str),
 ) -> Result<Selection, String> {
     token.check()?;
     if let Some(saved) = Selection::load(home)? {
@@ -274,8 +282,7 @@ fn requalify_saved(
 ) -> Result<(), String> {
     if !qualified_install(saved, home, path, floor, token)? {
         return Err(
-            "RUNTIME_MISSING: selected Node/npm cannot run or is too old; restore it and retry"
-                .into(),
+            "RUNTIME_MISSING: selected Node/npm cannot run or is too old; restore it and retry".into(),
         );
     }
     token.check()
@@ -314,14 +321,7 @@ fn qualified_install(
         return Ok(false);
     }
     for (tool, minimum) in [("node", floor), ("npm", "1.0.0")] {
-        let version = probe::selected_output(
-            selected,
-            home,
-            path,
-            OsStr::new(tool),
-            &["--version"],
-            token,
-        )?;
+        let version = probe::selected_output(selected, home, path, OsStr::new(tool), &["--version"], token)?;
         if !version.is_some_and(|v| version_at_least(&v, minimum)) {
             return Ok(false);
         }
@@ -333,6 +333,5 @@ fn qualified_install(
 pub fn qualified(selected: &Selection, home: &Path, path: &OsStr, floor: &str) -> bool {
     let node = selected_output(selected, home, path, OsStr::new("node"), &["--version"]);
     let npm = selected_output(selected, home, path, OsStr::new("npm"), &["--version"]);
-    node.is_some_and(|v| version_at_least(&v, floor))
-        && npm.is_some_and(|v| version_at_least(&v, "1.0.0"))
+    node.is_some_and(|v| version_at_least(&v, floor)) && npm.is_some_and(|v| version_at_least(&v, "1.0.0"))
 }

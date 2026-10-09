@@ -21,9 +21,11 @@ pub fn ensure_server(
     if !saved {
         select_server(&mut selected, home, path, package, token, log)?;
     }
+    #[cfg(windows)]
+    bind_windows_server(&mut selected)?;
     check_server(&selected, home, path, server_floor, token)?;
     token.check()?;
-    if !saved {
+    if !saved || cfg!(windows) {
         selected.save(home)?;
     }
     token.check()?;
@@ -38,10 +40,20 @@ fn select_server(
     token: &CancelToken,
     log: &(impl Fn(&str) + Sync),
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    if let Ok(bin) = managed_cli(&selected.prefix) {
+        selected.server = Some(Server {
+            bin,
+            managed: true,
+            node_entry: None,
+        });
+        return Ok(());
+    }
     if let Some(bin) = external_server(selected, home, path, token)? {
         selected.server = Some(Server {
             bin,
             managed: false,
+            node_entry: None,
         });
         log("Checking existing external Cortex installation");
         return Ok(());
@@ -71,11 +83,23 @@ fn install_managed(
     super::run_install(command, token, log)?;
     token.check()?;
     let bin = managed_cli(&selected.prefix)?;
-    selected.server = Some(Server { bin, managed: true });
+    selected.server = Some(Server {
+        bin,
+        managed: true,
+        node_entry: None,
+    });
     Ok(())
 }
 
 pub(super) fn managed_cli(prefix: &Path) -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    return super::windows_server::package_cli(prefix);
+    #[cfg(unix)]
+    managed_posix_cli(prefix)
+}
+
+#[cfg(unix)]
+fn managed_posix_cli(prefix: &Path) -> Result<PathBuf, String> {
     let bin = prefix
         .join("bin/cortex")
         .canonicalize()
@@ -98,22 +122,73 @@ fn external_server(
 ) -> Result<Option<PathBuf>, String> {
     token.check()?;
     let effective = selected.path(path)?;
-    let paths = std::env::split_paths(&effective).filter(|p| p != &selected.prefix.join("bin"));
+    let paths = std::env::split_paths(&effective).filter(|p| p != &selected.prefix_bin());
     let external_path = std::env::join_paths(paths).map_err(super::storage_error)?;
     if let Some(bin) = super::find_bin("cortex", &external_path) {
         return Ok(Some(bin));
     }
-    // Do not apply our private prefix to this discovery query: respect the user's existing npm config.
-    let mut npm = Command::new(&selected.npm);
-    npm.env("PATH", effective).env("CORTEX_HOME", home);
+    let npm = npm_prefix_command(selected, home, &effective);
     let Some(prefix) = super::probe::output(npm, &["prefix", "-g"], token)? else {
         return Ok(None);
     };
-    let candidate = Path::new(&prefix).join("bin/cortex");
-    Ok(
-        (candidate.is_file() && candidate != selected.prefix.join("bin/cortex"))
-            .then_some(candidate),
-    )
+    Ok(prefix_candidate(Path::new(&prefix), selected))
+}
+
+fn npm_prefix_command(selected: &Selection, home: &Path, path: &OsStr) -> Command {
+    // Deliberately NO apply(): npm prefix -g must see the user's existing config.
+    let mut npm = selected.npm_command();
+    npm.env("PATH", path).env("CORTEX_HOME", home);
+    npm
+}
+
+fn prefix_candidate(prefix: &Path, selected: &Selection) -> Option<PathBuf> {
+    if prefix == selected.prefix {
+        return None;
+    }
+    #[cfg(windows)]
+    return super::selection_discovery::find_windows_bin("cortex", prefix.as_os_str());
+    #[cfg(unix)]
+    {
+        let candidate = prefix.join("bin/cortex");
+        candidate.is_file().then_some(candidate)
+    }
+}
+
+#[cfg(windows)]
+fn bind_windows_server(selected: &mut Selection) -> Result<(), String> {
+    let server = selected.server.as_mut().ok_or("CLI_NOT_ON_PATH")?;
+    if !server.managed {
+        return super::windows_server::bind_external(server);
+    }
+    let cli = super::windows_server::package_cli(&selected.prefix)?;
+    if server.bin.canonicalize().ok().as_ref() != Some(&cli) {
+        return Err("CLI_NOT_ON_PATH: saved server identity does not match private package".into());
+    }
+    server.node_entry = None;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn external_prefix_query_binds_npm_cli_without_private_prefix_override() {
+        let mut selected = Selection::new(
+            "/selected/node.exe".into(),
+            "/selected/npm.cmd".into(),
+            "/private".into(),
+        );
+        selected.npm_cli = Some("/selected/node_modules/npm/bin/npm-cli.js".into());
+        let command = npm_prefix_command(&selected, Path::new("/home"), OsStr::new("/effective"));
+        assert_eq!(command.get_program(), selected.node);
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            [selected.npm_cli.as_ref().unwrap().as_os_str()]
+        );
+        assert!(command
+            .get_envs()
+            .all(|(key, _)| !key.to_string_lossy().to_ascii_lowercase().contains("prefix")));
+    }
 }
 
 pub fn server_version(selected: &Selection, home: &Path, path: &OsStr) -> Option<String> {
@@ -132,19 +207,11 @@ fn install_server_version(
         return Ok(None);
     };
     let program = server.bin.as_os_str();
-    let version =
-        super::probe::selected_output(selected, home, path, program, &["--version"], token)?;
+    let version = super::probe::selected_output(selected, home, path, program, &["--version"], token)?;
     if version.is_some() {
         return Ok(version);
     }
-    super::probe::selected_output(
-        selected,
-        home,
-        path,
-        program,
-        &["daemon", "--version"],
-        token,
-    )
+    super::probe::selected_output(selected, home, path, program, &["daemon", "--version"], token)
 }
 
 fn check_server(
@@ -160,9 +227,7 @@ fn check_server(
         return Ok(());
     }
     if selected.server.as_ref().is_some_and(|s| !s.managed) {
-        return Err(
-            "SERVER_EXTERNAL_UNSUPPORTED: existing Cortex must be updated by its owner".into(),
-        );
+        return Err("SERVER_EXTERNAL_UNSUPPORTED: existing Cortex must be updated by its owner".into());
     }
     Err("SERVER_TOO_OLD: installed Cortex cannot run or is too old".into())
 }

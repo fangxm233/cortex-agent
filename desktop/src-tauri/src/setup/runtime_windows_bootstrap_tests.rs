@@ -8,6 +8,7 @@ fn repair_preserves_good_node_and_server_and_adds_missing_git() {
     selected.server = Some(Server {
         bin: dir.path().join("existing/cli.js"),
         managed: false,
+        node_entry: None,
     });
     let old_node = selected.node.clone();
     let token = CancelToken::default();
@@ -33,6 +34,7 @@ fn missing_saved_tools_repair_to_new_private_paths_without_external_writes() {
     selected.server = Some(Server {
         bin: dir.path().join("keep-cli.js"),
         managed: true,
+        node_entry: None,
     });
     let token = CancelToken::default();
     repair_node(&mut selected, dir.path(), OsStr::new(""), "22", &token, || {
