@@ -129,14 +129,18 @@ function finishInstall(paths: LocalClientPaths, intent: LocalClientIntent, bundl
 }
 
 /** Daemon recovery may complete an existing intent, but must never enroll an ordinary home. */
-export async function completeLocalClientInstall(paths: LocalClientPaths, device: string, installRoot?: string): Promise<void> {
+export async function completeLocalClientInstall(
+  paths: LocalClientPaths, device: string, installRoot?: string, signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted();
   if (!readLocalClientIntent(paths)) throw new Error('Missing local client ownership intent');
   const bundle = loadPackageClientBundle(installRoot);
   await withFileLock(intentFile(paths), async () => {
+    signal?.throwIfAborted();
     const intent = readLocalClientIntent(paths);
     if (!intent) throw new Error('Missing local client ownership intent');
     validateLocalClientOwnership(paths, intent, device);
     if (!fs.existsSync(configFile(paths))) atomicWriteSync(configFile(paths), configText(device));
     finishInstall(paths, intent, bundle);
-  });
+  }, { signal });
 }

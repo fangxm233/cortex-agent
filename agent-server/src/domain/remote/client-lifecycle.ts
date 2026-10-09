@@ -27,9 +27,9 @@ const localPaths = { DATA_DIR, CONFIG_DIR };
 let lifecycleStopped = false;
 const localLaunch = new OwnedLocalLaunchGate({
   online: isDeviceOnline,
-  recover: async device => {
+  recover: async (device, signal) => {
     assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
-    await completeLocalClientInstall(localPaths, device);
+    await completeLocalClientInstall(localPaths, device, undefined, signal);
   },
   pidAlive: localPidAlive,
   launch: spawnOwnedLocalClient,
@@ -247,8 +247,7 @@ function spawnOwnedLocalClient(device: string): void {
 
 async function startOwnedIfEnrolled(device: string, reg: MachineEntry): Promise<boolean> {
   const intent = readLocalClientIntent(localPaths);
-  if (!intent) return false;
-  if (intent.device !== device && reg.ssh) return false;
+  if (!intent || (intent.device !== device && reg.ssh)) return false;
   if (intent.device !== device) throw new Error('Owned local bundle belongs to a different device');
   await localLaunch.start(device);
   if (!isDeviceOnline(device)) scheduleRestart(device);

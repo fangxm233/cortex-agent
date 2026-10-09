@@ -42,7 +42,7 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   const pending = Promise.all([startRemoteClient('local'), startRemoteClient('local')]);
   await vi.advanceTimersByTimeAsync(1000);
   await pending;
-  expect(hooks.recover).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local');
+  expect(hooks.recover).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local', undefined, expect.any(AbortSignal));
   expect(hooks.spawn).toHaveBeenCalledOnce();
   expect(hooks.spawn).toHaveBeenCalledWith(process.execPath, [join(DATA_DIR, 'client/current/client.mjs')], expect.objectContaining({
     detached: true, stdio: 'ignore', env: expect.objectContaining({

@@ -1,7 +1,7 @@
 /** Owned-local launch coordination only. Existing lifecycle timers remain the sole retry owner. */
 interface LaunchHooks {
   online(device: string): boolean;
-  recover(device: string): Promise<void>;
+  recover(device: string, signal: AbortSignal): Promise<void>;
   pidAlive(device: string): boolean;
   launch(device: string): void;
 }
@@ -42,9 +42,10 @@ export class OwnedLocalLaunchGate {
     if (this.controller.signal.aborted) return Promise.resolve();
     const existing = this.flights.get(device);
     if (existing) return existing;
-    const flight = this.prepareAndLaunch(device, this.controller.signal).finally(() => {
-      if (this.flights.get(device) === flight) this.flights.delete(device);
-    });
+    const signal = this.controller.signal;
+    const flight = this.prepareAndLaunch(device, signal)
+      .catch(error => { if (!signal.aborted) throw error; })
+      .finally(() => { if (this.flights.get(device) === flight) this.flights.delete(device); });
     this.flights.set(device, flight);
     return flight;
   }
@@ -63,7 +64,7 @@ export class OwnedLocalLaunchGate {
 
   private async prepareAndLaunch(device: string, signal: AbortSignal): Promise<void> {
     if (this.hooks.online(device)) return;
-    await this.hooks.recover(device);
+    await this.hooks.recover(device, signal);
     if (signal.aborted || this.hooks.online(device)) return;
     await this.waitForReconnect(device, signal);
     if (signal.aborted || this.hooks.online(device)) return;

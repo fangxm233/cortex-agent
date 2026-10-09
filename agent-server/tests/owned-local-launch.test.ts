@@ -82,6 +82,7 @@ test('stop while recovering prevents late spawn even after resume', async () => 
   recover.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
   const pending = gate.start('local');
   gate.stop();
+  expect(recover).toHaveBeenCalledWith('local', expect.objectContaining({ aborted: true }));
   gate.resume();
   finish();
   await pending;
