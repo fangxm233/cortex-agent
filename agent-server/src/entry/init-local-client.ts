@@ -1,7 +1,8 @@
 import { beginLocalClientInstall, completeLocalClientInstall, type LocalClientPaths } from '@domain/remote/local-client-install.js';
 
 export function parseClientListenHost(value: unknown): '127.0.0.1' | undefined {
-  if (value === undefined || value === '127.0.0.1') return value;
+  if (value === undefined) return undefined;
+  if (value === '127.0.0.1') return '127.0.0.1';
   throw new Error('--answers clientListenHost must be the literal 127.0.0.1');
 }
 
