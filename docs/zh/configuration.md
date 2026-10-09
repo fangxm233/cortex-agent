@@ -100,6 +100,13 @@ $CORTEX_HOME/
 | `CORTEX_MACHINE` | `os.hostname()` | 启动私信的机器标签 |
 | `CORTEX_RESTART_REASON` | — | 重启通知的原因字符串 |
 | `CORTEX_CLIENT_PORT` | `3002` | cortex-client 管理器的 WebSocket 端口 |
+| `CORTEX_CLIENT_HOST` | 未指定（所有接口） | 仅控制 cortex-client WebSocket 监听地址；服务器启动时读取 |
+
+全新 Windows 本机 App 安装在 `config/.env` 中写入
+`CORTEX_CLIENT_HOST=127.0.0.1`。已有安装、普通 CLI 初始化和其他平台保留各自的默认值与配置。
+需要有意启用局域网直连客户端时，须显式将此变量设为合适的绑定地址（例如 `0.0.0.0`
+表示所有 IPv4 接口），并重启服务器。Cortex 不自动配置防火墙策略。
+此设置不影响 Web UI、TUI 或其他服务器监听端口。
 
 ### 平台 {#platform}
 

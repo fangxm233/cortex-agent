@@ -127,6 +127,15 @@ are migrated out of `.env` automatically on the next daemon start.
 | `CORTEX_MACHINE` | `os.hostname()` | Machine label for startup DM |
 | `CORTEX_RESTART_REASON` | — | Reason string for restart notification |
 | `CORTEX_CLIENT_PORT` | `3002` | WebSocket port for cortex-client manager |
+| `CORTEX_CLIENT_HOST` | Unspecified (all interfaces) | Bind address for the cortex-client WebSocket listener only; read at server startup |
+
+A new Windows local App installation writes `CORTEX_CLIENT_HOST=127.0.0.1` to
+`config/.env`. Existing installations, ordinary CLI init, and other platforms keep
+their existing defaults and configuration. For intentional LAN-direct clients,
+explicitly set this variable to an appropriate bind address (for example,
+`0.0.0.0` for all IPv4 interfaces) and restart the server. Cortex does not
+configure firewall policy automatically. This setting does not affect Web UI,
+TUI, or other server listeners.
 
 ### Platform
 
