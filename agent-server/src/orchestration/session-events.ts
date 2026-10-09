@@ -2,11 +2,13 @@ import { orchestrationBus } from './runtime.js';
 import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
+import type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
   channel: string;
-  role: 'user' | 'assistant' | 'tool';
+  /** `worker-progress`: a team worker's interim reply, shown in its lead's chat (see `worker`). */
+  role: 'user' | 'assistant' | 'tool' | 'worker-progress';
   text: string;
   /** User messages only: Cortex authored this turn (resume signal, backgrounded agent result,
    *  waitpoint signal, team hand-off) rather than a human. Chat surfaces render it as a hint
@@ -15,6 +17,10 @@ export interface SessionMessagePayload {
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
+  /** Lead worker-tool rows only: what the call did to which worker. */
+  teamAction?: TeamActionRef;
+  /** `worker-progress` rows only: the worker that sent it. */
+  worker?: TeamWorkerRef;
   attachments?: AttachmentMeta[];
   /** Agent-announced decisions (`send_decision`) carried by this assistant message. */
   decisions?: DecisionItem[];
@@ -99,6 +105,8 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.toolName !== undefined ? { toolName: p.toolName } : {}),
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
     ...(p.toolDevice !== undefined ? { toolDevice: p.toolDevice } : {}),
+    ...(p.teamAction !== undefined ? { teamAction: p.teamAction } : {}),
+    ...(p.worker !== undefined ? { worker: p.worker } : {}),
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
     ...(p.decisions !== undefined ? { decisions: p.decisions } : {}),
     ...(p.ts !== undefined ? { ts: p.ts } : {}),

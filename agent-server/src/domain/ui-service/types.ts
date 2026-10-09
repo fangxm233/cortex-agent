@@ -40,6 +40,8 @@ export type {
 } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
+import type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
+export type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
 import type {
   HookBackend,
   HookEvent,
@@ -462,8 +464,11 @@ export interface TranscriptDebugDetails {
 }
 
 export interface TranscriptMessage {
-  type: 'user' | 'assistant' | 'tool' | 'interaction';
-  /** user / assistant / interaction text; null for tool events. */
+  /** `worker-progress`: a team worker's final reply for a turn that ended while it still had work
+   *  pending (queued message, background task, open waitpoint or interaction). Recorded in the
+   *  LEAD's history for display only: it never reaches the lead model and is not a user turn. */
+  type: 'user' | 'assistant' | 'tool' | 'interaction' | 'worker-progress';
+  /** user / assistant / interaction / worker-progress text; null for tool events. */
   text: string | null;
   /** tool name (tool events only). */
   toolName: string | null;
@@ -471,6 +476,10 @@ export interface TranscriptMessage {
   toolInput: string | null;
   /** Remote execution target (remote tool events only). */
   toolDevice?: string;
+  /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool rows only). */
+  teamAction?: TeamActionRef;
+  /** The worker a `worker-progress` row came from (worker-progress rows only). */
+  worker?: TeamWorkerRef;
   /** User rows only: Cortex authored this turn — a resume signal, a task/thread callback, a
    *  subtask's question, a backgrounded agent's result — rather than a human typing it. Chat
    *  surfaces render it as a one-line hint instead of a user bubble. Absent = human. */
