@@ -1,10 +1,9 @@
 # Qualified PortableGit x64 reader
 
-Status: source port complete; **native orchestration is not wired**. The headless
+The native Windows setup uses this bounded reader to extract the pinned official
+PortableGit package without running its self-extracting executable. The headless
 harness compiles `../runtime_portablegit.rs` directly. Source provenance:
 qualified helper `b0b7fdf9848cd73e0cf5e0b37037379daef04251`, registry decoder unchanged.
-The completed alternative gate (basic011 PASS) supersedes the helper's historical
-Windows-pending text; the original direct-SFX UI failure remains unchanged.
 
 ## Contract
 
@@ -59,12 +58,15 @@ Windows-only in the native manifest (headless harness has its own dependencies).
   Native already locked CRC 1.5.0; harness CRC is aligned from 1.5.2 to 1.5.0.
   Other existing lockfile versions are preserved. No dependency audit is rerun.
 
-## Remaining native work (separate unit)
+## Native integration
 
-Wire the Windows/x64 module declaration and blocking call into existing setup;
-select/download the pinned archive, supply native cancellation and trusted fresh
-staging, clean failed stages, run the qualified hidden unchanged post-install,
-check readiness and promote/persist selection. Carry the decoder license with the
-packaged app. This reader alone does not mean Git/Bash is initialized or usable.
-The parent owns fixed-source Windows builds and fresh Sandbox acceptance. This
-unit neither executes extracted files nor repeats the qualified full-file audit.
+Windows setup downloads the pinned archive into a fresh user-local attempt,
+passes its cancellation token to the reader, then runs the unchanged hidden
+upstream post-install separately. Readiness and functional probes must succeed
+before the selected identities are published. Failed attempts clean only their
+own staging directories; existing installations are not overwritten.
+
+The native app bundles this attribution and `LICENSE-APACHE` under
+`licenses/portablegit-reader/`. Node and Git retain their own complete payload
+licenses and notices. Extraction alone is not evidence of an initialized Git/Bash
+installation; full native application acceptance is tracked separately.
