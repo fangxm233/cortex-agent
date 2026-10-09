@@ -52,6 +52,10 @@ fn zip_rejects_unsafe_paths_and_aliases() {
             "{name}"
         );
     }
+}
+
+#[test]
+fn zip_rejects_case_aliases() {
     let dir = tempfile::tempdir().unwrap();
     assert!(extract_zip(
         &fixture(&["node/A", "node/a"]),
@@ -60,6 +64,18 @@ fn zip_rejects_unsafe_paths_and_aliases() {
         &CancelToken::default()
     )
     .is_err());
+}
+
+#[test]
+fn zip_rejects_duplicate_central_names_before_library_deduplication() {
+    let mut bytes = fixture(&["node/A", "node/B"]);
+    for index in 0..bytes.len() - 6 {
+        if &bytes[index..index + 6] == b"node/B" {
+            bytes[index + 5] = b'A';
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    assert!(extract_zip(&bytes, &dir.path().join("stage"), "node", &CancelToken::default()).is_err());
 }
 
 #[test]
@@ -144,6 +160,11 @@ fn git_redirects_are_exact_bounded_https_only() {
             1
         ));
     }
+}
+
+#[test]
+fn git_redirects_require_exact_initial_asset_and_bounded_hops() {
+    let asset = reqwest::Url::parse(GIT_URL).unwrap();
     assert!(!git_redirect_allowed(&asset, &asset, 4));
     assert!(!git_redirect_allowed(
         &reqwest::Url::parse("https://github.com/other").unwrap(),

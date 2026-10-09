@@ -24,7 +24,7 @@ fn postinstall_exact_self_delete_only_after_readiness() {
 }
 
 #[test]
-fn postinstall_sanitizes_only_its_child_environment() {
+fn postinstall_blocks_startup_and_git_injection_keys() {
     for key in [
         "BASH_ENV",
         "env",
@@ -42,6 +42,10 @@ fn postinstall_sanitizes_only_its_child_environment() {
         assert!(remove_key(key), "{key}");
     }
     assert!(!remove_key("SystemRoot"));
+}
+
+#[test]
+fn postinstall_sanitizes_only_its_child_environment() {
     let mut command = std::process::Command::new("fixture");
     command.env("gIt_Config_Global", "unsafe");
     sanitize(

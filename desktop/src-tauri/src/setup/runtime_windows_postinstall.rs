@@ -19,24 +19,11 @@ fn failure(_: impl std::fmt::Display) -> String {
 
 #[cfg(windows)]
 pub(super) fn run(stage: &Path, home: &Path, token: &CancelToken) -> Result<super::GitSelection, String> {
-    use std::time::Duration;
     token.check()?;
     let system = std::env::var_os("SystemRoot")
         .map(std::path::PathBuf::from)
         .ok_or_else(|| failure("SystemRoot"))?;
-    if !system.is_absolute() {
-        return Err(failure("SystemRoot"));
-    }
-    std::fs::create_dir_all(home.join(".config")).map_err(failure)?;
-    let mut command = Command::new(stage.join("git-bash.exe"));
-    command.current_dir(stage).args([
-        "--no-needs-console",
-        "--hide",
-        "--no-cd",
-        "--command=post-install.bat",
-    ]);
-    sanitize(&mut command, home, stage, &system)?;
-    let outcome = super::process::windows::run(command, token, Some(Duration::from_secs(180)), &|_| {})?;
+    let outcome = run_upstream(stage, home, &system, token)?;
     let ready = ready_files(stage, &system, token).is_ok();
     token.check()?;
     accept_outcome(
@@ -55,6 +42,28 @@ pub(super) fn run(stage: &Path, home: &Path, token: &CancelToken) -> Result<supe
     }
     token.check()?;
     Ok(git)
+}
+
+#[cfg(windows)]
+fn run_upstream(
+    stage: &Path,
+    home: &Path,
+    system: &Path,
+    token: &CancelToken,
+) -> Result<super::process::windows::Outcome, String> {
+    if !system.is_absolute() {
+        return Err(failure("SystemRoot"));
+    }
+    std::fs::create_dir_all(home.join(".config")).map_err(failure)?;
+    let mut command = Command::new(stage.join("git-bash.exe"));
+    command.current_dir(stage).args([
+        "--no-needs-console",
+        "--hide",
+        "--no-cd",
+        "--command=post-install.bat",
+    ]);
+    sanitize(&mut command, home, stage, system)?;
+    super::process::windows::run(command, token, Some(std::time::Duration::from_secs(180)), &|_| {})
 }
 
 fn accept_outcome(

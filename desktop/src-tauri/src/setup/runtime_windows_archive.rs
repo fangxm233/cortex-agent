@@ -40,7 +40,11 @@ pub(super) fn extract_zip(
     if bytes.len() > MAX_ARCHIVE {
         return Err(invalid("ZIP too large"));
     }
+    let count = zip_count(bytes)?;
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(invalid)?;
+    if archive.len() != count {
+        return Err(invalid("ZIP duplicate or inconsistent directory"));
+    }
     validate_zip(&mut archive, bytes, root, token)?;
     plain_parents(destination.parent().ok_or_else(|| invalid("missing parent"))?)?;
     std::fs::create_dir(destination).map_err(invalid)?;
@@ -51,6 +55,30 @@ pub(super) fn extract_zip(
         unpack_entry(&mut entry, &destination.join(member), token)?;
     }
     token.check()
+}
+
+// Node's pin is a conventional single-disk ZIP, not ZIP64. Bound metadata before
+// ZipArchive allocates its index (which would otherwise hide exact duplicates).
+fn zip_count(bytes: &[u8]) -> Result<usize, String> {
+    let start = bytes.len().saturating_sub(65557);
+    let offset = (start..bytes.len().saturating_sub(21))
+        .rev()
+        .find(|&i| {
+            bytes[i..].starts_with(b"PK\x05\x06")
+                && i + 22 + u16::from_le_bytes([bytes[i + 20], bytes[i + 21]]) as usize == bytes.len()
+        })
+        .ok_or_else(|| invalid("missing ZIP end record"))?;
+    let end = &bytes[offset..offset + 22];
+    let count = u16::from_le_bytes([end[10], end[11]]) as usize;
+    let size = u32::from_le_bytes(end[12..16].try_into().unwrap()) as u64;
+    let central = u32::from_le_bytes(end[16..20].try_into().unwrap()) as u64;
+    if end[4..8] != [0; 4] || end[8..10] != end[10..12] || count == 0 || count > MAX_ENTRIES {
+        return Err(invalid("ZIP entry/disk limit"));
+    }
+    if central + size != offset as u64 {
+        return Err(invalid("ZIP central directory bounds/ZIP64"));
+    }
+    Ok(count)
 }
 
 fn validate_zip(
@@ -153,6 +181,14 @@ fn unpack_entry(
         .create_new(true)
         .open(target)
         .map_err(invalid)?;
+    copy_entry(entry, &mut output, token)
+}
+
+fn copy_entry(
+    entry: &mut zip::read::ZipFile<'_>,
+    output: &mut impl Write,
+    token: &CancelToken,
+) -> Result<(), String> {
     let mut bytes = [0; 65536];
     let mut written = 0u64;
     loop {
