@@ -1,11 +1,10 @@
 import { classifyAuthError } from '../auth/auth-events.js';
 
+// "usage limit" is how PI's openai-codex provider reports a spent ChatGPT plan (usage_limit_reached).
+const RATE_LIMIT_ERROR = /rate[ _]limit|usage[ _]limit|overloaded|529|too many requests|quota/i;
+
 export function isApiRateLimitError(errorMessage: string | null | undefined): boolean {
-  if (!errorMessage) return false;
-  const msg = errorMessage.toLowerCase();
-  return msg.includes('rate limit') || msg.includes('rate_limit') ||
-         msg.includes('overloaded') || msg.includes('529') ||
-         msg.includes('too many requests') || msg.includes('quota');
+  return !!errorMessage && RATE_LIMIT_ERROR.test(errorMessage);
 }
 
 export function isRetryableResult(result: { rateLimited?: boolean } | null): boolean {

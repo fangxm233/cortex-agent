@@ -50,6 +50,24 @@ test('throttled + rate-limit error + userMessage → pause & record direct resum
   assert.ok(adapter.updated.length >= 1, 'status sealed via updateMessage');
 });
 
+// PI's openai-codex provider reports a spent ChatGPT plan as a "usage limit", never "rate limit".
+for (const message of [
+  'You have hit your ChatGPT usage limit (prolite plan). Try again in ~7737 min.',
+  'The usage limit has been reached',
+]) {
+  test(`throttled + Codex usage-limit error → pause & record direct resume: ${message}`, async (t) => {
+    t.onTestFinished(() => { throttleReset(); resumeReset(); });
+    const adapter = new MockAdapter({ adminChannel: 'admin' });
+    await initResumeRegistry({ save: async () => {}, load: async () => [] });
+    await activateThrottle(adapter);
+
+    await handleAgentError(baseArgs(adapter, { error: { message, rateLimitProvider: 'provider-a' } }) as any);
+
+    assert.equal(getResumeCount(), 1, 'a direct resume entry was recorded');
+    assert.equal(adapter.posted.length, 0, 'no error body posted — paused, not failed');
+  });
+}
+
 test('a different active provider does not pause this provider error', async (t) => {
   t.onTestFinished(() => { throttleReset(); resumeReset(); });
   const adapter = new MockAdapter({ adminChannel: 'admin' });
