@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
-import { CLIENT, SERVER, roleFor, identity, key } from './processes.mjs';
+import { CLIENT, SERVER, roleFor, identity, key, assertBirthSummary } from './processes.mjs';
 import { nodeIdentityCommand } from './product.mjs';
 
 test('classifies exact product entries, including rotated client layouts', () => {
@@ -26,6 +26,18 @@ test('node identity assertion survives Bash quoting without reading host profile
   const stdout = execFileSync('/bin/bash', ['--noprofile', '--norc', '-c', nodeIdentityCommand()],
     { env, encoding: 'utf8', timeout: 5000 });
   assert.deepEqual(JSON.parse(stdout), { node: process.execPath, version: process.version, env });
+});
+
+test('warm CLI contenders must exit without creating extra app or client processes', () => {
+  const daemon = [1, 2, 3, 4].map(pid => ({ pid, start: String(pid), role: 'daemon' }));
+  const records = { daemon, app: [{}], client: [{}] };
+  const expected = { daemon: 4, app: 1, client: 1 };
+  const leaders = new Set([key(daemon[0])]);
+  assert.doesNotThrow(() => assertBirthSummary(records, expected, leaders, () => null));
+  assert.throws(() => assertBirthSummary(records, expected, leaders, pid => daemon.find(d => d.pid === pid)));
+  assert.throws(() => assertBirthSummary({ ...records, client: [{}, {}] }, expected, leaders, () => null));
+  assert.throws(() => assertBirthSummary({ ...records, app: [{}, {}] }, expected, leaders, () => null));
+  assert.throws(() => assertBirthSummary({ ...records, daemon: [...daemon, { pid: 5, start: '5' }] }, expected, leaders, () => null));
 });
 
 test('proc identity includes stat start time and tolerates exited processes', () => {
