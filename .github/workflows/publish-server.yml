@@ -41,6 +41,7 @@ jobs:
         run: |
           cp ../README.md .
           node scripts/copy-web-dist.js
+          node scripts/client-bundle.js
 
       - name: Upgrade npm for trusted publishing
         run: npm install -g npm@latest   # OIDC trusted publishing needs npm >= 11.5.1

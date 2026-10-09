@@ -2,12 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { getMachineRegistry, type MachineEntry, type MachineRegistry } from './machine-registry.js';
-import { STORE_DIR, DATA_DIR } from '@core/paths.js';
+import { STORE_DIR, DATA_DIR, CONFIG_DIR } from '@core/paths.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { getClientManagerPort, isDeviceOnline, setHubLifecycleHooks } from './client-manager.js';
 import { SshTunnelSupervisor, reverseTunnelSpec, type SshTunnelSpec } from './client-ssh-tunnel.js';
 import { sshExec } from './ssh-exec.js';
+import { assertLocalClientMachine, completeLocalClientInstall, markLocalClientLaunchAttempted, readLocalClientIntent } from './local-client-install.js';
+import { OwnedLocalLaunchGate, ownedLocalEnvironment } from './owned-local-launch.js';
 
 // Remote client lifecycle: SSH nohup start, PID tracking, managed routes, auto-restart.
 
@@ -21,6 +23,18 @@ const PID_FILE = path.join(STORE_DIR, 'client-pids.json');
 const ROUTE_OWNERSHIP_FILE = path.join(STORE_DIR, 'client-routes.json');
 const restartTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const RESTART_DELAY_MS = 60_000; // retry every 60s until device reconnects
+const localPaths = { DATA_DIR, CONFIG_DIR };
+let lifecycleStopped = false;
+const localLaunch = new OwnedLocalLaunchGate({
+  online: isDeviceOnline,
+  recover: async (device, signal) => {
+    assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
+    await completeLocalClientInstall(localPaths, device, undefined, signal);
+    return readLocalClientIntent(localPaths)?.launchAttempted;
+  },
+  markLaunchAttempted: (device, signal) => markLocalClientLaunchAttempted(localPaths, device, signal),
+  launch: spawnOwnedLocalClient,
+});
 
 function loadPids(): Record<string, number> {
   try { return JSON.parse(fs.readFileSync(PID_FILE, 'utf8')); } catch { return {}; }
@@ -214,29 +228,57 @@ function spawnLocalClient(device: string): void {
   }
 }
 
+function spawnOwnedLocalClient(device: string): void {
+  assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
+  const env = ownedLocalEnvironment(process.env, DATA_DIR, getClientToken(), getClientManagerPort());
+  const child = spawn(process.execPath, [localClientEntryPath()], { detached: true, stdio: 'ignore', env });
+  child.on('error', () => {
+    log.error(`Owned local client spawn failed on ${device}; scheduling retry`);
+    scheduleRestart(device);
+  });
+  child.unref();
+  if (child.pid) setPid(device, child.pid);
+}
+
+function localIntentForRoute(reg: MachineEntry): ReturnType<typeof readLocalClientIntent> {
+  try { return readLocalClientIntent(localPaths); }
+  catch (error) {
+    // Broken local state must fail closed locally, not disable an explicit external SSH route.
+    if (reg.ssh) return null;
+    throw error;
+  }
+}
+
+async function startOwnedIfEnrolled(device: string, reg: MachineEntry): Promise<boolean> {
+  const intent = localIntentForRoute(reg);
+  if (!intent || (intent.device !== device && reg.ssh)) return false;
+  if (intent.device !== device) throw new Error('Owned local bundle belongs to a different device');
+  await localLaunch.start(device);
+  if (!isDeviceOnline(device)) scheduleRestart(device);
+  return true;
+}
+
+async function prepareAndStartClient(device: string, reg: MachineEntry): Promise<void> {
+  if (await startOwnedIfEnrolled(device, reg)) return;
+  if (!await prepareLaunch(device, reg)) return;
+  if (!reg.ssh) return spawnLocalClient(device);
+  await startRemoteWithRetry(device);
+}
+
 export async function startRemoteClient(device: string): Promise<void> {
   const reg = managedEntry(device);
-  if (!reg) return;
+  if (!reg || lifecycleStopped) return;
   if (isDeviceOnline(device) && reg.clientConnection !== 'ssh-reverse') return;
-
   try {
-    if (!await prepareLaunch(device, reg)) return;
+    await prepareAndStartClient(device, reg);
   } catch (err) {
-    log.error(`Failed to prepare client route on ${device}: ${(err as Error).message} — scheduling retry`);
+    log.error(`Failed to prepare client on ${device}: ${(err as Error).message} — scheduling retry`);
     scheduleRestart(device);
-    return;
   }
+}
 
-  if (!reg.ssh) {
-    spawnLocalClient(device);
-    return;
-  }
-
-  // Remote device: launch cortex-client (config managed by LLM, written once at bootstrap).
-  // On ANY failure path (SSH error, empty/unparseable PID), we MUST schedule a retry —
-  // otherwise a single startup failure leaves the device offline until the next server
-  // restart, because scheduleRestart() is otherwise only triggered by disconnect or
-  // heartbeat-timeout of an already-connected device.
+/** Remote failures must keep the existing restart timer armed, including an unparseable PID. */
+async function startRemoteWithRetry(device: string): Promise<void> {
   try {
     if (!await launchRemoteClient(device)) {
       log.warn(`Failed to parse PID for ${device} — scheduling retry`);
@@ -250,7 +292,7 @@ export async function startRemoteClient(device: string): Promise<void> {
 
 function scheduleRestart(device: string): void {
   const reg = _getRegistryImpl()[device];
-  if (!reg || restartTimers.has(device)) return;
+  if (!reg || lifecycleStopped || restartTimers.has(device)) return;
 
   const timer = setTimeout(async () => {
     restartTimers.delete(device);
@@ -312,9 +354,15 @@ export async function startAllRemoteClients(): Promise<void> {
 // The hub reports its own start/stop and every unexpected departure here; registering at load keeps
 // the hub free of any knowledge of SSH.
 setHubLifecycleHooks({
-  onStart: () => tunnelSupervisor.resume(),
+  onStart: () => {
+    lifecycleStopped = false;
+    localLaunch.resume();
+    tunnelSupervisor.resume();
+  },
   onDeviceGone: scheduleRestart,
   onStop: async () => {
+    lifecycleStopped = true;
+    localLaunch.stop();
     cancelRestarts();
     await tunnelSupervisor.stopAll();
     routeSnapshots.clear();
@@ -330,6 +378,9 @@ export function _setMachineRegistryProviderForTesting(fn: () => MachineRegistry)
 export function _setTunnelSupervisorForTesting(supervisor: TunnelController): void { tunnelSupervisor = supervisor; }
 export function _getRestartTimerCount(): number { return restartTimers.size; }
 export function _testReset(): void {
+  localLaunch.stop();
+  localLaunch.resume();
+  lifecycleStopped = false;
   cancelRestarts();
   routeSnapshots.clear();
   _sshExecImpl = sshExec;
