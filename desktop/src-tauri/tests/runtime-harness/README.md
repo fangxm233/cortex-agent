@@ -212,3 +212,132 @@ profile PATH, Unicode process, no-window, cancellation or arm64 acceptance.
 4. No server/client/web/decoder duplication or main merge. Existing integrated
    base `6adc9ca58` and concurrent main `d9dee3a2d` were left untouched. Stop here;
    do not interpret these selection tests as a gate rerun or a new acceptance harness.
+
+## Windows bootstrap/installer unit handoff (2026-10-08)
+
+Status: **source implementation + focused Linux tests complete; Windows compilation,
+execution and final shell entry wiring remain parent-owned**. Worktree
+`/home/fangxin/Cortex-wt-win-bootstrap`, branch `cortex/win-bootstrap`, base
+`1c43ac3e7915fd2bb7899237822c0d897ead413a`. Implementation commits:
+
+- `fd892fb9c`: authenticated download/ZIP staging, Node pins, Windows tempfile.
+- `c3cdbadb8`: repair-aware bootstrap and unchanged upstream post-install policy.
+- `152de2a6d`: ZIP central-directory count/duplicate guard and bounded helper cleanup.
+- `abdfbf89c`: selected npm prefix discovery, flat Windows server layout/Node binding.
+- `7b4c50e33`: qualify existing private packages before reuse; native-safe test glue.
+
+### Sources and contracts
+
+Paths below are relative to `desktop/src-tauri/src/setup/`:
+
+- `runtime.rs`: dispatches Windows bootstrap; existing `bootstrap`/`ensure_server`
+  signatures unchanged. Adds backward-compatible optional `Server.node_entry`.
+  `Server.bin` and `managed` retain original external identity/ownership;
+  `Selection::command(server.bin)` launches selected Node + qualified package JS
+  when `node_entry` is present. Consumers must use this command API, not construct
+  a process directly from `server.bin` or infer launch mode solely from `managed`.
+- `runtime_windows_bootstrap.rs`: reads saved identities with `read_saved`, uses
+  `windows_repair_needs`, npm binding, `qualify_node`, and Git discover/qualify.
+  Old Node-only selections gain Git. Healthy tools are reused; damaged saved tools
+  get new private installations, never writes to their previous locations.
+  Node repair preserves prefix/server/Git identities. Absent Git can be discovered
+  externally; a damaged saved Git is repaired privately, not silently reselected.
+- `runtime_windows_archive.rs`, `runtime_windows_download.rs`, `runtime_archive.rs`:
+  exact Node v24.21.0 x64 ZIP pin/root, SHA verification, no Node redirects;
+  150 MiB compressed / 1 GiB expanded / 40,000 ZIP entry bounds, pre-index count
+  checks, no duplicate/unsafe/link/reparse members, create-new files and CRC checks.
+  Git uses the specified full 60,027,568-byte official asset/hash, at most three
+  HTTPS redirects from the exact asset to the two approved release CDN hosts.
+  Shared tar/GZip functions and Unix permission tests are Unix-cfg-only; their
+  behavior is retained. ARM64 Node data is metadata only: managed preparation
+  explicitly requires x64. No arm64 Git support was invented.
+- `runtime_windows_postinstall.rs`: only called after the existing
+  `runtime_portablegit::extract_x64` authenticates/extracts the complete payload.
+  Uses its in-memory cancellation callback unchanged. Runs the unchanged upstream
+  batch via `git-bash.exe --no-needs-console --hide --no-cd
+  --command=post-install.bat`, stage cwd, owned Windows `run` with 180s deadline.
+  Only this child's environment is sanitized; HOME/XDG are attempt-private.
+  Raw bounded stdout/stderr are inspected internally, never sent to the UI.
+  Readiness checks cleanup, four network-file copies, DLL copies and real
+  `dlls-copied.exe`, MSYS markers/mtab, plus absolute same-install Git/Bash probes.
+  This is not a payload inventory/manifest rehash.
+- `runtime_install.rs`, `runtime_windows_server.rs`: prefix discovery now uses
+  `selected.npm_command()` **without** applying the private prefix override.
+  Managed Windows CLI is `<prefix>/node_modules/@cortex-agent/server/dist/entry/cortex-cli.js`.
+  Existing healthy private packages are reused; incomplete unselected packages
+  can retry installation. Existing saved server identities are not replaced.
+  Qualified external standard npm `.cmd` wrappers bind the actual package JS;
+  arbitrary/custom `.cmd` or opaque `.exe` wrappers return
+  `SERVER_EXTERNAL_AMBIGUOUS`, never falsely claim selected-Node identity or get
+  overwritten. Legacy suffix discovery is retained; `process.rs` is untouched.
+
+Attempt directories are fresh `runtime/node-v24.21.0-win-x64-*` and
+`runtime/git-2.56.0.2-x64-*` directories. Promotion disarms TempDir cleanup only
+**after** qualification, retaining the exact tested paths (no rename onto an
+existing install). Failed/cancelled attempts clean only their own fresh stage.
+Already promoted healthy tools remain if a later step fails; no user data is
+removed. Qualification and cancellation checks precede selection saves.
+
+**Locale limitation:** exit 1 is accepted only with the exact observed GB18030
+stderr bytes `d5d2b2bbb5bdc5fab4a6c0edcec4bcfea1a30d0a`, exact expected upstream
+stdout, complete nontruncated outcome and all readiness/functional checks.
+English/other localized errors are deliberately unqualified. Exit 0 still
+requires clean expected diagnostics/readiness. All other nonzero outcomes,
+timeouts, cancellation and truncation fail. Ordinary `run_install` still rejects
+*every* nonzero exit. Native runtime PASS is not inferred from the earlier gate
+or from the parent's still-separate owned-process tests.
+
+### Exact scoped verification
+
+```sh
+cd /home/fangxin/Cortex-wt-win-bootstrap
+export PATH=/home/fangxin/.cortex/data/windows-managed-runtime/decoder-gate/.rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin:$PATH
+for filter in \
+  windows_archive windows_postinstall windows_bootstrap windows_server \
+  external_prefix_query reuse_private_windows \
+  private_install_is_direct qualified_external_server failed_initial_npm \
+  split_runtime saved_runtime_executable selected_node_and_private_prefix \
+  runtime::archive release_targets cancelled_saved_runtime \
+  cancellation_after_discovery cancelled_final_managed
+do
+  cargo test --manifest-path desktop/src-tauri/tests/runtime-harness/Cargo.toml \
+    --locked --offline --lib "$filter"
+done
+cargo metadata --manifest-path desktop/src-tauri/Cargo.toml \
+  --locked --offline --no-deps --format-version 1 >/dev/null
+git diff --check
+```
+
+Results: **35 distinct tests passed, 0 failed** (22 installer/Windows policy and
+13 nearest POSIX/archive/cancellation checks); metadata and whitespace passed.
+Log: `desktop/src-tauri/tests/runtime-harness/target/bootstrap-verification.log`.
+Important API tests initially failed before implementation; npm prefix binding
+and raw ZIP duplicate-name regression additionally demonstrated assertion REDs.
+RED logs: `/tmp/win-bootstrap-{archive,post,repair,server,prefix,zip-duplicate,reuse}-red.log`.
+Tests use synthetic archives/files and disposable local shell fixtures, not real
+packages or Windows emulation. Owned/new Rust functions are <=30 lines; files
+are <=800. No full suite, product build/deploy, package execution, payload re-audit,
+remote action, integration/main merge or prohibited-source change was performed.
+
+### Parent-owned next steps (not performed here)
+
+1. On actual Windows/MSVC, compile the exact shared runtime without Tauri using
+   the five-line `tests/runtime-harness/tests/windows_bootstrap.rs` import target:
+   `cargo check --manifest-path desktop/src-tauri/tests/runtime-harness/Cargo.toml --locked --test windows_bootstrap`.
+   This Linux host has only the Linux Rust target; **Windows source compile/run
+   acceptance remains unverified here**. New tar cfg guards and Windows tempfile
+   dependency are in place. Product lock already contained tempfile, so no product
+   lock change was necessary; unrelated harness lock versions are preserved.
+2. Wire Windows setup/process/optional Claude entry points to `bootstrap`,
+   `ensure_server`, `Selection::command` and `apply`. Respect `Server.node_entry`
+   for external packages. Those shell-entry files and all selection/decoder/
+   owned-process internals were deliberately left untouched.
+3. Perform the planned native installer/cancellation/retry and fresh App checks;
+   verify the actual pinned post-install stdout/SystemRoot spelling and locale.
+   No broader exit-1 signature is authorized by these tests.
+4. Preserve reader attribution at `src/setup/runtime_portablegit.rs` and
+   `src/setup/runtime_portablegit/README.md`. The packaging owner must include
+   `src/setup/runtime_portablegit/LICENSE-APACHE` with the native app, e.g. map it
+   and the companion README to `licenses/portablegit-reader/` in Tauri bundle
+   resources. Bundle/resource configuration is outside this unit's ownership.
+   All Node/Git payload licenses/notices remain in the prepared installations.
