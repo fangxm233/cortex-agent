@@ -3,15 +3,13 @@ import { OwnedLocalLaunchGate, ownedLocalEnvironment } from '../src/domain/remot
 
 const online = vi.fn(() => false);
 const recover = vi.fn(async (_device: string) => {});
-const pidAlive = vi.fn(() => false);
 const launch = vi.fn((_device: string) => {});
 let gate: OwnedLocalLaunchGate;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   online.mockReturnValue(false);
-  pidAlive.mockReturnValue(false);
-  gate = new OwnedLocalLaunchGate({ online, recover, pidAlive, launch });
+  gate = new OwnedLocalLaunchGate({ online, recover, launch });
 });
 afterEach(() => { gate.stop(); vi.useRealTimers(); });
 
@@ -41,7 +39,6 @@ test('concurrent starts single-flight recovery before one launch', async () => {
   expect(launch).toHaveBeenCalledTimes(1);
 });
 test('surviving client at maximum reconnect backoff gets time for hello without a spawn', async () => {
-  pidAlive.mockReturnValue(true);
   const pending = gate.start('local');
   await vi.advanceTimersByTimeAsync(30_500);
   expect(launch).not.toHaveBeenCalled();
@@ -50,18 +47,7 @@ test('surviving client at maximum reconnect backoff gets time for hello without 
   await pending;
   expect(launch).not.toHaveBeenCalled();
 });
-test('self-updated survivor at maximum backoff gets the same grace when its old PID is gone', async () => {
-  pidAlive.mockReturnValue(false);
-  const pending = gate.start('local');
-  await vi.advanceTimersByTimeAsync(30_500);
-  expect(launch).not.toHaveBeenCalled();
-  online.mockReturnValue(true);
-  await vi.advanceTimersByTimeAsync(250);
-  await pending;
-  expect(launch).not.toHaveBeenCalled();
-});
-test.each([true, false])('nonconnecting client eventually spawns with PID alive=%s', async alive => {
-  pidAlive.mockReturnValue(alive);
+test('nonconnecting client eventually spawns after the bounded reconnect grace', async () => {
   const pending = gate.start('local');
   await vi.advanceTimersByTimeAsync(34_750);
   expect(launch).not.toHaveBeenCalled();
@@ -70,7 +56,6 @@ test.each([true, false])('nonconnecting client eventually spawns with PID alive=
   expect(launch).toHaveBeenCalledOnce();
 });
 test('stop cancels reconnect wait and its continuation', async () => {
-  pidAlive.mockReturnValue(true);
   const pending = gate.start('local');
   await vi.advanceTimersByTimeAsync(500);
   gate.stop();

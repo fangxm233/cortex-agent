@@ -31,7 +31,6 @@ const localLaunch = new OwnedLocalLaunchGate({
     assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
     await completeLocalClientInstall(localPaths, device, undefined, signal);
   },
-  pidAlive: localPidAlive,
   launch: spawnOwnedLocalClient,
 });
 
@@ -225,12 +224,6 @@ function spawnLocalClient(device: string): void {
   } catch (err) {
     log.error(`Failed to start local client on ${device}: ${(err as Error).message}`);
   }
-}
-
-function localPidAlive(device: string): boolean {
-  const pid = getPid(device);
-  if (!Number.isInteger(pid) || !pid || pid <= 0) return false;
-  try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
 function spawnOwnedLocalClient(device: string): void {
