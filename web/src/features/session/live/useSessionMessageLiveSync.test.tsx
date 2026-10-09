@@ -148,6 +148,39 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
     expect(observed?.getMessageSnapshot().liveTail[0].toolDevice).toBe('hub');
   });
 
+  it('carries a lead worker action onto a live tool row', () => {
+    const teamAction = { op: 'send' as const, worker: 'atlas', text: 'Continue with the next step.' };
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'tool', text: '', toolName: 'worker_send', toolInput: '{"worker":"atlas"}',
+          teamAction, ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail[0].teamAction).toEqual(teamAction);
+  });
+
+  it('keeps a worker progress row without reading it as the lead streaming', () => {
+    const worker = { name: 'atlas', sessionId: 'w1' };
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'worker-progress', text: 'Halfway through the parser.', worker,
+          ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail).toMatchObject([
+      { role: 'worker-progress', text: 'Halfway through the parser.', worker },
+    ]);
+    expect(observed?.streaming).toBe(false);
+  });
+
   it('carries complete subagent spawn metadata onto a live anchor row', () => {
     const subagentSpawns = [{
       id: 'toolu_batch#0', type: 'explore', description: 'Survey the repo',
