@@ -11,7 +11,7 @@ mod runtime_selection_tests;
 use runtime::*;
 use std::ffi::OsStr;
 use std::path::Path;
-static CANCEL_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use runtime::CANCEL_TEST;
 
 fn script(path: &Path, contents: &str) {
     use std::os::unix::fs::PermissionsExt;
@@ -282,9 +282,9 @@ fn release_targets_are_pinned_and_unsupported_targets_refuse() {
         assert!(release.archive.contains("v24.21.0"));
         assert_eq!(release.sha256.len(), 64);
     }
-    assert!(release_for("windows", "x86_64")
-        .unwrap_err()
-        .starts_with("RUNTIME_UNSUPPORTED"));
+    assert_eq!(release_for("windows", "x86_64").unwrap().archive, "node-v24.21.0-win-x64.zip");
+    assert_eq!(release_for("windows", "aarch64").unwrap().sha256,
+        "8779b1bde1d39f8d420e3b57aa657b39891af434d3de44a919044cec06785921");
     assert!(release_for("linux", "riscv64").is_err());
 }
 
