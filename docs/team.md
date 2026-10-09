@@ -105,8 +105,20 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
 - A worker that is waiting for its lead to answer shows a hollow ring and *Waiting on lead*. The
   amber dot stays reserved for requests only you can answer.
 - In a worker's transcript, messages from the lead appear as your own messages labelled *From
-  lead session*. In the lead's transcript, reports and requests appear as one-line *Worker
-  report* and *Worker request* rows that expand to the full text.
+  lead session*.
+- In the lead's chat, what the lead does to its workers shows as quiet rows of its own rather than
+  tool calls. A spawn is a small card with the worker, its model and the first two lines of its
+  brief. A message or an answer is one line naming the worker; click it for the full text. A stop
+  is one line too, and says so when the worker was also retired. An answer that directly follows
+  its request folds into that request's card.
+- Worker traffic in between the lead's replies (reports, progress updates and requests) gathers
+  into one card per run. The card shows the worker, its live status, a summary such as *Plan
+  approved · 8 updates* and the latest update; it opens into a timeline where each entry expands
+  to the full text, with a link to the worker's session. Several workers in one run get a row
+  each. A worker whose question or plan is still unanswered turns its row amber. Live status
+  appears only on a worker's latest card; older cards show when they happened.
+- When the lead is idle while workers are still running or waiting on something, the chat ends
+  with a line naming who it is waiting on, such as *Lead is waiting for docs to report*.
 
 ## Limits
 

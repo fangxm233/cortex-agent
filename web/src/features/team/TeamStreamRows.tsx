@@ -70,7 +70,8 @@ function Chevron({ open }: { open: boolean }): JSX.Element {
   );
 }
 
-/** The roster's dot language; a worker the live team does not know (team mode off, pruned) reads idle. */
+/** The roster's dot language. Without a worker (unknown to the live team, or an older card that is
+ *  history rather than status) the dot reads idle. */
 function Dot({ worker }: { worker: SessionInfo | null }): JSX.Element {
   if (!worker) {
     return <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: 'var(--proto-line-3)' }} />;
@@ -241,7 +242,7 @@ function TimelineItem({ update, last, showName, touch }: { update: WorkerUpdate;
   return (
     <div data-team-update={update.kind} {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
       className={touch ? undefined : 'hover:bg-[var(--proto-gray)]'}
-      style={{ display: 'grid', gridTemplateColumns: '42px minmax(0, 1fr)', gap: 8, padding: touch ? '6px 4px' : '5px 4px', borderRadius: 6, cursor: 'pointer' }}>
+      style={{ display: 'grid', gridTemplateColumns: 'minmax(42px, max-content) minmax(0, 1fr)', gap: 8, padding: touch ? '6px 4px' : '5px 4px', borderRadius: 6, cursor: 'pointer' }}>
       <span style={{ ...TIME, paddingTop: 2 }}>{messageTimeLabel(update.ts ?? undefined) ?? ''}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...(open ? { overflowWrap: 'anywhere' } : ELLIPSIS), fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: last ? 'var(--proto-ink)' : 'var(--proto-ink-2)' }}>
@@ -275,8 +276,10 @@ function Timeline({ updates, showName, touch }: { updates: WorkerUpdate[]; showN
 }
 
 /** Live status on a worker's latest card; when it happened on an older one. */
-function ThreadStatus({ thread, worker, waiting, now }: {
+function ThreadStatus({ thread, worker, waiting, now, range = true }: {
   thread: WorkerThread; worker: SessionInfo | null; waiting: WorkerUpdate | null; now: number;
+  /** Show when an older card happened; off where the row already carries its time. */
+  range?: boolean;
 }): JSX.Element | null {
   const L = useVocabOptional();
   const lang = useLangOptional();
@@ -291,8 +294,8 @@ function ThreadStatus({ thread, worker, waiting, now }: {
     const color = state === 'running' ? 'var(--proto-accent)' : state === 'you' ? 'var(--proto-amber-fg)' : 'var(--proto-muted)';
     return <span data-thread-status={state} style={{ ...base, color, fontWeight: state === 'you' ? 600 : 400 }}>{workerStatusText(worker, now, L, lang)}</span>;
   }
-  const range = updateTimeRange(thread.updates);
-  return range ? <span data-thread-status="history" style={{ ...base, color: 'var(--proto-muted)' }}>{range}</span> : null;
+  const when = range ? updateTimeRange(thread.updates) : null;
+  return when ? <span data-thread-status="history" style={{ ...base, color: 'var(--proto-muted)' }}>{when}</span> : null;
 }
 
 /** One worker's run: header (dot · name · status · summary), the latest update, the timeline open. */
@@ -309,11 +312,11 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
       style={{ ...CARD, ...(waiting ? { background: 'var(--proto-amber-bg)', borderColor: 'var(--proto-amber-border)' } : {}), opacity: row.pending ? 0.55 : 1 }}>
       <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: open ? '8px 12px 6px' : '8px 12px 2px', cursor: 'pointer', minWidth: 0 }}>
-        <Dot worker={worker} />
-        <span style={{ ...ELLIPSIS, flexShrink: 1, fontSize: touch ? 14 : 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
-        <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} />
+        <Dot worker={thread.latest ? worker : null} />
+        <span style={{ ...ELLIPSIS, flex: '0 1 auto', fontSize: touch ? 14 : 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
+        <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={!touch} />
         <span style={{ flex: 1 }} />
-        <span style={{ ...ELLIPSIS, flexShrink: 1, font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>{threadSummary(thread, L)}</span>
+        <span style={{ ...ELLIPSIS, flex: '0 100 auto', font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>{threadSummary(thread, L)}</span>
         <span style={{ color: 'var(--proto-muted)', display: 'inline-flex' }}><Chevron open={open} /></span>
       </div>
       {!open && (
@@ -353,18 +356,25 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
         const waiting = waitingRequest(thread, worker);
         const latest = thread.updates.at(-1)!;
         return (
+          // A phone puts the line under the name: beside it, it would be cut to a few characters.
           <div key={thread.worker} data-team-thread={thread.worker} {...toggleKeys(toggle)}
             style={{
-              display: 'grid', gridTemplateColumns: '10px auto auto minmax(0, 1fr) auto', alignItems: 'center', gap: 8,
+              display: 'grid', alignItems: 'center', columnGap: 8, rowGap: 2,
+              gridTemplateColumns: touch ? '10px auto minmax(0, 1fr) auto' : '10px auto auto minmax(0, 1fr) auto',
               padding: touch ? '8px 12px' : '6px 12px', cursor: 'pointer', fontSize: touch ? 13 : 12.5,
               borderTop: i > 0 ? '1px solid var(--proto-line-2)' : undefined,
               background: waiting ? 'var(--proto-amber-bg)' : undefined,
             }}>
-            <Dot worker={worker} />
+            <Dot worker={thread.latest ? worker : null} />
             <span style={{ ...ELLIPSIS, maxWidth: 180, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
-            <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} />
-            <span style={{ ...ELLIPSIS, color: 'var(--proto-ink-2)' }}>{waiting ? waiting.line : latest.line}</span>
-            <span style={TIME}>{messageTimeLabel(latest.ts ?? undefined) ?? ''}</span>
+            {touch
+              ? <span style={{ minWidth: 0, display: 'flex' }}><ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} /></span>
+              : <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} />}
+            <span style={{ ...ELLIPSIS, color: 'var(--proto-ink-2)', ...(touch ? { gridRow: 2, gridColumn: '2 / 5' } : {}) }}>
+              {/* The amber status already names an open request. */}
+              {!waiting && <KindTag update={latest} />}{(waiting ?? latest).line}
+            </span>
+            <span style={{ ...TIME, ...(touch ? { gridRow: 1, gridColumn: 4 } : {}) }}>{messageTimeLabel(latest.ts ?? undefined) ?? ''}</span>
           </div>
         );
       })}
