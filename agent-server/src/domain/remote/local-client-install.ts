@@ -69,7 +69,11 @@ function validateOwnedConfig(paths: LocalClientPaths, intent: LocalClientIntent)
 }
 
 function assertFresh(paths: LocalClientPaths): void {
-  const entries = fs.readdirSync(clientDir(paths)).filter(name => !name.startsWith('local-install.json.mutation-lock'));
+  // Called under the intent lock. An interrupted first atomicWriteSync may leave only its
+  // temp file: ignore the exact filename shape, never read/adopt its contents or remove it.
+  const intentTemp = /^local-install\.json\.tmp\.[1-9]\d*\.\d+\.[a-z0-9]{0,6}$/;
+  const entries = fs.readdirSync(clientDir(paths), { withFileTypes: true }).filter(entry =>
+    !entry.name.startsWith('local-install.json.mutation-lock') && !(entry.isFile() && intentTemp.test(entry.name)));
   if (entries.length || fs.lstatSync(configFile(paths), { throwIfNoEntry: false })) {
     throw new Error('Unowned local client files/config exist; refusing to adopt or overwrite them');
   }
