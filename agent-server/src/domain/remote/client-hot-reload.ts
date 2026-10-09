@@ -203,10 +203,13 @@ function pushTo(device: string, bundle: ClientBundle): void {
 }
 
 function localIntentForDevice(device: string): ReturnType<typeof readLocalClientIntent> {
+  const entry = getMachineRegistry()[device];
+  // A registered remote home does not depend on this server's local ownership marker.
+  if (entry?.cortexPath?.trim() && path.resolve(entry.cortexPath) !== path.resolve(DATA_DIR)) return null;
   try { return readLocalClientIntent({ DATA_DIR, CONFIG_DIR }); }
   catch (error) {
     // The package-local preference never changes an explicit external SSH device's policy.
-    if (getMachineRegistry()[device]?.ssh) return null;
+    if (entry?.ssh) return null;
     throw error;
   }
 }
