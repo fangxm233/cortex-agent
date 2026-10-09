@@ -9,6 +9,7 @@ import { requestLoopbackJson } from '@core/loopback-http.js';
 import { agentsMDContentBlocks } from './agents-md.js';
 import { isAbsoluteFilePath } from './remote-file.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
+import { deviceParamDescription, readKnownDevices, withOnlineDevices } from './remote-devices.js';
 
 // Remote device commands are proxied through the daemon webhook: client-manager lives in the
 // daemon and a tool must not reach into it directly.
@@ -21,7 +22,7 @@ async function proxySendCommand(
     { device, action, params, timeout },
     webhookAuthHeaders(ctx),
   );
-  if (!body.success) throw new Error(body.error || 'Command failed');
+  if (!body.success) throw new Error(withOnlineDevices(body.error || 'Command failed', body.onlineDevices));
   return body.data;
 }
 
@@ -174,6 +175,7 @@ async function processImage(
 }
 
 export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext): void {
+  const deviceDescription = deviceParamDescription(readKnownDevices());
 
   // --- remote_bash ---
 
@@ -181,7 +183,7 @@ export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext
     'remote_bash',
     'Execute a shell command on a remote device via cortex-client. On Windows devices, commands run through git-bash.',
     {
-      device: z.string().describe('Target device name (e.g. "server", "workstation", "local")'),
+      device: z.string().describe(deviceDescription),
       command: z.string().describe('Shell command to execute'),
       timeout: z.number().int().min(1).max(600).optional().describe('Timeout in seconds (default: 120, max: 600)'),
       description: z.string().optional().describe('Description of what the command does (for logging)'),
@@ -215,7 +217,7 @@ export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext
     'remote_read',
     'Read a file from a remote device. Returns file contents with line numbers. Supports image files (PNG, JPEG, GIF, WebP, BMP) which are returned as inline images. Supports PDF files (.pdf) which are returned as inline documents. File path must be absolute.',
     {
-      device: z.string().describe('Target device name'),
+      device: z.string().describe(deviceDescription),
       file_path: z.string().describe('Absolute path to the file to read'),
       offset: z.number().optional().describe('Line number to start reading from (0-based)'),
       limit: z.number().optional().describe('Number of lines to read'),
@@ -301,7 +303,7 @@ export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext
     'remote_write',
     'Write content to a file on a remote device. Creates parent directories if needed. File path must be absolute.',
     {
-      device: z.string().describe('Target device name'),
+      device: z.string().describe(deviceDescription),
       file_path: z.string().describe('Absolute path to the file to write'),
       content: z.string().describe('Content to write to the file'),
     },
@@ -329,7 +331,7 @@ export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext
     'remote_edit',
     'Edit a file on a remote device by replacing a string. The old_string must be unique in the file (unless replace_all is true). File path must be absolute.',
     {
-      device: z.string().describe('Target device name'),
+      device: z.string().describe(deviceDescription),
       file_path: z.string().describe('Absolute path to the file to edit'),
       old_string: z.string().describe('The text to replace'),
       new_string: z.string().describe('The replacement text'),
@@ -359,7 +361,7 @@ export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext
     'remote_glob',
     'Find files matching a glob pattern on a remote device. Returns a list of matching file paths.',
     {
-      device: z.string().describe('Target device name'),
+      device: z.string().describe(deviceDescription),
       pattern: z.string().describe('Glob pattern to match files against'),
       path: z.string().optional().describe('Directory to search in (absolute path)'),
     },
@@ -391,7 +393,7 @@ export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext
     'remote_grep',
     'Search file contents on a remote device using ripgrep. Returns matching lines or file paths.',
     {
-      device: z.string().describe('Target device name'),
+      device: z.string().describe(deviceDescription),
       pattern: z.string().describe('Regex pattern to search for'),
       path: z.string().optional().describe('File or directory to search in'),
       glob: z.string().optional().describe('Glob pattern to filter files (e.g. "*.ts", "*.{ts,tsx}")'),
