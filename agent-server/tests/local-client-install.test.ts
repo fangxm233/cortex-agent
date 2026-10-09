@@ -90,6 +90,34 @@ test('recovery after atomic publication verifies pending hash, then commits read
   await completeLocalClientInstall(paths, 'local', installRoot);
   expect(readLocalClientIntent(paths)?.state).toBe('ready');
 });
+test('partial owned stage after config write is recoverable and republished atomically', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  const config = JSON.stringify({ deviceName: 'local', serverHost: '127.0.0.1', serverPort: 3002 }, null, 2) + '\n';
+  fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(path.join(paths.CONFIG_DIR, 'cortex-client.json'), config);
+  const stage = path.join(paths.DATA_DIR, 'client/.local-install-stage');
+  fs.mkdirSync(stage);
+  fs.writeFileSync(path.join(stage, 'client.mjs'), 'interrupted');
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  expect(readLocalClientIntent(paths)?.state).toBe('ready');
+  expect(fs.readFileSync(path.join(paths.CONFIG_DIR, 'cortex-client.json'), 'utf8')).toBe(config);
+  expect(fs.existsSync(stage)).toBe(false);
+});
+test('pending current with wrong hash is not adopted or overwritten', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  const current = path.join(paths.DATA_DIR, 'client/current');
+  fs.mkdirSync(current);
+  for (const name of names) fs.writeFileSync(path.join(current, name), 'unrecognized');
+  await expect(completeLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow(/hash/);
+  expect(readLocalClientIntent(paths)?.state).toBe('pending');
+  expect(fs.readFileSync(path.join(current, 'client.mjs'), 'utf8')).toBe('unrecognized');
+});
+test('corrupt ownership marker is not treated as ordinary enrollment', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  fs.writeFileSync(path.join(paths.DATA_DIR, 'client/local-install.json'), '{}');
+  await expect(beginLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow(/ownership/);
+  await expect(completeLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow(/ownership/);
+});
 test('ready install never replaces live files when package changes (hot reload owns upgrades)', async () => {
   await beginLocalClientInstall(paths, 'local', installRoot);
   await completeLocalClientInstall(paths, 'local', installRoot);

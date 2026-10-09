@@ -8,7 +8,9 @@ import {
   getOnlineDevices,
   sendControlMessage,
 } from './client-manager.js';
-import { STORE_DIR } from '@core/paths.js';
+import { STORE_DIR, DATA_DIR, CONFIG_DIR } from '@core/paths.js';
+import { readLocalClientIntent, validateLocalClientOwnership } from './local-client-install.js';
+import { loadPackageClientBundle } from './package-client-bundle.js';
 import type { UpdateFrame } from './client-protocol.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
@@ -187,37 +189,45 @@ function short(hash: string | null): string {
 type SendControl = (device: string, message: UpdateFrame) => void;
 let _send: SendControl = sendControlMessage;
 
-function pushTo(device: string): void {
-  if (!_bundle) return;
+function pushTo(device: string, bundle: ClientBundle): void {
   _send(device, {
     type: 'update',
     updateId: crypto.randomBytes(6).toString('hex'),
-    version: _bundle.version,
-    hash: _bundle.hash,
-    files: _bundle.files,
+    version: bundle.version,
+    hash: bundle.hash,
+    files: bundle.files,
   });
-  _lastPush.set(device, { hash: _bundle.hash, at: Date.now(), ok: null });
-  log.info(`Pushed bundle ${short(_bundle.hash)} (v${_bundle.version}) to ${device}`);
+  _lastPush.set(device, { hash: bundle.hash, at: Date.now(), ok: null });
+  log.info(`Pushed bundle ${short(bundle.hash)} (v${bundle.version}) to ${device}`);
+}
+
+function desiredBundle(device: string): ClientBundle | null {
+  const paths = { DATA_DIR, CONFIG_DIR };
+  const intent = readLocalClientIntent(paths);
+  if (intent?.device !== device) return _bundle;
+  validateLocalClientOwnership(paths, intent, device);
+  return loadPackageClientBundle();
+}
+
+function announceConvergence(device: string, bundle: ClientBundle): void {
+  const last = _lastPush.get(device);
+  if (!last || last.hash !== bundle.hash) return;
+  _lastPush.delete(device);
+  log.info(`${device} converged on ${short(bundle.hash)} (v${bundle.version})`);
+  _notify(`${Icons.ok} ${t('notice.client.updated', { device, hash: short(bundle.hash), version: bundle.version })}`);
 }
 
 // --- Hooks (wired into client-manager) ---
 
 function onHello(device: string, bundleHash: string | null): void {
-  if (!_bundle) return; // bundle still resolving; the post-resolve sweep covers this hello
-  if (bundleHash === _bundle.hash) {
-    const last = _lastPush.get(device);
-    if (last && last.hash === _bundle.hash) {
-      _lastPush.delete(device);
-      log.info(`${device} converged on ${short(_bundle.hash)} (v${_bundle.version})`);
-      _notify(`${Icons.ok} ${t('notice.client.updated', { device, hash: short(_bundle.hash), version: _bundle.version })}`);
-    }
-    return;
-  }
-  if (!shouldPush(bundleHash, _bundle.hash, _lastPush.get(device), Date.now())) return;
   try {
-    pushTo(device);
+    const bundle = desiredBundle(device);
+    if (!bundle) return; // external bundle may still be resolving
+    if (bundleHash === bundle.hash) return announceConvergence(device, bundle);
+    if (!shouldPush(bundleHash, bundle.hash, _lastPush.get(device), Date.now())) return;
+    pushTo(device, bundle);
   } catch (err) {
-    log.warn(`Push to ${device} failed: ${(err as Error).message}`);
+    log.warn(`Client update for ${device} unavailable: ${(err as Error).message}`);
   }
 }
 
@@ -244,6 +254,8 @@ function initClientHotReload(notify: (text: string) => void): void {
   _notify = notify;
   setClientUpdateHooks({ onHello, onUpdateResult });
   setImmediate(async () => {
+    // Owned local clients never wait for npm latest (or a development build) to settle.
+    for (const d of getOnlineDevices()) onHello(d.device, d.bundleHash);
     const bundle = await resolveBundle();
     if (!bundle) return;
     _bundle = bundle;

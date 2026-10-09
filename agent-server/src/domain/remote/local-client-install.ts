@@ -79,7 +79,7 @@ function saveIntent(paths: LocalClientPaths, intent: LocalClientIntent): void {
   atomicWriteSync(intentFile(paths), JSON.stringify(intent, null, 2) + '\n');
 }
 
-function validateIntent(paths: LocalClientPaths, intent: LocalClientIntent, device: string): void {
+export function validateLocalClientOwnership(paths: LocalClientPaths, intent: LocalClientIntent, device: string): void {
   if (intent.device !== device) throw new Error('Local client ownership belongs to a different device');
   validateRegistry(paths, device);
   validateOwnedConfig(paths, intent);
@@ -92,7 +92,7 @@ export async function beginLocalClientInstall(paths: LocalClientPaths, device: s
   fs.mkdirSync(clientDir(paths), { recursive: true });
   await withFileLock(intentFile(paths), async () => {
     const existing = readLocalClientIntent(paths);
-    if (existing) return validateIntent(paths, existing, device);
+    if (existing) return validateLocalClientOwnership(paths, existing, device);
     validateRegistry(paths, device);
     assertFresh(paths);
     if (!device.trim()) throw new Error('Local client device must not be empty');
@@ -135,7 +135,7 @@ export async function completeLocalClientInstall(paths: LocalClientPaths, device
   await withFileLock(intentFile(paths), async () => {
     const intent = readLocalClientIntent(paths);
     if (!intent) throw new Error('Missing local client ownership intent');
-    validateIntent(paths, intent, device);
+    validateLocalClientOwnership(paths, intent, device);
     if (!fs.existsSync(configFile(paths))) atomicWriteSync(configFile(paths), configText(device));
     finishInstall(paths, intent, bundle);
   });
