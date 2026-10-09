@@ -1,7 +1,7 @@
-//! User-owned POSIX runtime. No Tauri dependency: the headless harness runs this exact code.
+//! User-owned selected runtime. No Tauri dependency: the headless harness runs this exact code.
 use serde::{Deserialize, Serialize};
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -10,12 +10,28 @@ use std::{
 mod archive;
 #[path = "runtime_cancel.rs"]
 mod cancel;
+#[path = "runtime_git_selection.rs"]
+mod git_selection;
 #[path = "runtime_install.rs"]
 mod install;
 #[path = "runtime_probe.rs"]
 mod probe;
 #[path = "runtime_process.rs"]
 mod process;
+#[path = "runtime_selection.rs"]
+mod selection;
+#[path = "runtime_selection_discovery.rs"]
+mod selection_discovery;
+#[path = "runtime_selection_environment.rs"]
+mod selection_environment;
+pub use git_selection::GitSelection;
+pub use selection::RepairNeeds;
+#[cfg(all(test, unix))]
+#[path = "runtime_git_selection_tests.rs"]
+mod git_selection_tests;
+#[cfg(test)]
+#[path = "runtime_selection_windows_tests.rs"]
+mod selection_windows_tests;
 #[cfg(test)]
 pub use archive::{release_for, safe_link, safe_member};
 pub use cancel::{cancel_install, CancelToken, InstallGuard};
@@ -27,6 +43,15 @@ pub struct Selection {
     pub node: PathBuf,
     pub npm: PathBuf,
     pub prefix: PathBuf,
+    /// False for legacy records; never infer ownership from the current PATH.
+    #[serde(default)]
+    pub node_managed: bool,
+    /// Actual qualified entry, invoked with the selected Node (not cmd.exe).
+    #[serde(default)]
+    pub npm_cli: Option<PathBuf>,
+    /// None means Git has not been selected, not a corrupt legacy record.
+    #[serde(default)]
+    pub git: Option<GitSelection>,
     #[serde(default)]
     pub server: Option<Server>,
 }
@@ -44,11 +69,23 @@ impl Selection {
             node,
             npm,
             prefix,
+            node_managed: false,
+            npm_cli: None,
+            git: None,
             server: None,
         }
     }
 
     pub fn load(home: &Path) -> Result<Option<Self>, String> {
+        let selected = Self::read_saved(home)?;
+        if let Some(selected) = &selected {
+            selected.validate()?;
+        }
+        Ok(selected)
+    }
+
+    /// Read identities even if a saved tool disappeared; repair policy belongs to bootstrap.
+    pub fn read_saved(home: &Path) -> Result<Option<Self>, String> {
         let file = home.join("runtime/selection.json");
         let bytes = match std::fs::read(file) {
             Ok(bytes) => bytes,
@@ -57,7 +94,6 @@ impl Selection {
         };
         let selected: Self = serde_json::from_slice(&bytes)
             .map_err(|_| "RUNTIME_MISSING: invalid saved selection")?;
-        selected.validate()?;
         Ok(Some(selected))
     }
 
@@ -70,7 +106,7 @@ impl Selection {
                 "RUNTIME_MISSING: selected runtime was removed; restore it and retry".into(),
             );
         }
-        Ok(())
+        self.validate_optional_tools()
     }
 
     pub fn save(&self, home: &Path) -> Result<(), String> {
@@ -84,56 +120,12 @@ impl Selection {
         Ok(())
     }
 
-    pub fn path(&self, inherited: &OsStr) -> Result<OsString, String> {
-        let node_dir = self.node.parent().ok_or("RUNTIME_MISSING")?;
-        let mut paths = vec![node_dir.to_path_buf(), self.prefix.join("bin")];
-        if self.npm.parent() != Some(node_dir) {
-            paths.insert(0, self.pinned_bin()?);
-        }
-        paths.extend(std::env::split_paths(inherited));
-        std::env::join_paths(paths).map_err(storage_error)
-    }
-
-    // A node-directory-first PATH alone can select a different npm. Only our private
-    // runtime directory is changed; the persisted external paths remain authoritative.
-    fn pinned_bin(&self) -> Result<PathBuf, String> {
-        let runtime = self.prefix.parent().ok_or("RUNTIME_MISSING")?;
-        let bin = runtime.join("bin");
-        std::fs::create_dir_all(&bin).map_err(storage_error)?;
-        for (name, target) in [("node", &self.node), ("npm", &self.npm)] {
-            let link = bin.join(name);
-            if std::fs::read_link(&link).ok().as_ref() == Some(target) {
-                continue;
-            }
-            let stage = tempfile::tempdir_in(runtime).map_err(storage_error)?;
-            let staged = stage.path().join(name);
-            std::os::unix::fs::symlink(target, &staged).map_err(storage_error)?;
-            std::fs::rename(staged, link).map_err(storage_error)?;
-        }
-        Ok(bin)
-    }
-
-    pub fn apply(
-        &self,
-        command: &mut Command,
-        home: &Path,
-        inherited: &OsStr,
-    ) -> Result<(), String> {
-        command
-            .env("PATH", self.path(inherited)?)
-            .env("CORTEX_HOME", home)
-            .env("CORTEX_NPM_PREFIX", &self.prefix)
-            .env("NPM_CONFIG_PREFIX", &self.prefix)
-            .env("npm_config_prefix", &self.prefix);
-        Ok(())
-    }
-
     pub fn command(&self, program: &OsStr) -> Command {
-        if program == OsStr::new("node") {
+        if program == OsStr::new("node") || program == OsStr::new("node.exe") {
             return Command::new(&self.node);
         }
-        if program == OsStr::new("npm") {
-            return Command::new(&self.npm);
+        if self.is_npm(program) {
+            return self.npm_command();
         }
         self.server_command(program)
     }
@@ -157,11 +149,20 @@ pub fn storage_error(e: impl std::fmt::Display) -> String {
 }
 
 pub fn find_bin(name: &str, path: &OsStr) -> Option<PathBuf> {
+    #[cfg(windows)]
+    return selection_discovery::find_windows_bin(name, path);
+    #[cfg(not(windows))]
     std::env::split_paths(path)
         .map(|dir| dir.join(name))
         .find(|p| executable(p))
 }
 
+#[cfg(windows)]
+fn executable(path: &Path) -> bool {
+    path.is_absolute() && path.is_file()
+}
+
+#[cfg(unix)]
 fn executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     path.is_absolute()
@@ -265,6 +266,14 @@ fn external_runtime(
         return Ok(None);
     };
     let selected = Selection::new(node, npm, home.join("runtime/prefix"));
+    #[cfg(windows)]
+    let selected = {
+        let mut selected = selected;
+        if !selected.qualify_windows_npm() {
+            return Ok(None);
+        }
+        selected
+    };
     Ok(qualified_install(&selected, home, path, floor, token)?.then_some(selected))
 }
 
