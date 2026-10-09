@@ -245,8 +245,17 @@ function spawnOwnedLocalClient(device: string): void {
   if (child.pid) setPid(device, child.pid);
 }
 
+function localIntentForRoute(reg: MachineEntry): ReturnType<typeof readLocalClientIntent> {
+  try { return readLocalClientIntent(localPaths); }
+  catch (error) {
+    // Broken local state must fail closed locally, not disable an explicit external SSH route.
+    if (reg.ssh) return null;
+    throw error;
+  }
+}
+
 async function startOwnedIfEnrolled(device: string, reg: MachineEntry): Promise<boolean> {
-  const intent = readLocalClientIntent(localPaths);
+  const intent = localIntentForRoute(reg);
   if (!intent || (intent.device !== device && reg.ssh)) return false;
   if (intent.device !== device) throw new Error('Owned local bundle belongs to a different device');
   await localLaunch.start(device);

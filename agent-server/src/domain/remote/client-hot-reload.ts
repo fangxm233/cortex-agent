@@ -11,6 +11,7 @@ import {
 import { STORE_DIR, DATA_DIR, CONFIG_DIR } from '@core/paths.js';
 import { readLocalClientIntent, validateLocalClientOwnership } from './local-client-install.js';
 import { loadPackageClientBundle } from './package-client-bundle.js';
+import { getMachineRegistry } from './machine-registry.js';
 import type { UpdateFrame } from './client-protocol.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
@@ -201,9 +202,18 @@ function pushTo(device: string, bundle: ClientBundle): void {
   log.info(`Pushed bundle ${short(bundle.hash)} (v${bundle.version}) to ${device}`);
 }
 
+function localIntentForDevice(device: string): ReturnType<typeof readLocalClientIntent> {
+  try { return readLocalClientIntent({ DATA_DIR, CONFIG_DIR }); }
+  catch (error) {
+    // The package-local preference never changes an explicit external SSH device's policy.
+    if (getMachineRegistry()[device]?.ssh) return null;
+    throw error;
+  }
+}
+
 function desiredBundle(device: string): ClientBundle | null {
   const paths = { DATA_DIR, CONFIG_DIR };
-  const intent = readLocalClientIntent(paths);
+  const intent = localIntentForDevice(device);
   if (intent?.device !== device) return _bundle;
   validateLocalClientOwnership(paths, intent, device);
   return loadPackageClientBundle();
