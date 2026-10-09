@@ -48,6 +48,16 @@ test('surviving PID gets bounded reconnect opportunity; real hello avoids spawn'
   await pending;
   expect(launch).not.toHaveBeenCalled();
 });
+test('a surviving self-updated client gets a reconnect window even when the old PID is gone', async () => {
+  pidAlive.mockReturnValue(false);
+  const pending = gate.start('local');
+  await vi.advanceTimersByTimeAsync(500);
+  expect(launch).not.toHaveBeenCalled();
+  online.mockReturnValue(true);
+  await vi.advanceTimersByTimeAsync(250);
+  await pending;
+  expect(launch).not.toHaveBeenCalled();
+});
 test('reused live PID never suppresses launch forever', async () => {
   pidAlive.mockReturnValue(true);
   const pending = gate.start('local');
