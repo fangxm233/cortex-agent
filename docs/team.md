@@ -32,7 +32,7 @@ verification whose result the lead uses straight away goes to `agent`.
 
 ```
 you ⇄ lead ── worker_spawn / worker_send ──────────▶ worker
-        ▲  ◀── report at the end of each worker turn ──┤
+        ▲  ◀── report once the worker has finished ────┤
         │  ◀── question / plan approval notice ────────┤
         └──── worker_answer ──────────────────────────▶ (pending request resolved)
 you ─────────── open the worker and talk to it directly ──▶ worker
@@ -43,10 +43,16 @@ turn, and the worker's report wakes it later. A message sent to a running worker
 its current turn; to an idle worker it starts a new one. While the server is about to restart,
 both tools return an error instead of dispatching, and the lead tries again after the restart.
 
-**Reports.** When a worker turn ends, its final reply is delivered to the lead as a message headed
-`[Worker <name> · completed|failed|stopped]` with a one-line status. This includes turns woken by
-the worker's own background agents or waitpoints. Turns you start yourself by typing in a worker
-are not reported; the lead's roster marks that worker as one you have talked to. A server restart
+**Reports.** A worker reports when it has finished: its turn has ended and nothing is left
+running or waited on, meaning no queued message, no background agent, no open waitpoint and no
+pending question. The final reply of that turn reaches the lead as a message headed
+`[Worker <name> · completed|failed|stopped]` with a one-line status, and wakes it. A turn that
+ends while such work is still pending does not wake the lead. Its reply shows in the lead's chat as
+a progress update and in `worker_list`, and when the worker finishes, the lead gets one report
+carrying its latest reply. That holds even when the worker finishes without a turn ending, for
+example when you cancel its waitpoint. A failed or stopped turn reports at once. Turns you start
+yourself by typing in a worker are not reported; the lead's roster marks that worker as one you
+have talked to. A server restart
 does not lose a report: one that ends while a restart is pending reaches the lead once the server
 is back. A worker's finished turn raises no notification on the web page, the desktop app or
 Android; you hear about it when the lead's own turn ends. Retired workers stay silent too.
@@ -60,7 +66,8 @@ yourself; whichever answer arrives first is the one the worker gets.
 
 **Roster.** While a lead has active workers, each of its turns opens with a short `[Team]` block:
 a few working rules and one line per worker (status, brief, last report, and whether you have
-talked to it). A worker's first turn opens with a `[Worker]` block telling it who its lead is and
+talked to it). A worker with no turn running that still holds an open waitpoint is listed as
+waiting on external, not idle. A worker's first turn opens with a `[Worker]` block telling it who its lead is and
 how its replies are used.
 
 **Transcripts.** Every session's first turn names the directory holding all session transcripts
