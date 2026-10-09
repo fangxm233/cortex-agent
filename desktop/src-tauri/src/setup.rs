@@ -4,6 +4,8 @@ use std::ffi::OsStr;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
+mod answers;
+pub use answers::{answers_json, SetupAnswers};
 pub mod claude;
 mod package;
 mod process;
@@ -158,36 +160,6 @@ pub struct UiEndpoint {
 /// binary, a usage error), so the caller reports the real output instead of inventing a default.
 pub fn parse_ui_endpoint(stdout: &str) -> Option<UiEndpoint> {
     serde_json::from_str(stdout.trim()).ok()
-}
-
-/// The wizard's answers, translated into the `cortex init --answers` document.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetupAnswers {
-    pub lang: String,
-    pub machine_name: String,
-    pub backends: Vec<String>,
-    pub install_service: bool,
-    pub port: u16,
-}
-
-/// Build the `--answers` document.
-///
-/// `platforms` is deliberately empty: the desktop app *is* the interface, so Slack/Feishu are not
-/// asked about — a platform-less install falls back to the built-in gateway. `localUi` is what turns
-/// this install into something the shell can reach at all. `localClient` explicitly opts this
-/// new local App installation into client preparation; existing connections bypass init.
-pub fn answers_json(answers: &SetupAnswers) -> String {
-    serde_json::json!({
-        "lang": answers.lang,
-        "machineName": answers.machine_name,
-        "backends": answers.backends,
-        "platforms": [],
-        "installService": answers.install_service && !cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows")),
-        "localUi": { "enabled": true, "port": answers.port },
-        "localClient": { "enabled": true },
-    })
-    .to_string()
 }
 
 /// The Cortex home this machine would use — the same resolution the server does.

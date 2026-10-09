@@ -28,7 +28,7 @@ import { CORTEX_VERSION } from '@core/version.js';
 import { cmdFeishu } from './feishu-login.js';
 import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
 import type { CliResult } from '@core/cli-utils.js';
-import { parseLocalClientAnswer, withInitLocalClient, type LocalClientAnswer } from './init-local-client.js';
+import { parseClientListenHost, parseLocalClientAnswer, withInitLocalClient, type LocalClientAnswer } from './init-local-client.js';
 
 // ─── Path computation (DATA_DIR resolved locally to support --home override) ──
 
@@ -114,6 +114,8 @@ export interface InitAnswers {
   localUi?: { enabled: boolean; port?: number };
   /** Explicit native opt-in; ordinary and remote init do not enroll a local client. */
   localClient?: LocalClientAnswer;
+  /** New Windows local App intent; omitted leaves the client WS listener default unchanged. */
+  clientListenHost?: '127.0.0.1';
 }
 
 // ─── JSON answers (machine-driven init) ──────────────────────────
@@ -199,6 +201,7 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
       : undefined,
     localUi: parseLocalUi(input.localUi),
     localClient: parseLocalClientAnswer(input.localClient),
+    clientListenHost: parseClientListenHost(input.clientListenHost),
   };
 }
 
@@ -243,6 +246,9 @@ export function generateDotEnvContent(answers: InitAnswers): string {
     `CORTEX_CLIENT_TOKEN=${randomBytes(32).toString('hex')}`,
     `CORTEX_WEBHOOK_TOKEN=${randomBytes(32).toString('hex')}`,
   ];
+
+  const clientHost = parseClientListenHost(answers.clientListenHost);
+  if (clientHost !== undefined) lines.push(`CORTEX_CLIENT_HOST=${clientHost}`);
 
   // CORTEX_PLATFORM is a comma-separated list (runtime composes adapters via CompositeAdapter).
   // Each platform's token block is emitted independently when its config is present, so a
@@ -1575,7 +1581,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   }
 }
 
-function writeInitConfigs(paths: InitPaths, answers: InitAnswers, force: boolean): void {
+export function writeInitConfigs(paths: InitPaths, answers: InitAnswers, force: boolean): void {
   // Opt-in retries never replace credentials, registry, or user configuration (even with --force).
   const overwrite = answers.localClient?.enabled ? false : force;
   writeDotEnv(paths, answers, overwrite);

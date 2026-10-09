@@ -550,7 +550,7 @@ installSigtermShutdown(shutdownHandles);
 
   startGateway();
   prewarmPiBackend();
-  startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10));
+  startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10), process.env.CORTEX_CLIENT_HOST);
 
   startClientHotReloadJob(
     getSettings().clientHotReloadEnabled,

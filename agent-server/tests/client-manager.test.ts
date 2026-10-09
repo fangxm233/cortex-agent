@@ -1,4 +1,4 @@
-import { test, beforeEach, afterAll, vi } from 'vitest';
+import { test, beforeEach, afterAll, onTestFinished, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 const hookBus = vi.hoisted(() => ({
@@ -29,7 +29,8 @@ import {
   _testReset,
 } from '../src/domain/remote/client-lifecycle.js';
 import { requestStream } from '../src/domain/remote/reverse-stream.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { tmpdir, networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import { STORE_DIR } from '../src/core/paths.js';
 
@@ -88,6 +89,75 @@ beforeEach(() => {
 // A single test-suite-wide cleanup guard: if any test leaks a started server we stop it here.
 afterAll(() => {
   try { stopClientManager(); } catch {}
+});
+
+async function listenOnHost(host?: string): Promise<WebSocketServer> {
+  const on = vi.spyOn(WebSocketServer.prototype, 'on');
+  startClientManager(await findEphemeralPort(), host);
+  const index = on.mock.calls.findIndex(([event]) => event === 'connection');
+  const server = on.mock.contexts[index] as WebSocketServer;
+  on.mockRestore();
+  await waitFor(() => !!server.address());
+  return server;
+}
+
+test.each([undefined, '127.0.0.1', '0.0.0.0'])('actual client listener honors host %s without changing authentication', async host => {
+  onTestFinished(() => stopClientManager());
+  const server = await listenOnHost(host);
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  if (host) assert.equal(address.address, host);
+  else assert.ok(['::', '0.0.0.0'].includes(address.address));
+  const ws = await connectDevice(address.port, 'host-contract');
+  ws.close();
+  await waitFor(() => !isDeviceOnline('host-contract'));
+});
+
+test('an explicitly selected LAN interface remains available for direct clients', async t => {
+  const lan = Object.values(networkInterfaces()).flat().find(address => address?.family === 'IPv4' && !address.internal);
+  if (!lan) { t.skip(); return; }
+  onTestFinished(() => stopClientManager());
+  const server = await listenOnHost(lan.address);
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  assert.equal(address.address, lan.address);
+  const ws = new WebSocket(`ws://${lan.address}:${address.port}`, { headers: authHeaders });
+  await new Promise<void>((resolve, reject) => { ws.once('open', resolve); ws.once('error', reject); });
+  ws.close();
+});
+
+test('Windows native answers persist through cold/recovery dotenv loading to the actual client listener', async () => {
+  const { parseInitAnswersJson, getResolvedPaths, writeInitConfigs } = await import('../src/entry/init.js');
+  const { loadRuntimeDotenv } = await import('../src/core/runtime-env.js');
+  // The native shell_wiring test emits this credential-free document for cross-language verification.
+  const fixture = process.env.CORTEX_TEST_WINDOWS_INIT_ANSWERS;
+  const raw = fixture ? readFileSync(fixture, 'utf8') : JSON.stringify({ lang: 'en', machineName: 'workbench',
+    backends: ['pi'], platforms: [], installService: false, localUi: { enabled: true, port: 3004 },
+    localClient: { enabled: true }, clientListenHost: '127.0.0.1' });
+  const answers = parseInitAnswersJson(raw);
+  const paths = getResolvedPaths(mkdtempSync(join(tmpdir(), 'client-host-listener-')));
+  mkdirSync(paths.CONFIG_DIR, { recursive: true });
+  mkdirSync(paths.STORE_DIR, { recursive: true });
+  writeInitConfigs(paths, answers, false);
+  onTestFinished(() => stopClientManager());
+  for (const phase of ['cold', 'recovery']) {
+    const env: NodeJS.ProcessEnv = {};
+    loadRuntimeDotenv(join(paths.CONFIG_DIR, '.env'), env);
+    assert.equal(env.CORTEX_CLIENT_HOST, '127.0.0.1', phase);
+    const server = await listenOnHost(env.CORTEX_CLIENT_HOST);
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    assert.equal(address.address, '127.0.0.1', phase);
+    await stopClientManager();
+  }
+});
+
+test('app passes the persisted host to only the client manager after runtime dotenv loading', () => {
+  const source = readFileSync(new URL('../src/entry/app.ts', import.meta.url), 'utf8');
+  const call = "startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10), process.env.CORTEX_CLIENT_HOST)";
+  assert.ok(source.includes(call));
+  assert.ok(source.indexOf('loadRuntimeDotenv(path.join(CONFIG_DIR') < source.indexOf(call));
+  assert.equal(source.match(/process\.env\.CORTEX_CLIENT_HOST/g)?.length, 1);
 });
 
 test('sendCommand rejects immediately with "not online" for unknown device', async () => {

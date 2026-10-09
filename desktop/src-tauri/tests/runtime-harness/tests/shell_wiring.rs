@@ -1,5 +1,7 @@
 //! Source contracts for the Tauri boundary; no window, daemon, download or product build.
 //! Runtime command/environment behavior is covered by the adjacent selection tests.
+#[path = "../../../src/setup/answers.rs"]
+mod answers;
 const SETUP: &str = include_str!("../../../src/setup.rs");
 const PROCESS: &str = include_str!("../../../src/setup/process.rs");
 const CLAUDE: &str = include_str!("../../../src/setup/claude.rs");
@@ -101,11 +103,9 @@ fn restart_is_explicit_and_service_registration_stays_posix_only() {
     assert!(start.contains("restart.unwrap_or(false)"));
     assert_eq!(preceding_gate(SETUP, "mod service;"), POSIX);
     assert_eq!(preceding_gate(SETUP, "fn enable_autostart(app:"), POSIX);
-    let answers = section(SETUP, "pub fn answers_json(", "/// The Cortex home");
-    assert!(
-        answers.contains("target_os = \"windows\""),
-        "Windows init must not install a service"
-    );
+    assert!(SETUP.contains("pub use answers::{answers_json, SetupAnswers};"));
+    let init = section(SETUP, "fn run_init(", "///");
+    assert!(init.contains("answers_json(answers)"));
 }
 
 #[test]
