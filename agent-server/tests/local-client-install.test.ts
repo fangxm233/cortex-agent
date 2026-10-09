@@ -1,10 +1,15 @@
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { loadPackageClientBundle } from '../src/domain/remote/package-client-bundle.js';
 import { beginLocalClientInstall, completeLocalClientInstall, readLocalClientIntent } from '../src/domain/remote/local-client-install.js';
+
+vi.mock('node:fs', async original => {
+  const actual = await original<typeof import('node:fs')>();
+  return { ...actual, renameSync: vi.fn(actual.renameSync) };
+});
 
 let root: string;
 let paths: { DATA_DIR: string; CONFIG_DIR: string };
@@ -28,6 +33,7 @@ function writeConfig(name: string, data: unknown): void {
   fs.writeFileSync(path.join(paths.CONFIG_DIR, name), JSON.stringify(data));
 }
 beforeEach(() => {
+  vi.clearAllMocks();
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'owned-local-test-'));
   paths = { DATA_DIR: path.join(root, 'custom-home'), CONFIG_DIR: path.join(root, 'custom-home/config') };
   installRoot = path.join(root, 'package');
@@ -44,6 +50,55 @@ test('missing payload cannot create enrollment intent', async () => {
   fs.unlinkSync(path.join(installRoot, 'dist/client-bundle/cortex-run-watcher.mjs'));
   await expect(beginLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow();
   expect(fs.existsSync(path.join(paths.DATA_DIR, 'client/local-install.json'))).toBe(false);
+});
+async function interruptFirstIntent(): Promise<string> {
+  const marker = path.join(paths.DATA_DIR, 'client/local-install.json');
+  let temporary = '';
+  vi.mocked(fs.renameSync).mockImplementationOnce((from, to) => {
+    expect(to).toBe(marker);
+    expect(fs.statSync(`${marker}.mutation-lock`).isDirectory()).toBe(true);
+    temporary = String(from);
+    expect(path.basename(temporary)).toMatch(/^local-install\.json\.tmp\.[1-9]\d*\.\d+\.[a-z0-9]{0,6}$/);
+    expect(JSON.parse(fs.readFileSync(temporary, 'utf8')).state).toBe('pending');
+    throw new Error('interrupted before first intent rename');
+  });
+  await expect(beginLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow(/interrupted/);
+  expect(fs.existsSync(marker)).toBe(false);
+  expect(fs.existsSync(path.join(paths.CONFIG_DIR, 'cortex-client.json'))).toBe(false);
+  expect(fs.existsSync(path.join(paths.DATA_DIR, 'client/current'))).toBe(false);
+  return temporary;
+}
+test('first intent rename interruption can retry without adopting or deleting the leftover temp', async () => {
+  const temporary = await interruptFirstIntent();
+  const leftover = '{"device":"not-local","untrusted":"not an intent"}';
+  fs.writeFileSync(temporary, leftover);
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  expect(readLocalClientIntent(paths)).toMatchObject({ state: 'ready', device: 'local' });
+  expect(fs.readFileSync(temporary, 'utf8')).toBe(leftover);
+});
+test.each(['foreign.txt', 'local-install.json.tmp.1.123.abcdef.extra', 'local-install.json.tmp.pid.123.abcdef',
+  'local-install.json.tmp.1.123.abcdefg', 'local-install.json.tmp.1.123.ABCDEF', 'config', 'current', 'marker'])
+('interrupted first intent still preserves and refuses foreign %s', async kind => {
+  const temporary = await interruptFirstIntent();
+  const bytes = fs.readFileSync(temporary, 'utf8');
+  const foreign = kind === 'config' ? path.join(paths.CONFIG_DIR, 'cortex-client.json')
+    : path.join(paths.DATA_DIR, 'client', kind === 'marker' ? 'local-install.json' : kind);
+  fs.mkdirSync(path.dirname(foreign), { recursive: true });
+  fs.writeFileSync(foreign, 'user-owned invalid bytes');
+  await expect(beginLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow(/unowned|ownership/i);
+  expect(fs.readFileSync(foreign, 'utf8')).toBe('user-owned invalid bytes');
+  expect(fs.readFileSync(temporary, 'utf8')).toBe(bytes);
+  if (kind !== 'marker') expect(readLocalClientIntent(paths)).toBeNull();
+});
+test.each(['directory', 'symlink'])('temp-shaped %s cannot be ignored as an atomic-write file', async kind => {
+  const client = path.join(paths.DATA_DIR, 'client');
+  fs.mkdirSync(client, { recursive: true });
+  const file = path.join(client, 'local-install.json.tmp.1.123.abcdef');
+  if (kind === 'directory') fs.mkdirSync(file);
+  else fs.symlinkSync(installRoot, file, 'junction');
+  await expect(beginLocalClientInstall(paths, 'local', installRoot)).rejects.toThrow(/unowned/i);
+  expect(fs.lstatSync(file).isSymbolicLink()).toBe(kind === 'symlink');
 });
 test('explicit intent precedes config writes and daemon can finish it without init', async () => {
   await beginLocalClientInstall(paths, 'local', installRoot);
