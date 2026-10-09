@@ -132,7 +132,7 @@ fn install_args() -> Result<Vec<std::ffi::OsString>, String> {
         .iter()
         .map(std::ffi::OsString::from)
         .collect::<Vec<_>>();
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     if let Some(selected) = super::process::selected_runtime()? {
         let mut private = args;
         private.extend(["--prefix".into(), selected.prefix.into_os_string()]);

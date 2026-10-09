@@ -106,14 +106,14 @@ fn pump_stream(
 }
 
 pub(super) fn effective_path() -> Option<String> {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     if let Some(selected) = selected_runtime().ok()? {
         return selected
             .path(&inherited_path())
             .ok()
             .map(|p| p.to_string_lossy().into_owned());
     }
-    login_path().map(str::to_string)
+    Some(inherited_path().to_string_lossy().into_owned())
 }
 
 pub(super) fn inherited_path() -> std::ffi::OsString {
@@ -122,16 +122,16 @@ pub(super) fn inherited_path() -> std::ffi::OsString {
         .unwrap_or_else(|| std::env::var_os("PATH").unwrap_or_default())
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub(super) fn selected_runtime() -> Result<Option<super::runtime::Selection>, String> {
     let home = super::cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
     super::runtime::Selection::load(&home)
 }
 
 fn redact_log_line(line: &str) -> String {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     return super::runtime::redact_line(line);
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     line.to_string()
 }
 
@@ -149,7 +149,7 @@ pub(super) fn install_log(app: &AppHandle, line: &str) {
 fn setup_command(program: &str, args: &[impl AsRef<OsStr>]) -> Result<Command, String> {
     let mut command = Command::new(program);
     command.env("PATH", inherited_path());
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     if let Some(selected) = selected_runtime()? {
         command = selected.command(OsStr::new(program));
         let home = super::cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
@@ -224,7 +224,7 @@ pub(super) fn resolve_cortex_bin() -> Option<String> {
 }
 
 pub(super) fn resolve_cli_bin(name: &str) -> Option<String> {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     if let Some(selected) = selected_runtime().ok()? {
         if name == "cortex" {
             return selected

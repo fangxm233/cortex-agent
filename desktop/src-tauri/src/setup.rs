@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 use std::ffi::OsStr;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -7,7 +7,7 @@ use tauri::AppHandle;
 pub mod claude;
 mod package;
 mod process;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 mod runtime;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod service;
@@ -182,7 +182,7 @@ pub fn answers_json(answers: &SetupAnswers) -> String {
         "machineName": answers.machine_name,
         "backends": answers.backends,
         "platforms": [],
-        "installService": answers.install_service && !cfg!(any(target_os = "macos", target_os = "linux")),
+        "installService": answers.install_service && !cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows")),
         "localUi": { "enabled": true, "port": answers.port },
     })
     .to_string()
@@ -237,8 +237,8 @@ fn wait_until_ready(url: &str, token: &str, budget: Duration) -> bool {
 
 /// Start (or restart) the local daemon and wait for it to answer.
 ///
-/// Automatic POSIX setup preserves a running daemon. Only explicit failed-start repair may
-/// restart it after changing its endpoint. Windows retains its existing restart-first behavior.
+/// Automatic setup preserves a running daemon on every desktop platform. Only explicit
+/// failed-start repair may restart it after changing its endpoint.
 pub fn start_local_daemon(
     app: &AppHandle,
     run: &str,
@@ -296,8 +296,8 @@ pub async fn setup_probe() -> Result<SetupProbe, String> {
 }
 
 fn probe_machine() -> Result<SetupProbe, String> {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    process::selected_runtime()?;
+    // Missing selected tools report absent here; install owns explicit repair. Failing the
+    // initial probe would prevent the wizard from reaching ensure_server on cancellation retry.
     let node = probe_output("node", &["-v"]);
     let cortex_bin = resolve_cortex_bin();
     let server_version = cortex_bin.as_deref().and_then(probe_server_version);
@@ -342,11 +342,11 @@ pub async fn setup_install_server(app: AppHandle, run: String) -> Result<Install
 
 #[tauri::command]
 pub fn setup_cancel_install() {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     runtime::cancel_install();
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> {
     let owner = runtime::InstallGuard::begin()?;
     let home = cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
@@ -373,7 +373,7 @@ fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> 
     })
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
     let package = server_package()?;
     let outcome = run_streaming(
@@ -466,9 +466,9 @@ fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: Option<u16>) -> Result
 
 /// A saved runtime must be repaired explicitly, never replaced from a changed login PATH.
 pub fn local_runtime_needs_repair() -> bool {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     return process::selected_runtime().is_err();
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     false
 }
 
@@ -547,7 +547,7 @@ pub async fn setup_start_daemon(
     token: String,
     restart: Option<bool>,
 ) -> Result<bool, String> {
-    let restart = restart.unwrap_or(cfg!(target_os = "windows"));
+    let restart = restart.unwrap_or(false);
     tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token, restart))
         .await
         .map_err(|e| format!("SETUP_TASK_FAILED: daemon: {e}"))?
@@ -657,7 +657,7 @@ mod tests {
         assert_eq!(doc["backends"], serde_json::json!(["pi"]));
         assert_eq!(
             doc["installService"],
-            !cfg!(any(target_os = "macos", target_os = "linux"))
+            !cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows"))
         );
         assert_eq!(doc["localUi"]["enabled"], true);
         assert_eq!(doc["localUi"]["port"], 3004);
