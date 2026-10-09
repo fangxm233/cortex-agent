@@ -131,7 +131,7 @@ test.each([null, 0, 'false', {}])('rejects invalid optional launchAttempted %j',
   fs.writeFileSync(file, JSON.stringify({ ...readLocalClientIntent(paths), launchAttempted }));
   expect(() => readLocalClientIntent(paths)).toThrow(/ownership/i);
 });
-test('attempt marker is committed under the existing lock and survives restart before spawn', async () => {
+test('attempt marker is committed under the existing lock before an interrupted spawn', async () => {
   await beginLocalClientInstall(paths, 'local', installRoot);
   await completeLocalClientInstall(paths, 'local', installRoot);
   const { renameSync } = await vi.importActual<typeof import('node:fs')>('node:fs');
@@ -153,6 +153,11 @@ test('attempt marker is committed under the existing lock and survives restart b
   finally { gate.stop(); }
   await completeLocalClientInstall(paths, 'local', installRoot);
   expect(readLocalClientIntent(paths)?.launchAttempted).toBe(true);
+});
+test('restart after persisting an attempt but before spawning keeps the full grace', async () => {
+  await beginLocalClientInstall(paths, 'local', installRoot);
+  await completeLocalClientInstall(paths, 'local', installRoot);
+  await markLocalClientLaunchAttempted(paths, 'local', new AbortController().signal);
   vi.useFakeTimers();
   const launch = vi.fn();
   const restarted = new OwnedLocalLaunchGate({ online: () => false,
