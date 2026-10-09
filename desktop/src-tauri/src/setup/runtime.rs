@@ -10,6 +10,8 @@ use std::{
 mod archive;
 #[path = "runtime_cancel.rs"]
 mod cancel;
+#[path = "runtime_git_selection.rs"]
+mod git_selection;
 #[path = "runtime_install.rs"]
 mod install;
 #[path = "runtime_probe.rs"]
@@ -18,13 +20,15 @@ mod probe;
 mod process;
 #[path = "runtime_selection.rs"]
 mod selection;
-#[path = "runtime_selection_environment.rs"]
-mod selection_environment;
 #[path = "runtime_selection_discovery.rs"]
 mod selection_discovery;
-#[path = "runtime_git_selection.rs"]
-mod git_selection;
+#[path = "runtime_selection_environment.rs"]
+mod selection_environment;
 pub use git_selection::GitSelection;
+pub use selection::RepairNeeds;
+#[cfg(all(test, unix))]
+#[path = "runtime_git_selection_tests.rs"]
+mod git_selection_tests;
 #[cfg(test)]
 #[path = "runtime_selection_windows_tests.rs"]
 mod selection_windows_tests;
@@ -262,6 +266,14 @@ fn external_runtime(
         return Ok(None);
     };
     let selected = Selection::new(node, npm, home.join("runtime/prefix"));
+    #[cfg(windows)]
+    let selected = {
+        let mut selected = selected;
+        if !selected.qualify_windows_npm() {
+            return Ok(None);
+        }
+        selected
+    };
     Ok(qualified_install(&selected, home, path, floor, token)?.then_some(selected))
 }
 

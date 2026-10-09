@@ -22,7 +22,7 @@ fn windows_names(name: &str) -> Vec<String> {
     if name.eq_ignore_ascii_case("npm") || name.eq_ignore_ascii_case("cortex") {
         return vec![format!("{name}.cmd"), format!("{name}.exe")];
     }
-    vec![format!("{name}.exe"), format!("{name}.cmd")]
+    vec![format!("{name}.exe")]
 }
 
 /// Only the standard colocated Node distribution layout is supported on Windows.
@@ -57,6 +57,14 @@ fn matching_shim(dir: &Path, package: &Path, name: &str) -> Option<String> {
 }
 
 impl Selection {
+    pub fn validate_windows_npm(&self) -> Result<(), String> {
+        let cli = npm_cli_layout(self).ok_or("RUNTIME_MISSING: unsupported Windows npm layout")?;
+        if self.npm_cli.as_ref() != Some(&cli) {
+            return Err("RUNTIME_MISSING: Windows npm CLI has not been qualified".into());
+        }
+        Ok(())
+    }
+
     /// Qualify the layout before probing npm with npm_command(). Unsupported
     /// external layouts require a separate private install, never an overwrite.
     pub fn qualify_windows_npm(&mut self) -> bool {

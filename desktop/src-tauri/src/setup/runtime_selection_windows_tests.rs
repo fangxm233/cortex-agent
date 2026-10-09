@@ -81,7 +81,7 @@ fn windows_git_layout_rejects_bare_git_mingit_and_unrelated_bash() {
     assert!(git.validate().is_err());
 }
 
-fn npm_layout(selected: &Selection) -> PathBuf {
+pub(super) fn npm_layout(selected: &Selection) -> PathBuf {
     let dir = selected.node.parent().unwrap();
     let package = dir.join("node_modules/npm");
     touch(&selected.node);
@@ -112,6 +112,22 @@ fn windows_npm_layout_binds_only_same_install_unmodified_package_shims() {
     selected.npm = root.path().join("unrelated/npm.cmd");
     touch(&selected.npm);
     assert!(npm_cli_layout(&selected).is_none());
+}
+
+#[test]
+fn windows_npm_binding_must_precede_launch_and_rejects_stale_identity() {
+    let root = tempfile::tempdir().unwrap();
+    let mut selected = windows_selection(root.path());
+    let cli = npm_layout(&selected);
+    assert!(selected.validate_windows_npm().is_err());
+    assert!(selected.qualify_windows_npm());
+    assert_eq!(selected.npm_cli, Some(cli));
+    assert!(selected.validate_windows_npm().is_ok());
+    assert!(selected.is_npm_for(OsStr::new("NPM.CMD"), true));
+    assert!(selected.is_npm_for(OsStr::new("NPM"), true));
+    assert!(!selected.is_npm_for(OsStr::new("NPM"), false));
+    selected.npm_cli = Some(root.path().join("unrelated/npm-cli.js"));
+    assert!(selected.validate_windows_npm().is_err());
 }
 
 #[test]

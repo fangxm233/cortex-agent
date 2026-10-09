@@ -12,7 +12,12 @@ fn selection_record(home: &Path) -> Value {
 
 fn git_record(home: &Path) -> Value {
     let root = home.join("Git with 空格 %!");
-    for name in ["cmd/git.exe", "usr/bin/bash.exe", "usr/bin/sh.exe", "usr/bin/grep.exe"] {
+    for name in [
+        "cmd/git.exe",
+        "usr/bin/bash.exe",
+        "usr/bin/sh.exe",
+        "usr/bin/grep.exe",
+    ] {
         let file = root.join(name);
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(file, "fixture").unwrap();
@@ -51,7 +56,12 @@ fn selection_roundtrip_preserves_git_and_node_ownership_and_cli() {
 
 #[test]
 fn selection_missing_saved_git_utilities_or_cli_is_not_silently_reselected() {
-    for missing in ["cmd/git.exe", "usr/bin/bash.exe", "usr/bin/sh.exe", "usr/bin/grep.exe"] {
+    for missing in [
+        "cmd/git.exe",
+        "usr/bin/bash.exe",
+        "usr/bin/sh.exe",
+        "usr/bin/grep.exe",
+    ] {
         let home = tempfile::tempdir().unwrap();
         let mut record = selection_record(home.path());
         record["git"] = git_record(home.path());
@@ -59,7 +69,9 @@ fn selection_missing_saved_git_utilities_or_cli_is_not_silently_reselected() {
         selected.save(home.path()).unwrap();
         let root = Path::new(record["git"]["root"].as_str().unwrap());
         std::fs::remove_file(root.join(missing)).unwrap();
-        assert!(Selection::load(home.path()).unwrap_err().starts_with("RUNTIME_MISSING"));
+        assert!(Selection::load(home.path())
+            .unwrap_err()
+            .starts_with("RUNTIME_MISSING"));
     }
 }
 
@@ -79,7 +91,11 @@ fn selection_npm_aliases_use_selected_node_and_literal_cli_argument() {
     let cli = home.path().join("space 空格 %PATH% !/npm-cli.js");
     record["npm_cli"] = json!(cli);
     let selected: Selection = serde_json::from_value(record).unwrap();
-    for alias in [OsStr::new("npm"), OsStr::new("npm.cmd"), selected.npm.as_os_str()] {
+    for alias in [
+        OsStr::new("npm"),
+        OsStr::new("npm.cmd"),
+        selected.npm.as_os_str(),
+    ] {
         let command = selected.command(alias);
         assert_eq!(command.get_program(), selected.node);
         assert_eq!(command.get_args().collect::<Vec<_>>(), [cli.as_os_str()]);

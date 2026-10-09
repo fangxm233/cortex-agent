@@ -79,6 +79,8 @@ impl Selection {
         home: &Path,
         inherited: &OsStr,
     ) -> Result<(), String> {
+        #[cfg(windows)]
+        self.validate_windows_npm()?;
         let path = self.path(inherited)?;
         self.apply_environment(command, home, &path, cfg!(windows));
         Ok(())
@@ -102,6 +104,10 @@ impl Selection {
         if !windows {
             command.env("npm_config_prefix", &self.prefix);
         }
+        self.apply_git_environment(command, windows);
+    }
+
+    fn apply_git_environment(&self, command: &mut Command, windows: bool) {
         if let Some(git) = &self.git {
             set_env(
                 command,
