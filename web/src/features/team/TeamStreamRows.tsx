@@ -38,7 +38,7 @@ const CLAMP2: CSSProperties = {
 const TIME: CSSProperties = { font: `400 11px ${MONO}`, color: 'var(--proto-faint)', flex: 'none', whiteSpace: 'nowrap' };
 const CARD: CSSProperties = {
   background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
-  border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', overflow: 'hidden', maxWidth: 680,
+  border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', overflow: 'hidden',
 };
 const BODY: CSSProperties = { fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' };
 
@@ -142,7 +142,7 @@ function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }
   const worker = findWorker(workers, action.worker) ?? (action.worker ? null : spawnedWorker(workers, action.text));
   const name = action.worker ?? worker?.workerName ?? null;
   return (
-    <div data-team-action="spawn" style={{ ...CARD, maxWidth: 620, padding: touch ? '9px 12px' : '8px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+    <div data-team-action="spawn" style={{ ...CARD, padding: touch ? '9px 12px' : '8px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>{actionVerb(action, L)}</span>
         {name && <WorkerPill name={name} worker={worker} />}
