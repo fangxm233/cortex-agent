@@ -30,11 +30,21 @@ fn sleep(marker: &str) {
     std::thread::sleep(Duration::from_secs(60));
 }
 
+fn child_command() -> Command {
+    let command = Command::new(std::env::current_exe().unwrap());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut command = command;
+        command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+        return command;
+    }
+    #[cfg(not(windows))]
+    command
+}
+
 fn tree(mode: &str, marker: &str) {
-    let mut child = Command::new(std::env::current_exe().unwrap())
-        .args(["sleep", marker])
-        .spawn()
-        .unwrap();
+    let mut child = child_command().args(["sleep", marker]).spawn().unwrap();
     let end = Instant::now() + Duration::from_secs(5);
     while !std::fs::read_to_string(marker).is_ok_and(|s| s.parse::<u32>().is_ok()) {
         assert!(Instant::now() < end, "descendant did not run");
@@ -47,10 +57,7 @@ fn tree(mode: &str, marker: &str) {
 }
 
 fn fast() {
-    let status = Command::new(std::env::current_exe().unwrap())
-        .args(["exit", "0"])
-        .status()
-        .unwrap();
+    let status = child_command().args(["exit", "0"]).status().unwrap();
     assert!(status.success());
 }
 
@@ -68,10 +75,10 @@ fn flood() {
 #[cfg(windows)]
 fn breakaway() {
     use std::os::windows::process::CommandExt;
-    use windows_sys::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB;
-    let child = Command::new(std::env::current_exe().unwrap())
+    use windows_sys::Win32::System::Threading::{CREATE_BREAKAWAY_FROM_JOB, CREATE_NO_WINDOW};
+    let child = child_command()
         .args(["exit", "0"])
-        .creation_flags(CREATE_BREAKAWAY_FROM_JOB)
+        .creation_flags(CREATE_BREAKAWAY_FROM_JOB | CREATE_NO_WINDOW)
         .spawn();
     assert!(child.is_err(), "non-breakaway ownership must reject escape");
     println!("breakaway denied");

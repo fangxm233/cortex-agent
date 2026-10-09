@@ -1,7 +1,10 @@
 use super::{cancel, probe, process, CancelToken};
 use process::windows::{job::Owned, run};
 use std::{
-    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
+    os::windows::{
+        io::{AsRawHandle, FromRawHandle, OwnedHandle},
+        process::CommandExt,
+    },
     path::{Path, PathBuf},
     process::Command,
     sync::atomic::{AtomicUsize, Ordering},
@@ -9,12 +12,22 @@ use std::{
 };
 use windows_sys::Win32::{
     Foundation::WAIT_OBJECT_0,
-    System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+    System::Threading::{OpenProcess, WaitForSingleObject, CREATE_NO_WINDOW, PROCESS_SYNCHRONIZE},
 };
 
+fn fixture_path() -> PathBuf {
+    let sibling = std::env::current_exe()
+        .unwrap()
+        .with_file_name("owned-fixture.exe");
+    if sibling.is_file() {
+        return sibling;
+    }
+    PathBuf::from(env!("CARGO_BIN_EXE_owned-fixture"))
+}
+
 fn fixture(args: &[&str]) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_owned-fixture"));
-    command.args(args);
+    let mut command = Command::new(fixture_path());
+    command.args(args).creation_flags(CREATE_NO_WINDOW);
     command
 }
 
