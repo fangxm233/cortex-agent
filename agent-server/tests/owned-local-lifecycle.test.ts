@@ -46,7 +46,7 @@ test('actual lifecycle recovers explicit home and spawns server Node with captur
   expect(hooks.recover).toHaveBeenCalledWith({ DATA_DIR, CONFIG_DIR }, 'local', undefined, expect.any(AbortSignal));
   expect(hooks.spawn).toHaveBeenCalledOnce();
   expect(hooks.spawn).toHaveBeenCalledWith(process.execPath, [join(DATA_DIR, 'client/current/client.mjs')], expect.objectContaining({
-    detached: true, stdio: 'ignore', env: expect.objectContaining({
+    windowsHide: true, detached: true, stdio: 'ignore', env: expect.objectContaining({
       CORTEX_HOME: DATA_DIR, CORTEX_CLIENT_TOKEN: 'isolated-token', CORTEX_SERVER_URL: 'ws://127.0.0.1:4312',
       Path: 'private-node;private-git', CORTEX_GIT_BASH_PATH: 'private-git/bash.exe', npm_config_prefix: 'private-npm',
     }),

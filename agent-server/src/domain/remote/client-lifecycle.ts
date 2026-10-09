@@ -231,7 +231,7 @@ function spawnLocalClient(device: string): void {
 function spawnOwnedLocalClient(device: string): void {
   assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
   const env = ownedLocalEnvironment(process.env, DATA_DIR, getClientToken(), getClientManagerPort());
-  const child = spawn(process.execPath, [localClientEntryPath()], { detached: true, stdio: 'ignore', env });
+  const child = spawn(process.execPath, [localClientEntryPath()], { windowsHide: true, detached: true, stdio: 'ignore', env });
   child.on('error', () => {
     log.error(`Owned local client spawn failed on ${device}; scheduling retry`);
     scheduleRestart(device);

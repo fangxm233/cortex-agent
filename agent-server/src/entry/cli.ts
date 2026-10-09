@@ -582,6 +582,7 @@ function main(): void {
     // The daemon's own logger writes to files — console output is redundant.
     fork(DAEMON_JS, [], {
       cwd: DATA_DIR,
+      windowsHide: true,
       detached: true,
       stdio: 'ignore',
       env: { ...process.env },
