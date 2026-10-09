@@ -78,5 +78,5 @@ fn package_fixture(prefix: &Path) -> PathBuf {
     .unwrap();
     let cli = root.join("dist/entry/cortex-cli.js");
     std::fs::write(&cli, "#!/usr/bin/env node\nfixture").unwrap();
-    cli
+    cli.canonicalize().unwrap()
 }

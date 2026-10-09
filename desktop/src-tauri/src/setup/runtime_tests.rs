@@ -11,7 +11,7 @@ mod runtime_selection_tests;
 use runtime::*;
 use std::ffi::OsStr;
 use std::path::Path;
-static CANCEL_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use runtime::CANCEL_TEST;
 
 fn script(path: &Path, contents: &str) {
     use std::os::unix::fs::PermissionsExt;

@@ -17,6 +17,7 @@ fn repair_preserves_good_node_and_server_and_adds_missing_git() {
     })
     .unwrap();
     repair_git(&mut selected, &token, || Ok(git_fixture(dir.path()))).unwrap();
+    repair_git(&mut selected, &token, || panic!("healthy Git must not reinstall")).unwrap();
     assert_eq!(selected.node, old_node);
     assert!(selected.npm_cli.is_some());
     assert_eq!(selected.server.unwrap().bin, dir.path().join("existing/cli.js"));
@@ -52,7 +53,7 @@ fn missing_saved_tools_repair_to_new_private_paths_without_external_writes() {
 
 #[test]
 fn attempt_cancel_cleans_only_new_stage() {
-    let _lock = crate::CANCEL_TEST.lock().unwrap();
+    let _lock = super::super::CANCEL_TEST.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("runtime/good")).unwrap();
     let stage = new_attempt(dir.path(), "test").unwrap();
@@ -64,6 +65,13 @@ fn attempt_cancel_cleans_only_new_stage() {
     assert!(dir.path().join("runtime/good").is_dir());
 }
 
+fn script(path: &Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
 fn node_fixture(root: &Path) -> Selection {
     let selected = Selection::new(
         root.join("node/node.exe"),
@@ -71,7 +79,7 @@ fn node_fixture(root: &Path) -> Selection {
         root.join("prefix"),
     );
     super::super::selection_windows_tests::npm_layout(&selected);
-    crate::script(&selected.node, "echo v24.21.0");
+    script(&selected.node, "echo v24.21.0");
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(&selected.npm, std::fs::Permissions::from_mode(0o755)).unwrap();
     selected
@@ -85,7 +93,9 @@ fn git_fixture(root: &Path) -> GitSelection {
         "usr/bin/sh.exe",
         "usr/bin/grep.exe",
     ] {
-        crate::script(&path.join(file), "echo fixture");
+        script(&path.join(file), "echo fixture");
     }
+    script(&path.join("cmd/git.exe"), "echo 'git version 2.56.0.windows.2'");
+    script(&path.join("usr/bin/bash.exe"), "echo cortex-git-qualified");
     GitSelection::from_root(path, true).unwrap()
 }

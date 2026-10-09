@@ -55,6 +55,8 @@ pub use archive::{release_for, safe_link, safe_member};
 pub use cancel::{cancel_install, CancelToken, InstallGuard};
 pub use install::ensure_server;
 pub use process::{redact_line, run_install};
+#[cfg(test)]
+pub(crate) static CANCEL_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Selection {

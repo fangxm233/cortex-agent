@@ -96,7 +96,7 @@ fn zip_rejects_reparse_and_links_and_size() {
 
 #[test]
 fn zip_cancel_before_writes_and_entry_count_limit() {
-    let _lock = crate::CANCEL_TEST.lock().unwrap();
+    let _lock = super::super::CANCEL_TEST.lock().unwrap();
     let guard = super::super::InstallGuard::begin().unwrap();
     super::super::cancel_install();
     let dir = tempfile::tempdir().unwrap();

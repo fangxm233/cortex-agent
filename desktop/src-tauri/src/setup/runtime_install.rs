@@ -19,7 +19,7 @@ pub fn ensure_server(
     let mut selected = super::bootstrap(home, path, node_floor, token, log)?;
     let saved = selected.server.is_some();
     if !saved {
-        select_server(&mut selected, home, path, package, token, log)?;
+        select_server(&mut selected, home, path, package, server_floor, token, log)?;
     }
     #[cfg(windows)]
     bind_windows_server(&mut selected)?;
@@ -37,16 +37,12 @@ fn select_server(
     home: &Path,
     path: &OsStr,
     package: impl FnOnce() -> Result<std::ffi::OsString, String>,
+    _server_floor: &str,
     token: &CancelToken,
     log: &(impl Fn(&str) + Sync),
 ) -> Result<(), String> {
     #[cfg(windows)]
-    if let Ok(bin) = managed_cli(&selected.prefix) {
-        selected.server = Some(Server {
-            bin,
-            managed: true,
-            node_entry: None,
-        });
+    if reuse_windows_managed(selected, home, path, _server_floor, token)? {
         return Ok(());
     }
     if let Some(bin) = external_server(selected, home, path, token)? {
@@ -59,6 +55,32 @@ fn select_server(
         return Ok(());
     }
     install_managed(selected, home, path, &package()?, token, log)
+}
+
+#[cfg(any(windows, test))]
+fn reuse_windows_managed(
+    selected: &mut Selection,
+    home: &Path,
+    path: &OsStr,
+    floor: &str,
+    token: &CancelToken,
+) -> Result<bool, String> {
+    let Ok(bin) = super::windows_server::package_cli(&selected.prefix) else {
+        return Ok(false);
+    };
+    let mut candidate = selected.clone();
+    candidate.server = Some(Server {
+        bin,
+        managed: true,
+        node_entry: None,
+    });
+    let healthy = install_server_version(&candidate, home, path, token)?
+        .is_some_and(|version| super::version_at_least(&version, floor));
+    token.check()?;
+    if healthy {
+        selected.server = candidate.server;
+    }
+    Ok(healthy)
 }
 
 fn install_managed(
@@ -171,6 +193,37 @@ fn bind_windows_server(selected: &mut Selection) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn reuse_private_windows_package_only_when_functionally_qualified() {
+        for (body, expected) in [("echo 2026.10.6", true), ("exit 9", false)] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = OsStr::new("/usr/bin:/bin");
+            let prefix = dir.path().join("prefix");
+            let package = prefix.join("node_modules/@cortex-agent/server");
+            std::fs::create_dir_all(package.join("dist/entry")).unwrap();
+            std::fs::write(
+                package.join("package.json"),
+                r#"{"name":"@cortex-agent/server","bin":{"cortex":"dist/entry/cortex-cli.js"}}"#,
+            )
+            .unwrap();
+            std::fs::write(package.join("dist/entry/cortex-cli.js"), body).unwrap();
+            let mut selected = Selection::new("/bin/sh".into(), "/bin/sh".into(), prefix);
+            assert_eq!(
+                reuse_windows_managed(
+                    &mut selected,
+                    dir.path(),
+                    path,
+                    "2026.8.20",
+                    &CancelToken::default()
+                )
+                .unwrap(),
+                expected
+            );
+            assert_eq!(selected.server.is_some(), expected);
+        }
+    }
+
     #[test]
     fn external_prefix_query_binds_npm_cli_without_private_prefix_override() {
         let mut selected = Selection::new(
