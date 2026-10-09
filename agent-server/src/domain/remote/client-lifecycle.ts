@@ -8,7 +8,7 @@ import { createLogger } from '@core/log.js';
 import { getClientManagerPort, isDeviceOnline, setHubLifecycleHooks } from './client-manager.js';
 import { SshTunnelSupervisor, reverseTunnelSpec, type SshTunnelSpec } from './client-ssh-tunnel.js';
 import { sshExec } from './ssh-exec.js';
-import { assertLocalClientMachine, completeLocalClientInstall, readLocalClientIntent } from './local-client-install.js';
+import { assertLocalClientMachine, completeLocalClientInstall, markLocalClientLaunchAttempted, readLocalClientIntent } from './local-client-install.js';
 import { OwnedLocalLaunchGate, ownedLocalEnvironment } from './owned-local-launch.js';
 
 // Remote client lifecycle: SSH nohup start, PID tracking, managed routes, auto-restart.
@@ -30,7 +30,9 @@ const localLaunch = new OwnedLocalLaunchGate({
   recover: async (device, signal) => {
     assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
     await completeLocalClientInstall(localPaths, device, undefined, signal);
+    return readLocalClientIntent(localPaths)?.launchAttempted;
   },
+  markLaunchAttempted: (device, signal) => markLocalClientLaunchAttempted(localPaths, device, signal),
   launch: spawnOwnedLocalClient,
 });
 

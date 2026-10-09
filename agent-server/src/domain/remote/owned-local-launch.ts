@@ -1,7 +1,9 @@
 /** Owned-local launch coordination only. Existing lifecycle timers remain the sole retry owner. */
 interface LaunchHooks {
   online(device: string): boolean;
-  recover(device: string, signal: AbortSignal): Promise<void>;
+  /** Return the persisted launchAttempted field; only false can skip reconnect grace. */
+  recover(device: string, signal: AbortSignal): Promise<boolean | undefined>;
+  markLaunchAttempted(device: string, signal: AbortSignal): Promise<void>;
   launch(device: string): void;
 }
 // client/src/client.ts caps scheduleReconnect at 30s; leave 5s for connection/hello.
@@ -55,17 +57,22 @@ export class OwnedLocalLaunchGate {
   }
 
   private async waitForReconnect(device: string, signal: AbortSignal): Promise<void> {
-    // Self-update can obsolete the recorded PID; intent does not record launch history.
-    // All offline starts (including first launch) wait; online clients return immediately.
+    // Self-update can obsolete the recorded PID; possibly launched clients always get this grace.
     const deadline = Date.now() + RECONNECT_MS;
     while (!signal.aborted && !this.hooks.online(device) && Date.now() < deadline) await pause(signal);
   }
 
   private async prepareAndLaunch(device: string, signal: AbortSignal): Promise<void> {
     if (this.hooks.online(device)) return;
-    await this.hooks.recover(device, signal);
+    const launchAttempted = await this.hooks.recover(device, signal);
     if (signal.aborted || this.hooks.online(device)) return;
-    await this.waitForReconnect(device, signal);
+    if (launchAttempted !== false) await this.waitForReconnect(device, signal);
+    await this.launchIfOffline(device, signal);
+  }
+
+  private async launchIfOffline(device: string, signal: AbortSignal): Promise<void> {
+    if (signal.aborted || this.hooks.online(device)) return;
+    await this.hooks.markLaunchAttempted(device, signal);
     if (signal.aborted || this.hooks.online(device)) return;
     this.hooks.launch(device);
   }

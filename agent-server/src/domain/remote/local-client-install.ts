@@ -13,6 +13,8 @@ export interface LocalClientIntent {
   device: string;
   configHash: string;
   bundleHash: string;
+  /** False proves no launch was attempted; true/absent says nothing about PID identity or liveness. */
+  launchAttempted?: boolean;
 }
 const STAGE = '.local-install-stage';
 const fingerprint = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -41,7 +43,8 @@ export function readLocalClientIntent(paths: LocalClientPaths): LocalClientInten
   const valid = intent?.schema === 1 && ['pending', 'ready'].includes(intent.state)
     && typeof intent.device === 'string' && !!intent.device.trim()
     && intent.configHash === fingerprint(configText(intent.device))
-    && typeof intent.bundleHash === 'string' && /^[a-f0-9]{64}$/.test(intent.bundleHash);
+    && typeof intent.bundleHash === 'string' && /^[a-f0-9]{64}$/.test(intent.bundleHash)
+    && (intent.launchAttempted === undefined || typeof intent.launchAttempted === 'boolean');
   if (!valid) throw new Error('Invalid local client ownership intent; inspect client/local-install.json');
   return intent;
 }
@@ -100,7 +103,7 @@ export async function beginLocalClientInstall(paths: LocalClientPaths, device: s
     validateRegistry(paths, device);
     assertFresh(paths);
     if (!device.trim()) throw new Error('Local client device must not be empty');
-    saveIntent(paths, { schema: 1, state: 'pending', device,
+    saveIntent(paths, { schema: 1, state: 'pending', device, launchAttempted: false,
       configHash: fingerprint(configText(device)), bundleHash: bundle.hash });
   });
 }
@@ -130,6 +133,19 @@ function finishInstall(paths: LocalClientPaths, intent: LocalClientIntent, bundl
     intent = { ...intent, bundleHash: bundle.hash };
   }
   saveIntent(paths, { ...intent, state: 'ready' });
+}
+
+/** Record before spawning so a restart cannot mistake an interrupted launch for a fresh install. */
+export async function markLocalClientLaunchAttempted(
+  paths: LocalClientPaths, device: string, signal: AbortSignal,
+): Promise<void> {
+  await withFileLock(intentFile(paths), async () => {
+    signal.throwIfAborted();
+    const intent = readLocalClientIntent(paths);
+    if (!intent) throw new Error('Missing local client ownership intent');
+    validateLocalClientOwnership(paths, intent, device);
+    saveIntent(paths, { ...intent, launchAttempted: true });
+  }, { signal });
 }
 
 /** Daemon recovery may complete an existing intent, but must never enroll an ordinary home. */
