@@ -98,6 +98,30 @@ test('invalid local intent cannot disable unrelated SSH lifecycle', async () => 
   expect(hooks.recover).not.toHaveBeenCalled();
   expect(hooks.spawn).not.toHaveBeenCalled();
 });
+test.each(['invalid', 'missing', 'other-device'])('direct-WS external path never reads %s local intent or falls back to local spawn', async state => {
+  hooks.intent.mockImplementation(() => {
+    if (state === 'invalid') throw new Error('invalid local ownership');
+    return state === 'missing' ? null : { device: 'local' };
+  });
+  _setMachineRegistryProviderForTesting(() => ({ remote: { cortexPath: '/external/cortex', gpuCount: 0, clientConnection: 'direct' } }));
+  mkdirSync(join(DATA_DIR, 'client/current'), { recursive: true });
+  writeFileSync(join(DATA_DIR, 'client/current/client.mjs'), '// local bundle must not serve external device');
+  const ssh = vi.fn();
+  _setSshExecForTesting(ssh);
+  await startRemoteClient('remote');
+  expect(hooks.intent).not.toHaveBeenCalled();
+  expect(hooks.recover).not.toHaveBeenCalled();
+  expect(hooks.spawn.mock.calls.length).toBe(0);
+  expect(ssh).not.toHaveBeenCalled();
+  expect(_getRestartTimerCount()).toBe(0);
+});
+test('same-home invalid intent cannot fall back to the local bundle', async () => {
+  hooks.intent.mockImplementation(() => { throw new Error('invalid local ownership'); });
+  await startRemoteClient('local');
+  expect(hooks.recover).not.toHaveBeenCalled();
+  expect(hooks.spawn.mock.calls.length).toBe(0);
+  expect(_getRestartTimerCount()).toBe(1);
+});
 test.each([{ ssh: 'remote' }, { clientCommand: 'custom' }])('changed owned machine %j cannot be launched/adopted', async extra => {
   _setMachineRegistryProviderForTesting(() => ({ local: { cortexPath: DATA_DIR, gpuCount: 0, ...extra } }));
   await startRemoteClient('local');

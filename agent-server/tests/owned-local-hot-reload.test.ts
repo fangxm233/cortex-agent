@@ -5,6 +5,7 @@ vi.mock('../src/domain/remote/package-client-bundle.js', () => ({ loadPackageCli
 vi.mock('../src/domain/remote/client-manager.js', () => ({ setClientUpdateHooks: hooks.register, getOnlineDevices: hooks.online, sendControlMessage: vi.fn() }));
 vi.mock('@core/exec-async.js', () => ({ runFile: hooks.registry, runShell: hooks.registry }));
 vi.mock('../src/domain/remote/machine-registry.js', () => ({ getMachineRegistry: hooks.machines }));
+import { DATA_DIR } from '../src/core/paths.js';
 import { initClientHotReload, _onHelloForTesting as hello, _setBundleForTesting, _setSendForTesting, _testReset } from '../src/domain/remote/client-hot-reload.js';
 const packaged = { version: '2.0.0', hash: 'package-local', files: [] };
 const published = { version: '1.0.0', hash: 'npm-latest', files: [] };
@@ -14,7 +15,7 @@ beforeEach(() => {
   _testReset();
   hooks.intent.mockReturnValue({ device: 'local' });
   hooks.payload.mockReturnValue(packaged);
-  hooks.machines.mockReturnValue({ remote: { ssh: 'external-host' } });
+  hooks.machines.mockReturnValue({ local: { cortexPath: DATA_DIR, gpuCount: 0 }, remote: { ssh: 'external-host' } });
   _setSendForTesting(send);
 });
 afterEach(() => _testReset());
@@ -49,6 +50,31 @@ test('a broken local ownership marker cannot disable unrelated SSH client update
   expect(send).toHaveBeenCalledWith('remote', expect.objectContaining({ hash: 'npm-latest' }));
   hello('local', 'old');
   expect(send).toHaveBeenCalledTimes(1);
+});
+test('direct-WS remote path uses the global bundle without reading invalid local intent', () => {
+  _setBundleForTesting(published);
+  hooks.machines.mockReturnValue({ remote: { cortexPath: '/external/cortex', gpuCount: 0, clientConnection: 'direct' } });
+  hooks.intent.mockImplementation(() => { throw new Error('invalid local ownership'); });
+  hello('remote', 'old');
+  expect(send).toHaveBeenCalledWith('remote', expect.objectContaining({ hash: 'npm-latest' }));
+  expect(hooks.intent).not.toHaveBeenCalled();
+  expect(hooks.payload).not.toHaveBeenCalled();
+});
+test.each([DATA_DIR, undefined])('invalid intent fails closed for candidate with path %s', cortexPath => {
+  _setBundleForTesting(published);
+  hooks.machines.mockReturnValue({ local: { cortexPath, gpuCount: 0 } });
+  hooks.intent.mockImplementation(() => { throw new Error('invalid local ownership'); });
+  hello('local', 'old');
+  expect(hooks.intent).toHaveBeenCalledOnce();
+  expect(send).not.toHaveBeenCalled();
+  expect(hooks.payload).not.toHaveBeenCalled();
+});
+test('unestablished local ownership never falls back to the package bundle', () => {
+  _setBundleForTesting(published);
+  hooks.validate.mockImplementationOnce(() => { throw new Error('machine ownership conflict'); });
+  hello('local', 'old');
+  expect(send).not.toHaveBeenCalled();
+  expect(hooks.payload).not.toHaveBeenCalled();
 });
 test('first online sweep is independent of a never-resolving npm query', async () => {
   hooks.online.mockReturnValue([{ device: 'local', bundleHash: 'old' }] as never);
