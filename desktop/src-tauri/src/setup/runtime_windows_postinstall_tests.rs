@@ -333,7 +333,7 @@ fn readiness_requires_exe_sentinel_and_upstream_cleanup() {
 }
 
 fn readiness_fixture(stage: &Path, system: &Path) {
-    for (source, target) in NETWORK_FILES {
+    for (source, target, _) in NETWORK_FILES {
         touch(&system.join("System32/drivers/etc").join(source), b"system");
         touch(&stage.join("etc").join(target), b"system");
     }
@@ -349,6 +349,165 @@ fn readiness_fixture(stage: &Path, system: &Path) {
         std::fs::create_dir_all(stage.join(name)).unwrap();
     }
     touch(&stage.join("etc/mtab"), b"!<symlink>/proc/mounts");
+}
+
+fn assert_check<T>(result: Result<T, String>, label: &str) {
+    assert_eq!(
+        result.err().as_deref(),
+        Some(
+            format!("RUNTIME_INTEGRITY_FAILED: PortableGit post-install did not qualify [{label}]")
+                .as_str()
+        )
+    );
+}
+
+#[test]
+fn postinstall_fixed_labels_distinguish_cleanup_and_copies_without_paths() {
+    for (path, label) in [
+        ("post-install.bat", "cleanup-post-install-bat"),
+        ("etc/post-install", "cleanup-etc-post-install"),
+        ("etc/hosts", "network-hosts"),
+        ("etc/protocols", "network-protocols"),
+        ("etc/services", "network-services"),
+        ("etc/networks", "network-networks"),
+        ("ucrt64/libexec/git-core/dlls-copied.exe", "dll-sentinel"),
+        ("ucrt64/libexec/git-core/test.dll", "dll-copies"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let stage = dir.path().join("private-stage-SECRET");
+        let system = dir.path().join("private-system-SECRET");
+        readiness_fixture(&stage, &system);
+        touch(&stage.join(path), b"secret-copy-content");
+        assert_check(ready_files(&stage, &system, &CancelToken::default()), label);
+    }
+}
+
+#[test]
+fn postinstall_fixed_labels_distinguish_each_native_marker() {
+    for (path, label) in [
+        ("dev/shm", "native-dev-shm"),
+        ("dev/mqueue", "native-dev-mqueue"),
+        ("etc/mtab", "native-etc-mtab"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let stage = dir.path().join("SECRET-stage");
+        let system = dir.path().join("SECRET-system");
+        readiness_fixture(&stage, &system);
+        std::fs::rename(stage.join(path), stage.join("SECRET-moved-marker")).unwrap();
+        assert_check(ready_files(&stage, &system, &CancelToken::default()), label);
+    }
+}
+
+#[test]
+fn postinstall_fixed_labels_distinguish_output_without_disclosing_bytes() {
+    let stdout = expected_stdout(SYSTEM);
+    assert_outcome_check(0, &stdout, b"", true, true, "postinstall-truncation");
+    assert_outcome_check(0, b"SECRET-stdout", b"", false, true, "postinstall-stdout");
+    assert_outcome_check(0, &stdout, b"", false, false, "postinstall-readiness");
+    assert_outcome_check(0, &stdout, b"SECRET", false, true, "postinstall-stderr");
+    assert_outcome_check(2, &stdout, b"", false, true, "postinstall-exit");
+    assert_outcome_check(1, &stdout, b"SECRET", false, true, "calibration-mismatch");
+}
+
+fn assert_outcome_check(
+    code: u32,
+    out: &[u8],
+    err: &[u8],
+    truncated: bool,
+    ready: bool,
+    label: &str,
+) {
+    assert_check(
+        accept_outcome(code, out, err, truncated, ready, SYSTEM, || {
+            Ok(valid_diagnostic(DIAGNOSTIC))
+        }),
+        label,
+    );
+}
+
+#[test]
+fn postinstall_fixed_labels_distinguish_calibration_checks() {
+    let dir = tempfile::tempdir().unwrap();
+    let batch = dir.path().join("SECRET-batch");
+    let token = CancelToken::default();
+    for (code, out, err, truncated, label) in [
+        (0, b"".as_slice(), DIAGNOSTIC, false, "calibration-return"),
+        (1, b"SECRET-stdout", DIAGNOSTIC, false, "calibration-stdout"),
+        (1, b"", b"", false, "calibration-stderr"),
+        (1, b"", &[42; 1025][..], false, "calibration-stderr"),
+        (1, b"", DIAGNOSTIC, true, "calibration-truncation"),
+    ] {
+        assert_check(
+            SelfDeleteDiagnostic::validate(code, out, err, truncated, &batch, &token),
+            label,
+        );
+    }
+    touch(&batch, b"SECRET-batch-content");
+    assert_check(
+        SelfDeleteDiagnostic::validate(1, b"", DIAGNOSTIC, false, &batch, &token),
+        "calibration-deletion",
+    );
+}
+
+#[test]
+fn postinstall_readiness_copy_cancellation_is_not_relabelled() {
+    let _lock = super::super::CANCEL_TEST.lock().unwrap();
+    let guard = super::super::InstallGuard::begin().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let stage = dir.path().join("stage");
+    let system = dir.path().join("system");
+    readiness_fixture(&stage, &system);
+    super::super::cancel_install();
+    assert_eq!(
+        ready_files(&stage, &system, guard.token()).err().as_deref(),
+        Some("SETUP_CANCELLED")
+    );
+    assert_eq!(
+        dll_copies(&stage, guard.token()).err().as_deref(),
+        Some("SETUP_CANCELLED")
+    );
+}
+
+#[test]
+fn postinstall_copy_errors_are_fixed_for_missing_files_and_unequal_bytes() {
+    for (path, label) in [
+        ("etc/hosts", "network-hosts"),
+        ("etc/protocols", "network-protocols"),
+        ("etc/services", "network-services"),
+        ("etc/networks", "network-networks"),
+        ("ucrt64/libexec/git-core/dlls-copied.exe", "dll-sentinel"),
+        ("ucrt64/libexec/git-core/test.dll", "dll-copies"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let stage = dir.path().join("SECRET-stage");
+        let system = dir.path().join("SECRET-system");
+        readiness_fixture(&stage, &system);
+        let target = stage.join(path);
+        let different: Vec<_> = std::fs::read(&target)
+            .unwrap()
+            .iter()
+            .map(|b| b ^ 1)
+            .collect();
+        std::fs::rename(&target, stage.join("SECRET-moved-copy")).unwrap();
+        assert_check(ready_files(&stage, &system, &CancelToken::default()), label);
+        touch(&target, &different);
+        assert_check(ready_files(&stage, &system, &CancelToken::default()), label);
+    }
+}
+
+#[test]
+fn postinstall_error_labelling_keeps_only_cancellation_or_fixed_check() {
+    assert_eq!(
+        label_error("SETUP_CANCELLED".into(), "dll-copies"),
+        "SETUP_CANCELLED"
+    );
+    for error in [
+        "SECRET-path: permission denied",
+        "SECRET-stdout",
+        "SECRET-environment",
+    ] {
+        assert_check::<()>(Err(label_error(error.into(), "dll-copies")), "dll-copies");
+    }
 }
 
 fn touch(path: &Path, bytes: &[u8]) {
