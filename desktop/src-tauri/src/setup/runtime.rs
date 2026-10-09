@@ -1,7 +1,7 @@
 //! User-owned selected runtime. No Tauri dependency: the headless harness runs this exact code.
 use serde::{Deserialize, Serialize};
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -18,9 +18,16 @@ mod probe;
 mod process;
 #[path = "runtime_selection.rs"]
 mod selection;
+#[path = "runtime_selection_environment.rs"]
+mod selection_environment;
+#[path = "runtime_selection_discovery.rs"]
+mod selection_discovery;
 #[path = "runtime_git_selection.rs"]
 mod git_selection;
 pub use git_selection::GitSelection;
+#[cfg(test)]
+#[path = "runtime_selection_windows_tests.rs"]
+mod selection_windows_tests;
 #[cfg(test)]
 pub use archive::{release_for, safe_link, safe_member};
 pub use cancel::{cancel_install, CancelToken, InstallGuard};
@@ -109,50 +116,6 @@ impl Selection {
         Ok(())
     }
 
-    pub fn path(&self, inherited: &OsStr) -> Result<OsString, String> {
-        let node_dir = self.node.parent().ok_or("RUNTIME_MISSING")?;
-        let mut paths = vec![node_dir.to_path_buf(), self.prefix.join("bin")];
-        if self.npm.parent() != Some(node_dir) {
-            paths.insert(0, self.pinned_bin()?);
-        }
-        paths.extend(std::env::split_paths(inherited));
-        std::env::join_paths(paths).map_err(storage_error)
-    }
-
-    // A node-directory-first PATH alone can select a different npm. Only our private
-    // runtime directory is changed; the persisted external paths remain authoritative.
-    fn pinned_bin(&self) -> Result<PathBuf, String> {
-        let runtime = self.prefix.parent().ok_or("RUNTIME_MISSING")?;
-        let bin = runtime.join("bin");
-        std::fs::create_dir_all(&bin).map_err(storage_error)?;
-        for (name, target) in [("node", &self.node), ("npm", &self.npm)] {
-            let link = bin.join(name);
-            if std::fs::read_link(&link).ok().as_ref() == Some(target) {
-                continue;
-            }
-            let stage = tempfile::tempdir_in(runtime).map_err(storage_error)?;
-            let staged = stage.path().join(name);
-            std::os::unix::fs::symlink(target, &staged).map_err(storage_error)?;
-            std::fs::rename(staged, link).map_err(storage_error)?;
-        }
-        Ok(bin)
-    }
-
-    pub fn apply(
-        &self,
-        command: &mut Command,
-        home: &Path,
-        inherited: &OsStr,
-    ) -> Result<(), String> {
-        command
-            .env("PATH", self.path(inherited)?)
-            .env("CORTEX_HOME", home)
-            .env("CORTEX_NPM_PREFIX", &self.prefix)
-            .env("NPM_CONFIG_PREFIX", &self.prefix)
-            .env("npm_config_prefix", &self.prefix);
-        Ok(())
-    }
-
     pub fn command(&self, program: &OsStr) -> Command {
         if program == OsStr::new("node") || program == OsStr::new("node.exe") {
             return Command::new(&self.node);
@@ -182,11 +145,20 @@ pub fn storage_error(e: impl std::fmt::Display) -> String {
 }
 
 pub fn find_bin(name: &str, path: &OsStr) -> Option<PathBuf> {
+    #[cfg(windows)]
+    return selection_discovery::find_windows_bin(name, path);
+    #[cfg(not(windows))]
     std::env::split_paths(path)
         .map(|dir| dir.join(name))
         .find(|p| executable(p))
 }
 
+#[cfg(windows)]
+fn executable(path: &Path) -> bool {
+    path.is_absolute() && path.is_file()
+}
+
+#[cfg(unix)]
 fn executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     path.is_absolute()
