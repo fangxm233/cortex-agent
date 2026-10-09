@@ -3,11 +3,18 @@
 const SETUP: &str = include_str!("../../../src/setup.rs");
 const PROCESS: &str = include_str!("../../../src/setup/process.rs");
 const CLAUDE: &str = include_str!("../../../src/setup/claude.rs");
-const DESKTOP: &str = "#[cfg(any(target_os = \"macos\", target_os = \"linux\", target_os = \"windows\"))]";
+const DESKTOP: &str =
+    "#[cfg(any(target_os = \"macos\", target_os = \"linux\", target_os = \"windows\"))]";
 const POSIX: &str = "#[cfg(any(target_os = \"macos\", target_os = \"linux\"))]";
 
 fn section<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
-    source.split_once(start).expect(start).1.split_once(end).expect(end).0
+    source
+        .split_once(start)
+        .expect(start)
+        .1
+        .split_once(end)
+        .expect(end)
+        .0
 }
 
 fn preceding_gate<'a>(source: &'a str, needle: &str) -> &'a str {
@@ -33,7 +40,10 @@ fn windows_install_and_cancel_share_the_guarded_runtime() {
 
 #[test]
 fn windows_commands_lookup_and_repair_use_saved_selection() {
-    for needle in ["pub(super) fn selected_runtime()", "return super::runtime::redact_line(line);"] {
+    for needle in [
+        "pub(super) fn selected_runtime()",
+        "return super::runtime::redact_line(line);",
+    ] {
         assert_eq!(preceding_gate(PROCESS, needle), DESKTOP);
     }
     for (start, end) in [
@@ -43,16 +53,46 @@ fn windows_commands_lookup_and_repair_use_saved_selection() {
     ] {
         assert!(section(PROCESS, start, end).contains(DESKTOP), "{start}");
     }
-    let repair = section(SETUP, "pub fn local_runtime_needs_repair()", "/// Bring the local daemon");
+    let repair = section(
+        SETUP,
+        "pub fn local_runtime_needs_repair()",
+        "/// Bring the local daemon",
+    );
     assert!(repair.contains(DESKTOP));
     assert!(repair.contains("process::selected_runtime().is_err()"));
 }
 
 #[test]
+fn windows_saved_tools_require_bound_npm_and_git_before_normal_launch() {
+    let load = section(
+        PROCESS,
+        "pub(super) fn selected_runtime()",
+        "fn redact_log_line(",
+    );
+    assert!(load.contains("Selection::load(&home)?"));
+    assert!(load.contains("#[cfg(target_os = \"windows\")]"));
+    assert!(load.contains("selected.validate_windows_npm()?"));
+    assert!(load.contains("selected.git.is_none()"));
+    assert!(load.contains("RUNTIME_MISSING:"));
+    let path = section(
+        PROCESS,
+        "fn effective_path()",
+        "pub(super) fn inherited_path()",
+    );
+    assert!(path.contains("Some(inherited_path().to_string_lossy().into_owned())"));
+}
+
+#[test]
 fn probing_a_missing_saved_tool_does_not_block_the_install_repair_step() {
     let probe = section(SETUP, "fn probe_machine()", "/// Result of the install");
-    assert!(!probe.contains("selected_runtime()?"), "probe must allow ensure_server to repair");
-    assert!(probe.contains("p.join(\"config\").is_dir()"), "runtime-only home is not initialized");
+    assert!(
+        !probe.contains("selected_runtime()?"),
+        "probe must allow ensure_server to repair"
+    );
+    assert!(
+        probe.contains("p.join(\"config\").is_dir()"),
+        "runtime-only home is not initialized"
+    );
 }
 
 #[test]
@@ -62,7 +102,10 @@ fn restart_is_explicit_and_service_registration_stays_posix_only() {
     assert_eq!(preceding_gate(SETUP, "mod service;"), POSIX);
     assert_eq!(preceding_gate(SETUP, "fn enable_autostart(app:"), POSIX);
     let answers = section(SETUP, "pub fn answers_json(", "/// The Cortex home");
-    assert!(answers.contains("target_os = \"windows\""), "Windows init must not install a service");
+    assert!(
+        answers.contains("target_os = \"windows\""),
+        "Windows init must not install a service"
+    );
 }
 
 #[test]
@@ -79,10 +122,17 @@ fn shared_commands_delegate_without_reimplementing_environment_or_owning_daemon(
     let command = section(PROCESS, "fn setup_command(", "/// Each pipe");
     assert!(command.contains("selected.command(OsStr::new(program))"));
     assert!(command.contains("selected.apply(&mut command, &home, &inherited_path())?"));
-    assert!(!command.contains("env_remove"), "normal shell startup is not sanitized");
+    assert!(
+        !command.contains("env_remove"),
+        "normal shell startup is not sanitized"
+    );
     assert!(!PROCESS.contains("run_install("));
     assert!(!PROCESS.contains("runtime_process"));
-    let run = section(PROCESS, "pub(super) fn run_streaming(", "/// Missing/failing probes");
+    let run = section(
+        PROCESS,
+        "pub(super) fn run_streaming(",
+        "/// Missing/failing probes",
+    );
     assert!(run.contains(".spawn()"));
     assert!(run.contains(".wait()"));
     assert!(!run.contains("kill"));

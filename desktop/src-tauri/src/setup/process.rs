@@ -125,7 +125,17 @@ pub(super) fn inherited_path() -> std::ffi::OsString {
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub(super) fn selected_runtime() -> Result<Option<super::runtime::Selection>, String> {
     let home = super::cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
-    super::runtime::Selection::load(&home)
+    let selected = super::runtime::Selection::load(&home)?;
+    #[cfg(target_os = "windows")]
+    if let Some(selected) = &selected {
+        // Legacy records remain readable by bootstrap, but normal launch must use the
+        // complete qualified selection. Report repair instead of silently using PATH.
+        selected.validate_windows_npm()?;
+        if selected.git.is_none() {
+            return Err("RUNTIME_MISSING: selected Git Bash unavailable".into());
+        }
+    }
+    Ok(selected)
 }
 
 fn redact_log_line(line: &str) -> String {
