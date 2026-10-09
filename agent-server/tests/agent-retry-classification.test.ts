@@ -209,6 +209,8 @@ for (const message of [
   // PI's own wording for a failed provider round trip. It matched nothing before, so a paid
   // benchmark trial recorded seven of these as ordinary failures and retried none of them.
   'Connection error.',
+  // PI's openai-codex wording for a spent ChatGPT plan (usage_limit_reached / HTTP 429).
+  'You have hit your ChatGPT usage limit (prolite plan). Try again in ~7737 min.',
 ]) {
   test(`isRetryableError accepts transient failure: ${message}`, () => {
     assert.equal(isRetryableError(new Error(message)), true);

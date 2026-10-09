@@ -95,6 +95,31 @@ test('run: absent middle cost preserves the cumulative cursor across chained con
   assert.equal(merged.total_cost_usd, 0.1);
 });
 
+test('run: a later run on the same engine ends a run held for background work and owns its continuation', async (t) => {
+  const { engine, session, run: first, events: firstEvents, done: firstDone } = engineRun(t, { awaitBackground: 'hold' });
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick(); // the first run is now in its background phase, waiting for the task
+
+  const second = engine.run({ text: 'next' }, { awaitBackground: 'hold' });
+  const { events: secondEvents, done: secondDone } = collectRun(second);
+  const firstSettled = await first.settled;
+  await firstDone;
+  assert.equal(firstSettled.pendingBackgroundTasks, 1, 'ended with its own foreground result');
+  assert.equal(firstEvents.at(-1)?.type, 'phase');
+
+  session.handleLine(RESULT_FIRST); // the second run's foreground turn, task still running
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);
+  session.handleLine(ASSISTANT_CONT);
+  session.handleLine(RESULT_CONT);
+  await second.settled;
+  await secondDone;
+
+  assert.equal(backgroundResults(firstEvents).length, 0);
+  assert.equal(backgroundResults(secondEvents).length, 1, 'the continuation landed on the later run');
+});
+
 test('run: spontaneous continuation normalizes a temporary 429 into a rate-limited background result', async (t) => {
   const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
