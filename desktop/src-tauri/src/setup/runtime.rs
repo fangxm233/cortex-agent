@@ -8,6 +8,12 @@ use std::{
 
 #[path = "runtime_archive.rs"]
 mod archive;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_archive.rs"]
+mod windows_archive;
+#[cfg(any(windows, test))]
+#[path = "runtime_windows_download.rs"]
+mod windows_download;
 #[path = "runtime_cancel.rs"]
 mod cancel;
 #[path = "runtime_git_selection.rs"]
