@@ -189,10 +189,7 @@ fn calibration_directory_is_private_fresh_and_preserves_official_batch() {
     let second = self_delete_directory(&stage, &home).unwrap();
     let first_path = first.path().to_path_buf();
     assert_ne!(first.path(), second.path());
-    assert_eq!(
-        first.path().parent(),
-        Some(home.canonicalize().unwrap().as_path())
-    );
+    assert_eq!(first.path().parent(), Some(home.as_path()));
     assert_eq!(
         std::fs::read(first.path().join("post-install.bat")).unwrap(),
         b"@DEL post-install.bat\r\n"
@@ -224,15 +221,27 @@ fn calibration_rejects_home_inside_official_payload() {
 
 #[test]
 fn calibration_uses_same_launcher_flags_and_sanitized_environment() {
-    let stage = Path::new("/stage");
-    let home = Path::new("/private-home");
-    let system = Path::new("/windows");
-    let cwd = home.join("self-delete-fixture");
-    let upstream = postinstall_command(stage, stage, home, system).unwrap();
-    let diagnostic = postinstall_command(stage, &cwd, home, system).unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let stage = root.path().join("stage");
+    let home = root.path().join("home path-中文");
+    let system = root.path().join("windows");
+    touch(&stage.join("post-install.bat"), b"official immutable batch");
+    std::fs::create_dir(&home).unwrap();
+    let directory = self_delete_directory(&stage, &home).unwrap();
+    let cwd = directory.path();
+    let upstream = postinstall_command(&stage, &stage, &home, &system).unwrap();
+    let diagnostic = calibration_command(&stage, cwd, &home, &system).unwrap();
     assert_eq!(diagnostic.get_program(), stage.join("git-bash.exe"));
+    assert_launcher_parity(&upstream, &diagnostic);
+    assert_eq!(upstream.get_current_dir(), Some(stage.as_path()));
+    assert_eq!(diagnostic.get_current_dir(), Some(cwd));
+    assert_calibration_target(&diagnostic, &cwd.join("post-install.bat"));
+}
+
+fn assert_launcher_parity(upstream: &Command, diagnostic: &Command) {
+    assert_eq!(diagnostic.get_program(), upstream.get_program());
     assert_eq!(
-        diagnostic.get_args().collect::<Vec<_>>(),
+        upstream.get_args().collect::<Vec<_>>(),
         [
             "--no-needs-console",
             "--hide",
@@ -241,15 +250,74 @@ fn calibration_uses_same_launcher_flags_and_sanitized_environment() {
         ]
     );
     assert_eq!(
-        upstream.get_args().collect::<Vec<_>>(),
-        diagnostic.get_args().collect::<Vec<_>>()
+        upstream.get_args().take(3).collect::<Vec<_>>(),
+        diagnostic.get_args().take(3).collect::<Vec<_>>()
     );
     assert_eq!(
         upstream.get_envs().collect::<Vec<_>>(),
         diagnostic.get_envs().collect::<Vec<_>>()
     );
-    assert_eq!(upstream.get_current_dir(), Some(stage));
-    assert_eq!(diagnostic.get_current_dir(), Some(cwd.as_path()));
+}
+
+fn assert_calibration_target(command: &Command, batch: &Path) {
+    assert!(batch.is_absolute());
+    assert_eq!(std::fs::read(batch).unwrap(), b"@DEL post-install.bat\r\n");
+    let mut expected = std::ffi::OsString::from("--command=\"");
+    expected.push(batch);
+    expected.push("\"");
+    assert_eq!(command.get_args().count(), 4);
+    assert_eq!(command.get_args().nth(3), Some(expected.as_os_str()));
+}
+
+#[test]
+fn calibration_preserves_validated_home_spelling_for_cwd() {
+    let root = tempfile::tempdir().unwrap();
+    let stage = root.path().join("stage");
+    let home = root.path().join("home path-中文/../home path-中文");
+    std::fs::create_dir(&stage).unwrap();
+    std::fs::create_dir_all(&home).unwrap();
+    let directory = self_delete_directory(&stage, &home).unwrap();
+    assert_eq!(
+        directory.path().parent().unwrap().as_os_str(),
+        home.as_os_str()
+    );
+    let command = calibration_command(&stage, directory.path(), &home, root.path()).unwrap();
+    assert_eq!(command.get_current_dir(), Some(directory.path()));
+    assert!(!directory
+        .path()
+        .canonicalize()
+        .unwrap()
+        .starts_with(stage.canonicalize().unwrap()));
+}
+
+#[test]
+fn calibration_rejects_relative_home_instead_of_selecting_a_relative_batch() {
+    let stage = tempfile::tempdir().unwrap();
+    assert!(self_delete_directory(stage.path(), Path::new(".")).is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn calibration_keeps_ordinary_dos_cwd_not_canonical_verbatim_spelling() {
+    use std::path::{Component, Prefix};
+    let root = tempfile::tempdir().unwrap();
+    let stage = root.path().join("stage");
+    let home = root.path().join("home path-中文");
+    assert!(
+        matches!(home.components().next(), Some(Component::Prefix(prefix))
+        if matches!(prefix.kind(), Prefix::Disk(_)))
+    );
+    std::fs::create_dir(&stage).unwrap();
+    std::fs::create_dir(&home).unwrap();
+    assert_ne!(home.as_os_str(), home.canonicalize().unwrap().as_os_str());
+    let directory = self_delete_directory(&stage, &home).unwrap();
+    assert_eq!(
+        directory.path().parent().unwrap().as_os_str(),
+        home.as_os_str()
+    );
+    let command = calibration_command(&stage, directory.path(), &home, root.path()).unwrap();
+    assert_eq!(command.get_current_dir(), Some(directory.path()));
+    assert_calibration_target(&command, &directory.path().join("post-install.bat"));
 }
 
 #[cfg(unix)]

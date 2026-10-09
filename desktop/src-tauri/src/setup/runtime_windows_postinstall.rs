@@ -97,14 +97,37 @@ fn postinstall_command(
     home: &Path,
     system: &Path,
 ) -> Result<Command, String> {
+    let mut command = launcher_command(stage, cwd, home, system)?;
+    command.arg("--command=post-install.bat");
+    Ok(command)
+}
+
+fn launcher_command(
+    stage: &Path,
+    cwd: &Path,
+    home: &Path,
+    system: &Path,
+) -> Result<Command, String> {
     let mut command = Command::new(stage.join("git-bash.exe"));
-    command.current_dir(cwd).args([
-        "--no-needs-console",
-        "--hide",
-        "--no-cd",
-        "--command=post-install.bat",
-    ]);
+    command
+        .current_dir(cwd)
+        .args(["--no-needs-console", "--hide", "--no-cd"]);
     sanitize(&mut command, home, stage, system)?;
+    Ok(command)
+}
+
+fn calibration_command(
+    stage: &Path,
+    cwd: &Path,
+    home: &Path,
+    system: &Path,
+) -> Result<Command, String> {
+    // Relative --command targets resolve beside the launcher, not against cwd.
+    let mut target = std::ffi::OsString::from("--command=\"");
+    target.push(cwd.join("post-install.bat"));
+    target.push("\"");
+    let mut command = launcher_command(stage, cwd, home, system)?;
+    command.arg(target);
     Ok(command)
 }
 
@@ -117,7 +140,7 @@ fn calibrate_self_delete(
 ) -> Result<SelfDeleteDiagnostic, String> {
     token.check()?;
     let directory = self_delete_directory(stage, home)?;
-    let command = postinstall_command(stage, directory.path(), home, system)?;
+    let command = calibration_command(stage, directory.path(), home, system)?;
     let out = super::process::windows::run(
         command,
         token,
@@ -136,10 +159,13 @@ fn calibrate_self_delete(
 
 fn self_delete_directory(stage: &Path, home: &Path) -> Result<tempfile::TempDir, String> {
     let stage = stage.canonicalize().map_err(failure)?;
-    let home = home.canonicalize().map_err(failure)?;
-    if home.starts_with(&stage) {
-        return Err(failure("diagnostic HOME overlaps payload"));
+    let canonical_home = home.canonicalize().map_err(failure)?;
+    if !home.is_absolute() || canonical_home.starts_with(&stage) {
+        return Err(failure(
+            "diagnostic HOME must be absolute and outside payload",
+        ));
     }
+    // Canonical paths are for containment only: cmd.exe rejects verbatim cwd.
     let directory = tempfile::Builder::new()
         .prefix("self-delete-")
         .tempdir_in(home)
