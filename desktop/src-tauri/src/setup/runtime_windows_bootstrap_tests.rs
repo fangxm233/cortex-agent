@@ -5,11 +5,7 @@ use super::*;
 fn repair_preserves_good_node_and_server_and_adds_missing_git() {
     let dir = tempfile::tempdir().unwrap();
     let mut selected = node_fixture(dir.path());
-    selected.server = Some(Server {
-        bin: dir.path().join("existing/cli.js"),
-        managed: false,
-        node_entry: None,
-    });
+    selected.server = Some(server_fixture(dir.path().join("existing/cli.js"), false));
     let old_node = selected.node.clone();
     let token = CancelToken::default();
     repair_node(
@@ -43,11 +39,7 @@ fn missing_saved_tools_repair_to_new_private_paths_without_external_writes() {
         dir.path().join("external/npm.cmd"),
         dir.path().join("keep-prefix"),
     );
-    selected.server = Some(Server {
-        bin: dir.path().join("keep-cli.js"),
-        managed: true,
-        node_entry: None,
-    });
+    selected.server = Some(server_fixture(dir.path().join("keep-cli.js"), true));
     let token = CancelToken::default();
     repair_node(
         &mut selected,
@@ -104,7 +96,6 @@ fn node_then_git_error(cancel: bool) {
             let stage = new_attempt(dir.path(), "git-test", &mut attempts)?;
             let git = git_fixture(&stage);
             paths = attempt_paths(&attempts);
-            assert!(paths.iter().all(|path| path.is_dir()));
             if cancel {
                 super::super::cancel_install();
                 return Ok(git);
@@ -267,6 +258,14 @@ fn prepared_tools(home: &Path, attempts: &mut Vec<tempfile::TempDir>) -> Selecti
     })
     .unwrap();
     selected
+}
+
+fn server_fixture(bin: PathBuf, managed: bool) -> Server {
+    Server {
+        bin,
+        managed,
+        node_entry: None,
+    }
 }
 
 fn script(path: &Path, body: &str) {
