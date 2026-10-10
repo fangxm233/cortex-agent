@@ -17,6 +17,20 @@ export interface UsageWindow {
   resetsAt: number | null;
 }
 
+/** One banked rate-limit reset the account can spend. */
+export interface UsageResetCredit {
+  id: string;
+  title: string | null;
+  /** Epoch seconds; null when the provider gave no expiry. */
+  expiresAt: number | null;
+}
+
+export interface UsageResetCredits {
+  availableCount: number;
+  /** Spendable credits, earliest expiry first. May be empty when only the count is known. */
+  credits: UsageResetCredit[];
+}
+
 export interface ProviderUsage {
   provider: string;
   displayName: string;
@@ -30,6 +44,8 @@ export interface ProviderUsage {
   freshness: UsageFreshness;
   /** Absent on legacy records written before billing rows were split. */
   billing?: UsageBilling;
+  /** Banked rate-limit resets; only an active account read knows them (OpenAI Codex today). */
+  resetCredits?: UsageResetCredits;
   note?: string;
 }
 
@@ -53,7 +69,18 @@ function cloneRecord(record: ProviderUsage): ProviderUsage {
     modes: [...record.modes],
     windows: record.windows.map((window) => ({ ...window })),
     ...(record.spend ? { spend: { ...record.spend } } : {}),
+    ...(record.resetCredits ? { resetCredits: cloneResetCredits(record.resetCredits) } : {}),
   };
+}
+
+function cloneResetCredits(credits: UsageResetCredits): UsageResetCredits {
+  return { ...credits, credits: credits.credits.map((credit) => ({ ...credit })) };
+}
+
+/** Response-header readings know nothing about banked resets, so they keep the stored ones. */
+function withStoredResetCredits(existing: ProviderUsage | undefined, next: ProviderUsage): ProviderUsage {
+  if (next.resetCredits || !existing?.resetCredits) return next;
+  return { ...next, resetCredits: cloneResetCredits(existing.resetCredits) };
 }
 
 function canonicalRecords(records: ProviderUsage[]): ProviderUsage[] {
@@ -99,7 +126,7 @@ export class UsageStore {
       const existingIndex = records.findIndex((candidate) => usageRecordKey(candidate) === key);
       if (existingIndex !== -1 && !canReplace(records[existingIndex], record)) return;
       if (existingIndex === -1) records.push(record);
-      else records[existingIndex] = record;
+      else records[existingIndex] = withStoredResetCredits(records[existingIndex], record);
       await this.persistence.save(canonicalRecords(records));
     });
   }

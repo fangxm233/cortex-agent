@@ -178,3 +178,16 @@ test('usage writes preserve legacy throttle and resume state without a usage fie
     providerUsage: [usage('alpha', 'stale', 0.02)],
   });
 });
+
+test('a header reading keeps the reset credits only an account read knows, and persists them', async () => {
+  const file = nextFile();
+  const store = storeFor(new ProviderStateRepo(file));
+  const resetCredits = { availableCount: 1, credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: 3_000 }] };
+  await store.update({ ...usage('openai-codex'), billing: 'subscription', resetCredits });
+
+  await store.update({ ...usage('openai-codex', 'stale', 0.5), observedAt: 1_500, billing: 'subscription' });
+
+  const stored = await new ProviderStateRepo(file).getProviderUsage();
+  assert.deepEqual(stored[0].resetCredits, resetCredits);
+  assert.equal(stored[0].windows[0].utilization, 0.5);
+});

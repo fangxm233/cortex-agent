@@ -845,3 +845,67 @@ test('activation notice carries a resume-now button with the provider value', as
     { type: 'button', text: 'Resume now', actionId: 'rate-limit:clear', value: 'provider-a', style: 'primary' },
   ]);
 });
+
+test('notice actions extend the activation notice after resume-now', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
+  const extra = { type: 'button' as const, text: 'Use Codex reset', actionId: 'cmd:usage:reset', value: '' };
+  mod.setRateLimitNoticeActions(async (provider) => (provider === 'openai-codex' ? [extra] : []));
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'codex_primary', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+  );
+
+  const notice = adapter.posted.find((post: any) => post.content.text.includes('throttle activated'));
+  assert.deepEqual(notice?.actions.map((action: any) => action.actionId), ['rate-limit:clear', 'cmd:usage:reset']);
+});
+
+test('a failing notice-action resolver still posts the notice with resume-now', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
+  mod.setRateLimitNoticeActions(async () => { throw new Error('store unreadable'); });
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+
+  const notice = adapter.posted.find((post: any) => post.content.text.includes('throttle activated'));
+  assert.deepEqual(notice?.actions.map((action: any) => action.actionId), ['rate-limit:clear']);
+});
+
+test('a fresh reading below threshold releases the quota throttle and resumes work', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await freshModuleWithCleanup(t);
+  const persistence = makePersistenceStub();
+  const resumed: string[][] = [];
+  await mod.initRateLimitThrottle(adapter, persistence as any, (providers) => { resumed.push(providers); });
+  const resetsAt = Math.floor(Date.now() / 1000) + 600_000;
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'codex_primary', utilization: 0.99, resetsAt },
+    { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
+  );
+
+  assert.equal(await mod.releaseRecoveredQuota('openai-codex', [{ type: 'codex_primary', utilization: 0.95 }]), false);
+  assert.equal(mod.isProviderRateLimited('openai-codex'), true, 'still above the 90% default threshold');
+
+  assert.equal(await mod.releaseRecoveredQuota('openai-codex', [{ type: 'codex_primary', utilization: 0 }]), true);
+  assert.equal(mod.isProviderRateLimited('openai-codex'), false);
+  assert.equal(persistence.getSaved(), null);
+  assert.deepEqual(resumed, [['openai-codex']]);
+  assert.ok(adapter.posted.some((post: any) => post.content.text.includes('OpenAI Codex rate limit throttle cleared')));
+});
+
+test('a fresh reading never activates a throttle or lifts an outage', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  await mod.activateOutageWindow('openai-codex', 60_000);
+
+  assert.equal(await mod.releaseRecoveredQuota('openai-codex', [{ type: 'outage', utilization: 0 }]), false);
+  assert.equal(await mod.releaseRecoveredQuota('provider-b', [{ type: 'five_hour', utilization: 0.99 }]), false);
+  assert.equal(mod.isProviderRateLimited('openai-codex'), true);
+  assert.equal(mod.isProviderRateLimited('provider-b'), false);
+});

@@ -35,6 +35,8 @@ export interface PiModelRuntime {
     interaction: AuthInteraction,
   ): Promise<PiCredential>;
   logout(providerId: string): Promise<void>;
+  /** Request auth for a provider; refreshes and persists an OAuth token that is about to expire. */
+  getAuth?(providerId: string): Promise<{ auth: { apiKey?: string } } | undefined>;
 }
 
 interface PiRuntimeModule {

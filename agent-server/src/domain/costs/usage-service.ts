@@ -3,14 +3,21 @@ import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentUsageScope } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
+import type { QuotaWindow } from '@core/codex-quota.js';
 import { GATEWAY_URL } from './gateway-manager.js';
+import { codexAccountClient, type CodexAccountClient, type CodexAccountUsage } from './codex-account.js';
+import { releaseRecoveredQuota } from './rate-limit-throttle.js';
 import {
   usageStore,
   usageRecordKey,
   type ProviderUsage,
   type UsageBilling,
+  type UsageResetCredits,
   type UsageWindow,
 } from './usage-store.js';
+
+const log = createLogger('usage-service');
 
 const GATEWAY_USAGE_TIMEOUT_MS = 5_000;
 /** Cap on raw records pulled per period when the gateway cannot group by billing mode. */
@@ -46,6 +53,17 @@ export interface UsageServiceDependencies {
   fetch?: typeof globalThis.fetch;
   gatewayUrl?: string;
   now?: () => Date;
+  /** Active Codex account reader; its readings replace the header-observed Codex row. Absent, only
+   *  response headers inform the Codex row. */
+  codexAccount?: Pick<CodexAccountClient, 'readUsage'>;
+  /** Lifts throttle windows a fresh reading shows have recovered. */
+  releaseThrottle?: (provider: string, windows: QuotaWindow[]) => Promise<unknown>;
+}
+
+/** The Codex row for one cycle plus why it is not a fresh account reading, when it is not. */
+interface CodexQuotaResult {
+  record: ProviderUsage | null;
+  note?: string;
 }
 
 /**
@@ -69,6 +87,9 @@ interface GatewayQuotaSnapshot {
   windows: UsageWindow[];
   observedAt: number;
 }
+
+/** Without an injected account reader, Codex usage is only what response headers reported. */
+const NO_CODEX_ACCOUNT: Pick<CodexAccountClient, 'readUsage'> = { readUsage: async () => null };
 
 const CODEX_SCOPE: AgentUsageScope = { provider: 'openai-codex', mode: 'openai-codex' };
 const CODEX_PROVIDER = 'openai-codex';
@@ -259,6 +280,7 @@ interface RowDraft {
   freshness: ProviderUsage['freshness'] | null;
   /** True once a quota source was actually consulted for this row. */
   quotaPolled: boolean;
+  resetCredits?: UsageResetCredits;
   notes: string[];
 }
 
@@ -327,6 +349,7 @@ function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): Provi
     observedAt: draft.observedAt,
     freshness,
     billing: draft.billing,
+    ...(draft.resetCredits ? { resetCredits: draft.resetCredits } : {}),
     ...(draft.notes.length > 0 ? { note: draft.notes.join('; ') } : {}),
   };
 }
@@ -339,6 +362,40 @@ function visibleUsage(record: ProviderUsage): ProviderUsage {
     windows: record.windows.filter((window) => window.type !== 'model_scoped'),
     freshness: record.observedAt === null ? record.freshness : 'stale',
   };
+}
+
+function liveCodexUsage(live: CodexAccountUsage, observedAt: number): ProviderUsage {
+  return {
+    provider: CODEX_PROVIDER,
+    displayName: displayNameFor(CODEX_PROVIDER),
+    modes: [CODEX_PROVIDER],
+    windows: live.windows.map((window) => ({ ...window })),
+    observedAt,
+    freshness: 'live',
+    billing: 'subscription',
+    ...(live.resetCredits ? { resetCredits: live.resetCredits } : {}),
+  };
+}
+
+/** Without a Codex sign-in there is nothing to spend, so stored reset credits no longer apply. */
+function withoutResetCredits(record: ProviderUsage | null): ProviderUsage | null {
+  if (!record?.resetCredits) return record;
+  const { resetCredits: _signedOut, ...rest } = record;
+  return rest;
+}
+
+function codexDraft(drafts: Map<string, RowDraft>): RowDraft {
+  const draft = ensureDraft(drafts, CODEX_PROVIDER, 'subscription');
+  draft.quotaPolled = true;
+  draft.modes.add(CODEX_PROVIDER);
+  return draft;
+}
+
+function applyCodexRecord(draft: RowDraft, record: ProviderUsage): void {
+  draft.windows = record.windows;
+  draft.observedAt = record.observedAt;
+  draft.freshness = record.freshness;
+  if (record.resetCredits) draft.resetCredits = record.resetCredits;
 }
 
 function staleCopy(record: ProviderUsage, note: string): ProviderUsage {
@@ -358,6 +415,8 @@ export class UsageService {
   private readonly fetch: typeof globalThis.fetch;
   private readonly gatewayUrl: string;
   private readonly now: () => Date;
+  private readonly codexAccount: Pick<CodexAccountClient, 'readUsage'>;
+  private readonly releaseThrottle: (provider: string, windows: QuotaWindow[]) => Promise<unknown>;
   /** Sticky once the gateway proves it cannot group by billing mode, to avoid a 400 per cycle. */
   private groupedSpendSupported = true;
 
@@ -368,6 +427,8 @@ export class UsageService {
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
     this.now = dependencies.now ?? (() => new Date());
+    this.codexAccount = dependencies.codexAccount ?? NO_CODEX_ACCOUNT;
+    this.releaseThrottle = dependencies.releaseThrottle ?? (async () => false);
   }
 
   async getStatus(): Promise<ProviderUsage[]> {
@@ -460,28 +521,24 @@ export class UsageService {
 
   private applyCodexQuota(
     drafts: Map<string, RowDraft>,
-    result: PromiseSettledResult<ProviderUsage | null>,
+    result: PromiseSettledResult<CodexQuotaResult>,
     prior: ProviderUsage[],
   ): void {
-    if (result.status === 'fulfilled' && result.value) {
-      const draft = ensureDraft(drafts, CODEX_PROVIDER, 'subscription');
-      draft.quotaPolled = true;
-      draft.modes.add(CODEX_PROVIDER);
-      draft.windows = result.value.windows;
-      draft.observedAt = result.value.observedAt;
-      draft.freshness = result.value.freshness;
+    const reading = result.status === 'fulfilled' ? result.value : { record: null };
+    if (reading.record) {
+      const draft = codexDraft(drafts);
+      applyCodexRecord(draft, reading.record);
+      if (reading.note) draft.notes.push(reading.note);
       return;
     }
     // Observation-only: with no reading and no history, Codex is simply not in use here.
-    const existing = drafts.get(draftKey(CODEX_PROVIDER, 'subscription'));
     const priorRow = prior.find((row) => row.provider === CODEX_PROVIDER);
-    if (!existing && !priorRow) return;
-    const draft = ensureDraft(drafts, CODEX_PROVIDER, 'subscription');
-    draft.quotaPolled = true;
-    draft.modes.add(CODEX_PROVIDER);
+    if (!drafts.has(draftKey(CODEX_PROVIDER, 'subscription')) && !priorRow) return;
+    const draft = codexDraft(drafts);
     if (result.status === 'rejected') {
       draft.notes.push(t('ux.usage.codexFailed', { error: errorMessage(result.reason) }));
     }
+    if (reading.note) draft.notes.push(reading.note);
     this.carryQuotaFromPrior(draft, prior);
   }
 
@@ -495,6 +552,7 @@ export class UsageService {
     draft.windows = match.windows.map((window) => ({ ...window }));
     draft.observedAt = match.observedAt;
     draft.freshness = match.observedAt === null ? 'never' : 'stale';
+    if (match.resetCredits) draft.resetCredits = match.resetCredits;
   }
 
   /**
@@ -519,7 +577,25 @@ export class UsageService {
 
   // ── Transport ────────────────────────────────────────────────
 
-  private async readCodexQuota(): Promise<ProviderUsage | null> {
+  /**
+   * Ask the Codex account directly when a ChatGPT sign-in exists; otherwise, or when that read
+   * fails, fall back to the row response headers last reported.
+   */
+  private async readCodexQuota(): Promise<CodexQuotaResult> {
+    let live: CodexAccountUsage | null;
+    try {
+      live = await this.codexAccount.readUsage();
+    } catch (error) {
+      const note = t('ux.usage.codexAccountFailed', { error: errorMessage(error) });
+      return { record: await this.readObservedCodexQuota(), note };
+    }
+    if (!live) return { record: withoutResetCredits(await this.readObservedCodexQuota()) };
+    await this.releaseThrottle(CODEX_PROVIDER, live.windows)
+      .catch((error: unknown) => log.warn(`Codex throttle release failed: ${errorMessage(error)}`));
+    return { record: liveCodexUsage(live, Math.floor(this.now().getTime() / 1000)) };
+  }
+
+  private async readObservedCodexQuota(): Promise<ProviderUsage | null> {
     const adapter = this.getAdapter();
     if (!adapter.capabilities.has(Capability.Usage) || !adapter.getUsage) return null;
     const records = await adapter.getUsage(CODEX_SCOPE);
@@ -563,4 +639,7 @@ export class UsageService {
   }
 }
 
-export const usageService = new UsageService();
+export const usageService = new UsageService({
+  codexAccount: codexAccountClient,
+  releaseThrottle: releaseRecoveredQuota,
+});

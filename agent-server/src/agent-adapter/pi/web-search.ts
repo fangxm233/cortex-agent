@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Type } from '@sinclair/typebox';
 import type { ExtensionContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { decodeJwtPayload, findChatgptAccountId } from '@core/codex-token.js';
 
 /** The active model as PI exposes it to extensions. */
 type ExtensionModel = NonNullable<ExtensionContext['model']>;
@@ -244,32 +245,12 @@ function bearerToken(headers: Headers, apiKey: string | undefined): string {
   return token;
 }
 
-function decodeJwtPayload(token: string): unknown {
-  const payload = token.split('.')[1];
-  if (!payload) throw new Error('WebSearch could not decode the Codex account token.');
-  try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    throw new Error('WebSearch could not decode the Codex account token.');
-  }
-}
-
-function findAccountId(payload: unknown): string | undefined {
-  const queue: unknown[] = [payload];
-  while (queue.length > 0) {
-    const value = queue.shift();
-    if (!value || typeof value !== 'object') continue;
-    const record = value as Record<string, unknown>;
-    if (typeof record.chatgpt_account_id === 'string') return record.chatgpt_account_id;
-    queue.push(...Object.values(record));
-  }
-  return undefined;
-}
-
 function codexAccountId(headers: Headers, token: string): string {
   const configured = headers.get('chatgpt-account-id');
   if (configured) return configured;
-  const accountId = findAccountId(decodeJwtPayload(token));
+  const payload = decodeJwtPayload(token);
+  if (payload === null) throw new Error('WebSearch could not decode the Codex account token.');
+  const accountId = findChatgptAccountId(payload);
   if (!accountId) throw new Error('WebSearch could not find an account ID in the Codex token.');
   return accountId;
 }

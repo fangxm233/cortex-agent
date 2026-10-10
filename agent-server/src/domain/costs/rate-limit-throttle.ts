@@ -80,6 +80,7 @@ let _adapter: PlatformAdapter | null = null;
 let _persistence: ThrottlePersistence | null = null;
 let _onResume: ((providers: string[]) => void) | null = null;
 let _onChange: (() => void) | null = null;
+let _noticeActions: ((provider: string) => Promise<ActionElement[]>) | null = null;
 let _resumeTimer: ReturnType<typeof setTimeout> | null = null;
 let _resumeTimerGeneration = 0;
 const _providers = new Map<string, ProviderThrottleState>();
@@ -427,10 +428,20 @@ function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): bool
   return policy.enabled && info.utilization >= thresholdFor(info.rateLimitType, policy.threshold);
 }
 
-function notifyQuotaActivation(info: RateLimitInfo, source: RateLimitSource, isNewProvider: boolean): void {
+async function extraNoticeActions(provider: string): Promise<ActionElement[]> {
+  try {
+    return (await _noticeActions?.(provider)) ?? [];
+  } catch (error) {
+    log.warn(`Rate-limit notice actions failed: ${(error as Error).message}`);
+    return [];
+  }
+}
+
+async function notifyQuotaActivation(info: RateLimitInfo, source: RateLimitSource, isNewProvider: boolean): Promise<void> {
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
   if (!isNewProvider) return;
-  sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: source.displayName, type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), clearAction(source.provider));
+  const actions = [...clearAction(source.provider), ...await extraNoticeActions(source.provider)];
+  sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: source.displayName, type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), actions);
 }
 
 async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
@@ -455,7 +466,7 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
   publishProviders(candidate);
   scheduleResumeTimer();
   fireChange();
-  notifyQuotaActivation(info, source, isNewProvider);
+  await notifyQuotaActivation(info, source, isNewProvider);
 }
 
 async function handleRateLimitEvent(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
@@ -506,6 +517,53 @@ async function clearThrottle(provider?: string | null): Promise<ClearThrottleRes
   return _mutationMutex.run(() => clearThrottleLocked(provider));
 }
 
+export interface QuotaReading {
+  type: string;
+  label?: string;
+  utilization: number;
+}
+
+/** A quota window is recovered once a fresh reading for it sits below its activation threshold. */
+function windowRecovered(provider: string, window: RateLimitWindowState, readings: QuotaReading[]): boolean {
+  if (window.type === OUTAGE_WINDOW_TYPE) return false;
+  const reading = readings.find((candidate) => sameWindowIdentity(window.type, window.label, candidate));
+  if (!reading) return false;
+  const policy = resolveProviderPolicy(provider, window.type, window.label);
+  return !policy.enabled || reading.utilization < thresholdFor(window.type, policy.threshold);
+}
+
+async function releaseRecoveredQuotaLocked(provider: string, readings: QuotaReading[]): Promise<boolean> {
+  if (!_persistence) return false;
+  const candidate = cloneProviders();
+  const state = candidate.get(provider);
+  if (!state) return false;
+  const kept = state.windows.filter((window) => !windowRecovered(provider, window, readings));
+  if (kept.length === state.windows.length) return false;
+  if (kept.length > 0) state.windows = kept;
+  else candidate.delete(provider);
+  await persist(candidate);
+  publishProviders(candidate);
+  scheduleResumeTimer();
+  fireChange();
+  if (kept.length > 0) return true;
+  log.info(`Throttle released by a fresh quota reading: provider=${provider}`);
+  sendDM(`${Icons.ok} ${t('notice.rateLimit.cleared', { provider: state.displayName })}`);
+  fireResume([provider]);
+  return true;
+}
+
+/** Lift quota windows a fresh account reading shows are no longer exhausted — e.g. after a reset
+ *  spent on another device — instead of waiting out the reset time recorded at activation.
+ *  Never activates a throttle; outage windows are untouched. Returns whether anything changed. */
+async function releaseRecoveredQuota(provider: string, readings: QuotaReading[]): Promise<boolean> {
+  return _mutationMutex.run(() => releaseRecoveredQuotaLocked(provider, readings));
+}
+
+/** Extra buttons for a provider's throttle notice, after "Resume now". */
+function setRateLimitNoticeActions(resolver: ((provider: string) => Promise<ActionElement[]>) | null): void {
+  _noticeActions = resolver;
+}
+
 function isThrottled(): boolean {
   return _providers.size > 0;
 }
@@ -538,6 +596,7 @@ function _testReset(): void {
   _persistence = null;
   _onResume = null;
   _onChange = null;
+  _noticeActions = null;
 }
 
 export {
@@ -545,6 +604,8 @@ export {
   activateOutageWindow,
   handleRateLimitEvent,
   clearThrottle,
+  releaseRecoveredQuota,
+  setRateLimitNoticeActions,
   isThrottled,
   isProviderRateLimited,
   isProviderUsageRateLimited,

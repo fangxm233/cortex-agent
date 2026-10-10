@@ -660,3 +660,90 @@ describe('UsageService', () => {
     }
   });
 });
+
+describe('UsageService active Codex account reads', () => {
+  const NOW = new Date(1_790_000_000_000);
+  const RESETS = {
+    availableCount: 1,
+    credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: 1_792_600_000 }],
+  };
+  const observed = usage('openai-codex', 'stale', {
+    displayName: 'OpenAI Codex', billing: 'subscription', observedAt: 1_789_990_000,
+    windows: [{ type: 'codex_primary', utilization: 0.99, resetsAt: 1_792_115_610 }],
+  });
+
+  function codexService(options: {
+    store: MemoryUsageStore;
+    readUsage: () => Promise<import('../src/domain/costs/codex-account.js').CodexAccountUsage | null>;
+    releaseThrottle?: (provider: string, windows: unknown[]) => Promise<unknown>;
+  }) {
+    return new UsageService({
+      store: options.store,
+      // Like the PI adapter: the observed row is whatever the store last recorded for Codex.
+      getAdapter: () => fakeAdapter('pi', async () => (await options.store.list())
+        .filter((record) => record.provider === 'openai-codex')),
+      getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: ['openai-codex'] }),
+      fetch: gatewayFetch([], []),
+      gatewayUrl: 'http://gateway.test',
+      now: () => NOW,
+      codexAccount: { readUsage: options.readUsage },
+      releaseThrottle: options.releaseThrottle,
+    });
+  }
+
+  test('a live account reading replaces the observed row and releases recovered throttle windows', async () => {
+    const store = new MemoryUsageStore([observed]);
+    const windows = [{ type: 'codex_primary', utilization: 0, resetsAt: 1_790_018_000 }];
+    const releaseThrottle = vi.fn(async () => true);
+    const service = codexService({
+      store, releaseThrottle, readUsage: async () => ({ planType: 'prolite', windows, resetCredits: RESETS }),
+    });
+
+    const [row] = await service.refresh();
+
+    assert.deepEqual(row, {
+      provider: 'openai-codex', displayName: 'OpenAI Codex', modes: ['openai-codex'],
+      windows, observedAt: NOW.getTime() / 1000, freshness: 'live', billing: 'subscription',
+      resetCredits: RESETS,
+    });
+    assert.deepEqual(releaseThrottle.mock.calls, [['openai-codex', windows]]);
+  });
+
+  test('a failed account read degrades to the observed row with a note and keeps known reset credits', async () => {
+    const store = new MemoryUsageStore([{ ...observed, resetCredits: RESETS }]);
+    const service = codexService({ store, readUsage: async () => { throw new Error('HTTP 503'); } });
+
+    const [row] = await service.refresh();
+
+    assert.deepEqual(row.windows, observed.windows);
+    assert.equal(row.freshness, 'stale');
+    assert.match(row.note ?? '', /account read failed.*HTTP 503/);
+    assert.deepEqual(row.resetCredits, RESETS);
+  });
+
+  test('without a Codex sign-in stored reset credits are dropped', async () => {
+    const store = new MemoryUsageStore([{ ...observed, resetCredits: RESETS }]);
+    const service = codexService({ store, readUsage: async () => null });
+
+    const [row] = await service.refresh();
+
+    assert.deepEqual(row.windows, observed.windows);
+    assert.equal(row.resetCredits, undefined);
+    assert.equal(row.note, undefined);
+  });
+
+  test('a throttle release failure does not cost the reading', async () => {
+    const store = new MemoryUsageStore([observed]);
+    const windows = [{ type: 'codex_primary', utilization: 0.1, resetsAt: 1_790_018_000 }];
+    const service = codexService({
+      store,
+      readUsage: async () => ({ planType: null, windows, resetCredits: null }),
+      releaseThrottle: async () => { throw new Error('persist failed'); },
+    });
+
+    const [row] = await service.refresh();
+
+    assert.equal(row.freshness, 'live');
+    assert.deepEqual(row.windows, windows);
+  });
+});
