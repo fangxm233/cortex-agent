@@ -152,11 +152,22 @@ describe('buildUsageView', () => {
     });
   });
 
+  it('leaves the lifetime total empty when the gateway reported none', () => {
+    const vm = buildUsageView([
+      {
+        provider: 'deepseek', displayName: 'DeepSeek', modes: ['deepseek'], freshness: 'unsupported',
+        billing: 'api', observedAt: null, windows: [], spend: { today: 1, month: 4 },
+      },
+    ], null, NOW, 'en');
+
+    expect(vm.providers[0].spend).toEqual({ today: '$1.00', month: '$4.00', all: null });
+  });
+
   it('gives a provider billed both ways two rows with distinct keys', () => {
     const vm = buildUsageView([
       {
         provider: 'anthropic', displayName: 'Anthropic', modes: ['api'], freshness: 'unsupported',
-        billing: 'api', observedAt: null, windows: [], spend: { today: 2.25, month: 8.5 },
+        billing: 'api', observedAt: null, windows: [], spend: { today: 2.25, month: 8.5, all: 40 },
       },
       {
         provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'stale',
@@ -170,7 +181,7 @@ describe('buildUsageView', () => {
     ]);
     expect(vm.providers[0].spend).toBeNull();
     expect(vm.providers[0].windows).toHaveLength(1);
-    expect(vm.providers[1].spend).toEqual({ today: '$2.25', month: '$8.50' });
+    expect(vm.providers[1].spend).toEqual({ today: '$2.25', month: '$8.50', all: '$40.00' });
     expect(vm.providers[1].windows).toEqual([]);
   });
 

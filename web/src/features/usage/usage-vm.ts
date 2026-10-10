@@ -75,7 +75,10 @@ export interface UsageResetOutcomeView {
 
 export interface ProviderSpendView {
   today: string;
+  /** Rolling 30 days. */
   month: string;
+  /** Null when the gateway reports no lifetime total. */
+  all: string | null;
 }
 
 export interface ProviderUsageView {
@@ -326,6 +329,14 @@ function noteTone(note: string): UsageNoteTone {
   return /fail(?:ed|ure)|error|失败/i.test(note) ? 'error' : 'info';
 }
 
+function spendView(spend: NonNullable<ProviderUsage['spend']>): ProviderSpendView {
+  return {
+    today: formatUsd(spend.today),
+    month: formatUsd(spend.month),
+    all: spend.all === undefined ? null : formatUsd(spend.all),
+  };
+}
+
 function buildProvider(
   record: ProviderUsage,
   providerRateLimits: ProviderRateLimits | null,
@@ -342,7 +353,7 @@ function buildProvider(
     displayName: record.displayName,
     modes: [...record.modes],
     windows: windows.map((window: UsageWindow) => buildWindow(record.provider, window, showPolicy, providerRateLimits, nowSec, lang)),
-    spend: record.spend ? { today: formatUsd(record.spend.today), month: formatUsd(record.spend.month) } : null,
+    spend: record.spend ? spendView(record.spend) : null,
     observedAt: record.observedAt,
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),
     quotaState: status,

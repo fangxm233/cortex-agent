@@ -31,7 +31,9 @@ const GATEWAY_RECORDS_LIMIT = 20_000;
  */
 const MONTH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-type GatewayPeriod = 'today' | 'month';
+/** Periods the raw-record route can reconstruct; the lifetime total needs the grouped route. */
+type WindowPeriod = 'today' | 'month';
+type GatewayPeriod = WindowPeriod | 'all';
 
 /** The slice of a backend adapter the usage service reads: its capability set (the Codex
  *  subscription probe is capability-gated) and its usage pull, which only some backends have. */
@@ -275,7 +277,7 @@ function recordCount(payload: unknown): number {
   return isRecord(payload) && Array.isArray(payload.records) ? payload.records.length : 0;
 }
 
-function periodStartIso(period: GatewayPeriod, now: Date): string {
+function periodStartIso(period: WindowPeriod, now: Date): string {
   if (period !== 'today') return new Date(now.getTime() - MONTH_WINDOW_MS).toISOString();
   const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
@@ -291,6 +293,8 @@ interface RowDraft {
   spend: Record<GatewayPeriod, number | null>;
   /** Periods the gateway named this row in but could not price. */
   unpriced: Set<GatewayPeriod>;
+  /** The lifetime read failed this cycle, so the last stored total stands. */
+  carryAll: boolean;
   windows: UsageWindow[];
   observedAt: number | null;
   freshness: ProviderUsage['freshness'] | null;
@@ -309,38 +313,58 @@ function ensureDraft(drafts: Map<string, RowDraft>, provider: string, billing: U
   const existing = drafts.get(key);
   if (existing) return existing;
   const draft: RowDraft = {
-    provider, billing, modes: new Set(), spend: { today: null, month: null },
-    unpriced: new Set(), windows: [], observedAt: null, freshness: null,
+    provider, billing, modes: new Set(), spend: { today: null, month: null, all: null },
+    unpriced: new Set(), carryAll: false, windows: [], observedAt: null, freshness: null,
     quotaPolled: false, notes: [],
   };
   drafts.set(key, draft);
   return draft;
 }
 
+function spendRowTarget(row: SpendRow, subscriptionModes: Set<string>): { provider: string; billing: UsageBilling } {
+  const billing: UsageBilling = subscriptionModes.has(row.billingMode) ? 'subscription' : 'api';
+  const provider = row.provider === 'openai' && row.billingMode === CODEX_PROVIDER
+    ? CODEX_PROVIDER : row.provider;
+  return { provider, billing };
+}
+
+function addSpend(draft: RowDraft, period: GatewayPeriod, cost: number | null): void {
+  if (cost === null) {
+    draft.unpriced.add(period);
+    return;
+  }
+  draft.spend[period] = roundCost((draft.spend[period] ?? 0) + cost);
+}
+
 function applySpendRows(
   drafts: Map<string, RowDraft>,
   rows: SpendRow[],
   subscriptionModes: Set<string>,
-  period: GatewayPeriod,
+  period: WindowPeriod,
 ): void {
   for (const row of rows) {
-    const billing: UsageBilling = subscriptionModes.has(row.billingMode) ? 'subscription' : 'api';
-    const provider = row.provider === 'openai' && row.billingMode === CODEX_PROVIDER
-      ? CODEX_PROVIDER : row.provider;
+    const { provider, billing } = spendRowTarget(row, subscriptionModes);
     const draft = ensureDraft(drafts, provider, billing);
     if (row.billingMode) draft.modes.add(row.billingMode);
     // Subscription cost is an imputed API-equivalent price, not a bill — never surfaced.
     if (billing === 'subscription') continue;
-    if (row.cost === null) {
-      draft.unpriced.add(period);
-      continue;
-    }
-    draft.spend[period] = roundCost((draft.spend[period] ?? 0) + row.cost);
+    addSpend(draft, period, row.cost);
+  }
+}
+
+/** Lifetime totals only enrich rows recent traffic produced, so a long-idle provider stays hidden. */
+function applyAllTimeRows(drafts: Map<string, RowDraft>, rows: SpendRow[], subscriptionModes: Set<string>): void {
+  for (const row of rows) {
+    const { provider, billing } = spendRowTarget(row, subscriptionModes);
+    if (billing === 'subscription') continue;
+    const draft = drafts.get(draftKey(provider, billing));
+    if (draft) addSpend(draft, 'all', row.cost);
   }
 }
 
 /** Resolve an unpriced period to the last stored figure rather than reporting a false zero. */
 function settleSpend(draft: RowDraft, prior: ProviderUsage | undefined): void {
+  if (draft.carryAll) draft.spend.all = prior?.spend?.all ?? null;
   for (const period of draft.unpriced) {
     const carried = prior?.spend?.[period];
     draft.spend[period] = carried ?? null;
@@ -348,6 +372,14 @@ function settleSpend(draft: RowDraft, prior: ProviderUsage | undefined): void {
       t(carried === undefined ? 'ux.usage.costUnreadable' : 'ux.usage.costUnreadableCarried', { period }),
     );
   }
+}
+
+function spendFigures(spend: RowDraft['spend']): NonNullable<ProviderUsage['spend']> {
+  return {
+    today: spend.today ?? 0,
+    month: spend.month ?? 0,
+    ...(spend.all !== null ? { all: spend.all } : {}),
+  };
 }
 
 function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): ProviderUsage {
@@ -361,7 +393,7 @@ function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): Provi
     displayName: displayNameFor(draft.provider),
     modes: [...draft.modes].sort(),
     windows: draft.windows,
-    ...(hasSpend ? { spend: { today: draft.spend.today ?? 0, month: draft.spend.month ?? 0 } } : {}),
+    ...(hasSpend ? { spend: spendFigures(draft.spend) } : {}),
     observedAt: draft.observedAt,
     freshness,
     billing: draft.billing,
@@ -443,6 +475,20 @@ function staleCopy(record: ProviderUsage, note: string): ProviderUsage {
   return { ...retained, freshness, note };
 }
 
+/** A failed lifetime read keeps the stored totals; an unsupported one simply shows none. */
+function applyAllTime(
+  drafts: Map<string, RowDraft>,
+  result: PromiseSettledResult<PeriodSpend | null>,
+  subscriptionModes: Set<string>,
+): void {
+  if (result.status === 'fulfilled') {
+    if (result.value) applyAllTimeRows(drafts, result.value.rows, subscriptionModes);
+    return;
+  }
+  log.warn(`gateway all-time usage read failed: ${errorMessage(result.reason)}`);
+  for (const draft of drafts.values()) draft.carryAll = true;
+}
+
 export class UsageService {
   private readonly store: UsageServiceStore;
   private readonly getAdapter: AdapterResolver;
@@ -478,9 +524,10 @@ export class UsageService {
     const subscriptionModes = new Set(normalizeModes(settings.subscriptionBillingModes));
     const prior = await this.store.list();
 
-    const [today, month, quota, codex] = await Promise.allSettled([
+    const [today, month, all, quota, codex] = await Promise.allSettled([
       this.readSpend('today'),
       this.readSpend('month'),
+      this.readAllTimeSpend(),
       anthropicModes.length > 0 ? this.readAnthropicQuota() : Promise.resolve(null),
       this.readCodexQuota(),
     ]);
@@ -488,6 +535,7 @@ export class UsageService {
     const drafts = new Map<string, RowDraft>();
     this.applyPeriod(drafts, today, subscriptionModes, 'today');
     this.applyPeriod(drafts, month, subscriptionModes, 'month');
+    applyAllTime(drafts, all, subscriptionModes);
     this.applyAnthropicQuota(drafts, quota, anthropicModes, prior);
     this.applyCodexQuota(drafts, codex, prior);
 
@@ -511,7 +559,7 @@ export class UsageService {
     drafts: Map<string, RowDraft>,
     result: PromiseSettledResult<PeriodSpend>,
     subscriptionModes: Set<string>,
-    period: GatewayPeriod,
+    period: WindowPeriod,
   ): void {
     if (result.status !== 'fulfilled') return;
     applySpendRows(drafts, result.value.rows, subscriptionModes, period);
@@ -675,13 +723,18 @@ export class UsageService {
   }
 
   /** Route A (billing-mode grouping) when the gateway supports it, else Route B (raw records). */
-  private async readSpend(period: GatewayPeriod): Promise<PeriodSpend> {
+  private async readSpend(period: WindowPeriod): Promise<PeriodSpend> {
     if (this.groupedSpendSupported) {
       const grouped = await this.readGroupedSpend(period);
       if (grouped) return grouped;
       this.groupedSpendSupported = false;
     }
     return this.readRecordSpend(period);
+  }
+
+  /** Grouped route only: raw records stop at the cap, which would understate a lifetime total. */
+  private async readAllTimeSpend(): Promise<PeriodSpend | null> {
+    return this.groupedSpendSupported ? this.readGroupedSpend('all') : null;
   }
 
   private async readGroupedSpend(period: GatewayPeriod): Promise<PeriodSpend | null> {
@@ -693,7 +746,7 @@ export class UsageService {
     return rows === null ? null : { rows, truncated: false, droppedRecords: 0 };
   }
 
-  private async readRecordSpend(period: GatewayPeriod): Promise<PeriodSpend> {
+  private async readRecordSpend(period: WindowPeriod): Promise<PeriodSpend> {
     const since = encodeURIComponent(periodStartIso(period, this.now()));
     const url = `${this.gatewayUrl}/usage?format=records&since=${since}&limit=${GATEWAY_RECORDS_LIMIT}`;
     const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });

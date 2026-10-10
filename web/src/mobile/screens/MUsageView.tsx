@@ -385,6 +385,9 @@ function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
         <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.today} <small>{L.usageMobileToday}</small></span>
         <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.month} <small>{L.usageMobileMonth}</small></span>
+        {provider.spend.all !== null && (
+          <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.all} <small>{L.usageMobileAllTime}</small></span>
+        )}
       </div>
     </section>
   );

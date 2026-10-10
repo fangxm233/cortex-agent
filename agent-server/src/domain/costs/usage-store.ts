@@ -51,7 +51,10 @@ export interface ProviderUsage {
   windows: UsageWindow[];
   spend?: {
     today: number;
+    /** Rolling 30 days, matching the gateway's own `period=month`. */
     month: number;
+    /** Everything the gateway has recorded; absent when the gateway cannot group by billing mode. */
+    all?: number;
   };
   observedAt: number | null;
   freshness: UsageFreshness;

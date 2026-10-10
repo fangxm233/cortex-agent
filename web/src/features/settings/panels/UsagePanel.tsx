@@ -436,6 +436,7 @@ function SpendBlock({ provider }: { provider: ProviderUsageView }) {
         <div className="settings-adaptive-cards settings-usage-spend">
           <SStat value={provider.spend.today} caption={L.usageToday} />
           <SStat value={provider.spend.month} caption={L.usageMonth} />
+          {provider.spend.all !== null && <SStat value={provider.spend.all} caption={L.usageAllTime} />}
         </div>
       </SSection>
     </section>
