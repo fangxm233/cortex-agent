@@ -779,6 +779,13 @@ mod tests {
     }
 
     #[test]
+    fn select_asset_picks_the_matching_macos_image_without_a_universal_one() {
+        let assets = vec![asset("macos", "aarch64", "dmg"), asset("macos", "x86_64", "dmg")];
+        assert_eq!(select_asset(&assets, "macos", "aarch64", "dmg").unwrap().arch, "aarch64");
+        assert_eq!(select_asset(&assets, "macos", "x86_64", "dmg").unwrap().arch, "x86_64");
+    }
+
+    #[test]
     fn update_store_skipped_version_round_trip() {
         with_tmp(|dir| {
             let store = UpdateStore::new(dir);

@@ -66,6 +66,11 @@ test('parseAppAssetName: parses all six shipped asset forms', () => {
   });
 });
 
+test('parseAppAssetName: per-architecture macOS images match the shell arch names', () => {
+  assert.equal(parseAppAssetName('Cortex-2026.10.9-macOS-aarch64.dmg')?.arch, 'aarch64');
+  assert.equal(parseAppAssetName('Cortex-2026.10.9-macOS-x86_64.dmg')?.arch, 'x86_64');
+});
+
 test('parseAppAssetName: keeps the -N hotfix suffix inside the version', () => {
   assert.equal(parseAppAssetName('Cortex-2026.7.30-2-Linux-x86_64.AppImage')?.version, '2026.7.30-2');
 });
