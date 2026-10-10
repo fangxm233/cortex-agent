@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  CodexResetStatus,
   ConfigSnapshot,
   ProviderRateLimitPolicy,
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
+  SystemRedeemCodexResetReturn,
   SystemUsageStatus,
 } from '@cortex-agent/ui-contract';
 import { useLang } from '@/i18n';
@@ -19,6 +21,15 @@ export interface UsagePolicyDraft {
   thresholdPercent: number | null;
 }
 
+/** Spending a banked Codex reset: always an explicit, confirmed user action. */
+export interface UsageResetState {
+  redeem: () => void;
+  isRedeeming: boolean;
+  /** Outcome of the last attempt in this view. */
+  status: CodexResetStatus | null;
+  error: { message: string } | null;
+}
+
 export interface UsageFeatureState {
   view: UsageView;
   isLoading: boolean;
@@ -30,6 +41,7 @@ export interface UsageFeatureState {
   getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
   refresh: () => void;
   savePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
+  reset: UsageResetState;
 }
 
 interface PolicyMutationInput {
@@ -240,6 +252,35 @@ function usePolicySave(
   };
 }
 
+function useCodexReset(
+  trpc: ReturnType<typeof useTRPC>,
+  queryClient: ReturnType<typeof useQueryClient>,
+  statusKey: readonly unknown[],
+): UsageResetState {
+  const mutation = useMutation(trpc.system.redeemCodexReset.mutationOptions({
+    onSuccess: (data: SystemRedeemCodexResetReturn) => queryClient.setQueryData(statusKey, data.usage),
+  }));
+  return {
+    redeem: () => mutation.mutate({}),
+    isRedeeming: mutation.isPending,
+    status: mutation.data?.status ?? null,
+    error: mutation.isError ? mutation.error : null,
+  };
+}
+
+// Only the Usage pages mount this hook, and opening one means the user wants current numbers, so
+// it re-collects once on open instead of showing a snapshot up to one collection interval old.
+// The ref keeps StrictMode's effect replay from collecting twice.
+function useRefreshOnOpen(run: () => void): void {
+  const refreshedOnOpen = useRef(false);
+  useEffect(() => {
+    if (refreshedOnOpen.current) return;
+    refreshedOnOpen.current = true;
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 export function useUsage(): UsageFeatureState {
   const nowSec = useNowSeconds();
   const trpc = useTRPC();
@@ -256,18 +297,9 @@ export function useUsage(): UsageFeatureState {
   const controlsState = readPolicyControlsState(configQuery.isLoading, configQuery.isError, providerRateLimits);
   const saveMutation = useMutation(trpc.config.setProviderRateLimitPolicy.mutationOptions()) as unknown as PolicyMutation;
   const policySave = usePolicySave(controlsState, saveMutation, queryClient, configOptions.queryKey);
+  const reset = useCodexReset(trpc, queryClient, statusOptions.queryKey);
   const runRefresh = () => refresh.mutate({} as unknown as Parameters<typeof refresh.mutate>[0]);
-
-  // Only the Usage pages mount this hook, and opening one means the user wants current numbers, so
-  // it re-collects once on open instead of showing a snapshot up to one collection interval old.
-  // The ref keeps StrictMode's effect replay from collecting twice.
-  const refreshedOnOpen = useRef(false);
-  useEffect(() => {
-    if (refreshedOnOpen.current) return;
-    refreshedOnOpen.current = true;
-    runRefresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useRefreshOnOpen(runRefresh);
 
   return {
     view: buildUsageView(query.data as SystemUsageStatus | undefined, readViewPolicyConfig(controlsState, providerRateLimits), nowSec, lang),
@@ -276,9 +308,8 @@ export function useUsage(): UsageFeatureState {
     refreshError: refresh.isError ? refresh.error : null,
     isRefreshing: refresh.isPending,
     policyControlsState: controlsState,
-    isPolicySaving: policySave.isPolicySaving,
-    getPolicyError: policySave.getPolicyError,
+    ...policySave,
     refresh: runRefresh,
-    savePolicy: policySave.savePolicy,
+    reset,
   };
 }

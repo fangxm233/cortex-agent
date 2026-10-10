@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderRateLimits, SystemUsageStatus } from '@cortex-agent/ui-contract';
-import { buildUsageView, utilizationSeverity } from './usage-vm';
+import { buildUsageView, resetOutcomeView, utilizationSeverity } from './usage-vm';
 
 const NOW = 1_800_000_000;
 
@@ -211,5 +211,39 @@ describe('buildUsageView', () => {
       billing: 'api',
       displayName: 'Moonshot Ai',
     });
+  });
+});
+
+describe('banked resets', () => {
+  const codex = status[1];
+
+  it('shows the spendable count and the earliest live expiry, dropping credits that lapsed', () => {
+    const vm = buildUsageView([{
+      ...codex,
+      resetCredits: {
+        availableCount: 3,
+        credits: [
+          { id: 'lapsed', title: 'Full reset', expiresAt: NOW - 60 },
+          { id: 'next', title: 'Full reset', expiresAt: NOW + 29 * 86400 + 3 * 3600 },
+          { id: 'later', title: null, expiresAt: null },
+        ],
+      },
+    }], null, NOW, 'en');
+
+    expect(vm.providers[0].resets).toEqual({
+      available: 2, nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h',
+    });
+  });
+
+  it('falls back to the reported count when the credit list is unknown, and is absent without reset info', () => {
+    const counted = buildUsageView([{ ...codex, resetCredits: { availableCount: 1, credits: [] } }], null, NOW, 'en');
+    expect(counted.providers[0].resets).toEqual({ available: 1, nextExpiresAt: null, nextExpiresIn: null });
+    expect(buildUsageView([codex], null, NOW, 'en').providers[0].resets).toBeNull();
+  });
+
+  it('labels every redeem outcome', () => {
+    expect(resetOutcomeView('reset')).toEqual({ label: 'usageResetDone', tone: 'success' });
+    expect(resetOutcomeView('nothing_to_reset')).toEqual({ label: 'usageResetNothing', tone: 'info' });
+    expect(resetOutcomeView('unavailable').label).toBe('usageResetUnavailable');
   });
 });

@@ -1,4 +1,5 @@
 import type {
+  CodexResetStatus,
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
@@ -53,6 +54,19 @@ export interface UsageWindowView {
   policy: UsageWindowPolicyView | null;
 }
 
+/** Banked rate-limit resets the account can spend (OpenAI Codex). */
+export interface UsageResetsView {
+  available: number;
+  /** Earliest-expiring spendable reset; null when only the count is known. */
+  nextExpiresAt: number | null;
+  nextExpiresIn: string | null;
+}
+
+export interface UsageResetOutcomeView {
+  label: keyof Vocab;
+  tone: 'success' | 'info';
+}
+
 export interface ProviderSpendView {
   today: string;
   month: string;
@@ -71,6 +85,7 @@ export interface ProviderUsageView {
   observedAgo: string | null;
   quotaState: UsageQuotaState;
   legacyFallback: ProviderLegacyFallbackView | null;
+  resets: UsageResetsView | null;
   note?: string;
   noteTone?: UsageNoteTone;
 }
@@ -95,6 +110,14 @@ const WINDOW_LABEL_KEYS: Record<string, keyof Vocab> = {
 const PROVIDER_ORDER: Record<string, number> = {
   anthropic: 0,
   'openai-codex': 1,
+};
+
+const RESET_OUTCOME_LABELS: Record<CodexResetStatus, keyof Vocab> = {
+  reset: 'usageResetDone',
+  nothing_to_reset: 'usageResetNothing',
+  no_credit: 'usageResetNoCredit',
+  already_redeemed: 'usageResetAlreadyUsed',
+  unavailable: 'usageResetUnavailable',
 };
 
 const WEEKLY_WINDOW_TYPES = new Set(['seven_day', 'seven_day_overage_included']);
@@ -235,6 +258,23 @@ function buildWindow(
   };
 }
 
+/** Expired credits drop out locally, so a row read days ago does not offer a reset that lapsed. */
+function buildResets(record: ProviderUsage, nowSec: number, lang: Lang): UsageResetsView | null {
+  const credits = record.resetCredits;
+  if (!credits) return null;
+  const live = credits.credits.filter((credit) => credit.expiresAt === null || credit.expiresAt > nowSec);
+  const nextExpiresAt = live[0]?.expiresAt ?? null;
+  return {
+    available: credits.credits.length > 0 ? live.length : credits.availableCount,
+    nextExpiresAt,
+    nextExpiresIn: nextExpiresAt === null ? null : formatUsageDuration(nextExpiresAt - nowSec, lang),
+  };
+}
+
+export function resetOutcomeView(status: CodexResetStatus): UsageResetOutcomeView {
+  return { label: RESET_OUTCOME_LABELS[status], tone: status === 'reset' ? 'success' : 'info' };
+}
+
 function quotaState(freshness: UsageFreshness): UsageQuotaState {
   if (freshness === 'unsupported') return 'unsupported';
   if (freshness === 'never') return 'never';
@@ -266,6 +306,7 @@ function buildProvider(
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),
     quotaState: status,
     legacyFallback: showPolicy ? legacyFallbackView(record.provider, windows, providerRateLimits) : null,
+    resets: buildResets(record, nowSec, lang),
     ...(record.note ? { note: record.note, noteTone: noteTone(record.note) } : {}),
   };
 }

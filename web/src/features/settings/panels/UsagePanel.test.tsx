@@ -83,6 +83,7 @@ const harness = vi.hoisted(() => ({
   deferredPolicySaves: {} as Record<string, Promise<unknown>>,
   policyErrorsByTarget: {} as Record<string, Error | null>,
   sharing: { enabled: false, name: '', org: '', email: '' },
+  redeemResult: null as { status: string; windowsReset: number; usage: unknown[] } | null,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -95,6 +96,9 @@ vi.mock('@/lib/trpc', () => ({
       },
       refreshUsage: {
         mutationOptions: (options: object) => ({ __kind: 'system.refreshUsage', ...options }),
+      },
+      redeemCodexReset: {
+        mutationOptions: (options: object) => ({ __kind: 'system.redeemCodexReset', ...options }),
       },
     },
     config: {
@@ -128,6 +132,18 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
     };
   },
   useMutation: (options: any) => {
+    if (options.__kind === 'system.redeemCodexReset') {
+      return {
+        mutate: (args: unknown) => {
+          harness.mutations.push({ kind: options.__kind, args });
+          if (harness.redeemResult) options.onSuccess?.(harness.redeemResult);
+        },
+        data: harness.redeemResult ?? undefined,
+        isPending: false,
+        isError: false,
+        error: null,
+      };
+    }
     if (options.__kind === 'config.setProviderRateLimitPolicy') {
       return {
         mutateAsync: async (args: any) => {
@@ -222,6 +238,7 @@ beforeEach(() => {
   harness.configError = null;
   harness.deferredPolicySaves = {};
   harness.policyErrorsByTarget = {};
+  harness.redeemResult = null;
 });
 
 describe('desktop Settings Usage panel', () => {
@@ -375,5 +392,42 @@ describe('desktop Settings Usage panel', () => {
     act(() => refresh.props.onClick());
     act(() => refresh.props.onClick());
     expect(harness.mutations).toHaveLength(3);
+  });
+});
+
+describe('desktop Settings Usage panel banked resets', () => {
+  const withResets: SystemUsageStatus = usage.map((record) => (record.provider === 'openai-codex'
+    ? { ...record, resetCredits: { availableCount: 1, credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: NOW + 3 * 86400 }] } }
+    : record));
+
+  it('spends a reset only after the confirm step and writes back the returned usage', () => {
+    currentUsage = withResets;
+    const after = withResets.map((record) => (record.provider === 'openai-codex'
+      ? { ...record, resetCredits: { availableCount: 0, credits: [] } }
+      : record));
+    harness.redeemResult = { status: 'reset', windowsReset: 1, usage: after };
+    const renderer = mount();
+    act(() => renderer.root.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemCodexReset')).toHaveLength(0);
+    act(() => renderer.root.findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
+
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemCodexReset')).toEqual([
+      { kind: 'system.redeemCodexReset', args: {} },
+    ]);
+    expect(harness.queryWrites.at(-1)).toEqual({ key: ['system.usageStatus', {}], value: after });
+    act(() => renderer.unmount());
+  });
+
+  it('shows the count, earliest expiry and last outcome on the Codex card only', () => {
+    currentUsage = withResets;
+    harness.redeemResult = { status: 'nothing_to_reset', windowsReset: 0, usage: withResets };
+    const renderer = mount();
+
+    expect(renderer.root.findAllByProps({ 'data-usage-resets': true })).toHaveLength(1);
+    const text = JSON.stringify(renderer.toJSON());
+    expect(text).toContain('Banked resets 1');
+    expect(text).toContain('next expires in 3d');
+    expect(renderer.root.findByProps({ 'data-usage-reset-outcome': 'nothing_to_reset' })).toBeTruthy();
+    act(() => renderer.unmount());
   });
 });

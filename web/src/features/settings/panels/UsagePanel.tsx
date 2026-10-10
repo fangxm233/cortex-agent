@@ -15,12 +15,14 @@ import {
   Toggle,
 } from '@/features/settings/ui/settings-ui';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
-import { useUsage } from '@/features/usage/useUsage';
+import { useUsage, type UsageResetState } from '@/features/usage/useUsage';
 import { useUsageSharingController } from '@/features/settings/controllers/useUsageSharingController';
 import { UsageSharingCard } from './UsageSharingCard';
 import {
+  resetOutcomeView,
   type ProviderLegacyFallbackView,
   type ProviderUsageView,
+  type UsageResetsView,
   type UsagePolicyTarget,
   usagePolicyTargetKey,
   type UsageSeverity,
@@ -316,6 +318,72 @@ function LegacyFallbackNotice(props: {
   );
 }
 
+function ResetSummary({ resets }: { resets: UsageResetsView }) {
+  const L = useVocab();
+  const expiry = resets.nextExpiresAt !== null && resets.nextExpiresIn !== null
+    ? <span title={isoTime(resets.nextExpiresAt)}>{` · ${fmt(L.usageResetsNextExpiry, { d: resets.nextExpiresIn })}`}</span>
+    : null;
+  return <span style={META_TEXT}>{fmt(L.usageResets, { n: resets.available })}{expiry}</span>;
+}
+
+function ResetOutcome({ reset }: { reset: UsageResetState }) {
+  const L = useVocab();
+  if (reset.error) {
+    return (
+      <span data-usage-reset-outcome="error" style={{ ...META_TEXT, color: 'var(--proto-danger)' }}>
+        {L.usageResetFailed}: {reset.error.message}
+      </span>
+    );
+  }
+  if (!reset.status) return null;
+  const outcome = resetOutcomeView(reset.status);
+  const color = outcome.tone === 'success' ? 'var(--proto-accent)' : 'var(--proto-muted)';
+  return <span data-usage-reset-outcome={reset.status} style={{ ...META_TEXT, color }}>{L[outcome.label]}</span>;
+}
+
+function ResetConfirm(props: { onConfirm: () => void; onCancel: () => void }) {
+  const L = useVocab();
+  return (
+    <SNotice
+      tone="amber" data-usage-reset-confirm
+      action={(
+        <span style={{ display: 'inline-flex', gap: 8 }}>
+          <SButton tone="neutral" data-usage-reset-cancel onClick={props.onCancel}>{L.cancel}</SButton>
+          <SButton tone="danger" data-usage-reset-confirm-action onClick={props.onConfirm}>{L.usageResetConfirm}</SButton>
+        </span>
+      )}
+    >
+      {L.usageResetConfirmBody}
+    </SNotice>
+  );
+}
+
+/** Banked resets on the Codex row; spending one always takes a second, explicit confirm. */
+function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: UsageResetState }) {
+  const L = useVocab();
+  const [confirming, setConfirming] = useState(false);
+  const canUse = resets.available > 0 && !confirming;
+  return (
+    <div data-usage-resets style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 28 }}>
+        <ResetSummary resets={resets} />
+        <ResetOutcome reset={reset} />
+        {canUse
+          ? (
+            <SButton tone="neutral" data-usage-reset-use disabled={reset.isRedeeming}
+              onClick={() => setConfirming(true)} style={{ marginLeft: 'auto' }}>
+              {reset.isRedeeming ? L.usageResetUsing : L.usageResetUse}
+            </SButton>
+          )
+          : null}
+      </div>
+      {confirming
+        ? <ResetConfirm onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); reset.redeem(); }} />
+        : null}
+    </div>
+  );
+}
+
 function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   if (provider.quotaState === 'unsupported') return null;
@@ -335,6 +403,7 @@ function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: R
               </div>
             )
             : <SNotice tone="muted">{L.usageNeverObserved}</SNotice>}
+          {provider.resets ? <ResetCredits resets={provider.resets} reset={usage.reset} /> : null}
           {provider.legacyFallback
             ? (
               <LegacyFallbackNotice

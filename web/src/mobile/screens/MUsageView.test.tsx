@@ -69,6 +69,7 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
       policyControlsState="ready"
       isPolicySaving={() => false}
       getPolicyError={() => null}
+      reset={{ redeem: () => {}, isRedeeming: false, status: null, error: null }}
       onBack={() => {}}
       onRefresh={() => {}}
       onSavePolicy={() => {}}
@@ -151,5 +152,44 @@ describe('MUsageView refresh action', () => {
     act(() => pending.props.onClick());
     act(() => pending.props.onClick());
     expect(onRefresh).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('MUsageView banked resets', () => {
+  const withResets: SystemUsageStatus = status.map((record) => (record.provider === 'openai-codex'
+    ? { ...record, resetCredits: { availableCount: 1, credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: NOW + 2 * 86400 }] } }
+    : record));
+
+  it('spends a reset only after the confirm step', () => {
+    const redeem = vi.fn();
+    const renderer = create(view({
+      view: buildUsageView(withResets, policies, NOW, 'en'),
+      reset: { redeem, isRedeeming: false, status: null, error: null },
+    }));
+    expect(JSON.stringify(renderer.toJSON())).toContain('Banked resets 1 · next expires in 2d');
+
+    act(() => renderer.root.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+    expect(redeem).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain('every device. This cannot be undone.');
+    act(() => renderer.root.findByProps({ 'data-usage-reset-cancel': true }).props.onClick());
+    expect(renderer.root.findAllByProps({ 'data-usage-reset-confirm': true })).toHaveLength(0);
+
+    act(() => renderer.root.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
+    expect(redeem).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the outcome and offers no reset without one', () => {
+    const spent = withResets.map((record) => (record.provider === 'openai-codex'
+      ? { ...record, resetCredits: { availableCount: 0, credits: [] } }
+      : record));
+    const renderer = create(view({
+      view: buildUsageView(spent, policies, NOW, 'en'),
+      reset: { redeem: vi.fn(), isRedeeming: false, status: 'reset', error: null },
+    }));
+
+    expect(renderer.root.findAllByProps({ 'data-usage-reset-use': true })).toHaveLength(0);
+    expect(renderer.root.findByProps({ 'data-usage-reset-outcome': 'reset' })).toBeTruthy();
+    expect(JSON.stringify(renderer.toJSON())).toContain('Reset used, usage restored');
   });
 });

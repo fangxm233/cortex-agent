@@ -1,6 +1,8 @@
 import { useState, type CSSProperties } from 'react';
 import type {
   ProviderLegacyFallbackView,
+  UsageResetState,
+  UsageResetsView,
   UsagePolicyControlsState,
   UsagePolicyDraft,
   UsagePolicyTarget,
@@ -9,9 +11,9 @@ import type {
   UsageWindowPolicyView,
   UsageWindowView,
 } from '@/features/usage';
-import { usagePolicyTargetKey } from '@/features/usage';
+import { resetOutcomeView, usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
-import { useVocab, type Vocab } from '@/i18n';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 import { MButton, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsToggle } from './MSettingsControls';
@@ -289,8 +291,60 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
   );
 }
 
+function resetSummary(resets: UsageResetsView, L: Vocab): string {
+  const count = fmt(L.usageResets, { n: resets.available });
+  return resets.nextExpiresIn === null ? count : `${count} · ${fmt(L.usageResetsNextExpiry, { d: resets.nextExpiresIn })}`;
+}
+
+function ResetOutcome({ reset, L }: { reset: UsageResetState; L: Vocab }) {
+  if (reset.error) {
+    return <div data-usage-reset-outcome="error" role="alert" style={{ ...META, color: MC.fail, marginTop: 6 }}>{L.usageResetFailed}: {reset.error.message}</div>;
+  }
+  if (!reset.status) return null;
+  const outcome = resetOutcomeView(reset.status);
+  const color = outcome.tone === 'success' ? MC.done : MC.muted;
+  return <div data-usage-reset-outcome={reset.status} style={{ ...META, color, marginTop: 6 }}>{L[outcome.label]}</div>;
+}
+
+function ResetConfirm(props: { L: Vocab; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div data-usage-reset-confirm style={{ marginTop: 8, border: `1px solid ${MC.amberBorder}`, background: MC.amberBg, borderRadius: 'var(--r-chip)', padding: '8px 10px' }}>
+      <div style={{ fontSize: 12, color: MC.amberText }}>{props.L.usageResetConfirmBody}</div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+        <MButton compact data-usage-reset-cancel onClick={props.onCancel}>{props.L.cancel}</MButton>
+        <MButton compact variant="danger-outline" data-usage-reset-confirm-action onClick={props.onConfirm}>{props.L.usageResetConfirm}</MButton>
+      </div>
+    </div>
+  );
+}
+
+/** Banked resets on the Codex row; spending one always takes a second, explicit confirm. */
+function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageResetState; L: Vocab }) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div data-usage-resets style={{ padding: '9px 0 0', borderTop: `1px solid ${MC.divider}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
+        <span style={META}>{resetSummary(resets, L)}</span>
+        {resets.available > 0 && !confirming
+          ? (
+            <MButton compact variant="accent-outline" data-usage-reset-use disabled={reset.isRedeeming}
+              onClick={() => setConfirming(true)} style={{ marginLeft: 'auto', height: 32 }}>
+              {reset.isRedeeming ? L.usageResetUsing : L.usageResetUse}
+            </MButton>
+          )
+          : null}
+      </div>
+      <ResetOutcome reset={reset} L={L} />
+      {confirming
+        ? <ResetConfirm L={L} onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); reset.redeem(); }} />
+        : null}
+    </div>
+  );
+}
+
 interface QuotaBlockProps extends Omit<PolicyEditorProps, 'policy'> {
   provider: ProviderUsageView;
+  reset: UsageResetState;
 }
 
 function QuotaBlock(props: QuotaBlockProps) {
@@ -301,6 +355,7 @@ function QuotaBlock(props: QuotaBlockProps) {
       {props.provider.quotaState === 'available'
         ? props.provider.windows.map((window) => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} {...props} />)
         : <div style={{ marginTop: 8, fontSize: 12, color: MC.muted }}>{props.L.usageMobileNeverObserved}</div>}
+      {props.provider.resets ? <ResetRow resets={props.provider.resets} reset={props.reset} L={props.L} /> : null}
       {props.provider.legacyFallback
         ? (
           <LegacyFallbackNotice
@@ -332,6 +387,7 @@ function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) 
 function ProviderCard(props: {
   provider: ProviderUsageView;
   L: Vocab;
+  reset: UsageResetState;
   policyControlsState: UsagePolicyControlsState;
   isPolicySaving: (target: UsagePolicyTarget) => boolean;
   getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
@@ -352,7 +408,7 @@ function ProviderCard(props: {
           <Observation provider={provider} L={L} />
         </div>
       </div>
-      <QuotaBlock provider={provider} L={L} policyControlsState={props.policyControlsState} isPolicySaving={props.isPolicySaving} getPolicyError={props.getPolicyError} onSavePolicy={props.onSavePolicy} />
+      <QuotaBlock provider={provider} L={L} reset={props.reset} policyControlsState={props.policyControlsState} isPolicySaving={props.isPolicySaving} getPolicyError={props.getPolicyError} onSavePolicy={props.onSavePolicy} />
       <SpendBlock provider={provider} L={L} />
       {provider.note ? <div style={{ ...META, padding: '0 13px 10px' }}>{provider.note}</div> : null}
     </MCard>
@@ -387,6 +443,7 @@ interface MUsageViewProps {
   policyControlsState: UsagePolicyControlsState;
   isPolicySaving: (target: UsagePolicyTarget) => boolean;
   getPolicyError: (target: UsagePolicyTarget) => { message: string } | null;
+  reset: UsageResetState;
   onBack: () => void;
   onRefresh: () => void;
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
@@ -395,7 +452,7 @@ interface MUsageViewProps {
 export function MUsageView(props: MUsageViewProps) {
   const {
     view, isLoading, queryError, refreshError, isRefreshing,
-    policyControlsState, isPolicySaving, getPolicyError, onBack, onRefresh, onSavePolicy,
+    policyControlsState, isPolicySaving, getPolicyError, reset, onBack, onRefresh, onSavePolicy,
   } = props;
   const L = useVocab();
   const hasProviders = view.providers.length > 0;
@@ -413,7 +470,7 @@ export function MUsageView(props: MUsageViewProps) {
         {!isLoading && !queryError && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{L.usageMobileEmpty}</div> : null}
         {view.providers.map((provider) => (
           <ProviderCard
-            key={provider.key} provider={provider} L={L}
+            key={provider.key} provider={provider} L={L} reset={reset}
             policyControlsState={policyControlsState} isPolicySaving={isPolicySaving}
             getPolicyError={getPolicyError} onSavePolicy={onSavePolicy}
           />

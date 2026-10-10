@@ -20,6 +20,7 @@ export function MUsageScreen() {
         policyControlsState={usage.policyControlsState}
         isPolicySaving={usage.isPolicySaving}
         getPolicyError={usage.getPolicyError}
+        reset={usage.reset}
         onBack={() => navigate(fromProject ? '/m/project' : '/m/settings', { replace: true })}
         onRefresh={usage.refresh}
         onSavePolicy={usage.savePolicy}
