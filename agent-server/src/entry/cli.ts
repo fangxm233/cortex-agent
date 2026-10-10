@@ -8,7 +8,7 @@ import { formatDuration } from '@core/format-duration.js';
 import {
   INSTALL_ROOT, DATA_DIR, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
 } from '@core/paths.js';
-import { isProcessAlive, readPidFile, touchRestartTrigger } from '@core/singleton-lock.js';
+import { isPidFileOwner, isProcessAlive, readPidFile, touchRestartTrigger } from '@core/singleton-lock.js';
 import { createLogger } from '@core/log.js';
 import {
   getResolvedPaths,
@@ -132,7 +132,7 @@ function readLiveDaemonPid(): { pid: number } | { result: CliResult } {
     try { unlinkSync(DAEMON_PID_FILE); } catch {}
     return { result: { exitCode: 0, stdout: 'Cortex daemon is not running (removed corrupted PID file).\n', stderr: '' } };
   }
-  if (!isProcessAlive(pid)) {
+  if (!isPidFileOwner(DAEMON_PID_FILE, pid)) {
     try { unlinkSync(DAEMON_PID_FILE); } catch {}
     return { result: { exitCode: 0, stdout: `Cortex daemon is not running (removed stale PID file for PID ${pid}).\n`, stderr: '' } };
   }
