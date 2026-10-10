@@ -24,8 +24,10 @@ Claude): a model on the lead's own backend replaces only the parts it names, and
 starts from that backend's default profile, so a Claude lead can run PI workers and the other way
 round. A PI model whose provider has a profile of its own runs on that profile. Spawning a worker leaves the model a new conversation opens on unchanged.
 
-A lead chooses between a worker and the one-shot `agent` tool by what happens next. Work that may
-need follow-up, runs long, or may need back-and-forth goes to a worker. Bounded reconnaissance or
+A lead uses workers only when there are several tasks (or the work splits into several) or the user
+switches to a different task; a single task stays in the lead's own session. For the work it hands
+off, the lead chooses between a worker and the one-shot `agent` tool by what happens next. Work that
+may need follow-up, runs long, or may need back-and-forth goes to a worker. Bounded reconnaissance or
 verification whose result the lead uses straight away goes to `agent`.
 
 ## How work flows

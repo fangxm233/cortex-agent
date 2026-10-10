@@ -60,9 +60,11 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
   server.tool(
     'worker_spawn',
     'Start a persistent worker: a separate session with its own context and full tool surface, '
-    + 'which you can continue later with worker_send. Use a worker for work that may need follow-up, '
-    + 'runs long, or may need back-and-forth. For bounded reconnaissance or verification whose result '
-    + 'you consume immediately, use the one-shot `agent` tool instead. Write a self-contained prompt: '
+    + 'which you can continue later with worker_send. Use workers only when there are several tasks '
+    + '(or the work can be split into several) or the user switches to a different task; keep a single '
+    + 'task in this session. Of the work you hand off, give a worker what may need follow-up, runs long, '
+    + 'or may need back-and-forth; for bounded reconnaissance or verification whose result you consume '
+    + 'immediately, use the one-shot `agent` tool instead. Write a self-contained prompt: '
     + 'the worker does not see this conversation. The worker keeps your current model unless you pass '
     + 'backend or model. The user can open the worker and talk to it directly. '
     + 'The worker reports back with its final reply once it has finished with nothing left running or '
