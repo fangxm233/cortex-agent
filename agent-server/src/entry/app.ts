@@ -20,6 +20,7 @@ import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
+import { codexResetNoticeActions } from '@orch/routing/commands/usage.js';
 import { recoverWaitpoints, startWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
@@ -67,7 +68,9 @@ import { CommandActionRouter } from '@orch/interactions/command-action-router.js
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { createUiUpdatePrompt } from '@orch/interactions/ui-update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
-import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
+import {
+  initRateLimitThrottle, clearThrottle, setRateLimitNoticeActions, RATE_LIMIT_CLEAR_ACTION_ID,
+} from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds } from '@domain/costs/resume-registry.js';
 import {
   dispatchPendingResumes,
@@ -519,6 +522,9 @@ installSigtermShutdown(shutdownHandles);
     load: () => providerStateRepo.getRateLimitThrottle(),
   }, () => { void dispatchPendingResumes(adapter); },
   () => { bus.publish({ type: 'rate-limit.changed' }); });
+  // A Codex throttle notice also offers a banked reset when the account holds one; the button
+  // opens the `!usage` confirm step, so spending one always takes a second click.
+  setRateLimitNoticeActions((provider) => codexResetNoticeActions(provider));
 
   // Rate-limit notices carry a "Resume now" button (Slack/Feishu interactive). Clicking it
   // clears the throttle early for that provider (or all when the value is empty) and dispatches

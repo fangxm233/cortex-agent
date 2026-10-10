@@ -9,6 +9,8 @@ import { CommandActionRouter } from '../src/orchestration/interactions/command-a
 import { handleBackendCmd, handleModelCmd, handleThinkingCmd } from '../src/orchestration/routing/commands/mode.js';
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
 import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
+import type { CodexResetResult } from '../src/domain/costs/codex-reset.js';
+import { codexResetNoticeActions } from '../src/orchestration/routing/commands/usage.js';
 import { projectStore } from '../src/domain/projects/index.js';
 import {
   clearChannelOverride, clearChannelProfile, getSelectionDefault, setChannelOverride,
@@ -370,6 +372,100 @@ test('!usage refresh action forces every collection and preserves provider filte
   assert.match(adapter.updated[1].content.text, /OpenAI Codex.*stale/);
   assert.doesNotMatch(adapter.updated[1].content.text, /Anthropic/);
   assert.match(adapter.updated[1].content.text, /push-only observation is stale/);
+});
+
+const CODEX_WITH_RESETS: ProviderUsage = {
+  ...COMMAND_USAGE[1],
+  resetCredits: {
+    availableCount: 1,
+    credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: 1_800_500_000 }],
+  },
+};
+
+function usageDispatcher(records: ProviderUsage[], codexReset: (creditId?: string) => Promise<CodexResetResult>) {
+  const adapter = new MockAdapter();
+  const router = new CommandActionRouter();
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    commandRouter: router,
+    usageService: { getStatus: async () => records, refresh: async () => records },
+    codexReset,
+  });
+  router.bindToAdapter(adapter);
+  return { adapter, dispatchCommand };
+}
+
+test('!usage shows banked Codex resets and offers the reset button only while one exists', async () => {
+  const redeem = async (): Promise<CodexResetResult> => { throw new Error('not reached'); };
+  const withResets = usageDispatcher([COMMAND_USAGE[0], CODEX_WITH_RESETS], redeem);
+  withResets.dispatchCommand('!usage', 'C-usage', withResets.adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  const post = withResets.adapter.posted[0].content;
+  assert.match(post.text, /Banked resets: 1 · earliest expires 2027-01-21T/);
+  const ids = post.richBlocks?.find(block => block.type === 'actions')?.elements.map(element => element.actionId);
+  assert.deepEqual(ids, ['cmd:usage:refresh', 'cmd:usage:reset']);
+
+  const spent = { ...CODEX_WITH_RESETS, resetCredits: { availableCount: 0, credits: [] } };
+  const none = usageDispatcher([spent], redeem);
+  none.dispatchCommand('!usage', 'C-usage', none.adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(none.adapter.posted[0].content.text, /Banked resets: 0/);
+  const noneIds = none.adapter.posted[0].content.richBlocks?.find(block => block.type === 'actions')?.elements.map(element => element.actionId);
+  assert.deepEqual(noneIds, ['cmd:usage:refresh']);
+});
+
+test('!usage reset takes a confirm click and reports the outcome in place of the prompt', async () => {
+  const calls: (string | undefined)[] = [];
+  const after: ProviderUsage = { ...CODEX_WITH_RESETS, freshness: 'live', windows: [{ type: 'codex_primary', utilization: 0, resetsAt: null }] };
+  const { adapter } = usageDispatcher([CODEX_WITH_RESETS], async (creditId) => {
+    calls.push(creditId);
+    return { status: 'reset', windowsReset: 1, usage: [after] };
+  });
+  const usageMessage = { conduit: 'C-usage', messageId: 'usage-msg-1' };
+
+  await adapter.simulateAction('cmd:usage:reset', '', { channelId: 'C-usage', messageRef: usageMessage });
+
+  assert.deepEqual(calls, [], 'the first click only asks');
+  const prompt = adapter.posted[0];
+  assert.equal(prompt.threadId, 'usage-msg-1');
+  assert.match(prompt.content.text, /every device and cannot be undone/);
+  assert.deepEqual(prompt.actions?.map(action => action.actionId), ['cmd:usage:reset-confirm', 'cmd:usage:reset-cancel']);
+
+  const promptRef = { conduit: 'C-usage', messageId: 'prompt-1' };
+  await adapter.simulateAction('cmd:usage:reset-confirm', '', { channelId: 'C-usage', messageRef: promptRef });
+
+  assert.deepEqual(calls, [undefined]);
+  assert.equal(adapter.updated.length, 2);
+  assert.match(adapter.updated[0].content.text, /Using a Codex reset/);
+  assert.match(adapter.updated[1].content.text, /Codex reset used[\s\S]*OpenAI Codex/);
+  assert.ok(adapter.updated.every(update => !update.content.richBlocks?.some(block => block.type === 'actions')));
+});
+
+test('!usage reset cancel and non-reset outcomes spend nothing extra and say why', async () => {
+  let redeemed = 0;
+  const { adapter } = usageDispatcher([CODEX_WITH_RESETS], async () => {
+    redeemed += 1;
+    return { status: 'nothing_to_reset', windowsReset: 0, usage: [CODEX_WITH_RESETS] };
+  });
+  const promptRef = { conduit: 'C-usage', messageId: 'prompt-1' };
+
+  await adapter.simulateAction('cmd:usage:reset-cancel', '', { channelId: 'C-usage', messageRef: promptRef });
+  assert.equal(redeemed, 0);
+  assert.match(adapter.updated[0].content.text, /not used/);
+
+  await adapter.simulateAction('cmd:usage:reset-confirm', '', { channelId: 'C-usage', messageRef: promptRef });
+  assert.equal(redeemed, 1);
+  assert.match(adapter.updated.at(-1)!.content.text, /Nothing to reset/);
+});
+
+test('the Codex throttle notice offers a reset only when the cached row holds one', async () => {
+  const status = (records: ProviderUsage[]) => ({ getStatus: async () => records });
+  assert.deepEqual(
+    (await codexResetNoticeActions('openai-codex', status([CODEX_WITH_RESETS]))).map(action => action.actionId),
+    ['cmd:usage:reset'],
+  );
+  assert.deepEqual(await codexResetNoticeActions('openai-codex', status([COMMAND_USAGE[1]])), []);
+  assert.deepEqual(await codexResetNoticeActions('anthropic', status([CODEX_WITH_RESETS])), []);
 });
 
 // ── !budget: global + per-project forms ────────────────────────────
