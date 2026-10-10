@@ -226,10 +226,13 @@ jobs:
 
           chmod +x "release-assets/Cortex-$VERSION-Linux-x86_64.AppImage"
           runtime=node-v24.21.0-linux-x64.tar.gz
-          dpkg-deb -c "release-assets/Cortex-$VERSION-Linux-amd64.deb" | grep -q "runtime/$runtime"
-          rpm -qlp "release-assets/Cortex-$VERSION-Linux-x86_64.rpm" | grep -q "runtime/$runtime"
+          # Listings go to files first: `grep -q` on a pipe would close it early and fail the
+          # producer under pipefail.
+          dpkg-deb -c "release-assets/Cortex-$VERSION-Linux-amd64.deb" > "$RUNNER_TEMP/deb.list"
+          rpm -qlp "release-assets/Cortex-$VERSION-Linux-x86_64.rpm" > "$RUNNER_TEMP/rpm.list"
           (cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/release-assets/Cortex-$VERSION-Linux-x86_64.AppImage" --appimage-extract >/dev/null)
-          find "$RUNNER_TEMP/squashfs-root" -path "*/runtime/$runtime" | grep -q .
+          find "$RUNNER_TEMP/squashfs-root" -path "*/runtime/*" > "$RUNNER_TEMP/appimage.list"
+          for list in deb rpm appimage; do grep "runtime/$runtime" "$RUNNER_TEMP/$list.list"; done
           (cd release-assets && sha256sum ./*.deb ./*.AppImage ./*.rpm | sed 's#\./##' > SHA256SUMS-Linux.txt)
           cat release-assets/SHA256SUMS-Linux.txt
 
