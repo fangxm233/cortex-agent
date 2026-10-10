@@ -27,9 +27,14 @@ mod selection_environment;
 #[path = "runtime_windows_postinstall.rs"]
 mod windows_postinstall;
 pub use bundle::NOT_BUNDLED;
+// The runtime harness compiles this module by path without the setup commands that use
+// some of these re-exports.
+#[allow(unused_imports)]
 pub use cancel::{cancel_install, CancelToken, InstallGuard};
 pub use git_selection::GitSelection;
+#[allow(unused_imports)]
 pub use install::{ensure_server, install_server_version};
+#[allow(unused_imports)]
 pub use process::{redact_line, run_install};
 #[cfg(all(test, unix))]
 #[path = "runtime_git_selection_tests.rs"]
