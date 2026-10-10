@@ -25,6 +25,8 @@ export interface UsageResetCredit {
   expiresAt: number | null;
   /** Window types spending it clears, when the provider names them. */
   clears?: string[];
+  /** Resets this credit still holds; one when absent. */
+  count?: number;
 }
 
 export interface UsageResetCredits {

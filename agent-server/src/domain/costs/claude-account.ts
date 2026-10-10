@@ -40,10 +40,6 @@ export interface ClaudeAccountClientDeps {
   requestId?: () => string;
 }
 
-interface UsableGrant extends UsageResetCredit {
-  left: number;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -70,7 +66,7 @@ function usageWindow(raw: unknown, type: string): AccountWindow | null {
   return { type, utilization: used / 100, resetsAt: isoSeconds(raw.resets_at) };
 }
 
-function usableGrant(raw: unknown): UsableGrant | null {
+function usableGrant(raw: unknown): UsageResetCredit | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || !GRANT_ID.test(raw.id)) return null;
   const left = finite(raw.resets_left) ?? 0;
   if (raw.usable_now !== true || raw.paused === true || left <= 0) return null;
@@ -79,7 +75,7 @@ function usableGrant(raw: unknown): UsableGrant | null {
     title: typeof raw.label === 'string' ? raw.label : null,
     expiresAt: isoSeconds(raw.ends_at),
     clears: strings(raw.clears),
-    left: Math.floor(left),
+    count: Math.floor(left),
   };
 }
 
@@ -97,9 +93,9 @@ function resetCredits(status: Record<string, unknown>): UsageResetCredits {
   // The account's own pick counts only when it names a grant that is usable right now.
   const next = grants.find((grant) => grant.id === status.next_grant_id)?.id;
   return {
-    availableCount: grants.reduce((sum, grant) => sum + grant.left, 0),
+    availableCount: grants.reduce((sum, grant) => sum + (grant.count ?? 1), 0),
     atLimit: status.at_limit === true,
-    credits: grants.map(({ left: _left, ...credit }) => credit),
+    credits: grants,
     ...(next ? { nextCreditId: next } : {}),
   };
 }

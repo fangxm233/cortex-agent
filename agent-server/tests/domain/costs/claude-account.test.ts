@@ -69,10 +69,10 @@ describe('Claude account parsing', () => {
         availableCount: 3,
         atLimit: false,
         credits: [
-          { id: 'grant_early', title: 'Usage reset', expiresAt: iso('2026-10-20T00:00:00Z'), clears: ['five_hour'] },
+          { id: 'grant_early', title: 'Usage reset', expiresAt: iso('2026-10-20T00:00:00Z'), clears: ['five_hour'], count: 1 },
           {
             id: 'grant_late', title: 'Usage reset', expiresAt: iso('2026-11-20T00:00:00Z'),
-            clears: ['five_hour', 'seven_day', 'seven_day_overage_included'],
+            clears: ['five_hour', 'seven_day', 'seven_day_overage_included'], count: 2,
           },
         ],
         nextCreditId: 'grant_late',
