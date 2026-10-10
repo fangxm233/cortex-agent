@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'vitest';
 import {
+  buildChildProcessConfig,
   planRebuildLanes,
   planRebuildStepNames,
   rebuildHoldsTurns,
@@ -55,6 +56,18 @@ test('daemon module import is side-effect free', async () => {
 
   assert.equal(result.code, 0);
   assert.equal(result.signal, null);
+});
+
+test.each([null, 'crash-recovery', 'restart'])('server fork hides the window and preserves IPC/env for %s', reason => {
+  const config = buildChildProcessConfig(reason);
+  assert.equal(config.windowsHide, true);
+  assert.deepEqual(config.stdio, ['pipe', 'ignore', 'ignore', 'ipc']);
+  assert.deepEqual(config.execArgv, []);
+  assert.equal('detached' in config, false);
+  const expectedEnv = { ...process.env };
+  delete expectedEnv.CORTEX_RESTART_REASON;
+  if (reason) expectedEnv.CORTEX_RESTART_REASON = reason;
+  assert.deepEqual(config.env, expectedEnv);
 });
 
 // --- Rebuild lanes ---

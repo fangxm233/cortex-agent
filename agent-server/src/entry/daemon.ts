@@ -167,7 +167,7 @@ function cancelPendingTimers() {
   if (rebuildTimer) { clearTimeout(rebuildTimer); rebuildTimer = null; }
 }
 
-function buildChildProcessConfig(restartReason: string | null = null) {
+export function buildChildProcessConfig(restartReason: string | null = null) {
   const stdio: ('pipe' | 'ignore' | 'ipc')[] = ['pipe', 'ignore', 'ignore', 'ipc'];
   const env = { ...process.env };
   if (restartReason) {
@@ -177,6 +177,7 @@ function buildChildProcessConfig(restartReason: string | null = null) {
   }
   return {
     cwd: DATA_DIR,
+    windowsHide: true,
     stdio,
     execArgv: [],
     env,

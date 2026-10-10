@@ -206,6 +206,7 @@ fn stalled_saved_runtime_and_server_validation_cancel_without_reselection() {
         selected.server = Some(Server {
             bin: server,
             managed: false,
+            node_entry: None,
         });
         selected.save(&home).unwrap();
         let saved = std::fs::read(home.join("runtime/selection.json")).unwrap();

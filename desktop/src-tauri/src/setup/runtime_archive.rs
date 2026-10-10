@@ -17,6 +17,18 @@ pub struct Release {
 // Platform floors: https://github.com/nodejs/node/blob/v24.21.0/BUILDING.md.
 const RELEASES: &[(&str, &str, &str, &str)] = &[
     (
+        "windows",
+        "x86_64",
+        "win-x64",
+        "158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541",
+    ),
+    (
+        "windows",
+        "aarch64",
+        "win-arm64",
+        "8779b1bde1d39f8d420e3b57aa657b39891af434d3de44a919044cec06785921",
+    ),
+    (
         "macos",
         "x86_64",
         "darwin-x64",
@@ -46,18 +58,16 @@ pub fn release_for(os: &str, arch: &str) -> Result<Release, String> {
     let (_, _, target, sha256) = RELEASES
         .iter()
         .find(|r| (r.0, r.1) == (os, arch))
-        .ok_or("RUNTIME_UNSUPPORTED: supported targets are macOS and glibc Linux x64/arm64")?;
+        .ok_or("RUNTIME_UNSUPPORTED: no official Node pin for this target")?;
+    let extension = if os == "windows" { "zip" } else { "tar.gz" };
     Ok(Release {
-        archive: format!("node-v24.21.0-{target}.tar.gz"),
+        archive: format!("node-v24.21.0-{target}.{extension}"),
         sha256,
     })
 }
 
 pub fn safe_member(path: &Path, root: &str) -> Result<PathBuf, String> {
-    if path
-        .components()
-        .any(|c| !matches!(c, Component::Normal(_)))
-    {
+    if path.components().any(|c| !matches!(c, Component::Normal(_))) {
         return Err(integrity("unsafe archive path"));
     }
     path.strip_prefix(root)
@@ -66,11 +76,7 @@ pub fn safe_member(path: &Path, root: &str) -> Result<PathBuf, String> {
 }
 
 pub fn safe_link(member: &Path, target: &Path) -> Result<(), String> {
-    let mut depth = member
-        .parent()
-        .unwrap_or(Path::new(""))
-        .components()
-        .count();
+    let mut depth = member.parent().unwrap_or(Path::new("")).components().count();
     for part in target.components().filter(|c| *c != Component::CurDir) {
         match part {
             Component::Normal(_) => depth += 1,
@@ -84,11 +90,12 @@ pub fn safe_link(member: &Path, target: &Path) -> Result<(), String> {
 fn integrity(detail: impl std::fmt::Display) -> String {
     format!("RUNTIME_INTEGRITY_FAILED: {detail}")
 }
-fn download_error(_: impl std::fmt::Display) -> String {
+pub(super) fn download_error(_: impl std::fmt::Display) -> String {
     // HTTP errors may contain proxy credentials. Do not forward their raw Display output.
     "RUNTIME_DOWNLOAD_FAILED: official runtime download failed; check connection and retry".into()
 }
 
+#[cfg(unix)]
 pub(super) fn bootstrap(
     home: &Path,
     path: &OsStr,
@@ -116,11 +123,11 @@ pub(super) fn bootstrap(
     Ok(selected)
 }
 
+#[cfg(unix)]
 fn supported_host(token: &CancelToken) -> Result<(), String> {
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     {
-        let version =
-            unsafe { std::ffi::CStr::from_ptr(libc::gnu_get_libc_version()) }.to_string_lossy();
+        let version = unsafe { std::ffi::CStr::from_ptr(libc::gnu_get_libc_version()) }.to_string_lossy();
         let kernel = super::probe::output(std::process::Command::new("/usr/bin/uname"), &["-r"], token)?
             .unwrap_or_default();
         if super::version_at_least(&version, "2.28") && super::version_at_least(&kernel, "4.18") {
@@ -142,6 +149,7 @@ fn supported_host(token: &CancelToken) -> Result<(), String> {
     Err("RUNTIME_UNSUPPORTED: requires macOS 13.5+ or glibc 2.28+ Linux kernel 4.18+".into())
 }
 
+#[cfg(unix)]
 fn install_archive(
     release: &Release,
     dir: &Path,
@@ -164,9 +172,7 @@ fn install_archive(
     )?;
     token.check()?;
     std::fs::rename(
-        stage
-            .path()
-            .join(release.archive.trim_end_matches(".tar.gz")),
+        stage.path().join(release.archive.trim_end_matches(".tar.gz")),
         destination,
     )
     .map_err(integrity)?;
@@ -174,7 +180,7 @@ fn install_archive(
     Ok(())
 }
 
-fn download(
+pub(super) fn download(
     release: &Release,
     file: &mut std::fs::File,
     token: &CancelToken,
@@ -191,7 +197,7 @@ fn download(
     })
 }
 
-async fn wait_cancel(token: &CancelToken) {
+pub(super) async fn wait_cancel(token: &CancelToken) {
     while token.check().is_ok() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
@@ -200,10 +206,7 @@ async fn wait_cancel(token: &CancelToken) {
 async fn download_chunks(release: &Release, file: &mut std::fs::File) -> Result<(), String> {
     let client = http_client()?;
     let mut response = client
-        .get(format!(
-            "https://nodejs.org/dist/v24.21.0/{}",
-            release.archive
-        ))
+        .get(format!("https://nodejs.org/dist/v24.21.0/{}", release.archive))
         .send()
         .await
         .map_err(download_error)?
@@ -230,6 +233,13 @@ pub(super) fn verify_digest(actual: &str, expected: &str) -> Result<(), String> 
 }
 
 fn http_client() -> Result<reqwest::Client, String> {
+    http_builder()?
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(download_error)
+}
+
+pub(super) fn http_builder() -> Result<reqwest::ClientBuilder, String> {
     let roots = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
         rustls::crypto::ring::default_provider(),
@@ -238,15 +248,13 @@ fn http_client() -> Result<reqwest::Client, String> {
     .map_err(download_error)?
     .with_root_certificates(roots)
     .with_no_client_auth();
-    reqwest::Client::builder()
+    Ok(reqwest::Client::builder()
         .use_preconfigured_tls(tls)
         .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(300))
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(download_error)
+        .timeout(Duration::from_secs(300)))
 }
 
+#[cfg(unix)]
 pub(super) fn extract(
     reader: impl Read,
     stage: &Path,
@@ -275,6 +283,7 @@ pub(super) fn extract(
     validate_extracted_links(&stage.join(root), &links)
 }
 
+#[cfg(unix)]
 fn validate_extracted_links(root: &Path, links: &[PathBuf]) -> Result<(), String> {
     let root = root.canonicalize().map_err(integrity)?;
     for link in links {
@@ -285,7 +294,7 @@ fn validate_extracted_links(root: &Path, links: &[PathBuf]) -> Result<(), String
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
@@ -296,20 +305,12 @@ mod tests {
             let mut header = tar::Header::new_gnu();
             header.set_entry_type(tar::EntryType::new(*kind));
             header.set_mode(*mode);
-            header.set_size(if *kind == b'0' {
-                contents.len() as u64
-            } else {
-                0
-            });
+            header.set_size(if *kind == b'0' { contents.len() as u64 } else { 0 });
             if *kind == b'2' {
                 header.set_link_name(contents).unwrap();
             }
             header.set_cksum();
-            let bytes = if *kind == b'0' {
-                contents.as_bytes()
-            } else {
-                &[]
-            };
+            let bytes = if *kind == b'0' { contents.as_bytes() } else { &[] };
             builder.append_data(&mut header, name, bytes).unwrap();
         }
         builder.into_inner().unwrap().finish().unwrap()
@@ -323,19 +324,10 @@ mod tests {
             ("node/bin/npm", "../lib/npm.js", 0o777, b'2'),
         ]);
         let stage = tempfile::tempdir().unwrap();
-        extract(
-            bytes.as_slice(),
-            stage.path(),
-            "node",
-            &CancelToken::default(),
-        )
-        .unwrap();
+        extract(bytes.as_slice(), stage.path(), "node", &CancelToken::default()).unwrap();
         let npm = stage.path().join("node/bin/npm");
         assert_eq!(std::fs::read_to_string(&npm).unwrap(), "npm fixture");
-        assert_eq!(
-            std::fs::read_link(&npm).unwrap(),
-            Path::new("../lib/npm.js")
-        );
+        assert_eq!(std::fs::read_link(&npm).unwrap(), Path::new("../lib/npm.js"));
         assert_eq!(npm.metadata().unwrap().permissions().mode() & 0o4777, 0o755);
     }
 
@@ -347,13 +339,7 @@ mod tests {
         ]);
         let stage = tempfile::tempdir().unwrap();
         std::fs::write(stage.path().join("outside"), "not part of node").unwrap();
-        assert!(extract(
-            bytes.as_slice(),
-            stage.path(),
-            "node",
-            &CancelToken::default()
-        )
-        .is_err());
+        assert!(extract(bytes.as_slice(), stage.path(), "node", &CancelToken::default()).is_err());
     }
 
     #[test]
@@ -365,6 +351,7 @@ mod tests {
     }
 }
 
+#[cfg(unix)]
 fn validate_entry<R: Read>(entry: &tar::Entry<'_, R>, root: &str) -> Result<(), String> {
     let member = safe_member(&entry.path().map_err(integrity)?, root)?;
     let kind = entry.header().entry_type();

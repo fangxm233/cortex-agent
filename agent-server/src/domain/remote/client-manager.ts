@@ -250,7 +250,7 @@ function evictStaleDevices(): void {
   }
 }
 
-function startClientManager(port: number): void {
+function startClientManager(port: number, host?: string): void {
   if (wss) {
     log.warn('Already running');
     return;
@@ -259,7 +259,7 @@ function startClientManager(port: number): void {
   clientManagerPort = port;
   lifecycleHooks?.onStart();
 
-  wss = new WebSocketServer({ port, verifyClient: verifyClientToken });
+  wss = new WebSocketServer({ port, host, verifyClient: verifyClientToken });
   log.info(`WebSocket server started on port ${port}`);
   wss.on('connection', onConnection);
   wss.on('error', (err) => {

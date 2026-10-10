@@ -1,18 +1,19 @@
 //! INSTALL-only qualification. Never attach to or signal an existing daemon.
 use super::{CancelToken, Selection};
+use std::{ffi::OsStr, path::Path, process::Command, time::Duration};
+#[cfg(unix)]
 use std::{
-    ffi::OsStr,
     io::{self, Read},
     os::{fd::AsRawFd, unix::process::CommandExt},
-    path::Path,
-    process::{Child, Command, Stdio},
-    time::{Duration, Instant},
+    process::{Child, Stdio},
+    time::Instant,
 };
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(unix)]
 const MAX_OUTPUT: usize = 64 * 1024;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
@@ -88,9 +89,26 @@ pub(super) fn output(
     capture(command, token, PROBE_TIMEOUT)
 }
 
+#[cfg(windows)]
+fn capture(
+    command: Command,
+    token: &CancelToken,
+    timeout: Duration,
+) -> Result<Option<String>, String> {
+    let result = super::process::windows::run(command, token, Some(timeout), &|_| {});
+    token.check()?;
+    Ok(result
+        .ok()
+        .filter(|outcome| outcome.exit_code == 0)
+        .map(|outcome| String::from_utf8_lossy(&outcome.stdout).trim().to_string())
+        .filter(|text| !text.is_empty()))
+}
+
 // RAII covers cancellation, deadline, output limit, I/O errors, and normal completion.
 // Descendants retaining stdout cannot keep a reader thread (or the installer) blocked.
+#[cfg(unix)]
 struct OwnedProbe(Child);
+#[cfg(unix)]
 impl Drop for OwnedProbe {
     fn drop(&mut self) {
         unsafe {
@@ -100,6 +118,7 @@ impl Drop for OwnedProbe {
     }
 }
 
+#[cfg(unix)]
 fn capture(
     mut command: Command,
     token: &CancelToken,
@@ -119,6 +138,7 @@ fn capture(
     result
 }
 
+#[cfg(unix)]
 fn nonblocking(stdout: &impl AsRawFd) -> io::Result<()> {
     let fd = stdout.as_raw_fd();
     let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
@@ -128,6 +148,7 @@ fn nonblocking(stdout: &impl AsRawFd) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 fn read_probe(
     child: &mut OwnedProbe,
     token: &CancelToken,
@@ -148,6 +169,7 @@ fn read_probe(
     }
 }
 
+#[cfg(unix)]
 fn read_until_eof(
     stdout: &mut impl Read,
     token: &CancelToken,
@@ -168,6 +190,7 @@ fn read_until_eof(
     }
 }
 
+#[cfg(unix)]
 fn read_chunk(stdout: &mut impl Read, bytes: &mut Vec<u8>) -> io::Result<bool> {
     let mut chunk = [0; 8192];
     let count = match stdout.read(&mut chunk) {
@@ -189,6 +212,7 @@ fn read_chunk(stdout: &mut impl Read, bytes: &mut Vec<u8>) -> io::Result<bool> {
     Ok(count == 0)
 }
 
+#[cfg(unix)]
 fn finish_probe(
     child: &mut OwnedProbe,
     bytes: &[u8],

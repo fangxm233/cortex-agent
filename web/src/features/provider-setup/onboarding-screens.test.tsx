@@ -12,7 +12,8 @@ const text = (view: ReactTestRenderer) => JSON.stringify(view.toJSON());
 function nativeSetup(os = 'linux', homeExists = false) {
   const results: Record<string, unknown> = {
     setup_probe: { node: 'v22.19.0', nodeOk: true, npm: '10', git: 'git', cortexBin: '/bin/cortex',
-      serverVersion: '2026.10.1', serverOk: true, homeExists, hostname: 'host', os },
+      serverVersion: '2026.10.1', serverOk: true, homeExists, hostname: 'host', os,
+      ...(os === 'windows' ? { node: null, nodeOk: false, npm: null, git: null } : {}) },
     setup_install_server: { cortexBin: '/bin/cortex', serverVersion: '2026.10.1' },
     setup_run_init: { version: null, uiUrl: 'http://127.0.0.1:3004', clientToken: 't' },
     setup_enable_ui: { url: 'http://127.0.0.1:14004', token: 't' },
@@ -23,10 +24,11 @@ function nativeSetup(os = 'linux', homeExists = false) {
   return { invoke, results };
 }
 
-it.each(['setup_install_server', 'setup_run_init', 'setup_start_daemon', 'connect'])(
-  'keeps the real POSIX screen to one row without a form while awaiting %s', async pending => {
+it.each(['setup_install_server', 'setup_run_init', 'setup_start_daemon', 'connect'].flatMap(pending =>
+  ['linux', 'windows'].map(os => [os, pending])))(
+  'keeps the real %s screen to one row without a form while awaiting %s', async (os, pending) => {
     vi.useFakeTimers();
-    const { invoke, results } = nativeSetup();
+    const { invoke, results } = nativeSetup(os);
     let release!: () => void;
     const waiting = new Promise<void>(resolve => { release = resolve; });
     invoke.mockImplementation(async command => { if (command === pending) await waiting; return results[command]; });
@@ -46,9 +48,10 @@ it.each(['setup_install_server', 'setup_run_init', 'setup_start_daemon', 'connec
     act(() => view.unmount());
   });
 
-it.each([false, true])('real connect marks only fresh installs (homeExists=%s) and respects saved intent', async homeExists => {
+it.each(['linux', 'windows'].flatMap(os => [false, true].map(homeExists => ({ os, homeExists }))))(
+  'real $os connect marks only fresh installs (homeExists=$homeExists) and respects saved intent', async ({ os, homeExists }) => {
   vi.useFakeTimers();
-  const { invoke, results } = nativeSetup('linux', homeExists);
+  const { invoke, results } = nativeSetup(os, homeExists);
   results.connect = { serverUrl: 'http://127.0.0.1:3004', token: 't', providerSetupPending: homeExists };
   const leave = vi.fn();
   let view!: ReactTestRenderer;
@@ -63,9 +66,9 @@ it.each([false, true])('real connect marks only fresh installs (homeExists=%s) a
   act(() => view.unmount());
 });
 
-it('retries installation from the real screen and continues automatically with defaults', async () => {
+it.each(['linux', 'windows'])('retries installation from the real %s screen and continues automatically with defaults', async os => {
   vi.useFakeTimers();
-  const { invoke, results } = nativeSetup();
+  const { invoke, results } = nativeSetup(os);
   let failing = true;
   invoke.mockImplementation(async command => {
     if (command === 'setup_install_server' && failing) throw new Error('SERVER_INSTALL_FAILED');
@@ -84,35 +87,52 @@ it('retries installation from the real screen and continues automatically with d
   act(() => view.unmount());
 });
 
-it('preserves the existing port until a failed start is explicitly repaired in the view', async () => {
+it.each(['linux', 'windows'])('preserves the %s endpoint and daemon until explicitly repaired in the view', async os => {
   vi.useFakeTimers();
-  const { invoke, results } = nativeSetup('linux', true);
+  const { invoke, results } = nativeSetup(os, true);
   results.setup_start_daemon = false;
   let view!: ReactTestRenderer;
   await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
   expect(invoke).toHaveBeenCalledWith('setup_enable_ui', { run: 'start', bin: '/bin/cortex', port: undefined });
   expect(view.root.findAllByType('form')).toHaveLength(0);
+  await act(async () => view.root.findByProps({ 'data-action': 'onb-retry' }).props.onClick());
+  expect(invoke).toHaveBeenLastCalledWith('setup_start_daemon', { run: 'start', bin: '/bin/cortex',
+    url: 'http://127.0.0.1:14004', token: 't', restart: false });
   act(() => view.root.findByProps({ children: en.onbEditSettings }).props.onClick());
   act(() => view.root.findByProps({ id: 'onb-port' }).props.onChange({ target: { value: '15004' } }));
   results.setup_start_daemon = true;
   await act(async () => view.root.findByType('form').props.onSubmit({ preventDefault() {} }));
   expect(invoke).toHaveBeenCalledWith('setup_enable_ui', { run: 'start', bin: '/bin/cortex', port: 15004 });
+  expect(invoke).toHaveBeenCalledWith('setup_start_daemon', { run: 'start', bin: '/bin/cortex',
+    url: 'http://127.0.0.1:14004', token: 't', restart: true });
   expect(invoke.mock.calls.map(call => call[0])).not.toContain('setup_run_init');
   expect(invoke.mock.calls.map(call => call[0])).not.toContain('setup_enable_autostart');
   act(() => view.unmount());
 });
 
-it('keeps the Windows configuration form and Start confirmation', async () => {
+it('keeps Windows cancellation pending until install settles, then offers automatic retry', async () => {
   vi.useFakeTimers();
-  const { invoke } = nativeSetup('windows');
+  const { invoke, results } = nativeSetup('windows');
+  let reject!: (error: Error) => void;
+  const installing = new Promise<never>((_, fail) => { reject = fail; });
+  invoke.mockImplementation(async command => command === 'setup_install_server' ? installing : results[command]);
+  const leave = vi.fn();
   let view!: ReactTestRenderer;
-  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
-  expect(view.root.findByProps({ id: 'onb-machine' }).props.value).toBe('host');
-  expect(view.root.findAllByProps({ type: 'checkbox' })).toHaveLength(0);
-  expect(view.root.findAllByProps({ 'data-action': 'onb-start' })).toHaveLength(1);
-  expect(invoke.mock.calls.map(call => call[0])).toEqual(['setup_probe']);
-  await act(async () => view.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={leave} />); });
+  await act(async () => view.root.findByProps({ 'data-action': 'onb-cancel' }).props.onClick());
+  expect(invoke).toHaveBeenLastCalledWith('setup_cancel_install', undefined);
+  expect(view.root.findAllByProps({ 'data-action': 'onb-retry' })).toHaveLength(0);
+  expect(invoke.mock.calls.map(call => call[0])).not.toContain('setup_run_init');
+  expect(leave).not.toHaveBeenCalled();
+  await act(async () => { reject(new Error('SETUP_CANCELLED')); });
+  expect(view.root.findByProps({ role: 'alert' }).findByType('p').children).toEqual([en.onbErrSetupCancelled]);
+  expect(view.root.findAllByProps({ 'data-action': 'onb-cancel' })).toHaveLength(0);
+  invoke.mockImplementation(async command => results[command]);
+  await act(async () => view.root.findByProps({ 'data-action': 'onb-retry' }).props.onClick());
+  expect(view.root.findAllByType('form')).toHaveLength(0);
   expect(invoke).toHaveBeenCalledWith('connect', expect.anything());
+  await act(async () => { vi.advanceTimersByTime(600); });
+  expect(leave).toHaveBeenCalledWith('index.html#/setup/providers');
   act(() => view.unmount());
 });
 

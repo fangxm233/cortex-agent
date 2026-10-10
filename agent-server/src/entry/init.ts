@@ -28,6 +28,7 @@ import { CORTEX_VERSION } from '@core/version.js';
 import { cmdFeishu } from './feishu-login.js';
 import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
 import type { CliResult } from '@core/cli-utils.js';
+import { parseClientListenHost, parseLocalClientAnswer, withInitLocalClient, type LocalClientAnswer } from './init-local-client.js';
 
 // ─── Path computation (DATA_DIR resolved locally to support --home override) ──
 
@@ -111,6 +112,10 @@ export interface InitAnswers {
    * is unchanged and the endpoint stays opt-in.
    */
   localUi?: { enabled: boolean; port?: number };
+  /** Explicit native opt-in; ordinary and remote init do not enroll a local client. */
+  localClient?: LocalClientAnswer;
+  /** New Windows local App intent; omitted leaves the client WS listener default unchanged. */
+  clientListenHost?: '127.0.0.1';
 }
 
 // ─── JSON answers (machine-driven init) ──────────────────────────
@@ -195,6 +200,8 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
       ? input.extraProfiles.map(parseChoiceValue).filter((c): c is ModelChoice => !!c)
       : undefined,
     localUi: parseLocalUi(input.localUi),
+    localClient: parseLocalClientAnswer(input.localClient),
+    clientListenHost: parseClientListenHost(input.clientListenHost),
   };
 }
 
@@ -239,6 +246,9 @@ export function generateDotEnvContent(answers: InitAnswers): string {
     `CORTEX_CLIENT_TOKEN=${randomBytes(32).toString('hex')}`,
     `CORTEX_WEBHOOK_TOKEN=${randomBytes(32).toString('hex')}`,
   ];
+
+  const clientHost = parseClientListenHost(answers.clientListenHost);
+  if (clientHost !== undefined) lines.push(`CORTEX_CLIENT_HOST=${clientHost}`);
 
   // CORTEX_PLATFORM is a comma-separated list (runtime composes adapters via CompositeAdapter).
   // Each platform's token block is emitted independently when its config is present, so a
@@ -1571,6 +1581,16 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   }
 }
 
+export function writeInitConfigs(paths: InitPaths, answers: InitAnswers, force: boolean): void {
+  // Opt-in retries never replace credentials, registry, or user configuration (even with --force).
+  const overwrite = answers.localClient?.enabled ? false : force;
+  writeDotEnv(paths, answers, overwrite);
+  copyDefaults(paths, overwrite);
+  deployHooks(paths, overwrite);
+  generateConfigs(paths, answers, overwrite);
+  seedSchedules(paths, overwrite);
+}
+
 async function runInitSteps(
   paths: InitPaths,
   force: boolean,
@@ -1597,12 +1617,8 @@ async function runInitSteps(
   if (gitAvailable) ensureGitRepo(paths.DATA_DIR);
   emit({ step: 'home', state: 'ok', home: paths.DATA_DIR });
 
-  // 4. Write configs
-  writeDotEnv(paths, answers, force);
-  copyDefaults(paths, force);
-  deployHooks(paths, force);
-  generateConfigs(paths, answers, force);
-  seedSchedules(paths, force);
+  // 4. Explicit client intent is durable before config writes; prepare never starts a process.
+  await withInitLocalClient(paths, answers, () => writeInitConfigs(paths, answers, force), emit);
   emit({ step: 'config', state: 'ok' });
 
   // 5. Gateway usage — omitted scripted answers preserve the existing user choice.
