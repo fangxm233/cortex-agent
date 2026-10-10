@@ -11,11 +11,9 @@ prompt and shows you exactly where to click.
 
 ## Prefer not to use a terminal?
 
-The [desktop app](desktop-app.md#installing-a-server-from-the-app) can install and configure Cortex for you. On supported macOS and Linux systems, choose **Install Cortex** and wait for installation and startup to finish automatically, then sign in and select a default profile. New installations use the hostname, port 3004, and no login service; existing machine, port, and service settings are preserved. Only a failed initialization or start/connection offers repair settings. No terminal, Homebrew, Git, or administrator access is needed for local server setup.
+The [desktop app](desktop-app.md#installing-a-server-from-the-app) can install and configure Cortex for you on macOS, Linux, and Windows. Choose **Install Cortex** and wait for installation and startup to finish automatically, then sign in and select a default profile. New installations use the hostname, port 3004, and no login service; existing machine, port, and service settings are preserved. Only a failed initialization or start/connection offers repair settings. Slack and Feishu setup is skipped — the app is the interface. Login may open your browser for authorization or MFA, and macOS may require Gatekeeper approval when opening the app.
 
-Windows requires Node.js, npm, and Git Bash to be installed separately, then machine settings and **Start Cortex** confirmation in the app. Slack and Feishu setup is skipped — the app is the interface. Login may open your browser for authorization or MFA, and macOS may require Gatekeeper approval when opening the app.
-
-Automatic dependency installation supports macOS 13.5+ and glibc Linux (glibc 2.28+), on x64 and arm64. An existing compatible runtime can be reused on an older system. This requires a native app build with automatic dependency setup; a frontend update alone cannot add it. See the desktop guide for details. Continue below for terminal installation and chat-platform setup.
+The installer carries its own Node.js and, on Windows, Git Bash, so no terminal, separately installed Node.js or Git, Homebrew, or administrator access is needed. Local installation supports macOS 13.5+, Linux x86_64 with glibc 2.28+, and Windows 10/11 x86_64; see the desktop guide for details. Continue below for terminal installation and chat-platform setup.
 
 ## Prerequisites
 
