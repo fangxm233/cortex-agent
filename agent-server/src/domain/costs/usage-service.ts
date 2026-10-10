@@ -391,6 +391,13 @@ function codexDraft(drafts: Map<string, RowDraft>): RowDraft {
   return draft;
 }
 
+function codexNotes(result: PromiseSettledResult<CodexQuotaResult>, reading: CodexQuotaResult): string[] {
+  const failed = result.status === 'rejected'
+    ? [t('ux.usage.codexFailed', { error: errorMessage(result.reason) })]
+    : [];
+  return reading.note ? [...failed, reading.note] : failed;
+}
+
 function applyCodexRecord(draft: RowDraft, record: ProviderUsage): void {
   draft.windows = record.windows;
   draft.observedAt = record.observedAt;
@@ -525,21 +532,14 @@ export class UsageService {
     prior: ProviderUsage[],
   ): void {
     const reading = result.status === 'fulfilled' ? result.value : { record: null };
-    if (reading.record) {
-      const draft = codexDraft(drafts);
-      applyCodexRecord(draft, reading.record);
-      if (reading.note) draft.notes.push(reading.note);
-      return;
-    }
     // Observation-only: with no reading and no history, Codex is simply not in use here.
-    const priorRow = prior.find((row) => row.provider === CODEX_PROVIDER);
-    if (!drafts.has(draftKey(CODEX_PROVIDER, 'subscription')) && !priorRow) return;
+    const inUse = drafts.has(draftKey(CODEX_PROVIDER, 'subscription'))
+      || prior.some((row) => row.provider === CODEX_PROVIDER);
+    if (!reading.record && !inUse) return;
     const draft = codexDraft(drafts);
-    if (result.status === 'rejected') {
-      draft.notes.push(t('ux.usage.codexFailed', { error: errorMessage(result.reason) }));
-    }
-    if (reading.note) draft.notes.push(reading.note);
-    this.carryQuotaFromPrior(draft, prior);
+    draft.notes.push(...codexNotes(result, reading));
+    if (reading.record) applyCodexRecord(draft, reading.record);
+    else this.carryQuotaFromPrior(draft, prior);
   }
 
   /** Keep the last good quota reading rather than blanking the row on a failed cycle. */

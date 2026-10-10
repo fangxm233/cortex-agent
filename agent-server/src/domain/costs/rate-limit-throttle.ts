@@ -532,23 +532,30 @@ function windowRecovered(provider: string, window: RateLimitWindowState, reading
   return !policy.enabled || reading.utilization < thresholdFor(window.type, policy.threshold);
 }
 
-async function releaseRecoveredQuotaLocked(provider: string, readings: QuotaReading[]): Promise<boolean> {
-  if (!_persistence) return false;
-  const candidate = cloneProviders();
-  const state = candidate.get(provider);
-  if (!state) return false;
-  const kept = state.windows.filter((window) => !windowRecovered(provider, window, readings));
-  if (kept.length === state.windows.length) return false;
-  if (kept.length > 0) state.windows = kept;
-  else candidate.delete(provider);
+/** `released` is the provider whose last window lifted, which also resumes its paused work. */
+async function commitRelease(
+  candidate: Map<string, ProviderThrottleState>,
+  released: ProviderThrottleState | null,
+): Promise<void> {
   await persist(candidate);
   publishProviders(candidate);
   scheduleResumeTimer();
   fireChange();
-  if (kept.length > 0) return true;
-  log.info(`Throttle released by a fresh quota reading: provider=${provider}`);
-  sendDM(`${Icons.ok} ${t('notice.rateLimit.cleared', { provider: state.displayName })}`);
-  fireResume([provider]);
+  if (!released) return;
+  log.info(`Throttle released by a fresh quota reading: provider=${released.provider}`);
+  sendDM(`${Icons.ok} ${t('notice.rateLimit.cleared', { provider: released.displayName })}`);
+  fireResume([released.provider]);
+}
+
+async function releaseRecoveredQuotaLocked(provider: string, readings: QuotaReading[]): Promise<boolean> {
+  const candidate = cloneProviders();
+  const state = candidate.get(provider);
+  if (!_persistence || !state) return false;
+  const kept = state.windows.filter((window) => !windowRecovered(provider, window, readings));
+  if (kept.length === state.windows.length) return false;
+  if (kept.length > 0) state.windows = kept;
+  else candidate.delete(provider);
+  await commitRelease(candidate, kept.length === 0 ? state : null);
   return true;
 }
 

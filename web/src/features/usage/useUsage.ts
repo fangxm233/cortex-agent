@@ -268,6 +268,17 @@ function useCodexReset(
   };
 }
 
+function useRefreshUsage(
+  trpc: ReturnType<typeof useTRPC>,
+  queryClient: ReturnType<typeof useQueryClient>,
+  statusKey: readonly unknown[],
+) {
+  const refresh = useMutation(trpc.system.refreshUsage.mutationOptions({
+    onSuccess: (data: SystemUsageStatus) => queryClient.setQueryData(statusKey, data),
+  }));
+  return { refresh, run: () => refresh.mutate({} as unknown as Parameters<typeof refresh.mutate>[0]) };
+}
+
 // Only the Usage pages mount this hook, and opening one means the user wants current numbers, so
 // it re-collects once on open instead of showing a snapshot up to one collection interval old.
 // The ref keeps StrictMode's effect replay from collecting twice.
@@ -290,15 +301,12 @@ export function useUsage(): UsageFeatureState {
   const configOptions = trpc.config.get.queryOptions({});
   const query = useQuery(statusOptions);
   const configQuery = useQuery(configOptions);
-  const refresh = useMutation(trpc.system.refreshUsage.mutationOptions({
-    onSuccess: (data: SystemUsageStatus) => queryClient.setQueryData(statusOptions.queryKey, data),
-  }));
+  const { refresh, run: runRefresh } = useRefreshUsage(trpc, queryClient, statusOptions.queryKey);
   const providerRateLimits = readProviderRateLimits(configQuery.data);
   const controlsState = readPolicyControlsState(configQuery.isLoading, configQuery.isError, providerRateLimits);
   const saveMutation = useMutation(trpc.config.setProviderRateLimitPolicy.mutationOptions()) as unknown as PolicyMutation;
   const policySave = usePolicySave(controlsState, saveMutation, queryClient, configOptions.queryKey);
   const reset = useCodexReset(trpc, queryClient, statusOptions.queryKey);
-  const runRefresh = () => refresh.mutate({} as unknown as Parameters<typeof refresh.mutate>[0]);
   useRefreshOnOpen(runRefresh);
 
   return {
