@@ -542,9 +542,9 @@ quota controls. Model policy identity follows the reported display label; if a
 provider renames that label, the old entry no longer matches. Policy edits
 apply only to future quota observations; an already-active quota or outage
 window keeps its current state until its reset time or a manual **Resume now**
-clear. The Codex card also shows the account's banked resets and a confirmed
-**Use reset** action; see
-[OpenAI Codex account usage and banked resets](./backends.md#openai-codex-account-usage-and-banked-resets).
+clear. The Codex and Anthropic cards also show the account's banked resets and
+a confirmed **Use reset** action; see
+[Account usage and banked resets](./backends.md#account-usage-and-banked-resets).
 
 Built-in job intervals must be integer milliseconds from `1000` through
 `2147483647`, the safe range for Node timers. Enabled jobs run once at daemon

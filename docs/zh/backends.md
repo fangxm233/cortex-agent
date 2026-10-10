@@ -267,19 +267,24 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 被中断的对话会连同其 provider 一起持久化。某个 provider 完全恢复后，Cortex 只恢复属于该 provider 的工作，其他仍处于限流状态的 provider 继续等待。对话在原频道恢复并保留上下文。多项恢复会错开启动，避免刚开放的窗口立即再次耗尽。
 
-限流详情会显示每个 provider 正在等待的对话数，并保留同时激活的模型窗口名称。Provider key 是当前隔离边界：多个账户或额度池若使用同一个 provider key，就共享同一条 provider 记录；类型与名称都相同的窗口保留较晚的重置时间。定时限流要求观测中带有重置时间。Claude 的 live 账户用量拉取会把所有窗口提交给每个已配置的 Anthropic mode，而 stale PI 缓存不会被重放；PI 的响应头额度通过 push 链路进入，OpenAI Codex 账号读取见[下文](#openai-codex-account-usage-and-banked-resets)。
+限流详情会显示每个 provider 正在等待的对话数，并保留同时激活的模型窗口名称。Provider key 是当前隔离边界：多个账户或额度池若使用同一个 provider key，就共享同一条 provider 记录；类型与名称都相同的窗口保留较晚的重置时间。定时限流要求观测中带有重置时间。Claude 的 live 账户用量拉取会把所有窗口提交给每个已配置的 Anthropic mode，而 stale PI 缓存不会被重放；PI 的响应头额度通过 push 链路进入，每次用量采集对 OpenAI Codex 与 Claude 账号的读取见[下文](#account-usage-and-banked-resets)。
 
-策略改动只作用于未来收到的额度观测，不会回写已经处于激活状态的窗口。已经激活的额度窗口或 outage 重试窗口会保持生效，直到窗口自然重置，或被手动 **Resume now** 清除；Codex 额度窗口在新的账号读数低于阈值时也会解除。Outage 重试行为使用自己独立的 outage 窗口，不受额度阈值策略改动影响。
+策略改动只作用于未来收到的额度观测，不会回写已经处于激活状态的窗口。已经激活的额度窗口或 outage 重试窗口会保持生效，直到窗口自然重置，或被手动 **Resume now** 清除；Codex 或 Claude 额度窗口在新的账号读数低于阈值时也会解除。Outage 重试行为使用自己独立的 outage 窗口，不受额度阈值策略改动影响。
 
 限流窗口与带 provider 归属的恢复队列持久化在 `data/provider-state.json` 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复在停机期间已经解除限流的 provider 工作，即使另一个 provider 仍在限流。旧数据中没有 provider 的条目会等待所有 provider 都解除。已有活跃对话的频道会被跳过；等待时长本身不会导致条目被丢弃。
 
 自动恢复默认开启。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"autoResume": false` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发；改动无需重启守护进程即刻生效。`.env` 中的旧变量 `CORTEX_AUTO_RESUME=0` 仍作为已弃用的回退被读取。
 
-### OpenAI Codex 账号用量与可用重置 {#openai-codex-account-usage-and-banked-resets}
+### 账号用量与可用重置 {#account-usage-and-banked-resets}
 
-登录 OpenAI Codex（ChatGPT 套餐）后，每次用量采集——内置 provider 用量作业、打开 Usage 页面或点 **刷新**——都会直接读取 Codex 账号。读数填入 Codex 订阅行的主/次窗口，并列出账号的可用重置（banked reset）：可用数量以及最早一个的过期时间。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上说明。账号读数不会开启限流，但会解除已经回落到阈值以下的 Codex 限流窗口，因此在其他设备上使用的重置同样会让 Cortex 暂停的工作恢复。
+每次用量采集——内置 provider 用量作业、打开 Usage 页面或点 **刷新**——都会直接读取两个订阅账号：
 
-一次重置会立即恢复整个账号在所有设备上的 Codex 用量窗口，且无法撤销；每个重置在发放约 30 天后过期。Cortex 从不自动使用重置。桌面端与移动端 Usage 的 Codex 卡片在有可用重置时显示 **使用重置**，确认后使用最早过期的那一个。聊天中，`!usage` 显示同样的数量与过期时间，并提供 **使用 Codex 重置** 按钮，点击后在线程里发出确认提示；账号持有重置时，Codex 限流通知也会在 **Resume now** 旁带上这个按钮。重置成功后，Cortex 清除 Codex 限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示已恢复的窗口。
+- **OpenAI Codex**，需以 ChatGPT 套餐登录。读数填入 Codex 订阅行的主/次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上说明。
+- **Claude**，需通过 `claude login` 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口。Cortex 使用 Claude Code 保存的访问令牌，但无法自行刷新它；令牌过期、使用 API key 或未登录时，该行改用网关的额度观测；读取失败时同样回退，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
+
+每次读数还会列出账号的可用重置（banked reset）：可用数量以及最早一个的过期时间。账号读数不会开启限流，但会解除该 provider 已经回落到阈值以下的限流窗口，因此在其他设备上使用的重置同样会让 Cortex 暂停的工作恢复。
+
+一次重置作用于整个账号、所有设备，且无法撤销。Codex 重置恢复 Codex 用量窗口，在发放约 30 天后过期。Claude 重置清空其授予项列出的窗口——通常是 5 小时、7 天与含超额 7 天限额——claude.ai 与其他所有 Claude 客户端一并生效。Cortex 从不自动使用重置。桌面端与移动端 Usage 的 Codex 与 Anthropic 卡片在有可用重置时显示 **使用重置**，并先要求确认；Claude 的确认提示会列出将清空的窗口，账号尚未达到限额时还会显示这些窗口的当前用量。Cortex 使用账号推荐的下一个重置，没有推荐时使用最早过期的那一个。聊天中，`!usage` 显示同样的数量与过期时间，并提供 **使用 Codex 重置** 或 **使用 Claude 重置** 按钮，点击后在线程里发出确认提示；账号持有重置时，Codex 或 Claude 限流通知也会在 **Resume now** 旁带上这个按钮。重置成功后，Cortex 清除该 provider 的限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示被清空的窗口已恢复。账号拒绝时——无需重置、重置已被使用、正在冷却，或账号当前无法使用重置——不会消耗重置，Cortex 会说明属于哪种情况。
 
 ### 为什么限额信号是注入而不是事件 {#why-a-rate-limit-signal-is-injected-not-streamed}
 

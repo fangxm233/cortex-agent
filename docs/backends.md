@@ -549,14 +549,15 @@ and windows with the same type and label retain the later reset time. Timed
 throttling requires a reset-bearing observation. Claude live account-usage
 pulls submit every reported window for each configured Anthropic mode, while
 stale PI cache reads are never replayed; PI response-header observations
-arrive through their push path, and OpenAI Codex account reads are described
-[below](#openai-codex-account-usage-and-banked-resets).
+arrive through their push path, and the OpenAI Codex and Claude account reads
+of each usage collection are described
+[below](#account-usage-and-banked-resets).
 
 Policy edits apply only to future quota observations. They do not rewrite a
 window that is already active. An active quota window or outage retry window
 stays in force until its reset time or a manual **Resume now** clear; a Codex
-quota window also lifts when a fresh account reading shows it below its
-threshold. Outage
+or Claude quota window also lifts when a fresh account reading shows it below
+its threshold. Outage
 retry behavior uses its own outage windows and is unaffected by quota-policy
 threshold edits.
 
@@ -574,28 +575,48 @@ resume entries instead of dispatching them automatically; the change takes
 effect without a daemon restart. The legacy `CORTEX_AUTO_RESUME=0` variable in
 `.env` is still read as a deprecated fallback.
 
-### OpenAI Codex account usage and banked resets
+### Account usage and banked resets
 
-With an OpenAI Codex (ChatGPT plan) sign-in, every usage collection — the
-built-in provider-usage job, opening a Usage screen, or **Refresh** — reads
-the Codex account directly. The reading fills the Codex primary and secondary
-windows on the Codex subscription row and lists the account's banked resets:
-how many are available and when the earliest one expires. When the read fails,
-the row keeps the windows last observed in Codex response headers and carries
-a note saying so. An account reading never starts a throttle, but it lifts
-Codex throttle windows that have fallen below their threshold, so a reset
-spent from another device also releases work Cortex paused.
+Every usage collection — the built-in provider-usage job, opening a Usage
+screen, or **Refresh** — reads two subscription accounts directly:
 
-A banked reset restores the Codex usage windows for the whole account, on
-every device, and cannot be undone; each one expires about 30 days after it is
-granted. Cortex never spends one on its own. On the Codex card in desktop and
-mobile Usage, **Use reset** appears while a reset is available and asks for
-confirmation before spending the one that expires first. In chat, `!usage`
-shows the same count and expiry with a **Use Codex reset** button that posts a
-confirm prompt in the thread, and a Codex throttle notice carries that button
-next to **Resume now** while the account holds a reset. After a reset Cortex
-clears the Codex throttle, resumes the work it paused, and re-reads usage for
-a few seconds until the account shows the restored windows.
+- **OpenAI Codex**, with a ChatGPT-plan sign-in. The reading fills the Codex
+  primary and secondary windows on the Codex subscription row. When the read
+  fails, the row keeps the windows last observed in Codex response headers and
+  carries a note saying so.
+- **Claude**, signed in with `claude login`. The reading fills the five-hour
+  and seven-day windows on the Anthropic subscription row. Cortex uses the
+  access token Claude Code stores and cannot refresh it, so with an expired
+  token, an API-key setup, or no login the row falls back to the gateway's
+  quota observation; a failed read falls back the same way and adds a note.
+  The account offers resets only to a current Claude Code client, so these
+  requests identify as the installed `claude` CLI version.
+
+Each reading also lists the account's banked resets: how many are available
+and when the earliest one expires. An account reading never starts a
+throttle, but it lifts that provider's throttle windows that have fallen below
+their threshold, so a reset spent from another device also releases work
+Cortex paused.
+
+A banked reset applies to the whole account, on every device, and cannot be
+undone. A Codex reset restores the Codex usage windows and expires about 30
+days after it is granted. A Claude reset clears the windows its grant names —
+typically the five-hour, seven-day, and seven-day-including-overage limits —
+for claude.ai and every other Claude client as well. Cortex never spends a
+reset on its own. On the Codex and Anthropic cards in desktop and mobile
+Usage, **Use reset** appears while a reset is available and asks for
+confirmation first; the Claude confirmation names the windows the reset
+clears and, while the account is not at a limit, shows their current use.
+Cortex spends the reset the account offers next, otherwise the one that
+expires first. In chat, `!usage` shows the same count and expiry with a
+**Use Codex reset** or **Use Claude reset** button that posts a confirm prompt
+in the thread, and a Codex or Claude throttle notice carries that button next
+to **Resume now** while the account holds a reset. After a reset Cortex clears
+that provider's throttle, resumes the work it paused, and re-reads usage for a
+few seconds until the account shows the cleared windows restored. When the
+account declines — nothing to reset, a reset already used, a cooldown, or an
+account that cannot use resets right now — no reset is spent and Cortex says
+which case applies.
 
 ## Cost reporting
 
