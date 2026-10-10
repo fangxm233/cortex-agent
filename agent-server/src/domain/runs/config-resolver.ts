@@ -41,12 +41,7 @@ export interface ResolvedRunConfig {
 
 /** Startup and login exist before a first profile. Only a missing file is unconfigured. */
 export function resolveConfiguredDefaultRun(): ResolvedRunConfig | null {
-  try {
-    profileRepo.readSync();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
+  if (!profileRepo.readIfPresent()) return null;
   // Validate existing configuration even when the active selection could use a synthetic fallback.
   getDefaultProfileName();
   return resolveRunConfig();

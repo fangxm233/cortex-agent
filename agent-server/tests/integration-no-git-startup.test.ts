@@ -73,13 +73,32 @@ async function waitForReady(run: ReturnType<typeof launch>) {
   expect(run.errors()).not.toContain('unhandledRejection');
 }
 
-async function query(url: string, token: string, method: string) {
-  const response = await fetch(`${url}/trpc/${method}?input=%7B%7D`, {
-    headers: { 'x-cortex-token': token }, signal: AbortSignal.timeout(20_000),
+async function call(url: string, token: string, method: string, mutation = false) {
+  const response = await fetch(`${url}/trpc/${method}${mutation ? '' : '?input=%7B%7D'}`, {
+    method: mutation ? 'POST' : 'GET', body: mutation ? '{}' : undefined,
+    headers: { 'x-cortex-token': token, 'content-type': 'application/json' }, signal: AbortSignal.timeout(20_000),
   });
   const body = await response.json() as { result: { data: unknown } };
   expect(response.status, JSON.stringify(body)).toBe(200);
   return body.result.data;
+}
+const query = (url: string, token: string, method: string) => call(url, token, method);
+/** The Provider page's model refresh. */
+const refreshModels = (url: string, token: string) => call(url, token, 'auth.syncGateway', true) as Promise<{
+  configured: boolean; reason?: string; profiles: string[];
+}>;
+
+/** Model refresh before and after the first PI login, while no profiles.json exists yet. */
+async function firstLoginRefresh(home: string, endpoint: { uiUrl: string; clientToken: string }) {
+  expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: false, reason: 'no-endpoints' });
+  mkdirSync(join(home, '.pi/agent'), { recursive: true });
+  writeFileSync(join(home, '.pi/agent/auth.json'), JSON.stringify({ openai: { type: 'api_key', key: 'sk-test' } }));
+  expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: true, profiles: ['plan', 'execute'] });
+  expect(existsSync(join(home, 'config/profiles.json'))).toBe(true);
+  const status = await query(endpoint.uiUrl, endpoint.clientToken, 'auth.status') as {
+    accounts: { provider: string; inUse: boolean }[];
+  };
+  expect(status.accounts.filter(account => account.inUse).map(account => account.provider)).toEqual(['openai']);
 }
 
 test.skipIf(process.platform === 'win32')('Git-free init starts a real server and serves provider setup', async () => {
@@ -97,8 +116,10 @@ test.skipIf(process.platform === 'win32')('Git-free init starts a real server an
   expect(status.accounts.every(account => !account.inUse)).toBe(true);
   expect(existsSync(join(home, 'config/profiles.json'))).toBe(false);
   expect(await query(endpoint.uiUrl, endpoint.clientToken, 'config.get')).toBeTruthy();
+  await firstLoginRefresh(home, endpoint);
   expect(existsSync(join(home, '.git'))).toBe(false);
   const closed = once(run.child, 'close');
   run.child.kill('SIGTERM');
   expect((await closed)[0], run.errors()).toBe(0);
+  expect(run.errors()).not.toMatch(/unhandledRejection|profiles unreadable/);
 });

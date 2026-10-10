@@ -35,6 +35,16 @@ export class ProfileRepo {
     return parsed;
   }
 
+  /** readSync(), except that a missing file — a home with no provider configured yet — is null. */
+  readIfPresent(): ProfilesFile | null {
+    try {
+      return this.readSync();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+  }
+
   /** Drop the in-memory cache so the next readSync() fetches from disk. */
   invalidate(): void {
     this._syncCache = null;

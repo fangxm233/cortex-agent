@@ -205,7 +205,7 @@ function initConfiguredHooks(): void {
  *  process does not wait out its multi-second module import. */
 function prewarmPiBackend(): void {
   try {
-    const { profiles } = profileRepo.readSync();
+    const profiles = profileRepo.readIfPresent()?.profiles ?? {};
     const usesPi = Object.values(profiles).some((profile) => profile.backend === 'pi'
       || profile.fallback?.some((entry) => entry.backend === 'pi'));
     if (usesPi) prewarmPiSdk();
@@ -219,8 +219,8 @@ function prewarmPiBackend(): void {
 // crash-loop on EADDRINUSE. The daemon's own daemon.pid lock only guards the supervisor
 // layer and does nothing for `cortex start` (which forks app.js directly, bypassing the
 // daemon). Acquire our own app.pid lock here, as early as possible, to fail fast before
-// any heavy initialization or port binding. Stale locks (previous owner SIGKILL'd / crashed)
-// are reclaimed automatically. Released on process exit (covers SIGTERM→exit(0) and Ctrl+C).
+// any heavy initialization or port binding. Stale locks (previous owner SIGKILL'd / crashed,
+// its pid possibly reused since) are reclaimed automatically. Released on process exit (covers SIGTERM→exit(0) and Ctrl+C).
 const APP_PID_FILE = path.join(STORE_DIR, 'app.pid');
 const appLock = tryAcquireSingletonLock(APP_PID_FILE);
 if (appLock.acquired) {
