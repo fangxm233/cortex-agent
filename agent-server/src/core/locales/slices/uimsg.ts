@@ -37,6 +37,7 @@ export const uimsgEn = {
   // system
   'ui.system.clearRateLimitFailed': 'Failed to clear rate limit: ${error}',
   'ui.system.refreshUsageFailed': 'Failed to refresh usage: ${error}',
+  'ui.system.redeemCodexResetFailed': 'Failed to use the Codex reset: ${error}',
   'ui.system.restartSignalSent': 'Restart signal sent — daemon will drain and respawn app.js when idle.',
   'ui.system.restartSignalFailed': 'Failed to signal restart: ${error}',
   'ui.system.noChildPid': 'No child PID file found — is app.js running under the daemon?',
@@ -124,6 +125,7 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.schedule.delayRequired': '一次性类型需要填写延迟（delay）。',
   'ui.system.clearRateLimitFailed': '清除限流失败：${error}',
   'ui.system.refreshUsageFailed': '刷新用量失败：${error}',
+  'ui.system.redeemCodexResetFailed': '使用 Codex 重置失败：${error}',
   'ui.system.restartSignalSent': '已发送重启信号——daemon 会在空闲时排空任务并重新拉起 app.js。',
   'ui.system.restartSignalFailed': '发送重启信号失败：${error}',
   'ui.system.noChildPid': '未找到子进程 PID 文件——app.js 是否由 daemon 托管运行？',

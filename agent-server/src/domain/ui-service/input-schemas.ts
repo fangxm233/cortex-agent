@@ -777,6 +777,11 @@ export const systemClearRateLimitInput = z.object({
 
 export const systemRefreshUsageInput = z.object({});
 
+export const systemRedeemCodexResetInput = z.object({
+  /** Banked reset to spend; omit for the one expiring first. */
+  creditId: z.string().min(1).optional(),
+});
+
 export const systemCheckUpdateInput = z.object({});
 
 // The pending prompt is process-global (one server, one npm self-update), so neither decision
@@ -922,6 +927,7 @@ export const mutateInputSchemas = {
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
   'system.refreshUsage': systemRefreshUsageInput,
+  'system.redeemCodexReset': systemRedeemCodexResetInput,
   'system.checkUpdate': systemCheckUpdateInput,
   'system.applyUpdate': systemApplyUpdateInput,
   'system.skipUpdate': systemSkipUpdateInput,
