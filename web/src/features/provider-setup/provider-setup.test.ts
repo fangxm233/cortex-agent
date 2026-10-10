@@ -61,9 +61,9 @@ describe('provider onboarding', () => {
   it('exposes configured:false and rejected sync; retry never reinstalls CC', async () => {
     const { ports, controller } = fixture();
     await controller.load();
-    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'no-endpoints' });
+    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'EACCES: profiles.json' });
     await controller.refresh();
-    expect(controller.state.error).toContain('no-endpoints');
+    expect(controller.state.error).toContain('EACCES');
     expect(controller.canContinue()).toBe(false);
     ports.sync.mockRejectedValueOnce(new Error('sync denied'));
     await controller.refresh();
@@ -71,6 +71,15 @@ describe('provider onboarding', () => {
     await controller.refresh();
     expect(controller.canContinue()).toBe(true);
     expect(ports.install).not.toHaveBeenCalled();
+  });
+  it('treats a rescan with nothing logged in yet as no change, not a failure', async () => {
+    const { ports, controller } = fixture();
+    await controller.load();
+    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'no-endpoints' });
+    await controller.refresh();
+    expect(controller.state.error).toBeNull();
+    expect(controller.state.sync).toBe('idle');
+    expect(controller.canContinue()).toBe(true);
   });
   it('requires explicit selection on default mismatch and writes only that name', async () => {
     const { ports, controller } = fixture();

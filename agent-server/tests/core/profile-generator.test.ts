@@ -8,6 +8,7 @@ import {
   generateProfiles,
   mergeProfilesJson,
   listChoices,
+  recommendedChoice,
   writeProfilesJson,
 } from '../../src/core/profile-generator.js';
 import type { DiscoveredEndpoint } from '../../src/core/gateway-generator.js';
@@ -16,7 +17,7 @@ import { validateProfilesFile } from '../../src/domain/agents/profile-manager.js
 // ─── Fixture helpers ────────────────────────────────────────────
 
 /** Build a minimal DiscoveredEndpoint with sensible defaults for testing. */
-function ep(mode: string, endpoint: string, models: string[], gatewayManaged = true): DiscoveredEndpoint {
+function ep(mode: string, endpoint: string, models: string[], defaultModel?: string): DiscoveredEndpoint {
   return {
     mode,
     endpoint,
@@ -25,7 +26,8 @@ function ep(mode: string, endpoint: string, models: string[], gatewayManaged = t
     keys: [],
     passthrough: true,
     models,
-    gatewayManaged,
+    gatewayManaged: true,
+    ...(defaultModel ? { defaultModel } : {}),
   };
 }
 
@@ -52,13 +54,27 @@ test('generateProfiles: never generates provider-specific tier profiles', () => 
   }
 });
 
-// ─── plan/execute defaults: first lexicographic choice ──────────
+// ─── plan/execute defaults: the recommended choice ──────────────
 
-test('generateProfiles: plan defaults to first lexicographic (mode, model) when planChoice omitted', () => {
-  // listChoices(ANTHROPIC_PLAN): mode=plan, models in order claude-haiku/opus/sonnet → first is claude-haiku-4-5
-  const result = generateProfiles([ANTHROPIC_PLAN]);
-  assert.equal(result.profiles.plan.mode, 'plan');
-  assert.equal(result.profiles.plan.model, 'claude-haiku-4-5');
+test('generateProfiles: plan and execute default to the first endpoint\'s own default model', () => {
+  const codex = ep('openai-codex', 'openai-codex', ['gpt-5.3-codex-spark', 'gpt-5.5', 'gpt-6-luna'], 'gpt-5.5');
+  const result = generateProfiles([codex]);
+  assert.equal(result.profiles.plan.model, 'gpt-5.5', 'not the alphabetically first, weakest model');
+  assert.equal(result.profiles.execute.model, 'gpt-5.5');
+  assert.equal(result.profiles.plan.provider, 'openai-codex');
+});
+
+test('recommendedChoice: follows discovery order across endpoints, not mode names', () => {
+  const plan = ep('plan', 'anthropic', ['claude-opus-4-7'], 'claude-opus-4-7');
+  assert.deepEqual(recommendedChoice([plan, DEEPSEEK]), { mode: 'plan', model: 'claude-opus-4-7' });
+  assert.deepEqual(recommendedChoice([DEEPSEEK, plan]), { mode: 'deepseek', model: 'deepseek-v4-pro' });
+});
+
+test('recommendedChoice: without a usable default, takes the endpoint\'s first model', () => {
+  assert.deepEqual(recommendedChoice([ANTHROPIC_PLAN]), { mode: 'plan', model: 'claude-opus-4-7' });
+  const stale = ep('openai-codex', 'openai-codex', ['gpt-5.4'], 'gpt-5.5');
+  assert.deepEqual(recommendedChoice([stale]), { mode: 'openai-codex', model: 'gpt-5.4' });
+  assert.equal(recommendedChoice([ep('empty', 'empty', [])]), undefined);
 });
 
 // ─── Explicit planChoice / executeChoice ────────────────────────
@@ -353,5 +369,5 @@ test('generateProfiles: extraProfiles skips names colliding with managed profile
   // Only claude-haiku-4-5 should be added; plan/execute are skipped (name collision)
   assert.ok(result.profiles['claude-haiku-4-5']);
   // plan and execute are managed profiles, not overwritten
-  assert.equal(result.profiles.plan.model, 'claude-haiku-4-5'); // default lexicographic
+  assert.equal(result.profiles.plan.model, 'claude-opus-4-7'); // recommended default
 });

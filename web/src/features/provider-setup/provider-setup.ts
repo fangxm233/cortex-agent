@@ -95,7 +95,10 @@ export class ProviderSetupController {
   private async syncModels() {
     try {
       const result = await this.ports.sync();
-      this.patch({ sync: result.configured ? 'success' : 'failed', error: result.configured ? null : result.reason ?? 'not-configured' });
+      // Nothing logged in yet is not a failure; the profile card already asks the user to sign in.
+      if (result.configured || result.reason === 'no-endpoints') {
+        this.patch({ sync: result.configured ? 'success' : 'idle', error: null });
+      } else this.patch({ sync: 'failed', error: result.reason ?? 'not-configured' });
     } catch (error) { this.patch({ sync: 'failed', error: message(error) }); }
   }
   load = async () => { await Promise.all([this.scan(false), this.detectClaude()]); };

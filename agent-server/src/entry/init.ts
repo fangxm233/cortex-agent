@@ -16,7 +16,7 @@ import {
   buildInteractionConfig,
 } from '@core/config-generator.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
-import { generateProfiles, writeProfilesJson, listChoices } from '@core/profile-generator.js';
+import { generateProfiles, writeProfilesJson, listChoices, recommendedChoice } from '@core/profile-generator.js';
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
 import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
@@ -1311,7 +1311,7 @@ function detectExistingPlanOrExecute(configDir: string): boolean {
 
 /**
  * Interactively pick plan / execute (mode, model) from discovered endpoints, plus optional
- * fallback chains. Lists are sorted lexicographically; the first entry is pre-selected.
+ * fallback chains. Lists are sorted lexicographically; the recommended choice is pre-selected.
  *
  * Returns `overwrite: false` if the user declined to overwrite an existing profile — in that
  * case all *Choice / *Fallback fields are undefined.
@@ -1353,8 +1353,8 @@ async function pickPlanExecuteInteractive(
     label: `${c.mode} / ${c.model}`,
   }));
 
-  // Default = first lexicographic entry (no tier inference).
-  const firstChoiceValue = formatValue(choices[0]);
+  // Pre-select the same model a non-interactive setup would pick.
+  const firstChoiceValue = formatValue(recommendedChoice(endpoints) ?? choices[0]);
 
   const planSel = await clack.select({
     message: t('init.gatewaySetup.planPrompt'),

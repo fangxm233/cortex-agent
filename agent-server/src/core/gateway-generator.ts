@@ -5,10 +5,11 @@ import {
   anthropicModelDiscovery, anthropicModelIds, type DiscoveredAnthropicModel,
 } from './anthropic-model-discovery.js';
 import { atomicWriteSync } from './atomic-write.js';
-import { resolveAnthropicApiKey } from './claude-credentials.js';
+import { ANTHROPIC_MODELS } from './anthropic-models.js';
+import { claudeOwnsOAuthCredential, resolveAnthropicApiKey } from './claude-credentials.js';
 import { createLogger } from './log.js';
 import { AISTATUS_DIR, CONFIG_DIR } from './paths.js';
-import { loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
+import { loadPiDefaultModels, loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
 
 const log = createLogger('gateway-generator');
 
@@ -69,6 +70,9 @@ export interface DiscoveredEndpoint {
   /** Whether gateway.yaml should render an endpoint section for this entry. PI providers without a
    *  known upstream URL are surfaced as profiles but skipped in gateway.yaml. */
   gatewayManaged: boolean;
+  /** The model this endpoint recommends when nothing is chosen — PI's per-provider default, or the
+   *  newest Claude flagship. Always one of `models`; absent when the endpoint has no preference. */
+  defaultModel?: string;
 }
 
 // ─── PI provider → upstream URL lookup (manually maintained) ────────────────
@@ -197,96 +201,111 @@ async function scanPiForEndpoints(): Promise<PiDiscoveredModel[]> {
 
 // ─── Discovery ─────────────────────────────────────────────────────
 
-/**
- * Scan Claude Code and PI configurations and return discovered endpoints.
- *
- * @param backends - Optional filter: when provided, only discover endpoints for the listed backends
- *   (e.g. `['claude']`, `['pi']`, `['claude', 'pi']`). When omitted, all backends are discovered.
- *
- * - Claude Code plan mode: generated when 'claude' is in backends (or backends is omitted).
- * - Claude Code api mode: generated only if ANTHROPIC_API_KEY env var is set and 'claude' is included.
- * - PI providers: discovered through the bundled PI SDK when 'pi' is in backends (or backends is
- *   omitted). Each provider becomes one endpoint with `mode = endpoint = provider name`.
- *   `gatewayManaged` is true only if the provider has a known upstream URL in PI_PROVIDER_UPSTREAM
- *   (otherwise profile is generated but gateway.yaml entry is skipped).
- */
 export interface DiscoverEndpointsOptions {
   /** The Anthropic models this account can reach. Injected by tests so endpoint discovery never
    *  depends on a live credential; defaults to the host's cached model discovery. */
   anthropicModels?: () => Promise<DiscoveredAnthropicModel[]>;
+  /** Whether Claude Code holds a subscription (OAuth) login here. Defaults to probing its stores. */
+  claudeSubscription?: () => boolean;
+  /** PI's provider → default model table. Defaults to the table shipped with the PI SDK. */
+  piDefaultModels?: () => Promise<Readonly<Record<string, string>>>;
 }
 
+/**
+ * Scan Claude Code and PI configurations and return the endpoints this host can reach right now.
+ *
+ * @param backends - Optional filter: when provided, only discover endpoints for the listed backends
+ *   (e.g. `['claude']`, `['pi']`, `['claude', 'pi']`). When omitted, all backends are discovered.
+ *
+ * Claude endpoints come first, then PI providers in PI's order; profile defaults follow that order.
+ * - Claude Code plan mode: only when Claude Code holds a subscription login.
+ * - Claude Code api mode: only when a real ANTHROPIC_API_KEY is available.
+ * - PI providers: those PI reports usable auth for. Each provider becomes one endpoint with
+ *   `mode = endpoint = provider name`. `gatewayManaged` is true only if the provider has a known
+ *   upstream URL in PI_PROVIDER_UPSTREAM (otherwise profile is generated but gateway.yaml entry is
+ *   skipped).
+ */
 export async function discoverEndpoints(
   backends?: string[],
   options: DiscoverEndpointsOptions = {},
 ): Promise<DiscoveredEndpoint[]> {
-  const endpoints: DiscoveredEndpoint[] = [];
+  const includes = (backend: string) => !backends || backends.includes(backend);
+  const claude = includes('claude') ? await discoverClaudeEndpoints(options) : [];
+  const pi = includes('pi') ? await discoverPiEndpoints(options) : [];
+  return [...claude, ...pi];
+}
 
-  // ── Claude Code → Anthropic plan mode ──
-  // Skip if backends filter is provided and 'claude' is not included.
-  const includeClaude = !backends || backends.includes('claude');
+function anthropicEndpoint(
+  mode: 'plan' | 'api',
+  models: string[],
+  defaultModel: string | undefined,
+): DiscoveredEndpoint {
+  const api = mode === 'api';
+  return {
+    mode,
+    endpoint: 'anthropic',
+    base_url: 'https://api.anthropic.com',
+    auth_style: api ? 'anthropic' : 'bearer',
+    keys: api ? ['$ANTHROPIC_API_KEY'] : [],
+    passthrough: true,
+    models: [...models],
+    gatewayManaged: true,
+    ...(defaultModel ? { defaultModel } : {}),
+  };
+}
+
+/**
+ * Claude Code's endpoints, each present only when its credential is: an endpoint nobody logged
+ * into would otherwise become the default profile and lock the user out of the one they did log
+ * into (merges never overwrite an existing plan/execute).
+ */
+async function discoverClaudeEndpoints(options: DiscoverEndpointsOptions): Promise<DiscoveredEndpoint[]> {
+  const subscription = (options.claudeSubscription ?? (() => claudeOwnsOAuthCredential()))();
+  // The gateway-managed placeholder exists solely to satisfy Claude Code's startup credential
+  // check; it is not a key, and resolveAnthropicApiKey ignores it.
+  const apiKey = resolveAnthropicApiKey() !== null;
+  if (!subscription && !apiKey) return [];
   // The status checker reads this list to decide which models to probe for degradation; routing
   // does not consult it, so a model missing here still answers. Discovery therefore only widens
-  // what gets watched, and `cortex init` on a host with no credential keeps the shipped table.
+  // what gets watched, and a host whose model fetch fails keeps the shipped table.
   const readAnthropicModels = options.anthropicModels ?? (() => anthropicModelDiscovery.ensure());
-  if (includeClaude) {
-    const anthropicModels = anthropicModelIds(await readAnthropicModels());
-    endpoints.push({
-      mode: 'plan',
-      endpoint: 'anthropic',
-      base_url: 'https://api.anthropic.com',
-      auth_style: 'bearer',
-      keys: [],
-      passthrough: true,
-      models: [...anthropicModels],
-      gatewayManaged: true,
-    });
+  const models = anthropicModelIds(await readAnthropicModels());
+  // The shipped table is ordered newest flagship first; the API list is newest release first.
+  const defaultModel = ANTHROPIC_MODELS.find(id => models.includes(id)) ?? models[0];
+  const endpoints: DiscoveredEndpoint[] = [];
+  if (subscription) endpoints.push(anthropicEndpoint('plan', models, defaultModel));
+  if (apiKey) endpoints.push(anthropicEndpoint('api', models, defaultModel));
+  return endpoints;
+}
 
-    // api mode — only if a REAL ANTHROPIC_API_KEY is available (the gateway-managed placeholder
-    // exists solely to satisfy Claude Code's startup credential check; it is not a key)
-    if (resolveAnthropicApiKey()) {
-      endpoints.push({
-        mode: 'api',
-        endpoint: 'anthropic',
-        base_url: 'https://api.anthropic.com',
-        auth_style: 'anthropic',
-        keys: ['$ANTHROPIC_API_KEY'],
-        passthrough: true,
-        models: [...anthropicModels],
-        gatewayManaged: true,
-      });
-    }
-  }
+function piEndpoint(provider: string, models: string[], defaultModel: string | undefined): DiscoveredEndpoint {
+  const upstream = PI_PROVIDER_UPSTREAM[provider];
+  return {
+    mode: provider,
+    endpoint: provider,
+    base_url: upstream?.url ?? '',
+    auth_style: upstream?.auth_style ?? 'bearer',
+    keys: [],
+    passthrough: true,
+    models,
+    gatewayManaged: !!upstream,
+    ...(defaultModel && models.includes(defaultModel) ? { defaultModel } : {}),
+  };
+}
 
-  // ── PI → per-provider endpoints (one mode per provider) ──
-  const includePi = !backends || backends.includes('pi');
-  const piModels = includePi ? await scanPiForEndpoints() : [];
-  // Group models by provider name
+/** One endpoint per PI provider with usable auth, in the order PI reports them. */
+async function discoverPiEndpoints(options: DiscoverEndpointsOptions): Promise<DiscoveredEndpoint[]> {
   const byProvider = new Map<string, string[]>();
-  for (const { provider, model } of piModels) {
+  for (const { provider, model } of await scanPiForEndpoints()) {
     if (!byProvider.has(provider)) byProvider.set(provider, []);
     byProvider.get(provider)!.push(model);
   }
-
-  for (const [provider, models] of byProvider) {
-    const upstream = PI_PROVIDER_UPSTREAM[provider];
-    // anthropic is already covered by the Claude Code path above (with the user's OAuth subscription
-    // tier). If PI also reports anthropic, skip — Claude path is authoritative for plan mode.
-    if (provider === 'anthropic') continue;
-
-    endpoints.push({
-      mode: provider,
-      endpoint: provider,
-      base_url: upstream?.url ?? '',
-      auth_style: upstream?.auth_style ?? 'bearer',
-      keys: [],
-      passthrough: true,
-      models,
-      gatewayManaged: !!upstream,
-    });
-  }
-
-  return endpoints;
+  // anthropic is covered by the Claude Code path (with the user's OAuth subscription tier). If PI
+  // also reports anthropic, skip — the Claude path is authoritative for plan mode.
+  byProvider.delete('anthropic');
+  if (byProvider.size === 0) return [];
+  const defaults = await (options.piDefaultModels ?? (() => loadPiDefaultModels()))();
+  return [...byProvider].map(([provider, models]) => piEndpoint(provider, models, defaults[provider]));
 }
 
 function capitalize(s: string): string {

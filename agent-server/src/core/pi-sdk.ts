@@ -8,6 +8,10 @@ const log = createLogger('pi-sdk');
 /** Static type of the PI SDK entry module (`@earendil-works/pi-coding-agent`). */
 export type PiSdkModule = typeof PiSdk;
 
+const PI_SDK_PACKAGE = '@earendil-works/pi-coding-agent';
+/** The SDK module holding `defaultModelPerProvider`, relative to the package entry. */
+const PI_MODEL_RESOLVER = './core/model-resolver.js';
+
 let loading: Promise<PiSdkModule> | undefined;
 
 /**
@@ -20,6 +24,31 @@ let loading: Promise<PiSdkModule> | undefined;
 export function loadPiSdk(): Promise<PiSdkModule> {
   loading ??= import('@earendil-works/pi-coding-agent');
   return loading;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return typeof value === 'object' && value !== null
+    && Object.values(value).every(item => typeof item === 'string');
+}
+
+/**
+ * PI's provider → default model table: the model `pi` itself starts with for each provider.
+ *
+ * The SDK entry does not re-export it, so it is loaded from the module beside the entry — the file
+ * the entry imports, hence the same module instance. A test pins the path against the installed
+ * SDK; re-check it when the SDK is upgraded. Returns an empty table when it cannot be loaded, and
+ * callers fall back to PI's model order.
+ */
+export async function loadPiDefaultModels(entryUrl?: string): Promise<Readonly<Record<string, string>>> {
+  try {
+    const entry = entryUrl ?? import.meta.resolve(PI_SDK_PACKAGE);
+    const resolver = await import(new URL(PI_MODEL_RESOLVER, entry).href) as { defaultModelPerProvider?: unknown };
+    if (isStringRecord(resolver.defaultModelPerProvider)) return resolver.defaultModelPerProvider;
+    log.warn('PI default model table has an unexpected shape; using PI model order');
+  } catch (error) {
+    log.warn(`PI default model table unavailable; using PI model order: ${(error as Error).message}`);
+  }
+  return {};
 }
 
 /**

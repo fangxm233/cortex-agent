@@ -32,7 +32,7 @@ export interface ModelChoice {
 }
 
 export interface GenerateOpts {
-  /** Explicit (mode, model) to use as the `plan` profile. Otherwise the first lexicographic choice. */
+  /** Explicit (mode, model) to use as the `plan` profile. Otherwise `recommendedChoice`. */
   planChoice?: ModelChoice;
   /** Explicit (mode, model) to use as the `execute` profile. Same default rule as planChoice. */
   executeChoice?: ModelChoice;
@@ -129,7 +129,7 @@ function resolveFallbackChain(
 
 /**
  * Flatten endpoints to a list of (mode, model) choices the user can pick from.
- * Strictly sorted by (mode ASC, model ASC) — no tier or provider preference.
+ * Strictly sorted by (mode ASC, model ASC) — a display order, not a preference.
  */
 export function listChoices(endpoints: DiscoveredEndpoint[]): ModelChoice[] {
   const flat = flattenModels(endpoints);
@@ -140,14 +140,78 @@ export function listChoices(endpoints: DiscoveredEndpoint[]): ModelChoice[] {
   return flat.map(m => ({ mode: m.mode, model: m.model }));
 }
 
+/**
+ * The (mode, model) a managed profile gets when the caller names none: the first discovered
+ * endpoint's own default model (PI's per-provider default, the newest Claude flagship), else that
+ * endpoint's first model. Discovery order puts Claude first, then PI providers in PI's order —
+ * never alphabetical, which would pick whichever model id happens to sort first.
+ */
+export function recommendedChoice(endpoints: DiscoveredEndpoint[]): ModelChoice | undefined {
+  const endpoint = endpoints.find(e => e.models.length > 0);
+  if (!endpoint) return undefined;
+  const preferred = endpoint.defaultModel;
+  const model = preferred && endpoint.models.includes(preferred) ? preferred : endpoint.models[0];
+  return { mode: endpoint.mode, model };
+}
+
 // ─── Main generation ──────────────────────────────────────────────
+
+/** What profiles.json holds before any login: nothing to route to, so a bare Claude plan profile. */
+function minimalProfiles(): ProfilesFile {
+  return {
+    defaultProfile: 'plan',
+    profiles: {
+      plan: { model: 'opus', backend: 'claude', mode: 'plan' },
+    },
+  };
+}
+
+/** One managed profile (`plan` / `execute`) with its optional fallback chain. */
+function managedProfile(
+  models: ModelEntry[],
+  choice: ModelChoice,
+  fallback: ModelChoice[] | undefined,
+  label: string,
+): ProfileEntry {
+  const profile = makeProfileEntry(findModelEntry(models, choice, label));
+  const chain = resolveFallbackChain(models, fallback, label);
+  if (chain) profile.fallback = chain;
+  return profile;
+}
+
+/**
+ * Register user-picked additional models as standalone named profiles (profile name = model name,
+ * e.g. selecting deepseek-v4-pro → profile "deepseek-v4-pro").
+ */
+function addExtraProfiles(
+  profiles: Record<string, ProfileEntry>,
+  models: ModelEntry[],
+  extras: ModelChoice[] | undefined,
+): void {
+  for (const choice of extras ?? []) {
+    // Profile names must match /^[a-zA-Z0-9_-]+$/. Model ids may contain dots (e.g. "gpt-5.4"),
+    // which are invalid in a profile name — sanitize dots → dashes. The model id stored in the
+    // entry stays verbatim (makeProfileEntry uses choice.model) so the API call is unaffected.
+    const name = choice.model.replace(/\./g, '-');
+    if (name === 'plan' || name === 'execute') {
+      log.warn(`Skipping extra profile "${name}": name conflicts with managed profile`);
+      continue;
+    }
+    if (profiles[name]) {
+      log.warn(`Skipping extra profile "${name}": already exists`);
+      continue;
+    }
+    const entry = findModelEntry(models, choice, `extraProfiles[${name}]`);
+    profiles[name] = makeProfileEntry(entry);
+    log.info(`Added extra profile: ${name} (mode=${entry.mode}, backend=${entry.backend})`);
+  }
+}
 
 /**
  * Generate a profiles.json object from discovered endpoints.
  *
- * Generates exactly two profiles: `plan` and `execute`.
- * - If `planChoice` is omitted, picks the first lexicographic (mode, model) tuple.
- * - Same default rule for `execute`.
+ * Generates exactly two managed profiles, `plan` and `execute`, plus any `extraProfiles`.
+ * - If `planChoice` / `executeChoice` is omitted, it is `recommendedChoice(endpoints)`.
  * - Fallback chains are taken verbatim from `planFallback` / `executeFallback` (no auto-derivation).
  * - No tier classification or auto-generated provider tiers — users explicitly choose
  *   what they want via cortex init's interactive UI.
@@ -157,68 +221,15 @@ export function generateProfiles(
   opts: GenerateOpts = {},
 ): ProfilesFile {
   const models = flattenModels(endpoints);
-
-  if (models.length === 0) {
-    // Minimal fallback — user needs to log in first
-    return {
-      defaultProfile: 'plan',
-      profiles: {
-        plan: { model: 'opus', backend: 'claude', mode: 'plan' },
-      },
-    };
-  }
-
-  // Lexicographic default: first choice in listChoices order
-  const sorted = listChoices(endpoints);
-  const defaultChoice = sorted[0];
-
-  const planEntry = findModelEntry(
-    models,
-    opts.planChoice ?? defaultChoice,
-    'planChoice',
-  );
-  const executeEntry = findModelEntry(
-    models,
-    opts.executeChoice ?? defaultChoice,
-    'executeChoice',
-  );
-
-  const planFallback = resolveFallbackChain(models, opts.planFallback, 'planChoice');
-  const executeFallback = resolveFallbackChain(models, opts.executeFallback, 'executeChoice');
-
-  const planProfile: ProfileEntry = makeProfileEntry(planEntry);
-  if (planFallback) planProfile.fallback = planFallback;
-
-  const executeProfile: ProfileEntry = makeProfileEntry(executeEntry);
-  if (executeFallback) executeProfile.fallback = executeFallback;
+  const recommended = recommendedChoice(endpoints);
+  // No reachable model yet — the user needs to log in first.
+  if (models.length === 0 || !recommended) return minimalProfiles();
 
   const profiles: Record<string, ProfileEntry> = {
-    plan: planProfile,
-    execute: executeProfile,
+    plan: managedProfile(models, opts.planChoice ?? recommended, opts.planFallback, 'planChoice'),
+    execute: managedProfile(models, opts.executeChoice ?? recommended, opts.executeFallback, 'executeChoice'),
   };
-
-  // Extra profiles: user-picked additional models to register as standalone named profiles.
-  // Profile name = model name (e.g., selecting deepseek-v4-pro → profile "deepseek-v4-pro").
-  if (opts.extraProfiles && opts.extraProfiles.length > 0) {
-    for (const choice of opts.extraProfiles) {
-      // Profile names must match /^[a-zA-Z0-9_-]+$/. Model ids may contain dots (e.g. "gpt-5.4"),
-      // which are invalid in a profile name — sanitize dots → dashes. The model id stored in the
-      // entry stays verbatim (makeProfileEntry uses choice.model) so the API call is unaffected.
-      const name = choice.model.replace(/\./g, '-');
-      if (name === 'plan' || name === 'execute') {
-        log.warn(`Skipping extra profile "${name}": name conflicts with managed profile`);
-        continue;
-      }
-      if (profiles[name]) {
-        log.warn(`Skipping extra profile "${name}": already exists`);
-        continue;
-      }
-      const entry = findModelEntry(models, choice, `extraProfiles[${name}]`);
-      profiles[name] = makeProfileEntry(entry);
-      log.info(`Added extra profile: ${name} (mode=${entry.mode}, backend=${entry.backend})`);
-    }
-  }
-
+  addExtraProfiles(profiles, models, opts.extraProfiles);
   return { defaultProfile: 'plan', profiles };
 }
 

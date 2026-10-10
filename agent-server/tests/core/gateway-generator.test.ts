@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as nodePath from 'node:path';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { parse as yamlParse } from 'yaml';
 
 const piSdkMock = vi.hoisted(() => ({
@@ -28,6 +30,7 @@ import {
   type ParsedGateway,
   type EndpointMap,
 } from '../../src/core/gateway-generator.js';
+import { loadPiDefaultModels } from '../../src/core/pi-sdk.js';
 
 // ─── scanPiAvailableModels ─────────────────────────────────────
 
@@ -62,16 +65,66 @@ test('scanPiAvailableModels: no authenticated provider yields an empty list', as
   assert.deepEqual(await scanPiAvailableModels(), []);
 });
 
-/** Endpoint discovery now asks the Models API for the Anthropic list; a unit test must never
- *  depend on this host's credential, so every call here injects an empty answer — which is
- *  exactly the shipped-table path. */
-const NO_MODEL_DISCOVERY = { anthropicModels: async () => [] };
+/** Endpoint discovery asks the Models API for the Anthropic list and checks for a Claude
+ *  subscription credential; a unit test must never depend on this host's credential, so every call
+ *  here injects an empty model answer (the shipped-table path) and a logged-in subscription. */
+const NO_MODEL_DISCOVERY = { anthropicModels: async () => [], claudeSubscription: () => true };
+const NO_CLAUDE_LOGIN = { anthropicModels: async () => [], claudeSubscription: () => false };
 
 test('discoverEndpoints: a failing PI scan yields no PI endpoints but keeps Claude ones', async () => {
   piSdkMock.loadPiSdk.mockRejectedValueOnce(new Error('sdk unavailable'));
   const eps = await discoverEndpoints(undefined, NO_MODEL_DISCOVERY);
   assert.ok(eps.some((e) => e.mode === 'plan'), 'claude plan endpoint survives a PI scan failure');
   assert.ok(!eps.some((e) => e.endpoint === 'deepseek'), 'no PI endpoint is invented on failure');
+});
+
+test('discoverEndpoints: no Claude subscription credential means no plan endpoint', async () => {
+  const original = process.env.ANTHROPIC_API_KEY;
+  try {
+    delete process.env.ANTHROPIC_API_KEY;
+    assert.deepEqual(await discoverEndpoints(['claude'], NO_CLAUDE_LOGIN), [],
+      'a Claude backend nobody logged into must not be offered as a model source');
+    process.env.ANTHROPIC_API_KEY = 'sk-real-key';
+    const eps = await discoverEndpoints(['claude'], NO_CLAUDE_LOGIN);
+    assert.deepEqual(eps.map((e) => e.mode), ['api'], 'an API key alone enables only the api mode');
+  } finally {
+    if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
+    else delete process.env.ANTHROPIC_API_KEY;
+  }
+});
+
+test('discoverEndpoints: Claude endpoints recommend the newest shipped flagship', async () => {
+  const plan = (await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY)).find((e) => e.mode === 'plan');
+  const { ANTHROPIC_MODELS } = await import('../../src/core/anthropic-models.js');
+  assert.equal(plan?.defaultModel, ANTHROPIC_MODELS[0]);
+});
+
+test('discoverEndpoints: PI endpoints recommend PI\'s own provider default when it is available', async () => {
+  stubPiSdk([
+    { provider: 'openai-codex', id: 'gpt-5.3-codex-spark' },
+    { provider: 'openai-codex', id: 'gpt-5.5' },
+    { provider: 'deepseek', id: 'deepseek-flash' },
+  ]);
+  const eps = await discoverEndpoints(['pi'], {
+    piDefaultModels: async () => ({ 'openai-codex': 'gpt-5.5', deepseek: 'deepseek-v4-pro' }),
+  });
+  assert.equal(eps.find((e) => e.mode === 'openai-codex')?.defaultModel, 'gpt-5.5');
+  assert.equal(eps.find((e) => e.mode === 'deepseek')?.defaultModel, undefined,
+    'a default the account cannot reach is not recommended');
+});
+
+test('loadPiDefaultModels: reads the provider default table shipped with the pinned PI SDK', async () => {
+  const entry = createRequire(import.meta.url).resolve.paths('@earendil-works/pi-coding-agent')!
+    .map((dir) => nodePath.join(dir, '@earendil-works', 'pi-coding-agent', 'dist', 'index.js'))
+    .find((file) => fs.existsSync(file));
+  assert.ok(entry, 'PI SDK entry should be installed');
+  const defaults = await loadPiDefaultModels(pathToFileURL(entry!).href);
+  assert.equal(typeof defaults['openai-codex'], 'string',
+    'PI moved or renamed defaultModelPerProvider — update loadPiDefaultModels');
+});
+
+test('loadPiDefaultModels: an unloadable table yields no defaults', async () => {
+  assert.deepEqual(await loadPiDefaultModels('file:///nonexistent/pi/dist/index.js'), {});
 });
 
 test('discoverEndpoints: PI providers become one endpoint each, anthropic deferred to Claude path', async () => {
@@ -131,7 +184,7 @@ test('discoverEndpoints: gateway-managed placeholder key does not enable api end
     const withPlaceholder = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
     assert.ok(!withPlaceholder.some((e) => e.mode === 'api'),
       'placeholder key is not a real credential — api endpoint must not be generated');
-    assert.ok(withPlaceholder.some((e) => e.mode === 'plan'), 'plan endpoint is always generated');
+    assert.ok(withPlaceholder.some((e) => e.mode === 'plan'), 'plan endpoint follows the subscription, not the key');
 
     process.env.ANTHROPIC_API_KEY = 'sk-real-key';
     const withRealKey = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
