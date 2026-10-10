@@ -75,15 +75,19 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-/** Route A gateway: groups by provider and billing mode. */
+/** Route A gateway: groups by provider and billing mode. Without `allRows` it predates lifetime totals. */
 function gatewayFetch(
   todayRows: unknown,
   monthRows: unknown,
   quotaProviders: unknown = [],
+  allRows?: unknown,
 ): typeof fetch {
   return vi.fn(async (input) => {
     const url = String(input);
     if (url.includes('/quota?')) return json({ providers: quotaProviders });
+    if (url.includes('period=all')) {
+      return allRows === undefined ? new Response('unsupported period', { status: 400 }) : json({ rows: allRows });
+    }
     return json({ rows: url.includes('period=today') ? todayRows : monthRows });
   }) as typeof fetch;
 }
@@ -407,7 +411,7 @@ describe('UsageService', () => {
     assert.deepEqual(first.find((record) => record.provider === 'deepseek')?.spend, {
       today: 1.25,
       month: 4,
-    });
+    }, 'the records route reports no lifetime total');
     assert.equal(
       first.find((record) => record.provider === 'anthropic')?.spend,
       undefined,
@@ -419,8 +423,51 @@ describe('UsageService', () => {
     const afterFirst = groupedAttempts();
     await service.collect();
 
-    assert.equal(afterFirst, 2, 'both periods probe the composite route once');
-    assert.equal(groupedAttempts(), 2, 'the unsupported route is not probed again');
+    assert.equal(afterFirst, 3, 'both periods and the lifetime total probe the composite route once');
+    assert.equal(groupedAttempts(), 3, 'the unsupported route is not probed again');
+  });
+
+  test('the lifetime total enriches recent metered rows without reviving idle providers', async () => {
+    const fetch = gatewayFetch(
+      [spend('deepseek', 'deepseek', 1)],
+      [spend('deepseek', 'deepseek', 4), spend('anthropic', 'plan', 40)],
+      [],
+      [
+        spend('deepseek', 'deepseek', 30),
+        spend('deepseek', 'deepseek-alt', 20),
+        spend('anthropic', 'plan', 400),
+        spend('qwen', 'qwen', 3),
+      ],
+    );
+    const { service } = serviceWith({ fetch });
+
+    const result = await service.collect();
+
+    const deepseek = result.find((record) => record.provider === 'deepseek');
+    assert.deepEqual(deepseek?.spend, { today: 1, month: 4, all: 50 });
+    assert.deepEqual(deepseek?.modes, ['deepseek'], 'lifetime rows do not add modes');
+    assert.equal(result.find((record) => record.provider === 'qwen'), undefined);
+    assert.equal(result.find((record) => record.provider === 'anthropic')?.spend, undefined);
+  });
+
+  test('a failed lifetime read keeps the stored total', async () => {
+    const store = new MemoryUsageStore([
+      usage('deepseek', 'unsupported', {
+        modes: ['deepseek'], billing: 'api', spend: { today: 1, month: 4, all: 42 },
+      }),
+    ]);
+    const fetch = vi.fn(async (input) => {
+      const url = String(input);
+      if (url.includes('/quota?')) return json({ providers: [] });
+      if (url.includes('period=all')) return new Response('boom', { status: 500 });
+      return json({ rows: [spend('deepseek', 'deepseek', url.includes('period=today') ? 2 : 6)] });
+    }) as typeof globalThis.fetch;
+    const { service } = serviceWith({ store, fetch });
+
+    const deepseek = (await service.collect()).find((record) => record.provider === 'deepseek');
+
+    assert.deepEqual(deepseek?.spend, { today: 2, month: 6, all: 42 });
+    assert.equal(deepseek?.note, undefined);
   });
 
   test('truncated record pages are flagged rather than reported as a total', async () => {
@@ -502,7 +549,7 @@ describe('UsageService', () => {
     await service.refresh();
 
     assert.equal(piGetUsage.mock.calls.length, 2);
-    assert.equal(vi.mocked(fetch).mock.calls.length, 6);
+    assert.equal(vi.mocked(fetch).mock.calls.length, 8);
     assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 2);
   });
 

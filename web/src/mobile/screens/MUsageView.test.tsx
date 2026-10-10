@@ -28,7 +28,7 @@ const status: SystemUsageStatus = [
   },
   {
     provider: 'deepseek', displayName: 'DeepSeek', modes: ['deepseek'], freshness: 'unsupported',
-    observedAt: NOW - 120, windows: [], spend: { today: 1.25, month: 9.5 },
+    observedAt: NOW - 120, windows: [], spend: { today: 1.25, month: 9.5, all: 120.5 },
   },
   {
     provider: 'zai', displayName: 'Z.ai', modes: ['zai'], freshness: 'unsupported',
@@ -78,6 +78,21 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
     </LangProvider>
   );
 }
+
+function textOf(node: { children: unknown[] }): string {
+  return node.children.map((child) => (typeof child === 'string' ? child : textOf(child as { children: unknown[] }))).join('');
+}
+
+describe('MUsageView spend', () => {
+  it('adds the lifetime total only when the gateway reports one', () => {
+    const renderer = create(view());
+    const spend = (provider: string) => textOf(renderer.root.findByProps({ 'data-usage-spend': provider }));
+
+    expect(spend('deepseek')).toContain('$9.50 Last 30 days');
+    expect(spend('deepseek')).toContain('$120.50 All time');
+    expect(spend('zai')).not.toContain('All time');
+  });
+});
 
 describe('MUsageView policy controls', () => {
   it('saves exact row targets, resets fallback rows to explicit defaults, and clears legacy fallback', () => {
