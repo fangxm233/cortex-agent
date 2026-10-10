@@ -37,7 +37,9 @@ mod git_selection_tests;
 #[cfg(test)]
 #[path = "runtime_selection_windows_tests.rs"]
 mod selection_windows_tests;
+/// Serializes tests that use the process-wide cancel slot (the headless harness suites).
 #[cfg(test)]
+#[allow(dead_code)]
 pub(crate) static CANCEL_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

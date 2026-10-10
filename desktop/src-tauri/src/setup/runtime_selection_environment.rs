@@ -14,6 +14,7 @@ pub(super) fn prefix_bin_for(prefix: &Path, windows: bool) -> PathBuf {
     }
 }
 
+#[cfg(any(windows, test))]
 pub(super) fn windows_paths(selected: &Selection) -> Result<Vec<PathBuf>, String> {
     let node_dir = selected.node.parent().ok_or("RUNTIME_MISSING")?;
     if selected.npm.parent() != Some(node_dir) {
