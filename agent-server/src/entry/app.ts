@@ -205,7 +205,7 @@ function initConfiguredHooks(): void {
  *  process does not wait out its multi-second module import. */
 function prewarmPiBackend(): void {
   try {
-    const { profiles } = profileRepo.readSync();
+    const profiles = profileRepo.readIfPresent()?.profiles ?? {};
     const usesPi = Object.values(profiles).some((profile) => profile.backend === 'pi'
       || profile.fallback?.some((entry) => entry.backend === 'pi'));
     if (usesPi) prewarmPiSdk();
