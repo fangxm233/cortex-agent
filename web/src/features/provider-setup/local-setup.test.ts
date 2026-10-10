@@ -174,8 +174,8 @@ describe('local setup flow', () => {
       destination: pending ? 'index.html#/setup/providers' : 'index.html' });
   });
 
-  it.each(['RUNTIME_DOWNLOAD_FAILED', 'RUNTIME_INTEGRITY_FAILED', 'RUNTIME_UNSUPPORTED',
-    'RUNTIME_MISSING', 'SERVER_EXTERNAL_UNSUPPORTED', 'SETUP_CANCELLED'].flatMap(code =>
+  it.each(['RUNTIME_UNSUPPORTED', 'RUNTIME_MISSING', 'RUNTIME_NOT_BUNDLED', 'SERVER_TOO_OLD',
+    'SETUP_CANCELLED'].flatMap(code =>
     ['linux', 'windows'].map(os => [os, code])))('can retry %s %s without connecting early', async (os, code) => {
     let succeeds = false;
     const { flow, calls } = fixture({ probe: async () => ({ ...probe, os }), installServer: async () => {
@@ -319,16 +319,16 @@ describe('local setup flow', () => {
 describe('local setup copy', () => {
   it('shows translated actions without raw technical output', () => {
     expect(localSetupErrorText('SERVER_INSTALL_FAILED: npm ERR! 404', en)).toBe(en.onbErrServerInstallFailed);
-    expect(localSetupErrorText('NODE_REQUIRED', zh)).toBe(zh.onbErrNodeRequired);
+    expect(localSetupErrorText('EACCES', zh)).toBe(zh.onbErrEacces);
+    expect(localSetupErrorText('RUNTIME_DOWNLOAD_FAILED: retired', en)).toBe(en.onbErrSetupTaskFailed);
     expect(localSetupErrorText('something else', en)).toBe(en.onbErrSetupTaskFailed);
   });
 
   it.each([
-    ['RUNTIME_DOWNLOAD_FAILED', 'onbErrRuntimeDownloadFailed'],
-    ['RUNTIME_INTEGRITY_FAILED', 'onbErrRuntimeIntegrityFailed'],
     ['RUNTIME_UNSUPPORTED', 'onbErrRuntimeUnsupported'],
     ['RUNTIME_MISSING', 'onbErrRuntimeMissing'],
-    ['SERVER_EXTERNAL_UNSUPPORTED', 'onbErrServerExternalUnsupported'],
+    ['RUNTIME_NOT_BUNDLED', 'onbErrRuntimeNotBundled'],
+    ['SERVER_TOO_OLD', 'onbErrServerTooOld'],
     ['SETUP_CANCELLED', 'onbErrSetupCancelled'],
   ] as const)('translates %s without exposing details', (code, key) => {
     for (const vocab of [en, zh]) {
