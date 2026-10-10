@@ -100,6 +100,8 @@ interface PeriodSpend {
 interface GatewayQuotaSnapshot {
   windows: UsageWindow[];
   observedAt: number;
+  /** A reading taken from the account just now, not one observed in passing traffic. */
+  live?: boolean;
 }
 
 /** Without an injected account reader, Codex usage is only what response headers reported. */
@@ -371,11 +373,7 @@ function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): Provi
 /** Anthropic model-scoped windows are internal detail; the panel shows the account windows only. */
 function visibleUsage(record: ProviderUsage): ProviderUsage {
   if (record.provider !== ANTHROPIC_PROVIDER) return record;
-  return {
-    ...record,
-    windows: record.windows.filter((window) => window.type !== 'model_scoped'),
-    freshness: record.observedAt === null ? record.freshness : 'stale',
-  };
+  return { ...record, windows: record.windows.filter((window) => window.type !== 'model_scoped') };
 }
 
 function liveCodexUsage(live: AccountReading, observedAt: number): ProviderUsage {
@@ -549,7 +547,7 @@ export class UsageService {
     if (quota.snapshot) {
       draft.windows = quota.snapshot.windows;
       draft.observedAt = quota.snapshot.observedAt;
-      draft.freshness = 'stale';
+      draft.freshness = quota.snapshot.live ? 'live' : 'stale';
     } else {
       this.carryQuotaFromPrior(draft, prior);
     }
@@ -653,7 +651,11 @@ export class UsageService {
     if (!live) return { snapshot: null, keepResets: false, notes: [] };
     await this.releaseRecovered(ANTHROPIC_PROVIDER, live.windows);
     return {
-      snapshot: { windows: live.windows.map((window) => ({ ...window })), observedAt: Math.floor(this.now().getTime() / 1000) },
+      snapshot: {
+        windows: live.windows.map((window) => ({ ...window })),
+        observedAt: Math.floor(this.now().getTime() / 1000),
+        live: true,
+      },
       ...(live.resetCredits ? { resetCredits: live.resetCredits } : {}),
       keepResets: false,
       notes: [],

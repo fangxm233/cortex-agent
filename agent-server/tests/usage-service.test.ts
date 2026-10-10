@@ -147,7 +147,7 @@ function serviceWith(options: {
 
 describe('UsageService', () => {
   test('status is a side-effect-free read that hides legacy Anthropic model-scoped rows', async () => {
-    const persisted = usage('anthropic', 'live', { windows: [
+    const persisted = usage('anthropic', 'stale', { windows: [
       { type: 'five_hour', utilization: 0.2, resetsAt: 1_800_000_000 },
       { type: 'model_scoped', label: 'Fable', utilization: 0.9, resetsAt: 1_800_000_000 },
     ] });
@@ -156,11 +156,7 @@ describe('UsageService', () => {
     const fetch = vi.fn();
     const { service } = serviceWith({ store, pi, fetch: fetch as typeof globalThis.fetch });
 
-    assert.deepEqual(await service.getStatus(), [{
-      ...persisted,
-      windows: [persisted.windows[0]],
-      freshness: 'stale',
-    }]);
+    assert.deepEqual(await service.getStatus(), [{ ...persisted, windows: [persisted.windows[0]] }]);
     assert.equal(store.commitCalls, 0);
     assert.equal(pi.getUsage && vi.mocked(pi.getUsage).mock.calls.length, 0);
     assert.equal(fetch.mock.calls.length, 0);
@@ -808,6 +804,8 @@ describe('UsageService active Claude account reads', () => {
 
     assert.deepEqual(row?.windows, windows);
     assert.equal(row?.observedAt, NOW.getTime() / 1000);
+    assert.equal(row?.freshness, 'live');
+    assert.deepEqual((await service.getStatus()).find((record) => record.provider === 'anthropic')?.freshness, 'live');
     assert.deepEqual(row?.resetCredits, RESETS);
     assert.equal(row?.note, undefined);
     assert.deepEqual(releaseThrottle.mock.calls, [['anthropic', windows]]);
@@ -821,6 +819,7 @@ describe('UsageService active Claude account reads', () => {
 
     assert.deepEqual(row?.windows, GATEWAY_WINDOWS);
     assert.equal(row?.observedAt, 1_789_900_000);
+    assert.equal(row?.freshness, 'stale', 'a gateway observation is never live');
     assert.match(row?.note ?? '', /Claude account read failed.*HTTP 429/);
     assert.deepEqual(row?.resetCredits, RESETS);
     assert.equal(quotaReads(fetch), 1);
@@ -842,11 +841,13 @@ describe('UsageService active Claude account reads', () => {
     const fetch = vi.fn(async (input) => (
       String(input).includes('/quota?') ? json({}, 502) : json({ rows: [] })
     )) as unknown as typeof globalThis.fetch;
-    const { service } = claudeService({ fetch, readUsage: async () => { throw new Error('timeout'); } });
+    const store = new MemoryUsageStore([{ ...prior, freshness: 'live' }]);
+    const { service } = claudeService({ store, fetch, readUsage: async () => { throw new Error('timeout'); } });
 
     const row = anthropicRow(await service.refresh());
 
     assert.deepEqual(row?.windows, prior.windows);
+    assert.equal(row?.freshness, 'stale', 'a carried-over live reading ages to stale');
     assert.deepEqual(row?.resetCredits, RESETS);
     assert.match(row?.note ?? '', /Claude account read failed.*timeout/);
     assert.match(row?.note ?? '', /HTTP 502/);
