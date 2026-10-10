@@ -83,7 +83,7 @@ const harness = vi.hoisted(() => ({
   deferredPolicySaves: {} as Record<string, Promise<unknown>>,
   policyErrorsByTarget: {} as Record<string, Error | null>,
   sharing: { enabled: false, name: '', org: '', email: '' },
-  redeemResult: null as { status: string; windowsReset: number; usage: unknown[] } | null,
+  redeemResult: null as { provider: string; status: string; cleared: string[]; usage: unknown[] } | null,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -97,8 +97,8 @@ vi.mock('@/lib/trpc', () => ({
       refreshUsage: {
         mutationOptions: (options: object) => ({ __kind: 'system.refreshUsage', ...options }),
       },
-      redeemCodexReset: {
-        mutationOptions: (options: object) => ({ __kind: 'system.redeemCodexReset', ...options }),
+      redeemUsageReset: {
+        mutationOptions: (options: object) => ({ __kind: 'system.redeemUsageReset', ...options }),
       },
     },
     config: {
@@ -132,12 +132,13 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
     };
   },
   useMutation: (options: any) => {
-    if (options.__kind === 'system.redeemCodexReset') {
+    if (options.__kind === 'system.redeemUsageReset') {
       return {
         mutate: (args: unknown) => {
           harness.mutations.push({ kind: options.__kind, args });
           if (harness.redeemResult) options.onSuccess?.(harness.redeemResult);
         },
+        variables: harness.redeemResult ? { provider: harness.redeemResult.provider } : undefined,
         data: harness.redeemResult ?? undefined,
         isPending: false,
         isError: false,
@@ -396,38 +397,68 @@ describe('desktop Settings Usage panel', () => {
 });
 
 describe('desktop Settings Usage panel banked resets', () => {
-  const withResets: SystemUsageStatus = usage.map((record) => (record.provider === 'openai-codex'
-    ? { ...record, resetCredits: { availableCount: 1, credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: NOW + 3 * 86400 }] } }
-    : record));
+  const withResets: SystemUsageStatus = usage.map((record) => {
+    if (record.provider === 'openai-codex') {
+      return { ...record, resetCredits: { availableCount: 1, credits: [{ id: 'credit-1', title: 'Full reset', expiresAt: NOW + 3 * 86400 }] } };
+    }
+    if (record.provider === 'anthropic') {
+      return { ...record, resetCredits: { availableCount: 2, atLimit: true, credits: [
+        { id: 'grant_1', title: 'Reset', expiresAt: NOW + 5 * 86400, clears: ['five_hour', 'seven_day'], count: 2 },
+      ] } };
+    }
+    return record;
+  });
+  const resetBlock = (renderer: ReturnType<typeof mount>, provider: string) => (
+    renderer.root.findByProps({ 'data-usage-resets': provider })
+  );
 
   it('spends a reset only after the confirm step and writes back the returned usage', () => {
     currentUsage = withResets;
     const after = withResets.map((record) => (record.provider === 'openai-codex'
       ? { ...record, resetCredits: { availableCount: 0, credits: [] } }
       : record));
-    harness.redeemResult = { status: 'reset', windowsReset: 1, usage: after };
+    harness.redeemResult = { provider: 'openai-codex', status: 'reset', cleared: [], usage: after };
     const renderer = mount();
-    act(() => renderer.root.findByProps({ 'data-usage-reset-use': true }).props.onClick());
-    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemCodexReset')).toHaveLength(0);
-    act(() => renderer.root.findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
+    const codex = resetBlock(renderer, 'openai-codex');
+    act(() => codex.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemUsageReset')).toHaveLength(0);
+    act(() => codex.findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
 
-    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemCodexReset')).toEqual([
-      { kind: 'system.redeemCodexReset', args: {} },
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemUsageReset')).toEqual([
+      { kind: 'system.redeemUsageReset', args: { provider: 'openai-codex' } },
     ]);
     expect(harness.queryWrites.at(-1)).toEqual({ key: ['system.usageStatus', {}], value: after });
     act(() => renderer.unmount());
   });
 
-  it('shows the count, earliest expiry and last outcome on the Codex card only', () => {
+  it('confirms a Claude reset with its account-wide scope and spends it on the Claude account', () => {
     currentUsage = withResets;
-    harness.redeemResult = { status: 'nothing_to_reset', windowsReset: 0, usage: withResets };
+    const renderer = mount();
+    const claude = resetBlock(renderer, 'anthropic');
+    expect(claude.findAllByProps({ 'data-usage-reset-confirm': true })).toHaveLength(0);
+    act(() => claude.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+
+    expect(resetBlock(renderer, 'openai-codex').findAllByProps({ 'data-usage-reset-confirm': true })).toHaveLength(0);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Clears the 5 hours, 7 days limits for the whole account, claude.ai and every other device included.');
+    act(() => resetBlock(renderer, 'anthropic').findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
+
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemUsageReset')).toEqual([
+      { kind: 'system.redeemUsageReset', args: { provider: 'anthropic' } },
+    ]);
+    act(() => renderer.unmount());
+  });
+
+  it('shows the count and earliest expiry per card, and the last outcome only on the card it was for', () => {
+    currentUsage = withResets;
+    harness.redeemResult = { provider: 'anthropic', status: 'nothing_to_reset', cleared: [], usage: withResets };
     const renderer = mount();
 
-    expect(renderer.root.findAllByProps({ 'data-usage-resets': true })).toHaveLength(1);
     const text = JSON.stringify(renderer.toJSON());
     expect(text).toContain('Banked resets 1');
     expect(text).toContain('next expires in 3d');
-    expect(renderer.root.findByProps({ 'data-usage-reset-outcome': 'nothing_to_reset' })).toBeTruthy();
+    expect(text).toContain('Banked resets 2');
+    expect(resetBlock(renderer, 'anthropic').findByProps({ 'data-usage-reset-outcome': 'nothing_to_reset' })).toBeTruthy();
+    expect(resetBlock(renderer, 'openai-codex').findAllByProps({ 'data-usage-reset-outcome': 'nothing_to_reset' })).toHaveLength(0);
     act(() => renderer.unmount());
   });
 });

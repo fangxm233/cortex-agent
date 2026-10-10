@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
-  CodexResetStatus,
   ConfigSnapshot,
   ProviderRateLimitPolicy,
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
-  SystemRedeemCodexResetReturn,
+  ResetProvider,
+  ResetStatus,
+  SystemRedeemUsageResetReturn,
   SystemUsageStatus,
 } from '@cortex-agent/ui-contract';
 import { useLang } from '@/i18n';
@@ -21,13 +22,23 @@ export interface UsagePolicyDraft {
   thresholdPercent: number | null;
 }
 
-/** Spending a banked Codex reset: always an explicit, confirmed user action. */
+/** Spending a banked usage reset: always an explicit, confirmed user action. */
 export interface UsageResetState {
-  redeem: () => void;
+  redeem: (provider: ResetProvider) => void;
+  /** The account of the running or last attempt in this view. */
+  provider: ResetProvider | null;
   isRedeeming: boolean;
   /** Outcome of the last attempt in this view. */
-  status: CodexResetStatus | null;
+  status: ResetStatus | null;
   error: { message: string } | null;
+}
+
+export type UsageResetAttempt = Pick<UsageResetState, 'isRedeeming' | 'status' | 'error'>;
+
+/** The running or last attempt, as seen from one provider's card. */
+export function resetAttemptFor(reset: UsageResetState, provider: ResetProvider | null): UsageResetAttempt {
+  if (provider === null || reset.provider !== provider) return { isRedeeming: false, status: null, error: null };
+  return { isRedeeming: reset.isRedeeming, status: reset.status, error: reset.error };
 }
 
 export interface UsageFeatureState {
@@ -252,16 +263,17 @@ function usePolicySave(
   };
 }
 
-function useCodexReset(
+function useUsageReset(
   trpc: ReturnType<typeof useTRPC>,
   queryClient: ReturnType<typeof useQueryClient>,
   statusKey: readonly unknown[],
 ): UsageResetState {
-  const mutation = useMutation(trpc.system.redeemCodexReset.mutationOptions({
-    onSuccess: (data: SystemRedeemCodexResetReturn) => queryClient.setQueryData(statusKey, data.usage),
+  const mutation = useMutation(trpc.system.redeemUsageReset.mutationOptions({
+    onSuccess: (data: SystemRedeemUsageResetReturn) => queryClient.setQueryData(statusKey, data.usage),
   }));
   return {
-    redeem: () => mutation.mutate({}),
+    redeem: (provider) => mutation.mutate({ provider }),
+    provider: mutation.variables?.provider ?? null,
     isRedeeming: mutation.isPending,
     status: mutation.data?.status ?? null,
     error: mutation.isError ? mutation.error : null,
@@ -306,7 +318,7 @@ export function useUsage(): UsageFeatureState {
   const controlsState = readPolicyControlsState(configQuery.isLoading, configQuery.isError, providerRateLimits);
   const saveMutation = useMutation(trpc.config.setProviderRateLimitPolicy.mutationOptions()) as unknown as PolicyMutation;
   const policySave = usePolicySave(controlsState, saveMutation, queryClient, configOptions.queryKey);
-  const reset = useCodexReset(trpc, queryClient, statusOptions.queryKey);
+  const reset = useUsageReset(trpc, queryClient, statusOptions.queryKey);
   useRefreshOnOpen(runRefresh);
 
   return {

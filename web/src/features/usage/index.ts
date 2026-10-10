@@ -1,5 +1,7 @@
 export {
+  resetAttemptFor,
   useUsage,
+  type UsageResetAttempt,
   type UsageResetState,
   type UsagePolicyControlsState,
   type UsagePolicyDraft,

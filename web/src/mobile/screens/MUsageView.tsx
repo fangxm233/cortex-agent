@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import type {
   ProviderLegacyFallbackView,
+  UsageResetAttempt,
   UsageResetState,
   UsageResetsView,
   UsagePolicyControlsState,
@@ -11,7 +12,7 @@ import type {
   UsageWindowPolicyView,
   UsageWindowView,
 } from '@/features/usage';
-import { resetOutcomeView, usagePolicyTargetKey } from '@/features/usage';
+import { resetAttemptFor, resetOutcomeView, usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
 import { fmt, useVocab, type Vocab } from '@/i18n';
 import { MButton, MC, MONO } from '@/mobile/ui/kit';
@@ -296,20 +297,20 @@ function resetSummary(resets: UsageResetsView, L: Vocab): string {
   return resets.nextExpiresIn === null ? count : `${count} · ${fmt(L.usageResetsNextExpiry, { d: resets.nextExpiresIn })}`;
 }
 
-function ResetOutcome({ reset, L }: { reset: UsageResetState; L: Vocab }) {
-  if (reset.error) {
-    return <div data-usage-reset-outcome="error" role="alert" style={{ ...META, color: MC.fail, marginTop: 6 }}>{L.usageResetFailed}: {reset.error.message}</div>;
+function ResetOutcome({ attempt, L }: { attempt: UsageResetAttempt; L: Vocab }) {
+  if (attempt.error) {
+    return <div data-usage-reset-outcome="error" role="alert" style={{ ...META, color: MC.fail, marginTop: 6 }}>{L.usageResetFailed}: {attempt.error.message}</div>;
   }
-  if (!reset.status) return null;
-  const outcome = resetOutcomeView(reset.status);
+  if (!attempt.status) return null;
+  const outcome = resetOutcomeView(attempt.status);
   const color = outcome.tone === 'success' ? MC.done : MC.muted;
-  return <div data-usage-reset-outcome={reset.status} style={{ ...META, color, marginTop: 6 }}>{L[outcome.label]}</div>;
+  return <div data-usage-reset-outcome={attempt.status} style={{ ...META, color, marginTop: 6 }}>{L[outcome.label]}</div>;
 }
 
-function ResetConfirm(props: { L: Vocab; onConfirm: () => void; onCancel: () => void }) {
+function ResetConfirm(props: { L: Vocab; lines: string[]; onConfirm: () => void; onCancel: () => void }) {
   return (
     <div data-usage-reset-confirm style={{ marginTop: 8, border: `1px solid ${MC.amberBorder}`, background: MC.amberBg, borderRadius: 'var(--r-chip)', padding: '8px 10px' }}>
-      <div style={{ fontSize: 12, color: MC.amberText }}>{props.L.usageResetConfirmBody}</div>
+      {props.lines.map((line) => <div key={line} style={{ fontSize: 12, color: MC.amberText }}>{line}</div>)}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
         <MButton compact data-usage-reset-cancel onClick={props.onCancel}>{props.L.cancel}</MButton>
         <MButton compact variant="danger-outline" data-usage-reset-confirm-action onClick={props.onConfirm}>{props.L.usageResetConfirm}</MButton>
@@ -318,25 +319,30 @@ function ResetConfirm(props: { L: Vocab; onConfirm: () => void; onCancel: () => 
   );
 }
 
-/** Banked resets on the Codex row; spending one always takes a second, explicit confirm. */
+/** Banked resets on a Codex or Claude row; spending one always takes a second, explicit confirm. */
 function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageResetState; L: Vocab }) {
   const [confirming, setConfirming] = useState(false);
+  const attempt = resetAttemptFor(reset, resets.provider);
+  const provider = resets.provider;
   return (
-    <div data-usage-resets style={{ padding: '9px 0 0', borderTop: `1px solid ${MC.divider}` }}>
+    <div data-usage-resets={provider ?? ''} style={{ padding: '9px 0 0', borderTop: `1px solid ${MC.divider}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
         <span style={META}>{resetSummary(resets, L)}</span>
-        {resets.available > 0 && !confirming
+        {provider !== null && resets.available > 0 && !confirming
           ? (
             <MButton compact variant="accent-outline" data-usage-reset-use disabled={reset.isRedeeming}
               onClick={() => setConfirming(true)} style={{ marginLeft: 'auto', height: 32 }}>
-              {reset.isRedeeming ? L.usageResetUsing : L.usageResetUse}
+              {attempt.isRedeeming ? L.usageResetUsing : L.usageResetUse}
             </MButton>
           )
           : null}
       </div>
-      <ResetOutcome reset={reset} L={L} />
-      {confirming
-        ? <ResetConfirm L={L} onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); reset.redeem(); }} />
+      <ResetOutcome attempt={attempt} L={L} />
+      {confirming && provider
+        ? (
+          <ResetConfirm L={L} lines={resets.confirm} onCancel={() => setConfirming(false)}
+            onConfirm={() => { setConfirming(false); reset.redeem(provider); }} />
+        )
         : null}
     </div>
   );

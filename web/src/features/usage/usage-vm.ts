@@ -1,11 +1,13 @@
 import type {
-  CodexResetStatus,
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
   ProviderUsage,
+  ResetProvider,
+  ResetStatus,
   UsageBilling,
   UsageFreshness,
+  UsageResetCredit,
   UsageWindow,
 } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
@@ -54,12 +56,16 @@ export interface UsageWindowView {
   policy: UsageWindowPolicyView | null;
 }
 
-/** Banked rate-limit resets the account can spend (OpenAI Codex). */
+/** Banked rate-limit resets the account can spend (OpenAI Codex, Claude). */
 export interface UsageResetsView {
+  /** The account a reset is spent on; null for a row that cannot spend one here. */
+  provider: ResetProvider | null;
   available: number;
   /** Earliest-expiring spendable reset; null when only the count is known. */
   nextExpiresAt: number | null;
   nextExpiresIn: string | null;
+  /** What the confirm step says before a reset is spent, one paragraph per line. */
+  confirm: string[];
 }
 
 export interface UsageResetOutcomeView {
@@ -112,13 +118,17 @@ const PROVIDER_ORDER: Record<string, number> = {
   'openai-codex': 1,
 };
 
-const RESET_OUTCOME_LABELS: Record<CodexResetStatus, keyof Vocab> = {
+const RESET_OUTCOME_LABELS: Record<ResetStatus, keyof Vocab> = {
   reset: 'usageResetDone',
   nothing_to_reset: 'usageResetNothing',
   no_credit: 'usageResetNoCredit',
   already_redeemed: 'usageResetAlreadyUsed',
-  unavailable: 'usageResetUnavailable',
+  cooldown: 'usageResetCooldown',
+  ineligible: 'usageResetIneligible',
+  signed_out: 'usageResetSignedOut',
 };
+
+const RESET_PROVIDERS: readonly string[] = ['openai-codex', 'anthropic'] satisfies ResetProvider[];
 
 const WEEKLY_WINDOW_TYPES = new Set(['seven_day', 'seven_day_overage_included']);
 const RENDERABLE_WINDOW_TYPES = new Set(Object.keys(WINDOW_LABEL_KEYS));
@@ -218,7 +228,7 @@ export function formatUsageDuration(seconds: number, lang: Lang): string {
   return m;
 }
 
-function windowLabel(window: UsageWindow, lang: Lang): string {
+function windowLabel(window: Pick<UsageWindow, 'type' | 'label'>, lang: Lang): string {
   if (window.label) return window.label;
   const key = Object.hasOwn(WINDOW_LABEL_KEYS, window.type) ? WINDOW_LABEL_KEYS[window.type] : undefined;
   return key ? pickVocab(lang)[key] : window.type.replaceAll('_', ' ');
@@ -258,20 +268,51 @@ function buildWindow(
   };
 }
 
+function resetProvider(record: ProviderUsage): ResetProvider | null {
+  return record.billing !== 'api' && RESET_PROVIDERS.includes(record.provider)
+    ? record.provider as ResetProvider
+    : null;
+}
+
+/** Current use of the windows a reset clears (all shown windows when it does not say). */
+function clearedWindowUse(record: ProviderUsage, clears: string[], lang: Lang): string {
+  return record.windows
+    .filter((window) => isRenderableWindow(window) && (clears.length === 0 || clears.includes(window.type)))
+    .map((window) => `${windowLabel(window, lang)} ${utilizationLabel(window.utilization) ?? '—'}`)
+    .join(' · ');
+}
+
+/** Claude names the windows a reset clears; while not at a limit the confirm shows current use. */
+function resetConfirm(record: ProviderUsage, next: UsageResetCredit | null, lang: Lang): string[] {
+  const L = pickVocab(lang);
+  if (record.provider !== 'anthropic') return [L.usageResetConfirmBody];
+  const clears = next?.clears ?? [];
+  const windows = clears.map((type) => windowLabel({ type }, lang)).join(', ') || L.usageResetAllLimits;
+  const lines = [fmt(L.usageResetConfirmBodyClaude, { windows })];
+  const usage = clearedWindowUse(record, clears, lang);
+  if (record.resetCredits?.atLimit === false && usage) lines.push(fmt(L.usageResetNotAtLimit, { usage }));
+  return lines;
+}
+
 /** Expired credits drop out locally, so a row read days ago does not offer a reset that lapsed. */
 function buildResets(record: ProviderUsage, nowSec: number, lang: Lang): UsageResetsView | null {
   const credits = record.resetCredits;
   if (!credits) return null;
   const live = credits.credits.filter((credit) => credit.expiresAt === null || credit.expiresAt > nowSec);
   const nextExpiresAt = live[0]?.expiresAt ?? null;
+  const next = live.find((credit) => credit.id === credits.nextCreditId) ?? live[0] ?? null;
   return {
-    available: credits.credits.length > 0 ? live.length : credits.availableCount,
+    provider: resetProvider(record),
+    available: credits.credits.length > 0
+      ? live.reduce((sum, credit) => sum + (credit.count ?? 1), 0)
+      : credits.availableCount,
     nextExpiresAt,
     nextExpiresIn: nextExpiresAt === null ? null : formatUsageDuration(nextExpiresAt - nowSec, lang),
+    confirm: resetConfirm(record, next, lang),
   };
 }
 
-export function resetOutcomeView(status: CodexResetStatus): UsageResetOutcomeView {
+export function resetOutcomeView(status: ResetStatus): UsageResetOutcomeView {
   return { label: RESET_OUTCOME_LABELS[status], tone: status === 'reset' ? 'success' : 'info' };
 }
 

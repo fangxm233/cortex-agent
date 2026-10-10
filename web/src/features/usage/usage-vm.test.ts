@@ -215,7 +215,9 @@ describe('buildUsageView', () => {
 });
 
 describe('banked resets', () => {
+  const claude = status[0];
   const codex = status[1];
+  const CODEX_CONFIRM = ['Restores Codex usage for this account on every device. This cannot be undone.'];
 
   it('shows the spendable count and the earliest live expiry, dropping credits that lapsed', () => {
     const vm = buildUsageView([{
@@ -231,19 +233,61 @@ describe('banked resets', () => {
     }], null, NOW, 'en');
 
     expect(vm.providers[0].resets).toEqual({
-      available: 2, nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h',
+      provider: 'openai-codex', available: 2, nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h',
+      confirm: CODEX_CONFIRM,
     });
   });
 
   it('falls back to the reported count when the credit list is unknown, and is absent without reset info', () => {
     const counted = buildUsageView([{ ...codex, resetCredits: { availableCount: 1, credits: [] } }], null, NOW, 'en');
-    expect(counted.providers[0].resets).toEqual({ available: 1, nextExpiresAt: null, nextExpiresIn: null });
+    expect(counted.providers[0].resets).toEqual({
+      provider: 'openai-codex', available: 1, nextExpiresAt: null, nextExpiresIn: null, confirm: CODEX_CONFIRM,
+    });
     expect(buildUsageView([codex], null, NOW, 'en').providers[0].resets).toBeNull();
+  });
+
+  it('counts every reset a Claude grant holds and confirms with the windows the next one clears', () => {
+    const vm = buildUsageView([{
+      ...claude,
+      resetCredits: {
+        availableCount: 3,
+        atLimit: false,
+        nextCreditId: 'pick',
+        credits: [
+          { id: 'soon', title: 'Reset', expiresAt: NOW + 86400, clears: ['five_hour'], count: 1 },
+          { id: 'pick', title: 'Reset', expiresAt: NOW + 9 * 86400, clears: ['five_hour', 'seven_day'], count: 2 },
+        ],
+      },
+    }], null, NOW, 'en');
+
+    expect(vm.providers[0].resets).toMatchObject({ provider: 'anthropic', available: 3, nextExpiresIn: '1d' });
+    expect(vm.providers[0].resets?.confirm).toEqual([
+      'Clears the 5 hours, 7 days limits for the whole account, claude.ai and every other device included. This cannot be undone.',
+      'Not at a limit right now: 5 hours 54% · 7 days 31%.',
+    ]);
+  });
+
+  it('says nothing about current use while the Claude account is at a limit', () => {
+    const vm = buildUsageView([{
+      ...claude,
+      resetCredits: { availableCount: 1, atLimit: true, credits: [{ id: 'g', title: null, expiresAt: null }] },
+    }], null, NOW, 'zh');
+
+    expect(vm.providers[0].resets?.confirm).toEqual([
+      '将清空整个账号的 用量 限额，claude.ai 与其他所有设备一并生效，且无法撤销。',
+    ]);
+  });
+
+  it('offers no reset to spend on a metered row', () => {
+    const vm = buildUsageView([{ ...claude, billing: 'api', resetCredits: { availableCount: 1, credits: [] } }], null, NOW, 'en');
+    expect(vm.providers[0].resets?.provider).toBeNull();
   });
 
   it('labels every redeem outcome', () => {
     expect(resetOutcomeView('reset')).toEqual({ label: 'usageResetDone', tone: 'success' });
     expect(resetOutcomeView('nothing_to_reset')).toEqual({ label: 'usageResetNothing', tone: 'info' });
-    expect(resetOutcomeView('unavailable').label).toBe('usageResetUnavailable');
+    expect(resetOutcomeView('cooldown').label).toBe('usageResetCooldown');
+    expect(resetOutcomeView('ineligible').label).toBe('usageResetIneligible');
+    expect(resetOutcomeView('signed_out').label).toBe('usageResetSignedOut');
   });
 });
