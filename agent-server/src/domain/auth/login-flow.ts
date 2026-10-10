@@ -147,9 +147,6 @@ interface InternalFlow {
   timer: NodeJS.Timeout;
   pending: PendingResponse | null;
   controller: AbortController;
-  /** A response reached the consumer and it has not asked for anything since: it may be saving
-   *  the credential, so the flow can no longer be cancelled or replaced. */
-  handedOff: boolean;
   /** Secrets and codes answered in this flow, kept in memory only to scrub failure reasons. */
   secrets: Set<string>;
 }
@@ -268,7 +265,6 @@ async function promptForFlow(flowId: string, prompt: AuthPrompt): Promise<string
   if (flow.pending) throw new Error('Login flow already has a pending prompt.');
   if (prompt.signal?.aborted) throw abortError('Authentication prompt aborted.');
   touch(flow);
-  flow.handedOff = false;
   flow.state.step = 'prompt';
   flow.state.pendingPrompt = promptMetadata(prompt, flow.state.revision);
   return new Promise<string>((resolve, reject) => {
@@ -427,12 +423,6 @@ function endCancelled(flow: InternalFlow): void {
   pending?.reject(abortError('Login flow cancelled.'));
 }
 
-/** A newer login for the same pair replaces an unfinished one, unless that one is already
- *  saving its credential. */
-function supersede(flow: InternalFlow): void {
-  if (flow.handedOff) throw new LoginFlowError('flow_conflict', t('ux.auth.previousFlowCompleting'));
-  endCancelled(flow);
-}
 
 function createFlow(input: StartLoginFlowInput): InternalFlow {
   const now = Date.now();
@@ -446,7 +436,7 @@ function createFlow(input: StartLoginFlowInput): InternalFlow {
   };
   const flow = {
     state, pairKey: pairKey(input), expiresAtMs: now + LOGIN_FLOW_TTL_MS,
-    controller: new AbortController(), pending: null, handedOff: false, secrets: new Set<string>(),
+    controller: new AbortController(), pending: null, secrets: new Set<string>(),
   } as InternalFlow;
   flow.timer = setTimeout(() => expireFlow(flow), LOGIN_FLOW_TTL_MS);
   flow.timer.unref();
@@ -458,7 +448,8 @@ export async function startFlow(
   consumer: LoginFlowConsumer,
 ): Promise<LoginFlowState> {
   const existing = existingFlow(input);
-  if (existing) supersede(existing);
+  // A newer login for the same pair replaces an unfinished one, whatever it is waiting on.
+  if (existing) endCancelled(existing);
   const flow = createFlow(input);
   flows.set(flow.state.flowId, flow);
   activePairs.set(flow.pairKey, flow.state.flowId);
@@ -480,14 +471,12 @@ export async function respondPrompt(
   if (!pending) throw new Error(t('ux.auth.flowNotWaiting'));
   if (kind) rememberSecret(flow, kind, value);
   flow.state.step = 'running';
-  flow.handedOff = true;
   pending.resolve(value);
   return snapshot(flow);
 }
 
 export async function cancelFlow(flowId: string): Promise<LoginFlowState> {
   const flow = requireActiveFlow(flowId);
-  if (flow.handedOff) throw new LoginFlowError('flow_conflict', t('ux.auth.flowCompleting'));
   endCancelled(flow);
   return snapshot(flow);
 }

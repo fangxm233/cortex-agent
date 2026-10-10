@@ -25,8 +25,6 @@ export const uiextraEn = {
   'ux.auth.failureDetail': '${message}: ${detail}',
   'ux.auth.apiKeySaveFailed': 'Could not save the Anthropic API key.',
   'ux.auth.flowFailed': 'Authentication flow failed.',
-  'ux.auth.previousFlowCompleting': 'The previous login is still completing. Try again in a moment.',
-  'ux.auth.flowCompleting': 'This login is already completing and can no longer be cancelled.',
 
   // ── Environment editor (domain/agents/environments) ──
   'ux.tpl.bodyNotObject': 'Body must be a JSON object',
@@ -78,8 +76,6 @@ export const uiextraZh: Record<keyof typeof uiextraEn, string> = {
   'ux.auth.failureDetail': '${message}：${detail}',
   'ux.auth.apiKeySaveFailed': '无法保存 Anthropic API key。',
   'ux.auth.flowFailed': '认证流程失败。',
-  'ux.auth.previousFlowCompleting': '上一次登录仍在完成中，请稍后再试。',
-  'ux.auth.flowCompleting': '登录正在完成，已无法取消。',
 
   'ux.tpl.bodyNotObject': '内容必须是 JSON 对象',
   'ux.tpl.unknownField': '无法识别的字段 "${key}"，将被忽略',

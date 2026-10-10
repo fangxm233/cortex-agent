@@ -101,8 +101,7 @@ async function login(options: Options, deps: LoginCliDeps): Promise<CliResult> {
   process.once('SIGINT', interrupt);
   try { state = await driveFlow(initial, deps, controller.signal); }
   catch (error) {
-    // Best effort only: the shared service refuses cancellation after credential handoff.
-    // Do not bypass that fence or claim already-persisting credentials were rolled back.
+    // Best effort: the flow may already have ended on its own.
     await deps.service.cancel(initial.flowId).catch(() => {});
     if (controller.signal.aborted) throw new LoginCliError(t('init.auth.cancelled'), 130);
     throw error;

@@ -126,31 +126,37 @@ test('startFlow supersedes an unfinished flow for the same backend and provider'
   assert.equal(requireState(duplicate.flowId).step, 'done');
 });
 
-test('a flow saving a submitted response refuses cancel and replacement until it prompts again', async () => {
-  const saving = deferred<void>();
-  const flow = await startFlow(input('handoff'), async (interaction) => {
-    await interaction.prompt({ type: 'secret', message: 'API key' });
-    await saving.promise;
-    await interaction.prompt({ type: 'text', message: 'Account id' });
-    return outcome('handoff');
+test('a flow waiting after a response (device code) can be cancelled and replaced', async () => {
+  let aborted = 0;
+  const waitForBrowser = (signal?: AbortSignal) => new Promise<void>((_resolve, reject) => {
+    signal?.addEventListener('abort', () => { aborted += 1; reject(new Error('aborted')); }, { once: true });
   });
+  const consumer = async (interaction: AuthInteraction) => {
+    await interaction.prompt({ type: 'select', message: 'Method', options: [{ id: 'device', label: 'Device' }] });
+    interaction.notify({ type: 'device_code', userCode: 'ABCD-1234', verificationUri: 'https://example.test/device' });
+    await waitForBrowser(interaction.signal);
+    return outcome('device-wait');
+  };
+  const flow = await startFlow(input('device-wait'), consumer);
   await flush();
-  await respondPrompt(flow.flowId, 'submitted-key');
-
-  await assert.rejects(() => cancelFlow(flow.flowId), (error: any) => (
-    error?.code === 'flow_conflict' && error.message === 'This login is already completing and can no longer be cancelled.'
-  ));
-  await assert.rejects(() => startFlow(input('handoff'), async () => outcome('handoff')), (error: any) => (
-    error?.code === 'flow_conflict' && error.message === 'The previous login is still completing. Try again in a moment.'
-  ));
-  assert.equal(requireState(flow.flowId).step, 'running');
-
-  saving.resolve();
+  await respondPrompt(flow.flowId, 'device');
   await flush();
-  assert.equal(requireState(flow.flowId).pendingPrompt?.kind, 'text');
-  const replacement = await startFlow(input('handoff'), async () => outcome('handoff'));
-  assert.notEqual(replacement.flowId, flow.flowId);
-  assert.equal(requireState(flow.flowId).step, 'cancelled');
+  assert.equal(requireState(flow.flowId).notice?.kind, 'device_code');
+
+  assert.equal((await cancelFlow(flow.flowId)).step, 'cancelled');
+  await flush();
+  assert.equal(aborted, 1);
+
+  const second = await startFlow(input('device-wait'), consumer);
+  await flush();
+  await respondPrompt(second.flowId, 'device');
+  await flush();
+  const third = await startFlow(input('device-wait'), consumer);
+  await flush();
+  assert.notEqual(third.flowId, second.flowId);
+  assert.equal(requireState(second.flowId).step, 'cancelled');
+  assert.equal(aborted, 2);
+  await cancelFlow(third.flowId);
 });
 
 test('consumer rejection keeps the first line of its reason and releases the active pair', async () => {

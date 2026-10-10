@@ -212,20 +212,17 @@ test('a multi-step flow can be cancelled again once it asks its next prompt', as
   assert.equal(cancelled.step, 'cancelled');
 });
 
-test('blocked credential persistence cannot be reported as cancelled after handoff', async () => {
+test('a submitted response does not block cancel or a replacement start', async () => {
   const writer = deferred();
-  let persisted = false;
   const service = createAuthLoginService({
     claudeConsumer: async interaction => {
       await interaction.prompt({ type: 'secret', message: 'key' });
       await writer.promise;
-      persisted = true;
       return { provider: 'anthropic', authType: 'api_key', expiresAt: null };
     },
   });
-  const started = await service.start({
-    backend: 'claude', provider: 'anthropic', authType: 'api_key', channel: null, sessionId: null,
-  });
+  const input = { backend: 'claude', provider: 'anthropic', authType: 'api_key', channel: null, sessionId: null } as const;
+  const started = await service.start(input);
   await waitForStep(service, started.flowId, 'prompt');
   await service.respond(started.flowId, 'sentinel');
   await assert.rejects(
@@ -233,15 +230,11 @@ test('blocked credential persistence cannot be reported as cancelled after hando
     /not waiting for a prompt response/,
   );
 
-  await assert.rejects(() => service.cancel(started.flowId), (error: any) => error?.code === 'flow_conflict');
-  await assert.rejects(
-    () => service.start({
-      backend: 'claude', provider: 'anthropic', authType: 'api_key', channel: null, sessionId: null,
-    }),
-    (error: any) => error?.code === 'flow_conflict',
-  );
-  assert.equal(service.getState(started.flowId)?.step, 'running');
+  assert.equal((await service.cancel(started.flowId)).step, 'cancelled');
+  const replacement = await service.start(input);
+  assert.notEqual(replacement.flowId, started.flowId);
   writer.resolve();
-  assert.equal((await waitForStep(service, started.flowId, 'done')).step, 'done');
-  assert.equal(persisted, true);
+  await setImmediate();
+  assert.equal(service.getState(started.flowId)?.step, 'cancelled');
+  await service.cancel(replacement.flowId);
 });
