@@ -8,28 +8,12 @@ import { t } from '@core/i18n.js';
 export const isGitInstalled = isGitAvailable;
 
 export function getGitInstallHint(): string {
-  if (process.platform === 'win32') return 'winget install --id Git.Git -e --source winget';
+  if (process.platform === 'win32') return 'https://git-scm.com/download/win (Git for Windows, including Git Bash)';
   if (process.platform === 'darwin') return 'xcode-select --install  (or  brew install git  if you use Homebrew)';
   return 'Install Git via your package manager or https://git-scm.com/downloads';
 }
 
-function installWindowsGit(): boolean {
-  const s = clack.spinner();
-  s.start(t('init.git.autoInstalling'));
-  try {
-    execSync('winget install --id Git.Git -e --source winget --silent', { stdio: 'pipe', timeout: 120_000 });
-    s.stop(t('init.git.installed'));
-    if (isGitInstalled()) return true;
-    clack.log.warn(t('init.git.notOnPath'));
-  } catch (err: unknown) {
-    s.stop(t('init.git.autoInstallFailed'));
-    clack.log.warn(err instanceof Error ? err.message : String(err));
-  }
-  clack.log.info(t('init.git.manualHint', { hint: getGitInstallHint() }));
-  return false;
-}
-
-/** Only Windows needs Git Bash for shell tools; POSIX setup never installs optional Git. */
+/** Read-only qualification: App setup prepares Windows Git Bash; POSIX Git stays optional. */
 export function ensureGitInstalled(): boolean {
   if (isGitInstalled()) return true;
   if (process.platform !== 'win32') {
@@ -37,7 +21,8 @@ export function ensureGitInstalled(): boolean {
     return false;
   }
   clack.log.warn(t('init.git.required'));
-  return installWindowsGit();
+  clack.log.info(t('init.git.manualHint', { hint: getGitInstallHint() }));
+  return false;
 }
 
 export function ensureGitRepo(dataDir: string): void {

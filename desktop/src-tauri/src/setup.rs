@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 use std::ffi::OsStr;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
+mod answers;
+pub use answers::{answers_json, SetupAnswers};
 pub mod claude;
 mod package;
 mod process;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 mod runtime;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod service;
@@ -160,34 +162,6 @@ pub fn parse_ui_endpoint(stdout: &str) -> Option<UiEndpoint> {
     serde_json::from_str(stdout.trim()).ok()
 }
 
-/// The wizard's answers, translated into the `cortex init --answers` document.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetupAnswers {
-    pub lang: String,
-    pub machine_name: String,
-    pub backends: Vec<String>,
-    pub install_service: bool,
-    pub port: u16,
-}
-
-/// Build the `--answers` document.
-///
-/// `platforms` is deliberately empty: the desktop app *is* the interface, so Slack/Feishu are not
-/// asked about — a platform-less install falls back to the built-in gateway. `localUi` is what turns
-/// this install into something the shell can reach at all.
-pub fn answers_json(answers: &SetupAnswers) -> String {
-    serde_json::json!({
-        "lang": answers.lang,
-        "machineName": answers.machine_name,
-        "backends": answers.backends,
-        "platforms": [],
-        "installService": answers.install_service && !cfg!(any(target_os = "macos", target_os = "linux")),
-        "localUi": { "enabled": true, "port": answers.port },
-    })
-    .to_string()
-}
-
 /// The Cortex home this machine would use — the same resolution the server does.
 fn cortex_home() -> Option<std::path::PathBuf> {
     if let Ok(explicit) = std::env::var("CORTEX_HOME") {
@@ -237,8 +211,8 @@ fn wait_until_ready(url: &str, token: &str, budget: Duration) -> bool {
 
 /// Start (or restart) the local daemon and wait for it to answer.
 ///
-/// Automatic POSIX setup preserves a running daemon. Only explicit failed-start repair may
-/// restart it after changing its endpoint. Windows retains its existing restart-first behavior.
+/// Automatic setup preserves a running daemon on every desktop platform. Only explicit
+/// failed-start repair may restart it after changing its endpoint.
 pub fn start_local_daemon(
     app: &AppHandle,
     run: &str,
@@ -296,8 +270,8 @@ pub async fn setup_probe() -> Result<SetupProbe, String> {
 }
 
 fn probe_machine() -> Result<SetupProbe, String> {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    process::selected_runtime()?;
+    // Missing selected tools report absent here; install owns explicit repair. Failing the
+    // initial probe would prevent the wizard from reaching ensure_server on cancellation retry.
     let node = probe_output("node", &["-v"]);
     let cortex_bin = resolve_cortex_bin();
     let server_version = cortex_bin.as_deref().and_then(probe_server_version);
@@ -342,11 +316,11 @@ pub async fn setup_install_server(app: AppHandle, run: String) -> Result<Install
 
 #[tauri::command]
 pub fn setup_cancel_install() {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     runtime::cancel_install();
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> {
     let owner = runtime::InstallGuard::begin()?;
     let home = cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
@@ -359,13 +333,15 @@ fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> 
         owner.token(),
         &|line| process::install_log(app, line),
     )?;
+    let server_version = runtime::install_server_version(
+        &selected, &home, &process::inherited_path(), owner.token(),
+    )?;
     let cortex_bin = selected
         .server
         .ok_or("CLI_NOT_ON_PATH")?
         .bin
         .to_string_lossy()
         .into_owned();
-    let server_version = probe_server_version(&cortex_bin);
     validate_server_version(server_version.as_deref())?;
     Ok(InstallResult {
         cortex_bin,
@@ -373,7 +349,7 @@ fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> 
     })
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
     let package = server_package()?;
     let outcome = run_streaming(
@@ -466,9 +442,9 @@ fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: Option<u16>) -> Result
 
 /// A saved runtime must be repaired explicitly, never replaced from a changed login PATH.
 pub fn local_runtime_needs_repair() -> bool {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     return process::selected_runtime().is_err();
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     false
 }
 
@@ -547,7 +523,7 @@ pub async fn setup_start_daemon(
     token: String,
     restart: Option<bool>,
 ) -> Result<bool, String> {
-    let restart = restart.unwrap_or(cfg!(target_os = "windows"));
+    let restart = restart.unwrap_or(false);
     tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token, restart))
         .await
         .map_err(|e| format!("SETUP_TASK_FAILED: daemon: {e}"))?
@@ -643,6 +619,25 @@ mod tests {
     }
 
     #[test]
+    fn local_client_progress_preserves_the_existing_init_result() {
+        let stream = concat!(
+            "{\"step\":\"local-client\",\"state\":\"ok\"}\n",
+            "{\"step\":\"result\",\"state\":\"ok\",\"home\":\"/h\",",
+            "\"clientToken\":\"fixture\",\"uiUrl\":\"http://127.0.0.1:3004\"}\n",
+        );
+        let result = parse_init_result(stream).unwrap();
+        assert_eq!(result.home.as_deref(), Some("/h"));
+        assert_eq!(result.client_token.as_deref(), Some("fixture"));
+        assert_eq!(result.ui_url.as_deref(), Some("http://127.0.0.1:3004"));
+    }
+
+    #[test]
+    fn local_client_failure_is_not_an_init_result() {
+        let stream = "{\"step\":\"local-client\",\"state\":\"error\",\"error\":\"CLIENT_CONFLICT\"}\n";
+        assert!(parse_init_result(stream).is_none());
+    }
+
+    #[test]
     fn the_answers_document_carries_the_choices_and_no_messaging_platform() {
         let answers = SetupAnswers {
             lang: "zh".into(),
@@ -657,10 +652,11 @@ mod tests {
         assert_eq!(doc["backends"], serde_json::json!(["pi"]));
         assert_eq!(
             doc["installService"],
-            !cfg!(any(target_os = "macos", target_os = "linux"))
+            !cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows"))
         );
         assert_eq!(doc["localUi"]["enabled"], true);
         assert_eq!(doc["localUi"]["port"], 3004);
+        assert_eq!(doc["localClient"], serde_json::json!({ "enabled": true }));
         assert_eq!(
             doc["platforms"].as_array().map(|a| a.len()),
             Some(0),

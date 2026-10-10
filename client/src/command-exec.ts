@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
+import { win32 } from 'node:path';
 
 export interface CommandResult {
   stdout: string;
@@ -99,7 +100,7 @@ export function execBash(
   command: string,
   timeoutMs: number,
 ): Promise<CommandResult> {
-  const shell = process.platform === 'win32' ? findGitBash() : '/bin/bash';
+  const shell = resolveBash();
   if (!shell) {
     return Promise.resolve({ stdout: '', stderr: 'bash not found (git-bash not installed on Windows?)', exitCode: 127 });
   }
@@ -107,7 +108,7 @@ export function execBash(
 }
 
 export function execBashBackground(command: string): { pid: number | undefined } {
-  const shell = process.platform === 'win32' ? findGitBash() : '/bin/bash';
+  const shell = resolveBash();
   if (!shell) return { pid: undefined };
   const proc = spawn(shell, ['-l', '-c', command], {
     stdio: 'ignore',
@@ -142,8 +143,24 @@ function monitorCommand(
   });
 }
 
-function findGitBash(): string | null {
-  return GIT_BASH_PATHS.find((candidate) => fs.existsSync(candidate)) ?? null;
+/** Native supplies an already verified selection; never silently replace a stale selection. */
+export function resolveBash(posixShell = '/bin/bash'): string | null {
+  if (process.platform !== 'win32') return posixShell;
+  const selected = process.env.CORTEX_GIT_BASH_PATH;
+  if (selected !== undefined) {
+    if (!selected || !fs.existsSync(selected)) {
+      throw new Error(`CORTEX_GIT_BASH_PATH points to a missing Git Bash executable: "${selected}"`);
+    }
+    return selected;
+  }
+  return GIT_BASH_PATHS.find((candidate) => fs.existsSync(candidate)) ?? findBashOnPath();
+}
+
+function findBashOnPath(): string | null {
+  const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH');
+  const directories = (process.env[pathKey ?? 'PATH'] ?? '').split(';').filter(Boolean);
+  const candidates = directories.map((directory) => win32.join(directory.replace(/^"|"$/g, ''), 'bash.exe'));
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
 function joinStderr(stderr: string, message: string): string {

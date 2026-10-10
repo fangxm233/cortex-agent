@@ -318,15 +318,24 @@ function applyClaudeStartupEnv(env: NodeJS.ProcessEnv): void {
   env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';                   // no title updates; also skips the title-gen Haiku call in -p
 }
 
-/** Drops every inherited CLAUDE_CODE* control; only an ambient OAuth token is re-admitted, and
- *  never for a pinned trial environment. */
+/** Native owns selection and PATH; explicit Claude settings still take precedence. */
+function applySelectedWindowsBash(env: NodeJS.ProcessEnv): void {
+  if (process.platform !== 'win32') return;
+  const bashPath = env.CLAUDE_CODE_GIT_BASH_PATH ?? env.CORTEX_GIT_BASH_PATH;
+  if (bashPath !== undefined) env.CLAUDE_CODE_GIT_BASH_PATH = bashPath;
+}
+
+/** Drops inherited CLAUDE_CODE* controls except Windows Bash selection. Only an ambient OAuth
+ *  token is re-admitted, and never for a pinned trial environment. */
 function resetClaudeCodeEnv(env: NodeJS.ProcessEnv, admitAmbientOauth: boolean): void {
   const oauthToken = admitAmbientOauth ? env.CLAUDE_CODE_OAUTH_TOKEN : undefined;
   delete env.CLAUDECODE;
   for (const key of Object.keys(env)) {
-    if (key.startsWith('CLAUDE_CODE')) delete env[key];
+    const keepBash = process.platform === 'win32' && key === 'CLAUDE_CODE_GIT_BASH_PATH';
+    if (key.startsWith('CLAUDE_CODE') && !keepBash) delete env[key];
   }
   if (oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
+  applySelectedWindowsBash(env);
   applyClaudeStartupEnv(env);
 }
 

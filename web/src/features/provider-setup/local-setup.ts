@@ -2,8 +2,8 @@ import type { Vocab } from '@/i18n';
 import type { NativePageConfig, NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
 import { parseNativeError } from '@/lib/native-error';
 
-// POSIX setup automatically installs, initializes, starts and connects. Windows keeps its manual
-// settings step; failed starts offer repair settings. Commands are owned by the native shell.
+// Setup automatically prepares tools, initializes, starts and connects on every desktop platform.
+// Failed starts offer repair settings. Commands and tool selection are owned by the native shell.
 
 export type LocalSetupStage = 'prepare' | 'configure' | 'start' | 'ready';
 export type LocalSetupStep = 'check' | 'install' | 'config' | 'daemon' | 'autostart' | 'connect';
@@ -36,7 +36,7 @@ export interface LocalSetupState {
   answers: NativeSetupAnswers | null;
   warning: 'AUTOSTART_FAILED' | null;
   newInstall: boolean | null;
-  /** Condense automatic POSIX installation and startup into one visible step. */
+  /** Condense automatic installation and startup into one visible step. */
   automatic: boolean;
   /** Where the SPA continues once connected: provider setup after a fresh install. */
   destination: string | null;
@@ -86,27 +86,18 @@ export class LocalSetupFlow {
     // Keep the entry identity even after init creates config or a retry re-probes.
     this.patch({ probe, bin: probe.cortexBin, version: probe.serverVersion, needsInit,
       newInstall: this.state.newInstall ?? needsInit });
-    if (probe.os === 'windows') this.requireWindowsTools(probe);
-  }
-
-  private requireWindowsTools(probe: NativeSetupProbe) {
-    if (!probe.nodeOk) throw new Error('NODE_REQUIRED');
-    if (!probe.npm) throw new Error('NPM_REQUIRED');
-    if (!probe.git) throw new Error('GIT_REQUIRED');
   }
 
   prepare = (lang?: string) => this.operation(async () => {
     this.patch({ stage: 'prepare', progress: {} });
     this.mark('check', 'running');
     this.acceptProbe(await this.ports.probe());
-    this.patch({ automatic: lang !== undefined && this.state.probe?.os !== 'windows' });
+    this.patch({ automatic: lang !== undefined });
     this.mark('check', 'done');
-    // POSIX setup also validates and persists the selected environment for existing installs.
-    if (this.state.probe?.os !== 'windows' || !this.state.probe.serverOk) {
-      this.mark('install', 'running');
-      const result = await this.ports.installServer();
-      this.patch({ bin: result.cortexBin, version: result.serverVersion });
-    }
+    // Even an existing server needs its selected tools validated and persisted by native setup.
+    this.mark('install', 'running');
+    const result = await this.ports.installServer();
+    this.patch({ bin: result.cortexBin, version: result.serverVersion });
     this.mark('install', 'done');
     if (this.state.automatic) await this.startConfigured(this.defaultAnswers(lang!));
     else this.patch({ stage: 'configure', error: null });
@@ -141,7 +132,7 @@ export class LocalSetupFlow {
     const endpoint = await this.initialize(answers);
     const bin = this.state.bin ?? '';
     this.mark('daemon', 'running');
-    const restart = this.state.probe?.os === 'windows' ? undefined : answers.restartDaemon === true;
+    const restart = answers.restartDaemon === true;
     if (!await this.ports.startDaemon(bin, endpoint, restart)) throw new Error('DAEMON_TIMEOUT');
     this.mark('daemon', 'done');
     if (answers.installService) await this.autostart();

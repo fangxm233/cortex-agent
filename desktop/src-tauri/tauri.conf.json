@@ -14,7 +14,9 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../../web/dist/": "frontend-seed/"
+      "../../web/dist/": "frontend-seed/",
+      "src/setup/runtime_portablegit/LICENSE-APACHE": "licenses/portablegit-reader/LICENSE-APACHE",
+      "src/setup/runtime_portablegit/README.md": "licenses/portablegit-reader/README.md"
     },
     "icon": [
       "icons/32x32.png",

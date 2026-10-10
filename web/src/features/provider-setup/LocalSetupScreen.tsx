@@ -162,8 +162,7 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   const lang = useLang();
   const start = (machineName: string, installService: boolean, port: number) => {
     clearLog();
-    void flow.start({ lang, machineName, backends: ['pi'], installService, port,
-      ...(state.probe?.os !== 'windows' ? { restartDaemon: true } : {}) });
+    void flow.start({ lang, machineName, backends: ['pi'], installService, port, restartDaemon: true });
   };
   const retry = () => {
     if (state.stage === 'prepare') void flow.prepare(lang);

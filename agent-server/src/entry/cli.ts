@@ -1,4 +1,4 @@
-import { fork } from 'child_process';
+import { fork, type ForkOptions, type SpawnOptions } from 'child_process';
 import * as path from 'path';
 import * as net from 'net';
 import { fileURLToPath } from 'url';
@@ -580,12 +580,14 @@ function main(): void {
     // Detach the daemon so it survives parent shell exit (Bug 1: EPIPE cascade).
     // detached: true → new process group leader; stdio: 'ignore' → no pipe to parent.
     // The daemon's own logger writes to files — console output is redundant.
-    fork(DAEMON_JS, [], {
+    const daemonOptions = {
       cwd: DATA_DIR,
+      windowsHide: true,
       detached: true,
       stdio: 'ignore',
       env: { ...process.env },
-    });
+    } satisfies ForkOptions & Pick<SpawnOptions, 'windowsHide'>;
+    fork(DAEMON_JS, [], daemonOptions);
     process.exit(0);
   }
 
