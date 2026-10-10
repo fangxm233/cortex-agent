@@ -14,8 +14,9 @@ import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type {
   ProviderUsage, UsageBilling, UsageFreshness, UsageResetCredit, UsageResetCredits, UsageWindow,
 } from '@domain/costs/usage-store.js';
-import type { CodexResetResult } from '@domain/costs/codex-reset.js';
-export type { CodexResetResult, CodexResetStatus } from '@domain/costs/codex-reset.js';
+import type { UsageResetResult } from '@domain/costs/account-reset.js';
+export type { UsageResetResult } from '@domain/costs/account-reset.js';
+export type { ResetProvider, ResetStatus } from '@domain/costs/reset-account.js';
 import type { ServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type { SystemUpdateCheckResult } from '@domain/system/server-update-coordinator.js';
 export type { SystemUpdateCheckResult } from '@domain/system/server-update-coordinator.js';
@@ -1490,7 +1491,7 @@ export interface SystemRateLimitStatus {
 
 export type SystemUsageStatus = ProviderUsage[];
 export type SystemRefreshUsageReturn = ProviderUsage[];
-export type SystemRedeemCodexResetReturn = CodexResetResult;
+export type SystemRedeemUsageResetReturn = UsageResetResult;
 
 // ── system.restart DTO ────────────────────────────────────────────
 
@@ -1772,7 +1773,7 @@ export interface MutateReturnMap {
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
   'system.refreshUsage': SystemRefreshUsageReturn;
-  'system.redeemCodexReset': SystemRedeemCodexResetReturn;
+  'system.redeemUsageReset': SystemRedeemUsageResetReturn;
   'system.checkUpdate': SystemUpdateCheckResult;
   'system.applyUpdate': SystemUpdateDecisionReturn;
   'system.skipUpdate': SystemUpdateDecisionReturn;

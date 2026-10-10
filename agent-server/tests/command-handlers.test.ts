@@ -9,8 +9,9 @@ import { CommandActionRouter } from '../src/orchestration/interactions/command-a
 import { handleBackendCmd, handleModelCmd, handleThinkingCmd } from '../src/orchestration/routing/commands/mode.js';
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
 import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
-import type { CodexResetResult } from '../src/domain/costs/codex-reset.js';
-import { codexResetNoticeActions } from '../src/orchestration/routing/commands/usage.js';
+import type { UsageResetResult } from '../src/domain/costs/account-reset.js';
+import type { ResetProvider } from '../src/domain/costs/reset-account.js';
+import { usageResetNoticeActions } from '../src/orchestration/routing/commands/usage-reset.js';
 import { projectStore } from '../src/domain/projects/index.js';
 import {
   clearChannelOverride, clearChannelProfile, getSelectionDefault, setChannelOverride,
@@ -382,90 +383,142 @@ const CODEX_WITH_RESETS: ProviderUsage = {
   },
 };
 
-function usageDispatcher(records: ProviderUsage[], codexReset: (creditId?: string) => Promise<CodexResetResult>) {
+const CLAUDE_WITH_RESETS: ProviderUsage = {
+  ...COMMAND_USAGE[0],
+  resetCredits: {
+    availableCount: 1,
+    atLimit: false,
+    credits: [{
+      id: 'grant_1', title: 'Reset', expiresAt: 1_800_400_000,
+      clears: ['five_hour', 'seven_day', 'seven_day_overage_included'],
+    }],
+  },
+};
+
+type Redeemer = (provider: ResetProvider, creditId?: string) => Promise<UsageResetResult>;
+
+function usageDispatcher(records: ProviderUsage[], usageReset: Redeemer) {
   const adapter = new MockAdapter();
   const router = new CommandActionRouter();
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
     commandRouter: router,
     usageService: { getStatus: async () => records, refresh: async () => records },
-    codexReset,
+    usageReset,
   });
   router.bindToAdapter(adapter);
   return { adapter, dispatchCommand };
 }
 
-test('!usage shows banked Codex resets and offers the reset button only while one exists', async () => {
-  const redeem = async (): Promise<CodexResetResult> => { throw new Error('not reached'); };
-  const withResets = usageDispatcher([COMMAND_USAGE[0], CODEX_WITH_RESETS], redeem);
+const notReached: Redeemer = async () => { throw new Error('not reached'); };
+
+function actionButtons(content: { richBlocks?: { type: string; elements?: { actionId: string; value?: string }[] }[] }) {
+  return content.richBlocks?.find(block => block.type === 'actions')?.elements?.map(element => `${element.actionId}=${element.value}`);
+}
+
+test('!usage shows banked resets and offers a reset button per provider only while one exists', async () => {
+  const withResets = usageDispatcher([CLAUDE_WITH_RESETS, CODEX_WITH_RESETS], notReached);
   withResets.dispatchCommand('!usage', 'C-usage', withResets.adapter);
   await new Promise(resolve => setImmediate(resolve));
   const post = withResets.adapter.posted[0].content;
   assert.match(post.text, /Banked resets: 1 · earliest expires 2027-01-21T/);
-  const ids = post.richBlocks?.find(block => block.type === 'actions')?.elements.map(element => element.actionId);
-  assert.deepEqual(ids, ['cmd:usage:refresh', 'cmd:usage:reset']);
+  assert.match(post.text, /Banked resets: 1 · earliest expires 2027-01-19T/);
+  assert.deepEqual(actionButtons(post), [
+    'cmd:usage:refresh=', 'cmd:usage:reset=openai-codex', 'cmd:usage:reset=anthropic',
+  ]);
+
+  withResets.dispatchCommand('!usage anthropic', 'C-usage', withResets.adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(actionButtons(withResets.adapter.posted[1].content), ['cmd:usage:refresh=anthropic', 'cmd:usage:reset=anthropic']);
 
   const spent = { ...CODEX_WITH_RESETS, resetCredits: { availableCount: 0, credits: [] } };
-  const none = usageDispatcher([spent], redeem);
+  const none = usageDispatcher([spent], notReached);
   none.dispatchCommand('!usage', 'C-usage', none.adapter);
   await new Promise(resolve => setImmediate(resolve));
   assert.match(none.adapter.posted[0].content.text, /Banked resets: 0/);
-  const noneIds = none.adapter.posted[0].content.richBlocks?.find(block => block.type === 'actions')?.elements.map(element => element.actionId);
-  assert.deepEqual(noneIds, ['cmd:usage:refresh']);
+  assert.deepEqual(actionButtons(none.adapter.posted[0].content), ['cmd:usage:refresh=']);
 });
 
 test('!usage reset takes a confirm click and reports the outcome in place of the prompt', async () => {
-  const calls: (string | undefined)[] = [];
+  const calls: unknown[][] = [];
   const after: ProviderUsage = { ...CODEX_WITH_RESETS, freshness: 'live', windows: [{ type: 'codex_primary', utilization: 0, resetsAt: null }] };
-  const { adapter } = usageDispatcher([CODEX_WITH_RESETS], async (creditId) => {
-    calls.push(creditId);
-    return { status: 'reset', windowsReset: 1, usage: [after] };
+  const { adapter } = usageDispatcher([CODEX_WITH_RESETS], async (...args) => {
+    calls.push(args);
+    return { provider: 'openai-codex', status: 'reset', cleared: [], usage: [after] };
   });
   const usageMessage = { conduit: 'C-usage', messageId: 'usage-msg-1' };
 
-  await adapter.simulateAction('cmd:usage:reset', '', { channelId: 'C-usage', messageRef: usageMessage });
+  await adapter.simulateAction('cmd:usage:reset', 'openai-codex', { channelId: 'C-usage', messageRef: usageMessage });
 
   assert.deepEqual(calls, [], 'the first click only asks');
   const prompt = adapter.posted[0];
   assert.equal(prompt.threadId, 'usage-msg-1');
-  assert.match(prompt.content.text, /every device and cannot be undone/);
-  assert.deepEqual(prompt.actions?.map(action => action.actionId), ['cmd:usage:reset-confirm', 'cmd:usage:reset-cancel']);
+  assert.match(prompt.content.text, /Codex usage for this account on every device and cannot be undone/);
+  assert.deepEqual(prompt.actions?.map(action => `${action.actionId}=${action.value}`), [
+    'cmd:usage:reset-confirm=openai-codex', 'cmd:usage:reset-cancel=openai-codex',
+  ]);
 
   const promptRef = { conduit: 'C-usage', messageId: 'prompt-1' };
-  await adapter.simulateAction('cmd:usage:reset-confirm', '', { channelId: 'C-usage', messageRef: promptRef });
+  await adapter.simulateAction('cmd:usage:reset-confirm', 'openai-codex', { channelId: 'C-usage', messageRef: promptRef });
 
-  assert.deepEqual(calls, [undefined]);
+  assert.deepEqual(calls, [['openai-codex']]);
   assert.equal(adapter.updated.length, 2);
   assert.match(adapter.updated[0].content.text, /Using a Codex reset/);
   assert.match(adapter.updated[1].content.text, /Codex reset used[\s\S]*OpenAI Codex/);
   assert.ok(adapter.updated.every(update => !update.content.richBlocks?.some(block => block.type === 'actions')));
 });
 
+test('the Claude confirm names the account-wide scope, the cleared windows and the current use', async () => {
+  const { adapter } = usageDispatcher([CLAUDE_WITH_RESETS], notReached);
+
+  await adapter.simulateAction('cmd:usage:reset', 'anthropic', {
+    channelId: 'C-usage', messageRef: { conduit: 'C-usage', messageId: 'usage-msg-1' },
+  });
+
+  const text = adapter.posted[0].content.text;
+  assert.match(text, /clears the 5 hour, 7 day, 7 day \(incl\. overage\) limits for the whole account/);
+  assert.match(text, /claude\.ai and every other device included — and cannot be undone/);
+  assert.match(text, /not at a limit right now: 5 hour 34% · 7 day 61%/);
+
+  const atLimit = { ...CLAUDE_WITH_RESETS, resetCredits: { ...CLAUDE_WITH_RESETS.resetCredits!, atLimit: true } };
+  const limited = usageDispatcher([atLimit], notReached);
+  await limited.adapter.simulateAction('cmd:usage:reset', 'anthropic', { channelId: 'C-usage' });
+  assert.doesNotMatch(limited.adapter.posted[0].content.text, /not at a limit/);
+});
+
 test('!usage reset cancel and non-reset outcomes spend nothing extra and say why', async () => {
   let redeemed = 0;
-  const { adapter } = usageDispatcher([CODEX_WITH_RESETS], async () => {
+  const { adapter } = usageDispatcher([CLAUDE_WITH_RESETS], async (provider) => {
     redeemed += 1;
-    return { status: 'nothing_to_reset', windowsReset: 0, usage: [CODEX_WITH_RESETS] };
+    return { provider, status: redeemed === 1 ? 'nothing_to_reset' : 'cooldown', cleared: [], usage: [CLAUDE_WITH_RESETS] };
   });
   const promptRef = { conduit: 'C-usage', messageId: 'prompt-1' };
 
-  await adapter.simulateAction('cmd:usage:reset-cancel', '', { channelId: 'C-usage', messageRef: promptRef });
+  await adapter.simulateAction('cmd:usage:reset-cancel', 'anthropic', { channelId: 'C-usage', messageRef: promptRef });
   assert.equal(redeemed, 0);
-  assert.match(adapter.updated[0].content.text, /not used/);
+  assert.match(adapter.updated[0].content.text, /Reset not used/);
 
-  await adapter.simulateAction('cmd:usage:reset-confirm', '', { channelId: 'C-usage', messageRef: promptRef });
+  await adapter.simulateAction('cmd:usage:reset-confirm', 'anthropic', { channelId: 'C-usage', messageRef: promptRef });
   assert.equal(redeemed, 1);
-  assert.match(adapter.updated.at(-1)!.content.text, /Nothing to reset/);
+  assert.match(adapter.updated.at(-1)!.content.text, /Nothing to reset — Claude usage is not limited/);
+
+  await adapter.simulateAction('cmd:usage:reset-confirm', 'anthropic', { channelId: 'C-usage', messageRef: promptRef });
+  assert.match(adapter.updated.at(-1)!.content.text, /Claude resets are cooling down/);
+
+  await adapter.simulateAction('cmd:usage:reset-confirm', 'deepseek', { channelId: 'C-usage', messageRef: promptRef });
+  assert.equal(redeemed, 2, 'a provider without resets is never redeemed');
 });
 
-test('the Codex throttle notice offers a reset only when the cached row holds one', async () => {
+test('a throttle notice offers a reset only when the throttled account holds one', async () => {
   const status = (records: ProviderUsage[]) => ({ getStatus: async () => records });
-  assert.deepEqual(
-    (await codexResetNoticeActions('openai-codex', status([CODEX_WITH_RESETS]))).map(action => action.actionId),
-    ['cmd:usage:reset'],
+  const ids = async (provider: string, records: ProviderUsage[]) => (
+    (await usageResetNoticeActions(provider, status(records))).map(action => `${action.actionId}=${action.value}`)
   );
-  assert.deepEqual(await codexResetNoticeActions('openai-codex', status([COMMAND_USAGE[1]])), []);
-  assert.deepEqual(await codexResetNoticeActions('anthropic', status([CODEX_WITH_RESETS])), []);
+  assert.deepEqual(await ids('openai-codex', [CODEX_WITH_RESETS]), ['cmd:usage:reset=openai-codex']);
+  assert.deepEqual(await ids('anthropic', [CLAUDE_WITH_RESETS]), ['cmd:usage:reset=anthropic']);
+  assert.deepEqual(await ids('openai-codex', [COMMAND_USAGE[1]]), []);
+  assert.deepEqual(await ids('anthropic', [CODEX_WITH_RESETS]), []);
+  assert.deepEqual(await ids('deepseek', [CODEX_WITH_RESETS, CLAUDE_WITH_RESETS]), []);
 });
 
 // ── !budget: global + per-project forms ────────────────────────────

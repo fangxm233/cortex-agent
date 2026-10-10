@@ -185,6 +185,26 @@ function claudeStoreToken(deps: ClaudeCredentialDeps): string | null {
   return store.accessToken;
 }
 
+/** Request headers for Claude's own OAuth login (`claude login`), the only credential that carries
+ *  the account scopes. Null when the store has no live access token — API keys and static setup
+ *  tokens never qualify. */
+export function claudeLoginHeaders(deps: ClaudeCredentialDeps = {}): Record<string, string> | null {
+  const token = claudeStoreToken(deps);
+  return token ? oauthHeaders(token) : null;
+}
+
+/** The organization Claude's login belongs to, from Claude Code's `.claude.json`. */
+export function readClaudeOrganizationUuid(deps: ClaudeCredentialDeps = {}): string | null {
+  const raw = readFileOrNull(fileReader(deps), path.join(claudeConfigDir(deps), '.claude.json'));
+  if (raw === null) return null;
+  try {
+    const account = (JSON.parse(raw) as { oauthAccount?: { organizationUuid?: unknown } } | null)?.oauthAccount;
+    return stringField(account?.organizationUuid);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The credential the daemon may authenticate an Anthropic call with: an API key (env, then .env),
  * then Claude's own store, then an OAuth token from the env or .env. Claude's store outranks the

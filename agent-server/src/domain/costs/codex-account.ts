@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { QuotaWindow } from '@core/codex-quota.js';
 import { loadCodexCredentials } from '@domain/auth/codex-credentials.js';
 import type { UsageResetCredit, UsageResetCredits } from './usage-store.js';
+import type { AccountReading, AccountRedeemOutcome, ResetAccount } from './reset-account.js';
 
 /** ChatGPT backend that serves Codex account usage and banked rate-limit resets. */
 export const CODEX_BACKEND_URL = 'https://chatgpt.com/backend-api';
@@ -22,25 +23,17 @@ export interface CodexCredentials {
 /** Resolves null when no Codex (ChatGPT plan) sign-in is configured. */
 export type CodexCredentialSource = () => Promise<CodexCredentials | null>;
 
-export interface CodexAccountUsage {
+export interface CodexAccountUsage extends AccountReading {
   planType: string | null;
-  windows: QuotaWindow[];
-  /** Null when the account reported nothing about banked resets. */
-  resetCredits: UsageResetCredits | null;
 }
 
 export type CodexRedeemCode = typeof REDEEM_CODES[number];
 
-export interface CodexRedeemOutcome {
-  code: CodexRedeemCode;
-  windowsReset: number;
-}
-
-export interface CodexAccountClient {
+export interface CodexAccountClient extends ResetAccount {
   /** Null when Codex is not signed in. */
   readUsage(): Promise<CodexAccountUsage | null>;
-  /** Spends one banked reset. Null when Codex is not signed in. */
-  redeemReset(creditId?: string): Promise<CodexRedeemOutcome | null>;
+  /** Spends one banked reset; without a credit the account picks one. Null when not signed in. */
+  redeemReset(creditId?: string): Promise<AccountRedeemOutcome | null>;
 }
 
 export interface CodexAccountClientDeps {
@@ -133,13 +126,13 @@ export function parseResetCredits(payload: unknown): UsageResetCredits {
   return { availableCount: nonNegativeCount(payload.available_count) ?? credits.length, credits };
 }
 
-export function parseRedeemOutcome(payload: unknown): CodexRedeemOutcome {
+/** Codex's own result codes are already the shared statuses; it does not name cleared windows. */
+export function parseRedeemOutcome(payload: unknown): AccountRedeemOutcome {
   const code = isRecord(payload) ? payload.code : undefined;
   if (!REDEEM_CODES.includes(code as CodexRedeemCode)) {
     throw new Error(`Codex reset returned an unexpected result: ${String(code)}`);
   }
-  const record = payload as Record<string, unknown>;
-  return { code: code as CodexRedeemCode, windowsReset: nonNegativeCount(record.windows_reset) ?? 0 };
+  return { status: code as CodexRedeemCode, cleared: [] };
 }
 
 function mergeResetCredits(
@@ -179,7 +172,7 @@ export class HttpCodexAccountClient implements CodexAccountClient {
     };
   }
 
-  async redeemReset(creditId?: string): Promise<CodexRedeemOutcome | null> {
+  async redeemReset(creditId?: string): Promise<AccountRedeemOutcome | null> {
     const credentials = await this.deps.credentials();
     if (!credentials) return null;
     const body = { redeem_request_id: this.requestId(), ...(creditId ? { credit_id: creditId } : {}) };

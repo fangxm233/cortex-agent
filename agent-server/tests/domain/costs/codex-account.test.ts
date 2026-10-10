@@ -86,14 +86,12 @@ describe('Codex account parsing', () => {
     });
   });
 
-  test.each([
-    ['reset', 1],
-    ['nothing_to_reset', 0],
-    ['no_credit', 0],
-    ['already_redeemed', 0],
-  ] as const)('redeem outcome %s is typed', (code, windowsReset) => {
-    assert.deepEqual(parseRedeemOutcome({ code, windows_reset: windowsReset, credit: {} }), { code, windowsReset });
-  });
+  test.each(['reset', 'nothing_to_reset', 'no_credit', 'already_redeemed'] as const)(
+    'redeem outcome %s is typed',
+    (code) => {
+      assert.deepEqual(parseRedeemOutcome({ code, windows_reset: 1, credit: {} }), { status: code, cleared: [] });
+    },
+  );
 
   test('an unknown redeem outcome is an error', () => {
     assert.throws(() => parseRedeemOutcome({ code: 'pending' }), /unexpected result: pending/);
@@ -147,7 +145,7 @@ describe('HttpCodexAccountClient', () => {
 
     const outcome = await client(fetch).redeemReset('credit-early');
 
-    assert.deepEqual(outcome, { code: 'reset', windowsReset: 1 });
+    assert.deepEqual(outcome, { status: 'reset', cleared: [] });
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     assert.equal(String(url), 'https://chatgpt.test/backend-api/wham/rate-limit-reset-credits/consume');
     assert.equal(init?.method, 'POST');
@@ -158,7 +156,7 @@ describe('HttpCodexAccountClient', () => {
   test('redeem without a credit lets the account choose', async () => {
     const fetch = vi.fn(async () => json({ code: 'no_credit', windows_reset: 0 })) as unknown as typeof globalThis.fetch;
 
-    assert.deepEqual(await client(fetch).redeemReset(), { code: 'no_credit', windowsReset: 0 });
+    assert.deepEqual(await client(fetch).redeemReset(), { status: 'no_credit', cleared: [] });
     assert.deepEqual(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)), { redeem_request_id: 'req-uuid-1' });
   });
 });

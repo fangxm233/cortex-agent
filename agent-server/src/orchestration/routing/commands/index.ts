@@ -21,7 +21,8 @@ import { handleSendFileCmd } from './sendfile.js';
 import { createLangHandler } from './lang.js';
 import { handleRestartCmd } from './restart.js';
 import { createLoginHandler } from './login.js';
-import { createUsageHandler, type CodexResetRedeemer, type UsageCommandService } from './usage.js';
+import { createUsageHandler, type UsageCommandService } from './usage.js';
+import type { UsageResetRedeemer } from './usage-reset.js';
 import type { AuthLoginService, AuthStatusSnapshot } from '@domain/auth/index.js';
 
 const log = createLogger('command-handler');
@@ -34,8 +35,8 @@ export interface CommandDeps {
   getAuthStatus?: (() => Promise<AuthStatusSnapshot>) | null;
   authLogin?: AuthLoginService;
   usageService?: UsageCommandService;
-  /** Spends a banked Codex reset from the `!usage` confirm button. */
-  codexReset?: CodexResetRedeemer;
+  /** Spends a banked usage reset from the `!usage` confirm button. */
+  usageReset?: UsageResetRedeemer;
   /** Notified after `!lang` switches the language, so open Web UIs can re-read config.get. */
   onLangChanged?: (loc: Locale) => void;
 }
@@ -102,7 +103,7 @@ function createHandlerSet(deps: CommandDeps) {
     register: createRegisterHandler(router),
     projectDir: createProjectDirHandler(router),
     schedule: createScheduleHandler(deps.scheduler, router),
-    usage: createUsageHandler(router, deps.usageService, deps.codexReset),
+    usage: createUsageHandler(router, deps.usageService, deps.usageReset),
     login: createLoginHandler({
       readStatus: deps.getAuthStatus ?? undefined,
       authLogin: deps.authLogin,

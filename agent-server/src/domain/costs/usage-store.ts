@@ -23,12 +23,23 @@ export interface UsageResetCredit {
   title: string | null;
   /** Epoch seconds; null when the provider gave no expiry. */
   expiresAt: number | null;
+  /** Window types spending it clears, when the provider names them. */
+  clears?: string[];
 }
 
 export interface UsageResetCredits {
   availableCount: number;
+  /** Whether the account is at a usage limit right now, when the provider says. */
+  atLimit?: boolean;
   /** Spendable credits, earliest expiry first. May be empty when only the count is known. */
   credits: UsageResetCredit[];
+  /** The listed credit the account itself offers next, when it names one. */
+  nextCreditId?: string;
+}
+
+/** The credit a redeem without an explicit choice spends: the account's pick, else the earliest. */
+export function nextResetCredit(credits: UsageResetCredits): UsageResetCredit | null {
+  return credits.credits.find((credit) => credit.id === credits.nextCreditId) ?? credits.credits[0] ?? null;
 }
 
 export interface ProviderUsage {
@@ -74,7 +85,10 @@ function cloneRecord(record: ProviderUsage): ProviderUsage {
 }
 
 function cloneResetCredits(credits: UsageResetCredits): UsageResetCredits {
-  return { ...credits, credits: credits.credits.map((credit) => ({ ...credit })) };
+  return {
+    ...credits,
+    credits: credits.credits.map((credit) => ({ ...credit, ...(credit.clears ? { clears: [...credit.clears] } : {}) })),
+  };
 }
 
 /** Response-header readings know nothing about banked resets, so they keep the stored ones. */

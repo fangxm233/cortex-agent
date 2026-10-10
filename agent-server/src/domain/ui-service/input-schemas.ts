@@ -2,6 +2,7 @@ import { platformSettingsInput } from '@core/platform-settings-spec.js';
 export { platformSettingsInput } from '@core/platform-settings-spec.js';
 
 import { z } from 'zod';
+import { RESET_PROVIDERS } from '@domain/costs/reset-account.js';
 import { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
 export { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
 import { t } from '@core/i18n.js';
@@ -777,8 +778,9 @@ export const systemClearRateLimitInput = z.object({
 
 export const systemRefreshUsageInput = z.object({});
 
-export const systemRedeemCodexResetInput = z.object({
-  /** Banked reset to spend; omit for the one expiring first. */
+export const systemRedeemUsageResetInput = z.object({
+  provider: z.enum(RESET_PROVIDERS),
+  /** Banked reset to spend; omit for the one the account offers next, else the one expiring first. */
   creditId: z.string().min(1).optional(),
 });
 
@@ -927,7 +929,7 @@ export const mutateInputSchemas = {
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
   'system.refreshUsage': systemRefreshUsageInput,
-  'system.redeemCodexReset': systemRedeemCodexResetInput,
+  'system.redeemUsageReset': systemRedeemUsageResetInput,
   'system.checkUpdate': systemCheckUpdateInput,
   'system.applyUpdate': systemApplyUpdateInput,
   'system.skipUpdate': systemSkipUpdateInput,

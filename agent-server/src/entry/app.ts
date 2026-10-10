@@ -20,7 +20,7 @@ import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
-import { codexResetNoticeActions } from '@orch/routing/commands/usage.js';
+import { usageResetNoticeActions } from '@orch/routing/commands/usage-reset.js';
 import { recoverWaitpoints, startWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
@@ -524,7 +524,7 @@ installSigtermShutdown(shutdownHandles);
   () => { bus.publish({ type: 'rate-limit.changed' }); });
   // A Codex throttle notice also offers a banked reset when the account holds one; the button
   // opens the `!usage` confirm step, so spending one always takes a second click.
-  setRateLimitNoticeActions((provider) => codexResetNoticeActions(provider));
+  setRateLimitNoticeActions((provider) => usageResetNoticeActions(provider));
 
   // Rate-limit notices carry a "Resume now" button (Slack/Feishu interactive). Clicking it
   // clears the throttle early for that provider (or all when the value is empty) and dispatches

@@ -747,3 +747,108 @@ describe('UsageService active Codex account reads', () => {
     assert.deepEqual(row.windows, windows);
   });
 });
+
+describe('UsageService active Claude account reads', () => {
+  const NOW = new Date(1_790_000_000_000);
+  const RESETS = {
+    availableCount: 1,
+    atLimit: true,
+    credits: [{ id: 'grant_1', title: 'Reset', expiresAt: 1_792_600_000, clears: ['five_hour', 'seven_day'] }],
+  };
+  const GATEWAY_WINDOWS = [
+    { type: 'five_hour', utilization: 0.5, resetsAt: 1_790_010_000 },
+    { type: 'seven_day', utilization: 0.2, resetsAt: 1_790_500_000 },
+  ];
+  const prior = usage('anthropic', 'stale', {
+    displayName: 'Anthropic', modes: ['plan'], billing: 'subscription', observedAt: 1_789_000_000,
+    windows: [{ type: 'five_hour', utilization: 0.9, resetsAt: 1_789_010_000 }], resetCredits: RESETS,
+  });
+
+  function gatewayQuota(): typeof globalThis.fetch {
+    return gatewayFetch([], [], [{
+      provider: 'anthropic', mode: 'plan', observed_at: 1_789_900_000,
+      windows: GATEWAY_WINDOWS.map(({ resetsAt, ...window }) => ({ ...window, resets_at: resetsAt })),
+    }]);
+  }
+
+  function claudeService(options: {
+    readUsage: () => Promise<import('../src/domain/costs/reset-account.js').AccountReading | null>;
+    store?: MemoryUsageStore;
+    fetch?: typeof globalThis.fetch;
+    releaseThrottle?: (provider: string, windows: unknown[]) => Promise<unknown>;
+  }) {
+    const store = options.store ?? new MemoryUsageStore([prior]);
+    const fetch = options.fetch ?? gatewayQuota();
+    const service = new UsageService({
+      store,
+      getAdapter: () => fakeAdapter('pi', async () => []),
+      getSettings: () => ({ anthropicSubscriptionModes: ['plan'], subscriptionBillingModes: ['plan'] }),
+      fetch,
+      gatewayUrl: 'http://gateway.test',
+      now: () => NOW,
+      claudeAccount: { readUsage: options.readUsage },
+      releaseThrottle: options.releaseThrottle ?? (async () => false),
+    });
+    return { service, fetch };
+  }
+
+  const anthropicRow = (rows: ProviderUsage[]) => rows.find((row) => row.provider === 'anthropic');
+  const quotaReads = (fetch: typeof globalThis.fetch) => vi.mocked(fetch).mock.calls
+    .filter(([input]) => String(input).includes('/quota?')).length;
+
+  test('a live account reading fills the row, carries its resets and only releases the Anthropic throttle', async () => {
+    const windows = [
+      { type: 'five_hour', utilization: 0.12, resetsAt: 1_790_018_000 },
+      { type: 'seven_day', utilization: 0.4, resetsAt: null },
+    ];
+    const releaseThrottle = vi.fn(async () => true);
+    const { service, fetch } = claudeService({ releaseThrottle, readUsage: async () => ({ windows, resetCredits: RESETS }) });
+
+    const row = anthropicRow(await service.refresh());
+
+    assert.deepEqual(row?.windows, windows);
+    assert.equal(row?.observedAt, NOW.getTime() / 1000);
+    assert.deepEqual(row?.resetCredits, RESETS);
+    assert.equal(row?.note, undefined);
+    assert.deepEqual(releaseThrottle.mock.calls, [['anthropic', windows]]);
+    assert.equal(quotaReads(fetch), 0, 'the gateway is only the fallback');
+  });
+
+  test('a failed account read falls back to the gateway with a note and keeps known resets', async () => {
+    const { service, fetch } = claudeService({ readUsage: async () => { throw new Error('HTTP 429'); } });
+
+    const row = anthropicRow(await service.refresh());
+
+    assert.deepEqual(row?.windows, GATEWAY_WINDOWS);
+    assert.equal(row?.observedAt, 1_789_900_000);
+    assert.match(row?.note ?? '', /Claude account read failed.*HTTP 429/);
+    assert.deepEqual(row?.resetCredits, RESETS);
+    assert.equal(quotaReads(fetch), 1);
+  });
+
+  test('without a Claude login the gateway fills the row and stored resets are dropped', async () => {
+    const releaseThrottle = vi.fn(async () => true);
+    const { service } = claudeService({ releaseThrottle, readUsage: async () => null });
+
+    const row = anthropicRow(await service.refresh());
+
+    assert.deepEqual(row?.windows, GATEWAY_WINDOWS);
+    assert.equal(row?.resetCredits, undefined);
+    assert.equal(row?.note, undefined);
+    assert.equal(releaseThrottle.mock.calls.length, 0, 'a gateway observation never touches the throttle');
+  });
+
+  test('when both sources fail the last windows and resets survive', async () => {
+    const fetch = vi.fn(async (input) => (
+      String(input).includes('/quota?') ? json({}, 502) : json({ rows: [] })
+    )) as unknown as typeof globalThis.fetch;
+    const { service } = claudeService({ fetch, readUsage: async () => { throw new Error('timeout'); } });
+
+    const row = anthropicRow(await service.refresh());
+
+    assert.deepEqual(row?.windows, prior.windows);
+    assert.deepEqual(row?.resetCredits, RESETS);
+    assert.match(row?.note ?? '', /Claude account read failed.*timeout/);
+    assert.match(row?.note ?? '', /HTTP 502/);
+  });
+});

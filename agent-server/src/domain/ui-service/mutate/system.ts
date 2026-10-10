@@ -2,7 +2,7 @@ import { t } from '@core/i18n.js';
 import { DAEMON_CHILD_PID_FILE } from '@core/paths.js';
 import { clearThrottle } from '@domain/costs/rate-limit-throttle.js';
 import { usageService } from '@domain/costs/usage-service.js';
-import { redeemCodexReset } from '@domain/costs/codex-reset.js';
+import { redeemUsageReset } from '@domain/costs/account-reset.js';
 import {
   answerServerUpdatePrompt,
   getServerUpdateStatus,
@@ -14,7 +14,7 @@ import type {
   SystemUpdateCheckResult,
   SystemClearRateLimitReturn,
   SystemRefreshUsageReturn,
-  SystemRedeemCodexResetReturn,
+  SystemRedeemUsageResetReturn,
   SystemRestartReturn,
   SystemUpdateDecisionReturn,
   MutateArgs,
@@ -49,18 +49,18 @@ export async function handleSystemRefreshUsage(
   }
 }
 
-/** Spends a banked Codex reset; only ever reached from an explicit, confirmed user action. */
-export async function handleSystemRedeemCodexReset(
-  args: MutateArgs<'system.redeemCodexReset'>,
-  redeem: typeof redeemCodexReset = redeemCodexReset,
-): Promise<Result<SystemRedeemCodexResetReturn>> {
+/** Spends a banked usage-limit reset; only ever reached from an explicit, confirmed user action. */
+export async function handleSystemRedeemUsageReset(
+  args: MutateArgs<'system.redeemUsageReset'>,
+  redeem: typeof redeemUsageReset = redeemUsageReset,
+): Promise<Result<SystemRedeemUsageResetReturn>> {
   try {
-    return { ok: true, data: await redeem(args.creditId) };
+    return { ok: true, data: await redeem(args.provider, args.creditId) };
   } catch (error) {
     return {
       ok: false,
       code: 'internal',
-      message: t('ui.system.redeemCodexResetFailed', { error: (error as Error).message || String(error) }),
+      message: t('ui.system.redeemUsageResetFailed', { error: (error as Error).message || String(error) }),
     };
   }
 }

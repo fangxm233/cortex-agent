@@ -4,10 +4,11 @@ import type { AgentUsageScope } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
-import type { QuotaWindow } from '@core/codex-quota.js';
 import { GATEWAY_URL } from './gateway-manager.js';
-import { codexAccountClient, type CodexAccountClient, type CodexAccountUsage } from './codex-account.js';
-import { releaseRecoveredQuota } from './rate-limit-throttle.js';
+import { claudeAccountClient } from './claude-account.js';
+import { codexAccountClient } from './codex-account.js';
+import { releaseRecoveredQuota, type QuotaReading } from './rate-limit-throttle.js';
+import type { AccountReading, ResetAccount } from './reset-account.js';
 import {
   usageStore,
   usageRecordKey,
@@ -55,9 +56,22 @@ export interface UsageServiceDependencies {
   now?: () => Date;
   /** Active Codex account reader; its readings replace the header-observed Codex row. Absent, only
    *  response headers inform the Codex row. */
-  codexAccount?: Pick<CodexAccountClient, 'readUsage'>;
+  codexAccount?: Pick<ResetAccount, 'readUsage'>;
   /** Lifts throttle windows a fresh reading shows have recovered. */
-  releaseThrottle?: (provider: string, windows: QuotaWindow[]) => Promise<unknown>;
+  releaseThrottle?: (provider: string, windows: QuotaReading[]) => Promise<unknown>;
+  /** Active Claude account reader; its readings take precedence over the gateway quota. Absent,
+   *  only the gateway informs the Anthropic row. */
+  claudeAccount?: Pick<ResetAccount, 'readUsage'>;
+}
+
+/** The Anthropic quota for one cycle: the account's own reading when there is one, else the
+ *  gateway's last observation. */
+interface AnthropicQuotaResult {
+  snapshot: GatewayQuotaSnapshot | null;
+  resetCredits?: UsageResetCredits;
+  /** The account read failed, so the reset credits last known still apply. */
+  keepResets: boolean;
+  notes: string[];
 }
 
 /** The Codex row for one cycle plus why it is not a fresh account reading, when it is not. */
@@ -89,7 +103,7 @@ interface GatewayQuotaSnapshot {
 }
 
 /** Without an injected account reader, Codex usage is only what response headers reported. */
-const NO_CODEX_ACCOUNT: Pick<CodexAccountClient, 'readUsage'> = { readUsage: async () => null };
+const NO_ACCOUNT: Pick<ResetAccount, 'readUsage'> = { readUsage: async () => null };
 
 const CODEX_SCOPE: AgentUsageScope = { provider: 'openai-codex', mode: 'openai-codex' };
 const CODEX_PROVIDER = 'openai-codex';
@@ -364,7 +378,7 @@ function visibleUsage(record: ProviderUsage): ProviderUsage {
   };
 }
 
-function liveCodexUsage(live: CodexAccountUsage, observedAt: number): ProviderUsage {
+function liveCodexUsage(live: AccountReading, observedAt: number): ProviderUsage {
   return {
     provider: CODEX_PROVIDER,
     displayName: displayNameFor(CODEX_PROVIDER),
@@ -382,6 +396,22 @@ function withoutResetCredits(record: ProviderUsage | null): ProviderUsage | null
   if (!record?.resetCredits) return record;
   const { resetCredits: _signedOut, ...rest } = record;
   return rest;
+}
+
+function settledAnthropicQuota(result: PromiseSettledResult<AnthropicQuotaResult | null>): AnthropicQuotaResult {
+  if (result.status === 'fulfilled' && result.value) return result.value;
+  const notes = result.status === 'rejected'
+    ? [t('ux.usage.anthropicQuotaFailed', { error: errorMessage(result.reason) })]
+    : [];
+  return { snapshot: null, keepResets: true, notes };
+}
+
+/** Without a Claude login there is nothing to spend; a failed read keeps what was last known. */
+function anthropicResets(quota: AnthropicQuotaResult, prior: ProviderUsage[]): UsageResetCredits | undefined {
+  if (quota.resetCredits) return quota.resetCredits;
+  if (!quota.keepResets) return undefined;
+  const key = draftKey(ANTHROPIC_PROVIDER, 'subscription');
+  return prior.find((row) => usageRecordKey(row) === key)?.resetCredits;
 }
 
 function codexDraft(drafts: Map<string, RowDraft>): RowDraft {
@@ -422,8 +452,9 @@ export class UsageService {
   private readonly fetch: typeof globalThis.fetch;
   private readonly gatewayUrl: string;
   private readonly now: () => Date;
-  private readonly codexAccount: Pick<CodexAccountClient, 'readUsage'>;
-  private readonly releaseThrottle: (provider: string, windows: QuotaWindow[]) => Promise<unknown>;
+  private readonly codexAccount: Pick<ResetAccount, 'readUsage'>;
+  private readonly releaseThrottle: (provider: string, windows: QuotaReading[]) => Promise<unknown>;
+  private readonly claudeAccount: Pick<ResetAccount, 'readUsage'>;
   /** Sticky once the gateway proves it cannot group by billing mode, to avoid a 400 per cycle. */
   private groupedSpendSupported = true;
 
@@ -434,7 +465,8 @@ export class UsageService {
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
     this.now = dependencies.now ?? (() => new Date());
-    this.codexAccount = dependencies.codexAccount ?? NO_CODEX_ACCOUNT;
+    this.codexAccount = dependencies.codexAccount ?? NO_ACCOUNT;
+    this.claudeAccount = dependencies.claudeAccount ?? NO_ACCOUNT;
     this.releaseThrottle = dependencies.releaseThrottle ?? (async () => false);
   }
 
@@ -451,7 +483,7 @@ export class UsageService {
     const [today, month, quota, codex] = await Promise.allSettled([
       this.readSpend('today'),
       this.readSpend('month'),
-      anthropicModes.length > 0 ? this.readGatewayQuota() : Promise.resolve(null),
+      anthropicModes.length > 0 ? this.readAnthropicQuota() : Promise.resolve(null),
       this.readCodexQuota(),
     ]);
 
@@ -500,7 +532,7 @@ export class UsageService {
 
   private applyAnthropicQuota(
     drafts: Map<string, RowDraft>,
-    result: PromiseSettledResult<GatewayQuotaSnapshot | null>,
+    result: PromiseSettledResult<AnthropicQuotaResult | null>,
     anthropicModes: string[],
     prior: ProviderUsage[],
   ): void {
@@ -509,21 +541,19 @@ export class UsageService {
       if (existing) existing.notes.push(t('ux.usage.anthropicDisabled'));
       return;
     }
+    const quota = settledAnthropicQuota(result);
     const draft = ensureDraft(drafts, ANTHROPIC_PROVIDER, 'subscription');
     draft.quotaPolled = true;
     for (const mode of anthropicModes) draft.modes.add(mode);
-    if (result.status === 'fulfilled' && result.value) {
-      draft.windows = result.value.windows;
-      draft.observedAt = result.value.observedAt;
+    draft.notes.push(...quota.notes);
+    if (quota.snapshot) {
+      draft.windows = quota.snapshot.windows;
+      draft.observedAt = quota.snapshot.observedAt;
       draft.freshness = 'stale';
-      return;
-    }
-    if (result.status === 'rejected') {
-      draft.notes.push(t('ux.usage.anthropicQuotaFailed', { error: errorMessage(result.reason) }));
     } else {
-      draft.notes.push(t('ux.usage.anthropicNoQuota'));
+      this.carryQuotaFromPrior(draft, prior);
     }
-    this.carryQuotaFromPrior(draft, prior);
+    draft.resetCredits = anthropicResets(quota, prior);
   }
 
   private applyCodexQuota(
@@ -582,7 +612,7 @@ export class UsageService {
    * fails, fall back to the row response headers last reported.
    */
   private async readCodexQuota(): Promise<CodexQuotaResult> {
-    let live: CodexAccountUsage | null;
+    let live: AccountReading | null;
     try {
       live = await this.codexAccount.readUsage();
     } catch (error) {
@@ -590,8 +620,7 @@ export class UsageService {
       return { record: await this.readObservedCodexQuota(), note };
     }
     if (!live) return { record: withoutResetCredits(await this.readObservedCodexQuota()) };
-    await this.releaseThrottle(CODEX_PROVIDER, live.windows)
-      .catch((error: unknown) => log.warn(`Codex throttle release failed: ${errorMessage(error)}`));
+    await this.releaseRecovered(CODEX_PROVIDER, live.windows);
     return { record: liveCodexUsage(live, Math.floor(this.now().getTime() / 1000)) };
   }
 
@@ -600,6 +629,40 @@ export class UsageService {
     if (!adapter.capabilities.has(Capability.Usage) || !adapter.getUsage) return null;
     const records = await adapter.getUsage(CODEX_SCOPE);
     return records?.find((record) => record.provider === CODEX_PROVIDER) ?? null;
+  }
+
+  /** Claude's own login answers first; the gateway's observation is the fallback. */
+  private async readAnthropicQuota(): Promise<AnthropicQuotaResult> {
+    const account = await this.readClaudeAccount();
+    if (account.snapshot) return account;
+    try {
+      const snapshot = await this.readGatewayQuota();
+      return { ...account, snapshot, notes: [...account.notes, ...(snapshot ? [] : [t('ux.usage.anthropicNoQuota')])] };
+    } catch (error) {
+      return { ...account, notes: [...account.notes, t('ux.usage.anthropicQuotaFailed', { error: errorMessage(error) })] };
+    }
+  }
+
+  private async readClaudeAccount(): Promise<AnthropicQuotaResult> {
+    let live: AccountReading | null;
+    try {
+      live = await this.claudeAccount.readUsage();
+    } catch (error) {
+      return { snapshot: null, keepResets: true, notes: [t('ux.usage.claudeAccountFailed', { error: errorMessage(error) })] };
+    }
+    if (!live) return { snapshot: null, keepResets: false, notes: [] };
+    await this.releaseRecovered(ANTHROPIC_PROVIDER, live.windows);
+    return {
+      snapshot: { windows: live.windows.map((window) => ({ ...window })), observedAt: Math.floor(this.now().getTime() / 1000) },
+      ...(live.resetCredits ? { resetCredits: live.resetCredits } : {}),
+      keepResets: false,
+      notes: [],
+    };
+  }
+
+  private async releaseRecovered(provider: string, windows: QuotaReading[]): Promise<void> {
+    await this.releaseThrottle(provider, windows)
+      .catch((error: unknown) => log.warn(`${provider} throttle release failed: ${errorMessage(error)}`));
   }
 
   private async readGatewayQuota(): Promise<GatewayQuotaSnapshot | null> {
@@ -641,5 +704,6 @@ export class UsageService {
 
 export const usageService = new UsageService({
   codexAccount: codexAccountClient,
+  claudeAccount: claudeAccountClient,
   releaseThrottle: releaseRecoveredQuota,
 });

@@ -51,6 +51,7 @@ export const uiextraEn = {
   'ux.usage.anthropicNoQuota': 'gateway has no Anthropic quota observation',
   'ux.usage.codexFailed': 'OpenAI Codex usage collection failed: ${error}',
   'ux.usage.codexAccountFailed': 'OpenAI Codex account read failed, showing the last observed usage: ${error}',
+  'ux.usage.claudeAccountFailed': 'Claude account read failed, using the gateway quota: ${error}',
   'ux.usage.gatewayFailed': 'gateway usage collection failed: ${error}',
 } as const;
 
@@ -100,5 +101,6 @@ export const uiextraZh: Record<keyof typeof uiextraEn, string> = {
   'ux.usage.anthropicNoQuota': '网关没有 Anthropic 额度观测数据',
   'ux.usage.codexFailed': 'OpenAI Codex 用量采集失败：${error}',
   'ux.usage.codexAccountFailed': 'OpenAI Codex 账号读取失败，显示上次观测的用量：${error}',
+  'ux.usage.claudeAccountFailed': 'Claude 账号读取失败，改用网关额度：${error}',
   'ux.usage.gatewayFailed': '网关用量采集失败：${error}',
 };
