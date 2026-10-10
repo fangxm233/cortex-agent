@@ -549,11 +549,14 @@ and windows with the same type and label retain the later reset time. Timed
 throttling requires a reset-bearing observation. Claude live account-usage
 pulls submit every reported window for each configured Anthropic mode, while
 stale PI cache reads are never replayed; PI response-header observations
-continue to arrive through their push path.
+arrive through their push path, and OpenAI Codex account reads are described
+[below](#openai-codex-account-usage-and-banked-resets).
 
 Policy edits apply only to future quota observations. They do not rewrite a
 window that is already active. An active quota window or outage retry window
-stays in force until its reset time or a manual **Resume now** clear. Outage
+stays in force until its reset time or a manual **Resume now** clear; a Codex
+quota window also lifts when a fresh account reading shows it below its
+threshold. Outage
 retry behavior uses its own outage windows and is unaffected by quota-policy
 threshold edits.
 
@@ -570,6 +573,29 @@ Auto-resume is on by default. Set `"autoResume": false` in
 resume entries instead of dispatching them automatically; the change takes
 effect without a daemon restart. The legacy `CORTEX_AUTO_RESUME=0` variable in
 `.env` is still read as a deprecated fallback.
+
+### OpenAI Codex account usage and banked resets
+
+With an OpenAI Codex (ChatGPT plan) sign-in, every usage collection — the
+built-in provider-usage job, opening a Usage screen, or **Refresh** — reads
+the Codex account directly. The reading fills the Codex primary and secondary
+windows on the Codex subscription row and lists the account's banked resets:
+how many are available and when the earliest one expires. When the read fails,
+the row keeps the windows last observed in Codex response headers and carries
+a note saying so. An account reading never starts a throttle, but it lifts
+Codex throttle windows that have fallen below their threshold, so a reset
+spent from another device also releases work Cortex paused.
+
+A banked reset restores the Codex usage windows for the whole account, on
+every device, and cannot be undone; each one expires about 30 days after it is
+granted. Cortex never spends one on its own. On the Codex card in desktop and
+mobile Usage, **Use reset** appears while a reset is available and asks for
+confirmation before spending the one that expires first. In chat, `!usage`
+shows the same count and expiry with a **Use Codex reset** button that posts a
+confirm prompt in the thread, and a Codex throttle notice carries that button
+next to **Resume now** while the account holds a reset. After a reset Cortex
+clears the Codex throttle, resumes the work it paused, and re-reads usage for
+a few seconds until the account shows the restored windows.
 
 ## Cost reporting
 

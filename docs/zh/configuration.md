@@ -413,7 +413,7 @@ Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`aut
 
 `providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型额度行同时使用 `type` 和 provider 上报的精确 `label`。精确窗口策略优先于旧版 provider 级 `enabled`/`threshold` 字段；这些根字段只作为兼容回退，非默认时会在 Usage 中明确显示并可一键清除。
 
-桌面端和移动端 Usage 会分别在每条 5 小时、weekly、含超额 weekly、Codex 主/次窗口及带名称的模型额度行上显示独立控件。省略 `threshold` 时使用该行系统默认值：`seven_day` 与 `seven_day_overage_included` 为 `0.95`，其他窗口为 `0.90`。只显示花费的卡片没有额度控件。模型策略依赖 provider 上报的显示名称；名称变化后旧条目不会再匹配。策略改动只作用于后续额度观测；已经激活的额度窗口或 outage 窗口会保持当前状态，直到自然重置或被手动 **Resume now** 清除。
+桌面端和移动端 Usage 会分别在每条 5 小时、weekly、含超额 weekly、Codex 主/次窗口及带名称的模型额度行上显示独立控件。省略 `threshold` 时使用该行系统默认值：`seven_day` 与 `seven_day_overage_included` 为 `0.95`，其他窗口为 `0.90`。只显示花费的卡片没有额度控件。模型策略依赖 provider 上报的显示名称；名称变化后旧条目不会再匹配。策略改动只作用于后续额度观测；已经激活的额度窗口或 outage 窗口会保持当前状态，直到自然重置或被手动 **Resume now** 清除。Codex 卡片还会显示账号的可用重置以及需要确认的 **使用重置** 操作，见 [OpenAI Codex 账号用量与可用重置](./backends.md#openai-codex-account-usage-and-banked-resets)。
 
 内置作业间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的作业会在 daemon 启动时执行一次。记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
 
