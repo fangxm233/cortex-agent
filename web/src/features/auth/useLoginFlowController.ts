@@ -40,7 +40,6 @@ function errorText(reason: unknown, L: Vocab): string {
 }
 
 function cancelQuietly(client: LoginClient, state: LoginFlowState | null): void {
-  // A flow already handing its credential off refuses to cancel; it finishes on its own.
   if (state && !isTerminal(state)) void client.auth.cancelFlow.mutate({ flowId: state.flowId }).catch(() => {});
 }
 

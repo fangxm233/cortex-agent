@@ -279,6 +279,7 @@ export const zhExtra = {
   authLoginCopy: '复制',
   authLoginCopied: '已复制',
   authLoginDeviceStep: '在验证页面输入此代码。',
+  authLoginCodexDeviceHint: '验证页提示代码无效时：在 ChatGPT 设置 → 安全 中开启 Codex 设备码登录，或取消后改用浏览器登录。',
   authLoginCodeExpired: '代码已过期',
   authLoginDone: '完成',
   authLoginFailed: '登录失败',

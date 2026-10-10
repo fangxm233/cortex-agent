@@ -397,6 +397,16 @@ describe('LoginFlowModal', () => {
     expect(find(renderer, { 'data-action': 'auth-copy-code' })).toBeTruthy();
   });
 
+  it('tells Codex users what to do when OpenAI rejects a device code', async () => {
+    const codex = snapshot(1, { provider: 'openai-codex', authType: 'oauth', notice: { kind: 'device_code', userCode: 'K6OA-747UY', verificationUri: 'https://auth.openai.com/codex/device', expiresInSeconds: 900 } });
+    harness.onStart = () => codex;
+    harness.onPoll = () => codex;
+    const renderer = mount({ target: { backend: 'pi', provider: 'openai-codex', authType: 'oauth', label: 'OpenAI Codex' } });
+    await flush();
+    expect(find(renderer, { 'data-auth-device-hint': true })).toBeTruthy();
+    expect(text(renderer)).toContain('ChatGPT Settings → Security');
+  });
+
   it('keeps a mobile sheet open on a dim tap while the flow runs', async () => {
     harness.mobile = true;
     const renderer = mount();

@@ -121,12 +121,18 @@ function useCountdown(notice: Extract<LoginFlowNotice, { kind: 'device_code' }>)
   return deviceCodeRemaining(notice.expiresInSeconds, shownAt.current.at, now);
 }
 
-function DeviceCodeNotice({ notice }: { notice: Extract<LoginFlowNotice, { kind: 'device_code' }> }) {
+// OpenAI only redeems Codex device codes for accounts that enabled device-code sign-in.
+const DEVICE_CODE_HINTS: Partial<Record<string, keyof Vocab>> = { 'openai-codex': 'authLoginCodexDeviceHint' };
+
+function DeviceCodeNotice({ notice, provider }: {
+  notice: Extract<LoginFlowNotice, { kind: 'device_code' }>; provider: string | null;
+}) {
   const L = useVocab();
   const clipboard = useClipboardFeedback<string>();
   const remaining = useCountdown(notice);
   const expiry = remaining === null ? null
     : remaining > 0 ? fmt(L.authLoginExpiresIn, { time: formatClock(remaining) }) : L.authLoginCodeExpired;
+  const hint = provider ? DEVICE_CODE_HINTS[provider] : undefined;
   return (
     <div data-auth-notice="device_code" className="min-w-0 space-y-1.5g">
       <p className="text-state-ink">{L.authLoginDeviceStep}</p>
@@ -142,6 +148,7 @@ function DeviceCodeNotice({ notice }: { notice: Extract<LoginFlowNotice, { kind:
       <StatusLine>
         {expiry ? `${L.authLoginWaitingBrowser} · ${expiry}` : L.authLoginWaitingBrowser}
       </StatusLine>
+      {hint ? <p data-auth-device-hint className="text-[12px] text-proto-muted">{L[hint]}</p> : null}
     </div>
   );
 }
@@ -162,20 +169,22 @@ function InfoNotice({ notice, L }: { notice: Extract<LoginFlowNotice, { kind: 'i
 }
 
 /** A notice shown on its own (no prompt beside it). */
-function StandaloneNotice({ notice }: { notice: LoginFlowNotice }) {
+function StandaloneNotice({ notice, provider }: { notice: LoginFlowNotice; provider: string | null }) {
   const L = useVocab();
-  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} />;
+  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} provider={provider} />;
   if (notice.kind === 'auth_url') return <AuthUrlStep notice={notice} waiting />;
   if (notice.kind === 'info') return <><InfoNotice notice={notice} L={L} /><StatusLine>{L.authLoginRunning}</StatusLine></>;
   return <div data-auth-notice="progress"><StatusLine>{notice.message}</StatusLine></div>;
 }
 
-// `border-solid` is needed: the global base rule strips input borders. The dialog's focus outline
-// is drawn over the border: a full-width field would have it clipped by the scrolling body.
+// `border-solid` is needed: the global base rule strips input borders.
 const INPUT_CLASS =
   'box-border min-h-9 w-full min-w-0 rounded-[var(--r-control)] border border-solid border-proto-line-3 ' +
-  '[background:var(--material-control-bg)] px-1.5g py-1g text-ui text-state-ink ' +
-  'placeholder:text-proto-muted-3 focus-visible:![outline-offset:-1px]';
+  '[background:var(--material-control-bg)] px-1.5g py-1g text-ui text-state-ink placeholder:text-proto-muted-3';
+
+// The scrolling body clips overflow; this 4px gutter fits the surface's 2px focus ring at its 2px
+// offset around full-width fields without shifting the content.
+const BODY_RING_GUTTER = { margin: -4, padding: 4 };
 
 function PromptSelect({ prompt, value, onChange }: {
   prompt: PendingPrompt; value: string; onChange: (value: string) => void;
@@ -245,17 +254,17 @@ function PromptBody({ state, value, onChange, onSubmit }: {
   }
   return (
     <div className="min-w-0 space-y-2g">
-      {notice ? <StandaloneNoticeForPrompt notice={notice} /> : null}
+      {notice ? <StandaloneNoticeForPrompt notice={notice} provider={state.provider} /> : null}
       {field}
     </div>
   );
 }
 
 /** A notice that accompanies a prompt: no waiting spinner, the prompt is what the user acts on. */
-function StandaloneNoticeForPrompt({ notice }: { notice: LoginFlowNotice }) {
+function StandaloneNoticeForPrompt({ notice, provider }: { notice: LoginFlowNotice; provider: string | null }) {
   const L = useVocab();
   if (notice.kind === 'info') return <InfoNotice notice={notice} L={L} />;
-  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} />;
+  if (notice.kind === 'device_code') return <DeviceCodeNotice notice={notice} provider={provider} />;
   if (notice.kind === 'progress') return <p data-auth-notice="progress" className="text-proto-muted">{notice.message}</p>;
   return null;
 }
@@ -287,7 +296,7 @@ function LoginBody({ vm, controller, value, setValue, submit }: {
   const content: Record<LoginFlowVm['kind'], () => ReactNode> = {
     starting: () => <StatusLine>{vm.message}</StatusLine>,
     running: () => <StatusLine>{vm.message}</StatusLine>,
-    notice: () => (state?.notice ? <StandaloneNotice notice={state.notice} /> : null),
+    notice: () => (state?.notice ? <StandaloneNotice notice={state.notice} provider={state.provider} /> : null),
     prompt: () => (state ? <PromptBody state={state} value={value} onChange={setValue} onSubmit={submit} /> : null),
     done: () => (
       <p data-auth-success role="status"
@@ -351,7 +360,8 @@ function MobileLoginSheet({ title, titleText, body, footer, inProgress, onClose,
   return (
     <MBottomSheet onClose={onClose} dimDismiss={!inProgress}>
       <section data-auth-sheet role="dialog" aria-modal="true" aria-label={titleText}
-        className="content-surface flex min-w-0 flex-col">
+        // px-1 keeps full-width fields' focus ring inside the sheet's clipping scroll box.
+        className="content-surface flex min-w-0 flex-col px-1">
         <header className="flex flex-none items-center justify-between gap-2g pb-2g">
           <h2 className="min-w-0 text-body">{title}</h2>
           <button type="button" aria-label={closeLabel} data-action="auth-dismiss" onClick={onClose}
@@ -390,7 +400,8 @@ export function LoginFlowModal({ open, onClose, target, onDone }: LoginFlowModal
       onPointerDownOutside={event => { if (inProgress) event.preventDefault(); }}
       onOpenAutoFocus={event => { event.preventDefault(); (event.target as HTMLElement | null)?.focus?.(); }}
       contentDataAttributes={{ 'data-auth-dialog': true }}
-      title={title} description={vm.detail ?? vm.message} hideDescription footer={footer}>
+      title={title} description={vm.detail ?? vm.message} hideDescription footer={footer}
+      bodyStyle={BODY_RING_GUTTER}>
       {body}
     </Modal>
   );

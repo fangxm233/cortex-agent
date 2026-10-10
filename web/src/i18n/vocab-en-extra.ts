@@ -279,6 +279,7 @@ export const enExtra = {
   authLoginCopy: 'Copy',
   authLoginCopied: 'Copied',
   authLoginDeviceStep: 'Enter this code on the verification page.',
+  authLoginCodexDeviceHint: 'If the verification page rejects the code, turn on device code sign-in for Codex in ChatGPT Settings → Security, or cancel and use browser login.',
   authLoginCodeExpired: 'code expired',
   authLoginDone: 'Done',
   authLoginFailed: 'Login failed',
