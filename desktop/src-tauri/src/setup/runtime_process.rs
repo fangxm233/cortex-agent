@@ -11,24 +11,13 @@ use std::{
 #[path = "runtime_windows_process.rs"]
 pub(super) mod windows;
 
-/// Internal post-install inspection boundary: does NOT forgive any nonzero exit.
-/// Raw diagnostics are capped at 64 KiB per stream and must not be logged unredacted.
-#[cfg(windows)]
-pub(super) fn run_install_outcome(
-    command: Command,
-    token: &CancelToken,
-    log: &(impl Fn(&str) + Sync),
-) -> Result<windows::Outcome, String> {
-    windows::run(command, token, None, log)
-}
-
 #[cfg(windows)]
 pub fn run_install(
     command: Command,
     token: &CancelToken,
     log: &(impl Fn(&str) + Sync),
 ) -> Result<(), String> {
-    let outcome = run_install_outcome(command, token, log)?;
+    let outcome = windows::run(command, token, None, log)?;
     if outcome.exit_code != 0 {
         return Err(format!(
             "SERVER_INSTALL_FAILED: npm exited {}; see installation log",

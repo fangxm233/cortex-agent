@@ -137,61 +137,20 @@ fn git_probe_script_requires_selected_sh_and_grep_to_run() {
 }
 
 #[test]
-fn git_discovery_skips_bare_git_and_qualifies_later_complete_root() {
-    let root = tempfile::tempdir().unwrap();
-    let bad = root.path().join("bare");
-    fixture::script(&bad.join("cmd/git.exe"), "echo git version 2.54.0");
-    let git = git_fixture(&root.path().join("full"));
-    fixture::script(&git.git, "echo git version 2.54.0.windows.1");
-    fixture::script(&git.bash, "echo cortex-git-qualified");
-    let path = std::env::join_paths([bad.join("cmd"), git.root.join("usr/bin")]).unwrap();
-    let found = GitSelection::discover(&path, &[], &CancelToken::default())
-        .unwrap()
-        .unwrap();
-    assert_eq!(found.root, git.root);
-    assert!(!found.managed);
-}
-
-#[test]
-fn bound_npm_executes_selected_node_with_literal_cli_not_cmd_or_path_node() {
-    let root = tempfile::tempdir().unwrap();
-    let dir = root.path().join("Node 空格 %PATH% !");
-    let mut selected = Selection::new(
-        dir.join("node.exe"),
-        dir.join("npm.cmd"),
-        root.path().join("prefix"),
-    );
-    let cli = super::selection_windows_tests::npm_layout(&selected);
-    fixture::script(&selected.node, "printf '%s\\n' \"$1\" \"$2\"");
-    assert!(selected.qualify_windows_npm());
-    let mut command = selected.npm_command();
-    command.arg("--version").env("PATH", "/does-not-exist");
-    let output = command.output().unwrap();
-    assert!(output.status.success());
-    assert_eq!(
-        String::from_utf8(output.stdout).unwrap(),
-        format!("{}\n--version\n", cli.display())
-    );
-}
-
-#[test]
-fn missing_saved_tools_report_repair_without_mutating_external_installation() {
+fn missing_git_tools_fail_validation_without_a_path_substitute() {
     let root = tempfile::tempdir().unwrap();
     let mut selected = Selection::new(
         root.path().join("node.exe"),
         root.path().join("npm.cmd"),
         root.path().join("prefix"),
     );
-    selected.npm_cli = Some(super::selection_windows_tests::npm_layout(&selected));
+    for file in [&selected.node, &selected.npm] {
+        std::fs::write(file, "fixture").unwrap();
+    }
     selected.git = Some(git_fixture(&root.path().join("Git")));
     selected.save(root.path()).unwrap();
+    assert!(Selection::load(root.path()).is_ok());
     std::fs::remove_file(&selected.git.as_ref().unwrap().bash).unwrap();
-    let saved = Selection::read_saved(root.path()).unwrap().unwrap();
-    let needs: RepairNeeds = saved.windows_repair_needs();
-    assert!(!needs.node);
-    assert!(needs.git);
-    assert!(!saved.node_managed && !saved.git.as_ref().unwrap().managed);
-    assert_eq!(std::fs::read(&saved.node).unwrap(), b"fixture");
-    std::fs::remove_file(saved.npm_cli.as_ref().unwrap()).unwrap();
-    assert!(saved.windows_repair_needs().node);
+    assert!(Selection::load(root.path()).unwrap_err().starts_with("RUNTIME_MISSING"));
+    assert!(Selection::read_saved(root.path()).unwrap().is_some());
 }

@@ -1,4 +1,4 @@
-//! Child-only environment construction. Windows never creates runtime symlinks.
+//! Child-only environment construction.
 use super::{storage_error, Selection};
 use std::{
     ffi::{OsStr, OsString},
@@ -47,30 +47,7 @@ impl Selection {
     #[cfg(unix)]
     fn posix_paths(&self) -> Result<Vec<PathBuf>, String> {
         let node_dir = self.node.parent().ok_or("RUNTIME_MISSING")?;
-        let mut paths = vec![node_dir.to_path_buf(), self.prefix_bin()];
-        if self.npm.parent() != Some(node_dir) {
-            paths.insert(0, self.pinned_bin()?);
-        }
-        Ok(paths)
-    }
-
-    // Persisted POSIX split-runtime identities remain authoritative over PATH.
-    #[cfg(unix)]
-    fn pinned_bin(&self) -> Result<PathBuf, String> {
-        let runtime = self.prefix.parent().ok_or("RUNTIME_MISSING")?;
-        let bin = runtime.join("bin");
-        std::fs::create_dir_all(&bin).map_err(storage_error)?;
-        for (name, target) in [("node", &self.node), ("npm", &self.npm)] {
-            let link = bin.join(name);
-            if std::fs::read_link(&link).ok().as_ref() == Some(target) {
-                continue;
-            }
-            let stage = tempfile::tempdir_in(runtime).map_err(storage_error)?;
-            let staged = stage.path().join(name);
-            std::os::unix::fs::symlink(target, &staged).map_err(storage_error)?;
-            std::fs::rename(staged, link).map_err(storage_error)?;
-        }
-        Ok(bin)
+        Ok(vec![node_dir.to_path_buf(), self.prefix_bin()])
     }
 
     pub fn apply(
@@ -79,8 +56,6 @@ impl Selection {
         home: &Path,
         inherited: &OsStr,
     ) -> Result<(), String> {
-        #[cfg(windows)]
-        self.validate_windows_npm()?;
         let path = self.path(inherited)?;
         self.apply_environment(command, home, &path, cfg!(windows));
         Ok(())

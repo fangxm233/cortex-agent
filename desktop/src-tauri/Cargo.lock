@@ -647,14 +647,12 @@ name = "cortex-desktop"
 version = "0.0.0"
 dependencies = [
  "android_logger",
- "crc32fast",
  "flate2",
  "futures-util",
  "include_dir",
  "keyring",
  "libc",
  "log",
- "lzma-rust2",
  "notify-rust",
  "objc2",
  "objc2-app-kit",

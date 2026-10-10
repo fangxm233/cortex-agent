@@ -127,13 +127,9 @@ pub(super) fn selected_runtime() -> Result<Option<super::runtime::Selection>, St
     let home = super::cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
     let selected = super::runtime::Selection::load(&home)?;
     #[cfg(target_os = "windows")]
-    if let Some(selected) = &selected {
-        // Legacy records remain readable by bootstrap, but normal launch must use the
-        // complete qualified selection. Report repair instead of silently using PATH.
-        selected.validate_windows_npm()?;
-        if selected.git.is_none() {
-            return Err("RUNTIME_MISSING: selected Git Bash unavailable".into());
-        }
+    if selected.as_ref().is_some_and(|s| s.git.is_none() || s.npm_cli.is_none()) {
+        // A record from before the bundled runtime; launch and setup migrate it first.
+        return Err("RUNTIME_MISSING: runtime record predates the bundled runtime".into());
     }
     Ok(selected)
 }
@@ -227,193 +223,32 @@ fn version_from_probe(mut probe: impl FnMut(&[&str]) -> Option<String>) -> Optio
     probe(&["--version"]).or_else(|| probe(&["daemon", "--version"]))
 }
 
-/// Find the binary even when npm's global bin directory is not on PATH yet.
+/// The saved server entry; before the first local install, nothing.
 pub(super) fn resolve_cortex_bin() -> Option<String> {
     resolve_cli_bin("cortex")
 }
 
+/// A CLI on the PATH the setup commands use (bundled Node and private prefix first).
 pub(super) fn resolve_cli_bin(name: &str) -> Option<String> {
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-    if let Some(selected) = selected_runtime().ok()? {
+    {
+        let selected = selected_runtime().ok().flatten();
         if name == "cortex" {
-            return selected
-                .server
-                .map(|s| s.bin.to_string_lossy().into_owned());
+            return selected?.server.map(|s| s.bin.to_string_lossy().into_owned());
         }
-        let found = super::runtime::find_bin(name, &selected.path(&inherited_path()).ok()?);
-        if let Some(found) = found {
-            return Some(found.to_string_lossy().into_owned());
-        }
+        let path = match &selected {
+            Some(selected) => selected.path(&inherited_path()).ok()?,
+            None => inherited_path(),
+        };
+        super::runtime::find_bin(name, &path).map(|p| p.to_string_lossy().into_owned())
     }
-    resolve_legacy_cli_bin(name)
-}
-
-fn resolve_legacy_cli_bin(name: &str) -> Option<String> {
-    resolve_legacy_cli(name, cfg!(target_os = "windows"), probe_output, |path| {
-        path.is_file()
-    })
-}
-
-fn resolve_legacy_cli(
-    name: &str,
-    windows: bool,
-    mut probe: impl FnMut(&str, &[&str]) -> Option<String>,
-    is_file: impl FnOnce(&std::path::Path) -> bool,
-) -> Option<String> {
-    let finder = if windows { "where" } else { "which" };
-    if let Some(found) = probe(finder, &[name]).and_then(|out| first_cli_path(&out, windows)) {
-        return Some(found);
-    }
-    let npm = if windows { "npm.cmd" } else { "npm" };
-    let prefix = probe(npm, &["prefix", "-g"])?;
-    let candidate = npm_cli_path(&prefix, name, windows);
-    is_file(&candidate).then(|| candidate.to_string_lossy().to_string())
-}
-
-fn first_cli_path(output: &str, windows: bool) -> Option<String> {
-    output
-        .lines()
-        .map(str::trim)
-        .find(|path| !windows || is_windows_cli_entry(path))
-        .map(str::to_string)
-}
-
-fn is_windows_cli_entry(path: &str) -> bool {
-    // npm also writes a POSIX shim without an extension; keep where's order, not suffix priority.
-    let path = path.to_ascii_lowercase();
-    path.ends_with(".cmd") || path.ends_with(".exe")
-}
-
-fn npm_cli_path(prefix: &str, name: &str, windows: bool) -> std::path::PathBuf {
-    let prefix = std::path::Path::new(prefix);
-    if windows {
-        prefix.join(format!("{name}.cmd"))
-    } else {
-        prefix.join("bin").join(name)
-    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    probe_output("which", &[name]).and_then(|out| out.lines().next().map(str::to_string))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn windows_cli_skips_npm_posix_shim() {
-        let output = "C:\\Users\\Test\\npm\\cortex\r\nC:\\Users\\Test\\npm\\cortex.cmd\r\n";
-        assert_eq!(
-            first_cli_path(output, true).as_deref(),
-            Some(r"C:\Users\Test\npm\cortex.cmd")
-        );
-    }
-
-    #[test]
-    fn windows_cli_preserves_lookup_order_for_cmd_and_direct_exe() {
-        let cmd = r"C:\earlier npm\cortex.cmd";
-        let exe = r"D:\native install\cortex.exe";
-        for (first, second) in [(cmd, exe), (exe, cmd)] {
-            let output = format!("{first}\r\n{second}\r\n");
-            assert_eq!(first_cli_path(&output, true).as_deref(), Some(first));
-            assert_eq!(first_cli_path(first, true).as_deref(), Some(first));
-        }
-    }
-
-    #[test]
-    fn windows_cli_preserves_case_and_spaces() {
-        for path in [r"C:\Program Files\Cortex.CMD", r"D:\Cortex App\CORTEX.ExE"] {
-            let output = format!("C:\\npm\\cortex\r\n  {path}  \r\n");
-            assert_eq!(first_cli_path(&output, true).as_deref(), Some(path));
-        }
-        assert!(first_cli_path("C:\\npm\\cortex\nC:\\npm\\cortex.ps1\n", true).is_none());
-    }
-
-    #[test]
-    fn windows_cli_uses_npm_prefix_when_lookup_is_unusable() {
-        for found in [None, Some("C:\\npm\\cortex\r\nC:\\npm\\cortex.ps1")] {
-            let mut calls = Vec::new();
-            let expected = std::path::Path::new("C:/npm prefix").join("cortex.cmd");
-            let result = resolve_legacy_cli(
-                "cortex",
-                true,
-                |program, args| {
-                    calls.push(format!("{program} {}", args.join(" ")));
-                    if program == "where" {
-                        return found.map(str::to_string);
-                    }
-                    assert_eq!(program, "npm.cmd");
-                    Some("C:/npm prefix".into())
-                },
-                |path| {
-                    assert_eq!(path, expected);
-                    true
-                },
-            );
-            assert_eq!(result, Some(expected.to_string_lossy().into_owned()));
-            assert_eq!(calls, ["where cortex", "npm.cmd prefix -g"]);
-        }
-    }
-
-    #[test]
-    fn cli_prefix_fallback_requires_an_existing_file() {
-        for windows in [false, true] {
-            let result = resolve_legacy_cli(
-                "cortex",
-                windows,
-                |_, args| (args == ["prefix", "-g"]).then(|| "/missing-prefix".into()),
-                |_| false,
-            );
-            assert!(result.is_none());
-            assert!(resolve_legacy_cli(
-                "cortex",
-                windows,
-                |_, _| None,
-                |_| { panic!("no prefix to check") }
-            )
-            .is_none());
-        }
-    }
-
-    #[test]
-    fn unix_cli_keeps_first_which_result_and_bin_prefix_fallback() {
-        assert_eq!(
-            first_cli_path(" /usr/local/bin/cortex \n/usr/bin/cortex", false),
-            Some("/usr/local/bin/cortex".into())
-        );
-        let mut calls = Vec::new();
-        let expected = std::path::Path::new("/npm prefix")
-            .join("bin")
-            .join("cortex");
-        let result = resolve_legacy_cli(
-            "cortex",
-            false,
-            |program, args| {
-                calls.push(format!("{program} {}", args.join(" ")));
-                (program == "npm").then(|| "/npm prefix".into())
-            },
-            |path| {
-                assert_eq!(path, expected);
-                true
-            },
-        );
-        assert_eq!(result, Some(expected.to_string_lossy().into_owned()));
-        assert_eq!(calls, ["which cortex", "npm prefix -g"]);
-    }
-
-    #[test]
-    fn cli_lookup_does_not_probe_npm_after_a_valid_match() {
-        for (windows, path) in [(true, "C:/npm/cortex.cmd"), (false, "/usr/bin/cortex")] {
-            let result = resolve_legacy_cli(
-                "cortex",
-                windows,
-                |program, args| {
-                    assert_eq!(program, if windows { "where" } else { "which" });
-                    assert_eq!(args, ["cortex"]);
-                    Some(path.into())
-                },
-                |_| panic!("PATH match needs no prefix check"),
-            );
-            assert_eq!(result.as_deref(), Some(path));
-        }
-    }
 
     #[test]
     fn server_version_supports_both_operator_cli_layouts() {

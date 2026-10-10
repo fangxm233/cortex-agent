@@ -82,7 +82,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 # Reuse the locked native notification backend without pulling it into Android.
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 notify-rust = "=4.18.0"
-# Official runtime archives are verified and unpacked in-process (no system tar/installer).
+# The bundled Node archive is unpacked in-process (no system tar).
 flate2 = "1"
 tar = "0.4"
 tempfile = "3"
@@ -99,11 +99,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 #   snapshot, a message-only window). Already in the lock through mio/socket2, so no new crate.
 [target.'cfg(target_os = "windows")'.dependencies]
 tempfile = "3"
-# Qualified PortableGit x64 reader: unchanged registry decoder only, no encoder/util/AES.
-sevenz-rust2 = { version = "=0.20.2", default-features = false }
-# Allocation guard relies on this exact decoder implementation; do not float it.
-lzma-rust2 = { version = "=0.16.5", default-features = false, features = ["std", "optimization"] }
-crc32fast = "=1.5.0"
+# Unpacks the bundled Git Bash archive (decoder only).
+sevenz-rust2 = { version = "0.20", default-features = false }
 # Direct WinRT activation preserves body clicks (notify-rust loses Default).
 tauri-winrt-notification = "=0.7.3"
 windows-sys = { version = "0.61", features = [
@@ -135,10 +132,8 @@ log = "0.4"
 
 [dev-dependencies]
 include_dir = "0.7"
-
-# The reader's focused tests also compile when the native owner wires it on Windows.
-[target.'cfg(target_os = "windows")'.dev-dependencies]
-tempfile = "3"
+# The Windows unpacking path is tested on every host; the encoder only builds test fixtures.
+sevenz-rust2 = { version = "0.20", default-features = false, features = ["compress"] }
 
 [profile.release]
 panic = "abort"   # Strip expensive panic clean-up logic
