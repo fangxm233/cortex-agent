@@ -604,12 +604,12 @@ days after it is granted. A Claude reset clears the windows its grant names —
 typically the five-hour, seven-day, and seven-day-including-overage limits —
 for claude.ai and every other Claude client as well. Cortex never spends a
 reset on its own. On the Codex and Anthropic cards in desktop and mobile
-Usage, **Use reset** appears while a reset is available and asks for
+Usage, **Reset** appears while a reset is available and asks for
 confirmation first; the Claude confirmation names the windows the reset
 clears and, while the account is not at a limit, shows their current use.
 Cortex spends the reset the account offers next, otherwise the one that
 expires first. In chat, `!usage` shows the same count and expiry with a
-**Use Codex reset** or **Use Claude reset** button that posts a confirm prompt
+**Reset Codex** or **Reset Claude** button that posts a confirm prompt
 in the thread, and a Codex or Claude throttle notice carries that button next
 to **Resume now** while the account holds a reset. After a reset Cortex clears
 that provider's throttle, resumes the work it paused, and re-reads usage for a

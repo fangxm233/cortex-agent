@@ -850,7 +850,7 @@ test('notice actions extend the activation notice after resume-now', async (t) =
   const adapter = makeAdapterStub();
   const mod = await freshModuleWithCleanup(t);
   await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
-  const extra = { type: 'button' as const, text: 'Use Codex reset', actionId: 'cmd:usage:reset', value: '' };
+  const extra = { type: 'button' as const, text: 'Reset Codex', actionId: 'cmd:usage:reset', value: '' };
   mod.setRateLimitNoticeActions(async (provider) => (provider === 'openai-codex' ? [extra] : []));
 
   await mod.handleRateLimitEvent(

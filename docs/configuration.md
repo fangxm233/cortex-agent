@@ -543,7 +543,7 @@ provider renames that label, the old entry no longer matches. Policy edits
 apply only to future quota observations; an already-active quota or outage
 window keeps its current state until its reset time or a manual **Resume now**
 clear. The Codex and Anthropic cards also show the account's banked resets and
-a confirmed **Use reset** action; see
+a confirmed **Reset** action; see
 [Account usage and banked resets](./backends.md#account-usage-and-banked-resets).
 
 Built-in job intervals must be integer milliseconds from `1000` through
