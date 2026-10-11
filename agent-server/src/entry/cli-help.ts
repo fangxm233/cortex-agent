@@ -173,7 +173,7 @@ function getCliCommands() {
     { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
     { name: 'start', description: 'Start the Cortex server (node dist/entry/app.js)' },
     { name: 'daemon', description: 'Start daemon mode with file watching and auto-restart' },
-    { name: 'daemon stop', description: 'Stop the running daemon gracefully (SIGTERM)' },
+    { name: 'daemon stop', description: 'Stop the running daemon (SIGTERM) and the local client it launched' },
     { name: 'daemon status', description: 'Check daemon + child status (PID, uptime)' },
     { name: 'daemon restart', description: 'Graceful restart — signal daemon to drain and respawn app.js' },
     { name: 'daemon restart --hard', description: 'Hard restart — send SIGTERM directly to app.js (daemon auto-recovers)' },

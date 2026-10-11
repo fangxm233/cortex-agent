@@ -10,6 +10,9 @@ import { SshTunnelSupervisor, reverseTunnelSpec, type SshTunnelSpec } from './cl
 import { sshExec } from './ssh-exec.js';
 import { assertLocalClientMachine, completeLocalClientInstall, markLocalClientLaunchAttempted, readLocalClientIntent } from './local-client-install.js';
 import { OwnedLocalLaunchGate, ownedLocalEnvironment } from './owned-local-launch.js';
+import {
+  deleteClientPid as deletePid, getClientPid as getPid, isLocalLaunchMachine, localClientEntryPath, setClientPid as setPid,
+} from './client-pids.js';
 
 // Remote client lifecycle: SSH nohup start, PID tracking, managed routes, auto-restart.
 
@@ -19,7 +22,6 @@ type TunnelController = Pick<SshTunnelSupervisor, 'ensure' | 'stopAll' | 'resume
 let tunnelSupervisor: TunnelController = new SshTunnelSupervisor();
 const routeSnapshots = new Map<string, Pick<MachineEntry, 'ssh' | 'clientConnection' | 'clientReversePort'>>();
 
-const PID_FILE = path.join(STORE_DIR, 'client-pids.json');
 const ROUTE_OWNERSHIP_FILE = path.join(STORE_DIR, 'client-routes.json');
 const restartTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const RESTART_DELAY_MS = 60_000; // retry every 60s until device reconnects
@@ -36,26 +38,10 @@ const localLaunch = new OwnedLocalLaunchGate({
   launch: spawnOwnedLocalClient,
 });
 
-function loadPids(): Record<string, number> {
-  try { return JSON.parse(fs.readFileSync(PID_FILE, 'utf8')); } catch { return {}; }
-}
-function savePids(pids: Record<string, number>): void {
-  fs.mkdirSync(STORE_DIR, { recursive: true });
-  fs.writeFileSync(PID_FILE, JSON.stringify(pids, null, 2));
-}
-function getPid(device: string): number | undefined { return loadPids()[device]; }
-function setPid(device: string, pid: number): void { const p = loadPids(); p[device] = pid; savePids(p); }
-function deletePid(device: string): void { const p = loadPids(); delete p[device]; savePids(p); }
-
 // --- Indirection so tests can swap the SSH executor and registry without spawning ssh ---
 type SshExec = (host: string, command: string, timeout?: number) => Promise<string>;
 let _sshExecImpl: SshExec = sshExec;
 let _getRegistryImpl: () => MachineRegistry = getMachineRegistry;
-
-/** Managed bundle entry for the same-machine client (shares the server's CORTEX home). */
-function localClientEntryPath(): string {
-  return path.join(DATA_DIR, 'client', 'current', 'client.mjs');
-}
 
 /** Default launch: node on the managed bundle. Shell/cmd expands the home variable. */
 function defaultClientLaunch(reg: MachineEntry): string {
@@ -360,6 +346,12 @@ setHubLifecycleHooks({
     tunnelSupervisor.resume();
   },
   onDeviceGone: scheduleRestart,
+  onHello: (device, { pid, loopback }) => {
+    // A client that replaced itself after an update runs under a new PID. Keep the record on the
+    // live process so `cortex daemon stop` finds it; only a same-machine client is recorded.
+    if (!pid || !loopback || !isLocalLaunchMachine(_getRegistryImpl()[device])) return;
+    if (getPid(device) !== pid) setPid(device, pid);
+  },
   onStop: async () => {
     lifecycleStopped = true;
     localLaunch.stop();

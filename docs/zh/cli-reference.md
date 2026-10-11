@@ -72,6 +72,8 @@ Fork `dist/entry/app.js` 作为子进程，继承 stdio。这是在前台运行 
 
 Fork `dist/entry/daemon.js` 作为子进程，继承 stdio。守护进程包装 `app.js`，带文件监视和崩溃时自动重启。触碰 `$STORE_DIR/.restart` 通知守护进程排放并重生 `app.js`。
 
+`cortex daemon stop` 会同时停止守护进程和它在本机启动的 client（本机 client），不会留下仍在运行或占用运行时文件的 Cortex 进程。SSH 机器和自定义启动命令的机器上的 client 不受影响。下次执行 `cortex daemon` 时会重新启动本机 client。
+
 **`cortex restart`**
 
 通过触碰 `$STORE_DIR/.restart` 的 `.restart` 触发文件，通知运行中的守护进程排放并重生 `app.js`。如果没有守护进程在运行，此操作除了创建文件之外不执行任何操作。

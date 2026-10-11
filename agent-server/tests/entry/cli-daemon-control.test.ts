@@ -6,7 +6,12 @@ import * as fs from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 
 import { runCli } from '../../src/entry/cli.js';
-import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE } from '../../src/core/paths.js';
+import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE, CONFIG_DIR, DATA_DIR, STORE_DIR } from '../../src/core/paths.js';
+import { localClientEntryPath } from '../../src/domain/remote/client-pids.js';
+import { processCommandLine } from '../../src/core/process-command-line.js';
+
+const CLIENT_PIDS_FILE = path.join(STORE_DIR, 'client-pids.json');
+const MACHINES_FILE = path.join(CONFIG_DIR, 'machines.json');
 
 const sleepers: ChildProcess[] = [];
 
@@ -34,8 +39,25 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const child of sleepers.splice(0)) child.kill('SIGKILL');
-  for (const file of [DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE]) fs.rmSync(file, { force: true });
+  for (const file of [DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE, CLIENT_PIDS_FILE, MACHINES_FILE]) {
+    fs.rmSync(file, { force: true });
+  }
 });
+
+/** A real process running this home's client bundle, recorded as the local machine's client. */
+async function startRecordedLocalClient(): Promise<ChildProcess> {
+  fs.mkdirSync(path.dirname(localClientEntryPath()), { recursive: true });
+  fs.writeFileSync(localClientEntryPath(), 'setInterval(() => {}, 1000);\n');
+  const client = spawn(process.execPath, [localClientEntryPath()], { stdio: 'ignore' });
+  sleepers.push(client);
+  for (let i = 0; i < 100 && !processCommandLine(client.pid!)?.includes('client.mjs'); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(MACHINES_FILE, JSON.stringify({ local: { cortexPath: DATA_DIR, gpuCount: 0 } }));
+  fs.writeFileSync(CLIENT_PIDS_FILE, JSON.stringify({ local: client.pid }));
+  return client;
+}
 
 test('daemon status reports a missing pid file as not running', async () => {
   const result = await runCli(['daemon', 'status']);
@@ -97,4 +119,37 @@ test('daemon restart --hard signals the live app.js child', async () => {
   const result = await runCli(['daemon', 'restart', '--hard']);
   assert.equal(result.exitCode, 0, result.stderr);
   assert.equal(await signalled, 'SIGTERM');
+});
+
+test('daemon stop also stops the local client the daemon launched', async () => {
+  const daemon = startSleeper();
+  fs.writeFileSync(DAEMON_PID_FILE, String(daemon.pid));
+  const client = await startRecordedLocalClient();
+  const clientExit = exited(client);
+
+  const result = await runCli(['daemon', 'stop']);
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(result.stdout, `Cortex daemon stopped (PID ${daemon.pid}).\nStopped local client local (PID ${client.pid}).\n`);
+  await clientExit;
+  assert.deepEqual(JSON.parse(fs.readFileSync(CLIENT_PIDS_FILE, 'utf8')), {});
+});
+
+test('daemon stop without a running daemon still stops a local client left behind', async () => {
+  const client = await startRecordedLocalClient();
+  const clientExit = exited(client);
+
+  const result = await runCli(['daemon', 'stop']);
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(result.stdout, `Cortex daemon is not running.\nStopped local client local (PID ${client.pid}).\n`);
+  await clientExit;
+});
+
+test('daemon status never stops the local client', async () => {
+  const client = await startRecordedLocalClient();
+  await runCli(['daemon', 'status']);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(client.exitCode, null);
+  assert.equal(client.signalCode, null);
 });

@@ -39,6 +39,8 @@ interface HubLifecycleHooks {
   onStart: () => void;
   /** A device dropped off unexpectedly — bring its client back. */
   onDeviceGone: (device: string) => void;
+  /** A device said hello: the PID it reported and whether it connected over loopback. */
+  onHello?: (device: string, origin: { pid: number | null; loopback: boolean }) => void;
   /** The hub is shutting down: cancel recovery and tear down routes. */
   onStop: () => Promise<void>;
 }
@@ -118,7 +120,11 @@ function openSocket(device: string): WebSocket {
  * a client knows its hardware, the registry only holds what someone typed. An absent or
  * unparseable `gpuCount` is "unknown" and leaves the configured value alone.
  */
-function registerHelloDevice(ws: WebSocket, msg: HelloFrame): string | null {
+function isLoopbackAddress(address: string | undefined): boolean {
+  return !!address && (address === '::1' || /^(::ffff:)?127\./.test(address));
+}
+
+function registerHelloDevice(ws: WebSocket, msg: HelloFrame, remoteAddress: string | undefined): string | null {
   const device: string | undefined = msg.device;
   if (!device) {
     ws.close(4001, 'Missing device name');
@@ -141,6 +147,10 @@ function registerHelloDevice(ws: WebSocket, msg: HelloFrame): string | null {
   applyReportedGpuCount(device, typeof msg.gpuCount === 'number' ? msg.gpuCount : null);
   try { updateHooks?.onHello(device, bundleHash); } catch (e) {
     log.warn(`onHello hook failed for ${device}: ${(e as Error).message}`);
+  }
+  const pid = typeof msg.pid === 'number' && Number.isInteger(msg.pid) && msg.pid > 0 ? msg.pid : null;
+  try { lifecycleHooks?.onHello?.(device, { pid, loopback: isLoopbackAddress(remoteAddress) }); } catch (e) {
+    log.warn(`lifecycle hello hook failed for ${device}: ${(e as Error).message}`);
   }
   return device;
 }
@@ -206,12 +216,12 @@ function verifyClientToken(
   cb(false, 401, 'Unauthorized');
 }
 
-function serveControlSocket(ws: WebSocket): void {
+function serveControlSocket(ws: WebSocket, remoteAddress: string | undefined): void {
   let deviceName: string | null = null;
 
   ws.on('message', (raw) => {
     const frame = parseClientFrame(raw.toString());
-    if (frame?.type === 'hello') deviceName = registerHelloDevice(ws, frame);
+    if (frame?.type === 'hello') deviceName = registerHelloDevice(ws, frame, remoteAddress);
     else if (frame) onClientFrame(frame, deviceName);
   });
 
@@ -231,7 +241,7 @@ function onConnection(ws: WebSocket, req: IncomingMessage): void {
   // carries raw bytes, never control JSON, so it must be handed off BEFORE the message loop —
   // and an unknown id is closed rather than trusted.
   const streamId = parseStreamId(req.url);
-  if (!streamId) return serveControlSocket(ws);
+  if (!streamId) return serveControlSocket(ws, req.socket?.remoteAddress);
   if (!claimStream(streamId, ws)) {
     log.warn('reverse callback with an unknown stream id — closing');
     ws.close(4004, 'Unknown stream');

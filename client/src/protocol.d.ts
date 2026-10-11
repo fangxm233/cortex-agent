@@ -32,6 +32,12 @@ export interface HelloFrame {
   gpuCount: number | null;
   /** sha256 over the running bundle; the server pushes an update when it differs. */
   bundleHash: string;
+  /**
+   * This client's process ID. The server records it for a client it launched on its own machine,
+   * so `cortex daemon stop` also finds a successor the client spawned when it updated itself.
+   * Absent on older clients.
+   */
+  pid?: number;
 }
 
 export interface HeartbeatFrame {

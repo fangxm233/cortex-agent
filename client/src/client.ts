@@ -630,6 +630,7 @@ function connect() {
       capabilities,
       gpuCount,
       bundleHash: BUNDLE_HASH,
+      pid: process.pid,
     });
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);

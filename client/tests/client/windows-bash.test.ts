@@ -204,10 +204,11 @@ describe('selected Windows Git Bash at the client command boundary (no real sock
     assert.equal(spawns[0].options.windowsHide, true);
   });
 
-  it('startup probes for the hello frame open no console window', async () => {
+  it('hello reports the client PID and its startup probes open no console window', async () => {
     socket.sent.length = 0;
     socket.emit('open');
-    assert.ok(socket.sent.some(frame => frame.type === 'hello'));
+    const hello = socket.sent.find(frame => frame.type === 'hello');
+    assert.equal(hello?.pid, process.pid);
     assert.deepEqual(probeOptions.map(probe => probe.file).sort(), ['nvidia-smi', 'rg']);
     for (const probe of probeOptions) assert.equal(probe.options.windowsHide, true, probe.file);
   });

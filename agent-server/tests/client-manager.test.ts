@@ -29,7 +29,7 @@ import {
   _testReset,
 } from '../src/domain/remote/client-lifecycle.js';
 import { requestStream } from '../src/domain/remote/reverse-stream.js';
-import { readFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir, networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import { STORE_DIR } from '../src/core/paths.js';
@@ -722,4 +722,51 @@ test('a hello frame reconciles the reported GPU count into the machine registry'
 
   ws.close();
   await waitFor(() => !isDeviceOnline('gpu-device'));
+});
+
+async function helloWithPid(url: string, device: string, pid: number): Promise<void> {
+  const ws = new WebSocket(url, { headers: authHeaders });
+  await new Promise<void>((resolve, reject) => { ws.once('open', () => resolve()); ws.once('error', reject); });
+  ws.send(JSON.stringify({ type: 'hello', device, platform: 'linux', capabilities: [], pid }));
+  await waitFor(() => isDeviceOnline(device));
+  ws.close();
+  await waitFor(() => !isDeviceOnline(device));
+}
+
+test('a same-machine hello re-points the PID record of a local-launch machine only', async (t) => {
+  _setMachineRegistryProviderForTesting(() => ({
+    local: { cortexPath: '/home/local', gpuCount: 0 },
+    worker: { cortexPath: '/home/worker', gpuCount: 0, ssh: 'user@worker' },
+    custom: { cortexPath: '/home/custom', gpuCount: 0, clientCommand: 'node /opt/client.mjs' },
+  }));
+  mkdirSync(STORE_DIR, { recursive: true });
+  writeFileSync(join(STORE_DIR, 'client-pids.json'), JSON.stringify({ local: 1111, worker: 2222 }));
+  const port = await findEphemeralPort();
+  startClientManager(port);
+  t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
+
+  // A client that updated itself reconnects from its successor process.
+  await helloWithPid(`ws://127.0.0.1:${port}`, 'local', 4242);
+  await helloWithPid(`ws://127.0.0.1:${port}`, 'worker', 5353);
+  await helloWithPid(`ws://127.0.0.1:${port}`, 'custom', 6464);
+
+  assert.equal(launchedPid('local'), 4242);
+  assert.equal(launchedPid('worker'), 2222);
+  assert.equal(launchedPid('custom'), undefined);
+});
+
+test('a hello from another machine never records its PID', async (t) => {
+  const lan = Object.values(networkInterfaces()).flat().find(address => address?.family === 'IPv4' && !address.internal);
+  if (!lan) { t.skip(); return; }
+  _setMachineRegistryProviderForTesting(() => ({ direct: { cortexPath: '/home/direct', gpuCount: 0 } }));
+  mkdirSync(STORE_DIR, { recursive: true });
+  writeFileSync(join(STORE_DIR, 'client-pids.json'), '{}');
+  t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
+  const server = await listenOnHost(lan.address);
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+
+  await helloWithPid(`ws://${lan.address}:${address.port}`, 'direct', 7575);
+
+  assert.equal(launchedPid('direct'), undefined);
 });

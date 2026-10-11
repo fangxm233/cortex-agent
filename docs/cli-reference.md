@@ -104,6 +104,11 @@ Fork `dist/entry/daemon.js` as a child process, inherit stdio. The daemon
 wraps `app.js` with file watching and auto-restart on crash. Touching
 `$STORE_DIR/.restart` signals the daemon to drain and respawn `app.js`.
 
+`cortex daemon stop` stops the daemon together with the client it launched on
+this machine (the local client), so no Cortex process keeps running or keeps
+files of the runtime in use. Clients on SSH and custom-command machines keep
+running. The next `cortex daemon` launches the local client again.
+
 **`cortex restart`**
 
 Signal a running daemon to drain and respawn `app.js` by touching the
