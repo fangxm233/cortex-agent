@@ -100,8 +100,7 @@ async function warm(context, previous) {
   return current;
 }
 
-async function stopDaemon(previous) {
-  await cli(['daemon', 'stop']);
+async function serverGone(previous) {
   await until(() => {
     assert(!inventory().some(p => p.role === 'daemon' || p.role === 'app'));
     assert.notEqual(identity(previous.daemon.pid)?.start, previous.daemon.start);
@@ -110,9 +109,21 @@ async function stopDaemon(previous) {
   });
 }
 
+// `cortex daemon stop` takes down the daemon, its app and the client it launched.
+async function stopDaemon(previous) {
+  await cli(['daemon', 'stop']);
+  await serverGone(previous);
+  assert(!inventory().some(p => p.role === 'client'));
+  assert.notEqual(identity(previous.client.pid)?.start, previous.client.start);
+}
+
 async function survivingCold(context, previous) {
   phase = 'cold-surviving-client';
-  await stopDaemon(previous);
+  // A daemon that dies without `cortex daemon stop` (here: a signal) leaves its client running.
+  // This is a PID from private /proc, revalidated by start time and exact daemon cmdline.
+  assert.deepEqual(identity(previous.daemon.pid), previous.daemon);
+  process.kill(previous.daemon.pid, 'SIGTERM');
+  await serverGone(previous);
   assert.equal(key(identity(previous.client.pid)), key(previous.client));
   await cli(['daemon']);
   const current = await ready(context);
@@ -127,10 +138,6 @@ async function survivingCold(context, previous) {
 async function fullCold(context, previous) {
   phase = 'cold-full';
   await stopDaemon(previous);
-  // This is a PID from private /proc, revalidated by start time and exact client cmdline.
-  assert.deepEqual(identity(previous.client.pid), previous.client);
-  process.kill(previous.client.pid, 'SIGTERM');
-  await until(() => { assert(!inventory().some(p => p.role === 'client')); return true; });
   await cli(['daemon']);
   const current = await ready(context);
   assert.notEqual(key(current.client), key(previous.client));
