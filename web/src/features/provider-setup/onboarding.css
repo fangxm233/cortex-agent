@@ -78,11 +78,12 @@
 .provider-setup [data-status='done'] .onb-status-icon { background: var(--proto-accent-bg); color: var(--proto-accent); border-color: var(--proto-accent-border); }
 .provider-setup [data-status='running'] .onb-status-value { color: var(--proto-accent); }
 .provider-setup [data-status='running'] .onb-status-icon {
-  border-color: var(--proto-accent-border); border-top-color: var(--proto-accent); animation: onb-spin 1s linear infinite;
+  border: 2px solid var(--proto-accent-border); border-top-color: var(--proto-accent); animation: onb-spin 0.8s linear infinite;
 }
 .provider-setup [data-status='error'] .onb-status-icon, .provider-setup [data-status='error'] .onb-status-value { color: var(--state-fail); border-color: var(--state-fail); }
 .provider-setup [data-status='warning'] .onb-status-icon { color: var(--state-wait); }
 @keyframes onb-spin { to { transform: rotate(360deg); } }
+@keyframes onb-pulse { 50% { opacity: 0.35; } }
 .provider-setup .onb-probe-details { color: var(--proto-muted); font-size: 11px; margin-top: 3px; }
 .provider-setup .onb-log-details { border-top: 1px solid var(--proto-line-2); padding: 14px 24px; }
 .provider-setup .onb-error-box {
@@ -98,4 +99,13 @@
   .provider-setup .onb-action-bar .setup-hint { max-width: 150px; }
   .provider-setup .onb-choice-heading { flex-wrap: wrap; }
 }
-@media (prefers-reduced-motion: reduce) { .provider-setup .onb-status-icon, .provider-setup .onb-toggle::before { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .provider-setup .onb-toggle::before { transition: none; } }
+/* The running ring is the only sign of progress, so reduced motion swaps the spin for a pulse instead of freezing it. */
+:root[data-motion='reduced'] .provider-setup [data-status='running'] .onb-status-icon {
+  animation: onb-pulse 1.6s ease-in-out infinite !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) .provider-setup [data-status='running'] .onb-status-icon {
+    animation: onb-pulse 1.6s ease-in-out infinite !important;
+  }
+}
