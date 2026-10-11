@@ -137,14 +137,16 @@ remote write/read, and `exit 7`:
    after singleton-lock rejection; exactly three rejected contender births are allowed.
    Any extra app/client start still fails, including short-lived processes. This tests
    CLI reopen/idempotence, not the native GUI's healthy-endpoint fast path.
-3. Cold with surviving client: stop only the owned daemon/app, prove the exact
-   client survived, start daemon, require its new app to receive that client's
-   reconnect hello and execute tools; no new client birth.
-4. Full cold: stop owned daemon/app, revalidate the known client's start identity
-   and exact cmdline before signalling it, start daemon, require a new client
-   identity/hello/tools. Total client births must be exactly two, never concurrent.
+3. Cold with surviving client: the daemon dies without `cortex daemon stop` (the
+   harness revalidates its start identity and exact cmdline, then sends SIGTERM).
+   Its app exits, the exact client survives; start daemon, require its new app to
+   receive that client's reconnect hello and execute tools; no new client birth.
+4. Full cold: real `cortex daemon stop` must take down daemon, app **and** the
+   client it launched; start daemon, require a new client identity/hello/tools.
+   The final teardown uses the same stop and the same check. Total client births
+   must be exactly two, never concurrent.
 
-Stopping a client is permitted only **inside the verified private PID namespace**.
+Signalling a product process is permitted only **inside the verified private PID namespace**.
 No host process scan ever supplies a PID to kill. Host scans collect namespace
 membership/start identities only. Wrappers signal only their Popen-owned launcher;
 launcher signals only its Popen-owned bwrap. PID namespace teardown reaps detached

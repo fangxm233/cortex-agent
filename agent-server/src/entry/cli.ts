@@ -143,14 +143,41 @@ function readLiveDaemonPid(): { pid: number } | { result: CliResult } {
 
 async function stopDaemonInternal(): Promise<CliResult> {
   const daemon = readLiveDaemonPid();
-  if ('result' in daemon) return daemon.result;
-  const { pid } = daemon;
+  if ('result' in daemon) return withLocalClientsStopped(daemon.result);
+  const stop = await stopLiveDaemon(daemon.pid);
+  return stop.daemonGone ? withLocalClientsStopped(stop.result) : stop.result;
+}
 
+/**
+ * The daemon does not take down the client it launched on this machine (detached, and on Windows
+ * the daemon is terminated without running any handler). Once the daemon is gone, stop that client
+ * too, so it neither keeps the runtime's files in use nor survives on a replaced runtime; the next
+ * daemon start launches a fresh one.
+ */
+async function withLocalClientsStopped(result: CliResult): Promise<CliResult> {
+  let { exitCode, stdout, stderr } = result;
+  try {
+    const { stopLaunchedLocalClients } = await import('@domain/remote/local-client-stop.js');
+    for (const { device, pid, outcome } of await stopLaunchedLocalClients()) {
+      if (outcome === 'stopped') stdout += `Stopped local client ${device} (PID ${pid}).\n`;
+      if (outcome === 'unverified') stderr += `Left local client ${device} (PID ${pid}) running: could not confirm the process is its client.\n`;
+      if (outcome === 'survived') {
+        exitCode = 1;
+        stderr += `Local client ${device} (PID ${pid}) did not exit.\n`;
+      }
+    }
+  } catch (err: any) {
+    stderr += `Could not stop the local client: ${err.message || String(err)}\n`;
+  }
+  return { exitCode, stdout, stderr };
+}
+
+async function stopLiveDaemon(pid: number): Promise<{ result: CliResult; daemonGone: boolean }> {
   // Case 3: Process is alive — send SIGTERM
   try {
     process.kill(pid, 'SIGTERM');
   } catch (err: any) {
-    return { exitCode: 1, stdout: '', stderr: `Failed to send signal to daemon (PID ${pid}): ${err.message}\n` };
+    return { daemonGone: false, result: { exitCode: 1, stdout: '', stderr: `Failed to send signal to daemon (PID ${pid}): ${err.message}\n` } };
   }
 
   // Poll until the process exits (up to 10 seconds, 200ms intervals)
@@ -169,9 +196,12 @@ async function stopDaemonInternal(): Promise<CliResult> {
     // Still alive after timeout — force kill
     try { process.kill(pid, 'SIGKILL'); } catch {}
     return {
-      exitCode: 1,
-      stdout: '',
-      stderr: `Daemon (PID ${pid}) did not stop within ${maxWaitMs / 1000}s. Forcibly killed (SIGKILL).\n`,
+      daemonGone: !isProcessAlive(pid),
+      result: {
+        exitCode: 1,
+        stdout: '',
+        stderr: `Daemon (PID ${pid}) did not stop within ${maxWaitMs / 1000}s. Forcibly killed (SIGKILL).\n`,
+      },
     };
   } catch {
     // Process is dead — success
@@ -182,7 +212,7 @@ async function stopDaemonInternal(): Promise<CliResult> {
     if (readPidFile(DAEMON_PID_FILE) === pid) unlinkSync(DAEMON_PID_FILE);
   } catch {}
 
-  return { exitCode: 0, stdout: `Cortex daemon stopped (PID ${pid}).\n`, stderr: '' };
+  return { daemonGone: true, result: { exitCode: 0, stdout: `Cortex daemon stopped (PID ${pid}).\n`, stderr: '' } };
 }
 
 // ─── Daemon status ────────────────────────────────────────────────

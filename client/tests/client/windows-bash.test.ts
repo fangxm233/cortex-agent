@@ -17,6 +17,7 @@ const originalEnv = process.env;
 const signals = new Map(['SIGINT', 'SIGTERM'].map(s => [s, process.listeners(s)]));
 const available = new Set<string>();
 const spawns: { file: string; args: string[]; options: childProcess.SpawnOptions }[] = [];
+const probeOptions: { file: string; options: childProcess.ExecFileSyncOptions }[] = [];
 let probes = 0;
 let socket: FakeSocket;
 
@@ -54,6 +55,7 @@ function assertSelectedSpawn(login: boolean): void {
   assert.deepEqual(spawns[0].args.slice(0, login ? 2 : 1), login ? ['-l', '-c'] : ['-c']);
   assert.deepEqual(spawns[0].options.env, process.env, 'selected Node/npm/Git PATH and user script env inherited unchanged');
   assert.equal(spawns[0].options.env?.Path, TOOL_PATH);
+  assert.equal(spawns[0].options.windowsHide, true, 'the console-less client must not open a console window');
 }
 
 before(async () => {
@@ -68,7 +70,11 @@ before(async () => {
   });
   mock.method(fs, 'existsSync', (file: fs.PathLike) => available.has(String(file)));
   mock.method(childProcess, 'spawn', fakeSpawn);
-  mock.method(childProcess, 'execFileSync', () => { probes++; throw new Error('No real subprocess probes allowed'); });
+  mock.method(childProcess, 'execFileSync', (file: string, _args: string[], options: childProcess.ExecFileSyncOptions) => {
+    probes++;
+    probeOptions.push({ file, options });
+    throw new Error('No real subprocess probes allowed');
+  });
   syncBuiltinESMExports();
   process.env = { CORTEX_HOME: '/unused-client-fixture', Path: TOOL_PATH };
   Object.defineProperty(process, 'platform', { value: 'win32' });
@@ -80,6 +86,7 @@ beforeEach(() => {
   available.clear();
   [SELECTED, STANDARD, PATH_BASH, 'C:\\fixture'].forEach(p => available.add(p));
   spawns.length = 0;
+  probeOptions.length = 0;
   probes = 0;
   Object.defineProperty(process, 'platform', { value: 'win32' });
 });
@@ -188,6 +195,30 @@ describe('selected Windows Git Bash at the client command boundary (no real sock
     assert.equal(result.exitCode, 127);
     assert.match(result.stderr, /bash not found/);
     assert.equal(spawns.length, 0);
+  });
+
+  it('grep runs rg without a console window', async () => {
+    const result = await dispatch('grep', { pattern: 'needle', path: 'C:\\fixture' });
+    assert.equal(result.success, true);
+    assert.equal(spawns[0].file, 'rg');
+    assert.equal(spawns[0].options.windowsHide, true);
+  });
+
+  it('hello reports the client PID and its startup probes open no console window', async () => {
+    socket.sent.length = 0;
+    socket.emit('open');
+    const hello = socket.sent.find(frame => frame.type === 'hello');
+    assert.equal(hello?.pid, process.pid);
+    assert.deepEqual(probeOptions.map(probe => probe.file).sort(), ['nvidia-smi', 'rg']);
+    for (const probe of probeOptions) assert.equal(probe.options.windowsHide, true, probe.file);
+  });
+
+  it('a self-update successor is spawned without a console window', async () => {
+    const { defaultRespawn } = await import('../../src/self-update.js');
+    defaultRespawn('C:\\fixture\\client.mjs');
+    assert.equal(spawns[0].file, process.execPath);
+    assert.equal(spawns[0].options.detached, true);
+    assert.equal(spawns[0].options.windowsHide, true);
   });
 
   it('leaves the inherited environment untouched after every execution mode', async () => {

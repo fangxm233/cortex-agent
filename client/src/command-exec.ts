@@ -88,6 +88,9 @@ export function spawnCommand(
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env },
     detached: process.platform !== 'win32',
+    // The client runs without a console on Windows, so a console program (bash, grep, rg)
+    // would otherwise get a new, visible console window for as long as it runs.
+    windowsHide: true,
   });
   const stdout = new OutputAccumulator(maxOutputBytes);
   const stderr = new OutputAccumulator(50_000);
@@ -114,6 +117,7 @@ export function execBashBackground(command: string): { pid: number | undefined }
     stdio: 'ignore',
     detached: true,
     env: { ...process.env },
+    windowsHide: true,
   });
   proc.unref();
   return { pid: proc.pid };

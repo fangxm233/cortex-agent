@@ -13,7 +13,11 @@ export interface LocalClientIntent {
   device: string;
   configHash: string;
   bundleHash: string;
-  /** False proves no launch was attempted; true/absent says nothing about PID identity or liveness. */
+  /**
+   * False proves no launched client can still be running: none was launched yet, or
+   * `cortex daemon stop` confirmed the launched one gone. True/absent says nothing about PID
+   * identity or liveness.
+   */
   launchAttempted?: boolean;
 }
 const STAGE = '.local-install-stage';
@@ -146,6 +150,19 @@ export async function markLocalClientLaunchAttempted(
     validateLocalClientOwnership(paths, intent, device);
     saveIntent(paths, { ...intent, launchAttempted: true });
   }, { signal });
+}
+
+/**
+ * `cortex daemon stop` confirmed the launched client is gone, so the next start can launch at once
+ * instead of waiting for a survivor to reconnect.
+ */
+export async function markLocalClientStopped(paths: LocalClientPaths, device: string): Promise<void> {
+  await withFileLock(intentFile(paths), async () => {
+    const intent = readLocalClientIntent(paths);
+    if (!intent || intent.device !== device || intent.launchAttempted === false) return;
+    validateLocalClientOwnership(paths, intent, device);
+    saveIntent(paths, { ...intent, launchAttempted: false });
+  });
 }
 
 /** Daemon recovery may complete an existing intent, but must never enroll an ordinary home. */
