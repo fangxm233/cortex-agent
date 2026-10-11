@@ -16,7 +16,8 @@ For server releases that include native packages, download the platform asset fr
 |---|---|---|
 | Linux x86_64 | AppImage, DEB, or RPM | Run the AppImage directly after `chmod +x`, or install the distribution package. |
 | Windows x86_64 | NSIS `setup.exe` | Run the installer and launch Cortex from the Start menu. |
-| macOS universal | Universal DMG for Intel and Apple Silicon | Open the DMG, then drag Cortex into Applications. |
+| macOS Apple Silicon | `macOS-aarch64` DMG | Open the DMG, then drag Cortex into Applications. |
+| macOS Intel | `macOS-x86_64` DMG | Open the DMG, then drag Cortex into Applications. |
 | Android arm64 | Signed APK | Open the APK and allow installation from the selected file source when Android asks. |
 
 Linux AppImage builds require WebKitGTK and GTK at runtime. Ubuntu and Debian users can install the common runtime libraries with:
@@ -33,29 +34,27 @@ The Android APK is intended for arm64 devices and is distributed outside the Pla
 
 ## Installing a server from the app
 
-Choose **Install Cortex** on the first screen and wait for installation to finish. On supported macOS and Linux systems, the app prepares the dependencies and installs Cortex automatically, without a terminal, Homebrew, Git, Command Line Tools, or administrator access. Progress stays brief; **Activity log** is a folded troubleshooting entry. If installation fails, follow the message and choose **Try again**. **Cancel** during installation stops the active download or initial installation, not an existing server; it does not undo files already installed.
+Choose **Install Cortex** on the first screen and wait for installation to finish. Setup needs no terminal, Homebrew, Command Line Tools, or administrator access. Progress stays brief; **Activity log** is a folded troubleshooting entry. If installation fails, follow the message and choose **Try again**. **Cancel** during installation stops the active installation step, not an existing server; it does not undo files already installed.
 
-Automatic dependency installation supports macOS 13.5+ and glibc Linux with glibc 2.28+, on x64 and arm64. The app reuses compatible Node.js (meeting the server's Node.js 22.19.0 minimum) and npm when available, including on older systems where that runtime and the app can run. Otherwise it installs its managed runtime in the user directory. Unsupported platforms cannot use the automatic download path; they can connect to an existing server.
+Each desktop installer carries the runtime the local server needs: the official Node.js 24 build for its platform and, on Windows, Git for Windows (PortableGit) with Git Bash. Setup unpacks them into versioned directories under `~/.cortex/runtime`, then uses that npm to install the Cortex server package into the private prefix `~/.cortex/runtime/prefix`. Only the server package, and Claude Code when you choose to install it, come from the npm registry; npm follows your `.npmrc` registry, proxy, and credential settings. Setup does not change global npm settings, shell profiles, or the system `PATH`, and it neither uses nor modifies a Node.js, npm, Git, or `cortex` already installed on the computer.
 
-The app keeps its managed Node.js and private npm prefix under `~/.cortex/runtime`. It does not change global npm settings, shell profiles, or the system `PATH`. A compatible external Cortex installation is reused, not overwritten. If an external installation is unsupported, update it separately and retry. Git is optional on macOS/Linux and is not installed by setup; Git-based history and Git-sourced extensions require it.
+The local server always runs on the bundled runtime. When a runtime directory is missing or damaged, the app unpacks it again during setup, or at launch before it starts the daemon. A saved server installation that no longer runs, or is older than the app requires, is reinstalled into the private prefix. On Windows, Cortex runs shell commands with the bundled Git Bash. On macOS and Linux, Git is optional and setup does not install it; Git-based history and Git-sourced extensions require it.
 
-Windows requires Node.js 22.19.0 or newer, npm, and an external Git for Windows installation with Git Bash. Its existing global npm installation and upgrade behavior applies; automatic dependency installation is a macOS/Linux feature.
+The bundled Node.js determines where local installation works: macOS 13.5 or later, Linux x86_64 with glibc 2.28 or later, and Windows 10 or 11 on x86_64. On other systems the app can still connect to an existing server.
 
-On macOS/Linux, installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, port 3004, and no login service. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default profile before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
+Installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, port 3004, and no login service. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default profile before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
 
-On Windows, enter the machine name after installation and optionally change the port under **Advanced settings**, then click **Start Cortex** to save the configuration, start the server, and connect. Windows does not offer service registration.
+If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; starting from this form can restart the local server to apply an explicitly selected port. Automatic setup preserves a responding server. Installation failures offer retry, not machine settings.
 
-If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; starting from this form can restart the local server to apply an explicitly selected port. Automatic setup preserves a responding server. Download and installation failures offer retry, not machine settings.
-
-Automatic dependency setup requires a native app built with this installer and its matching bundled setup page. Updating the Web frontend or replacing `web/dist` does not add this capability to an already-built app.
+Local setup belongs to the native app and the setup page bundled with it; updating the Web frontend or replacing `web/dist` does not change it.
 
 For local development, launch the native app with `CORTEX_SETUP_SERVER_PACKAGE` set to an absolute path to a locally packed `.tgz`. The installer uses that package through npm and checks its reported version against the app's minimum. This does not publish the package; use an isolated home, npm prefix, credential store, and network for fresh-install testing.
 
 The installation step asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. Provider login and the default profile are configured after the server connects.
 
-A machine that already has a Cortex configuration keeps its machine identity and service settings. On macOS/Linux, automatic setup enables the local connection endpoint without overriding its configured port or running initialization again. It checks the selected installation even when it is already usable, so later launches use the same environment. Existing installations and connections open the workbench unless a new local installation still has unfinished provider setup.
+A machine that already has a Cortex configuration keeps its machine identity and service settings. Automatic setup enables the local connection endpoint without overriding its configured port or running initialization again. It checks the saved installation even when it is already usable, so later launches use the same runtime. Existing installations and connections open the workbench unless a new local installation still has unfinished provider setup.
 
-The app starts the local daemon at launch whenever it is not already answering. Automatic macOS/Linux setup does not create or change a login service. If initialization needs repair, the new-install settings form offers **Start at login**: the native app writes and registers a systemd user unit on Linux or a launchd agent on macOS, so scheduled tasks can fire while the app is closed. Registration takes effect at the next login and does not replace the daemon already running. Existing service settings are preserved. Windows has no service registration, so the app's launch-time start is the only autostart there.
+The app starts the local daemon at launch whenever it is not already answering. Automatic setup does not create or change a login service. If initialization needs repair, the new-install settings form offers **Start at login**: the native app writes and registers a systemd user unit on Linux or a launchd agent on macOS, so scheduled tasks can fire while the app is closed. Registration takes effect at the next login and does not replace the daemon already running. Existing service settings are preserved. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
 To enable the endpoint on an existing install without the wizard, run one command on the server:
 
@@ -215,9 +214,7 @@ Confirm that the daemon is running, `CORTEX_UI_HTTP=1` is loaded, the URL reache
 
 ### Local installation cannot finish {#the-wizard-cannot-find-nodejs}
 
-For a download failure, check the network connection and choose **Try again**. Missing installation files can also be repaired by retrying installation. Open **Activity log** only when you need diagnostic details. An unsupported system needs a compatible existing runtime or a connection to another server; an unsupported external Cortex installation needs a separate update.
-
-On Windows, follow missing-prerequisite messages to install or repair Node.js, npm, or Git Bash, then retry. On macOS/Linux, verify that the installed native app includes automatic dependency setup; a frontend-only update cannot supply the native installer.
+Choose **Try again** first: setup unpacks missing runtime files again and reinstalls a server that cannot run. When the server package cannot be downloaded, check the network connection and the registry and proxy settings in `.npmrc`. If the app reports that it is incomplete, download the installer for your platform again and reinstall it. An unsupported system can connect to a server on another computer instead. Open **Activity log** only when you need diagnostic details.
 
 ### The server does not answer after the wizard starts it
 

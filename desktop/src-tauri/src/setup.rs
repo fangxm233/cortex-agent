@@ -234,7 +234,7 @@ pub fn start_local_daemon(
 // ─── Tauri commands ────────────────────────────────────────────────────────
 //
 // Errors reaching the wizard are `CODE` or `CODE: detail`, in the upper-case style of the codes the
-// page already raises itself (NODE_REQUIRED, EACCES): web/src/features/provider-setup/local-setup.ts
+// page already raises itself (DAEMON_TIMEOUT, EACCES): web/src/features/provider-setup/local-setup.ts
 // words the code in the UI language and shows the detail — usually the raw process output — under it.
 
 /// What the machine already has, as the wizard's first screen renders it.
@@ -320,15 +320,25 @@ pub fn setup_cancel_install() {
     runtime::cancel_install();
 }
 
+/// The runtime archives this build ships: `<resources>/runtime` (see bundle.resources).
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+fn bundled_runtime(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    app.path()
+        .resource_dir()
+        .map(|dir| dir.join("runtime"))
+        .map_err(|_| runtime::NOT_BUNDLED.to_string())
+}
+
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn install_server(app: &AppHandle, _run: &str) -> Result<InstallResult, String> {
     let owner = runtime::InstallGuard::begin()?;
     let home = cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?;
     let selected = runtime::ensure_server(
         &home,
+        &bundled_runtime(app)?,
         &process::inherited_path(),
         server_package,
-        &min_node_version(),
         MIN_SERVER_VERSION,
         owner.token(),
         &|line| process::install_log(app, line),
@@ -440,12 +450,34 @@ fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: Option<u16>) -> Result
         .ok_or_else(|| format!("UI_ENABLE_FAILED: {}", outcome.combined()))
 }
 
-/// A saved runtime must be repaired explicitly, never replaced from a changed login PATH.
+/// Whether a local install that did not come up needs the setup screen: its runtime record is
+/// unusable or its saved server entry is gone. Setup restores both.
 pub fn local_runtime_needs_repair() -> bool {
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-    return process::selected_runtime().is_err();
+    return match process::selected_runtime() {
+        Ok(selected) => selected
+            .and_then(|s| s.server)
+            .is_some_and(|server| !server.bin.is_file()),
+        Err(_) => true,
+    };
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     false
+}
+
+/// Unpack whatever part of the bundled runtime is missing and move an older record onto it,
+/// so the daemon starts on the shipped tools. Failures surface later as a repair.
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+fn restore_local_runtime(app: &AppHandle) {
+    let result = cortex_home()
+        .ok_or_else(|| "RUNTIME_MISSING: home unavailable".to_string())
+        .and_then(|home| {
+            let bundle = bundled_runtime(app)?;
+            let log = |line: &str| shell_log!("[cortex-desktop] runtime: {line}");
+            runtime::ensure_runtime(&home, &bundle, &runtime::CancelToken::default(), &log)
+        });
+    if let Err(e) = result {
+        shell_log!("[cortex-desktop] runtime: {e}");
+    }
 }
 
 /// Bring the local daemon up at launch, if it is not already answering.
@@ -455,6 +487,9 @@ pub fn local_runtime_needs_repair() -> bool {
 /// after a reboot, and the workbench would open onto a dead server. The probe comes first so the
 /// common case — a daemon already up — costs one loopback request.
 ///
+/// Before starting it, any missing part of the bundled runtime is unpacked again, so an install
+/// whose runtime directory was deleted or that predates the bundled runtime still starts.
+///
 /// The readiness wait is deliberately shorter than the wizard's: the window is not open yet, so every
 /// second here is a second the app looks like it hung. Timing out is not fatal — the daemon keeps
 /// starting in the background and the SPA's queries reach it when it lands.
@@ -462,6 +497,8 @@ pub fn ensure_local_daemon(app: &AppHandle, bin: &str, url: &str, token: &str) -
     if endpoint_answers(url, token) {
         return true;
     }
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    restore_local_runtime(app);
     match run_streaming(app, "startup", bin, &["daemon"]) {
         Ok(outcome) if outcome.ok() => wait_until_ready(url, token, STARTUP_READY_TIMEOUT),
         Ok(outcome) => {

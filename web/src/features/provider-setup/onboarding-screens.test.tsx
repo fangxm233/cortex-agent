@@ -214,10 +214,10 @@ it('keeps installation compact and technical diagnostics folded even after failu
   expect(details.open).toBe(false);
   await act(async () => view.root.findByProps({ 'data-action': 'onb-cancel' }).props.onClick());
   expect(ports.cancelInstall).toHaveBeenCalledTimes(1);
-  await act(async () => { reject(new Error('RUNTIME_INTEGRITY_FAILED: checksum /private/runtime')); await preparing; });
+  await act(async () => { reject(new Error('RUNTIME_MISSING: unpack /private/runtime')); await preparing; });
   expect(details.open).toBe(false);
-  expect(view.root.findByProps({ role: 'alert' }).findByType('p').children).toEqual([en.onbErrRuntimeIntegrityFailed]);
-  expect(view.root.findByType('pre').children.join('')).toContain('checksum /private/runtime');
+  expect(view.root.findByProps({ role: 'alert' }).findByType('p').children).toEqual([en.onbErrRuntimeMissing]);
+  expect(view.root.findByType('pre').children.join('')).toContain('unpack /private/runtime');
   expect(ports.connect).not.toHaveBeenCalled();
   expect(view.root.findAllByProps({ 'data-action': 'onb-cancel' })).toHaveLength(0);
   expect(view.root.findByProps({ 'data-action': 'onb-retry' }).props.disabled).toBe(false);

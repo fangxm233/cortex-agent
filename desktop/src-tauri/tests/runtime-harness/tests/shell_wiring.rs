@@ -51,7 +51,7 @@ fn windows_commands_lookup_and_repair_use_saved_selection() {
     for (start, end) in [
         ("fn effective_path()", "pub(super) fn inherited_path()"),
         ("fn setup_command(", "/// Each pipe"),
-        ("fn resolve_cli_bin(", "fn resolve_legacy_cli_bin("),
+        ("fn resolve_cli_bin(", "#[cfg(test)]"),
     ] {
         assert!(section(PROCESS, start, end).contains(DESKTOP), "{start}");
     }
@@ -61,11 +61,23 @@ fn windows_commands_lookup_and_repair_use_saved_selection() {
         "/// Bring the local daemon",
     );
     assert!(repair.contains(DESKTOP));
-    assert!(repair.contains("process::selected_runtime().is_err()"));
+    assert!(repair.contains("process::selected_runtime()"));
+    assert!(repair.contains("!server.bin.is_file()"));
 }
 
 #[test]
-fn windows_saved_tools_require_bound_npm_and_git_before_normal_launch() {
+fn install_and_launch_restore_the_bundled_runtime() {
+    let install = section(SETUP, "fn install_server(", "/// `cortex init");
+    assert!(install.contains("&bundled_runtime(app)?"));
+    let launch = section(SETUP, "pub fn ensure_local_daemon(", "/// Register native-owned");
+    let answered = launch.find("endpoint_answers(url, token)").unwrap();
+    let restored = launch.find("restore_local_runtime(app)").unwrap();
+    let started = launch.find("&[\"daemon\"]").unwrap();
+    assert!(answered < restored && restored < started, "restore only when the daemon must start");
+}
+
+#[test]
+fn windows_records_without_bundled_npm_and_git_are_migrated_before_launch() {
     let load = section(
         PROCESS,
         "pub(super) fn selected_runtime()",
@@ -73,8 +85,7 @@ fn windows_saved_tools_require_bound_npm_and_git_before_normal_launch() {
     );
     assert!(load.contains("Selection::load(&home)?"));
     assert!(load.contains("#[cfg(target_os = \"windows\")]"));
-    assert!(load.contains("selected.validate_windows_npm()?"));
-    assert!(load.contains("selected.git.is_none()"));
+    assert!(load.contains("s.git.is_none() || s.npm_cli.is_none()"));
     assert!(load.contains("RUNTIME_MISSING:"));
     let path = section(
         PROCESS,
@@ -142,15 +153,6 @@ fn shared_commands_delegate_without_reimplementing_environment_or_owning_daemon(
 }
 
 #[test]
-fn legacy_windows_discovery_keeps_cmd_exe_order_and_rejects_other_shims() {
-    let lookup = section(PROCESS, "fn first_cli_path(", "fn npm_cli_path(");
-    assert!(lookup.contains(".find(|path| !windows || is_windows_cli_entry(path))"));
-    assert!(lookup.contains("path.to_ascii_lowercase()"));
-    assert!(lookup.contains("path.ends_with(\".cmd\") || path.ends_with(\".exe\")"));
-    assert!(!lookup.contains(".sort"));
-}
-
-#[test]
 fn final_install_probe_keeps_the_install_token() {
     let install = section(SETUP, "fn install_server(", "/// `cortex init");
     let managed = install.split("#[cfg(not(any(").next().unwrap();
@@ -163,7 +165,7 @@ fn desktop_readonly_probes_use_bounded_runtime_output() {
     let probe = section(PROCESS, "pub(super) fn probe_output(", "pub(super) fn probe_server_version");
     assert!(probe.contains("super::runtime::output("));
     let runtime = include_str!("../../../src/setup/runtime.rs");
-    let output = section(runtime, "pub fn output(", "pub fn selected_output(");
+    let output = section(runtime, "pub fn output(", "pub fn version_at_least(");
     assert!(output.contains("probe::output("));
     assert!(!output.contains(".output()"));
 }

@@ -1,4 +1,5 @@
-//! User-owned selected runtime. No Tauri dependency: the headless harness runs this exact code.
+//! The local runtime the app ships with (Node; Git Bash on Windows) and the record of what it uses.
+//! No Tauri dependency: the headless harness runs this exact code.
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsStr,
@@ -6,88 +7,74 @@ use std::{
     process::Command,
 };
 
-#[path = "runtime_archive.rs"]
-mod archive;
+#[path = "runtime_bundle.rs"]
+mod bundle;
 #[path = "runtime_cancel.rs"]
 mod cancel;
 #[path = "runtime_git_selection.rs"]
 mod git_selection;
 #[path = "runtime_install.rs"]
 mod install;
-#[cfg(windows)]
-#[path = "runtime_portablegit.rs"]
-mod portablegit;
 #[path = "runtime_probe.rs"]
 mod probe;
 #[path = "runtime_process.rs"]
 mod process;
 #[path = "runtime_selection.rs"]
 mod selection;
-#[path = "runtime_selection_discovery.rs"]
-mod selection_discovery;
 #[path = "runtime_selection_environment.rs"]
 mod selection_environment;
 #[cfg(any(windows, test))]
-#[path = "runtime_windows_archive.rs"]
-mod windows_archive;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_bootstrap.rs"]
-mod windows_bootstrap;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_download.rs"]
-mod windows_download;
-#[cfg(any(windows, test))]
 #[path = "runtime_windows_postinstall.rs"]
 mod windows_postinstall;
-#[cfg(any(windows, test))]
-#[path = "runtime_windows_server.rs"]
-mod windows_server;
+pub use bundle::NOT_BUNDLED;
+// The runtime harness compiles this module by path without the setup commands that use
+// some of these re-exports.
+#[allow(unused_imports)]
+pub use cancel::{cancel_install, CancelToken, InstallGuard};
 pub use git_selection::GitSelection;
-pub use selection::RepairNeeds;
+#[allow(unused_imports)]
+pub use install::{ensure_server, install_server_version};
+#[allow(unused_imports)]
+pub use process::{redact_line, run_install};
 #[cfg(all(test, unix))]
 #[path = "runtime_git_selection_tests.rs"]
 mod git_selection_tests;
 #[cfg(test)]
 #[path = "runtime_selection_windows_tests.rs"]
 mod selection_windows_tests;
+/// Serializes tests that use the process-wide cancel slot (the headless harness suites).
 #[cfg(test)]
-pub use archive::{release_for, safe_link, safe_member};
-pub use cancel::{cancel_install, CancelToken, InstallGuard};
-pub use install::{ensure_server, install_server_version};
-pub use process::{redact_line, run_install};
-#[cfg(test)]
+#[allow(dead_code)]
 pub(crate) static CANCEL_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Selection {
     pub node: PathBuf,
     pub npm: PathBuf,
     pub prefix: PathBuf,
-    /// False for legacy records; never infer ownership from the current PATH.
     #[serde(default)]
     pub node_managed: bool,
-    /// Actual qualified entry, invoked with the selected Node (not cmd.exe).
+    /// npm's JS entry, invoked with the selected Node (never through cmd.exe or a shebang).
     #[serde(default)]
     pub npm_cli: Option<PathBuf>,
-    /// None means Git has not been selected, not a corrupt legacy record.
     #[serde(default)]
     pub git: Option<GitSelection>,
     #[serde(default)]
     pub server: Option<Server>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Server {
     pub bin: PathBuf,
-    /// Managed packages are launched as node + actual CLI, never through PATH.
+    /// Private packages are launched as node + actual CLI, never through PATH.
     pub managed: bool,
-    /// Qualified external Windows package entry. Retain the original wrapper identity
-    /// and ownership, but never execute it or let it choose an unrelated Node.
+    /// JS entry of an older external Windows package, launched with the selected Node.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_entry: Option<PathBuf>,
 }
 
 impl Selection {
+    #[cfg(test)]
     pub fn new(node: PathBuf, npm: PathBuf, prefix: PathBuf) -> Self {
         Self {
             node,
@@ -100,6 +87,20 @@ impl Selection {
         }
     }
 
+    /// The bundled tools unpacked under `<home>/runtime`, with the private npm prefix.
+    pub fn bundled(home: &Path, node_root: &Path, git: Option<GitSelection>) -> Self {
+        let layout = bundle::NodeLayout::of(node_root);
+        Self {
+            node: layout.node,
+            npm: layout.npm,
+            prefix: home.join("runtime/prefix"),
+            node_managed: true,
+            npm_cli: Some(layout.npm_cli),
+            git,
+            server: None,
+        }
+    }
+
     pub fn load(home: &Path) -> Result<Option<Self>, String> {
         let selected = Self::read_saved(home)?;
         if let Some(selected) = &selected {
@@ -108,7 +109,6 @@ impl Selection {
         Ok(selected)
     }
 
-    /// Read identities even if a saved tool disappeared; repair policy belongs to bootstrap.
     pub fn read_saved(home: &Path) -> Result<Option<Self>, String> {
         let file = home.join("runtime/selection.json");
         let bytes = match std::fs::read(file) {
@@ -126,7 +126,7 @@ impl Selection {
             return Err("RUNTIME_MISSING: invalid selected paths".into());
         }
         if !self.node.is_file() || !self.npm.is_file() {
-            return Err("RUNTIME_MISSING: selected runtime was removed; restore it and retry".into());
+            return Err("RUNTIME_MISSING: runtime files were removed".into());
         }
         self.validate_optional_tools()
     }
@@ -165,16 +165,64 @@ impl Selection {
     }
 }
 
+/// Unpack (or restore) the bundled runtime and point the saved record at it.
+///
+/// Any earlier record — an external Node, an older private download, an external Git — is
+/// rewritten to the bundled tools; the saved server is kept for `ensure_server` to judge.
+pub fn ensure_runtime(
+    home: &Path,
+    bundle: &Path,
+    token: &CancelToken,
+    log: &impl Fn(&str),
+) -> Result<Selection, String> {
+    token.check()?;
+    let manifest = bundle::Manifest::load(bundle)?;
+    let runtime = home.join("runtime");
+    let node = bundle::ensure_node(&manifest, bundle, &runtime, token, log)?;
+    let git = match &manifest.git {
+        Some(archive) => Some(bundle::ensure_git(archive, bundle, &runtime, token, log, post_install)?),
+        None if cfg!(windows) => return Err(NOT_BUNDLED.into()),
+        None => None,
+    };
+    token.check()?;
+    let saved = Selection::read_saved(home).unwrap_or_else(|e| {
+        log(&format!("Ignoring unreadable runtime record ({e})"));
+        None
+    });
+    let mut selected = Selection::bundled(home, &node, git);
+    selected.server = saved.as_ref().and_then(|s| s.server.clone());
+    if saved.as_ref() != Some(&selected) {
+        if saved.is_some() {
+            log("Switching to the bundled runtime");
+        }
+        selected.save(home)?;
+    }
+    token.check()?;
+    Ok(selected)
+}
+
+#[cfg(windows)]
+fn post_install(root: &Path, token: &CancelToken) -> Result<(), String> {
+    windows_postinstall::run(root, token)
+}
+
+#[cfg(not(windows))]
+fn post_install(_root: &Path, _token: &CancelToken) -> Result<(), String> {
+    Ok(())
+}
+
 pub fn storage_error(e: impl std::fmt::Display) -> String {
     format!("SERVER_INSTALL_FAILED: {e}")
 }
 
 pub fn find_bin(name: &str, path: &OsStr) -> Option<PathBuf> {
-    #[cfg(windows)]
-    return selection_discovery::find_windows_bin(name, path);
-    #[cfg(not(windows))]
+    let names = if cfg!(windows) && Path::new(name).extension().is_none() {
+        vec![format!("{name}.exe"), format!("{name}.cmd")]
+    } else {
+        vec![name.to_string()]
+    };
     std::env::split_paths(path)
-        .map(|dir| dir.join(name))
+        .flat_map(|dir| names.iter().map(move |name| dir.join(name)))
         .find(|p| executable(p))
 }
 
@@ -198,18 +246,6 @@ pub fn output(command: Command, args: &[&str]) -> Option<String> {
     probe::output(command, args, &CancelToken::default()).ok().flatten()
 }
 
-pub fn selected_output(
-    selected: &Selection,
-    home: &Path,
-    path: &OsStr,
-    program: &OsStr,
-    args: &[&str],
-) -> Option<String> {
-    let mut command = selected.command(program);
-    selected.apply(&mut command, home, path).ok()?;
-    output(command, args)
-}
-
 pub fn version_at_least(value: &str, floor: &str) -> bool {
     fn parts(s: &str) -> Vec<u32> {
         s.trim()
@@ -226,106 +262,4 @@ pub fn version_at_least(value: &str, floor: &str) -> bool {
     a.resize(len, 0);
     b.resize(len, 0);
     a >= b
-}
-
-pub fn bootstrap(
-    home: &Path,
-    path: &OsStr,
-    floor: &str,
-    token: &CancelToken,
-    log: &impl Fn(&str),
-) -> Result<Selection, String> {
-    #[cfg(windows)]
-    return windows_bootstrap::bootstrap(home, path, floor, token, log);
-    #[cfg(unix)]
-    bootstrap_posix(home, path, floor, token, log)
-}
-
-#[cfg(unix)]
-fn bootstrap_posix(
-    home: &Path,
-    path: &OsStr,
-    floor: &str,
-    token: &CancelToken,
-    log: &impl Fn(&str),
-) -> Result<Selection, String> {
-    token.check()?;
-    if let Some(saved) = Selection::load(home)? {
-        requalify_saved(&saved, home, path, floor, token)?;
-        return Ok(saved);
-    }
-    let selected = match external_runtime(home, path, floor, token)? {
-        Some(selected) => {
-            log("Reusing qualified external runtime");
-            selected
-        }
-        None => archive::bootstrap(home, path, floor, token, log)?,
-    };
-    token.check()?;
-    selected.save(home)?;
-    token.check()?;
-    Ok(selected)
-}
-
-fn requalify_saved(
-    saved: &Selection,
-    home: &Path,
-    path: &OsStr,
-    floor: &str,
-    token: &CancelToken,
-) -> Result<(), String> {
-    if !qualified_install(saved, home, path, floor, token)? {
-        return Err(
-            "RUNTIME_MISSING: selected Node/npm cannot run or is too old; restore it and retry".into(),
-        );
-    }
-    token.check()
-}
-
-fn external_runtime(
-    home: &Path,
-    path: &OsStr,
-    floor: &str,
-    token: &CancelToken,
-) -> Result<Option<Selection>, String> {
-    let (Some(node), Some(npm)) = (find_bin("node", path), find_bin("npm", path)) else {
-        return Ok(None);
-    };
-    let selected = Selection::new(node, npm, home.join("runtime/prefix"));
-    #[cfg(windows)]
-    let selected = {
-        let mut selected = selected;
-        if !selected.qualify_windows_npm() {
-            return Ok(None);
-        }
-        selected
-    };
-    Ok(qualified_install(&selected, home, path, floor, token)?.then_some(selected))
-}
-
-fn qualified_install(
-    selected: &Selection,
-    home: &Path,
-    path: &OsStr,
-    floor: &str,
-    token: &CancelToken,
-) -> Result<bool, String> {
-    token.check()?;
-    if !executable(&selected.node) || !executable(&selected.npm) {
-        return Ok(false);
-    }
-    for (tool, minimum) in [("node", floor), ("npm", "1.0.0")] {
-        let version = probe::selected_output(selected, home, path, OsStr::new(tool), &["--version"], token)?;
-        if !version.is_some_and(|v| version_at_least(&v, minimum)) {
-            return Ok(false);
-        }
-    }
-    token.check()?;
-    Ok(true)
-}
-
-pub fn qualified(selected: &Selection, home: &Path, path: &OsStr, floor: &str) -> bool {
-    let node = selected_output(selected, home, path, OsStr::new("node"), &["--version"]);
-    let npm = selected_output(selected, home, path, OsStr::new("npm"), &["--version"]);
-    node.is_some_and(|v| version_at_least(&v, floor)) && npm.is_some_and(|v| version_at_least(&v, "1.0.0"))
 }

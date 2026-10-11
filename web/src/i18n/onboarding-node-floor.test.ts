@@ -12,20 +12,10 @@ it('keeps dependency names and technical details out of normal onboarding copy',
   }
 });
 
-it('keeps Windows prerequisite actions without a separately hardcoded Node floor', () => {
-  for (const vocab of [onboardingEn, onboardingZh]) {
-    expect(vocab.onbErrNodeRequired).toContain('Node.js LTS');
-    expect(vocab.onbErrNodeRequired).not.toMatch(/Node(?:\.js)?\s*\d/);
-    expect(vocab.onbErrNpmRequired).toContain('npm');
-    expect(vocab.onbErrGitRequired).toContain('Git Bash');
-  }
-});
-
 it('uses nontechnical installation failures in both languages', () => {
   for (const vocab of [onboardingEn, onboardingZh]) {
-    for (const key of ['onbErrRuntimeDownloadFailed', 'onbErrRuntimeIntegrityFailed',
-      'onbErrRuntimeUnsupported', 'onbErrRuntimeMissing', 'onbErrServerExternalUnsupported',
-      'onbErrSetupCancelled'] as const) {
+    for (const key of ['onbErrRuntimeUnsupported', 'onbErrRuntimeMissing', 'onbErrRuntimeNotBundled',
+      'onbErrServerTooOld', 'onbErrSetupCancelled'] as const) {
       expect(vocab[key]).toBeTruthy();
       expect(vocab[key]).not.toMatch(/Node|npm|Git|checksum|prefix|PATH|校验|运行时/i);
     }

@@ -181,16 +181,14 @@ export class LocalSetupFlow {
 
 // Codes the flow raises itself and the native setup commands return, as `CODE` or `CODE: detail`.
 const ERROR_KEYS: Record<string, keyof Vocab> = {
-  NODE_REQUIRED: 'onbErrNodeRequired', NPM_REQUIRED: 'onbErrNpmRequired', GIT_REQUIRED: 'onbErrGitRequired',
   EACCES: 'onbErrEacces', DAEMON_TIMEOUT: 'onbErrDaemonTimeout', INIT_ENDPOINT_MISSING: 'onbErrInitEndpointMissing',
   SERVER_INSTALL_FAILED: 'onbErrServerInstallFailed', SERVER_PACKAGE_INVALID: 'onbErrServerPackageInvalid',
   SERVER_TOO_OLD: 'onbErrServerTooOld', CLI_NOT_ON_PATH: 'onbErrCliNotOnPath',
   ANSWERS_FILE_FAILED: 'onbErrAnswersFileFailed', INIT_FAILED: 'onbErrInitFailed', INIT_NO_RESULT: 'onbErrInitNoResult',
   UI_ENABLE_FAILED: 'onbErrUiEnableFailed', DAEMON_START_FAILED: 'onbErrDaemonStartFailed',
   PROGRAM_FAILED: 'onbErrProgramFailed', SETUP_TASK_FAILED: 'onbErrSetupTaskFailed',
-  RUNTIME_DOWNLOAD_FAILED: 'onbErrRuntimeDownloadFailed', RUNTIME_INTEGRITY_FAILED: 'onbErrRuntimeIntegrityFailed',
   RUNTIME_UNSUPPORTED: 'onbErrRuntimeUnsupported', RUNTIME_MISSING: 'onbErrRuntimeMissing',
-  SERVER_EXTERNAL_UNSUPPORTED: 'onbErrServerExternalUnsupported', SETUP_CANCELLED: 'onbErrSetupCancelled',
+  RUNTIME_NOT_BUNDLED: 'onbErrRuntimeNotBundled', SETUP_CANCELLED: 'onbErrSetupCancelled',
 };
 
 /** Show only the actionable sentence; native details belong in the folded activity log. */

@@ -14,7 +14,8 @@ Cortex 提供面向 Linux、macOS、Windows 与 Android 的 Tauri v2 原生壳�
 |---|---|---|
 | Linux x86_64 | AppImage、DEB 或 RPM | 对 AppImage 执行 `chmod +x` 后直接运行，或安装对应发行版软件包。 |
 | Windows x86_64 | NSIS `setup.exe` | 运行安装程序，然后从开始菜单启动 Cortex。 |
-| macOS universal | 同时支持 Intel 与 Apple Silicon 的 universal DMG | 打开 DMG，将 Cortex 拖入“应用程序”。 |
+| macOS Apple Silicon | `macOS-aarch64` DMG | 打开 DMG，将 Cortex 拖入“应用程序”。 |
+| macOS Intel | `macOS-x86_64` DMG | 打开 DMG，将 Cortex 拖入“应用程序”。 |
 | Android arm64 | 已签名 APK | 打开 APK；Android 提示时，允许当前文件来源安装应用。 |
 
 Linux AppImage 运行时需要 WebKitGTK 与 GTK。Ubuntu 和 Debian 用户可安装常见运行库：
@@ -31,29 +32,27 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 ## 从应用内安装服务端 {#installing-a-server-from-the-app}
 
-在首屏选择**安装 Cortex**并等待完成。在受支持的 macOS 和 Linux 上，应用会自动准备依赖并安装 Cortex，无需终端、Homebrew、Git、Command Line Tools 或管理员权限。界面仅显示简短进度，**查看运行日志**是折叠的排查入口。安装失败时，按提示处理并选择**重试**。安装期间的**取消**只停止当前下载或初始安装，不停止已有服务端，也不会撤销已经安装的文件。
+在首屏选择**安装 Cortex**并等待完成。安装无需终端、Homebrew、Command Line Tools 或管理员权限。界面仅显示简短进度，**查看运行日志**是折叠的排查入口。安装失败时，按提示处理并选择**重试**。安装期间的**取消**只停止当前安装步骤，不停止已有服务端，也不会撤销已经安装的文件。
 
-自动安装依赖支持 macOS 13.5+ 与 glibc Linux（glibc 2.28+），架构为 x64 和 arm64。已有兼容 Node.js（满足服务端最低 Node.js 22.19.0 要求）及 npm 时直接复用，包括能够运行该运行时与应用的较旧系统；否则在用户目录安装托管运行时。不支持的平台不能使用自动下载路径，但可以连接已有服务器。
+每个桌面安装包都自带本机服务端所需的运行环境：对应平台的官方 Node.js 24，Windows 安装包另含带 Git Bash 的 Git for Windows（PortableGit）。安装时将它们解压到 `~/.cortex/runtime` 下按版本命名的目录，再用其中的 npm 把 Cortex 服务端包安装到私有 prefix `~/.cortex/runtime/prefix`。只有服务端包，以及你选择安装的 Claude Code，从 npm registry 获取；npm 沿用你 `.npmrc` 中的 registry、代理和凭据设置。安装不修改全局 npm 设置、shell profile 或系统 `PATH`，也不使用、不改动电脑上已有的 Node.js、npm、Git 或 `cortex`。
 
-应用将托管 Node.js 和私有 npm prefix 保存在 `~/.cortex/runtime` 下，不修改全局 npm 设置、shell profile 或系统 `PATH`。兼容的外部 Cortex 安装会被复用而非覆盖；不兼容时需自行更新该安装后重试。macOS/Linux 的 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
+本机服务端始终运行在自带的运行环境上。运行环境目录缺失或损坏时，应用会在安装过程中，或在启动时拉起 daemon 之前重新解压。已保存的服务端安装无法运行或低于应用要求的版本时，会重新安装到私有 prefix。Windows 上 Cortex 用自带的 Git Bash 执行 shell 命令。macOS 与 Linux 上 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
 
-Windows 需要已有 Node.js 22.19.0 或更高版本、npm，以及包含 Git Bash 的外部 Git for Windows 安装。该平台使用全局 npm 安装与升级服务端；自动安装依赖属于 macOS/Linux 功能。
+自带的 Node.js 决定了本机安装支持的系统：macOS 13.5 及以上、glibc 2.28 及以上的 x86_64 Linux，以及 x86_64 的 Windows 10 或 11。其他系统仍可连接已有服务器。
 
-在 macOS/Linux 上，安装后会自动继续初始化、启动服务端并连接。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；正常流程没有机器设置页，也无需点击**启动 Cortex**确认。界面始终以一行安装进度展示，技术细节收在**查看运行日志**中。全新安装随后进入 `/setup/providers` 的 Provider 设置页，登录并选择默认 Profile 后再进入工作台。Cortex 已内置 PI，安装时不询问后端选择。
+安装后会自动继续初始化、启动服务端并连接。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；正常流程没有机器设置页，也无需点击**启动 Cortex**确认。界面始终以一行安装进度展示，技术细节收在**查看运行日志**中。全新安装随后进入 `/setup/providers` 的 Provider 设置页，登录并选择默认 Profile 后再进入工作台。Cortex 已内置 PI，安装时不询问后端选择。
 
-在 Windows 上，安装就绪后填写机器名称，也可在**高级设置**中调整端口，再点击**启动 Cortex**保存配置、启动服务端并连接。Windows 不提供服务注册。
+初始化、启动或连接失败时，**重试**复用原设置；**修改设置**打开修复表单，从此表单再次启动时可重启本地服务端，以应用明确选择的端口。自动设置会保留正在响应的服务端。安装失败只提供重试，不显示机器设置。
 
-初始化、启动或连接失败时，**重试**复用原设置；**修改设置**打开修复表单，从此表单再次启动时可重启本地服务端，以应用明确选择的端口。自动设置会保留正在响应的服务端。下载与安装失败只提供重试，不显示机器设置。
-
-自动依赖安装需要包含该安装器及匹配内置设置页的原生应用构建。更新 Web 前端或替换 `web/dist` 无法给已构建的应用增加此能力。
+本机安装属于原生应用及其内置的设置页；更新 Web 前端或替换 `web/dist` 不会改变它。
 
 本地开发时，可将 `CORTEX_SETUP_SERVER_PACKAGE` 设置为本地打包 `.tgz` 的绝对路径，再启动原生应用。安装器通过 npm 安装该包，并检查其报告的版本是否达到最低要求；这一操作不会发布软件包。全新安装测试应使用独立的 home、npm prefix、凭据存储和网络。
 
 安装步骤不询问 Slack 或飞书：应用本身就是交互界面，没有消息平台的服务端使用内置 gateway 运行。Provider 登录和默认 Profile 在服务端连接成功后配置。
 
-已有 Cortex 配置的机器会保留机器身份和服务设置。在 macOS/Linux 上，自动设置会开启本地连接端点，不覆盖已配置的端口，也不重复初始化；即使已有安装可用，也会检查选定的安装，使后续启动使用同一环境。已有安装及连接直接打开工作台，除非全新本机安装仍有未完成的 Provider 设置。
+已有 Cortex 配置的机器会保留机器身份和服务设置。自动设置会开启本地连接端点，不覆盖已配置的端口，也不重复初始化；即使已有安装可用，也会检查已保存的安装，使后续启动使用同一运行环境。已有安装及连接直接打开工作台，除非全新本机安装仍有未完成的 Provider 设置。
 
-应用启动时若发现本机服务端未响应，就会启动 daemon。macOS/Linux 自动设置不会创建或修改登录自启服务。初始化需要修复时，全新安装的设置表单提供**登录系统时自动启动**：由原生应用写入并注册服务单元——Linux 上是 systemd user unit，macOS 上是 launchd agent——使定时任务在应用关闭时也能触发。注册在下次登录时生效，不会替换当前运行的 daemon。已有服务设置保持不变。Windows 没有服务注册，应用启动时拉起 daemon 是该平台上唯一的自启方式。
+应用启动时若发现本机服务端未响应，就会启动 daemon。自动设置不会创建或修改登录自启服务。初始化需要修复时，全新安装的设置表单提供**登录系统时自动启动**：由原生应用写入并注册服务单元——Linux 上是 systemd user unit，macOS 上是 launchd agent——使定时任务在应用关闭时也能触发。注册在下次登录时生效，不会替换当前运行的 daemon。已有服务设置保持不变。Windows 没有服务注册，应用启动时拉起 daemon 是该平台上唯一的自启方式。
 
 若不使用向导，在已有安装上开启端点只需一条命令：
 
@@ -213,9 +212,7 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 ### 本地安装未能完成 {#the-wizard-cannot-find-nodejs}
 
-下载失败时，请检查网络连接后选择**重试**。安装文件缺失时，也可重试安装以修复。需要诊断详情时再展开**查看运行日志**。不支持的系统需要已有兼容运行时，或连接其他服务器；不支持的外部 Cortex 安装需要单独更新。
-
-在 Windows 上，按缺失依赖提示安装或修复 Node.js、npm 或 Git Bash 后重试。在 macOS/Linux 上，请确认所安装的原生应用包含自动依赖安装能力；仅更新前端无法提供原生安装器。
+先选择**重试**：安装会重新解压缺失的运行环境文件，并重新安装无法运行的服务端。服务端包无法下载时，请检查网络连接以及 `.npmrc` 中的 registry 与代理设置。应用提示安装包不完整时，请重新下载对应平台的安装包并重新安装。不受支持的系统可改为连接其他电脑上的服务器。需要诊断详情时再展开**查看运行日志**。
 
 ### 向导启动后服务端没有响应 {#the-server-does-not-answer-after-the-wizard-starts-it}
 

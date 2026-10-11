@@ -120,3 +120,7 @@ packages/*/.wrangler/
 
 # Node module compile cache written by the test runner
 agent-server/node-compile-cache/
+
+# Runtime archives staged by desktop/scripts/fetch-bundled-runtime.mjs
+desktop/src-tauri/bundled-runtime/*
+!desktop/src-tauri/bundled-runtime/.gitkeep

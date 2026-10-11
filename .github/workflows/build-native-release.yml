@@ -13,6 +13,10 @@ on:
         description: Attach the installers to that tag's release
         type: boolean
         default: false
+      source:
+        description: Branch or commit to build instead of the tag (artifacts only, never attached)
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -25,9 +29,11 @@ env:
   # A tag push builds its own tag; a manual run builds the tag it was given.
   REL_TAG: ${{ inputs.tag || github.ref_name }}
 
-# Every platform job checks out the tag, then runs the shared setup (version check, install, SPA
-# build) from main rather than from ./: a dispatched rebuild takes this workflow from main and the
-# source from the tag, and the setup has to follow the workflow so CI-only fixes reach old tags.
+# Every platform job checks out the tag (or the dispatched `source`), then runs the shared setup
+# (version check, install, SPA build) from main rather than from ./: a dispatched rebuild takes this
+# workflow from main and the source from the tag, and the setup has to follow the workflow so
+# CI-only fixes reach old tags. Each desktop build first stages the runtime it ships
+# (desktop/scripts/fetch-bundled-runtime.mjs), cached across runs.
 
 jobs:
   windows:
@@ -36,17 +42,24 @@ jobs:
       - name: Checkout tagged commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.source || inputs.tag || github.ref_name }}
 
       - name: Set up workspace
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
           tag: ${{ env.REL_TAG }}
 
+      - name: Cache bundled runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/cortex-bundled-runtime
+          key: bundled-runtime-x86_64-pc-windows-msvc-${{ hashFiles('desktop/scripts/fetch-bundled-runtime.mjs') }}
+
       - name: Build Windows installer
         shell: pwsh
         run: |
           rustup target add x86_64-pc-windows-msvc
+          node desktop/scripts/fetch-bundled-runtime.mjs --target x86_64-pc-windows-msvc
           pnpm --dir desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis -- --locked
 
       - name: Verify and stage Windows installer
@@ -61,6 +74,10 @@ jobs:
           $sig = Get-AuthenticodeSignature $installers[0].FullName
           if ($sig.Status -notin @('Valid', 'NotSigned')) { throw "installer signature status: $($sig.Status)" }
           Write-Host "installer signature status: $($sig.Status)"
+          $listing = & 7z l $installers[0].FullName | Out-String
+          foreach ($file in @('manifest.json', 'node-v24.21.0-win-x64.zip', 'git-2.56.0.2-x64.7z')) {
+            if ($listing -notmatch "runtime[\\/]$([regex]::Escape($file))") { throw "installer is missing runtime/$file" }
+          }
           New-Item -ItemType Directory -Force release-assets | Out-Null
           $dest = "release-assets/Cortex-$env:VERSION-Windows-x86_64-setup.exe"
           Copy-Item $installers[0].FullName $dest
@@ -76,27 +93,44 @@ jobs:
 
   macos:
     runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: aarch64
+            lipo: arm64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+            lipo: x86_64
     steps:
       - name: Checkout tagged commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.source || inputs.tag || github.ref_name }}
 
       - name: Set up workspace
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
           tag: ${{ env.REL_TAG }}
 
-      - name: Build universal macOS disk image
+      - name: Cache bundled runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/cortex-bundled-runtime
+          key: bundled-runtime-${{ matrix.target }}-${{ hashFiles('desktop/scripts/fetch-bundled-runtime.mjs') }}
+
+      - name: Build macOS disk image
         run: |
-          rustup target add x86_64-apple-darwin aarch64-apple-darwin
-          pnpm --dir desktop exec tauri build --target universal-apple-darwin --bundles dmg -- --locked
+          rustup target add ${{ matrix.target }}
+          node desktop/scripts/fetch-bundled-runtime.mjs --target ${{ matrix.target }}
+          pnpm --dir desktop exec tauri build --target ${{ matrix.target }} --bundles dmg -- --locked
 
       - name: Verify and stage macOS disk image
         shell: bash
         run: |
           set -euo pipefail
-          bundle=desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg
+          bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg
           images=("$bundle"/*.dmg)
           test "${#images[@]}" -eq 1
           test -f "${images[0]}"
@@ -108,21 +142,24 @@ jobs:
           actual=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
           test "$actual" = "$VERSION"
           executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
-          archs=$(lipo -archs "$app/Contents/MacOS/$executable")
-          [[ "$archs" == *x86_64* && "$archs" == *arm64* ]]
+          test "$(lipo -archs "$app/Contents/MacOS/$executable")" = "${{ matrix.lipo }}"
+          runtime="$app/Contents/Resources/runtime"
+          node=$(sed -n 's/.*"archive": "\(node-[^"]*\)".*/\1/p' "$runtime/manifest.json")
+          case "${{ matrix.lipo }}" in arm64) [[ "$node" == *darwin-arm64* ]] ;; *) [[ "$node" == *darwin-x64* ]] ;; esac
+          test -f "$runtime/$node"
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Signature=adhoc'
           hdiutil detach "$mountpoint"
           trap - EXIT
           mkdir -p release-assets
-          dest="release-assets/Cortex-$VERSION-macOS-universal.dmg"
+          dest="release-assets/Cortex-$VERSION-macOS-${{ matrix.arch }}.dmg"
           cp "${images[0]}" "$dest"
-          shasum -a 256 "$dest" | sed 's#  release-assets/#  #' > release-assets/SHA256SUMS-macOS.txt
+          shasum -a 256 "$dest" | sed 's#  release-assets/#  #' > "release-assets/SHA256SUMS-macOS-${{ matrix.arch }}.txt"
 
       - name: Upload macOS asset
         uses: actions/upload-artifact@v4
         with:
-          name: Cortex-macOS-universal
+          name: Cortex-macOS-${{ matrix.arch }}
           path: release-assets/*
           if-no-files-found: error
 
@@ -132,7 +169,7 @@ jobs:
       - name: Checkout tagged commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.source || inputs.tag || github.ref_name }}
 
       - name: Set up workspace
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
@@ -153,8 +190,16 @@ jobs:
             patchelf \
             rpm
 
+      - name: Cache bundled runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/cortex-bundled-runtime
+          key: bundled-runtime-x86_64-unknown-linux-gnu-${{ hashFiles('desktop/scripts/fetch-bundled-runtime.mjs') }}
+
       - name: Build Linux bundles
-        run: pnpm --dir desktop exec tauri build --bundles deb,appimage,rpm -- --locked
+        run: |
+          node desktop/scripts/fetch-bundled-runtime.mjs --target x86_64-unknown-linux-gnu
+          pnpm --dir desktop exec tauri build --bundles deb,appimage,rpm -- --locked
 
       - name: Verify and stage Linux bundles
         shell: bash
@@ -180,6 +225,14 @@ jobs:
           pick "$bundle/rpm"      "*.rpm"      "Cortex-$VERSION-Linux-x86_64.rpm"
 
           chmod +x "release-assets/Cortex-$VERSION-Linux-x86_64.AppImage"
+          runtime=node-v24.21.0-linux-x64.tar.gz
+          # Listings go to files first: `grep -q` on a pipe would close it early and fail the
+          # producer under pipefail.
+          dpkg-deb -c "release-assets/Cortex-$VERSION-Linux-amd64.deb" > "$RUNNER_TEMP/deb.list"
+          rpm -qlp "release-assets/Cortex-$VERSION-Linux-x86_64.rpm" > "$RUNNER_TEMP/rpm.list"
+          (cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/release-assets/Cortex-$VERSION-Linux-x86_64.AppImage" --appimage-extract >/dev/null)
+          find "$RUNNER_TEMP/squashfs-root" -path "*/runtime/*" > "$RUNNER_TEMP/appimage.list"
+          for list in deb rpm appimage; do grep "runtime/$runtime" "$RUNNER_TEMP/$list.list"; done
           (cd release-assets && sha256sum ./*.deb ./*.AppImage ./*.rpm | sed 's#\./##' > SHA256SUMS-Linux.txt)
           cat release-assets/SHA256SUMS-Linux.txt
 
@@ -200,7 +253,7 @@ jobs:
       - name: Checkout tagged commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.source || inputs.tag || github.ref_name }}
 
       - name: Set up workspace
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
@@ -308,7 +361,7 @@ jobs:
       ${{ always()
       && !contains(needs.*.result, 'failure')
       && !contains(needs.*.result, 'cancelled')
-      && (github.event_name == 'push' || inputs.attach) }}
+      && (github.event_name == 'push' || (inputs.attach && !inputs.source)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
