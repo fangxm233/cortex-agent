@@ -186,7 +186,7 @@ function detectCapabilities(): ClientCapability[] {
   // message on an old client instead of timing out waiting for a callback that never comes.
   const caps: ClientCapability[] = ['file-stream'];
   try {
-    execFileSync('rg', ['--version'], { timeout: 5000, stdio: 'pipe' });
+    execFileSync('rg', ['--version'], { timeout: 5000, stdio: 'pipe', windowsHide: true });
     caps.push('rg');
   } catch {}
   return caps;

@@ -12,6 +12,7 @@ function runNvidiaSmi(): string {
     timeout: SMI_TIMEOUT_MS,
     stdio: 'pipe',
     encoding: 'utf-8',
+    windowsHide: true,
   });
 }
 

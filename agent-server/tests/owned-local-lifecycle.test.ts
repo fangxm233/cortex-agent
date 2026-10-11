@@ -136,7 +136,7 @@ test.each([DATA_DIR, '/home/user/project'])('non-enrolled workspace %s retains u
   await startRemoteClient('local');
   expect(hooks.spawn).toHaveBeenCalledOnce();
   expect(hooks.spawn).toHaveBeenCalledWith(process.execPath,
-    [join(DATA_DIR, 'client/current/client.mjs')], { detached: true, stdio: 'ignore' });
+    [join(DATA_DIR, 'client/current/client.mjs')], { windowsHide: true, detached: true, stdio: 'ignore' });
   expect(hooks.recover).not.toHaveBeenCalled();
   expect(hooks.markAttempt).not.toHaveBeenCalled();
   expect(_getRestartTimerCount()).toBe(0);

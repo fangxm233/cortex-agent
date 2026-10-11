@@ -214,7 +214,7 @@ function spawnLocalClient(device: string): void {
     return;
   }
   try {
-    const child = spawn(process.execPath, [entry], { detached: true, stdio: 'ignore' });
+    const child = spawn(process.execPath, [entry], { windowsHide: true, detached: true, stdio: 'ignore' });
     child.on('error', (err) => {
       log.error(`Local client spawn error on ${device}: ${(err as Error).message}`);
     });
