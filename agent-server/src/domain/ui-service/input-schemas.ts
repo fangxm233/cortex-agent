@@ -93,6 +93,12 @@ export const machineDetailInput = z.object({
 
 export const skillsListInput = z.object({});
 
+/** A live session (its own agent and commission binding), or a draft about to run `agentName`. */
+export const skillsSessionInput = z.object({
+  sessionId: z.string().min(1).optional(),
+  agentName: z.string().min(1).nullable().optional(),
+});
+
 export const pluginsListInput = z.object({});
 
 export const environmentsListInput = z.object({});
@@ -845,6 +851,7 @@ export const queryInputSchemas = {
   'machines.list': machinesListInput,
   'machines.detail': machineDetailInput,
   'skills.list': skillsListInput,
+  'skills.session': skillsSessionInput,
   'plugins.list': pluginsListInput,
   'plugins.skillFile': pluginsSkillFileInput,
   'plugins.mcpRead': pluginsMcpReadInput,

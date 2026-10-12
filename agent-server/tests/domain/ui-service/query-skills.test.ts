@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CONFIG_DIR, PLUGINS_DIR } from '../../../src/core/paths.js';
-import { handleSkillsList } from '../../../src/domain/ui-service/query/skills.js';
+import { handleSkillsList, handleSkillsSession } from '../../../src/domain/ui-service/query/skills.js';
 import { listSkillGroups } from '../../../src/domain/plugins/catalog.js';
 import { AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL as SCHEMA } from '../../../src/domain/plugins/agent-plugins-v1.js';
 import { loadEnvironments } from '../../../src/domain/agents/environments/registry.js';
@@ -93,4 +93,28 @@ test('!skills lists only the plugins of the environment the channel runs, extern
   assert.ok(text.includes(`_${external}_\n• \`ext-skill\``), text);
   assert.doesNotMatch(text, /alpha|apple|zebra/);
   fs.rmSync(external, { recursive: true, force: true });
+});
+
+test('skills.session lists the skills a conversation loads, with what a palette offers', async () => {
+  const envDir = path.join(CONFIG_DIR, 'environments');
+  fs.mkdirSync(envDir, { recursive: true });
+  fs.writeFileSync(path.join(envDir, 'main.json'), JSON.stringify({
+    name: 'main', profile: '__active__', pluginDirs: ['plugins/beta', 'plugins/alpha'],
+  }));
+  fs.writeFileSync(path.join(envDir, 'bare.json'), JSON.stringify({
+    name: 'bare', profile: '__active__', pluginDirs: ['plugins/alpha'], skills: false,
+  }));
+  loadEnvironments();
+  const sessions: Record<string, unknown> = {
+    s1: { id: 's1', channel: 'web:s1', agentName: null, commissionId: null },
+    s2: { id: 's2', channel: 'web:s2', agentName: 'bare', commissionId: null },
+  };
+  const deps = { sessionStore: { getById: async (id: string) => sessions[id] ?? null } } as never;
+
+  const draft = await handleSkillsSession(deps, {});
+  assert.deepEqual(draft.map((skill) => `${skill.namespace}:${skill.name}`), ['beta:review', 'alpha:apple', 'alpha:zebra']);
+  assert.equal(draft[0].description, 'test skill');
+  assert.deepEqual(await handleSkillsSession(deps, { sessionId: 's1' }), draft);
+  assert.deepEqual(await handleSkillsSession(deps, { sessionId: 's2' }), []);
+  assert.deepEqual(await handleSkillsSession(deps, { agentName: 'bare' }), []);
 });

@@ -32,7 +32,7 @@ import { handleModelsCatalog } from './query/models.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleMachineDetail } from './query/machine-detail.js';
-import { handleSkillsList } from './query/skills.js';
+import { handleSkillsList, handleSkillsSession } from './query/skills.js';
 import { handlePluginsList } from './query/plugins.js';
 import { handlePluginsSkillFile, handlePluginsMcpRead } from './query/plugin-source.js';
 import { handleEnvironmentsList, handleEnvironmentsGet } from './query/environments.js';
@@ -159,6 +159,7 @@ export const queryHandlers = {
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'machines.detail': (deps, params) => handleMachineDetail(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
+  'skills.session': (deps, params) => handleSkillsSession(deps, params),
   'plugins.list': (deps, params) => handlePluginsList(deps, params),
   'plugins.skillFile': (deps, params) => handlePluginsSkillFile(deps, params),
   'plugins.mcpRead': (deps, params) => handlePluginsMcpRead(deps, params),

@@ -71,6 +71,7 @@ vi.mock('@/lib/trpc', () => ({
       schedules: { list: query('schedules.list') },
       waitpoints: { list: query('waitpoints.list'), cancel: mutation('waitpoints.cancel') },
       commissions: { list: query('commissions.list'), get: query('commissions.get') },
+      skills: { session: query('skills.session') },
     };
   },
 }));

@@ -8,11 +8,9 @@ import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLeve
 import { resolveRunConfig, type ResolvedRunConfig } from '@domain/runs/config-resolver.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { listSkillGroups } from '@domain/plugins/catalog.js';
-import { filterScopedPlugins } from '@domain/runs/engine-spec.js';
+import { conversationPluginDirs } from '@domain/plugins/conversation-skills.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { getSettings } from '@core/settings.js';
-import { resolveConversationAgent } from '../../conversation-request.js';
 import { getEnvironment, listEnvironments } from '@domain/agents/environments/registry.js';
 import { handleNewCmd } from './session.js';
 
@@ -311,19 +309,12 @@ export function createProfileHandler(router?: CommandActionRouter) {
   };
 }
 
-/** The plugin dirs this channel's next turn would load, through the same agent resolution and
- *  scope filter the turn itself uses. Empty when the agent switches skills off. */
 async function channelPluginDirs(channel: string): Promise<string[]> {
   const sessionId = await getSessionAsync(channel);
   const session = sessionId ? await sessionStore.getById(sessionId) : null;
-  const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
-  if (agentConfig.skills === false) return [];
-  const settings = getSettings();
-  return filterScopedPlugins(agentConfig.pluginDirs ?? [], {
-    channel,
-    commissionMode: settings.commissionEnabled && !!session?.commissionId,
-    feishuSkillsInWeb: settings.feishuSkillsInWeb,
-  }) ?? [];
+  return conversationPluginDirs({
+    channel, agentName: session?.agentName ?? null, commissionBound: !!session?.commissionId,
+  });
 }
 
 export async function handleSkillsCmd(channel: string, adapter: PlatformAdapter): Promise<void> {

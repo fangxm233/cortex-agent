@@ -1139,6 +1139,15 @@ export interface SkillGroup {
   skills: string[];
 }
 
+/** One skill a conversation loads (skills.session), in plugin selection order. */
+export interface SessionSkill {
+  plugin: string;
+  /** Claude invokes it as `/<namespace>:<name>`; PI as `/skill:<name>`. */
+  namespace: string;
+  name: string;
+  description: string;
+}
+
 // ── plugins.list / plugins.assign DTOs ──────────────────────────────────────
 // Sanitized plugin catalog view plus the editable assignment targets exposed by ui-service.
 
@@ -1686,6 +1695,7 @@ export interface QueryReturnMap {
   'machines.list': MachineInfo[];
   'machines.detail': MachineDetail;
   'skills.list': SkillGroup[];
+  'skills.session': SessionSkill[];
   'plugins.list': PluginsListReturn;
   'plugins.skillFile': PluginsSkillFile;
   'plugins.mcpRead': PluginsMcpRead;

@@ -70,6 +70,8 @@ describe('ComposerSlashMenu', () => {
             { command: '/new', description: 'new', action: { type: 'new' }, disabled: false },
             { command: '/cancel', description: 'cancel', action: { type: 'cancel' }, disabled: true },
           ]}
+          activeIndex={0}
+          onHover={vi.fn()}
           onPick={onPick}
         />
       </LangProvider>,

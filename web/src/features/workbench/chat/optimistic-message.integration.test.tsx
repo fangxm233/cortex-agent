@@ -58,6 +58,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       // No commissions in these scenarios; the composer registers both queries either way.
       if (options.__kind === 'commissions.list') return { data: [], isPending: false };
       if (options.__kind === 'commissions.get') return { data: undefined, isPending: false };
+      // The slash palette's skills; these scenarios never open it.
+      if (options.__kind === 'skills.session') return { data: [], isPending: false };
       if (options.__kind === 'sessions.transcript') {
         const sessionId = options.input.sessionId as string;
         if (sessionId && !harness.transcripts[sessionId]) {
@@ -124,6 +126,7 @@ vi.mock('@/lib/trpc', () => ({
         list: query('commissions.list'),
         get: query('commissions.get'),
       },
+      skills: { session: query('skills.session') },
     };
   },
 }));
