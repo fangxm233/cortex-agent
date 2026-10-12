@@ -6,7 +6,8 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
-import { isTeamLead, MAX_RUNNING_WORKERS, WORKER_NAME_RE } from '@domain/sessions/team.js';
+import { isTeamLead, isTeamWorker, MAX_RUNNING_WORKERS, WORKER_NAME_RE } from '@domain/sessions/team.js';
+import { sessionState } from '@core/session-state.js';
 import {
   applyChannelSelection, readChannelSelection, resolveBackendForChannel,
   type ApplySelectionRequest, type ApplySelectionResult, type ChannelSelection,
@@ -22,8 +23,8 @@ import { answerQuestion } from './interactions/answer-question.js';
 import { getGroupByHookRequestId } from './interactions/ask-user-question.js';
 import { respondToPlan } from './interactions/plan-response.js';
 import {
-  briefOf, clearDispatch, describeTeam, formatAge, isWorkerBusy, noteDispatch, rosterLine, statusLabel,
-  type WorkerView,
+  briefOf, clearDispatch, describeTeam, formatAge, isWorkerBusy, markTurnRoutine, noteDispatch, rosterLine,
+  statusLabel, type WorkerView,
 } from './team-state.js';
 
 const log = createLogger('team-webhook');
@@ -60,6 +61,8 @@ export interface TeamWebhookDeps {
   describeTeam: (leadSessionId: string) => Promise<WorkerView[]>;
   /** True while the server refuses new turns ahead of a restart. */
   held: () => boolean;
+  /** Mark the worker's current turn routine. */
+  markRoutine: (workerId: string) => void;
   now: () => number;
 }
 
@@ -89,6 +92,7 @@ const defaultDeps: TeamWebhookDeps = {
   ),
   describeTeam: (leadSessionId) => describeTeam(leadSessionId),
   held: () => isRebuildHeld(),
+  markRoutine: (workerId) => markTurnRoutine(workerId, sessionState(workerId).executionId),
   now: () => Date.now(),
 };
 
@@ -331,13 +335,25 @@ const ACTIONS: Record<string, (lead: Session, data: Record<string, any>, deps: T
   spawn, send, list, stop, answer,
 };
 
-/** `/webhook/team`: the daemon side of the `cortex-workers` tools. Every action re-checks that the
- *  caller is a lead under the current setting, and every action returns without waiting on a worker. */
+/** `mark_routine`, the one action a worker calls: its current turn's reply will not wake the lead. */
+async function routine(data: Record<string, any>, deps: TeamWebhookDeps): Promise<TeamWebhookReply> {
+  const sessionId = str(data.sessionId);
+  const worker = sessionId ? await deps.sessions.getById(sessionId) : null;
+  if (!isTeamWorker(worker)) throw new TeamError('mark_routine is only available to a team worker');
+  deps.markRoutine(worker!.sessionId);
+  return ok('Marked routine: your final reply this turn is recorded for the lead as a routine update '
+    + 'and does not wake it. Keep that reply to one or two lines.');
+}
+
+/** `/webhook/team`: the daemon side of the `cortex-workers` tools and of a worker's `mark_routine`.
+ *  Every action re-checks the caller's role under the current setting, and every action returns
+ *  without waiting on a worker. */
 export async function handleTeamWebhook(
   data: Record<string, any>,
   deps: TeamWebhookDeps = defaultDeps,
 ): Promise<TeamWebhookReply> {
   try {
+    if (str(data?.action) === 'routine') return await routine(data, deps);
     const action = ACTIONS[str(data?.action)];
     if (!action) return { success: false, error: `unknown action: ${String(data?.action)}` };
     const lead = await requireLead(data, deps);

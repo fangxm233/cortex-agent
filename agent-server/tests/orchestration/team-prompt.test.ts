@@ -24,10 +24,10 @@ beforeEach(() => { process.env.CORTEX_TEAM_ENABLED = '1'; resetSettingsForTests(
 afterEach(() => { delete process.env.CORTEX_TEAM_ENABLED; resetSettingsForTests(); });
 
 test('a lead gets the [Team] roster only while it has active workers', async () => {
-  const none = await resolveConversationTeam(SESSIONS.lead, { teamLead: true }, { describeTeam: async () => [] });
+  const none = await resolveConversationTeam(SESSIONS.lead, { teamLead: true }, { describeTeam: async () => [], takeUnread: async () => '' });
   assert.deepEqual(none, { team: null, worker: null });
   const retiredOnly = await resolveConversationTeam(SESSIONS.lead, { teamLead: true }, {
-    describeTeam: async () => [view('old', { retired: true, status: 'retired' })],
+    describeTeam: async () => [view('old', { retired: true, status: 'retired' })], takeUnread: async () => '',
   });
   assert.equal(retiredOnly.team, null);
 
@@ -49,12 +49,36 @@ test('a lead gets the [Team] roster only while it has active workers', async () 
   assert.match(prompt, /hello$/);
 });
 
+test('unread routine updates close the [Team] block, and are taken once per turn', async () => {
+  const digest = '[Unread routine updates]\nalpha:\n- 09:05 Download at 40%';
+  const taken: string[] = [];
+  const takeUnread = async (id: string) => { taken.push(id); return taken.length === 1 ? digest : ''; };
+  const first = await resolveConversationTeam(SESSIONS.lead, { teamLead: true }, {
+    describeTeam: async () => [view('alpha')], takeUnread, now: () => 0,
+  });
+  const prompt = composeUserPrompt({}, 'hello', first);
+  assert.match(prompt, /Updates a worker marks routine do not wake you; they appear under \[Unread routine updates\]/);
+  assert.ok(prompt.includes(`Do not run repeated review loops on a worker's output.\n\n${digest}\n\nhello`));
+  const second = await resolveConversationTeam(SESSIONS.lead, { teamLead: true }, {
+    describeTeam: async () => [view('alpha')], takeUnread, now: () => 0,
+  });
+  assert.equal(second.team!.unread, undefined);
+  assert.deepEqual(taken, ['lead', 'lead']);
+
+  const retiredWithNews = await resolveConversationTeam(SESSIONS.lead, { teamLead: true }, {
+    describeTeam: async () => [view('old', { retired: true, status: 'retired' })], takeUnread: async () => digest,
+  });
+  assert.deepEqual(retiredWithNews.team, { roster: [], unread: digest }, 'unread news still reaches a lead with no active workers');
+  assert.match(composeUserPrompt({}, 'x', retiredWithNews), /- \(no active workers\)/);
+});
+
 test('a worker gets the [Worker] block on its first turn only', async () => {
   const first = await resolveConversationTeam(SESSIONS.worker, { isFreshSession: true }, { getSession });
   assert.deepEqual(first, { team: null, worker: { name: 'alpha', lead: 'Release prep' } });
   const prompt = composeUserPrompt({}, 'task', first);
   assert.match(prompt, /^\[Worker\] You are worker "alpha" of the lead session "Release prep"/);
-  assert.match(prompt, /delivered to the lead/);
+  assert.match(prompt, /delivered to the lead and wakes it/);
+  assert.match(prompt, /call mark_routine before your final reply/);
   assert.match(prompt, /cannot create workers/);
 
   assert.deepEqual(await resolveConversationTeam(SESSIONS.worker, { isFreshSession: false }, { getSession }), { team: null, worker: null });

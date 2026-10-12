@@ -72,6 +72,8 @@ export interface ClaudeSpawnOptions {
   isUserInitiated?: boolean;
   /** Team lead (team mode): a direct session additionally gets the cortex-workers tools. */
   teamLead?: boolean;
+  /** Team worker (team mode): a direct session additionally gets `mark_routine`. */
+  teamWorker?: boolean;
 }
 
 /** Token-level assistant streaming gate, read for each spawn argument build. */
@@ -132,6 +134,7 @@ export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleN
     bundles.push('cortex-interaction-bridge');
   }
   if (options.teamLead) bundles.push('cortex-workers');
+  if (options.teamWorker) bundles.push('cortex-worker-report');
   if (options.loadSlackMcp) bundles.push('cortex-slack');
   if (options.loadFeishuMcp) bundles.push('cortex-feishu');
   if (options.loadWebMcp) bundles.push('cortex-web');

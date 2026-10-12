@@ -23,6 +23,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
   'cortex-feishu': ['feishu_send_file'],
   'cortex-web': ['send_file', 'send_view', 'send_decision'],
   'cortex-workers': ['worker_spawn', 'worker_send', 'worker_list', 'worker_stop', 'worker_answer'],
+  'cortex-worker-report': ['mark_routine'],
 };
 
 const ALL_MCP_TOOLS = new Set(Object.values(MCP_TOOLS_BY_SERVER).flat());

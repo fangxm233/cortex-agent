@@ -39,9 +39,8 @@ export type CortexEvent =
   // session's own chat), or `platform` for an inbound chat-platform message, or the surface trigger
   // (`edit-retry`, `ask-user-question`). Internal: not written to the event log (the transcript has
   // the text) and not offered to UI subscribers.
-  // `held`: the turn ended from its background hold's seal, after its conduit-queue slot was
-  // released; false/absent when it ended inside that slot.
-  | { type: 'session.turn.completed'; ts: string; sessionId: string; channel: string; status: 'completed' | 'failed' | 'stopped'; finalOutput: string; trigger: string; held?: boolean }
+  // `executionId`: the turn's run, null when it failed before one opened.
+  | { type: 'session.turn.completed'; ts: string; sessionId: string; channel: string; status: 'completed' | 'failed' | 'stopped'; finalOutput: string; trigger: string; executionId?: string | null }
   // The agent's task list changed (a TodoWrite call). Replace-all: `snapshot` is the complete
   // list, so clients store rather than merge, and the newest event always wins. Delta half of
   // snapshot+delta — `SessionInfo.todos` is the queryable snapshot.

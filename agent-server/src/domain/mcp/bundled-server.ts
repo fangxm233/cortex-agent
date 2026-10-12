@@ -76,6 +76,11 @@ const workersLoader: RegistrarLoader = async (ctx) => {
   return server => registerWorkerTools(server, ctx);
 };
 
+const workerReportLoader: RegistrarLoader = async (ctx) => {
+  const { registerWorkerReportTools } = await import('./tools/workers.js');
+  return server => registerWorkerReportTools(server, ctx);
+};
+
 const LOADERS: Record<McpBundleName, RegistrarLoader> = {
   'cortex-core': coreLoader,
   'cortex-ext': extLoader,
@@ -84,6 +89,7 @@ const LOADERS: Record<McpBundleName, RegistrarLoader> = {
   'cortex-feishu': feishuLoader,
   'cortex-web': webLoader,
   'cortex-workers': workersLoader,
+  'cortex-worker-report': workerReportLoader,
 };
 
 function reportBundleFailure(bundle: McpBundleName, error: unknown): void {

@@ -10,14 +10,6 @@ const log = createLogger('conduit-queue');
 
 export const conduitQueues = new Map<string, Promise<void>>();
 
-/** Entries enqueued on a conduit and not yet settled, the running one included. */
-const depths = new Map<string, number>();
-
-/** How many entries are queued or running on a conduit. */
-export function conduitQueueDepth(conduitId: string): number {
-  return depths.get(conduitId) ?? 0;
-}
-
 /**
  * Append fn to the conduit's serial queue.
  *
@@ -33,7 +25,6 @@ export function enqueue(conduitId: string, fn: () => Promise<void>): boolean {
   const prev = conduitQueues.get(conduitId) || Promise.resolve();
   const next = prev.then(fn, fn);
   conduitQueues.set(conduitId, next);
-  depths.set(conduitId, conduitQueueDepth(conduitId) + 1);
   // Nobody awaits a queued turn: the enqueue caller returns immediately and the Map entry is
   // only read by the NEXT enqueue. A rejecting fn therefore used to surface as a process-level
   // unhandledRejection (2026-09-14: a Feishu TLS disconnect inside the turn). The `.finally`
@@ -43,9 +34,6 @@ export function enqueue(conduitId: string, fn: () => Promise<void>): boolean {
   next
     .finally(() => {
       if (conduitQueues.get(conduitId) === next) conduitQueues.delete(conduitId);
-      const left = conduitQueueDepth(conduitId) - 1;
-      if (left > 0) depths.set(conduitId, left);
-      else depths.delete(conduitId);
     })
     .catch((e) => {
       log.error(`conduit ${conduitId}: queued work failed: ${(e as Error)?.stack ?? String(e)}`);

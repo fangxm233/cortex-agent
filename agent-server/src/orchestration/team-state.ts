@@ -85,6 +85,23 @@ export function recordWorkerReport(workerId: string, report: WorkerReport): void
   reports.set(workerId, report);
 }
 
+/** workerId → the run whose turn the worker marked routine (null when no run was registered). */
+const routineMarks = new Map<string, string | null>();
+
+/** The worker called `mark_routine`: its current turn's final reply is a routine update. */
+export function markTurnRoutine(workerId: string, executionId: string | null): void {
+  routineMarks.set(workerId, executionId);
+}
+
+/** Whether the turn of this run was marked routine. Consumes the mark either way, so a mark left by a
+ *  turn that never reported (an auto-resumed rate limit) cannot leak into a later run. */
+export function takeRoutineMark(workerId: string, executionId: string | null): boolean {
+  if (!routineMarks.has(workerId)) return false;
+  const marked = routineMarks.get(workerId)!;
+  routineMarks.delete(workerId);
+  return marked === null || executionId === null || marked === executionId;
+}
+
 /** A worker's question or plan was forwarded to its lead under this request id. */
 export function noteWorkerRequest(requestId: string, workerName: string): void {
   requestWorkers.delete(requestId);
@@ -106,7 +123,7 @@ export function workerNameForRequest(
 
 export function _resetTeamState(): void {
   reports.clear(); briefs.clear(); userTouched.clear(); dispatchedAt.clear(); historyLoaded.clear();
-  workerNames.clear(); requestWorkers.clear();
+  workerNames.clear(); requestWorkers.clear(); routineMarks.clear();
 }
 
 /** A waitpoint that will still wake its owner: armed, or fired with the wake not yet delivered. */

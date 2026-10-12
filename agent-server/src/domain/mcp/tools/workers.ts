@@ -43,7 +43,7 @@ function describeWorkerModelFields(ctx: CortexToolContext): ModelFieldBases {
   }
 }
 
-/** One handler shape for all five tools: proxy, then render the daemon's text or the error. */
+/** One handler shape for every team tool: proxy, then render the daemon's text or the error. */
 function handler<P extends Record<string, unknown>>(ctx: CortexToolContext, action: string) {
   return async (params: P) => {
     try {
@@ -67,9 +67,9 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
     + 'immediately, use the one-shot `agent` tool instead. Write a self-contained prompt: '
     + 'the worker does not see this conversation. The worker keeps your current model unless you pass '
     + 'backend or model. The user can open the worker and talk to it directly. '
-    + 'The worker reports back with its final reply once it has finished with nothing left running or '
-    + 'waited on; its questions and plan approvals are routed to you (answer with worker_answer). '
-    + NON_BLOCKING,
+    + 'Each worker turn reports back to you with its final reply, except turns the worker marks '
+    + 'routine, which you read later under [Unread routine updates]; its questions and plan approvals '
+    + `are routed to you (answer with worker_answer). ${NON_BLOCKING}`,
     {
       name: z.string().describe('Short unique slug for this worker, e.g. "api-refactor" (lowercase letters, digits, hyphens; max 32).'),
       prompt: z.string().describe('Complete, self-contained task for the worker.'),
@@ -124,5 +124,19 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
       feedback: z.string().optional().describe('Feedback for the worker, mainly when rejecting a plan.'),
     },
     handler(ctx, 'answer'),
+  );
+}
+
+/** The one tool a worker gets: mark its current turn routine so its reply does not wake the lead. */
+export function registerWorkerReportTools(server: McpServer, ctx: CortexToolContext): void {
+  server.tool(
+    'mark_routine',
+    'Mark this turn as routine. Call it before your final reply when the turn has nothing new for your '
+    + 'lead: a stale or duplicate signal, a routine check where everything is as expected, or work that '
+    + 'is still running with no change. Your final reply is then recorded as a routine update the lead '
+    + 'reads later, and does not wake it. Do not use it for results, milestones, failures, blockers or '
+    + 'anything the lead must act on; ask for decisions with cortex_ask_user.',
+    {},
+    handler(ctx, 'routine'),
   );
 }

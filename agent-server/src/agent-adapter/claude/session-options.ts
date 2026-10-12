@@ -21,6 +21,7 @@ export interface ClaudeSessionOptions {
   model?: string | null;
   isUserInitiated?: boolean;
   teamLead?: boolean;
+  teamWorker?: boolean;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   claudeAgent?: string | null;
@@ -108,6 +109,7 @@ function surfaceSpawnOptions(options: ClaudeSessionOptions) {
     streamDeltas: options.streamDeltas,
     isUserInitiated: options.isUserInitiated === true,
     teamLead: options.teamLead === true,
+    teamWorker: options.teamWorker === true,
   } satisfies Partial<ClaudeSpawnOptions>;
 }
 
@@ -181,6 +183,7 @@ function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOpti
     pluginDirs: spec.plugins.dirs ?? null,
     isUserInitiated: !!spec.flags.isUserInitiated,
     teamLead: spec.flags.teamLead === true,
+    teamWorker: spec.flags.teamWorker === true,
     callbackSource: spec.context.callbackSource ?? null,
     scheduleTaskId: spec.context.scheduleTaskId ?? null,
     claudeAgent: claudeOptions?.claudeAgent ?? null,

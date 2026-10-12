@@ -63,3 +63,38 @@ test('cortex-workers registers the five worker tools, each proxied to /webhook/t
     await new Promise<void>(r => http.close(() => r()));
   }
 });
+
+test('cortex-worker-report registers only mark_routine, proxied to /webhook/team for the worker session', async () => {
+  const received: any[] = [];
+  const http = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      received.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, data: { text: 'Marked routine.' } }));
+    });
+  });
+  await new Promise<void>(r => http.listen(0, '127.0.0.1', r));
+  const port = (http.address() as AddressInfo).port;
+  const server = await createBundledServer(['cortex-worker-report'], toolContextFromEnv({
+    WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'worker-1',
+  }));
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: 'worker-report-test', version: '1.0.0' });
+  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+  try {
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools.map(t => t.name), [...MCP_TOOLS_BY_SERVER['cortex-worker-report']]);
+    assert.deepEqual(tools.map(t => t.name), ['mark_routine']);
+    assert.match(tools[0].description!, /before your final reply/);
+    assert.deepEqual(Object.keys((tools[0].inputSchema as any).properties ?? {}), [], 'no arguments');
+    const result = await client.callTool({ name: 'mark_routine', arguments: {} });
+    assert.equal((result.content as any)[0].text, 'Marked routine.');
+    assert.deepEqual(received.map(b => [b.action, b.sessionId]), [['routine', 'worker-1']]);
+  } finally {
+    await client.close();
+    await server.close();
+    await new Promise<void>(r => http.close(() => r()));
+  }
+});

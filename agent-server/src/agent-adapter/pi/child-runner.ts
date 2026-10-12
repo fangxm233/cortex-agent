@@ -9,7 +9,7 @@ import type {
 import { createChildSession, type ChildSessionFactory, type ChildSessionHandle } from './child-session.js';
 import { messageEndMessage, textFromMessage } from './child-events.js';
 import { withoutUnseenImages } from './event-parser.js';
-import { PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV } from './session-options.js';
+import { PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV } from './session-options.js';
 
 export interface PiChildRequest {
   task: SubagentTask;
@@ -38,6 +38,7 @@ export function buildChildEnv(parentEnv: NodeJS.ProcessEnv, agentDir: string): N
   const env: NodeJS.ProcessEnv = { ...parentEnv, PI_CODING_AGENT_DIR: agentDir, CORTEX_PI_SUBAGENT: '1' };
   delete env[PI_INTERACTION_BRIDGE_ENV];
   delete env[PI_TEAM_LEAD_ENV];
+  delete env[PI_TEAM_WORKER_ENV];
   return env;
 }
 

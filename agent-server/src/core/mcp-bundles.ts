@@ -9,6 +9,7 @@ export const MCP_BUNDLE_NAMES = [
   'cortex-feishu',
   'cortex-web',
   'cortex-workers',
+  'cortex-worker-report',
 ] as const;
 
 export type McpBundleName = typeof MCP_BUNDLE_NAMES[number];

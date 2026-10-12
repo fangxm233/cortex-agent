@@ -71,6 +71,8 @@ export interface ClaudeSpawnCompatibility {
   /** The worker tools are in the bundle set, which is fixed at spawn: toggling team mode must
    *  force a fresh (resumed) process. */
   teamLead: boolean;
+  /** Same for a worker's `mark_routine`. */
+  teamWorker: boolean;
   tools: string | null;
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
@@ -104,6 +106,7 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     composition,
     interactionBridge: composition === 'direct' && options.isUserInitiated === true,
     teamLead: composition === 'direct' && options.teamLead === true,
+    teamWorker: composition === 'direct' && options.teamWorker === true,
     tools: options.tools ?? null,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
@@ -140,8 +143,9 @@ export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibil
     ['mcpToolAllowlist', compatibility.mcpToolAllowlist],
     ['settingSources', compatibility.settingSources],
   ];
-  // Appended only when set, so every session that is not a lead keeps its existing identity.
+  // Appended only when set, so every session that is neither keeps its existing identity.
   if (compatibility.teamLead) fields.push(['teamLead', true]);
+  if (compatibility.teamWorker) fields.push(['teamWorker', true]);
   return JSON.stringify(fields);
 }
 
