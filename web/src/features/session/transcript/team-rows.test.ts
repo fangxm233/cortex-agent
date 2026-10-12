@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionTranscript, TranscriptMessage } from '@cortex-agent/ui-contract';
 import { buildNavMarks } from './chat-nav';
-import { parseWorkerMessage, plainLine, teamActionOf } from './team-rows';
+import { headlineUpdate, parseWorkerMessage, plainLine, teamActionOf, updateCounts } from './team-rows';
 import {
   assistantTurnCopyTargets, buildTranscriptRows, rewindStats, type ChatRow, type LiveSessionMessage,
   type TeamUpdatesRow,
@@ -58,6 +58,15 @@ describe('parseWorkerMessage', () => {
     const p = parseWorkerMessage('worker-question', plan('atlas', 'r2', 0).text!, null)!;
     expect(p).toMatchObject({ kind: 'plan', requestId: 'r2', line: 'Bounded repair' });
     expect(p.body).not.toMatch(/Plan file|worker_answer/);
+  });
+
+  it('drops the unread routine updates a report or question ends with', () => {
+    const tail = '\n\n[Unread routine updates]\norchard 09:40 nothing new\norchard 09:55 still waiting';
+    const r = parseWorkerMessage('worker-result', `[Worker atlas · completed]\nstatus idle\n\nBuilt it.${tail}`, null)!;
+    expect(r).toMatchObject({ body: 'Built it.', line: 'Built it.' });
+    const q = parseWorkerMessage('worker-question', question('atlas', 'r1', 'Use the cache?', 0).text! + tail, null)!;
+    expect(q).toMatchObject({ kind: 'question', line: 'Use the cache?' });
+    expect(q.body).not.toMatch(/Unread|nothing new|worker_answer/);
   });
 
   it('leaves a header it does not recognise alone', () => {
@@ -165,6 +174,19 @@ describe('team rows in the transcript', () => {
     expect(card.threads.map((t) => [t.worker, t.updates.length, t.sessionId, t.latest])).toEqual([
       ['orchard', 2, 'w2', true], ['atlas', 1, null, true],
     ]);
+  });
+
+  it('leads a card with its latest report or request and counts routine apart', () => {
+    const [card] = cards(rows([
+      progress('atlas', 'w1', 'Nothing new', 0),
+      report('atlas', 'Parser done', 1),
+      question('atlas', 'r1', 'Ship it?', 2),
+      progress('atlas', 'w1', 'Still waiting', 3),
+    ]));
+    expect(headlineUpdate(card.updates)).toMatchObject({ kind: 'question', line: 'Ship it?' });
+    expect(updateCounts(card.updates)).toEqual({ reports: 1, routine: 2 });
+    const [quiet] = cards(rows([progress('atlas', 'w1', 'Nothing new', 0), progress('atlas', 'w1', 'Still waiting', 1)]));
+    expect(headlineUpdate(quiet.updates)).toMatchObject({ kind: 'progress', line: 'Still waiting' });
   });
 
   it('places live progress rows and live team actions like history', () => {

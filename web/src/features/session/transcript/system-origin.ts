@@ -56,13 +56,18 @@ export function systemOriginDisplay(origin: SystemTurnOrigin): SystemTurnDisplay
   }
 }
 
-/** The full text of a system-authored turn without its `<system-reminder>` envelope lines. */
+/** Opens the trailing section of a worker's message that lists the lead's unread routine updates.
+ *  The lead's chat already shows each of those as a row of its own. */
+const UNREAD_ROUTINE_LINE = /^\[Unread routine updates\]$/;
+
+/** The full text of a system-authored turn without its `<system-reminder>` envelope lines, and
+ *  without a worker message's unread routine updates (from their heading line to the end). */
 export function systemOriginBody(text: string): string {
-  return (text ?? '')
+  const lines = (text ?? '')
     .split('\n')
-    .filter((l) => !SYSTEM_REMINDER_LINE.test(l.trim()))
-    .join('\n')
-    .trim();
+    .filter((l) => !SYSTEM_REMINDER_LINE.test(l.trim()));
+  const routine = lines.findIndex((l) => UNREAD_ROUTINE_LINE.test(l.trim()));
+  return (routine >= 0 ? lines.slice(0, routine) : lines).join('\n').trim();
 }
 
 /**

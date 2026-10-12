@@ -1715,6 +1715,12 @@ describe('team origin display', () => {
     expect(systemOriginBody('<system-reminder>\n</system-reminder>')).toBe('');
   });
 
+  it('drops the unread routine updates a worker message ends with', () => {
+    const text = '<system-reminder>\n[Worker atlas · completed]\n\nDone.\n\n[Unread routine updates]\natlas 10:05 still waiting\n</system-reminder>';
+    expect(systemOriginBody(text)).toBe('[Worker atlas · completed]\n\nDone.');
+    expect(systemOriginBody('Done.\nSee [Unread routine updates] below')).toBe('Done.\nSee [Unread routine updates] below');
+  });
+
   it('starts a new copy turn at a lead message, but not at a worker report', () => {
     const rows: ChatRow[] = [
       { kind: 'user', text: 'go' },

@@ -22,8 +22,8 @@ export {
   buildTranscriptRows, capsDayDivider, messageTimeLabel, toolCallLabel, type BuildOpts,
 } from './transcript-rows';
 export {
-  openRequest, progressCount, type TeamActionRow, type TeamActionView, type TeamChatRow, type TeamUpdatesRow,
-  type WorkerThread, type WorkerUpdate,
+  headlineUpdate, openRequest, updateCounts, type TeamActionRow, type TeamActionView, type TeamChatRow,
+  type TeamUpdatesRow, type WorkerThread, type WorkerUpdate,
 } from './team-rows';
 
 // Compatibility exports; preview state is kept separate from the transcript row model.

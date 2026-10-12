@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import type { SessionInfo, SessionTranscript, TranscriptMessage } from '@cortex-agent/ui-contract';
 import { en, LangProvider } from '@/i18n';
 import { buildTranscriptRows, type ChatRow, type TeamUpdatesRow } from '@/features/session/transcript/transcript-vm';
@@ -18,6 +18,8 @@ const msg = (over: Partial<TranscriptMessage>): TranscriptMessage =>
   ({ type: 'assistant', text: null, toolName: null, toolInput: null, ts: at(0), elapsedMs: null, ...over });
 const report = (worker: string, body: string, min: number): TranscriptMessage =>
   msg({ type: 'user', systemOrigin: 'worker-result', text: `[Worker ${worker} · completed]\nstatus running\n\n${body}`, ts: at(min) });
+const routine = (worker: string, text: string, min: number): TranscriptMessage =>
+  msg({ type: 'worker-progress', text, worker: { name: worker, sessionId: `w-${worker}` }, ts: at(min) });
 const ask = (worker: string, min: number): TranscriptMessage => msg({
   type: 'user', systemOrigin: 'worker-question', ts: at(min),
   text: `[Worker ${worker} · question · request_id=q1 · non-blocking]\nstatus waiting(q1)\n\nQ1: Which port?`,
@@ -65,7 +67,7 @@ describe('team stream helpers', () => {
 
   it('summarises a card without the turn status', () => {
     const [card] = rows([ask('atlas', 0), report('atlas', 'one', 1), report('atlas', 'two', 2)]) as TeamUpdatesRow[];
-    expect(threadSummary(card.threads[0], en)).toBe('Question unanswered · 2 updates');
+    expect(threadSummary(card.threads[0], en)).toBe('Question unanswered · 2 reports');
     expect(updateTimeRange(card.updates, new Date(at(0)))).toMatch(/^\d\d:\d\d – \d\d:\d\d$/);
   });
 });
@@ -96,6 +98,37 @@ describe('team rows', () => {
     expect(items).toHaveLength(2);
     act(() => items[0].props.onClick());
     expect(r.root.findAll((n) => n.props['data-team-update-body'] !== undefined)).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
+  it('leads with the latest report, counts routine apart and shows routine quieter', () => {
+    const [card] = rows([report('atlas', 'Parser done', 0), routine('atlas', 'Nothing new', 1), routine('atlas', 'Still idle', 2)]) as TeamUpdatesRow[];
+    expect(threadSummary(card.threads[0], en)).toBe('1 report · 2 routine');
+    const r = render(<TeamRow row={card} />, []);
+    const headline = r.root.find((n) => typeof n.type === 'string' && n.props['data-team-headline'] !== undefined);
+    expect(headline.props['data-team-headline']).toBe('report');
+    expect(text(r)).toContain('Parser done');
+    expect(text(r)).not.toContain('Still idle');
+    act(() => r.root.find((n) => n.props.role === 'button' && n.props['aria-expanded'] === false).props.onClick());
+    const ink = r.root.findAll((n) => typeof n.type === 'string' && n.props['data-team-update'] !== undefined)
+      .map((n) => {
+        const line = (n.children[1] as ReactTestInstance).children[0] as ReactTestInstance;
+        return [n.props['data-team-update'], line.props.style.color];
+      });
+    expect(ink).toEqual([
+      ['report', 'var(--proto-ink-2)'], ['progress', 'var(--proto-muted)'], ['progress', 'var(--proto-muted)'],
+    ]);
+    act(() => r.unmount());
+  });
+
+  it('a routine-only card shows its latest routine line, muted', () => {
+    const [card] = rows([routine('atlas', 'Nothing new', 0), routine('atlas', 'Still idle', 1)]) as TeamUpdatesRow[];
+    expect(threadSummary(card.threads[0], en)).toBe('2 routine');
+    const r = render(<TeamRow row={card} />, []);
+    const headline = r.root.find((n) => typeof n.type === 'string' && n.props['data-team-headline'] !== undefined);
+    expect(headline.props['data-team-headline']).toBe('progress');
+    expect(headline.props.style.color).toBe('var(--proto-muted)');
+    expect(text(r)).toContain('Still idle');
     act(() => r.unmount());
   });
 

@@ -6,7 +6,8 @@ import { fmt, useLangOptional, useVocabOptional, type Vocab } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
 import { TeamRowSlot, type TeamRowRenderer } from '@/features/session/transcript/team-row-slot';
 import {
-  messageTimeLabel, type TeamActionView, type TeamChatRow, type TeamUpdatesRow, type WorkerThread, type WorkerUpdate,
+  headlineUpdate, messageTimeLabel, type TeamActionView, type TeamChatRow, type TeamUpdatesRow, type WorkerThread,
+  type WorkerUpdate,
 } from '@/features/session/transcript/transcript-vm';
 import { workerDotStyle } from './TeamRoster';
 import { workerState, workerStatusText } from './worker-roster';
@@ -17,8 +18,9 @@ import {
 // Team rows in a lead's chat (see the transcript's team-rows): the lead's actions on its workers as
 // quiet one-line rows (a spawn as a small card), and its workers' traffic as one update card per run.
 // A card's status comes from the live team, and only on each worker's latest card: an older card is
-// history and shows when it happened instead. The desktop stream and the mobile stream draw the same
-// rows; `touch` sizes them for a finger.
+// history and shows when it happened instead. Routine updates read quieter than what the lead acts on,
+// and a collapsed card leads with the latest report or request rather than the latest routine line.
+// The desktop stream and the mobile stream draw the same rows; `touch` sizes them for a finger.
 
 interface TeamStream {
   workers: SessionInfo[];
@@ -40,6 +42,11 @@ const CARD: CSSProperties = {
   background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
   border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', overflow: 'hidden',
 };
+/** Ink of an update's line: routine reads quieter than a report or request. */
+function lineInk(update: WorkerUpdate, strong = false): string {
+  if (update.kind === 'progress') return 'var(--proto-muted)';
+  return strong ? 'var(--proto-ink)' : 'var(--proto-ink-2)';
+}
 const BODY: CSSProperties = { fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' };
 
 function useStream(): TeamStream {
@@ -245,7 +252,7 @@ function TimelineItem({ update, last, showName, touch }: { update: WorkerUpdate;
       style={{ display: 'grid', gridTemplateColumns: 'minmax(42px, max-content) minmax(0, 1fr)', gap: 8, padding: touch ? '6px 4px' : '5px 4px', borderRadius: 6, cursor: 'pointer' }}>
       <span style={{ ...TIME, paddingTop: 2 }}>{messageTimeLabel(update.ts ?? undefined) ?? ''}</span>
       <div style={{ minWidth: 0 }}>
-        <div style={{ ...(open ? { overflowWrap: 'anywhere' } : ELLIPSIS), fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: last ? 'var(--proto-ink)' : 'var(--proto-ink-2)' }}>
+        <div style={{ ...(open ? { overflowWrap: 'anywhere' } : ELLIPSIS), fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: lineInk(update, last) }}>
           {showName && <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-ink-2)' }}>{update.worker} · </span>}
           <KindTag update={update} />
           {!open && update.line}
@@ -298,7 +305,7 @@ function ThreadStatus({ thread, worker, waiting, now, range = true }: {
   return when ? <span data-thread-status="history" style={{ ...base, color: 'var(--proto-muted)' }}>{when}</span> : null;
 }
 
-/** One worker's run: header (dot · name · status · summary), the latest update, the timeline open. */
+/** One worker's run: header (dot · name · status · summary), its headline update, the timeline open. */
 function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; now: number }): JSX.Element {
   const L = useVocabOptional();
   const { workers } = useStream();
@@ -306,7 +313,7 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
   const thread = row.threads[0];
   const worker = findWorker(workers, thread.worker, thread.sessionId);
   const waiting = waitingRequest(thread, worker);
-  const latest = thread.updates.at(-1)!;
+  const shown = headlineUpdate(thread.updates);
   return (
     <div data-team-card="" data-team-card-open={open ? 'true' : undefined}
       style={{ ...CARD, ...(waiting ? { background: 'var(--proto-amber-bg)', borderColor: 'var(--proto-amber-border)' } : {}), opacity: row.pending ? 0.55 : 1 }}>
@@ -322,10 +329,10 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
       {!open && (
         <div {...toggleKeys(() => setOpen(true))}
           style={{ display: 'flex', alignItems: 'flex-end', gap: 10, padding: '3px 12px 9px 27px', cursor: 'pointer' }}>
-          <span style={{ ...CLAMP2, flex: 1, fontSize: touch ? 13.5 : 13, lineHeight: 1.55, color: 'var(--proto-ink-2)' }}>
-            <KindTag update={latest} />{latest.line}
+          <span data-team-headline={shown.kind} style={{ ...CLAMP2, flex: 1, fontSize: touch ? 13.5 : 13, lineHeight: 1.55, color: lineInk(shown) }}>
+            <KindTag update={shown} />{shown.line}
           </span>
-          <span style={TIME}>{messageTimeLabel(latest.ts ?? undefined) ?? ''}</span>
+          <span style={TIME}>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>
         </div>
       )}
       {open && (
@@ -342,7 +349,7 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
   );
 }
 
-/** Several workers in one run: one row per worker with its latest line; the timeline opens below. */
+/** Several workers in one run: one row per worker with its headline line; the timeline opens below. */
 function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; now: number }): JSX.Element {
   const L = useVocabOptional();
   const { workers } = useStream();
@@ -354,7 +361,7 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
       {row.threads.map((thread, i) => {
         const worker = findWorker(workers, thread.worker, thread.sessionId);
         const waiting = waitingRequest(thread, worker);
-        const latest = thread.updates.at(-1)!;
+        const shown = waiting ?? headlineUpdate(thread.updates);
         return (
           // A phone puts the line under the name: beside it, it would be cut to a few characters.
           <div key={thread.worker} data-team-thread={thread.worker} {...toggleKeys(toggle)}
@@ -370,11 +377,11 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
             {touch
               ? <span style={{ minWidth: 0, display: 'flex' }}><ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} /></span>
               : <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} />}
-            <span style={{ ...ELLIPSIS, color: 'var(--proto-ink-2)', ...(touch ? { gridRow: 2, gridColumn: '2 / 5' } : {}) }}>
+            <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown), ...(touch ? { gridRow: 2, gridColumn: '2 / 5' } : {}) }}>
               {/* The amber status already names an open request. */}
-              {!waiting && <KindTag update={latest} />}{(waiting ?? latest).line}
+              {!waiting && <KindTag update={shown} />}{shown.line}
             </span>
-            <span style={{ ...TIME, ...(touch ? { gridRow: 1, gridColumn: 4 } : {}) }}>{messageTimeLabel(latest.ts ?? undefined) ?? ''}</span>
+            <span style={{ ...TIME, ...(touch ? { gridRow: 1, gridColumn: 4 } : {}) }}>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>
           </div>
         );
       })}

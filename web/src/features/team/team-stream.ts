@@ -1,7 +1,7 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { fmt, type Vocab } from '@/i18n';
 import {
-  messageTimeLabel, openRequest, progressCount, type WorkerThread, type WorkerUpdate,
+  messageTimeLabel, openRequest, updateCounts, type WorkerThread, type WorkerUpdate,
 } from '@/features/session/transcript/transcript-vm';
 import { isRetiredWorker } from './worker-groups';
 import { workerState } from './worker-roster';
@@ -68,12 +68,13 @@ export function requestState(thread: WorkerThread, L: Vocab): string | null {
   return request.answer ? L.wbTeamQuestionAnswered : L.wbTeamQuestionOpen;
 }
 
-/** "Plan approved · 8 updates" — the right side of a one-worker card. */
+/** "Plan approved · 3 reports · 5 routine" — the right side of a one-worker card. */
 export function threadSummary(thread: WorkerThread, L: Vocab): string {
-  const n = progressCount(thread.updates);
+  const { reports, routine } = updateCounts(thread.updates);
   return [
     requestState(thread, L),
-    n > 0 ? (n === 1 ? L.wbTeamUpdatesOne : fmt(L.wbTeamUpdatesMany, { n })) : null,
+    reports > 0 ? (reports === 1 ? L.wbTeamReportsOne : fmt(L.wbTeamReportsMany, { n: reports })) : null,
+    routine > 0 ? (routine === 1 ? L.wbTeamRoutineOne : fmt(L.wbTeamRoutineMany, { n: routine })) : null,
   ].filter(Boolean).join(' · ');
 }
 

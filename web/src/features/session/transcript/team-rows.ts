@@ -4,8 +4,10 @@ import { systemOriginBody } from './system-origin';
 
 // Team mode in a lead's transcript. The lead's worker tools (spawn / send / answer / stop) leave the
 // tool-chip run and become rows of their own, and everything its workers send back — reports,
-// questions, plans, interim progress — collapses into one update card per consecutive run, so a
-// worker that ended eight turns in a row reads as one card instead of eight identical lines.
+// questions, plans, routine updates — collapses into one update card per consecutive run, so a
+// worker that ended eight turns in a row reads as one card instead of eight identical lines. A
+// routine update (a `worker-progress` row: a turn the worker marked as nothing new for the lead) is
+// the quiet kind: the card leads with the run's reports and requests and counts routine apart.
 //
 // Structured fields win when the server sends them (`teamAction` on tool rows, `worker` on progress
 // rows). History written before them carries only a capped `toolInput` summary and the report's
@@ -36,6 +38,7 @@ export interface TeamActionView {
   ts: string | null;
 }
 
+/** `progress` is a routine update; the other kinds are what the lead acts on. */
 export type WorkerUpdateKind = 'report' | 'progress' | 'question' | 'plan';
 
 /** The lead's answer to a question or plan, folded onto that request. */
@@ -261,7 +264,7 @@ export function parseWorkerMessage(origin: SystemTurnOrigin, text: string, ts: s
   };
 }
 
-/** A worker's interim reply (a `worker-progress` row). */
+/** A worker's routine update (a `worker-progress` row). */
 export function progressUpdate(m: TranscriptMessage): WorkerUpdate {
   const body = (m.text ?? '').trim();
   return {
@@ -379,7 +382,21 @@ export function openRequest(thread: WorkerThread): WorkerUpdate | null {
   return null;
 }
 
-/** Reports and progress — what the card counts as progress. */
-export function progressCount(updates: WorkerUpdate[]): number {
-  return updates.filter((u) => u.kind === 'report' || u.kind === 'progress').length;
+/** What a card counts: reports, and routine updates apart from them. Requests are named instead. */
+export function updateCounts(updates: WorkerUpdate[]): { reports: number; routine: number } {
+  let reports = 0;
+  let routine = 0;
+  for (const u of updates) {
+    if (u.kind === 'report') reports += 1;
+    else if (u.kind === 'progress') routine += 1;
+  }
+  return { reports, routine };
+}
+
+/** The update a collapsed card leads with: the latest that is not routine, else the latest. */
+export function headlineUpdate(updates: WorkerUpdate[]): WorkerUpdate {
+  for (let i = updates.length - 1; i >= 0; i--) {
+    if (updates[i].kind !== 'progress') return updates[i];
+  }
+  return updates[updates.length - 1];
 }
