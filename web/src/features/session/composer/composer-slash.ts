@@ -19,7 +19,8 @@ export type SlashAction =
   | { type: 'cancel' }
   | { type: 'compact' }
   | { type: 'profile'; profileName: string }
-  | { type: 'settings' };
+  | { type: 'settings' }
+  | { type: 'usage' };
 
 export type SlashResolution =
   | { kind: 'none' }
@@ -53,6 +54,7 @@ export interface SlashAvailability {
   cancelDisabled?: boolean;
   compactDisabled?: boolean;
   settingsDisabled?: boolean;
+  usageDisabled?: boolean;
 }
 
 export interface SlashActionHandlers {
@@ -61,6 +63,7 @@ export interface SlashActionHandlers {
   onCompact: () => void;
   onProfile: (name: string) => void;
   onSettings: () => void;
+  onUsage: () => void;
 }
 
 interface ParsedSlash {
@@ -85,6 +88,7 @@ function parseSlashInput(text: string): ParsedSlash | null {
 function actionFor(command: string): SlashAction | null {
   const actions: Record<string, SlashAction> = {
     new: { type: 'new' }, cancel: { type: 'cancel' }, compact: { type: 'compact' }, settings: { type: 'settings' },
+    usage: { type: 'usage' },
   };
   return actions[command] ?? null;
 }
@@ -184,6 +188,7 @@ export function runSlashAction(action: SlashAction, handlers: SlashActionHandler
     cancel: handlers.onCancel,
     compact: handlers.onCompact,
     settings: handlers.onSettings,
+    usage: handlers.onUsage,
   };
   actions[action.type]();
 }

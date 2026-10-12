@@ -96,9 +96,10 @@ function DraftHero({ title, projectName }: { title: string; projectName: string 
 
 // `grow` is the pane's share of the fluid center region — 1 normally, `1 - split` while a preview
 // is pinned beside the chat (WorkbenchView owns the split).
-export function CenterChat({ grow = 1, onOpenSettings }: {
+export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
   grow?: number;
   onOpenSettings?: () => void;
+  onOpenUsage?: () => void;
 } = {}): JSX.Element {
   const L = useVocab();
   const lang = useLang();
@@ -256,6 +257,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           waitpoints={chat.waitpoints}
           dropTargetRef={chatDropTargetRef}
           onOpenSettings={onOpenSettings}
+          onOpenUsage={onOpenUsage}
           contextControl={(chat.compactAction || chat.contextUsage !== null) ? (
             <ContextUsageControl usage={chat.contextUsage} compactAction={chat.compactAction} />
           ) : undefined}

@@ -26,6 +26,7 @@ export const SLASH_COMMANDS = [
   { cmd: '/compact', desc: 'chatSlashCompact' },
   { cmd: '/profile', desc: 'chatSlashProfile' },
   { cmd: '/settings', desc: 'chatSlashSettings' },
+  { cmd: '/usage', desc: 'chatSlashUsage' },
 ] as const;
 
 export type SlashVocab = Pick<Vocab, (typeof SLASH_COMMANDS)[number]['desc']>;

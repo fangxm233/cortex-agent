@@ -100,6 +100,7 @@ export interface ComposerProps {
   /** The larger surface that accepts file drops for this composer. */
   dropTargetRef: RefObject<HTMLElement>;
   onOpenSettings?: () => void;
+  onOpenUsage?: () => void;
 }
 
 /**
@@ -176,6 +177,7 @@ export function Composer({
   compactAction,
   dropTargetRef,
   onOpenSettings = () => {},
+  onOpenUsage = () => {},
 }: ComposerProps): JSX.Element {
   const L = useVocab();
   const lang = useLang();
@@ -213,6 +215,7 @@ export function Composer({
       onNew: () => setSelectedSession(DRAFT_SENTINEL),
       onProfile: engineSelection.pickProfile,
       onSettings: onOpenSettings,
+      onUsage: onOpenUsage,
     },
     onCreated: selectCreatedSession,
     onSendFailed: setSendError,

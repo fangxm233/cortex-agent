@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => ({
   setSelectedSession: vi.fn(),
   pickProfile: vi.fn(),
   openSettings: vi.fn(),
+  openUsage: vi.fn(),
   attachmentItems: [] as any[],
   attachmentRetry: vi.fn(),
   createPending: false,
@@ -145,6 +146,7 @@ function mountComposer(
         }}
         compactAction={{ onCompact: compact, pending: false, disabled: false, status: null, error: null, disabledReason: null }}
         onOpenSettings={harness.openSettings}
+        onOpenUsage={harness.openUsage}
         dropTargetRef={{ current: null }}
         {...overrides}
       />
@@ -228,7 +230,7 @@ describe('Composer UI slash shortcuts', () => {
     act(() => renderer.unmount());
   });
 
-  it('routes all five commands locally instead of sending them', () => {
+  it('routes every local command locally instead of sending them', () => {
     const compact = vi.fn();
     const renderer = mountComposer(compact);
 
@@ -237,12 +239,14 @@ describe('Composer UI slash shortcuts', () => {
     enterCommand(renderer, '/compact');
     enterCommand(renderer, '/profile execute');
     enterCommand(renderer, '/settings');
+    enterCommand(renderer, '/usage');
 
     expect(harness.setSelectedSession).toHaveBeenCalledWith('__draft__');
     expect(harness.cancel).toHaveBeenCalledWith({ sessionId: 's1' });
     expect(compact).toHaveBeenCalledOnce();
     expect(harness.pickProfile).toHaveBeenCalledWith('execute');
     expect(harness.openSettings).toHaveBeenCalledOnce();
+    expect(harness.openUsage).toHaveBeenCalledOnce();
     expect(harness.send).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
@@ -270,11 +274,12 @@ describe('Composer slash palette keyboard', () => {
     key(renderer, 'ArrowDown');
     expect(active(renderer)).toBe('/settings');
     key(renderer, 'ArrowDown');
+    key(renderer, 'ArrowDown');
     expect(active(renderer)).toBe('/new');
     key(renderer, 'ArrowUp');
-    expect(active(renderer)).toBe('/settings');
+    expect(active(renderer)).toBe('/usage');
     key(renderer, 'Enter');
-    expect(harness.openSettings).toHaveBeenCalled();
+    expect(harness.openUsage).toHaveBeenCalled();
     expect(harness.send).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
