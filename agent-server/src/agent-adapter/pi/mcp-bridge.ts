@@ -30,7 +30,7 @@ import {
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
 import {
-  PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV, PI_TEAM_LEAD_ENV,
+  PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV,
 } from './session-options.js';
 import { safeNativeComposite, safeNativeName } from '@core/native-name.js';
 
@@ -195,6 +195,7 @@ export function buildServerStates(
       bundles.push('cortex-interaction-bridge');
     }
     if (composition === 'direct' && env[PI_TEAM_LEAD_ENV] === '1') bundles.push('cortex-workers');
+    if (composition === 'direct' && env[PI_TEAM_WORKER_ENV] === '1') bundles.push('cortex-worker-report');
     bundles.push(...optionalBundles(env));
   }
   const states = [createState('core', { kind: 'bundled', bundles, env: toolGatedEnv(bundles, env) })];

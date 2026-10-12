@@ -247,7 +247,7 @@ test('Claude steer(): a delivered injection surfaces injection_delivered with th
 
 const BASE: ClaudeSpawnCompatibility = {
   cwd: '/w', routeIdentity: 'r1', composition: 'direct', interactionBridge: false, teamLead: false,
-  tools: 'Bash,Read', pluginCapabilityFingerprint: 'fp',
+  teamWorker: false, tools: 'Bash,Read', pluginCapabilityFingerprint: 'fp',
   pluginDirs: ['/a', '/b'], mcpConfigPaths: ['/m1'], mcpToolAllowlist: ['x'],
   supplementalMcpConfigIdentity: 's', browserMcpConfigIdentity: null,
   disableSkills: false, settingSources: null,
@@ -261,6 +261,7 @@ const VARIANTS: ClaudeSpawnCompatibility[] = [
   { ...BASE, composition: 'core' as any },
   { ...BASE, interactionBridge: true },
   { ...BASE, teamLead: true },                             // team mode toggles the worker tools
+  { ...BASE, teamWorker: true },                           // ...and a worker's mark_routine
   { ...BASE, tools: 'Bash,Reads' },                        // one-character difference
   { ...BASE, tools: null },
   { ...BASE, pluginCapabilityFingerprint: null },

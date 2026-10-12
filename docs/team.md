@@ -34,7 +34,7 @@ verification whose result the lead uses straight away goes to `agent`.
 
 ```
 you ⇄ lead ── worker_spawn / worker_send ──────────▶ worker
-        ▲  ◀── report once the worker has finished ────┤
+        ▲  ◀── report at the end of each worker turn ──┤
         │  ◀── question / plan approval notice ────────┤
         └──── worker_answer ──────────────────────────▶ (pending request resolved)
 you ─────────── open the worker and talk to it directly ──▶ worker
@@ -45,19 +45,27 @@ turn, and the worker's report wakes it later. A message sent to a running worker
 its current turn; to an idle worker it starts a new one. While the server is about to restart,
 both tools return an error instead of dispatching, and the lead tries again after the restart.
 
-**Reports.** A worker reports when it has finished: its turn has ended and nothing is left
-running or waited on, meaning no queued message, no background agent, no open waitpoint and no
-pending question. The final reply of that turn reaches the lead as a message headed
-`[Worker <name> · completed|failed|stopped]` with a one-line status, and wakes it. A turn that
-ends while such work is still pending does not wake the lead. Its reply shows in the lead's chat as
-a progress update and in `worker_list`, and when the worker finishes, the lead gets one report
-carrying its latest reply. That holds even when the worker finishes without a turn ending, for
-example when you cancel its waitpoint. A failed or stopped turn reports at once. Turns you start
-yourself by typing in a worker are not reported; the lead's roster marks that worker as one you
-have talked to. A server restart
-does not lose a report: one that ends while a restart is pending reaches the lead once the server
-is back. A worker's finished turn raises no notification on the web page, the desktop app or
-Android; you hear about it when the lead's own turn ends. Retired workers stay silent too.
+**Reports.** Each worker turn ends in a report unless the worker marks it routine (below): its
+final reply reaches the lead as a message headed `[Worker <name> · completed|failed|stopped]` with
+a one-line status, and wakes it. A report that arrives while the lead is mid-turn is folded into
+that turn. Turns you start yourself by typing in a worker are not reported; the lead's roster
+marks that worker as one you have talked to. A server restart does not lose a report: one that
+ends while a restart is pending reaches the lead once the server is back. A worker's finished
+turn raises no notification on the web page, the desktop app or Android; you hear about it when
+the lead's own turn ends. Retired workers stay silent too.
+
+**Routine updates.** A turn with nothing new for the lead, such as a stale or duplicate signal, a
+routine check that found everything as expected, or work still running with no change, should not
+wake it. The worker marks such a turn by calling `mark_routine` before its final reply. The reply
+then shows in the lead's chat as a routine update and in `worker_list`, and goes into the lead's
+inbox of unread updates instead of waking it. A failed or stopped turn always reports, marked or
+not. The lead reads its unread updates the next time it hears anything: they are appended as the
+last section, headed `[Unread routine updates]`, to the next report or question notice it
+receives, or added to the `[Team]` block of its next turn, whichever comes first. Each update is
+one line, the first line of the reply with its time, grouped by worker. The lead's chat does not
+display that section, since each of those updates already has its own row. Once given to the
+lead, an update counts as read and is not repeated. The inbox survives a restart and keeps the last
+five updates per worker, noting how many older ones it left out.
 
 **Questions and plans.** When a worker calls `cortex_ask_user`, submits a plan with
 `cortex_plan_exit`, or submits a commission contract, the request shows up as a card in the
@@ -66,11 +74,11 @@ worker's session and as a notice in the lead's conversation. The lead answers wi
 with `cortex_ask_user` when it is unsure what you would want. You can answer on the worker's card
 yourself; whichever answer arrives first is the one the worker gets.
 
-**Roster.** While a lead has active workers, each of its turns opens with a short `[Team]` block:
-a few working rules and one line per worker (status, brief, last report, and whether you have
-talked to it). A worker with no turn running that still holds an open waitpoint is listed as
-waiting on external, not idle. A worker's first turn opens with a `[Worker]` block telling it who its lead is and
-how its replies are used.
+**Roster.** While a lead has active workers or unread updates, each of its turns opens with a
+short `[Team]` block: a few working rules, one line per worker (status, brief, last report, and
+whether you have talked to it) and any unread updates. A worker with no turn running that still
+holds an open waitpoint is listed as waiting on external, not idle. A worker's first turn opens
+with a `[Worker]` block telling it who its lead is and how its replies are used.
 
 **Transcripts.** Every session's first turn names the directory holding all session transcripts
 (`<sessionId>.jsonl`). When a report is not enough, the lead can read a worker's full transcript
@@ -87,6 +95,9 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
 | `worker_list` | `worker?` | The roster, or one worker in detail with its model and full last report |
 | `worker_stop` | `worker`, `retire?` | Stops the worker's current turn; `retire` also takes it off the roster |
 | `worker_answer` | `request_id`, `answers?` or `approved?` + `feedback?` | Answers a worker's question, or approves or rejects its plan |
+
+Workers get one tool of their own from the `cortex-worker-report` bundle: `mark_routine`, which
+takes no parameters and marks the current turn as a routine update (see above).
 
 ## In the workbench
 

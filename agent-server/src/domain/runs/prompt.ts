@@ -53,8 +53,9 @@ export interface UserPromptOptions {
   transcriptDir?: string | null;
   /** Index + protocol for a commission-bound session (DR-0037). */
   commission?: CommissionPromptContext | null;
-  /** Team mode, lead side: one roster line per active worker. */
-  team?: { roster: string[] } | null;
+  /** Team mode, lead side: one roster line per active worker, and the unread routine updates
+   *  section (`[Unread routine updates]` …) when there is one. */
+  team?: { roster: string[]; unread?: string } | null;
   /** Team mode, worker side: its own name and its lead's title. */
   worker?: { name: string; lead: string } | null;
   /** True when the engine session already received the prefix blocks on an earlier turn. Every
@@ -88,7 +89,7 @@ function ambientPrefixes(spec: UserPromptSpec, opts: UserPromptOptions): string[
     opts.project ? buildProjectBlock(opts.project) : null,
     opts.transcriptDir ? buildTranscriptBlock(opts.transcriptDir) : null,
     opts.commission ? buildCommissionBlock(opts.commission) : null,
-    opts.team ? buildTeamBlock(opts.team.roster) : null,
+    opts.team ? buildTeamBlock(opts.team.roster, opts.team.unread) : null,
     opts.worker ? buildWorkerBlock(opts.worker) : null,
   ].filter((block): block is string => !!block);
 }
@@ -114,27 +115,28 @@ function buildTranscriptBlock(dir: string): string {
   return `[Session Transcripts] The full transcript of any Cortex session is at ${dir}/<sessionId>.jsonl.`;
 }
 
-/** The lead's standing rules plus its live roster, re-sent every turn while it has workers. */
-export function buildTeamBlock(roster: readonly string[]): string {
-  return `[Team] You lead these workers (persistent sessions you manage with the worker_* tools):
-${roster.join('\n')}
+/** The lead's standing rules plus its live roster, re-sent every turn while it has workers. Unread
+ *  routine updates, when there are any, close the block. */
+export function buildTeamBlock(roster: readonly string[], unread?: string): string {
+  const block = `[Team] You lead these workers (persistent sessions you manage with the worker_* tools):
+${roster.length > 0 ? roster.join('\n') : '- (no active workers)'}
 Rules:
-1. After dispatching work, end your turn. A worker's report arrives as a new message and wakes you once the worker has finished with nothing left running or waited on (a failed or stopped turn reports at once); its questions arrive as they are raised. Its interim replies are shown to the user but do not wake you. Never poll or wait.
+1. After dispatching work, end your turn. Worker reports and questions wake you as they arrive. Updates a worker marks routine do not wake you; they appear under [Unread routine updates] on your next turn. Never poll or wait.
 2. Continue a worker with worker_send when the topic and code area are the same and its context is still relevant; otherwise write a self-contained handoff and spawn a fresh one.
 3. Answer workers' questions and approve their plans yourself with worker_answer; ask the user with cortex_ask_user only when you are unsure what they would want.
 4. Do not run repeated review loops on a worker's output.`;
+  return unread ? `${block}\n\n${unread}` : block;
 }
 
 /** A worker's first-turn orientation. */
 export function buildWorkerBlock(worker: { name: string; lead: string }): string {
   return `[Worker] You are worker "${worker.name}" of the lead session "${worker.lead}". `
-    + 'Your final reply is delivered to the lead, and wakes it, when you finish with nothing left '
-    + 'running or waited on (no background task, open waitpoint or pending question). A reply that '
-    + 'ends a turn while such work is still pending is recorded as progress without waking the lead, '
-    + 'so make the finishing reply self-contained. The user may also open this session and talk to '
-    + 'you directly. Your questions (cortex_ask_user) and plan approvals are handled by the lead. '
-    + 'Keep final replies concise: conclusions, output paths, and open items. You cannot create '
-    + 'workers yourself.';
+    + 'Each final reply is delivered to the lead and wakes it. If a turn has nothing new for the lead '
+    + '(a stale or duplicate signal, a routine check, work still running with no change), call '
+    + 'mark_routine before your final reply: the reply is then recorded for the lead without waking '
+    + 'it. Ask for decisions with cortex_ask_user; they are handled by the lead, as are your plan '
+    + 'approvals. The user may also open this session and talk to you directly. Keep final replies '
+    + 'concise: conclusions, output paths, and open items. You cannot create workers yourself.';
 }
 
 /** Execution protocol for commission-bound sessions (DR-0037). Deliberately compact: the four

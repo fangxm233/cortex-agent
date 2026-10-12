@@ -23,6 +23,7 @@ interface World {
   running: Set<string>;
   pending: Map<string, { id: string }[]>;
   waitpoints: Map<string, number>;
+  routine: string[];
   delivered: Array<{ channel: string; text: string; origin: string }>;
   cancelled: string[];
   answered: any[];
@@ -43,6 +44,7 @@ function world(): World {
     running: new Set<string>(),
     pending: new Map<string, { id: string }[]>(),
     waitpoints: new Map<string, number>(),
+    routine: [] as string[],
     delivered: [] as World['delivered'],
     cancelled: [] as string[],
     answered: [] as any[],
@@ -107,6 +109,7 @@ function world(): World {
     // tests below decide "running" explicitly.
     describeTeam: (id) => describeTeam(id, { ...viewDeps, now: () => Number.MAX_SAFE_INTEGER }, listWorkers),
     held: () => w.held,
+    markRoutine: (id: string) => { w.routine.push(id); },
     now: () => 1000,
   };
   return w;
@@ -369,4 +372,19 @@ test('spawn and send say so while the server is about to restart, creating and d
   w.held = false;
   assert.equal((await call(w, { action: 'send', worker: 'old', message: 'go' })).success, true);
   assert.equal(w.delivered.length, 1);
+});
+
+test('mark_routine is the one action a worker may call, and only a worker', async () => {
+  const w = world();
+  await call(w, { action: 'spawn', name: 'alpha', prompt: 'p' });
+  const marked = await handleTeamWebhook({ action: 'routine', sessionId: 'w1' }, w.deps);
+  assert.equal(marked.success, true);
+  assert.match((marked.data as any).text, /does not wake it/);
+  assert.deepEqual(w.routine, ['w1']);
+  const byLead = await call(w, { action: 'routine' });
+  assert.equal(byLead.success, false);
+  assert.match(byLead.error!, /only available to a team worker/);
+  assert.equal((await handleTeamWebhook({ action: 'spawn', sessionId: 'w1', name: 'x', prompt: 'p' }, w.deps)).success, false,
+    'a worker cannot use the lead tools');
+  assert.deepEqual(w.routine, ['w1']);
 });

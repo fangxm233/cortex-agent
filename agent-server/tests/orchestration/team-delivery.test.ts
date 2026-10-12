@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, test, vi } from 'vitest';
+import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { EventBus } from '../../src/events/event-bus.js';
@@ -10,11 +10,15 @@ import { initHookBridge, registerAskQuestion, registerPlanApproval } from '../..
 import { answerQuestion } from '../../src/orchestration/interactions/answer-question.js';
 import { respondToPlan } from '../../src/orchestration/interactions/plan-response.js';
 import {
-  _resetTeamDelivery, checkWorkerSettled, flushTeamOutbox, hasOwedReport, installTeamDelivery, notifyLeadOfWorkerRequest,
-  onWorkerTurnCompleted, REPORT_MAX_CHARS, settledAtTurnEnd, settledNow, type TeamDeliveryDeps, type WorkerActivity,
+  flushTeamOutbox, installTeamDelivery, notifyLeadOfWorkerRequest, onWorkerTurnCompleted, REPORT_MAX_CHARS,
+  type TeamDeliveryDeps,
 } from '../../src/orchestration/team-delivery.js';
-import { _resetTeamState, describeTeam, type WorkerView } from '../../src/orchestration/team-state.js';
+import {
+  _resetTeamState, describeTeam, markTurnRoutine, takeRoutineMark, type WorkerView,
+} from '../../src/orchestration/team-state.js';
+import { formatUnreadDigest, inboxLine, UNREAD_DIGEST_HEADER } from '../../src/orchestration/team-inbox.js';
 import { TeamOutboxRepo } from '../../src/store/team-outbox-repo.js';
+import { TeamInboxRepo } from '../../src/store/team-inbox-repo.js';
 
 const LEAD = { sessionId: 'lead', name: 'cortex-lead', channel: 'web:lead', origin: 'direct' };
 const WORKER = { sessionId: 'worker', name: 'cortex-w', channel: 'web:worker', origin: 'direct', teamLeadId: 'lead', workerName: 'alpha' };
@@ -35,9 +39,10 @@ function deps(opts: { enabled?: boolean; lead?: boolean; outbox?: TeamOutboxRepo
   const busy = { count: 0, idleAt: [] as number[] };
   /** When true, delivery is refused the way the runner refuses under a rebuild hold. */
   const hold = { on: false };
-  /** The worker as a turn ends: its own turn still occupies its queue slot and the run registry. */
-  const activity: WorkerActivity = { running: true, queueDepth: 1, holdOwners: [], waitpoints: 0, interactions: 0 };
   const progress: Array<{ lead: string; text: string; worker: { name: string; sessionId: string }; ts: string }> = [];
+  /** Whether a backgrounded agent outlives the worker's turn; what the report's status line was given. */
+  const background = { on: false, described: [] as Array<boolean | undefined> };
+  const inbox = new TeamInboxRepo(path.join(process.env.CORTEX_HOME!, 'data', `team-inbox-${++outboxSeq}.json`));
   let retries = 0;
   const d: TeamDeliveryDeps = {
     enabled: () => opts.enabled ?? true,
@@ -49,7 +54,10 @@ function deps(opts: { enabled?: boolean; lead?: boolean; outbox?: TeamOutboxRepo
       }
       delivered.push({ channel: o.channel, text: o.text, origin: o.origin });
     },
-    describe: async () => view(),
+    describe: async (_worker, running) => {
+      background.described.push(running);
+      return view(running ? { status: 'running' } : {});
+    },
     now: () => 1_000,
     track: (delta) => {
       busy.count += delta;
@@ -57,14 +65,16 @@ function deps(opts: { enabled?: boolean; lead?: boolean; outbox?: TeamOutboxRepo
     },
     outbox: opts.outbox ?? new TeamOutboxRepo(path.join(process.env.CORTEX_HOME!, 'data', `team-outbox-${++outboxSeq}.json`)),
     scheduleRetry: () => { retries += 1; },
-    activity: async () => ({ ...activity, holdOwners: [...activity.holdOwners] }),
+    takeRoutineMark: (id, executionId) => takeRoutineMark(id, executionId),
+    backgroundWork: () => background.on,
+    inbox,
+    rebuildHeld: () => hold.on,
     recordProgress: async (lead, row) => { progress.push({ lead: lead.sessionId, ...row }); },
   };
-  return { d, delivered, sessions, busy, hold, activity, progress, retries: () => retries };
+  return { d, delivered, sessions, busy, hold, progress, background, inbox, retries: () => retries };
 }
 
-beforeEach(() => { _resetTeamState(); _resetTeamDelivery(); });
-afterEach(() => { vi.useRealTimers(); });
+beforeEach(() => { _resetTeamState(); });
 
 const completed = (extra: Record<string, unknown> = {}) => ({
   sessionId: 'worker', status: 'completed' as const, finalOutput: 'Done. Output in out/report.md', trigger: 'team-lead', ...extra,
@@ -134,160 +144,148 @@ test('installTeamDelivery reports from the session.turn.completed event', async 
   assert.equal(delivered.length, 1);
 });
 
-// ── settled gating ──────────────────────────────────────────────────────────
+// ── routine updates and the lead inbox ─────────────────────────────────────
 
-const idle: WorkerActivity = { running: false, queueDepth: 0, holdOwners: [], waitpoints: 0, interactions: 0 };
+/** A worker turn of run `exec-1` that the worker marked routine. */
+const routineTurn = (extra: Record<string, unknown> = {}) => {
+  markTurnRoutine('worker', 'exec-1');
+  return completed({ executionId: 'exec-1', ...extra });
+};
 
-test('settled at a turn end excludes the ending turn: its queue slot unless held, and its own continuation hold', () => {
-  const ending = { ...idle, running: true, queueDepth: 1 };
-  assert.deepEqual(settledAtTurnEnd(ending, false), { settled: true, queued: false, workHeld: false });
-  assert.deepEqual(settledAtTurnEnd({ ...ending, queueDepth: 2 }, false), { settled: false, queued: true, workHeld: false });
-  assert.equal(settledAtTurnEnd({ ...ending, queueDepth: 1 }, true).queued, true, 'a held turn holds no slot: one entry is another turn');
-  assert.equal(settledAtTurnEnd({ ...ending, queueDepth: 0, holdOwners: ['bg-continuation'] }, true).settled, true);
-  assert.deepEqual(settledAtTurnEnd({ ...ending, holdOwners: ['bg-continuation', 'agent-run:r1'] }, false),
-    { settled: false, queued: false, workHeld: true });
-  assert.equal(settledAtTurnEnd({ ...ending, waitpoints: 1 }, false).settled, false);
-  assert.equal(settledAtTurnEnd({ ...ending, interactions: 1 }, false).settled, false);
-});
-
-test('settled with no turn ending needs nothing running, queued, held, waited on or asked', () => {
-  assert.equal(settledNow(idle), true);
-  for (const busy of [{ running: true }, { queueDepth: 1 }, { holdOwners: ['bg-continuation'] }, { waitpoints: 1 }, { interactions: 1 }]) {
-    assert.equal(settledNow({ ...idle, ...busy }), false, JSON.stringify(busy));
-  }
-});
-
-for (const [what, busy] of [
-  ['a background agent still holds it', { holdOwners: ['agent-run:r1'] }],
-  ['a waitpoint is open', { waitpoints: 1 }],
-  ['a message is queued behind the turn', { queueDepth: 2 }],
-  ['a question is pending', { interactions: 1 }],
-] as const) {
-  test(`a busy worker's reply is progress, not a wake, when ${what}`, async () => {
-    const { d, delivered, activity, progress } = deps();
-    Object.assign(activity, busy);
-    await onWorkerTurnCompleted(completed({ finalOutput: 'Job submitted; waiting for it.' }), d);
-    assert.equal(delivered.length, 0, 'the lead is not woken');
-    assert.deepEqual(progress, [{
-      lead: 'lead', text: 'Job submitted; waiting for it.', worker: { name: 'alpha', sessionId: 'worker' },
-      ts: new Date(1_000).toISOString(),
-    }]);
-    assert.equal(hasOwedReport('worker'), true);
-    const team = await describeTeam('lead', {
-      isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], openWaitpoints: async () => 0,
-      history: async () => null, now: () => 0,
-    }, async () => [WORKER as any]);
-    assert.equal(team[0].lastReport!.text, 'Job submitted; waiting for it.', 'worker_list shows the progress');
-  });
-}
-
-test('a held turn whose only hold is its own continuation reports when it seals', async () => {
-  const { d, delivered, activity, progress } = deps();
-  Object.assign(activity, { queueDepth: 0, holdOwners: ['bg-continuation'] });
-  await onWorkerTurnCompleted(completed({ held: true }), d);
-  assert.equal(delivered.length, 1);
-  assert.equal(delivered[0].origin, 'worker-result');
+test('every unmarked reply is a report delivered at once, whatever the worker still has running', async () => {
+  const { d, delivered, progress, background } = deps();
+  background.on = true;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Step 1 done; the download keeps running.' }), d);
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Step 2 done.', trigger: 'external-signal' }), d);
+  assert.equal(delivered.length, 2, 'no gating, no coalescing');
+  assert.match(delivered[0].text, /^\[Worker alpha · completed\]\nstatus running\n\nStep 1 done/);
+  assert.deepEqual(background.described, [true, true], 'a backgrounded agent keeps it running past the turn');
   assert.deepEqual(progress, []);
 });
 
-test('busy → settled wakes the lead exactly once, with the latest reply', async () => {
-  const { d, delivered, activity, progress } = deps();
-  activity.waitpoints = 1;
-  await onWorkerTurnCompleted(completed({ finalOutput: 'step 1 running' }), d);
-  await onWorkerTurnCompleted(completed({ finalOutput: 'step 2 running', trigger: 'external-signal' }), d);
-  assert.deepEqual(progress.map(p => p.text), ['step 1 running', 'step 2 running']);
+test('the status line of a report does not count the ending turn itself as running', async () => {
+  const { d, delivered, background } = deps();
+  await onWorkerTurnCompleted(completed(), d);
+  assert.deepEqual(background.described, [false]);
+  assert.match(delivered[0].text, /\nstatus idle\n/);
+});
+
+test('a routine turn is a progress row and an unread inbox item, and wakes nobody', async () => {
+  const { d, delivered, progress, inbox } = deps();
+  await onWorkerTurnCompleted(routineTurn({ finalOutput: '\nDownload at 40%, nothing new.\nDetails: 12 GB of 30.' }), d);
   assert.equal(delivered.length, 0);
-  activity.waitpoints = 0;
-  await onWorkerTurnCompleted(completed({ finalOutput: 'All done: out/run.md', trigger: 'external-signal' }), d);
-  assert.equal(delivered.length, 1);
-  assert.match(delivered[0].text, /^\[Worker alpha · completed\]\nstatus idle\n\nAll done: out\/run\.md$/);
-  assert.equal(hasOwedReport('worker'), false);
-  await checkWorkerSettled('worker', d);
-  assert.equal(delivered.length, 1, 'nothing left to deliver');
+  assert.deepEqual(progress, [{
+    lead: 'lead', text: 'Download at 40%, nothing new.\nDetails: 12 GB of 30.', worker: { name: 'alpha', sessionId: 'worker' },
+    ts: new Date(1_000).toISOString(),
+  }]);
+  assert.deepEqual(await inbox.take('lead'), [{
+    workerId: 'worker', name: 'alpha', items: [{ at: 1_000, text: 'Download at 40%, nothing new.' }], dropped: 0,
+  }]);
+  const team = await describeTeam('lead', {
+    isRunning: () => false, isQueued: () => false, pendingInteractions: () => [], openWaitpoints: async () => 0,
+    history: async () => null, now: () => 0,
+  }, async () => [WORKER as any]);
+  assert.match(team[0].lastReport!.text, /Download at 40%, nothing new\./, 'worker_list still shows the latest reply');
 });
 
-test('a report owed when the worker settles without a turn is delivered on the re-check, once', async () => {
-  const { d, delivered, activity } = deps();
-  activity.waitpoints = 1;
-  await onWorkerTurnCompleted(completed({ finalOutput: 'Waiting on the job' }), d);
-  Object.assign(activity, { running: false, queueDepth: 0 });
-  await checkWorkerSettled('worker', d);
-  assert.equal(delivered.length, 0, 'the waitpoint is still open');
-  activity.waitpoints = 0;
-  activity.running = true;
-  await checkWorkerSettled('worker', d);
-  assert.equal(delivered.length, 0, 'a running turn reports for itself when it ends');
-  activity.running = false;
-  await checkWorkerSettled('worker', d);
-  await checkWorkerSettled('worker', d);
-  assert.equal(delivered.length, 1);
-  assert.match(delivered[0].text, /^\[Worker alpha · completed\]\nstatus idle\n\nWaiting on the job$/);
+test('a routine mark covers only the run it was made in, and is consumed by its turn', async () => {
+  const { d, delivered } = deps();
+  markTurnRoutine('worker', 'exec-old');
+  await onWorkerTurnCompleted(completed({ executionId: 'exec-new' }), d);
+  assert.equal(delivered.length, 1, 'a mark left by another run does not hide this report');
+  await onWorkerTurnCompleted(completed({ executionId: 'exec-new' }), d);
+  assert.equal(delivered.length, 2, 'the stale mark was consumed');
+  markTurnRoutine('worker', null);
+  await onWorkerTurnCompleted(completed({ executionId: 'exec-x' }), d);
+  assert.equal(delivered.length, 2, 'a mark made with no registered run applies to the next turn');
 });
 
-test('a failed turn, and a stop that is not a takeover, wake the lead even while work is pending', async () => {
+test('a failed or stopped turn reports even when marked routine', async () => {
   for (const status of ['failed', 'stopped'] as const) {
-    const { d, delivered, activity, progress } = deps();
-    activity.waitpoints = 1;
-    await onWorkerTurnCompleted(completed({ status, finalOutput: 'x' }), d);
+    const { d, delivered, progress } = deps();
+    await onWorkerTurnCompleted(routineTurn({ status, finalOutput: 'x' }), d);
     assert.equal(delivered.length, 1, status);
-    assert.match(delivered[0].text, new RegExp(`^\\[Worker alpha · ${status}\\]`));
     assert.deepEqual(progress, []);
-    assert.equal(hasOwedReport('worker'), false);
   }
 });
 
-test('a held turn stopped because a new turn took the worker over is progress', async () => {
-  const { d, delivered, activity, progress } = deps();
-  Object.assign(activity, { queueDepth: 1, holdOwners: ['bg-continuation'] });
-  await onWorkerTurnCompleted(completed({ status: 'stopped', held: true, finalOutput: 'partial' }), d);
+test('a routine mark in a turn the user typed is consumed and nothing is reported', async () => {
+  const { d, delivered, progress } = deps();
+  await onWorkerTurnCompleted(routineTurn({ trigger: 'web-user' }), d);
   assert.equal(delivered.length, 0);
-  assert.deepEqual(progress.map(p => p.text), ['partial']);
-});
-
-test('an empty interim reply writes no progress row but is still owed', async () => {
-  const { d, delivered, activity, progress } = deps();
-  activity.waitpoints = 1;
-  await onWorkerTurnCompleted(completed({ finalOutput: '  ' }), d);
   assert.deepEqual(progress, []);
+  assert.equal(takeRoutineMark('worker', 'exec-1'), false);
+});
+
+test('the next report carries the unread routine updates as its last section, then they are read', async () => {
+  const { d, delivered, inbox } = deps();
+  await onWorkerTurnCompleted(routineTurn({ finalOutput: 'Download at 40%' }), d);
+  await onWorkerTurnCompleted(routineTurn({ finalOutput: 'Download at 80%' }), d);
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Download finished: data/set.tar' }), d);
+  assert.equal(delivered.length, 1);
+  const [report, digest] = delivered[0].text.split(`\n\n${UNREAD_DIGEST_HEADER}\n`);
+  assert.match(report, /Download finished: data\/set\.tar$/);
+  assert.match(digest, /^alpha:\n- \d\d(-\d\d \d\d)?:\d\d Download at 40%\n- \S+( \S+)? Download at 80%$/);
+  assert.deepEqual(await inbox.take('lead'), [], 'read once given');
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Next' }), d);
+  assert.ok(!delivered[1].text.includes(UNREAD_DIGEST_HEADER), 'nothing unread, no section');
+});
+
+test('a forwarded question carries the unread updates too', async () => {
+  const { d, delivered } = deps();
+  await onWorkerTurnCompleted(routineTurn({ finalOutput: 'Still training, epoch 3' }), d);
+  await notifyLeadOfWorkerRequest({ requestId: 'req-1', sessionId: 'worker', kind: 'ask-user', blocking: true, questions: [{ question: 'Which split?' }] }, d);
+  assert.equal(delivered[0].origin, 'worker-question');
+  assert.match(delivered[0].text, new RegExp(`Q1: Which split\\?[\\s\\S]*\\n\\n\\${UNREAD_DIGEST_HEADER}\\nalpha:\\n- .* Still training, epoch 3$`));
+});
+
+test('updates taken for a report a restart refused are unread again', async () => {
+  const { d, delivered, hold, inbox } = deps();
+  await onWorkerTurnCompleted(routineTurn({ finalOutput: 'Routine check ok' }), d);
+  hold.on = true;
+  await onWorkerTurnCompleted(completed({ finalOutput: 'Report' }), d);
+  await notifyLeadOfWorkerRequest({ requestId: 'req-2', sessionId: 'worker', kind: 'ask-user', blocking: true, questions: [] }, d);
   assert.equal(delivered.length, 0);
-  assert.equal(hasOwedReport('worker'), true);
+  const unread = await inbox.take('lead');
+  assert.deepEqual(unread.map(w => w.items.map(i => i.text)), [['Routine check ok']]);
 });
 
-test('the worker going idle re-checks an owed report after the ending turn has decided', async () => {
-  vi.useFakeTimers();
-  const bus = new EventBus();
-  const { d, delivered, activity } = deps();
-  installTeamDelivery(bus, d);
-  activity.waitpoints = 1;
-  await onWorkerTurnCompleted(completed({ finalOutput: 'Waiting on the job' }), d);
-  Object.assign(activity, { running: false, queueDepth: 0, waitpoints: 0 });
-  bus.publish({ type: 'session.status', sessionId: 'worker', channel: 'web:worker', running: false });
-  assert.equal(delivered.length, 0, 'not before the re-check delay');
-  await vi.advanceTimersByTimeAsync(1_000);
-  assert.equal(delivered.length, 1);
-  bus.publish({ type: 'session.status', sessionId: 'worker', channel: 'web:worker', running: false });
-  await vi.advanceTimersByTimeAsync(1_000);
-  assert.equal(delivered.length, 1, 'nothing is owed any more');
+test('the inbox keeps the newest updates per worker and says how many older ones it dropped', async () => {
+  const inbox = new TeamInboxRepo(path.join(process.env.CORTEX_HOME!, 'data', 'team-inbox-cap.json'), 2);
+  for (const [at, text] of [[1, 'a'], [2, 'b'], [3, 'c'], [4, 'd']] as const) {
+    await inbox.add('lead', { workerId: 'w1', name: 'alpha' }, { at, text });
+  }
+  await inbox.add('lead', { workerId: 'w2', name: 'beta' }, { at: 0, text: 'z' });
+  await inbox.add('other-lead', { workerId: 'w3', name: 'gamma' }, { at: 5, text: 'y' });
+  const taken = await inbox.take('lead');
+  assert.deepEqual(taken, [
+    { workerId: 'w2', name: 'beta', items: [{ at: 0, text: 'z' }], dropped: 0 },
+    { workerId: 'w1', name: 'alpha', items: [{ at: 3, text: 'c' }, { at: 4, text: 'd' }], dropped: 2 },
+  ]);
+  await inbox.add('lead', { workerId: 'w1', name: 'alpha' }, { at: 9, text: 'e' });
+  await inbox.restore('lead', taken);
+  assert.deepEqual((await inbox.take('lead')).find(w => w.workerId === 'w1'),
+    { workerId: 'w1', name: 'alpha', items: [{ at: 4, text: 'd' }, { at: 9, text: 'e' }], dropped: 3 });
+  assert.equal((await new TeamInboxRepo(path.join(process.env.CORTEX_HOME!, 'data', 'team-inbox-cap.json')).take('other-lead')).length, 1,
+    'persisted across instances');
 });
 
-test('a resolved worker question re-checks an owed report; the slow sweep catches silent settles', async () => {
-  vi.useFakeTimers();
-  const bus = new EventBus();
-  const { d, delivered, activity } = deps();
-  installTeamDelivery(bus, d);
-  activity.interactions = 1;
-  await onWorkerTurnCompleted(completed({ finalOutput: 'Asked the lead' }), d);
-  Object.assign(activity, { running: false, queueDepth: 0, interactions: 0 });
-  bus.publish({ type: 'session.interaction', sessionId: 'worker', channel: 'web:worker', interactionId: 'q1', kind: 'ask-user', status: 'answered' });
-  await vi.advanceTimersByTimeAsync(1_000);
-  assert.equal(delivered.length, 1);
-
-  activity.waitpoints = 1;
-  Object.assign(activity, { running: true, queueDepth: 1 });
-  await onWorkerTurnCompleted(completed({ finalOutput: 'Armed a waitpoint' }), d);
-  Object.assign(activity, { running: false, queueDepth: 0, waitpoints: 0 });
-  await vi.advanceTimersByTimeAsync(60_000 + 1_000);
-  assert.equal(delivered.length, 2, 'a waitpoint cancelled from the UI raises no event; the sweep delivers');
+test('the digest lists each worker under its name, one line per update, with times', () => {
+  const now = new Date(2026, 9, 11, 15, 0).getTime();
+  const digest = formatUnreadDigest([
+    { workerId: 'w1', name: 'alpha', items: [{ at: new Date(2026, 9, 11, 9, 5).getTime(), text: 'Download at 40%' }], dropped: 0 },
+    { workerId: 'w2', name: 'beta', items: [{ at: new Date(2026, 9, 10, 23, 59).getTime(), text: 'Check ok' }], dropped: 3 },
+  ], now);
+  assert.equal(digest, [
+    '[Unread routine updates]',
+    'alpha:',
+    '- 09:05 Download at 40%',
+    'beta (3 older not shown):',
+    '- 10-10 23:59 Check ok',
+  ].join('\n'));
+  assert.equal(formatUnreadDigest([], now), '');
+  assert.equal(inboxLine('\n  **Status**: fine\nmore'), '**Status**: fine');
+  assert.equal(inboxLine('x'.repeat(300)).length, 200);
 });
 
 // ── restart safety ──────────────────────────────────────────────────────────

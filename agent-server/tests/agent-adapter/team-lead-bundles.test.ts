@@ -4,7 +4,8 @@ import { engineSpecFixture } from '../engine-spec-fixture.js';
 import { resolveClaudeMcpBundles } from '../../src/agent-adapter/claude/spawn-args.js';
 import { claudeSpecIdentity } from '../../src/agent-adapter/claude/adapter.js';
 import {
-  buildSessionRequest, sessionIdentity, PI_TEAM_LEAD_ENV, PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV,
+  buildSessionRequest, sessionIdentity, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV, PI_MCP_COMPOSITION_ENV,
+  PI_INTERACTION_BRIDGE_ENV,
 } from '../../src/agent-adapter/pi/session-options.js';
 import { buildServerStates } from '../../src/agent-adapter/pi/mcp-bridge.js';
 import { buildChildEnv } from '../../src/agent-adapter/pi/child-runner.js';
@@ -74,4 +75,35 @@ test('Pi: an inherited lead flag is reset, and subagent children never get the w
   assert.equal(child[PI_TEAM_LEAD_ENV], undefined);
   assert.ok(!bundlesOf({ [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_TEAM_LEAD_ENV]: '1', CORTEX_PI_SUBAGENT: '1' })
     .includes('cortex-workers'));
+});
+
+function workerSpec(composition: McpComposition = 'direct') {
+  const s = spec(false, composition);
+  s.flags.teamWorker = true;
+  return s;
+}
+
+test('Claude: a worker gets mark_routine and no worker tools; the flag is part of the pool identity', () => {
+  const worker = resolveClaudeMcpBundles({ ...WEB, teamWorker: true });
+  assert.ok(worker.includes('cortex-worker-report'));
+  assert.ok(!worker.includes('cortex-workers'));
+  assert.ok(!resolveClaudeMcpBundles({ ...WEB, teamLead: true }).includes('cortex-worker-report'));
+  assert.ok(!resolveClaudeMcpBundles({ ...WEB, teamWorker: true, mcpComposition: 'none' }).includes('cortex-worker-report'));
+  assert.notEqual(claudeSpecIdentity(workerSpec()), claudeSpecIdentity(spec(false)));
+  assert.notEqual(claudeSpecIdentity(workerSpec()), claudeSpecIdentity(spec(true)));
+});
+
+test('Pi: the worker env flag selects mark_routine; it is reset when inherited and never reaches children', () => {
+  const request = buildSessionRequest(workerSpec(), {
+    agentDir: '/tmp/pi-agent', sessionDir: '/tmp/pi-sessions', sessionPath: null, cwd: '/tmp', streamDeltas: true,
+  });
+  assert.equal(request.env[PI_TEAM_WORKER_ENV], '1');
+  assert.ok(bundlesOf(request.env).includes('cortex-worker-report'));
+  assert.ok(!bundlesOf(request.env).includes('cortex-workers'));
+  assert.equal(piRequest(false).env[PI_TEAM_WORKER_ENV], undefined);
+  assert.notEqual(sessionIdentity(request), sessionIdentity(piRequest(false)));
+  const child = buildChildEnv({ [PI_TEAM_WORKER_ENV]: '1', [PI_MCP_COMPOSITION_ENV]: 'direct' }, '/tmp/a');
+  assert.equal(child[PI_TEAM_WORKER_ENV], undefined);
+  assert.ok(!bundlesOf({ [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_TEAM_WORKER_ENV]: '1', CORTEX_PI_SUBAGENT: '1' })
+    .includes('cortex-worker-report'));
 });

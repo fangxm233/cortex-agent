@@ -20,6 +20,7 @@ import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { isTeamLead, isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
+import { takeUnreadDigest } from './team-inbox.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
 import type { ResolvedEnvironment } from '@core/types/environment-types.js';
@@ -257,10 +258,11 @@ async function loadCommissionContext(
 type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName' | 'name'>;
 
 /**
- * The team-mode blocks for this turn. A lead with at least one active worker gets the [Team]
- * roster on every turn (its state changes between turns, and a lead with no workers sees nothing
- * new). A worker gets the [Worker] orientation on its first turn only; resume keeps it in history.
- * Best-effort: a failure injects nothing.
+ * The team-mode blocks for this turn. A lead with at least one active worker, or with unread routine
+ * updates, gets the [Team] block on every turn (its state changes between turns, and a lead with no
+ * workers sees nothing new); the unread updates it carries are read from then on. A worker gets the
+ * [Worker] orientation on its first turn only; resume keeps it in history. Best-effort: a failure
+ * injects nothing.
  */
 export async function resolveConversationTeam(
   session: TeamSessionFields | null,
@@ -268,17 +270,20 @@ export async function resolveConversationTeam(
   deps: {
     getSession?: (id: string) => Promise<Pick<Session, 'name' | 'label'> | null>;
     describeTeam?: (leadSessionId: string) => Promise<WorkerView[]>;
+    /** The lead's unread routine updates section, now marked read ('' when none). */
+    takeUnread?: (leadSessionId: string) => Promise<string>;
     now?: () => number;
   } = {},
-): Promise<{ team: { roster: string[] } | null; worker: { name: string; lead: string } | null }> {
+): Promise<{ team: { roster: string[]; unread?: string } | null; worker: { name: string; lead: string } | null }> {
   const none = { team: null, worker: null };
   try {
     if (!session) return none;
     if (args.teamLead) {
       const team = (await (deps.describeTeam ?? describeTeam)(session.sessionId)).filter(v => !v.retired);
-      if (team.length === 0) return none;
+      const unread = await (deps.takeUnread ?? (async (id: string) => (await takeUnreadDigest(id)).text))(session.sessionId);
+      if (team.length === 0 && !unread) return none;
       const now = (deps.now ?? Date.now)();
-      return { team: { roster: team.map(v => rosterLine(v, now)) }, worker: null };
+      return { team: { roster: team.map(v => rosterLine(v, now)), ...(unread ? { unread } : {}) }, worker: null };
     }
     if (!args.isFreshSession || !isTeamWorker(session)) return none;
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
@@ -350,7 +355,7 @@ interface ConversationShape {
 /** How a turn on the session is attributed and which engine-side features it carries. */
 function conversationContext(
   opts: ConversationEngineOptions,
-  state: { commissionEnabled: boolean; teamLead: boolean },
+  state: { commissionEnabled: boolean; teamLead: boolean; teamWorker: boolean },
 ): RunRequest['context'] {
   const own = conversationTrigger(opts.session);
   return {
@@ -363,6 +368,7 @@ function conversationContext(
     // Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
     commissionMode: state.commissionEnabled && !!opts.session?.commissionId,
     ...(state.teamLead ? { teamLead: true } : {}),
+    ...(state.teamWorker ? { teamWorker: true } : {}),
     ...own,
     // Another surface records itself as the trigger, but the route keeps the session's own: the
     // live engine was spawned on it, and a different route would respawn it for this one turn.
@@ -379,8 +385,9 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
   // was bound while it was on reverts to an ordinary session: no commission skill, no contract
   // block, and the commission tools refuse.
   const commissionEnabled = getSettings().commissionEnabled;
-  // Team mode: this session may lead workers, so its engine loads the worker tools.
+  // Team mode: a lead's engine loads the worker tools, a worker's loads `mark_routine`.
   const teamLead = isTeamLead(session);
+  const teamWorker = isTeamWorker(session);
   const request: RunRequest = {
     runId: randomUUID(),
     session: {
@@ -394,7 +401,7 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
     profile: conversationProfile(channel, agentConfig),
     spec: fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition }),
     prompt: { text: '' },
-    context: conversationContext(opts, { commissionEnabled, teamLead }),
+    context: conversationContext(opts, { commissionEnabled, teamLead, teamWorker }),
     policy,
   };
   attachBenchmarkEvidence(request);

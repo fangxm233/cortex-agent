@@ -63,6 +63,16 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由处理。
 
+### cortex-worker-report
+
+[团队模式](./team.md)中 worker 一侧的工具。每个 worker 会话都会加载它，Claude 和 PI 都一样；主会话、普通会话和子智能体永远不加载。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `mark_routine` | 无 | 把当前这一轮标记为例行：它的最终回复作为未读的例行动态记给主会话，不唤醒主会话。失败或被停止的一轮仍会汇报 |
+
+工具在 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由处理；不是 worker 的会话调用时会被拒绝。
+
 ### cortex-ext
 
 暴露 Cortex 管理工具：调度、费用查询、执行记录、上下文解析和 waitpoint。MCP composition 不是 `none` 的每个顶层会话都会加载它，Claude 与 PI 都一样；子智能体不加载。

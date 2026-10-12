@@ -77,7 +77,9 @@ export interface EngineSpec {
   flags: { disableHooks?: boolean; disableSkills?: boolean; settingSources?: string[];
            streamDeltas?: boolean; captureTranscripts?: boolean; isUserInitiated: boolean;
            /** Team lead: a direct session that also gets the `cortex-workers` tools. */
-           teamLead?: boolean };
+           teamLead?: boolean;
+           /** Team worker: a direct session that also gets the `cortex-worker-report` tool. */
+           teamWorker?: boolean };
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
   extraOption?: Record<string, string>;
   backend:

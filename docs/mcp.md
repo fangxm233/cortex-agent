@@ -95,6 +95,18 @@ as new messages.
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tools are in
 `agent-server/src/domain/mcp/tools/workers.ts` and are served by the `/webhook/team` route.
 
+### cortex-worker-report
+
+A worker's side of [team mode](./team.md). Every worker session loads it, on Claude and PI alike;
+leads, ordinary sessions and subagents never do.
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `mark_routine` | none | Mark the current turn as routine: its final reply is recorded for the lead as an unread update and does not wake it. A failed or stopped turn reports anyway |
+
+The tool is in `agent-server/src/domain/mcp/tools/workers.ts` and is served by the
+`/webhook/team` route, which refuses it for a session that is not a worker.
+
 ### cortex-ext
 
 Exposes Cortex management tools: scheduling, cost queries, execution
