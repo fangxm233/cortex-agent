@@ -12,6 +12,7 @@ import type { CommissionRequest } from '@/features/commission/CommissionOptIn';
 import type { DraftSelection } from '@/features/session/state/selected-session';
 import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
 import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
+import { useSlashSkills } from '@/features/session/composer/useSlashSkills';
 import { useComposerDraft, type ComposerDraftScope, type ComposerDraftState } from './useComposerDraft';
 
 export type SlashFeedbackKey = ReturnType<typeof slashFeedbackKey>;
@@ -27,6 +28,10 @@ export interface DraftCreation {
 export interface ComposerSlashHost {
   /** The profiles this conversation can move to — the same filtered list its picker shows. */
   profileOptions: ProfileOption[];
+  /** The backend this conversation runs on; it decides how a skill is invoked. */
+  backend: string | null;
+  /** The agent it runs in (null = the host's default), whose plugins decide its skills. */
+  agentName: string | null;
   onNew: () => void;
   onProfile: (name: string) => void;
   onSettings: () => void;
@@ -57,7 +62,8 @@ export interface ComposerSend extends ComposerDraftState {
   stop: () => void;
   stopPending: boolean;
   slashSuggestions: SlashSuggestion[];
-  /** A palette pick: run it, or put the command in for its argument (returns true then). */
+  /** A palette pick: run it, or put the command in for its argument (returns true then). A skill
+   *  already typed in full is sent. */
   pickSlash: (suggestion: SlashSuggestion) => boolean;
 }
 
@@ -92,6 +98,10 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
   const slashProfiles = options.slash.profileOptions.map((option) => ({
     name: option.name, detail: option.sub, disabled: option.disabled,
   }));
+  const slashSkills = useSlashSkills({
+    sessionId, isDraft, agentName: options.slash.agentName, backend: options.slash.backend,
+    enabled: draft.text.trimStart().startsWith('/'),
+  });
   const slashAvailability = {
     newDisabled: draft.uploads.hasNonDone,
     cancelDisabled: !running || cancelMut.isPending,
@@ -110,7 +120,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     });
   };
   const handleSlash = (value: string): boolean => {
-    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability);
+    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability, slashSkills);
     if (resolution.kind === 'none') return false;
     if (resolution.kind === 'action') runSlash(resolution.action);
     options.onSlashFeedback(slashFeedbackKey(resolution));
@@ -172,20 +182,26 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     });
   };
 
+  const submit = (): void => {
+    if (handleSlash(draft.text)) return;
+    if (canSend) sendText(draft.text);
+  };
+
   return {
     ...draft,
     canSend,
     creating: createAndSendMut.isPending,
-    submit: () => {
-      if (handleSlash(draft.text)) return;
-      if (canSend) sendText(draft.text);
-    },
+    submit,
     stop,
     stopPending: cancelMut.isPending,
-    slashSuggestions: buildSlashSuggestions(draft.text, slashProfiles, L, slashAvailability),
+    slashSuggestions: buildSlashSuggestions(draft.text, slashProfiles, L, slashAvailability, slashSkills),
     pickSlash: (suggestion) => {
       if (suggestion.disabled) return false;
       if (suggestion.action) { runSlash(suggestion.action); return false; }
+      if (suggestion.skill && draft.text.trim().toLowerCase() === suggestion.command.toLowerCase()) {
+        submit();
+        return false;
+      }
       draft.setText(`${suggestion.command} `);
       return true;
     },

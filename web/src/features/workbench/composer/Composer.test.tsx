@@ -48,6 +48,7 @@ vi.mock('@/lib/trpc', () => ({
     // The commission feature switch is read from the shared config.get snapshot; undefined data
     // (the useQuery mock above) means "off", which is the default this suite renders under.
     config: { get: { queryOptions: () => ({ queryKey: ['config.get'] }) } },
+    skills: { session: { queryOptions: () => ({ queryKey: ['skills.session'] }) } },
   }),
 }));
 
@@ -243,6 +244,54 @@ describe('Composer UI slash shortcuts', () => {
     expect(harness.pickProfile).toHaveBeenCalledWith('execute');
     expect(harness.openSettings).toHaveBeenCalledOnce();
     expect(harness.send).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+});
+
+describe('Composer slash palette keyboard', () => {
+  afterEach(() => { harness.queries = {}; harness.send.mockReset(); });
+
+  const key = (renderer: ReactTestRenderer, name: string): void => {
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: name, shiftKey: false, preventDefault: vi.fn() }));
+  };
+  const type = (renderer: ReactTestRenderer, value: string): void => {
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value } }));
+  };
+  const active = (renderer: ReactTestRenderer): string =>
+    renderer.root.findByProps({ 'data-slash-active': true }).props['data-slash-command'];
+
+  it('moves the highlight with the arrow keys and runs the highlighted command on Enter', () => {
+    const renderer = mountComposer(() => {});
+    type(renderer, '/');
+    expect(active(renderer)).toBe('/new');
+    key(renderer, 'ArrowDown');
+    key(renderer, 'ArrowDown');
+    key(renderer, 'ArrowDown');
+    key(renderer, 'ArrowDown');
+    expect(active(renderer)).toBe('/settings');
+    key(renderer, 'ArrowDown');
+    expect(active(renderer)).toBe('/new');
+    key(renderer, 'ArrowUp');
+    expect(active(renderer)).toBe('/settings');
+    key(renderer, 'Enter');
+    expect(harness.openSettings).toHaveBeenCalled();
+    expect(harness.send).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it('lists the session skills, puts a picked one in, and sends it on the next Enter', () => {
+    harness.queries['skills.session'] = [
+      { plugin: 'cortex-coder', namespace: 'cortex-coder', name: 'develop', description: 'Implement a change' },
+    ];
+    harness.send.mockResolvedValue({ accepted: true, acceptedAt: 'now' });
+    const renderer = mountComposer(() => {});
+    type(renderer, '/dev');
+    expect(active(renderer)).toBe('/cortex-coder:develop');
+    key(renderer, 'Tab');
+    expect(renderer.root.findByProps({ 'data-composer-input': true }).props.value).toBe('/cortex-coder:develop ');
+    type(renderer, '/cortex-coder:develop fix the rail');
+    key(renderer, 'Enter');
+    expect(harness.send).toHaveBeenCalledWith({ sessionId: 's1', text: '/cortex-coder:develop fix the rail' });
     act(() => renderer.unmount());
   });
 });

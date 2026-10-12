@@ -6,6 +6,14 @@ export interface SlashProfileOption {
   disabled?: boolean;
 }
 
+/** A skill the conversation loads. `command` is what follows `/` to invoke it on this backend
+ *  (`cortex-coder:develop`, `skill:develop`); `name` alone is also matched while typing. */
+export interface SlashSkillOption {
+  name: string;
+  command: string;
+  description: string;
+}
+
 export type SlashAction =
   | { type: 'new' }
   | { type: 'cancel' }
@@ -36,6 +44,8 @@ export interface SlashSuggestion {
   description: string;
   action: SlashAction | null;
   disabled: boolean;
+  /** A skill row: picking it puts the command in, and picking it again sends it. */
+  skill?: boolean;
 }
 
 export interface SlashAvailability {
@@ -79,20 +89,32 @@ function actionFor(command: string): SlashAction | null {
   return actions[command] ?? null;
 }
 
+function findSkill(command: string, skills: readonly SlashSkillOption[]): SlashSkillOption | undefined {
+  return skills.find((skill) => skill.command.toLowerCase() === command || skill.name.toLowerCase() === command);
+}
+
+function skillMatches(query: string, skill: SlashSkillOption): boolean {
+  return skill.command.toLowerCase().startsWith(query) || skill.name.toLowerCase().startsWith(query);
+}
+
 function isActionDisabled(action: SlashAction, availability: SlashAvailability): boolean {
   if (action.type === 'profile') return false;
   return !!availability[`${action.type}Disabled`];
 }
 
+/** A skill invocation resolves to `none`: it is sent to the agent as typed. */
 export function resolveSlashInput(
   text: string,
   profiles: SlashProfileOption[],
   availability: SlashAvailability = {},
+  skills: readonly SlashSkillOption[] = [],
 ): SlashResolution {
   const parsed = parseSlashInput(text);
   if (!parsed) return { kind: 'none' };
   const known = SLASH_COMMANDS.some((item) => item.cmd === `/${parsed.command}`);
-  const prefix = SLASH_COMMANDS.some((item) => item.cmd.slice(1).startsWith(parsed.command));
+  if (!known && findSkill(parsed.command, skills)) return { kind: 'none' };
+  const prefix = SLASH_COMMANDS.some((item) => item.cmd.slice(1).startsWith(parsed.command))
+    || skills.some((skill) => skillMatches(parsed.command, skill));
   if (!known) return prefix && !parsed.hasArgsSeparator ? { kind: 'incomplete' } : { kind: 'invalid' };
   if (parsed.command === 'profile') return resolveProfile(parsed, profiles);
   const action = actionFor(parsed.command);
@@ -120,11 +142,13 @@ function profileSuggestions(query: string, profiles: SlashProfileOption[], L: Sl
     }));
 }
 
+/** Local commands first, then the conversation's skills; picking a skill puts its command in. */
 export function buildSlashSuggestions(
   text: string,
   profiles: SlashProfileOption[],
   L: SlashVocab,
   availability: SlashAvailability = {},
+  skills: readonly SlashSkillOption[] = [],
 ): SlashSuggestion[] {
   const parsed = parseSlashInput(text);
   if (!parsed) return [];
@@ -132,7 +156,7 @@ export function buildSlashSuggestions(
     return profileSuggestions(parsed.args.toLowerCase(), profiles, L);
   }
   if (parsed.hasArgsSeparator) return [];
-  return SLASH_COMMANDS
+  const local = SLASH_COMMANDS
     .filter((item) => item.cmd.slice(1).startsWith(parsed.command))
     .map((item) => ({
       command: item.cmd,
@@ -142,6 +166,12 @@ export function buildSlashSuggestions(
         ? false
         : isActionDisabled(actionFor(item.cmd.slice(1))!, availability),
     }));
+  const skillRows = skills
+    .filter((skill) => skillMatches(parsed.command, skill))
+    .map((skill) => ({
+      command: `/${skill.command}`, description: skill.description, action: null, disabled: false, skill: true,
+    }));
+  return [...local, ...skillRows];
 }
 
 export function runSlashAction(action: SlashAction, handlers: SlashActionHandlers): void {

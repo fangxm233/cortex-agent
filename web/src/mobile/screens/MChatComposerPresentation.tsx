@@ -317,8 +317,8 @@ export function MobileSlashMenu({ suggestions, onPick }: {
   onPick: (suggestion: SlashSuggestion) => void;
 }): JSX.Element {
   return (
-    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)', overflow: 'hidden', boxShadow: 'var(--material-control-shadow)' }}>
-      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: MC.muted }}>{suggestion.description}</span></div>)}
+    <div data-mobile-slash-menu style={{ margin: '0 0 7px', maxHeight: 264, overflowY: 'auto', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)', boxShadow: 'var(--material-control-shadow)' }}>
+      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ flex: 'none', font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: MC.muted }}>{suggestion.description}</span></div>)}
     </div>
   );
 }

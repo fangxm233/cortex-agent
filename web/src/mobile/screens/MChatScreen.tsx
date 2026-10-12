@@ -207,6 +207,8 @@ export function MChatScreen(): JSX.Element {
     },
     slash: {
       profileOptions: selection.profileOptions,
+      backend: selection.effective.backend,
+      agentName: selection.agentName,
       onNew: () => navigate(DRAFT_PATH),
       onProfile: (name) => selection.pickProfile(name, noteSwitch(name)),
       onSettings: () => navigate('/m/settings'),

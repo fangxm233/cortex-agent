@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
@@ -8,31 +8,41 @@ import { useCommissionOptions, type CommissionOption } from '@/features/commissi
 
 const MONO = "'IBM Plex Mono',monospace";
 
-export function ComposerSlashMenu({ suggestions, onPick }: {
+export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }: {
   suggestions: SlashSuggestion[];
+  /** The keyboard/hover highlight; ⏎ takes this row. */
+  activeIndex: number;
+  onHover: (index: number) => void;
   onPick: (suggestion: SlashSuggestion) => void;
 }): JSX.Element | null {
   const L = useVocab();
-  const [hovered, setHovered] = useState<number | null>(null);
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  const active = Math.min(activeIndex, suggestions.length - 1);
+  useEffect(() => { activeRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [active]);
   if (suggestions.length === 0) return null;
   return (
     <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', ...MENU_SURFACE, overflow: 'hidden', zIndex: 10 }}>
-      {suggestions.map((suggestion, index) => (
-        <button
-          type="button"
-          disabled={suggestion.disabled}
-          className={MENU_FOCUS}
-          key={suggestion.command}
-          data-slash-command={suggestion.command}
-          onMouseEnter={() => setHovered(index)}
-          onMouseLeave={() => setHovered((value) => value === index ? null : value)}
-          onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
-          style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: hovered === index || index === 0 ? 'var(--proto-accent-bg)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
-        >
-          <span style={{ font: `600 12px ${MONO}`, color: index === 0 ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{suggestion.command}</span>
-          <span style={{ fontSize: 11.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
-        </button>
-      ))}
+      <div role="listbox" style={{ maxHeight: 320, overflowY: 'auto' }}>
+        {suggestions.map((suggestion, index) => (
+          <button
+            type="button"
+            role="option"
+            aria-selected={index === active}
+            ref={index === active ? activeRef : undefined}
+            disabled={suggestion.disabled}
+            className={MENU_FOCUS}
+            key={suggestion.command}
+            data-slash-command={suggestion.command}
+            data-slash-active={index === active || undefined}
+            onMouseEnter={() => onHover(index)}
+            onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
+            style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', minWidth: 0, padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: index === active ? 'var(--proto-accent-bg)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
+          >
+            <span style={{ flex: 'none', font: `600 12px ${MONO}`, color: index === active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{suggestion.command}</span>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
+          </button>
+        ))}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-alt)', background: 'transparent' }}>
         <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
       </div>

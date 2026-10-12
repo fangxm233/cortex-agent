@@ -6,6 +6,7 @@ import {
   runSlashAction,
   type SlashActionHandlers,
   type SlashProfileOption,
+  type SlashSkillOption,
 } from './composer-slash';
 
 const profiles: SlashProfileOption[] = [
@@ -72,5 +73,24 @@ describe('UI slash command model', () => {
     expect(handlers.onProfile).toHaveBeenCalledWith('execute');
     expect(handlers.onSettings).toHaveBeenCalledOnce();
     expect(handlers.onNew).not.toHaveBeenCalled();
+  });
+
+  it('offers the conversation skills after local commands and sends their invocation as typed', () => {
+    const skills: SlashSkillOption[] = [
+      { name: 'develop', command: 'cortex-coder:develop', description: 'Implement a change' },
+      { name: 'paper-draft', command: 'cortex-writer:paper-draft', description: 'Draft prose' },
+    ];
+    expect(buildSlashSuggestions('/', profiles, en, {}, skills).map((item) => item.command)).toEqual([
+      '/new', '/cancel', '/compact', '/profile', '/settings', '/cortex-coder:develop', '/cortex-writer:paper-draft',
+    ]);
+    expect(buildSlashSuggestions('/dev', profiles, en, {}, skills)).toEqual([
+      { command: '/cortex-coder:develop', description: 'Implement a change', action: null, disabled: false, skill: true },
+    ]);
+    expect(buildSlashSuggestions('/cortex-w', profiles, en, {}, skills).map((item) => item.command))
+      .toEqual(['/cortex-writer:paper-draft']);
+    expect(resolveSlashInput('/cortex-coder:develop fix the rail', profiles, {}, skills)).toEqual({ kind: 'none' });
+    expect(resolveSlashInput('/develop', profiles, {}, skills)).toEqual({ kind: 'none' });
+    expect(resolveSlashInput('/dev', profiles, {}, skills)).toEqual({ kind: 'incomplete' });
+    expect(resolveSlashInput('/status', profiles, {}, skills)).toEqual({ kind: 'invalid' });
   });
 });

@@ -84,6 +84,7 @@ import {
   machinesListInput,
   machineDetailInput,
   skillsListInput,
+  skillsSessionInput,
   pluginsListInput,
   pluginsAssignInput,
   pluginsSkillFileInput,
@@ -395,7 +396,10 @@ function machinesRouter(service: UiService) {
 }
 
 function skillsRouter(service: UiService) {
-  return router({ list: makeQuery(service, 'skills.list', skillsListInput) });
+  return router({
+    list: makeQuery(service, 'skills.list', skillsListInput),
+    session: makeQuery(service, 'skills.session', skillsSessionInput),
+  });
 }
 
 function pluginsRouter(service: UiService) {

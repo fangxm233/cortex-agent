@@ -195,6 +195,7 @@ export function Composer({
   const [slashErrorKey, setSlashErrorKey] = useState<SlashFeedbackKey>(null);
   const [statsOpen, setStatsOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
   const [btnHover, setBtnHover] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -207,6 +208,8 @@ export function Composer({
     },
     slash: {
       profileOptions: engineSelection.profileOptions,
+      backend: engineSelection.effective.backend,
+      agentName: engineSelection.agentName,
       onNew: () => setSelectedSession(DRAFT_SENTINEL),
       onProfile: engineSelection.pickProfile,
       onSettings: onOpenSettings,
@@ -222,6 +225,10 @@ export function Composer({
   });
   const { text: composer, setText: setComposer, uploads } = composerSend;
   useEffect(() => { setSlashErrorKey(null); }, [composer, composerSend.identity]);
+  const slashSuggestions = slashOpen ? composerSend.slashSuggestions : [];
+  // The highlight goes back to the first row whenever the typed text narrows or changes the list.
+  const slashListKey = slashSuggestions.map((suggestion) => suggestion.command).join('\n');
+  useEffect(() => { setSlashIndex(0); }, [slashListKey]);
 
   // Auto-grow the textarea up to a cap.
   const autoGrow = (el: HTMLTextAreaElement | null): void => {
@@ -298,7 +305,29 @@ export function Composer({
     if (composerSend.pickSlash(suggestion)) setSlashOpen(true);
   };
 
+  // ↑↓ move through the open palette, ⏎ / Tab take the highlighted row. A disabled row falls
+  // through to the ordinary submit, which says why it cannot run.
+  const onSlashKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (slashSuggestions.length === 0 || e.nativeEvent?.isComposing) return false;
+    const count = slashSuggestions.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setSlashIndex((index) => (Math.min(index, count - 1) + step + count) % count);
+      return true;
+    }
+    if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+      const suggestion = slashSuggestions[Math.min(slashIndex, count - 1)];
+      if (suggestion.disabled && e.key === 'Enter') return false;
+      e.preventDefault();
+      if (!suggestion.disabled) onSlashPick(suggestion);
+      return true;
+    }
+    return false;
+  };
+
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (onSlashKey(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       // Sending while a turn is running is intentional, not a fall-through: the server injects the
@@ -319,7 +348,14 @@ export function Composer({
       <div style={{ position: 'relative', padding: '6px 32px 14px' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
           {/* Slash palette */}
-          {slashOpen ? <ComposerSlashMenu suggestions={composerSend.slashSuggestions} onPick={onSlashPick} /> : null}
+          {slashOpen ? (
+            <ComposerSlashMenu
+              suggestions={slashSuggestions}
+              activeIndex={slashIndex}
+              onHover={setSlashIndex}
+              onPick={onSlashPick}
+            />
+          ) : null}
 
           {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
               the highest-value line on this surface and belongs at the point of gaze; it renders
