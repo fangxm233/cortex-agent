@@ -21,6 +21,7 @@ describe('UI slash command model', () => {
     expect(resolveSlashInput('/cancel', profiles)).toEqual({ kind: 'action', action: { type: 'cancel' } });
     expect(resolveSlashInput('/compact', profiles)).toEqual({ kind: 'action', action: { type: 'compact' } });
     expect(resolveSlashInput('/settings', profiles)).toEqual({ kind: 'action', action: { type: 'settings' } });
+    expect(resolveSlashInput('/usage', profiles)).toEqual({ kind: 'action', action: { type: 'usage' } });
     expect(resolveSlashInput('/new later', profiles)).toEqual({ kind: 'invalid' });
   });
 
@@ -54,24 +55,27 @@ describe('UI slash command model', () => {
 
   it('marks unavailable actions disabled for menu and typed execution', () => {
     const availability = {
-      newDisabled: true, cancelDisabled: true, compactDisabled: true, settingsDisabled: true,
+      newDisabled: true, cancelDisabled: true, compactDisabled: true, settingsDisabled: true, usageDisabled: true,
     };
     const suggestions = buildSlashSuggestions('/', profiles, en, availability);
     expect(suggestions.find((item) => item.command === '/new')?.disabled).toBe(true);
     expect(suggestions.find((item) => item.command === '/cancel')?.disabled).toBe(true);
     expect(suggestions.find((item) => item.command === '/compact')?.disabled).toBe(true);
     expect(suggestions.find((item) => item.command === '/settings')?.disabled).toBe(true);
+    expect(suggestions.find((item) => item.command === '/usage')?.disabled).toBe(true);
     expect(resolveSlashInput('/cancel', profiles, availability)).toEqual({ kind: 'disabled' });
   });
 
   it('dispatches only through injected UI handlers', () => {
     const handlers: SlashActionHandlers = {
-      onNew: vi.fn(), onCancel: vi.fn(), onCompact: vi.fn(), onProfile: vi.fn(), onSettings: vi.fn(),
+      onNew: vi.fn(), onCancel: vi.fn(), onCompact: vi.fn(), onProfile: vi.fn(), onSettings: vi.fn(), onUsage: vi.fn(),
     };
     runSlashAction({ type: 'profile', profileName: 'execute' }, handlers);
     runSlashAction({ type: 'settings' }, handlers);
+    runSlashAction({ type: 'usage' }, handlers);
     expect(handlers.onProfile).toHaveBeenCalledWith('execute');
     expect(handlers.onSettings).toHaveBeenCalledOnce();
+    expect(handlers.onUsage).toHaveBeenCalledOnce();
     expect(handlers.onNew).not.toHaveBeenCalled();
   });
 
@@ -81,7 +85,7 @@ describe('UI slash command model', () => {
       { name: 'paper-draft', command: 'cortex-writer:paper-draft', description: 'Draft prose' },
     ];
     expect(buildSlashSuggestions('/', profiles, en, {}, skills).map((item) => item.command)).toEqual([
-      '/new', '/cancel', '/compact', '/profile', '/settings', '/cortex-coder:develop', '/cortex-writer:paper-draft',
+      '/new', '/cancel', '/compact', '/profile', '/settings', '/usage', '/cortex-coder:develop', '/cortex-writer:paper-draft',
     ]);
     expect(buildSlashSuggestions('/dev', profiles, en, {}, skills)).toEqual([
       { command: '/cortex-coder:develop', description: 'Implement a change', action: null, disabled: false, skill: true },

@@ -11,10 +11,14 @@ import { useSettings } from '@/features/settings/useSettings';
 // button appear on this route only) and the chat is fluid exactly as before.
 export function WorkbenchView(): JSX.Element {
   const { active, split } = useDock();
-  const { open: openSettings } = useSettings();
+  const { open: openSettings, openSection } = useSettings();
   return (
     <>
-      <CenterChat grow={active ? 1 - split : 1} onOpenSettings={openSettings} />
+      <CenterChat
+        grow={active ? 1 - split : 1}
+        onOpenSettings={openSettings}
+        onOpenUsage={() => openSection('usage')}
+      />
       <DockPane />
     </>
   );

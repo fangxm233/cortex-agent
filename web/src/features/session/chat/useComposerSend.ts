@@ -35,6 +35,7 @@ export interface ComposerSlashHost {
   onNew: () => void;
   onProfile: (name: string) => void;
   onSettings: () => void;
+  onUsage: () => void;
 }
 
 export interface ComposerSendOptions extends ComposerDraftScope {
@@ -107,6 +108,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     cancelDisabled: !running || cancelMut.isPending,
     compactDisabled: !compactAction || compactAction.disabled || compactAction.pending,
     settingsDisabled: draft.uploads.hasNonDone,
+    usageDisabled: draft.uploads.hasNonDone,
   };
   const runSlash = (action: SlashAction): void => {
     draft.consumeText();
@@ -117,6 +119,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       onCompact: () => compactAction?.onCompact(),
       onProfile: options.slash.onProfile,
       onSettings: options.slash.onSettings,
+      onUsage: options.slash.onUsage,
     });
   };
   const handleSlash = (value: string): boolean => {

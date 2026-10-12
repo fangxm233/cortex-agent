@@ -27,6 +27,7 @@ import {
 import type { MChatViewProps } from './MChatView.types';
 import { useMobileInteractions, type MobileInteractionRouting } from './m-chat-interactions';
 import { useMobileMessageEdit, type MobileMessageEdit } from './m-chat-edit';
+import type { UsageNavState } from './MUsageScreen';
 
 const DRAFT_PATH = '/m/session/new';
 
@@ -212,6 +213,7 @@ export function MChatScreen(): JSX.Element {
       onNew: () => navigate(DRAFT_PATH),
       onProfile: (name) => selection.pickProfile(name, noteSwitch(name)),
       onSettings: () => navigate('/m/settings'),
+      onUsage: () => navigate('/m/settings/usage', { state: { from: 'chat' } satisfies UsageNavState }),
     },
     onCreated: (createdId) => {
       if (!onDraftScreen.current) return;

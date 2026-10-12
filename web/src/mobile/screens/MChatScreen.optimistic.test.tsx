@@ -435,6 +435,8 @@ describe('mobile UI slash shortcuts', () => {
     expect(harness.setSelectionMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', profileName: 'execute' });
     typeAndSend(mounted, '/settings');
     expect(harness.navigate).toHaveBeenCalledWith('/m/settings');
+    typeAndSend(mounted, '/usage');
+    expect(harness.navigate).toHaveBeenCalledWith('/m/settings/usage', { state: { from: 'chat' } });
     expect(harness.sendMutateAsync).not.toHaveBeenCalled();
   });
 
