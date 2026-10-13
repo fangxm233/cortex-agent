@@ -370,7 +370,7 @@ type PanelRenderer = (props: PanelBodyProps) => JSX.Element;
 
 const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   platform: (props) => <PlatformPanel snapshot={props.snapshot} onDirtyChange={props.onPanelDirtyChange} />,
-  profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
+  profiles: (props) => <ProfilesPanel snapshot={props.snapshot} onDirtyChange={props.onPanelDirtyChange} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} />,
   machines: () => <MachinesPanel />,
   environments: (props) => <EnvironmentsPanel onDirtyChange={props.onPanelDirtyChange} />,

@@ -1,5 +1,5 @@
 import '@/features/settings/ui/desktop-panels.css';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab } from '@/i18n';
@@ -617,8 +617,10 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
 
 // ── container: adapts shared ownership to the desktop view ─────────────────────────────────────
 
-export function ProfilesPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+export function ProfilesPanel({ snapshot, onDirtyChange }: { snapshot: ConfigSnapshot; onDirtyChange?: (dirty: boolean) => void }) {
   const profiles = useProfilesController(snapshot);
+  useEffect(() => { onDirtyChange?.(profiles.dirty); }, [profiles.dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   return profiles.snapshot ? (
     <ProfilesPanelView
       snapshot={profiles.snapshot}

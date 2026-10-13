@@ -10,7 +10,7 @@ import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
 import { useDock } from '@/features/dock/DockProvider';
 import { useMachinesMenuActions } from '@/features/machines/MachinesMenu';
 import { useSetTheme, useTheme } from '@/theme/ThemeProvider';
-import { safeInvoke } from '@/lib/native-bridge';
+import { disconnectShell } from '@/lib/shell-connection';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
@@ -89,7 +89,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
         separator,
         {
           kind: 'item', id: 'file.disconnect', label: L.mFileDisconnect, disabled: !native,
-          run: () => void safeInvoke('disconnect'),
+          run: () => void disconnectShell(),
         },
         {
           kind: 'item', id: 'file.quit', label: L.mFileQuit, accel: 'mod+q', disabled: !native,
