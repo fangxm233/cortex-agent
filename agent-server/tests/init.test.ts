@@ -392,30 +392,30 @@ test('isBackendInstalled is always true for the bundled pi backend', () => {
 // ─── generateSystemdUnit ────────────────────────────────────────
 
 test('generateSystemdUnit contains correct ExecStart and User', () => {
-  const unit = generateSystemdUnit('alice', '/usr/local/bin/cortex', '/home/alice/.cortex');
+  const unit = generateSystemdUnit('alice', { node: '/usr/local/bin/node', daemon: '/opt/cortex/daemon.js' }, '/home/alice/.cortex');
   assert.match(unit, /\[Unit\]/);
   assert.match(unit, /\[Service\]/);
   assert.match(unit, /\[Install\]/);
   assert.match(unit, /User=alice/);
-  assert.match(unit, /ExecStart=\/usr\/local\/bin\/cortex daemon/);
+  assert.match(unit, /ExecStart="\/usr\/local\/bin\/node" "\/opt\/cortex\/daemon\.js"/);
   assert.match(unit, /CORTEX_HOME=\/home\/alice\/.cortex/);
   assert.match(unit, /Restart=on-failure/);
 });
 
 test('a system unit runs as the named user and is wanted by multi-user.target', () => {
-  const unit = generateSystemdUnit('alice', '/usr/local/bin/cortex', '/home/alice/.cortex', 'system');
+  const unit = generateSystemdUnit('alice', { node: '/usr/local/bin/node', daemon: '/opt/cortex/daemon.js' }, '/home/alice/.cortex', 'system');
   assert.match(unit, /User=alice/);
   assert.match(unit, /WantedBy=multi-user\.target/);
 });
 
 test('a user unit sets no User= — systemd rejects it in the user manager', () => {
-  const unit = generateSystemdUnit('alice', '/usr/local/bin/cortex', '/home/alice/.cortex', 'user');
+  const unit = generateSystemdUnit('alice', { node: '/usr/local/bin/node', daemon: '/opt/cortex/daemon.js' }, '/home/alice/.cortex', 'user');
   assert.doesNotMatch(unit, /^User=/m, 'User= makes `systemctl --user enable` fail');
-  assert.match(unit, /ExecStart=\/usr\/local\/bin\/cortex daemon/);
+  assert.match(unit, /ExecStart="\/usr\/local\/bin\/node" "\/opt\/cortex\/daemon\.js"/);
 });
 
 test('a user unit is wanted by default.target — multi-user.target does not exist per-user', () => {
-  const unit = generateSystemdUnit('alice', '/usr/local/bin/cortex', '/home/alice/.cortex', 'user');
+  const unit = generateSystemdUnit('alice', { node: '/usr/local/bin/node', daemon: '/opt/cortex/daemon.js' }, '/home/alice/.cortex', 'user');
   assert.match(unit, /WantedBy=default\.target/);
   assert.doesNotMatch(unit, /multi-user\.target/);
 });
@@ -423,10 +423,10 @@ test('a user unit is wanted by default.target — multi-user.target does not exi
 // ─── generateLaunchdPlist ───────────────────────────────────────
 
 test('generateLaunchdPlist contains correct ProgramArguments and env', () => {
-  const plist = generateLaunchdPlist('/opt/bin/cortex', '/Users/bob/.cortex');
+  const plist = generateLaunchdPlist({ node: '/opt/bin/node', daemon: '/opt/cortex/daemon.js' }, '/Users/bob/.cortex');
   assert.match(plist, /cc\.cortex\.agent-server/);
-  assert.match(plist, /<string>\/opt\/bin\/cortex<\/string>/);
-  assert.match(plist, /<string>daemon<\/string>/);
+  assert.match(plist, /<string>\/opt\/bin\/node<\/string>/);
+  assert.match(plist, /<string>\/opt\/cortex\/daemon\.js<\/string>/);
   assert.match(plist, /CORTEX_HOME/);
   assert.match(plist, /<string>\/Users\/bob\/.cortex<\/string>/);
   assert.match(plist, /RunAtLoad/);

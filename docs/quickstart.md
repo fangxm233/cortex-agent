@@ -341,10 +341,10 @@ organization, and email for the next time you turn it on.
 ### 2.9 Register as a system service?
 
 - **macOS** — creates a `launchd` plist at
-  `~/Library/LaunchAgents/com.cortex.daemon.plist`. The daemon starts
-  automatically on login.
+  `~/Library/LaunchAgents/cc.cortex.agent-server.plist`. The daemon starts
+  automatically on login after you run the printed enable command.
 - **Linux** — creates a `systemd --user` unit (no `sudo` needed). The
-  daemon starts automatically on login.
+  daemon starts automatically on login after you run the printed enable command.
 - **Windows** — not supported. Start manually with `cortex daemon`.
 
 ### 2.10 Detect credentials, sign in, and configure profiles {#210-auto-detect-backends-for-gatewayprofiles}
@@ -480,15 +480,18 @@ cortex daemon         # supervised, restarts on crash + hot-reload
 cortex start          # foreground, Ctrl-C to stop
 ```
 
-If you chose to register a system service in Step 2.9, the daemon is
-already running and you can skip this. Check with:
+If you chose to register a system service in Step 2.9, init writes the
+service file and prints its enable command. Run that command to start it:
 
 ```bash
-cortex config         # prints resolved paths + init status
+# Linux user service
+systemctl --user enable --now cortex
+# macOS
+launchctl load ~/Library/LaunchAgents/cc.cortex.agent-server.plist
 ```
 
-You should see output confirming the daemon is running, including the
-Slack connection status and active profiles.
+Check the daemon with `cortex daemon status`. `cortex config` shows resolved
+paths and initialization status.
 
 ## Step 4 — Send your first messages
 

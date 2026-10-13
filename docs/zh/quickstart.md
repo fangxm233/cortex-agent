@@ -258,8 +258,8 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 ### 2.9 注册为系统服务？ {#29-register-as-a-system-service}
 
-- **macOS** — 在 `~/Library/LaunchAgents/com.cortex.daemon.plist` 创建 `launchd` plist。守护进程在登录时自动启动。
-- **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。守护进程在登录时自动启动。
+- **macOS** — 在 `~/Library/LaunchAgents/cc.cortex.agent-server.plist` 创建 `launchd` plist。运行打印的启用命令后，守护进程会在登录时自动启动。
+- **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。运行打印的启用命令后，守护进程会在登录时自动启动。
 - **Windows** — 不支持。需手动运行 `cortex daemon`。
 
 ### 2.10 检测凭据、登录并配置 Profile {#210-auto-detect-backends-for-gatewayprofiles}
@@ -362,13 +362,16 @@ cortex daemon         # 受监督运行，崩溃重启 + 热重载
 cortex start          # 前台运行，Ctrl-C 停止
 ```
 
-如果你在第二步 2.9 中选择了注册系统服务，守护进程已在运行，可以跳过此步骤。通过以下命令检查：
+如果你在第二步 2.9 中选择了注册系统服务，init 会写入服务文件并打印启用命令。需要运行该命令才能启动服务：
 
 ```bash
-cortex config         # 打印解析后的路径 + 初始化状态
+# Linux 用户服务
+systemctl --user enable --now cortex
+# macOS
+launchctl load ~/Library/LaunchAgents/cc.cortex.agent-server.plist
 ```
 
-你应该看到确认守护进程正在运行的输出，包括 Slack 连接状态和活跃的配置。
+用 `cortex daemon status` 检查守护进程状态；`cortex config` 显示解析后的路径和初始化状态。
 
 ## 第四步 — 发送你的第一条消息 {#step-4-send-your-first-messages}
 

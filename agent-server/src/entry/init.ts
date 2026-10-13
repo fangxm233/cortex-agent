@@ -593,9 +593,11 @@ export type SystemdScope = 'system' | 'user';
  * silently create a symlink that never activates. User units therefore drop `User=` and hook onto
  * `default.target`.
  */
+interface DaemonServiceEntry { node: string; daemon: string }
+
 export function generateSystemdUnit(
   user: string,
-  cortexBin: string,
+  entry: DaemonServiceEntry,
   dataDir: string,
   scope: SystemdScope = 'system',
 ): string {
@@ -608,7 +610,7 @@ export function generateSystemdUnit(
     '[Service]',
     'Type=simple',
     ...(isUser ? [] : [`User=${user}`]),
-    `ExecStart=${cortexBin} daemon`,
+    `ExecStart=${JSON.stringify(entry.node)} ${JSON.stringify(entry.daemon)}`,
     `Environment=CORTEX_HOME=${dataDir}`,
     'Restart=on-failure',
     'RestartSec=5',
@@ -620,7 +622,7 @@ export function generateSystemdUnit(
 }
 
 /** Generate launchd plist content for macOS. */
-export function generateLaunchdPlist(cortexBin: string, dataDir: string): string {
+export function generateLaunchdPlist(entry: DaemonServiceEntry, dataDir: string): string {
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
@@ -630,8 +632,8 @@ export function generateLaunchdPlist(cortexBin: string, dataDir: string): string
     '  <string>cc.cortex.agent-server</string>',
     '  <key>ProgramArguments</key>',
     '  <array>',
-    `    <string>${cortexBin}</string>`,
-    '    <string>daemon</string>',
+    `    <string>${escapeXml(entry.node)}</string>`,
+    `    <string>${escapeXml(entry.daemon)}</string>`,
     '  </array>',
     '  <key>EnvironmentVariables</key>',
     '  <dict>',
@@ -652,15 +654,13 @@ export function generateLaunchdPlist(cortexBin: string, dataDir: string): string
   ].join('\n');
 }
 
-/** Resolve the cortex binary path (used in service files). */
-function resolveCortexBin(): string {
-  const cmd = process.platform === 'win32' ? 'where' : 'which';
-  try {
-    return execSync(`${cmd} cortex`, { stdio: 'pipe', encoding: 'utf-8' }).trim();
-  } catch {
-    // Fallback: node + cli.js
-    return `${process.execPath} ${path.join(INSTALL_ROOT, 'dist', 'entry', 'cli.js')}`;
-  }
+function escapeXml(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+/** Service managers supervise the foreground daemon, not the detaching CLI. */
+function resolveDaemonServiceEntry(): DaemonServiceEntry {
+  return { node: process.execPath, daemon: path.join(INSTALL_ROOT, 'dist', 'entry', 'daemon.js') };
 }
 
 /** Check if we have sudo/root access (Linux/macOS only). */
@@ -677,19 +677,19 @@ function hasSudo(): boolean {
 /** Install the service file. Returns true if installed by us, false if manual action needed. */
 function installService(dataDir: string): void {
   const user = os.userInfo().username;
-  const cortexBin = resolveCortexBin();
+  const entry = resolveDaemonServiceEntry();
   const platform = process.platform;
 
   if (platform === 'darwin') {
     const plistName = 'cc.cortex.agent-server.plist';
-    const plistContent = generateLaunchdPlist(cortexBin, dataDir);
+    const plistContent = generateLaunchdPlist(entry, dataDir);
     const plistPath = path.join(os.homedir(), 'Library', 'LaunchAgents', plistName);
 
     writeFileSync(plistPath, plistContent);
     clack.log.success(t('init.service.launchdWritten', { path: plistPath }));
     clack.log.info(t('init.service.launchdStartHint', { path: plistPath }));
   } else if (platform === 'linux') {
-    const unitContent = generateSystemdUnit(user, cortexBin, dataDir, 'system');
+    const unitContent = generateSystemdUnit(user, entry, dataDir, 'system');
     const unitName = 'cortex.service';
     const systemPath = `/etc/systemd/system/${unitName}`;
     const userUnitDir = path.join(os.homedir(), '.config', 'systemd', 'user');
@@ -698,7 +698,7 @@ function installService(dataDir: string): void {
     try {
       mkdirSync(userUnitDir, { recursive: true });
       const userUnitPath = path.join(userUnitDir, unitName);
-      writeFileSync(userUnitPath, generateSystemdUnit(user, cortexBin, dataDir, 'user'));
+      writeFileSync(userUnitPath, generateSystemdUnit(user, entry, dataDir, 'user'));
       clack.log.success(t('init.service.systemdUserWritten', { path: userUnitPath }));
       clack.log.info(t('init.service.systemdUserEnableHint'));
       return;
