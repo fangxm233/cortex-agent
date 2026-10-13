@@ -3,8 +3,6 @@ import type { Backend } from '@core/types/agent-types.js';
 import type { AgentRole } from '../roles.js';
 import { SUBAGENT_BACKEND_DESCRIPTION, SUBAGENT_MODEL_DESCRIPTION } from './schema.js';
 
-export const MAX_SUBAGENT_MODEL_CHOICES = 32;
-export const MAX_SUBAGENT_MODEL_LIST_CHARS = 1_200;
 export const MAX_SUBAGENT_ROLE_CHOICES = 24;
 export const MAX_SUBAGENT_ROLE_CHARS = 480;
 
@@ -169,8 +167,8 @@ interface NamedModel {
   name: string;
 }
 
-/** Deduplicate, order claude before pi (then by name), and apply the count and character caps. */
-function boundedModels(models: SubagentModelOption[]): { selected: NamedModel[]; omitted: number } {
+/** Deduplicate and order claude before pi, then by name. */
+function orderedModels(models: SubagentModelOption[]): NamedModel[] {
   const seen = new Set<string>();
   const named: NamedModel[] = [];
   for (const model of models) {
@@ -185,30 +183,18 @@ function boundedModels(models: SubagentModelOption[]): { selected: NamedModel[];
     ? left.name.localeCompare(right.name)
     : left.backend === 'claude' ? -1 : 1);
 
-  // Same accumulation rule the PI tool used: an entry that would overflow the character budget is
-  // skipped (not terminal), while the count cap stops the scan.
-  const selected: NamedModel[] = [];
-  let characters = 0;
-  for (const entry of named) {
-    if (selected.length >= MAX_SUBAGENT_MODEL_CHOICES) break;
-    const added = entry.name.length + (selected.length > 0 ? 2 : 0);
-    if (characters + added > MAX_SUBAGENT_MODEL_LIST_CHARS) continue;
-    selected.push(entry);
-    characters += added;
-  }
-  return { selected, omitted: named.length - selected.length };
+  return named;
 }
 
 function describeModelField(models: SubagentModelOption[], base: string): string {
-  const { selected, omitted } = boundedModels(models);
-  const claude = selected.filter((entry) => entry.backend === 'claude').map((entry) => entry.name);
-  const pi = selected.filter((entry) => entry.backend === 'pi').map((entry) => entry.name);
+  const named = orderedModels(models);
+  const claude = named.filter((entry) => entry.backend === 'claude').map((entry) => entry.name);
+  const pi = named.filter((entry) => entry.backend === 'pi').map((entry) => entry.name);
   const segments: string[] = [];
   if (claude.length > 0) segments.push(`claude: ${claude.join(', ')}`);
   if (pi.length > 0) segments.push(`pi: ${pi.join(', ')}`);
   if (segments.length === 0) return base;
-  const suffix = omitted > 0 ? ` (+${omitted} more)` : '';
-  return `${base} Known available — ${segments.join('; ')}${suffix}.`;
+  return `${base} Known available — ${segments.join('; ')}.`;
 }
 
 function describeBackendField(models: SubagentModelOption[], base: string): string {
