@@ -26,6 +26,7 @@ vi.mock('../../../src/domain/executions/registry.js', () => ({
   getRunningExecutions: () => running,
 }));
 
+const fallback = await import('../../../src/domain/runs/fallback.js');
 const { fireScheduledTask } = await import('../../../src/domain/scheduling/jobs/scheduled-task.js');
 const { ctx } = await import('../../../src/domain/scheduling/job-registry.js');
 const { createDirectSession } = await import('../../../src/domain/sessions/session-lifecycle.js');
@@ -190,4 +191,15 @@ test('a session adopted by a reply runs as an ordinary user turn again', () => {
   expect(conversationTrigger({ origin: 'direct', scheduleId: 'sch-4' }))
     .toEqual({ trigger: 'user', executionKind: 'local', scheduleTaskId: null });
   expect(conversationTrigger(null)).toEqual({ trigger: 'user', executionKind: 'local', scheduleTaskId: null });
+});
+
+test('all-config rate limiting reports the skipped schedule without opening a session', async () => {
+  vi.spyOn(fallback, 'allConfigsRateLimited').mockReturnValue(true);
+  const { deps } = makeDeps();
+  await fireScheduledTask(fire(), deps);
+  expect(deps.createSession).not.toHaveBeenCalled();
+  expect(notify).toHaveBeenCalledTimes(1);
+  expect(notify.mock.calls[0][0]).toMatchObject({ type: 'project-report', projectId: 'proj-a' });
+  expect(notify.mock.calls[0][1]).toContain('summarize new arxiv papers');
+  expect(notify.mock.calls[0][1]).toContain('rate-limited');
 });

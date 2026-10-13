@@ -85,6 +85,7 @@ export async function fireScheduledTask(
 
   if (allConfigsRateLimited(profileName)) {
     log.info(`Skipping schedule ${scheduleTaskId} — all configs rate-limited for profile ${profileName}`);
+    await notifySkippedSchedule(projectId, t('notice.schedule.rateLimited', { id: scheduleTaskId, message }));
     return;
   }
 
@@ -94,10 +95,7 @@ export async function fireScheduledTask(
   } catch (error) {
     // Nothing ran, so the notice is the only trace this fire leaves.
     log.error(`Scheduled task ${scheduleTaskId} setup failed:`, (error as Error).message);
-    const destination: Destination = { type: 'project-report', projectId, trigger: 'scheduled', sessionId: '' };
-    try {
-      await requireJobCtx('notify')(destination, t('notice.schedule.error', { error: (error as Error).message }));
-    } catch { /* best-effort */ }
+    await notifySkippedSchedule(projectId, t('notice.schedule.error', { error: (error as Error).message }));
   } finally {
     scheduledTaskActive.delete(schedKey);
   }
@@ -131,4 +129,11 @@ async function openScheduledRun(
   });
   log.info(`Schedule ${scheduleTaskId} opened session ${created.sessionName} (${created.sessionId})`);
   await deliver({ channel: created.channel, text: message });
+}
+
+async function notifySkippedSchedule(projectId: string, text: string): Promise<void> {
+  const destination: Destination = { type: 'project-report', projectId, trigger: 'scheduled', sessionId: '' };
+  try {
+    await requireJobCtx('notify')(destination, text);
+  } catch { /* best-effort */ }
 }

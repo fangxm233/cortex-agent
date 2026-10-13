@@ -1,5 +1,6 @@
 import { watch, FSWatcher } from 'fs';
 import { runShell } from '@core/exec-async.js';
+import { t } from '@core/i18n.js';
 import { Icons } from '../../core/icons.js';
 import { DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
@@ -88,23 +89,28 @@ class Scheduler {
   async start(): Promise<void> {
     const now = Date.now();
 
-    // Drop once tasks that are more than 1 minute overdue
-    const data = await this._repo.mutate((data) => {
-      data.tasks = data.tasks.filter(task => {
-        if (task.type === 'once' && task.runAt! < now - 60_000) {
-          log.info(`Dropping overdue once task ${task.id}: "${task.message}"`);
-          return false;
-        }
-        return true;
-      });
-      return { next: data, result: data };
-    });
+    const { data, overdue } = await this._dropOverdueOnce(now);
+    for (const task of overdue) {
+      this._adminNotifier?.(t('notice.schedule.overdue', {
+        id: task.id, message: task.message, seconds: Math.floor((now - task.runAt!) / 1000),
+      }));
+    }
 
     for (const task of data.tasks) {
       this._scheduleTask(task);
     }
     if (this.watchFile) this._startWatching();
     log.info(`Started with ${data.tasks.length} task(s)`);
+  }
+
+  async _dropOverdueOnce(now: number): Promise<{ data: { tasks: ScheduleTask[] }; overdue: ScheduleTask[] }> {
+    return this._repo.mutate((data) => {
+      const overdue = data.tasks.filter(task => task.type === 'once' && task.runAt! < now - 60_000);
+      const ids = new Set(overdue.map(task => task.id));
+      data.tasks = data.tasks.filter(task => !ids.has(task.id));
+      for (const task of overdue) log.info(`Dropping overdue once task ${task.id}: "${task.message}"`);
+      return { next: data, result: { data, overdue } };
+    });
   }
 
   // Stop all timers and file watcher (used on shutdown)

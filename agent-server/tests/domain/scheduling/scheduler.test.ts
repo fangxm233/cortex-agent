@@ -381,3 +381,25 @@ test('a failing fire does not end a recurring task: the next fire still happens'
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('startup reports an overdue once task before dropping it', withTempSchedules(async ({ scheduler, schedulesFile }) => {
+  const notices: string[] = [];
+  const now = Date.now();
+  vi.spyOn(Date, 'now').mockReturnValue(now);
+  scheduler.setAdminNotifier((text: string) => notices.push(text));
+  fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{
+    id: 'missed', type: 'once', runAt: now - 120_000, message: 'send digest',
+    projectId: 'general', profile: 'plan', createdAt: now - 180_000,
+  }] }));
+  try {
+    await scheduler.start();
+    assert.deepEqual(await scheduler.list(), []);
+    assert.equal(notices.length, 1);
+    assert.match(notices[0], /send digest/);
+    assert.match(notices[0], /120/);
+    await scheduler.start();
+    assert.equal(notices.length, 1);
+  } finally {
+    vi.restoreAllMocks();
+  }
+}));
