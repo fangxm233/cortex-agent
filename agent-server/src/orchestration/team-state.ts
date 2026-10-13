@@ -128,7 +128,7 @@ export function _resetTeamState(): void {
 
 /** A waitpoint that will still wake its owner: armed, or fired with the wake not yet delivered. */
 export function isOpenWaitpoint(wp: Waitpoint): boolean {
-  return wp.state === 'armed' || wp.delivery.pending;
+  return wp.state === 'armed' || wp.delivery.pending || wp.delivery.inFlight === true;
 }
 
 /** How many open waitpoints this session owns (the ownership rule `SessionInfo.waitingOn` uses). */

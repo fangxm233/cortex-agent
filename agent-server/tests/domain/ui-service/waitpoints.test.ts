@@ -176,3 +176,10 @@ test('fired but undelivered waitpoints remain visible', async () => {
   assert.equal(out[0].delivery.pending, true);
   assert.equal(out[0].delivery.lastError, 'offline');
 });
+
+test('claimed wakes stay visible while delivery is in flight', async () => {
+  const claimed = wp({ state: 'fired', delivery: { pending: false, inFlight: true, attempts: 1 } });
+  const out = await handleWaitpointsList(depsWith([claimed], { sessionId: 's1', channel: 'web:s1' }), { sessionId: 's1' });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].delivery.pending, true);
+});

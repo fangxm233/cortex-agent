@@ -60,7 +60,7 @@ export function toWaitpointInfo(wp: Waitpoint, now: number, wakeLimit: number): 
     expiresAt: wp.expiresAt,
     signals: wp.signals.map(toSignalInfo),
     delivery: {
-      pending: wp.delivery.pending,
+      pending: wp.delivery.pending || wp.delivery.inFlight === true,
       attempts: wp.delivery.attempts,
       lastError: wp.delivery.lastError ?? null,
       lastAt: wp.delivery.lastAt ?? null,

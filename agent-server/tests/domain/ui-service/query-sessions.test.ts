@@ -768,8 +768,9 @@ test('sessions.transcript suppresses an active record whose committed history ro
 test('sessions.list counts fired waitpoints until their wake is delivered', async () => {
   const deps = makeDeps({
     waitpointRegistry: {
+      cancel: async () => ({ cancelled: false }),
       list: async () => [
-        { state: 'fired', owner: { sessionId: 's1', channel: 'C1' }, delivery: { pending: true } },
+        { state: 'fired', owner: { sessionId: 's1', channel: 'C1' }, delivery: { pending: false, inFlight: true } },
         { state: 'fired', owner: { sessionId: 's1', channel: 'C1' }, delivery: { pending: false } },
       ] as never,
     },

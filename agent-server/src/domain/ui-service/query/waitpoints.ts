@@ -33,7 +33,7 @@ export async function handleWaitpointsList(
   const record = await deps.sessionStore.getById(sessionId);
   const channel: string | null = record?.channel ?? null;
 
-  const active = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending);
+  const active = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending || wp.delivery.inFlight === true);
   const mine = active.filter((wp) => ownsWaitpoint(wp, sessionId, channel));
 
   const now = Date.now();
