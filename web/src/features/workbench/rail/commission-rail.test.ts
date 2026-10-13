@@ -13,7 +13,6 @@ const session = (overrides: Partial<SessionInfo> = {}): SessionInfo =>
   ({
     sessionId: 's' + ++seq,
     projectId: 'atlas',
-    name: 'cortex-' + seq,
     label: 'session ' + seq,
     createdAt: ago(DAY),
     lastUsedAt: ago(HOUR),

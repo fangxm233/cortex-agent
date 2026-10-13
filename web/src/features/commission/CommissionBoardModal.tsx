@@ -5,6 +5,7 @@ import { Modal } from '@/design/Modal';
 import { fmt, useVocab } from '@/i18n';
 import { MarkdownView } from '@/features/memory/MarkdownView';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { fetchCommissionAssetObjectUrl } from './commission-assets';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -286,7 +287,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
                   >
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber-fg)', flex: 'none' }} />
                     <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {s.label ?? s.name ?? s.sessionId}
+                      {s.label ?? shortSessionId(s.sessionId)}
                     </span>
                   </div>
                 ))}

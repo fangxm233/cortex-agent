@@ -6,7 +6,6 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
   return {
     sessionId: 'sess_1',
     backendSessionId: null,
-    name: 'morning review',
     projectId: 'cortex-self',
     backend: 'claude',
     kind: 'local',
@@ -39,6 +38,13 @@ describe('buildCmdkItems', () => {
     expect(item.projectId).toBe('cortex-self');
     expect(item.id).toBe('session:sess_1');
     expect(item.keywords).toContain('sess_1');
+    expect(item.label).toBe('sess_1');
+  });
+
+  it('shows the first eight ID characters when no label exists', () => {
+    const [item] = buildCmdkItems({ sessions: [session({ sessionId: 'abcdef12-3456-7890-abcd-ef1234567890' })] });
+    expect(item.label).toBe('abcdef12');
+    expect(item.keywords).toContain('abcdef12-3456-7890-abcd-ef1234567890');
   });
 
   it('produces cmdk values that cannot collide with nav commands', () => {
@@ -51,7 +57,7 @@ describe('buildCmdkItems', () => {
 describe('selectPaletteRows', () => {
   const many = (n: number, mk: (i: number) => unknown) => Array.from({ length: n }, (_, i) => mk(i));
   const sources = {
-    sessions: many(20, (i) => session({ sessionId: 'sess_' + i, name: 'sess ' + i })),
+    sessions: many(20, (i) => session({ sessionId: 'sess_' + i })),
   } as Parameters<typeof selectPaletteRows>[1];
 
   it('empty query → nav commands + capped entities per kind', () => {

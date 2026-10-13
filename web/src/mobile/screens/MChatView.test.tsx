@@ -71,7 +71,6 @@ const selection: MChatSelection = {
 const baseProps = {
   title: 'session',
   onBack: () => {},
-  cortexId: null,
   backendUuid: null,
   composerValue: '',
   onComposerChange: () => {},
@@ -412,7 +411,7 @@ describe('MChatView header status line', () => {
 describe('MChatView team context', () => {
   const status = { running: false, tone: 'idle' as const, text: 'idle' };
   const worker = (sessionId: string, retired = false, extra: Record<string, unknown> = {}) => ({
-    sessionId, projectId: 'p', name: sessionId, label: null, origin: 'direct', teamLeadId: 'lead',
+    sessionId, projectId: 'p', label: null, origin: 'direct', teamLeadId: 'lead',
     workerName: 'w-' + sessionId, workerRetiredAt: retired ? 1 : null, createdAt: '', lastUsedAt: '', ...extra,
   }) as unknown as import('@cortex-agent/ui-contract').SessionInfo;
   const mount = (extra: Record<string, unknown>) => {
@@ -479,14 +478,14 @@ describe('MChatView overlays', () => {
   it('copies the stable session ID from the sheet and closes it on another session', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText } });
-    const r = mount({ cortexId: 'cortex-7', backendUuid: 'backend-7' });
+    const r = mount({ backendUuid: 'backend-7' });
     act(() => r.root.findByProps({ 'aria-label': 'More' }).props.onClick());
     act(() => byLabel(r, 'Session ID').props.onClick());
     expect(byLabel(r, 'Session ID')).toBeUndefined();
     expect(sheets(r)).toHaveLength(1);
     const copies = r.root.findAll((n) => n.props.role === 'button' && n.children.includes('Copy'));
-    expect(copies).toHaveLength(3);
-    await act(async () => { copies[1].props.onClick(); });
+    expect(copies).toHaveLength(2);
+    await act(async () => { copies[0].props.onClick(); });
     expect(writeText).toHaveBeenCalledWith('s1');
     act(() => r.update(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s2" /></LangProvider>));
     expect(sheets(r)).toHaveLength(0);

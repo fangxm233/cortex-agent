@@ -1,6 +1,7 @@
 import type {
   CommissionInfo, ProjectConduitInfo, ScheduleInfo, SessionInfo,
 } from '@cortex-agent/ui-contract';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
 import { leadRow, workerRow } from './worker-rail';
@@ -154,7 +155,7 @@ export function sessionTooltipStamp(s: SessionInfo): string {
 }
 
 export function sessionTitle(s: SessionInfo): string {
-  return s.label ?? s.name ?? s.sessionId;
+  return s.label ?? shortSessionId(s.sessionId);
 }
 
 /** Case-insensitive substring match over the session title. */

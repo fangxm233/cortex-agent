@@ -23,7 +23,6 @@ const session = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInf
   ({
     sessionId,
     projectId: 'atlas',
-    name: 'cortex-' + sessionId,
     label: 'session ' + sessionId,
     createdAt: '2026-07-15T09:00:00Z',
     lastUsedAt: '2026-07-15T09:00:00Z',
@@ -178,7 +177,7 @@ describe('TeamCapsule', () => {
 
 describe('ChatHeader lead breadcrumb', () => {
   const header = (parent?: { title: string; onSelect: () => void } | null) => (
-    <ChatHeader title="Worker" running={false} projectName="atlas" backendSessionId={null} sessionName={null}
+    <ChatHeader title="Worker" running={false} projectName="atlas" backendSessionId={null}
       metadataSession={null} parent={parent} />
   );
 

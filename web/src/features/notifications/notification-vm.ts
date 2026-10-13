@@ -42,8 +42,8 @@ function previewText(text: string): string {
 export interface BuildNotificationInput {
   id: string;
   sessionId: string;
-  /** Session label/name for the title; null/empty falls back to a generic title. */
-  sessionName: string | null;
+  /** Session label or short ID for the title; null/empty falls back to a generic title. */
+  sessionLabel: string | null;
   projectId: string | null;
   /** The assistant message body. */
   text: string;
@@ -56,11 +56,11 @@ export interface BuildNotificationInput {
  *  a one-line preview of the message body. Level is always 'info' — the honest level for a
  *  chat reply (no severity guessing / fabrication). */
 export function buildNotification(input: BuildNotificationInput): NotificationItem {
-  const name = (input.sessionName ?? '').trim();
+  const label = (input.sessionLabel ?? '').trim();
   return {
     id: input.id,
     level: 'info',
-    title: name || (input.L ?? en).notifNewMessage,
+    title: label || (input.L ?? en).notifNewMessage,
     meta: previewText(input.text),
     ts: input.ts,
     sessionId: input.sessionId,

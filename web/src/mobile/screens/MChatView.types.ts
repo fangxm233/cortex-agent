@@ -69,7 +69,6 @@ export interface MChatViewProps {
   metadataSession?: MetadataSession | null;
   /** Whole-session totals rows, already formatted. Absent ⇒ the ⋯ menu hides the entry. */
   sessionStatsRows?: SessionStatsRow[] | null;
-  cortexId: string | null;
   backendUuid: string | null;
   systemLines?: string[];
   interactions?: MChatInteractions;

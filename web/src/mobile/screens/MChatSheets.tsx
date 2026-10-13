@@ -63,14 +63,13 @@ function SessionIdRow({ row, copied, onCopy }: SessionIdRowProps): JSX.Element {
   );
 }
 
-export function SessionIdSheet({ cortexId, sessionId, backendUuid, onClose }: {
-  cortexId: string | null | undefined;
+export function SessionIdSheet({ sessionId, backendUuid, onClose }: {
   sessionId: string | null | undefined;
   backendUuid: string | null | undefined;
   onClose: () => void;
 }): JSX.Element {
   const copy = useVocabOptional();
-  const rows = buildSessionIdRows({ cortexId, sessionId, backendUuid, cortexIdLabel: copy.wbCortexId, sessionIdLabel: copy.wbSessionId, backendUuidLabel: copy.wbBackendUuid });
+  const rows = buildSessionIdRows({ sessionId, backendUuid, sessionIdLabel: copy.wbSessionId, backendUuidLabel: copy.wbBackendUuid });
   const { copiedKey, copy: writeCopy } = useClipboardFeedback<string>();
   const doCopy = (key: string, value: string): void => {
     if (value !== '—') void writeCopy(value, key);

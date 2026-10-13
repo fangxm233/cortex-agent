@@ -5,7 +5,7 @@ import type {
   ScheduleInfo,
   SessionInfo,
 } from '@cortex-agent/ui-contract';
-import { buildRailTree, projectOfSession, sessionMatchesFilter, type RailTreeInput } from './rail-tree';
+import { buildRailTree, projectOfSession, sessionMatchesFilter, sessionTitle, type RailTreeInput } from './rail-tree';
 
 const NOW = Date.parse('2026-07-16T12:00:00');
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -29,13 +29,20 @@ const session = (
   ({
     sessionId: 's' + ++seq,
     projectId,
-    name: 'cortex-' + seq,
     label: 'session ' + seq,
     createdAt: ago(DAY),
     lastUsedAt: ago(HOUR),
     origin: 'direct',
     ...overrides,
   }) as SessionInfo;
+
+describe('sessionTitle', () => {
+  it('uses the label or first eight UUID characters', () => {
+    const id = 'abcdef12-3456-7890-abcd-ef1234567890';
+    expect(sessionTitle(session('atlas', { sessionId: id, label: null }))).toBe('abcdef12');
+    expect(sessionTitle(session('atlas', { sessionId: id, label: 'My label' }))).toBe('My label');
+  });
+});
 
 const schedule = (id: string, projectId: string): ScheduleInfo =>
   ({

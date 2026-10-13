@@ -204,7 +204,7 @@ vi.mock('@/features/session/transcript/MessageStream', async () => {
 import { CenterChat } from './CenterChat';
 
 const SESSION = {
-  sessionId: 's1', name: 'Session', label: null, running: false, backgroundRunning: false,
+  sessionId: 's1', label: null, running: false, backgroundRunning: false,
   contextUsage: null, contextCompactionSupported: false, backendSessionId: null,
   profileName: 'default', numTurns: null, costUsd: null,
 };
@@ -298,7 +298,7 @@ describe('desktop chat metadata target', () => {
 
 describe('desktop chat team context', () => {
   const lead = { ...SESSION, teamLeadId: null, workerName: null, workerRetiredAt: null };
-  const worker = { ...SESSION, sessionId: 'w1', name: 'Worker', teamLeadId: 's1', workerName: 'bench', workerRetiredAt: null };
+  const worker = { ...SESSION, sessionId: 'w1', teamLeadId: 's1', workerName: 'bench', workerRetiredAt: null };
   const capsules = () => mounted!.root.findAll((n) => n.type === 'button' && n.props['data-team-capsule'] !== undefined);
   const parent = () => mounted!.root.findByProps({ 'data-chat-header': true }).props['data-parent'];
 

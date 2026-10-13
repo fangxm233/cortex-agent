@@ -1,5 +1,6 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 
 // Pure mapping from the real tRPC query result (sessions.list) into the prototype's ⌘K flat-row
 // item model (prototype.dc.html L1304–1311 + the `allCmdk` demo shape L2489–2499). Each row =
@@ -72,11 +73,10 @@ function tokens(...parts: (string | null | undefined)[]): string[] {
 
 function sessionItem(s: SessionInfo): CmdkItem {
   return {
-    // Same title the rail shows (rail-tree sessionTitle): the user-set `label` wins over the
-    // generated `name`, so a session found here is not called something else in the tree.
-    id: `session:${s.sessionId}`, label: s.label || s.name || s.sessionId,
+    // Match the rail's label/short-ID title while indexing the full ID for search.
+    id: `session:${s.sessionId}`, label: s.label || shortSessionId(s.sessionId),
     sub: s.projectId, kbd: 'session', route: '/workbench', focusId: s.sessionId, projectId: s.projectId,
-    keywords: tokens(s.sessionId, s.name, s.label, s.projectId, s.backend, s.kind),
+    keywords: tokens(s.sessionId, s.label, s.projectId, s.backend, s.kind),
   };
 }
 

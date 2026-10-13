@@ -17,7 +17,6 @@ const session = (projectId: string, overrides: Partial<SessionInfo> = {}): Sessi
   ({
     sessionId: 's' + ++seq,
     projectId,
-    name: 'cortex-' + seq,
     label: 'session ' + seq,
     createdAt: ago(5 * HOUR),
     lastUsedAt: ago(HOUR),

@@ -8,7 +8,7 @@ import { findWorker, spawnedWorker, threadSummary, updateTimeRange, waitedWorker
 
 // Placeholder workers and text only.
 const session = (name: string, over: Partial<SessionInfo> = {}): SessionInfo => ({
-  sessionId: `w-${name}`, projectId: 'atlas', name: `cortex-${name}`, label: null, origin: 'direct',
+  sessionId: `w-${name}`, projectId: 'atlas', label: null, origin: 'direct',
   createdAt: '2026-07-15T09:00:00Z', lastUsedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
   teamLeadId: 'lead', workerName: name, workerRetiredAt: null, ...over,
 }) as SessionInfo;
