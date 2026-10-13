@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { McpBundleName } from '../../../src/core/mcp-bundles.js';
 import { MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist, RETIRED_MCP_TOOLS } from '../../../src/core/mcp-tool-gate.js';
 import { createBundledServer } from '../../../src/domain/mcp/bundled-server.js';
 import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
@@ -9,13 +10,16 @@ import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 const SCHEDULE_TOOLS = ['add', 'list', 'get', 'remove', 'pause', 'resume'].map(name => `cortex_schedule_${name}`);
 const EXT_TOOLS = ['cortex_context', 'cost_query', 'query_executions', 'wait_cancel', 'wait_check', 'wait_create'];
 
-async function withExtClient(allowlist: string[] | undefined, run: (client: Client) => Promise<void>): Promise<void> {
+async function withBundledClient(
+  allowlist: string[] | undefined, run: (client: Client) => Promise<void>,
+  bundles: McpBundleName[] = ['cortex-ext'],
+): Promise<void> {
   const ctx = toolContextFromEnv({
     CORTEX_SESSION_ID: 'test-session', CORTEX_SESSION_NAME: 'cortex-test', CORTEX_PROJECT: 'nimbus',
     CORTEX_PROFILE: 'test-profile', CORTEX_BACKEND: 'pi',
     ...(allowlist ? { CORTEX_MCP_TOOL_ALLOWLIST: JSON.stringify(allowlist) } : {}),
   });
-  const server = await createBundledServer(['cortex-ext'], ctx);
+  const server = await createBundledServer(bundles, ctx);
   const client = new Client({ name: 'schedule-retirement-test', version: '1.0.0' });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
@@ -34,7 +38,7 @@ test('schedule names are retired compatibility entries, not offered tools', () =
 });
 
 test('the actual ext surface omits all six schedule tools and preserves context', async () => {
-  await withExtClient(undefined, async client => {
+  await withBundledClient(undefined, async client => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map(tool => tool.name).sort(), EXT_TOOLS);
     assert.doesNotMatch(tools.find(tool => tool.name === 'cortex_context')!.description!, /cortex_schedule/);
@@ -48,14 +52,24 @@ test('the actual ext surface omits all six schedule tools and preserves context'
   });
 });
 
+test('the direct Web composition omits schedule tools across the full bundle surface', async () => {
+  const bundles: McpBundleName[] = ['cortex-core', 'cortex-ext', 'cortex-interaction-bridge', 'cortex-web'];
+  await withBundledClient(undefined, async client => {
+    const names = (await client.listTools()).tools.map(tool => tool.name).sort();
+    assert.deepEqual(names, bundles.flatMap(bundle => [...MCP_TOOLS_BY_SERVER[bundle]]).sort());
+    assert.ok(names.includes('cortex_context'));
+    for (const name of SCHEDULE_TOOLS) assert.equal(names.includes(name), false, name);
+  }, bundles);
+});
+
 test('an old allowlist can keep context without resurrecting schedule tools', async () => {
-  await withExtClient([...SCHEDULE_TOOLS, 'cortex_context'], async client => {
+  await withBundledClient([...SCHEDULE_TOOLS, 'cortex_context'], async client => {
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name), ['cortex_context']);
   });
 });
 
 test('a schedule-only old allowlist produces an empty surface', async () => {
-  await withExtClient(SCHEDULE_TOOLS, async client => {
+  await withBundledClient(SCHEDULE_TOOLS, async client => {
     assert.equal(client.getServerCapabilities()?.tools, undefined);
     await assert.rejects(client.listTools(), { code: -32601 });
   });
