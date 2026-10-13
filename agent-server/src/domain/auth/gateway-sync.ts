@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { discoverEndpoints, writeMergedGatewayYaml, type DiscoveredEndpoint } from '@core/gateway-generator.js';
-import { writeProfilesJson } from '@core/profile-generator.js';
+import { generateProfiles, recommendedChoice, writeProfilesJson, type ModelChoice } from '@core/profile-generator.js';
 import { CONFIG_DIR } from '@core/paths.js';
 
 const log = createLogger('gateway-sync');
@@ -59,7 +59,9 @@ export async function syncGatewayFromBackends(
     }
 
     writeMergedGatewayYaml(endpoints, options.gatewayConfigDir);
-    writeProfilesJson(endpoints, { outputDir: configDir, overwrite: false });
+    writeProfilesJson(endpoints, {
+      outputDir: configDir, overwrite: false, extraProfiles: missingBackendChoices(endpoints, configDir),
+    });
 
     const profiles = readProfileNames(configDir);
     log.info(`Synced ${endpoints.length} endpoint(s) → profiles: ${profiles.join(', ')}`);
@@ -81,4 +83,23 @@ function readProfileNames(configDir: string): string[] {
   } catch {
     return [];
   }
+}
+
+function missingBackendChoices(endpoints: DiscoveredEndpoint[], configDir: string): ModelChoice[] {
+  const file = path.join(configDir, 'profiles.json');
+  if (!existsSync(file)) return [];
+  const saved = JSON.parse(readFileSync(file, 'utf8')) as {
+    profiles?: Record<string, { backend: string }>;
+  };
+  const backends = new Set(Object.values(saved.profiles ?? {}).map(p => p.backend));
+  const extras: ModelChoice[] = [];
+  for (const endpoint of endpoints) {
+    const choice = recommendedChoice([endpoint]);
+    if (!choice) continue;
+    const backend = generateProfiles([endpoint]).profiles.plan.backend;
+    if (backends.has(backend)) continue;
+    extras.push(choice);
+    backends.add(backend);
+  }
+  return extras;
 }

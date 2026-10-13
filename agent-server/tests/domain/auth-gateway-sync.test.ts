@@ -99,3 +99,23 @@ test('sync never throws — a failing discovery is reported, not propagated', as
   assert.equal(result.configured, false);
   assert.match(String(result.reason), /exploded/);
 });
+
+test('second backend login adds a usable profile without replacing existing profiles', async () => {
+  const { configDir, gatewayConfigDir } = makeDirs();
+  const existing = { backend: 'claude', mode: 'plan', model: 'opus' };
+  fs.writeFileSync(path.join(configDir, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'execute', profiles: { plan: existing, execute: existing },
+  }));
+  const sync = () => syncGatewayFromBackends({
+    configDir, gatewayConfigDir, backends: ['pi'],
+    discover: () => [piEndpoint('acme', ['acme-large'])],
+  });
+  await sync();
+  await sync();
+  const saved = JSON.parse(fs.readFileSync(path.join(configDir, 'profiles.json'), 'utf8'));
+  assert.deepEqual(saved.profiles.plan, existing);
+  assert.deepEqual(saved.profiles.execute, existing);
+  assert.equal(saved.defaultProfile, 'execute');
+  assert.equal(saved.profiles['acme-large'].backend, 'pi');
+  assert.equal(Object.keys(saved.profiles).length, 3);
+});
