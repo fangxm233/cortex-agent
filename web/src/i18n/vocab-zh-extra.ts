@@ -23,6 +23,7 @@ export const zhExtra = {
   ttTabBody: '内容',
   ttTabValidation: '校验',
   ttTabPlugins: '插件',
+  ttTabPrompt: '系统提示词',
   ttOriginStock: '原版',
   ttOriginModified: '已改',
   ttOriginCustom: '自建',
@@ -55,6 +56,13 @@ export const zhExtra = {
   ttToastWriteFailed: '写入失败',
   ttToastConflict: '加载后磁盘上已被改动 — 请重新加载再保存',
   ttInvalidBadge: '有错',
+  ttPromptHint: '替换该环境的整个系统提示词，对新会话生效。',
+  ttPromptEmptyPh: '留空则使用后端默认提示词',
+  ttPromptInline: '写在环境内容中',
+  ttPromptNone: '未设置 — 使用后端默认',
+  ttPromptShared: '同时用于：{envs}，保存会一并改变它们。',
+  ttPromptRestore: '恢复默认',
+  ttPromptLocked: '请先保存或还原「内容」—— 保存提示词也会改动它。',
 
   // ── Provider usage ──
   usageRefresh: '刷新',

@@ -36,6 +36,7 @@ function detail(over: Partial<EnvironmentDetail> = {}): EnvironmentDetail {
     sha256: 'abc',
     errors: [],
     warnings: [],
+    systemPrompt: { kind: 'none', file: null, text: '', sharedWith: [], defaultText: null },
     ...over,
   };
 }

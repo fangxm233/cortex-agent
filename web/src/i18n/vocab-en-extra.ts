@@ -23,6 +23,7 @@ export const enExtra = {
   ttTabBody: 'Body',
   ttTabValidation: 'Validation',
   ttTabPlugins: 'Plugins',
+  ttTabPrompt: 'System prompt',
   ttOriginStock: 'stock',
   ttOriginModified: 'modified',
   ttOriginCustom: 'custom',
@@ -55,6 +56,13 @@ export const enExtra = {
   ttToastWriteFailed: 'Write failed',
   ttToastConflict: 'Changed on disk since it was loaded — reload before saving',
   ttInvalidBadge: 'invalid',
+  ttPromptHint: "Replaces this environment's entire system prompt. Applies to new sessions.",
+  ttPromptEmptyPh: 'Leave empty to use the backend default',
+  ttPromptInline: 'Inline in the environment body',
+  ttPromptNone: 'Not set — backend default',
+  ttPromptShared: 'Also used by: {envs}. Saving changes them too.',
+  ttPromptRestore: 'Restore default',
+  ttPromptLocked: 'Save or revert the body first — saving the prompt also updates it.',
 
   // ── Provider usage ──
   usageRefresh: 'Refresh',
