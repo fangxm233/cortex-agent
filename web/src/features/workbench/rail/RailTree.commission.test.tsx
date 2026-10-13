@@ -260,3 +260,27 @@ describe('team lead rail row', () => {
     act(() => renderer.unmount());
   });
 });
+
+
+describe('rail keyboard navigation', () => {
+  it.each(['Enter', ' '])('opens sessions and expands projects with %j', (key) => {
+    const session: RailSessionRow = { sessionId: 's1', projectId: 'p1', title: 'Session', age: '', stamp: '',
+      running: false, awaitingInput: false, waitingOn: false, unread: false, selected: true };
+    const onOpenSession = vi.fn();
+    const onToggleProject = vi.fn();
+    const { renderer } = renderTree({ nodes: [{ ...node([]), sessions: [session] }], onOpenSession, onToggleProject });
+    const sessionRow = renderer.root.findByProps({ 'data-session-id': 's1' });
+    const projectRow = renderer.root.findByProps({ 'data-project-row': 'p1' });
+    expect(sessionRow.props).toMatchObject({ role: 'button', tabIndex: 0, 'aria-current': true });
+    expect(projectRow.props).toMatchObject({ role: 'button', tabIndex: 0, 'aria-expanded': true });
+    for (const row of [sessionRow, projectRow]) {
+      const event = { key, target: row, currentTarget: row, preventDefault: vi.fn() };
+      act(() => row.props.onKeyDown(event));
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      act(() => row.props.onKeyDown({ ...event, target: {} }));
+    }
+    expect(onOpenSession).toHaveBeenCalledExactlyOnceWith(session);
+    expect(onToggleProject).toHaveBeenCalledExactlyOnceWith('p1');
+    act(() => renderer.unmount());
+  });
+});

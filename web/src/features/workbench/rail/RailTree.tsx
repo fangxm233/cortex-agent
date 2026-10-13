@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { useLang, useVocab } from '@/i18n';
-import { MENU_SURFACE } from '@/design/MenuChrome';
+import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { IconButton } from '@/design/IconButton';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
 import { RailSessionMenu } from './RailSessionMenu';
@@ -13,6 +13,13 @@ import { scheduleSubline, type ScheduleRow } from '@/features/session/list/sched
 const mono = "'IBM Plex Mono',monospace";
 // Header and folder-row icon controls fit inside the row's fixed height.
 const ROW_ICON = 22;
+
+function activateRow(event: KeyboardEvent, activate: () => void): void {
+  if (event.target !== event.currentTarget) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  activate();
+}
 
 // The three section-header glyphs share one optical box: 14px rendered, one 16 viewBox, content
 // bounded to y ∈ [3.4, 12.9], stroke 1.6. The sort glyph is a pair of opposed arrows rather than
@@ -245,6 +252,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         key={row.sessionId}
         {...hp(key)}
         data-session-id={row.sessionId}
+        role="button"
+        tabIndex={0}
+        aria-current={row.selected || undefined}
+        className={MENU_FOCUS}
+        onKeyDown={(event) => activateRow(event, () => props.onOpenSession(row))}
         title={row.stamp ? `${row.title} · ${row.stamp}` : row.title}
         onClick={() => props.onOpenSession(row)}
         style={{
@@ -524,6 +536,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         <div
           {...hp(key)}
           data-project-row={node.id}
+          role="button"
+          tabIndex={0}
+          aria-expanded={node.expanded}
+          className={MENU_FOCUS}
+          onKeyDown={(event) => activateRow(event, () => props.onToggleProject(node.id))}
           onClick={() => props.onToggleProject(node.id)}
           style={{
             // Transparent rows scroll with their sessions so text cannot overlap underneath.
