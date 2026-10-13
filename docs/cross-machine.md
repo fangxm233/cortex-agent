@@ -451,8 +451,32 @@ Because the trigger is the hello itself, devices converge whenever they
 connect: after a server restart with a new build, after a device comes back
 from days offline, or right after a bootstrap. There is no scheduled update
 job. If a new bundle crashes on startup, the SSH supervision keeps relaunching
-`current/`; recovery is `mv ~/.cortex/client/previous ~/.cortex/client/current`
-on the device, or a fresh bootstrap.
+`current/`. For manual recovery, move the failing version aside, then restore
+`previous/` on the device, or run a fresh bootstrap. These are real directories,
+not symlinks: `current/` must be absent before moving `previous/` into its place.
+The commands below keep the failing version in `broken/` and require that name
+to be unused; choose another unused name if needed. Use your client install root
+if it differs from `~/.cortex/client`.
+
+Linux/macOS (Bash):
+
+```bash
+cd ~/.cortex/client &&
+  test -d previous && test ! -e broken &&
+  mv current broken && mv previous current
+```
+
+Windows (PowerShell):
+
+```powershell
+& {
+  Set-Location "$HOME/.cortex/client" -ErrorAction Stop
+  if (-not (Test-Path -LiteralPath previous -PathType Container)) { throw 'previous/ is missing' }
+  if (Test-Path -LiteralPath broken) { throw 'Choose an unused backup name for broken/' }
+  Move-Item -LiteralPath current -Destination broken -ErrorAction Stop
+  Move-Item -LiteralPath previous -Destination current -ErrorAction Stop
+}
+```
 
 ## Client-side reconnect behavior
 

@@ -312,7 +312,27 @@ agent-server `domain/remote/` 下的两个模块共同管理远程客户端生�
 
 客户端把文件写入 `~/.cortex/client/next/`、校验 hash、把 `current/` 轮换到 `previous/`、`next/` 轮换到 `current/`，回报 `update-result`，关闭 socket，从 `current/` 生成后继进程并退出。后继进程带新 hash 重连，服务器据此记录收敛。任何失败（hash 错误、磁盘不可写）都不触碰正在运行的版本——设备继续以旧 bundle 在线，服务器得知原因。同一设备上失败的安装 10 分钟内不重试。
 
-由于触发点就是 hello 本身，设备在任何连接时刻收敛：服务器带新构建重启后、设备离线多日后归来、或 bootstrap 刚完成之后。不存在定时更新任务。如果新 bundle 启动即崩溃，SSH 监督会持续拉起 `current/`；恢复手段是在设备上执行 `mv ~/.cortex/client/previous ~/.cortex/client/current`，或重新 bootstrap。
+由于触发点就是 hello 本身，设备在任何连接时刻收敛：服务器带新构建重启后、设备离线多日后归来、或 bootstrap 刚完成之后。不存在定时更新任务。如果新 bundle 启动即崩溃，SSH 监督会持续拉起 `current/`。手动恢复时，在设备上先移开故障版本，再恢复 `previous/`，也可以重新 bootstrap。这些路径是真实目录，不是符号链接：把 `previous/` 移回原位之前，`current/` 必须不存在。以下命令将故障版本保留在 `broken/` 中，要求该名称尚未使用；如已存在，请换一个未使用的名称。如果客户端安装根目录不是 `~/.cortex/client`，请使用实际路径。
+
+Linux/macOS（Bash）：
+
+```bash
+cd ~/.cortex/client &&
+  test -d previous && test ! -e broken &&
+  mv current broken && mv previous current
+```
+
+Windows（PowerShell）：
+
+```powershell
+& {
+  Set-Location "$HOME/.cortex/client" -ErrorAction Stop
+  if (-not (Test-Path -LiteralPath previous -PathType Container)) { throw 'previous/ is missing' }
+  if (Test-Path -LiteralPath broken) { throw 'Choose an unused backup name for broken/' }
+  Move-Item -LiteralPath current -Destination broken -ErrorAction Stop
+  Move-Item -LiteralPath previous -Destination current -ErrorAction Stop
+}
+```
 
 ## 客户端重连行为 {#client-side-reconnect-behavior}
 

@@ -132,8 +132,10 @@ export function handleUpdateMessage(msg: UpdateFrame, io: UpdateIo): void {
 
   // Stagger: let the result frame flush, close so the server frees the device
   // name, then spawn the successor and exit. If the successor fails to start,
-  // the server's SSH supervision relaunches from current/ (manual rescue:
-  // mv previous current).
+  // the server's SSH supervision relaunches from current/. Manual rescue in the
+  // install root (previous/ must exist and broken/ must be unused):
+  // mv current broken && mv previous current (real directories, not symlinks).
+  // See docs/cross-machine.md for guarded Bash and PowerShell commands.
   setTimeout(() => {
     try { io.closeWs(); } catch {}
     setTimeout(() => {
