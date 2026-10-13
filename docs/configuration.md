@@ -366,8 +366,9 @@ literal text or absent, saving writes the text to
 `prompts/systemPrompts/<name>.md` and points the environment at it. Empty text
 leaves the environment on the backend's default prompt. For a prompt file that
 ships with Cortex, **Restore default** loads the shipped text into the editor.
-A saved prompt applies to sessions started afterwards; sessions already open
-keep the prompt they started with.
+New sessions start with the saved prompt. A session already open on the PI
+backend switches to it on its next turn; one on Claude Code keeps its prompt
+until its backend process restarts.
 
 ## Environments vs profiles
 
