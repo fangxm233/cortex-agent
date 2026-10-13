@@ -35,7 +35,7 @@ function harness(clientHeight = 500) {
     style: { setProperty: () => {} },
   };
   const textarea = { value: '', scrollHeight: 40, style: {}, focus: () => {}, setSelectionRange: () => {} };
-  const onSubmit = vi.fn();
+  const onSubmit = vi.fn().mockResolvedValue(undefined);
   const edit = { running: false, busy: false, onSubmit };
   const view = (key: string, rows: ChatRow[], loading = false) => (
     <LangProvider>
@@ -124,7 +124,7 @@ describe('MessageStream transcript window', () => {
     expect(h.range()).toEqual([160, 199, 40]);
   });
 
-  it('edits a mounted prompt without mounting the rows above the window', () => {
+  it('edits a mounted prompt without mounting the rows above the window', async () => {
     const h = harness();
     h.render('a', userRows(100));
     const row = h.tree().root.find((n) => typeof n.props.onStartEdit === 'function' && n.props.row?.text === 'u80');
@@ -132,7 +132,7 @@ describe('MessageStream transcript window', () => {
     const box = h.tree().root.findByType(EditBox);
     expect(box.props.initialText).toBe('u80');
     expect(h.anchors()).toEqual([...Array.from({ length: 20 }, (_, i) => 60 + i), ...Array.from({ length: 19 }, (_, i) => 81 + i)]);
-    act(() => box.props.onSubmit('revised'));
+    await act(async () => box.props.onSubmit('revised'));
     expect(h.onSubmit).toHaveBeenCalledWith(80, 'revised');
     expect(h.tree().root.findAllByType(EditBox)).toHaveLength(0);
   });
