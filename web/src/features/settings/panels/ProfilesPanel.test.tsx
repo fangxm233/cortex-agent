@@ -1,7 +1,12 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { ProfilesPanelView, type ProfilesPanelViewProps } from './ProfilesPanel';
+import { ProfilesPanel, ProfilesPanelView, type ProfilesPanelViewProps } from './ProfilesPanel';
+
+const controller = vi.hoisted(() => ({ dirty: false }));
+vi.mock('../controllers/useProfilesController', () => ({
+  useProfilesController: () => ({ ...controller, snapshot: null }),
+}));
 
 const name = `profile-${'long-identifier-'.repeat(8)}`;
 const profile = {
@@ -54,5 +59,22 @@ describe('responsive desktop profiles', () => {
     expect(button('delete').props.disabled).toBe(true);
     expect(props.onArmDelete).not.toHaveBeenCalled();
     renderer.unmount();
+  });
+});
+
+
+describe('profile dirty reporting', () => {
+  it('reports edits and clears the leave guard on unmount', () => {
+    const onDirtyChange = vi.fn();
+    const snapshot = viewProps().snapshot;
+    let view!: ReturnType<typeof create>;
+    act(() => { view = create(<ProfilesPanel snapshot={snapshot} onDirtyChange={onDirtyChange} />); });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    controller.dirty = true;
+    act(() => view.update(<ProfilesPanel snapshot={snapshot} onDirtyChange={onDirtyChange} />));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    act(() => view.unmount());
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    controller.dirty = false;
   });
 });
