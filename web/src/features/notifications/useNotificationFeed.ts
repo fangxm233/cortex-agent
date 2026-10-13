@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useVocabOptional, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
+import { isMobileShell } from '@/lib/desktop-config';
 import { buildNotification, buildSystemNotice, type NotificationItem } from './notification-vm';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
 import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';
@@ -12,6 +13,7 @@ interface DirectEntry {
   projectId: string | null;
   /** A team worker (active or retired): its turns reach the user through the lead, never on their own. */
   silent: boolean;
+  awaitingInput: boolean;
 }
 
 interface DirectLookup {
@@ -25,7 +27,7 @@ interface BufferedTurnMessage {
   ts: string;
 }
 
-type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId' | 'teamLeadId'>;
+type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId' | 'teamLeadId' | 'awaitingInput'>;
 type Deliver = (item: NotificationItem) => void;
 type NextId = (prefix: 'dmn' | 'sysn') => string;
 
@@ -44,6 +46,7 @@ function toDirectMap(sessions: readonly DirectSession[] | undefined): Map<string
       name: session.label ?? session.name,
       projectId: session.projectId,
       silent: !!session.teamLeadId,
+      awaitingInput: !!session.awaitingInput,
     });
   }
   return map;
@@ -143,6 +146,25 @@ function useDmFeed(lookup: DirectLookup, isSessionOpen: (sessionId: string) => b
   useDmNotifications({ onMessage, onTurnEnd });
 }
 
+function useAwaitingFeed(map: Map<string, DirectEntry>, isSessionOpen: (id: string) => boolean,
+  nextId: NextId, deliver: Deliver): void {
+  const previous = useRef(new Map<string, DirectEntry>());
+  const L = useVocabOptional();
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = map;
+    if (isMobileShell()) return;
+    for (const [sessionId, entry] of map) {
+      if (!entry.awaitingInput || before.get(sessionId)?.awaitingInput !== false) continue;
+      if (entry.silent || isSessionOpen(sessionId)) continue;
+      deliver({ ...buildNotification({
+        id: nextId('dmn'), sessionId, sessionName: entry.name, projectId: entry.projectId,
+        text: L.notifAwaitingInput, ts: new Date().toISOString(), L,
+      }), level: 'warning' });
+    }
+  }, [map, isSessionOpen, nextId, deliver, L]);
+}
+
 function useNoticeFeed(nextId: NextId, deliver: Deliver): void {
   const L = useVocabOptional();
   const onNotice = useCallback((message: SystemNoticeMessage) => {
@@ -168,5 +190,6 @@ export function useNotificationFeed({
   const deliver = useDelivery(publish, externalDelivery);
   const nextId = useCallback<NextId>((prefix) => `${prefix}-${counter.current++}`, []);
   useDmFeed(directLookup, isSessionOpen, nextId, deliver);
+  useAwaitingFeed(directLookup.map, isSessionOpen, nextId, deliver);
   useNoticeFeed(nextId, deliver);
 }

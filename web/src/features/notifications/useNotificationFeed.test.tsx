@@ -11,6 +11,7 @@ const harness = vi.hoisted(() => ({
     name: string | null;
     projectId: string | null;
     teamLeadId?: string | null;
+    awaitingInput?: boolean;
   }> | undefined,
   refetch: vi.fn(),
   dm: null as DmNotificationHandlers | null,
@@ -236,6 +237,40 @@ describe('useNotificationFeed', () => {
 
     expect(published).toEqual([]);
     expect(harness.refetch).not.toHaveBeenCalled();
+  });
+
+  it('notifies once per awaiting-input transition, suppressing open sessions and workers', () => {
+    harness.sessions!.push(
+      { sessionId: 'open', name: null, label: null, projectId: 'atlas' },
+      { sessionId: 'worker', name: null, label: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+    );
+    const options = { isSessionOpen: (id: string) => id === 'open' };
+    mountFeed(options);
+    const update = (awaitingInput: boolean) => {
+      harness.sessions = harness.sessions!.map((s) => ({ ...s, awaitingInput }));
+      act(() => mounted?.update(<Probe {...probeProps(options)} />));
+    };
+    update(true);
+    update(true);
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({ sessionId: 'direct-1', projectId: 'atlas', level: 'warning' });
+    update(false);
+    update(true);
+    expect(published).toHaveLength(2);
+  });
+
+  it('does not replay initial awaiting sessions or duplicate Android native notices', () => {
+    harness.sessions![0].awaitingInput = true;
+    const options = { isSessionOpen: () => false };
+    mountFeed(options);
+    expect(published).toEqual([]);
+    vi.stubGlobal('__CORTEX_MOBILE__', true);
+    harness.sessions = harness.sessions!.map((s) => ({ ...s, awaitingInput: false }));
+    act(() => mounted?.update(<Probe {...probeProps(options)} />));
+    harness.sessions = harness.sessions!.map((s) => ({ ...s, awaitingInput: true }));
+    act(() => mounted?.update(<Probe {...probeProps(options)} />));
+    expect(published).toEqual([]);
+    vi.unstubAllGlobals();
   });
 
   it('publishes system notices with their server level, in order', () => {
