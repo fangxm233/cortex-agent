@@ -166,7 +166,7 @@ export function upsertCustomProvider(
     return { ok: false, errors: ['write-failed'] };
   }
 
-  const entry = buildModelsJsonEntry(provider, stores.gatewayUrl);
+  const entry = mergedModelsEntry(stores, provider);
   try {
     upsertModelsJsonProvider(stores.modelsPath, name, entry);
   } catch (err) {
@@ -224,4 +224,20 @@ export function removeCustomProvider(
 
   stores.onChanged?.();
   return { ok: true };
+}
+
+function mergedModelsEntry(
+  stores: CustomProviderStores,
+  provider: CustomProviderInput,
+): Record<string, unknown> {
+  const previous = readCustomProviderEntries(stores.modelsPath)[provider.name] ?? {};
+  const entry = { ...previous, ...buildModelsJsonEntry(provider, stores.gatewayUrl) };
+  const models = Array.isArray(previous.models) ? previous.models : [];
+  const byId = new Map(models.map(model => [model.id, model]));
+  entry.models = (entry.models as Record<string, unknown>[]).map(spec => ({
+    ...byId.get(spec.id), ...spec,
+  }));
+  if (provider.headers !== undefined) entry.headers = provider.headers;
+  if (provider.compat !== undefined) entry.compat = provider.compat;
+  return entry;
 }

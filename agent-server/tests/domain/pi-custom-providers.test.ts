@@ -466,3 +466,32 @@ test('removeCustomProvider: refuses to touch a built-in baseUrl override', () =>
     fs.rmSync(stores.dir, { recursive: true, force: true });
   }
 });
+
+test('provider edits preserve advanced metadata only for retained models', () => {
+  const stores = tmpStores();
+  try {
+    upsertModelsJsonProvider(stores.modelsPath, VALID.name, {
+      api: VALID.api, baseUrl: 'http://old', headers: { 'x-custom': 'yes' },
+      compat: { supportsStore: false }, customFlag: true,
+      models: [
+        { id: 'Model-27B', contextWindow: 100000, maxTokens: 4096, reasoning: true, custom: 1 },
+        { id: 'removed', maxTokens: 2048 },
+      ],
+    });
+    assert.equal(upsertCustomProvider(stores, VALID).ok, true);
+    let entry = readJson(stores.modelsPath).providers[VALID.name];
+    assert.deepEqual(entry.headers, { 'x-custom': 'yes' });
+    assert.deepEqual(entry.compat, { supportsStore: false });
+    assert.equal(entry.customFlag, true);
+    assert.deepEqual(entry.models, [
+      { id: 'Model-27B', contextWindow: 100000, maxTokens: 4096, reasoning: true, custom: 1 },
+    ]);
+    upsertCustomProvider(stores, { ...VALID, headers: {}, compat: {}, models: [{ id: 'Model-27B', reasoning: false }] });
+    entry = readJson(stores.modelsPath).providers[VALID.name];
+    assert.deepEqual(entry.headers, {});
+    assert.deepEqual(entry.compat, {});
+    assert.equal(entry.models[0].reasoning, false);
+  } finally {
+    fs.rmSync(stores.dir, { recursive: true, force: true });
+  }
+});
