@@ -1,3 +1,4 @@
+import { readDesktopConfig } from '@/lib/desktop-config';
 import type { AttachmentMeta } from '@/features/attachments/types';
 
 /** A persisted composer draft. `draftUploadId` is only set for a new-session (draft-mode) composer,
@@ -13,14 +14,18 @@ export interface ComposerDraft {
 export const DRAFT_KEY_PREFIX = 'cortex.composerDraft.';
 
 /** The localStorage key for a composer scope, or null when there is nothing stable to key on.
- *  A new-session draft keys per project (one persistent draft per project's "+ New"); a real
+ *  A new-session draft keys per server and project; a real
  *  session keys by its session id. */
 export function draftStorageKey(scope: {
   isDraft: boolean;
   sessionId?: string | null;
   projectId?: string | null;
 }): string | null {
-  if (scope.isDraft) return `${DRAFT_KEY_PREFIX}new.${scope.projectId ?? 'general'}`;
+  if (scope.isDraft) {
+    const serverUrl = readDesktopConfig()?.serverUrl;
+    const server = serverUrl ? encodeURIComponent(serverUrl.replace(/\/+$/, '')) : 'local';
+    return `${DRAFT_KEY_PREFIX}new.${server}.${scope.projectId ?? 'general'}`;
+  }
   if (scope.sessionId) return `${DRAFT_KEY_PREFIX}session.${scope.sessionId}`;
   return null;
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   draftStorageKey,
   parseDraft,
@@ -19,15 +19,30 @@ const meta = (name: string): AttachmentMeta => ({
 });
 
 describe('draftStorageKey', () => {
+  afterEach(() => vi.unstubAllGlobals());
   it('keys a real session by its session id', () => {
     expect(draftStorageKey({ isDraft: false, sessionId: 'abc' })).toBe(`${DRAFT_KEY_PREFIX}session.abc`);
   });
   it('keys a new-session draft per project', () => {
-    expect(draftStorageKey({ isDraft: true, projectId: 'cortex-self' })).toBe(`${DRAFT_KEY_PREFIX}new.cortex-self`);
+    expect(draftStorageKey({ isDraft: true, projectId: 'cortex-self' })).toBe(`${DRAFT_KEY_PREFIX}new.local.cortex-self`);
   });
   it('falls back to general for a draft with no project', () => {
-    expect(draftStorageKey({ isDraft: true })).toBe(`${DRAFT_KEY_PREFIX}new.general`);
+    expect(draftStorageKey({ isDraft: true })).toBe(`${DRAFT_KEY_PREFIX}new.local.general`);
   });
+  it('isolates native server drafts without keying them to credentials', () => {
+    const scope = { isDraft: true, projectId: 'general' };
+    const local = draftStorageKey(scope);
+    vi.stubGlobal('__CORTEX_DESKTOP_CONFIG', { serverUrl: 'https://one.example', token: 'first-token' });
+    const first = draftStorageKey(scope);
+    vi.stubGlobal('__CORTEX_DESKTOP_CONFIG', { serverUrl: 'https://two.example', token: 'second-token' });
+    const second = draftStorageKey(scope);
+    expect(first).not.toBe(second);
+    expect(first).not.toBe(local);
+    vi.stubGlobal('__CORTEX_DESKTOP_CONFIG', { serverUrl: 'https://one.example/', token: 'rotated-token' });
+    expect(draftStorageKey(scope)).toBe(first);
+    expect(first).not.toContain('first-token');
+  });
+
   it('returns null for a non-draft with no session id (nothing stable to key on)', () => {
     expect(draftStorageKey({ isDraft: false })).toBeNull();
     expect(draftStorageKey({ isDraft: false, sessionId: '' })).toBeNull();
