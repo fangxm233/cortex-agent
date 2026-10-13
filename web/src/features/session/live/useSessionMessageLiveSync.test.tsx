@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const harness = vi.hoisted(() => ({
+  reconnectEpoch: 0,
   liveHandler: null as null | ((event: any) => void),
   deltaHandler: null as null | ((event: any) => void),
   invalidateQueries: vi.fn(),
@@ -22,10 +23,11 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-vi.mock('@/lib/trpc', () => ({
-  useTRPC: () => {
+vi.mock('@/lib/trpc', () => {
+  const trpc = (() => {
     const queryFilter = (input?: unknown) => ({ input });
     return {
+      waitpoints: { list: { queryFilter } },
       sessions: {
         list: { queryFilter },
         transcript: { queryFilter },
@@ -33,11 +35,12 @@ vi.mock('@/lib/trpc', () => ({
         pendingInteraction: { queryFilter },
       },
     };
-  },
-}));
+  })();
+  return { useTRPC: () => trpc };
+});
 
 vi.mock('@/features/live/LiveEventsProvider', () => ({
-  useLiveConnection: () => ({ reconnectEpoch: 0 }),
+  useLiveConnection: () => ({ reconnectEpoch: harness.reconnectEpoch }),
   useLiveEvents: (_types: string[], handler: (event: any) => void) => {
     harness.liveHandler = handler;
   },
@@ -77,6 +80,7 @@ function Probe({ sessionId = 's1', transcript = FULL_TRANSCRIPT, deltas = false 
 }
 
 beforeEach(async () => {
+  harness.reconnectEpoch = 0;
   harness.liveHandler = null;
   harness.deltaHandler = null;
   harness.invalidateQueries.mockReset();
@@ -93,6 +97,25 @@ afterEach(async () => {
 });
 
 describe('useSessionMessageLiveSync message authority snapshot', () => {
+  it('drops stale status, turns, context and todos on reconnect so snapshots govern', () => {
+    act(() => {
+      harness.liveHandler?.({ type: 'session.status', payload: { running: true, backgroundRunning: true } });
+      harness.liveHandler?.({ type: 'session.turn', payload: { numTurns: 7 } });
+      harness.liveHandler?.({ type: 'session.todos', payload: { snapshot: TODO_SNAPSHOT } });
+      harness.liveHandler?.({ type: 'session.context-usage', payload: {
+        usedTokens: 100, contextWindow: 1000, percent: 10, accuracy: 'exact', updatedAt: '2026-10-01T00:00:00Z',
+      } });
+    });
+    expect(observed).toMatchObject({ running: true, backgroundRunning: true, liveTurns: 7 });
+    expect(observed?.contextUsage?.usedTokens).toBe(100);
+    harness.reconnectEpoch = 1;
+    act(() => mounted?.update(<Probe />));
+    expect(observed).toMatchObject({
+      running: false, backgroundRunning: false, liveTurns: null, contextUsage: null, todos: null,
+    });
+    expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1' } });
+  });
+
   it('preserves the safe auth action on a live notice', () => {
     const authAction = {
       kind: 'auth-login', noticeId: 'notice-web',

@@ -245,6 +245,11 @@ export function useSessionMessageLiveSync(
   const { reconnectEpoch } = useLiveConnection();
   useEffect(() => {
     if (reconnectEpoch === 0 || !sessionId) return;
+    setStatusRunning(null);
+    setStatusBackground(null);
+    setLiveTurns(null);
+    setLiveContextUsage(null);
+    setLiveTodos(null);
     queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
     invalidateTranscriptQuery(queryClient, trpc, sessionId);
     invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
