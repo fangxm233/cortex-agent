@@ -196,7 +196,7 @@ impl UpdateStore {
     }
 
     /// Remove every stored installer except `keep` (older downloads; `.part` leftovers). The
-    /// skipped-version marker always survives.
+    /// skipped-version marker and preferences always survive.
     pub fn prune_except(&self, keep: &str) {
         let entries = match std::fs::read_dir(&self.root) {
             Ok(e) => e,
@@ -204,7 +204,7 @@ impl UpdateStore {
         };
         for entry in entries.flatten() {
             let name = entry.file_name();
-            if name == *keep || name == *"skipped.version" {
+            if name == *keep || name == *"skipped.version" || name == *crate::update_prefs::FILE_NAME {
                 continue;
             }
             let _ = std::fs::remove_file(entry.path());
@@ -796,13 +796,20 @@ mod tests {
     }
 
     #[test]
-    fn update_store_prune_keeps_target_and_marker() {
+    fn update_store_prune_keeps_target_marker_and_preferences() {
         with_tmp(|dir| {
             let store = UpdateStore::new(dir);
             store.set_skipped("x").unwrap();
             std::fs::write(store.asset_path("old.AppImage"), b"old").unwrap();
             std::fs::write(store.asset_path("new.AppImage"), b"new").unwrap();
+            let prefs = crate::update_prefs::PrefsStore::new(store.root());
+            let saved = prefs.update(|p| {
+                p.silent = false;
+                p.failed_attempts = 2;
+                p.last_installed_version = Some("2026.7.30".into());
+            });
             store.prune_except("new.AppImage");
+            assert_eq!(prefs.load(), saved);
             assert!(!store.asset_path("old.AppImage").exists());
             assert!(store.asset_path("new.AppImage").exists());
             assert_eq!(store.skipped_version().as_deref(), Some("x"));

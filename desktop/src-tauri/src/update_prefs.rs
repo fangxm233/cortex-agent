@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+pub const FILE_NAME: &str = "prefs.json";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdatePrefs {
     /// User-facing toggle. Default true.
@@ -47,7 +49,7 @@ impl PrefsStore {
     /// `root` is the update store directory (`<appDataDir>/updates`).
     pub fn new(root: &Path) -> Self {
         Self {
-            path: root.join("prefs.json"),
+            path: root.join(FILE_NAME),
         }
     }
 
