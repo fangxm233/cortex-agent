@@ -13,13 +13,14 @@ const harness = vi.hoisted(() => ({
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  const client = {
+    invalidateQueries: harness.invalidateQueries,
+    getQueryCache: () => ({ findAll: () => [] }),
+  };
   return {
     ...actual,
     useQuery: () => ({ data: undefined, isPending: false, isError: false, refetch: harness.refetch }),
-    useQueryClient: () => ({
-      invalidateQueries: harness.invalidateQueries,
-      getQueryCache: () => ({ findAll: () => [] }),
-    }),
+    useQueryClient: () => client,
   };
 });
 
@@ -114,6 +115,8 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
       running: false, backgroundRunning: false, liveTurns: null, contextUsage: null, todos: null,
     });
     expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1' } });
+    act(() => harness.liveHandler?.({ type: 'session.status', payload: { running: true } }));
+    expect(observed?.running).toBe(true);
   });
 
   it('preserves the safe auth action on a live notice', () => {

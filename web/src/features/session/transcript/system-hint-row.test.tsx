@@ -26,7 +26,7 @@ function desktop(rows: ChatRow[], edit = false): string {
     <LangProvider>
       <ChatRows
         rows={rows}
-        {...(edit ? { edit: { running: false, busy: false, onSubmit: () => {} } } : {})}
+        {...(edit ? { edit: { running: false, busy: false, onSubmit: async () => {} } } : {})}
       />
     </LangProvider>,
   );

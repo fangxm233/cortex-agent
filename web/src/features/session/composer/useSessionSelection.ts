@@ -149,7 +149,7 @@ function mutateThen<T>(mutate: (vars: T, options?: { onSuccess: () => void }) =>
 function useApplySelection(input: SessionSelectionInput) {
   const L = useVocab();
   const toasts = useToastOptional();
-  const onError = (error: Error): void => {
+  const onError = (error: { message: string }): void => {
     toasts?.toast({ title: L.chatSelectionFailed, description: error.message, tone: 'failed' });
   };
   const trpc = useTRPC();

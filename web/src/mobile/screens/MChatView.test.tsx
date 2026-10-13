@@ -575,7 +575,7 @@ describe('MChatView header clearance', () => {
 
 it('shows history Retry only when the mobile transcript has no rows', () => {
   const onRetryTranscript = vi.fn();
-  const props = { ...baseProps, rows: [], status: { running: false, text: 'idle' }, transcriptError: true, onRetryTranscript };
+  const props = { ...baseProps, rows: [], status: { running: false, text: 'idle', tone: 'idle' as const }, transcriptError: true, onRetryTranscript };
   const tree = create(<LangProvider><MChatView {...props} /></LangProvider>);
   const alert = tree.root.findByProps({ role: 'alert' });
   act(() => alert.findByType('button').props.onClick());
