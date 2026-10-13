@@ -17,6 +17,23 @@ export interface SubagentFieldDescriptions {
   catalog: string;
 }
 
+/** Daemon-owned discovery snapshot supplier; adapters without it do not read host caches. */
+export type SubagentModelEnvGetter = () => Record<string, string>;
+
+export interface HostModelCatalog {
+  claudeModel?: string | null;
+  subagentClaudeModels?: SubagentModelOption[];
+  subagentPiModels?: SubagentModelOption[];
+}
+
+/** Identical assembly for MCP agent/worker and PI native agent; no registry or cache reads. */
+export function hostModelOptions(catalog: HostModelCatalog): SubagentModelOption[] {
+  return [
+    ...claudeModelOptions(catalog.claudeModel, (catalog.subagentClaudeModels ?? []).map(model => model.id)),
+    ...(catalog.subagentPiModels ?? []),
+  ];
+}
+
 /** Short field descriptions; the model directory belongs to a tool description. */
 export interface ModelFieldBases { model: string; backend: string }
 
@@ -190,22 +207,6 @@ export function describeModelCatalog(models: SubagentModelOption[]): string {
 
 export function withoutModelCatalog(description: string): string {
   return description.split(MODEL_CATALOG_MARKER)[0];
-}
-
-/** Decode only our rendered directory suffix; PI names already include their provider prefix. */
-function modelsInDescription(description: string): SubagentModelOption[] {
-  const suffix = description.split(MODEL_CATALOG_MARKER)[1]?.replace(/\.$/, '') ?? '';
-  return suffix.split('; ').flatMap(segment => {
-    const match = /^(claude|pi): (.+)$/.exec(segment);
-    if (!match) return [];
-    return match[2].split(', ').map(id => ({ backend: match[1] as Backend, id }));
-  });
-}
-
-/** Retain every source's models on one owner, including when its own catalog is empty. */
-export function mergeModelCatalogs(owner: string, other: string): string {
-  return withoutModelCatalog(owner)
-    + describeModelCatalog([...modelsInDescription(owner), ...modelsInDescription(other)]);
 }
 
 /**

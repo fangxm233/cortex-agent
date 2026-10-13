@@ -1,3 +1,4 @@
+import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
 import * as path from 'node:path';
 import type {
   AgentSession,
@@ -49,6 +50,7 @@ export interface PiRuntimeCallbacks {
 export interface PiHostCollaborators {
   subagent?: PiSubagentBridge;
   openBundledMcpServer?: OpenBundledMcpServer;
+  getSubagentModelEnv?: SubagentModelEnvGetter;
 }
 
 /** Builds the runtime for one session. The adapter's injection seam: tests substitute a fake.
@@ -175,6 +177,7 @@ export async function createPiRuntime(
   const extensions = createCortexExtensions(request, {
     subagent: collaborators.subagent,
     openBundledMcpServer: collaborators.openBundledMcpServer,
+    getSubagentModelEnv: collaborators.getSubagentModelEnv,
     onProviderQuota: callbacks.onProviderQuota,
     // A subagent's events reach the parent's stream as one raw record per event, no codec in between.
     onSubagentEvent: (notice) => callbacks.onEvent({ type: 'cortex_subagent_event', notice }),

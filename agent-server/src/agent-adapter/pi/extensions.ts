@@ -11,9 +11,10 @@ import { installHookBridge } from './hook-bridge.js';
 import { installToolShims } from './tool-shims.js';
 import { createQuotaProbe } from './quota-probe.js';
 import { installImageFirst } from './image-first.js';
-import type { NativeAgentCatalog } from './native-tool-policy.js';
+import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
 
 export interface CortexExtensionHooks {
+  getSubagentModelEnv?: SubagentModelEnvGetter;
   /** Receives every provider quota reading, from this session and from its nested children alike. */
   onProviderQuota?: (reading: CodexQuotaReading) => void;
   /** Receives each event a subagent forwards for the parent's transcript. */
@@ -27,6 +28,17 @@ export interface CortexExtensionHooks {
   /** Builds the in-process Cortex bundle server. Injected because assembling one reaches the
    *  session registry and the subagent catalog (D10); unset ⇒ the session has no Cortex tools. */
   openBundledMcpServer?: OpenBundledMcpServer;
+}
+
+/** Take one copy of the supplied cache snapshot; never inherit old encoded directories. */
+function sessionModelEnv(env: NodeJS.ProcessEnv, getSnapshot?: SubagentModelEnvGetter): NodeJS.ProcessEnv {
+  let snapshot: Record<string, string> = {};
+  try { snapshot = getSnapshot?.() ?? {}; } catch { /* directory hints may fall back */ }
+  return {
+    ...env,
+    CORTEX_SUBAGENT_CLAUDE_MODELS: snapshot.CORTEX_SUBAGENT_CLAUDE_MODELS ?? '[]',
+    CORTEX_SUBAGENT_PI_MODELS: snapshot.CORTEX_SUBAGENT_PI_MODELS ?? '[]',
+  };
 }
 
 /**
@@ -44,19 +56,18 @@ export function createCortexExtensions(
   // Resolved once and handed to both probes — the session's own and the one the shims install on
   // inheriting children — so "does this run report quota" is decided in exactly one place.
   const reportQuota = request.reportsProviderQuota ? hooks.onProviderQuota : undefined;
-  const nativeAgentCatalog: NativeAgentCatalog = {};
+  const modelEnv = sessionModelEnv(request.env, hooks.getSubagentModelEnv);
   const extensions: InlineExtension[] = [
     { name: 'cortex-image-first', factory: installImageFirst },
     {
       name: 'cortex-mcp-bridge',
       factory: (pi) => installMcpBridge(
-        pi, createMcpBridgeDeps(request.env, request.pluginMcpServers, hooks.openBundledMcpServer, nativeAgentCatalog),
+        pi, createMcpBridgeDeps(modelEnv, request.pluginMcpServers, hooks.openBundledMcpServer),
       ),
     },
     {
       name: 'cortex-tool-shims',
-      factory: (pi) => installToolShims(pi, request.env, {
-        nativeAgentCatalog,
+      factory: (pi) => installToolShims(pi, modelEnv, {
         onSubagentEvent: hooks.onSubagentEvent,
         onSubagentUsage: hooks.onSubagentUsage,
         onProviderQuota: reportQuota,

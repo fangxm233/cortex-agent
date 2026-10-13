@@ -450,7 +450,7 @@ function applyHostClaudeEnv(env: NodeJS.ProcessEnv): void {
 }
 
 /** The provider/model catalogs the MCP sidecar offers subagents, read from the daemon's caches.
- *  Exported for the in-process PI host, whose session env never carries them. */
+ *  Shared by Claude spawns and the injected PI session snapshot getter. */
 export function subagentModelEnv(): Record<string, string> {
   const env: Record<string, string> = {};
   // The MCP sidecar cannot scan PI itself, so the daemon hands it the provider/model pairs it

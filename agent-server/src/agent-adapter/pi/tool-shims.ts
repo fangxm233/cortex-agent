@@ -1,12 +1,12 @@
 import { Type } from '@sinclair/typebox';
-import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, InlineExtension } from '@earendil-works/pi-coding-agent';
 import * as path from 'node:path';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import { ensurePIAgentRoles } from './agent-dir.js';
 import { PI_AGENT_DIR } from './defaults.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
-  claudeModelOptions, decodeSubagentModels, mergeModelCatalogs, piModelOptions, roleOptionsFrom, type SubagentCatalog,
+  decodeSubagentModels, hostModelOptions, roleOptionsFrom, type SubagentCatalog,
 } from '@core/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
@@ -22,10 +22,9 @@ import {
 } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
-import { allowedToolLabels, hasNativeAgent, type NativeAgentCatalog } from './native-tool-policy.js';
+import { allowedToolLabels, hasNativeAgent } from './native-tool-policy.js';
 
 export interface ToolShimHooks {
-  nativeAgentCatalog?: NativeAgentCatalog;
   /** Receives each event a subagent forwards for the parent's transcript. */
   onSubagentEvent?: (notice: SubagentNotice) => void;
   /** Reports provider quota read off a nested child's responses; set only for runs that report it. */
@@ -83,31 +82,18 @@ function registerTodoWrite(pi: ExtensionAPI): void {
   });
 }
 
-/** Assemble the subagent catalog from this session's PI models, the claude table and the shared
- *  role list. A catalog is only a hint on the tool schema, so a bad role file or a broken model
- *  registry must not keep the tool from registering: any failure degrades to the empty catalog,
- *  whose descriptions are the legacy static ones. */
-function runtimeCatalog(
-  ctx: ExtensionContext,
-  env: NodeJS.ProcessEnv,
-  deps: SubagentToolDeps,
-): SubagentCatalog {
+/** Model descriptions use the host snapshot, not this session's execution registry. */
+function sessionCatalog(env: NodeJS.ProcessEnv, deps: SubagentToolDeps): SubagentCatalog {
+  const models = hostModelOptions({
+    claudeModel: env.CORTEX_CLAUDE_MODEL,
+    subagentClaudeModels: decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
+    subagentPiModels: decodeSubagentModels(env.CORTEX_SUBAGENT_PI_MODELS),
+  });
   try {
     deps.ensureRoles();
-    const available = ctx.modelRegistry?.getAvailable() ?? [];
-    const models = ctx.model ? [...available, ctx.model] : available;
-    return {
-      roles: roleOptionsFrom(loadRoles(deps.rolesDir)),
-      models: [
-        ...claudeModelOptions(
-          env.CORTEX_CLAUDE_MODEL ?? null,
-          decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS).map((model) => model.id),
-        ),
-        ...piModelOptions(models),
-      ],
-    };
+    return { roles: roleOptionsFrom(loadRoles(deps.rolesDir)), models };
   } catch {
-    return {};
+    return { models };
   }
 }
 
@@ -183,12 +169,7 @@ function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: T
   };
   pi.on('session_start', (_event, ctx) => {
     sessionProvider = ctx.model?.provider ?? null;
-    let tool = createSubagentTool(deps, runtimeCatalog(ctx, env, deps));
-    pi.registerTool(tool);
-    if (hooks.nativeAgentCatalog) hooks.nativeAgentCatalog.merge = description => {
-      tool = { ...tool, description: mergeModelCatalogs(tool.description, description) };
-      pi.registerTool(tool);
-    };
+    pi.registerTool(createSubagentTool(deps, sessionCatalog(env, deps)));
     const stopTool = createSubagentStopTool(deps);
     if (stopTool) pi.registerTool(stopTool);
   });

@@ -5,13 +5,14 @@ import { SettingsManager, type CreateAgentSessionRuntimeFactory } from '@earendi
 import { createPiRuntime } from '../../src/agent-adapter/pi/runtime.js';
 import { createChildSession } from '../../src/agent-adapter/pi/child-session.js';
 import type { PiSessionRequest } from '../../src/agent-adapter/pi/session-options.js';
+import { createCortexExtensions } from '../../src/agent-adapter/pi/extensions.js';
 
 vi.mock('../../src/core/pi-sdk.js', () => ({ loadPiSdk: async () => sdk }));
 vi.mock('../../src/core/settings.js', () => ({
   getSettings: () => ({ piCompactReserveTokens: 1000, maxContextTokens: null }),
 }));
 vi.mock('../../src/agent-adapter/pi/agent-dir.js', () => ({ ensureCompactionReserve: vi.fn() }));
-vi.mock('../../src/agent-adapter/pi/extensions.js', () => ({ createCortexExtensions: () => [] }));
+vi.mock('../../src/agent-adapter/pi/extensions.js', () => ({ createCortexExtensions: vi.fn(() => []) }));
 vi.mock('../../src/agent-adapter/pi/ui-context.js', () => ({
   createPiUiContext: () => ({ ui: {}, respond: vi.fn(), cancelAll: vi.fn() }),
 }));
@@ -81,3 +82,14 @@ for (const kind of ['main', 'child'] as const) {
     }
   });
 }
+
+
+test('runtime forwards the host snapshot getter to extension setup without taking another snapshot', async () => {
+  const getSubagentModelEnv = vi.fn(() => ({}));
+  const handle = await createPiRuntime(requestFor('catalog-wiring', undefined), { onEvent: () => {} },
+    { getSubagentModelEnv });
+  try {
+    expect(vi.mocked(createCortexExtensions).mock.lastCall?.[1]?.getSubagentModelEnv).toBe(getSubagentModelEnv);
+    expect(getSubagentModelEnv).not.toHaveBeenCalled();
+  } finally { await handle.dispose(); }
+});
