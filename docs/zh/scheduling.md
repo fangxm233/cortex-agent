@@ -19,7 +19,7 @@
 | `weekly` | 在一周的特定日期和时间触发 | `dayOfWeek`（0-6，0=周日）、`time` | 每周一 21:00 运行周回顾 |
 | `once` | 延迟后触发一次 | `delay`（持续时间字符串） | 2 小时后发送提醒 |
 
-持续时间字符串遵循 `<number><unit>` 格式，其中 unit 是 `s`（秒）、`m`（分钟）、`h`（小时）或 `d`（天）。示例：`"30s"`、`"5m"`、`"2h"`、`"1d"`。不带单位的数字字符串会被拒绝，所以 `"30"` 不会被当成 30 毫秒；传 JSON 数字的调用方（MCP 工具、Web UI）给的是毫秒。星期写作 `sun`..`sat` 或 `0`-`6`，时间为服务器本地时间的 24 小时制 `HH:MM`。消息会去掉首尾空白，且不能为空。
+持续时间字符串遵循 `<number><unit>` 格式，其中 unit 是 `s`（秒）、`m`（分钟）、`h`（小时）或 `d`（天）。示例：`"30s"`、`"5m"`、`"2h"`、`"1d"`。不带单位的数字字符串会被拒绝，所以 `"30"` 不会被当成 30 毫秒；传 JSON 数字的调用方（如 Web UI）给的是毫秒。星期写作 `sun`..`sat` 或 `0`-`6`，时间为服务器本地时间的 24 小时制 `HH:MM`。消息会去掉首尾空白，且不能为空。
 
 ## 管理调度 {#managing-schedules}
 
@@ -27,7 +27,7 @@
 
 | 入口 | 使用者 |
 |------|--------|
-| MCP 工具 `cortex_schedule_*` | 会话内的智能体（见 [MCP 工具](#mcp-tools)） |
+| `schedule` skill → `cortex schedule` | 会话内的智能体（见[智能体工作流](#agent-workflow)） |
 | `cortex schedule` | 脚本和终端（见 [CLI](#cli)） |
 | `!schedule` | Slack 或飞书里的聊天命令（见[聊天命令](#chat-commands)） |
 | Web UI / 桌面端 | 调度列表和编辑器 |
@@ -62,7 +62,7 @@
 | `type` | `interval`、`daily`、`weekly` 或 `once` |
 | `message` | 调度触发时发送的提示（触发时自动添加 `[Scheduled Task]` 前缀） |
 | `projectId` | 调度所属的项目；每次触发的会话都在这个项目中打开 |
-| `profile` | 智能体配置名称（默认为活动配置） |
+| `profile` | 智能体配置名称（默认为配置中指定的默认 profile） |
 | `intervalMs` | 对于 `interval` 类型：触发之间的毫秒数 |
 | `time` | 对于 `daily`/`weekly` 类型：`HH:MM` 24 小时时间 |
 | `dayOfWeek` | 对于 `weekly` 类型：0-6（0=周日） |
@@ -91,9 +91,9 @@ Provider 用量采集和记忆索引重建是 daemon 内置作业。它们不会
 标题；打开它即可查看结果，也可以像其他对话一样回复。触发从不复用之前运行的会话，因此周期性
 调度的每次运行各有独立的记录。
 
-会话在调度的 `projectId` 中打开，它在创建调度时确定：显式指定的项目优先；否则 MCP 工具
-使用 `target: "current-project"` 指向的项目（即创建调度的会话所在项目），再否则取创建所在
-频道登记的项目，最后为 `general`。`cortex schedule` 和 Web UI 直接接受项目，默认为 `general`。
+会话在调度的 `projectId` 中打开，它在创建调度时确定。`cortex schedule` 和 Web UI
+直接接受项目，默认为 `general`。智能体通过 `--project` 显式传入目标项目；`!schedule`
+使用创建所在频道登记的项目，否则使用 `general`。
 
 ## PreCheck
 
@@ -109,9 +109,8 @@ Provider 用量采集和记忆索引重建是 daemon 内置作业。它们不会
 
 ## 热重载 {#hot-reload}
 
-只有 daemon 的调度器负责触发调度，但写 `schedules.json` 的不止它：MCP 调度工具运行在每个
-智能体自己的 MCP server 进程里，`cortex schedule` 运行在你的进程里，两者都直接写文件。调度器
-用 `fs.watch` 监视这个文件，在最后一次变更 300ms 后：
+只有 daemon 的调度器负责触发调度。daemon 与 `cortex schedule` 共用持久化记录，CLI
+直接写入 `schedules.json`。调度器用 `fs.watch` 监视这个文件，在最后一次变更 300ms 后：
 
 1. 绕过内存副本，从磁盘读取文件
 2. **移除**不再在文件中的任务的定时器
@@ -163,44 +162,25 @@ Provider 用量采集和记忆索引重建是 daemon 内置作业。它们不会
 3. 启动用于热重载的文件监视器
 4. 记录总任务数
 
-## MCP 工具 {#mcp-tools}
+## 智能体工作流 {#agent-workflow}
 
-智能体通过 MCP 工具管理调度：
+`schedule` skill 用 `cortex schedule` 完成所有调度操作。CLI 在 Cortex 服务器上使用其
+`CORTEX_HOME` 运行，不会从调用会话或频道推断项目。智能体使用用户显式指定的项目，否则从
+会话上下文或 `cortex_context` 获取当前项目，创建时显式传入 `--project <id>`。如果用户要求
+绑定当前项目但上下文中没有项目，应询问项目，而不是静默回退到 `general`。不能假设 Bash
+含有会话专属环境变量，PI 同样如此。不传 `--profile` 时使用配置中的默认 profile，它不一定是
+当前会话的 active profile。
 
-| 工具 | 描述 |
-|------|-------------|
-| `cortex_schedule_add` | 创建新调度。接受 `type`、`message`、`interval`/`time`/`dayOfWeek`/`delay`、`projectId`、`target`、`profile`、`preCheck`、`channel` |
-| `cortex_schedule_list` | 列出所有调度（默认：50） |
-| `cortex_schedule_get` | 按 ID 获取调度 |
-| `cortex_schedule_remove` | 按 ID 删除调度（幂等） |
-| `cortex_schedule_pause` | 暂停周期性调度 |
-| `cortex_schedule_resume` | 恢复暂停的调度 |
+消息必须自包含：写清项目、run、机器和文件路径，不要依赖创建调度时的对话。
 
-`target` 只用来选项目：`"current-project"`（或 `{ "kind": "project", "projectId": "…" }`）把调度绑定到该项目；`"fresh"` 或不传则交给 `projectId`、频道查找或 `general`。`current-project` 按 `cortex_context` 返回的同一上下文解析，会话没有项目时会报错。
-
-### 通过 MCP 创建调度 {#creating-a-schedule-via-mcp}
-
-```json
-{
-  "type": "interval",
-  "message": "检查 GPU 状态并报告",
-  "interval": "10m",
-  "target": "current-project"
-}
-```
-
-```json
-{
-  "type": "daily",
-  "message": "运行早晨的研究扫描",
-  "time": "08:00",
-  "profile": "claude-sonnet"
-}
-```
+每日和每周的时间按服务器本地时区解释。将用户时区的请求显式换算为服务器时区后再传
+`--time`，每周调度还需相应调整 `--day`；向用户报告时将 `nextRun` 换算到用户时区。
+应确认 daemon 实际使用的时区，包括 `TZ` 覆盖。调度不支持独立时区；两地夏令时切换不一致时，
+用户当地的周期触发时间可能偏移。换算不明确时先询问，有影响时说明这一限制。
 
 ## CLI {#cli}
 
-`cortex schedule` 在终端或脚本里管理同一批调度。所有命令都输出 JSON，时间参数全部用显式 flag 给出，较长的提示可以从 stdin 读入：
+`cortex schedule` 在智能体会话、终端或脚本里管理同一批调度。所有命令都输出 JSON，时间参数全部用显式 flag 给出，较长的提示可以从 stdin 读入：
 
 ```bash
 cortex schedule add --type daily --time 09:00 --project nimbus --message "Summarize yesterday's sessions"

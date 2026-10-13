@@ -6,9 +6,8 @@ import {
   type ScheduleSpec, type SchedulePatch,
 } from './schedule-spec.js';
 
-// Persisted schedule changes, shared by the daemon's Scheduler and by out-of-process writers (the
-// MCP schedule tools, `cortex schedule`). They only touch schedules.json; arming timers is the
-// Scheduler's job, and a running daemon picks up outside writes through its file watcher.
+// Persisted schedule changes, shared by the daemon's Scheduler and `cortex schedule`. These only
+// touch schedules.json; the Scheduler arms timers and picks up outside writes through its watcher.
 
 type Repo = Pick<ScheduleRepo, 'mutate' | 'updateTask'>;
 

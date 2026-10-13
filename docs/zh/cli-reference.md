@@ -172,7 +172,13 @@ cortex auth provider remove --name my-vllm --dry-run
 
 **`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
 
-管理定时任务——与 MCP 调度工具、`!schedule` 和 Web UI 管理的是同一批记录。每次触发都会在调度所属项目中新开一个会话并发送消息，见[调度](./scheduling.md)。变更写入 `schedules.json`，正在运行的 daemon 会在一秒内应用。
+管理定时任务——与 `!schedule` 和 Web UI 管理的是同一批记录。每次触发都会在调度所属项目中新开一个会话并发送消息，见[调度](./scheduling.md)。变更写入 `schedules.json`，正在运行的 daemon 会在一秒内应用。
+
+智能体通过 `schedule` skill 使用此 CLI。针对当前项目的请求，从会话上下文或
+`cortex_context` 获取项目并显式传入 `--project`；当前项目缺失时先询问，不要静默选择
+`general`。CLI 不会从 Bash 环境变量推断会话项目。每日/每周时间使用 daemon 本地时区
+（包括 `TZ` 覆盖）；应显式换算用户时区及星期，再以用户时区报告下次运行。
+调度不支持独立时区，也不会自动调整跨时区的夏令时差异。
 
 每个命令都输出带 `ok: true` 的 JSON 和调度本身（`schedule`；`list` 输出 `schedules` 和 `count`），时间戳为 ISO 8601。输入无效时以退出码 1 结束，并在 stderr 列出有效取值。
 
@@ -191,7 +197,7 @@ cortex auth provider remove --name my-vllm --dry-run
 - `--delay <duration>` — `once`：从现在起多久后触发；用于 `edit` 时改到新的触发时间
 - `--message <text|->` — 触发会话收到的提示；`-` 从 stdin 读取
 - `--project <id>` — 触发会话所属的项目（默认 `general`）
-- `--profile <name>` — 运行所用的 agent profile（默认为默认 profile）
+- `--profile <name>` — 运行所用的 agent profile（默认为配置中的默认 profile，不一定是当前会话的 active profile）
 - `--pre-check <cmd>` — 每次触发前运行的 shell 门控；非零退出则跳过这次触发
 - `--idempotency-key <key>` — `add`：用同一个 key 重试会返回第一次创建的调度
 - `--help`、`-h` — 显示 schedule 帮助

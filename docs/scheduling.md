@@ -20,7 +20,7 @@ Four trigger types are supported:
 | `weekly` | Fire on a specific day of week at a time | `dayOfWeek` (0-6, 0=Sun), `time` | Run a weekly review Monday at 21:00 |
 | `once` | Fire once after a delay | `delay` (duration string) | Send a reminder in 2 hours |
 
-Duration strings follow the format `<number><unit>` where unit is `s` (seconds), `m` (minutes), `h` (hours), or `d` (days). Examples: `"30s"`, `"5m"`, `"2h"`, `"1d"`. A bare number in a string is rejected, so `"30"` never turns into 30 milliseconds; callers that pass JSON numbers (the MCP tools, the Web UI) give milliseconds. Weekdays are `sun`..`sat` or `0`-`6`, and times are 24-hour `HH:MM` in the server's local time. The message is trimmed and must not be empty.
+Duration strings follow the format `<number><unit>` where unit is `s` (seconds), `m` (minutes), `h` (hours), or `d` (days). Examples: `"30s"`, `"5m"`, `"2h"`, `"1d"`. A bare number in a string is rejected, so `"30"` never turns into 30 milliseconds; callers that pass JSON numbers (such as the Web UI) give milliseconds. Weekdays are `sun`..`sat` or `0`-`6`, and times are 24-hour `HH:MM` in the server's local time. The message is trimmed and must not be empty.
 
 ## Managing schedules
 
@@ -28,7 +28,7 @@ Every entry point applies the same validation and writes the same `schedules.jso
 
 | Entry point | Who uses it |
 |-------------|-------------|
-| MCP tools `cortex_schedule_*` | Agents inside a session (see [MCP Tools](#mcp-tools)) |
+| `schedule` skill → `cortex schedule` | Agents inside a session (see [Agent workflow](#agent-workflow)) |
 | `cortex schedule` | Scripts and terminals (see [CLI](#cli)) |
 | `!schedule` | Chat commands in Slack or Feishu (see [Chat commands](#chat-commands)) |
 | Web UI / desktop app | The schedule list and editor |
@@ -63,7 +63,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `type` | `interval`, `daily`, `weekly`, or `once` |
 | `message` | The prompt to send when the schedule fires (a `[Scheduled Task]` prefix is added automatically at fire time) |
 | `projectId` | Project the schedule belongs to; each fire's session opens in it |
-| `profile` | Agent profile name (defaults to the active profile) |
+| `profile` | Agent profile name (defaults to the configured default profile) |
 | `intervalMs` | For `interval` type: milliseconds between fires |
 | `time` | For `daily`/`weekly` types: `HH:MM` 24-hour time |
 | `dayOfWeek` | For `weekly` type: 0-6 (0=Sunday) |
@@ -94,11 +94,10 @@ schedule's run and labeled with the start of the message; open it to read the
 result or reply as in any other conversation. A fire never reuses an earlier
 run's session, so the runs of a recurring schedule stay in separate transcripts.
 
-The session opens in the schedule's `projectId`, which is settled when the
-schedule is created: an explicit project wins; otherwise the MCP tool uses the
-project named by `target: "current-project"` (the creating session's project),
-then the creating channel's registered project, then `general`. `cortex schedule`
-and the Web UI take the project directly and default to `general`.
+The session opens in the schedule's `projectId`, settled when the schedule is
+created. `cortex schedule` and the Web UI take the project directly and default
+to `general`. Agents pass the intended project explicitly with `--project`;
+`!schedule` uses the creating channel's registered project, or `general`.
 
 ## PreCheck
 
@@ -114,9 +113,9 @@ The command runs in a shell, off the event loop, with a 15-second timeout. It re
 
 ## Hot-Reload
 
-The daemon's scheduler is the only process that fires schedules, but it is not the only writer of
-`schedules.json`: the MCP schedule tools run in each agent's own MCP server process, and
-`cortex schedule` runs in yours. Both write the file directly. The scheduler watches it with
+The daemon's scheduler is the only process that fires schedules. The daemon and
+`cortex schedule` share the persisted records; the CLI writes `schedules.json` directly.
+The scheduler watches it with
 `fs.watch` and, 300ms after the last change:
 
 1. Reads the file from disk, bypassing its in-memory copy
@@ -170,44 +169,31 @@ On server startup, the scheduler:
 3. Starts the file watcher for hot-reload
 4. Logs the total task count
 
-## MCP Tools
+## Agent workflow
 
-Agents manage schedules through MCP tools:
+The `schedule` skill uses `cortex schedule` for every scheduling operation. The
+CLI runs on the Cortex server with its `CORTEX_HOME`; it does not infer a project
+from the calling session or channel. Agents use the user's explicit project, or
+resolve the session project from session context or `cortex_context`, then pass
+`--project <id>` when adding a schedule. If the user requests the current project
+but none is available, ask which project to use rather than falling back to
+`general`. Bash is not guaranteed to carry session-specific environment variables,
+including on PI. Omit `--profile` to use the configured default profile, which may
+differ from the active session's profile.
 
-| Tool | Description |
-|------|-------------|
-| `cortex_schedule_add` | Create a new schedule. Accepts `type`, `message`, `interval`/`time`/`dayOfWeek`/`delay`, `projectId`, `target`, `profile`, `preCheck`, `channel` |
-| `cortex_schedule_list` | List all schedules (default: 50) |
-| `cortex_schedule_get` | Get a schedule by ID |
-| `cortex_schedule_remove` | Delete a schedule by ID (idempotent) |
-| `cortex_schedule_pause` | Pause a recurring schedule |
-| `cortex_schedule_resume` | Resume a paused schedule |
+Each message must be self-contained: the fired session needs the project, run,
+machine, and file paths, not references to the conversation that created it.
 
-`target` only chooses the project: `"current-project"` (or `{ "kind": "project", "projectId": "…" }`) binds the schedule to that project, while `"fresh"` or no target leaves it to `projectId`, the channel lookup, or `general`. `current-project` resolves against the same context `cortex_context` returns, and fails when the session has no project.
-
-### Creating a Schedule via MCP
-
-```json
-{
-  "type": "interval",
-  "message": "Check GPU status and report",
-  "interval": "10m",
-  "target": "current-project"
-}
-```
-
-```json
-{
-  "type": "daily",
-  "message": "Run morning research scan",
-  "time": "08:00",
-  "profile": "claude-sonnet"
-}
-```
+Daily and weekly times use the server's local timezone. Convert a request in the
+user's timezone to the server timezone before setting `--time` and, for weekly
+schedules, `--day`; report `nextRun` in the user's timezone. Check the daemon's
+actual timezone, including any `TZ` override. There is no per-schedule timezone;
+differing daylight-saving transitions can shift the user's local recurring time.
+Clarify uncertain conversions and explain that limitation when it matters.
 
 ## CLI
 
-`cortex schedule` manages the same schedules from a terminal or script. Every command prints JSON, timing comes from explicit flags, and the long prompt can come from stdin:
+`cortex schedule` manages the same schedules from an agent session, terminal or script. Every command prints JSON, timing comes from explicit flags, and the long prompt can come from stdin:
 
 ```bash
 cortex schedule add --type daily --time 09:00 --project nimbus --message "Summarize yesterday's sessions"

@@ -1,5 +1,5 @@
 {
   "name": "cortex-system",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Cortex system skill bundle — approval / client-manage / project-init / schedule / user-learn. The commission skill lives in cortex-commission, which loads only in commission mode."
 }

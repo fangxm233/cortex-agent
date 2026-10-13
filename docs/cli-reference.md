@@ -252,10 +252,18 @@ Options:
 
 **`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
 
-Manage scheduled tasks — the same records the MCP schedule tools, `!schedule`
-and the Web UI manage. Each fire opens a new session in the schedule's project
+Manage scheduled tasks — the same records `!schedule` and the Web UI manage.
+Each fire opens a new session in the schedule's project
 and sends it the message; see [Scheduling](./scheduling.md). Changes are written
 to `schedules.json`, and a running daemon picks them up within a second.
+
+Agents use this CLI through the `schedule` skill. For a session-project request,
+resolve the project from session context or `cortex_context` and pass `--project`
+explicitly; if the requested current project is missing, ask which one to use.
+The CLI does not infer session scope from Bash environment variables. Daily/weekly
+times use the daemon's local timezone (including `TZ` overrides); convert the
+user's timezone and weekday explicitly and report the next run in their timezone.
+There is no per-schedule timezone or automatic cross-timezone daylight-saving adjustment.
 
 Every command prints JSON with `ok: true` and the schedule (`schedule`, or
 `schedules` and `count` for `list`); timestamps are ISO 8601. Invalid input
@@ -276,7 +284,7 @@ Options:
 - `--delay <duration>` — `once`: fire this long from now; on `edit`, moves the fire time
 - `--message <text|->` — the prompt for the fired session; `-` reads it from stdin
 - `--project <id>` — project the fired session belongs to (default: `general`)
-- `--profile <name>` — agent profile to run under (default: the default profile)
+- `--profile <name>` — agent profile to run under (default: the configured default profile, not necessarily the active session profile)
 - `--pre-check <cmd>` — shell gate run before each fire; a non-zero exit skips that fire
 - `--idempotency-key <key>` — `add`: a retry with the same key returns the first schedule
 - `--help`, `-h` — show schedule help

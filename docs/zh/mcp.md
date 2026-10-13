@@ -20,7 +20,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 session 选中的能力组。Claude Code 把它作为 stdio 子进程启动；PI 则让它跑在 agent-server
 进程内，经一对内存 transport 通信，并绑定专为该 session 构建的 tool context。
 Claude 保留 `cortex-core` server key，因此 core remote tools 的 raw name 不变；其它 Cortex
-内置 Claude tools 共用这个 prefix，例如 `mcp__cortex-core__cortex_schedule_add`。PI 则以无前缀的
+内置 Claude tools 共用这个 prefix，例如 `mcp__cortex-core__cortex_context`。PI 则以无前缀的
 名称暴露同一批工具。
 
 用户提供的 MCP 不进入这个 bundle。Portable plugin server、browser MCP、remote HTTP/SSE
@@ -75,16 +75,12 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 ### cortex-ext
 
-暴露 Cortex 管理工具：调度、费用查询、执行记录、上下文解析和 waitpoint。MCP composition 不是 `none` 的每个顶层会话都会加载它，Claude 与 PI 都一样；子智能体不加载。
+智能体通过 `schedule` skill 使用 `cortex schedule` 管理调度。`cortex_context` 可用于获取项目，然后显式传入 CLI 的 `--project`；操作与时间语义见[调度](./scheduling.md)。
+
+暴露 Cortex 管理工具：费用查询、执行记录、上下文解析和 waitpoint。MCP composition 不是 `none` 的每个顶层会话都会加载它，Claude 与 PI 都一样；子智能体不加载。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `cortex_schedule_add` | `type`、`message`、`interval?`、`time?`、`dayOfWeek?`、`delay?`、`target?`、`profile?`、`preCheck?`、`channel?`、`projectId?` | 创建定时任务（interval、daily、weekly 或 once）；每次触发都新开一个会话 |
-| `cortex_schedule_list` | `limit?` | 列出所有定时任务及其状态 |
-| `cortex_schedule_get` | `id` | 通过 8 字符十六进制 ID 查找定时任务 |
-| `cortex_schedule_remove` | `id` | 删除定时任务（幂等） |
-| `cortex_schedule_pause` | `id` | 暂停周期性定时任务 |
-| `cortex_schedule_resume` | `id` | 恢复暂停的定时任务 |
 | `cost_query` | _(无)_ | 查询当前费用：今天/月支出、预算限制、剩余预算、API/plan 分摊、来源细分、令牌使用量 |
 | `query_executions` | `execution_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
 | `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId、sessionName、profile、project、backend |

@@ -38,7 +38,7 @@ child; PI runs it inside the agent-server process over an in-memory transport
 pair, bound to a tool context built for that one session. Claude keeps the
 `cortex-core` server key, so core remote tools retain their existing raw names.
 Other bundled Claude tools share that prefix, such as
-`mcp__cortex-core__cortex_schedule_add`. PI exposes the same tools under their
+`mcp__cortex-core__cortex_context`. PI exposes the same tools under their
 unprefixed names.
 
 User-provided MCP is outside this bundle. Portable plugin servers, browser MCP,
@@ -109,18 +109,16 @@ The tool is in `agent-server/src/domain/mcp/tools/workers.ts` and is served by t
 
 ### cortex-ext
 
-Exposes Cortex management tools: scheduling, cost queries, execution
+Agents manage schedules with `cortex schedule` through the `schedule` skill. Use
+`cortex_context` to resolve the project and pass it explicitly with `--project`;
+see [Scheduling](./scheduling.md) for operations and timing semantics.
+
+Exposes Cortex management tools: cost queries, execution
 records, context resolution, and waitpoints. Every top-level session whose MCP
 composition is not `none` loads it, on Claude and PI alike; subagents do not.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `cortex_schedule_add` | `type`, `message`, `interval?`, `time?`, `dayOfWeek?`, `delay?`, `target?`, `profile?`, `preCheck?`, `channel?`, `projectId?` | Create a schedule (interval, daily, weekly, or once); every fire opens a new session |
-| `cortex_schedule_list` | `limit?` | List all schedules with their status |
-| `cortex_schedule_get` | `id` | Look up a schedule by its 8-char hex ID |
-| `cortex_schedule_remove` | `id` | Delete a schedule (idempotent) |
-| `cortex_schedule_pause` | `id` | Pause a recurring schedule |
-| `cortex_schedule_resume` | `id` | Resume a paused schedule |
 | `cost_query` | _(none)_ | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage |
 | `query_executions` | `execution_id?`, `status?`, `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
 | `cortex_context` | _(none)_ | Return the current execution context: sessionId, sessionName, profile, project, backend |

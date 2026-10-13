@@ -43,8 +43,8 @@ interface SchedulerOptions {
   watchFile?: boolean;
 }
 
-// The daemon's live view of schedules.json. Other processes (the MCP schedule tools,
-// `cortex schedule`) write the file directly through schedule-ops; the file watcher re-reads it
+// The daemon's live view of schedules.json. `cortex schedule` writes the file
+// directly through schedule-ops; the file watcher re-reads it
 // and re-arms whatever changed. Every write here goes through the same file, so a reload that
 // follows the daemon's own write finds nothing to change.
 class Scheduler {

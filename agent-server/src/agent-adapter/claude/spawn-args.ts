@@ -276,7 +276,7 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
 }
 
 /** Cortex agent execution context — surfaces as CORTEX_* env vars so MCP tools
- *  (cortex_context, cortex_schedule_*) can self-discover the current session/profile/etc.
+ *  such as cortex_context can discover the current session/profile/etc.
  *  Optional fields are omitted from env when undefined, so child processes see no key
  *  rather than an empty string. */
 export interface CortexAgentContext {
