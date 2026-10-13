@@ -34,7 +34,7 @@ import {
 } from './session-options.js';
 import { safeNativeComposite, safeNativeName } from '@core/native-name.js';
 import { withoutModelCatalog } from '@core/agents/subagent/catalog.js';
-import { hasNativeAgent } from './native-tool-policy.js';
+import type { NativeAgentCatalog } from './native-tool-policy.js';
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -80,6 +80,7 @@ export type OpenBundledMcpServer = (
 ) => Promise<BundledMcpServerHandle>;
 
 export interface McpBridgeDeps {
+  nativeAgentCatalog?: NativeAgentCatalog;
   /** The session's environment: composition markers, channel, Cortex context, tool gate. */
   env: NodeJS.ProcessEnv;
   /** Plugin (and browser) servers for this session, already filtered by composition. */
@@ -302,10 +303,12 @@ export function createMcpBridgeDeps(
   env: NodeJS.ProcessEnv,
   pluginServers: readonly McpServerConfig[] = [],
   openBundled?: OpenBundledMcpServer,
+  nativeAgentCatalog?: NativeAgentCatalog,
 ): McpBridgeDeps {
   return {
     env,
     pluginServers,
+    nativeAgentCatalog,
     spawnClient: (state) => {
       if (state.source.kind !== 'bundled') return connectPluginServer(state, state.source.config, env);
       // No opener injected ⇒ this process was never given the Cortex bundles. Failing loudly beats
@@ -445,7 +448,9 @@ class McpBridgeSession {
 
   private toolDescription(state: ServerState, tool: McpTool): string {
     const description = tool.description ?? '';
-    if (state.source.kind === 'bundled' && tool.name === 'worker_spawn' && hasNativeAgent(this.deps.env)) {
+    const merge = this.deps.nativeAgentCatalog?.merge;
+    if (state.source.kind === 'bundled' && tool.name === 'worker_spawn' && merge) {
+      merge(description);
       return withoutModelCatalog(description);
     }
     return description;
