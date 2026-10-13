@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { npmPrefixFromInstallRoot, withServerNpmPrefix } from '../src/core/utils.js';
+import { npmInvocation, npmPrefixFromInstallRoot, withServerNpmPrefix } from '../src/core/utils.js';
 
 const PKG = '@cortex-agent/server';
 
@@ -36,4 +36,25 @@ test('withServerNpmPrefix - override wins, then install root', () => {
     if (prev === undefined) delete process.env.CORTEX_NPM_PREFIX;
     else process.env.CORTEX_NPM_PREFIX = prev;
   }
+});
+
+
+test('npmInvocation keeps npm on Unix', () => {
+  assert.deepEqual(npmInvocation(['view', 'pkg'], 'linux'), {
+    command: 'npm', args: ['view', 'pkg'], shell: false,
+  });
+});
+
+test('npmInvocation uses bundled npm CLI with node on Windows', () => {
+  const node = 'C:\\Program Files\\nodejs\\node.exe';
+  const cli = 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js';
+  assert.deepEqual(npmInvocation(['view', 'pkg'], 'win32', node, (file) => file === cli), {
+    command: node, args: [cli, 'view', 'pkg'], shell: false,
+  });
+});
+
+test('npmInvocation falls back to the Windows command shim through a shell', () => {
+  assert.deepEqual(npmInvocation(['view', 'pkg'], 'win32', 'C:\\node.exe', () => false), {
+    command: 'npm.cmd', args: ['view', 'pkg'], shell: true,
+  });
 });

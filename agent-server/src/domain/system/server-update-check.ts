@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import { spawn } from 'node:child_process';
 import { ServerUpdateCoordinator } from './server-update-coordinator.js';
 import { runFile } from '@core/exec-async.js';
-import { withServerNpmPrefix } from '@core/utils.js';
+import { npmInvocation, withServerNpmPrefix } from '@core/utils.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
 import { ALWAYS_IDLE, createIdleInstaller, type IdleSignal } from './server-update-install.js';
@@ -42,7 +42,9 @@ export interface CheckServerUpdateDeps {
 /** Async: `npm view` is a network round trip and must not stall the event loop (it used to run
  *  via execSync with a 15s timeout, on a timer that fires 60s after boot). */
 async function defaultGetLatest(): Promise<string | null> {
-  const result = await runFile('npm', ['view', '@cortex-agent/server', 'version'], {
+  const npm = npmInvocation(['view', '@cortex-agent/server', 'version']);
+  const result = await runFile(npm.command, npm.args, {
+    shell: npm.shell,
     timeoutMs: 15000,
     // Outside any project checkout, so a local .npmrc cannot redirect the registry lookup.
     cwd: os.tmpdir(),
@@ -67,13 +69,15 @@ function describeInstallFailure(
 
 /** Install exactly the version that was checked, into the prefix of the running install. */
 function runNpmInstall(version: string, done: (error: string | null) => void): void {
-  const child = spawn('npm', withServerNpmPrefix(['install', '-g', `@cortex-agent/server@${version}`]), {
+  const npm = npmInvocation(withServerNpmPrefix(['install', '-g', `@cortex-agent/server@${version}`]));
+  const child = spawn(npm.command, npm.args, {
+    shell: npm.shell,
     // Detached + unref'd: the package's postinstall touches $STORE_DIR/.restart and the daemon
     // respawns app.js, possibly before npm itself exits, so the install has to outlive this process.
     // stderr is piped so the SPA dialog can report a real failure.
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
-    cwd: '/tmp',
+    cwd: os.tmpdir(),
   });
 
   let stderr = '';

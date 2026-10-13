@@ -154,6 +154,19 @@ function withServerNpmPrefix(args: string[], installRoot: string = INSTALL_ROOT)
   return prefix ? [...args, '--prefix', prefix] : args;
 }
 
+/** Prefer the bundled npm CLI on Windows; command shims require a shell. */
+export function npmInvocation(
+  args: string[],
+  platform: NodeJS.Platform = process.platform,
+  execPath: string = process.execPath,
+  exists: (file: string) => boolean = fs.existsSync,
+): { command: string; args: string[]; shell: boolean } {
+  if (platform !== 'win32') return { command: 'npm', args, shell: false };
+  const cli = path.win32.join(path.win32.dirname(execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (exists(cli)) return { command: execPath, args: [cli, ...args], shell: false };
+  return { command: 'npm.cmd', args, shell: true };
+}
+
 /**
  * Sentinel ANTHROPIC_API_KEY value set when the gateway is healthy but no real key exists.
  * Its only purpose is to satisfy Claude Code's startup credential check on machines without

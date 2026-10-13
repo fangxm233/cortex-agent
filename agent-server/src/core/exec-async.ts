@@ -17,6 +17,8 @@ export interface ExecResult {
 
 export interface ExecOptions {
   cwd?: string;
+  /** Only for trusted arguments to platform command shims such as npm.cmd. */
+  shell?: boolean;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
   maxBuffer?: number;
@@ -50,7 +52,7 @@ function finish(
   });
 }
 
-/** Run a binary with an argument array — no shell, so no quoting surface. */
+/** Run a binary with an argument array; no shell unless explicitly requested. */
 export function runFile(
   file: string,
   args: readonly string[] = [],
@@ -62,6 +64,7 @@ export function runFile(
       [...args],
       {
         cwd: opts.cwd,
+        shell: opts.shell,
         env: opts.env ?? process.env,
         timeout: opts.timeoutMs,
         killSignal: 'SIGTERM',
