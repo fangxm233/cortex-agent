@@ -614,6 +614,17 @@ function tap(renderer: ReactTestRenderer, rowId: string): void {
 }
 
 describe('mobile engine picker', () => {
+  it.each(['s1', 'new'])('switches engines without a system notice on %s', (route) => {
+    harness.routeParam = route;
+    harness.setSelectionMutate.mockImplementation((_input, options) => options?.onSuccess?.());
+    mounted = mountChat();
+
+    tap(mounted, 'model:claude::sonnet');
+    expect(JSON.parse(view(mounted).props['data-system-lines'])).toEqual([]);
+    typeAndSend(mounted, '/profile execute');
+    expect(JSON.parse(view(mounted).props['data-system-lines'])).toEqual([]);
+  });
+
   it('sends the whole selection, so an unstated field follows the profile again', () => {
     mounted = mountChat();
     tap(mounted, 'model:claude::sonnet');

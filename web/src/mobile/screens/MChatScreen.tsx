@@ -21,7 +21,7 @@ import { normalizeMobilePath } from '../mobile-route-manifest';
 import { SAME_SCREEN_STATE } from '../MobileAnimatedOutlet';
 import { MChatView } from './MChatView';
 import {
-  buildMobileChatRows, selectionChipLabel,
+  buildMobileChatRows,
   type ChatHeaderStatus, type SelectionSheetRow, type PendingAttachmentVM,
 } from './m-chat-vm';
 import type { MChatViewProps } from './MChatView.types';
@@ -177,13 +177,7 @@ export function MChatScreen(): JSX.Element {
     currentAgent: active?.agentName,
     draftSelection, setDraftSelection, pendingCreatedSession,
   });
-  // The line is written once the change has actually landed, so a refusal leaves no trace claiming
-  // it did. The draft has nothing to refuse it, so it writes immediately.
-  const noteSwitch = (to: string) => {
-    const from = selectionChipLabel(selection.effective);
-    return () => addSystemLine(fmt(vocab.chatEngineSwitched, { from, to }));
-  };
-  const onPickSelection = (row: SelectionSheetRow): void => selection.apply(row.change, noteSwitch(row.label));
+  const onPickSelection = (row: SelectionSheetRow): void => selection.apply(row.change);
 
   // Browser control and commission mode are chosen on the draft only: both decide what the agent's
   // process spawns with, so a live session can report them but never change them.
@@ -211,7 +205,7 @@ export function MChatScreen(): JSX.Element {
       backend: selection.effective.backend,
       agentName: selection.agentName,
       onNew: () => navigate(DRAFT_PATH),
-      onProfile: (name) => selection.pickProfile(name, noteSwitch(name)),
+      onProfile: (name) => selection.pickProfile(name),
       onSettings: () => navigate('/m/settings'),
       onUsage: () => navigate('/m/settings/usage', { state: { from: 'chat' } satisfies UsageNavState }),
     },
