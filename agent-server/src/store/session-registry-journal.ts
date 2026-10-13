@@ -53,7 +53,7 @@ export interface SessionRecord {
   /** Commission (long-task) membership — drives board grouping and [Commission] prompt injection.
    *  Bound once at commission finalize (DR-0037); absent/null for ordinary sessions. */
   commissionId?: string | null;
-  /** Draft directory name (`_draft-<session name>`) while commission mode is on but the contract
+  /** Persisted draft directory name (new drafts use `_draft-<short sessionId>`) while commission mode is on but the contract
    *  has not been named yet. Cleared at finalize, when commissionId is filled in. Mode is ON when
    *  either this or commissionId is set. */
   commissionDraft?: string | null;
