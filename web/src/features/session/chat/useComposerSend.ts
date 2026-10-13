@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { attachmentSendAllowed, uploadedAttachments, type AttachmentMeta } from '@/features/attachments/types';
 import { useTRPC } from '@/lib/trpc';
@@ -63,6 +64,7 @@ export interface ComposerSend extends ComposerDraftState {
   stop: () => void;
   stopPending: boolean;
   slashSuggestions: SlashSuggestion[];
+  openCommands: () => void;
   /** A palette pick: run it, or put the command in for its argument (returns true then). A skill
    *  already typed in full is sent. */
   pickSlash: (suggestion: SlashSuggestion) => boolean;
@@ -90,6 +92,8 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
   const queryClient = useQueryClient();
   const { sendMut, createAndSendMut, cancelMut } = useSendMutations();
   const draft = useComposerDraft(options);
+  const [browsingCommands, setBrowsingCommands] = useState(false);
+  useEffect(() => { setBrowsingCommands(false); }, [draft.text, draft.identity]);
   const { sessionId, isDraft, running, compactAction } = options;
 
   const stop = (): void => {
@@ -101,7 +105,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
   }));
   const slashSkills = useSlashSkills({
     sessionId, isDraft, agentName: options.slash.agentName, backend: options.slash.backend,
-    enabled: draft.text.trimStart().startsWith('/'),
+    enabled: browsingCommands || draft.text.trimStart().startsWith('/'),
   });
   const slashAvailability = {
     newDisabled: draft.uploads.hasNonDone,
@@ -197,9 +201,14 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     submit,
     stop,
     stopPending: cancelMut.isPending,
-    slashSuggestions: buildSlashSuggestions(draft.text, slashProfiles, L, slashAvailability, slashSkills),
+    openCommands: () => {
+      if (!draft.text) draft.setText('/');
+      else setBrowsingCommands(true);
+    },
+    slashSuggestions: buildSlashSuggestions(browsingCommands ? '/' : draft.text, slashProfiles, L, slashAvailability, slashSkills),
     pickSlash: (suggestion) => {
       if (suggestion.disabled) return false;
+      setBrowsingCommands(false);
       if (suggestion.action) { runSlash(suggestion.action); return false; }
       if (suggestion.skill && draft.text.trim().toLowerCase() === suggestion.command.toLowerCase()) {
         submit();

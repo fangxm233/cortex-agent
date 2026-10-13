@@ -84,6 +84,7 @@ export interface MChatViewProps {
   composerValue: string;
   onComposerChange: (value: string) => void;
   onSend: () => void;
+  onCommands?: () => void;
   slashSuggestions?: SlashSuggestion[];
   onSlashPick?: (suggestion: SlashSuggestion) => void;
   sendEnabled: boolean;

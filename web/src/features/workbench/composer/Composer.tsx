@@ -468,7 +468,7 @@ export function Composer({
                   : null}
               commission={commission.control}
               onAttach={() => fileInputRef.current?.click()}
-              onCommands={() => { setComposer('/'); setSlashOpen(true); }}
+              onCommands={() => { composerSend.openCommands(); setSlashOpen(true); }}
               agentControl={<AgentSelectorView selection={engineSelection} />}
               selectionControl={<SessionSelectorView selection={engineSelection} />}
               contextControl={contextControl}

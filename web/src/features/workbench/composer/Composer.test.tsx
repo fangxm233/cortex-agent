@@ -319,3 +319,16 @@ describe('Composer attachment send gate', () => {
     harness.attachmentRetry.mockReset();
   });
 });
+
+
+describe('Composer command browsing', () => {
+  it.each(['unfinished draft', '   ', ''])('preserves existing text when Commands opens (%j)', (text) => {
+    const tree = mountComposer(vi.fn());
+    act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: text } }));
+    const actions = tree.root.find((node) => typeof node.props.onCommands === 'function');
+    act(() => actions.props.onCommands());
+    expect(tree.root.findByProps({ 'data-composer-input': true }).props.value).toBe(text || '/');
+    expect(tree.root.findAll((node) => Array.isArray(node.props.suggestions) && node.props.suggestions.length > 0).length).toBeGreaterThan(0);
+    act(() => tree.unmount());
+  });
+});

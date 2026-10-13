@@ -282,6 +282,7 @@ export function MChatScreen(): JSX.Element {
       composerValue={text}
       onComposerChange={setText}
       onSend={onSend}
+      onCommands={composer.openCommands}
       slashSuggestions={edit.armed || routing.rejectArmed || routing.answering ? [] : composer.slashSuggestions}
       onSlashPick={(suggestion) => { composer.pickSlash(suggestion); }}
       sendEnabled={sendEnabled}

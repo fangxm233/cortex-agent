@@ -78,7 +78,7 @@ function ComposerOverlays({ props, overlay, files }: OverlayProps & {
     <>
       {overlay.is('attach') && (
         <AttachMenu onClose={() => overlay.close('attach')} onCamera={files.camera} onLibrary={files.library}
-          onFile={files.file} {...attachModes({ props, overlay })} onCommands={() => props.onComposerChange('/')} />
+          onFile={files.file} {...attachModes({ props, overlay })} onCommands={() => { if (props.onCommands) props.onCommands(); else if (!props.composerValue) props.onComposerChange('/'); }} />
       )}
       {overlay.is('browser') && (
         <BrowserSheet current={browser?.device ?? null} onClose={() => overlay.close('browser')} onPick={pickBrowser} />
