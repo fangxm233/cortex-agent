@@ -21,3 +21,16 @@ it.each(['en', 'zh'])('keeps controls and real execution details without a techn
     expect(html).toContain(value);
   }
 });
+
+
+it('renders captured output and errors as wrapped multiline text', () => {
+  const html = renderToStaticMarkup(<LangProvider><ExecutionDrawerView
+    title="run" pill={null} meta="" now="" notice={null}
+    output={'first line\nsecond line'} error="run failed" killDisabled onKill={() => {}} onClose={() => {}} />
+  </LangProvider>);
+  expect(html).toContain('first line\nsecond line');
+  expect(html).toContain('role="alert"');
+  expect(html).toContain('color:var(--proto-danger);white-space:pre-wrap');
+  expect(html).toContain('run failed');
+  expect(html).not.toContain('No captured output');
+});

@@ -130,7 +130,9 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
       pill={detail ? execPill(detail.status, L) : null}
       meta={detail ? execMeta(detail, L) : ''}
       now={detail ? execNow(detail) : ''}
-      notice={L.exNoLiveLog}
+      output={detail?.text.finalOutput}
+      error={execQuery.isError ? execQuery.error.message : detail?.text.error}
+      notice={!execQuery.isError && !detail?.text.error && !detail?.text.finalOutput ? L.exNoLiveLog : null}
       killDisabled={cancel.isPending}
       onKill={onKill}
       onClose={onClose}

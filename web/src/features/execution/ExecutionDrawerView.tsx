@@ -14,6 +14,8 @@ export interface ExecutionDrawerViewProps {
   now: string;
   /** Body line explaining that no output is captured for this execution. */
   notice: string | null;
+  output?: string | null;
+  error?: string | null;
   killDisabled: boolean;
   onKill: () => void;
   onClose: () => void;
@@ -64,6 +66,8 @@ export function ExecutionDrawerView({
   meta,
   now,
   notice,
+  output,
+  error,
   killDisabled,
   onKill,
   onClose,
@@ -93,6 +97,8 @@ export function ExecutionDrawerView({
 
       {/* Body (prototype L1551) */}
       <div data-execution-log style={BODY_STYLE}>
+        {error ? <div role="alert" style={{ color: 'var(--proto-danger)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{error}</div> : null}
+        {output ? <div style={{ color: 'var(--log-fg)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{output}</div> : null}
         {notice ? <div style={{ color: 'var(--log-fg)' }}>{notice}</div> : null}
         {/* Trailing live-clock (prototype L1555) */}
         <div>
