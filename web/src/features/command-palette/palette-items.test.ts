@@ -36,6 +36,7 @@ describe('buildCmdkItems', () => {
     const [item] = buildCmdkItems({ sessions: [session()] });
     expect(item.route).toBe('/workbench');
     expect(item.focusId).toBe('sess_1');
+    expect(item.projectId).toBe('cortex-self');
     expect(item.id).toBe('session:sess_1');
     expect(item.keywords).toContain('sess_1');
   });

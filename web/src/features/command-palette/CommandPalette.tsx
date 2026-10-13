@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useSettings } from '@/features/settings/useSettings';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 import { paletteKindText } from './palette-items';
@@ -140,10 +142,16 @@ function usePaletteRows(open: boolean, query: string): PaletteRow[] {
 function usePaletteTarget(onOpenChange: (open: boolean) => void) {
   const navigate = useNavigate();
   const { open: openSettings } = useSettings();
+  const { setCurrentProject } = useCurrentProject();
+  const { setSelectedSession } = useSelectedSession();
   return (row: PaletteRow) => {
     onOpenChange(false);
     if (row.modal === 'settings') return openSettings();
-    if (row.route) navigate(row.route, row.focusId ? { state: { focusId: row.focusId } } : undefined);
+    if (row.focusId) {
+      if (row.projectId) setCurrentProject(row.projectId);
+      setSelectedSession(row.focusId);
+    }
+    if (row.route) navigate(row.route);
   };
 }
 
