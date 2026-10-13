@@ -52,7 +52,7 @@ export interface BuildNotificationInput {
   L?: NotificationVocab;
 }
 
-/** Shape a session-message event into a NotificationItem. Title = conversation name, meta =
+/** Shape a session-message event into a NotificationItem. Title = session label or short ID, meta =
  *  a one-line preview of the message body. Level is always 'info' — the honest level for a
  *  chat reply (no severity guessing / fabrication). */
 export function buildNotification(input: BuildNotificationInput): NotificationItem {

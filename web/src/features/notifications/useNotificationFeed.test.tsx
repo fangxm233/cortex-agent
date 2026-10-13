@@ -111,6 +111,17 @@ afterEach(() => {
 });
 
 describe('useNotificationFeed', () => {
+  it('uses a short UUID for an unlabeled session notification', () => {
+    const sessionId = 'abcdef12-3456-7890-abcd-ef1234567890';
+    harness.sessions = [{ sessionId, label: null, projectId: 'atlas' }];
+    mountFeed({ isSessionOpen: () => false });
+    act(() => {
+      emitAssistant(sessionId, 'reply');
+      endTurn(sessionId);
+    });
+    expect(published[0].title).toBe('abcdef12');
+  });
+
   it('queries direct sessions, buffers the latest turn message, and applies membership/open gates', () => {
     harness.sessions!.push({
       sessionId: 'open-1', label: 'Open', projectId: 'atlas',

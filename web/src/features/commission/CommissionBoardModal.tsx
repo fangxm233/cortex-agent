@@ -100,7 +100,7 @@ export interface CommissionBoardModalProps {
   /** Member sessions currently blocked on the user. */
   gates: SessionInfo[];
   activeSessionCount: number | null;
-  /** Display name for a decision's source session; the raw id when the session is unknown. */
+  /** Display label or short ID for a decision's source session. */
   sessionLabel: (sessionId: string) => string;
   pending: boolean;
   onOpenSession: (session: SessionInfo) => void;
