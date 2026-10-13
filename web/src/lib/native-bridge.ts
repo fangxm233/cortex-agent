@@ -417,7 +417,10 @@ export async function listenNativeNotificationActions(
     disposed = true;
     clearRetry();
     signal?.removeEventListener('abort', off);
-    if (typeof window !== 'undefined') window.removeEventListener('focus', resume);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', resume);
+      window.removeEventListener('online', resume);
+    }
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume);
     unregister();
   });
@@ -430,7 +433,10 @@ export async function listenNativeNotificationActions(
     unregister = idempotent(() => listener.unregister());
     if (disposed) { unregister(); return off; }
     registered = true;
-    if (typeof window !== 'undefined') window.addEventListener('focus', resume);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', resume);
+      window.addEventListener('online', resume);
+    }
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume);
     await drain();
   } catch { off(); }

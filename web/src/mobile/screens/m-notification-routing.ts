@@ -25,17 +25,23 @@ export function notificationTargetId(value: unknown): string | undefined {
 async function sessionRoute(data: Record<string, unknown>, lookup: NotificationLookups): Promise<NotificationRoute> {
   const id = notificationTargetId(data.sessionId);
   if (!id) return { path: '/m/sessions' };
-  const session = (await lookup.sessions()).find((entry) => entry.sessionId === id);
+  const path = `/m/session/${encodeURIComponent(id)}`;
+  const sessions = await lookup.sessions().catch(() => null);
+  if (!sessions) return { path };
+  const session = sessions.find((entry) => entry.sessionId === id);
   if (!session) return { path: '/m/sessions' };
-  return { path: `/m/session/${encodeURIComponent(id)}`, projectId: session.projectId ?? undefined };
+  return { path, projectId: session.projectId ?? undefined };
 }
 
 async function approvalRoute(data: Record<string, unknown>, lookup: NotificationLookups): Promise<NotificationRoute> {
   const id = notificationTargetId(data.approvalId);
   if (!id) return { path: '/m/approvals' };
-  const approval = (await lookup.approvals()).find((entry) => entry.id === id);
+  const path = `/m/approvals?approvalId=${encodeURIComponent(id)}`;
+  const approvals = await lookup.approvals().catch(() => null);
+  if (!approvals) return { path };
+  const approval = approvals.find((entry) => entry.id === id);
   if (!approval) return { path: '/m/approvals' };
-  return { path: `/m/approvals?approvalId=${encodeURIComponent(id)}`, projectId: approval.projectId ?? undefined };
+  return { path, projectId: approval.projectId ?? undefined };
 }
 
 export async function resolveNotificationRoute(

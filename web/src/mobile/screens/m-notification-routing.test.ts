@@ -34,9 +34,13 @@ describe('mobile notification target validation', () => {
     expect(lookup.sessions).not.toHaveBeenCalled();
   });
 
-  it('propagates network failure so the retained action is not acknowledged', async () => {
+  it('opens valid targets without a project when lookups are offline', async () => {
     const lookup = lookups();
     lookup.sessions.mockRejectedValue(new Error('offline'));
-    await expect(resolveNotificationRoute({ sessionId: 'session/with?#' }, lookup)).rejects.toThrow('offline');
+    lookup.approvals.mockRejectedValue(new Error('offline'));
+    expect(await resolveNotificationRoute({ sessionId: 'session/with?#' }, lookup))
+      .toEqual({ path: '/m/session/session%2Fwith%3F%23' });
+    expect(await resolveNotificationRoute({ kind: 'approvals', approvalId: 'approval/with?#' }, lookup))
+      .toEqual({ path: '/m/approvals?approvalId=approval%2Fwith%3F%23' });
   });
 });

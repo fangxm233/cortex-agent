@@ -229,7 +229,7 @@ describe('retained Android actions', () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    it('bounds persistent failures, then permits recovery on focus', async () => {
+    it.each(['focus', 'online'])('bounds persistent failures, then permits recovery on %s', async (event) => {
       const handled = vi.fn().mockReturnValue(false);
       off = await listenNativeNotificationActions(handled);
       await flush();
@@ -243,7 +243,7 @@ describe('retained Android actions', () => {
       expect(handled).toHaveBeenCalledTimes(6);
       expect(vi.getTimerCount()).toBe(0);
       handled.mockReturnValue(undefined);
-      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event(event));
       await flush();
       expect(handled).toHaveBeenCalledTimes(7);
       expect(calls('ack_action')).toHaveLength(1);
@@ -282,6 +282,7 @@ describe('retained Android actions', () => {
       else off();
       expect(vi.getTimerCount()).toBe(0);
       expect(removeWindow).toHaveBeenCalledWith('focus', expect.any(Function));
+      expect(removeWindow).toHaveBeenCalledWith('online', expect.any(Function));
       expect(removeDocument).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
       const count = invoke.mock.calls.length;
       emit(action);
