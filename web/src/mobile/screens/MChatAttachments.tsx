@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import { useNearViewport } from '@/features/media/useNearViewport';
 import { downloadFile } from '@/lib/files';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDocViewer } from '@/features/media/DocViewer';
@@ -49,10 +51,12 @@ function MediaTile({ attachment, kind }: {
   kind: 'image' | 'video';
 }): JSX.Element {
   const { openMedia } = useMediaViewer();
-  const url = useWorkspaceObjectUrl(attachment.path);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(hostRef);
+  const url = useWorkspaceObjectUrl(near ? attachment.path : null);
   const width = attachment.type === 'video' ? 104 : 74;
   return (
-    <div role="button" onClick={() => openMedia({ kind, name: attachment.name, path: attachment.path })} style={{ width, height: 74, borderRadius: 'var(--r-card)', background: url ? 'var(--media-stage-bg)' : STRIPES, position: 'relative', overflow: 'hidden', flex: 'none', cursor: 'pointer' }}>
+    <div ref={hostRef} role="button" onClick={() => openMedia({ kind, name: attachment.name, path: attachment.path })} style={{ width, height: 74, borderRadius: 'var(--r-card)', background: url ? 'var(--media-stage-bg)' : STRIPES, position: 'relative', overflow: 'hidden', flex: 'none', cursor: 'pointer' }}>
       <MediaTileBody attachment={attachment} url={url} kind={kind} />
     </div>
   );

@@ -13,8 +13,8 @@ export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attach
 }
 
 /** Fetch a workspace file's bytes (authenticated) and return an object URL. Caller revokes it. */
-export async function fetchFileObjectUrl(relPath: string, disposition: 'inline' | 'attachment' = 'inline'): Promise<string> {
-  const res = await fetch(fileDownloadUrl(relPath, disposition), { headers: authHeaders() });
+export async function fetchFileObjectUrl(relPath: string, disposition: 'inline' | 'attachment' = 'inline', signal?: AbortSignal): Promise<string> {
+  const res = await fetch(fileDownloadUrl(relPath, disposition), { headers: authHeaders(), signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`); // shown under the localized "download failed" toast title, so no English prefix
   const blob = await res.blob();
   return URL.createObjectURL(blob);

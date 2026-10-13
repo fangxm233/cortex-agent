@@ -47,9 +47,11 @@ function MediaThumb({ a, width, height }: {
 }): JSX.Element {
   const kind = mediaKindOf(a.type)!;
   const { openMedia } = useMediaViewer();
-  const url = useWorkspaceObjectUrl(a.path);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(hostRef);
+  const url = useWorkspaceObjectUrl(near ? a.path : null);
   return (
-    <div role="button" title={a.name} onClick={() => openMedia({ kind, name: a.name, path: a.path })} style={thumbStageStyle(url, width, height)}>
+    <div ref={hostRef} role="button" title={a.name} onClick={() => openMedia({ kind, name: a.name, path: a.path })} style={thumbStageStyle(url, width, height)}>
       <ThumbBody url={url} kind={kind} name={a.name} />
       {kind === 'video' && <span style={smallPlayStyle}>▶</span>}
       <span style={{ ...mediaNameStyle, maxWidth: width - 12 }}>{a.name}</span>
@@ -261,11 +263,13 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
   const dl = useDownloadFile();
   const kind = mediaKindOf(a.type)!;
   const { openMedia } = useMediaViewer();
-  const url = useWorkspaceObjectUrl(a.path);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(hostRef);
+  const url = useWorkspaceObjectUrl(near ? a.path : null);
   const [hover, setHover] = useState(false);
   return (
     <div
-      role="button" title={a.name} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      ref={hostRef} role="button" title={a.name} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onClick={() => openMedia({ kind, name: a.name, path: a.path })}
       style={{ ...agentMediaStyle, background: url ? 'var(--media-stage-bg)' : stageFallback }}
     >

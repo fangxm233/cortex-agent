@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { fileDownloadUrl } from './files';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { fetchFileObjectUrl, fileDownloadUrl } from './files';
 
 // readDesktopConfig() reads globalThis.__CORTEX_DESKTOP_CONFIG — set/clear it to switch modes.
 const g = globalThis as unknown as { __CORTEX_DESKTOP_CONFIG?: { serverUrl?: string; token?: string } };
@@ -22,5 +22,22 @@ describe('fileDownloadUrl', () => {
     g.__CORTEX_DESKTOP_CONFIG = { serverUrl: 'https://cortex.example.com', token: 'tok' };
     const url = fileDownloadUrl('workspace/outputs/s1/a.txt');
     expect(url.startsWith('https://cortex.example.com/api/files/download?')).toBe(true);
+  });
+});
+
+
+describe('fetchFileObjectUrl', () => {
+  it('passes cancellation to the authenticated fetch', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['preview']) });
+    vi.stubGlobal('fetch', fetch);
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
+    const controller = new AbortController();
+    try {
+      expect(await fetchFileObjectUrl('workspace/image.png', 'inline', controller.signal)).toBe('blob:preview');
+      expect(fetch).toHaveBeenCalledWith(expect.any(String), { headers: {}, signal: controller.signal });
+    } finally {
+      create.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 });

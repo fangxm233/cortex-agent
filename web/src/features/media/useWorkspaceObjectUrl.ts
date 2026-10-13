@@ -14,9 +14,10 @@ export function useWorkspaceObjectUrl(path: string | null | undefined): string |
       setUrl(null);
       return;
     }
+    const controller = new AbortController();
     let alive = true;
     let created: string | null = null;
-    fetchFileObjectUrl(path, 'inline')
+    fetchFileObjectUrl(path, 'inline', controller.signal)
       .then((u) => {
         if (alive) {
           created = u;
@@ -30,6 +31,7 @@ export function useWorkspaceObjectUrl(path: string | null | undefined): string |
       });
     return () => {
       alive = false;
+      controller.abort();
       if (created) URL.revokeObjectURL(created);
     };
   }, [path]);
