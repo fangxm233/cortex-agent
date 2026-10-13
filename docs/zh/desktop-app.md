@@ -218,22 +218,37 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 冷启动需要加载整个 agent 运行时，在较慢的机器上可能超过向导的等待时间。实时日志会显示 daemon 的输出。也可从终端检查状态：
 
+应用私有的 CLI 不会加入终端 PATH。Linux/macOS 下使用：
+
 ```bash
-cortex daemon status
-cortex doctor
+~/.cortex/runtime/prefix/bin/cortex daemon status
+~/.cortex/runtime/prefix/bin/cortex doctor
 ```
+
+这些命令需要 PATH 中有 Node。如果没有，请使用 `~/.cortex/runtime/selection.json` 中记录的 `node` 绝对路径来执行 CLI：
+`"<node 路径>" ~/.cortex/runtime/prefix/bin/cortex doctor`（或 `daemon status`）。
+
+Windows 下可在 PowerShell 中使用保存的运行环境，无需 PATH 中有 Node：
+
+```powershell
+$runtime = Get-Content "$env:USERPROFILE\.cortex\runtime\selection.json" -Raw | ConvertFrom-Json
+& $runtime.node "$env:USERPROFILE\.cortex\runtime\prefix\node_modules\@cortex-agent\server\dist\entry\cortex-cli.js" daemon status
+& $runtime.node "$env:USERPROFILE\.cortex\runtime\prefix\node_modules\@cortex-agent\server\dist\entry\cortex-cli.js" doctor
+```
+
+如果设置了 `CORTEX_HOME`，请将以上路径中的 `~/.cortex` 或 `$env:USERPROFILE\.cortex` 替换为该目录。
 
 应用在每次启动时也会拉起本机服务端，重新打开应用即可重试。
 
 ### Linux 上凭据无法持久化 {#credentials-do-not-persist-on-linux}
 
-无头 Linux 环境可能没有 Secret Service daemon。此时 keychain 写入失败，凭据只能保留到当前进程结束。可在本地启动时显式注入连接信息：
+无头 Linux 环境可能没有 Secret Service daemon。首次本地安装必须能保存凭据才能完成；普通连接则回退为仅在当前进程内保留凭据。请启用系统密钥环，或启动应用时显式指定已运行的服务端连接：
 
 ```bash
-CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN=<client-token> ./Cortex.AppImage
+CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
 ```
 
-此启动命令中的 `CORTEX_TOKEN` 是原生壳的 fallback 变量；服务器配置仍使用 `CORTEX_CLIENT_TOKEN`。
+将 `$CORTEX_HOME/config/.env`（默认为 `~/.cortex/config/.env`）中的 `CORTEX_CLIENT_TOKEN` 值填入 `<client-token>`。`CORTEX_TOKEN` 是原生壳的 fallback 变量，不替代服务器设置。此方式连接已运行的服务端，不会自动启动它。
 
 ### Wayland 下应用窗口不显示 {#app-window-does-not-open-on-wayland}
 

@@ -330,6 +330,7 @@ describe('local setup copy', () => {
     ['RUNTIME_NOT_BUNDLED', 'onbErrRuntimeNotBundled'],
     ['SERVER_TOO_OLD', 'onbErrServerTooOld'],
     ['SETUP_CANCELLED', 'onbErrSetupCancelled'],
+    ['provider_setup_save_failed', 'onbErrCredentialStore'],
   ] as const)('translates %s without exposing details', (code, key) => {
     for (const vocab of [en, zh]) {
       expect(localSetupErrorText(`${code}: Node /private/runtime checksum`, vocab)).toBe(vocab[key]);

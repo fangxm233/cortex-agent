@@ -220,22 +220,43 @@ Choose **Try again** first: setup unpacks missing runtime files again and reinst
 
 A cold start loads the whole agent runtime and can outlast the wizard's wait on a slow machine. The streamed log shows what the daemon reported. Check the state from a terminal:
 
+The app-private CLI is not added to your terminal's PATH. On Linux/macOS:
+
 ```bash
-cortex daemon status
-cortex doctor
+~/.cortex/runtime/prefix/bin/cortex daemon status
+~/.cortex/runtime/prefix/bin/cortex doctor
 ```
+
+These commands need Node on PATH. If it is absent, use the absolute `node` path
+recorded in `~/.cortex/runtime/selection.json` to invoke the CLI:
+`"<node path>" ~/.cortex/runtime/prefix/bin/cortex doctor` (or `daemon status`).
+
+On Windows, use PowerShell with the saved runtime, without needing Node on PATH:
+
+```powershell
+$runtime = Get-Content "$env:USERPROFILE\.cortex\runtime\selection.json" -Raw | ConvertFrom-Json
+& $runtime.node "$env:USERPROFILE\.cortex\runtime\prefix\node_modules\@cortex-agent\server\dist\entry\cortex-cli.js" daemon status
+& $runtime.node "$env:USERPROFILE\.cortex\runtime\prefix\node_modules\@cortex-agent\server\dist\entry\cortex-cli.js" doctor
+```
+
+If you set `CORTEX_HOME`, substitute that directory for `~/.cortex` or
+`$env:USERPROFILE\.cortex` in these paths.
 
 The app also starts a local server at launch, so reopening it retries.
 
 ### Credentials do not persist on Linux
 
-A headless Linux environment may not provide a Secret Service daemon. In that case the keychain write fails and credentials last only for the current process. A local launch can seed the connection explicitly:
+A headless Linux environment may not provide a Secret Service daemon. Fresh local
+setup cannot finish until it can save credentials; ordinary connections fall back
+to credentials that last only for the current process. Enable the system keyring,
+or launch the app with an explicit connection to the running server:
+
 
 ```bash
-CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN=<client-token> ./Cortex.AppImage
+CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
 ```
 
-`CORTEX_TOKEN` in this launch command is a native-shell fallback variable; the server configuration remains `CORTEX_CLIENT_TOKEN`.
+Use the value of `CORTEX_CLIENT_TOKEN` in `$CORTEX_HOME/config/.env` (default `~/.cortex/config/.env`) as `<client-token>`. `CORTEX_TOKEN` is the native-shell fallback variable; it does not replace the server setting. This fallback connects to an already-running server and does not start it automatically.
 
 ### App window does not open on Wayland
 

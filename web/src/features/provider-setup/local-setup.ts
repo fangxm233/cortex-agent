@@ -181,6 +181,7 @@ export class LocalSetupFlow {
 
 // Codes the flow raises itself and the native setup commands return, as `CODE` or `CODE: detail`.
 const ERROR_KEYS: Record<string, keyof Vocab> = {
+  provider_setup_save_failed: 'onbErrCredentialStore',
   EACCES: 'onbErrEacces', DAEMON_TIMEOUT: 'onbErrDaemonTimeout', INIT_ENDPOINT_MISSING: 'onbErrInitEndpointMissing',
   SERVER_INSTALL_FAILED: 'onbErrServerInstallFailed', SERVER_PACKAGE_INVALID: 'onbErrServerPackageInvalid',
   SERVER_TOO_OLD: 'onbErrServerTooOld', CLI_NOT_ON_PATH: 'onbErrCliNotOnPath',
