@@ -26,6 +26,7 @@ vi.mock('../../../src/domain/executions/registry.js', () => ({
   getRunningExecutions: () => running,
 }));
 
+const { listSystemNotices, resetSystemNoticeHistory } = await import('../../../src/domain/system/notice-history.js');
 const fallback = await import('../../../src/domain/runs/fallback.js');
 const { fireScheduledTask } = await import('../../../src/domain/scheduling/jobs/scheduled-task.js');
 const { ctx } = await import('../../../src/domain/scheduling/job-registry.js');
@@ -65,6 +66,7 @@ function fire(overrides: Partial<Parameters<typeof fireScheduledTask>[0]> = {}) 
 }
 
 beforeEach(() => {
+  resetSystemNoticeHistory();
   running.length = 0;
   deliver = vi.fn(async () => {});
   notify = vi.fn(async () => {});
@@ -202,4 +204,5 @@ test('all-config rate limiting reports the skipped schedule without opening a se
   expect(notify.mock.calls[0][0]).toMatchObject({ type: 'project-report', projectId: 'proj-a' });
   expect(notify.mock.calls[0][1]).toContain('summarize new arxiv papers');
   expect(notify.mock.calls[0][1]).toContain('rate-limited');
+  expect(listSystemNotices()[0]).toMatchObject({ level: 'warning', text: notify.mock.calls[0][1] });
 });

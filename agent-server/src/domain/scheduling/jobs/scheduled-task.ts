@@ -13,6 +13,7 @@ import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../run-gu
 import { allConfigsRateLimited } from '../../runs/fallback.js';
 import type { Destination } from '@platform/index.js';
 import { t } from '@core/i18n.js';
+import { publishSystemNotice } from '@domain/system/system-notice.js';
 
 const log = createLogger('scheduled-task');
 
@@ -132,6 +133,7 @@ async function openScheduledRun(
 }
 
 async function notifySkippedSchedule(projectId: string, text: string): Promise<void> {
+  publishSystemNotice({ text, level: 'warning' });
   const destination: Destination = { type: 'project-report', projectId, trigger: 'scheduled', sessionId: '' };
   try {
     await requireJobCtx('notify')(destination, text);
