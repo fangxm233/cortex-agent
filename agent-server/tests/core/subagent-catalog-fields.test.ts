@@ -22,6 +22,35 @@ test('the agent tool fields keep the subagent lead-ins', () => {
   assert.deepEqual(describeSubagent({}).backend, SUBAGENT_BACKEND_DESCRIPTION);
 });
 
+test.each([
+  { count: 40, padding: 0 },
+  { count: 4, padding: 400 },
+])('model descriptions list every model with $count entries and $padding padding', ({ count, padding }) => {
+  const models: SubagentModelOption[] = Array.from({ length: count }, (_, index) => ({
+    backend: 'pi', provider: 'provider', id: `model-${index}-${'x'.repeat(padding)}`,
+  }));
+  const descriptions = [
+    describeSubagent({ models }).model,
+    describeModelFields(models, { model: 'Worker model.', backend: 'Worker backend.' }).model,
+  ];
+  for (const description of descriptions) {
+    for (const model of models) assert.ok(description.includes(`${model.provider}/${model.id}`));
+    assert.doesNotMatch(description, /\(\+\d+ more\)/);
+  }
+});
+
+test('model descriptions retain normalization, deduplication and ordering', () => {
+  const models: SubagentModelOption[] = [
+    { backend: 'pi', provider: ' p ', id: ' z ' },
+    { backend: 'claude', id: ' b ' },
+    { backend: 'pi', provider: 'p', id: 'z' },
+    { backend: 'claude', id: 'a' },
+    { backend: 'pi', id: ' ' },
+  ];
+  assert.equal(describeSubagent({ models }).model,
+    `${SUBAGENT_MODEL_DESCRIPTION} Known available — claude: a, b; pi: p/z.`);
+});
+
 test('another tool lists the same catalog behind its own lead-ins', () => {
   const bases = { model: 'Worker model.', backend: 'Worker backend.' };
   assert.deepEqual(describeModelFields(MODELS, bases), {
