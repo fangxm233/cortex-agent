@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { discoverEndpoints, writeMergedGatewayYaml, type DiscoveredEndpoint } from '@core/gateway-generator.js';
-import { generateProfiles, recommendedChoice, writeProfilesJson, type ModelChoice } from '@core/profile-generator.js';
+import { generateProfiles, recommendedChoice, writeProfilesJson, type ExtraProfileChoice } from '@core/profile-generator.js';
 import { CONFIG_DIR } from '@core/paths.js';
 
 const log = createLogger('gateway-sync');
@@ -85,21 +85,32 @@ function readProfileNames(configDir: string): string[] {
   }
 }
 
-function missingBackendChoices(endpoints: DiscoveredEndpoint[], configDir: string): ModelChoice[] {
+function missingBackendChoices(endpoints: DiscoveredEndpoint[], configDir: string): ExtraProfileChoice[] {
   const file = path.join(configDir, 'profiles.json');
   if (!existsSync(file)) return [];
   const saved = JSON.parse(readFileSync(file, 'utf8')) as {
     profiles?: Record<string, { backend: string }>;
   };
   const backends = new Set(Object.values(saved.profiles ?? {}).map(p => p.backend));
-  const extras: ModelChoice[] = [];
+  const extras: ExtraProfileChoice[] = [];
+  const names = new Set(Object.keys(saved.profiles ?? {}));
   for (const endpoint of endpoints) {
     const choice = recommendedChoice([endpoint]);
     if (!choice) continue;
     const backend = generateProfiles([endpoint]).profiles.plan.backend;
     if (backends.has(backend)) continue;
-    extras.push(choice);
+    const name = availableProfileName(choice.model, backend, names);
+    extras.push({ ...choice, name });
+    names.add(name);
     backends.add(backend);
   }
   return extras;
+}
+
+function availableProfileName(model: string, backend: string, names: Set<string>): string {
+  const base = model.replace(/[^a-zA-Z0-9_-]/g, '-') || backend;
+  let name = base;
+  let suffix = 1;
+  while (name === 'plan' || name === 'execute' || names.has(name)) name = `${backend}-${base}-${suffix++}`;
+  return name;
 }

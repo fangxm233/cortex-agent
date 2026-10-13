@@ -31,6 +31,10 @@ export interface ModelChoice {
   model: string;
 }
 
+export interface ExtraProfileChoice extends ModelChoice {
+  name?: string;
+}
+
 export interface GenerateOpts {
   /** Explicit (mode, model) to use as the `plan` profile. Otherwise `recommendedChoice`. */
   planChoice?: ModelChoice;
@@ -41,7 +45,7 @@ export interface GenerateOpts {
   /** Ordered fallback chain for the `execute` profile. */
   executeFallback?: ModelChoice[];
   /** Additional models to register as standalone named profiles (profile name = model name). */
-  extraProfiles?: ModelChoice[];
+  extraProfiles?: ExtraProfileChoice[];
 }
 
 // ─── Endpoint → backend mapping ────────────────────────────────────
@@ -186,13 +190,10 @@ function managedProfile(
 function addExtraProfiles(
   profiles: Record<string, ProfileEntry>,
   models: ModelEntry[],
-  extras: ModelChoice[] | undefined,
+  extras: ExtraProfileChoice[] | undefined,
 ): void {
   for (const choice of extras ?? []) {
-    // Profile names must match /^[a-zA-Z0-9_-]+$/. Model ids may contain dots (e.g. "gpt-5.4"),
-    // which are invalid in a profile name — sanitize dots → dashes. The model id stored in the
-    // entry stays verbatim (makeProfileEntry uses choice.model) so the API call is unaffected.
-    const name = choice.model.replace(/\./g, '-');
+    const name = (choice.name ?? choice.model).replace(/[^a-zA-Z0-9_-]/g, '-');
     if (name === 'plan' || name === 'execute') {
       log.warn(`Skipping extra profile "${name}": name conflicts with managed profile`);
       continue;
@@ -292,7 +293,7 @@ export interface WriteProfilesOpts extends GenerateOpts {
   /** Force overwrite of existing `plan` / `execute` profiles. Default false. */
   overwrite?: boolean;
   /** Additional models to register as standalone named profiles. */
-  extraProfiles?: ModelChoice[];
+  extraProfiles?: ExtraProfileChoice[];
 }
 
 /**

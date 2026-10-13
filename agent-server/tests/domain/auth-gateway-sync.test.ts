@@ -119,3 +119,20 @@ test('second backend login adds a usable profile without replacing existing prof
   assert.equal(saved.profiles['acme-large'].backend, 'pi');
   assert.equal(Object.keys(saved.profiles).length, 3);
 });
+
+test('automatic profiles use safe names without colliding with an existing profile', async () => {
+  const { configDir, gatewayConfigDir } = makeDirs();
+  const existing = { backend: 'claude', mode: 'plan', model: 'opus' };
+  fs.writeFileSync(path.join(configDir, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan', profiles: { plan: existing, execute: existing, 'org-model-v1': existing },
+  }));
+  await syncGatewayFromBackends({
+    configDir, gatewayConfigDir, backends: ['pi'],
+    discover: () => [piEndpoint('acme', ['org/model.v1'])],
+  });
+  const saved = JSON.parse(fs.readFileSync(path.join(configDir, 'profiles.json'), 'utf8'));
+  assert.ok(Object.keys(saved.profiles).every(name => /^[a-zA-Z0-9_-]+$/.test(name)));
+  assert.deepEqual(saved.profiles['org-model-v1'], existing);
+  const pi = Object.values(saved.profiles).find((profile: any) => profile.backend === 'pi') as any;
+  assert.equal(pi?.model, 'org/model.v1');
+});
