@@ -7,6 +7,8 @@ import {
   ENVIRONMENTS_DIRNAME,
   fsRefResolver,
   readEnvironment,
+  readEnvironmentSystemPrompt,
+  systemPromptDirs,
   validateEnvironment,
 } from '@domain/agents/environments/index.js';
 import type {
@@ -76,6 +78,7 @@ export async function readEnvironmentDetail(name: string, dir: string = ENVIRONM
     sha256: entity.sha256,
     errors,
     warnings,
+    systemPrompt: readEnvironmentSystemPrompt(name, entity.body, systemPromptDirs(dir)),
   };
 }
 

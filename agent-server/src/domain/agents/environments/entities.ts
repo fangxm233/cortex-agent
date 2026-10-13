@@ -17,7 +17,7 @@ export interface EnvironmentWriteError extends Error {
   issues?: Issue[];
 }
 
-function writeError(code: EnvironmentWriteErrorCode, message: string, issues?: Issue[]): EnvironmentWriteError {
+export function writeError(code: EnvironmentWriteErrorCode, message: string, issues?: Issue[]): EnvironmentWriteError {
   return Object.assign(new Error(message), { code, ...(issues ? { issues } : {}) });
 }
 

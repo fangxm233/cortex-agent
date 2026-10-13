@@ -24,6 +24,8 @@ export type { ServerUpdateState, ServerUpdateStatus } from '@domain/system/updat
 import type { EventBus } from '@events/index.js';
 import type { SessionStateReader } from '@core/session-state.js';
 import type { SettingSnapshotEntry } from '@core/settings-spec.js';
+import type { EnvironmentSystemPrompt } from '@domain/agents/environments/system-prompt.js';
+export type { EnvironmentSystemPrompt, SystemPromptKind } from '@domain/agents/environments/system-prompt.js';
 import type {
   AttachmentMeta,
   AuthNoticeAction,
@@ -1110,6 +1112,8 @@ export interface EnvironmentDetail {
   sha256: string;
   errors: EnvironmentIssue[];
   warnings: EnvironmentIssue[];
+  /** The `systemPrompt` field as its editor shows it. */
+  systemPrompt: EnvironmentSystemPrompt;
 }
 
 export interface EnvironmentsValidateReturn {
@@ -1126,6 +1130,12 @@ export interface EnvironmentsSaveReturn {
 
 export interface EnvironmentsDeleteReturn {
   removed: boolean;
+}
+
+export interface EnvironmentsSavePromptReturn {
+  changed: boolean;
+  /** The prompt file now backing the environment; null when it uses the backend default. */
+  file: string | null;
 }
 
 // ── skills.list DTO (plan §12 A item 2 / 8a) ────────────────────────────────
@@ -1780,6 +1790,7 @@ export interface MutateReturnMap {
   'environments.validate': EnvironmentsValidateReturn;
   'environments.save': EnvironmentsSaveReturn;
   'environments.delete': EnvironmentsDeleteReturn;
+  'environments.savePrompt': EnvironmentsSavePromptReturn;
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
   'system.refreshUsage': SystemRefreshUsageReturn;

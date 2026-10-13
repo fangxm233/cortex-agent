@@ -6,11 +6,14 @@ import {
   loadEnvironments,
   removeEnvironment,
   saveEnvironment,
+  saveEnvironmentSystemPrompt,
+  systemPromptDirs,
   validateEnvironment,
 } from '@domain/agents/environments/index.js';
 import type { Issue } from '@domain/agents/environments/index.js';
 import type {
   EnvironmentsDeleteReturn,
+  EnvironmentsSavePromptReturn,
   EnvironmentsSaveReturn,
   EnvironmentsValidateReturn,
   Result,
@@ -48,6 +51,16 @@ export function removeEnvironmentFile(name: string, dir: string = ENVIRONMENTS_D
   return { removed: result.removed };
 }
 
+/** Replace one environment's system prompt. The save may rewrite the environment file itself (a
+ *  literal moved to a prompt file), so the registry reloads; a second load is idempotent. */
+export function saveEnvironmentPrompt(
+  name: string, text: string, dir: string = ENVIRONMENTS_DIR,
+): EnvironmentsSavePromptReturn {
+  const result = saveEnvironmentSystemPrompt(name, text, systemPromptDirs(dir), fsRefResolver());
+  loadEnvironments(dir);
+  return result;
+}
+
 export async function handleEnvironmentsValidate(
   _deps: UiServiceDeps,
   args: MutateArgs<'environments.validate'>,
@@ -76,6 +89,17 @@ export async function handleEnvironmentsDelete(
 ): Promise<Result<EnvironmentsDeleteReturn>> {
   try {
     return { ok: true, data: removeEnvironmentFile(args.name) };
+  } catch (error) {
+    return toErr(error);
+  }
+}
+
+export async function handleEnvironmentsSavePrompt(
+  _deps: UiServiceDeps,
+  args: MutateArgs<'environments.savePrompt'>,
+): Promise<Result<EnvironmentsSavePromptReturn>> {
+  try {
+    return { ok: true, data: saveEnvironmentPrompt(args.name, args.text) };
   } catch (error) {
     return toErr(error);
   }
