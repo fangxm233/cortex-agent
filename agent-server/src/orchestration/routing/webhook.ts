@@ -124,9 +124,7 @@ async function replySuccess(res: Res, run: () => Promise<unknown>): Promise<void
 /** Resolve a session's bound conduit channel from the session registry, or null. */
 async function resolveSessionChannel(sessionId: unknown): Promise<string | null> {
   if (typeof sessionId !== 'string' || !sessionId) return null;
-  const name = await sessionStore.lookupBySessionId(sessionId);
-  if (!name) return null;
-  const record = await sessionStore.lookupSession(name);
+  const record = await sessionStore.getById(sessionId);
   return record?.channel ?? null;
 }
 

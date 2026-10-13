@@ -96,7 +96,6 @@ export function ChatHeader({
   running,
   projectName,
   backendSessionId,
-  sessionName,
   metadataSession,
   parent,
   team,
@@ -106,7 +105,6 @@ export function ChatHeader({
   /** The session's project, already resolved by CenterChat. Null ⇒ no chip. */
   projectName: string | null;
   backendSessionId: string | null;
-  sessionName: string | null;
   metadataSession: MetadataSession | null;
   parent?: ChatHeaderParent | null;
   /** Team mode: a lead's team capsule, first among the header's actions. */
@@ -217,7 +215,6 @@ export function ChatHeader({
       </div>
       {sessionIdOpen ? (
         <SessionIdModal
-          cortexId={sessionName}
           sessionId={metadataSession?.sessionId}
           backendUuid={backendSessionId}
           onClose={() => setSessionIdOpen(false)}

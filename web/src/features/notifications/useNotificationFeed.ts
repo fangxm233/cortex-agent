@@ -4,12 +4,13 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useVocabOptional, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { isMobileShell } from '@/lib/desktop-config';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { buildNotification, buildSystemNotice, type NotificationItem } from './notification-vm';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
 import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';
 
 interface DirectEntry {
-  name: string | null;
+  label: string | null;
   projectId: string | null;
   /** A team worker (active or retired): its turns reach the user through the lead, never on their own. */
   silent: boolean;
@@ -27,7 +28,7 @@ interface BufferedTurnMessage {
   ts: string;
 }
 
-type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId' | 'teamLeadId' | 'awaitingInput'>;
+type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'projectId' | 'teamLeadId' | 'awaitingInput'>;
 type Deliver = (item: NotificationItem) => void;
 type NextId = (prefix: 'dmn' | 'sysn') => string;
 
@@ -43,7 +44,7 @@ function toDirectMap(sessions: readonly DirectSession[] | undefined): Map<string
   const map = new Map<string, DirectEntry>();
   for (const session of sessions ?? []) {
     map.set(session.sessionId, {
-      name: session.label ?? session.name,
+      label: session.label ?? shortSessionId(session.sessionId),
       projectId: session.projectId,
       silent: !!session.teamLeadId,
       awaitingInput: !!session.awaitingInput,
@@ -111,7 +112,7 @@ function consumeDmTurn(
   buffer.delete(sessionId);
   if (entry.silent) return { consumed: true, item: null };
   return { consumed: true, item: buildNotification({
-    id: nextId('dmn'), sessionId, sessionName: entry.name,
+    id: nextId('dmn'), sessionId, sessionLabel: entry.label,
     projectId: entry.projectId, text: message.text, ts: message.ts, L,
   }) };
 }
@@ -158,7 +159,7 @@ function useAwaitingFeed(map: Map<string, DirectEntry>, isSessionOpen: (id: stri
       if (!entry.awaitingInput || before.get(sessionId)?.awaitingInput !== false) continue;
       if (entry.silent || isSessionOpen(sessionId)) continue;
       deliver({ ...buildNotification({
-        id: nextId('dmn'), sessionId, sessionName: entry.name, projectId: entry.projectId,
+        id: nextId('dmn'), sessionId, sessionLabel: entry.label, projectId: entry.projectId,
         text: L.notifAwaitingInput, ts: new Date().toISOString(), L,
       }), level: 'warning' });
     }

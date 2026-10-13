@@ -28,7 +28,7 @@ function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
 
 function run(p: Partial<SessionInfo> = {}): SessionInfo {
   return {
-    sessionId: 'run-1', backendSessionId: null, name: 'run', projectId: 'nimbus', backend: 'claude',
+    sessionId: 'run-1', backendSessionId: null, projectId: 'nimbus', backend: 'claude',
     kind: 'scheduled', origin: 'scheduled', scheduleId: 'repeat-1', createdAt: '2030-01-01T07:00:00.000Z',
     lastUsedAt: '2030-01-01T07:00:00.000Z', resumable: true, label: null, profileName: null,
     running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null,

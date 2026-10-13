@@ -1,6 +1,6 @@
 import * as crypto from 'node:crypto';
 import type { TuiSessionDeps, TuiSessionService, HandshakeResolution, SwitchResolution } from './types.js';
-import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
+import { registerSessionRecord } from '@domain/sessions/session-lifecycle.js';
 import type { TranscriptData, TranscriptMessage } from '@platform/adapters/tui/ports.js';
 
 // ── Internal helpers ─────────────────────────────────────────────
@@ -11,7 +11,7 @@ async function createFresh(
   projectId: string,
 ): Promise<SwitchResolution> {
   const sessionId = crypto.randomUUID();
-  const sessionName = await registerNamedSession(deps.sessionStore, {
+  await registerSessionRecord(deps.sessionStore, {
     sessionId,
     channel: conduitId,
     backend: 'tui',
@@ -19,10 +19,9 @@ async function createFresh(
   });
   await deps.conversationLedger.initConversation(conduitId, {
     sessionId,
-    sessionName,
     backend: 'tui',
   });
-  return { sessionId, sessionName, projectId, isFresh: true, transcript: null };
+  return { sessionId, projectId, isFresh: true, transcript: null };
 }
 
 async function assembleTranscript(
@@ -51,15 +50,13 @@ async function assembleTranscript(
 export function createTuiSessionService(deps: TuiSessionDeps): TuiSessionService {
   return {
     async resolveHandshake({ conduitId, projectId, resumeSessionId }): Promise<HandshakeResolution> {
-      const sessionName = await deps.sessionStore.lookupBySessionId(resumeSessionId);
-      if (sessionName) {
+      const session = await deps.sessionStore.getById(resumeSessionId);
+      if (session) {
         // Session found — attach with replay
-        const session = await deps.sessionStore.getById(resumeSessionId);
         const activeProjectId = session?.projectId ?? projectId;
         const transcript = await assembleTranscript(deps, resumeSessionId);
         return {
           sessionId: resumeSessionId,
-          sessionName,
           projectId: activeProjectId,
           isFresh: false,
           emitNotFoundError: false,
@@ -73,21 +70,18 @@ export function createTuiSessionService(deps: TuiSessionDeps): TuiSessionService
 
     async switchSession({ conduitId, projectId, sessionId }): Promise<SwitchResolution> {
       if (sessionId) {
-        const sessionName = await deps.sessionStore.lookupBySessionId(sessionId);
         const session = await deps.sessionStore.getById(sessionId);
         const resolvedProjectId = session?.projectId ?? projectId;
 
-        if (sessionName) {
+        if (session) {
           // Attach to existing session — switch clears turns before assemble
           await deps.conversationLedger.switchSession(conduitId, {
             sessionId,
-            sessionName,
             backend: 'tui',
           });
           const transcript = await assembleTranscript(deps, sessionId);
           return {
             sessionId,
-            sessionName,
             projectId: resolvedProjectId,
             isFresh: false,
             transcript,

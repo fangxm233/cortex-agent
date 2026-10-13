@@ -5,7 +5,6 @@ import { deriveActiveProjectId } from './current-project';
 const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   sessionId: `s-${projectId}-${lastUsedAt}`,
   backendSessionId: null,
-  name: 'cortex-0000',
   projectId,
   backend: 'claude',
   kind: 'local',

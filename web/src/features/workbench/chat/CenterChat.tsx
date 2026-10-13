@@ -193,7 +193,6 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
         running={chat.running}
         projectName={projectName}
         backendSessionId={active?.backendSessionId ?? null}
-        sessionName={active?.name ?? null}
         parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => setSelectedSession(team.lead!.sessionId) } : null}
         team={team.workers.length > 0 ? <TeamCapsule workers={team.workers} onOpen={setSelectedSession} /> : null}
       />

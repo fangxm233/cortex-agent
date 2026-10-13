@@ -40,7 +40,6 @@ interface TurnTrackingArgs {
   channel: string;
   trackSessionId: string | null;
   backendSessionId: string | null;
-  sessionName: string | null;
   userMessageTs: string;
   userMessageText: string;
   statusMessageTs: string;
@@ -98,7 +97,7 @@ async function runTurnTracking(
     const deps = options.deps ?? defaultTurnTrackingDeps;
     const backend = deps.resolveBackend(args.channel);
     const { turnIndex } = await deps.ledger.initAndBeginTurn(args.channel, {
-      sessionId: args.trackSessionId || null, sessionName: args.sessionName, backend,
+      sessionId: args.trackSessionId || null, backend,
       profileName: deps.getProfile(args.channel), userMessageTs: args.userMessageTs,
       userMessageText: args.userMessageText || '', statusMessageTs: args.statusMessageTs,
     });
@@ -118,7 +117,6 @@ export function initTurnTracking(
   channel: string,
   trackSessionId: string | null,
   backendSessionId: string | null,
-  sessionName: string | null,
   userMessageTs: string,
   userMessageText: string,
   statusMessageTs: string,
@@ -126,7 +124,7 @@ export function initTurnTracking(
 ): Promise<TurnTrackingToken> {
   const token = Symbol(channel);
   const operation = runTurnTracking({
-    channel, trackSessionId, backendSessionId, sessionName,
+    channel, trackSessionId, backendSessionId,
     userMessageTs, userMessageText, statusMessageTs,
   }, options, token);
   currentTurnTracking.set(channel, token);

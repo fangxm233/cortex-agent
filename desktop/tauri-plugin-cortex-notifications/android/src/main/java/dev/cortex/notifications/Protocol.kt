@@ -65,7 +65,7 @@ internal object Protocol {
         .map {
             Session(requiredId(it, "sessionId"), it.optional("projectId"),
                 boolean(it, "running"), boolean(it, "awaitingInput"),
-                it.optBoolean("backgroundRunning", false), it.optional("label") ?: it.optional("name"),
+                it.optBoolean("backgroundRunning", false), it.optional("label") ?: requiredId(it, "sessionId").take(8),
                 it.optional("teamLeadId") != null)
         }.groupBy { it.id }.values.map { rows ->
             // Count IDs, not rows. An inactive duplicate must not hide another

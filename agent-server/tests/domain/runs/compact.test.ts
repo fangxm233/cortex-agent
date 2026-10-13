@@ -31,8 +31,7 @@ function target(profileOverrides: Record<string, unknown> = {}): CompactAgentTar
     request: {
       runId: 'compact-run',
       session: {
-        sessionId: 'track-1', backendSessionId: 'backend-1', engineKey: 'web:track-1', sessionName: 'cortex-a1b2c3',
-      },
+        sessionId: 'track-1', backendSessionId: 'backend-1', engineKey: 'web:track-1', },
       profile: profile(profileOverrides),
       spec: bareSpec(),
       prompt: { text: '' },

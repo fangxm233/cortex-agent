@@ -69,13 +69,12 @@ function drive(body: any): Promise<{ statusCode: number; body: any }> {
 let seq = 0;
 async function liveSession(fields: { commissionId?: string | null } = {}) {
   seq += 1;
-  const name = `cortex-hook${seq}`;
-  const sessionId = `sess-hook${seq}`;
-  await sessionStore.registerSession(name, {
+  const sessionId = `${seq.toString(16).padStart(8, '0')}-0000-4000-8000-000000000001`;
+  await sessionStore.registerSession({
     sessionId, channel: `web:${sessionId}`, backend: 'claude', kind: 'local', projectId: PROJECT,
     commissionId: fields.commissionId ?? null,
   });
-  return { name, sessionId, channel: `web:${sessionId}` };
+  return { sessionId, channel: `web:${sessionId}` };
 }
 
 test('an ordinary session can put itself into the drafting phase', async () => {
@@ -84,11 +83,11 @@ test('an ordinary session can put itself into the drafting phase', async () => {
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
-  assert.equal(res.body.draftDir, `_draft-${s.name}`);
+  assert.equal(res.body.draftDir, `_draft-${s.sessionId.slice(0, 8)}`);
   assert.equal(res.body.alreadyDrafting, false);
-  assert.equal(res.body.dir, path.join(commissionsRoot(PROJECT)!, `_draft-${s.name}`));
+  assert.equal(res.body.dir, path.join(commissionsRoot(PROJECT)!, `_draft-${s.sessionId.slice(0, 8)}`));
   assert.ok(fs.existsSync(res.body.dir), 'the tool reports a directory that exists');
-  assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, `_draft-${s.name}`);
+  assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, `_draft-${s.sessionId.slice(0, 8)}`);
   assert.deepEqual(events.at(-1), { type: 'session.commission', sessionId: s.sessionId, channel: s.channel, ts: events.at(-1)!.ts });
 });
 
@@ -114,7 +113,7 @@ test('calling it again is idempotent and publishes nothing new', async () => {
 
   assert.equal(again.body.ok, true);
   assert.equal(again.body.alreadyDrafting, true, 'so the tool can say "already drafting" instead of restarting');
-  assert.equal(again.body.draftDir, `_draft-${s.name}`, 'the same directory — nothing drilled so far is lost');
+  assert.equal(again.body.draftDir, `_draft-${s.sessionId.slice(0, 8)}`, 'the same directory — nothing drilled so far is lost');
   assert.equal(events.length, before, 'the capsule was already lit');
 });
 

@@ -24,8 +24,8 @@ async function makeRepo() {
 
 test('sessions.send awaits touchSessionUse before accepting and rejects if deletion wins before touch', async () => {
   const repo = await makeRepo();
-  await repo.registerSession('cortex-race', registerOpts('track-race'));
-  await repo.updateSession('cortex-race', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.registerSession(registerOpts('track-race'));
+  await repo.updateSession('track-race', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
 
   const pending = await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
   assert.deepEqual(pending.map((entry) => entry.session.sessionId), ['track-race']);
@@ -47,8 +47,8 @@ test('sessions.send awaits touchSessionUse before accepting and rejects if delet
 
 test('sessions.send accepts after touchSessionUse and a later sweep can select the session again', async () => {
   const repo = await makeRepo();
-  await repo.registerSession('cortex-touch', registerOpts('track-touch'));
-  await repo.updateSession('cortex-touch', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.registerSession(registerOpts('track-touch'));
+  await repo.updateSession('track-touch', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
 
   const touched: string[] = [];
   const sendResult = await handleSendSession({

@@ -17,7 +17,6 @@ export interface TranscriptData {
 
 export interface HandshakeResolution {
   sessionId: string;
-  sessionName: string;
   projectId: string;
   isFresh: boolean;
   emitNotFoundError: boolean;
@@ -26,7 +25,6 @@ export interface HandshakeResolution {
 
 export interface SwitchResolution {
   sessionId: string;
-  sessionName: string;
   projectId: string;
   isFresh: boolean;
   transcript: TranscriptData | null;

@@ -11,7 +11,7 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({ useCurrentProject
 vi.mock('@/features/session/state/SelectedSessionProvider', () => ({ useSelectedSession: () => ({ setSelectedSession: h.session }) }));
 vi.mock('@/features/settings/useSettings', () => ({ useSettings: () => ({ open: h.settings }) }));
 vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: { list: { queryOptions: () => ({}) } } }) }));
-vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [{ sessionId: 's1', projectId: 'orchard', name: 'Session' }] }) }));
+vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [{ sessionId: 's1', projectId: 'orchard', label: 'Session' }] }) }));
 vi.mock('cmdk', () => {
   const wrapper = ({ children }: { children: ReactNode }) => <div>{children}</div>;
   return { Command: {

@@ -82,8 +82,8 @@ export async function switchChannelProfile(opts: { channel: string; name: string
   // dance of "use currentBackend when the backend changed" is gone with the key.
   // The cross-backend rule above is unchanged: a live conversation still cannot move.
   try {
-    const sessionName = await sessionStore.getActiveSessionName(channel);
-    if (sessionName) await sessionStore.updateSession(sessionName, { profileName: name });
+    const session = await sessionStore.getById((await sessionStore.getBoundSessionId(channel)) ?? '');
+    if (session) await sessionStore.updateSession(session.sessionId, { profileName: name });
   } catch {
     // record sync is non-fatal — the channel profile (the runtime source of truth) is already set
   }

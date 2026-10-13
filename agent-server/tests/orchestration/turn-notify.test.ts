@@ -20,7 +20,6 @@ function makeAdapter() {
 const base = {
   channel: 'slack:D123',
   threadAnchorId: null,
-  sessionName: 'brave-otter',
   sessionId: 's-1',
   elapsedStr: '2m30s',
   metricsSuffix: ' · $0.12',

@@ -23,8 +23,7 @@ export interface RunRequest {
     backendSessionId: string | null;
     /** Pool key: session id, `thr:<id>:<slot>` or `<sessionId>::hook`. */
     engineKey: string;
-    sessionName: string | null;
-  };
+    };
   profile: ResolvedProfileConfig;
   spec: AgentSpec;
   /** Working directory the engine runs in. Omitted (undefined) means the server's own cwd, which

@@ -34,7 +34,7 @@ vi.mock('@/i18n', () => ({
   useLang: () => 'en',
   useVocab: () => ({
     newProject: 'New project', npProjectName: 'Project name', npHint: 'Pick a name',
-    cancel: 'Cancel', npCreate: 'Create', wbCortexId: 'Cortex ID',
+    cancel: 'Cancel', npCreate: 'Create',
     wbBackendUuid: 'Backend UUID', wbSessionId: 'Session ID', wbCopied: 'Copied',
     wbCopy: 'Copy', wbSchedPausedPill: 'paused', wbSchedNextRun: 'next {d}',
     wbSchedManage: 'manage ↗', wbAllRuns: '{n} runs', wbSchedRunListHint: 'Select a run',
@@ -57,7 +57,7 @@ function render(node: React.ReactElement): ReactTestRenderer {
 
 function run(sessionId: string): SessionInfo {
   return {
-    sessionId, backendSessionId: null, name: sessionId, projectId: 'proj', backend: 'claude',
+    sessionId, backendSessionId: null, projectId: 'proj', backend: 'claude',
     kind: 'scheduled', origin: 'scheduled', scheduleId: 'sch-1',
     createdAt: '2030-01-01T00:00:00.000Z', lastUsedAt: '2030-01-01T00:00:00.000Z',
     resumable: true, label: null, profileName: null, running: false,
@@ -85,7 +85,7 @@ beforeEach(() => {
 describe('glass modal presentation', () => {
   it.each([
     <NewProjectModal onClose={vi.fn()} />,
-    <SessionIdModal sessionId="track-7" cortexId="cortex-7" backendUuid="uuid-7" onClose={vi.fn()} />,
+    <SessionIdModal sessionId="track-7" backendUuid="uuid-7" onClose={vi.fn()} />,
     <SessionStatsModal rows={[]} onClose={vi.fn()} />,
     <RunListModal row={row()} selectedSessionId={null} onOpenRun={vi.fn()} onClose={vi.fn()} />,
   ])('keeps a bounded glass shell and native close control', (node) => {
@@ -129,15 +129,15 @@ describe('SessionStatsModal glass body', () => {
 describe('SessionIdModal shared shell', () => {
   it('keeps data hooks and copy actions while Radix owns dismissal', () => {
     const onClose = vi.fn();
-    const tree = render(<SessionIdModal sessionId="track-7" cortexId="cortex-7" backendUuid="uuid-7" onClose={onClose} />);
+    const tree = render(<SessionIdModal sessionId="track-7" backendUuid="uuid-7" onClose={onClose} />);
 
     act(() => harness.modalProps.onOpenChange(false));
     expect(onClose).toHaveBeenCalledOnce();
 
     const copies = tree.root.findAllByType('button').filter((node) => node.children.includes('Copy'));
-    expect(copies).toHaveLength(3);
+    expect(copies).toHaveLength(2);
     act(() => copies.forEach((copy) => copy.props.onClick()));
-    expect(harness.copyCalls).toEqual([['cortex-7', 'cortexId'], ['track-7', 'sessionId'], ['uuid-7', 'backendUuid']]);
+    expect(harness.copyCalls).toEqual([['track-7', 'sessionId'], ['uuid-7', 'backendUuid']]);
     act(() => tree.unmount());
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sessionDisplayTitle } from './session-display-title';
 
 describe('sessionDisplayTitle', () => {
-  const session = { name: 'session-a', label: 'Automatic task title' };
+  const session = { sessionId: 'abcdef12-3456-7890-abcd-ef1234567890', label: 'Automatic task title' };
 
   it('preserves numbered scheduled titles for automatic and legacy labels', () => {
     expect(sessionDisplayTitle(session, 'Task · run #2')).toBe('Task · run #2');
@@ -17,6 +17,6 @@ describe('sessionDisplayTitle', () => {
 
   it('uses the label or identity when a scheduled title does not apply', () => {
     expect(sessionDisplayTitle(session, null)).toBe(session.label);
-    expect(sessionDisplayTitle({ ...session, label: null }, null)).toBe(session.name);
+    expect(sessionDisplayTitle({ ...session, label: null }, null)).toBe('abcdef12');
   });
 });

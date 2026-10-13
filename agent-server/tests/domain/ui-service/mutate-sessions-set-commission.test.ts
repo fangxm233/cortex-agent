@@ -29,13 +29,12 @@ const enableCommissions = () => setCommissions('1');
 let seq = 0;
 async function liveSession(fields: { commissionId?: string | null; commissionDraft?: string | null } = {}) {
   seq += 1;
-  const name = `cortex-set${seq}`;
-  const sessionId = `sess-set${seq}`;
-  await sessionStore.registerSession(name, {
+  const sessionId = `${seq.toString(16).padStart(8, '0')}-0000-4000-8000-000000000002`;
+  await sessionStore.registerSession({
     sessionId, channel: `web:${sessionId}`, backend: 'claude', kind: 'local', projectId: PROJECT,
     commissionId: fields.commissionId ?? null, commissionDraft: fields.commissionDraft ?? null,
   });
-  return { name, sessionId, channel: `web:${sessionId}` };
+  return { sessionId, channel: `web:${sessionId}` };
 }
 
 function makeDeps(published: any[], commissions: { id: string; projectId: string; status: string }[] = []) {
@@ -63,9 +62,9 @@ test('new puts a live session into the drafting phase and announces it on its ch
 
     assert.equal(res.ok, true);
     if (!res.ok) return;
-    assert.deepEqual(res.data, { phase: 'draft', commissionId: null, commissionDraft: `_draft-${s.name}` });
-    assert.ok(fs.existsSync(draftDirOf(s.name)), 'the server owns the directory, not the agent');
-    assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, `_draft-${s.name}`);
+    assert.deepEqual(res.data, { phase: 'draft', commissionId: null, commissionDraft: `_draft-${s.sessionId.slice(0, 8)}` });
+    assert.ok(fs.existsSync(draftDirOf(s.sessionId.slice(0, 8))), 'the server owns the directory, not the agent');
+    assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, `_draft-${s.sessionId.slice(0, 8)}`);
     // session.commission, not commission.updated: there is no commission record yet to name.
     assert.deepEqual(published, [{ type: 'session.commission', sessionId: s.sessionId, channel: s.channel }]);
   } finally { restore(); }
@@ -97,7 +96,7 @@ test('off leaves the drafting phase and reclaims a draft nothing was written int
     assert.equal(res.ok, true);
     if (!res.ok) return;
     assert.deepEqual(res.data, { phase: 'none', commissionId: null, commissionDraft: null, removedDraftDir: true });
-    assert.equal(fs.existsSync(draftDirOf(s.name)), false);
+    assert.equal(fs.existsSync(draftDirOf(s.sessionId.slice(0, 8))), false);
     assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, null);
     assert.equal(published.length, 2, 'leaving is a binding change the UI has to see too');
   } finally { restore(); }
@@ -110,13 +109,13 @@ test('off keeps a contract that already holds text', async () => {
     const s = await liveSession();
     const deps = makeDeps(published);
     await handleSetCommission(deps, { sessionId: s.sessionId, commission: { mode: 'new' } });
-    fs.writeFileSync(path.join(draftDirOf(s.name), 'contract.md'), '# Ship it\n\nreal drilling\n');
+    fs.writeFileSync(path.join(draftDirOf(s.sessionId.slice(0, 8)), 'contract.md'), '# Ship it\n\nreal drilling\n');
 
     const res = await handleSetCommission(deps, { sessionId: s.sessionId, commission: { mode: 'off' } });
     assert.equal(res.ok, true);
     if (!res.ok) return;
     assert.equal(res.data.removedDraftDir, false);
-    assert.ok(fs.existsSync(draftDirOf(s.name)), 'the user can still read what was drilled');
+    assert.ok(fs.existsSync(draftDirOf(s.sessionId.slice(0, 8))), 'the user can still read what was drilled');
     assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, null, 'but the session is out of the mode');
   } finally { restore(); }
 });
@@ -151,8 +150,8 @@ test('a drafting session that joins instead reclaims its own untouched draft dir
     assert.equal(res.ok, true);
     if (!res.ok) return;
     assert.deepEqual(res.data, { phase: 'active', commissionId: 'c1', commissionDraft: null, removedDraftDir: true });
-    assert.equal(fs.existsSync(draftDirOf(s.name)), false, 'no orphaned _draft-* directory');
-    assert.ok(fs.existsSync(draftDirOf(other.name)), "another session's draft is never touched");
+    assert.equal(fs.existsSync(draftDirOf(s.sessionId.slice(0, 8))), false, 'no orphaned _draft-* directory');
+    assert.ok(fs.existsSync(draftDirOf(other.sessionId.slice(0, 8))), "another session's draft is never touched");
     const after = await sessionStore.getById(s.sessionId);
     assert.equal(after?.commissionId, 'c1');
     assert.equal(after?.commissionDraft, null);

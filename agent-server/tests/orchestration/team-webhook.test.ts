@@ -12,7 +12,7 @@ import type {
 
 function session(id: string, extra: Record<string, unknown> = {}): any {
   return {
-    sessionId: id, name: `cortex-${id}`, channel: `web:${id}`, origin: 'direct', projectId: 'proj',
+    sessionId: id, channel: `web:${id}`, origin: 'direct', projectId: 'proj',
     backend: 'claude', kind: 'local', createdAt: '', lastUsedAt: '', label: null, profileName: null,
     ...extra,
   };

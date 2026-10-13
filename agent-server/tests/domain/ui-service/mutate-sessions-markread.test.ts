@@ -9,7 +9,7 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 function makeDeps(sink: string[], known = ['sess-1']): UiServiceDeps {
   return {
     sessionStore: {
-      getById: async (id: string) => (known.includes(id) ? { sessionId: id, name: 'cortex-x' } : null),
+      getById: async (id: string) => (known.includes(id) ? { sessionId: id } : null),
       markRead: async (id: string) => { sink.push(id); },
     },
   } as unknown as UiServiceDeps;

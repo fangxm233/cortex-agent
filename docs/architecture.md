@@ -65,7 +65,7 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 |------|---------|
 | `outbound-queue.ts` | WAL-based durable outbound message queue. 30-min TTL, 200-entry compaction, 5-second drain loop. Coalesces consecutive updates to the same message |
 | `conversation-ledger-repo.ts` | Façade over `session-registry-repo.ts` — same per-channel turn API (`initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo`) with no file of its own |
-| `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Replays an append-only journal (`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`), admits sessions, and compacts snapshots when the log grows |
+| `session-registry-repo.ts` | JSONL-backed UUID session registry and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Replays an append-only journal (`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`), admits sessions, and compacts snapshots when the log grows |
 | `execution-repo.ts` | Pattern B repository: `startLocalExecution`, `completeExecution`, `failExecution`, `cancelExecution`. At startup `markMissingRunningExecutionsStale` marks runs that no longer exist as stale; terminal records are archived after seven days |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` with reverse channel lookup |
 | `schedule-repo.ts` | Schedule persistence. `ScheduleTask` interface; `schedules.json` is shared with out-of-process writers |
@@ -281,5 +281,6 @@ Session retention is coordinated separately from registry mutation. `session-ret
 
 - **Execution IDs**: `exec_<kind>_<base36-ts>_<4-rand>` (e.g., `exec_local_1a2b3c_xyzw`)
 - **Schedule IDs**: 8 hex characters (from `randomBytes(4)`)
-- **Session names**: `cortex-<6-hex-chars>` (e.g., `cortex-a1b2c3`)
+- **Session IDs**: UUIDs identify sessions in the registry and UI. Unlabeled sessions display the first 8 characters of the UUID. `/resume` accepts a full UUID or a unique prefix of at least 6 characters.
+- **Commission drafts**: New draft directories use `_draft-<first 8 UUID characters>`; existing draft directories remain valid.
 - **File format**: All TypeScript uses `.ts` with ESM import style (`import { X } from './foo.js'`)

@@ -15,7 +15,7 @@ async function withBundledClient(
   bundles: McpBundleName[] = ['cortex-ext'],
 ): Promise<void> {
   const ctx = toolContextFromEnv({
-    CORTEX_SESSION_ID: 'test-session', CORTEX_SESSION_NAME: 'cortex-test', CORTEX_PROJECT: 'nimbus',
+    CORTEX_SESSION_ID: 'test-session', CORTEX_PROJECT: 'nimbus',
     CORTEX_PROFILE: 'test-profile', CORTEX_BACKEND: 'pi',
     ...(allowlist ? { CORTEX_MCP_TOOL_ALLOWLIST: JSON.stringify(allowlist) } : {}),
   });
@@ -46,7 +46,7 @@ test('the actual ext surface omits all six schedule tools and preserves context'
     assert.equal(result.isError ?? false, false);
     const context = JSON.parse((result.content as Array<{ text: string }>)[0].text);
     assert.deepEqual(context, {
-      sessionId: 'test-session', sessionName: 'cortex-test', profile: 'test-profile', project: 'nimbus',
+      sessionId: 'test-session', profile: 'test-profile', project: 'nimbus',
       backend: 'pi', scheduleTaskId: null, callbackSource: null,
     });
   });

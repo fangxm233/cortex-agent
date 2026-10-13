@@ -7,6 +7,7 @@ import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver
 import { FALLBACK_ENVIRONMENT, resolveEnvironmentByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
 import { resolveSystemVars } from '@core/prompt-template.js';
+import { shortSessionId } from '@core/short-session-id.js';
 import { sessionEvidenceContext } from '@domain/benchmark/session-evidence.js';
 import { fromAgentSlot } from '@domain/runs/spec-loader.js';
 import { DIRECT_RUN_POLICY } from '@domain/runs/builders.js';
@@ -36,7 +37,6 @@ export interface ConversationSessionIds {
   /** Backend resume target (the backend CLI's own session id), or null for a fresh session. */
   backendSessionId: string | null;
   /** Resolved session name for this turn. */
-  sessionName: string | null;
   /** The project this session is bound to (from the session registry record). */
   projectId: string;
 }
@@ -255,7 +255,7 @@ async function loadCommissionContext(
   return null;
 }
 
-type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName' | 'name'>;
+type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName'>;
 
 /**
  * The team-mode blocks for this turn. A lead with at least one active worker, or with unread routine
@@ -268,7 +268,7 @@ export async function resolveConversationTeam(
   session: TeamSessionFields | null,
   args: { teamLead?: boolean; isFreshSession?: boolean },
   deps: {
-    getSession?: (id: string) => Promise<Pick<Session, 'name' | 'label'> | null>;
+    getSession?: (id: string) => Promise<Pick<Session, 'sessionId' | 'label'> | null>;
     describeTeam?: (leadSessionId: string) => Promise<WorkerView[]>;
     /** The lead's unread routine updates section, now marked read ('' when none). */
     takeUnread?: (leadSessionId: string) => Promise<string>;
@@ -289,7 +289,7 @@ export async function resolveConversationTeam(
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
     const lead = await getSession(session.teamLeadId!);
     if (!lead) return none;
-    return { team: null, worker: { name: session.workerName ?? session.name, lead: lead.label ?? lead.name } };
+    return { team: null, worker: { name: session.workerName ?? shortSessionId(session.sessionId), lead: lead.label ?? shortSessionId(lead.sessionId) } };
   } catch {
     return none;
   }
@@ -393,7 +393,6 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
     session: {
       sessionId: opts.ids.sessionId,
       backendSessionId: opts.ids.backendSessionId,
-      sessionName: opts.ids.sessionName,
       // Hazard (a): the pool key must stay the channel, byte-identical to what every interactive
       // turn has opened its engine under — changing it would silently re-pool every live session.
       engineKey: channel,

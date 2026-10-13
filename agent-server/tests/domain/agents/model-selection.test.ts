@@ -30,7 +30,8 @@ let turns: Record<string, number> = {};
 vi.mock('@store/session-registry-repo.js', () => ({
   sessionStore: {
     getTurns: async (channel: string) => Array(turns[channel] ?? 0).fill({}),
-    getActiveSessionName: async () => null,
+    getBoundSessionId: async () => null,
+    getById: async () => null,
     updateSession: async () => undefined,
   },
 }));

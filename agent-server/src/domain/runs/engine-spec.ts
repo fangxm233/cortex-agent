@@ -89,7 +89,6 @@ function spawnContext(request: RunRequest, executionId: string | null): CortexCo
     // before the run model — CORTEX_PROFILE absent, not set to an invented profile name.
     profile: request.profile.name || null,
     project: request.context.project ?? null,
-    sessionName: request.session.sessionName ?? null,
     trackSessionId: request.session.sessionId ?? request.session.backendSessionId ?? null,
     executionId: executionId ?? null,
   };

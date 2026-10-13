@@ -80,7 +80,6 @@ function continuationEvents(phase: RunPhase): RunEvent[] {
 function ledgerDeps(transcript: Partial<TranscriptSinkDeps>, streamed: string[] = []): InjectionLedgerDeps {
   return {
     getStreamingCallback: () => (text) => { streamed.push(text); },
-    sessionName: NAME,
     publishMessage: () => {},
     publishDelivered: () => {},
     publishStatus: () => {},
@@ -100,7 +99,7 @@ async function settle(): Promise<void> {
 test('a ledger-written continuation row is the foreground row, field for field', async () => {
   const foreground = recordingSinkDeps();
   const sink = createTranscriptSink({
-    sessionId: SESSION, channel: CHANNEL, sessionName: NAME, debug: true, deps: foreground.deps,
+    sessionId: SESSION, channel: CHANNEL, debug: true, deps: foreground.deps,
   });
   for (const event of continuationEvents('foreground')) await sink.onEvent(event);
 
@@ -153,14 +152,17 @@ test('foreground events are left to the surface\'s own sink', async () => {
   assert.deepEqual(background.rows, []);
 });
 
-test('without a session record the continuation\'s context usage is not stored', async () => {
+test('continuation context usage is keyed by the stable session ID', async () => {
   const background = recordingSinkDeps();
   const ledger = createInjectionObserver(
-    { ...ledgerDeps(background.deps), sessionName: null }, CHANNEL, SESSION,
+    { ...ledgerDeps(background.deps)}, CHANNEL, SESSION,
   );
   await ledger.onEvent({
     type: 'context_usage', usedTokens: 1, contextWindow: 10, percent: 10, accuracy: 'exact', phase: 'background',
   });
 
-  assert.deepEqual(background.rows, []);
+  assert.deepEqual(background.rows, [{
+    kind: 'context', sessionId: SESSION, channel: CHANNEL,
+    usage: { usedTokens: 1, contextWindow: 10, percent: 10, accuracy: 'exact' },
+  }]);
 });

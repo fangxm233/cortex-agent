@@ -111,14 +111,15 @@ class ProtocolTest {
         assertEquals(1, Protocol.sessions(Protocol.queryData(query).toString()).count { it.running })
     }
 
-    @Test fun sessionRowsCarryDisplayNamesAndBackgroundHolds() {
+    @Test fun sessionRowsUseLabelsOrShortIdsAndCarryBackgroundHolds() {
         val rows = Protocol.sessions("""[
           {"sessionId":"one","origin":"direct","running":true,"backgroundRunning":true,
             "awaitingInput":false,"name":"Fallback","label":"Atlas"},
-          {"sessionId":"two","origin":"direct","running":false,"awaitingInput":false,"name":"Fallback"}
+          {"sessionId":"abcdef12-3456-7890-abcd-ef1234567890","origin":"direct","running":false,"awaitingInput":false,"name":"Fallback"},
+          {"sessionId":"12345678-abcd-1234-abcd-123456789abc","origin":"direct","running":false,"awaitingInput":false}
         ]""")
-        assertEquals(listOf("Atlas", "Fallback"), rows.map { it.name })
-        assertEquals(listOf(true, false), rows.map { it.background })
+        assertEquals(listOf("Atlas", "abcdef12", "12345678"), rows.map { it.name })
+        assertEquals(listOf(true, false, false), rows.map { it.background })
     }
 
     @Test fun sessionRowsMarkTeamWorkersByTheirLead() {

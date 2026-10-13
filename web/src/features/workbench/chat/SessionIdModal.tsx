@@ -8,22 +8,18 @@ import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 const mono = "'IBM Plex Mono',monospace";
 
 export function SessionIdModal({
-  cortexId,
   sessionId,
   backendUuid,
   onClose,
 }: {
-  cortexId: string | null | undefined;
   sessionId: string | null | undefined;
   backendUuid: string | null | undefined;
   onClose: () => void;
 }): JSX.Element {
   const L = useVocab();
   const rows = buildSessionIdRows({
-    cortexId,
     sessionId,
     backendUuid,
-    cortexIdLabel: L.wbCortexId,
     sessionIdLabel: L.wbSessionId,
     backendUuidLabel: L.wbBackendUuid,
   });

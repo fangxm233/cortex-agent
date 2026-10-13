@@ -28,7 +28,6 @@ export interface RunRequestFixtureInput extends Omit<EngineSpecFixtureInput, 'to
   loadCortexRules?: boolean;
   recordCost?: boolean;
   commissionMode?: boolean;
-  sessionName?: string | null;
 }
 
 /** Drop explicitly-undefined keys so an override never clobbers a value the flat literal set. */
@@ -95,7 +94,6 @@ export function runRequestFixture(
       sessionId: partial.trackSessionId ?? null,
       backendSessionId: partial.sessionId ?? null,
       engineKey: partial.sessionKey ?? partial.channel ?? '',
-      sessionName: partial.sessionName ?? null,
     },
     profile: profileFixture(attempt, partial.profileName ?? ''),
     spec: {

@@ -53,7 +53,6 @@ async function openAnswerTurn(
     channel, adapter, threadAnchorId: null,
     session: {
       sessionId: group.sessionId,
-      sessionName: session?.name ?? null,
       backendSessionId: session ? effectiveBackendSessionId(session) : null,
       projectId: session?.projectId ?? 'general',
       lease,

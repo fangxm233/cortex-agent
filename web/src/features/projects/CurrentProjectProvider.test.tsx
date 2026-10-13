@@ -25,14 +25,14 @@ vi.mock('@/lib/trpc', () => ({
     sessions: {
       list: staticQuery('sessions.list', [
         {
-          sessionId: 'old', backendSessionId: null, name: 'old', projectId: 'alpha', backend: 'claude',
+          sessionId: 'old', backendSessionId: null, projectId: 'alpha', backend: 'claude',
           kind: 'local', origin: 'direct', createdAt: '2026-07-01T00:00:00Z',
           lastUsedAt: '2026-07-01T00:00:00Z', resumable: true, label: null, profileName: null,
           running: false, backgroundRunning: false, awaitingInput: false, numTurns: null,
           costUsd: null, unread: false, scheduleId: null,
         },
         {
-          sessionId: 'new', backendSessionId: null, name: 'new', projectId: 'beta', backend: 'claude',
+          sessionId: 'new', backendSessionId: null, projectId: 'beta', backend: 'claude',
           kind: 'local', origin: 'direct', createdAt: '2026-07-02T00:00:00Z',
           lastUsedAt: '2026-07-02T00:00:00Z', resumable: true, label: null, profileName: null,
           running: false, backgroundRunning: false, awaitingInput: false, numTurns: null,

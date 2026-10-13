@@ -30,20 +30,19 @@ export async function maybeNotifyTurnComplete(params: {
   adapter: PlatformAdapter;
   channel: string;
   threadAnchorId: string | null;
-  sessionName: string | null;
   sessionId: string | null;
   elapsedS: number;
   elapsedStr: string;
   status: 'completed' | 'failed';
   metricsSuffix?: string;
 }): Promise<void> {
-  const { adapter, channel, threadAnchorId, sessionName, sessionId, elapsedS, elapsedStr, status, metricsSuffix } = params;
+  const { adapter, channel, threadAnchorId, sessionId, elapsedS, elapsedStr, status, metricsSuffix } = params;
   try {
     if (!isTurnNotifyEnabled()) return;
     if (!isInteractiveChannel(channel)) return;
     if (elapsedS < getTurnNotifyThresholdS()) return;
 
-    const sessionTag = buildSessionTag(sessionName, sessionId);
+    const sessionTag = buildSessionTag(sessionId);
     const text = status === 'completed'
       ? `${Icons.ok} ${t('notify.turnComplete')} | ${sessionTag}(${elapsedStr}${metricsSuffix ?? ''})`
       : `${Icons.error} ${t('notify.turnFailed')} | ${sessionTag}(${elapsedStr})`;

@@ -37,7 +37,8 @@ let recordPatches: Array<{ name: string; updates: Record<string, unknown> }> = [
 vi.mock('@store/session-registry-repo.js', () => ({
   sessionStore: {
     getTurns: async (channel: string) => Array(turns[channel] ?? 0).fill({}),
-    getActiveSessionName: async () => 'session-1',
+    getBoundSessionId: async () => 'session-1',
+    getById: async () => ({ sessionId: 'session-1' }),
     updateSession: async (name: string, updates: Record<string, unknown>) => {
       recordPatches.push({ name, updates });
     },

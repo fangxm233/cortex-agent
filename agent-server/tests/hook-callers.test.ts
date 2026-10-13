@@ -66,7 +66,7 @@ function makeStream(): RecordingStream {
 function makeSessionSpec(): SessionHookSpec {
   return {
     name: 'onMessageEnd',
-    ctx: { channel: 'C-session-hook', sessionId: 'sess-1', sessionName: 'session-one' },
+    ctx: { channel: 'C-session-hook', sessionId: 'sess-1'},
     format: {
       statusLine: () => 'status',
       previewLine: output => `preview:${output}`,

@@ -234,7 +234,6 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       sessionId: null,
       backendSessionId: null,
       engineKey: childEngineKey(request, runId),
-      sessionName: null,
     },
     profile: claudeChildProfile(config),
     // The child runs where the caller asked (the parent's workspace), not where the server lives.

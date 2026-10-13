@@ -65,8 +65,7 @@ const REPRESENTATIVE_FRAMES: TuiFrame[] = [
   } satisfies SessionSwitch,
   {
     type: SESSION_SWITCHED, id: 'req-1', projectId: 'cortex-self',
-    sessionId: 'sess-001', sessionName: 'cortex-AB12',
-    isFresh: false, seq: 1,
+    sessionId: 'sess-001', isFresh: false, seq: 1,
   } satisfies SessionSwitched,
   { type: PING, ts: 1700000000000 } satisfies Ping,
   { type: PONG, ts: 1700000000000 } satisfies Pong,

@@ -763,7 +763,7 @@ test('the registered S1 step imports the legacy session stores via runMigrations
   // Minimal legacy stores in storeDir (= dataDir/data).
   await writeJson(path.join(storeDir, 'sessions.json'), { 'web:c1': 'sess-1' });
   await writeJson(path.join(storeDir, 'conversation-ledger.json'), {
-    'web:c1': { sessionId: 'sess-1', sessionName: 'cortex-1', backend: 'pi', profileName: null, turns: [], updatedAt: '2026-09-12T00:00:00.000Z' },
+    'web:c1': { sessionId: 'sess-1', backend: 'pi', profileName: null, turns: [], updatedAt: '2026-09-12T00:00:00.000Z' },
   });
 
   // Default step list (no override) → real S1 runs.

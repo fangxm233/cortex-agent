@@ -4,6 +4,7 @@
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
 import { buildScheduleRows } from '@/features/session/list/schedule-rail';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { orderSessions } from '@/features/session/list/session-groups';
 import { groupWorkers, isRetiredWorker } from '@/features/team/worker-groups';
 import { sessionRollup, workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
@@ -50,7 +51,7 @@ export function sessionStatusLine(s: SessionInfo, L: Vocab = en): { kind: 'runni
 function toRow(s: SessionInfo, now: number, lang: Lang, L: Vocab): MSessionRow {
   return {
     id: s.sessionId,
-    title: s.label || s.name || s.sessionId,
+    title: s.label || shortSessionId(s.sessionId),
     time: relTime(s.lastUsedAt || s.createdAt, now, lang),
     unread: s.unread,
     status: sessionStatusLine(s, L),

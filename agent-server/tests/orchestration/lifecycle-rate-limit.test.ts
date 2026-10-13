@@ -27,7 +27,7 @@ function baseArgs(adapter: MockAdapter, overrides: Record<string, unknown> = {})
     channel: 'C1', adapter: adapter as any,
     statusMsg: { conduit: 'C1', messageId: 's1' } as any,
     startTime: Date.now(),
-    executionId: null, sessionName: null, sessionId: null, userMessageTs: null,
+    executionId: null, sessionId: null, userMessageTs: null,
     userMessage: 'hello',
     ...overrides,
   };

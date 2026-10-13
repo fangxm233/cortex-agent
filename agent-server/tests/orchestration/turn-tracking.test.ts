@@ -55,8 +55,8 @@ test('stale generation finish and supersession cannot affect the next turn', asy
       createBackup: async () => null,
     },
   };
-  const first = await initTurnTracking(channel, 'track-1', null, 'cortex-1', 'm1', 'one', 's1', { deps });
-  const secondPending = initTurnTracking(channel, 'track-1', null, 'cortex-1', 'm2', 'two', 's2', { deps });
+  const first = await initTurnTracking(channel, 'track-1', null, 'm1', 'one', 's1', { deps });
+  const secondPending = initTurnTracking(channel, 'track-1', null, 'm2', 'two', 's2', { deps });
   markPendingTurnSuperseded(channel);
 
   finishTurnTracking(channel, first);
@@ -105,7 +105,6 @@ test('idle user acceptance publishes after snapshot completion and before backen
     'web:track-1',
     'track-1',
     'backend-1',
-    'cortex-1',
     'message-1',
     'hello',
     'status-1',

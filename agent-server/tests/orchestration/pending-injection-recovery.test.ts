@@ -13,7 +13,6 @@ function record(id = 'pin-1'): PendingInjectionRecord {
     sessionId: 'sess-1',
     channel: 'web:sess-1',
     messageId: `web-${id}`,
-    sessionName: 'cortex-nimbus',
     backend: 'claude',
     profileName: 'default',
     text: 'change direction',

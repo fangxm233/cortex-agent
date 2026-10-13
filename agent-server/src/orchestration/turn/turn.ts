@@ -63,7 +63,6 @@ export interface TurnSessionIds {
   sessionId: string | null;
   /** Backend resume target, or null for a fresh session that names itself. */
   backendSessionId: string | null;
-  sessionName: string | null;
   projectId: string;
 }
 
@@ -167,16 +166,16 @@ export class Turn {
 
   async run(): Promise<void> {
     const { channel, adapter, threadAnchorId, ledger } = this.input;
-    const { sessionId, sessionName, backendSessionId, projectId } = this.input.session;
+    const { sessionId, backendSessionId, projectId } = this.input.session;
     const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
     const prefix = this.input.statusPrefix ?? '';
 
     // 1. Post the status message WITHOUT a Cancel button — Cancel is added once the run creates
     //    the execution record (step 8), keyed by executionId (no thread).
     const statusText = prefix + buildUserProcessingMessage({
-      startTime: this.startTime, profileName: getActiveProfile(channel), sessionName, sessionId,
+      startTime: this.startTime, profileName: getActiveProfile(channel), sessionId,
     });
-    const blocksTemplate = { channel, sessionName, isDm: true };
+    const blocksTemplate = { channel, sessionId, isDm: true };
     //    This is the turn's first platform call. When the platform is unreachable (2026-09-14:
     //    Feishu TLS disconnects) the turn must still run — the reply goes out through the output
     //    stream, which has its own retries and WAL — so the failure degrades to "no status
@@ -199,12 +198,12 @@ export class Turn {
     const opensTracking = !!ledger && !ledger.token;
     if (ledger) {
       this.trackingToken = ledger.token ?? await initTurnTracking(
-        channel, sessionId, backendSessionId, sessionName,
+        channel, sessionId, backendSessionId,
         ledger.userMessageTs, this.input.user.text, statusMsg.messageId,
         {
           mutationRelease: this.input.mutationRelease,
           onAccepted: () => acceptUserMessage({
-            sessionId: sessionId ?? '', channel, sessionName: sessionName ?? '',
+            sessionId: sessionId ?? '', channel,
             text: this.input.user.text,
             attachments: this.input.user.attachments,
             ...(this.input.user.systemOrigin ? { systemOrigin: this.input.user.systemOrigin } : {}),
@@ -228,7 +227,7 @@ export class Turn {
     // 5a. Agent callbacks (streaming, fallback, progress, todo). Registers this channel's
     //     streaming callback for the duration of the turn.
     const callbacks = buildAgentCallbacks(
-      adapter, dest, statusMsg, threadAnchorId, this.startTime, sessionName, sessionId,
+      adapter, dest, statusMsg, threadAnchorId, this.startTime, sessionId,
       onMessagePosted, prefix,
     );
     // 5b. PI interactive-event callbacks (plan approval / ask-user-question routing).
@@ -245,9 +244,9 @@ export class Turn {
     // 5d. The transcript sink owns the history+publish copy and is driven by the run's observer
     //     fan-out. It is the first `RunObserver` handed to `startRun`; the surface bridges for
     //     deltas / progress / dialogs ride the same observer.
-    const sink: RunObserver = sessionId && sessionName
+    const sink: RunObserver = sessionId
       ? createTranscriptSink({
-          sessionId, channel, sessionName, debug: debugEnabled,
+          sessionId, channel, debug: debugEnabled,
           onAssistantMessage: callbacks.onAssistantMsg,
           onTodoUpdate: callbacks.onTodoUpdate ?? undefined,
           flushDelta: (blockId) => deltaStream?.flush(blockId),
@@ -336,7 +335,7 @@ export class Turn {
     try {
       // 6. Assemble this surface's request.
       const { request } = await this.input.prepareRequest({
-        sessionId, backendSessionId, sessionName, projectId,
+        sessionId, backendSessionId, projectId,
       });
 
       // 7. Open the run. The resume target is written the moment the backend names itself, not
@@ -345,9 +344,9 @@ export class Turn {
       //    deduplicates, so a resumed turn writes nothing unless the backend came back on a
       //    different session than the one it was asked to resume.
       let started: AgentRun | null = null;
-      const resumeTarget = sessionName
+      const resumeTarget = sessionId
         ? createResumeTargetSink({
-            sessionName,
+            sessionId,
             resumedFrom: backendSessionId,
             liveBackendSessionId: () => started?.backendSessionId ?? null,
           })
@@ -401,15 +400,15 @@ export class Turn {
       const verdict = await handleDefaultAgentResult({
         result, channel, adapter, statusMsg, startTime: this.startTime,
         userMessage: this.input.user.text, executionId: run.executionId,
-        sessionName, sessionId, threadAnchorId, messageTs: userMessageTs, callbacks, request,
+        sessionId, threadAnchorId, messageTs: userMessageTs, callbacks, request,
         resumeTarget: run.backendSessionId,
         // The platform hold REPLACES the seal, so it can only be installed from inside the terminal
         // handler — after the ask-user questions were sent, and with the reply stream it built.
         holdBackground: holdKind === 'platform'
-          ? ({ stream, backendSessionId: backendId }) => this.installHold({
+          ? ({ stream }) => this.installHold({
             result, run, renderer: platformHoldRenderer({
-              adapter, statusMsg, channel, stream, ownedCallback: callbacks.onAssistantMsg, sessionName,
-              sessionId: backendId, startTime: this.startTime,
+              adapter, statusMsg, channel, stream, ownedCallback: callbacks.onAssistantMsg,
+              sessionId, startTime: this.startTime,
               baseResult: result, userMessageTs, executionId: run.executionId,
               onToolUse: callbacks.onToolUse,
             }),
@@ -442,7 +441,7 @@ export class Turn {
         error: error as { message: string; cancelled?: boolean },
         channel, adapter, statusMsg, startTime: this.startTime,
         executionId: this.executionId,
-        sessionName, sessionId, effectiveSessionId: this.backendSessionIdOfRun,
+        sessionId, effectiveSessionId: this.backendSessionIdOfRun,
         threadAnchorId, userMessageTs, userMessage: this.input.user.text,
       });
       if (outcome === 'cancelled') this.ending = { status: 'stopped', finalOutput: '' };
@@ -550,7 +549,6 @@ const defaultAcceptUserMessageDeps: AcceptUserMessageDeps = {
 export function acceptUserMessage(opts: {
   sessionId: string;
   channel: string;
-  sessionName: string;
   text: string;
   attachments: IncomingMessage['webAttachments'];
   /** Cortex authored this turn rather than a human — see `SystemTurnOrigin`. */
@@ -649,7 +647,7 @@ export interface AgentCallbacks {
   onTodoUpdate: ((snapshot: TodoSnapshot) => void) | null;
 }
 
-function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination, statusMsg: MessageRef, threadAnchorId: string | null, startTime: number, sessionName: string | null, sessionId: string | null, onMessagePosted: ((ref: MessageRef) => void) | null, statusPrefix = ''): AgentCallbacks {
+function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination, statusMsg: MessageRef, threadAnchorId: string | null, startTime: number, sessionId: string | null, onMessagePosted: ((ref: MessageRef) => void) | null, statusPrefix = ''): AgentCallbacks {
   const channel = resolveDestinationConduit(destination);
   const onFallback = makeFallbackLabelNotifier(statusMsg, adapter);
   const queue = getOutboundQueue();
@@ -679,7 +677,7 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
       startTime,
       elapsed_s: lastProgress?.duration_ms != null ? lastProgress.duration_ms / 1000 : null,
       num_turns: lastProgress?.num_turns ?? null,
-      profileName: getActiveProfile(channel), sessionName, sessionId,
+      profileName: getActiveProfile(channel), sessionId,
       todoProgress: todoProgress || null,
     }));
   };
@@ -728,7 +726,7 @@ export function buildInteractiveCallbacks(
  * busy-gate seams a turn uses for an ordinary message, so an injected message and a queued one
  * land in the transcript identically.
  */
-export function buildInjectDeps(sessionName: string | null, adapter: PlatformAdapter): MidTurnInjectDeps {
+export function buildInjectDeps(sessionId: string | null, adapter: PlatformAdapter): MidTurnInjectDeps {
   return {
     getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
       backend: entry.backend,
@@ -736,7 +734,6 @@ export function buildInjectDeps(sessionName: string | null, adapter: PlatformAda
       trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: (channel) => activeTurns.streamingCallback(channel),
-    sessionName,
     publishMessage: publishSessionMessage,
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,

@@ -1,6 +1,7 @@
 import { formatDurationCompact } from './utils.js';
 import { Icons } from './icons.js';
 import { t } from './i18n.js';
+import { shortSessionId } from './short-session-id.js';
 
 export function computeElapsed(startTime: number): { elapsedStr: string; elapsedS: number } {
   const elapsedS = (Date.now() - startTime) / 1000;
@@ -13,21 +14,17 @@ export function formatMetricsSuffix({ costUsd, numTurns }: { costUsd: number | n
   return `${turnsStr}${costStr}`;
 }
 
-/** Build "cortex-XXXX · `uuid`" tag for Slack status messages. */
-export function buildSessionTag(sessionName: string | null, sessionId: string | null): string {
-  if (!sessionName && !sessionId) return '';
-  const parts: string[] = [];
-  if (sessionName) parts.push(sessionName);
-  if (sessionId) parts.push(`\`${sessionId}\``);
-  return parts.join(' · ') + ' | ';
+/** Build a compact stable-ID tag for Slack status messages. */
+export function buildSessionTag(sessionId: string | null): string {
+  return sessionId ? `\`${shortSessionId(sessionId)}\` | ` : '';
 }
 
 /** `todoProgress` is a pre-rendered task-list line (see core/todo.ts renderTodoProgress).
  *  Passing the rendered string rather than a snapshot keeps this formatter free of todo parsing
  *  and lets every caller decide whether the surface shows task progress at all. */
-export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionName = null, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionName?: string | null; sessionId?: string | null; todoProgress?: string | null }): string {
+export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionId?: string | null; todoProgress?: string | null }): string {
   const elapsed = elapsed_s ?? ((Date.now() - startTime) / 1000);
-  const sessionTag = buildSessionTag(sessionName, sessionId);
+  const sessionTag = buildSessionTag(sessionId);
   const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${t('notice.turns', { n: num_turns })}` : '';
   const todoStr = todoProgress ? ` | ${Icons.todo} ${todoProgress}` : '';
   return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
@@ -53,7 +50,6 @@ export type TurnStatus =
   | { kind: 'error' };
 
 export interface TurnStatusContext {
-  sessionName: string | null;
   sessionId: string | null;
   elapsedStr: string;
   /** {@link formatMetricsSuffix} output. Absent on the paths that seal without a result to count
@@ -70,7 +66,7 @@ export interface TurnStatusContext {
  * at a glance in a busy channel; a turn that is still holding is read for which session it is.
  */
 export function renderTurnStatus(status: TurnStatus, ctx: TurnStatusContext): string {
-  const tag = buildSessionTag(ctx.sessionName, ctx.sessionId);
+  const tag = buildSessionTag(ctx.sessionId);
   const tail = `(${ctx.elapsedStr}${ctx.metrics ?? ''})`;
   switch (status.kind) {
     case 'done':

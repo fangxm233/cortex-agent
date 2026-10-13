@@ -101,19 +101,19 @@ async function writeStores(sessions: unknown, ledger: unknown): Promise<void> {
 /** Seed the journal with a few unrelated `put` records so the import runs against a non-empty file. */
 async function seedExistingJournal(): Promise<string[]> {
   const repo = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'));
-  const names: string[] = [];
+  const ids: string[] = [];
   for (let i = 0; i < 3; i++) {
-    const name = `seed-${i}`;
-    names.push(name);
-    await repo.registerSession(name, {
-      sessionId: `seed-session-${i}`,
+    const id = `seed-session-${i}`;
+    ids.push(id);
+    await repo.registerSession({
+      sessionId: id,
       channel: `seed-channel-${i}`,
       backend: 'pi',
       kind: 'local',
     });
   }
   await repo.flush();
-  return names;
+  return ids;
 }
 
 function freshRepo(): SessionRegistryRepo {
@@ -127,9 +127,9 @@ async function journalLineCount(): Promise<number> {
 
 // ── Tests ──────────────────────────────────────────────────────
 
-test('imports bindings, headers and turns; every field survives a reload', async () => {
+test('imports bindings, headers and turns; retained fields survive a reload', async () => {
   const fx = buildFixture();
-  const seededNames = await seedExistingJournal();
+  const seededIds = await seedExistingJournal();
   await writeStores(fx.sessions, fx.ledger);
 
   const sessionsBytes = await fs.readFile(path.join(storeDir, 'sessions.json'));
@@ -156,12 +156,12 @@ test('imports bindings, headers and turns; every field survives a reload', async
     assert.equal(await repo.getBoundSessionId(channel), sessionId, `binding for ${channel}`);
   }
 
-  // Every header field round-trips, and turns match per-channel field-by-field.
+  // Every retained header field round-trips, and turns match per-channel field-by-field.
   for (const [channel, header] of Object.entries(fx.ledger)) {
     const conv = await repo.readConversation(channel);
     assert.ok(conv, `conversation for ${channel}`);
     assert.equal(conv.header.sessionId, header.sessionId);
-    assert.equal(conv.header.sessionName, header.sessionName);
+    assert.equal(Object.hasOwn(conv.header, 'sessionName'), false);
     assert.equal(conv.header.backend, header.backend);
     assert.equal(conv.header.profileName, header.profileName);
     assert.equal(conv.header.updatedAt, header.updatedAt);
@@ -179,8 +179,8 @@ test('imports bindings, headers and turns; every field survives a reload', async
   assert.equal(await repo.getBoundSessionId(fx.bindingOnlyChannel), 'bound-orphan');
 
   // Pre-existing put records are untouched.
-  for (const name of seededNames) {
-    assert.ok(await repo.lookupSession(name), `seeded session ${name} survived`);
+  for (const id of seededIds) {
+    assert.ok(await repo.getById(id), `seeded session ${id} survived`);
   }
 
   // .bak files hold the original bytes; sources are gone.

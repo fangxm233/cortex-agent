@@ -24,8 +24,7 @@ export interface PlatformHoldDeps {
    *  `ownedCallback.stream`). The seal releases the channel's streaming slot only while it is
    *  still THIS turn's — a hold superseded by the next turn must not cut the successor's. */
   ownedCallback: StreamingCallback;
-  sessionName: string | null;
-  /** Backend session id, for the status line's session tag. */
+  /** Stable Cortex session ID for status and resume actions. */
   sessionId: string | null;
   startTime: number;
   /** The foreground result whose totals the final line adds to. */
@@ -45,7 +44,7 @@ export interface PlatformHoldDeps {
  * seals with the rate-limit line. `chained` arrives as another `onWaiting`.
  */
 export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
-  const { adapter, statusMsg, channel, sessionName, sessionId, startTime } = deps;
+  const { adapter, statusMsg, channel, sessionId, startTime } = deps;
   const base = deps.baseResult;
   // The base-only tally, rendered while waiting and by the two verdicts that report no
   // continuation of their own (cap / interruption).
@@ -53,7 +52,7 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
   const metrics = formatMetricsSuffix({
     costUsd: base?.total_cost_usd ?? null, numTurns: base?.num_turns ?? null,
   });
-  const blocks = { channel, sessionName, isDm: true };
+  const blocks = { channel, sessionId, isDm: true };
 
   // Detached at every call site (`void seal(...)`): a seal the platform cannot take is logged here,
   // never left as an unobserved rejection.
@@ -65,7 +64,7 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
     onWaiting(remaining: number): Promise<void> {
       const text = renderTurnStatus(
         { kind: 'background-waiting', remaining },
-        { sessionName, sessionId, elapsedStr, metrics },
+        { sessionId, elapsedStr, metrics },
       );
       return writeStatus(adapter, statusMsg, text);
     },
@@ -95,7 +94,7 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
         case 'max-wait': {
           // A legitimately never-ending task (tunnel / monitor) passed the cap. Seal the line as
           // "still running" — the subscription is kept, so a very late continuation re-seals.
-          const capText = renderTurnStatus({ kind: 'background-capped' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics });
+          const capText = renderTurnStatus({ kind: 'background-capped' }, { sessionId, elapsedStr: fullElapsed, metrics });
           void seal(capText);
           return;
         }
@@ -103,7 +102,7 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
           // The backend process died while background tasks were pending (restart / crash / kill /
           // timeout), or the user ended the hold — seal honestly, never as "done" and never leaving
           // the waiting state up.
-          const interruptedText = renderTurnStatus({ kind: 'background-interrupted' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics });
+          const interruptedText = renderTurnStatus({ kind: 'background-interrupted' }, { sessionId, elapsedStr: fullElapsed, metrics });
           void seal(interruptedText);
           if (deps.userMessageTs) {
             void conversationLedger.completeTurn(channel, deps.userMessageTs, { executionId: deps.executionId })
@@ -113,7 +112,7 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
           return;
         }
         case 'rate-limited': {
-          const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics: merged });
+          const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr: fullElapsed, metrics: merged });
           void seal(rateLimitText);
           activeTurns.releaseStreamingCallback(channel, deps.ownedCallback);
           return;
@@ -129,12 +128,12 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
  *  ledger close and streaming teardown. The continuation's cost row is the run's own
  *  (`domain/runs/attempt.ts`), recorded as it streamed. */
 async function finalize(deps: PlatformHoldDeps, metrics: string): Promise<void> {
-  const { adapter, statusMsg, channel, sessionName, sessionId, startTime } = deps;
+  const { adapter, statusMsg, channel, sessionId, startTime } = deps;
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
-  const statusText = renderTurnStatus({ kind: 'done' }, { sessionName, sessionId, elapsedStr, metrics });
-  await sealStatus(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
+  const statusText = renderTurnStatus({ kind: 'done' }, { sessionId, elapsedStr, metrics });
+  await sealStatus(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionId, isDm: true }));
   await maybeNotifyTurnComplete({
-    adapter, channel, threadAnchorId: null, sessionName, sessionId,
+    adapter, channel, threadAnchorId: null, sessionId,
     elapsedS, elapsedStr, status: 'completed', metricsSuffix: metrics,
   });
   if (deps.userMessageTs) {

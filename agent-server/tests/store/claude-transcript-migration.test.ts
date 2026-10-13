@@ -32,7 +32,7 @@ async function makeFixture(): Promise<Fixture> {
   const storeDir = path.join(root, 'cortex-home', 'data');
   const registry = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'));
   const register = (name: string, sessionId: string, backend: string, backendSessionId?: string) =>
-    registry.registerSession(name, { sessionId, channel: `web:${name}`, backend, kind: 'local', backendSessionId });
+    registry.registerSession({ sessionId, channel: `web:${name}`, backend, kind: 'local', backendSessionId });
   await register('cortex-1', 'track-a', 'claude', 'aaa');
   await register('cortex-4', 'never-ran', 'claude');
   await register('cortex-2', 'track-b', 'claude', 'bbb');

@@ -8,7 +8,6 @@ const harness = vi.hoisted(() => ({
   sessions: undefined as Array<{
     sessionId: string;
     label: string | null;
-    name: string | null;
     projectId: string | null;
     teamLeadId?: string | null;
     awaitingInput?: boolean;
@@ -97,7 +96,7 @@ async function flush(): Promise<void> {
 beforeEach(() => {
   published.length = 0;
   harness.sessions = [
-    { sessionId: 'direct-1', label: 'Inbox', name: 'fallback', projectId: 'atlas' },
+    { sessionId: 'direct-1', label: 'Inbox', projectId: 'atlas' },
   ];
   harness.refetch.mockReset();
   harness.refetch.mockResolvedValue({ data: harness.sessions });
@@ -112,9 +111,20 @@ afterEach(() => {
 });
 
 describe('useNotificationFeed', () => {
+  it('uses a short UUID for an unlabeled session notification', () => {
+    const sessionId = 'abcdef12-3456-7890-abcd-ef1234567890';
+    harness.sessions = [{ sessionId, label: null, projectId: 'atlas' }];
+    mountFeed({ isSessionOpen: () => false });
+    act(() => {
+      emitAssistant(sessionId, 'reply');
+      endTurn(sessionId);
+    });
+    expect(published[0].title).toBe('abcdef12');
+  });
+
   it('queries direct sessions, buffers the latest turn message, and applies membership/open gates', () => {
     harness.sessions!.push({
-      sessionId: 'open-1', label: 'Open', name: 'open', projectId: 'atlas',
+      sessionId: 'open-1', label: 'Open', projectId: 'atlas',
     });
     mountFeed({ isSessionOpen: (sessionId) => sessionId === 'open-1' });
     expect(harness.queryInputs).toContainEqual({ origin: 'direct' });
@@ -141,12 +151,12 @@ describe('useNotificationFeed', () => {
 
   it('keeps worker turns silent, active or retired, while the lead still notifies', async () => {
     harness.sessions!.push(
-      { sessionId: 'worker-1', label: 'notify', name: null, projectId: 'atlas', teamLeadId: 'direct-1' },
-      { sessionId: 'worker-2', label: 'old', name: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+      { sessionId: 'worker-1', label: 'notify', projectId: 'atlas', teamLeadId: 'direct-1' },
+      { sessionId: 'worker-2', label: 'old', projectId: 'atlas', teamLeadId: 'direct-1' },
     );
     harness.refetch.mockResolvedValue({ data: [
       ...harness.sessions!,
-      { sessionId: 'worker-new', label: 'new', name: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+      { sessionId: 'worker-new', label: 'new', projectId: 'atlas', teamLeadId: 'direct-1' },
     ] });
     mountFeed({ isSessionOpen: () => false });
 
@@ -180,7 +190,7 @@ describe('useNotificationFeed', () => {
     expect(published).toEqual([]);
 
     harness.sessions = [
-      { sessionId: 'late-direct', label: 'Late inbox', name: null, projectId: 'atlas' },
+      { sessionId: 'late-direct', label: 'Late inbox', projectId: 'atlas' },
     ];
     act(() => mounted?.update(<Probe {...probeProps(options)} />));
     expect(published[0]).toMatchObject({ meta: 'survives retry', sessionId: 'late-direct' });
@@ -189,7 +199,7 @@ describe('useNotificationFeed', () => {
   it('retains an ended turn while the direct map is unknown and flushes after a supplemental query', async () => {
     harness.sessions = [];
     harness.refetch.mockResolvedValueOnce({ data: [
-      { sessionId: 'late-direct', label: 'Late inbox', name: null, projectId: 'atlas' },
+      { sessionId: 'late-direct', label: 'Late inbox', projectId: 'atlas' },
     ] });
     mountFeed({ isSessionOpen: () => false });
 
@@ -217,7 +227,7 @@ describe('useNotificationFeed', () => {
     });
     await flush();
     harness.sessions = [
-      { sessionId: 'scheduled-1', label: 'Not direct', name: null, projectId: 'atlas' },
+      { sessionId: 'scheduled-1', label: 'Not direct', projectId: 'atlas' },
     ];
     act(() => mounted?.update(<Probe {...probeProps(options)} />));
 
@@ -241,8 +251,8 @@ describe('useNotificationFeed', () => {
 
   it('notifies once per awaiting-input transition, suppressing open sessions and workers', () => {
     harness.sessions!.push(
-      { sessionId: 'open', name: null, label: null, projectId: 'atlas' },
-      { sessionId: 'worker', name: null, label: null, projectId: 'atlas', teamLeadId: 'direct-1' },
+      { sessionId: 'open', label: null, projectId: 'atlas' },
+      { sessionId: 'worker', label: null, projectId: 'atlas', teamLeadId: 'direct-1' },
     );
     const options = { isSessionOpen: (id: string) => id === 'open' };
     mountFeed(options);

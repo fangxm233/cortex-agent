@@ -148,7 +148,7 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 | `cortex:schedule.fired` | A schedule fires | `scheduleId`, `name`, `project` |
 | `cortex:client.connected` | A remote device client registers | `device` |
 | `cortex:client.disconnected` | A remote device client drops | `device`, `reason` when known |
-| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `sessionName`, `backendSessionId`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
+| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `backendSessionId`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
 
 ### Matchers
@@ -259,7 +259,7 @@ or `null` while the session has had no turn; the two differ once the backend has
 assigned its own id or a rewind has moved the conversation.
 
 Beyond the JSON payload on stdin, session hooks receive `CORTEX_HOOK_CHANNEL`,
-`CORTEX_HOOK_SESSION_ID`, `CORTEX_HOOK_SESSION_NAME`, `CORTEX_HOOK_TRIGGER`, and
+`CORTEX_HOOK_SESSION_ID`, `CORTEX_HOOK_TRIGGER`, and
 `CORTEX_HOOK_EXECUTION_ID` in the environment, plus
 `CORTEX_HOOK_BACKEND_SESSION_ID` when the session has a backend conversation.
 Non-empty stdout is injected as a fresh agent turn that resumes that

@@ -164,7 +164,6 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
       trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: () => (text: string) => streamed.push(text),
-    sessionName: 'cortex-sess-1',
     publishMessage: (ev) => published.push(ev),
     publishDelivered: (ev) => delivered.push(ev),
     publishStatus: (ev) => status.push(ev),
@@ -544,7 +543,6 @@ test('post-result continuation forwards context usage to the session persistence
   });
 
   assert.deepEqual(r.contexts, [{
-    sessionName: 'cortex-sess-1',
     sessionId: SESSION,
     channel: CHANNEL,
     usage: { usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact' },

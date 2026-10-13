@@ -120,8 +120,7 @@ function makeRequest(overrides: Partial<RunRequest> = {}): RunRequest {
   return {
     runId: 'run-1',
     session: {
-      sessionId: 'sess-1', backendSessionId: null, engineKey: 'sess-1', sessionName: 'session-1',
-    },
+      sessionId: 'sess-1', backendSessionId: null, engineKey: 'sess-1', },
     profile: {
       name: 'test', model: 'm', backend: 'claude', mode: 'plan', provider: null,
       extraEnv: {}, extraOption: {}, thinking: null, fallback: [],

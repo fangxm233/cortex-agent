@@ -666,7 +666,6 @@ export class TuiGatewayAdapter implements PlatformAdapter {
       id,
       projectId: res.projectId,
       sessionId: res.sessionId,
-      sessionName: res.sessionName,
       isFresh: res.isFresh,
       seq: 1,
     });

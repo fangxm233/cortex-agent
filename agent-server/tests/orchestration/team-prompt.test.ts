@@ -14,9 +14,9 @@ function view(name: string, extra: Partial<WorkerView> = {}): WorkerView {
 }
 
 const SESSIONS: Record<string, any> = {
-  lead: { sessionId: 'lead', name: 'cortex-lead', label: 'Release prep', teamLeadId: null },
-  worker: { sessionId: 'worker', name: 'cortex-w', label: 'alpha', teamLeadId: 'lead', workerName: 'alpha' },
-  plain: { sessionId: 'plain', name: 'cortex-p', label: null, teamLeadId: null },
+  lead: { sessionId: 'lead', label: 'Release prep', teamLeadId: null },
+  worker: { sessionId: 'worker', label: 'alpha', teamLeadId: 'lead', workerName: 'alpha' },
+  plain: { sessionId: 'plain', label: null, teamLeadId: null },
 };
 const getSession = async (id: string) => SESSIONS[id] ?? null;
 

@@ -250,7 +250,6 @@ export const enBase = {
 
   // ── Session ID (⋯ header menu → modal) ──
   wbSessionId: 'Session ID',
-  wbCortexId: 'Cortex ID',
   wbBackendUuid: 'Backend UUID',
 
   // ── Session stats (composer status line → modal / mobile sheet) ──

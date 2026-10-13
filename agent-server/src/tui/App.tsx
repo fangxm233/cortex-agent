@@ -38,7 +38,7 @@ export interface AppProps {
   onSendCancel: () => void;
   serverVersion: string | null;
   projectId: string | null;
-  sessionName: string | null;
+  sessionId: string | null;
   /** Fatal/connection error surfaced from the entry layer (e.g. backoff cap exceeded). */
   errorMessage?: string | null;
   /**
@@ -68,7 +68,7 @@ export function App({
   onSendCancel,
   serverVersion,
   projectId,
-  sessionName,
+  sessionId,
   errorMessage,
   onSetDispatch,
   resumableSessions,
@@ -134,7 +134,7 @@ export function App({
 
   // `/resume` session picker (client-side, replaces the inert Resume button).
   const [slashResumeSessions, setSlashResumeSessions] = useState<ResumableSession[] | null>(null);
-  // `/resume <id>` direct-jump target (session id / name / suffix). Resolved against the
+  // `/resume <id>` direct-jump target (full session ID or unique prefix). Resolved against the
   // sessions.list result; null means "show the picker".
   const resumeTargetRef = useRef<string | null>(null);
 
@@ -181,7 +181,6 @@ export function App({
         const list = (frame.ok && Array.isArray(frame.data))
           ? (frame.data as any[]).map((s: any) => ({
               sessionId: s.sessionId ?? s.id,
-              name: s.name,
               projectId: s.projectId,
               label: s.label ?? null,
             }))
@@ -202,6 +201,11 @@ export function App({
             setSlashResumeSessions(null);
             return;
           }
+          // Never select the first of multiple prefix matches; report the candidates.
+          const matches = target.length >= 6 ? list.filter(s => s.sessionId.startsWith(target)) : [];
+          showToast(matches.length > 1
+            ? t('cmd.session.ambiguous', { name: target, matches: matches.map(s => s.sessionId).join(', ') })
+            : t('cmd.session.notFoundList', { name: target }));
           // No match — fall through to the picker so the user can choose.
         }
         setSlashResumeSessions(list);
@@ -249,20 +253,20 @@ export function App({
 
   // Switching project/session (session.switched is handled in index.tsx and never reaches
   // routeFrame) must release any pending send-lock from the OLD session. With lazy session
-  // creation the first message transitions sessionName null→name — that is NOT a switch and
+  // creation the first message transitions sessionId null→ID — that is NOT a switch and
   // must NOT clear the in-flight `awaitingResponse`/queued state, so we only reset when a real
   // prior session existed and actually changed.
-  const prevSessionRef = useRef<{ projectId: string | null; sessionName: string | null }>({ projectId, sessionName });
+  const prevSessionRef = useRef<{ projectId: string | null; sessionId: string | null }>({ projectId, sessionId });
   useEffect(() => {
     const prev = prevSessionRef.current;
-    const isRealSwitch = (prev.sessionName !== null && prev.sessionName !== sessionName)
+    const isRealSwitch = (prev.sessionId !== null && prev.sessionId !== sessionId)
       || (prev.projectId !== null && prev.projectId !== projectId);
-    prevSessionRef.current = { projectId, sessionName };
+    prevSessionRef.current = { projectId, sessionId };
     if (isRealSwitch) {
       setAwaitingResponse(false);
       setQueuedCount(0);
     }
-  }, [projectId, sessionName]);
+  }, [projectId, sessionId]);
 
   // Submit message
   const handleSubmit = useCallback((text: string) => {

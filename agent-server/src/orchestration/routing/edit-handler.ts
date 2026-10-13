@@ -37,7 +37,6 @@ function createEditHandler(deps: {
   reprocessMessage: (channel: string, text: string, adapter: PlatformAdapter, opts: {
     originalTs: string;
     sessionId: string | null;
-    sessionName: string | null;
     supersededStatusTimestamps?: string[];
   }) => void;
   closePooledSession?: (channel: string, backend: string) => void;
@@ -131,7 +130,6 @@ async function restorePIEdit(
 interface EditRestoreState {
   backendSessionId: string | null;
   useSessionId: string | null;
-  sessionName: string | null;
   restored: boolean;
   piSessionFile: string | null;
 }
@@ -154,7 +152,7 @@ async function restoreFirstEditedTurn(
     );
   }
   await deleteSessionAsync(input.channel);
-  return { ...state, useSessionId: null, sessionName: null, piSessionFile };
+  return { ...state, useSessionId: null, piSessionFile };
 }
 
 async function restoreEditedPISession(
@@ -168,7 +166,7 @@ async function restoreEditedPISession(
   if (restored.restored) return next;
   log.warn('No backup found for PI session, falling back to new session');
   await deleteSessionAsync(input.channel);
-  return { ...next, useSessionId: null, sessionName: null };
+  return { ...next, useSessionId: null };
 }
 
 async function restoreEditedClaudeSession(
@@ -181,7 +179,7 @@ async function restoreEditedClaudeSession(
   if (restored) return { ...state, restored };
   log.warn('No backup found, falling back to new session');
   await deleteSessionAsync(input.channel);
-  return { ...state, restored, useSessionId: null, sessionName: null };
+  return { ...state, restored, useSessionId: null };
 }
 
 async function initialEditRestoreState(conversation: ChannelConversation): Promise<EditRestoreState> {
@@ -189,7 +187,7 @@ async function initialEditRestoreState(conversation: ChannelConversation): Promi
   const sessionRecord = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = sessionRecord ? effectiveBackendSessionId(sessionRecord) : sessionId;
   return {
-    backendSessionId, useSessionId: sessionId, sessionName: conversation.sessionName,
+    backendSessionId, useSessionId: sessionId,
     restored: false, piSessionFile: null,
   };
 }
@@ -271,7 +269,6 @@ async function processEditLocked(args: ProcessEditArgs): Promise<void> {
   cleanupEditedSession(backend, turnIndex, state);
   deps.reprocessMessage(channel, newText, args.adapter, {
     originalTs, sessionId: state.useSessionId,
-    sessionName: state.sessionName,
     supersededStatusTimestamps: rollback.supersededStatusTimestamps,
   });
 }

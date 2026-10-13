@@ -102,7 +102,7 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 | `cortex:schedule.fired` | 一个定时任务触发 | `scheduleId`、`name`、`project` |
 | `cortex:client.connected` | 远程设备客户端注册 | `device` |
 | `cortex:client.disconnected` | 远程设备客户端掉线 | `device`，已知时带 `reason` |
-| `cortex:session.new` | 会话因 `!new` 或“New”状态按钮而关闭 | `channel`、`sessionId`、`sessionName`、`backendSessionId`、`executionId`、`profile`、`trigger`（`new`）、`timestampIso` |
+| `cortex:session.new` | 会话因 `!new` 或“New”状态按钮而关闭 | `channel`、`sessionId`、`backendSessionId`、`executionId`、`profile`、`trigger`（`new`）、`timestampIso` |
 | `cortex:session.messageEnd` | 一次助手回合完成 | 同样的形状，`trigger` 为 `messageEnd` |
 
 ### 匹配器 {#matchers}
@@ -159,7 +159,7 @@ bus 如何处理 stdout 取决于 `result`：
 
 `sessionId` 是 Cortex 会话 id——会话注册表的键，`cortex-hook` 辅助工具据它解析频道。`backendSessionId` 是后端为该会话对话分配的 id（即其 transcript 的名字），会话还没有任何回合时为 `null`；一旦后端分配了自己的 id 或回退移动了对话，两者就不再相同。
 
-除了 stdin 上的 JSON payload，会话钩子还会在环境中收到 `CORTEX_HOOK_CHANNEL`、`CORTEX_HOOK_SESSION_ID`、`CORTEX_HOOK_SESSION_NAME`、`CORTEX_HOOK_TRIGGER` 和 `CORTEX_HOOK_EXECUTION_ID`，会话已有后端对话时还有 `CORTEX_HOOK_BACKEND_SESSION_ID`。非空 stdout 会作为一次新的智能体回合注入，续接这段后端对话——对 `session.new`，使用一个事后关闭的隔离会话键，使这次关闭前的回合不会把旧会话复活到频道槽位上；对 `session.messageEnd`，注入在频道本身上，因此后续回合延续实时对话，其输出也挂在触发它的那条回复之下。没有后端对话的会话无可续接，其钩子输出只展示、不注入。
+除了 stdin 上的 JSON payload，会话钩子还会在环境中收到 `CORTEX_HOOK_CHANNEL`、`CORTEX_HOOK_SESSION_ID`、`CORTEX_HOOK_TRIGGER` 和 `CORTEX_HOOK_EXECUTION_ID`，会话已有后端对话时还有 `CORTEX_HOOK_BACKEND_SESSION_ID`。非空 stdout 会作为一次新的智能体回合注入，续接这段后端对话——对 `session.new`，使用一个事后关闭的隔离会话键，使这次关闭前的回合不会把旧会话复活到频道槽位上；对 `session.messageEnd`，注入在频道本身上，因此后续回合延续实时对话，其输出也挂在触发它的那条回复之下。没有后端对话的会话无可续接，其钩子输出只展示、不注入。
 
 ## hook-bridge：经 HTTP 阻塞的调用 {#the-hook-bridge-blocking-tool-calls-over-http}
 

@@ -95,7 +95,6 @@ function makeCancelledAttempt(backendSessionId: string): RunAttempt {
 function runTurn(opts: {
   trackSessionId: string;
   backendSessionId: string | null;
-  sessionName: string;
   files?: DownloadedFile[];
   onPromptBuilt?: (prompt: string) => void;
 }): { done: Promise<void>; adapter: MockAdapter } {
@@ -107,7 +106,6 @@ function runTurn(opts: {
     threadAnchorId: null,
     session: {
       sessionId: opts.trackSessionId,
-      sessionName: opts.sessionName,
       backendSessionId: opts.backendSessionId,
       projectId: 'general',
       lease: null,
@@ -136,7 +134,7 @@ function assertSealedTurn(adapter: MockAdapter): void {
 // ── (1) a turn persists the backend resume target on settle ────────────────
 
 test('first-turn kill persists the spawn-time backend session id (resume works on the next message)', async () => {
-  await sessionStore.registerSession('cortex-int1', {
+  await sessionStore.registerSession({
     sessionId: 'TRACK-1', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
   });
   mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-claude-1'));
@@ -144,8 +142,7 @@ test('first-turn kill persists the spawn-time backend session id (resume works o
   const turn = runTurn({
     trackSessionId: 'TRACK-1',
     backendSessionId: null, // fresh session — first turn
-    sessionName: 'cortex-int1',
-  });
+    });
   await turn.done;
   assertSealedTurn(turn.adapter);
 
@@ -160,7 +157,6 @@ test('a turn exposes the exact assembled prompt passed to the agent', async () =
   await runTurn({
     trackSessionId: 'TRACK-PROMPT',
     backendSessionId: 'B-existing',
-    sessionName: 'cortex-prompt',
     onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
   }).done;
 
@@ -179,7 +175,6 @@ test('a turn\'s DEBUG prompt includes the image path sent through the adapter', 
   await runTurn({
     trackSessionId: 'TRACK-IMAGE-PROMPT',
     backendSessionId: 'B-existing',
-    sessionName: 'cortex-image-prompt',
     files: [{ localPath: '/tmp/cortex-image.png', mimetype: 'image/png', name: 'cortex-image.png' }],
     onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
   }).done;
@@ -191,7 +186,7 @@ test('a turn\'s DEBUG prompt includes the image path sent through the adapter', 
 });
 
 test('interrupt on a RESUMED turn leaves the stored backend session id untouched', async () => {
-  await sessionStore.registerSession('cortex-int2', {
+  await sessionStore.registerSession({
     sessionId: 'TRACK-2', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
     backendSessionId: 'B-old',
   });
@@ -200,8 +195,7 @@ test('interrupt on a RESUMED turn leaves the stored backend session id untouched
   const turn = runTurn({
     trackSessionId: 'TRACK-2',
     backendSessionId: 'B-old', // resumed session
-    sessionName: 'cortex-int2',
-  });
+    });
   await turn.done;
   assertSealedTurn(turn.adapter);
 
@@ -236,8 +230,7 @@ test('a turn registers both track and backend ids on the live execution handle',
   const turn = runTurn({
     trackSessionId: 'TRACK-LIVE',
     backendSessionId: 'B-prev',
-    sessionName: 'cortex-live',
-  });
+    });
   // The attempt is held open, so the entry is still live while it is inspected — the Turn posts a
   // status message before it opens the run, so a single microtask is no longer enough to see it.
   const live = await awaitNewRegistryEntry(before);
@@ -297,7 +290,7 @@ async function awaitStoredBackendId(trackSessionId: string, timeoutMs = 2000): P
 }
 
 test('claude: the spawn-time backend id is stored while the first turn is still running', async () => {
-  await sessionStore.registerSession('cortex-mid1', {
+  await sessionStore.registerSession({
     sessionId: 'TRACK-MID1', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
   });
   const held = heldAttempt('B-mid-claude');
@@ -306,8 +299,7 @@ test('claude: the spawn-time backend id is stored while the first turn is still 
   const turn = runTurn({
     trackSessionId: 'TRACK-MID1',
     backendSessionId: null, // fresh session — first turn
-    sessionName: 'cortex-mid1',
-  });
+    });
 
   assert.equal(await awaitStoredBackendId('TRACK-MID1'), 'B-mid-claude', 'stored before the turn settles');
 
@@ -316,7 +308,7 @@ test('claude: the spawn-time backend id is stored while the first turn is still 
 });
 
 test('pi: the id announced by engine_started is stored while the first turn is still running', async () => {
-  await sessionStore.registerSession('cortex-mid2', {
+  await sessionStore.registerSession({
     sessionId: 'TRACK-MID2', channel: 'slack:C-interrupt', backend: 'pi', kind: 'local',
   });
   // PI names itself a tick after the attempt opens — `backendSessionId` is null at registration.
@@ -330,8 +322,7 @@ test('pi: the id announced by engine_started is stored while the first turn is s
   const turn = runTurn({
     trackSessionId: 'TRACK-MID2',
     backendSessionId: null,
-    sessionName: 'cortex-mid2',
-  });
+    });
   (await awaitAttemptStart(() => emit))({ type: 'engine_started', backendSessionId: 'B-mid-pi' });
 
   assert.equal(await awaitStoredBackendId('TRACK-MID2'), 'B-mid-pi', 'stored before the turn settles');
@@ -341,7 +332,7 @@ test('pi: the id announced by engine_started is stored while the first turn is s
 });
 
 test('a backend that resets the session mid-turn leaves the NEW id as the resume target', async () => {
-  await sessionStore.registerSession('cortex-mid3', {
+  await sessionStore.registerSession({
     sessionId: 'TRACK-MID3', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
     backendSessionId: 'B-gone',
   });
@@ -355,8 +346,7 @@ test('a backend that resets the session mid-turn leaves the NEW id as the resume
   const turn = runTurn({
     trackSessionId: 'TRACK-MID3',
     backendSessionId: 'B-gone', // asked to resume a transcript the backend no longer has
-    sessionName: 'cortex-mid3',
-  });
+    });
   (await awaitAttemptStart(() => emit))({ type: 'engine_started', backendSessionId: 'B-restarted' });
 
   held.fail();

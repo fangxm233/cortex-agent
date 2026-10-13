@@ -69,7 +69,7 @@ test('an invalid level is rejected with 400 and valid values', async () => {
 });
 
 test('a missing channel is resolved from the session registry via sessionId', async () => {
-  await sessionStore.registerSession('cortex-ask1', {
+  await sessionStore.registerSession({
     sessionId: 'sid-ask-resolve',
     channel: 'C_FROM_REGISTRY',
     backend: 'claude',

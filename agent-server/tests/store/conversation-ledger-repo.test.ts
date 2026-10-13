@@ -18,9 +18,9 @@ test('the registry releases every channel conversation whose sessionId matches',
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-ledger-'));
   const registry = new SessionRegistryRepo(path.join(root, 'session-registry.jsonl'));
   const repo = new ConversationLedgerRepo(registry);
-  await repo.initConversation('C1', { sessionId: 'track-1', sessionName: 'one', backend: 'claude' });
-  await repo.initConversation('C2', { sessionId: 'track-2', sessionName: 'two', backend: 'claude' });
-  await repo.initConversation('C3', { sessionId: 'track-1', sessionName: 'three', backend: 'pi' });
+  await repo.initConversation('C1', { sessionId: 'track-1', backend: 'claude' });
+  await repo.initConversation('C2', { sessionId: 'track-2', backend: 'claude' });
+  await repo.initConversation('C3', { sessionId: 'track-1', backend: 'pi' });
 
   const released = await registry.releaseChannels(['track-1']);
 

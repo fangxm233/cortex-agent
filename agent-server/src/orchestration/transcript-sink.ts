@@ -24,23 +24,23 @@ const log = createLogger('transcript-sink');
 /** Set a session's persisted context snapshot, then publish the identical live value. */
 export interface SessionContextUsagePersistenceDeps {
   now: () => string;
-  update: (sessionName: string, updates: { contextUsage: SessionContextUsage }) => Promise<void>;
+  update: (sessionId: string, updates: { contextUsage: SessionContextUsage }) => Promise<void>;
   publish: (snapshot: { sessionId: string; channel: string } & SessionContextUsage) => void;
 }
 
 const defaultContextUsagePersistence: SessionContextUsagePersistenceDeps = {
   now: () => new Date().toISOString(),
-  update: (sessionName, updates) => sessionStore.updateSession(sessionName, updates),
+  update: (sessionId, updates) => sessionStore.updateSession(sessionId, updates),
   publish: publishSessionContextUsage,
 };
 
 /** Persist first, then publish the identical live snapshot so query and event clients converge. */
 export async function persistSessionContextUsage(
-  input: { sessionName: string; sessionId: string; channel: string; usage: ContextUsage },
+  input: { sessionId: string; channel: string; usage: ContextUsage },
   deps: SessionContextUsagePersistenceDeps = defaultContextUsagePersistence,
 ): Promise<void> {
   const contextUsage = { ...input.usage, updatedAt: deps.now() };
-  await deps.update(input.sessionName, { contextUsage });
+  await deps.update(input.sessionId, { contextUsage });
   deps.publish({ sessionId: input.sessionId, channel: input.channel, ...contextUsage });
 }
 
@@ -110,7 +110,6 @@ export interface TranscriptSinkOptions {
   /** Conduit the session events are published to. */
   channel: string;
   /** Session name the context-usage store update is keyed on. */
-  sessionName: string;
   /** Whether to persist DEBUG-only tool details (fullInput / tool result text). */
   debug: boolean;
   /** Platform status/streaming callback for non-subagent assistant text. Subagent prose is
@@ -145,7 +144,7 @@ export function recordHistory(p: Promise<unknown>, onPersisted?: () => void): vo
  * share one copy. Nothing here is backend-specific: phases do not change the persisted shape.
  */
 export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
-  const { sessionId, channel, sessionName, debug } = opts;
+  const { sessionId, channel, debug } = opts;
   const deps: TranscriptSinkDeps = { ...DEFAULT_DEPS, ...opts.deps };
 
   function persistToolUse(
@@ -276,7 +275,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
           return;
         case 'context_usage':
           return deps.persistContextUsage({
-            sessionName, sessionId, channel,
+            sessionId, channel,
             usage: {
               usedTokens: event.usedTokens, contextWindow: event.contextWindow,
               percent: event.percent, accuracy: event.accuracy,

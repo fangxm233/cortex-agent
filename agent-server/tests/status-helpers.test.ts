@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import * as statusHelpers from '../src/orchestration/status-helpers.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { RichBlock, ActionElement } from '../src/platform/index.js';
+import { buildSessionTag } from '../src/core/status-format.js';
+import { shortSessionId } from '../src/core/short-session-id.js';
 
 const { writeStatus, sealStatus, buildStatusActionBlocks } = statusHelpers;
 
@@ -15,11 +17,22 @@ function cancelButtonValue(blocks: RichBlock[]): any {
 // --- Cancel button payload ---
 
 test('buildStatusActionBlocks: Cancel button carries executionId (conversation path)', () => {
-  const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionName: null, isDm: true, executionId: 'exec_abc' });
+  const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionId: null, isDm: true, executionId: 'exec_abc' });
   const value = cancelButtonValue(blocks);
   assert.equal(value.channel, 'C1');
   assert.equal(value.executionId, 'exec_abc');
   assert.deepEqual(Object.keys(value).sort(), ['channel', 'executionId']);
+});
+
+test('status uses the short stable ID while Resume carries the complete ID', () => {
+  const id = 'abcdef12-3456-7890-abcd-ef1234567890';
+  assert.equal(shortSessionId(id), 'abcdef12');
+  assert.equal(buildSessionTag(id), '`abcdef12` | ');
+  assert.equal(buildSessionTag(null), '');
+  const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionId: id, isDm: true });
+  const actions = blocks.find((block) => block.type === 'actions') as any;
+  const resume = actions.elements.find((element: ActionElement) => element.actionId === 'status_resume');
+  assert.equal(resume.value, id);
 });
 
 // --- Basic serialization ---

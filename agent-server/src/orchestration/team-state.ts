@@ -11,6 +11,7 @@ import { conversationHistory, type SessionHistory } from '@store/conversation-hi
 import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
 import { ownsWaitpoint } from '@domain/waitpoints/view.js';
 import { sessionState } from '@core/session-state.js';
+import { shortSessionId } from '@core/short-session-id.js';
 import { conduitQueues } from './conduit-queue.js';
 import { interactionRecords, type InteractionIndexEntry } from './interactions/interaction-records.js';
 
@@ -197,7 +198,7 @@ export async function describeWorker(
         : retired ? 'retired'
           : lastReport?.status === 'failed' ? 'error'
             : 'idle';
-  const name = worker.workerName ?? worker.name;
+  const name = worker.workerName ?? shortSessionId(worker.sessionId);
   workerNames.set(worker.sessionId, name);
   return {
     name,

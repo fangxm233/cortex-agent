@@ -9,7 +9,6 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
   return {
     sessionId: 's1',
     backendSessionId: null,
-    name: 'morning review',
     projectId: 'nimbus',
     backend: 'claude',
     kind: 'local',
@@ -43,6 +42,7 @@ describe('project session list stars', () => {
       sess({ sessionId: 'old-run', origin: 'scheduled', scheduleId: 'sch' })];
     const list = buildProjectSessionList('nimbus', direct, runs, []);
     expect(list.rows.map(r => r.id)).toEqual(['legacy']);
+    expect(list.rows[0].title).toBe('legacy');
     expect(list.starredRows.map(r => r.id)).toEqual(['commission', 'run']);
     expect(list.starredRows[0].title).toBe('Renamed');
     expect(list.scheduleRows[0].runs.map(r => r.sessionId)).toEqual(['old-run']);
@@ -51,6 +51,11 @@ describe('project session list stars', () => {
     expect(restored.starredRows).toEqual([]);
     expect(restored.rows.map(r => r.id)).toEqual(['legacy', 'commission']);
     expect(restored.scheduleRows[0].runs.map(r => r.sessionId)).toEqual(['run', 'old-run']);
+  });
+
+  it('uses a short UUID for an unlabeled session', () => {
+    const rows = buildSessionRows([sess({ sessionId: 'abcdef12-3456-7890-abcd-ef1234567890' })], Date.now(), 'en', en);
+    expect(rows[0].title).toBe('abcdef12');
   });
 
   it('does not create a global Stars section without a selected project', () => {

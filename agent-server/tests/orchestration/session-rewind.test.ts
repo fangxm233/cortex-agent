@@ -14,7 +14,7 @@ interface CallLog { calls: string[] }
 
 function makeConversation() {
   return {
-    sessionId: 'track-1', sessionName: 'cortex-1', backend: 'claude', profileName: null,
+    sessionId: 'track-1', backend: 'claude', profileName: null,
     turns: [
       { turnIndex: 0, userMessageTs: 'ts0', userMessageText: 'first', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
       { turnIndex: 1, userMessageTs: 'ts1', userMessageText: 'orig text', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
@@ -59,7 +59,7 @@ function makeHistoryDeps(log: CallLog): RewindDeps['history'] {
 function makeSessionStoreDeps(log: CallLog): RewindDeps['sessionStore'] {
   return {
     getById: async () => ({
-      name: 'cortex-1', sessionId: 'track-1', backendSessionId: 'backend-1',
+      sessionId: 'track-1', backendSessionId: 'backend-1',
       channel: 'web:track-1', backend: 'claude',
     } as any),
     updateSession: async (name, updates) => {
@@ -233,7 +233,7 @@ test('turn 0: no backup restore — backend session id is cleared (fresh backend
   const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 0, text: 'redo', adapter }, makeDeps(log));
   assert.deepEqual(res, { ok: true });
   assert.ok(!log.calls.some(c => c.startsWith('restoreBackup')), 'no restore for turn 0');
-  assert.ok(log.calls.includes('updateSession:cortex-1:{"backendSessionId":null}'), 'backend id cleared');
+  assert.ok(log.calls.includes('updateSession:track-1:{"backendSessionId":null}'), 'backend id cleared');
   assert.ok(log.calls.includes('cleanupAll:backend-1'), 'all backups cleaned');
   assert.ok(log.calls.includes('closePooled:web:track-1:claude'));
   assert.ok(log.calls.some(c => c.startsWith('send:web:track-1:redo')));
@@ -246,7 +246,7 @@ test('missing backup on turn ≥ 1 falls back to clearing the backend session id
   });
   const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps);
   assert.deepEqual(res, { ok: true });
-  assert.ok(log.calls.includes('updateSession:cortex-1:{"backendSessionId":null}'), 'fallback clears backend id');
+  assert.ok(log.calls.includes('updateSession:track-1:{"backendSessionId":null}'), 'fallback clears backend id');
 });
 
 test('PI rewind resends from the recorded restored path when an empty registry would prefer a canonical duplicate', async () => {
@@ -289,12 +289,12 @@ test('integration: real ledger + history + session registry round-trip (isolated
 
   const sid = 'track-int-1';
   const channel = `web:${sid}`;
-  await sessionStore.registerSession('cortex-int1', {
+  await sessionStore.registerSession({
     sessionId: sid, channel, backend: 'claude', kind: 'local', backendSessionId: 'backend-int-1',
   });
   for (const [i, msg] of (['first', 'second'] as const).entries()) {
     await conversationLedger.initAndBeginTurn(channel, {
-      sessionId: sid, sessionName: 'cortex-int1', backend: 'claude',
+      sessionId: sid, backend: 'claude',
       userMessageTs: `ts${i}`, userMessageText: msg, statusMessageTs: `st${i}`,
     });
     await conversationHistory.appendUser(sid, { text: msg });

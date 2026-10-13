@@ -13,7 +13,7 @@ afterAll(async () => { await fs.rm(dir, { recursive: true, force: true }); });
 async function setup() {
   const file = path.join(dir, `${counter++}.jsonl`);
   const repo = new SessionRegistryRepo(file, { shouldCompact: () => false });
-  await repo.registerSession('cortex-title', {
+  await repo.registerSession({
     sessionId: 'stable-id', channel: 'web:session', backend: 'pi', kind: 'local',
     backendSessionId: 'backend-id',
   });
@@ -50,7 +50,7 @@ test('missing or deleted IDs cannot mutate metadata or recreate records', async 
   const { repo } = await setup();
   assert.equal(await repo.setStarred('cortex-title', true), null);
   assert.equal(await repo.rename('missing', 'Title'), null);
-  await repo.updateSession('cortex-title', { lastUsedAt: '2000-01-01T00:00:00Z' });
+  await repo.updateSession('stable-id', { lastUsedAt: '2000-01-01T00:00:00Z' });
   await repo.beginDeleteExpired(new Date('2001-01-01T00:00:00Z'), []);
   assert.equal(await repo.setStarred('stable-id', true), null);
   assert.equal(await repo.rename('stable-id', 'Title'), null);
@@ -61,7 +61,7 @@ test('atomic first-message fill never overwrites a rename in either queued order
   const { repo } = await setup();
   await Promise.all([repo.rename('stable-id', 'Manual'), repo.fillLabelIfAbsent('stable-id', 'Automatic')]);
   assert.equal((await repo.getById('stable-id'))?.label, 'Manual');
-  await repo.updateSession('cortex-title', { label: null });
+  await repo.updateSession('stable-id', { label: null });
   await Promise.all([repo.fillLabelIfAbsent('stable-id', 'Automatic'), repo.rename('stable-id', 'Manual')]);
   assert.equal((await repo.getById('stable-id'))?.label, 'Manual');
 });

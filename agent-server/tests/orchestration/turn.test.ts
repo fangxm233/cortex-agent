@@ -40,7 +40,7 @@ function fakeRun(result: Promise<AgentResult>, capabilities = new Set<Capability
 const FAKE_REQUEST = {
   request: {
     runId: 'run-turn',
-    session: { sessionId: 's', backendSessionId: null, engineKey: 'c', sessionName: 'n' },
+    session: { sessionId: 's', backendSessionId: null, engineKey: 'c'},
     profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
     context: { channel: 'c', project: 'general', trigger: 'user' }, policy: {} as any,
   } as any,
@@ -92,8 +92,7 @@ function turnInput(h: Harness, channel: string, overrides: Partial<TurnInput> = 
     adapter: h.adapter as never,
     threadAnchorId: null,
     session: {
-      sessionId: `track-${channel}`, sessionName: `cortex-${channel}`,
-      backendSessionId: null, projectId: 'general',
+      sessionId: `track-${channel}`, backendSessionId: null, projectId: 'general',
       lease: { release: () => { h.leaseReleases += 1; } },
     },
     user: { text: 'hello' },

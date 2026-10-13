@@ -20,6 +20,7 @@ import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { attachExistingSession } from '@domain/sessions/session-lifecycle.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
+import { shortSessionId } from '../../core/short-session-id.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
@@ -246,16 +247,16 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
 
 async function handleStatusResume(ctx: ActionContext): Promise<void> {
   if (!_adapter) return;
-  const sessionName = ctx.value;
-  const record = await sessionStore.lookupSession(sessionName);
+  const sessionId = ctx.value;
+  const record = await sessionStore.getById(sessionId);
   if (!record) return;
   await attachExistingSession(ctx.channelId, {
-    sessionId: record.sessionId, sessionName, backend: record.backend, profileName: record.profileName,
+    sessionId: record.sessionId, backend: record.backend, profileName: record.profileName,
   });
   const profileNote = record.profileName ? t('interaction.sessionProfileNote', { profileName: record.profileName }) : '';
   const resumeDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: record.sessionId ?? '' };
   await _adapter.postMessage(resumeDest, {
-    text: `${Icons.refresh} ${t('interaction.sessionActive', { sessionName, profileNote })}`,
+    text: `${Icons.refresh} ${t('interaction.sessionActive', { sessionId: shortSessionId(sessionId), profileNote })}`,
   }).catch(() => {});
 }
 

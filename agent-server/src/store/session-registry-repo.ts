@@ -1,4 +1,3 @@
-import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { AsyncMutex } from '@core/async-mutex.js';
@@ -103,8 +102,8 @@ export interface RegisterSessionOpts {
 /** Mutators available inside `batch(fn)` — each shares the one locked state so several events land
  *  in a single critical section (§5). Read APIs are not exposed; read from the returned records. */
 export interface SessionRegistryBatch {
-  registerSession(name: string, opts: RegisterSessionOpts): Promise<void>;
-  updateSession(name: string, updates: UpdateFields): Promise<void>;
+  registerSession(opts: RegisterSessionOpts): Promise<void>;
+  updateSession(sessionId: string, updates: UpdateFields): Promise<void>;
   updateById(sessionId: string, mutate: (record: Session) => Session): Promise<Session | null>;
   bindChannel(channel: string, sessionId: string): Promise<void>;
   unbindChannel(channel: string): Promise<void>;
@@ -176,25 +175,13 @@ export class SessionRegistryRepo {
     this.options = options;
   }
 
-  async generateSessionName(): Promise<string> {
-    return this.withState(async (state) => {
-      const blocked = new Set([...state.nameIndex.keys(), ...Array.from(state.pending.values(), entry => entry.session.name)]);
-      for (let i = 0; i < 100; i += 1) {
-        const name = `cortex-${crypto.randomBytes(3).toString('hex')}`;
-        if (!blocked.has(name)) return name;
-      }
-      return `cortex-${crypto.randomBytes(4).toString('hex')}`;
-    });
+  async registerSession(opts: RegisterSessionOpts): Promise<void> {
+    await this.withState((state) => this.doRegisterSession(state, opts));
   }
 
-  async registerSession(name: string, opts: RegisterSessionOpts): Promise<void> {
-    await this.withState((state) => this.doRegisterSession(state, name, opts));
-  }
-
-  private async doRegisterSession(state: SessionRegistryState, name: string, opts: RegisterSessionOpts): Promise<void> {
+  private async doRegisterSession(state: SessionRegistryState, opts: RegisterSessionOpts): Promise<void> {
     const now = new Date().toISOString();
     await this.writePut(state, {
-      name,
       sessionId: opts.sessionId,
       projectId: opts.projectId ?? 'general',
       channel: opts.channel,
@@ -229,14 +216,12 @@ export class SessionRegistryRepo {
     }));
   }
 
-  async updateSession(name: string, updates: UpdateFields): Promise<void> {
+  async updateSession(sessionId: string, updates: UpdateFields): Promise<void> {
     if ('sessionId' in updates) throw new Error('updateSession may not change sessionId');
-    await this.withState((state) => this.doUpdateSession(state, name, updates));
+    await this.withState((state) => this.doUpdateSession(state, sessionId, updates));
   }
 
-  private async doUpdateSession(state: SessionRegistryState, name: string, updates: UpdateFields): Promise<void> {
-    const sessionId = state.nameIndex.get(name);
-    if (!sessionId) return;
+  private async doUpdateSession(state: SessionRegistryState, sessionId: string, updates: UpdateFields): Promise<void> {
     const current = state.live.get(sessionId);
     if (!current) return;
     await this.writePatch(state, current, {
@@ -255,18 +240,6 @@ export class SessionRegistryRepo {
 
   async updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void> {
     await this.updateById(sessionId, (record) => setContextUsage({ ...record } as Session, usage));
-  }
-
-  async lookupSession(name: string): Promise<Session | null> {
-    return this.withState(async (state) => {
-      const sessionId = state.nameIndex.get(name);
-      const record = sessionId ? state.live.get(sessionId) : null;
-      return record ? cloneSession(record) : null;
-    });
-  }
-
-  async lookupBySessionId(sessionId: string): Promise<string | null> {
-    return this.withState(async (state) => state.live.get(sessionId)?.name ?? null);
   }
 
   async listRecentSessions(limit = 10): Promise<Session[]> {
@@ -504,10 +477,10 @@ export class SessionRegistryRepo {
 
   private batchOps(state: SessionRegistryState): SessionRegistryBatch {
     return {
-      registerSession: (name, opts) => this.doRegisterSession(state, name, opts),
-      updateSession: (name, updates) => {
+      registerSession: (opts) => this.doRegisterSession(state, opts),
+      updateSession: (sessionId, updates) => {
         if ('sessionId' in updates) throw new Error('updateSession may not change sessionId');
-        return this.doUpdateSession(state, name, updates);
+        return this.doUpdateSession(state, sessionId, updates);
       },
       updateById: (sessionId, mutate) => this.doUpdateById(state, sessionId, mutate),
       bindChannel: (channel, sessionId) => this.doBindChannel(state, channel, sessionId),
@@ -656,14 +629,6 @@ export class SessionRegistryRepo {
     });
   }
 
-  /** `backend` is accepted and ignored — a channel has one session. Pure in-registry lookup:
-   *  the channel's bound sessionId → the live record's name. */
-  async getActiveSessionName(channel: string, backend?: string): Promise<string | null> {
-    const sessionId = await this.getBoundSessionId(channel);
-    if (!sessionId) return null;
-    return this.lookupBySessionId(sessionId);
-  }
-
   invalidate(): void {
     this.state = createSessionRegistryState();
     this.loaded = false;
@@ -722,7 +687,6 @@ export class SessionRegistryRepo {
       v: 1,
       op: 'patch',
       id: current.sessionId,
-      name: current.name,
       fields: delta.fields,
       ...(delta.unset.length ? { unset: delta.unset } : {}),
     }, this.options);
@@ -751,7 +715,7 @@ function readConversationHeader(state: SessionRegistryState, channel: string): C
   return header ? { ...header } : null;
 }
 
-/** sessionId → channels whose conversation header names it — the rows the ledger's
+/** sessionId → channels whose conversation header references it — the rows the ledger's
  *  `listBySessionIds` would surface, read straight from the (already-locked) state. */
 function conversationChannelsBySession(state: SessionRegistryState): Map<string, string[]> {
   const index = new Map<string, string[]>();

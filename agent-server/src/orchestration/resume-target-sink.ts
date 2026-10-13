@@ -26,20 +26,20 @@ const log = createLogger('resume-target');
 /** Side-effect seams. Production callers omit these; the defaults bind the real store. */
 export interface ResumeTargetSinkDeps {
   update: (
-    sessionName: string,
+    sessionId: string,
     updates: { backendSessionId: string; lastUsedAt: string },
   ) => Promise<void>;
   now: () => string;
 }
 
 const DEFAULT_DEPS: ResumeTargetSinkDeps = {
-  update: (sessionName, updates) => sessionStore.updateSession(sessionName, updates),
+  update: (sessionId, updates) => sessionStore.updateSession(sessionId, updates),
   now: () => new Date().toISOString(),
 };
 
 export interface ResumeTargetSinkOptions {
-  /** Session record the resume target belongs to (updates are keyed by name, not by id). */
-  sessionName: string;
+  /** Stable registry ID of the session whose resume target this run updates. */
+  sessionId: string;
   /** The id this turn asked the backend to resume — already on disk, so never re-written. Null on
    *  a session's first turn, where the backend names itself. */
   resumedFrom: string | null;
@@ -76,12 +76,12 @@ export function createResumeTargetSink(opts: ResumeTargetSinkOptions): ResumeTar
     // Optimistic: the next caller must not queue the same write while this one is in flight.
     written = backendSessionId;
     queue = queue
-      .then(() => deps.update(opts.sessionName, {
+      .then(() => deps.update(opts.sessionId, {
         backendSessionId,
         lastUsedAt: deps.now(),
       }))
       .catch((error: unknown) => {
-        log.warn(`resume target write failed for ${opts.sessionName}: ${(error as Error).message}`);
+        log.warn(`resume target write failed for ${opts.sessionId}: ${(error as Error).message}`);
       });
   }
 

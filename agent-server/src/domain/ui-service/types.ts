@@ -283,7 +283,6 @@ export interface SessionInfo {
    *  completes (no backend id assigned yet — never fabricated). Legacy records that predate the
    *  decoupling fall back to `sessionId` (where the conflated id WAS the backend id). */
   backendSessionId: string | null;
-  name: string;
   projectId: string;
   backend: string;
   kind: 'local' | 'scheduled';
@@ -1927,7 +1926,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal

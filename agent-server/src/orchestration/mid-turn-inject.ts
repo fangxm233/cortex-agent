@@ -42,7 +42,6 @@ export interface MidTurnInjectCtx {
   channel: string;
   /** Stable Cortex track session id. Null (never-used channel) ⇒ nothing to surface against. */
   sessionId: string | null;
-  sessionName?: string | null;
   profileName?: string | null;
   text: string;
   senderId: string;
@@ -97,7 +96,6 @@ function buildPendingRecord(
     sessionId,
     channel: ctx.channel,
     messageId: ctx.messageId,
-    sessionName: ctx.sessionName ?? null,
     backend,
     profileName: ctx.profileName ?? null,
     text: ctx.text,

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { commissionsRoot, DRAFT_DIR_PREFIX } from './commission-paths.js';
 import { commissionRepo } from '@store/commission-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
+import { shortSessionId } from '@core/short-session-id.js';
 
 /** What the client asked for when creating a session in commission mode. `new` starts a fresh
  *  contract (the server creates the draft dir); `join` attaches the session to a commission that
@@ -21,14 +22,14 @@ export interface CommissionSessionFields {
  * Resolve a create-time commission request into registry fields, creating the draft directory for
  * `new`. The server owns this directory (v1 let the agent create it, which made the name
  * non-deterministic); `commission-finalize` renames it to the approved slug, so the
- * `_draft-<session name>` shape here is the same one its validation expects.
+ * `_draft-<short session ID>` shape here is the same one its validation expects.
  *
  * Throws on failure rather than degrading to a normal session: a user who picked commission mode
  * and silently got an ordinary session would only find out much later.
  */
 export async function resolveCommissionCreate(
   projectId: string,
-  sessionName: string,
+  sessionId: string,
   request: CommissionCreateRequest,
   deps: {
     findCommission?: (id: string) => Promise<{ status: string } | null | undefined>;
@@ -46,14 +47,14 @@ export async function resolveCommissionCreate(
     return { commissionId: request.commissionId, commissionDraft: null };
   }
 
-  const { draftDir } = startCommissionDraft(projectId, sessionName, {
+  const { draftDir } = startCommissionDraft(projectId, sessionId, {
     mkdir: deps.mkdir, resolveRoot: deps.resolveRoot,
   });
   return { commissionId: null, commissionDraft: draftDir };
 }
 
 /**
- * Create (or reuse) the draft directory for `sessionName` and return both halves of its identity.
+ * Create (or reuse) the draft directory for `sessionId` and return both halves of its identity.
  * Split out of {@link resolveCommissionCreate} because three callers need exactly this and nothing
  * else: session creation, the `cortex_commission_start` tool, and the composer switching a live
  * session into the mode (DR-0037 v4).
@@ -63,12 +64,12 @@ export async function resolveCommissionCreate(
  */
 export function startCommissionDraft(
   projectId: string,
-  sessionName: string,
+  sessionId: string,
   deps: { mkdir?: (dir: string) => void; resolveRoot?: (projectId: string) => string | null } = {},
 ): { draftDir: string; dir: string } {
   const root = (deps.resolveRoot ?? commissionsRoot)(projectId);
   if (!root) throw new Error(`Project ${projectId} has no context directory; commission mode needs one`);
-  const draftDir = DRAFT_DIR_PREFIX + sessionName;
+  const draftDir = DRAFT_DIR_PREFIX + shortSessionId(sessionId);
   const dir = path.join(root, draftDir);
   (deps.mkdir ?? ((target: string) => fs.mkdirSync(target, { recursive: true })))(dir);
   return { draftDir, dir };
@@ -80,7 +81,7 @@ export type CommissionEnterResult =
 
 export interface CommissionEnterDeps {
   getSession?: (id: string) => Promise<{
-    projectId?: string | null; name?: string | null;
+    projectId?: string | null;
     commissionId?: string | null; commissionDraft?: string | null;
   } | null>;
   setDraft?: (sessionId: string, draftDir: string | null) => Promise<unknown>;
@@ -105,14 +106,14 @@ export async function enterCommissionDraft(
   if (session.commissionId) {
     return { ok: false, error: `this session is already bound to commission ${session.commissionId} — open a new session for another one` };
   }
-  if (!session.projectId || !session.name) {
-    return { ok: false, error: 'session record is missing its project or name' };
+  if (!session.projectId) {
+    return { ok: false, error: 'session record is missing its project' };
   }
   const alreadyDrafting = !!session.commissionDraft;
   try {
-    const { draftDir, dir } = (deps.start ?? startCommissionDraft)(
-      session.projectId, session.name, { resolveRoot: deps.resolveRoot },
-    );
+    const { draftDir, dir } = session.commissionDraft
+      ? existingDraftDir(session.projectId, session.commissionDraft, deps.resolveRoot)
+      : (deps.start ?? startCommissionDraft)(session.projectId, sessionId, { resolveRoot: deps.resolveRoot });
     if (!alreadyDrafting) {
       await (deps.setDraft ?? ((id: string, value: string | null) => sessionStore.setCommissionDraft(id, value)))(sessionId, draftDir);
     }
@@ -120,6 +121,12 @@ export async function enterCommissionDraft(
   } catch (error) {
     return { ok: false, error: (error as Error).message };
   }
+}
+
+function existingDraftDir(projectId: string, draftDir: string, resolveRoot = commissionsRoot): { draftDir: string; dir: string } {
+  const root = resolveRoot(projectId);
+  if (!root) throw new Error(`Project ${projectId} has no context directory; commission mode needs one`);
+  return { draftDir, dir: path.join(root, draftDir) };
 }
 
 /** Leave the drafting half: clear the registry field and remove the directory IF nothing was

@@ -14,7 +14,6 @@ export interface DispatchInfo {
   taskHash: string | null;
   machine: string | null;
   scheduleTaskId: string | null;
-  sessionName: string | null;
   tmuxName: string | null;
   pid: string | null;
 }
@@ -53,6 +52,14 @@ export interface ExecutionRecord {
 export const TERMINAL_STATUSES = new Set(['completed', 'failed', 'stale', 'cancelled']);
 
 type ExecutionsData = Record<string, ExecutionRecord>;
+
+/** Discard retired session names from legacy rows in memory, without migrating the file. */
+function withoutLegacySessionName(record: ExecutionRecord): ExecutionRecord {
+  if (!record.session) return record;
+  const session = { ...record.session } as ExecutionRecord['session'] & { sessionName?: unknown };
+  delete session.sessionName;
+  return { ...record, session };
+}
 
 interface ExecutionRepoOptions {
   /** Optional file path override. Defaults to $CORTEX_EXECUTIONS_FILE or DATA_DIR/executions.json */
@@ -172,7 +179,7 @@ class ExecutionRepo {
       const data = JSON.parse(readFileSync(this.filePath, 'utf8'));
       this.map.clear();
       for (const [id, record] of Object.entries(data)) {
-        this.map.set(id, record as ExecutionRecord);
+        this.map.set(id, withoutLegacySessionName(record as ExecutionRecord));
       }
       log.info(`Loaded ${this.map.size} executions`);
     } catch {
@@ -207,7 +214,7 @@ class ExecutionRepo {
     if (version === this.followed) return;
     try {
       const data = JSON.parse(readFileSync(this.filePath, 'utf8')) as ExecutionsData;
-      this.map = new Map(Object.entries(data));
+      this.map = new Map(Object.entries(data).map(([id, record]) => [id, withoutLegacySessionName(record)]));
       this.followed = version;
     } catch (error) {
       log.warn(`Could not re-read ${this.filePath}: ${(error as Error).message}`);

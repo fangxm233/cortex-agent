@@ -13,7 +13,7 @@ import fs from 'node:fs/promises';
 
 const mockGetSessionAsync = vi.fn();
 const mockSetSessionAsync = vi.fn();
-const mockRegisterNamedSession = vi.fn();
+const mockRegisterSessionRecord = vi.fn();
 const mockPrepareRequest = vi.fn();
 const mockStartRun = vi.fn();
 
@@ -23,7 +23,7 @@ vi.mock('@domain/sessions/session.js', () => ({
 }));
 
 vi.mock('@domain/sessions/session-lifecycle.js', () => ({
-  registerNamedSession: (...args: unknown[]) => mockRegisterNamedSession(...args),
+  registerSessionRecord: (...args: unknown[]) => mockRegisterSessionRecord(...args),
 }));
 
 vi.mock('../../src/orchestration/conversation-request.js', () => ({
@@ -71,7 +71,7 @@ function fakeRun(resultOf: () => Promise<any>): AgentRun {
 
 const FAKE_REQUEST = {
   request: {
-    runId: 'run-lease', session: { sessionId: 'track-live', backendSessionId: null, engineKey: 'c', sessionName: 'cortex-live' },
+    runId: 'run-lease', session: { sessionId: 'track-live', backendSessionId: null, engineKey: 'c'},
     profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
     context: { channel: 'c', project: 'proj', trigger: 'user' }, policy: {} as any,
   } as any,
@@ -90,7 +90,7 @@ beforeEach(() => {
 test('AgentRunner holds session use until onExecutionRegistered then releases it', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-runner-lease-'));
   const repo = new SessionRegistryRepo(path.join(root, 'session-registry.jsonl'));
-  await repo.registerSession('cortex-live', {
+  await repo.registerSession({
     sessionId: 'track-live', channel: 'slack:C-live', backend: 'claude', kind: 'local', projectId: 'proj',
   });
   const getByIdSpy = vi.spyOn(sessionStore, 'getById').mockImplementation(repo.getById.bind(repo));
@@ -121,7 +121,7 @@ test('AgentRunner holds session use until onExecutionRegistered then releases it
 test('AgentRunner releases session use when the turn fails before execution registration', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-runner-lease-fail-'));
   const repo = new SessionRegistryRepo(path.join(root, 'session-registry.jsonl'));
-  await repo.registerSession('cortex-fail', {
+  await repo.registerSession({
     sessionId: 'track-fail', channel: 'slack:C-fail', backend: 'claude', kind: 'local', projectId: 'proj',
   });
   vi.spyOn(sessionStore, 'getById').mockImplementation(repo.getById.bind(repo));

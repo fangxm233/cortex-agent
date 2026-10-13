@@ -282,7 +282,6 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
 export interface CortexAgentContext {
   profile?: string | null;
   project?: string | null;
-  sessionName?: string | null;
   /** Stable Cortex tracking id (decoupled from the backend session id) → CORTEX_SESSION_ID. */
   trackSessionId?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
@@ -422,7 +421,6 @@ function cortexContextEnv(context?: CortexAgentContext): Record<string, string |
   return {
     CORTEX_PROFILE: context?.profile,
     CORTEX_PROJECT: context?.project,
-    CORTEX_SESSION_NAME: context?.sessionName,
     CORTEX_EXECUTION_ID: context?.executionId,
   };
 }

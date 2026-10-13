@@ -20,6 +20,7 @@
 
 import type { EventBus } from '@events/index.js';
 import { createLogger } from '@core/log.js';
+import { shortSessionId } from '@core/short-session-id.js';
 import { getSettings } from '@core/settings.js';
 import { sessionHolds } from '@core/session-holds.js';
 import type { TeamWorkerRef } from '@core/team-action.js';
@@ -156,7 +157,7 @@ async function deliverReport(
   let held = false;
   await deps.deliver({
     channel: lead.channel, origin: 'worker-result',
-    text: withDigest(buildWorkerReport(worker.workerName ?? worker.name, report.status, view, report.text), digest.text),
+    text: withDigest(buildWorkerReport(worker.workerName ?? shortSessionId(worker.sessionId), report.status, view, report.text), digest.text),
     onRebuildHold: async () => { await keep(); held = true; },
   });
   if (held) await digest.restore();
@@ -180,7 +181,7 @@ async function deliverOrKeep(
 async function recordRoutine(worker: Session, lead: Session, report: WorkerReport, deps: TeamDeliveryDeps): Promise<void> {
   const text = report.text.trim();
   if (!text) return;
-  const name = worker.workerName ?? worker.name;
+  const name = worker.workerName ?? shortSessionId(worker.sessionId);
   await deps.recordProgress(lead, {
     text: cap(text, REPORT_MAX_CHARS, 'Truncated.'),
     worker: { name, sessionId: worker.sessionId },
@@ -311,7 +312,7 @@ export async function notifyLeadOfWorkerRequest(
       const pair = await workerAndLead(request.sessionId, deps);
       if (!pair) return false;
       const { worker, lead } = pair;
-      const name = worker.workerName ?? worker.name;
+      const name = worker.workerName ?? shortSessionId(worker.sessionId);
       noteWorkerRequest(request.requestId, name);
       const view = await deps.describe(worker);
       // A notice a rebuild hold would refuse carries no updates: they stay unread for the next one.

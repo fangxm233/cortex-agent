@@ -61,7 +61,7 @@ function makeDeps(
     approvalsPath: '/nonexistent/PENDING_APPROVALS.md',
     createDirectSession: async (args: any) => {
       opts?.created?.push(args.projectId);
-      return { sessionId: 'sess_new', sessionName: 'cortex-0001', channel: 'web:demo:1' };
+      return { sessionId: 'sess_new', channel: 'web:demo:1' };
     },
   });
 }

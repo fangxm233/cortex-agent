@@ -52,7 +52,7 @@ function request(): RunRequest {
   const attempt = { model: 'm1', backend: 'claude' as const, mode: 'plan', provider: null, extraEnv: {}, extraOption: {}, thinking: null };
   return {
     runId: 'run-chain',
-    session: { sessionId: 's-1', backendSessionId: null, engineKey: 's-1', sessionName: 'chain' },
+    session: { sessionId: 's-1', backendSessionId: null, engineKey: 's-1'},
     profile: { name: 'p', ...attempt, fallback: [{ ...attempt, model: 'm2' }] },
     spec: {
       systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],

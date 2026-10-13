@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import {
   PendingInjectionRepo,
   type PendingInjectionRecord,
@@ -16,13 +17,26 @@ function record(id: string, sessionId = 'sess-1'): PendingInjectionRecord {
     sessionId,
     channel: `web:${sessionId}`,
     messageId: `web-${id}`,
-    sessionName: 'cortex-nimbus',
     backend: 'claude',
     profileName: 'default',
     text: `message ${id}`,
     createdAt: `2026-07-26T00:00:0${id.slice(-1)}.000Z`,
   };
 }
+
+test('legacy pending sessionName is ignored in memory without migrating disk', async () => {
+  const storeFile = file('legacy');
+  const legacy = JSON.stringify({ records: {
+    'pin-legacy': { ...record('pin-legacy'), sessionName: 'cortex-legacy' },
+  } });
+  await fs.mkdir(path.dirname(storeFile), { recursive: true });
+  await fs.writeFile(storeFile, legacy);
+  const repo = new PendingInjectionRepo(storeFile);
+  const [loaded] = await repo.listAll();
+  assert.equal((loaded as any).sessionName, undefined);
+  assert.equal(loaded.sessionId, 'sess-1');
+  assert.equal(await fs.readFile(storeFile, 'utf8'), legacy);
+});
 
 test('pending injection survives a fresh repo instance and remains session-scoped', async () => {
   const storeFile = file('reopen');

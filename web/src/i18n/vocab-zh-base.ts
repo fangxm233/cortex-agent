@@ -246,7 +246,6 @@ export const zhBase = {
 
   // ── Session ID (⋯ header menu → modal) ──
   wbSessionId: '会话 ID',
-  wbCortexId: 'Cortex ID',
   wbBackendUuid: '后端 UUID',
 
   // ── 会话统计（状态行第二段 → modal / 移动端 sheet）──

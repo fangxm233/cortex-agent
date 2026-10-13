@@ -31,7 +31,6 @@ export interface SessionBrowserOption {
 }
 
 export interface SessionRecord {
-  name: string;
   sessionId: string;
   projectId: string;
   channel: string;
@@ -54,7 +53,7 @@ export interface SessionRecord {
   /** Commission (long-task) membership — drives board grouping and [Commission] prompt injection.
    *  Bound once at commission finalize (DR-0037); absent/null for ordinary sessions. */
   commissionId?: string | null;
-  /** Draft directory name (`_draft-<session name>`) while commission mode is on but the contract
+  /** Persisted draft directory name (new drafts use `_draft-<short sessionId>`) while commission mode is on but the contract
    *  has not been named yet. Cleared at finalize, when commissionId is filled in. Mode is ON when
    *  either this or commissionId is set. */
   commissionDraft?: string | null;
@@ -98,10 +97,9 @@ export interface TurnRecord {
 /** Per-channel conversation header — the identity of the conversation currently hosted on a channel,
  *  independent of the live session record. Turns live in `turns` keyed by the same channel. Both are
  *  dropped together on `conversation clear` and on `delete-commit` (for every channel bound to the
- *  committed session). `sessionId`/`sessionName` are null before the first backend session lands. */
+ *  committed session). `sessionId` is null before the first backend session lands. */
 export interface ConversationHeader {
   sessionId: string | null;
-  sessionName: string | null;
   backend: string;
   profileName: string | null;
   updatedAt: string;
@@ -111,17 +109,17 @@ export interface ConversationHeader {
  *  left untouched (the reducer merges onto the previous header, or onto a null base for a new one). */
 export type ConversationFields = Partial<ConversationHeader>;
 
-/** Patch payload: only the record keys a `patch` may carry. `name`/`sessionId` are identity and
- *  never travel in a patch (the event keys off them). A key set to `null` means "store null"; a key
+/** Patch payload: only the record keys a `patch` may carry. `sessionId` is identity and
+ *  never travels in a patch (the event keys off it). A key set to `null` means "store null"; a key
  *  listed in `unset` is deleted (→ `undefined`); a key in neither is untouched. */
-export type SessionPatchFields = Partial<Omit<SessionRecord, 'name' | 'sessionId'>>;
+export type SessionPatchFields = Partial<Omit<SessionRecord, 'sessionId'>>;
 export type SessionPatchUnsetKey = keyof SessionPatchFields;
 
 export type SessionRegistryEvent =
   | { v: 1; op: 'put'; id: string; record: SessionRecord }
   | { v: 1; op: 'delete-intent'; id: string; record: SessionRecord; cleanup?: SessionDeleteCleanup }
   | { v: 1; op: 'delete-commit'; id: string }
-  | { v: 1; op: 'patch'; id: string; name: string; fields: SessionPatchFields; unset?: SessionPatchUnsetKey[] }
+  | { v: 1; op: 'patch'; id: string; fields: SessionPatchFields; unset?: SessionPatchUnsetKey[] }
   | { v: 1; op: 'bind'; channel: string; sessionId: string }
   | { v: 1; op: 'unbind'; channel: string }
   | { v: 1; op: 'turn'; channel: string; kind: 'begin'; turn: TurnRecord }
@@ -134,7 +132,6 @@ export type SessionRegistryEvent =
 export interface SessionRegistryState {
   live: Map<string, SessionRecord>;
   pending: Map<string, PendingSessionDelete>;
-  nameIndex: Map<string, string>;
   /** channel → sessionId of the conversation session hosted on that channel (an explicit index; a
    *  channel can host several sessions but binds to one at a time). A free map: bind never checks
    *  liveness (an unknown or pending session id may be bound). Cleared on delete-commit. */
@@ -164,7 +161,6 @@ export function createSessionRegistryState(): SessionRegistryState {
   return {
     live: new Map(),
     pending: new Map(),
-    nameIndex: new Map(),
     bindings: new Map(),
     turns: new Map(),
     conversations: new Map(),
@@ -376,7 +372,7 @@ function newFormatSessions(entries: Array<[string, unknown]>): SessionRecord[] {
 async function oldFormatSessions(entries: Array<[string, unknown]>): Promise<SessionRecord[]> {
   const channelMap = await loadChannelReverseMap();
   const dedup = new Map<string, SessionRecord>();
-  for (const [name, value] of entries) storeLegacyRecord(dedup, channelMap, name, value);
+  for (const [, value] of entries) storeLegacyRecord(dedup, channelMap, value);
   return Array.from(dedup.values());
 }
 
@@ -392,7 +388,6 @@ async function loadChannelReverseMap(): Promise<Record<string, string>> {
 function storeLegacyRecord(
   dedup: Map<string, SessionRecord>,
   channelMap: Record<string, string>,
-  name: string,
   value: unknown,
 ): void {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -400,20 +395,18 @@ function storeLegacyRecord(
   }
   const raw = value as Record<string, unknown>;
   const id = toStringValue(raw.sessionId);
-  const next = normalizeLegacyRecord(name, channelMap, raw);
+  const next = normalizeLegacyRecord(channelMap, raw);
   const prev = dedup.get(id);
   if (!prev || prev.lastUsedAt <= next.lastUsedAt) dedup.set(id, next);
 }
 
 function normalizeLegacyRecord(
-  name: string,
   channelMap: Record<string, string>,
   raw: Record<string, unknown>,
 ): SessionRecord {
   const kind = raw.kind === 'scheduled' ? 'scheduled' : 'local';
   const label = toNullableString(raw.label);
   return {
-    name,
     sessionId: String(raw.sessionId),
     projectId: channelMap[toStringValue(raw.channel)] || 'general',
     channel: toStringValue(raw.channel),
@@ -491,8 +484,7 @@ function requireField(row: Record<string, unknown>, key: string, lineNo: number)
 
 function normalizePatchEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
   const id = requireId(row, lineNo);
-  const name = requireField(row, 'name', lineNo);
-  return { v: 1, op: 'patch', id, name, fields: assertPatchFields(row.fields), ...normalizeUnset(row.unset, lineNo) };
+  return { v: 1, op: 'patch', id, fields: assertPatchFields(row.fields), ...normalizeUnset(row.unset, lineNo) };
 }
 
 function normalizeUnset(raw: unknown, lineNo: number): { unset?: SessionPatchUnsetKey[] } {
@@ -545,7 +537,6 @@ function normalizeDeleteCleanup(raw: unknown): SessionDeleteCleanup {
 function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
   const row = raw as Record<string, unknown>;
   const record = {
-    name: toStringValue(row?.name),
     sessionId: toStringValue(row?.sessionId),
     projectId: toStringValue(row?.projectId),
     channel: toStringValue(row?.channel),
@@ -746,7 +737,6 @@ function assertPartialTurn(raw: unknown): Partial<TurnRecord> {
  *  toOptionalBrowserValue trap that silently lost fields, §8.1) — keep in lock-step with the header. */
 const CONVERSATION_FIELD_READERS: { [K in keyof ConversationHeader]: (value: unknown) => ConversationHeader[K] } = {
   sessionId: toTurnNullableString,
-  sessionName: toTurnNullableString,
   backend: toStringValue,
   profileName: toTurnNullableString,
   updatedAt: toStringValue,
@@ -758,6 +748,7 @@ function assertConversationFields(raw: unknown): ConversationFields {
   const fields: Record<string, unknown> = {};
   for (const key of Object.keys(row)) {
     const reader = CONVERSATION_FIELD_READERS[key as keyof ConversationHeader];
+    if (key === 'sessionName') continue; // Legacy header field; never restore it into runtime state.
     if (!reader) throw new Error(`Unknown session registry conversation field: ${key}`);
     fields[key] = reader(row[key]);
   }
@@ -769,7 +760,7 @@ function assertAppendableEvent(state: SessionRegistryState, event: SessionRegist
   if (event.op === 'delete-intent') assertDeleteIntentAppendable(state, event.record);
   if (event.op === 'delete-commit') assertDeleteCommitAllowed(state, event.id);
   if (event.op === 'patch') assertPatchAppendable(state, event.id);
-  // bind / turn / conversation carry no liveness guard: they are channel-scoped and may name a
+  // bind / turn / conversation carry no liveness guard: they are channel-scoped and may reference a
   // session that is unknown, pending, or already gone (the free-map contract, §1).
 }
 
@@ -781,21 +772,11 @@ function assertPutAllowed(state: SessionRegistryState, record: SessionRecord): v
   if (state.pending.has(record.sessionId)) {
     throw new Error(`Cannot revive pending-deletion session: ${record.sessionId}`);
   }
-  const owner = state.nameIndex.get(record.name);
-  if (owner && owner !== record.sessionId) throw new Error(`Duplicate live session name: ${record.name}`);
 }
 
 function assertDeleteIntentAppendable(state: SessionRegistryState, record: SessionRecord): void {
   const live = state.live.get(record.sessionId);
   if (!live) throw new Error(`Delete intent for missing session: ${record.sessionId}`);
-  if (live.name !== record.name) throw new Error(`Delete intent record mismatch: ${record.sessionId}`);
-}
-
-function assertDeleteIntentReplayable(state: SessionRegistryState, record: SessionRecord): void {
-  const live = state.live.get(record.sessionId);
-  if (live && live.name !== record.name) {
-    throw new Error(`Delete intent record mismatch: ${record.sessionId}`);
-  }
 }
 
 function assertDeleteCommitAllowed(state: SessionRegistryState, sessionId: string): void {
@@ -857,16 +838,13 @@ function applyConversation(state: SessionRegistryState, event: Extract<SessionRe
     return;
   }
   const base: ConversationHeader = state.conversations.get(event.channel)
-    ?? { sessionId: null, sessionName: null, backend: '', profileName: null, updatedAt: '' };
+    ?? { sessionId: null, backend: '', profileName: null, updatedAt: '' };
   state.conversations.set(event.channel, { ...base, ...event.fields });
 }
 
 function applyPut(state: SessionRegistryState, record: SessionRecord): void {
-  const previous = state.live.get(record.sessionId);
-  if (previous && previous.name !== record.name) state.nameIndex.delete(previous.name);
   assertPutAllowed(state, record);
   state.live.set(record.sessionId, record);
-  state.nameIndex.set(record.name, record.sessionId);
 }
 
 function applyDeleteIntent(
@@ -874,9 +852,7 @@ function applyDeleteIntent(
   record: SessionRecord,
   cleanup: SessionDeleteCleanup = { claudeBackupPaths: [] },
 ): void {
-  assertDeleteIntentReplayable(state, record);
   state.live.delete(record.sessionId);
-  state.nameIndex.delete(record.name);
   state.pending.set(record.sessionId, { session: record, cleanup });
 }
 

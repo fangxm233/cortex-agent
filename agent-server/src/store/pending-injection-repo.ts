@@ -10,7 +10,6 @@ export interface PendingInjectionRecord {
   sessionId: string;
   channel: string;
   messageId: string;
-  sessionName: string | null;
   backend: string;
   profileName: string | null;
   text: string;
@@ -28,8 +27,11 @@ interface PendingInjectionData {
 }
 
 function cloneRecord(record: PendingInjectionRecord): PendingInjectionRecord {
+  // Old JSON may carry sessionName. Ignore it in memory without rewriting persisted data.
+  const current = { ...record } as PendingInjectionRecord & { sessionName?: unknown };
+  delete current.sessionName;
   return {
-    ...record,
+    ...current,
     ...(record.attachments
       ? { attachments: record.attachments.map((attachment) => ({ ...attachment })) }
       : {}),

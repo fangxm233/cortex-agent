@@ -7,7 +7,6 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
   return {
     sessionId: p.sessionId,
     backendSessionId: p.backendSessionId ?? null,
-    name: p.name ?? p.sessionId,
     projectId: p.projectId ?? 'proj',
     backend: p.backend ?? 'claude',
     kind: p.kind ?? 'local',

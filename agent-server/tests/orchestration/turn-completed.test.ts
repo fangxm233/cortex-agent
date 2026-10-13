@@ -37,7 +37,7 @@ function fakeRun(result: Promise<AgentResult>, capabilities = new Set<Capability
 const FAKE_REQUEST = {
   request: {
     runId: 'run-tc',
-    session: { sessionId: 's', backendSessionId: null, engineKey: 'c', sessionName: 'n' },
+    session: { sessionId: 's', backendSessionId: null, engineKey: 'c'},
     profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
     context: { channel: 'c', project: 'general', trigger: 'user' }, policy: {} as any,
   } as any,
@@ -69,8 +69,7 @@ function input(channel: string, overrides: Partial<TurnInput> = {}): TurnInput {
     adapter: adapter as never,
     threadAnchorId: null,
     session: {
-      sessionId: `track-${channel}`, sessionName: `cortex-${channel}`,
-      backendSessionId: null, projectId: 'general', lease: null,
+      sessionId: `track-${channel}`, backendSessionId: null, projectId: 'general', lease: null,
     },
     user: { text: 'hello' },
     ledger: null,

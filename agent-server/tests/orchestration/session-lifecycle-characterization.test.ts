@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { handleNewCmd, createResumeHandler } from '../../src/orchestration/routing/commands/session.js';
+import { setLocale } from '../../src/core/i18n.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
@@ -18,7 +19,6 @@ test('handleNewCmd clears the channel session and the ledger', async () => {
   // Seed a ledger conversation
   await conversationLedger.initConversation(channel, {
     sessionId: crypto.randomUUID(),
-    sessionName: 'cortex-x',
     backend: 'claude',
   });
 
@@ -40,7 +40,7 @@ test('createResumeHandler (arg path) attaches to an existing session', async () 
   const sid = crypto.randomUUID();
   const channel = 'c4-resume';
 
-  await sessionStore.registerSession('cortex-resume-c4', {
+  await sessionStore.registerSession({
     sessionId: sid,
     channel,
     backend: 'claude',
@@ -50,7 +50,7 @@ test('createResumeHandler (arg path) attaches to an existing session', async () 
 
   const adapter = new MockAdapter({ adminChannel: 'admin' });
 
-  await createResumeHandler()(channel, adapter, '!resume cortex-resume-c4');
+  await createResumeHandler()(channel, adapter, `!resume ${sid}`);
 
   // Assert: sessions.json points at the resumed session
   const stored = await getSessionAsync(channel);
@@ -59,6 +59,40 @@ test('createResumeHandler (arg path) attaches to an existing session', async () 
   // Assert: conversation ledger switched to the resumed session
   const conv = await conversationLedger.getConversation(channel);
   assert.equal(conv?.sessionId, sid);
-  assert.equal(conv?.sessionName, 'cortex-resume-c4');
+});
+
+test('!resume accepts full IDs and unique prefixes, rejects short or ambiguous prefixes with localized matches', async () => {
+  const ids = [
+    'abc12300-0000-4000-8000-000000000001',
+    'abc12311-0000-4000-8000-000000000002',
+  ];
+  for (const id of ids) {
+    await sessionStore.registerSession({ sessionId: id, channel: `web:${id}`, backend: 'claude', kind: 'local', projectId: 'general' });
+  }
+  const channel = 'c4-resume-prefix';
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  const resume = createResumeHandler();
+  await resume(channel, adapter, '!resume abc1230');
+  assert.equal(await getSessionAsync(channel), ids[0], 'unique seven-character prefix resolves');
+  await resume(channel, adapter, `!resume ${ids[1]}`);
+  assert.equal(await getSessionAsync(channel), ids[1], 'full ID wins');
+
+  await resume(channel, adapter, '!resume abc12');
+  assert.equal(await getSessionAsync(channel), ids[1], 'short prefix leaves binding untouched');
+  assert.match(adapter.posted.at(-1)!.content.text, /at least 6 characters/);
+
+  await resume(channel, adapter, '!resume abc123');
+  assert.equal(await getSessionAsync(channel), ids[1], 'ambiguous prefix leaves binding untouched');
+  assert.match(adapter.posted.at(-1)!.content.text, /matches multiple sessions/);
+  for (const id of ids) assert.ok(adapter.posted.at(-1)!.content.text.includes(id));
+
+  setLocale('zh');
+  try {
+    await resume(channel, adapter, '!resume abc123');
+    assert.match(adapter.posted.at(-1)!.content.text, /匹配多个会话/);
+    for (const id of ids) assert.ok(adapter.posted.at(-1)!.content.text.includes(id));
+  } finally {
+    setLocale('en');
+  }
 });
 

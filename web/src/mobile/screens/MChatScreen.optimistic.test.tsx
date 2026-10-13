@@ -200,7 +200,7 @@ vi.mock('./MChatView', async () => {
 import { MChatScreen } from './MChatScreen';
 
 const SESSION = {
-  sessionId: 's1', name: 'Session', label: null, running: false, backgroundRunning: false,
+  sessionId: 's1', label: null, running: false, backgroundRunning: false,
   contextUsage: null, contextCompactionSupported: false, backendSessionId: null,
   profileName: 'plan', numTurns: null, costUsd: null,
 };

@@ -11,7 +11,7 @@ const knownRecord = {
   session: { sessionId: 's2' }, thread: { threadId: 'thr_9', agentSlotId: 'main' },
   dispatch: {
     taskId: 't1', taskHash: 'h1', machine: 'server1', scheduleTaskId: 'sch1',
-    sessionName: 'sess-1', tmuxName: 'tmux-1', pid: '4242',
+    tmuxName: 'tmux-1', pid: '4242',
   },
   scheduleTaskId: 'sch1',
   runtime: {

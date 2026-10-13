@@ -2,6 +2,7 @@ import type { SessionInfo, SessionsPendingInteraction } from '@cortex-agent/ui-c
 import { fmt, type Vocab } from '@/i18n';
 import { formatSpan, type TimeLang } from '@/i18n/time-format';
 import { isRetiredWorker } from './worker-groups';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 
 // A lead's team as its chat shows it: one summary (the desktop header capsule, the mobile row) that
 // opens one list (a popover on desktop, a sheet on mobile). Workers that need attention come first.
@@ -21,7 +22,7 @@ export function workerState(s: SessionInfo): WorkerState {
 const ATTENTION: Record<WorkerState, number> = { you: 0, running: 1, lead: 2, waiting: 2, idle: 3 };
 
 export function workerTitle(s: SessionInfo): string {
-  return s.workerName || s.label || s.name || s.sessionId;
+  return s.workerName || s.label || shortSessionId(s.sessionId);
 }
 
 export interface TeamRoster {

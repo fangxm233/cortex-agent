@@ -16,12 +16,12 @@ function makeDeps(session: Session | null, sink: SendCall[], extra: Partial<UiSe
 }
 
 const session = (channel: string): Session => ({
-  name: 'cortex-1', sessionId: 'sess-1', projectId: 'general', channel,
+  sessionId: 'sess-1', projectId: 'general', channel,
   backend: 'claude', kind: 'local', createdAt: '', lastUsedAt: '', label: null,
 } as unknown as Session);
 
 const scheduledSession = (): Session => ({
-  name: 'cortex-2', sessionId: 'sess-2', projectId: 'general', channel: 'cortex-self',
+  sessionId: 'sess-2', projectId: 'general', channel: 'cortex-self',
   backend: 'claude', kind: 'scheduled', origin: 'scheduled', createdAt: '', lastUsedAt: '',
   label: null, scheduleId: 'sch1',
 } as unknown as Session);

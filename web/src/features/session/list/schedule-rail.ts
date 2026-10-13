@@ -1,4 +1,5 @@
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { effectiveMs, sessionStamp } from './session-groups';
 import { formatUsd } from '@/lib/format';
@@ -68,7 +69,7 @@ export function buildScheduleRows(
     rows.push({
       scheduleId: sched.id,
       schedule: sched,
-      title: sched.message.trim() || (runs[0]?.label ?? runs[0]?.name ?? sched.id),
+      title: sched.message.trim() || (runs[0]?.label ?? (runs[0] ? shortSessionId(runs[0].sessionId) : sched.id)),
       kind: sched.type === 'once' ? 'once' : 'repeat',
       runs,
       latest: runs[0] ?? null,
@@ -79,7 +80,7 @@ export function buildScheduleRows(
     rows.push({
       scheduleId,
       schedule: null,
-      title: runs[0].label ?? runs[0].name,
+      title: runs[0].label ?? shortSessionId(runs[0].sessionId),
       kind: runs.length > 1 ? 'repeat' : 'once',
       runs,
       latest: runs[0],

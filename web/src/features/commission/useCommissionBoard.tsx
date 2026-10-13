@@ -7,6 +7,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useCommissionEnabled } from './CommissionOptIn';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { CommissionBoardModal } from './CommissionBoardModal';
 
 const commissionBoardModal = defineModal<string>('commission-board');
@@ -69,7 +70,7 @@ function CommissionBoardController({ commissionId, onClose }: {
   // without cross-referencing the rail.
   const sessionLabel = (sessionId: string) => {
     const hit = (sessionsQuery.data ?? []).find((s) => s.sessionId === sessionId);
-    return hit?.label ?? hit?.name ?? sessionId;
+    return hit?.label ?? shortSessionId(sessionId);
   };
 
   if (!commission) return null;

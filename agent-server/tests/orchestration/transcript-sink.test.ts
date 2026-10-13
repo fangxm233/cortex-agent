@@ -69,7 +69,6 @@ function harness(opts: {
   const sink = createTranscriptSink({
     sessionId: SESSION,
     channel: CHANNEL,
-    sessionName: NAME,
     debug: opts.debug ?? false,
     onAssistantMessage: (text) => { order.push('assistantMsg'); assistants.push(text); },
     onTodoUpdate: opts.onTodoUpdate,
@@ -270,7 +269,7 @@ test('context_usage persists the snapshot through the context-usage seam', async
   });
 
   assert.deepEqual(h.context, [{
-    sessionName: NAME, sessionId: SESSION, channel: CHANNEL,
+    sessionId: SESSION, channel: CHANNEL,
     usage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' },
   }]);
 });

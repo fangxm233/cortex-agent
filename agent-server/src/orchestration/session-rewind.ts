@@ -33,7 +33,7 @@ export interface RewindDeps {
   };
   sessionStore: {
     getById(sessionId: string): Promise<Session | null>;
-    updateSession(name: string, updates: { backendSessionId: string | null }): Promise<void>;
+    updateSession(sessionId: string, updates: { backendSessionId: string | null }): Promise<void>;
   };
   backup: Pick<typeof sessionBackup,
     'restoreBackup' | 'cleanupBackupsAfter' | 'cleanupAllBackups' |
@@ -196,7 +196,7 @@ async function restoreRewindBackend(
   registerRestoredPIPath(context.backend, context.backendSessionId, snapshot, deps.registerPISessionPath);
   if (!snapshot.restored) {
     if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
-    await deps.sessionStore.updateSession(context.session.name, { backendSessionId: null });
+    await deps.sessionStore.updateSession(context.session.sessionId, { backendSessionId: null });
   }
   deps.closePooledSession(channel, context.backend);
   await deps.ledger.truncateTurns(channel, turnIndex);
