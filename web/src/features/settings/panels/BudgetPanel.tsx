@@ -51,11 +51,12 @@ function meterPct(spent: number, limit: number | null): number {
 
 // ── Current spend ───────────────────────────────────────────────────────────
 
-function SpendSection({ scopeLabel, today, month, limits }: {
+function SpendSection({ scopeLabel, today, month, limits, unpricedCount }: {
   scopeLabel: string;
   today: number;
   month: number;
   limits: ScopeBudget;
+  unpricedCount: number;
 }) {
   const L = useVocab();
   return (
@@ -70,6 +71,11 @@ function SpendSection({ scopeLabel, today, month, limits }: {
           caption={`${L.month} / ${formatBudgetUsd(limits.monthly)}`}
           percent={meterPct(month, limits.monthly)} tone="var(--proto-accent-2)"
         />
+        {unpricedCount > 0 && (
+          <div style={NOTE_STYLE} data-budget-unpriced>
+            {L.stBudgetUnpricedRuns.replace('{n}', String(unpricedCount))}
+          </div>
+        )}
         <SNotice tone="amber" icon={<SDot size={6} />}>{L.stObNote}</SNotice>
       </div>
     </SSection>
@@ -282,7 +288,7 @@ export function BudgetPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   return (
     <div style={PANEL_STYLE} data-settings-panel="budget">
       <SpendSection scopeLabel={scope ?? L.stBudgetScopeGlobal} limits={resolved}
-        today={shown?.today ?? 0} month={shown?.month ?? 0} />
+        today={shown?.today ?? 0} month={shown?.month ?? 0} unpricedCount={shown?.unpricedCount ?? 0} />
       <LimitsSection scope={scope} projects={projects} budget={budget} resolved={resolved}
         actions={actions} onScope={setScope} />
     </div>

@@ -491,6 +491,7 @@ export const enBase = {
   stBudgetAmountInvalid: 'Enter a positive amount, e.g. 12.50',
   stCurrentSpend: 'Current spend',
   stObNote: 'Budgets are advisory; work is not stopped automatically.',
+  stBudgetUnpricedRuns: '{n} runs without cost data',
 
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: 'Appearance',

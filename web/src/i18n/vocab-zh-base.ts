@@ -487,6 +487,7 @@ export const zhBase = {
   stBudgetAmountInvalid: '请输入正数金额，例如 12.50',
   stCurrentSpend: '当前支出',
   stObNote: '预算仅作提示；不会自动停止工作。',
+  stBudgetUnpricedRuns: '{n} 次运行无费用数据',
 
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: '外观',

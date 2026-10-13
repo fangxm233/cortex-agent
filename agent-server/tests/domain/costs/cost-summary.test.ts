@@ -35,7 +35,7 @@ function ymdLocal(now: number, offsetDays: number): string {
   return `${y}-${m}-${day}`;
 }
 
-function makeEntry(o: Partial<CostEntry> & { timestamp: string; project: string; trigger: string; cost_usd: number }): CostEntry {
+function makeEntry(o: Partial<CostEntry> & { timestamp: string; project: string; trigger: string; cost_usd: number | null }): CostEntry {
   return {
     num_turns: 1, duration_s: 1, backend: 'claude', mode: 'api', source: 'estimate',
     ...o,
@@ -57,6 +57,10 @@ beforeAll(async () => {
     makeEntry({ timestamp: dayNoonIso(NOW, 13), project: 'orchard', trigger: 'thread', cost_usd: 4.0 }),
     makeEntry({ timestamp: dayNoonIso(NOW, 20), project: 'orchard', trigger: 'thread', cost_usd: 9.0 }), // outside 14-day window
     makeEntry({ timestamp: dayNoonIso(NOW, 0), project: 'atlas', trigger: 'thread', cost_usd: 7.0 }),   // foreign project
+    makeEntry({ timestamp: dayNoonIso(NOW, 0), project: 'orchard', trigger: 'thread', cost_usd: null }),
+    makeEntry({ timestamp: dayNoonIso(NOW, 20), project: 'orchard', trigger: 'thread', cost_usd: null }),
+    makeEntry({ timestamp: dayNoonIso(NOW, 0), project: 'orchard', trigger: 'thread', cost_usd: 0 }),
+    makeEntry({ timestamp: dayNoonIso(NOW, 0), project: 'atlas', trigger: 'thread', cost_usd: null }),
   ];
   await fs.writeFile(costsPath, entries.map(e => JSON.stringify(e)).join('\n') + '\n');
   await fs.writeFile(budgetPath, JSON.stringify({ daily_usd: 50, monthly_usd: 1200 }));
@@ -71,6 +75,22 @@ afterAll(async () => {
   delete process.env.CORTEX_BUDGET_FILE;
   costRepo._testReset();
   await fs.rm(tmpDir, { recursive: true, force: true });
+});
+
+test('unpricedCount counts scoped null costs across retained history, not priced zero entries', async () => {
+  const summary = await getCostSummary('orchard', { now: NOW });
+  assert.equal(summary.unpricedCount, 2);
+  assert.equal(summary.entryCount, 9);
+  assert.equal(summary.today, 1.5);
+  assert.equal(summary.total, 19.5);
+  assert.equal(summary.dailyBudget, 50);
+  assert.equal(summary.monthlyBudget, 1200);
+});
+
+test('unpricedCount includes all projects globally and is zero for an empty scope', async () => {
+  assert.equal((await getCostSummary(null, { now: NOW })).unpricedCount, 3);
+  assert.equal((await getCostSummary('atlas', { now: NOW })).unpricedCount, 1);
+  assert.equal((await getCostSummary('no-such-project', { now: NOW })).unpricedCount, 0);
 });
 
 test('dailyBudget comes from budget.json daily_usd', async () => {

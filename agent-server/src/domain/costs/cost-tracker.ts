@@ -87,6 +87,8 @@ export interface CostSummary {
   byBackend: Record<string, PeriodBucket>;
   tokens: { today: TokenBucket; month: TokenBucket; total: TokenBucket };
   entryCount: number;
+  /** Scoped entries with no cost data across the retained history (zero costs are priced). */
+  unpricedCount: number;
   // ── Additive real-data fields (task c489; ignored by Slack/TUI consumers) ──
   /** Daily budget denominator. Resolves to the project's own limit when the summary is
    *  project-scoped and that project has an override; otherwise the global `daily_usd`. */
@@ -251,6 +253,7 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
   const byBackend: Record<string, PeriodBucket> = {};
   const tokens = { today: createTokenBucket(), month: createTokenBucket(), total: createTokenBucket() };
   let matchCount = 0;
+  let unpricedCount = 0;
 
   for (const rawEntry of data.entries) {
     const mode = normalizeCostMode(rawEntry.mode);
@@ -266,6 +269,7 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
     // Scoped periods (filtered by project if specified)
     if (matchesProject) {
       matchCount++;
+      if (rawEntry.cost_usd == null) unpricedCount++;
       addCostByMode(periods.total, mode, cost);
       if (isToday) addCostByMode(periods.today, mode, cost);
       if (isWeek) addCostByMode(periods.week, mode, cost);
@@ -317,6 +321,7 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
     byBackend,
     tokens,
     entryCount: matchCount,
+    unpricedCount,
     dailyBudget: resolved.daily_usd,
     monthlyBudget: resolved.monthly_usd,
     budgetScope: resolved.scope,
