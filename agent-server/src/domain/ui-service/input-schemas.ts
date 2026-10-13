@@ -727,6 +727,12 @@ export const environmentsDeleteInput = z.object({
   name: environmentName,
 });
 
+/** Replaces the environment's whole system prompt; empty text means the backend default. */
+export const environmentsSavePromptInput = z.object({
+  name: environmentName,
+  text: z.string().max(65_536),
+});
+
 export const approvalsApproveInput = z.object({
   id: z.string(),
 });
@@ -933,6 +939,7 @@ export const mutateInputSchemas = {
   'environments.validate': environmentsValidateInput,
   'environments.save': environmentsSaveInput,
   'environments.delete': environmentsDeleteInput,
+  'environments.savePrompt': environmentsSavePromptInput,
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
   'system.refreshUsage': systemRefreshUsageInput,

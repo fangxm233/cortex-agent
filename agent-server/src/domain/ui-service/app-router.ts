@@ -102,6 +102,7 @@ import {
   environmentsValidateInput,
   environmentsSaveInput,
   environmentsDeleteInput,
+  environmentsSavePromptInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemUsageStatusInput,
@@ -426,6 +427,7 @@ function environmentsRouter(service: UiService) {
     validate: makeMutation(service, 'environments.validate', environmentsValidateInput),
     save: makeMutation(service, 'environments.save', environmentsSaveInput),
     delete: makeMutation(service, 'environments.delete', environmentsDeleteInput),
+    savePrompt: makeMutation(service, 'environments.savePrompt', environmentsSavePromptInput),
   });
 }
 

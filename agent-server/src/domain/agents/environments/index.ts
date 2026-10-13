@@ -7,3 +7,4 @@ export * from './schema.js';
 export * from './registry.js';
 export * from './resolve.js';
 export * from './entities.js';
+export * from './system-prompt.js';

@@ -148,6 +148,8 @@ export interface EnvironmentsPanelViewProps {
   onFormat: () => void;
   onPluginDirtyChange?: (dirty: boolean) => void;
   onPluginSaved?: () => void;
+  promptDraft: string | null;
+  onPromptDraft: (value: string | null) => void;
 }
 
 export function EnvironmentsPanelView(props: EnvironmentsPanelViewProps) {
@@ -184,6 +186,8 @@ export function EnvironmentsPanelView(props: EnvironmentsPanelViewProps) {
           onCancelCreate={props.onCancelCreate}
           onPluginDirtyChange={props.onPluginDirtyChange}
           onPluginSaved={props.onPluginSaved}
+          promptDraft={props.promptDraft}
+          onPromptDraft={props.onPromptDraft}
           onFormat={props.onFormat}
         />
       </div>
@@ -206,6 +210,7 @@ export function EnvironmentsPanel({ onDirtyChange }: { onDirtyChange?: (dirty: b
   const [armedDelete, setArmedDelete] = useState(false);
   const [createText, setCreateText] = useState('');
   const [pluginDirty, setPluginDirty] = useState(false);
+  const [promptDraft, setPromptDraft] = useState<string | null>(null);
 
   const environments = useEnvironmentsController({
     creating,
@@ -230,15 +235,17 @@ export function EnvironmentsPanel({ onDirtyChange }: { onDirtyChange?: (dirty: b
   // Moving to another environment drops the working copy and every transient affordance with it.
   useEffect(() => {
     setText(null);
+    setPromptDraft(null);
     setLiveIssues(null);
     setArmedDelete(false);
-    // The plugins tab does not exist while creating; fall back rather than blank out.
-    setTab((current) => (current === 'plugins' && creating ? 'body' : current));
+    // The plugins and prompt tabs do not exist while creating; fall back rather than blank out.
+    setTab((current) => (current !== 'validation' && creating ? 'body' : current));
   }, [selection, creating]);
 
-  // Only the assignment draft blocks navigation: it is a committed-on-save form, whereas the JSON
-  // buffer has always been free to abandon.
-  useEffect(() => { onDirtyChange?.(pluginDirty); }, [pluginDirty, onDirtyChange]);
+  // The assignment and prompt drafts block navigation: both are committed-on-save forms, whereas
+  // the JSON buffer has always been free to abandon.
+  const promptDirty = promptDraft !== null && promptDraft !== detail?.systemPrompt?.text;
+  useEffect(() => { onDirtyChange?.(pluginDirty || promptDirty); }, [pluginDirty, promptDirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const startCreate = (initialName: string, body: string) => {
@@ -325,6 +332,8 @@ export function EnvironmentsPanel({ onDirtyChange }: { onDirtyChange?: (dirty: b
       onCancelCreate={() => setCreating(false)}
       onPluginDirtyChange={setPluginDirty}
       onPluginSaved={environments.invalidate}
+      promptDraft={promptDraft}
+      onPromptDraft={setPromptDraft}
       onFormat={() => {
         const body = parsedOrToast();
         if (body) setCurrentText(formatBody(body));

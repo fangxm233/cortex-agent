@@ -19,6 +19,7 @@ import {
   PaneFooter,
 } from '@/features/settings/ui/master-detail-ui';
 import { PluginAssignPanel } from './PluginAssignPanel';
+import { EnvironmentPromptPanel } from './EnvironmentPromptPanel';
 import {
   canDelete,
   forksFromDefaults,
@@ -30,7 +31,7 @@ import {
 
 const MONO = "'IBM Plex Mono',monospace";
 
-export type Tab = 'body' | 'validation' | 'plugins';
+export type Tab = 'body' | 'prompt' | 'validation' | 'plugins';
 
 const ORIGIN_LABEL: Record<EnvironmentDetail['origin'], keyof Vocab> = {
   stock: 'ttOriginStock',
@@ -48,6 +49,11 @@ const ORIGIN_TITLE: Record<EnvironmentDetail['origin'], keyof Vocab> = {
  *  nothing to assign against. */
 export function showsPluginTab(creating: boolean): boolean {
   return !creating;
+}
+
+/** Same rule, plus a server old enough not to report the prompt has no tab to offer. */
+export function showsPromptTab(creating: boolean, detail: EnvironmentDetail | null): boolean {
+  return !creating && !!detail?.systemPrompt;
 }
 
 // ── small pieces ──────────────────────────────────────────────────────────────────────────────
@@ -293,11 +299,14 @@ export interface EnvironmentDetailPaneProps {
   onFormat: () => void;
   onPluginDirtyChange?: (dirty: boolean) => void;
   onPluginSaved?: () => void;
+  promptDraft: string | null;
+  onPromptDraft: (value: string | null) => void;
 }
 
-function tabsFor(L: Vocab, creating: boolean, issueCount: number) {
+function tabsFor(L: Vocab, creating: boolean, detail: EnvironmentDetail | null, issueCount: number) {
   return [
     { key: 'body' as Tab, label: L.ttTabBody },
+    ...(showsPromptTab(creating, detail) ? [{ key: 'prompt' as Tab, label: L.ttTabPrompt }] : []),
     { key: 'validation' as Tab, label: L.ttTabValidation, badge: issueCount },
     ...(showsPluginTab(creating) ? [{ key: 'plugins' as Tab, label: L.ttTabPlugins }] : []),
   ];
@@ -311,6 +320,17 @@ function EmptyDetail() {
         {L.ttSelectPrompt}
       </span>
     </div>
+  );
+}
+
+function PromptTab(props: EnvironmentDetailPaneProps & { name: string; dirty: boolean }) {
+  const prompt = showsPromptTab(props.creating, props.detail) ? props.detail?.systemPrompt : null;
+  if (!prompt) return null;
+  return (
+    <EnvironmentPromptPanel
+      name={props.name} prompt={prompt} draft={props.promptDraft} bodyDirty={props.dirty}
+      onDraft={props.onPromptDraft} onSaved={props.onPluginSaved}
+    />
   );
 }
 
@@ -329,6 +349,7 @@ function DetailBody(props: EnvironmentDetailPaneProps & {
       {props.tab === 'body' ? (
         <BodyTab text={props.text} parseError={parseEditor(props.text, L).parseError} onText={props.onText} />
       ) : null}
+      {props.tab === 'prompt' ? <PromptTab {...props} /> : null}
       {props.tab === 'validation' ? <ValidationTab issues={props.issues} /> : null}
       {props.tab === 'plugins' && showsPluginTab(props.creating) ? (
         <PluginAssignPanel
@@ -359,7 +380,7 @@ export function EnvironmentDetailPane(props: EnvironmentDetailPaneProps) {
   // Live validation (from the Validate button) wins; otherwise show what the server said on load.
   const issues = props.liveIssues ?? { errors: detail?.errors ?? [], warnings: detail?.warnings ?? [] };
   const dirty = isDirty(text, loaded);
-  const tabs = tabsFor(L, creating, issues.errors.length + issues.warnings.length);
+  const tabs = tabsFor(L, creating, detail, issues.errors.length + issues.warnings.length);
 
   return (
     <div className="settings-detail-pane" data-environment-detail={name} style={DETAIL_PANE_STYLE}>

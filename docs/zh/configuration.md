@@ -287,6 +287,14 @@ Plugins 标签页写的就是这个字段，**Settings → Plugins** 则显示�
 编辑一个仍与随包默认值相同的执行环境时会先提示，因为从那以后它不再跟随随包版本。`main`
 不能删除。Android 的设置页把 Environments 标为仅限桌面端。
 
+System prompt（系统提示词）标签页编辑执行环境 `systemPrompt` 解析出的文本，这段文本会整体替换
+后端默认的系统提示词。字段是 `file:` 引用时，标签页直接编辑 `prompts/systemPrompts/` 下的那个
+文件，并列出引用同一文件的其他执行环境，因为一次保存会同时改变它们的提示词。字段是内联文本或
+未设置时，保存会把文本写入 `prompts/systemPrompts/<name>.md` 并让执行环境引用它。留空则使用
+后端默认提示词。对随 Cortex 一起提供的提示词文件，**恢复默认** 会把随包文本载入编辑框。新会话
+直接使用保存后的提示词；已打开的会话在 PI 后端上从下一轮开始使用，在 Claude Code 上则要等其
+后端进程重启后才生效。
+
 ## 执行环境与 profile {#environments-vs-profiles}
 
 决定一次会话怎么跑的是两个实体，它们各自独立变化。

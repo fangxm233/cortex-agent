@@ -83,6 +83,7 @@ vi.mock('@/lib/trpc', () => ({
       validate: staticMutation(),
       save: staticMutation(),
       delete: staticMutation(),
+      savePrompt: staticMutation(),
     },
     plugins: {
       list: pluginListQuery(),
@@ -123,6 +124,7 @@ function environmentDetail(): EnvironmentDetail {
   return {
     name: 'writer', description: null, body: { name: 'writer' },
     filePath: '/tmp/writer.json', origin: 'custom', sha256: 'hash-agent', errors: [], warnings: [],
+    systemPrompt: { kind: 'none', file: null, text: '', sharedWith: [], defaultText: null },
   };
 }
 

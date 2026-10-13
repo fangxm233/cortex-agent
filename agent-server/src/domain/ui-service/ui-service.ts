@@ -63,6 +63,7 @@ import {
   handleEnvironmentsValidate,
   handleEnvironmentsSave,
   handleEnvironmentsDelete,
+  handleEnvironmentsSavePrompt,
 } from './mutate/environments.js';
 import { handlePluginsAssign } from './mutate/plugins.js';
 import {
@@ -241,6 +242,7 @@ export const mutateHandlers = {
   'environments.validate': (deps, args) => handleEnvironmentsValidate(deps, args),
   'environments.save': (deps, args) => handleEnvironmentsSave(deps, args),
   'environments.delete': (deps, args) => handleEnvironmentsDelete(deps, args),
+  'environments.savePrompt': (deps, args) => handleEnvironmentsSavePrompt(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
   'system.refreshUsage': (_deps, args) => handleSystemRefreshUsage(args),

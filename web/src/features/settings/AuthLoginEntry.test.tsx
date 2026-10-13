@@ -127,6 +127,7 @@ const environmentDetail: EnvironmentDetail = {
   sha256: 'a'.repeat(64),
   errors: [],
   warnings: [],
+  systemPrompt: { kind: 'none', file: null, text: '', sharedWith: [], defaultText: null },
 };
 
 function SettingsHarness() {
