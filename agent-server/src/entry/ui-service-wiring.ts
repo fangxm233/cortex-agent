@@ -55,7 +55,7 @@ export function buildUiService(w: UiServiceWiring): UiService {
     // Only armed records are ever listed: a settled waitpoint has already announced itself in the
     // session transcript.
     waitpointRegistry: {
-      listArmed: () => waitpointRepo.listArmed(),
+      list: () => waitpointRepo.list(),
       cancel: (id: string) => cancelWaitpoint(id),
     },
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),

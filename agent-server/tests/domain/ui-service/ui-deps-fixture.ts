@@ -24,7 +24,7 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
     getSubagentChildStatuses: () => new Map(),
     scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    waitpointRegistry: { listArmed: async () => [], cancel: async () => ({ cancelled: false }) },
+    waitpointRegistry: { list: async () => [], cancel: async () => ({ cancelled: false }) },
     conversationHistory: {
       getHistory: async () => null,
       getCompactHistoryAt: async () => ({ value: null, cursor: '' }),

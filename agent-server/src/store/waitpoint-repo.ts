@@ -65,7 +65,7 @@ export interface Waitpoint {
   /** WAL bit: a fire that has not been delivered yet. Replayed at boot and by the sweep.
    *  `heldByCap` marks a pending wake the hourly cap delayed, so its notice says it is late. */
   delivery: {
-    pending: boolean; attempts: number; lastError?: string | null; lastAt?: number | null; heldByCap?: boolean;
+    pending: boolean; inFlight?: boolean; attempts: number; lastError?: string | null; lastAt?: number | null; heldByCap?: boolean;
   };
   /** Wake timestamps, newest last. Sliding-window rate limit input. */
   wakes: number[];

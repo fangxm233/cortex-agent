@@ -350,7 +350,7 @@ export async function expireDueWaitpoints(
         continue;
       }
       const resolvedAt = wp.resolvedAt ?? 0;
-      const settled = wp.state !== 'armed' && !wp.delivery.pending;
+      const settled = wp.state !== 'armed' && !wp.delivery.pending && !wp.delivery.inFlight;
       if (settled && resolvedAt > 0 && now - resolvedAt > RESOLVED_RETENTION_MS) {
         delete data[id];
         purged += 1;

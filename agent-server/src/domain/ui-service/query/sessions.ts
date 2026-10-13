@@ -119,7 +119,7 @@ export async function handleSessionsList(
   // Armed waitpoints, fetched once for the whole page (the repo read is an in-memory cache hit).
   // Counted per session by the shared ownership rule so `waitingOn` and `waitpoints.list` can never
   // disagree.
-  const armedWaitpoints = await deps.waitpointRegistry.listArmed();
+  const armedWaitpoints = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending);
   const waitingOnBySession = countWaitingOn(
     armedWaitpoints,
     sessions.map((s: any) => ({ sessionId: s.sessionId, channel: s.channel ?? null })),

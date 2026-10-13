@@ -44,7 +44,7 @@ function depsWith(records: Waitpoint[], session: { sessionId: string; channel: s
       getById: async (id: string) => (session && session.sessionId === id ? (session as any) : null),
     },
     waitpointRegistry: {
-      listArmed: async () => records.filter((r) => r.state === 'armed'),
+      list: async () => records,
       cancel: cancel ?? (async () => ({ cancelled: true, state: 'cancelled' })),
     },
   });
@@ -168,3 +168,11 @@ test('cancelling an unknown waitpoint is a not-found', async () => {
   assert.equal((res as any).code, 'not-found');
 });
 
+
+test('fired but undelivered waitpoints remain visible', async () => {
+  const pending = wp({ state: 'fired', delivery: { pending: true, attempts: 2, lastError: 'offline' } });
+  const out = await handleWaitpointsList(depsWith([pending], { sessionId: 's1', channel: 'web:s1' }), { sessionId: 's1' });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].delivery.pending, true);
+  assert.equal(out[0].delivery.lastError, 'offline');
+});

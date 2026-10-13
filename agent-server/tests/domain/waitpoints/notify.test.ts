@@ -187,6 +187,7 @@ test('a failed delivery keeps the pending bit so the next sweep retries it', asy
   assert.equal(await deliverPendingWaitpoints(h.notifier), 0);
   const failed = (await h.repo.get(waitpoint.id))!;
   assert.equal(failed.delivery.pending, true);
+  assert.equal(failed.delivery.inFlight, false);
   assert.equal(failed.delivery.lastError, 'adapter down');
   assert.equal(h.sent.length, 0);
 
@@ -290,4 +291,17 @@ test('expiry marks the record and delivers the "nobody reported" notice once', a
   assert.equal(stored.state, 'expired');
   assert.equal(stored.delivery.pending, false);
   assert.equal(await deliverPendingWaitpoints(h.notifier), 0);
+});
+
+test('a delivery persists its in-flight claim until confirmation', async () => {
+  const h = harness();
+  const { waitpoint, secret } = await createWaitpoint({ label: 'job', intent: 'finish', owner: owner() }, h.service);
+  await applySignal({ id: waitpoint.id, secret, source: 'http' }, h.service);
+  await deliverPendingWaitpoints({ ...h.notifier, deliver: async () => {
+    const reopened = new WaitpointRepo({ filePath: (h.repo as any)['_repo'].opts.filePath });
+    const claimed = (await reopened.get(waitpoint.id))!;
+    assert.equal(claimed.delivery.inFlight, true);
+    assert.equal(claimed.delivery.pending, false);
+  } });
+  assert.equal((await h.repo.get(waitpoint.id))!.delivery.inFlight, false);
 });

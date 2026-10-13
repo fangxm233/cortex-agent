@@ -2013,10 +2013,9 @@ export interface UiServiceDeps {
     cancelExecution(id: string): ExecutionRecord | null;
   };
   /** Waitpoint seam (`waitpoints.*` ops and SessionInfo.waitingOn). Injected at the entry layer so
-   *  the ui-service domain never reaches into the waitpoint store itself. Only `armed` records are
-   *  ever listed — settled ones have already announced themselves in the session transcript. */
+   *  the ui-service domain never reaches into the waitpoint store itself. Queries include armed records and pending deliveries; settled records are hidden. */
   waitpointRegistry: {
-    listArmed(): Promise<Waitpoint[]>;
+    list(): Promise<Waitpoint[]>;
     cancel(id: string): Promise<{ cancelled: boolean; state?: string }>;
   };
   /** Commission registry seam (commissions.* ops). Optional — handlers fall back to the

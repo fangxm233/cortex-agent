@@ -12,6 +12,7 @@ import {
 } from '@domain/waitpoints/service.js';
 import {
   deliverPendingWaitpoints,
+  restoreInterruptedDeliveries,
   notifyWaitpointExpiry,
   productionNotifierDeps,
   type WaitpointNotifierDeps,
@@ -112,8 +113,8 @@ export function stopWaitpointSweep(): void {
  * also hold signals written while the daemon was down. Returns what it recovered, and never throws
  * — a recovery failure must not block startup.
  */
-export async function recoverWaitpoints(): Promise<SweepResult> {
-  return sweepWaitpoints().catch((e) => {
+export async function recoverWaitpoints(deps: WaitpointSweepDeps = productionSweepDeps): Promise<SweepResult> {
+  return restoreInterruptedDeliveries(deps.notifier).then(() => sweepWaitpoints(deps)).catch((e) => {
     log.error(`recovery failed: ${(e as Error).message}`);
     return { spooled: 0, fromDevices: 0, released: 0, expired: 0, delivered: 0, purged: 0 };
   });

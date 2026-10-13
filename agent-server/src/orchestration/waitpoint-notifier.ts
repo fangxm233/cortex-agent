@@ -46,8 +46,9 @@ const pendingTimers = new Map<string, NodeJS.Timeout>();
  */
 async function deliverOne(id: string, deps: WaitpointNotifierDeps): Promise<boolean> {
   const claimed = await deps.repo.update<Waitpoint | null>(id, (wp) => {
-    if (!wp.delivery.pending) return { next: wp, result: null };
+    if (!wp.delivery.pending || wp.delivery.inFlight) return { next: wp, result: null };
     wp.delivery.pending = false;
+    wp.delivery.inFlight = true;
     wp.delivery.attempts += 1;
     wp.delivery.lastAt = deps.now();
     return { next: wp, result: wp };
@@ -71,6 +72,7 @@ async function deliverOne(id: string, deps: WaitpointNotifierDeps): Promise<bool
     await deps.deliver(wp.owner.channel, text, wp.id);
     await deps.repo.update(id, (current) => {
       for (const signal of current.signals.slice(0, reported)) signal.deliveredAt = signal.deliveredAt ?? now;
+      current.delivery.inFlight = false;
       current.delivery.lastError = null;
       current.delivery.heldByCap = false;
       return { next: current, result: undefined };
@@ -81,6 +83,7 @@ async function deliverOne(id: string, deps: WaitpointNotifierDeps): Promise<bool
     const message = (error as Error).message;
     await deps.repo.update(id, (current) => {
       current.delivery.pending = true;
+      current.delivery.inFlight = false;
       current.delivery.lastError = message;
       return { next: current, result: undefined };
     });
@@ -144,4 +147,16 @@ export async function notifyWaitpointExpiry(
 export function resetWaitpointTimers(): void {
   for (const timer of pendingTimers.values()) clearTimeout(timer);
   pendingTimers.clear();
+}
+
+/** Boot only: a claimed wake without confirmation may need to be delivered again. */
+export async function restoreInterruptedDeliveries(deps: WaitpointNotifierDeps): Promise<void> {
+  for (const wp of await deps.repo.list()) {
+    if (!wp.delivery.inFlight) continue;
+    await deps.repo.update(wp.id, current => {
+      current.delivery.inFlight = false;
+      current.delivery.pending = current.state !== 'cancelled';
+      return { next: current, result: undefined };
+    });
+  }
 }

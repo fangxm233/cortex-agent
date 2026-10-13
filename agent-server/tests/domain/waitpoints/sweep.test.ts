@@ -7,7 +7,7 @@ import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
 import { applySignal, createWaitpoint, type WaitpointServiceDeps } from '../../../src/domain/waitpoints/service.js';
 import { resetSignalIngressState, type IngestDeps } from '../../../src/orchestration/waitpoint-ingress.js';
 import { resetWaitpointTimers, type WaitpointNotifierDeps } from '../../../src/orchestration/waitpoint-notifier.js';
-import { sweepWaitpoints, type WaitpointSweepDeps } from '../../../src/orchestration/waitpoint-sweep.js';
+import { recoverWaitpoints, sweepWaitpoints, type WaitpointSweepDeps } from '../../../src/orchestration/waitpoint-sweep.js';
 
 let tmpDir: string;
 const BASE = 1_700_000_000_000;
@@ -217,3 +217,26 @@ test('the sweep picks up a spool file written while nothing was listening', asyn
   await sweepWaitpoints(h.sweep);
   assert.equal(h.sent.length, 1, 'a later sweep must not re-send an already-delivered wake');
 });
+
+for (const state of ['fired', 'expired'] as const) {
+  test(`boot recovers a claimed ${state} notice before retention can purge it`, async () => {
+    const h = await harness();
+    const { waitpoint } = await createWaitpoint({ label: 'job', intent: 'finish', owner: owner() }, h.service);
+    await h.repo.update(waitpoint.id, wp => {
+      wp.state = state;
+      wp.resolvedAt = BASE;
+      wp.delivery = { pending: false, inFlight: true, attempts: 1 };
+      return { next: wp, result: undefined };
+    });
+    h.setNow(BASE + 4 * 24 * 60 * 60 * 1000);
+    const result = await recoverWaitpoints(h.sweep);
+    assert.equal(result.delivered, 1);
+    assert.equal(result.purged, 0);
+    assert.equal(h.sent.length, 1);
+    const recovered = (await h.repo.get(waitpoint.id))!;
+    assert.equal(recovered.delivery.inFlight, false);
+    assert.equal(recovered.delivery.pending, false);
+    await recoverWaitpoints(h.sweep);
+    assert.equal(h.sent.length, 1);
+  });
+}
