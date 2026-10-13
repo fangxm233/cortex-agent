@@ -320,7 +320,7 @@ describe('desktop chat team context', () => {
     harness.selection = { ...selection(false), selectedSessionId: 'w1' };
     act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
     expect(capsules()).toHaveLength(0);
-    expect(parent()).toBe('Session');
+    expect(parent()).toBe('s1');
   });
 
   it('shows neither for a session without a team', () => {
