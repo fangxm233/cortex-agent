@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
+import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
 import { Composer } from '@/features/workbench/composer/Composer';
 import { ContextUsageControl } from '@/features/session/composer/ContextUsageControl';
@@ -220,6 +221,8 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
       >
         {preFirstMessage ? (
           <DraftHero title={L.wbNewConversation} projectName={projectName} />
+        ) : chat.transcriptError && rows.length === 0 ? (
+          <TranscriptLoadError onRetry={chat.retryTranscript} />
         ) : (
           <TeamStreamProvider workers={team.workers} leadRunning={chat.running} onOpenWorker={setSelectedSession}>
             <MessageStream

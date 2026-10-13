@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
+import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
 import { useTranscriptWindow } from '@/features/session/transcript/useTranscriptWindow';
 import { useStickToBottom } from '@/features/session/transcript/useStickToBottom';
@@ -619,6 +620,7 @@ function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal }: {
     // sticky headers so their z-index cannot escape over the composer or overlays.
     <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': TRANSCRIPT_TOP } as CSSProperties}>
       <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {props.transcriptError && props.rows.length === 0 && props.onRetryTranscript && <TranscriptLoadError onRetry={props.onRetryTranscript} />}
         <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
           onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} streamKey={props.sessionId} />
         <LeadWaitingLine touch />

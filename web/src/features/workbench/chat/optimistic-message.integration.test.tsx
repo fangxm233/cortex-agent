@@ -10,6 +10,8 @@ import type { AttachmentMeta } from '@/features/attachments/types';
 import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
 
 const harness = vi.hoisted(() => ({
+  transcriptError: false,
+  retryTranscript: vi.fn(),
   projectId: 'atlas',
   sessions: [] as any[],
   transcripts: {} as Record<string, any>,
@@ -61,6 +63,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       // The slash palette's skills; these scenarios never open it.
       if (options.__kind === 'skills.session') return { data: [], isPending: false };
       if (options.__kind === 'sessions.transcript') {
+        if (harness.transcriptError) return { data: undefined, isError: true, isPending: false, refetch: harness.retryTranscript };
         const sessionId = options.input.sessionId as string;
         if (sessionId && !harness.transcripts[sessionId]) {
           harness.transcripts[sessionId] = emptyTranscript(sessionId);
@@ -348,6 +351,8 @@ function seedAttachmentDraft(isDraft: boolean): string | null {
 let mounted: ReactTestRenderer | null = null;
 
 beforeEach(() => {
+  harness.transcriptError = false;
+  harness.retryTranscript.mockReset();
   harness.projectId = 'atlas';
   harness.sessions = [SESSION];
   harness.transcripts = { s1: emptyTranscript('s1') };
@@ -587,4 +592,14 @@ describe('mounted optimistic sender wiring', () => {
 
     expect(harness.sendMutateAsync).toHaveBeenCalledOnce();
   });
+});
+
+
+it('shows a retry action instead of an empty desktop transcript after loading fails', () => {
+  harness.transcriptError = true;
+  mounted = mountCenterChat();
+  const alert = mounted.root.findByProps({ role: 'alert' });
+  expect(alert.children).toContain('Could not load messages');
+  act(() => alert.findByType('button').props.onClick());
+  expect(harness.retryTranscript).toHaveBeenCalledOnce();
 });

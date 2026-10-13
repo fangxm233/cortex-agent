@@ -39,6 +39,8 @@ export interface SessionRewind {
 export interface ChatSession extends Omit<SessionLiveState, 'getMessageSnapshot' | 'pendingUser'> {
   transcript: SessionTranscript;
   transcriptPending: boolean;
+  transcriptError: boolean;
+  retryTranscript: () => void;
   /** Server-pending plus still-unconfirmed local sends — what the stream renders. */
   pendingUser: PendingUserMessage[];
   optimistic: OptimisticUserMessages;
@@ -137,6 +139,8 @@ export function useChatSession(sessionId: string, active: SessionInfo | null, op
     ...live,
     transcript,
     transcriptPending: transcriptQuery.isPending,
+    transcriptError: transcriptQuery.isError && !transcriptQuery.data,
+    retryTranscript: () => { void transcriptQuery.refetch(); },
     pendingUser: optimistic.pendingUser,
     optimistic,
     compactAction: active?.contextCompactionSupported ? compact : undefined,

@@ -62,6 +62,8 @@ export interface MChatViewProps {
   rows: ChatRow[];
   /** The session's history is still loading — the transcript window follows the tail until it lands. */
   loading?: boolean;
+  transcriptError?: boolean;
+  onRetryTranscript?: () => void;
   onBack: () => void;
   /** Null for a draft; omitted in metadata-free presentation previews. */
   metadataSession?: MetadataSession | null;

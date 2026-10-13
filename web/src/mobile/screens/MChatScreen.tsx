@@ -267,6 +267,8 @@ export function MChatScreen(): JSX.Element {
       project={route.projectId ?? undefined}
       rows={rows}
       loading={!!sessionId && chat.transcriptPending}
+      transcriptError={chat.transcriptError}
+      onRetryTranscript={chat.retryTranscript}
       onBack={() => mobileHeaderBack(navigate, '/m/sessions')}
       sessionStatsRows={sessionStatsRows}
       cortexId={active?.name ?? null}

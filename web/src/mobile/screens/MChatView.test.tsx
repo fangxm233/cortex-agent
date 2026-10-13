@@ -571,3 +571,16 @@ describe('MChatView header clearance', () => {
     }
   });
 });
+
+
+it('shows history Retry only when the mobile transcript has no rows', () => {
+  const onRetryTranscript = vi.fn();
+  const props = { ...baseProps, rows: [], status: { running: false, text: 'idle' }, transcriptError: true, onRetryTranscript };
+  const tree = create(<LangProvider><MChatView {...props} /></LangProvider>);
+  const alert = tree.root.findByProps({ role: 'alert' });
+  act(() => alert.findByType('button').props.onClick());
+  expect(onRetryTranscript).toHaveBeenCalledOnce();
+  act(() => tree.update(<LangProvider><MChatView {...props} rows={[{ kind: 'user', text: 'Visible' }]} /></LangProvider>));
+  expect(tree.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+  act(() => tree.unmount());
+});
