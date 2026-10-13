@@ -20,8 +20,15 @@ const harness = vi.hoisted(() => ({
   agents: [] as Array<{ name: string; description?: string; profile: string }>,
   setDraftSelection: vi.fn(),
   setSelection: vi.fn(),
+  toast: vi.fn(),
+  errors: {} as Record<string, (error: Error) => void>,
   setAgent: vi.fn(),
   invalidateQueries: vi.fn(),
+}));
+
+vi.mock('@/design/Toast', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/design/Toast')>(),
+  useToastOptional: () => ({ toast: harness.toast }),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -59,9 +66,10 @@ vi.mock('@tanstack/react-query', () => ({
     };
   },
   // The two axes leave through two endpoints, so the mock has to tell them apart.
-  useMutation: (options: any) => ({
-    mutate: options?.__kind === 'sessions.setAgent' ? harness.setAgent : harness.setSelection,
-  }),
+  useMutation: (options: any) => {
+    harness.errors[options.__kind] = options.onError;
+    return { mutate: options?.__kind === 'sessions.setAgent' ? harness.setAgent : harness.setSelection };
+  },
   useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
 }));
 
@@ -74,8 +82,8 @@ vi.mock('@/lib/trpc', () => ({
       catalog: { queryOptions: () => ({ __kind: 'models.catalog' }) },
     },
     sessions: {
-      setSelection: { mutationOptions: () => ({ __kind: 'sessions.setSelection' }) },
-      setAgent: { mutationOptions: () => ({ __kind: 'sessions.setAgent' }) },
+      setSelection: { mutationOptions: (options: any) => ({ ...options, __kind: 'sessions.setSelection' }) },
+      setAgent: { mutationOptions: (options: any) => ({ ...options, __kind: 'sessions.setAgent' }) },
       list: { queryFilter: () => ({}) },
     },
   }),
@@ -455,4 +463,15 @@ describe('agent chip', () => {
     expect(mount({ isDraft: false, currentProfile: 'plan', hasHistory: true })
       .root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(1);
   });
+});
+
+
+it.each(['sessions.setSelection', 'sessions.setAgent'])('reports %s failure through the shared toast', (kind) => {
+  harness.toast.mockClear();
+  const tree = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+  act(() => harness.errors[kind](new Error('offline')));
+  expect(harness.toast).toHaveBeenCalledWith({
+    title: 'Could not change selection', description: 'offline', tone: 'failed',
+  });
+  act(() => tree.unmount());
 });

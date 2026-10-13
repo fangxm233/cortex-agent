@@ -4,6 +4,7 @@ import type {
   ConfigAgentEntry, ConfigProfileEntry, ModelCatalogSnapshot, SessionSelectionOverride,
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useToastOptional } from '@/design';
 import { useVocab } from '@/i18n';
 import {
   agentChange, buildAgentOptions, buildModeOptions, buildModelOptions, buildProfileOptions,
@@ -146,13 +147,18 @@ function mutateThen<T>(mutate: (vars: T, options?: { onSuccess: () => void }) =>
 /** One shape for both destinations: the draft keeps it locally, a live session sends it — the two
  *  axes to two endpoints, because the server keeps them apart. */
 function useApplySelection(input: SessionSelectionInput) {
+  const L = useVocab();
+  const toasts = useToastOptional();
+  const onError = (error: Error): void => {
+    toasts?.toast({ title: L.chatSelectionFailed, description: error.message, tone: 'failed' });
+  };
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const refreshSessions = (): void => {
     void queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
   };
-  const mutation = useMutation(trpc.sessions.setSelection.mutationOptions({ onSuccess: refreshSessions }));
-  const agentMutation = useMutation(trpc.sessions.setAgent.mutationOptions({ onSuccess: refreshSessions }));
+  const mutation = useMutation(trpc.sessions.setSelection.mutationOptions({ onSuccess: refreshSessions, onError }));
+  const agentMutation = useMutation(trpc.sessions.setAgent.mutationOptions({ onSuccess: refreshSessions, onError }));
   return (change: SelectionChange | null, onApplied?: () => void): void => {
     if (!change) return;
     if (input.isDraft) { input.setDraftSelection(change); onApplied?.(); return; }
