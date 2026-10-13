@@ -54,10 +54,46 @@ function fullTurn(turnIndex: number): TurnRecord {
   };
 }
 
+test('nameless registration and patch persist without name keys across replay and compaction', async () => {
+  const filePath = nextPath();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession(registerOpts('sess-nameless'));
+  await repo.updateSession('sess-nameless', { label: 'new label' });
+  assert.deepEqual(jsonl(filePath).map(line => line.op), ['put', 'patch']);
+  assert.equal(Object.hasOwn(jsonl(filePath)[0].record, 'name'), false);
+  assert.equal(Object.hasOwn(jsonl(filePath)[1], 'name'), false);
+  assert.equal((await new SessionRegistryRepo(filePath).getById('sess-nameless'))?.label, 'new label');
+  await repo.compactNow();
+  assert.equal(Object.hasOwn(jsonl(filePath)[0].record, 'name'), false);
+  assert.equal((await new SessionRegistryRepo(filePath).getById('sess-nameless'))?.label, 'new label');
+});
+
+test('legacy names in put, patch and conversation lines are ignored, including malformed names', async () => {
+  const filePath = nextPath();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession(registerOpts('sess-legacy-name'));
+  const put = jsonl(filePath)[0];
+  await fs.writeFile(filePath, [
+    JSON.stringify({ ...put, record: { ...put.record, name: { obsolete: true } } }),
+    JSON.stringify({ v: 1, op: 'patch', id: 'sess-legacy-name', name: 42, fields: { label: 'legacy patch' } }),
+    JSON.stringify({ v: 1, op: 'conversation', channel: 'C001', kind: 'set', fields: {
+      sessionId: 'sess-legacy-name', sessionName: { obsolete: true }, backend: 'claude',
+      profileName: null, updatedAt: '2025-01-01T00:00:00.000Z',
+    } }),
+    '',
+  ].join('\n'));
+  const reopened = new SessionRegistryRepo(filePath);
+  assert.equal((await reopened.getById('sess-legacy-name'))?.label, 'legacy patch');
+  assert.equal(Object.hasOwn((await reopened.getById('sess-legacy-name'))!, 'name'), false);
+  assert.equal(Object.hasOwn((await reopened.getConversationHeader('C001'))!, 'sessionName'), false);
+  await reopened.compactNow();
+  assert.equal(JSON.stringify(jsonl(filePath)).includes('sessionName'), false);
+});
+
 test('contextUsage update appends exactly one small patch line', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-ctx', registerOpts('sess-ctx'));
+  await repo.registerSession(registerOpts('sess-ctx'));
   const before = rawLines(filePath).length;
 
   await repo.updateContextUsage('sess-ctx', usage(2.3));
@@ -68,7 +104,7 @@ test('contextUsage update appends exactly one small patch line', async () => {
   const last = JSON.parse(lastText);
   assert.equal(last.op, 'patch');
   assert.equal(last.id, 'sess-ctx');
-  assert.equal(last.name, 'cortex-ctx');
+  assert.equal(Object.hasOwn(last, 'name'), false);
   assert.ok(last.fields.contextUsage, 'patch carries the changed contextUsage');
   const bytes = Buffer.byteLength(`${lastText}\n`);
   assert.ok(bytes <= 200, `contextUsage patch line is ${bytes} bytes, expected <= 200`);
@@ -77,7 +113,7 @@ test('contextUsage update appends exactly one small patch line', async () => {
 test('commission fields written as patches survive a replay (main d2449c4f added commissionBlockFor)', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-cm', registerOpts('sess-cm'));
+  await repo.registerSession(registerOpts('sess-cm'));
   await repo.setCommissionDraft('sess-cm', '/draft/dir');            // patch commissionDraft
   await repo.markCommissionBlockDelivered('sess-cm', 'draft:/draft/dir'); // patch commissionBlockFor
   await repo.bindCommission('sess-cm', 'comm-1');                    // patch commissionId (+ clears draft)
@@ -94,10 +130,10 @@ test('commission fields written as patches survive a replay (main d2449c4f added
 test('an update that changes nothing appends no event', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-noop', registerOpts('sess-noop'));
+  await repo.registerSession(registerOpts('sess-noop'));
   const before = rawLines(filePath).length;
 
-  await repo.updateSession('cortex-noop', { label: 'label' }); // identical to the registered label
+  await repo.updateSession('sess-noop', { label: 'label' }); // identical to the registered label
   await repo.updateContextUsage('sess-noop', null); // never had usage → clearing is a no-op too
 
   assert.equal(rawLines(filePath).length, before);
@@ -106,9 +142,9 @@ test('an update that changes nothing appends no event', async () => {
 test('replaying a journal with every event kind (plus a torn tail) reproduces state', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-a', registerOpts('sess-a'));
-  await repo.registerSession('cortex-b', registerOpts('sess-b'));
-  await repo.updateSession('cortex-a', { label: 'A2' });        // patch
+  await repo.registerSession(registerOpts('sess-a'));
+  await repo.registerSession(registerOpts('sess-b'));
+  await repo.updateSession('sess-a', { label: 'A2' });        // patch
   await repo.bindChannel('web:chan', 'sess-a');                 // bind
   await repo.bindChannel('web:temp', 'sess-a');                 // bind
   await repo.unbindChannel('web:temp');                         // unbind
@@ -116,14 +152,14 @@ test('replaying a journal with every event kind (plus a torn tail) reproduces st
   await repo.beginTurn('sess-a', fullTurn(1));                  // turn begin
   await repo.patchTurn('sess-a', 0, { status: 'completed' });   // turn patch
   await repo.truncateTurns('sess-a', 1);                        // turn truncate (drops turn 1)
-  await repo.updateSession('cortex-b', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.updateSession('sess-b', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []); // delete-intent
   await repo.commitDeletion('sess-b');                          // delete-commit
 
   await fs.appendFile(filePath, '{"v":1,"op":"pu'); // torn last line
 
   const reopened = new SessionRegistryRepo(filePath);
-  assert.equal((await reopened.lookupSession('cortex-a'))?.label, 'A2');
+  assert.equal((await reopened.getById('sess-a'))?.label, 'A2');
   assert.equal(await reopened.getById('sess-b'), null);
   assert.equal(await reopened.getBoundSessionId('web:chan'), 'sess-a');
   assert.equal(await reopened.getBoundSessionId('web:temp'), null);
@@ -137,11 +173,11 @@ test('replaying a journal with every event kind (plus a torn tail) reproduces st
 test('every TurnRecord and patch field round-trips through write → replay → compact → replay', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath, { shouldCompact: () => false });
-  await repo.registerSession('cortex-rt', registerOpts('sess-rt', {
+  await repo.registerSession(registerOpts('sess-rt', {
     browser: { device: 'server' }, scheduleId: 'sched-1', commissionDraft: '_draft-cortex-rt',
     teamLeadId: 'sess-lead', workerName: 'scout',
   }));
-  await repo.updateSession('cortex-rt', {
+  await repo.updateSession('sess-rt', {
     label: 'renamed', profileName: 'coder', backendSessionId: 'be-9', lastUsedAt: '2025-02-02T00:00:00.000Z',
   });
   await repo.updateContextUsage('sess-rt', usage(9.9));
@@ -195,13 +231,13 @@ test('every TurnRecord and patch field round-trips through write → replay → 
 test('compaction keeps live bindings and turns but drops those of committed deletions', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-a', registerOpts('sess-a'));
-  await repo.registerSession('cortex-b', registerOpts('sess-b'));
+  await repo.registerSession(registerOpts('sess-a'));
+  await repo.registerSession(registerOpts('sess-b'));
   await repo.bindChannel('web:a', 'sess-a');
   await repo.bindChannel('web:b', 'sess-b');
   await repo.beginTurn('web:a', fullTurn(0)); // turns are channel-keyed now
   await repo.beginTurn('web:b', fullTurn(0));
-  await repo.updateSession('cortex-b', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.updateSession('sess-b', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
   await repo.commitDeletion('sess-b');
 
@@ -226,8 +262,8 @@ test('binding is a free map — no liveness guard on the target session (intende
   await repo.bindChannel('web:x', 'sess-missing'); // unknown session → binds
   assert.equal(await repo.getBoundSessionId('web:x'), 'sess-missing');
 
-  await repo.registerSession('cortex-p', registerOpts('sess-p'));
-  await repo.updateSession('cortex-p', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.registerSession(registerOpts('sess-p'));
+  await repo.updateSession('sess-p', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
   await repo.bindChannel('web:p', 'sess-p'); // pending-delete session → still binds
   assert.equal(await repo.getBoundSessionId('web:p'), 'sess-p');
@@ -236,7 +272,7 @@ test('binding is a free map — no liveness guard on the target session (intende
 test('unbinding an unknown channel is a no-op that appends nothing', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-a', registerOpts('sess-a'));
+  await repo.registerSession(registerOpts('sess-a'));
   const before = rawLines(filePath).length;
   await repo.unbindChannel('web:never-bound');
   assert.equal(rawLines(filePath).length, before);
@@ -245,7 +281,7 @@ test('unbinding an unknown channel is a no-op that appends nothing', async () =>
 test('conduit resolvers win over persisted bindings, null falls through', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-a', registerOpts('sess-a'));
+  await repo.registerSession(registerOpts('sess-a'));
   await repo.bindChannel('web:r', 'sess-a');
 
   assert.equal(await repo.getBoundSessionId('web:r'), 'sess-a'); // persisted only
@@ -264,8 +300,8 @@ test('undefined vs null backendSessionId survives patch, compaction and replay',
     projectId: 'proj', channel: 'C001', backend: 'claude', kind: 'local', origin: 'direct',
     createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z', label: null, profileName: null,
   };
-  const recU = { name: 'cortex-u', sessionId: 'sess-u', ...base };                          // backendSessionId absent → undefined
-  const recN = { name: 'cortex-n', sessionId: 'sess-n', ...base, backendSessionId: null };  // explicit fresh backend
+  const recU = { sessionId: 'sess-u', ...base };                          // backendSessionId absent → undefined
+  const recN = { sessionId: 'sess-n', ...base, backendSessionId: null };  // explicit fresh backend
   await fs.writeFile(filePath, [
     JSON.stringify({ v: 1, op: 'put', id: 'sess-u', record: recU }),
     JSON.stringify({ v: 1, op: 'put', id: 'sess-n', record: recN }),
@@ -303,7 +339,7 @@ test('an old-format journal with only put/delete-* events still replays', async 
   ].join('\n'));
 
   const repo = new SessionRegistryRepo(filePath);
-  assert.equal((await repo.lookupSession('cortex-live'))?.sessionId, 'sess-live');
+  assert.equal((await repo.getById('sess-live'))?.sessionId, 'sess-live');
   assert.equal(await repo.getById('sess-legacy'), null);
   assert.deepEqual(await repo.listBindings(), []);
   await repo.compactNow();
@@ -329,11 +365,22 @@ test('compaction threshold is max(512, live*4)', () => {
   assert.equal(shouldCompactSessionRegistry(huge, {}), true);
 });
 
+test('batch updates a session by id without writing a name', async () => {
+  const filePath = nextPath();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.batch(async ops => {
+    await ops.registerSession(registerOpts('sess-batch-update'));
+    await ops.updateSession('sess-batch-update', { label: 'updated' });
+  });
+  assert.equal((await new SessionRegistryRepo(filePath).getById('sess-batch-update'))?.label, 'updated');
+  assert.equal(jsonl(filePath).some(line => Object.hasOwn(line, 'name') || Object.hasOwn(line.record ?? {}, 'name')), false);
+});
+
 test('batch lands put + bind + turn under one admission lock', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
   await repo.batch(async (ops) => {
-    await ops.registerSession('cortex-batch', registerOpts('sess-batch'));
+    await ops.registerSession(registerOpts('sess-batch'));
     await ops.bindChannel('web:batch', 'sess-batch'); // requires the put to be visible in the same lock
     await ops.beginTurn('sess-batch', fullTurn(0));
   });
