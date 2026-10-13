@@ -1,3 +1,4 @@
+import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
@@ -44,6 +45,7 @@ export interface PISessionOptions {
   subagent?: PiSubagentBridge;
   /** Builds the in-process Cortex bundle server for this session and its children (D10). */
   openBundledMcpServer?: OpenBundledMcpServer;
+  getSubagentModelEnv?: SubagentModelEnvGetter;
 }
 
 function errorValue(error: unknown): Error {
@@ -126,6 +128,7 @@ export class PISession {
   private readonly onProviderQuota: PISessionOptions['onProviderQuota'];
   private readonly subagent: PISessionOptions['subagent'];
   private readonly openBundledMcpServer: PISessionOptions['openBundledMcpServer'];
+  private readonly getSubagentModelEnv: PISessionOptions['getSubagentModelEnv'];
   private alive = true;
   /** Buffer for assistant_text deltas; flushed on message_end / turn_complete / non-text events. */
   private textBuffer = '';
@@ -153,6 +156,7 @@ export class PISession {
     this.onProviderQuota = opts.onProviderQuota;
     this.subagent = opts.subagent;
     this.openBundledMcpServer = opts.openBundledMcpServer;
+    this.getSubagentModelEnv = opts.getSubagentModelEnv;
     this.ready = this.start(opts.runtimeFactory);
     // Consumers observe the failure through send()/compact(); an unobserved start must not crash.
     this.ready.catch(() => undefined);
@@ -165,7 +169,8 @@ export class PISession {
       handle = await factory(this.request, {
         onEvent: (event) => this.handleRawEvent(event),
         onProviderQuota: (reading) => this.handleProviderQuota(reading),
-      }, { subagent: this.subagent, openBundledMcpServer: this.openBundledMcpServer });
+      }, { subagent: this.subagent, openBundledMcpServer: this.openBundledMcpServer,
+        getSubagentModelEnv: this.getSubagentModelEnv });
     } catch (error) {
       const failure = errorValue(error);
       this.fail(failure);

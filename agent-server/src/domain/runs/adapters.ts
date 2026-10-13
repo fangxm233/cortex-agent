@@ -1,3 +1,4 @@
+import { subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { ensureAuthVisible, USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
@@ -28,6 +29,7 @@ const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, piProviderDiscovery
   usageStore,
   submitRateLimit: handleRateLimitEvent,
   openBundledMcpServer,
+  getSubagentModelEnv: subagentModelEnv,
   subagent: {
     runForeignSubagent,
     // Late-bound on purpose: registering a background run reaches the delivery route in

@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION } from '@core/agents/subagent/schema.js';
 import {
-  claudeModelOptions, describeSubagent, roleOptionsFrom, type SubagentFieldDescriptions,
-  type SubagentModelOption,
+  hostModelOptions, describeSubagent, roleOptionsFrom, type SubagentFieldDescriptions,
 } from '@core/agents/subagent/catalog.js';
 import { loadRoles } from '@core/agents/roles.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
@@ -60,24 +59,13 @@ function buildAgentShape(described: SubagentFieldDescriptions) {
   };
 }
 
-/** The models this session's host can run a child on: the claude catalog plus the PI pairs the
- *  daemon handed down. Shared with every tool that lets the agent pick a backend and model. */
-export function hostModelOptions(ctx: CortexToolContext): SubagentModelOption[] {
-  return [
-    ...claudeModelOptions(
-      ctx.claudeModel, (ctx.subagentClaudeModels ?? []).map((model) => model.id),
-    ),
-    ...ctx.subagentPiModels,
-  ];
-}
-
-/** Read the live catalog once per registration. Guarded end to end: a filesystem or parsing
- *  surprise must degrade to the static descriptions rather than kill tool registration. */
+/** Role I/O may fail independently; it must not erase the shared model snapshot. */
 function describeHostCatalog(ctx: CortexToolContext): SubagentFieldDescriptions {
+  const models = hostModelOptions(ctx);
   try {
-    return describeSubagent({ roles: roleOptionsFrom(loadRoles()), models: hostModelOptions(ctx) });
+    return describeSubagent({ roles: roleOptionsFrom(loadRoles()), models });
   } catch {
-    return describeSubagent({});
+    return describeSubagent({ models });
   }
 }
 

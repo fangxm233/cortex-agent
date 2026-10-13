@@ -1,9 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-import { describeModelCatalog, type ModelFieldBases } from '@core/agents/subagent/catalog.js';
+import { describeModelCatalog, hostModelOptions, type ModelFieldBases } from '@core/agents/subagent/catalog.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
-import { hostModelOptions } from './subagent.js';
 
 /** Every worker tool returns at once; the daemon answers within this bound. */
 const TEAM_REQUEST_TIMEOUT_MS = 30 * 1000;

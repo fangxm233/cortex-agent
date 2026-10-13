@@ -1,3 +1,4 @@
+import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
 import { existsSync, mkdirSync } from 'fs';
 import { resolveSpawnCwd } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
@@ -114,6 +115,7 @@ export interface PIAdapterHooks {
   /** Builds the in-process Cortex bundle server every session of this instance hosts (D10).
    *  Unset ⇒ sessions run with plugin MCP servers only and no Cortex tools. */
   openBundledMcpServer?: OpenBundledMcpServer;
+  getSubagentModelEnv?: SubagentModelEnvGetter;
 }
 
 export class PIAdapter implements EngineAdapter {
@@ -133,6 +135,7 @@ export class PIAdapter implements EngineAdapter {
   private readonly submitRateLimit: SubmitRateLimit | undefined;
   private readonly subagent: PiSubagentBridge | undefined;
   private readonly openBundledMcpServer: OpenBundledMcpServer | undefined;
+  private readonly getSubagentModelEnv: SubagentModelEnvGetter | undefined;
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
@@ -152,6 +155,7 @@ export class PIAdapter implements EngineAdapter {
     this.submitRateLimit = hooks.submitRateLimit;
     this.subagent = hooks.subagent;
     this.openBundledMcpServer = hooks.openBundledMcpServer;
+    this.getSubagentModelEnv = hooks.getSubagentModelEnv;
   }
 
   async getUsage(scope: AgentUsageScope): Promise<ProviderUsage[] | null> {
@@ -330,6 +334,7 @@ export class PIAdapter implements EngineAdapter {
       onProviderQuota: this.quotaReporter(spec),
       subagent: this.subagent,
       openBundledMcpServer: this.openBundledMcpServer,
+      getSubagentModelEnv: this.getSubagentModelEnv,
     });
     return new PIEngineSession(session, request, {
       onEvict: hooks.onEvict,

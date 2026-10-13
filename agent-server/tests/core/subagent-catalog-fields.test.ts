@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  claudeModelOptions, describeModelCatalog, describeSubagent, mergeModelCatalogs, type SubagentModelOption,
+  claudeModelOptions, describeModelCatalog, describeSubagent, hostModelOptions, type SubagentModelOption,
 } from '../../src/core/agents/subagent/catalog.js';
 import {
   SUBAGENT_BACKEND_DESCRIPTION, SUBAGENT_MODEL_DESCRIPTION,
@@ -59,17 +59,14 @@ test('an empty discovered Claude cache falls back to shipped choices and include
 });
 
 
-test('merged descriptions retain the owner prose and union models by backend', () => {
-  const owner = 'Agent.' + describeModelCatalog([
-    { backend: 'claude', id: 'shared' }, { backend: 'pi', provider: 'runtime', id: 'model-1.5' },
-  ]);
-  const other = 'Worker.' + describeModelCatalog([
-    { backend: 'claude', id: 'shared' }, { backend: 'pi', id: 'shared' },
-    { backend: 'pi', provider: 'runtime', id: 'model-1.5' }, { backend: 'pi', id: 'cached-only' },
-  ]);
-  const merged = mergeModelCatalogs(owner, other);
-  assert.equal(merged, 'Agent. Known models — claude: shared; pi: cached-only, runtime/model-1.5, shared.');
-  assert.equal(mergeModelCatalogs(merged, other), merged);
-  assert.equal(mergeModelCatalogs('Agent.', other), other.replace('Worker.', 'Agent.'));
-  assert.equal(mergeModelCatalogs(owner, 'Worker.'), owner);
+test('host assembly shares discovered choices, parent inclusion and empty-cache fallback', () => {
+  const catalog = { claudeModel: 'parent',
+    subagentClaudeModels: [{ backend: 'claude' as const, id: 'discovered' }],
+    subagentPiModels: [{ backend: 'pi' as const, provider: 'cached', id: 'pi-model' }],
+  };
+  assert.equal(describeModelCatalog(hostModelOptions(catalog)),
+    ' Known models — claude: discovered, parent; pi: cached/pi-model.');
+  assert.deepEqual(hostModelOptions({}), claudeModelOptions());
+  assert.deepEqual(hostModelOptions({ claudeModel: 'parent', subagentClaudeModels: [], subagentPiModels: [] }),
+    claudeModelOptions('parent'));
 });
