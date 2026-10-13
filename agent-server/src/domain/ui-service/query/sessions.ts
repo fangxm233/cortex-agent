@@ -116,12 +116,12 @@ export async function handleSessionsList(
     return sessionId ? (lastRunBySession.get(sessionId)?.costUsd ?? null) : null;
   };
 
-  // Armed waitpoints, fetched once for the whole page (the repo read is an in-memory cache hit).
+  // Active waitpoints, fetched once for the whole page (the repo read is an in-memory cache hit).
   // Counted per session by the shared ownership rule so `waitingOn` and `waitpoints.list` can never
   // disagree.
-  const armedWaitpoints = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending);
+  const activeWaitpoints = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending);
   const waitingOnBySession = countWaitingOn(
-    armedWaitpoints,
+    activeWaitpoints,
     sessions.map((s: any) => ({ sessionId: s.sessionId, channel: s.channel ?? null })),
   );
 

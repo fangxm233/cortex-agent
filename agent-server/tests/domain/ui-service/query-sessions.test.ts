@@ -764,3 +764,17 @@ test('sessions.transcript suppresses an active record whose committed history ro
   assert.equal(result.turns[0].messages[0].text, pending.text);
   assert.deepEqual(result.pendingUserMessages, [], 'one send must never render as committed + pending');
 });
+
+test('sessions.list counts fired waitpoints until their wake is delivered', async () => {
+  const deps = makeDeps({
+    waitpointRegistry: {
+      list: async () => [
+        { state: 'fired', owner: { sessionId: 's1', channel: 'C1' }, delivery: { pending: true } },
+        { state: 'fired', owner: { sessionId: 's1', channel: 'C1' }, delivery: { pending: false } },
+      ] as never,
+    },
+  });
+  const sessions = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(sessions.find(session => session.sessionId === 's1')!.waitingOn, 1);
+  assert.equal(sessions.find(session => session.sessionId === 's3')!.waitingOn, 0);
+});

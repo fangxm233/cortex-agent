@@ -52,8 +52,7 @@ export function buildUiService(w: UiServiceWiring): UiService {
     sessionStore,
     scheduler: w.scheduler,
     executionRegistry,
-    // Only armed records are ever listed: a settled waitpoint has already announced itself in the
-    // session transcript.
+    // Queries retain armed records and undelivered wakes, hiding settled records.
     waitpointRegistry: {
       list: () => waitpointRepo.list(),
       cancel: (id: string) => cancelWaitpoint(id),

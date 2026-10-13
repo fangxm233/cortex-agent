@@ -3,18 +3,18 @@ import { getSettings } from '@core/settings.js';
 import { ownsWaitpoint, toWaitpointInfo } from '@domain/waitpoints/view.js';
 import type { UiServiceDeps, WaitpointInfo, QueryParams } from '../types.js';
 
-/** Count the armed waitpoints each of `sessions` is waiting on. One pass over a handful of records
+/** Count the active waitpoints each of `sessions` is waiting on. One pass over a handful of records
  *  (the repo read is an in-memory cache hit and settled records are purged after 3 days), so the
  *  nested loop is cheaper than building and reconciling two indexes. */
 export function countWaitingOn(
-  armed: Waitpoint[],
+  active: Waitpoint[],
   sessions: Array<{ sessionId: string; channel: string | null }>,
 ): Map<string, number> {
   const out = new Map<string, number>();
   for (const s of sessions) {
-    if (armed.length === 0) { out.set(s.sessionId, 0); continue; }
+    if (active.length === 0) { out.set(s.sessionId, 0); continue; }
     let n = 0;
-    for (const wp of armed) if (ownsWaitpoint(wp, s.sessionId, s.channel)) n += 1;
+    for (const wp of active) if (ownsWaitpoint(wp, s.sessionId, s.channel)) n += 1;
     out.set(s.sessionId, n);
   }
   return out;
@@ -33,8 +33,8 @@ export async function handleWaitpointsList(
   const record = await deps.sessionStore.getById(sessionId);
   const channel: string | null = record?.channel ?? null;
 
-  const armed = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending);
-  const mine = armed.filter((wp) => ownsWaitpoint(wp, sessionId, channel));
+  const active = (await deps.waitpointRegistry.list()).filter(wp => wp.state === 'armed' || wp.delivery.pending);
+  const mine = active.filter((wp) => ownsWaitpoint(wp, sessionId, channel));
 
   const now = Date.now();
   const wakeLimit = getSettings().waitpointMaxWakesPerHour;
