@@ -58,9 +58,10 @@ export function updateTimeRange(updates: WorkerUpdate[], now: Date = new Date())
 }
 
 /** The state of the thread's last question or plan, as the card's summary names it. */
-export function requestState(thread: WorkerThread, L: Vocab): string | null {
+export function requestState(thread: WorkerThread, L: Vocab, worker: SessionInfo | null = null): string | null {
   const request = [...thread.updates].reverse().find((u) => u.kind === 'question' || u.kind === 'plan');
   if (!request) return null;
+  if (!request.answer && !waitingRequest(thread, worker)) return null;
   if (request.kind === 'plan') {
     if (!request.answer) return L.wbTeamPlanAwaiting;
     return request.answer.approved === false ? L.wbTeamPlanRejected : L.wbTeamPlanApproved;
@@ -69,10 +70,10 @@ export function requestState(thread: WorkerThread, L: Vocab): string | null {
 }
 
 /** "Plan approved · 3 reports · 5 routine" — the right side of a one-worker card. */
-export function threadSummary(thread: WorkerThread, L: Vocab): string {
+export function threadSummary(thread: WorkerThread, L: Vocab, worker: SessionInfo | null = null): string {
   const { reports, routine } = updateCounts(thread.updates);
   return [
-    requestState(thread, L),
+    requestState(thread, L, worker),
     reports > 0 ? (reports === 1 ? L.wbTeamReportsOne : fmt(L.wbTeamReportsMany, { n: reports })) : null,
     routine > 0 ? (routine === 1 ? L.wbTeamRoutineOne : fmt(L.wbTeamRoutineMany, { n: routine })) : null,
   ].filter(Boolean).join(' · ');
@@ -81,6 +82,6 @@ export function threadSummary(thread: WorkerThread, L: Vocab): string {
 /** The request a worker is blocked on in its latest card, which turns its row amber. An older card
  *  never does: whatever it asked was settled one way or another before the worker spoke again. */
 export function waitingRequest(thread: WorkerThread, worker: SessionInfo | null): WorkerUpdate | null {
-  if (!thread.latest || (worker && isRetiredWorker(worker))) return null;
+  if (!thread.latest || (worker && (isRetiredWorker(worker) || !worker.awaitingInput))) return null;
   return openRequest(thread);
 }

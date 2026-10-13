@@ -84,9 +84,17 @@ describe('team rows', () => {
 
   it('turns a worker with an open question amber in its latest card', () => {
     const [card] = rows([ask('atlas', 0)]) as TeamUpdatesRow[];
-    const r = render(<TeamRow row={card} />, [session('atlas', { waitingOnLead: 1 })]);
+    const r = render(<TeamRow row={card} />, [session('atlas', { waitingOnLead: 1, awaitingInput: true })]);
     expect(statuses(r)).toEqual(['waiting']);
     expect(text(r)).toContain(en.wbTeamQuestionWaiting);
+    act(() => r.unmount());
+  });
+
+  it.each([{}, { workerRetiredAt: 1, awaitingInput: true }])('ignores unanswered history when the worker is no longer awaiting input: %j', (over) => {
+    const [card] = rows([ask('atlas', 0)]) as TeamUpdatesRow[];
+    const r = render(<TeamRow row={card} />, [session('atlas', over)]);
+    expect(statuses(r)).not.toContain('waiting');
+    expect(text(r)).not.toContain(en.wbTeamQuestionOpen);
     act(() => r.unmount());
   });
 

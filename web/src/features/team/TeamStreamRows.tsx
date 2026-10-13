@@ -323,7 +323,7 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
         <span style={{ ...ELLIPSIS, flex: '0 1 auto', fontSize: touch ? 14 : 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
         <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={!touch} />
         <span style={{ flex: 1 }} />
-        <span style={{ ...ELLIPSIS, flex: '0 100 auto', font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>{threadSummary(thread, L)}</span>
+        <span style={{ ...ELLIPSIS, flex: '0 100 auto', font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>{threadSummary(thread, L, worker)}</span>
         <span style={{ color: 'var(--proto-muted)', display: 'inline-flex' }}><Chevron open={open} /></span>
       </div>
       {!open && (
