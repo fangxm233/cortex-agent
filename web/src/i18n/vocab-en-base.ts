@@ -231,6 +231,8 @@ export const enBase = {
   wbCommissionAbandon: 'Abandon',
   wbCommissionCompleteTitle: 'Complete this commission?',
   wbCommissionAbandonTitle: 'Abandon this commission?',
+  wbCommissionWorkContinues: 'This does not stop ongoing work.',
+  wbCommissionActiveContinues: '{n} sessions running or awaiting input will not be stopped.',
   wbCommissionCloseNote: 'Closing note (optional)',
   wbCommissionClosedNote: 'Closing note',
   wbCommissionMissing: 'This commission no longer exists.',

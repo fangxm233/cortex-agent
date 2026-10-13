@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { defineModal } from '@/design/modal-registry';
 import { useTRPC } from '@/lib/trpc';
-import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useCommissionEnabled } from './CommissionOptIn';
@@ -48,7 +47,7 @@ function CommissionBoardController({ commissionId, onClose }: {
 
   const commissionQuery = useQuery(trpc.commissions.get.queryOptions({ commissionId }));
   const decisionsQuery = useQuery(trpc.commissions.decisions.queryOptions({ commissionId }));
-  const sessionsQuery = useAllSessions('direct');
+  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}));
   const commission = commissionQuery.data ?? null;
 
   const ledgerQuery = useCommissionText(commission?.projectId ?? '', commission?.slug ?? '', 'ledger.md');
@@ -96,6 +95,7 @@ function CommissionBoardController({ commissionId, onClose }: {
       contract={contractQuery.data?.content ?? null}
       decisions={decisionsQuery.data ?? []}
       gates={gates}
+      activeSessionCount={sessionsQuery.data?.filter((s) => s.commissionId === commissionId && (s.running || s.awaitingInput)).length ?? null}
       sessionLabel={sessionLabel}
       pending={close.isPending}
       onOpenSession={openSession}

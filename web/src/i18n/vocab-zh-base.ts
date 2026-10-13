@@ -227,6 +227,8 @@ export const zhBase = {
   wbCommissionAbandon: '放弃',
   wbCommissionCompleteTitle: '确认完成此委托？',
   wbCommissionAbandonTitle: '确认放弃此委托？',
+  wbCommissionWorkContinues: '这不会停止正在进行的工作。',
+  wbCommissionActiveContinues: '{n} 个运行中或等待输入的会话不会停止。',
   wbCommissionCloseNote: '结束说明（可选）',
   wbCommissionClosedNote: '结束说明',
   wbCommissionMissing: '该委托已不存在。',

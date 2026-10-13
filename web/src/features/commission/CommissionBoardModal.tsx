@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import '@/design/content-surfaces.css';
 import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import { MarkdownView } from '@/features/memory/MarkdownView';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { fetchCommissionAssetObjectUrl } from './commission-assets';
@@ -98,6 +98,7 @@ export interface CommissionBoardModalProps {
   decisions: CommissionDecisionEntry[];
   /** Member sessions currently blocked on the user. */
   gates: SessionInfo[];
+  activeSessionCount: number | null;
   /** Display name for a decision's source session; the raw id when the session is unknown. */
   sessionLabel: (sessionId: string) => string;
   pending: boolean;
@@ -217,6 +218,9 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderBottom: '1px solid var(--proto-line-2)', background: 'transparent', flex: 'none' }}>
           <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)', flex: 'none' }}>
             {confirming === 'done' ? L.wbCommissionCompleteTitle : L.wbCommissionAbandonTitle}
+            {confirming === 'abandoned' && <span style={{ display: 'block', fontSize: 11, color: 'var(--proto-muted)' }}>
+              {props.activeSessionCount === null ? L.wbCommissionWorkContinues : fmt(L.wbCommissionActiveContinues, { n: props.activeSessionCount })}
+            </span>}
           </span>
           <input
             value={note}
