@@ -83,7 +83,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 |---|---|---|
 | `cost_query` | _(无)_ | 查询当前费用：今天/月支出、预算限制、剩余预算、API/plan 分摊、来源细分、令牌使用量 |
 | `query_executions` | `execution_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
-| `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId、sessionName、profile、project、backend |
+| `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId（UUID）、profile、project、backend |
 | `wait_create` | `label`、`intent`、`members?`、`quorum?`、`fail_fast?`、`max_signals?`、`expires_in_hours?`、`device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；然后结束这一轮 |
 | `wait_check` | `id?` | 查看某个 waitpoint，或列出本 session 正在等的全部内容 |
 | `wait_cancel` | `id` | 取消一个 waitpoint，使其不再触发 |
@@ -273,7 +273,6 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `SLACK_CHANNEL` | 生成时的频道参数 | cortex-ext（slack_send_file）、interaction-server |
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | 会话上下文 | interaction-server、context 工具 |
-| `CORTEX_SESSION_NAME` | 会话上下文 | context 工具 |
 | `CORTEX_PROFILE` | 会话上下文 | context 工具 |
 | `CORTEX_PROJECT` | 会话上下文 | context 工具 |
 | `CORTEX_EXECUTION_ID` | 执行上下文 | 钩子脚本 |

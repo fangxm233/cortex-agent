@@ -64,7 +64,7 @@ L5  entry/         → 所有层（组合根）
 |------|---------|
 | `outbound-queue.ts` | 基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条目压缩，5 秒排放循环。合并对同一消息的连续更新 |
 | `conversation-ledger-repo.ts` | `session-registry-repo.ts` 的外观层——提供相同的每频道轮次 API（`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo`），自身不再持有文件 |
-| `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。回放仅追加日志（`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`）、接纳会话，并在日志膨胀后压缩快照 |
+| `session-registry-repo.ts` | 基于 JSONL 的 UUID 会话注册表，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。回放仅追加日志（`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`）、接纳会话，并在日志膨胀后压缩快照 |
 | `execution-repo.ts` | 模式 B 仓库：`startLocalExecution`、`completeExecution`、`failExecution`、`cancelExecution`。启动时 `markMissingRunningExecutionsStale` 把已不存在的运行标为陈旧；终态记录七天后归档 |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` 带反向频道查找 |
 | `schedule-repo.ts` | 调度持久化。`ScheduleTask` 接口；`schedules.json` 也由其他进程直接写入 |
@@ -262,5 +262,6 @@ session retention 与 registry mutation 分开协调。`session-retention-contro
 
 - **执行 ID**：`exec_<kind>_<base36-timestamp>_<4 位随机字符>`（如 `exec_local_1a2b3c_xyzw`）
 - **定时任务 ID**：8 位十六进制字符（来自 `randomBytes(4)`）
-- **会话名称**：`cortex-<6 位十六进制字符>`（如 `cortex-a1b2c3`）
+- **会话 ID**：UUID 是注册表和界面中的会话标识。未设置标签的会话显示 UUID 的前 8 位。`/resume` 接受完整 UUID 或至少 6 位且唯一的前缀。
+- **委托草稿**：新草稿目录使用 `_draft-<UUID 前 8 位>`；已有草稿目录保持有效。
 - **文件格式**：所有 TypeScript 使用 `.ts` 扩展名和 ESM 导入风格（`import { X } from './foo.js'`）
