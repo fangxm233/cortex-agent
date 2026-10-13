@@ -41,7 +41,7 @@ export interface MessageEditCtx {
   running: boolean;
   /** A rewind mutation is in flight. */
   busy: boolean;
-  onSubmit: (turnIndex: number, text: string) => void;
+  onSubmit: (turnIndex: number, text: string) => Promise<unknown>;
 }
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
@@ -605,8 +605,7 @@ function EditingRows({ rows, editingIdx, from, edit, plainRows, onDone }: {
         busy={edit.busy}
         onCancel={onDone}
         onSubmit={(text) => {
-          edit.onSubmit(er.turnIndex!, text);
-          onDone();
+          void edit.onSubmit(er.turnIndex!, text).then(onDone, () => {});
         }}
       />
       {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} />}

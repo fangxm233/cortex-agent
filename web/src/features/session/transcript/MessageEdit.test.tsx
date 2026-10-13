@@ -1,6 +1,7 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
+import { ChatRows } from './MessageStream';
 import { EditBox } from './MessageEdit';
 
 describe('inline message editor', () => {
@@ -29,4 +30,19 @@ describe('inline message editor', () => {
     expect(onSubmit).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
+});
+
+
+it('retains a failed edit and only closes after a successful retry', async () => {
+  const onSubmit = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({});
+  const tree = create(<LangProvider><ChatRows rows={[{ kind: 'user', text: 'Original', turnIndex: 0 }]}
+    edit={{ running: false, busy: false, onSubmit }} /></LangProvider>);
+  act(() => tree.root.findByProps({ 'aria-label': 'Edit message' }).props.onClick());
+  act(() => tree.root.findByType('textarea').props.onChange({ target: { value: 'Revised', style: {}, scrollHeight: 20 } }));
+  await act(async () => tree.root.findByType(EditBox).props.onSubmit('Revised'));
+  expect(tree.root.findByType('textarea').props.value).toBe('Revised');
+  await act(async () => tree.root.findByType(EditBox).props.onSubmit('Revised'));
+  expect(tree.root.findAllByType('textarea')).toHaveLength(0);
+  expect(onSubmit).toHaveBeenNthCalledWith(2, 0, 'Revised');
+  act(() => tree.unmount());
 });

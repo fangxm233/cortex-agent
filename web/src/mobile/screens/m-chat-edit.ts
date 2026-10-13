@@ -50,13 +50,12 @@ export function useMobileMessageEdit(input: {
     setEditingIdx(rowIndex);
     setText(row.text);
   };
-  // Disarm when the anchored row stops being an editable user row (transcript reshaped) or a turn
-  // starts running (a scheduled/other-client message landed).
+  // Disarm only when the edited row no longer exists. A running-state conflict must keep the draft.
   useEffect(() => {
     if (editingIdx == null) return;
-    if (!editableRow(rows[editingIdx]) || running) finish();
+    if (!editableRow(rows[editingIdx])) finish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, running, editingIdx]);
+  }, [rows, editingIdx]);
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const armed = editableRow(editingRow);
@@ -77,8 +76,7 @@ export function useMobileMessageEdit(input: {
     hold: (rowIndex, anchorTop) => { setMenuAnchorTop(anchorTop); setMenuIdx(rowIndex); },
     submit: (text) => {
       if (!editableRow(editingRow)) return;
-      rewind.submit(editingRow.turnIndex, text);
-      finish();
+      void rewind.submit(editingRow.turnIndex, text).then(finish, () => {});
     },
   };
 }

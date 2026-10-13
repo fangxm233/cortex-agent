@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionInfo, SessionTranscript } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useToastOptional } from '@/design';
 import { useVocab } from '@/i18n';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
@@ -31,7 +32,7 @@ export interface ChatSessionOptions {
 }
 
 export interface SessionRewind {
-  submit: (turnIndex: number, text: string) => void;
+  submit: (turnIndex: number, text: string) => Promise<unknown>;
   pending: boolean;
 }
 
@@ -76,9 +77,12 @@ function useScheduledRunTitle(active: SessionInfo | null, scheduledRuns: Session
 /** Message edit + rewind: the transcript and rail refetch on settle (and again on the
  *  `session.rewound` event / regeneration stream). The server refuses it while a turn runs. */
 function useSessionRewind(sessionId: string): SessionRewind {
+  const L = useVocab();
+  const toasts = useToastOptional();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const mutation = useMutation(trpc.sessions.rewind.mutationOptions({
+    onError: (error) => toasts?.toast({ title: L.msgEditFailed, description: error.message, tone: 'failed' }),
     onSettled: () => {
       if (!sessionId) return;
       queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
@@ -87,7 +91,7 @@ function useSessionRewind(sessionId: string): SessionRewind {
     },
   }));
   return {
-    submit: (turnIndex, text) => mutation.mutate({ sessionId, turnIndex, text }),
+    submit: (turnIndex, text) => mutation.mutateAsync({ sessionId, turnIndex, text }),
     pending: mutation.isPending,
   };
 }

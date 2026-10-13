@@ -173,6 +173,7 @@ export const chatZh: Record<keyof typeof chatEn, string> = {
 // Message edit / rewind chrome under transcript bubbles.
 export const messageEn = {
   msgEdit: 'Edit message',
+  msgEditFailed: 'Could not save edit',
   msgEditDisabled: 'Running — stop the turn to edit',
   msgSendRewind: 'Send & rewind',
   msgEscHint: 'Esc cancel · ⌘↩ send',
@@ -188,6 +189,7 @@ export const messageEn = {
 };
 export const messageZh: Record<keyof typeof messageEn, string> = {
   msgEdit: '编辑消息',
+  msgEditFailed: '保存编辑失败',
   msgEditDisabled: '运行中不可编辑 — 暂停后可用',
   msgSendRewind: '发送并回退',
   msgEscHint: 'Esc 取消 · ⌘↩ 发送',
