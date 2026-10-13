@@ -163,7 +163,10 @@ test('a config naming retired bundles and tools still starts with the current su
     assert.deepEqual(await toolNames(client), ['current_time']);
   }, {
     [MCP_BUNDLES_ENV]: JSON.stringify(['cortex-core', 'cortex-tasks', 'cortex-thread']),
-    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['current_time', 'task_status', 'thread_wait']),
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify([
+      'current_time', 'task_status', 'thread_wait',
+      ...['add', 'list', 'get', 'remove', 'pause', 'resume'].map(name => `cortex_schedule_${name}`),
+    ]),
   });
 });
 

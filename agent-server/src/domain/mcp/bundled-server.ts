@@ -24,13 +24,13 @@ const coreLoader: RegistrarLoader = async (ctx) => {
 
 const extLoader: RegistrarLoader = async (ctx) => {
   const [{ registerCostTools }, { registerExecutionTools }, { registerContextTools },
-    { registerScheduleTools }, { registerWaitpointTools }] = await Promise.all([
+    { registerWaitpointTools }] = await Promise.all([
     import('./tools/cost.js'), import('./tools/executions.js'), import('./tools/context.js'),
-    import('./tools/schedule.js'), import('./tools/waitpoint.js'),
+    import('./tools/waitpoint.js'),
   ]);
   return server => {
     registerCostTools(server); registerExecutionTools(server);
-    registerContextTools(server, ctx); registerScheduleTools(server, ctx);
+    registerContextTools(server, ctx);
     registerWaitpointTools(server, ctx);
   };
 };

@@ -9,9 +9,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
     'agent', 'agent_stop',
   ],
   'cortex-ext': [
-    'cost_query', 'query_executions', 'cortex_context', 'cortex_schedule_add',
-    'cortex_schedule_list', 'cortex_schedule_get', 'cortex_schedule_remove',
-    'cortex_schedule_pause', 'cortex_schedule_resume',
+    'cost_query', 'query_executions', 'cortex_context',
     'wait_create', 'wait_check', 'wait_cancel',
   ],
   'cortex-interaction-bridge': [
@@ -31,6 +29,8 @@ const ALL_MCP_TOOLS = new Set(Object.values(MCP_TOOLS_BY_SERVER).flat());
 /** Tools an older release served. An allowlist written before their removal may still name them;
  *  they are dropped silently instead of being rejected as typos. */
 export const RETIRED_MCP_TOOLS: ReadonlySet<string> = new Set([
+  'cortex_schedule_add', 'cortex_schedule_list', 'cortex_schedule_get',
+  'cortex_schedule_remove', 'cortex_schedule_pause', 'cortex_schedule_resume',
   'task_status', 'task_result', 'task_list', 'answer_subtask',
   'thread_abort', 'thread_split', 'thread_wait', 'ask_manager', 'thread_run',
 ]);

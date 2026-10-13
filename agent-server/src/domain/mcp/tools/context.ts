@@ -87,8 +87,7 @@ export function webSessionId(ctx: CortexToolContext): string | null {
   return null;
 }
 
-/** Internal context — includes channel for downstream consumers (schedule.ts session target
- *  resolution). Not exposed via MCP. */
+/** Internal execution scope; channel is omitted from the public MCP response. */
 export interface CortexContextInternal {
   channel: string | null;
   sessionId: string | null;
@@ -122,7 +121,7 @@ export async function resolveCortexContext(ctx: CortexToolContext): Promise<Cort
 export function registerContextTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_context',
-    'Return the current Cortex execution context: sessionId, sessionName (cortex-XXXX), profile, project, backend. Use this to discover the current scope before calling cortex_schedule_add.',
+    'Get current session identity, profile, project, backend and trigger context.',
     {},
     { readOnlyHint: true },
     async () => {
