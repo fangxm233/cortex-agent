@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'fs';
 import { randomBytes } from 'crypto';
+import { parse as parseDotEnv } from 'dotenv';
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
@@ -25,7 +26,7 @@ import { writeUsageSharing, type UsageSharingUpdate } from '@domain/costs/aistat
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { CORTEX_VERSION } from '@core/version.js';
-import { cmdFeishu } from './feishu-login.js';
+import { cmdFeishu, upsertEnvContents } from './feishu-login.js';
 import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
 import type { CliResult } from '@core/cli-utils.js';
 import { parseClientListenHost, parseLocalClientAnswer, withInitLocalClient, type LocalClientAnswer } from './init-local-client.js';
@@ -1298,10 +1299,25 @@ function seedSchedules(paths: InitPaths, force: boolean): void {
   writeFileSync(dstPath, JSON.stringify(data, null, 2) + '\n');
 }
 
-function writeDotEnv(paths: InitPaths, answers: InitAnswers, force: boolean): void {
+export function writeDotEnv(paths: InitPaths, answers: InitAnswers, force: boolean): void {
   const envPath = path.join(paths.CONFIG_DIR, '.env');
-  if (existsSync(envPath) && !force) return;
-  const content = generateDotEnvContent(answers);
+  const exists = existsSync(envPath);
+  if (exists && !force) return;
+  const generated = generateDotEnvContent(answers);
+  if (!exists) {
+    writeFileSync(envPath, generated);
+    return;
+  }
+  let content = readFileSync(envPath, 'utf8');
+  const existing = parseDotEnv(content);
+  for (const line of generated.split('\n')) {
+    const match = line.match(/^([A-Z_]+)=(.*)$/);
+    if (!match) continue;
+    const [, key, value] = match;
+    const isToken = key === 'CORTEX_CLIENT_TOKEN' || key === 'CORTEX_WEBHOOK_TOKEN';
+    if (isToken && existing[key]?.trim()) continue;
+    content = upsertEnvContents(content, key, value);
+  }
   writeFileSync(envPath, content);
 }
 

@@ -34,10 +34,10 @@ export interface FeishuCliDeps {
   envFile?: string;
 }
 
-function upsertEnvContents(existing: string, key: string, value: string): string {
+export function upsertEnvContents(existing: string, key: string, value: string): string {
   const line = `${key}=${value}`;
   const lines = existing === '' ? [] : existing.replace(/\n+$/, '').split('\n');
-  const re = new RegExp(`^\\s*${key}\\s*=`);
+  const re = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`);
   const idx = lines.findIndex(candidate => re.test(candidate));
   if (idx >= 0) {
     if (lines[idx] === line) return existing;

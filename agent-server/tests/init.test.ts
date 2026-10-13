@@ -9,6 +9,7 @@ import {
   getResolvedPaths,
   generateConfigs,
   generateDotEnvContent,
+  writeDotEnv,
   generateDefaultModeJson,
   safeCopy,
   isBackendInstalled,
@@ -547,4 +548,41 @@ test('parseInitAnswersJson drops unknown backends and keeps the claude default',
   assert.deepEqual(parseInitAnswersJson('{"backends":["gpt","pi"]}').backends, ['pi']);
   assert.deepEqual(parseInitAnswersJson('{"backends":[]}').backends, ['claude']);
   assert.deepEqual(parseInitAnswersJson('{"backends":"claude"}').backends, ['claude']);
+});
+
+
+test('forced dotenv setup keeps tokens and hand-added configuration while updating init keys', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'init-env-'));
+  const paths = getResolvedPaths(home);
+  fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
+  const envPath = path.join(paths.CONFIG_DIR, '.env');
+  const original = '# Hand-added settings\nCORTEX_UI_PORT=4444\nCUSTOM_VALUE="keep me"\n'
+    + 'export CORTEX_CLIENT_TOKEN="existing-client"\nCORTEX_WEBHOOK_TOKEN=existing-webhook\nCORTEX_MACHINE=old\n';
+  fs.writeFileSync(envPath, original);
+  try {
+    writeDotEnv(paths, SLACK_ANSWERS, false);
+    assert.equal(fs.readFileSync(envPath, 'utf8'), original);
+    writeDotEnv(paths, SLACK_ANSWERS, true);
+    const updated = fs.readFileSync(envPath, 'utf8');
+    assert.ok(updated.startsWith(original.slice(0, original.indexOf('CORTEX_MACHINE'))));
+    assert.ok(updated.includes(`CORTEX_MACHINE=${SLACK_ANSWERS.machineName}`));
+    assert.ok(updated.includes('CORTEX_PLATFORM=slack'));
+    assert.ok(updated.includes(`SLACK_BOT_TOKEN=${SLACK_ANSWERS.slackConfig!.botToken}`));
+    writeDotEnv(paths, SLACK_ANSWERS, true);
+    assert.equal(fs.readFileSync(envPath, 'utf8'), updated);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('forced dotenv setup generates only missing auth tokens', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'init-env-missing-'));
+  const paths = getResolvedPaths(home);
+  fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
+  const envPath = path.join(paths.CONFIG_DIR, '.env');
+  fs.writeFileSync(envPath, 'CORTEX_CLIENT_TOKEN=existing-client\n');
+  try {
+    writeDotEnv(paths, MINIMAL_ANSWERS, true);
+    const content = fs.readFileSync(envPath, 'utf8');
+    assert.match(content, /^CORTEX_CLIENT_TOKEN=existing-client$/m);
+    assert.match(content, /^CORTEX_WEBHOOK_TOKEN=[0-9a-f]{64}$/m);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });

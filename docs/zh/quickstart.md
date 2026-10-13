@@ -118,7 +118,7 @@ Select language / 选择语言
 
 这是一个多选项。用空格切换，回车确认。可以选 **Slack**、**飞书**，或两者都选——Cortex 会组合你选择的平台并同时连接到所有平台。你选择的每个平台都会触发各自的凭据收集步骤（先 Slack，后飞书）。
 
-留空则跳过平台设置。稍后可通过 `cortex init --force` 或编辑 `$CORTEX_HOME/config/.env` 来配置某个平台。
+留空则跳过平台设置。稍后可编辑 `$CORTEX_HOME/config/.env` 来配置某个平台，然后重启服务器。
 
 ### 2.4 Slack 应用设置（在浏览器中逐步操作） {#24-slack-app-setup-step-by-step-in-the-browser}
 
@@ -344,7 +344,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 └── logs/                       # 守护进程 + LLM 日志
 ```
 
-正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重新生成自动生成的文件（`mcp-config*.json`、`machines.json`、`agent-state.json`），同时保留你的 `.env`、配置和内容文件。
+正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并覆盖与内置资源同名的 prompts、rules、plugins、hooks 和决策模板。每次 init 都会重新生成 MCP 配置。对于 `.env`，init 只更新自身管理的设置，保留已有的客户端/ webhook token 和手动添加的键。已有的执行环境和脚手架文件会保留；替换已有 Profile 需要确认。使用 `--force` 前请备份自定义文件；添加平台不需要使用它。
 
 `~/.aistatus/` 单独存放：
 

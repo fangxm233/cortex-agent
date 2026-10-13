@@ -151,8 +151,7 @@ triggers its own credential-collection steps below (Slack first, then
 Feishu).
 
 Leaving the selection empty skips platform setup. You can configure a
-platform later with `cortex init --force` or by editing
-`$CORTEX_HOME/config/.env`.
+platform later by editing `$CORTEX_HOME/config/.env` and restarting the server.
 
 ### 2.4 Slack app setup (step by step in the browser)
 
@@ -460,9 +459,13 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 ```
 
 You should **not** need to edit any of these by hand for normal use.
-`cortex init --force` regenerates the auto-generated ones
-(`mcp-config*.json`, `machines.json`, `agent-state.json`) while preserving
-your `.env`, profiles, and content files.
+`cortex init --force` resets `machines.json`, agent state, language preferences,
+schedules, and budget, and replaces same-named shipped prompts, rules, plugins,
+hooks, and decision templates. MCP configs are regenerated on every init.
+In `.env`, init updates its own settings while keeping existing client/webhook
+tokens and hand-added keys. Existing execution environments and scaffold files
+are preserved; replacing existing profiles requires confirmation. Back up
+customized files before using `--force`; it is not needed to add a platform.
 
 `~/.aistatus/` separately holds:
 
