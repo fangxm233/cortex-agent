@@ -279,8 +279,10 @@ describe('rail keyboard navigation', () => {
       expect(event.preventDefault).toHaveBeenCalledOnce();
       act(() => row.props.onKeyDown({ ...event, target: {} }));
     }
-    expect(onOpenSession).toHaveBeenCalledExactlyOnceWith(session);
-    expect(onToggleProject).toHaveBeenCalledExactlyOnceWith('p1');
+    expect(onOpenSession).toHaveBeenCalledOnce();
+    expect(onOpenSession).toHaveBeenCalledWith(session);
+    expect(onToggleProject).toHaveBeenCalledOnce();
+    expect(onToggleProject).toHaveBeenCalledWith('p1');
     act(() => renderer.unmount());
   });
 });
