@@ -29,6 +29,7 @@ import {
   _testReset,
 } from '../src/domain/remote/client-lifecycle.js';
 import { requestStream } from '../src/domain/remote/reverse-stream.js';
+import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir, networkInterfaces } from 'node:os';
 import { join } from 'node:path';
@@ -82,6 +83,10 @@ function launchedPid(device: string): number | undefined {
 }
 
 beforeEach(() => {
+  const names = ['host-contract', 'mock-device-1', 'mock-device-2', 'event-device',
+    'failure-device', 'shutdown-device', 'adopted', 'managed-service', 'flaky', 'silent',
+    'local', 'worker', 'custom', 'direct'];
+  _testSetRegistry(Object.fromEntries(names.map(name => [name, { cortexPath: '/home/test', gpuCount: 0 }])));
   hookBus.emitCortexEvent.mockReset();
   hookBus.emitCortexEvent.mockResolvedValue([]);
 });

@@ -388,6 +388,7 @@ carry the complete artifact as base64):
 | 4001 | Missing device name in hello |
 | 4002 | Device already connected |
 | 4003 | Heartbeat timeout (15 seconds) |
+| 4005 | Unknown device: hello name is not registered in `machines.json` |
 
 ## Server-side client lifecycle
 
@@ -462,6 +463,9 @@ The `cortex-client` process handles reconnection automatically:
 - If the server rejects with code 4002 ("Device already connected"), the
   client exits. This prevents two clients from fighting over the same device
   name
+- If the server rejects with code 4005 ("Unknown device"), the client exits.
+  Its `deviceName` must match an entry in `machines.json`, including for a
+  local client whose entry has no `ssh` field
 - For all other disconnects (network errors, server restart, heartbeat
   timeout), the client keeps retrying indefinitely
 

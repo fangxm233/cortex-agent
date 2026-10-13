@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import * as crypto from 'crypto';
-import { applyReportedGpuCount } from './machine-registry.js';
+import { applyReportedGpuCount, getMachineRegistry } from './machine-registry.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
@@ -112,30 +112,36 @@ function openSocket(device: string): WebSocket {
   return info.ws;
 }
 
-/**
- * Take a device online from its hello frame. Returns the device name, or null when the frame was
- * rejected (no name / a live connection already holds that name) — the socket is closed in that case.
- *
- * The frame also carries the machine's own GPU count, which is reconciled into machines.json here:
- * a client knows its hardware, the registry only holds what someone typed. An absent or
- * unparseable `gpuCount` is "unknown" and leaves the configured value alone.
- */
 function isLoopbackAddress(address: string | undefined): boolean {
   return !!address && (address === '::1' || /^(::ffff:)?127\./.test(address));
 }
 
-function registerHelloDevice(ws: WebSocket, msg: HelloFrame, remoteAddress: string | undefined): string | null {
-  const device: string | undefined = msg.device;
+/** Reject before publishing the device or invoking any hello hooks. */
+function acceptHelloDevice(ws: WebSocket, device: string): boolean {
   if (!device) {
     ws.close(4001, 'Missing device name');
-    return null;
+    return false;
+  }
+  if (!Object.hasOwn(getMachineRegistry(), device)) {
+    ws.close(4005, 'Unknown device');
+    return false;
   }
   const existing = devices.get(device);
   if (existing && existing.ws !== ws) {
     log.info(`Device ${device} already connected, rejecting new connection`);
     ws.close(4002, 'Device already connected');
-    return null;
+    return false;
   }
+  return true;
+}
+
+/**
+ * Take a registered device online, or close the socket and return null for a rejected hello.
+ * Reconcile its GPU count into machines.json; an absent/unparseable count leaves config alone.
+ */
+function registerHelloDevice(ws: WebSocket, msg: HelloFrame, remoteAddress: string | undefined): string | null {
+  const device = msg.device;
+  if (!acceptHelloDevice(ws, device)) return null;
   const bundleHash = typeof msg.bundleHash === 'string' && msg.bundleHash ? msg.bundleHash : null;
   const platform = msg.platform || 'unknown';
   devices.set(device, {

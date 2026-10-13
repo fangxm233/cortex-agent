@@ -290,6 +290,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 | 4001 | Hello 中缺少设备名称 |
 | 4002 | 设备已连接 |
 | 4003 | 心跳超时（15 秒） |
+| 4005 | 未知设备：hello 中的名称未在 `machines.json` 中注册 |
 
 ## 服务器端客户端生命周期 {#server-side-client-lifecycle}
 
@@ -320,6 +321,7 @@ agent-server `domain/remote/` 下的两个模块共同管理远程客户端生�
 - 断开连接时，首次重连尝试前等待 1 秒
 - 使用指数退避：1s、2s、4s、8s、16s，上限 30 秒
 - 如果服务器以代码 4002（"设备已连接"）拒绝，客户端退出。这防止两个客户端争夺同一设备名称
+- 如果服务器以代码 4005（"未知设备"）拒绝，客户端退出。其 `deviceName` 必须匹配 `machines.json` 中的条目；没有 `ssh` 字段的本机客户端也需要注册
 - 对于所有其他断开连接（网络错误、服务器重启、心跳超时），客户端无限重试
 
 ## 远程命令执行 {#remote-command-execution}

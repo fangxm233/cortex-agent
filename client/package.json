@@ -24,7 +24,7 @@
     "build": "tsc",
     "bundle": "node scripts/bundle.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --experimental-test-module-mocks --test --test-force-exit --test-timeout=15000 tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts tests/client/file-stream.test.ts tests/client/self-update.test.ts tests/client/gpu-detect.test.ts tests/client/agents-md-scanner.test.ts tests/client/windows-bash.test.ts"
+    "test": "node --import tsx --experimental-test-module-mocks --test --test-force-exit --test-timeout=15000 tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts tests/client/file-stream.test.ts tests/client/self-update.test.ts tests/client/gpu-detect.test.ts tests/client/agents-md-scanner.test.ts tests/client/windows-bash.test.ts tests/client/reconnect.test.ts"
   },
   "dependencies": {
     "ws": "^8.21.1"

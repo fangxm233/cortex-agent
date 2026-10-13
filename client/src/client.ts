@@ -678,8 +678,9 @@ function connect() {
   ws.on('close', (code, reason) => {
     log.info(`Disconnected (code=${code}, reason=${reason?.toString() || 'none'})`);
     cleanup();
-    if (code === 4002) {
-      log.info('Server rejected connection (device already connected). Exiting.');
+    if (code === 4002 || code === 4005) {
+      const rejection = code === 4005 ? 'unknown device' : 'device already connected';
+      log.info(`Server rejected connection (${rejection}). Exiting.`);
       process.exit(1);
     }
     scheduleReconnect();
