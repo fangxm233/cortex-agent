@@ -26,7 +26,7 @@ function makeDeps(session: Session | null, outcome: Outcome, sink: Request[]): U
 }
 
 const session = (channel: string): Session => ({
-  name: 'cortex-1', sessionId: 'sess-1', projectId: 'general', channel,
+  sessionId: 'sess-1', projectId: 'general', channel,
   backend: 'claude', kind: 'local', createdAt: '', lastUsedAt: '', label: null, profileName: 'opus',
 } as unknown as Session);
 

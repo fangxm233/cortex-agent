@@ -90,8 +90,7 @@ function input(channel: string, adapter: MockAdapter): TurnInput {
     adapter: adapter as never,
     threadAnchorId: null,
     session: {
-      sessionId: `track-${channel}`, sessionName: `cortex-${channel}`,
-      backendSessionId: null, projectId: 'general', lease: null,
+      sessionId: `track-${channel}`, backendSessionId: null, projectId: 'general', lease: null,
     },
     user: { text: 'run it in the background' },
     ledger: null,
@@ -99,7 +98,7 @@ function input(channel: string, adapter: MockAdapter): TurnInput {
     prepareRequest: async () => ({
       request: {
         runId: 'run-bg',
-        session: { sessionId: 's', backendSessionId: null, engineKey: 'c', sessionName: 'n' },
+        session: { sessionId: 's', backendSessionId: null, engineKey: 'c'},
         profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
         context: { channel, project: 'general', trigger: 'user' }, policy: {} as any,
       } as any,

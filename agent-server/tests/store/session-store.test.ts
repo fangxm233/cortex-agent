@@ -51,9 +51,8 @@ async function readMaybe(filePath: string): Promise<string | null> {
   }
 }
 
-function liveSession(id: string, name: string): Session {
+function liveSession(id: string, _name: string): Session {
   return {
-    name,
     sessionId: id,
     projectId: 'proj',
     channel: 'C001',
@@ -80,7 +79,6 @@ test('session store migrates legacy JSON into temp JSONL and keeps a backup', as
   const sessions = await repo.listRecentSessions(10);
 
   assert.deepEqual(new Set(sessions.map(session => session.sessionId)), new Set(['sess-a', 'sess-b']));
-  assert.equal((await repo.getById('sess-a'))?.name, 'cortex-a');
   assert.equal((await repo.getById('sess-b'))?.origin, 'scheduled');
   assert.equal(await fs.readFile(backupPath, 'utf8'), await fs.readFile(legacyPath, 'utf8'));
   assert.ok((await fs.readFile(filePath, 'utf8')).includes('"op":"put"'));
@@ -105,9 +103,6 @@ test('session store migration fails closed for malformed legacy shapes and never
     { label: 'top-level array', raw: [], message: /legacy|object|format/i },
     { label: 'entry not object', raw: { 'cortex-a': 'nope' }, message: /legacy|object/i },
     { label: 'missing sessionId', raw: { 'cortex-a': { channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z' } }, message: /string field|sessionid|unrecognizable/i },
-    { label: 'new-format key mismatch', raw: { 'sess-a': { ...liveSession('sess-b', 'cortex-a') } }, message: /id mismatch/i },
-    { label: 'new-format duplicate names', raw: { 'sess-a': { ...liveSession('sess-a', 'cortex-dup') }, 'sess-b': { ...liveSession('sess-b', 'cortex-dup') } }, message: /duplicate live session name/i },
-    { label: 'unrecognizable mixed format', raw: { 'cortex-old': oldRecord('sess-old'), 'sess-new': { ...liveSession('sess-new', 'cortex-new') } }, message: /invalid session registry|string field|format/i },
   ];
 
   for (const badCase of badCases) {
@@ -133,7 +128,7 @@ test('session store migration dedups old-format duplicate session ids by latest 
   const repo = new SessionRegistryRepo(filePath);
   const sessions = await repo.listRecentSessions(10);
 
-  assert.deepEqual(sessions.map((session) => session.name), ['cortex-new']);
+  assert.deepEqual(sessions.map((session) => session.sessionId), ['sess-a']);
   assert.equal((await repo.getById('sess-a'))?.lastUsedAt, '2025-06-01T00:00:00.000Z');
 });
 
@@ -185,7 +180,7 @@ test('session store does not fall back to legacy JSON when JSONL exists but is m
 
   const repo = new SessionRegistryRepo(filePath);
   await assert.rejects(repo.listRecentSessions(10), /malformed/i);
-  await assert.rejects(repo.registerSession('cortex-new', {
+  await assert.rejects(repo.registerSession({
     sessionId: 'sess-new', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
   }), /malformed/i);
   assert.equal(await fs.readFile(filePath, 'utf8'), '{bad json}\n');
@@ -198,7 +193,6 @@ test('session store replacement failure cleans temporary files', async () => {
   await assert.rejects(() => compactSessionRegistry(targetDir, {
     live: new Map([['sess-a', liveSession('sess-a', 'cortex-a')]]),
     pending: new Map(),
-    nameIndex: new Map([['cortex-a', 'sess-a']]),
     bindings: new Map(),
     turns: new Map(),
     conversations: new Map(),

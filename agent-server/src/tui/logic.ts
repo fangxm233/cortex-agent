@@ -196,23 +196,19 @@ export function pushHistory(history: string[], entry: string): string[] {
 
 // ── /resume target resolution ──
 // `/resume <id>` lets the user jump straight to a session without the picker. The arg may be
-// an internal sessionId, a short name (cortex-XXXX), the bare suffix (8cdfbe), or a unique
-// sessionId prefix. Resolve it against the known session list to the internal sessionId.
+// a full sessionId or a unique prefix of at least six characters. Never guess on ambiguity.
 
 export function matchResumeTarget(
-  sessions: Array<{ sessionId: string; name?: string | null }>,
+  sessions: Array<{ sessionId: string }>,
   target: string,
 ): string | null {
   const t = target.trim();
   if (!t) return null;
   const byId = sessions.find(s => s.sessionId === t);
   if (byId) return byId.sessionId;
-  const byName = sessions.find(s => s.name === t);
-  if (byName) return byName.sessionId;
-  const bySuffix = sessions.find(s => s.name && (s.name.endsWith(t) || s.name.replace(/^cortex-/, '') === t));
-  if (bySuffix) return bySuffix.sessionId;
-  const byIdPrefix = sessions.find(s => s.sessionId.startsWith(t));
-  return byIdPrefix ? byIdPrefix.sessionId : null;
+  if (t.length < 6) return null;
+  const matches = sessions.filter(s => s.sessionId.startsWith(t));
+  return matches.length === 1 ? matches[0].sessionId : null;
 }
 
 // ── Mouse-sequence guard ──

@@ -68,7 +68,7 @@ import { profileRepo } from '../../src/store/profile-repo.js';
 
 const CHANNEL = 'web:lead';
 const SESSION: Session = {
-  name: 'cortex-lead', sessionId: 'track-lead', backendSessionId: 'backend-lead', projectId: 'general',
+  sessionId: 'track-lead', backendSessionId: 'backend-lead', projectId: 'general',
   channel: CHANNEL, backend: 'claude', kind: 'local', origin: 'direct',
   createdAt: '2026-01-01T00:00:00.000Z', lastUsedAt: '2026-01-01T00:00:00.000Z',
   label: null, profileName: 'scan',
@@ -91,7 +91,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   captured.length = 0;
   vi.spyOn(sessionStore, 'getById').mockResolvedValue(SESSION);
-  vi.spyOn(sessionStore, 'lookupBySessionId').mockResolvedValue(SESSION.name);
+  vi.spyOn(sessionStore, 'getById').mockResolvedValue(SESSION);
   vi.spyOn(sessionUse, 'acquireSessionUse').mockResolvedValue(() => {});
   vi.spyOn(sessions, 'getSessionAsync').mockResolvedValue(SESSION.sessionId);
 });
@@ -131,8 +131,7 @@ test('an edit retry asks for the same engine as a user turn', async () => {
   await runRetryAgent({
     channel: CHANNEL, text: 'edited', adapter: new MockAdapter() as any,
     statusMsg: { conduit: CHANNEL, messageId: 'status' }, startTime: Date.now(),
-    sessionId: SESSION.sessionId, session: SESSION, sessionName: SESSION.name,
-    userMessageTs: 'M1', retryPrefix: '', turnTrackingToken: 'token' as any,
+    sessionId: SESSION.sessionId, session: SESSION, userMessageTs: 'M1', retryPrefix: '', turnTrackingToken: 'token' as any,
   });
   expect(await identityOf(captured.at(-1)!)).toBe(userTurn);
 });

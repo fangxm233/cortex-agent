@@ -39,16 +39,16 @@ export type BackgroundHoldInstaller = (ctx: {
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null, resumeTarget }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null; resumeTarget?: string | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, trackSessionId = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null, request = null, resumeTarget }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null; request?: RunRequest | null; resumeTarget?: string | null }): Promise<void> {
   // Decoupling: the resume target is the BACKEND's own session id (Claude self-generated / PI
-  // bootstrap id), not the tracking id. Store it on the STABLE track record (keyed by sessionName)
+  // bootstrap id), not the tracking id. Store it on the STABLE track record (keyed by trackSessionId)
   // — do NOT rebind the channel or the registry key to it. The channel stays bound to the track
   // id, so publish/history/UI keep a stable identity across turns. The run's `backendSessionId`
   // is preferred over `result.sessionId`: a fallback on another backend reports its own id in the
   // result, and the session's backend cannot resume it.
   const backendSessionId = resumeTarget === undefined ? result?.sessionId : resumeTarget;
-  if (backendSessionId && sessionName) {
-    await sessionStore.updateSession(sessionName, {
+  if (backendSessionId && trackSessionId) {
+    await sessionStore.updateSession(trackSessionId, {
       backendSessionId,
       lastUsedAt: new Date().toISOString(),
     });
@@ -75,15 +75,15 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
 
   const statusText = renderTurnStatus(
     askCount > 0 ? { kind: 'awaiting-user' } : { kind: 'done' },
-    { sessionName, sessionId, elapsedStr, metrics },
+    { sessionId: trackSessionId, elapsedStr, metrics },
   );
-  await sealQuietly(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
+  await sealQuietly(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionId: trackSessionId, isDm: true }));
 
   // Push a NEW message when a long-running user turn finishes (the sealed status above is an
   // edit, which does not notify on Slack/Feishu). Only fires when no ask-user questions are
   // pending — those already prompt the user.
   if (askCount === 0) {
-    await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionName, sessionId: result?.sessionId ?? null, elapsedS, elapsedStr, status: 'completed', metricsSuffix: metrics });
+    await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionId: trackSessionId, elapsedS, elapsedStr, status: 'completed', metricsSuffix: metrics });
   }
 
   if (userMessageTs) {
@@ -97,7 +97,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
 
   // The hook addresses the session by its Cortex id; the backend id is what a follow-up resumes.
   await runMessageEndForTurn({
-    channel, sessionId: trackSessionId, backendSessionId: result?.sessionId ?? null, sessionName, executionId,
+    channel, sessionId: trackSessionId, backendSessionId: result?.sessionId ?? null, executionId,
     stream: (onAssistantMessage as any)?.stream as OutputStream | undefined,
     request,
   });
@@ -109,29 +109,26 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
  *  it) and `rate-limited` (queued for auto-resume) are not the end of the conversation's turn. */
 export type AgentErrorOutcome = 'superseded' | 'cancelled' | 'rate-limited' | 'failed';
 
-export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<AgentErrorOutcome> {
-  // DISPLAY id: the status line names the backend session when the caller knows it, exactly as the
-  // success path does (`handleAgentSuccess` renders `result.sessionId`). Every IDENTITY decision —
-  // channel binding, registry key, message delivery — uses `sessionId`, the stable track id. The two
-  // are not interchangeable, and conflating them is what this handler used to do.
-  const resolvedSessionId = effectiveSessionId || sessionId;
+export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<AgentErrorOutcome> {
+  // Status and identity both display the stable track ID. The backend ID remains only a resume
+  // target; it must never replace the channel binding or registry key.
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
 
   if (error?.cancelled && activeTurns.isSuperseded(channel, 'edit')) {
     activeTurns.clearSuperseded(channel, 'edit');
-    const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-    await sealQuietly(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
+    const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionId, elapsedStr });
+    await sealQuietly(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionId, isDm: true }));
     return 'superseded';
   }
 
   await persistErrorSession({
-    trackSessionId: sessionId, backendSessionId: effectiveSessionId, sessionName, channel, adapter,
+    trackSessionId: sessionId, backendSessionId: effectiveSessionId, channel, adapter,
   });
   if (userMessageTs) await conversationLedger.completeTurn(channel, userMessageTs, { executionId });
 
   if (error?.cancelled) {
-    const cancelledText = renderTurnStatus({ kind: 'cancelled' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-    await sealQuietly(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionName, isDm: true }));
+    const cancelledText = renderTurnStatus({ kind: 'cancelled' }, { sessionId, elapsedStr });
+    await sealQuietly(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionId, isDm: true }));
     return 'cancelled';
   }
 
@@ -145,15 +142,15 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   if (userMessage && !isNotRetriedFailure(error) && isApiRateLimitError(error.message)
     && isProviderRateLimited(error.rateLimitProvider)) {
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
-    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-    await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
+    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr });
+    await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionId, isDm: true }));
     return 'rate-limited';
   }
 
   log.error('Agent error:', error.message);
-  const errorText = renderTurnStatus({ kind: 'error' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-  await sealQuietly(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionName, isDm: true }));
-  await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionName, sessionId: resolvedSessionId, elapsedS, elapsedStr, status: 'failed' });
+  const errorText = renderTurnStatus({ kind: 'error' }, { sessionId, elapsedStr });
+  await sealQuietly(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionId, isDm: true }));
+  await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionId, elapsedS, elapsedStr, status: 'failed' });
   // Delivery is an identity decision: the TUI gateway routes an interactive-reply by matching this
   // against a connection's session id, which is the TRACK id. Handing it a backend id matched no
   // connection, so the error body was dropped on the way to the client (an empty id falls back to a
@@ -189,23 +186,22 @@ function sealQuietly(...args: Parameters<typeof sealStatus>): Promise<void> {
  *
  * This used to take a single conflated id, the backend's preferred, so a caller that passed a
  * backend id (edit-retry, ask-user-resume) made a failure rebind the channel to it and register a
- * SECOND record under the session's name keyed by it. The next message resolved that record, found
+ * SECOND record keyed by the backend ID. The next message resolved that record, found
  * no resume target on it, and opened a brand-new backend conversation — the same pre-decoupling
  * leftover that `cancelLive` was cleaned of in fix 9809d9a3, surviving in the error path.
  */
 export async function persistErrorSession(args: {
   trackSessionId: string | null;
   backendSessionId: string | null;
-  sessionName: string | null;
   channel: string;
   adapter: PlatformAdapter;
 }): Promise<void> {
-  const { trackSessionId, backendSessionId, sessionName, channel, adapter } = args;
+  const { trackSessionId, backendSessionId, channel, adapter } = args;
   // The resume target, on the record it belongs to — the failure path's half of what
   // handleAgentSuccess does with `result.sessionId`. Best-effort: a registry hiccup must not mask
   // the error this handler is here to report.
-  if (backendSessionId && sessionName) {
-    await sessionStore.updateSession(sessionName, {
+  if (backendSessionId && trackSessionId) {
+    await sessionStore.updateSession(trackSessionId, {
       backendSessionId,
       lastUsedAt: new Date().toISOString(),
     }).catch(() => {});
@@ -216,10 +212,9 @@ export async function persistErrorSession(args: {
   // Backfill the ledger's session id: a conversation opened before the backend reported one.
   const conv = await conversationLedger.getConversation(channel);
   if (conv && !conv.sessionId) await conversationLedger.updateSessionId(channel, trackSessionId);
-  if (!sessionName) return;
-  const existing = await sessionStore.lookupBySessionId(trackSessionId);
+  const existing = await sessionStore.getById(trackSessionId);
   if (!existing) {
-    await sessionStore.registerSession(sessionName, { sessionId: trackSessionId, channel, backend, kind: 'local', origin: 'direct', profileName: getActiveProfile(channel), projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
+    await sessionStore.registerSession({ sessionId: trackSessionId, channel, backend, kind: 'local', origin: 'direct', profileName: getActiveProfile(channel), projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
   }
 }
 
@@ -235,9 +230,9 @@ export async function persistErrorSession(args: {
  * continuation callbacks — belonged to the background hold, which the Turn now builds and hands
  * down as one closure. This path decides only whether the turn MAY be held, never how.
  */
-export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null, request = null, resumeTarget }: {
+export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null, request = null, resumeTarget }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
-  userMessage: string; executionId: string | null; sessionName: string | null; sessionId: string | null;
+  userMessage: string; executionId: string | null; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string | null;
   /** The run's resume target (`AgentRun.backendSessionId`); defaults to `result.sessionId`. */
   resumeTarget?: string | null;
@@ -252,10 +247,10 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     // resets (rate-limit-throttle onResume → resume-dispatcher).
     recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const { elapsedStr } = computeElapsed(startTime);
-    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
-    await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
+    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr });
+    await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionId, isDm: true }));
     return 'rate-limited';
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request, resumeTarget });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request, resumeTarget });
   return 'completed';
 }

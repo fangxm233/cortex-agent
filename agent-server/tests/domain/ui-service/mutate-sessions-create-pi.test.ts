@@ -46,7 +46,6 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
   const deps = {
     createDirectSession: async () => ({
       sessionId: 'session-new',
-      sessionName: 'cortex-new',
       channel: 'web:session-new',
     }),
     sendSessionMessage: () => {

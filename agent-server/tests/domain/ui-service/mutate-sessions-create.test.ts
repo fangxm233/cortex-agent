@@ -30,7 +30,7 @@ function makeDeps(sink: CreateCall[], sessionId = 'sess-new'): UiServiceDeps {
     projectStore: { getDefault: () => ({ id: 'general', name: 'general', kind: 'general', contextDir: '/g' }) },
     createDirectSession: async (opts: CreateCall) => {
       sink.push(opts);
-      return { sessionId, sessionName: 'cortex-new', channel: `web:${sessionId}` };
+      return { sessionId, channel: `web:${sessionId}` };
     },
   } as unknown as UiServiceDeps;
 }
@@ -79,7 +79,7 @@ test('sessions.createAndSend states the composer selection, empty when nothing i
   const deps = {
     createDirectSession: async (opts: CreateAndSendCall) => {
       calls.push(opts);
-      return { sessionId: 'sess-cs', sessionName: 'cortex-new', channel: 'web:sess-cs' };
+      return { sessionId: 'sess-cs', channel: 'web:sess-cs' };
     },
     sendSessionMessage: () => {},
   } as unknown as UiServiceDeps;

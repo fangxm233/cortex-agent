@@ -14,7 +14,6 @@ export interface CortexToolContext {
   /** Chat channel the session is bound to (Slack or Feishu), null for channel-less sessions. */
   channel: string | null;
   sessionId: string | null;
-  sessionName: string | null;
   profile: string | null;
   project: string | null;
   backend: string | null;
@@ -57,7 +56,6 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
   return {
     channel: optional(env.SLACK_CHANNEL) ?? optional(env.FEISHU_CHANNEL),
     sessionId: optional(env.CORTEX_SESSION_ID),
-    sessionName: optional(env.CORTEX_SESSION_NAME),
     profile: optional(env.CORTEX_PROFILE),
     project: optional(env.CORTEX_PROJECT),
     backend: optional(env.CORTEX_BACKEND),
@@ -91,7 +89,6 @@ export function webSessionId(ctx: CortexToolContext): string | null {
 export interface CortexContextInternal {
   channel: string | null;
   sessionId: string | null;
-  sessionName: string | null;
   profile: string | null;
   project: string | null;
   backend: string | null;
@@ -102,14 +99,9 @@ export interface CortexContextInternal {
 /** Resolve the execution scope for MCP callers, filling in the session name from the registry
  *  when the host only knew the session id. */
 export async function resolveCortexContext(ctx: CortexToolContext): Promise<CortexContextInternal> {
-  let sessionName = ctx.sessionName;
-  if (!sessionName && ctx.sessionId) {
-    sessionName = await sessionStore.lookupBySessionId(ctx.sessionId);
-  }
   return {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
-    sessionName,
     profile: ctx.profile,
     project: ctx.project,
     backend: ctx.backend,

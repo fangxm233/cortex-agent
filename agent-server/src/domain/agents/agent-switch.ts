@@ -104,8 +104,8 @@ function seedNextConversation(channel: string, agentName: string | null): void {
  *  a failure here costs a label, not the switch. */
 async function syncSessionAgent(channel: string, agentName: string | null): Promise<void> {
   try {
-    const sessionName = await sessionStore.getActiveSessionName(channel);
-    if (sessionName) await sessionStore.updateSession(sessionName, { agentName });
+    const session = await sessionStore.getById((await sessionStore.getBoundSessionId(channel)) ?? '');
+    if (session) await sessionStore.updateSession(session.sessionId, { agentName });
   } catch {
     // non-fatal — see above
   }

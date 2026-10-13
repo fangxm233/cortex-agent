@@ -75,7 +75,7 @@ function rejectedAttempt(backendSessionId: string, error: Error): RunAttempt {
 
 function sessionRecord(trackSessionId: string): Session {
   return {
-    name: `cortex-${trackSessionId}`, sessionId: trackSessionId, projectId: 'proj',
+    sessionId: trackSessionId, projectId: 'proj',
     channel: `web:${trackSessionId}`, backend: 'claude', kind: 'local', origin: 'direct',
     createdAt: '2020-01-01T00:00:00.000Z', lastUsedAt: '2020-01-01T00:00:00.000Z',
     label: null, profileName: null, backendSessionId: `backend-${trackSessionId}`,
@@ -125,8 +125,7 @@ test('edit retry hands its session lease to the registered execution without a g
   await runRetryAgent({
     channel: 'web:track-retry', text: 'edited', adapter: new MockAdapter() as any,
     statusMsg: { conduit: 'web:track-retry', messageId: 'status' }, startTime: Date.now(),
-    sessionId: 'track-retry', session: sessionRecord('track-retry'), sessionName: 'cortex-track-retry',
-    userMessageTs: 'M1', retryPrefix: '',
+    sessionId: 'track-retry', session: sessionRecord('track-retry'), userMessageTs: 'M1', retryPrefix: '',
     turnTrackingToken: 'token' as any,
   });
 

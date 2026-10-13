@@ -28,8 +28,7 @@ export interface PendingInjectionCommitDeps {
     findTurn(channel: string, messageId: string): Promise<unknown | null>;
     initAndBeginTurn(channel: string, opts: {
       sessionId: string;
-      sessionName: string | null;
-      backend: string;
+          backend: string;
       profileName: string | null;
       userMessageTs: string;
       userMessageText: string;
@@ -62,7 +61,6 @@ async function ensureLedgerTurn(
   if (await deps.ledger.findTurn(record.channel, record.messageId)) return;
   await deps.ledger.initAndBeginTurn(record.channel, {
     sessionId: record.sessionId,
-    sessionName: record.sessionName,
     backend: record.backend,
     profileName: record.profileName,
     userMessageTs: record.messageId,

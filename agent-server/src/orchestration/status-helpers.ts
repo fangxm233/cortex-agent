@@ -71,13 +71,13 @@ export function extractForwardedContent(message: { attachments?: IncomingAttachm
 
 export interface StatusBlocksTemplate {
   channel: string;
-  sessionName: string | null;
+  sessionId: string | null;
   isDm: boolean;
   /** The running execution the Cancel button stops. */
   executionId?: string | null;
 }
 
-function buildActionElements({ channel, sessionName, isDm, includeCancel, executionId }: StatusBlocksTemplate & { includeCancel: boolean }): ActionElement[] {
+function buildActionElements({ channel, sessionId, isDm, includeCancel, executionId }: StatusBlocksTemplate & { includeCancel: boolean }): ActionElement[] {
   const elements: ActionElement[] = [];
   if (includeCancel) {
     elements.push({
@@ -88,12 +88,12 @@ function buildActionElements({ channel, sessionName, isDm, includeCancel, execut
       style: 'danger',
     });
   }
-  if (sessionName) {
+  if (sessionId) {
     elements.push({
       type: 'button',
       text: t('btn.resume'),
       actionId: 'status_resume',
-      value: sessionName,
+      value: sessionId,
     });
   }
   if (isDm) {

@@ -9,7 +9,8 @@ import { getActiveProfile } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
 
 import { fireAndForgetPreCloseHook, resolveOnNewThreadAnchor } from '@domain/sessions/session-hooks.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import { sessionStore, type Session } from '@store/session-registry-repo.js';
+import { shortSessionId } from '@core/short-session-id.js';
 
 import { attachExistingSession, resetChannelSession } from '@domain/sessions/session-lifecycle.js';
 import { planApprovals } from '../../interactions/plan-approvals.js';
@@ -43,26 +44,42 @@ export async function handleNewCmd(
 
 const MAX_RESUME_BUTTONS = 10;
 
+/** Full ID wins; a prefix must be long enough and identify exactly one live record. */
+export async function resolveResumeSession(input: string): Promise<
+  | { kind: 'found'; record: Session }
+  | { kind: 'ambiguous'; matches: string[] }
+  | { kind: 'not-found' }
+> {
+  const exact = await sessionStore.getById(input);
+  if (exact) return { kind: 'found', record: exact };
+  if (input.length < 6) return { kind: 'not-found' };
+  const matches = (await sessionStore.listRecentSessions(Number.MAX_SAFE_INTEGER))
+    .filter(record => record.sessionId.startsWith(input));
+  if (matches.length === 1) return { kind: 'found', record: matches[0] };
+  if (matches.length > 1) return { kind: 'ambiguous', matches: matches.map(record => record.sessionId) };
+  return { kind: 'not-found' };
+}
+
 export function createResumeHandler(router?: CommandActionRouter) {
   if (router) {
     const switchHandler = async (ctx: import('@platform/index.js').ActionContext) => {
       const adapter = router.getAdapter();
       if (!adapter) return;
-      const name = ctx.value;
-      const record = await sessionStore.lookupSession(name);
+      const id = ctx.value;
+      const record = await sessionStore.getById(id);
       if (!record) {
         if (ctx.messageRef) {
           await adapter.updateMessage(ctx.messageRef, {
-            text: `${Icons.error} ${t('cmd.session.notFound', { name })}`,
+            text: `${Icons.error} ${t('cmd.session.notFound', { name: id })}`,
           }).catch(() => {});
         }
         return;
       }
-      await attachExistingSession(ctx.channelId, { sessionId: record.sessionId, sessionName: name, backend: record.backend, profileName: record.profileName });
+      await attachExistingSession(ctx.channelId, { sessionId: record.sessionId, backend: record.backend, profileName: record.profileName });
       const profileNote = record.profileName ? t('cmd.session.profileNote', { profile: record.profileName }) : '';
       if (ctx.messageRef) {
         await adapter.updateMessage(ctx.messageRef, {
-          text: `${Icons.refresh} ${t('cmd.session.switched', { name, profileNote })}`,
+          text: `${Icons.refresh} ${t('cmd.session.switched', { name: shortSessionId(record.sessionId), profileNote })}`,
         }).catch(() => {});
       }
     };
@@ -81,15 +98,20 @@ export function createResumeHandler(router?: CommandActionRouter) {
     const args = trimmedMessage.split(/\s+/).slice(1);
 
     if (args.length > 0) {
-      const name = args[0];
-      const record = await sessionStore.lookupSession(name);
-      if (!record) {
-        await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.session.notFoundList', { name })}` });
+      const input = args[0];
+      const resolved = await resolveResumeSession(input);
+      if (resolved.kind === 'ambiguous') {
+        await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.session.ambiguous', { name: input, matches: resolved.matches.join(', ') })}` });
         return;
       }
-      await attachExistingSession(channel, { sessionId: record.sessionId, sessionName: name, backend: record.backend, profileName: record.profileName });
+      if (resolved.kind === 'not-found') {
+        await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.session.notFoundList', { name: input })}` });
+        return;
+      }
+      const { record } = resolved;
+      await attachExistingSession(channel, { sessionId: record.sessionId, backend: record.backend, profileName: record.profileName });
       const profileNote = record.profileName ? t('cmd.session.profileNote', { profile: record.profileName }) : '';
-      await adapter.postMessage(dest, { text: `${Icons.refresh} ${t('cmd.session.switched', { name, profileNote })}` });
+      await adapter.postMessage(dest, { text: `${Icons.refresh} ${t('cmd.session.switched', { name: shortSessionId(record.sessionId), profileNote })}` });
       return;
     }
 
@@ -98,16 +120,16 @@ export function createResumeHandler(router?: CommandActionRouter) {
       await adapter.postMessage(dest, { text: t('cmd.session.noSessions') });
       return;
     }
-    const activeId = await sessionStore.getActiveSessionName(channel);
+    const activeId = await sessionStore.getBoundSessionId(channel);
     const now = Date.now();
     const lines = [t('cmd.session.recentHeader')];
     for (const s of sessions) {
-      const isActive = s.name === activeId;
+      const isActive = s.sessionId === activeId;
       const activeTag = isActive ? t('cmd.session.activeTag') : '';
       const ago = formatTimeAgo(now - new Date(s.lastUsedAt).getTime());
       const label = s.label ? ` — ${s.label}` : '';
       const kind = s.kind === 'scheduled' ? ` ${Icons.scheduled}` : '';
-      lines.push(`• \`${s.name}\`${activeTag}${kind}${label} — ${ago}`);
+      lines.push(`• \`${shortSessionId(s.sessionId)}\`${activeTag}${kind}${label} — ${ago}`);
     }
     const text = lines.join('\n');
 
@@ -121,9 +143,9 @@ export function createResumeHandler(router?: CommandActionRouter) {
       richBlocks: [{ type: 'section' as const, text }],
       actions: sessions.slice(0, MAX_RESUME_BUTTONS).map((s, i) => ({
         type: 'button' as const,
-        text: s.name.length > 20 ? s.name.slice(0, 17) + '...' : s.name,
+        text: shortSessionId(s.sessionId),
         actionId: `cmd:resume:switch-${i}`,
-        value: s.name,
+        value: s.sessionId,
       })),
     };
   };

@@ -38,7 +38,7 @@ function freshLifecycle() {
 
 function deps(): any {
   return {
-    sessionStore: { generateSessionName: async () => 'cortex-new', registerSession: async () => {} },
+    sessionStore: { registerSession: async () => {} },
     setChannelSession: async () => {},
     initConversation: async () => {},
     resolveBackend: () => 'claude',

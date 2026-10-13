@@ -96,7 +96,6 @@ function detachedSinkFor(sessionId: string, channel: string | undefined): RunObs
     // the history row — the durable record either way — is written regardless.
     channel: channel ?? '',
     // Read only for the `context_usage` store update, and a child's notices never produce one.
-    sessionName: '',
     // The same source the live turn's sink reads (`turn/turn.ts`). It is process env, so it cannot
     // have changed since the spawn; being wrong here would only drop the DEBUG-only
     // `toolUseId` / `fullInput` fields and the tool-result body.

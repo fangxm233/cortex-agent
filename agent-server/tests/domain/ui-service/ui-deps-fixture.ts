@@ -39,7 +39,7 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
     runningExecutions: { getAll: () => [] } as any,
     costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, unpricedCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     bus: new EventBus(),
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
+    createDirectSession: async () => ({ sessionId: '', channel: '' }),
     adoptScheduledSession: async () => null,
     moveDraftAttachments: async ({ attachments }) => attachments,
     cancelSessionRun: async () => 0,

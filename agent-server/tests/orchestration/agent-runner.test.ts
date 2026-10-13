@@ -32,7 +32,7 @@ test('persistSessionContextUsage writes before publishing the same timestamped s
 
   await persistSessionContextUsage(
     {
-      sessionName: 'cortex-context', sessionId: 's-context', channel: 'web:context',
+      sessionId: 's-context', channel: 'web:context',
       usage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' },
     },
     {
@@ -42,7 +42,7 @@ test('persistSessionContextUsage writes before publishing the same timestamped s
     },
   );
 
-  assert.deepEqual(order, ['store:cortex-context', 'publish']);
+  assert.deepEqual(order, ['store:s-context', 'publish']);
   assert.deepEqual(stored, {
     usedTokens: 60000, contextWindow: 200000, percent: 30,
     accuracy: 'estimate', updatedAt: '2026-07-27T12:00:00.000Z',
@@ -72,8 +72,7 @@ function acceptRecorder() {
 test('acceptUserMessage records a typed turn, publishes it and titles the session from it', () => {
   const r = acceptRecorder();
   acceptUserMessage({
-    sessionId: 's1', channel: 'web:s1', sessionName: 'cortex-aaaa',
-    text: 'run the probe', attachments: undefined,
+    sessionId: 's1', channel: 'web:s1', text: 'run the probe', attachments: undefined,
   }, r.deps as any);
 
   assert.equal(r.appended[0].text, 'run the probe');
@@ -87,8 +86,7 @@ test('acceptUserMessage records a typed turn, publishes it and titles the sessio
 test('acceptUserMessage tags a system-authored turn and never lets it title the session', () => {
   const r = acceptRecorder();
   acceptUserMessage({
-    sessionId: 's1', channel: 'web:s1', sessionName: 'cortex-aaaa',
-    text: '<system-reminder>\n[Task done] #ab12 is complete.\n</system-reminder>',
+    sessionId: 's1', channel: 'web:s1', text: '<system-reminder>\n[Task done] #ab12 is complete.\n</system-reminder>',
     attachments: undefined, systemOrigin: 'task-callback',
   }, r.deps as any);
 

@@ -6,7 +6,6 @@ import {
 } from '../../src/orchestration/session-compact.js';
 
 const BASE_SESSION = {
-  name: 'cortex-a1b2c3',
   sessionId: 'track-1',
   backendSessionId: 'backend-1',
   projectId: 'nimbus',

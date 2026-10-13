@@ -63,7 +63,6 @@ async function seedConversationWithTurns(channel: string, opts: {
   for (let i = 0; i < opts.turnCount; i++) {
     await conversationLedger.initAndBeginTurn(channel, {
       sessionId: opts.sessionId,
-      sessionName: null,
       backend: opts.backend,
       userMessageTs: `M${i}`,
       userMessageText: `message ${i}`,
@@ -99,7 +98,7 @@ async function stagePIEditFixture(withBackup: boolean): Promise<PIEditFixture> {
   const sessionId = `track-pi-recorded-${stamp}`;
   const backendSessionId = `01234567-89ab-7cde-8fab-${stamp.toString(16).padStart(12, '0')}`;
   await seedConversationWithTurns(channel, { sessionId, backend: 'pi', turnCount: 2 });
-  await sessionStore.registerSession(`cortex-pi-recorded-${stamp}`, {
+  await sessionStore.registerSession({
     sessionId, backendSessionId, channel, backend: 'pi', kind: 'local',
   });
   const piDir = path.join(DATA_DIR, 'logs', 'sessions-pi');
@@ -196,9 +195,8 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
   const channel = freshChannel();
   const sessionId = `track-${Date.now()}-test`;
   const backendSessionId = `claude-${Date.now()}-backend`;
-  const sessionName = `cortex-edit-${Date.now()}`;
   await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3 });
-  await sessionStore.registerSession(sessionName, {
+  await sessionStore.registerSession({
     sessionId, backendSessionId, channel, backend: 'claude', kind: 'local',
   });
 
@@ -313,7 +311,6 @@ test('PI edit with a missing recorded backup skips registration and retries fres
     const run = await runPIEditFixture(fixture);
     assert.deepEqual(run.registerCalls, []);
     assert.equal(run.reprocessCalls[0].opts.sessionId, null);
-    assert.equal(run.reprocessCalls[0].opts.sessionName, null);
   } finally {
     await cleanupPIEditFixture(fixture);
   }

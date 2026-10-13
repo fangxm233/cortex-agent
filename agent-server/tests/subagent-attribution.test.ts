@@ -253,7 +253,7 @@ function captureLive(): { sink: ReturnType<typeof createTranscriptSink> } & Tran
     appended.push({ method, sessionId, ...(opts as Record<string, any>) });
   };
   const sink = createTranscriptSink({
-    sessionId: PARENT_SESSION, channel: CHANNEL, sessionName: 'cortex-parent', debug: isDebugMode(),
+    sessionId: PARENT_SESSION, channel: CHANNEL, debug: isDebugMode(),
     deps: {
       appendTool: record('tool'), appendToolResult: record('toolResult'),
       appendAssistant: record('assistant'), appendSubagentEnd: record('subagentEnd'),

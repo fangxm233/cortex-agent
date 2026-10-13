@@ -928,15 +928,14 @@ test('buildClaudeEnv — a pinned trial keeps its own CLAUDE_CONFIG_DIR, or none
 
 // --- buildClaudeEnv: cortex context env vars (CORTEX_PROFILE/PROJECT/SESSION_NAME) ---
 
-test('buildClaudeEnv — context profile/project/sessionName surface as CORTEX_* env vars', () => {
+test('buildClaudeEnv — context profile/project surface as CORTEX_* env vars', () => {
   const env = buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, {
     profile: 'fast-worker',
     project: 'cortex-self',
-    sessionName: 'cortex-aaa111',
-  });
+    });
   assert.equal(env.CORTEX_PROFILE, 'fast-worker');
   assert.equal(env.CORTEX_PROJECT, 'cortex-self');
-  assert.equal(env.CORTEX_SESSION_NAME, 'cortex-aaa111');
+  assert.equal(env.CORTEX_SESSION_NAME, undefined);
   // Existing fields still intact
   assert.equal(env.SLACK_CHANNEL, 'C1');
   assert.equal(env.CORTEX_SESSION_ID, 'sid-1');

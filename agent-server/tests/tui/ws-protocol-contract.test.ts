@@ -59,7 +59,7 @@ test('ws protocol contract — full lifecycle', async (t) => {
         // Step 2: session.switched
         const switched: SessionSwitched = {
           type: 'session.switched', id: 'req-1', projectId: 'cortex-self',
-          sessionId: 'sess-001', sessionName: 'cortex-AB12', isFresh: true, seq: 1,
+          sessionId: 'sess-001', isFresh: true, seq: 1,
         };
         client.markSessionId('sess-001');
         clientWs.send(encodeFrame(switched));

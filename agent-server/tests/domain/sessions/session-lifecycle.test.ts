@@ -1,14 +1,14 @@
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 
-import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
+import { registerSessionRecord, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import { resetSettingsForTests } from '@core/settings.js';
 import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { getActiveProfile } from '@domain/agents/index.js';
 
-// ── registerNamedSession ────────────────────────────────────────
+// ── registerSessionRecord ────────────────────────────────────────
 
 // ── createDirectSession ─────────────────────────────────────────
 
@@ -20,8 +20,7 @@ describe('createDirectSession', () => {
     const resolveCalls: string[] = [];
 
     const fakeStore: SessionRegistryWriter = {
-      generateSessionName: async () => 'cortex-new',
-      registerSession: async (name, opts) => { registered = { name, ...opts }; },
+      registerSession: async (opts) => { registered = opts; },
     };
 
     const result = await createDirectSession(
@@ -35,7 +34,6 @@ describe('createDirectSession', () => {
     );
 
     assert.ok(result.sessionId, 'returns a non-empty sessionId');
-    assert.strictEqual(result.sessionName, 'cortex-new', 'returns the generated name');
 
     const expectedChannel = 'web:' + result.sessionId;
     assert.strictEqual(resolveCalls[0], expectedChannel, 'backend resolved for the web channel');
@@ -51,7 +49,6 @@ describe('createDirectSession', () => {
       'channel session bound so a later send resumes it');
     assert.strictEqual(ledger.channel, expectedChannel);
     assert.strictEqual(ledger.sessionId, result.sessionId);
-    assert.strictEqual(ledger.sessionName, 'cortex-new');
     assert.strictEqual(ledger.backend, 'claude');
   });
 
@@ -59,8 +56,7 @@ describe('createDirectSession', () => {
     const registered: any[] = [];
     const deps = {
       sessionStore: {
-        generateSessionName: async () => 'cortex-w',
-        registerSession: async (_name: string, opts: any) => { registered.push(opts); },
+        registerSession: async (opts: any) => { registered.push(opts); },
       } satisfies SessionRegistryWriter,
       setChannelSession: async () => {},
       initConversation: async () => {},
@@ -78,8 +74,7 @@ describe('createDirectSession', () => {
     const registered: any[] = [];
     const deps = {
       sessionStore: {
-        generateSessionName: async () => 'cortex-s',
-        registerSession: async (_name: string, opts: any) => { registered.push(opts); },
+        registerSession: async (opts: any) => { registered.push(opts); },
       } satisfies SessionRegistryWriter,
       setChannelSession: async () => {},
       initConversation: async () => {},
@@ -99,7 +94,6 @@ describe('createDirectSession', () => {
 
   it('generates a distinct sessionId + channel per call', async () => {
     const fakeStore: SessionRegistryWriter = {
-      generateSessionName: async () => 'cortex-x',
       registerSession: async () => {},
     };
     const deps = {
@@ -117,7 +111,6 @@ describe('createDirectSession', () => {
     let registerCalls = 0;
     const deps = {
       sessionStore: {
-        generateSessionName: async () => 'cortex-x',
         registerSession: async () => { registerCalls++; },
       } as SessionRegistryWriter,
       setChannelSession: async () => {},
@@ -152,7 +145,7 @@ describe('createDirectSession', () => {
 describe('attachExistingSession', () => {
   it('switches session in sessions.json and conversation ledger (profileName null)', async () => {
     const channel = 'c1-attach';
-    const opts = { sessionId: 'sid-attach', sessionName: 'cortex-y', backend: 'claude', profileName: null };
+    const opts = { sessionId: 'sid-attach', backend: 'claude', profileName: null };
 
     await attachExistingSession(channel, opts);
 
@@ -162,14 +155,13 @@ describe('attachExistingSession', () => {
     const conv = await conversationLedger.getConversation(channel);
     assert.ok(conv, 'conversation ledger has an entry');
     assert.strictEqual(conv!.sessionId, 'sid-attach');
-    assert.strictEqual(conv!.sessionName, 'cortex-y');
     assert.strictEqual(conv!.backend, 'claude');
   });
 
   it('restores the active profile when profileName is provided', async () => {
     const channel = 'c1-attach-profile';
     await attachExistingSession(channel, {
-      sessionId: 'sid-attach-p', sessionName: 'cortex-p', backend: 'claude', profileName: 'qa',
+      sessionId: 'sid-attach-p', backend: 'claude', profileName: 'qa',
     });
 
     assert.strictEqual(getActiveProfile(channel), 'qa', 'active profile restored to the session profile');
@@ -182,7 +174,7 @@ describe('attachExistingSession', () => {
 
 describe('adoptScheduledSession', () => {
   const scheduledRecord = {
-    name: 'cortex-sched', sessionId: 'sid-sched-1', channel: 'cortex-self', backend: 'claude',
+sessionId: 'sid-sched-1', channel: 'cortex-self', backend: 'claude',
     origin: 'scheduled' as const, profileName: null,
   };
 
@@ -212,7 +204,6 @@ describe('adoptScheduledSession', () => {
     const conv = await conversationLedger.getConversation('web:sid-sched-1');
     assert.ok(conv, 'conversation ledger switched to the session');
     assert.strictEqual(conv!.sessionId, 'sid-sched-1');
-    assert.strictEqual(conv!.sessionName, 'cortex-sched');
     assert.deepStrictEqual(converted, [{ sessionId: 'sid-sched-1', channel: 'web:sid-sched-1' }],
       'registry record re-pointed at the new channel');
   });
@@ -254,7 +245,6 @@ describe('resetChannelSession', () => {
     await setSessionAsync(channel, 'sid-reset-current');
     await conversationLedger.initConversation(channel, {
       sessionId: 'sid-reset-current',
-      sessionName: 'cortex-reset',
       backend: 'claude',
     });
 

@@ -46,7 +46,6 @@ export interface SessionHookContext {
   channel: string;
   /** The Cortex session id — the registry key, the id every Cortex surface and API names. */
   sessionId: string;
-  sessionName: string;
   /** The backend's own id for the session's conversation (its transcript), when it has one. */
   backendSessionId?: string | null;
   executionId?: string | null;
@@ -183,7 +182,6 @@ export async function runHookInjection(
         // every live hook session, so it stays keyed on the injected session key and not on the
         // session id.
         engineKey: inject.sessionKey,
-        sessionName: null,
       },
       profile: hookInjectionProfile(inject.profileName, spec.ctx.channel),
       prompt: output,
@@ -222,7 +220,6 @@ function buildHookEnv(name: HookName, ctx: SessionHookContext): NodeJS.ProcessEn
     ...process.env,
     CORTEX_HOOK_CHANNEL: ctx.channel,
     CORTEX_HOOK_SESSION_ID: ctx.sessionId,
-    CORTEX_HOOK_SESSION_NAME: ctx.sessionName,
     CORTEX_HOOK_TRIGGER: name === 'onNew' ? 'new' : 'messageEnd',
   };
   if (ctx.backendSessionId) env.CORTEX_HOOK_BACKEND_SESSION_ID = ctx.backendSessionId;
@@ -237,7 +234,6 @@ function buildHookPayload(
   return {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
-    sessionName: ctx.sessionName,
     backendSessionId: ctx.backendSessionId ?? null,
     executionId: ctx.executionId ?? null,
     profile: ctx.profile ?? null,
@@ -360,7 +356,6 @@ export async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?:
 }
 
 interface SessionHookTarget {
-  sessionName: string | null;
   profile: string | null;
   /** The backend conversation an injected turn resumes; null when the session has none yet. */
   backendSessionId: string | null;
@@ -374,7 +369,6 @@ interface SessionHookTarget {
 async function sessionHookTarget(sessionId: string): Promise<SessionHookTarget> {
   const record = await sessionStore.getById(sessionId);
   return {
-    sessionName: record?.name ?? null,
     profile: record?.profileName ?? null,
     backendSessionId: record ? effectiveBackendSessionId(record) : null,
   };
@@ -384,7 +378,7 @@ function onNewHookSpec(channel: string, sessionId: string, target: SessionHookTa
   const { profile, backendSessionId } = target;
   return {
     name: 'onNew',
-    ctx: { channel, sessionId, sessionName: target.sessionName ?? sessionId.slice(0, 8), profile, backendSessionId },
+    ctx: { channel, sessionId, profile, backendSessionId },
     format: ONNEW_FORMAT,
     // A session with no backend conversation yet has nothing for a pre-close turn to continue.
     inject: backendSessionId ? {
@@ -441,7 +435,6 @@ export interface OnMessageEndArgs {
   sessionId: string;
   /** The backend conversation the turn ran on; a follow-up turn resumes it. */
   backendSessionId: string | null;
-  sessionName: string;
   executionId: string;
   profile?: string | null;
   /** The finished turn's request; see {@link SessionHookInject.follows}. */
@@ -460,7 +453,6 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
     ctx: {
       channel: args.channel,
       sessionId: args.sessionId,
-      sessionName: args.sessionName,
       backendSessionId: args.backendSessionId,
       executionId: args.executionId,
       profile: args.profile ?? null,
@@ -489,7 +481,6 @@ export async function runMessageEndForTurn(args: {
   sessionId: string | null;
   /** The backend id the turn reported; the registry's resume target when it reported none. */
   backendSessionId: string | null;
-  sessionName: string | null;
   executionId: string | null; stream: OutputStream | null | undefined;
   request?: RunRequest | null;
 }): Promise<void> {
@@ -506,7 +497,6 @@ export async function runMessageEndForTurn(args: {
       channel: args.channel,
       sessionId: args.sessionId,
       backendSessionId: args.backendSessionId ?? target.backendSessionId,
-      sessionName: args.sessionName ?? '',
       executionId: args.executionId ?? '',
       profile: target.profile,
       stream: args.stream,

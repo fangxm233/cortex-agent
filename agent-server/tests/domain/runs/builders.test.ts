@@ -52,7 +52,7 @@ function expectIdentical(built: RunRequest, legacy: RunRequest): void {
 
 function legacyContinuation(i: {
   sessionId: string; backendSessionId: string | null; channel: string;
-  sessionName: string | null; profile: ResolvedProfileConfig; responseText: string; projectId: string;
+  profile: ResolvedProfileConfig; responseText: string; projectId: string;
 }): RunRequest {
   return {
     runId: FIXED,
@@ -60,8 +60,7 @@ function legacyContinuation(i: {
       sessionId: i.sessionId,
       backendSessionId: i.backendSessionId,
       engineKey: i.channel,
-      sessionName: i.sessionName,
-    },
+      },
     profile: i.profile,
     spec: bareSpec(),
     prompt: { text: i.responseText, attachments: [] },
@@ -91,15 +90,14 @@ describe('continuationRunRequest', () => {
     const p = profile('ask-profile');
     const input = {
       sessionId: 'sess-ask', backendSessionId: 'backend-ask', channel: 'slack:C2',
-      sessionName: 'quiet-fox', profile: p, responseText: 'the answer', projectId: 'general',
+      profile: p, responseText: 'the answer', projectId: 'general',
     };
     const base = continuationRunRequest({
       session: {
         sessionId: input.sessionId,
         backendSessionId: input.backendSessionId,
         engineKey: input.channel,
-        sessionName: input.sessionName,
-      },
+        },
       profile: p,
       prompt: input.responseText,
       channel: input.channel,
@@ -116,7 +114,7 @@ describe('DIRECT_RUN_POLICY', () => {
 
   it('hands every request its own copy, so one call site cannot poison another', () => {
     const p = profile('x');
-    const session = { sessionId: null, backendSessionId: null, engineKey: 'c', sessionName: null };
+    const session = { sessionId: null, backendSessionId: null, engineKey: 'c'};
     const a = continuationRunRequest({ session, profile: p, prompt: 'a', channel: 'c', project: 'general', trigger: 't' });
     const b = continuationRunRequest({ session, profile: p, prompt: 'b', channel: 'c', project: 'general', trigger: 't' });
     expect(a.policy).not.toBe(b.policy);

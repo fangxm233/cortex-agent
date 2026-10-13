@@ -18,7 +18,7 @@ import { openTurn, type TurnSessionLease } from './turn/turn.js';
 import { withTurnBrowser } from './turn/turn-prep.js';
 import { prepareConversationRequest } from './conversation-request.js';
 
-export function reprocessMessage(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): void {
+export function reprocessMessage(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; supersededStatusTimestamps?: string[] }): void {
   trackPendingTask(+1);
   enqueue(channel, async () => {
     try {
@@ -29,28 +29,27 @@ export function reprocessMessage(channel: string, text: string, adapter: Platfor
   });
 }
 
-async function executeRetry(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): Promise<void> {
+async function executeRetry(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; supersededStatusTimestamps?: string[] }): Promise<void> {
   const startTime = Date.now();
   // sessionId here is the stable track id; resolve the backend resume target from its record.
   const sessionId = opts.sessionId ?? await getSessionAsync(channel);
   const session = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = session ? effectiveBackendSessionId(session) : null;
-  const sessionName = opts.sessionName || await sessionStore.generateSessionName();
   const userMessageTs = opts.originalTs;
   const retryDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
 
   const retryPrefix = `${Icons.refresh} ${t('status.retry')} (${t('status.retryEdited')}) | `;
-  const retryStatusText = retryPrefix + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionName, sessionId });
-  const retryBlocksTemplate = { channel, sessionName, isDm: true };
+  const retryStatusText = retryPrefix + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionId });
+  const retryBlocksTemplate = { channel, sessionId, isDm: true };
   const statusMsg = await adapter.postMessage(retryDest, {
     text: retryStatusText,
     richBlocks: buildStatusActionBlocks(retryStatusText, retryBlocksTemplate),
   });
   initStatusBlocks(statusMsg, retryBlocksTemplate);
 
-  updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionName, sessionId);
+  updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionId);
   const turnTrackingToken = await initTurnTracking(
-    channel, sessionId, backendSessionId, sessionName,
+    channel, sessionId, backendSessionId,
     userMessageTs, text, statusMsg.messageId,
   );
   if (consumePendingTurnSupersession(channel, turnTrackingToken)) {
@@ -59,7 +58,7 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   }
   await runRetryAgent({
     channel, text, adapter, statusMsg, startTime, sessionId, session,
-    sessionName, userMessageTs, retryPrefix, turnTrackingToken,
+    userMessageTs, retryPrefix, turnTrackingToken,
   });
 }
 
@@ -76,7 +75,7 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
  * recorder from `userMessageTs`.
  */
 export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
-  const { channel, text, adapter, statusMsg, startTime, sessionId, session, sessionName } = args;
+  const { channel, text, adapter, statusMsg, startTime, sessionId, session } = args;
   const leased = await leaseRetrySession(args);
   if (!leased) return;
   const backendSessionId = session ? effectiveBackendSessionId(session) : null;
@@ -84,7 +83,7 @@ export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
   const backend = resolveBackendForChannel(channel);
   await withTurnBrowser({ backend, browser: session?.browser ?? null }, (cdpEndpoint) => openTurn({
     channel, adapter, threadAnchorId: null,
-    session: { sessionId, sessionName, backendSessionId, projectId, lease: leased.lease },
+    session: { sessionId, backendSessionId, projectId, lease: leased.lease },
     // RAW text: what the ledger recorded and what an auto-resume would replay.
     user: { text },
     ledger: { userMessageTs: args.userMessageTs, token: args.turnTrackingToken },
@@ -109,7 +108,7 @@ interface RetryTurnArgs {
   sessionId: string | null;
   /** The session's registry record, read once by the caller; null when the channel has none. */
   session: Session | null;
-  sessionName: string | null;
+
   userMessageTs: string;
   retryPrefix: string;
   turnTrackingToken: TurnTrackingToken;
@@ -130,14 +129,14 @@ async function leaseRetrySession(args: RetryTurnArgs): Promise<{ lease: TurnSess
     await handleAgentError({
       error: error as { message: string; cancelled?: boolean },
       channel, adapter: args.adapter, statusMsg: args.statusMsg, startTime: args.startTime,
-      executionId: null, sessionName: args.sessionName, sessionId, userMessageTs: args.userMessageTs,
+      executionId: null, sessionId, userMessageTs: args.userMessageTs,
     });
     finishTurnTracking(channel, args.turnTrackingToken);
     return null;
   }
 }
 
-function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMessageTs: string, statusMsg: MessageRef, supersededTimestamps: string[] | undefined, retryPrefix: string, startTime: number, sessionName: string | null, sessionId: string | null): void {
+function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMessageTs: string, statusMsg: MessageRef, supersededTimestamps: string[] | undefined, retryPrefix: string, startTime: number, sessionId: string | null): void {
   const userPermalinkP = adapter.getPermalink({ conduit: channel, messageId: userMessageTs }).catch(() => null);
   const statusPermalinkP = supersededTimestamps?.length
     ? adapter.getPermalink(statusMsg).catch(() => null)
@@ -145,7 +144,7 @@ function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMe
 
   Promise.all([userPermalinkP, statusPermalinkP]).then(([userPermalink, statusPermalink]) => {
     if (userPermalink) {
-      writeStatus(adapter, statusMsg, `${Icons.refresh} ${t('status.retry')} (<${userPermalink}|${t('status.retryEdited')}>) | ` + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionName, sessionId }));
+      writeStatus(adapter, statusMsg, `${Icons.refresh} ${t('status.retry')} (<${userPermalink}|${t('status.retryEdited')}>) | ` + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionId }));
     }
     if (statusPermalink && supersededTimestamps?.length) {
       for (const oldTs of supersededTimestamps) {

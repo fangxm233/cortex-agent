@@ -26,9 +26,9 @@ import {
 // façade. The disk layout WILL change, so a golden that read file bytes would
 // break for the wrong reason. Every snapshot below is built from read APIs:
 //   sessionRepo.getSessionAsync(channel)               — the channel→session binding
-//   sessionStore.lookupBySessionId / getById / lookupSession — the record
+//   sessionStore.getById — the record
 //   conversationLedger.getConversation / findTurn      — header + turns
-//   sessionStore.getActiveSessionName / listRecentSessions
+//   sessionStore.getBoundSessionId / listRecentSessions
 //
 // Timestamps are minted internally by the stores (new Date().toISOString()).
 // Consecutive store mutations frequently land in the SAME millisecond on a fast
@@ -105,7 +105,7 @@ test('golden 5: turn lifecycle records the turn verbatim (text, response ts, sta
   const userText1 = 'first user message\nwith a newline and unicode ☃ kept verbatim';
 
   await ledger.initAndBeginTurn(channel, {
-    sessionId: 'sid-5', sessionName: 'cortex-5', backend: 'claude', profileName: 'plan',
+    sessionId: 'sid-5', backend: 'claude', profileName: 'plan',
     userMessageTs: 'u-msg-1', userMessageText: userText1, statusMessageTs: 'status-1',
   });
   await ledger.setBackupPath(channel, 'u-msg-1', '/backups/turn-0.bak');
@@ -116,7 +116,6 @@ test('golden 5: turn lifecycle records the turn verbatim (text, response ts, sta
 
   assert.deepEqual(normalize(await ledger.getConversation(channel)), {
     sessionId: 'sid-5',
-    sessionName: 'cortex-5',
     backend: 'claude',
     profileName: 'plan',
     turns: [
@@ -155,7 +154,7 @@ test('golden 6: rollbackTo marks superseded and truncateTurns rewinds the conver
   const channel = 'web:g6-channel';
 
   await ledger.initAndBeginTurn(channel, {
-    sessionId: 'sid-6', sessionName: 'cortex-6', backend: 'claude',
+    sessionId: 'sid-6', backend: 'claude',
     userMessageTs: 'u1', userMessageText: 'turn one', statusMessageTs: 's1',
   });
   await ledger.completeTurn(channel, 'u1');
@@ -200,7 +199,6 @@ test('golden 6: rollbackTo marks superseded and truncateTurns rewinds the conver
     ],
     conversationAfter: {
       sessionId: 'sid-6',
-      sessionName: 'cortex-6',
       backend: 'claude',
       profileName: null,
       turns: [
@@ -228,13 +226,12 @@ test('golden 7: updateSessionId late-binds a null-session conversation', async (
   const channel = 'web:g7-channel';
 
   await ledger.initConversation(channel, {
-    sessionId: null, sessionName: 'cortex-7', backend: 'claude',
+    sessionId: null, backend: 'claude',
   });
   await ledger.updateSessionId(channel, 'sid-late-7');
 
   assert.deepEqual(normalize(await ledger.getConversation(channel)), {
     sessionId: 'sid-late-7',
-    sessionName: 'cortex-7',
     backend: 'claude',
     profileName: null,
     turns: [],
@@ -248,17 +245,16 @@ test('golden 8: switchSession replaces the header and resets turns', async () =>
   const channel = 'web:g8-channel';
 
   await ledger.initConversation(channel, {
-    sessionId: 'sid-8a', sessionName: 'cortex-8a', backend: 'claude', profileName: 'plan',
+    sessionId: 'sid-8a', backend: 'claude', profileName: 'plan',
   });
   await ledger.beginTurn(channel, { userMessageTs: 'u1', userMessageText: 'old turn' });
 
   await ledger.switchSession(channel, {
-    sessionId: 'sid-8b', sessionName: 'cortex-8b', backend: 'claude', profileName: 'scan',
+    sessionId: 'sid-8b', backend: 'claude', profileName: 'scan',
   });
 
   assert.deepEqual(normalize(await ledger.getConversation(channel)), {
     sessionId: 'sid-8b',
-    sessionName: 'cortex-8b',
     backend: 'claude',
     profileName: 'scan',
     turns: [],
@@ -271,20 +267,20 @@ test('golden 10: switchChannelProfile syncs the record on same-backend and refus
   const sid = 'sid-10';
 
   setActiveProfile('plan', channel); // deterministic starting backend (claude)
-  await sessionStore.registerSession('cortex-10', {
+  await sessionStore.registerSession({
     sessionId: sid, channel, backend: 'claude', kind: 'local', projectId: 'projX', profileName: 'plan',
   });
-  await setSessionAsync(channel, sid); // so getActiveSessionName resolves the binding
+  await setSessionAsync(channel, sid); // so getBoundSessionId resolves the binding
   await conversationLedger.initConversation(channel, {
-    sessionId: sid, sessionName: 'cortex-10', backend: 'claude', profileName: 'plan',
+    sessionId: sid, backend: 'claude', profileName: 'plan',
   });
 
-  const recordBefore = await sessionStore.lookupSession('cortex-10');
+  const recordBefore = await sessionStore.getById(sid);
   const historyBefore = await channelHasHistory(channel);
 
   // Fresh session (no turns): same-backend switch allowed; record profileName synced.
   const switch1 = await switchChannelProfile({ channel, name: 'scan' });
-  const recordAfter1 = await sessionStore.lookupSession('cortex-10');
+  const recordAfter1 = await sessionStore.getById(sid);
   const activeProfileAfter1 = getActiveProfile(channel);
 
   await conversationLedger.beginTurn(channel, { userMessageTs: 'u1', userMessageText: 'now live' });
@@ -292,17 +288,17 @@ test('golden 10: switchChannelProfile syncs the record on same-backend and refus
 
   // Live conversation: cross-backend switch (execute = pi) rejected, record untouched.
   const switch2 = await switchChannelProfile({ channel, name: 'execute' });
-  const recordAfter2 = await sessionStore.lookupSession('cortex-10');
+  const recordAfter2 = await sessionStore.getById(sid);
 
   // Live conversation: same-backend switch (qa = claude) still allowed.
   const switch3 = await switchChannelProfile({ channel, name: 'qa' });
-  const recordAfter3 = await sessionStore.lookupSession('cortex-10');
+  const recordAfter3 = await sessionStore.getById(sid);
 
   const snapshot = {
     profileBefore: recordBefore?.profileName,
     historyBefore,
     switch1,
-    profileAfter1: recordAfter1?.profileName, // 'scan' proves getActiveSessionName resolved + updateSession ran
+    profileAfter1: recordAfter1?.profileName, // 'scan' proves getBoundSessionId resolved + updateSession ran
     activeProfileAfter1,
     historyAfterTurn,
     switch2,
@@ -333,22 +329,20 @@ test('golden 10: switchChannelProfile syncs the record on same-backend and refus
 test('golden 11: session-record profileName is isolated from ledger conversation headers', async () => {
   const { registry, ledger } = freshStores();
   const recordProfile = async (sessionId: string) => {
-    const name = await registry.lookupBySessionId(sessionId);
-    if (!name) return null;
-    return (await registry.lookupSession(name))?.profileName ?? null;
+    return (await registry.getById(sessionId))?.profileName ?? null;
   };
 
   // (a) registry has the profile → wins (and the disagreeing ledger profile is ignored).
-  await registry.registerSession('cortex-11a', {
+  await registry.registerSession({
     sessionId: 'sid-11a', channel: 'web:11a', backend: 'claude', kind: 'local', projectId: 'projX', profileName: 'plan',
   });
-  await ledger.initConversation('web:11a', { sessionId: 'sid-11a', sessionName: 'cortex-11a', backend: 'claude', profileName: 'qa' });
+  await ledger.initConversation('web:11a', { sessionId: 'sid-11a', backend: 'claude', profileName: 'qa' });
 
   // (b) registry record lacks a profile; the ledger has one but is no longer a fallback → null.
-  await registry.registerSession('cortex-11b', {
+  await registry.registerSession({
     sessionId: 'sid-11b', channel: 'web:11b', backend: 'claude', kind: 'local', projectId: 'projX', profileName: null,
   });
-  await ledger.initConversation('web:11b', { sessionId: 'sid-11b', sessionName: 'cortex-11b', backend: 'claude', profileName: 'scan' });
+  await ledger.initConversation('web:11b', { sessionId: 'sid-11b', backend: 'claude', profileName: 'scan' });
 
   // (c) neither source → null.
 

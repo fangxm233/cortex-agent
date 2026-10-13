@@ -139,7 +139,7 @@ function queryDeps(repo = conversationHistory): UiServiceDeps {
 
 function drain(run: EngineRun) {
   const events: any[] = [];
-  const sink = createTranscriptSink({ sessionId: SESSION, channel: CHANNEL, sessionName: '', debug: true });
+  const sink = createTranscriptSink({ sessionId: SESSION, channel: CHANNEL, debug: true });
   const done = (async () => {
     for await (const event of run.events) { events.push(event); await sink.onEvent(event); }
   })();

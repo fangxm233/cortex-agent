@@ -73,7 +73,7 @@ function compactLiveEngine(session: Session, backendSessionId: string): Promise<
     backend: backend as Backend,
     request: conversationEngineRequest({
       ids: {
-        sessionId: session.sessionId, backendSessionId, sessionName: session.name,
+        sessionId: session.sessionId, backendSessionId,
         projectId: session.projectId ?? 'general',
       },
       channel, session, browserCdpEndpoint: cdpEndpoint, trigger: 'manual-compact',

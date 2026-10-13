@@ -75,7 +75,7 @@ function harness() {
     renderer: platformHoldRenderer({
       adapter: adapter as any, statusMsg: statusMsg as any, channel: args.channel, stream,
       ownedCallback: onAssistantMessage,
-      sessionName: 'cortex-test', sessionId: (result.sessionId as string) ?? null,
+      sessionId: (result.sessionId as string) ?? null,
       startTime: Date.now(), baseResult: result as any,
       userMessageTs: null, executionId: args.executionId,
       onToolUse: (name, input, toolUseId, subagent) => trace.onToolUse(name, input, subagent, toolUseId),

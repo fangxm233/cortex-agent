@@ -15,7 +15,7 @@ function deferred<T>() {
 
 function conversation(channel: string) {
   return {
-    sessionId: 'track-race', sessionName: 'cortex-race', backend: 'claude', profileName: null,
+    sessionId: 'track-race', backend: 'claude', profileName: null,
     turns: [{
       turnIndex: 0, userMessageTs: 'm0', userMessageText: 'original', statusMessageTs: null,
       responseMessageTimestamps: [], executionId: null, backupPath: null,
@@ -42,7 +42,7 @@ function makeRewindDeps(channel: string, overrides: Partial<RewindDeps> = {}): R
     },
     sessionStore: {
       getById: async () => ({
-        name: 'cortex-race', sessionId: 'track-race', backendSessionId: 'backend-race',
+        sessionId: 'track-race', backendSessionId: 'backend-race',
         channel, backend: 'claude',
       } as any),
       updateSession: async () => {},

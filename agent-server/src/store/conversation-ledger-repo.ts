@@ -21,7 +21,6 @@ export type LedgerTurn = TurnRecord;
 
 export interface ChannelConversation {
   sessionId: string | null;
-  sessionName: string | null;
   backend: string;
   /** Profile name used when the conversation was created or switched — needed
    *  by !new / pre-close hooks to resume the session with the same profile. */
@@ -47,7 +46,6 @@ function deriveUpdatedAt(header: ConversationHeader, turns: LedgerTurn[]): strin
 function toChannelConversation(header: ConversationHeader, turns: LedgerTurn[]): ChannelConversation {
   return {
     sessionId: header.sessionId,
-    sessionName: header.sessionName,
     backend: header.backend,
     profileName: header.profileName,
     turns,
@@ -87,14 +85,12 @@ export class ConversationLedgerRepo {
 
   async initConversation(channel: string, opts: {
     sessionId: string | null;
-    sessionName: string | null;
-    backend: string;
+      backend: string;
     profileName?: string | null;
   }): Promise<ChannelConversation> {
     const now = nowIso();
     const header: ConversationHeader = {
       sessionId: opts.sessionId,
-      sessionName: opts.sessionName,
       backend: opts.backend,
       profileName: opts.profileName ?? null,
       updatedAt: now,
@@ -210,13 +206,11 @@ export class ConversationLedgerRepo {
 
   async switchSession(channel: string, opts: {
     sessionId: string;
-    sessionName: string | null;
-    backend: string;
+      backend: string;
     profileName?: string | null;
   }): Promise<void> {
     const header: ConversationHeader = {
       sessionId: opts.sessionId,
-      sessionName: opts.sessionName,
       backend: opts.backend,
       profileName: opts.profileName ?? null,
       updatedAt: nowIso(),
@@ -234,8 +228,7 @@ export class ConversationLedgerRepo {
    */
   async initAndBeginTurn(channel: string, opts: {
     sessionId: string | null;
-    sessionName: string | null;
-    backend: string;
+      backend: string;
     profileName?: string | null;
     userMessageTs: string;
     userMessageText: string;
@@ -245,8 +238,7 @@ export class ConversationLedgerRepo {
       if (!ops.getConversationHeader(channel)) {
         await ops.setConversation(channel, {
           sessionId: opts.sessionId,
-          sessionName: opts.sessionName,
-          backend: opts.backend,
+              backend: opts.backend,
           profileName: opts.profileName ?? null,
           updatedAt: nowIso(),
         });

@@ -6,35 +6,26 @@ import { createTuiSessionService } from '../../../src/domain/tui-session/tui-ses
 // ── Helpers ──────────────────────────────────────────────────────
 
 function makeFakeDeps(overrides?: Partial<TuiSessionDeps>): TuiSessionDeps & { _calls: string[] } {
-  const sessions = new Map<string, { name: string; channel: string; projectId: string }>();
+  const sessions = new Map<string, { channel: string; projectId: string }>();
   const calls: string[] = [];
 
   const defaults: TuiSessionDeps = {
     sessionStore: {
-      lookupBySessionId: async (id: string) => {
-        calls.push(`lookupBySessionId(${id})`);
-        const s = sessions.get(id);
-        return s?.name ?? null;
-      },
       getById: async (id: string) => {
         calls.push(`getById(${id})`);
         const s = sessions.get(id);
         return s ? { channel: s.channel, projectId: s.projectId } : null;
       },
-      generateSessionName: async () => {
-        calls.push('generateSessionName');
-        return 'cortex-abc123';
-      },
-      registerSession: async (name: string, opts: { sessionId: string; channel: string; backend: string; kind: string; projectId: string }) => {
-        calls.push(`registerSession(${name},${opts.sessionId},${opts.channel},${opts.projectId})`);
-        sessions.set(opts.sessionId, { name, channel: opts.channel, projectId: opts.projectId });
+      registerSession: async (opts: { sessionId: string; channel: string; backend: string; kind: 'local' | 'scheduled'; projectId: string }) => {
+        calls.push(`registerSession(${opts.sessionId},${opts.channel},${opts.projectId})`);
+        sessions.set(opts.sessionId, { channel: opts.channel, projectId: opts.projectId });
       },
     },
     conversationLedger: {
-      initConversation: async (channel: string, opts: { sessionId: string; sessionName: string; backend: string }) => {
+      initConversation: async (channel: string, opts: { sessionId: string; backend: string }) => {
         calls.push(`initConversation(${channel},${opts.sessionId})`);
       },
-      switchSession: async (channel: string, opts: { sessionId: string; sessionName: string; backend: string }) => {
+      switchSession: async (channel: string, opts: { sessionId: string; backend: string }) => {
         calls.push(`switchSession(${channel},${opts.sessionId})`);
       },
     },
@@ -60,7 +51,7 @@ function makeFakeDeps(overrides?: Partial<TuiSessionDeps>): TuiSessionDeps & { _
 test('resolveHandshake: resume-found', async () => {
   const deps = makeFakeDeps();
   // Pre-register session via store method
-  await deps.sessionStore.registerSession('cortex-resume', {
+  await deps.sessionStore.registerSession({
     sessionId: 'resume-session-1',
     channel: 'tui-conduit-orig',
     backend: 'tui',
@@ -79,7 +70,6 @@ test('resolveHandshake: resume-found', async () => {
   assert.equal(result.isFresh, false, 'isFresh must be false');
   assert.equal(result.emitNotFoundError, false, 'emitNotFoundError must be false');
   assert.equal(result.sessionId, 'resume-session-1');
-  assert.equal(result.sessionName, 'cortex-resume');
   assert.equal(result.projectId, 'proj-x', 'projectId from session registry, not fallback');
   assert.equal(result.transcript, null, 'transcript null when no turns'); // No seeded turns
 });
@@ -96,22 +86,20 @@ test('resolveHandshake: resume-not-found', async () => {
 
   assert.equal(result.isFresh, true, 'isFresh must be true');
   assert.equal(result.emitNotFoundError, true, 'emitNotFoundError must be true — resume not found creates fresh with error flag');
-  assert.equal(result.sessionName, 'cortex-abc123');
   assert.equal(result.projectId, 'general');
   assert.ok(result.sessionId, 'sessionId must be set (fresh)');
   assert.equal(result.transcript, null, 'transcript null for fresh');
 
   // Fresh fallback: store calls and ordering
-  assert.ok(deps._calls[0].startsWith('lookupBySessionId'), 'first call: lookupBySessionId');
-  assert.ok(deps._calls[1].startsWith('generateSessionName'), 'second call: generateSessionName');
-  assert.ok(deps._calls[2].startsWith('registerSession'), 'third call: registerSession');
-  assert.ok(deps._calls[3].startsWith('initConversation'), 'fourth call: initConversation');
+  assert.ok(deps._calls[0].startsWith('getById'), 'first call: getById');
+    assert.ok(deps._calls[1].startsWith('registerSession'), 'second call: registerSession');
+  assert.ok(deps._calls[2].startsWith('initConversation'), 'third call: initConversation');
 });
 
 test('switchSession: found', async () => {
   const deps = makeFakeDeps();
   // Pre-register a session
-  await deps.sessionStore.registerSession('cortex-switch', {
+  await deps.sessionStore.registerSession({
     sessionId: 'switch-session-1',
     channel: 'tui-conduit-other',
     backend: 'tui',
@@ -129,7 +117,6 @@ test('switchSession: found', async () => {
 
   assert.equal(result.isFresh, false, 'isFresh must be false');
   assert.equal(result.sessionId, 'switch-session-1');
-  assert.equal(result.sessionName, 'cortex-switch');
   assert.equal(result.projectId, 'proj-y', 'projectId from session registry');
   assert.equal(result.transcript, null, 'transcript null when no turns');
 
@@ -152,7 +139,6 @@ test('switchSession: not-found', async () => {
   });
 
   assert.equal(result.isFresh, true, 'isFresh must be true');
-  assert.equal(result.sessionName, 'cortex-abc123');
   assert.equal(result.projectId, 'general', 'switch-not-found uses raw projectId, not resolvedProjectId');
   assert.ok(result.sessionId, 'sessionId must be set (fresh)');
   assert.equal(result.transcript, null);
@@ -172,7 +158,6 @@ test('switchSession: no sessionId (fresh fallback)', async () => {
   });
 
   assert.equal(result.isFresh, true, 'isFresh must be true');
-  assert.equal(result.sessionName, 'cortex-abc123');
   assert.equal(result.projectId, 'general');
   assert.ok(result.sessionId, 'sessionId must be set (fresh)');
   assert.equal(result.transcript, null);
@@ -193,7 +178,7 @@ test('resolveHandshake: resume-found assembles transcript from conversation hist
       }),
     },
   });
-  await deps.sessionStore.registerSession('cortex-resume', {
+  await deps.sessionStore.registerSession({
     sessionId: 'resume-session-2',
     channel: 'tui-conduit',
     backend: 'tui',

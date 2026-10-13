@@ -185,7 +185,6 @@ test('open forwards authoritative Cortex thread context to the session env', () 
     cortexContext: {
       profile: 'deepseek-pro',
       project: 'vr-security',
-      sessionName: 'cortex-test',
       trackSessionId: 'tracked-session',
       executionId: 'exec-test',
     },
@@ -194,7 +193,7 @@ test('open forwards authoritative Cortex thread context to the session env', () 
   const env = fake.requests[0].env;
   assert.equal(env.CORTEX_PROFILE, 'deepseek-pro');
   assert.equal(env.CORTEX_PROJECT, 'vr-security');
-  assert.equal(env.CORTEX_SESSION_NAME, 'cortex-test');
+  assert.equal(env.CORTEX_SESSION_NAME, undefined);
   assert.equal(env.CORTEX_SESSION_ID, 'tracked-session');
   assert.equal(env.CORTEX_EXECUTION_ID, 'exec-test');
   assert.equal(env.CORTEX_CALLBACK_SOURCE, 'thread');

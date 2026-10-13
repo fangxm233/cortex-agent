@@ -99,7 +99,6 @@ export interface SessionSwitched {
   id: string;
   projectId: string;
   sessionId: string;
-  sessionName: string;
   isFresh: boolean;
   seq: number;
 }
@@ -437,7 +436,7 @@ const REQUIRED_FIELDS: Record<string, readonly string[]> = {
   [HANDSHAKE_HELLO]:       ['protocolVersion', 'clientName', 'clientVersion'],
   [HANDSHAKE_ACK]:         ['protocolVersion', 'serverVersion', 'conduitId', 'defaultProjectId', 'seq'],
   [SESSION_SWITCH]:        ['id', 'projectId'],
-  [SESSION_SWITCHED]:      ['id', 'projectId', 'sessionId', 'sessionName', 'isFresh', 'seq'],
+  [SESSION_SWITCHED]:      ['id', 'projectId', 'sessionId', 'isFresh', 'seq'],
   [PING]:                  ['ts'],
   [PONG]:                  ['ts'],
   [CLOSE]:                 [],

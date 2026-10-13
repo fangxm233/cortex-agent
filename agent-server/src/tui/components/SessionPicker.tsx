@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { computeFocusWindow } from '../logic.js';
 import { t } from '../../core/i18n.js';
+import { shortSessionId } from '../../core/short-session-id.js';
 
 /** Max session rows shown at once — the list is windowed around the selection so a long
  *  session history can't overflow the terminal (Ink can't clear rows scrolled past the
@@ -10,7 +11,6 @@ const PICKER_MAX_VISIBLE = 12;
 
 export interface ResumableSession {
   sessionId: string;
-  name: string;
   projectId: string;
   label: string | null;
 }
@@ -68,7 +68,7 @@ export function SessionPicker({ sessions, onSelect, onCancel }: SessionPickerPro
             <Box key={s.sessionId} marginBottom={0}>
               <Text>{i === selectedIdx ? '▶' : ' '}</Text>
               <Text> </Text>
-              <Text bold={i === selectedIdx}>{s.name}</Text>
+              <Text bold={i === selectedIdx}>{shortSessionId(s.sessionId)}</Text>
               <Text dimColor> ({s.projectId})</Text>
               {s.label ? <Text dimColor> — {s.label}</Text> : null}
             </Box>

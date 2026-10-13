@@ -6,9 +6,9 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 const mockSessions = [
-  { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
-  { sessionId: 's2', name: 'cortex-def', projectId: 'proj2', channel: 'C2', backend: 'pi', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, profileName: null },
-  { sessionId: 's3', name: 'cortex-ghi', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', profileName: 'pi' },
+  { sessionId: 's1', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
+  { sessionId: 's2', projectId: 'proj2', channel: 'C2', backend: 'pi', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, profileName: null },
+  { sessionId: 's3', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', profileName: 'pi' },
 ];
 
 function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
@@ -91,8 +91,7 @@ test('sessions.list resolves compaction support once per profile, not once per s
   const many = Array.from({ length: 120 }, (_, i) => ({
     ...mockSessions[i % mockSessions.length],
     sessionId: `bulk-${i}`,
-    name: `cortex-bulk-${i}`,
-    projectId: 'proj1',
+        projectId: 'proj1',
     origin: 'direct' as const,
   }));
   const asked: string[] = [];
@@ -155,7 +154,7 @@ test('sessions.list running snapshot: a session is NOT running just because a DI
   // NEW session on that channel ran. sessionState keys off the session id — the stale row stays idle.
   const switched = [
     { ...mockSessions[0] }, // s1, channel C1 — the record left behind by the switch
-    { ...mockSessions[0], sessionId: 's1-new', name: 'cortex-new', channel: 'C1' },
+    { ...mockSessions[0], sessionId: 's1-new', channel: 'C1' },
   ];
   const deps = makeDeps({
     sessionStore: {
@@ -364,7 +363,7 @@ test('sessions.list numTurns/costUsd: a run belonging to ANOTHER session on the 
     sessionStore: {
       listByProject: async () => [
         { ...mockSessions[0] },
-        { ...mockSessions[0], sessionId: 's1-new', name: 'cortex-new', channel: 'C1' },
+        { ...mockSessions[0], sessionId: 's1-new', channel: 'C1' },
       ],
     } as any,
     runningExecutions: {
@@ -604,7 +603,7 @@ test('sessions.list unread: a never-viewed SCHEDULED session is unread (result a
     // scheduled, never viewed → unread (the 27c "result → blue dot until opened" rule)
     { ...mockSessions[1] },
     // scheduled, viewed after its run → read
-    { ...mockSessions[1], sessionId: 's2b', name: 'cortex-s2b', lastReadAt: '2026-04-02T00:00:00Z' },
+    { ...mockSessions[1], sessionId: 's2b', lastReadAt: '2026-04-02T00:00:00Z' },
     // direct, never viewed → stays grandfathered as read (no unread flood on deploy)
     { ...mockSessions[0] },
   ];
@@ -711,7 +710,7 @@ test('sessions.transcript returns durable pending messages even before committed
     pendingInjections: {
       listBySession: async (sessionId: string) => sessionId === 's1' ? [{
         id: 'pin-1', sessionId: 's1', channel: 'web:s1', messageId: 'web-1',
-        sessionName: 'cortex-nimbus', backend: 'claude', profileName: 'default',
+        backend: 'claude', profileName: 'default',
         text: 'change direction', attachments, createdAt: '2026-05-01T00:00:03.000Z',
       }] : [],
     },
@@ -746,7 +745,7 @@ test('sessions.transcript reads active pending before history to avoid a cross-s
 test('sessions.transcript suppresses an active record whose committed history row already landed', async () => {
   const pending = {
     id: 'pin-race', sessionId: 's1', channel: 'web:s1', messageId: 'web-race',
-    sessionName: 'cortex-nimbus', backend: 'claude', profileName: 'default',
+    backend: 'claude', profileName: 'default',
     text: 'change direction', createdAt: '2026-05-01T00:00:03.000Z',
   };
   const deps = makeDeps({

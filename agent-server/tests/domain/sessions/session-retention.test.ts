@@ -59,11 +59,11 @@ async function makeHarness(registryOptions: SessionRegistryRepoOptions = {}) {
 
 test('retention sweep retries pending intents, does not commit failed cleanup, then retries successfully', async () => {
   const h = await makeHarness();
-  await h.registry.registerSession('cortex-old', registerOpts('track-old', { backendSessionId: 'backend-old' }));
-  await h.registry.updateSession('cortex-old', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await h.registry.registerSession(registerOpts('track-old', { backendSessionId: 'backend-old' }));
+  await h.registry.updateSession('track-old', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await h.registry.bindChannel('web:track-old', 'track-old');
   await h.ledger.initConversation('web:track-old', {
-    sessionId: 'track-old', sessionName: 'cortex-old', backend: 'claude',
+    sessionId: 'track-old', backend: 'claude',
   });
   await h.history.appendUser('track-old', { text: 'old' });
   await h.ledger.beginTurn('web:track-old', {
@@ -139,10 +139,10 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
 
 test('retention sweep ignores untrusted Claude ledger backup paths outside the configured project directory', async () => {
   const h = await makeHarness();
-  await h.registry.registerSession('cortex-untrusted', registerOpts('track-untrusted', { backendSessionId: 'backend-untrusted' }));
-  await h.registry.updateSession('cortex-untrusted', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await h.registry.registerSession(registerOpts('track-untrusted', { backendSessionId: 'backend-untrusted' }));
+  await h.registry.updateSession('track-untrusted', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await h.ledger.initConversation('web:track-untrusted', {
-    sessionId: 'track-untrusted', sessionName: 'cortex-untrusted', backend: 'claude',
+    sessionId: 'track-untrusted', backend: 'claude',
   });
   await h.ledger.beginTurn('web:track-untrusted', { userMessageTs: 'M1', userMessageText: 'old' });
   const outside = path.join(h.root, 'outside.jsonl.turn-0.bak');
@@ -172,8 +172,8 @@ test('retention sweep drops a deleted session\'s carried totals, and leaves surv
   // The carry is keyed by session id and is written only by the archive sweep, so nothing else
   // would ever remove an entry — without this it outlives every session it describes.
   const h = await makeHarness();
-  await h.registry.registerSession('cortex-gone', registerOpts('track-gone'));
-  await h.registry.updateSession('cortex-gone', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await h.registry.registerSession(registerOpts('track-gone'));
+  await h.registry.updateSession('track-gone', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
 
   const totals = new SessionTotalsCarryRepo(path.join(h.root, 'session-totals.json'));
   await totals.fold([
@@ -201,8 +201,8 @@ test('retention sweep drops a deleted session\'s carried totals, and leaves surv
 
 test('retention sweep preserves invalid registry dates, syncs Claude helper, and protects active capture pairs', async () => {
   const h = await makeHarness();
-  await h.registry.registerSession('cortex-invalid', registerOpts('track-invalid'));
-  await h.registry.updateSession('cortex-invalid', { lastUsedAt: 'not-a-date' });
+  await h.registry.registerSession(registerOpts('track-invalid'));
+  await h.registry.updateSession('track-invalid', { lastUsedAt: 'not-a-date' });
   const activeStem = '2026-08-01T00-00-00Z';
   const activeJsonl = path.join(h.captureDir, `claude-output-${activeStem}.jsonl`);
   const activeTxt = path.join(h.captureDir, `claude-output-${activeStem}.txt`);
@@ -308,7 +308,7 @@ test('retention sweep deletes orphan history and PI transcript bundles only afte
 test('retention sweep removes tool-image directories of sessions that are gone, and only those, on the second sweep', async () => {
   const h = await makeHarness();
   const toolImagesDir = path.join(h.root, 'tool-images');
-  await h.registry.registerSession('cortex-live', registerOpts('track-live'));
+  await h.registry.registerSession(registerOpts('track-live'));
   const dirs = ['track-live', 'track-gone', 'track-fresh'].map((name) => path.join(toolImagesDir, name));
   for (const dir of dirs) {
     await fs.mkdir(dir, { recursive: true });
@@ -616,13 +616,13 @@ async function seedExpiredSessions(h: Harness, count: number, extra: (i: number)
     ids.push(id);
     const backupPath = backend === 'claude' ? path.join(h.claudeProjectDir, `${backendId}.jsonl.turn-0.bak`) : null;
     lines.push(JSON.stringify({ v: 1, op: 'put', id, record: {
-      name: `cortex-${id}`, sessionId: id, projectId: 'proj', channel, backend, kind: 'local', origin: 'direct',
+      sessionId: id, projectId: 'proj', channel, backend, kind: 'local', origin: 'direct',
       createdAt: OLD, lastUsedAt: OLD, label: null, profileName: null, backendSessionId: backendId, scheduleId: null,
       ...extra(i),
     } }));
     lines.push(JSON.stringify({ v: 1, op: 'bind', channel, sessionId: id }));
     lines.push(JSON.stringify({ v: 1, op: 'conversation', channel, kind: 'set', fields: {
-      sessionId: id, sessionName: `cortex-${id}`, backend, profileName: null, updatedAt: OLD,
+      sessionId: id, backend, profileName: null, updatedAt: OLD,
     } }));
     lines.push(JSON.stringify({ v: 1, op: 'turn', channel, kind: 'begin', turn: {
       turnIndex: 0, userMessageTs: 'M0', userMessageText: 'old', statusMessageTs: null, responseMessageTimestamps: [],
@@ -737,7 +737,7 @@ test('retention sweep keeps liveness-protected, leased and dependent sessions ac
   const h = await makeHarness();
   // track-1 leads track-2 (a worker); track-150 is held by a live execution; track-200 has a lease.
   await seedExpiredSessions(h, 250, i => (i === 2 ? { teamLeadId: 'track-1', workerName: 'w' } : {}));
-  await sessionStore.registerSession('cortex-leased', {
+  await sessionStore.registerSession({
     sessionId: 'track-200', channel: 'web:track-200', backend: 'claude', kind: 'local', projectId: 'proj',
   });
   const release = await acquireSessionUse('track-200');
@@ -768,7 +768,7 @@ test('retention sweep keeps liveness-protected, leased and dependent sessions ac
 test('retention sweep disarms the waitpoints of the sessions it deletes, before committing', async () => {
   const h = await makeHarness();
   await seedExpiredSessions(h, 2);
-  await h.registry.registerSession('cortex-live', registerOpts('track-live'));
+  await h.registry.registerSession(registerOpts('track-live'));
   const repo = new WaitpointRepo({ filePath: path.join(h.storeDir, 'waitpoints.json') });
   const wpDeps = { ...productionWaitpointDeps, repo };
   const owner = (id: string) => ({ sessionId: id, channel: `web:${id}` });

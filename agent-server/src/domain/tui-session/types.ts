@@ -5,11 +5,8 @@ export type { HandshakeResolution, SwitchResolution, TuiSessionService } from '@
 
 export interface TuiSessionDeps {
   sessionStore: {
-    lookupBySessionId(id: string): Promise<string | null>;
     getById(id: string): Promise<{ channel: string; projectId: string } | null>;
-    generateSessionName(): Promise<string>;
     registerSession(
-      name: string,
       opts: {
         sessionId: string;
         channel: string;
@@ -24,11 +21,11 @@ export interface TuiSessionDeps {
   conversationLedger: {
     initConversation(
       channel: string,
-      opts: { sessionId: string; sessionName: string; backend: string },
+      opts: { sessionId: string; backend: string },
     ): Promise<unknown>;
     switchSession(
       channel: string,
-      opts: { sessionId: string; sessionName: string; backend: string },
+      opts: { sessionId: string; backend: string },
     ): Promise<unknown>;
   };
   /** Cortex's backend-independent conversation history, keyed by sessionId — the TUI

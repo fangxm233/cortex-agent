@@ -42,8 +42,8 @@ test('acquireSessionUse refuses an unknown session', async () => {
 test('acquireSessionUse refuses a session pending deletion', async () => {
   const repo = await makeRepo();
   const use = new SessionUseTracker(repo);
-  await repo.registerSession('cortex-pending', registerOpts('sess-pending'));
-  await repo.updateSession('cortex-pending', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.registerSession(registerOpts('sess-pending'));
+  await repo.updateSession('sess-pending', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
 
   assert.equal(await use.acquireSessionUse('sess-pending'), null);
@@ -53,8 +53,8 @@ test('acquireSessionUse refuses a session pending deletion', async () => {
 test('acquireSessionUse bumps lastUsedAt on a live session', async () => {
   const repo = await makeRepo();
   const use = new SessionUseTracker(repo);
-  await repo.registerSession('cortex-live', registerOpts('sess-live'));
-  await repo.updateSession('cortex-live', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.registerSession(registerOpts('sess-live'));
+  await repo.updateSession('sess-live', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
 
   const release = await use.acquireSessionUse('sess-live');
   assert.ok(release);
@@ -66,7 +66,7 @@ test('acquireSessionUse bumps lastUsedAt on a live session', async () => {
 test('nested acquires stack and release is idempotent', async () => {
   const repo = await makeRepo();
   const use = new SessionUseTracker(repo);
-  await repo.registerSession('cortex-nest', registerOpts('sess-nest'));
+  await repo.registerSession(registerOpts('sess-nest'));
 
   const first = await use.acquireSessionUse('sess-nest');
   const second = await use.acquireSessionUse('sess-nest');
@@ -85,10 +85,10 @@ test('nested acquires stack and release is idempotent', async () => {
 test('retention skips in-use sessions via the protected set', async () => {
   const repo = await makeRepo();
   const use = new SessionUseTracker(repo);
-  await repo.registerSession('cortex-held', registerOpts('sess-held'));
-  await repo.registerSession('cortex-idle', registerOpts('sess-idle'));
-  await repo.updateSession('cortex-held', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
-  await repo.updateSession('cortex-idle', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.registerSession(registerOpts('sess-held'));
+  await repo.registerSession(registerOpts('sess-idle'));
+  await repo.updateSession('sess-held', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await repo.updateSession('sess-idle', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
 
   const release = await use.acquireSessionUse('sess-held');
   assert.ok(release);

@@ -58,7 +58,6 @@ function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
   setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
   setOptional(env, 'CORTEX_PROFILE', context?.profile);
   setOptional(env, 'CORTEX_PROJECT', context?.project);
-  setOptional(env, 'CORTEX_SESSION_NAME', context?.sessionName);
   setOptional(env, 'CORTEX_EXECUTION_ID', context?.executionId);
 }
 

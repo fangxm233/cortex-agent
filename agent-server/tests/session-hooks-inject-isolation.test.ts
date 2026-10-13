@@ -51,7 +51,7 @@ function makeDeps() {
 function onNewSpec(channel: string, oldSessionId: string): SessionHookSpec {
   return {
     name: 'onNew',
-    ctx: { channel, sessionId: oldSessionId, sessionName: oldSessionId.slice(0, 8), profile: null },
+    ctx: { channel, sessionId: oldSessionId, profile: null },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
       sessionId: `track-${oldSessionId}`,
@@ -103,7 +103,7 @@ test('runHookInjection (onMessageEnd) — injects on the channel key and does NO
   const stream = makeStream();
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',
-    ctx: { channel, sessionId: 'live-sess', sessionName: 'live', profile: null },
+    ctx: { channel, sessionId: 'live-sess', profile: null },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
       sessionId: 'track-live', backendSessionId: 'live-sess', profileName: null, sessionKey: channel,
@@ -145,7 +145,7 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   const { deps, startRunCalls } = makeDeps();
   const turn = {
     runId: 'run-turn',
-    session: { sessionId: 'track-live', backendSessionId: null, engineKey: channel, sessionName: 'cortex-live' },
+    session: { sessionId: 'track-live', backendSessionId: null, engineKey: channel},
     profile: { name: 'plan' },
     spec: { tools: 'Bash,Read', pluginDirs: ['/plugins/coder'] },
     prompt: { text: 'hello', attachments: [] },
@@ -154,7 +154,7 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   } as unknown as RunRequest;
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',
-    ctx: { channel, sessionId: 'track-live', sessionName: 'cortex-live', backendSessionId: 'backend-live', profile: null },
+    ctx: { channel, sessionId: 'track-live', backendSessionId: 'backend-live', profile: null },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
       sessionId: 'track-live', backendSessionId: 'backend-live', profileName: null, sessionKey: channel,

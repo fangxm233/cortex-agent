@@ -128,7 +128,7 @@ async function openScheduledRun(
     scheduleId: scheduleTaskId || null,
     label: message.substring(0, 60) || null,
   });
-  log.info(`Schedule ${scheduleTaskId} opened session ${created.sessionName} (${created.sessionId})`);
+  log.info(`Schedule ${scheduleTaskId} opened session ${created.sessionId} (${created.sessionId})`);
   await deliver({ channel: created.channel, text: message });
 }
 

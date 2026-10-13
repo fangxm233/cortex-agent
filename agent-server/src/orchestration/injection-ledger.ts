@@ -24,7 +24,6 @@ export interface InjectionLedgerDeps {
   /** Captured while the running turn still owns it, before a spontaneous turn starts. */
   getStreamingCallback: (channel: string) => ((text: string) => void) | null;
   /** Session record a continuation's context usage is stored on; without one it is not stored. */
-  sessionName?: string | null;
   /** Publishes the provisional (pending) user row. */
   publishMessage: typeof publishSessionMessage;
   publishDelivered: (ev: {
@@ -293,7 +292,7 @@ function writeContinuationRow(w: ContinuationWriter, event: RunEvent): void | Pr
     if (!event.text) return;
     streamContinuationText(w, event.text, !!event.subagent);
   }
-  if (event.type === 'context_usage' && !w.deps.sessionName) return;
+  if (event.type === 'context_usage' && !w.sessionId) return;
   return w.transcript.onEvent(event);
 }
 
@@ -314,7 +313,7 @@ export function createInjectionObserver(
     deps, sessionId, channel,
     stream: deps.getStreamingCallback(channel),
     transcript: createTranscriptSink({
-      sessionId, channel, sessionName: deps.sessionName ?? '', debug: deps.captureDebug ?? false,
+      sessionId, channel, debug: deps.captureDebug ?? false,
       ...(deps.transcript ? { deps: deps.transcript } : {}),
     }),
   };

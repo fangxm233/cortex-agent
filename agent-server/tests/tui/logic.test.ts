@@ -123,15 +123,18 @@ test('pushHistory: appends, skips blanks and consecutive duplicates', () => {
 // ── matchResumeTarget ──
 
 const SESSIONS = [
-  { sessionId: 'sid-aaaa1111', name: 'cortex-8cdfbe' },
-  { sessionId: 'sid-bbbb2222', name: 'cortex-99ffaa' },
+  { sessionId: 'sid-aaaa1111' },
+  { sessionId: 'sid-bbbb2222' },
+  { sessionId: 'sid-bbbb3333' },
 ];
 
-test('matchResumeTarget: exact sessionId, exact name, suffix, and bare suffix', () => {
+test('matchResumeTarget: full ID or unique prefix >= 6; ambiguity never guesses', () => {
   assert.equal(matchResumeTarget(SESSIONS, 'sid-aaaa1111'), 'sid-aaaa1111');
-  assert.equal(matchResumeTarget(SESSIONS, 'cortex-8cdfbe'), 'sid-aaaa1111');
-  assert.equal(matchResumeTarget(SESSIONS, '8cdfbe'), 'sid-aaaa1111'); // bare short id
-  assert.equal(matchResumeTarget(SESSIONS, 'sid-bbbb'), 'sid-bbbb2222'); // id prefix
+  assert.equal(matchResumeTarget(SESSIONS, 'sid-aaaa'), 'sid-aaaa1111');
+  assert.equal(matchResumeTarget(SESSIONS, 'sid-bb'), null);
+  assert.equal(matchResumeTarget(SESSIONS, 'sid-bbbb'), null);
+  assert.equal(matchResumeTarget(SESSIONS, 'sid-bbbb2'), 'sid-bbbb2222');
+  assert.equal(matchResumeTarget(SESSIONS, 'cortex-8cdfbe'), null);
 });
 
 // ── isMouseSequence ──

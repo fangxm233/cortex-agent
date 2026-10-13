@@ -7,7 +7,7 @@ import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
-import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
+import { registerSessionRecord } from '@domain/sessions/session-lifecycle.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { publishSessionDebugUpdated } from './session-events.js';
@@ -145,11 +145,10 @@ export class AgentRunner {
       if (!runRegistry.hasChannel(ctx.channel)) return false;
       const sessionId = await getSessionAsync(ctx.channel);
       if (!sessionId) return false;
-      const sessionName = await sessionStore.lookupBySessionId(sessionId);
-      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.adapter), {
+
+      return tryInjectIntoLiveTurn(buildInjectDeps(sessionId, ctx.adapter), {
         channel: ctx.channel,
         sessionId,
-        sessionName,
         profileName: getActiveProfile(ctx.channel),
         text: ctx.userMessage || '',
         senderId: ctx.message.senderId,
@@ -187,7 +186,7 @@ export class AgentRunner {
     await withTurnBrowser({ backend, browser: session.browser ?? null }, (cdpEndpoint) => openTurn({
       channel, adapter, threadAnchorId,
       session: {
-        sessionId: session.sessionId, sessionName: session.name, backendSessionId,
+        sessionId: session.sessionId, backendSessionId,
         projectId: session.projectId ?? 'general', lease,
       },
       user: {
@@ -237,7 +236,7 @@ async function bindTurnSession(
     return { lease, backendSessionId: effectiveBackendSessionId(lease.session) };
   }
   const sessionId = crypto.randomUUID();
-  await registerNamedSession(sessionStore, {
+  await registerSessionRecord(sessionStore, {
     sessionId, channel: ctx.channel, backend,
     label: ctx.userMessage?.substring(0, 60) ?? null,
     profileName: getActiveProfile(ctx.channel),

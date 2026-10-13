@@ -50,13 +50,13 @@ let seq = 0;
 function freshSession() {
   seq += 1;
   return {
-    channel: `slack:C-hooks-${seq}`, name: `cortex-hooks-${seq}`,
+    channel: `slack:C-hooks-${seq}`,
     trackId: `track-${seq}`, backendId: `backend-${seq}`,
   };
 }
 
 async function register(s: ReturnType<typeof freshSession>, backendSessionId: string | null): Promise<void> {
-  await sessionStore.registerSession(s.name, {
+  await sessionStore.registerSession({
     sessionId: s.trackId, backendSessionId, channel: s.channel, backend: 'claude', kind: 'local',
     profileName: 'scan',
   });
@@ -85,8 +85,7 @@ function finishTurn(s: ReturnType<typeof freshSession>, request: ReturnType<type
   return handleDefaultAgentResult({
     result: { sessionId: s.backendId, total_cost_usd: 0, num_turns: 1, rateLimited: false, finalOutput: 'ok' } as any,
     channel: s.channel, adapter, statusMsg: { conduit: s.channel, messageId: 'status' },
-    startTime: Date.now(), userMessage: 'hi', executionId: 'exec-1', sessionName: s.name,
-    sessionId: s.trackId, threadAnchorId: null, messageTs: null,
+    startTime: Date.now(), userMessage: 'hi', executionId: 'exec-1', sessionId: s.trackId, threadAnchorId: null, messageTs: null,
     callbacks: { onAssistantMsg: Object.assign(() => {}, { stream }) },
     request,
   });
@@ -136,7 +135,7 @@ test('the onMessageEnd follow-up continues the finished turn\'s session and resu
   await register(s, null);
   writeHooks([hook('cortex:session.messageEnd', { command: "node -e 'process.stdout.write(\"follow up\")'" })]);
   // A first turn: it opened with no backend id and the backend assigned one.
-  const request = runRequestFixture({ channel: s.channel, trackSessionId: s.trackId, sessionName: s.name });
+  const request = runRequestFixture({ channel: s.channel, trackSessionId: s.trackId});
   await finishTurn(s, request);
   expect(started).toHaveLength(1);
   expect(started[0].session.sessionId).toBe(s.trackId);

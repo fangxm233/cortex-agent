@@ -12,8 +12,7 @@ import { resolveCommissionCreate, type CommissionCreateRequest } from '@domain/c
 import { getSettings } from '@core/settings.js';
 
 export interface SessionRegistryWriter {
-  generateSessionName(): Promise<string>;
-  registerSession(name: string, opts: {
+  registerSession(opts: {
     sessionId: string; channel: string; backend: string;
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
     label?: string | null; profileName?: string | null; agentName?: string | null;
@@ -24,7 +23,7 @@ export interface SessionRegistryWriter {
   }): Promise<void>;
 }
 
-export interface RegisterNamedSessionOpts {
+export interface RegisterSessionRecordOpts {
   sessionId: string;
   channel: string;
   backend: string;
@@ -36,9 +35,8 @@ export interface RegisterNamedSessionOpts {
   agentName?: string | null;
   /** Opt-in browser access for this session; null/absent means no browser tools at all. */
   browser?: SessionBrowserOption | null;
-  /** Resolve commission fields from the freshly generated session name. Needed because a new
-   *  commission's draft directory is named after the session, which is not known until here. */
-  commissionFor?: (sessionName: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
+  /** Resolve commission fields using the new session ID. */
+  commissionFor?: (sessionId: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
   /** Team mode: the owning lead's sessionId, this worker's name and its brief. Absent for ordinary
    *  sessions. */
   teamLeadId?: string | null;
@@ -49,18 +47,13 @@ export interface RegisterNamedSessionOpts {
   scheduleId?: string | null;
 }
 
-/** Generate a fresh session name and register a registry record for sessionId. Returns the name.
- *  Centralizes the generateSessionName + registerSession pairing used by inbound-message session
- *  creation (agent-runner) and TUI fresh-session creation. */
-export async function registerNamedSession(store: SessionRegistryWriter, opts: RegisterNamedSessionOpts): Promise<string> {
-  const name = await store.generateSessionName();
-  // Resolved AFTER the name exists: a new commission's draft dir is `_draft-<session name>`, and a
-  // failure here must abort creation rather than quietly produce an ordinary session.
-  const commission = opts.commissionFor ? await opts.commissionFor(name) : null;
+/** Register a session by its stable ID; resolve commission fields before persisting. */
+export async function registerSessionRecord(store: SessionRegistryWriter, opts: RegisterSessionRecordOpts): Promise<void> {
+  const commission = opts.commissionFor ? await opts.commissionFor(opts.sessionId) : null;
   // Every caller path but a schedule's fire (inbound direct message, TUI and web fresh sessions,
   // team workers) is user-initiated.
   const scheduled = !!opts.scheduleId;
-  await store.registerSession(name, {
+  await store.registerSession({
     sessionId: opts.sessionId,
     channel: opts.channel,
     backend: opts.backend,
@@ -78,7 +71,6 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
       : {}),
     ...(scheduled ? { scheduleId: opts.scheduleId } : {}),
   });
-  return name;
 }
 
 export interface CreateDirectSessionDeps {
@@ -86,14 +78,14 @@ export interface CreateDirectSessionDeps {
   /** Bind the channel to the new session in the registry (so a later send resumes it). */
   setChannelSession(channel: string, sessionId: string): Promise<void>;
   /** Initialize the conversation ledger for the new channel/session. */
-  initConversation(channel: string, opts: { sessionId: string; sessionName: string; backend: string }): Promise<void>;
+  initConversation(channel: string, opts: { sessionId: string; backend: string }): Promise<void>;
   /** Resolve the backend the send path will use for the channel (agent-runner reads the same). */
   resolveBackend(channel: string): string;
 }
 
 /** Create a fresh, live session for a web/UI conversation: mint a sessionId, derive its own
- *  `web:<sessionId>` conduit channel, register the named session, bind the channel→session mapping
- *  and conversation ledger. Returns the sessionId + generated name + channel. The session is
+ *  `web:<sessionId>` conduit channel, register by ID, bind the channel→session mapping
+ *  and conversation ledger. Returns the sessionId + channel. The session is
  *  user-initiated (origin='direct') unless `scheduleId` names the schedule whose fire opened it.
  *
  *  When `profileName` is provided, the backend is resolved directly from the profile config (not
@@ -111,7 +103,7 @@ export async function createDirectSession(
     teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     label?: string | null; scheduleId?: string | null;
   },
-): Promise<{ sessionId: string; sessionName: string; channel: string }> {
+): Promise<{ sessionId: string; channel: string }> {
   const sessionId = opts.sessionId ?? crypto.randomUUID();
   const channel = `web:${sessionId}`;
 
@@ -165,7 +157,7 @@ export async function createDirectSession(
     );
   }
 
-  const sessionName = await registerNamedSession(deps.sessionStore, {
+  await registerSessionRecord(deps.sessionStore, {
     sessionId,
     channel,
     backend,
@@ -175,7 +167,7 @@ export async function createDirectSession(
     agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
     commissionFor: opts.commission
-      ? (name) => resolveCommissionCreate(opts.projectId, name, opts.commission!)
+      ? (id) => resolveCommissionCreate(opts.projectId, id, opts.commission!)
       : undefined,
     teamLeadId: opts.teamLeadId ?? null,
     workerName: opts.workerName ?? null,
@@ -183,13 +175,12 @@ export async function createDirectSession(
     scheduleId: opts.scheduleId ?? null,
   });
   await deps.setChannelSession(channel, sessionId);
-  await deps.initConversation(channel, { sessionId, sessionName, backend });
-  return { sessionId, sessionName, channel };
+  await deps.initConversation(channel, { sessionId, backend });
+  return { sessionId, channel };
 }
 
 export interface AttachExistingSessionOpts {
   sessionId: string;
-  sessionName: string;
   backend: string;
   profileName?: string | null;
 }
@@ -200,13 +191,13 @@ export async function attachExistingSession(channel: string, opts: AttachExistin
   if (opts.profileName) setActiveProfile(opts.profileName, channel);
   await setSessionAsync(channel, opts.sessionId);
   await conversationLedger.switchSession(channel, {
-    sessionId: opts.sessionId, sessionName: opts.sessionName, backend: opts.backend, profileName: opts.profileName,
+    sessionId: opts.sessionId, backend: opts.backend, profileName: opts.profileName,
   });
 }
 
 export interface AdoptScheduledSessionStore {
   getById(sessionId: string): Promise<{
-    name: string; channel: string; backend: string; origin: SessionOrigin; profileName: string | null;
+    channel: string; backend: string; origin: SessionOrigin; profileName: string | null;
   } | null>;
   /** Re-point the registry record: channel → the adopted channel, kind → local, origin → direct. */
   convertToDirect(sessionId: string, opts: { channel: string }): Promise<unknown | null>;
@@ -229,7 +220,7 @@ export async function adoptScheduledSession(
   // Re-attaching the conduit it already runs on would switch the ledger under a turn that may be live.
   if (record.channel !== channel) {
     await attachExistingSession(channel, {
-      sessionId, sessionName: record.name, backend: record.backend, profileName: record.profileName,
+      sessionId, backend: record.backend, profileName: record.profileName,
     });
   }
   await store.convertToDirect(sessionId, { channel });

@@ -112,7 +112,6 @@ async function handshake(
 ): Promise<{
   conduitId: string;
   sessionId: string;
-  sessionName: string;
 }> {
   sendFrame(ws, {
     type: 'handshake.hello',
@@ -133,7 +132,7 @@ async function handshake(
   if (opts?.resume) {
     const switched: any = await collector.read();
     assert.equal(switched.type, 'session.switched');
-    return { conduitId: ack.conduitId, sessionId: switched.sessionId, sessionName: switched.sessionName };
+    return { conduitId: ack.conduitId, sessionId: switched.sessionId};
   }
 
   sendFrame(ws, { type: 'session.switch', id: 'hs-init', projectId: opts?.project ?? 'general', sessionId: null });
@@ -143,8 +142,7 @@ async function handshake(
   return {
     conduitId: ack.conduitId,
     sessionId: switched.sessionId,
-    sessionName: switched.sessionName,
-  };
+    };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -997,10 +995,9 @@ test('session.switch with unknown sessionId creates fresh session silently', asy
 
 test('handshake resume with known sessionId attaches to existing session', async (t) => {
   const knownSessionId = crypto.randomUUID();
-  const sessionName = 'cortex-test-session-b0';
 
   // Pre-seed session in sessionStore (against test's CORTEX_HOME)
-  await sessionStore.registerSession(sessionName, {
+  await sessionStore.registerSession({
     sessionId: knownSessionId,
     channel: 'b0-test-channel',
     backend: 'tui',
@@ -1011,7 +1008,6 @@ test('handshake resume with known sessionId attaches to existing session', async
   // Pre-seed conversation ledger
   await conversationLedger.initConversation('b0-test-channel', {
     sessionId: knownSessionId,
-    sessionName,
     backend: 'tui',
   });
 

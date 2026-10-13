@@ -45,8 +45,7 @@ function registerTools(
 
 function ctx(overrides: Partial<CortexToolContext> = {}): CortexToolContext {
   return {
-    channel: 'web:42', sessionId: 'sess-1', sessionName: 'cortex-aaaa',
-    profile: 'main', project: 'proj', backend: 'claude',
+    channel: 'web:42', sessionId: 'sess-1', profile: 'main', project: 'proj', backend: 'claude',
     scheduleTaskId: null, callbackSource: null, branchMachine: null,
     webhookBaseUrl: 'http://127.0.0.1:3001', webhookToken: 'tok',
     slackBotToken: null, toolAllowlist: null,

@@ -57,7 +57,6 @@ const cases: Case[] = [
         context: {
           profile: 'fixture-profile',
           project: null,
-          sessionName: null,
           trackSessionId: 'tracked-direct',
           executionId: 'exec-direct',
         },
@@ -106,7 +105,6 @@ const cases: Case[] = [
         context: {
           profile: 'pi-profile',
           project: null,
-          sessionName: null,
           trackSessionId: 'tracked-pi',
           executionId: 'exec-pi',
         },
@@ -162,7 +160,6 @@ const cases: Case[] = [
         context: {
           profile: null,
           project: null,
-          sessionName: null,
           trackSessionId: 'tracked-subagent',
           executionId: 'exec-subagent',
         },
@@ -224,7 +221,6 @@ const cases: Case[] = [
         context: {
           profile: 'web-profile',
           project: null,
-          sessionName: null,
           trackSessionId: 'tracked-browser',
           executionId: 'exec-browser',
         },

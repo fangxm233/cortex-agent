@@ -131,7 +131,7 @@ async function main(): Promise<void> {
   let ackData: { conduitId: string; serverVersion: string; defaultProjectId: string } | null = null;
   let lastSessionId: string | null = null;
   let currentProjectId: string | null = null;
-  let currentSessionName: string | null = null;
+  let currentSessionId: string | null = null;
 
   // Resume state: store sessions for interactive picker
   let resumableSessions: ResumableSession[] | null = null;
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
       },
       serverVersion: ackData?.serverVersion ?? null,
       projectId: currentProjectId ?? ackData?.defaultProjectId ?? null,
-      sessionName: currentSessionName,
+      sessionId: currentSessionId,
       errorMessage,
       onSetDispatch: (dispatch) => { dispatchFrame = dispatch; },
       resumableSessions,
@@ -269,7 +269,7 @@ async function main(): Promise<void> {
           lastSessionId = frame.sessionId;
           client.markSessionId(frame.sessionId);
           currentProjectId = frame.projectId;
-          currentSessionName = frame.sessionName;
+          currentSessionId = frame.sessionId;
           resumePending = false;
           resumableSessions = null;
           doRender();
@@ -282,7 +282,6 @@ async function main(): Promise<void> {
             // Store sessions for interactive picker
             resumableSessions = (frame.data as any[]).map((s: any) => ({
               sessionId: s.sessionId ?? s.id,
-              name: s.name,
               projectId: s.projectId,
               label: s.label ?? null,
             }));

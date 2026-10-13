@@ -161,7 +161,6 @@ export async function handleSessionsList(
       // session record's own) — the real UUID the "Session ID" surface shows, decoupled from the
       // track sessionId above.
       backendSessionId: effectiveBackendSessionId(s),
-      name: s.name,
       projectId: s.projectId,
       backend: s.backend,
       kind: s.kind,

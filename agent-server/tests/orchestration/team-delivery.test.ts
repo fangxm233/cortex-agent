@@ -20,8 +20,8 @@ import { formatUnreadDigest, inboxLine, UNREAD_DIGEST_HEADER } from '../../src/o
 import { TeamOutboxRepo } from '../../src/store/team-outbox-repo.js';
 import { TeamInboxRepo } from '../../src/store/team-inbox-repo.js';
 
-const LEAD = { sessionId: 'lead', name: 'cortex-lead', channel: 'web:lead', origin: 'direct' };
-const WORKER = { sessionId: 'worker', name: 'cortex-w', channel: 'web:worker', origin: 'direct', teamLeadId: 'lead', workerName: 'alpha' };
+const LEAD = { sessionId: 'lead', channel: 'web:lead', origin: 'direct' };
+const WORKER = { sessionId: 'worker', channel: 'web:worker', origin: 'direct', teamLeadId: 'lead', workerName: 'alpha' };
 
 function view(extra: Partial<WorkerView> = {}): WorkerView {
   return {
