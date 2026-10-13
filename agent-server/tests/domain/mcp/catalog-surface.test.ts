@@ -1,4 +1,5 @@
-import { beforeEach, test } from 'vitest';
+import { beforeEach, test, vi } from 'vitest';
+import * as roles from '../../../src/core/agents/roles.js';
 import { fileURLToPath } from 'node:url';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import assert from 'node:assert/strict';
@@ -10,8 +11,9 @@ import { CONFIG_DIR } from '../../../src/core/paths.js';
 import type { McpBundleName } from '../../../src/core/mcp-bundles.js';
 import { createBundledServer } from '../../../src/domain/mcp/bundled-server.js';
 import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
-import { installToolShims } from '../../../src/agent-adapter/pi/tool-shims.js';
-import { createMcpBridgeDeps, installMcpBridge } from '../../../src/agent-adapter/pi/mcp-bridge.js';
+import { createCortexExtensions } from '../../../src/agent-adapter/pi/extensions.js';
+import type { PiSessionRequest } from '../../../src/agent-adapter/pi/session-options.js';
+import type { OpenBundledMcpServer } from '../../../src/agent-adapter/pi/mcp-bridge.js';
 
 const catalogEnv = {
   CORTEX_SUBAGENT_CLAUDE_MODELS: JSON.stringify([{ backend: 'claude', id: 'known-claude' }]),
@@ -66,6 +68,17 @@ test('no applicable tools means no catalog, including a leaf-like restricted sur
   assert.deepEqual(await listTools([]), []);
 });
 
+test('a failed agent role catalog still preserves the healthy worker model catalog on agent', async () => {
+  const failedRoles = vi.spyOn(roles, 'loadRoles').mockImplementation(() => { throw new Error('role read failed'); });
+  try {
+    const tools = await listTools();
+    const json = JSON.stringify(tools);
+    assert.equal(occurrences(json, 'Known models'), 1);
+    assert.match(tools.find(tool => tool.name === 'agent')!.description!, /known-claude/);
+    assert.equal(occurrences(json, 'cached/daemon-model'), 1);
+  } finally { failedRoles.mockRestore(); }
+});
+
 function piHarness() {
   const tools = new Map<string, ToolDefinition>();
   const handlers = new Map<string, Array<(event: object, ctx: any) => unknown>>();
@@ -81,35 +94,61 @@ function piHarness() {
   return { pi, tools, emit };
 }
 
-async function piSurface(allowed: string, leaf = false) {
+const openCatalogServer: OpenBundledMcpServer = (selected, context) => createBundledServer(
+  selected, toolContextFromEnv({ ...catalogEnv, ...context,
+    CORTEX_SUBAGENT_CLAUDE_MODELS: JSON.stringify([
+      { backend: 'claude', id: 'known-claude' }, { backend: 'claude', id: 'daemon-new-claude' },
+    ]),
+    CORTEX_SUBAGENT_PI_MODELS: JSON.stringify([
+      { backend: 'pi', provider: 'cached', id: 'daemon-model' },
+      { backend: 'pi', provider: 'runtime', id: 'registry-model' },
+    ]),
+  }),
+);
+
+async function piSurface(allowed: string, leaf = false, brokenRegistry = false) {
   const harness = piHarness();
   const env = { ...catalogEnv, CORTEX_PI_ALLOWED_TOOLS: allowed, CORTEX_PI_MCP_COMPOSITION: 'direct',
     CORTEX_PI_TEAM_LEAD: '1', ...(leaf ? { CORTEX_PI_SUBAGENT: '1' } : {}),
   };
-  installToolShims(harness.pi, env);
-  const deps = createMcpBridgeDeps(env, [], (selected, context) => createBundledServer(
-    selected, toolContextFromEnv({ ...catalogEnv, ...context }),
-  ));
-  deps.reportFailure = error => { throw error; };
-  await installMcpBridge(harness.pi, deps);
+  const extensions = createCortexExtensions(
+    { env, disableHooks: true, pluginMcpServers: [] } as unknown as PiSessionRequest,
+    { openBundledMcpServer: openCatalogServer },
+  );
+  for (const extension of extensions) {
+    await (typeof extension === 'function' ? extension : extension.factory)(harness.pi);
+  }
   await harness.emit('session_start', {
     model: { provider: 'runtime', id: 'parent-pi' },
-    modelRegistry: { getAvailable: () => [{ provider: 'runtime', id: 'registry-model' }] },
+    modelRegistry: { getAvailable: () => {
+      if (brokenRegistry) throw new Error('registry failed');
+      return [{ provider: 'runtime', id: 'registry-model' }];
+    } },
   });
   try { await harness.emit('before_agent_start'); return [...harness.tools.values()]; }
   finally { await harness.emit('session_shutdown'); }
 }
 
-test('Pi native agent owns its runtime catalog; bridged workers do not repeat the daemon cache', async () => {
+test('Pi native agent owns the union of runtime and daemon catalogs without duplicate entries', async () => {
   const tools = await piSurface('Agent,Read');
   assert.ok(tools.some(t => t.name === 'worker_spawn'));
   assert.equal(tools.filter(t => t.name === 'agent').length, 1);
   const json = JSON.stringify(tools);
-  for (const model of ['known-claude', 'parent-claude', 'runtime/registry-model', 'runtime/parent-pi']) {
+  for (const model of ['known-claude', 'parent-claude', 'runtime/registry-model', 'runtime/parent-pi',
+    'daemon-new-claude', 'cached/daemon-model']) {
     assert.equal(occurrences(json, model), 1);
     assert.ok(tools.find(t => t.name === 'agent')!.description.includes(model));
   }
-  assert.doesNotMatch(json, /cached\/daemon-model/);
+  assert.equal(occurrences(json, 'Known models'), 1);
+});
+
+test('Pi runtime catalog failure preserves the worker directory on the native agent', async () => {
+  const tools = await piSurface('Agent,Read', false, true);
+  assert.equal(occurrences(JSON.stringify(tools), 'Known models'), 1);
+  const description = tools.find(tool => tool.name === 'agent')!.description;
+  for (const model of ['known-claude', 'daemon-new-claude', 'cached/daemon-model']) {
+    assert.equal(occurrences(description, model), 1);
+  }
 });
 
 test('Pi with Agent withheld gives the bridged worker the daemon catalog', async () => {

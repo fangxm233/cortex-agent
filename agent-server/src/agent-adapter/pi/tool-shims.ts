@@ -6,7 +6,7 @@ import { ensurePIAgentRoles } from './agent-dir.js';
 import { PI_AGENT_DIR } from './defaults.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
-  claudeModelOptions, decodeSubagentModels, piModelOptions, roleOptionsFrom, type SubagentCatalog,
+  claudeModelOptions, decodeSubagentModels, mergeModelCatalogs, piModelOptions, roleOptionsFrom, type SubagentCatalog,
 } from '@core/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
@@ -22,9 +22,10 @@ import {
 } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
-import { allowedToolLabels, hasNativeAgent } from './native-tool-policy.js';
+import { allowedToolLabels, hasNativeAgent, type NativeAgentCatalog } from './native-tool-policy.js';
 
 export interface ToolShimHooks {
+  nativeAgentCatalog?: NativeAgentCatalog;
   /** Receives each event a subagent forwards for the parent's transcript. */
   onSubagentEvent?: (notice: SubagentNotice) => void;
   /** Reports provider quota read off a nested child's responses; set only for runs that report it. */
@@ -182,7 +183,12 @@ function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: T
   };
   pi.on('session_start', (_event, ctx) => {
     sessionProvider = ctx.model?.provider ?? null;
-    pi.registerTool(createSubagentTool(deps, runtimeCatalog(ctx, env, deps)));
+    let tool = createSubagentTool(deps, runtimeCatalog(ctx, env, deps));
+    pi.registerTool(tool);
+    if (hooks.nativeAgentCatalog) hooks.nativeAgentCatalog.merge = description => {
+      tool = { ...tool, description: mergeModelCatalogs(tool.description, description) };
+      pi.registerTool(tool);
+    };
     const stopTool = createSubagentStopTool(deps);
     if (stopTool) pi.registerTool(stopTool);
   });

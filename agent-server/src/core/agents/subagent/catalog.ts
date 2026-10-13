@@ -192,6 +192,22 @@ export function withoutModelCatalog(description: string): string {
   return description.split(MODEL_CATALOG_MARKER)[0];
 }
 
+/** Decode only our rendered directory suffix; PI names already include their provider prefix. */
+function modelsInDescription(description: string): SubagentModelOption[] {
+  const suffix = description.split(MODEL_CATALOG_MARKER)[1]?.replace(/\.$/, '') ?? '';
+  return suffix.split('; ').flatMap(segment => {
+    const match = /^(claude|pi): (.+)$/.exec(segment);
+    if (!match) return [];
+    return match[2].split(', ').map(id => ({ backend: match[1] as Backend, id }));
+  });
+}
+
+/** Retain every source's models on one owner, including when its own catalog is empty. */
+export function mergeModelCatalogs(owner: string, other: string): string {
+  return withoutModelCatalog(owner)
+    + describeModelCatalog([...modelsInDescription(owner), ...modelsInDescription(other)]);
+}
+
 /**
  * Render the roles list, degrading in order: `name — summary` entries, then bare names, then a
  * truncated names list with an omission suffix. Every step re-checks the character budget because

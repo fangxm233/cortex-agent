@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  claudeModelOptions, describeModelCatalog, describeSubagent, type SubagentModelOption,
+  claudeModelOptions, describeModelCatalog, describeSubagent, mergeModelCatalogs, type SubagentModelOption,
 } from '../../src/core/agents/subagent/catalog.js';
 import {
   SUBAGENT_BACKEND_DESCRIPTION, SUBAGENT_MODEL_DESCRIPTION,
@@ -56,4 +56,20 @@ test('an empty discovered Claude cache falls back to shipped choices and include
   assert.ok(models.length > 1);
   assert.equal(models.filter(model => model.id === 'unlisted-parent').length, 1);
   assert.equal(describeModelCatalog(models).split('unlisted-parent').length - 1, 1);
+});
+
+
+test('merged descriptions retain the owner prose and union models by backend', () => {
+  const owner = 'Agent.' + describeModelCatalog([
+    { backend: 'claude', id: 'shared' }, { backend: 'pi', provider: 'runtime', id: 'model-1.5' },
+  ]);
+  const other = 'Worker.' + describeModelCatalog([
+    { backend: 'claude', id: 'shared' }, { backend: 'pi', id: 'shared' },
+    { backend: 'pi', provider: 'runtime', id: 'model-1.5' }, { backend: 'pi', id: 'cached-only' },
+  ]);
+  const merged = mergeModelCatalogs(owner, other);
+  assert.equal(merged, 'Agent. Known models — claude: shared; pi: cached-only, runtime/model-1.5, shared.');
+  assert.equal(mergeModelCatalogs(merged, other), merged);
+  assert.equal(mergeModelCatalogs('Agent.', other), other.replace('Worker.', 'Agent.'));
+  assert.equal(mergeModelCatalogs(owner, 'Worker.'), owner);
 });

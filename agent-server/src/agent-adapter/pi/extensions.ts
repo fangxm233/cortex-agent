@@ -11,6 +11,7 @@ import { installHookBridge } from './hook-bridge.js';
 import { installToolShims } from './tool-shims.js';
 import { createQuotaProbe } from './quota-probe.js';
 import { installImageFirst } from './image-first.js';
+import type { NativeAgentCatalog } from './native-tool-policy.js';
 
 export interface CortexExtensionHooks {
   /** Receives every provider quota reading, from this session and from its nested children alike. */
@@ -43,17 +44,19 @@ export function createCortexExtensions(
   // Resolved once and handed to both probes — the session's own and the one the shims install on
   // inheriting children — so "does this run report quota" is decided in exactly one place.
   const reportQuota = request.reportsProviderQuota ? hooks.onProviderQuota : undefined;
+  const nativeAgentCatalog: NativeAgentCatalog = {};
   const extensions: InlineExtension[] = [
     { name: 'cortex-image-first', factory: installImageFirst },
     {
       name: 'cortex-mcp-bridge',
       factory: (pi) => installMcpBridge(
-        pi, createMcpBridgeDeps(request.env, request.pluginMcpServers, hooks.openBundledMcpServer),
+        pi, createMcpBridgeDeps(request.env, request.pluginMcpServers, hooks.openBundledMcpServer, nativeAgentCatalog),
       ),
     },
     {
       name: 'cortex-tool-shims',
       factory: (pi) => installToolShims(pi, request.env, {
+        nativeAgentCatalog,
         onSubagentEvent: hooks.onSubagentEvent,
         onSubagentUsage: hooks.onSubagentUsage,
         onProviderQuota: reportQuota,
