@@ -38,7 +38,7 @@ export function upsertEnvContents(existing: string, key: string, value: string):
   const line = `${key}=${value}`;
   const lines = existing === '' ? [] : existing.replace(/\n+$/, '').split('\n');
   const re = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`);
-  const idx = lines.findIndex(candidate => re.test(candidate));
+  const idx = lines.map(candidate => re.test(candidate)).lastIndexOf(true);
   if (idx >= 0) {
     if (lines[idx] === line) return existing;
     lines[idx] = line;

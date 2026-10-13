@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
+import { parse as parseDotEnv } from 'dotenv';
 
 // Import pure functions from init.ts
 import {
@@ -584,5 +585,21 @@ test('forced dotenv setup generates only missing auth tokens', () => {
     const content = fs.readFileSync(envPath, 'utf8');
     assert.match(content, /^CORTEX_CLIENT_TOKEN=existing-client$/m);
     assert.match(content, /^CORTEX_WEBHOOK_TOKEN=[0-9a-f]{64}$/m);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+
+test('forced dotenv setup updates the effective duplicate assignment', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'init-env-duplicate-'));
+  const paths = getResolvedPaths(home);
+  fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
+  const envPath = path.join(paths.CONFIG_DIR, '.env');
+  fs.writeFileSync(envPath, 'CORTEX_MACHINE=first\nexport CORTEX_MACHINE=last\n'
+    + 'CORTEX_CLIENT_TOKEN=ignored\nCORTEX_CLIENT_TOKEN=\n');
+  try {
+    writeDotEnv(paths, MINIMAL_ANSWERS, true);
+    const values = parseDotEnv(fs.readFileSync(envPath, 'utf8'));
+    assert.equal(values.CORTEX_MACHINE, MINIMAL_ANSWERS.machineName);
+    assert.match(values.CORTEX_CLIENT_TOKEN, /^[0-9a-f]{64}$/);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });

@@ -55,6 +55,21 @@ test('npmInvocation uses bundled npm CLI with node on Windows', () => {
 
 test('npmInvocation falls back to the Windows command shim through a shell', () => {
   assert.deepEqual(npmInvocation(['view', 'pkg'], 'win32', 'C:\\node.exe', () => false), {
-    command: 'npm.cmd', args: ['view', 'pkg'], shell: true,
+    command: 'npm.cmd', args: ['"view"', '"pkg"'], shell: true,
   });
+});
+
+
+test('npmInvocation quotes a Windows fallback prefix containing spaces and shell punctuation', () => {
+  const prefix = 'C:\\Users\\Jane Doe\\Cortex & Tools';
+  const invocation = npmInvocation(['install', '-g', 'pkg', '--prefix', prefix], 'win32', 'C:\\node.exe', () => false);
+  assert.equal(invocation.shell, true);
+  assert.equal(invocation.args.join(' '), `"install" "-g" "pkg" "--prefix" "${prefix}"`);
+});
+
+
+test('npmInvocation preserves a trailing backslash inside a quoted Windows prefix', () => {
+  const prefix = 'C:\\Jane Doe\\';
+  const invocation = npmInvocation(['--prefix', prefix], 'win32', 'C:\\node.exe', () => false);
+  assert.equal(invocation.args[1], '"C:\\Jane Doe\\\\"');
 });

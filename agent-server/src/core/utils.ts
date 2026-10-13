@@ -164,7 +164,13 @@ export function npmInvocation(
   if (platform !== 'win32') return { command: 'npm', args, shell: false };
   const cli = path.win32.join(path.win32.dirname(execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
   if (exists(cli)) return { command: execPath, args: [cli, ...args], shell: false };
-  return { command: 'npm.cmd', args, shell: true };
+  return { command: 'npm.cmd', args: args.map(quoteWindowsNpmArgument), shell: true };
+}
+
+/** Preserve argument boundaries when npm.cmd forwards its trusted arguments to Node. */
+function quoteWindowsNpmArgument(value: string): string {
+  const escaped = value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, '$1$1');
+  return `"${escaped}"`;
 }
 
 /**
