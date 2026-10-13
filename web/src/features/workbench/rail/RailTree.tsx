@@ -622,9 +622,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   boxSizing: 'border-box',
                   borderRadius: 'var(--r-pill)',
                   background:
-                    node.attentionTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                  // Amber stays a light fill in both themes and needs a dark foreground.
-                  color: node.attentionTone === 'action' ? 'var(--amber-fill-fg)' : 'var(--ink-solid-fg)',
+                    node.attentionTone === 'action' ? 'var(--proto-amber-bg)' : 'var(--proto-accent)',
+                  color: node.attentionTone === 'action' ? 'var(--proto-amber-fg)' : 'var(--ink-solid-fg)',
                   font: `600 11px ${mono}`,
                   display: 'inline-flex',
                   alignItems: 'center',

@@ -90,6 +90,17 @@ const plus = (renderer: ReactTestRenderer) =>
     .filter((n) => typeof n.type === 'string');
 
 describe('flat project rail row', () => {
+  it.each([
+    ['action', 'var(--proto-amber-bg)', 'var(--proto-amber-fg)'],
+    ['unread', 'var(--proto-accent)', 'var(--ink-solid-fg)'],
+  ] as const)('uses the themed %s badge colors', (attentionTone, background, color) => {
+    const { renderer } = renderTree({ nodes: [{ ...node([]), attention: 1, attentionTone }] });
+    const badge = renderer.root.findByProps({ 'data-project-attention-badge': 'p1' });
+    expect(badge.props.style).toMatchObject({ background, color, minWidth: 16, height: 16 });
+    expect(badge.children).toEqual(['1']);
+    act(() => renderer.unmount());
+  });
+
   it.each([false, true])('keeps current=%s rows flat and stable on hover', (current) => {
     const onToggleProject = vi.fn();
     const { renderer } = renderTree({ nodes: [{ ...node([]), current }], onToggleProject });
