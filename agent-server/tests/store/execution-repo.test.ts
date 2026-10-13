@@ -34,6 +34,21 @@ function createCarry(): SessionTotalsCarryRepo {
   );
 }
 
+test('legacy execution sessionName is ignored in memory without migrating disk', async () => {
+  const repo = createRepo();
+  const created = repo.startLocalExecution({ sessionId: 'track-1' });
+  await repo.flush();
+  const raw = JSON.parse(await fs.readFile(repo.filePath, 'utf8'));
+  raw[created.id].session.sessionName = 'cortex-legacy';
+  const legacy = JSON.stringify(raw);
+  await fs.writeFile(repo.filePath, legacy);
+
+  const reopened = new ExecutionRepo({ filePath: repo.filePath });
+  reopened.load();
+  assert.equal((reopened.getExecution(created.id)?.session as any).sessionName, undefined);
+  assert.equal(await fs.readFile(repo.filePath, 'utf8'), legacy);
+});
+
 // ── Group 1: Sync mutate + persist chain survives (Pattern B invariant) ──
 
 test('sequential touchExecution — 10 same-ID increments produce costUsd === 10, persist chain does not drop', async () => {
@@ -292,7 +307,7 @@ test('persistence — a new record carries no thread or dispatch data, and a leg
   const legacy = {
     ...fresh, id: 'exec_dispatch_legacy', kind: 'dispatch', status: 'completed',
     thread: { threadId: 'thr_1', agentSlotId: 'main' },
-    dispatch: { taskId: 't1', taskHash: null, machine: 'lab', scheduleTaskId: null, sessionName: null, tmuxName: null, pid: null },
+    dispatch: { taskId: 't1', taskHash: null, machine: 'lab', scheduleTaskId: null, tmuxName: null, pid: null },
   };
   repo.set(legacy.id, legacy);
   await repo.flush();
