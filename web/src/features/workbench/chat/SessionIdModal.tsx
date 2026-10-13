@@ -3,29 +3,28 @@ import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from '@/features/session/list/session-id';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
-// SESSION ID MODAL — opened from the ChatHeader ⋯ menu (会话ID). Shows the two identifiers a session
-// carries: the human-facing Cortex ID (cortex-XXXX, SessionInfo.name) and the backend UUID — the
-// backend CLI resume target (SessionInfo.backendSessionId, distinct from the track sessionId since the
-// id decoupling). Each row has a copy-to-clipboard affordance. Styled with the proto-* CSS
-// variables so it re-themes light/dark; centered card + scrim, esc / click-away close (mirrors
-// NewProjectModal).
+// Copyable session identifiers for display, transcript lookup, and backend resume.
 
 const mono = "'IBM Plex Mono',monospace";
 
 export function SessionIdModal({
   cortexId,
+  sessionId,
   backendUuid,
   onClose,
 }: {
   cortexId: string | null | undefined;
+  sessionId: string | null | undefined;
   backendUuid: string | null | undefined;
   onClose: () => void;
 }): JSX.Element {
   const L = useVocab();
   const rows = buildSessionIdRows({
     cortexId,
+    sessionId,
     backendUuid,
     cortexIdLabel: L.wbCortexId,
+    sessionIdLabel: L.wbSessionId,
     backendUuidLabel: L.wbBackendUuid,
   });
   const { copiedKey, copy } = useClipboardFeedback<string>();

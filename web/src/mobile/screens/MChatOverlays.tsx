@@ -37,7 +37,7 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
         onSessionStats={statsRows ? () => overlay.open('stats') : undefined} />
       {overlay.is('stats') && statsRows && <SessionStatsSheet rows={statsRows} onClose={() => overlay.close('stats')} />}
       {overlay.is('sessionId') && (
-        <SessionIdSheet cortexId={props.cortexId} backendUuid={props.backendUuid} onClose={() => overlay.close('sessionId')} />
+        <SessionIdSheet sessionId={props.sessionId} cortexId={props.cortexId} backendUuid={props.backendUuid} onClose={() => overlay.close('sessionId')} />
       )}
       {overlay.originalText != null && (
         <OriginalMessageSheet text={overlay.originalText} onClose={() => overlay.close('original')} />

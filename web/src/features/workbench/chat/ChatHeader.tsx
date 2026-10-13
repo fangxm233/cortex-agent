@@ -218,6 +218,7 @@ export function ChatHeader({
       {sessionIdOpen ? (
         <SessionIdModal
           cortexId={sessionName}
+          sessionId={metadataSession?.sessionId}
           backendUuid={backendSessionId}
           onClose={() => setSessionIdOpen(false)}
         />

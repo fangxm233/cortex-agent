@@ -85,7 +85,7 @@ beforeEach(() => {
 describe('glass modal presentation', () => {
   it.each([
     <NewProjectModal onClose={vi.fn()} />,
-    <SessionIdModal cortexId="cortex-7" backendUuid="uuid-7" onClose={vi.fn()} />,
+    <SessionIdModal sessionId="track-7" cortexId="cortex-7" backendUuid="uuid-7" onClose={vi.fn()} />,
     <SessionStatsModal rows={[]} onClose={vi.fn()} />,
     <RunListModal row={row()} selectedSessionId={null} onOpenRun={vi.fn()} onClose={vi.fn()} />,
   ])('keeps a bounded glass shell and native close control', (node) => {
@@ -129,14 +129,16 @@ describe('SessionStatsModal glass body', () => {
 describe('SessionIdModal shared shell', () => {
   it('keeps data hooks and copy actions while Radix owns dismissal', () => {
     const onClose = vi.fn();
-    const tree = render(<SessionIdModal cortexId="cortex-7" backendUuid="uuid-7" onClose={onClose} />);
+    const tree = render(<SessionIdModal sessionId="track-7" cortexId="cortex-7" backendUuid="uuid-7" onClose={onClose} />);
 
     act(() => harness.modalProps.onOpenChange(false));
     expect(onClose).toHaveBeenCalledOnce();
 
-    const copy = tree.root.findAllByType('button').find((node) => node.children.includes('Copy'))!;
-    act(() => copy.props.onClick());
-    expect(harness.copyCalls).toEqual([['cortex-7', 'cortexId']]);
+    const copies = tree.root.findAllByType('button').filter((node) => node.children.includes('Copy'));
+    expect(copies).toHaveLength(3);
+    act(() => copies.forEach((copy) => copy.props.onClick()));
+    expect(harness.copyCalls).toEqual([['cortex-7', 'cortexId'], ['track-7', 'sessionId'], ['uuid-7', 'backendUuid']]);
+    act(() => tree.unmount());
   });
 });
 

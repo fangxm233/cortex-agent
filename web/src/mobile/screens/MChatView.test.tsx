@@ -476,12 +476,18 @@ describe('MChatView overlays', () => {
 
   beforeEach(() => { vi.stubGlobal('window', new EventTarget()); });
 
-  it('hands the ⋯ menu over to the Session ID sheet, and closes everything on another session', () => {
-    const r = mount();
+  it('copies the stable session ID from the sheet and closes it on another session', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const r = mount({ cortexId: 'cortex-7', backendUuid: 'backend-7' });
     act(() => r.root.findByProps({ 'aria-label': 'More' }).props.onClick());
     act(() => byLabel(r, 'Session ID').props.onClick());
     expect(byLabel(r, 'Session ID')).toBeUndefined();
     expect(sheets(r)).toHaveLength(1);
+    const copies = r.root.findAll((n) => n.props.role === 'button' && n.children.includes('Copy'));
+    expect(copies).toHaveLength(3);
+    await act(async () => { copies[1].props.onClick(); });
+    expect(writeText).toHaveBeenCalledWith('s1');
     act(() => r.update(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s2" /></LangProvider>));
     expect(sheets(r)).toHaveLength(0);
     act(() => r.unmount());
