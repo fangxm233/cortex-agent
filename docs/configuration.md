@@ -357,6 +357,18 @@ default warns first, because from then on it no longer follows the shipped
 version. `main` cannot be deleted. On Android, Settings shows Environments as a
 desktop-only entry.
 
+The System prompt tab edits the text an environment's `systemPrompt` resolves
+to, which replaces the backend's default system prompt as a whole. When the
+field is a `file:` reference, the tab edits that file under
+`prompts/systemPrompts/` and names any other environment that references the
+same file, since a save changes the prompt for all of them. When the field is
+literal text or absent, saving writes the text to
+`prompts/systemPrompts/<name>.md` and points the environment at it. Empty text
+leaves the environment on the backend's default prompt. For a prompt file that
+ships with Cortex, **Restore default** loads the shipped text into the editor.
+A saved prompt applies to sessions started afterwards; sessions already open
+keep the prompt they started with.
+
 ## Environments vs profiles
 
 Two entities decide how a session runs, and they change independently.
