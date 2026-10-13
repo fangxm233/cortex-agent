@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 // 6b 计划全文阅读页 — drill route /m/session/:sessionId/plan/:requestId (from the 6a card's file
 // row / the sealed cards' 查看完整计划 ›). Data = the interaction entity found in the REAL
 // sessions.transcript (the plan snapshot is persisted on the entity — no separate fetch).
@@ -29,7 +30,7 @@ export function MPlanReadScreen(): JSX.Element {
   const actions = useInteractionActions(sessionId);
 
   const hit = findInteraction(transcriptQuery.data, requestId);
-  const onBack = (): void => navigate(`/m/session/${sessionId}`);
+  const onBack = (): void => mobileHeaderBack(navigate, `/m/session/${sessionId}`);
 
   if (!hit) {
     return (

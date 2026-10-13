@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';
@@ -46,9 +47,9 @@ export function MMachinesScreen() {
   const requestAdd = useAddMachine(resource);
   // retry-connect / view-logs remain inert: no browser-safe daemon operation exists.
   return <>{resource.loading
-    ? <MSettingsPage title={L.stNavMachines} onBack={() => navigate('/m/settings')}>
+    ? <MSettingsPage title={L.stNavMachines} onBack={() => mobileHeaderBack(navigate, '/m/settings')}>
         <div style={{ color: MC.muted, fontSize: 13 }}>{L.machEmpty}</div></MSettingsPage>
-    : <MMachinesView vm={vm} onBack={() => navigate('/m/settings')}
+    : <MMachinesView vm={vm} onBack={() => mobileHeaderBack(navigate, '/m/settings')}
       expanded={expanded} onToggle={(name) => setExpanded((old) => old === name ? null : name)}
       panel={panel} onAdd={requestAdd} addDisabled={resource.addPending} />}
   </>;

@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { HooksOverview } from '@cortex-agent/ui-contract';
@@ -25,7 +26,7 @@ export function MHooksScreen() {
   );
 
   return (
-    <MSettingsQueryPage title={L.stNavHooks} onBack={() => navigate('/m/settings')} query={hooks}
+    <MSettingsQueryPage title={L.stNavHooks} onBack={() => mobileHeaderBack(navigate, '/m/settings')} query={hooks}
       loadingText={L.hkLoading} errorText={L.hkLoadFailed}
       trailing={hooks.data ? <MHooksCount vm={vm} /> : undefined}>
       {() => <MHooksView vm={vm} sheetRow={sheetRow} onOpenHook={setOpenKey} onCloseSheet={() => setOpenKey(null)} />}

@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 // 24c 移动端 Issues — the project issue list, drilled from the 项目 page's Issues card (24a → 24c).
 // A drill page; back returns to the project panel. Wired to the
 // REAL `issues.*` ui-service scope: `issues.list({projectId})` feeds the list; `issues.delete`
@@ -46,7 +47,7 @@ export function MIssuesScreen() {
       cards={cards}
       expandedId={expandedId}
       busy={busy}
-      onBack={() => navigate('/m/project')}
+      onBack={() => mobileHeaderBack(navigate, '/m/project')}
       onExpand={setExpandedId}
       onDelete={(id) => currentProjectId && del.mutate({ projectId: currentProjectId, id })}
       onHandle={(id) => {

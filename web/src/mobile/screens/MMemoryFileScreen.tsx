@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 // Mobile 项目记忆 file viewer — /m/memory/file?path=<rel>. Read-only. Drilled from the 1j memory tree
 // (MMemoryScreen). A drill page. Real tRPC:
 // `memory.file({ projectId, path })` scoped to the mobile current project; `path` comes from the
@@ -43,7 +44,7 @@ export function MMemoryFileScreen() {
       metaLine={metaLine}
       content={file?.content ?? ''}
       status={status}
-      onBack={() => navigate('/m/memory')}
+      onBack={() => mobileHeaderBack(navigate, '/m/memory')}
     />
   );
 }

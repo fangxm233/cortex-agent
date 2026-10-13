@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotesResource } from '@/features/notes/useNotesResource';
@@ -18,7 +19,7 @@ export function MNotesScreen() {
     <MNotesView
       vm={vm}
       busy={notes.busy}
-      onBack={() => navigate('/m/project')}
+      onBack={() => mobileHeaderBack(navigate, '/m/project')}
       onAdd={notes.add}
       onUpdate={notes.update}
       onSetCompleted={notes.setCompleted}

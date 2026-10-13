@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
@@ -37,6 +38,6 @@ export function MSettingsScreen() {
   return <MSettingsView vm={vm} connectionStatus={connectionStatus}
     onlineMachines={onlineMachineCount(machines.machines)}
     checkingUpdates={updates.busy} onCheckUpdates={() => void updates.check()}
-    onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
+    onBack={() => mobileHeaderBack(navigate, '/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
     onOpenSection={openSection} />;
 }

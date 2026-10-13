@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { NavigateFunction } from 'react-router-dom';
 import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
 import { mobileHomeView, mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';
 
@@ -31,6 +32,14 @@ export function hasRouterHistory(
   state: { idx?: unknown } | null,
 ): boolean {
   return webviewCanGoBack && typeof state?.idx === 'number' && state.idx > 0;
+}
+
+export function mobileHeaderBack(
+  navigate: NavigateFunction, parent: string,
+  state: { idx?: unknown } | null = globalThis.history?.state ?? null,
+): void {
+  if (hasRouterHistory(true, state)) navigate(-1);
+  else navigate(parent, { replace: true });
 }
 
 export interface MobileBackDeps {

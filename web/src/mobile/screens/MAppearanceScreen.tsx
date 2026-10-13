@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useNavigate } from 'react-router-dom';
 import { useLang, useLangSource, useSetLang } from '@/i18n';
 import {
@@ -51,7 +52,7 @@ export function MAppearanceScreen() {
       onSetGlass={setGlass}
       motionMode={motionMode}
       onSetMotionMode={setMotionMode}
-      onBack={() => navigate('/m/settings')}
+      onBack={() => mobileHeaderBack(navigate, '/m/settings')}
     />
   );
 }

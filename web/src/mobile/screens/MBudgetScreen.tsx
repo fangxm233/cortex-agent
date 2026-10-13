@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { BudgetValue } from '@cortex-agent/ui-contract';
@@ -84,7 +85,7 @@ export function MBudgetScreen() {
   const clear = () => {
     if (scope && !writer.isPending) void writer.clear(scope).then(writeSucceeded).catch(writeFailed);
   };
-  return <MSettingsQueryPage title={L.stNavBudget} onBack={() => navigate('/m/settings')} query={config}>
+  return <MSettingsQueryPage title={L.stNavBudget} onBack={() => mobileHeaderBack(navigate, '/m/settings')} query={config}>
     {() => <>
       <MSettingsCard title={L.stBudgetScope} note={resolved.inherited ? L.stBudgetInherited : undefined}>
         <div style={{ padding: '11px 13px' }}><MSettingsSelect label={L.stBudgetScope} value={scope ?? ''}

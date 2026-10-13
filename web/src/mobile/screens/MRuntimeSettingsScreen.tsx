@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useEffect, useState } from 'react';
 import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotificationsCard';
 import { useNavigate } from 'react-router-dom';
@@ -221,7 +222,7 @@ function RuntimeScreen({ kind }: { kind: 'notifications' | 'advanced' }) {
   const title = kind === 'notifications' ? L.stNavNotifications : L.stNavAdvanced;
   // The device cards work without the server's config, so they stay usable when it fails to load.
   const lead = kind === 'notifications' ? <><MNativeNotificationsCard /><LocalNotificationsCard /></> : undefined;
-  return <MSettingsQueryPage title={title} onBack={() => navigate('/m/settings')} query={config} lead={lead}>
+  return <MSettingsQueryPage title={title} onBack={() => mobileHeaderBack(navigate, '/m/settings')} query={config} lead={lead}>
     {(snapshot) => kind === 'notifications'
       ? <NotificationsContent snapshot={snapshot} write={write} />
       : <AdvancedContent snapshot={snapshot} write={write} />}

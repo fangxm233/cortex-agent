@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   hasRouterHistory,
+  mobileHeaderBack,
   resolveMobileBack,
   runMobileBack,
   setProjectsPanel,
@@ -114,5 +115,19 @@ describe('mobile navigation side effects', () => {
     await runMobileBack('/m/settings/platform', true, true, deps);
     expect(deps.canLeave).toHaveBeenCalledTimes(2);
     expect(deps.historyBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('mobileHeaderBack', () => {
+  it('pops an existing in-app entry rather than pushing its parent', () => {
+    const navigate = vi.fn();
+    mobileHeaderBack(navigate, '/m/settings', { idx: 2 });
+    expect(navigate).toHaveBeenCalledWith(-1);
+  });
+
+  it.each([null, { idx: 0 }, { idx: undefined }])('replaces a deep link with its parent: %j', (state) => {
+    const navigate = vi.fn();
+    mobileHeaderBack(navigate, '/m/settings', state);
+    expect(navigate).toHaveBeenCalledWith('/m/settings', { replace: true });
   });
 });

@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -36,7 +37,7 @@ export function MDaemonScreen() {
     connStatus={connStatus}
     restartState={daemon.restartState}
     showDisconnect={isNativeShell()}
-    onBack={() => navigate('/m/settings')}
+    onBack={() => mobileHeaderBack(navigate, '/m/settings')}
     onSoftRestart={() => daemon.restart('soft')}
     onHardRestart={() => daemon.restart('hard')}
     onDisconnect={() => void disconnectShell()}

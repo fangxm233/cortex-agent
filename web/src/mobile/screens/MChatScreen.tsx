@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -266,7 +267,7 @@ export function MChatScreen(): JSX.Element {
       project={route.projectId ?? undefined}
       rows={rows}
       loading={!!sessionId && chat.transcriptPending}
-      onBack={() => navigate('/m/sessions')}
+      onBack={() => mobileHeaderBack(navigate, '/m/sessions')}
       sessionStatsRows={sessionStatsRows}
       cortexId={active?.name ?? null}
       backendUuid={active?.backendSessionId ?? null}

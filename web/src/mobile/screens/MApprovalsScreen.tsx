@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 // 1f 审批 — the approval queue, drilled from the project panel's amber bar (scheme 1e→1f). A drill
 // page; back returns to the project panel. Wired to
 // the REAL `approvals.*` ui-service scope: `approvals.list({status:'pending'})` feeds the queue, and
@@ -48,7 +49,7 @@ export function MApprovalsScreen() {
   const selection = useRouteExpansion(vm.cards);
   return <MApprovalsView
     vm={vm} expandedId={selection.expandedId} feedback={selection.feedback}
-    busy={queue.isPending} onBack={() => navigate('/m/project')}
+    busy={queue.isPending} onBack={() => mobileHeaderBack(navigate, '/m/project')}
     onExpand={selection.expand} onFeedback={selection.setFeedback}
     onApprove={(id) => selection.settle(queue.approve(id))}
     onReject={(id, draft) => selection.settle(queue.reject(id, draft))}

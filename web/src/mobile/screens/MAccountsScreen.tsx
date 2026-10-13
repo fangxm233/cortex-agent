@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
@@ -28,12 +29,12 @@ export function MAccountsScreen() {
   return (
     <>
       {accounts.statusLoading
-        ? <MSettingsPage title={L.accountsTitle} onBack={() => navigate('/m/settings')}>
+        ? <MSettingsPage title={L.accountsTitle} onBack={() => mobileHeaderBack(navigate, '/m/settings')}>
             <div style={{ color: MC.muted }}>{L.accountsLoading}</div></MSettingsPage>
         : accounts.statusError
-          ? <MSettingsPage title={L.accountsTitle} onBack={() => navigate('/m/settings')}>
+          ? <MSettingsPage title={L.accountsTitle} onBack={() => mobileHeaderBack(navigate, '/m/settings')}>
               <div style={{ color: MC.fail }}>{L.accountsLoadFailed}</div></MSettingsPage>
-          : <MAccountsView vm={vm} filter={filter} onFilter={setFilter} onBack={() => navigate('/m/settings')}
+          : <MAccountsView vm={vm} filter={filter} onFilter={setFilter} onBack={() => mobileHeaderBack(navigate, '/m/settings')}
               onLogin={openLogin} onLogout={accounts.logout}
               actionsDisabled={accounts.logoutPending}
               onRescan={accounts.syncGateway} rescanning={accounts.syncPending}

@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
@@ -218,5 +219,5 @@ export function MProfilesView(props: { controller: ProfilesController; onBack: (
 export function MProfilesScreen() {
   const navigate = useNavigate();
   const controller = useProfilesController();
-  return <MProfilesView controller={controller} onBack={() => navigate('/m/settings')} />;
+  return <MProfilesView controller={controller} onBack={() => mobileHeaderBack(navigate, '/m/settings')} />;
 }

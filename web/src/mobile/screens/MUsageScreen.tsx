@@ -1,3 +1,4 @@
+import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
 import { MUsageView } from './MUsageView';
@@ -21,10 +22,7 @@ export function MUsageScreen() {
         isPolicySaving={usage.isPolicySaving}
         getPolicyError={usage.getPolicyError}
         reset={usage.reset}
-        onBack={() => {
-          if (from === 'chat') navigate(-1);
-          else navigate(from === 'project' ? '/m/project' : '/m/settings', { replace: true });
-        }}
+        onBack={() => mobileHeaderBack(navigate, from === 'project' ? '/m/project' : '/m/settings')}
         onRefresh={usage.refresh}
         onSavePolicy={usage.savePolicy}
       />
