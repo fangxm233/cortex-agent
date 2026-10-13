@@ -269,6 +269,10 @@ pub async fn setup_probe() -> Result<SetupProbe, String> {
         .map_err(|e| format!("SETUP_TASK_FAILED: probe: {e}"))?
 }
 
+fn home_initialized(home: &std::path::Path) -> bool {
+    home.join("config/machines.json").is_file()
+}
+
 fn probe_machine() -> Result<SetupProbe, String> {
     // Missing selected tools report absent here; install owns explicit repair. Failing the
     // initial probe would prevent the wizard from reaching ensure_server on cancellation retry.
@@ -290,7 +294,7 @@ fn probe_machine() -> Result<SetupProbe, String> {
             .as_deref()
             .is_some_and(|v| version_at_least(v, MIN_SERVER_VERSION)),
         server_version,
-        home_exists: cortex_home().is_some_and(|p| p.join("config").is_dir()),
+        home_exists: cortex_home().is_some_and(|p| home_initialized(&p)),
         hostname: probe_output("hostname", &[]).map(|h| h.trim().to_string()),
         os: std::env::consts::OS,
         path: process::effective_path(),
@@ -648,6 +652,15 @@ mod tests {
         assert_eq!(r.ui_url.as_deref(), Some("http://127.0.0.1:3004"));
         assert_eq!(r.version.as_deref(), Some("2026.8.20"));
         assert_eq!(r.home.as_deref(), Some("/h"));
+    }
+
+    #[test]
+    fn an_interrupted_directory_only_install_needs_initialization() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("config")).unwrap();
+        assert!(!home_initialized(dir.path()));
+        std::fs::write(dir.path().join("config/machines.json"), "{}").unwrap();
+        assert!(home_initialized(dir.path()));
     }
 
     #[test]
