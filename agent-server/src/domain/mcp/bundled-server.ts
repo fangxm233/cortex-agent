@@ -6,6 +6,7 @@ import { createLogger } from '@core/log.js';
 import { isMainModule } from '@core/utils.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { toolContextFromEnv, type CortexToolContext } from './tools/context.js';
+import { registerWithModelCatalogOwner } from './tools/catalog-owner.js';
 
 const log = createLogger('mcp-bundled');
 export type Registrar = (server: McpServer) => void;
@@ -132,7 +133,9 @@ export async function createBundledServer(
 ): Promise<McpServer> {
   const registrars = await loadBundleRegistrars(bundles, ctx);
   const server = new McpServer({ name: BUNDLED_MCP_SERVER_NAME, version: CORTEX_VERSION });
-  registerGatedMcpTools(server, target => registrars.forEach(register => register(target)), ctx.toolAllowlist);
+  registerGatedMcpTools(server, target => registerWithModelCatalogOwner(
+    target, () => registrars.forEach(register => register(target)),
+  ), ctx.toolAllowlist);
   return server;
 }
 

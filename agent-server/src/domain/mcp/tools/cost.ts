@@ -5,7 +5,7 @@ import { getCostSummary, formatTokens } from '../../costs/cost-tracker.js';
 export function registerCostTools(server: McpServer): void {
   server.tool(
     'cost_query',
-    'Query current cost and budget status. Returns today/month spending, budget limits, remaining budget, api/plan cost split, source breakdown (gateway vs estimate), and token usage. Pass projectId to scope both the spend and the budget limits to one project.',
+    'Report daily/monthly spending, budgets and remaining amounts, API/plan split, source breakdown, and token usage.',
     {
       projectId: z.string().optional().describe('Scope the report to one project. Omit for the global view.'),
     },

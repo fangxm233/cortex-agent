@@ -35,15 +35,17 @@ test('cortex-workers registers the five worker tools, each proxied to /webhook/t
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map(t => t.name).sort(), [...MCP_TOOLS_BY_SERVER['cortex-workers']].sort());
     const spawn = tools.find(t => t.name === 'worker_spawn')!;
-    assert.match(spawn.description!, /one-shot `agent` tool/);
+    assert.match(spawn.description!, /bounded work.*use agent/);
     assert.match(spawn.description!, /end your turn/);
-    assert.match(spawn.description!, /keeps your current model/);
+    assert.match(spawn.description!, /self-contained prompt/);
     const props = (spawn.inputSchema as any).properties;
     assert.deepEqual(Object.keys(props).sort(), ['backend', 'model', 'name', 'prompt']);
     assert.deepEqual(props.backend.enum, ['claude', 'pi']);
-    assert.match(props.model.description, /^Optional model: provider\/model\[:thinking\] for a pi worker/);
-    assert.match(props.model.description, /pi: deepseek\/deepseek-v4-flash/, 'the host catalog is listed');
-    assert.match(props.backend.description, /Both backends have models configured/);
+    assert.match(props.model.description, /^Model override: pi provider\/model\[:thinking\]/);
+    assert.match(spawn.description!, /pi: deepseek\/deepseek-v4-flash/, 'the host catalog is listed once');
+    assert.doesNotMatch(props.model.description, /deepseek/);
+    assert.match(props.model.description, /your model on the same backend/);
+    assert.match(props.backend.description, /Default: your backend/);
 
     const ok = await client.callTool({ name: 'worker_spawn', arguments: { name: 'a', prompt: 'do it' } });
     assert.equal(ok.isError ?? false, false);
@@ -87,7 +89,7 @@ test('cortex-worker-report registers only mark_routine, proxied to /webhook/team
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map(t => t.name), [...MCP_TOOLS_BY_SERVER['cortex-worker-report']]);
     assert.deepEqual(tools.map(t => t.name), ['mark_routine']);
-    assert.match(tools[0].description!, /before your final reply/);
+    assert.match(tools[0].description!, /Before your final reply/);
     assert.deepEqual(Object.keys((tools[0].inputSchema as any).properties ?? {}), [], 'no arguments');
     const result = await client.callTool({ name: 'mark_routine', arguments: {} });
     assert.equal((result.content as any)[0].text, 'Marked routine.');

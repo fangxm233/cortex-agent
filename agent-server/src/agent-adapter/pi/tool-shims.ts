@@ -22,6 +22,7 @@ import {
 } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
+import { allowedToolLabels, hasNativeAgent } from './native-tool-policy.js';
 
 export interface ToolShimHooks {
   /** Receives each event a subagent forwards for the parent's transcript. */
@@ -64,8 +65,7 @@ function registerTodoWrite(pi: ExtensionAPI): void {
     name: 'todo_write',
     label: 'TodoWrite',
     description:
-      'Create and manage a structured task list for the current session. ' +
-      'Use this to track progress across multi-step tasks.',
+      'Track a multi-step task with a session checklist.',
     parameters: TodoWriteParameters,
     async execute(_id, params) {
       const total = params.todos.length;
@@ -195,16 +195,10 @@ const SHIM_REGISTRATIONS: Array<[native: string, label: string, register: (pi: E
   ['todo_write', 'TodoWrite', registerTodoWrite],
 ];
 
-function allowedToolLabels(env: NodeJS.ProcessEnv): Set<string> | null {
-  const value = env.CORTEX_PI_ALLOWED_TOOLS?.trim();
-  if (!value) return null;
-  return new Set(value.split(',').map(tool => tool.trim()).filter(Boolean));
-}
-
 export function installToolShims(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: ToolShimHooks = {}): void {
   const allowed = allowedToolLabels(env);
   const includes = (label: string): boolean => allowed === null || allowed.has(label);
-  if (includes('Agent') && env.CORTEX_PI_SUBAGENT !== '1') registerRuntimeAgent(pi, env, hooks);
+  if (hasNativeAgent(env)) registerRuntimeAgent(pi, env, hooks);
   for (const [, label, register] of SHIM_REGISTRATIONS) {
     if (includes(label)) register(pi);
   }

@@ -94,13 +94,13 @@ export async function uploadFileToSlack(slack: WebClient, { channel, filePath, f
 export function registerSlackTools(server: McpServer, deps: SlackToolDeps): void {
   server.tool(
     'slack_send_file',
-    'Upload a file to Slack. Use this when you need to share a file (image, log, data, etc.) with the user. The file may be on this server or, with `device`, on a connected remote device.',
+    'Share a local or remote-device file in the Slack chat.',
     {
       file_path: z.string().describe('File path to upload. Local path, or an absolute path on `device`.'),
       file_name: z.string().optional().describe('Optional filename override shown in Slack'),
       title: z.string().optional().describe('Optional file title shown in Slack'),
       comment: z.string().optional().describe('Optional comment to accompany the file'),
-      device: z.string().optional().describe('Name of a connected remote device (as used by remote_bash). Omit for files on this server.'),
+      device: z.string().optional().describe('Connected device to read from; omit for this server.'),
     },
     async ({ file_path, file_name, title, comment, device }: {
       file_path: string; file_name?: string; title?: string; comment?: string; device?: string;

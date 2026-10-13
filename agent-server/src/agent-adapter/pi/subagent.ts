@@ -53,8 +53,7 @@ function buildSubagentParameters(described: SubagentFieldDescriptions) {
       description: 'Tasks to execute sequentially; {previous} inserts the prior output.',
     })),
     run_in_background: Type.Optional(Type.Boolean({
-      description: 'Return an agent_id immediately and deliver the result when it is ready, instead '
-        + 'of blocking this tool call. Use for long work you can carry on without.',
+      description: 'Return agent_id immediately; results arrive later. Default: wait for completion.',
     })),
   });
 }
@@ -294,7 +293,7 @@ export function createSubagentTool(
   return {
     name: 'agent',
     label: 'Agent',
-    description: SUBAGENT_DESCRIPTION,
+    description: SUBAGENT_DESCRIPTION + described.catalog,
     parameters: buildSubagentParameters(described),
     execute: subagentExecutor(deps),
   };
@@ -311,8 +310,7 @@ export function createSubagentStopTool(
     name: 'agent_stop',
     label: 'AgentStop',
     description:
-      'Stop a running subagent by the agent_id you were given. Whatever the children had produced '
-      + 'is discarded — use it when the delegated work is no longer wanted, not to collect a result.',
+      'Stop a subagent and discard its output; not for collecting results.',
     parameters: StopParameters,
     async execute(_toolCallId, params) {
       const status = await stop(params.agent_id);

@@ -3,32 +3,21 @@ import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { webhookAuthHeaders, webSessionId, type CortexToolContext } from './context.js';
 
-const DESCRIPTION = [
-  'Record one or more decisions you have just made and show them to the user. The user',
-  'may reply asking you to explain or revise a decision — otherwise just keep working;',
-  'this never blocks. When you need the user\'s answer BEFORE proceeding, use',
-  'cortex_ask_user instead.',
-  '',
-  'Call it when you commit to a choice the user did not explicitly dictate: picking one',
-  'approach over alternatives, changing an agreed plan, cutting scope, choosing tools or',
-  'parameters on the user\'s behalf. Skip mechanical steps with no real alternative.',
-  '',
-  'Write for a reader who has NOT been following your work: plain words, short',
-  'sentences, no jargon or internal names they would not recognize. Say what you decided',
-  'and why, so it can be understood in one quick read — few words, but clear. Batch',
-  'decisions made together into one call (each renders its own card), and write in the',
-  'language of the conversation.',
-].join('\n');
+const DESCRIPTION =
+  'Record choices the user did not dictate: approach, plan/scope changes, tools, or parameters. '
+  + 'Skip mechanical steps. Non-blocking; for approval before proceeding use cortex_ask_user. '
+  + 'Batch related decisions. Explain what and why briefly in plain language for a reader new to '
+  + 'the work, using the conversation language.';
 
 const decisionItemSchema = z.object({
   title: z.string().min(1).max(120)
-    .describe('The decision in one short line, shown on the card (e.g. "Store results in SQLite instead of JSONL").'),
+    .describe('Decision in one short line.'),
   decision: z.string().min(1).max(1000)
     .describe('What you decided, in 1-2 plain sentences a non-expert can follow.'),
   context: z.string().min(1).max(1000)
-    .describe('What you were doing and what the alternatives were — just enough for the user to see why a choice was needed.'),
+    .describe('Task and alternatives: why a choice was needed.'),
   reasoning: z.string().min(1).max(1000)
-    .describe('Why you picked this option, in 1-2 sentences. Name the decisive trade-off, not every consideration.'),
+    .describe('Decisive trade-off, in 1-2 sentences.'),
 });
 
 export function registerUiDecisionTools(server: McpServer, ctx: CortexToolContext): void {
@@ -37,7 +26,7 @@ export function registerUiDecisionTools(server: McpServer, ctx: CortexToolContex
     DESCRIPTION,
     {
       decisions: z.array(decisionItemSchema).min(1).max(10)
-        .describe('The decisions to record. Each renders as its own card in the chat.'),
+        .describe('Decisions, one card each.'),
     },
     async (
       { decisions }:

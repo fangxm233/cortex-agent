@@ -84,31 +84,12 @@ export function buildSignalRecipe(
 export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'wait_create',
-    [
-      'Arm a waitpoint: a durable wake that anything outside Cortex can address. You get back an id,',
-      'a one-time secret and ready-to-paste lines; anything able to run one of them wakes this session',
-      'later, carrying a result.',
-      '',
-      'Shapes it takes:',
-      '  a job that just finished   python train.py; cortex-signal --exit-code $?',
-      '  a job already running      the reply\'s attach_to_pid line watches its pid',
-      '  an alarm clock             (sleep 3600; cortex-signal --message "an hour is up") &',
-      '  a monitor                  max_signals > 1 — every report wakes you, until you cancel it',
-      '  several jobs at once       members + quorum — woken once, when the set is done',
-      '',
-      'Mechanism: Cortex launches nothing and watches nothing, so that callback exists only because',
-      'you put it somewhere. Arm the waitpoint before starting the job, so its line goes into the same',
-      'command; a waitpoint nobody signals just expires days later, having told you nothing.',
-      '',
-      'Then END YOUR TURN. Idle waiting is free and you never poll — when the signal lands this session',
-      'is woken with the result and the intent you recorded here.',
-    ].join('\n'),
+    'Arm an external callback that wakes this session with a result. Returns an ID, secret, and cortex-signal commands. Cortex launches nothing and watches nothing: arm BEFORE starting the job and install the returned callback in its command (or attach_to_pid for an existing job). Then END YOUR TURN; do not poll. Unsignaled waits expire.',
     {
-      label: z.string().describe('Short human name, e.g. "arm2 training". Appears in the wake message.'),
+      label: z.string().describe('Short name shown on wake.'),
       intent: z.string().describe('Briefly state what you are waiting for and what to do next.'),
       members: z.array(z.string()).optional().describe(
-        'Names of the jobs you expect to report, e.g. ["arm2","arm6","arm8"]. Each one signals with its own name; '
-        + 'a signal naming no member, or one not on this list, is refused.',
+        'Expected job names. If set, each signal must name a listed member.',
       ),
       quorum: z.union([z.number(), z.literal('all')]).optional().describe(
         'How many terminal signals resolve this waitpoint. Defaults to "all" when members are given, else 1.',
@@ -117,17 +98,14 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
         'Wake on the first failure even if the quorum is unmet. Default true.',
       ),
       max_signals: z.number().optional().describe(
-        'How many times it may wake you before closing. Default 1: one job, one wake. Set it above 1 '
-        + 'to keep the waitpoint open as a mailbox, so a job reporting every 30 minutes wakes you every '
-        + 'time; cancel it yourself once you have what you need. A sender that should be recorded '
-        + 'WITHOUT waking you uses `cortex-signal --status progress` instead.',
+        'Wake limit (default 1). Higher values allow repeated reports; cancel when done. '
+        + 'Send --status progress to record without waking.',
       ),
       expires_in_hours: z.number().optional().describe(
-        'Deadline. If nothing signals by then you are told so instead of waiting forever. Default 168h (7d), max 720h.',
+        'Expiry notification deadline in hours (default 168, max 720).',
       ),
       device: z.string().optional().describe(
-        'Name of the connected device the job runs on. Set this when the job is NOT on this machine: '
-        + 'the daemon then collects signals from that device instead of expecting an HTTP call it cannot make.',
+        'Connected device running the job; required for remote jobs so signals are collected there.',
       ),
     },
     async (args: any) => {
@@ -159,9 +137,7 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
 
   server.tool(
     'wait_check',
-    'Inspect a waitpoint you armed: its state, which members have reported, and what they said. '
-    + 'Pass an id, or omit it to list every waitpoint this session owns. Read-only — you do not need '
-    + 'to poll this to be woken.',
+    'Inspect session-owned waitpoints and member reports. Read-only; wakes arrive automatically, so do not poll.',
     {
       id: z.string().optional().describe('Waitpoint id (wp_…). Omit to list all of this session\'s waitpoints.'),
     },
@@ -177,9 +153,7 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
 
   server.tool(
     'wait_cancel',
-    'Disarm a waitpoint you no longer care about. Its secret stops working and you will not be woken. '
-    + 'Use this when you gave up on the job or finished the work another way — an abandoned waitpoint '
-    + 'otherwise wakes you days later about something nobody remembers.',
+    'Disarm an unneeded waitpoint. Invalidates its secret and prevents future wakes; cancel abandoned waits.',
     {
       id: z.string().describe('Waitpoint id (wp_…) to cancel.'),
     },

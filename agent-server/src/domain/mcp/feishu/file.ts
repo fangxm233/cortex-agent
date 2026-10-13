@@ -76,13 +76,13 @@ export async function uploadFileToFeishu(
 export function registerFileTools(server: McpServer, deps: FeishuToolDeps): void {
   server.tool(
     'feishu_send_file',
-    'Upload a file to Feishu. Use this when you need to share a file (document, image, archive, etc.) with users in a Feishu chat or channel. The file may be on this server or, with `device`, on a connected remote device.',
+    'Share a local or remote-device file in Feishu.',
     {
       file_path: z.string().describe('File path to upload. Local path, or an absolute path on `device`.'),
       file_name: z.string().optional().describe('Optional filename override shown in Feishu'),
       title: z.string().optional().describe('Optional file title shown in Feishu'),
       channel: z.string().optional().describe('Optional chat/channel ID (uses route context if not provided)'),
-      device: z.string().optional().describe('Name of a connected remote device (as used by remote_bash). Omit for files on this server.'),
+      device: z.string().optional().describe('Connected device to read from; omit for this server.'),
     },
     async ({ file_path, file_name, title, channel: explicitChannel, device }) =>
       guard(deps.client, async (client) => {

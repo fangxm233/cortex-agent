@@ -10,7 +10,7 @@ interface FileSpec { file_path: string; file_name?: string }
 interface SendFileInput { file_path?: string; file_name?: string; files?: FileSpec[]; caption?: string; device?: string }
 interface SentMeta { name: string; size: number }
 
-const FILE_PATH_DESC = 'Path to the file to send. Local path (absolute, or relative to the working directory); with `device`, an absolute path on that device.';
+const FILE_PATH_DESC = 'File path: local absolute/working-directory-relative, or absolute on device.';
 
 /** Exactly one of `file_path` / `files` names what to send. */
 function fileSpecs(input: SendFileInput): FileSpec[] {
@@ -59,16 +59,16 @@ async function sendFiles(ctx: CortexToolContext, input: SendFileInput): Promise<
 export function registerUiFileTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'send_file',
-    'Send one or more files to the user in this chat. Use this whenever you want to share files you produced — a report, plot, image, dataset, log, PDF, etc. Each file appears as a downloadable card in the conversation (images preview inline). Pass `file_path` for one file, or `files` to send several at once as one grouped message sharing a single caption. Paths are local, or set `device` to send files that live on a remote device instead.',
+    'Share produced files as downloadable chat cards (images preview inline). Send one file or an ordered group with a shared caption. Supports local or remote-device files.',
     {
       file_path: z.string().optional().describe(`${FILE_PATH_DESC} Use this OR \`files\`.`),
-      file_name: z.string().optional().describe('Optional filename override shown to the user (with `file_path`).'),
+      file_name: z.string().optional().describe('Display filename override for file_path.'),
       files: z.array(z.object({
         file_path: z.string().describe(FILE_PATH_DESC),
-        file_name: z.string().optional().describe('Optional filename override shown to the user.'),
-      })).optional().describe('Several files to send together as one message, in this order. Use this OR `file_path`.'),
+        file_name: z.string().optional().describe('Display filename override.'),
+      })).optional().describe('Ordered file group. Use files OR file_path.'),
       caption: z.string().optional().describe('Optional short message shown alongside the file(s).'),
-      device: z.string().optional().describe('Name of a connected remote device (as used by remote_bash). The files are read there and streamed back. Omit for files on this server.'),
+      device: z.string().optional().describe('Connected device to read files from; omit for this server.'),
     },
     async (input: SendFileInput) => {
       try {

@@ -8,7 +8,7 @@ import { CONFIG_DIR } from '../../../src/core/paths.js';
 import { registerRemoteOpsTools } from '../../../src/domain/mcp/tools/remote-ops.js';
 import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 import {
-  deviceParamDescription,
+  describeDeviceCatalog,
   readKnownDevices,
   withOnlineDevices,
 } from '../../../src/domain/mcp/tools/remote-devices.js';
@@ -52,11 +52,11 @@ test('readKnownDevices returns nothing for a missing or malformed file', () => {
   assert.deepEqual(readKnownDevices(path.join(dir, 'bad.json')), []);
 });
 
-test('deviceParamDescription names known devices and drops placeholder examples', () => {
-  const text = deviceParamDescription([{ name: 'lab2', windows: false }, { name: 'my-pc', windows: true }]);
+test('describeDeviceCatalog names known devices and drops placeholder examples', () => {
+  const text = describeDeviceCatalog([{ name: 'lab2', windows: false }, { name: 'my-pc', windows: true }]);
   assert.match(text, /lab2, my-pc \(Windows\)/);
   assert.match(text, /offline/);
-  assert.doesNotMatch(deviceParamDescription([]), /Known devices/);
+  assert.doesNotMatch(describeDeviceCatalog([]), /Known devices/);
 });
 
 test('withOnlineDevices appends the online list, or says none are online', () => {
@@ -65,13 +65,15 @@ test('withOnlineDevices appends the online list, or says none are online', () =>
   assert.equal(withOnlineDevices('Command failed', undefined), 'Command failed');
 });
 
-test('every remote tool lists the registered devices on its device parameter, online or not', () => {
+test('one remote description lists devices, online or not; parameters stay short', () => {
   writeMachines({ lab2: { cortexPath: '/a', gpuCount: 2 }, laptop: { cortexPath: 'C:\\', gpuCount: 0, win: true } });
   const tools = captureRemoteTools();
 
   for (const name of REMOTE_TOOLS) {
     const description = tools.get(name)![2].device.description as string;
-    assert.match(description, /lab2, laptop \(Windows\)/, name);
+    assert.equal(description, 'Target device name.', name);
+    const toolDescription = tools.get(name)![1] as string;
+    assert.equal(toolDescription.includes('lab2, laptop (Windows)'), name === 'remote_bash');
   }
 });
 
