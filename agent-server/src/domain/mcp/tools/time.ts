@@ -39,12 +39,12 @@ function describeTime(now: Date, timezone: string): {
 export function registerTimeTools(server: McpServer): void {
   server.tool(
     'current_time',
-    'Get the current date and time. Optionally specify an IANA timezone (e.g. "Asia/Shanghai", "America/New_York", "UTC"); defaults to the server local timezone. Returns the Unix epoch, UTC ISO string, and the localized wall-clock time with UTC offset.',
+    'Get current Unix milliseconds, UTC ISO date, and local date/time with UTC offset.',
     {
       timezone: z
         .string()
         .optional()
-        .describe('IANA timezone name, e.g. "Asia/Shanghai", "Europe/London", "UTC". Defaults to the server local timezone.'),
+        .describe('IANA timezone, e.g. America/Denver or UTC. Default: server local timezone.'),
     },
     { readOnlyHint: true },
     async ({ timezone }: { timezone?: string }) => {

@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  describeModelFields, describeSubagent, type SubagentModelOption,
+  claudeModelOptions, describeModelCatalog, describeSubagent, type SubagentModelOption,
 } from '../../src/core/agents/subagent/catalog.js';
 import {
   SUBAGENT_BACKEND_DESCRIPTION, SUBAGENT_MODEL_DESCRIPTION,
@@ -12,34 +12,29 @@ const MODELS: SubagentModelOption[] = [
   { backend: 'claude', id: 'claude-sonnet-5' },
 ];
 
-test('the agent tool fields keep the subagent lead-ins', () => {
+test('model fields stay short while the top-level directory names both backends', () => {
   const described = describeSubagent({ models: MODELS });
-  assert.equal(described.model,
-    `${SUBAGENT_MODEL_DESCRIPTION} Known available — claude: claude-sonnet-5; pi: deepseek/deepseek-v4-flash.`);
-  assert.equal(described.backend,
-    `${SUBAGENT_BACKEND_DESCRIPTION} Both backends have models configured on this host.`);
-  assert.deepEqual(describeSubagent({}).model, SUBAGENT_MODEL_DESCRIPTION);
-  assert.deepEqual(describeSubagent({}).backend, SUBAGENT_BACKEND_DESCRIPTION);
+  assert.equal(described.model, SUBAGENT_MODEL_DESCRIPTION);
+  assert.equal(described.backend, SUBAGENT_BACKEND_DESCRIPTION);
+  assert.equal(described.catalog, ' Known models — claude: claude-sonnet-5; pi: deepseek/deepseek-v4-flash.');
+  assert.equal(describeSubagent({}).catalog, '');
+  assert.equal(describeSubagent({}).model, SUBAGENT_MODEL_DESCRIPTION);
+  assert.equal(describeSubagent({}).backend, SUBAGENT_BACKEND_DESCRIPTION);
 });
 
 test.each([
   { count: 40, padding: 0 },
   { count: 4, padding: 400 },
-])('model descriptions list every model with $count entries and $padding padding', ({ count, padding }) => {
+])('catalog lists every model with $count entries and $padding padding', ({ count, padding }) => {
   const models: SubagentModelOption[] = Array.from({ length: count }, (_, index) => ({
     backend: 'pi', provider: 'provider', id: `model-${index}-${'x'.repeat(padding)}`,
   }));
-  const descriptions = [
-    describeSubagent({ models }).model,
-    describeModelFields(models, { model: 'Worker model.', backend: 'Worker backend.' }).model,
-  ];
-  for (const description of descriptions) {
-    for (const model of models) assert.ok(description.includes(`${model.provider}/${model.id}`));
-    assert.doesNotMatch(description, /\(\+\d+ more\)/);
-  }
+  const description = describeModelCatalog(models);
+  for (const model of models) assert.ok(description.includes(`${model.provider}/${model.id}`));
+  assert.doesNotMatch(description, /\(\+\d+ more\)/);
 });
 
-test('model descriptions retain normalization, deduplication and ordering', () => {
+test('model catalog retains normalization, deduplication and ordering', () => {
   const models: SubagentModelOption[] = [
     { backend: 'pi', provider: ' p ', id: ' z ' },
     { backend: 'claude', id: ' b ' },
@@ -47,17 +42,18 @@ test('model descriptions retain normalization, deduplication and ordering', () =
     { backend: 'claude', id: 'a' },
     { backend: 'pi', id: ' ' },
   ];
-  assert.equal(describeSubagent({ models }).model,
-    `${SUBAGENT_MODEL_DESCRIPTION} Known available — claude: a, b; pi: p/z.`);
+  assert.equal(describeSubagent({ models }).catalog, ' Known models — claude: a, b; pi: p/z.');
 });
 
-test('another tool lists the same catalog behind its own lead-ins', () => {
-  const bases = { model: 'Worker model.', backend: 'Worker backend.' };
-  assert.deepEqual(describeModelFields(MODELS, bases), {
-    model: 'Worker model. Known available — claude: claude-sonnet-5; pi: deepseek/deepseek-v4-flash.',
-    backend: 'Worker backend. Both backends have models configured on this host.',
-  });
-  assert.deepEqual(describeModelFields([], bases), bases, 'an empty catalog renders the lead-ins alone');
-  assert.deepEqual(describeModelFields([{ backend: 'pi', provider: 'p', id: 'm' }], bases).backend,
-    'Worker backend. Only "pi" has models configured on this host.');
+test('single-backend and empty catalogs remain valid', () => {
+  assert.equal(describeModelCatalog([{ backend: 'pi', provider: 'p', id: 'm' }]), ' Known models — pi: p/m.');
+  assert.equal(describeModelCatalog([]), '');
+});
+
+
+test('an empty discovered Claude cache falls back to shipped choices and includes the parent', () => {
+  const models = claudeModelOptions('unlisted-parent', []);
+  assert.ok(models.length > 1);
+  assert.equal(models.filter(model => model.id === 'unlisted-parent').length, 1);
+  assert.equal(describeModelCatalog(models).split('unlisted-parent').length - 1, 1);
 });

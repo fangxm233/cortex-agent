@@ -33,6 +33,8 @@ import {
   PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV,
 } from './session-options.js';
 import { safeNativeComposite, safeNativeName } from '@core/native-name.js';
+import { withoutModelCatalog } from '@core/agents/subagent/catalog.js';
+import { hasNativeAgent } from './native-tool-policy.js';
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -441,6 +443,14 @@ class McpBridgeSession {
     state.registered = true;
   }
 
+  private toolDescription(state: ServerState, tool: McpTool): string {
+    const description = tool.description ?? '';
+    if (state.source.kind === 'bundled' && tool.name === 'worker_spawn' && hasNativeAgent(this.deps.env)) {
+      return withoutModelCatalog(description);
+    }
+    return description;
+  }
+
   private registerTool(state: ServerState, exposedName: string, tool: McpTool): void {
     if (!state.handle) throw new Error(`MCP server ${state.name} is not connected`);
     const parameters = Type.Unsafe(tool.inputSchema as Record<string, unknown>);
@@ -448,7 +458,7 @@ class McpBridgeSession {
     this.pi.registerTool({
       name: exposedName,
       label: exposedName,
-      description: tool.description ?? '',
+      description: this.toolDescription(state, tool),
       parameters,
       async execute(_id, params, signal) {
         const result = await handle.client.callTool(

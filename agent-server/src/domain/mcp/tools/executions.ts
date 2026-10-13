@@ -28,7 +28,7 @@ function formatRecord(r: ExecutionRecord, now: number, detail = false): string {
 export function registerExecutionTools(server: McpServer): void {
   server.tool(
     'query_executions',
-    'Query execution status. List filtered executions, or look up a specific one by execution ID.',
+    'List executions by filters, or inspect one by ID.',
     {
       execution_id: z.string().optional().describe('Look up by execution ID (exec_local_xxx)'),
       status: z.enum(['running', 'completed', 'failed', 'cancelled', 'stale', 'all']).optional().describe('Filter by status (default: running)'),

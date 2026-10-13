@@ -246,19 +246,19 @@ export async function runCommissionSubmit(
 export function registerCommissionTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_commission_start',
-    'Put THIS session into commission mode and get the creation protocol: a commission is a long task anchored by a contract the user approves before any work begins. Call it when the work spans several sessions or days, hides decisions only the user can settle, or needs an auditable record of what "done" meant — not for a single question, an already-agreed edit, or open exploration. It creates the draft directory, returns the full drill protocol and contract structure, and is idempotent (safe to call again to re-read the protocol). Unrelated to plan mode; cortex_plan_enter/exit remain for ordinary implementation planning. Optional `reasoning` is recorded for the audit trail.',
+    'Enter commission mode for multi-session work, unresolved user decisions, or auditable acceptance criteria—not a question, agreed edit, or open exploration. Creates a draft directory and returns the contract protocol; safe to repeat. Obtain contract approval before work. Ordinary implementation uses plan mode. Reasoning is recorded.',
     { reasoning: z.string().optional() },
     async (args) => (await runCommissionStart(args ?? {}, deps)) as any,
   );
 
   server.tool(
     'cortex_commission_submit',
-    'Submit a drafted commission contract for human approval, and land the commission if approved. Only legal from a session that entered the mode through cortex_commission_start (or that the user switched into it); it reads contract.md at `contract_file_path`, which must be THIS session\'s own `commissions/_draft-*/` directory, and BLOCKS until the human decides. On approval the draft directory is renamed to the slug of `name`, the commission is registered, this session is bound to it, and the final directory is returned. On denial the feedback comes back and the draft survives: revise and call again.',
+    'Submit this session\'s commission contract and block for human approval. Requires commission mode (via start or user). Approval renames the draft directory, registers the commission, and binds this session; denial keeps the draft for revision.',
     {
-      contract_file_path: z.string().describe('Absolute path of the draft contract.md to submit'),
+      contract_file_path: z.string().describe('Absolute path to contract.md in this session\'s commissions/_draft-*/ directory'),
       name: z.string().describe('Final commission name; slugified into the directory name'),
       title: z.string().optional().describe('Display title (defaults to name)'),
-      summary: z.string().optional().describe('Optional one-paragraph summary surfaced alongside the contract'),
+      summary: z.string().optional().describe('One-paragraph summary for the approval card'),
     },
     async (args) => (await runCommissionSubmit(args as CommissionSubmitArgs, deps)) as any,
   );

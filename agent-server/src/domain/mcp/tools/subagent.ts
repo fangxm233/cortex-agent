@@ -56,8 +56,7 @@ function buildAgentShape(described: SubagentFieldDescriptions) {
     chain: z.array(taskSchema).min(1).max(MAX_SUBAGENT_TASKS).optional()
       .describe('Tasks to execute sequentially; {previous} inserts the prior output.'),
     run_in_background: z.boolean().optional()
-      .describe('Return an agent_id immediately and deliver the result when it is ready, instead of '
-        + 'blocking this tool call. Use for long work you can carry on without.'),
+      .describe('Return agent_id immediately; results arrive later. Default: wait for completion.'),
   };
 }
 
@@ -182,11 +181,11 @@ function foregroundText(outcome: any, runId: string): { text: string; isError: b
 }
 
 export function registerSubagentTools(server: McpServer, ctx: CortexToolContext): void {
-  const agentShape = buildAgentShape(describeHostCatalog(ctx));
+  const described = describeHostCatalog(ctx);
+  const agentShape = buildAgentShape(described);
   server.tool(
     'agent',
-    `${SUBAGENT_DESCRIPTION} Each child is isolated: it has its own context, its own role prompt, `
-    + 'and no delegation tools of its own, so it cannot spawn further subagents.',
+    SUBAGENT_DESCRIPTION + described.catalog,
     agentShape,
     async (params: AgentParams, extra?: ToolExtra) => {
       try {
@@ -219,8 +218,7 @@ export function registerSubagentTools(server: McpServer, ctx: CortexToolContext)
 
   server.tool(
     'agent_stop',
-    'Stop a running subagent by the agent_id you were given. Whatever the children had produced is '
-    + 'discarded — use it when the delegated work is no longer wanted, not to collect a result.',
+    'Stop a subagent and discard its output; not for collecting results.',
     { agent_id: z.string().describe('The agent_id returned when the subagent was started.') },
     async ({ agent_id }: { agent_id: string }) => {
       try {

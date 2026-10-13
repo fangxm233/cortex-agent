@@ -14,9 +14,10 @@ export interface SubagentFieldDescriptions {
   subagentTypeSingle: string;
   model: string;
   backend: string;
+  catalog: string;
 }
 
-/** The fixed lead-in each model/backend field starts with; the catalog appends what it knows. */
+/** Short field descriptions; the model directory belongs to a tool description. */
 export interface ModelFieldBases { model: string; backend: string }
 
 const SUBAGENT_MODEL_FIELD_BASES: ModelFieldBases = {
@@ -44,19 +45,8 @@ export function describeSubagent(catalog: SubagentCatalog): SubagentFieldDescrip
     subagentTypeSingle: roles.length > 0
       ? `Role name for single mode.${available}`
       : STATIC_SUBAGENT_TYPE_SINGLE,
-    ...describeModelFields(models),
-  };
-}
-
-/** Render the model and backend fields from a model catalog behind caller-supplied lead-ins, so
- *  another tool that picks a backend and model can list the same choices in its own words. */
-export function describeModelFields(
-  models: SubagentModelOption[],
-  bases: ModelFieldBases = SUBAGENT_MODEL_FIELD_BASES,
-): ModelFieldBases {
-  return {
-    model: describeModelField(models, bases.model),
-    backend: describeBackendField(models, bases.backend),
+    ...SUBAGENT_MODEL_FIELD_BASES,
+    catalog: describeModelCatalog(models),
   };
 }
 
@@ -186,35 +176,20 @@ function orderedModels(models: SubagentModelOption[]): NamedModel[] {
   return named;
 }
 
-function describeModelField(models: SubagentModelOption[], base: string): string {
+export const MODEL_CATALOG_MARKER = ' Known models — ';
+
+/** One top-level directory, grouped by backend. Empty catalogs add no text. */
+export function describeModelCatalog(models: SubagentModelOption[]): string {
   const named = orderedModels(models);
-  const claude = named.filter((entry) => entry.backend === 'claude').map((entry) => entry.name);
-  const pi = named.filter((entry) => entry.backend === 'pi').map((entry) => entry.name);
-  const segments: string[] = [];
-  if (claude.length > 0) segments.push(`claude: ${claude.join(', ')}`);
-  if (pi.length > 0) segments.push(`pi: ${pi.join(', ')}`);
-  if (segments.length === 0) return base;
-  return `${base} Known available — ${segments.join('; ')}.`;
+  const segments = (['claude', 'pi'] as const).flatMap(backend => {
+    const names = named.filter(entry => entry.backend === backend).map(entry => entry.name);
+    return names.length ? [`${backend}: ${names.join(', ')}`] : [];
+  });
+  return segments.length ? `${MODEL_CATALOG_MARKER}${segments.join('; ')}.` : '';
 }
 
-function describeBackendField(models: SubagentModelOption[], base: string): string {
-  let hasClaude = false;
-  let hasPi = false;
-  for (const model of models) {
-    if (!modelName(model)) continue;
-    if (model.backend === 'claude') hasClaude = true;
-    else hasPi = true;
-  }
-  if (hasClaude && hasPi) {
-    return `${base} Both backends have models configured on this host.`;
-  }
-  if (hasClaude) {
-    return `${base} Only "claude" has models configured on this host.`;
-  }
-  if (hasPi) {
-    return `${base} Only "pi" has models configured on this host.`;
-  }
-  return base;
+export function withoutModelCatalog(description: string): string {
+  return description.split(MODEL_CATALOG_MARKER)[0];
 }
 
 /**

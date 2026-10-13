@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-import { describeModelFields, type ModelFieldBases } from '@core/agents/subagent/catalog.js';
+import { describeModelCatalog, type ModelFieldBases } from '@core/agents/subagent/catalog.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 import { hostModelOptions } from './subagent.js';
 
@@ -24,23 +24,18 @@ function textResult(text: string, isError = false) {
   return { content: [{ type: 'text' as const, text }], ...(isError ? { isError: true } : {}) };
 }
 
-const NON_BLOCKING = 'Returns immediately. Worker reports and questions arrive later as new messages '
-  + 'in this conversation; after dispatching work, end your turn instead of waiting or polling.';
+const NON_BLOCKING = 'Returns immediately; reports and questions arrive as messages. '
+  + 'After dispatch, end your turn; do not wait or poll.';
 
 const WORKER_MODEL_FIELD_BASES: ModelFieldBases = {
-  model: 'Optional model: provider/model[:thinking] for a pi worker, a bare model id for a claude '
-    + 'worker. Omit to keep your own current model (same backend) or use that backend\'s default.',
-  backend: 'Optional backend: "claude" or "pi". Omit to use your own.',
+  model: 'Model override: pi provider/model[:thinking], claude model ID. '
+    + 'Default: your model on the same backend, otherwise that backend\'s default.',
+  backend: 'Backend override. Default: your backend.',
 };
 
-/** The backend/model field text, listing the same host catalog the `agent` tool offers. A catalog
- *  that cannot be read degrades to the bare lead-ins rather than failing registration. */
-function describeWorkerModelFields(ctx: CortexToolContext): ModelFieldBases {
-  try {
-    return describeModelFields(hostModelOptions(ctx), WORKER_MODEL_FIELD_BASES);
-  } catch {
-    return WORKER_MODEL_FIELD_BASES;
-  }
+function workerCatalog(ctx: CortexToolContext): string {
+  try { return describeModelCatalog(hostModelOptions(ctx)); }
+  catch { return ''; }
 }
 
 /** One handler shape for every team tool: proxy, then render the daemon's text or the error. */
@@ -56,22 +51,17 @@ function handler<P extends Record<string, unknown>>(ctx: CortexToolContext, acti
 }
 
 export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): void {
-  const described = describeWorkerModelFields(ctx);
+  const described = WORKER_MODEL_FIELD_BASES;
   server.tool(
     'worker_spawn',
-    'Start a persistent worker: a separate session with its own context and full tool surface, '
-    + 'which you can continue later with worker_send. Use workers only when there are several tasks '
-    + '(or the work can be split into several) or the user switches to a different task; keep a single '
-    + 'task in this session. Of the work you hand off, give a worker what may need follow-up, runs long, '
-    + 'or may need back-and-forth; for bounded reconnaissance or verification whose result you consume '
-    + 'immediately, use the one-shot `agent` tool instead. Write a self-contained prompt: '
-    + 'the worker does not see this conversation. The worker keeps your current model unless you pass '
-    + 'backend or model. The user can open the worker and talk to it directly. '
-    + 'Each worker turn reports back to you with its final reply, except turns the worker marks '
-    + 'routine, which you read later under [Unread routine updates]; its questions and plan approvals '
-    + `are routed to you (answer with worker_answer). ${NON_BLOCKING}`,
+    'Start a persistent, isolated session with full tools for follow-up or long-running work. '
+    + 'Use for multiple/splittable tasks or a new task; keep single tasks here. '
+    + 'For bounded work whose result you need now, use agent. Provide a self-contained prompt; '
+    + 'workers cannot see this conversation. The user can talk to them directly. '
+    + 'Final replies report back except routine updates; questions and approvals route to you '
+    + `(worker_answer). ${NON_BLOCKING}${workerCatalog(ctx)}`,
     {
-      name: z.string().describe('Short unique slug for this worker, e.g. "api-refactor" (lowercase letters, digits, hyphens; max 32).'),
+      name: z.string().describe('Unique slug: lowercase letters, digits, hyphens; max 32 characters.'),
       prompt: z.string().describe('Complete, self-contained task for the worker.'),
       backend: z.enum(['claude', 'pi']).optional().describe(described.backend),
       model: z.string().optional().describe(described.model),
@@ -81,10 +71,9 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 
   server.tool(
     'worker_send',
-    'Send a message to one of your workers: continue its work, redirect it, or give it more context. '
-    + 'Injected into its current turn if it is running, otherwise starts a new turn. Revives a retired '
-    + `worker. Prefer this over spawning when the topic and code area are the same and the worker's `
-    + `context is still relevant. ${NON_BLOCKING}`,
+    'Continue or redirect a worker; injects into a running turn or starts a new one. '
+    + 'Revives retired workers. Reuse a relevant worker rather than spawning another. '
+    + NON_BLOCKING,
     {
       worker: z.string().describe('The worker name.'),
       message: z.string().describe('The message to deliver.'),
@@ -94,9 +83,7 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 
   server.tool(
     'worker_list',
-    'Without arguments: your workers with status, brief and last report time. With a '
-    + 'worker name: that worker in detail, including its full last report. You do not need this to '
-    + 'learn that a worker finished; reports arrive on their own.',
+    'List your workers, or inspect one with its full last report. Completion reports arrive automatically.',
     { worker: z.string().optional().describe('A worker name for its detail view.') },
     handler(ctx, 'list'),
   );
@@ -113,14 +100,12 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 
   server.tool(
     'worker_answer',
-    'Resolve a pending question or plan approval a worker raised, by its request_id. For a question, '
-    + 'pass answers keyed by the exact question text. For a plan or commission submission, pass approved '
-    + '(and feedback when rejecting or adjusting). If you are unsure what the user would want, ask them '
-    + 'with cortex_ask_user first. The user may also answer on the worker\'s own card; the first answer wins.',
+    'Answer a worker question or approve/reject its plan or commission. Ask cortex_ask_user '
+    + 'first if unsure of user intent. The user may also answer; first answer wins.',
     {
       request_id: z.string().describe('The request_id from the worker notice.'),
-      answers: z.record(z.string(), z.string()).optional().describe('Question text → answer, for a question.'),
-      approved: z.boolean().optional().describe('Approve (true) or reject (false), for a plan.'),
+      answers: z.record(z.string(), z.string()).optional().describe('Exact question text → answer, for a question.'),
+      approved: z.boolean().optional().describe('Approve or reject a plan/commission.'),
       feedback: z.string().optional().describe('Feedback for the worker, mainly when rejecting a plan.'),
     },
     handler(ctx, 'answer'),
@@ -131,11 +116,9 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 export function registerWorkerReportTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'mark_routine',
-    'Mark this turn as routine. Call it before your final reply when the turn has nothing new for your '
-    + 'lead: a stale or duplicate signal, a routine check where everything is as expected, or work that '
-    + 'is still running with no change. Your final reply is then recorded as a routine update the lead '
-    + 'reads later, and does not wake it. Do not use it for results, milestones, failures, blockers or '
-    + 'anything the lead must act on; ask for decisions with cortex_ask_user.',
+    'Before your final reply, mark a no-change or duplicate update so it does not wake the lead. '
+    + 'Never use for results, milestones, failures, blockers, or needed action. '
+    + 'Ask for decisions with cortex_ask_user.',
     {},
     handler(ctx, 'routine'),
   );

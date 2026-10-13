@@ -148,26 +148,25 @@ export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): 
 export function registerInteractionAskTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_ask_user',
-    'Ask the human one or more clarifying questions (replaces native AskUserQuestion). Posts each question through the session interaction channel with optional multiple-choice options. Use this when you need clarification, a decision, or a choice from the user. Set `multiSelect=true` on a question to allow multi-pick. '
-      + 'By default the call BLOCKS and the answers come back in the tool_result. Set `blocking=false` when the answer is useful but you can make progress without it: the call returns at once, you keep working, and if the user answers it arrives later as an ordinary user message.',
+    'Ask the human for clarification or a decision (replaces native AskUserQuestion). Supports free text or choices; blocks by default. Use blocking=false when you can continue without the answer.',
     {
       questions: z.array(
         z.object({
           question: z.string().describe('The complete question to ask the user.'),
-          header: z.string().optional().describe('Very short label (max 12 chars), e.g. "Auth method", "Library". Falls back to a trimmed question prefix.'),
+          header: z.string().optional().describe('Label, max 12 characters; defaults to the question prefix.'),
           options: z.array(
             z.object({
               label: z.string().describe('Display text for this option.'),
-              description: z.string().optional().describe('Optional explanation of what this option means.'),
+              description: z.string().optional().describe('Explanation of the option.'),
             }),
-          ).optional().describe('Optional multiple-choice options. Omit for free-text answer.'),
-          multiSelect: z.boolean().optional().describe('If true, the user may select multiple options (default false).'),
+          ).optional().describe('Choices; omit for free text.'),
+          multiSelect: z.boolean().optional().describe('Allow multiple selections (default false).'),
         }),
       ).min(1).describe('Questions to ask (at least one).'),
       level: z.enum(['info', 'warn', 'warning', 'error']).optional()
-        .describe("Optional severity of the question card: 'info' (default look), 'warning', or 'error'. 'warn' is accepted as an alias."),
+        .describe("Card severity; default info. warn aliases warning."),
       blocking: z.boolean().optional()
-        .describe('Default true: wait for the answer and return it in the tool_result. Set false to post the question and continue immediately — the answer, if any, is delivered later as a user message instead.'),
+        .describe('Default true: return answers here. False: return immediately; any answer arrives later as a user message.'),
     },
     async (args) => (await runAskUser(args as AskUserArgs, deps)) as any,
   );

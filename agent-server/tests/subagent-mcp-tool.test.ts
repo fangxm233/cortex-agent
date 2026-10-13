@@ -98,7 +98,7 @@ test('the agent tool advertises all three modes and the background flag', () => 
   assert.equal(shape.backend.safeParse('pi').success, true);
   assert.equal(shape.backend.safeParse('gpt').success, false);
   assert.equal(shape.backend.safeParse(undefined).success, true);
-  assert.match(description, /cannot spawn further subagents/);
+  assert.match(description, /children cannot delegate/);
 });
 
 // --- webhook proxy ---

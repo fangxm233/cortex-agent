@@ -7,16 +7,14 @@ export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
 
 export const SUBAGENT_MODEL_DESCRIPTION =
-  'Optional model override: provider/model[:thinking] for a pi child, a bare model id for a claude '
-  + 'child. Omit to use the role model, then the parent\'s current model.';
+  'Model override: pi provider/model[:thinking], claude model ID. Default: role model, then parent model.';
 
 export const SUBAGENT_BACKEND_DESCRIPTION =
-  'Optional backend for this child: "claude" or "pi". Omit to use the role\'s backend, then the '
-  + 'parent\'s own.';
+  'Backend override. Default: role backend, then parent backend.';
 
 export const SUBAGENT_DESCRIPTION =
-  'Delegate a task to an isolated subagent. Supports single, parallel, and chain modes, and can '
-  + 'run the child on either backend.';
+  'Delegate isolated, one-shot work; children cannot delegate. Give self-contained prompts. '
+  + 'Choose one mode: single, parallel, or chain. Supports both backends.';
 
 const TASK_KEYS = ['description', 'prompt', 'subagent_type'] as const;
 

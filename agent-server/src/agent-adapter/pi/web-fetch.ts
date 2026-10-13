@@ -17,7 +17,7 @@ const EMBEDDED_IMAGE_MARKER = '[Embedded image omitted]';
 const WebFetchParameters = Type.Object({
   url: Type.String({ description: 'The HTTP or HTTPS URL to fetch.' }),
   prompt: Type.Optional(Type.String({
-    description: 'Compatibility prompt. The page content is returned directly without summarization.',
+    description: 'Compatibility-only; ignored. Returns content without summarizing.',
   })),
 });
 
@@ -214,8 +214,7 @@ export const webFetchTool: ToolDefinition<typeof WebFetchParameters> = {
   name: 'web_fetch',
   label: 'WebFetch',
   description:
-    'Fetch an HTTP or HTTPS URL locally and return its content. HTML is converted to Markdown; ' +
-    'JSON and plain text are returned directly. The optional prompt does not trigger summarization.',
+    'Fetch HTTP(S) content locally: HTML as Markdown, JSON/text unchanged. No summarization.',
   parameters: WebFetchParameters,
   async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
     const text = await fetchWebContent(params.url, signal);

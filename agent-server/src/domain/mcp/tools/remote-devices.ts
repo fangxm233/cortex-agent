@@ -21,10 +21,10 @@ export function readKnownDevices(file: string = MACHINES_FILE): KnownDevice[] {
   }
 }
 
-export function deviceParamDescription(devices: readonly KnownDevice[]): string {
-  if (devices.length === 0) return 'Target device name';
+export function describeDeviceCatalog(devices: readonly KnownDevice[]): string {
+  if (devices.length === 0) return '';
   const names = devices.map(d => (d.windows ? `${d.name} (Windows)` : d.name)).join(', ');
-  return `Target device name. Known devices: ${names}. A device may be offline; calling an offline one fails and lists the devices online at that moment.`;
+  return ` Known devices: ${names}. May be offline; failed calls list currently online devices.`;
 }
 
 /** Append the daemon's online-device list to a failed remote call's error. */

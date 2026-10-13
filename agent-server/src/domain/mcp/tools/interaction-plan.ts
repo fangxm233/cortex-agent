@@ -140,14 +140,14 @@ export async function runPlanExit(
 export function registerInteractionPlanTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_plan_enter',
-    'Enter Cortex plan mode. Use this BEFORE designing a non-trivial implementation. Replaces native EnterPlanMode in eligible direct agent sessions — investigation is read-only, the plan must be written to a file under `plan/`, and cortex_plan_exit is required before implementation. Optional `reasoning` is recorded for the audit trail.',
+    'Enter plan mode before designing non-trivial changes. Replaces native EnterPlanMode: investigate read-only, write the plan under plan/, then obtain cortex_plan_exit approval before implementation. Reasoning is recorded.',
     { reasoning: z.string().optional() },
     async (args) => runPlanEnter(args ?? {}) as any,
   );
 
   server.tool(
     'cortex_plan_exit',
-    'Submit a written plan for human approval (replaces native ExitPlanMode). Reads the plan file at `plan_file_path`, posts it to the Cortex approval channel along with the optional `summary`, and BLOCKS until the human approves, denies, or requests revisions. Returns approval status and any feedback as a tool_result. Do not call this until the plan file is complete.',
+    'Submit a complete plan for human approval (replaces native ExitPlanMode). Blocks until approval, denial, or revision feedback; do not implement before approval.',
     {
       plan_file_path: z.string().describe('Absolute path of the plan file to submit'),
       summary: z.string().optional().describe('Optional one-paragraph summary surfaced alongside the plan'),
