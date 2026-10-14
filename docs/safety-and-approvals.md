@@ -155,6 +155,8 @@ which user-initiated sessions load on both backends (see
 
 ### Plan mode
 
+![A session paused on its plan, with Request changes and Approve plan](images/ui/plan-approval.png)
+
 `cortex_plan_enter` puts the agent into Cortex's planning protocol: it
 investigates read-only, writes the plan to a file under `plan/`, and does not
 implement anything until the plan is approved. The backends' native plan tools

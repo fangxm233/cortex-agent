@@ -99,6 +99,8 @@ Cortex 可以编辑文件、启动进程、管理 GPU 训练，并与多台机�
 
 ### 计划模式 {#plan-mode}
 
+![停在计划上的会话，带 Request changes 和 Approve plan 按钮](../images/ui/plan-approval.png)
+
 `cortex_plan_enter` 让智能体进入 Cortex 的计划流程：以只读方式调研，把计划写入 `plan/` 下的文件，在计划获批之前不做任何实现。后端原生的计划工具被禁用，因此所有计划都走同一条审批路径，并留在对话历史中。
 
 `cortex_plan_exit` 提交计划文件以供审批，并阻塞直到你做出决定：

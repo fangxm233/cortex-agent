@@ -18,7 +18,7 @@ keeps the project's memory in plain files, and asks you only when it matters.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/hero-dark.png">
-  <img alt="The Cortex workbench: projects and sessions on the left, a session working through an approved plan in the middle, and its live board on the right" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/hero-light.png">
+  <img alt="The Cortex workbench: projects, sessions and workers on the left, a lead session reporting results in the middle, and its live board on the right" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/hero-light.png">
 </picture>
 
 ## Download
@@ -54,6 +54,8 @@ targets the three ways long agent runs go wrong:
 
 ### Plans, tools, and questions in one conversation
 
+<img alt="A session paused on its plan, with Request changes and Approve plan buttons" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/plan-approval.png">
+
 Every session streams its reasoning, tool calls, subagent runs, and files into one transcript.
 Before non-trivial work the agent writes a plan and waits. You approve it, ask for changes, or
 reject it from the card in the chat. Questions and decisions arrive the same way, as cards you
@@ -61,7 +63,7 @@ answer in place, on desktop or on your phone.
 
 ### Boards for long work
 
-<img alt="A board showing the study's stages, acceptance checklist, key decisions and timeline" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/board.png">
+<p align="center"><img width="640" alt="A board showing the study's live strip, stage cards, results table and plot" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/board.png"></p>
 
 When a task spans many hours or several workers, the agent opens a **board**: a status page
 docked beside the conversation. The board shows where the work stands, what comes next, what is
@@ -88,17 +90,19 @@ decision records as Markdown under `context/projects/<name>/`. A new session, or
 picks up from those files rather than from a transcript. The **Memory** view browses them with their
 line history. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
 
-### Schedules
+### Spend, schedules, and runs per project
 
-<img alt="The schedule list with a weekly literature digest and a daily results check" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/schedules.png">
+<img alt="A project's overview: spend against its daily budget, a 14-day chart, its schedules, and the execution list" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
 
-Interval, daily, weekly, and one-off schedules start ordinary sessions on their own: a morning
-scan of new papers, a weekly digest, a check every few minutes. Schedules survive restarts and
-hot-reload without downtime. [Scheduling →](https://fangxm233.github.io/cortex-agent/scheduling/)
+Each project's overview shows what it spent today, this week, and this month against its budget,
+its schedules, and every execution with its duration, cost, and logs. Interval, daily, weekly, and
+one-off schedules start ordinary sessions on their own: a morning scan of new papers, a weekly
+digest, a check every few minutes. Schedules survive restarts and hot-reload without downtime.
+[Scheduling →](https://fangxm233.github.io/cortex-agent/scheduling/)
 
 ### All your machines
 
-<img alt="The machines menu with live CPU, memory, disk and per-GPU telemetry" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png">
+<p align="center"><img width="560" alt="The machines menu with live CPU, memory, disk and per-GPU telemetry" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png"></p>
 
 Your GPUs, documents, and tools rarely live on one box. Run `cortex-client` on any Linux, macOS, or
 Windows machine and the agent can read, write, and execute there from the same session. The
@@ -108,7 +112,7 @@ dock opens a development server running on a remote machine as if it ran locally
 
 ### On your phone
 
-<img alt="The Android app: session list, a conversation, and the approvals screen" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/mobile-strip.png">
+<img alt="The Android app: the session list, a lead session with decisions and workers, and a plan waiting for approval" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/mobile-strip.png">
 
 The Android app has the same sessions, boards, approvals, and memory in a phone layout. It can
 notify you in the background when a turn finishes or when a session is waiting for your answer.
@@ -116,7 +120,7 @@ notify you in the background when a turn finishes or when a session is waiting f
 
 ### Bring your own models
 
-<img alt="Provider setup: Claude Code, connected providers, and a grid of providers to add" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/provider-setup.png">
+<p align="center"><img width="640" alt="Model providers: a connected OpenAI Codex login and the catalog of providers to add with an API key or OAuth" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/provider-setup.png"></p>
 
 Cortex drives a coding agent instead of calling a model API itself. PI ships inside the server and
 signs in to dozens of providers, including subscriptions such as ChatGPT Plus/Pro, with OAuth or an

@@ -2,6 +2,8 @@
 
 Autonomous agent system for long-running projects. You give it a mission with a success criterion, and it plans the work, hands focused pieces to subagents, keeps a structured log of progress in your repo, and checks the result against what you agreed — across days or weeks of unattended work.
 
+![The Cortex workbench: projects and sessions, a lead session reporting results, and its board in the dock](images/ui/hero-light.png)
+
 ## Why Cortex?
 
 Cortex is designed around three failure modes of long agent runs:

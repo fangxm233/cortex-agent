@@ -64,6 +64,8 @@ This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_
 
 ## Provider setup
 
+![Model providers: a connected OpenAI Codex login and the catalog of providers to add](images/ui/provider-setup.png){ width="640" }
+
 The provider setup page, **Connect a provider**, runs top to bottom: a **Claude Code** card, the **Model providers** card, the **Default profile**, and the optional leaderboard card. **Model providers** lists the providers whose credentials are already detected under **Connected**, and the rest under **Add a provider**: a search box above a two-column grid, with a **Popular** group first and **More providers** below it. Choose a provider and a supported OAuth or API-key method to open the same login modal used by **Settings → Accounts**. PI needs no separate installation. OAuth may open your browser and require authorization or MFA; login is not guaranteed to stay inside the app.
 
 **Claude Code** is optional and separate from the Anthropic provider in PI. In local desktop setup, **Install and sign in** authorizes installing Claude Code on this computer, then opens its login flow. This is the only onboarding step that offers its installation. An existing Claude Code installation is reused.
@@ -120,6 +122,8 @@ Linux, macOS, and Windows store the connection JSON in the operating-system keyc
 
 ## Desktop workbench
 
+![The desktop workbench: project rail, chat with a decision card and a result plot, and a board in the dock](images/ui/hero-light.png)
+
 The desktop app uses the same workbench as the browser. The left rail lists projects and project-scoped sessions and links to the selected project's Overview. The center pane contains chat, streamed agent output, tool activity, attachments, question cards, and plan approvals. A slim rail along the chat's left edge marks every prompt in the session. The marks nearest the pointer stretch as it travels down the rail, the one under it previews what was asked, and clicking it scrolls the transcript back to that point. Marks stay lit for every turn the view currently shows, whether it holds the whole turn or only its head or tail.
 
 The chat header carries the session's title and, for a lead, its team capsule, and for a session bound to a board, the board capsule ([Team Mode](team.md#in-the-workbench), [Boards](team.md#boards)). The Notes button (⌘⇧N) opens the private notes as a card beneath the header, leaving the composer in view. Directly above the composer, one row of capsules shows what the session is doing: the agent's task list, as a progress ring with the current item, and anything it waits on outside Cortex. The task capsule stays while the list has open items and leaves once a finished list's turn ends. Each capsule opens its detail as a popover, so the composer never moves. On a phone the same row also carries the lead's team and the bound board, and each capsule opens a sheet. Clicking the status line under the composer opens **Session stats**: runs, agent turns, active time, total cost, and the part of the cost spent by subagents.
@@ -127,6 +131,8 @@ The chat header carries the session's title and, for a lead, its team capsule, a
 Typing `/` in the composer opens the slash palette: `/new`, `/cancel`, `/compact`, `/profile`, `/settings`, and `/usage`, followed by the skills the session can load. The arrow keys move through it, and Enter or Tab picks an entry. The composer's **+** menu attaches files, lists the same commands, and sets **browser** control for a new session: the agent gets tools to drive Chrome on the server (**this host**) or on a connected device, where the window opens on that machine's screen with the logins already in its profile. Browser control is chosen before the session's first message, because the agent's tools are fixed when it starts; the chosen device then shows as a chip in the composer.
 
 The machines chip in the top bar shows how many registered machines are online, such as `2/3`. Clicking it, or choosing **View → Machines**, opens the **Machines** menu with one card per machine: its name, an online or offline pill, and its GPU count and operating system. Expanding a card probes the machine live while the menu stays open. It shows CPU load, RAM, and free disk as aligned bars, then one row per GPU with utilization, memory, temperature, and power draw and the heaviest processes beneath it, and finally how long the machine has been connected, its last heartbeat, and its uptime. An offline machine shows *Offline — no live telemetry*. **Manage ›** opens **Settings → Machines**. On Android, **Machines** is a drill-in screen with the same cards, vitals, and GPU grid.
+
+![The Machines menu with one expanded card: CPU, RAM, disk and a per-GPU grid](images/ui/machines.png){ width="480" }
 
 The right-hand dock (**View → Dock pane**, `⌘J` or `Ctrl+J`) holds tabs beside the chat: pinned file previews, boards, and web pages. A web tab takes a port or a URL. Its **Ports** list shows the ports listening on the server or on a connected device, and the desktop app forwards a chosen port through its token-authenticated `/forward` tunnel, so a development server on a remote machine opens as if it ran locally. A browser cannot forward, and opens those ports as plain `localhost` addresses.
 
@@ -157,6 +163,8 @@ Clicking a session notification restores/focuses the app or browser page and ope
 Desktop and browser notifications require the app or page to remain running; closing it stops delivery. Browser tabs receive events independently. System notification settings, Do Not Disturb, and Linux notification-server/window-manager support can restrict display, click actions, or focus. Some mobile browsers do not support page-created notifications and keep the in-app fallback. Android has its own background service, described below.
 
 ## Android interface
+
+![The Android app: session list, a lead session with decisions and workers, and a plan waiting for approval](images/ui/mobile-strip.png)
 
 The Android home screen is the current project's session list. Swiping right anywhere on the list slides in the Projects panel from the left: the current project's budget, approvals, issues, notes and memory, the other projects to switch to, and the usage and settings buttons. The panel follows your finger and opens or closes depending on how far or how fast you swipe. A mostly vertical swipe scrolls the list. Swiping left, tapping the dimmed list, or pressing Back closes the panel. The Cortex mark in the top-left corner also opens the panel, and it shows an amber count while approvals are waiting for you. Session chat, plan review, approvals, issues, notes, memory files, machines, settings, hooks, and daemon status open as drill-in screens, and Back from a screen opened in the panel returns to the open panel. The Android back action closes overlays first, then returns through the app's navigation stack.
 

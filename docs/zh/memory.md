@@ -238,6 +238,8 @@ Dense Context 系统遵循以下运行约定：
 
 ## 在工作台中浏览记忆 {#browsing-memory-in-the-workbench}
 
+![Memory 视图：项目文件树和渲染后的实验记录](../images/ui/memory.png)
+
 Web 工作台以只读方式展示项目记忆。桌面端可通过**视图 → 记忆**或项目 Overview 上的**打开记忆查看器**进入；
 手机端则是项目面板中的**项目记忆**。它列出 `mission.md`、`roadmap.md`、`STATUS.md`，以及
 `experiments/`、`knowledge/`、`patterns/` 和 `decisions/` 中的文件（不含自动生成的 `index.md`），渲染所选

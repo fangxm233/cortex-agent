@@ -102,6 +102,8 @@ takes no parameters and marks the current turn as a routine update (see above).
 
 ## In the workbench
 
+![A lead session with its team list open, an approved worker plan, and two worker report cards](images/ui/team.png)
+
 - The sidebar nests a lead's workers under it, behind a caret with a worker count. The lead's
   dot summarizes its workers, and retired workers are listed last and dimmed.
 - A lead's chat header carries its team as one capsule: up to six status dots for its active
@@ -139,6 +141,8 @@ takes no parameters and marks the current turn as a routine update (see above).
   with a line naming who it is waiting on, such as *Lead is waiting for docs to report*.
 
 ## Boards
+
+![A board in the dock: the live strip, stage cards, a results table and a plot](images/ui/board.png){ width="560" }
 
 A board is a status page for long work. It sits beside the conversation and shows at a glance where
 a task stands, what comes next, what is waiting on you, and the decisions taken so far. A board

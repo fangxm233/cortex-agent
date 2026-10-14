@@ -24,6 +24,8 @@ Duration strings follow the format `<number><unit>` where unit is `s` (seconds),
 
 ## Managing schedules
 
+![The Edit schedule dialog for a daily 09:00 check](images/ui/schedules.png)
+
 Every entry point applies the same validation and writes the same `schedules.json`:
 
 | Entry point | Who uses it |

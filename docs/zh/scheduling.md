@@ -22,6 +22,8 @@
 
 ## 管理调度 {#managing-schedules}
 
+![每日 09:00 检查的 Edit schedule 对话框](../images/ui/schedules.png)
+
 所有入口使用同一套校验，写同一个 `schedules.json`：
 
 | 入口 | 使用者 |

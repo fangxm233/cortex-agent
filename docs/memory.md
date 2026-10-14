@@ -250,6 +250,8 @@ Two consequences worth knowing:
 
 ## Browsing Memory in the Workbench
 
+![The Memory view: a project's file tree and a rendered experiment record](images/ui/memory.png)
+
 The Web workbench shows a project's memory read-only. On desktop, **View → Memory** or **Open memory
 viewer** on the project's Overview opens it; on a phone, it is **Project memory** in the Projects
 panel. It lists `mission.md`, `roadmap.md`, `STATUS.md`, and the files in `experiments/`,
