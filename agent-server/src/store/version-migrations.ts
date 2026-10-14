@@ -534,7 +534,7 @@ const stepMigrations: StepMigration[] = [
   // left as it is.
   {
     key: 'sentinel:builtin-overlay',
-    version: '2026.10.13',
+    version: '2026.10.6',
     run: async ({ dataDir, defaultsDir }) => {
       if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return;
       await migrateToBuiltinOverlay({ dataDir, defaultsDir });

@@ -23,21 +23,3 @@ for (const rel of Object.values(pkg.bin ?? {})) {
   fs.chmodSync(abs, 0o755);
   console.log(`Shebang injected: ${rel}`);
 }
-
-// --- 2. Copy hook scripts from defaults/hooks/ to dist/hooks/ ---
-// tsc only compiles .ts files; standalone .mjs hook scripts need explicit copy.
-
-const srcHooksDir = path.join(pkgRoot, 'defaults', 'hooks');
-const distHooksDir = path.join(pkgRoot, 'dist', 'hooks');
-
-if (fs.existsSync(srcHooksDir)) {
-  fs.mkdirSync(distHooksDir, { recursive: true });
-  const files = fs.readdirSync(srcHooksDir);
-  for (const file of files) {
-    if (!file.endsWith('.mjs')) continue;
-    const src = path.join(srcHooksDir, file);
-    const dst = path.join(distHooksDir, file);
-    fs.copyFileSync(src, dst);
-    console.log(`Hook copied: ${src} -> ${dst}`);
-  }
-}

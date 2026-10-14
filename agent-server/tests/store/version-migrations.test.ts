@@ -776,3 +776,18 @@ test('the registered S1 step imports the legacy session stores via runMigrations
   await assert.rejects(fs.stat(path.join(storeDir, 'conversation-ledger.json')));
   assert.ok(await fs.stat(path.join(storeDir, `sessions.json.pre-${CURRENT_VERSION}.bak`)));
 });
+
+test('the registered built-in overlay step runs on the release that ships it', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+  // A copy the home kept of a shipped rule: the code reading built-ins in place would treat it as
+  // the user's override unless the step runs with it.
+  await writeText(path.join(defaultsDir, 'rules', 'shipped.md'), 'shipped rule\n');
+  await writeText(path.join(dataDir, 'rules', 'shipped.md'), 'shipped rule\n');
+
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as Record<string, string>;
+  assert.ok(versions['sentinel:builtin-overlay'], 'step ran and was tracked');
+  await assert.rejects(fs.stat(path.join(dataDir, 'rules', 'shipped.md')));
+});
