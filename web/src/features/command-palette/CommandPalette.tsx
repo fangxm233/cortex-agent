@@ -8,9 +8,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useSettings } from '@/features/settings/useSettings';
 import { useDockIntake } from '@/design/dock-intake';
-import { sortBoards } from '@/features/board/useBoard';
-import { boardStatusLabel } from '@/features/board/BoardLiveStrip';
-import { isClosedBoardRow, selectPaletteRows, type PaletteRow } from './palette-items';
+import { selectPaletteRows, type PaletteRow } from './palette-items';
 import { paletteKindText } from './palette-items';
 
 // ⌘K command palette — chrome and row anatomy follow glass-prototype.dc.html L370–386 (kind column,
@@ -121,11 +119,9 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   // Nav rows are all commands; entity rows are named by their `kbd` tag. That tag is therefore
   // redundant in the hint for entities, but not for nav rows, where it says page vs modal.
   const kind = row.labelKey ? 'command' : row.kbd;
-  const closed = isClosedBoardRow(row);
-  const status = closed && row.boardStatus ? boardStatusLabel(row.boardStatus, L) : null;
-  const hint = [sub, status, row.kbd === kind ? null : paletteKindText(row.kbd, L)].filter(Boolean).join(' · ');
+  const hint = [sub, row.kbd === kind ? null : paletteKindText(row.kbd, L)].filter(Boolean).join(' · ');
   return (
-    <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE} data-closed={closed ? '' : undefined}>
+    <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
       <span style={KIND_STYLE}>{paletteKindText(kind, L)}</span>
       <span className="cmdk-row-label">{label}</span>
       <span style={HINT_STYLE} title={hint}>{hint}</span>
@@ -141,7 +137,7 @@ function usePaletteRows(open: boolean, query: string): PaletteRow[] {
   const sessions = useQuery(trpc.sessions.list.queryOptions({}, { enabled: open, staleTime: STALE }));
   const boards = useQuery(trpc.boards.list.queryOptions({}, { enabled: open, staleTime: STALE }));
   return useMemo(
-    () => selectPaletteRows(query, { sessions: sessions.data ?? [], boards: sortBoards(boards.data ?? []) },
+    () => selectPaletteRows(query, { sessions: sessions.data ?? [], boards: boards.data ?? [] },
       { kindWords: { board: L.palKindBoard, session: L.palKindSession } }),
     [query, sessions.data, boards.data, L],
   );

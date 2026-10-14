@@ -262,7 +262,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `agent-state.json` | Selected profile, default agent, and per-channel overrides (migrated once from `mode.json`) |
 | `profiles.json` | Named agent profile list |
 | `schedules.json` | Persistent schedule list |
-| `boards.json` | Board registry: each board's project, slug, title and state (`active`, `done` or `abandoned`). The page itself lives in the project context under `boards/<slug>/` |
+| `boards.json` | Board registry: each board's project, slug, title, creation time and last use (created, attached to by a session, or its files changed). The page itself lives in the project context under `boards/<slug>/` |
 | `session-registry.jsonl` | Append-only JSONL journal and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Events: `put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`; startup replays the stream to rebuild live and pending state. Compaction keeps live records + bindings + live turns; it runs once the journal holds more than `max(512, live×4, 2×compacted)` events — where `compacted` is the number of events a compaction would write — or exceeds both 16 MB and twice its size after the last compaction. Replaces the retired `sessions.json` and `conversation-ledger.json`, which a one-time upgrade migration renames to `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | Two-sweep orphan retention candidates for history and PI cleanup |
 | `conversation-history/` | Per-session transcript/history JSONL keyed by stable Cortex session id |

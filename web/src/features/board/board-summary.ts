@@ -1,4 +1,4 @@
-import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { teamRoster } from '@/features/team/worker-roster';
 
 // What both live surfaces — the dock's strip and the chat's status bar — say about a board's bound
@@ -16,8 +16,6 @@ export interface BoardSummary {
   shown: SessionInfo[];
   /** Those waiting on the user. */
   pending: SessionInfo[];
-  /** Sessions still running or waiting (they keep going after the board closes). */
-  live: number;
 }
 
 export function boardSummary(sessions: SessionInfo[]): BoardSummary {
@@ -25,20 +23,17 @@ export function boardSummary(sessions: SessionInfo[]): BoardSummary {
   return {
     shown,
     pending: shown.filter((s) => s.awaitingInput),
-    live: sessions.filter((s) => s.running || s.awaitingInput).length,
   };
 }
 
-export type BoardFlagTone = 'ask' | 'active' | 'closed';
+export type BoardFlagTone = 'ask' | 'active';
 
-/** The flag's tone: amber while anyone waits on the user, else accent while open, muted once closed. */
-export function boardFlagTone(status: BoardInfo['status'], pendingCount: number): BoardFlagTone {
-  if (pendingCount > 0) return 'ask';
-  return status === 'active' ? 'active' : 'closed';
+/** The flag's tone: amber while anyone waits on the user, else accent. */
+export function boardFlagTone(pendingCount: number): BoardFlagTone {
+  return pendingCount > 0 ? 'ask' : 'active';
 }
 
 export const BOARD_FLAG_COLOR: Record<BoardFlagTone, string> = {
   ask: 'var(--proto-amber)',
   active: 'var(--proto-accent)',
-  closed: 'var(--proto-muted)',
 };

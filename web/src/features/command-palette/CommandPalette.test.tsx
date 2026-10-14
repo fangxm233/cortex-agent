@@ -15,8 +15,8 @@ vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({
   boards: { list: { queryOptions: () => ({ queryKey: ['boards'] }) } },
 }) }));
 const BOARDS = [
-  { id: 'b-done', projectId: 'orchard', slug: 'done', title: 'Done board', status: 'done', createdAt: '2026-07-01T00:00:00Z', updatedAt: '2026-07-09T00:00:00Z', closedAt: '2026-07-09T00:00:00Z', closeNote: null },
-  { id: 'b-open', projectId: 'orchard', slug: 'open', title: 'Open board', status: 'active', createdAt: '2026-07-01T00:00:00Z', updatedAt: '2026-07-02T00:00:00Z', closedAt: null, closeNote: null },
+  { id: 'b-recent', projectId: 'orchard', slug: 'recent', title: 'Recent board', createdAt: '2026-07-01T00:00:00Z', updatedAt: '2026-07-09T00:00:00Z' },
+  { id: 'b-older', projectId: 'orchard', slug: 'older', title: 'Older board', createdAt: '2026-07-01T00:00:00Z', updatedAt: '2026-07-02T00:00:00Z' },
 ];
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (o: { queryKey: string[] }) => ({ data: o.queryKey[0] === 'boards' ? BOARDS : [{ sessionId: 's1', projectId: 'orchard', label: 'Session' }] }),
@@ -26,8 +26,8 @@ vi.mock('cmdk', () => {
   return { Command: {
     Dialog: wrapper, List: wrapper, Empty: wrapper,
     Input: () => null,
-    Item: ({ children, onSelect, value, 'data-closed': closed }: { children: ReactNode; onSelect: () => void; value: string; 'data-closed'?: string }) =>
-      <button data-item={value} data-closed={closed} onClick={onSelect}>{children}</button>,
+    Item: ({ children, onSelect, value }: { children: ReactNode; onSelect: () => void; value: string }) =>
+      <button data-item={value} onClick={onSelect}>{children}</button>,
   } };
 });
 
@@ -46,12 +46,10 @@ it('selects the session in its own project before navigating to the workbench', 
   act(() => tree.unmount());
 });
 
-it('shows closed boards after open ones, marked closed, without a query', () => {
+it('lists the recent boards in the server\'s order without a query', () => {
   const tree = create(<LangProvider><CommandPalette open onOpenChange={vi.fn()} /></LangProvider>);
   const rows = tree.root.findAll((n) => n.type === 'button' && n.props['data-item'] !== undefined);
-  const boards = rows.filter((n) => String(n.props['data-item']).startsWith('board:'));
-  expect(boards.map((n) => [n.props['data-item'], n.props['data-closed']])).toEqual([
-    ['board:b-open', undefined], ['board:b-done', ''],
-  ]);
+  expect(rows.map((n) => String(n.props['data-item'])).filter((id) => id.startsWith('board:')))
+    .toEqual(['board:b-recent', 'board:b-older']);
   act(() => tree.unmount());
 });

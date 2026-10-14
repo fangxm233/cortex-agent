@@ -7,57 +7,13 @@ import { workerDotStyle } from '@/features/team/TeamRoster';
 import { workerState, workerStatusText, workerTitle } from '@/features/team/worker-roster';
 import { useWorkerQuestions } from '@/features/team/useWorkerQuestions';
 import { BoardIcon } from './BoardIcon';
-import { boardSummary } from './board-summary';
+import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from './board-summary';
 
 // The native strip above the board body: what the server knows live, which the agent-written body
-// cannot — the board's status, each bound session's state, what is waiting on the user, and the
-// decision stream. Amber is spent only on "waiting on you".
+// cannot — each bound session's state, what is waiting on the user, and the decision stream. Amber is
+// spent only on "waiting on you".
 
 const ELLIPSIS: CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
-
-export type CloseStatus = 'done' | 'abandoned';
-
-export function boardStatusLabel(status: BoardInfo['status'], L: ReturnType<typeof useVocab>): string {
-  return status === 'active' ? L.boardActive : status === 'done' ? L.boardDone : L.boardAbandoned;
-}
-
-/** `quiet`: a closed board reads gray whatever the outcome (the chat's status bar). */
-export function BoardStatusChip({ status, quiet }: { status: BoardInfo['status']; quiet?: boolean }): JSX.Element {
-  const L = useVocab();
-  const active = status === 'active';
-  const done = status === 'done' && !quiet;
-  return (
-    <span data-board-status={status} style={{
-      flex: 'none', font: `500 11px ${MONO}`, borderRadius: 'var(--r-chip)', padding: '1px 7px',
-      color: active ? 'var(--proto-accent)' : done ? 'var(--proto-success)' : 'var(--proto-muted)',
-      background: active ? 'var(--proto-accent-bg)' : done ? 'var(--proto-success-bg)' : 'var(--proto-gray)',
-    }}>
-      {boardStatusLabel(status, L)}
-    </span>
-  );
-}
-
-function StripButton({ children, tone = 'neutral', disabled, onClick }: {
-  children: ReactNode;
-  tone?: 'neutral' | 'danger';
-  disabled?: boolean;
-  onClick: () => void;
-}): JSX.Element {
-  const [hover, setHover] = useState(false);
-  return (
-    <button type="button" className={MENU_FOCUS} disabled={disabled} onClick={onClick}
-      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{
-        flex: 'none', height: 24, padding: '0 10px', fontSize: 12, fontFamily: 'inherit',
-        border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)',
-        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
-        background: hover && !disabled ? 'var(--proto-gray)' : 'var(--material-card-bg)',
-        color: tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)',
-      }}>
-      {children}
-    </button>
-  );
-}
 
 function StripChip({ tone, pressed, onClick, children, data }: {
   tone: 'ask' | 'plain';
@@ -143,24 +99,17 @@ export interface BoardLiveStripProps {
   decisionsOpen: boolean;
   onToggleDecisions: () => void;
   onOpenSession: (session: SessionInfo) => void;
-  closing: boolean;
-  onClose: (status: CloseStatus, note: string) => void;
 }
 
 export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
   const L = useVocab();
   const { board } = props;
   const now = useNowTick(true, 30_000);
-  // Closing is the one irreversible act here, so it goes through a confirm strip that also takes the
-  // closing note — the reason a board stopped is the fact nobody can reconstruct later.
-  const [confirming, setConfirming] = useState<CloseStatus | null>(null);
-  const [note, setNote] = useState('');
   const [pendingOpen, setPendingOpen] = useState(false);
   const closePending = useCallback(() => setPendingOpen(false), []);
   useDismissMenu(pendingOpen, closePending, closePending);
 
-  const { shown, pending, live } = boardSummary(props.sessions);
-  const active = board.status === 'active';
+  const { shown, pending } = boardSummary(props.sessions);
   const openPending = () => {
     if (pending.length === 1) props.onOpenSession(pending[0]!);
     else setPendingOpen((v) => !v);
@@ -172,41 +121,11 @@ export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
       background: 'var(--material-inset-bg)', border: '1px solid var(--border-card)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <BoardIcon stroke={active ? 'var(--proto-accent)' : 'var(--proto-muted)'} />
+        <BoardIcon stroke={BOARD_FLAG_COLOR[boardFlagTone(pending.length)]} />
         <span title={board.title} style={{ ...ELLIPSIS, fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>
           {board.title}
         </span>
-        <BoardStatusChip status={board.status} />
-        {active && (
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <StripButton disabled={props.closing} onClick={() => { setConfirming('done'); setNote(''); }}>{L.boardComplete}</StripButton>
-            <StripButton tone="danger" disabled={props.closing} onClick={() => { setConfirming('abandoned'); setNote(''); }}>{L.boardAbandon}</StripButton>
-          </span>
-        )}
       </div>
-
-      {confirming && active && (
-        <div data-board-confirm={confirming} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--proto-ink-2)' }}>
-            {confirming === 'done' ? L.boardCompleteTitle : L.boardAbandonTitle}
-            <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--proto-muted)' }}>
-              {live > 0 ? fmt(L.boardActiveContinues, { n: live }) : L.boardWorkContinues}
-            </span>
-          </span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={L.boardCloseNote}
-            onKeyDown={(e) => { if (e.key === 'Enter') props.onClose(confirming, note.trim()); }}
-            style={{
-              flex: 1, minWidth: 140, height: 24, padding: '0 8px', fontSize: 12, fontFamily: 'inherit',
-              borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)',
-              background: 'var(--material-card-bg)', color: 'var(--proto-ink)',
-            }} />
-          <StripButton tone={confirming === 'done' ? 'neutral' : 'danger'} disabled={props.closing}
-            onClick={() => props.onClose(confirming, note.trim())}>
-            {confirming === 'done' ? L.boardComplete : L.boardAbandon}
-          </StripButton>
-          <StripButton onClick={() => setConfirming(null)}>{L.cancel}</StripButton>
-        </div>
-      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 7, rowGap: 4 }}>
         {shown.length === 0
@@ -226,12 +145,6 @@ export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
           )}
         </span>
       </div>
-
-      {board.closeNote && (
-        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--proto-muted)' }}>
-          {L.boardClosedNote}: <span style={{ color: 'var(--proto-ink-2)' }}>{board.closeNote}</span>
-        </div>
-      )}
     </div>
   );
 }

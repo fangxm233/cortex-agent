@@ -23,13 +23,12 @@ export interface CmdkItem {
   projectId: string;
   /** Board rows: the board to open in the dock. */
   boardId?: string;
-  boardStatus?: BoardInfo['status'];
   keywords: string[];
 }
 
 export interface CmdkSources {
   sessions: SessionInfo[];
-  /** Already ordered: open boards first. */
+  /** Already ordered: most recently updated first. */
   boards?: BoardInfo[];
 }
 
@@ -60,7 +59,6 @@ export interface PaletteRow {
   focusId?: string;
   projectId?: string;
   boardId?: string;
-  boardStatus?: BoardInfo['status'];
   keywords: string[];
   labelKey?: keyof Vocab;
   subKey?: keyof Vocab;
@@ -69,6 +67,8 @@ export interface PaletteRow {
 export interface SelectOptions {
   /** Max entity rows per kind shown when the query is empty (keeps the DOM small). */
   restPerKind?: number;
+  /** Max boards shown when the query is empty. */
+  recentBoards?: number;
   /** Max total rows shown while searching. */
   matchCap?: number;
   /** Localized kind words by tag, so typing a kind's name lists that kind. */
@@ -92,8 +92,8 @@ function sessionItem(s: SessionInfo): CmdkItem {
 function boardItem(b: BoardInfo): CmdkItem {
   return {
     id: `board:${b.id}`, label: b.title || b.slug, sub: b.projectId, kbd: 'board', route: '/workbench',
-    projectId: b.projectId, boardId: b.id, boardStatus: b.status,
-    keywords: tokens(b.slug, b.projectId, b.status),
+    projectId: b.projectId, boardId: b.id,
+    keywords: tokens(b.slug, b.projectId),
   };
 }
 
@@ -141,7 +141,7 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
 // keywords so an id/status also matches. We do the filtering ourselves (cmdk `shouldFilter={false}`)
 // so we can CAP the rendered rows — feeding cmdk hundreds of real entities blows up the DOM and
 // stalls the shared httpBatchLink fetch. Empty query → nav commands + a few recent entities per
-// kind, open boards before closed ones (proto-shot shows a short populated list); typing → all
+// kind, the most recent boards first (proto-shot shows a short populated list); typing → all
 // matches (nav + entities), capped.
 export function selectPaletteRows(
   query: string,
@@ -149,6 +149,7 @@ export function selectPaletteRows(
   opts: SelectOptions = {},
 ): PaletteRow[] {
   const restPerKind = opts.restPerKind ?? 5;
+  const recentBoards = opts.recentBoards ?? 8;
   const matchCap = opts.matchCap ?? 50;
   const nav: PaletteRow[] = NAV_COMMAND_ITEMS;
   const entities = buildCmdkItems(sources);
@@ -156,11 +157,7 @@ export function selectPaletteRows(
 
   if (!q) {
     const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd);
-    const boards = byKind('board');
-    // Open boards lead; closed ones follow (shown dimmed), each group capped on its own.
-    const open = boards.filter((b) => !isClosedBoardRow(b)).slice(0, restPerKind);
-    const closed = boards.filter(isClosedBoardRow).slice(0, restPerKind);
-    return [...nav, ...open, ...closed, ...byKind('session').slice(0, restPerKind)];
+    return [...nav, ...byKind('board').slice(0, recentBoards), ...byKind('session').slice(0, restPerKind)];
   }
 
   const kindWords = opts.kindWords ?? {};
@@ -168,11 +165,6 @@ export function selectPaletteRows(
     [r.label, r.sub, ...r.keywords, r.labelKey ? '' : r.kbd, r.labelKey ? '' : kindWords[r.kbd] ?? '']
       .join(' ').toLowerCase().includes(q);
   return [...nav, ...entities].filter(matches).slice(0, matchCap);
-}
-
-/** A board row for a board that is done or abandoned. */
-export function isClosedBoardRow(row: Pick<PaletteRow, 'boardStatus'>): boolean {
-  return row.boardStatus !== undefined && row.boardStatus !== 'active';
 }
 
 /** The localized kind tag (`PaletteRow.kbd` stays the stable tag); an unknown tag shows as-is. */

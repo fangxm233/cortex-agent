@@ -49,6 +49,10 @@ vi.mock('@/features/team/useWorkerQuestions', () => ({ useWorkerQuestions: () =>
 vi.mock('@/features/board/BoardStatusBar', () => ({
   BoardStatusBar: ({ boardId, onOpen }: { boardId: string; onOpen: () => void }) => <button data-board-bar={boardId} onClick={onOpen} />,
 }));
+vi.mock('@/features/board/BoardChatRows', () => ({
+  BoardActionChatRow: ({ action, onOpen, touch }: { action: { boardId: string }; onOpen: (id: string) => void; touch?: boolean }) =>
+    <button data-board-row={action.boardId} data-touch={touch} onClick={() => onOpen(action.boardId)} />,
+}));
 vi.mock('./MChatBoard', () => ({ MBoardSheet: ({ boardId }: { boardId: string }) => <div data-board-sheet={boardId} /> }));
 vi.mock('@/features/browser/BrowserOptIn', () => ({
   useBrowserDeviceOptions: () => [{ device: null, label: 'Off', sub: '' }, { device: 'laptop', label: 'laptop', sub: '' }],
@@ -609,6 +613,19 @@ describe('MChatView board status bar', () => {
   it('is absent on an unbound session', () => {
     const r = mount({ boardId: null });
     expect(bars(r)).toHaveLength(0);
+    act(() => r.unmount());
+  });
+
+  it('shows a board card in the stream that opens that board full-screen', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'plan it' },
+      { kind: 'board-action', action: { boardId: 'b9', title: 'Survey', created: true, ts: null } },
+    ];
+    const r = mount({ boardId: null, rows });
+    const row = r.root.find((n) => n.type === 'button' && n.props['data-board-row'] === 'b9');
+    expect(row.props['data-touch']).toBe(true);
+    act(() => row.props.onClick());
+    expect(r.root.findAll((n) => n.props['data-board-sheet'] === 'b9')).toHaveLength(1);
     act(() => r.unmount());
   });
 });

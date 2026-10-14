@@ -83,7 +83,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 |---|---|---|
 | `cost_query` | _(无)_ | 查询当前费用：今天/月支出、预算限制、剩余预算、API/plan 分摊、来源细分、令牌使用量 |
 | `query_executions` | `execution_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
-| `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId（UUID）、profile、project、backend；Web 会话还有 `board`，即绑定的看板（id、title、status、dir），没有时为 null |
+| `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId（UUID）、profile、project、backend；Web 会话还有 `board`，即绑定的看板（id、title、dir），没有时为 null |
 | `wait_create` | `label`、`intent`、`members?`、`quorum?`、`fail_fast?`、`max_signals?`、`expires_in_hours?`、`device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；然后结束这一轮 |
 | `wait_check` | `id?` | 查看某个 waitpoint，或列出本 session 正在等的全部内容 |
 | `wait_cancel` | `id` | 取消一个 waitpoint，使其不再触发 |
@@ -129,7 +129,6 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `we
 | `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?`、`width?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
 | `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
 | `board_open` | `title` 或 `board` | 新建看板，或按 id、slug 接入已有看板，并把会话绑定到它 |
-| `board_close` | `status`（`done` 或 `abandoned`）、`note?` | 关闭会话绑定的看板 |
 
 `send_file`、`send_view` 与 `send_decision` 都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
 归一化事件流里的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，
@@ -156,7 +155,7 @@ assistant 消息，并发布实时事件。跨线的只有路径——大文档�
 在该决策的动作日志上，也作为普通用户消息发给 agent。决策及其动作日志持久化在
 会话历史里，刷新或换设备后卡片状态不丢。
 
-`board_open` 与 `board_close` 管理长任务的状态页：哪些会话绑定、agent 怎么写、工作台里怎么显示，见
+`board_open` 打开长任务的状态页：哪些会话绑定、agent 怎么写、对话和工作台里怎么显示，见
 [看板](./team.md#boards)。
 
 该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具在

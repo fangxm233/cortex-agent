@@ -1,7 +1,6 @@
 import { useCallback, useState, type CSSProperties } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { MONO } from '@/design/MenuChrome';
-import { useToastOptional } from '@/design/Toast';
 import { useVocab } from '@/i18n';
 import { downloadFile, boardFilePath } from '@/lib/files';
 import { isNativeShell } from '@/lib/desktop-config';
@@ -12,11 +11,11 @@ import { docKindOf } from '@/features/media/doc-kind';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { BoardFrame } from './BoardFrame';
-import { BoardLiveStrip, type CloseStatus } from './BoardLiveStrip';
+import { BoardLiveStrip } from './BoardLiveStrip';
 import { fileNameOf, mediaKindOfName, resolveBoardRef } from './board-paths';
-import { useBoard, useCloseBoard } from './useBoard';
+import { useBoard } from './useBoard';
 import { useBoardDocument } from './useBoardDocument';
-import { useBoardLiveSync } from './useBoardLiveSync';
+import { useBoardUpdated } from './useBoardLiveSync';
 
 // One board: the native live strip, the decision stream it can unfold, and the agent-written body.
 // Shared by the desktop dock tab and the mobile sheet; each host says how to open a session.
@@ -104,12 +103,10 @@ export function BoardView({ boardId, onOpenSession, touch }: {
   touch?: boolean;
 }): JSX.Element {
   const L = useVocab();
-  const toast = useToastOptional();
   const data = useBoard(boardId);
-  const close = useCloseBoard(boardId);
   const [decisionsOpen, setDecisionsOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  useBoardLiveSync(useCallback((id: string) => { if (id === boardId) setRefresh((n) => n + 1); }, [boardId]));
+  useBoardUpdated(useCallback((id: string) => { if (id === boardId) setRefresh((n) => n + 1); }, [boardId]));
 
   const { board } = data;
   const projectId = board?.projectId ?? '';
@@ -127,12 +124,6 @@ export function BoardView({ boardId, onOpenSession, touch }: {
     return <div style={CENTERED}>{data.missing ? L.boardMissing : L.boardLoading}</div>;
   }
 
-  const onClose = (status: CloseStatus, note: string) => {
-    close.mutate({ boardId, status, note: note || undefined }, {
-      onError: (error) => toast?.toast({ title: L.boardCloseFailed, description: error.message, tone: 'failed' }),
-    });
-  };
-
   return (
     <div data-board-view={boardId} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <BoardLiveStrip
@@ -142,8 +133,6 @@ export function BoardView({ boardId, onOpenSession, touch }: {
         decisionsOpen={decisionsOpen}
         onToggleDecisions={() => setDecisionsOpen((v) => !v)}
         onOpenSession={onOpenSession}
-        closing={close.isPending}
-        onClose={onClose}
       />
       {decisionsOpen && <DecisionStream decisions={data.decisions} sessions={data.sessions} touch={touch} />}
       <div data-board-scroll="" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px 16px' }}>

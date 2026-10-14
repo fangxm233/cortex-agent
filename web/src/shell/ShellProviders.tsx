@@ -5,6 +5,7 @@ import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
+import { BoardLiveSync } from '@/features/board/useBoardLiveSync';
 
 // The providers BOTH chromes mount — one definition, and still one mount per chrome rather than a
 // lift into the root `providers.tsx`. ConnectionStatusProvider's header records that per-shell
@@ -13,6 +14,8 @@ import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 //
 //   LiveEvents        the app's ONE SSE stream; outermost, because every live surface and the
 //                     connectivity badge read through it
+//   BoardLiveSync     keeps board queries and bindings current, so a chat's board bar appears the
+//                     moment its session is bound, on either chrome
 //   ConnectionStatus  derived from that stream
 //   CurrentProject    the selected project, read by both chromes' navigation
 //   ModalRegistry     the open-overlay store (design/modal-registry). The desktop shell renders the
@@ -27,6 +30,7 @@ import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 export function ShellProviders({ children }: { children: ReactNode }): JSX.Element {
   return (
     <LiveEventsProvider>
+      <BoardLiveSync />
       <ConnectionStatusProvider>
         <CurrentProjectProvider>
           <ModalRegistryProvider>

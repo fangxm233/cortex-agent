@@ -24,6 +24,7 @@ import { ChatNotice } from './ChatNotice';
 import { useTranscriptWindow } from './useTranscriptWindow';
 import { useStickToBottom } from './useStickToBottom';
 import { useTeamRowSlot } from './team-row-slot';
+import { useBoardRowSlot } from './board-row-slot';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
@@ -424,7 +425,17 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
 }): JSX.Element | null {
   const L = useVocab();
   const team = useTeamRowSlot();
+  const board = useBoardRowSlot();
   switch (row.kind) {
+    case 'board-action':
+      // Drawn by the board feature (it knows the board's live state and opens it); see board-row-slot.
+      if (!board) return null;
+      return (
+        <div className="group" data-row={row.kind}>
+          {board.row(row)}
+          <TurnCopyAction text={assistantCopyText} />
+        </div>
+      );
     case 'team-action':
     case 'team-updates':
       // Drawn by the team feature (it knows each worker's live status); see team-row-slot.

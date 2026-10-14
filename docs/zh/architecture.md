@@ -243,7 +243,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `agent-state.json` | 选定的 profile、默认智能体与频道级 override（由 `mode.json` 一次性迁移而来） |
 | `profiles.json` | 命名智能体配置列表 |
 | `schedules.json` | 持久化定时任务列表 |
-| `boards.json` | 看板注册表：每个看板的所属项目、slug、标题和状态（`active`、`done` 或 `abandoned`）。页面本身在项目上下文的 `boards/<slug>/` 下 |
+| `boards.json` | 看板注册表：每个看板的所属项目、slug、标题、创建时间和最近使用时间（新建、有会话接入或文件变化）。页面本身在项目上下文的 `boards/<slug>/` 下 |
 | `session-registry.jsonl` | 仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。事件：`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`；启动时通过流式回放重建 live/pending 状态。压缩保留 live 记录 + 绑定 + live 轮次；当日志事件数超过 `max(512, live×4, 2×compacted)`（`compacted` 为一次压缩会写出的事件数），或文件同时超过 16 MB 与上次压缩后大小的两倍时触发。替代已退役的 `sessions.json` 与 `conversation-ledger.json`——一次性升级迁移会把它们重命名为 `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
 | `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |

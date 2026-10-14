@@ -752,7 +752,7 @@ session owns stay where they are.
 A board is the status page of a long task, kept by the agents working on it
 (see [Boards](./team.md#boards) in the team guide). Each board lives in
 `<project context>/boards/<slug>/`, and `data/boards.json` lists every board
-with its project, title and state. On upgrade, registered commissions from
+with its project, title and when it was last used. On upgrade, registered commissions from
 earlier Cortex releases become boards: their directories move from
 `commissions/` to `boards/`, and their files are moved, never deleted.
 
@@ -835,8 +835,7 @@ polling mode as it uses with filesystem events.
   and need a restart. See [hooks.md](./hooks.md).
 - **Hook scripts (`hooks/*.mjs`)** — read fresh on every hook invocation.
 - **Plugins, prompts, rules** — read fresh on each agent session spawn.
-- **`config/board.css`** — watched together with the directories of active
-  boards. Open boards re-render within a few seconds of a change. See
+- **`config/board.css`** — watched together with every board's directory. Open boards re-render within a few seconds of a change. See
   [Boards](#boards).
 
 ## Where each file lives
