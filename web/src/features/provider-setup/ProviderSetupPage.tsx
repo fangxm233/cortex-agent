@@ -6,11 +6,11 @@ import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowModal';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
-import { buildAccountsVm, type ClaudeAccountVm } from '@/features/settings/vm/accounts-vm';
+import { buildAccountsVm, type AvailableProviderVm, type ClaudeAccountVm } from '@/features/settings/vm/accounts-vm';
 import {
-  AvailableGrid, ClaudeSlots, ConnectedList, ProviderSearch, useLogoutConfirm,
+  AvailableGrid, ClaudeSlots, ConnectedList, ProviderSearch, useLogoutConfirm, type AccountRowHandlers,
 } from '@/features/settings/ui/account-rows';
-import { ProviderSetupController, setupErrorText } from './provider-setup';
+import { ProviderSetupController, setupErrorText, splitPopular } from './provider-setup';
 import { canSetupClaude, setupClaude, claudeInstallLine } from './setup-native';
 import { invokeNative, listenNativeEvent } from '@/lib/native-bridge';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
@@ -107,6 +107,19 @@ function SetupFooter({ controller, leave, saving = false, failed = false }: { co
     <p className="setup-footnote">{L.setupHonesty}</p>
   </footer>;
 }
+// Two columns fit the 640px workspace; narrow screens fall back to one.
+const SETUP_GRID_COLUMN = 260;
+function AvailableGroups({ providers, handlers }: { providers: AvailableProviderVm[]; handlers: AccountRowHandlers }) {
+  const L = useVocab();
+  const { popular, more } = splitPopular(providers);
+  if (!popular.length || !more.length) return <AvailableGrid providers={providers} handlers={handlers} minColumn={SETUP_GRID_COLUMN} />;
+  return <>
+    <div className="setup-accounts-sub" data-setup-providers="popular"><h4>{L.setupPopular}</h4>
+      <AvailableGrid providers={popular} handlers={handlers} minColumn={SETUP_GRID_COLUMN} /></div>
+    <div className="setup-accounts-sub" data-setup-providers="more"><h4>{L.setupMoreProviders}</h4>
+      <AvailableGrid providers={more} handlers={handlers} minColumn={SETUP_GRID_COLUMN} /></div>
+  </>;
+}
 function PiSection({ controller, login }: { controller: ProviderSetupController; login: (target: LoginFlowTarget) => void }) {
   const L = useVocab();
   const [search, setSearch] = useState('');
@@ -126,7 +139,7 @@ function PiSection({ controller, login }: { controller: ProviderSetupController;
       {vm.availableTotal > 0 ? <div className="setup-accounts-group">
         <h3>{L.accountsAddProvider} · {vm.availableTotal}</h3>
         <ProviderSearch value={search} onChange={setSearch} />
-        <AvailableGrid providers={vm.available} handlers={handlers} />
+        <AvailableGroups providers={vm.available} handlers={handlers} />
       </div> : null}
     </div> : null}
   </section>;
@@ -148,9 +161,9 @@ export function ProviderSetupView({ controller, usageSharing, ...exit }: {
   return <><main className="setup-workspace">
     <header><div className="setup-eyebrow">{L.setupEyebrow}</div><h1>{L.setupTitle}</h1>
       <p className="setup-intro">{L.setupDescription}</p></header>
+    <ClaudeSection controller={controller} login={setTarget} />
     <PiSection controller={controller} login={setTarget} />
     <SetupFeedback controller={controller} />
-    <ClaudeSection controller={controller} login={setTarget} />
     <ProfileSection controller={controller} />
     {usageSharing ? <UsageSharingCard controller={usageSharing} variant="setup" /> : null}
     <SetupFooter controller={controller} {...exit} />

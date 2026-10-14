@@ -352,16 +352,19 @@ const GRID_CARD_STYLE: CSSProperties = {
 
 // Each cell draws its own right and bottom hairline; the grid is pulled 1px past the card edge so
 // the outermost lines are clipped, whatever the column count at this width.
-const GRID_STYLE: CSSProperties = {
-  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
-  margin: '0 -1px -1px 0',
-};
+function gridStyle(minColumn: number): CSSProperties {
+  return {
+    display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${minColumn}px), 1fr))`,
+    margin: '0 -1px -1px 0',
+  };
+}
 const CELL_STYLE: CSSProperties = {
   boxShadow: 'inset -1px 0 0 var(--proto-line-2), inset 0 -1px 0 var(--proto-line-2)', minWidth: 0,
 };
 
-export function AvailableGrid({ providers, handlers }: {
-  providers: AvailableProviderVm[]; handlers: AccountRowHandlers;
+/** `minColumn` is the narrowest a cell may get before the grid drops a column. */
+export function AvailableGrid({ providers, handlers, minColumn = 300 }: {
+  providers: AvailableProviderVm[]; handlers: AccountRowHandlers; minColumn?: number;
 }) {
   const L = useVocab();
   if (providers.length === 0) {
@@ -369,7 +372,7 @@ export function AvailableGrid({ providers, handlers }: {
   }
   return (
     <div data-account-group="available" style={GRID_CARD_STYLE}>
-      <div style={GRID_STYLE}>
+      <div style={gridStyle(minColumn)}>
         {providers.map(provider => (
           <div key={provider.provider} style={CELL_STYLE}>
             <AvailableProviderRow provider={provider} handlers={handlers} />

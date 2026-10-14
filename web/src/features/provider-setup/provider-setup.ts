@@ -43,6 +43,18 @@ export function setupErrorText(error: string, L: Vocab): string {
   return nativeErrorText(error, Object.fromEntries(Object.entries(NATIVE_ERROR_KEYS).map(([code, key]) => [code, L[key]])));
 }
 
+// Shown first on the setup page, in this order; every other provider follows under "More".
+export const POPULAR_PROVIDERS = [
+  'openai-codex', 'xai', 'opencode-go', 'opencode', 'openrouter', 'moonshotai', 'zai', 'deepseek',
+];
+export function splitPopular<T extends { provider: string }>(providers: T[]): { popular: T[]; more: T[] } {
+  const rank = (provider: string) => POPULAR_PROVIDERS.indexOf(provider);
+  return {
+    popular: providers.filter(p => rank(p.provider) >= 0).sort((a, b) => rank(a.provider) - rank(b.provider)),
+    more: providers.filter(p => rank(p.provider) < 0),
+  };
+}
+
 function matchesAccount(profile: ConfigProfileEntry, account: AuthAccountStatus): boolean {
   const backend = profile.backend ?? 'claude';
   const provider = backend === 'claude' ? 'anthropic' : profile.provider;

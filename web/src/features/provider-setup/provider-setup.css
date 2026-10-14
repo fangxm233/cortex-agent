@@ -60,6 +60,8 @@
 .provider-setup .setup-input:disabled { opacity: .65; }
 .provider-setup .setup-accounts { display: flex; flex-direction: column; gap: 16px; }
 .provider-setup .setup-accounts-group h3 { margin: 0 0 8px 2px; font-size: 12px; font-weight: 600; color: var(--proto-muted); }
+.provider-setup .setup-accounts-sub + .setup-accounts-sub { margin-top: 12px; }
+.provider-setup .setup-accounts-sub h4 { margin: 0 0 6px 2px; font-size: 11px; font-weight: 600; color: var(--proto-muted-3); }
 .provider-setup .setup-install-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; }
 .provider-setup .setup-install-row .setup-button { flex: none; }
 .provider-setup .setup-hint { color: var(--proto-muted); font-size: 12px; }

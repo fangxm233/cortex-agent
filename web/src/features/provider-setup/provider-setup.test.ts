@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthAccountStatus, ConfigProfileEntry } from '@cortex-agent/ui-contract';
-import { ProviderSetupController, readyProfiles, setupErrorText } from './provider-setup';
+import { POPULAR_PROVIDERS, ProviderSetupController, readyProfiles, setupErrorText, splitPopular } from './provider-setup';
 import { en, zh } from '@/i18n';
 
 const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => ({
@@ -141,5 +141,15 @@ describe('setupErrorText', () => {
       .toBe('Claude Code installation failed (exit 1: npm ERR! 404)');
     expect(setupErrorText('Claude Code installation failed (exit 1)', zh)).toBe('Claude Code installation failed (exit 1)');
     expect(setupErrorText('unknown_code: x', zh)).toBe('unknown_code: x');
+  });
+});
+
+describe('splitPopular', () => {
+  it('lists popular providers in the curated order and keeps the rest in place', () => {
+    const rows = ['zai', 'anthropic', 'openai-codex', 'groq', 'deepseek'].map(provider => ({ provider }));
+    const { popular, more } = splitPopular(rows);
+    expect(popular.map(p => p.provider)).toEqual(['openai-codex', 'zai', 'deepseek']);
+    expect(more.map(p => p.provider)).toEqual(['anthropic', 'groq']);
+    expect(POPULAR_PROVIDERS).toHaveLength(8);
   });
 });
