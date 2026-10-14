@@ -67,7 +67,7 @@ function CreatedCard({ action, onOpen, touch }: { action: BoardActionView; onOpe
           <BoardPendingChip count={pending.length} />
         </div>
         {shown.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, marginTop: 4, fontSize: 12, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 2, minWidth: 0, marginTop: 4, fontSize: 12 }}>
             <BoardPeers sessions={shown} />
           </div>
         )}
