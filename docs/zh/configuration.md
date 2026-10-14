@@ -517,7 +517,7 @@ Cortex 的插件、钩子、规则、子智能体角色与系统提示词随安�
 | 资源 | 内置 | 你的 | 你的文件如何与内置文件结合 |
 |---|---|---|---|
 | 插件 | `defaults/plugins/<id>/` | `plugins/<id>/` | 同一 id：你的 skill 替换或补充内置 skill，你的 `mcp.json` 替换内置的；manifest 保持内置。其他 id 是独立的插件。见[内置插件](./skills-and-plugins.md#built-in-plugins) |
-| 钩子声明 | `defaults/config/hooks/*.json` | `config/hooks/*.json` | 同名文件：按字段合并到内置声明之上。见[钩子注册表](./hooks.md#the-hook-registry) |
+| 钩子声明 | `defaults/config/hooks/*.json` | `config/hooks/*.json` | 同名文件：它写出的每个顶层字段整体替换内置声明中的同名字段，因此 `{ "enabled": false }` 即可关闭一个内置钩子。见[钩子注册表](./hooks.md#the-hook-registry) |
 | 钩子脚本 | `defaults/hooks/*.mjs` | `hooks/*.mjs` | 同名文件：替换内置脚本 |
 | 规则 | `defaults/rules/*.md` | `rules/*.md` | 同名文件：替换内置规则 |
 | 子智能体角色 | `defaults/agents/*.md` | `config/agents/*.md` | 同名文件：替换内置角色 |

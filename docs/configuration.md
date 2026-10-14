@@ -867,7 +867,7 @@ brings the built-in one back.
 | Asset | Built in | Yours | How yours combine with the built-in ones |
 |---|---|---|---|
 | Plugins | `defaults/plugins/<id>/` | `plugins/<id>/` | Same id: your skills replace or add to the built-in ones and your `mcp.json` replaces the built-in one; the manifest stays built in. Any other id is a plugin of its own. See [Built-in plugins](./skills-and-plugins.md#built-in-plugins) |
-| Hook declarations | `defaults/config/hooks/*.json` | `config/hooks/*.json` | Same file name: merged over the built-in declaration field by field. See [the hook registry](./hooks.md#the-hook-registry) |
+| Hook declarations | `defaults/config/hooks/*.json` | `config/hooks/*.json` | Same file name: each top-level field it sets replaces that field of the built-in declaration as a whole, so `{ "enabled": false }` switches a built-in hook off. See [the hook registry](./hooks.md#the-hook-registry) |
 | Hook scripts | `defaults/hooks/*.mjs` | `hooks/*.mjs` | Same file name: replaces the built-in script |
 | Rules | `defaults/rules/*.md` | `rules/*.md` | Same file name: replaces the built-in rule |
 | Subagent roles | `defaults/agents/*.md` | `config/agents/*.md` | Same file name: replaces the built-in role |
