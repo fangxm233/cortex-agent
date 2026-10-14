@@ -174,8 +174,8 @@ export function ChatHeader({
         </span>
       )}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted)' }}>
-        {board}
         {team}
+        {board}
         <BrowserIconButton />
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <IconButton
