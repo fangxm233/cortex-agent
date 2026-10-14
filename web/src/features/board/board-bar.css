@@ -1,0 +1,21 @@
+/* The chat's board status bar stays on one line: as it narrows it drops the session dots first,
+   then the decision count. */
+.board-bar-frame {
+  container: board-bar / inline-size;
+}
+.board-bar:hover {
+  background-image: linear-gradient(var(--proto-gray), var(--proto-gray));
+}
+.board-bar-sessions {
+  display: inline-flex;
+}
+@container board-bar (max-width: 540px) {
+  .board-bar-sessions {
+    display: none;
+  }
+}
+@container board-bar (max-width: 400px) {
+  .board-bar-decisions {
+    display: none;
+  }
+}

@@ -1,7 +1,9 @@
-// Boards: the dock view's live strip, its entry points, and the close confirmation.
+// Boards: the dock view's live strip, the chat's status bar, the palette, and the close confirmation.
 export const boardEn = {
   boardTitle: 'Board',
   boardOpen: 'Open board',
+  boardBarOpen: 'Open',
+  boardLead: 'lead',
   boardActive: 'active',
   boardDone: 'done',
   boardAbandoned: 'dropped',
@@ -28,6 +30,8 @@ export const boardEn = {
 export const boardZh: Record<keyof typeof boardEn, string> = {
   boardTitle: '看板',
   boardOpen: '打开看板',
+  boardBarOpen: '打开',
+  boardLead: '主会话',
   boardActive: '进行中',
   boardDone: '已完成',
   boardAbandoned: '已放弃',
