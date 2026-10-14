@@ -12,7 +12,7 @@ implements the `EngineAdapter` interface defined in
 | Backend | Status | Engine | Requirement | Feature level |
 |---|---|---|---|---|
 | Claude Code | Supported | `@anthropic-ai/claude-code` | the `claude` binary on `PATH` | Full |
-| PI | Supported | `@earendil-works/pi-coding-agent`, bundled inside the server package | none beyond a logged-in provider | Full |
+| PI | Supported | `@earendil-works/pi-coding-agent`, installed with the server package | none beyond a logged-in provider | Full |
 
 ## How backends work
 
@@ -22,9 +22,9 @@ Three nouns cover the path from a message to a backend process: a **run**, a
 A **run** is one execution of one user request: a conversation turn, a
 hook-injected turn, an edit retry, an ask-user resume, or a subagent child.
 `startRun` (`domain/runs/service.ts`) opens one from a fully resolved
-`RunRequest` — profile, prompt, policy, and context, with no callbacks — and
-returns the `AgentRun` (`domain/runs/run.ts`) that owns the run's event stream,
-its cancel and steer handles, its fallback chain, and its result.
+`RunRequest` — profile, prompt, policy, and context — plus the observers that
+watch it, and returns the `AgentRun` (`domain/runs/run.ts`) that owns the run's
+event stream, its cancel and steer handles, its fallback chain, and its result.
 
 A **session** is the conversation identity a run continues: the stable Cortex
 session id, the backend's own resume id, the profile it runs, and the channel
@@ -50,10 +50,10 @@ backend-neutral `EngineSpec`, which the adapter translates into backend-native
 form: command-line arguments for the Claude Code child process, session options
 for the in-process PI session.
 
-From there the engine emits one `RunEvent` stream (`domain/runs/events.ts`).
-The normalization layer (`agent-adapter/normalize/`) translates each backend's
-native event format into `NormalizedEvent`, and `toRunEvent` tags it with the
-run's phase, so the run layer never needs to know which backend is running.
+From there the engine emits one `RunEvent` stream (`agent-adapter/run-events.ts`).
+Each adapter translates its backend's native events into the `NormalizedEvent`
+shapes declared in `agent-adapter/normalize/`, and `toRunEvent` tags them with
+the run's phase, so the run layer never needs to know which backend is running.
 
 **A run outlives its turn.** Claude opens a turn of its own when a background
 task finishes, so a run has two endings and both are on the same stream. The
@@ -62,15 +62,16 @@ backend finishes the turn, which is what `await run.result` gives a surface —
 the reply is rendered and the status message can go into its waiting state
 while the run is still alive. The *settled result* is the whole run with every
 continuation folded in; it is what the terminal tally, the execution record and
-the cost attribution read. A policy picks which one the caller waits for
-(`RunRequest.policy.background`): an interactive turn holds (`hold`), a caller
-that needs the merged result waits for it (`inline`), and a run that cannot
-produce a continuation ends at the first result (`none`).
+the cost attribution read. A policy decides what happens after the foreground
+result (`RunRequest.policy.background`): an interactive turn holds the session
+open for the continuation (`hold`), and a run that cannot produce one, or
+whose caller has no use for it, ends at the first result (`none`).
 
 The wait itself is bounded, the work is not. `ContinuationPhase`
 (`agent-adapter/continuation-phase.ts`) arms a grace timer for work the backend
 reported finished but never announced (`CORTEX_BG_GRACE_S`, 90s) and a cap for
-work still running (`CORTEX_BG_WAIT_MAX_S`, 30min). The grace period expiring
+work still running (`CORTEX_BG_WAIT_MAX_S`, 30min); both defaults live in
+`agent-adapter/bg-wait.ts`. The grace period expiring
 ends the run; the cap expiring only ends the *waiting* — a tunnel or a monitor
 that runs for an hour still streams its continuation into the same session when
 it finishes.
@@ -96,8 +97,9 @@ sends later turns over the same NDJSON stream until the session is closed,
 times out, or its spawn identity changes.
 
 Claude Code sessions are pooled by engine key for reuse (`SessionEngines`,
-`domain/runs/engines.ts`). Cost reporting reverse-derives USD from
-`message.usage` token counts using Anthropic's published pricing.
+`domain/runs/engines.ts`). Each turn's cost is the growth of the CLI's own
+cumulative `total_cost_usd`, measured from the total a resumed session starts
+with (see [Cost reporting](#cost-reporting)).
 
 Every `claude` process Cortex starts runs with
 `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude`, Cortex's own Claude Code config
@@ -152,13 +154,17 @@ reserve bounded to half the cap so a large reserve cannot compact every turn.
 **Cortex's glue.** Everything Cortex adds is a set of inline PI extensions
 assembled per session in `extensions.ts`:
 
+- **Image first** (`image-first.ts`) — moves the images in a tool result ahead
+  of its text in each request.
 - **MCP bridge** (`mcp-bridge.ts`) — serves the composition-scoped Cortex tool
   bundles in-process over an in-memory MCP transport pair, bound to a tool
   context built for that one session. Assigned plugin MCP servers and browser
   MCP keep their own stdio children or remote connections.
-- **Tool shims** (`tool-shims.ts`) — registers the PI-local `agent`,
-  `agent_stop`, `TodoWrite`, `WebFetch`, and `WebSearch` tools, each subject to
-  the session's tool allowlist.
+- **Tool shims** (`tool-shims.ts`) — registers the PI-local `web_fetch`,
+  `web_search` and `todo_write` tools, each subject to the session's tool
+  allowlist under its Claude name (`WebFetch`, `WebSearch`, `TodoWrite`), and
+  the `agent` and `agent_stop` delegation tools where the session may delegate
+  (see [Subagents](#subagents)).
 - **Hook bridge** (`hook-bridge.ts`) — mounts the hook-registry entries that
   target the `pi` backend as native PI event handlers, so Cortex hook scripts
   see PI tool events. See [hooks.md](./hooks.md).
@@ -217,7 +223,8 @@ replaced with the previous link's output.
 `agent-server/defaults/agents/`; a file in `$CORTEX_HOME/config/agents/` adds a
 role, or replaces the built-in role of the same name, and deleting it brings the
 built-in one back. The role body is appended to the child's system prompt. Its
-frontmatter may set:
+frontmatter must set `name` and `description` — a file without them is
+ignored — and may set:
 
 | Key | Meaning |
 |---|---|
@@ -226,10 +233,10 @@ frontmatter may set:
 | `backend` | `claude` or `pi`; absent means "whatever the parent is running" |
 | `mode` | Explicit gateway route for the child; absent falls back to the provider name |
 
-An installation that used PI subagents before unification has its old
-`pi/agents/` directory adopted into the shared table the first time it starts,
-and the old directory is renamed to `pi/agents.migrated` so an edit there cannot
-silently do nothing.
+When `$CORTEX_HOME/config/agents/` does not exist yet, roles found in an
+`agents/` directory inside Cortex's private PI agent directory are moved into
+it at startup, and that directory is renamed to `agents.migrated` so an edit
+there cannot silently do nothing.
 
 **Choosing the model.** No profile is consulted. The model is the task's
 explicit `model` when given, then the role's `model`, then the parent's own
@@ -312,9 +319,9 @@ is refused until it finishes. A failed login shows Cortex's message followed by
 the first line of the provider's own reason.
 
 OAuth is offered only when the installed PI provider exposes
-`provider.auth.oauth.login` as a function. On the reference installation this
-criterion was true for 7 of 39 providers; the list is discovered dynamically,
-so API-key-only providers never show a non-functional OAuth option. Claude Code
+`provider.auth.oauth.login` as a function. The list is discovered from the
+installed PI runtime, so API-key-only providers never show a non-functional
+OAuth option. Claude Code
 similarly offers API-key and subscription choices through the selector.
 
 For a Claude Code subscription, Cortex starts `claude auth login --claudeai`
@@ -404,19 +411,28 @@ Backends are selected per profile in `$CORTEX_HOME/config/profiles.json`
   "defaultProfile": "plan",
   "profiles": {
     "plan": {
-      "model": "claude-sonnet-4-20250514",
-      "backend": "claude"
+      "backend": "claude",
+      "model": "opus",
+      "mode": "plan"
     },
-    "execute": {
-      "model": "claude-sonnet-4-20250514",
-      "backend": "pi"
+    "deepseek": {
+      "backend": "pi",
+      "provider": "deepseek",
+      "mode": "deepseek",
+      "model": "deepseek-v4-pro"
     }
   }
 }
 ```
 
 The `backend` field accepts `"claude"` or `"pi"`. If omitted, it defaults
-to `"claude"`.
+to `"claude"`. A `pi` profile must name its `provider`, which selects the
+request protocol and the gateway endpoint; there is no default. `mode` is the
+gateway route the run takes — for an Anthropic endpoint, `plan` (the
+subscription) or `api` (a metered key). In chat, `!profile <name>` switches a
+channel's profile and `!backend <claude|pi>` switches it to that backend's
+default profile (`defaultProfileByBackend` in `profiles.json`). Both are refused
+for a conversation that already has turns on the other backend.
 
 ## Per-session model, thinking level and route
 
@@ -429,8 +445,8 @@ environment rather than its engine; see
 Everything below the profile is stored as a per-session override on top of
 whatever profile the session runs. The override is applied in one
 place (`effectiveProfile`), so the profile still supplies the backend,
-`extraEnv` and the fallback chain; only `model`, `provider`, `thinking` and
-`mode` can be replaced. Each picker section has a "follow profile" row that
+`extraEnv` and the fallback chain; only `model`, `provider` (on `pi`),
+`thinking` and `mode` can be replaced. Each picker section has a "follow profile" row that
 gives the field back to the profile.
 
 Two rules constrain the picker, both enforced on the server and previewed by
@@ -470,9 +486,11 @@ A new conversation opens on the last engine chosen on this host — profile and
 overrides together — instead of falling back to the default profile every
 time.
 
-Platform channels keep their own controls: `!model <name>` switches the whole
-profile, and `!thinking <level>` sets (or, with `reset`, gives back) the
-thinking level for that channel through the same rule the picker writes with.
+Platform channels keep their own controls: `!profile <name>` switches the
+channel's profile, `!model <id>` sets the channel's model on top of it, and
+`!thinking <level>` sets its thinking level. `!model reset` and
+`!thinking reset` give the field back to the profile. All of them write through
+the same rule the picker uses.
 
 ## Thinking level
 
@@ -487,20 +505,32 @@ its own.
 
 ## Fallback behavior
 
-Each profile entry can specify a `fallback` array of alternative profiles.
-If the primary backend call fails with a transient error (network timeout,
-rate limit, authentication), Cortex iterates through the fallback chain in
-order. Each fallback entry inherits unspecified fields from the primary.
+Each profile entry can specify a `fallback` array of alternative entries.
+When an attempt fails with a retryable error, Cortex moves on to the next entry
+in order. Retryable means a rate limit, usage limit, overload or quota refusal
+(including a result the backend flags as rate-limited), an HTTP 408 or 5xx, a
+transport failure such as a reset connection or a timeout, or a provider
+message saying the request can be retried. Authentication errors and permanent
+refusals — an invalid request, an exceeded context window, an exhausted
+balance — never fall back. An attempt that had already started a tool call is
+not retried either, because a fallback would run that tool a second time; the
+turn ends with a message asking you to send again.
+
+Each fallback entry declares its own `model`. It inherits `backend` and `mode`
+from the primary when it omits them and nothing else: `provider`, `thinking`,
+`extraEnv`, `extraOption` and `maxOutputTokens` apply only where they are
+written, and a `pi` entry must name its `provider`.
 
 Example:
 
 ```json
 {
   "plan": {
-    "model": "claude-sonnet-4-20250514",
     "backend": "claude",
+    "model": "opus",
+    "mode": "plan",
     "fallback": [
-      { "model": "claude-sonnet-4-20250514", "backend": "pi" }
+      { "backend": "pi", "provider": "deepseek", "mode": "deepseek", "model": "deepseek-v4-pro" }
     ]
   }
 }
@@ -520,8 +550,9 @@ as `providerRateLimits`, an object keyed by provider id. Each provider can
 hold a `windows` array of `{ type, label?, enabled, threshold? }` entries, so
 5-hour, weekly, weekly-overage, Codex primary/secondary, and labeled model
 windows are independently configurable. `threshold` is a ratio greater than
-`0` and at most `1`; an omitted value uses `0.95` for known weekly windows and
-`0.90` otherwise. Exact window policy takes precedence over the visible,
+`0` and at most `1`; an omitted value uses `0.95` for the weekly windows
+(`seven_day`, `seven_day_overage_included`) and `0.90` for every other window,
+`five_hour` included. Exact window policy takes precedence over the visible,
 clearable legacy provider fallback. Desktop and mobile Usage edit these rows;
 spend-only providers do not show quota controls.
 
@@ -623,9 +654,11 @@ which case applies.
 
 Cost reporting differs by backend:
 
-- **Claude Code** — reverse-derives USD cost from `message.usage` token
-  counts (input/output) using Anthropic's published per-model pricing.
-  Costs are written to `$CORTEX_HOME/data/costs.jsonl`.
+- **Claude Code** — reads the cumulative `total_cost_usd` the CLI reports at
+  the end of each turn and records the increase since the previous turn, with
+  the token counts from the same result. A resumed session starts from the total
+  the CLI restores, so its history is not billed again. Records are written to
+  `$CORTEX_HOME/data/costs.jsonl`.
 - **PI** — reads the usage the session reports on each assistant message
   (`input`, `output`, `cacheRead`, `cacheWrite`, and `cost.total`) and sums
   it per turn into one record naming the provider and model that served it.
@@ -643,17 +676,23 @@ New backends implement the `EngineAdapter` interface in a new directory under
 
 1. **`adapter.ts`** — implements `EngineAdapter` with `open(spec)`, returning an
    `EngineSession`. The adapter is stateless: `SessionEngines` owns the pool.
-2. **`EngineSession`** — exposes `run(prompt, opts)` for one turn, returning an
-   `EngineRun` whose `events` is an async iterable of `RunEvent` and whose
-   `result` is the foreground `AgentResult`; plus `steer()`,
-   `respondToDialog()`, `compact()`, `close()`, and `kill()`.
-3. **`event-parser.ts`** — translates the backend's native event format into
-   `NormalizedEvent` / `RunEvent` members.
+2. **`EngineSession`** — carries its `backend`, `identity` and
+   `backendSessionId`, and exposes `run(prompt, opts)` for one turn, returning
+   an `EngineRun` whose `events` is an async iterable of `RunEvent`, whose
+   `result` is the foreground `AgentResult` and whose settled result folds in
+   any continuation, with `cancel()`; plus `steer()`, `respondToDialog()`,
+   `ingestExternal()`, `compact()`, `close()`, and `kill()`.
+3. **Event translation** — turns the backend's native event format into
+   `NormalizedEvent` / `RunEvent` members (for Claude, `event-parser.ts` and
+   `event-translator.ts`).
 4. **Registration** — add the adapter to the assembly in
    `domain/runs/adapters.ts` and a branch to `SessionEngines.acquire` in
    `domain/runs/engines.ts`; add capabilities to `capabilities.ts`; include the
-   backend label in the `Backend` type union in `core/types/agent-types.ts`.
+   backend label in the `Backend` type union in `core/types/agent-types.ts`. A
+   backend that hosts subagents also needs a branch in
+   `domain/agents/subagent/runner.ts`.
 
-The normalization layer (`agent-adapter/normalize/`) provides shared utilities
-for event stream queuing, tool name translation, and hook specification that
-all backends use.
+Shared pieces live beside the adapters: the normalized event types, prompt
+building and tool-result image handling in `agent-adapter/normalize/`, the
+`RunEvent` queue in `agent-adapter/run-events.ts`, and tool-name translation
+in `core/tool-names.ts`.
