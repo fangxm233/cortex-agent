@@ -35,8 +35,8 @@ import { useHooksController } from '@/features/settings/controllers/useHooksCont
 // visible — mount targets, apply time, result legality, load order and a missing script are all
 // surfaced on the surface itself rather than left in the debugging chapter of the docs.
 //
-// Capability is gated by `source`, never by hope: managed entries expose only the toggle (a later
-// hook sync restores the shipped enabled state, so editing the rest would be a lie).
+// Capability is gated by `source`, never by hope: built-in entries expose only the toggle (the
+// rest follows the shipped entry).
 //
 // No optimistic updates: every mutation (in controllers/useHooksController) invalidates hooks.list
 // and reports through a toast.

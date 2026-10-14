@@ -153,17 +153,16 @@ export interface HookCapability {
   canToggle: boolean;
   canEdit: boolean;
   /** Which persistent inline explanation the detail pane must show. */
-  note: 'managed' | null;
+  note: 'builtin' | null;
 }
 
 /**
- * managed — every non-`enabled` field is restored by the next hook sync, so offering to edit them
- * would be a lie; even the toggle is only durable until that sync.
+ * builtin — shipped with Cortex; only its switch is the user's (written as an override).
  * user — the only fully writable source, and `editable` is the server's own say-so.
  */
 export function hookCapability(hook: HookDetail): HookCapability {
-  if (hook.source === 'managed') {
-    return { canToggle: true, canEdit: false, note: 'managed' };
+  if (hook.source === 'builtin') {
+    return { canToggle: true, canEdit: false, note: 'builtin' };
   }
   const writable = hook.editable;
   return { canToggle: true, canEdit: writable, note: null };
@@ -436,8 +435,8 @@ export function isHookFormValid(errors: HookFormErrors): boolean {
 
 /**
  * The draft is the COMPLETE desired state — the writer deletes anything omitted — so every empty
- * field is left out on purpose. Two fields are never emitted: `version` (writing it would disguise
- * a user entry as managed and expose it to hook-sync) and `blocking` (the API does not accept it).
+ * field is left out on purpose. Two fields are never emitted: `version` (the API drops it) and
+ * `blocking` (the API does not accept it).
  * `enabled` is always emitted, because an omitted `enabled` defaults to TRUE on the server and
  * would silently resurrect a disabled hook on the next save.
  */

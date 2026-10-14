@@ -56,8 +56,13 @@ export function MountBadge({ target }: { target: HookMountTarget }) {
   return <SPill data-hook-mount={target} tone={MOUNT_TONE[target]}>{target}</SPill>;
 }
 
+function sourceLabel(source: HookDetail['source'], L: Vocab): string {
+  return source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser;
+}
+
 function SourceBadge({ source }: { source: HookDetail['source'] }) {
-  return <SPill data-hook-source={source} tone="neutral">{source}</SPill>;
+  const L = useVocab();
+  return <SPill data-hook-source={source} tone="neutral">{sourceLabel(source, L)}</SPill>;
 }
 
 function Mono({ children }: { children: ReactNode }) {
@@ -298,8 +303,8 @@ function CapabilityNotices({ hook, note }: { hook: HookDetail | null; note: Hook
   const L = useVocab();
   const alternative = hook ? claudeAlternativeEvent(hook.event) : null;
   const notices = [
-    note === 'managed'
-      ? <SNotice key="managed" data-hook-note="managed" tone="amber">{L.hkNoteManaged}</SNotice>
+    note === 'builtin'
+      ? <SNotice key="builtin" data-hook-note="builtin" tone="muted">{L.hkNoteBuiltin}</SNotice>
       : null,
     hook !== null && hasClaudeMountGap(hook) ? (
       <SNotice key="gap" data-hook-claude-gap="" tone="amber">
@@ -322,7 +327,7 @@ function RegistryFacts({ hook }: { hook: HookDetail }) {
     <>
       <SSectionLabel>{L.hkSecRegistry}</SSectionLabel>
       <div style={FACTS_STYLE}>
-        <MonoKV k={L.hkFieldSource} value={hook.source} />
+        <MonoKV k={L.hkFieldSource} value={sourceLabel(hook.source, L)} />
         <MonoKV k={L.hkFieldFile} value={hook.fileName ?? '—'} />
         <MonoKV k={L.hkFieldOrder} value={String(hook.order)} />
         <MonoKV k={L.hkFieldVersion} value={hook.version ?? '—'} />

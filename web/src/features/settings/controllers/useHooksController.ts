@@ -105,11 +105,9 @@ export function useHooksController(options: HooksControllerOptions): HooksContro
 
   const setEnabled = useMutation(
     trpc.hooks.setEnabled.mutationOptions({
-      onSuccess: (data, vars) => {
+      onSuccess: (_data, vars) => {
         invalidate();
         toast({ title: vars.enabled ? L.hkToastEnabled : L.hkToastDisabled, tone: 'done' });
-        // A managed entry's enabled flag is restored by the next hook sync — the server says so.
-        if (data.warning !== null) toast({ title: data.warning, tone: 'waiting' });
       },
       onError: onWriteError,
     }),

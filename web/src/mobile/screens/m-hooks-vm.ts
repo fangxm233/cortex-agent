@@ -33,7 +33,7 @@ export interface MHookDetailVm {
   result: string | null;
   blocking: { mode: string; ttlMin: number } | null;
   source: HookDetail['source'];
-  /** CalVer stamp — present only on managed entries (it is what makes them managed). */
+  /** The declaration's own `version` field, if it carries one. */
   version: string | null;
   fileName: string | null;
   /** Position in load order, which is also execution order within one event. */

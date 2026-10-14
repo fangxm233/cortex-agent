@@ -42,7 +42,7 @@ function HookRow({ row, L, onOpen }: { row: MHookRow; L: Vocab; onOpen: (key: st
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={ID_STYLE}>{row.id}</div>
           <div style={META_STYLE}>
-            {row.event} · {row.source}
+            {row.event} · {row.source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser}
           </div>
         </div>
         <span style={{ flex: 'none' }}>
@@ -162,7 +162,7 @@ function declarationRows(detail: MHookDetailVm, L: Vocab): { label: string; valu
 
   rows.push({ label: L.hookFieldMountsOn, value: <MountBadges targets={detail.mountsOn} /> });
   rows.push({ label: L.hookFieldApplies, value: L[APPLIES_KEYS[detail.appliesAt]] });
-  rows.push({ label: L.hookFieldSource, value: detail.source });
+  rows.push({ label: L.hookFieldSource, value: detail.source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser });
   if (detail.version !== null) rows.push({ label: L.hookFieldVersion, value: detail.version });
   if (detail.fileName !== null) rows.push({ label: L.hookFieldFile, value: detail.fileName });
   rows.push({ label: L.hookFieldOrder, value: String(detail.order) });
