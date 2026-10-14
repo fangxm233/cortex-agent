@@ -33,6 +33,8 @@ export interface MachineGpuRow {
 export interface MachineDetailVm {
   meters: MachineMeter[];
   gpus: MachineGpuRow[];
+  /** Model shared by every GPU on the host, shown once; null when models differ (rows name their own). */
+  gpuModel: string | null;
   probeError: string | null;
 }
 
@@ -112,11 +114,18 @@ function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
   };
 }
 
+function sharedGpuModel(gpus: MachineGpuRow[]): string | null {
+  const first = gpus[0]?.name;
+  return first && gpus.every((gpu) => gpu.name === first) ? first : null;
+}
+
 /** Map the machines.detail DTO into render slots. No fabrication: absent probe fields drop their row. */
 export function buildMachineDetailVm(detail: MachineDetail, lang: TimeLang): MachineDetailVm {
+  const gpus = detail.gpus.map((gpu) => buildGpuRow(gpu));
   return {
     meters: buildMeters(detail.vitals, lang),
-    gpus: detail.gpus.map((gpu) => buildGpuRow(gpu)),
+    gpus,
+    gpuModel: sharedGpuModel(gpus),
     probeError: detail.probeError,
   };
 }

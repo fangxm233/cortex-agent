@@ -74,6 +74,17 @@ describe('gpu rows', () => {
   });
 });
 
+describe('gpu model', () => {
+  it('names the model once when every card matches', () => {
+    expect(buildMachineDetailVm(detail({ gpus }), 'en').gpuModel).toBe('RTX 6000 Ada');
+  });
+
+  it('leaves the model to each row on a mixed host', () => {
+    const mixed = [gpus[0], { ...gpus[1], name: 'NVIDIA GeForce RTX 4090' }];
+    expect(buildMachineDetailVm(detail({ gpus: mixed }), 'en').gpuModel).toBeNull();
+  });
+});
+
 describe('gpu processes', () => {
   it('caps a long process list to the heaviest few and counts the remainder', () => {
     // A desktop host can report dozens of processes on one card; the row must stay bounded.

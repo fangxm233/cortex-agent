@@ -1,8 +1,8 @@
-import { type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
   MSettingsSurfaceCard as MCard } from './MSettingsControls';
-import type { MachineDetailVm, MachineGpuRow } from '@/features/machines/machine-detail-vm';
+import type { MachineDetailVm, MachineGpuRow, MachineMeter } from '@/features/machines/machine-detail-vm';
 import type { MMachinesVm, MMachineCard } from './m-machines-vm';
 import { useVocab, type Vocab } from '@/i18n';
 
@@ -33,34 +33,63 @@ function barColor(percent: number): string {
   return MC.run;
 }
 
-function Bar({ percent, width = 40 }: { percent: number; width?: number }) {
+function Bar({ percent }: { percent: number }) {
   return (
-    <span style={{ width, height: 4, borderRadius: 2, background: MC.divider, overflow: 'hidden', flexShrink: 0 }}>
-      <span style={{ display: 'block', width: `${percent}%`, height: '100%', background: barColor(percent) }} />
+    <span style={{ height: 4, borderRadius: 2, background: 'var(--proto-line-4)', overflow: 'hidden', minWidth: 0 }}>
+      <span style={{ display: 'block', width: `${percent}%`, height: '100%', borderRadius: 2, background: barColor(percent) }} />
     </span>
   );
 }
 
-function GpuLine({ gpu }: { gpu: MachineGpuRow }) {
+const VALUE: React.CSSProperties = { color: MC.body, textAlign: 'right', whiteSpace: 'nowrap' };
+const SECTION: React.CSSProperties = { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${MC.divider}` };
+
+/** Host vitals as aligned rows: label · bar · value. */
+function Vitals({ meters }: { meters: MachineMeter[] }) {
   return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...META }}>
-        <span style={{ color: MC.body, fontWeight: 600 }}>{gpu.index}</span>
-        <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-          {gpu.name}
-        </span>
-        <Bar percent={gpu.utilPercent} />
-        <span style={{ color: MC.sub }}>{gpu.utilText}</span>
+    <div style={{ ...SECTION, display: 'grid', gridTemplateColumns: 'auto minmax(40px, 1fr) auto', alignItems: 'center',
+      columnGap: 10, rowGap: 6, ...META }}>
+      {meters.map((meter) => <Fragment key={meter.key}>
+        <span>{meter.label}</span>
+        <Bar percent={meter.percent} />
+        <span style={VALUE}>{meter.text}</span>
+      </Fragment>)}
+    </div>
+  );
+}
+
+/** One row per card, columns aligned across cards; the model shows once when every card shares it. */
+function GpuRows({ gpus, model, L }: { gpus: MachineGpuRow[]; model: string | null; L: Vocab }) {
+  return (
+    <div style={SECTION}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6, ...META }}>
+        <span style={{ fontWeight: 600, flex: 'none' }}>{L.mGpu}</span>
+        {model && <span style={{ color: MC.faint, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model}</span>}
       </div>
-      <div style={{ ...META, color: MC.muted, paddingLeft: 14, marginTop: 2 }}>
-        {gpu.memText} · {gpu.tempText} · {gpu.powerText}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(24px, 1fr) auto auto auto auto', alignItems: 'center',
+        columnGap: 8, rowGap: 4, ...META }}>
+        {gpus.map((gpu) => <Fragment key={gpu.index}>
+          <span style={{ color: MC.body, fontWeight: 600 }}>{gpu.index}</span>
+          <Bar percent={gpu.utilPercent} />
+          <span style={VALUE}>{gpu.utilText}</span>
+          <span style={VALUE}>{gpu.memText}</span>
+          <span style={{ textAlign: 'right' }}>{gpu.tempText}</span>
+          <span style={{ textAlign: 'right' }}>{gpu.powerText}</span>
+          <GpuSubline gpu={gpu} showName={!model} />
+        </Fragment>)}
       </div>
-      {gpu.processes.length > 0 && (
-        <div style={{ ...META, color: MC.muted, paddingLeft: 14, marginTop: 2 }}>
-          {gpu.processes.map((proc) => `${proc.name} ${proc.memText}`).join(' · ')}
-          {gpu.hiddenProcessCount > 0 && ` +${gpu.hiddenProcessCount}`}
-        </div>
-      )}
+    </div>
+  );
+}
+
+/** Model (mixed hosts only) and the heaviest processes, under the bar column. */
+function GpuSubline({ gpu, showName }: { gpu: MachineGpuRow; showName: boolean }) {
+  if (!showName && gpu.processes.length === 0) return null;
+  const procs = gpu.processes.map((proc) => `${proc.name} ${proc.memText}`).join(' · ');
+  return (
+    <div style={{ gridColumn: '2 / -1', marginBottom: 4, fontSize: 11, lineHeight: 1.5, color: MC.faint, overflowWrap: 'anywhere' }}>
+      {showName && <div>{gpu.name}</div>}
+      {procs && <div>{procs}{gpu.hiddenProcessCount > 0 && ` +${gpu.hiddenProcessCount}`}</div>}
     </div>
   );
 }
@@ -76,33 +105,19 @@ function CardStatics({ card, L, uptime }: { card: MMachineCard; L: Vocab; uptime
   if (uptime) parts.push(`${L.mUptime} ${uptime}`);
   if (parts.length === 0) return null;
   return (
-    <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${MC.divider}` }}>
-      <div style={{ ...META, color: MC.muted }}>{parts.join(' · ')}</div>
-    </div>
+    <div style={{ ...SECTION, ...META, fontSize: 11, color: MC.faint }}>{parts.join(' · ')}</div>
   );
 }
 
 function ProbePanel({ panel, L }: { panel: MMachineDetailPanel; L: Vocab }) {
   if (panel.status === 'probing') return <Notice text={L.mProbing} />;
   if (panel.status === 'error' || !panel.vm) return <Notice text={L.mProbeFailed} tone="fail" />;
-  const { meters, gpus, probeError } = panel.vm;
+  const { meters, gpus, gpuModel, probeError } = panel.vm;
   return (
     <>
       {probeError && <Notice text={`${L.mProbeFailed}: ${probeError}`} tone="fail" />}
-      {meters.length > 0 && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
-          {meters.map((meter) => (
-            <span key={meter.key} style={{ display: 'flex', alignItems: 'center', gap: 4, ...META }}>
-              <span style={{ color: MC.muted }}>{meter.label}</span>
-              <Bar percent={meter.percent} width={30} />
-              <span>{meter.text}</span>
-            </span>
-          ))}
-        </div>
-      )}
-      {gpus.map((gpu) => (
-        <GpuLine key={gpu.index} gpu={gpu} />
-      ))}
+      {meters.length > 0 && <Vitals meters={meters} />}
+      {gpus.length > 0 && <GpuRows gpus={gpus} model={gpuModel} L={L} />}
       {!probeError && gpus.length === 0 && <Notice text={L.mNoGpuReported} />}
     </>
   );

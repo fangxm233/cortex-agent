@@ -79,19 +79,12 @@ function Vitals({ meters }: { meters: MachineMeter[] }) {
   );
 }
 
-/** One shared model label when every card is the same model; otherwise each row names its own. */
-function sharedGpuModel(gpus: MachineGpuRow[]): string | null {
-  const first = gpus[0]?.name;
-  return first && gpus.every((gpu) => gpu.name === first) ? first : null;
-}
-
-function GpuRows({ gpus, divided }: { gpus: MachineGpuRow[]; divided: boolean }) {
+function GpuRows({ gpus, model, divided }: { gpus: MachineGpuRow[]; model: string | null; divided: boolean }) {
   const L = useVocab();
-  const model = sharedGpuModel(gpus);
   return (
     <Section divided={divided}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6, font: META_FONT }}>
-        <span style={{ fontWeight: 600, color: 'var(--proto-muted)' }}>{L.mGpu}</span>
+        <span style={{ fontWeight: 600, color: 'var(--proto-muted)', flex: 'none' }}>{L.mGpu}</span>
         {model && <span title={model} style={{ ...FAINT, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model}</span>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(28px, 1fr) auto auto auto auto', alignItems: 'center',
@@ -170,7 +163,7 @@ function MachineDetailBody({ detail }: { detail: MachineDetailResource }) {
   return <>
     {vm.probeError && <Notice text={`${L.mProbeFailed}: ${vm.probeError}`} tone="danger" />}
     {vm.meters.length > 0 && <Vitals meters={vm.meters} />}
-    {vm.gpus.length > 0 && <GpuRows gpus={vm.gpus} divided={vm.meters.length > 0} />}
+    {vm.gpus.length > 0 && <GpuRows gpus={vm.gpus} model={vm.gpuModel} divided={vm.meters.length > 0} />}
     {!vm.probeError && vm.gpus.length === 0 && <Notice text={L.mNoGpuReported} tone="muted" />}
     <MetaFooter machine={detail.machine} uptime={detail.uptime} />
   </>;
