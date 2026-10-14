@@ -46,6 +46,10 @@ vi.mock('@/mobile/ui/kit', async () => ({
   MBottomSheet: ({ children, onClose }: any) => <div data-bottom-sheet="" data-close={onClose}>{children}</div>,
 }));
 vi.mock('@/features/team/useWorkerQuestions', () => ({ useWorkerQuestions: () => ({}) }));
+vi.mock('@/features/board/BoardStatusBar', () => ({
+  BoardStatusBar: ({ boardId, onOpen }: { boardId: string; onOpen: () => void }) => <button data-board-bar={boardId} onClick={onOpen} />,
+}));
+vi.mock('./MChatBoard', () => ({ MBoardSheet: ({ boardId }: { boardId: string }) => <div data-board-sheet={boardId} /> }));
 vi.mock('@/features/browser/BrowserOptIn', () => ({
   useBrowserDeviceOptions: () => [{ device: null, label: 'Off', sub: '' }, { device: 'laptop', label: 'laptop', sub: '' }],
 }));
@@ -582,4 +586,29 @@ it('shows history Retry only when the mobile transcript has no rows', () => {
   act(() => tree.update(<LangProvider><MChatView {...props} rows={[{ kind: 'user', text: 'Visible' }]} /></LangProvider>));
   expect(tree.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
   act(() => tree.unmount());
+});
+
+describe('MChatView board status bar', () => {
+  const status = { running: false, tone: 'idle' as const, text: 'idle' };
+  const mount = (extra: Record<string, unknown>) => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s1" {...extra} /></LangProvider>); });
+    return renderer;
+  };
+  const bars = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-board-bar'] !== undefined);
+
+  it('sits in the header stack of a bound session and opens the full-screen board', () => {
+    const r = mount({ boardId: 'b1' });
+    const stack = r.root.findByProps({ 'data-chat-header-stack': '' });
+    expect(stack.findAll((n) => n.type === 'button' && n.props['data-board-bar'] === 'b1')).toHaveLength(1);
+    act(() => bars(r)[0]!.props.onClick());
+    expect(r.root.findAll((n) => n.props['data-board-sheet'] === 'b1')).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
+  it('is absent on an unbound session', () => {
+    const r = mount({ boardId: null });
+    expect(bars(r)).toHaveLength(0);
+    act(() => r.unmount());
+  });
 });
