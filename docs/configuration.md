@@ -10,17 +10,16 @@ All paths below are relative to `$CORTEX_HOME` (default: `~/.cortex/`).
 
 ```
 $CORTEX_HOME/
-├── .env                          # Platform tokens, feature flags
+├── AGENTS.md                     # Root instructions for agent sessions (scaffolded once)
 ├── config/
-│   ├── .env                      # Same file (symlinked / canonical location)
+│   ├── .env                      # Secrets, platform credentials, startup variables
 │   ├── settings.json             # Runtime behavior settings (hot-reloaded)
+│   ├── preferences.json          # UI language for system messages (`!lang`)
 │   ├── profiles.json             # Named agent profiles
 │   ├── environments/             # Execution environments — one JSON per environment
 │   ├── machines.json             # Machine registry for remote clients
 │   ├── budget.json               # Daily/monthly budget limits
-│   ├── mcp-config.json           # Direct-session MCP configuration
-│   ├── mcp-config-core.json      # Remote execution/time layer
-│   ├── mcp-config-interaction.json # Shared interaction layer
+│   ├── mcp-config*.json          # Generated MCP configurations, rewritten at every start
 │   ├── board.css                 # Optional stylesheet for every board (absent by default)
 │   ├── agents/                   # Your subagent roles and overrides of the built-in ones
 │   ├── archive/                  # Configuration an upgrade retired, moved aside
@@ -31,10 +30,13 @@ $CORTEX_HOME/
 │   ├── boards.json               # Board registry
 │   ├── executions.json           # Unified execution registry
 │   ├── costs.jsonl               # 90-day rolling cost records
+│   ├── provider-state.json       # Provider usage, throttle windows, resume queue
+│   ├── waitpoints.json           # Armed and resolved waitpoints
 │   ├── session-registry.jsonl    # Session records, channel bindings, conversation headers + turns (single owner)
-│   ├── *.pre-2026.9.14.bak       # Retired sessions.json / conversation-ledger.json, kept one release after migration
 │   ├── retention-candidates.json # Two-sweep orphan retention markers
+│   ├── ui-sessions.json          # Browser login sessions for the Web UI
 │   ├── conversation-history/     # Per-session transcript/history JSONL
+│   ├── archive/                  # Terminal execution records older than a week
 │   ├── claude/                   # Cortex's own Claude Code config dir (CLAUDE_CONFIG_DIR)
 │   └── pi/                       # Cortex's PI agent dir
 ├── .claude/
@@ -46,10 +48,14 @@ $CORTEX_HOME/
 ├── context/                      # Dense Context knowledge repository
 │   └── projects/                 # Research project files
 ├── logs/                         # Daemon and backend session logs
+│   ├── events/                   # Daily event-bus JSONL (the `eventLog` setting)
 │   ├── sessions/                 # Claude capture logs
 │   └── sessions-pi/              # PI transcript bundles
-└── tmp/                          # Temporary workspaces
+└── tmp/                          # Temporary workspaces, spooled signals, tool images
 ```
+
+The gateway configuration, `~/.aistatus/gateway.yaml`, lives outside
+`$CORTEX_HOME`; `cortex setup-gateway` and provider logins write it.
 
 ## Loading order and precedence
 
@@ -62,7 +68,8 @@ $CORTEX_HOME/
    `dotenv`. Existing launcher environment variables take precedence over the
    file, and the worker inherits the daemon environment.
 3. **`$CORTEX_HOME/config/settings.json`** holds the runtime behavior
-   settings. It is read at the point of use and hot-reloaded on change.
+   settings. It is cached, re-read whenever the file changes, and each setting
+   takes effect at its own point of use.
    For every key it defines, it overrides the legacy environment
    variable of the same setting.
 4. **`$CORTEX_HOME/config/profiles.json`** is read on every agent
@@ -112,12 +119,13 @@ Feishu MCP loading or grant account access.
 ## Environment variables
 
 All values are loaded from the `.env` file at `$CORTEX_HOME/config/.env`.
-Only `CORTEX_PLATFORM` and your platform credentials are required.
+Every variable is optional; a platform's credentials are needed only to bring
+that platform online.
 
-Server behavior settings no longer live here: they moved to
-[`config/settings.json`](#configsettingsjson), where they hot-reload instead of
-requiring a restart. Their old variables still work as a deprecated fallback and
-are migrated out of `.env` automatically on the next daemon start.
+Server behavior settings belong in [`config/settings.json`](#configsettingsjson),
+where they hot-reload. A legacy variable for one of those settings is read as a
+deprecated fallback and moved out of `.env` automatically at the next daemon
+start (see [Automatic migration out of .env](#automatic-migration-out-of-env)).
 
 ### Paths
 
@@ -125,16 +133,21 @@ are migrated out of `.env` automatically on the next daemon start.
 |---|---|---|
 | `CORTEX_HOME` | `~/.cortex/` | User data root (config, context, logs, store) |
 | `CORTEX_PROJECTS_DIR` | `<CORTEX_HOME>/context/projects/` | Override project directory |
-| `CORTEX_REPO` | — | Repo path for daemon auto-rebuild / hot-reload |
+| `CORTEX_AGENT_CWD` | `$CORTEX_HOME` | Working directory of every agent backend process. Must be an absolute path to an existing directory; anything else stops the server at startup |
+| `CORTEX_REPO` | — | The `agent-server/` directory of a source checkout. The daemon watches its `src/` and rebuilds, reinstalls and restarts on change (see [Hot rebuild](./architecture.md#hot-rebuild-published-progress-and-the-turn-hold)); the server update check is skipped while it is set |
+| `CORTEX_CLIENT_REPO` | — | A `client/` source directory that remote client bundles are built from instead of the packaged bundle |
+| `CORTEX_NPM_PREFIX` | the running install's prefix | npm prefix used when Cortex installs or updates itself |
 
 ### Startup
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `CORTEX_MACHINE` | `os.hostname()` | Machine label for startup DM |
-| `CORTEX_RESTART_REASON` | — | Reason string for restart notification |
+| `CORTEX_LANG` | `config/preferences.json`, else `en` | Language of system-generated messages (`en` or `zh`). Outranks the preference that `!lang` writes |
 | `CORTEX_CLIENT_PORT` | `3002` | WebSocket port for cortex-client manager |
 | `CORTEX_CLIENT_HOST` | Unspecified (all interfaces) | Bind address for the cortex-client WebSocket listener only; read at server startup |
+| `CORTEX_CLIENT_TOKEN` | generated | Shared secret that remote clients, the desktop app and the Web UI present. `cortex init` and the first server start generate it |
+| `CORTEX_WEBHOOK_TOKEN` | generated | Bearer token of the loopback webhook (hook callbacks, `cortex-hook ask`). Generated the same way |
 
 A new Windows local App installation writes `CORTEX_CLIENT_HOST=127.0.0.1` to
 `config/.env`. Existing installations, ordinary CLI init, and other platforms keep
@@ -148,14 +161,16 @@ TUI, or other server listeners.
 
 `CORTEX_PLATFORM` selects the messaging platform(s). It accepts a single value
 (`slack`, `feishu`) or a **comma-separated list** to run several at once
-(`slack,feishu`). Each platform whose credentials are present is brought online;
-the optional TUI gateway (`CORTEX_TUI`) is added on top. With multiple platforms,
-messages route by platform and system notices fan out to each platform's admin
-channel.
+(`slack,feishu`), and defaults to `slack`. Each listed platform whose
+credentials are present is brought online and the others are skipped, so a
+server with no credentials at all runs without a chat platform and serves the
+Web UI, desktop app and TUI only. The TUI gateway runs alongside every
+platform unless `CORTEX_TUI=0`. With multiple platforms, messages route by
+platform and system notices fan out to each platform's admin channel.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `CORTEX_PLATFORM` | yes | `slack` (default). Comma list for multi-platform, e.g. `slack,feishu` |
+| `CORTEX_PLATFORM` | no | `slack` (default). Comma list for multi-platform, e.g. `slack,feishu` |
 | `SLACK_BOT_TOKEN` | for slack | Slack Bot OAuth token (`xoxb-...`) |
 | `SLACK_SIGNING_SECRET` | for slack | Slack app signing secret |
 | `SLACK_APP_TOKEN` | for slack | Slack app-level token for Socket Mode (`xapp-...`) |
@@ -164,7 +179,9 @@ channel.
 | `FEISHU_ENCRYPT_KEY` | no | Feishu event encrypt key (optional with long-connection) |
 | `FEISHU_VERIFICATION_TOKEN` | no | Feishu event verification token (optional) |
 | `FEISHU_DOMAIN` | no | `feishu` (default) or `lark` for the international edition |
-| `FEISHU_CHANNEL` | no | Feishu channel ID (auto-set by session) — identifies the current Feishu conduit for MCP tools |
+| `FEISHU_AUTH_MODE` | no | `bot` (default) or `user`. `cortex feishu login` sets `user`, so Feishu document tools act as the signed-in user |
+| `FEISHU_USER_SCOPE` | no | Scopes `cortex feishu login` requests when `--scope` is not given |
+| `FEISHU_REDIRECT_URI` | no | Redirect URI for `cortex feishu login --manual` |
 
 The admin channels for system notices are settings, not environment variables:
 see `adminChannel` and `feishuAdminChannel` in
@@ -176,8 +193,26 @@ still read as a deprecated fallback.
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key for direct-API mode |
-| `ANTHROPIC_BASE_URL` | Override API base URL (auto-set by gateway proxy) |
+| `ANTHROPIC_API_KEY` | Anthropic API key used by Claude Code runs on a metered (`api`) route |
+| `ANTHROPIC_BASE_URL` | Anthropic endpoint for Claude Code runs while the local gateway is down. With the gateway healthy, each run's base URL is its gateway route instead |
+
+### Web UI and TUI
+
+The Web UI host serves the browser workbench, the desktop app and the mobile
+app. [Browser access](./browser-access.md) covers token login and Cloudflare
+Access in depth.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CORTEX_UI_HTTP` | off | `1`, `true`, `on` or `yes` starts the Web UI host. `cortex ui enable` sets it |
+| `CORTEX_UI_PORT` | `3004` | Port of the Web UI host, bound to `127.0.0.1` |
+| `CORTEX_UI_SPA_DIR` | the packaged `web/dist` | Directory of the web app the host serves |
+| `CORTEX_UI_TOKEN_LOGIN` | on | Browser login by pasting the client token. `0`, `false`, `off` or `no` removes the login routes |
+| `CORTEX_UI_SESSION_TTL_DAYS` | `30` | Lifetime of a browser login session, in days |
+| `CORTEX_ACCESS_TEAM_DOMAIN`, `CORTEX_ACCESS_AUD`, `CORTEX_ACCESS_CERTS_URL` | — | Cloudflare Access JWT verification for browsers; both of the first two are needed to enable it |
+| `CORTEX_PORT_FORWARD` | on | `0` disables the Web UI's port forwarding to remote machines |
+| `CORTEX_TUI` | on | `0` stops the TUI gateway |
+| `CORTEX_TUI_PORT` | `3003` | Port of the TUI gateway, also the one `cortex tui` connects to |
 
 ### Rate limiting (Slack)
 
@@ -192,8 +227,7 @@ still read as a deprecated fallback.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `WEBHOOK_PORT` | `3001` | Webhook HTTP server port |
-| `WEBHOOK_HOST` | `127.0.0.1` | Fallback host for remote clients (when Tailscale/LAN IP not detected) |
+| `WEBHOOK_PORT` | `3001` | Port of the loopback webhook server that receives hook, waitpoint, subagent and board callbacks |
 
 ### Data file overrides
 
@@ -202,17 +236,25 @@ still read as a deprecated fallback.
 | `CORTEX_EXECUTIONS_FILE` | `<STORE_DIR>/executions.json` | Execution records |
 | `CORTEX_COSTS_FILE` | `<STORE_DIR>/costs.jsonl` | Cost tracking |
 | `CORTEX_BUDGET_FILE` | `<CONFIG_DIR>/budget.json` | Budget configuration |
+| `CORTEX_SESSION_TOTALS_FILE` | `<STORE_DIR>/session-totals.json` | Per-session cost and token totals carried over from archived executions |
 
-### Feature flags
+`<STORE_DIR>` is `$CORTEX_HOME/data` and `<CONFIG_DIR>` is `$CORTEX_HOME/config`.
+
+### Tuning and debugging
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DEBUG` | — | Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Only `DEBUG=1` enables it; all other values disable it; restart agent-server after changing it |
+| `DEBUG` | — | Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Only `DEBUG=1` enables it; all other values disable it. **Settings → Advanced** has a switch for it; restart agent-server after changing it |
 | `CORTEX_DEBUG_TOOL_WARNING_CHARS` | `10000` | In DEBUG transcripts, mark a tool-name badge amber when its formatted complete parameters plus complete result strictly exceed this Unicode character count. Positive integers only; invalid values use the default. Restart agent-server after changing it |
+| `CORTEX_BG_GRACE_S` | `90` | Seconds a run waits for a background task the backend reported finished but never announced (see [How backends work](./backends.md#how-backends-work)) |
+| `CORTEX_BG_WAIT_MAX_S` | `1800` | Seconds a turn waits on still-running background work before it stops waiting; the work itself continues |
+| `CORTEX_STREAM_DELTA_MS` | `120` | Flush interval, in milliseconds, for streamed assistant text |
+| `CORTEX_BROWSER_BINARY` | auto-detected | Chrome or Chromium binary for the managed browser |
+| `CORTEX_BROWSER_DISPLAY` | auto-detected | X display the managed browser uses, skipping display detection |
 | `CORTEX_GPU_MONITOR_MOCK` | — | Mock GPU data JSON for testing (overrides real nvidia-smi queries) |
 
 The event log, tool-call rendering, user-context injection, update check,
-compaction notice, turn notification, and auto-resume switches are now settings
+compaction notice, turn notification, and auto-resume switches are settings
 keys — see [`config/settings.json`](#configsettingsjson).
 
 `DEBUG` persists unabridged prompts, tool parameters, and tool results in per-session conversation-history files. These values can contain secrets, private file contents, or large outputs, and storage grows with their full size. Enable this mode only on a trusted development server and turn it off when inspection is complete. Turning it off immediately removes debug fields and buttons from transcript responses, but it does not delete records captured earlier.
@@ -236,21 +278,23 @@ lists only offer, they never narrow what this file accepts.
 ```json
 {
   "defaultProfile": "plan",
+  "defaultProfileByBackend": { "claude": "plan", "pi": "deepseek" },
   "profiles": {
     "plan": {
-      "model": "claude-sonnet-4-20250514",
       "backend": "claude",
+      "model": "opus",
       "mode": "plan",
-      "extraEnv": {},
-      "extraOption": {},
-      "fallback": []
+      "thinking": "high",
+      "fallback": [
+        { "backend": "pi", "provider": "deepseek", "mode": "deepseek", "model": "deepseek-v4-pro" }
+      ]
     },
-    "execute": {
-      "model": "claude-sonnet-4-20250514",
-      "backend": "claude",
-      "mode": "execute",
-      "extraEnv": {},
-      "extraOption": {}
+    "deepseek": {
+      "backend": "pi",
+      "provider": "deepseek",
+      "mode": "deepseek",
+      "model": "deepseek-v4-pro",
+      "thinking": "medium"
     }
   }
 }
@@ -260,38 +304,48 @@ lists only offer, they never narrow what this file accepts.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `defaultProfile` | string | yes | Name of the default profile when none is specified |
+| `defaultProfile` | string | yes | Name of the default profile when none is specified. Must exist in `profiles` |
+| `defaultProfileByBackend` | object | no | The profile `!backend <name>` switches to, per backend (`claude`, `pi`). Without an entry, the first profile declared for that backend is used |
 | `profiles` | object | yes | Map of profile name to profile entry |
-| `profiles.<name>.model` | string | yes | Model identifier (e.g. `claude-sonnet-4-20250514`) |
+| `profiles.<name>.model` | string | yes | Model identifier, as the backend names it |
 | `profiles.<name>.backend` | string | no | Backend: `claude` or `pi` (default: `claude`) |
-| `profiles.<name>.mode` | string | no | Operational mode identifier (free-form, e.g. `plan`, `execute`) |
-| `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`. |
-| `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the Claude Code backend. Keys must start with `--`. On `pi` only `--thinking` is honored, as an override of the `thinking` field; any other key is logged and ignored, since there is no PI command line to hand it to. |
-| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (delivered as the `--effort` flag), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (delivered as the session's thinking level). Absent → the backend's own default applies. Fallback entries do not inherit it — each declares its own. |
-| `profiles.<name>.fallback` | array | no | Ordered list of fallback profile entries. If the primary backend fails, Cortex tries each fallback in order. Each fallback inherits unspecified fields from the primary. |
+| `profiles.<name>.provider` | string | for `pi` | Provider id (for example `anthropic`, `openai-codex`, or a [custom provider](./backends.md#custom-providers)). On `pi` it selects the request protocol and the gateway endpoint, and every `pi` entry must declare it; on any backend it is also the identity rate-limit throttling tracks |
+| `profiles.<name>.mode` | string | no | Gateway route name, resolved by `gateway.yaml` (for example `plan` for a subscription, `api` for a metered key). Runs go through the gateway at `/m/<mode>/…` |
+| `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`; values must be strings |
+| `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the Claude Code backend. Keys must start with `--`; values must be strings. On `pi` only `--thinking` is honored, as an override of the `thinking` field; any other key is logged and ignored, since there is no PI command line to hand it to |
+| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (delivered as the `--effort` flag), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (delivered as the session's thinking level). Absent → the backend's own default applies |
+| `profiles.<name>.maxOutputTokens` | integer | no | `pi` only: the model's output-token cap, written into the generated provider catalog |
+| `profiles.<name>.fallback` | array | no | Ordered list of fallback entries, tried in order when an attempt fails with a retryable error (see [Fallback behavior](./backends.md#fallback-behavior)). Each entry needs its own `model`; it inherits `backend` and `mode` from the primary when it omits them, and nothing else |
 
 ### Profile resolution
 
 At agent spawn time, Cortex resolves the profile through this chain:
 
-1. If a profile name is explicitly provided (via `--profile`, or by the
-   conversation's execution environment naming one), use it.
-2. Otherwise, use `defaultProfile` from `profiles.json`.
-3. The resolved profile supplies `model`, `backend`, `mode`, `extraEnv`,
-   `extraOption`, and `thinking`.
-4. A direct session may override `model`, `provider`, `thinking` and `mode`
-   on top of that profile, chosen in the Web composer's engine picker and
-   stored per channel. Nothing else is overridable — the backend, environment
-   and fallback chain stay the profile's. See
-   [backends.md](./backends.md#per-session-model-thinking-level-and-route).
-5. If the backend call fails with a transient error, Cortex iterates
-   through the `fallback` array (if any), trying each entry in order.
+1. An explicitly requested profile — a schedule's `--profile`, or the
+   conversation's execution environment naming one.
+2. Otherwise the profile the session recorded when it started.
+3. Otherwise the channel's profile (`!profile <name>`), then the host-wide
+   active profile in `data/agent-state.json`.
+4. Otherwise `defaultProfile` from `profiles.json`.
+
+The resolved profile supplies `model`, `backend`, `provider`, `mode`,
+`extraEnv`, `extraOption`, `thinking`, and the fallback chain. A direct session
+may override `model`, `provider` (on `pi`), `thinking` and `mode` on top of
+that profile, chosen in the Web composer's engine picker and stored per
+session; platform channels set the same overrides with `!model` and
+`!thinking`. Nothing else is overridable — the backend, environment and
+fallback chain stay the profile's. See
+[backends.md](./backends.md#per-session-model-thinking-level-and-route).
 
 ### Validation rules
 
-Profile names must match `^[a-zA-Z0-9_-]+$`. Backend must be `claude`
-or `pi`. `thinking`, if specified, must be a value from the entry's backend value
-set (see the fields table). Unknown fields are silently ignored.
+Profile names, `mode` and `provider` must match `^[a-zA-Z0-9_-]+$`. Backend
+must be `claude` or `pi`. A `pi` entry, primary or fallback, must declare
+`provider`. `thinking`, if specified, must be a value from the entry's backend
+value set (see the fields table), and `maxOutputTokens` is accepted only on
+`pi`. Unknown fields are silently ignored. A file that parses but fails
+validation is rejected as a whole: profile resolution reports the validation
+error until the file is fixed.
 
 ## Execution environments
 
@@ -310,7 +364,8 @@ Cortex ships two:
 | `creative` | A clean-room surface for writing, image prompts, naming, and copy, with the operational context stripped out (see [A minimal surface](#a-minimal-surface)) |
 
 The shipped files are copied into `config/environments/` at `cortex init`, and
-again at every server start when they are missing. A file you already have is
+again at every server start when they are missing (a sealed home, with
+`CORTEX_CONFIG_IMMUTABLE=1`, skips that start-time copy). A file you already have is
 never overwritten, so your edits survive upgrades, and a file you add is an
 environment like any other. Changes to the directory are picked up about 300 ms
 later without a restart. A file that is not valid JSON, or whose `name` does not
@@ -362,7 +417,7 @@ A new environment starts from a skeleton that already validates, and an existing
 one can be duplicated under a new name. Errors block a save, warnings do not,
 and a save made against a file that changed on disk in the meantime is refused
 rather than overwriting it. Editing a shipped environment that still matches its
-default warns first, because from then on it no longer follows the shipped
+default warns first, because from then on it stops following the shipped
 version. `main` cannot be deleted. On Android, Settings shows Environments as a
 desktop-only entry.
 
@@ -443,7 +498,9 @@ image prompts, naming and copy, with the operational context stripped out:
 ```json
 {
   "name": "creative",
+  "description": "Clean-room creative environment: writing, image prompts, naming, copy. No skills, no project rules, minimal tools.",
   "profile": "__active__",
+  "promptTemplate": "{{input}}",
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
   "pluginDirs": [],
@@ -484,9 +541,9 @@ commands.
 ## config/settings.json
 
 Located at `$CORTEX_HOME/config/settings.json`. This file holds the **runtime
-behavior settings** of the server: switches and limits that used to be
-environment variables and needed a daemon restart to change. Editing this file
-takes effect without a restart.
+behavior settings** of the server: switches, limits and notification routes.
+Editing this file takes effect without a daemon restart, except for the few
+keys read once at startup, which the table marks.
 
 It is a flat JSON object that stores **only the keys you explicitly override**.
 Any key you leave out falls back to its legacy environment variable when one
@@ -503,10 +560,13 @@ settings panels.
 }
 ```
 
-Values are type-checked against the schema below when the file is read. A key
-whose JSON type does not match rejects the whole file: at startup Cortex falls
-back to environment variables and defaults, and on a reload it keeps the last
-valid settings. Either way the reason is logged. Unknown keys are ignored.
+Values are checked against the schema below when the file is read. A key whose
+JSON type does not match, or whose value is outside its documented range (the
+job intervals, `sessionRetentionDays`, `piCompactReserveTokens`,
+`maxContextTokens`, the shape of `providerRateLimits`), rejects the whole file:
+at startup Cortex falls back to environment variables and defaults, and on a
+reload it keeps the last valid settings. Either way the reason is logged.
+Unknown keys are ignored.
 
 ### Keys
 
@@ -526,11 +586,18 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `serverAutoUpdate` | boolean | `true` | When the update check finds a newer server release, install it without asking. Installation starts only once no turn is running, and the server restarts right after. `false` asks for confirmation first; an agreed update waits for idle the same way. A skipped version stays skipped | — |
+| `clientHotReloadEnabled` | boolean | `true` | Push the server's client bundle to connecting remote clients that run a different one, so they update themselves. Read at startup | — |
+| `feishuSkillsInWeb` | boolean | `false` | Let `web:` sessions, including desktop and mobile app sessions, load an assigned `cortex-feishu` skill plugin (see [Platform settings in the Web UI](#platform-settings-in-the-web-ui)) | — |
 | `teamEnabled` | boolean | `true` | Experimental team mode: any web session can start and manage persistent worker sessions with the `worker_*` tools. Turning it off removes those tools from the next turn and leaves existing workers as ordinary sessions. See [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | Interval, in milliseconds, of the waitpoint sweep: it drains spooled signals (locally and from connected devices), expires overdue waitpoints, and retries deliveries that failed. See [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
 | `waitpointTtlMs` | number | `604800000` | Default lifetime of a waitpoint (7 days) when the agent does not set one. A waitpoint may ask for less, or for more up to a hard ceiling of 30 days; past it the waitpoint expires and the session is told nothing arrived | `CORTEX_WAITPOINT_TTL_MS` |
 | `waitpointMaxWakesPerHour` | number | `12` | Cap on how many times a single waitpoint may wake its session per hour. A runaway signalling loop is throttled (and says so once) rather than flooding the conversation | `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` |
 | `injectWaitMaxS` | number | `600` | Upper bound, in seconds, on how long an injected mid-turn message waits for a reply before the busy gate is released. Prevents a wedged process from holding the daemon restart gate forever | `CORTEX_INJECT_WAIT_MAX_S` |
+| `anthropicSubscriptionModes` | string[] | `["plan"]` | Gateway modes whose Anthropic account quota is polled for the Usage screens. `[]` turns the polling off | — |
+| `subscriptionBillingModes` | string[] | `["plan", "openai-codex", "google-gemini-cli", "google-antigravity"]` | Gateway modes paid by a subscription. The gateway still prices their requests, but usage rows for these modes show quota only and no cost | — |
+| `providerUsageCollectionEnabled` | boolean | `true` | Run the built-in provider-usage collection job that refreshes quota and spend readings | — |
+| `providerUsageCollectionIntervalMs` | number | `300000` | Interval between provider-usage collections, in integer milliseconds | — |
+| `storeArchiveEnabled` | boolean | `true` | Once a day, move terminal execution records older than a week from `data/executions.json` to `data/archive/`. Read at startup | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | Run the built-in experiment/knowledge/pattern index rebuild. Switching from `false` to `true` runs it immediately | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
 | `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator starts a sweep in the background at daemon startup (boot does not wait for it), runs every 6 hours, and runs again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, orphan tool-image directories, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
@@ -544,9 +611,10 @@ The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
 `serverUpdateDisable`, `serverAutoUpdate`, `teamEnabled`, `sessionRetentionDays`,
-`maxContextTokens`, `piCompactReserveTokens`, and the
-built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
-Every other key is edited by hand in the file.
+`maxContextTokens`, `piCompactReserveTokens`, `memoryIndexRegenEnabled` and
+`memoryIndexRegenIntervalMs`), **Settings → Platform** (`adminChannel`,
+`feishuAdminChannel`, `feishuSkillsInWeb`), and the desktop/mobile **Usage**
+screens (`providerRateLimits`). Every other key is edited by hand in the file.
 
 `providerRateLimits` is a `settings.json` object keyed by provider id. Each
 provider entry can contain a `windows` array whose entries are
@@ -562,7 +630,7 @@ weekly, weekly-overage, Codex primary/secondary, and labeled model row. Leaving
 `threshold` out uses the row default: `0.95` for `seven_day` and
 `seven_day_overage_included`, `0.90` for other rows. Spend-only cards have no
 quota controls. Model policy identity follows the reported display label; if a
-provider renames that label, the old entry no longer matches. Policy edits
+provider renames that label, the old entry stops matching. Policy edits
 apply only to future quota observations; an already-active quota or outage
 window keeps its current state until its reset time or a manual **Resume now**
 clear. The Codex and Anthropic cards also show the account's banked resets and
@@ -630,8 +698,8 @@ daemon restart**. Two consequences worth knowing:
 
 Keys with a legacy environment variable in the table keep it as a fallback,
 parsed with its established semantics — `CORTEX_EVENT_LOG=off`, `CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`,
-`CORTEX_NOTIFY_COMPACTION=0`/`false`/`off`/`no`, comma-separated lists for the two `string[]` keys,
-and so on. Precedence is always: key in `settings.json` → legacy variable →
+`CORTEX_NOTIFY_COMPACTION=0`/`false`/`off`/`no`, a comma-separated list for
+`CORTEX_UI_CORS_ORIGINS`, and so on. Precedence is always: key in `settings.json` → legacy variable →
 built-in default. For `adminChannel` the original chain is preserved:
 `SLACK_ADMIN_CHANNEL` is consulted before `CORTEX_ADMIN_CHANNEL`.
 
@@ -661,8 +729,9 @@ least one:
 
 The migration is idempotent: a `.env` with no legacy variables is left
 untouched, and later starts do nothing. If any step fails, the error is logged,
-`.env` is left intact, and the server keeps running on the environment
-fallback — so a failed migration costs nothing but the deprecation warnings.
+`.env` keeps its variables, and the server keeps running on whichever source
+supplies each value — so a failed migration costs nothing but the deprecation
+warnings.
 
 ### What stays in .env
 
@@ -670,7 +739,7 @@ Three categories of variables deliberately remain in `.env`:
 
 - **Secrets and credentials** — `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
   `SLACK_APP_TOKEN`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`,
-  `ANTHROPIC_API_KEY`, `CORTEX_CLIENT_TOKEN`. They are
+  `ANTHROPIC_API_KEY`, `CORTEX_CLIENT_TOKEN`, `CORTEX_WEBHOOK_TOKEN`. They are
   settings in a loose sense, but keeping them out of a file that the Web UI can
   read and write keeps the blast radius small.
 - **Variables consumed by child processes** — `CORTEX_HOME`,
@@ -835,9 +904,16 @@ built-in assets are read in place:
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |
 | `defaults/config/environments/` | `$CORTEX_HOME/config/environments/` | Per-file copy-if-missing, at init and again at every server start: a shipped environment you do not have yet is added; a file you already have is never overwritten — `--force` does not apply to this tree |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | Never (unless `--force`) |
-| `defaults/context/` | `$CORTEX_HOME/context/` | Scaffold files: never overwrite |
+| `defaults/context/` | `$CORTEX_HOME/context/` | Index `AGENTS.md` files: never overwritten. The `decisions/` scaffold: only with `--force` |
 | `defaults/plugins/`, `defaults/config/hooks/`, `defaults/hooks/`, `defaults/rules/`, `defaults/agents/`, `defaults/prompts/` | — | Not copied: read in place, with your files laid over them (see [Built-in assets and your overrides](#built-in-assets-and-your-overrides)) |
 | `defaults/board/` | — | Not copied: the board preset stylesheet and the scaffold of a new board are read from the package |
+
+Init also generates `config/machines.json`, `config/preferences.json` and
+`data/agent-state.json` when they are missing (or with `--force`), writes the
+`config/mcp-config*.json` files, and sets up the gateway configuration and
+`profiles.json` (see [`cortex init`](./cli-reference.md#commands)). The server
+rewrites the `mcp-config*.json` files at every start, so edits to them do not
+persist.
 
 An upgrade therefore brings the current built-in plugins, hooks, rules, roles
 and prompts with it, and newly shipped environments reach existing installs
@@ -866,8 +942,8 @@ polling mode as it uses with filesystem events.
   environment is reloaded without a restart. See
   [Execution environments](#execution-environments).
 - **`.env`** — requires a daemon restart to pick up changes (loaded once
-  at startup via dotenv). Behavior settings that used to live here have moved
-  to `config/settings.json`, which does not.
+  at startup via dotenv). Behavior settings live in `config/settings.json`,
+  which does not.
 - **Hook declarations (`config/hooks/*.json`)** — the registry is re-read on
   every agent spawn, so a new `agent:*` / `cc:*` / `pi:*` entry applies to the
   next agent that starts. `cortex:*` entries are snapshotted at server start
@@ -887,11 +963,14 @@ polling mode as it uses with filesystem events.
 | `environments/` | Execution environments — one JSON per environment | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | Machine registry | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | Budget limits | `$CORTEX_HOME/config/budget.json` |
-| `mcp-config.json` | MCP server config | `$CORTEX_HOME/config/mcp-config.json` |
+| `preferences.json` | UI language for system messages | `$CORTEX_HOME/config/preferences.json` |
+| `mcp-config*.json` | Generated MCP server configs (rewritten at every start) | `$CORTEX_HOME/config/` |
 | `.claude/settings.json` | Claude Code hooks/permissions (not the Cortex settings file) | `$CORTEX_HOME/.claude/settings.json` |
 | `agent-state.json` | Selected profile, default agent, per-channel overrides | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | Schedules | `$CORTEX_HOME/data/schedules.json` |
 | `boards.json` | Board registry | `$CORTEX_HOME/data/boards.json` |
+| `provider-state.json` | Provider usage, throttle windows, resume queue | `$CORTEX_HOME/data/provider-state.json` |
+| `waitpoints.json` | Waitpoints | `$CORTEX_HOME/data/waitpoints.json` |
 | `board.css` | Optional stylesheet for every board | `$CORTEX_HOME/config/board.css` |
 | `session-registry.jsonl` | Append-only session registry journal | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | Two-sweep orphan cleanup candidates | `$CORTEX_HOME/data/retention-candidates.json` |

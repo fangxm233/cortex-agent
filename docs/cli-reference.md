@@ -6,7 +6,7 @@ Cortex ships four binaries, registered in `agent-server/package.json`:
 |---|---|---|
 | `cortex` | `dist/entry/cortex-cli.js` | Server management and initialization |
 | `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | Production benchmark evidence v2 export |
-| `cortex-hook` | `dist/entry/hook-cli.js` | Hook inspection and blocking user asks |
+| `cortex-hook` | `dist/entry/hook-cli.js` | Hook inspection, switching, test runs, and blocking user asks |
 | `cortex-signal` | `dist/entry/signal-cli.js` | Resolve a waitpoint from an external program |
 
 All four accept `--help` (or `-h`) to print their usage.
@@ -19,7 +19,7 @@ All four accept `--help` (or `-h`) to print their usage.
 cortex <command> [options]
 ```
 
-Server lifecycle and initialization CLI.
+Server lifecycle and initialization CLI. `cortex --help` lists every command.
 
 ### Commands
 
@@ -28,7 +28,11 @@ Server lifecycle and initialization CLI.
 Initialize `CORTEX_HOME`. The interactive wizard uses bundled PI by default
 without a backend-selection prompt, collects platform (Slack / Feishu),
 machine, usage-reporting, and service settings, writes `.env`, copies default
-configs, and generates `mcp-config.json` and `agent-state.json`.
+configs, and generates the `mcp-config*.json` files, `machines.json`,
+`preferences.json` and `agent-state.json`. It also seeds `schedules.json`,
+creates a git repository in `CORTEX_HOME` when `git` is available, and can
+enable the local Web UI and install a system service when those answers ask
+for it.
 
 After writing configs, it detects local provider credentials and offers
 login, rescan, continue with configured providers, or a warned skip. Login
@@ -52,15 +56,15 @@ Options:
 Make this install reachable by the Cortex desktop app. Generates the client
 token if it is missing, sets `CORTEX_UI_HTTP=1` and `CORTEX_UI_PORT`, and adds
 the app's origins to `uiCorsOrigins`. Idempotent — running it twice changes
-nothing the second time.
+nothing the second time. `ui` has no other subcommand.
 
 Restart the daemon when it reports that the configuration changed: `.env` is
 read once at process start.
 
 Options:
-- `--port <n>` — the port to listen on (default: 3004)
-- `--home <path>` — set `CORTEX_HOME`
-- `--json` — print the endpoint, token, port, and whether anything changed as JSON
+- `--port <n>` — the port to listen on. Without it, a `CORTEX_UI_PORT` already in `.env` is kept, and `3004` is used when there is none; an invalid port exits 1
+- `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex`)
+- `--json` — print `{ ok, home, url, token, port, changed }`
 
 **`cortex client remove --device <name> [--keep-remote] [--dry-run] [--home <path>]`**
 
@@ -94,26 +98,72 @@ Options:
 
 **`cortex start`**
 
-Fork `dist/entry/app.js` as a child process, inherit stdio. This is the
-primary way to run Cortex in the foreground. The child process runs the
-Slack bot, webhook server, and all agent orchestration.
+Run the server in the foreground: fork `dist/entry/app.js` with inherited
+stdio and `$CORTEX_HOME` as its working directory, and exit with its exit
+code. The process runs the platform adapters, the Web UI host, the webhook
+server, and all agent orchestration, with no supervisor to restart it.
 
 **`cortex daemon`**
 
-Fork `dist/entry/daemon.js` as a child process, inherit stdio. The daemon
-wraps `app.js` with file watching and auto-restart on crash. Touching
-`$STORE_DIR/.restart` signals the daemon to drain and respawn `app.js`.
+Start the supervisor in the background and return at once. The command forks
+`dist/entry/daemon.js` detached from the terminal, with no stdio (the daemon
+writes its own logs under `logs/`), and exits 0. The daemon runs `app.js` as
+its child, restarts it after a crash with exponential backoff, and drains and
+respawns it when `$STORE_DIR/.restart` is touched. `cortex daemon --version`
+prints the version.
 
-`cortex daemon stop` stops the daemon together with the client it launched on
-this machine (the local client), so no Cortex process keeps running or keeps
-files of the runtime in use. Clients on SSH and custom-command machines keep
-running. The next `cortex daemon` launches the local client again.
+**`cortex daemon stop`**
+
+Send the daemon SIGTERM and wait up to 10 seconds for it to exit; a daemon
+still alive after that is killed with SIGKILL and the command exits 1. The
+daemon is stopped together with the client it launched on this machine (the
+local client), so no Cortex process keeps running or keeps files of the
+runtime in use; a local client that survives also exits 1. Clients on SSH and
+custom-command machines keep running, and the next `cortex daemon` launches the
+local client again. A daemon that is not running, including a stale PID file,
+which is cleaned up, exits 0.
+
+**`cortex daemon status`**
+
+Print the daemon's PID and uptime and the state of its `app.js` child (PID and
+uptime, `starting...`, or `none`).
+
+**`cortex daemon restart [--hard | --force]`**
+
+Without a flag, touch the restart trigger so the daemon drains and respawns
+`app.js`. `--hard` sends SIGTERM straight to `app.js` and `--force` sends
+SIGKILL; either way the daemon starts a new child. All three exit 1 when no
+daemon is running; the flags also exit 1 when no `app.js` child is alive.
+
+**`cortex daemon restart-self`**
+
+Stop the daemon as `cortex daemon stop` does, then start a new detached daemon.
 
 **`cortex restart`**
 
-Signal a running daemon to drain and respawn `app.js` by touching the
-`.restart` trigger file at `$STORE_DIR/.restart`. If no daemon is running,
-this is a no-op beyond creating the file.
+Touch the restart trigger at `$STORE_DIR/.restart` and print its path. A
+running daemon drains and respawns `app.js`; with no daemon running the command
+only creates the file. It exits 1 when the file cannot be written.
+
+**`cortex tui [--resume] [--project <id>] [--port <n>]`**
+
+Open the terminal chat client against a running server. The command checks
+that the TUI gateway is listening on `127.0.0.1:<port>` and exits 1 with a hint
+to start the daemon when it is not; otherwise it runs the client in the
+terminal and exits with its exit code.
+
+Options:
+- `--resume` — open the resume-session picker on connect
+- `--project <id>` — start a fresh session in that project
+- `--port <n>` — the gateway port (default: `$CORTEX_TUI_PORT`, else `3003`)
+
+**`cortex install latest`**
+
+Update the server from npm. The command asks npm for the latest
+`@cortex-agent/server` version, prints `Already on the latest version` when the
+running install is current, and otherwise runs `npm install -g` for that version
+into `CORTEX_NPM_PREFIX`, else the running install's own prefix. Restart the daemon
+afterwards with `cortex daemon restart`. A failed lookup or install exits 1.
 
 **`cortex config`**
 
@@ -126,12 +176,15 @@ all data directories, and whether `.env`, `mcp-config.json`, and
 Health-check the whole installation in one pass and report what is wrong.
 The default run is read-only and safe at any time. It inspects four areas:
 
-- Runtime & process — Node version, `git` on PATH, the configured backend
-  binary (`claude` / `pi`), and whether the daemon is running.
+- Runtime & process — Node version, `git` on PATH (a failure on Windows, a
+  warning elsewhere), the `claude` binary on PATH (a warning when missing; PI
+  always passes, since it runs in-process from the bundled SDK), and whether the
+  daemon is running.
 - Backend install / login — data directories exist and are writable, `.env`
-  is present, the WebSocket/webhook auth tokens are set, `ANTHROPIC_API_KEY`
+  is present, the client and webhook tokens are set, `ANTHROPIC_API_KEY`
   status, and that `agent-state.json`, `profiles.json`, and `mcp-config.json` are
-  present and valid. It also smoke-tests the installed PI runtime and its
+  present and valid. A missing `profiles.json` is a warning; invalid JSON or a
+  `defaultProfile` that names no profile is a failure. It also smoke-tests the installed PI runtime and its
   `login` export, then summarizes expired or logged-out in-use providers from
   the credential-free backend auth snapshot. These two checks warn rather than
   fail. In API mode, a healthy gateway with no local key is reported as
@@ -145,11 +198,12 @@ The default run is read-only and safe at any time. It inspects four areas:
 
 Each check prints `[OK]`, `[WARN]`, `[FAIL]`, or `[--]` (skipped) with a
 short detail and, for problems, a fix hint. The command exits `1` when any
-check fails, else `0`.
+check fails, else `0`; warnings do not fail the run.
 
 Options:
 - `--fix` — apply safe, idempotent repairs only: create missing data
-  directories, generate missing auth tokens, and rebuild `mcp-config.json`.
+  directories, create a missing `.env`, generate missing auth tokens, and
+  rebuild `mcp-config.json`. The JSON report lists them under `fixes`.
   It never deletes configuration or overwrites existing credentials. After
   fixing, diagnostics re-run so the summary reflects the repaired state.
 - `--json` — emit the full report (sections, checks, counts) as JSON for
@@ -271,7 +325,7 @@ exits 1 with the valid values on stderr.
 
 - `list [--project <id>]` — all schedules, or one project's
 - `get <id>` — one schedule; an unknown id exits 1
-- `add --type <type> …` — create a schedule; prints `created: false` and the existing schedule when `--idempotency-key` matches one
+- `add --type <type> …` — create a schedule; prints `created: false` and the existing schedule when `--idempotency-key` matches one. A timing flag that does not belong to the type is rejected
 - `edit <id> …` — change the message, project, profile, pre-check, or the timing fields of the schedule's type; the type itself is fixed
 - `pause <id>` / `resume <id>` — pause or resume a recurring schedule; repeating either changes nothing
 - `remove <id> [--dry-run]` — delete a schedule (`removed: false` when it does not exist); `--dry-run` prints `would_remove` and deletes nothing
@@ -299,12 +353,47 @@ cortex schedule edit a1b2c3d4 --time 10:30
 cortex schedule remove a1b2c3d4 --dry-run
 ```
 
+**`cortex memory <regen|consolidate> [--project <name>]... [--text]`**
+
+Maintain project memory under `$CORTEX_HOME/context/projects/*/` (its
+`experiments/`, `knowledge/` and `patterns/` directories; see
+[Memory](./memory.md)). `--project` limits the run to one project and can be
+repeated; without it every project with memory directories is processed, and an
+unknown project exits 1 with the valid names.
+
+- `regen` — rebuild the generated `index.md` files from entry frontmatter and
+  the access log, never touching the `EXP`/`K`/`PAT` entries themselves. Prints
+  `{ ok: true, projects: [{ project, indexes }] }`.
+- `consolidate` — report contradictions, stale entries, anti-pattern signals and
+  consolidation candidates as `{ ok: true, reports }`; `--text` prints a
+  readable summary instead.
+
+**`cortex feishu <login|status|logout> [--scope <scopes>] [--manual] [--redirect-uri <url>]`**
+
+Manage the Feishu user identity that Feishu document tools act as.
+
+- `login` — authorize a Feishu account with the OAuth device flow: the command
+  prints a URL and a code to open in any browser. It needs `FEISHU_APP_ID` and
+  `FEISHU_APP_SECRET`. On success it stores the user token and writes
+  `FEISHU_AUTH_MODE=user` to `.env`; restart the daemon to apply it.
+- `status` — show the auth mode (`user` or `bot`) and the stored token's
+  validity and expiry.
+- `logout` — delete the stored user token.
+
+Options:
+- `--scope <scopes>` — the scopes to request (default: `$FEISHU_USER_SCOPE`, else a document, sheet, base and wiki set that needs no app review; `offline_access` is always added)
+- `--manual` — use the authorize-URL and paste-the-code flow instead of the device flow
+- `--redirect-uri <url>` — redirect URI for `--manual` (default: `$FEISHU_REDIRECT_URI`)
+
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success |
 | 1 | Error (invalid command, missing config, runtime failure) |
+| 130 | `init` or `auth login` cancelled, or the Claude Code install declined |
+
+`cortex start` and `cortex tui` exit with the code of the process they run.
 
 ---
 
@@ -326,7 +415,7 @@ identified by its `session_id` and `execution_id`, and each later run of the ses
 child of the run before it.
 
 `--input-file` contains one JSON-encoded `ProductionEvidenceExportInput`; use `-` to read it from
-stdin. The launcher owns every field: `outputDirectory`, `trialId`, `rootRunId`, `armName`,
+stdin. The arguments must be exactly `--input-file <value>`; anything else is a usage error. The launcher owns every field: `outputDirectory`, `trialId`, `rootRunId`, `armName`,
 `armCanonicalSha256`, `bundleManifestHash`, `proxyExport`, and optional `evaluatedChecks`. Hashes,
 proxy trial identity, and predicate results are validated before publication. Missing or malformed
 input, incomplete durable records, or an existing output directory fail closed with exit code `1`.
@@ -348,13 +437,43 @@ and verified in a hidden staging directory.
 
 ---
 
+## cortex-hook
+
+```
+cortex-hook <list|show|enable|disable|test|ask> [options]
+```
+
+Inspect and operate the hooks mounted from the built-in registry and
+`$CORTEX_HOME/config/hooks/`. Every command prints JSON on stdout and errors on
+stderr. [Hooks: the cortex-hook CLI](./hooks.md#the-cortex-hook-cli) covers the
+registry these commands act on.
+
+- `list` — every mounted hook: `id`, `event`, `enabled`, `source` (`builtin` or `user`), and whether a user file overrides a built-in one
+- `show --id <id>` — one complete declaration; an unknown id exits 1 and lists the valid ones
+- `enable --id <id> [--dry-run]` / `disable --id <id> [--dry-run]` — switch a hook, idempotently; the result says whether anything `changed`, and `--dry-run` reports `would_set` without writing
+- `test --id <id> --payload <file|->` — run the hook once with the payload on stdin and print its `exit_code`, `stdout` and `stderr`; the command exits with the hook's own exit code
+- `ask (--question <text> | --payload <file|->)` — post an ask-user card and block until it is answered, then print `{ ok: true, answers }`. `--header`, `--options "a|b|c"`, `--multi` and `--level info|warn|warning|error` shape a single question; `--payload` takes a JSON array of question objects. The card goes to `--channel` (default: `$CORTEX_HOOK_CHANNEL`) or the channel of `--session-id` (default: `$CORTEX_HOOK_SESSION_ID`), both of which a hook's environment already carries. `--dry-run` resolves synthetically without posting. See [Asking the user from a hook](./hooks.md#asking-the-user-from-a-hook)
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success, or an answered `ask` |
+| 1 | Usage or runtime error |
+| 2 | `ask` timed out unanswered |
+
+`test` exits with the code of the hook it ran.
+
+---
+
 ## cortex-signal
 
 ```
 cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--message TEXT] [--exit-code N]
 ```
 
-Tell Cortex that something it is waiting for has finished. The agent arms a
+Tell Cortex that something it is waiting for has finished. Run without
+arguments, it prints its usage. The agent arms a
 waitpoint with the `wait_create` MCP tool and ends its turn; this command
 resolves that waitpoint and wakes the session. See
 [waitpoints.md](./waitpoints.md) for the full picture.
@@ -370,7 +489,7 @@ Options:
 - `--exit-code <n>` — derive the status from a command's exit code (0 = `ok`, anything else = `fail`) and default the message to `exit=<n>`
 - `--message <text>` — one-line summary shown in the wake message
 - `--member <name>` — which member of a multi-job waitpoint this signal is for
-- `--data <@file|->` — extra payload from a file or stdin; it reaches the agent labelled as data, never as instructions
+- `--data <@file|-|text>` — extra payload from a file, stdin, or the literal text; it reaches the agent labelled as data, never as instructions
 - `--url <url>` — daemon signal endpoint (default: `http://127.0.0.1:$WEBHOOK_PORT/webhook/signal`)
 - `--no-spool` — fail instead of spooling to disk when the daemon is unreachable
 - `--help`, `-h` — show usage
@@ -395,7 +514,7 @@ restart is delayed, not lost. `--no-spool` turns this off and exits 1 instead.
 |---|---|
 | 0 | Accepted, spooled, or the waitpoint was already resolved |
 | 1 | Refused (bad secret, unknown id, rate-limited) or unreachable with `--no-spool` |
-| 2 | Usage error (missing id/secret, unknown flag, bad `--status`) |
+| 2 | Usage error (missing id/secret, unknown flag, missing value, bad `--status` or `--exit-code`, unreadable `--data` file) |
 
 An already-resolved waitpoint exits 0 on purpose: a retrying script should not
 treat "someone already reported this" as a failure.
