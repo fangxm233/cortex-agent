@@ -4,7 +4,8 @@ import { useMotionMode, type MotionMode } from '@/theme';
 import { browserTabChip, browserTabForwardSource, currentUrl, type BrowserTabChip } from '@/features/browser/browser-target';
 import { attachmentFileExt } from '@/features/attachments/attachment-presentation';
 import { useVocabOptional, type Vocab } from '@/i18n';
-import { dockTabLabel, isFileTab, type DockState, type DockTab } from './dock-tabs';
+import { BoardTabTitle } from '@/features/board/BoardDockBody';
+import { dockTabLabel, isBoardTab, isFileTab, type DockState, type DockTab } from './dock-tabs';
 import './dock-chrome.css';
 
 // Keep the strip at the chat header's 50px height. Only chrome reorders; the pane's
@@ -77,15 +78,15 @@ const DockTabItem = forwardRef<HTMLDivElement, DockTabItemProps>(function DockTa
 function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemProps & { isPresent: boolean }): JSX.Element {
   const L = useVocabOptional();
   const closeTab = L.dockCloseTab;
-  const label = dockTabLabel(tab, L.brNewTab);
-  const source = isFileTab(tab) ? null : browserTabForwardSource(tab);
-  const chip = tabChip(tab);
+  const label = isBoardTab(tab) ? null : dockTabLabel(tab, L.brNewTab);
+  const source = isFileTab(tab) || isBoardTab(tab) ? null : browserTabForwardSource(tab);
+  const chip = isBoardTab(tab) ? { text: L.boardTitle, kind: 'plain' as const } : tabChip(tab);
   return (
     <>
       <button type="button" className="dock-tab-select" aria-pressed={active} data-dock-tab={tab.id}
-        data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={tabTooltip(tab, label, source, L)}>
+        data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={isBoardTab(tab) ? undefined : tabTooltip(tab, label!, source, L)}>
         {chip && <TabChip chip={chip} source={source} copy={L} />}
-        <span style={TAB_LABEL_STYLE}>{label}</span>
+        <span style={TAB_LABEL_STYLE}>{isBoardTab(tab) ? <BoardTabTitle boardId={tab.boardId} /> : label}</span>
       </button>
       <button type="button" className="dock-control dock-tab-close" disabled={!isPresent} data-close-tab={tab.id}
         title={closeTab} aria-label={closeTab} onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)}>×</button>
@@ -94,12 +95,12 @@ function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemPr
 }
 
 /** Every tab carries the same chip shape: a web port or device, or a file extension. */
-function tabChip(tab: DockTab): BrowserTabChip | null {
+function tabChip(tab: Exclude<DockTab, { kind: 'board' }>): BrowserTabChip | null {
   if (!isFileTab(tab)) return browserTabChip(tab);
   return { text: attachmentFileExt(tab.item.name), kind: 'plain' };
 }
 
-function tabTooltip(tab: DockTab, label: string, source: string | null, copy: Pick<Vocab, 'brForwardedFrom'>): string {
+function tabTooltip(tab: Exclude<DockTab, { kind: 'board' }>, label: string, source: string | null, copy: Pick<Vocab, 'brForwardedFrom'>): string {
   if (isFileTab(tab)) return tab.item.path ?? label;
   if (source) return `${label}\n${copy.brForwardedFrom.replace('{source}', source)}`;
   const url = currentUrl(tab.history);

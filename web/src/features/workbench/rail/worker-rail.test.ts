@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CommissionInfo, ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { buildRailTree, FOLDER_SESSION_CAP, type RailTreeInput } from './rail-tree';
 import { groupWorkers, workersOf } from '@/features/team/worker-groups';
 
@@ -35,13 +35,10 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   directSessions: [],
   scheduledSessions: [],
   schedules: [],
-  commissions: [],
   selectedSessionId: null,
   fallbackProjectId: null,
   expanded: new Set(['atlas']),
   schedulesExpanded: new Set<string>(),
-  commissionsExpanded: new Set<string>(),
-  expandedCommissions: new Set<string>(),
   showAll: new Set<string>(),
   filter: '',
   sort: 'activity',
@@ -143,20 +140,14 @@ describe('rail tree with team mode', () => {
     expect(row.workers?.[1].retired).toBe(true);
   });
 
-  it('keeps a worker flat when its lead is missing, starred or in a commission', () => {
+  it('keeps a worker flat when its lead is missing or starred', () => {
     const gone = session('atlas', { teamLeadId: 'missing', workerName: 'a' });
     const starredLead = session('atlas', { starred: true });
     const ofStarred = worker(starredLead);
-    const commLead = session('atlas', { commissionId: 'c1' });
-    const ofComm = worker(commLead);
-    const commission = {
-      id: 'c1', projectId: 'atlas', slug: 'c1', title: 'c1', status: 'active',
-      createdAt: ago(HOUR), updatedAt: ago(HOUR), closedAt: null, closeNote: null,
-    } as CommissionInfo;
     const node = buildRailTree(input({
-      directSessions: [gone, starredLead, ofStarred, commLead, ofComm], commissions: [commission], teamEnabled: true,
+      directSessions: [gone, starredLead, ofStarred], teamEnabled: true,
     })).projects[0];
-    expect(new Set(ids(node.sessions))).toEqual(new Set([gone.sessionId, ofStarred.sessionId, ofComm.sessionId]));
+    expect(new Set(ids(node.sessions))).toEqual(new Set([gone.sessionId, ofStarred.sessionId]));
     expect(node.sessions.every((s) => !s.workers)).toBe(true);
     expect(ids(node.starredSessions)).toEqual([starredLead.sessionId]);
   });

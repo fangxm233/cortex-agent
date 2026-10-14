@@ -12,7 +12,6 @@ import { SelectionPane } from '@/design/SelectionPane';
 import { useVocabOptional } from '@/i18n';
 import { HEADER_BOTTOM_VAR } from './useHeaderClearance';
 import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
-import { useCommissionOptions } from '@/features/commission/CommissionOptIn';
 
 export function MoreMenu({ onClose, onSessionId, onSessionStats, metadataItems }: {
   onClose: () => void;
@@ -297,11 +296,10 @@ export function AgentSheet({ rows, onClose, onPick }: {
   );
 }
 
-/** One creation-time option (a browser device, a commission). `attr` is the test/selector hook, kept
- *  per-surface so the two sheets stay individually addressable while sharing this markup. */
+/** One creation-time option (a browser device). `attr` is the test/selector hook. */
 function OptionRow({ item, attr, last, current, onPick }: {
   item: { value: string | null; label: string; sub: string };
-  attr: 'data-device' | 'data-commission-option';
+  attr: 'data-device';
   last: boolean;
   current: string | null;
   onPick: (value: string | null) => void;
@@ -316,7 +314,7 @@ function OptionRow({ item, attr, last, current, onPick }: {
 
 function OptionSheet({ items, attr, title, current, onClose, onPick }: {
   items: Array<{ value: string | null; label: string; sub: string }>;
-  attr: 'data-device' | 'data-commission-option';
+  attr: 'data-device';
   title: string;
   current: string | null;
   onClose: () => void;
@@ -342,20 +340,6 @@ export function BrowserSheet({ current, onClose, onPick }: {
     <OptionSheet
       items={items.map((i) => ({ value: i.device, label: i.label, sub: i.sub }))}
       attr="data-device" title={useVocabOptional().wbBrowser} current={current} onClose={onClose} onPick={onPick}
-    />
-  );
-}
-
-export function CommissionSheet({ current, onClose, onPick }: {
-  current: string | null;
-  onClose: () => void;
-  onPick: (value: string | null) => void;
-}): JSX.Element {
-  const items = useCommissionOptions(true);
-  return (
-    <OptionSheet
-      items={items.map((o) => ({ value: o.value, label: o.label, sub: o.sub }))} attr="data-commission-option"
-      title={useVocabOptional().wbCommissionMode} current={current} onClose={onClose} onPick={onPick}
     />
   );
 }

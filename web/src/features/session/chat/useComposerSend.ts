@@ -9,7 +9,6 @@ import {
   type SlashAction, type SlashSuggestion,
 } from '@/features/session/composer/composer-slash';
 import type { ProfileOption } from '@/features/session/list/selection-menu';
-import type { CommissionRequest } from '@/features/commission/CommissionOptIn';
 import type { DraftSelection } from '@/features/session/state/selected-session';
 import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
 import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
@@ -22,8 +21,6 @@ export type SlashFeedbackKey = ReturnType<typeof slashFeedbackKey>;
 export interface DraftCreation {
   selection: DraftSelection;
   browserDevice: string | null;
-  /** Already gated by the commission feature switch; null is "not a commission". */
-  commission: CommissionRequest | null;
 }
 
 export interface ComposerSlashHost {
@@ -140,7 +137,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
   const mutateSend = (text: string, attachments: AttachmentMeta[], draftUploadId?: string): Promise<SendResult> => {
     const withAttachments = attachments.length > 0 ? { attachments: uploadedAttachments(attachments) } : {};
     if (!isDraft) return sendMut.mutateAsync({ sessionId, text, ...withAttachments });
-    const { selection, browserDevice, commission } = options.creation;
+    const { selection, browserDevice } = options.creation;
     return createAndSendMut.mutateAsync({
       projectId: options.projectId,
       profileName: selection.profileName ?? undefined,
@@ -149,7 +146,6 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       text,
       draftUploadId,
       ...(browserDevice ? { browser: { device: browserDevice } } : {}),
-      ...(commission ? { commission } : {}),
       ...withAttachments,
     });
   };

@@ -1,2 +1,63 @@
-<!-- Board scaffold — placeholder; the real scaffold lands with the board view. -->
-<div class="card"><div class="h">Status</div><p>Describe the goal and current state here.</p></div>
+<!-- Board body (body content only). Replace the examples with real content and drop sections you
+     do not need. States: ok done · run in progress · ask needs the user · wait blocked on a machine
+     or someone else · bad failed/risk · none = not started. Classes: see the board skill. -->
+<div class="stack">
+
+<!-- Head: title, overall state, then one line on where things stand. -->
+<div class="card">
+  <div class="head"><h1>Board title</h1><span class="chip run">in progress</span><span class="meta mono faint">updated 10-13 09:00</span></div>
+  <div class="lead"><b>Stage 1 done.</b> Stage 2 is running; stage 3 waits for a GPU.</div>
+  <!-- One <i> per unit of work. -->
+  <div class="meter"><i class="ok"></i><i class="run"></i><i class="wait"></i><i></i></div>
+  <div class="legend"><span><span class="sw ok"></span>done 1</span><span><span class="sw run"></span>running 1</span><span><span class="sw wait"></span>waiting 1</span><span><span class="sw"></span>to do 1</span></div>
+</div>
+
+<!-- Stages: one .step each, state on the step and its chip. -->
+<div class="card">
+  <div class="h">Stages</div>
+  <div class="steps">
+    <div class="step ok"><div class="top"><span class="k">1</span><span class="chip ok">done</span></div><div class="t">What stage 1 delivers</div><div class="m">3 commits</div></div>
+    <div class="step run"><div class="top"><span class="k">2</span><span class="chip run">running</span></div><div class="t">What stage 2 delivers</div><div class="m">2 / 5 tasks</div></div>
+    <div class="step wait"><div class="top"><span class="k">3</span><span class="chip wait">waiting</span></div><div class="t">What stage 3 delivers</div><div class="m">needs a free GPU</div></div>
+    <div class="step"><div class="top"><span class="k">4</span><span class="chip">to do</span></div><div class="t">What stage 4 delivers</div><div class="m">—</div></div>
+  </div>
+</div>
+
+<!-- Rows serve acceptance criteria, checkpoints, decisions, risks and outputs alike. -->
+<div class="grid wide-left">
+  <div class="card">
+    <div class="h">Acceptance <span class="n">1 / 3</span></div>
+    <div class="rows">
+      <div class="row"><span class="ic ok">✓</span><span class="id">A-1</span><span class="body">Criterion met, with its evidence on the right</span><span class="end"><code>logs/check.txt</code></span></div>
+      <div class="row"><span class="ic run">◐</span><span class="id">A-2</span><span class="body">Criterion in progress</span></div>
+      <div class="row"><span class="ic todo">○</span><span class="id">A-3</span><span class="body">Criterion not started</span></div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <div class="h">Needs you</div>
+      <div class="rows">
+        <div class="row"><span class="ic ask">●</span><span class="body"><b>Pick a dataset split</b><span class="sub">Asked in the lead session; stage 2 continues meanwhile.</span></span><span class="chip ask">needs you</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="h">Risks</div>
+      <div class="rows">
+        <div class="row"><span class="ic risk">▲</span><span class="body">What could go wrong and what guards against it; <code>paths</code> in code.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline: newest first, a date then a state chip. Images go in assets/ as
+     <img src="assets/x.png">; name other outputs by path in <code>. -->
+<div class="card tl">
+  <div class="h">Progress</div>
+  <div class="rows">
+    <div class="row"><span class="when">10-13</span><span class="chip ok">done</span><span class="body">Stage 1 merged; all checks pass</span></div>
+    <div class="row"><span class="when">10-13</span><span class="chip bad">failed</span><span class="body">First run diverged; learning rate halved and restarted</span></div>
+  </div>
+  <div class="mono muted" style="margin-top:8px">Outputs · <code>results/report.md</code></div>
+</div>
+
+</div>

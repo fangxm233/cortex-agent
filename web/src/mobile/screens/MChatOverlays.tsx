@@ -2,10 +2,11 @@ import { useVocabOptional } from '@/i18n';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { AttachMenu } from './MChatComposerPresentation';
 import {
-  BrowserSheet, CommissionSheet, ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
+  BrowserSheet, ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
 } from './MChatSheets';
 import { MChatSessionMenu } from './MChatSessionMenu';
 import { MTeamSheet } from './MChatTeam';
+import { MBoardSheet } from './MChatBoard';
 import type { MChatSelectionView } from './m-chat-selection';
 import type { MChatViewProps } from './MChatView.types';
 import type { ChatOverlay } from './useChatOverlay';
@@ -26,8 +27,8 @@ function OriginalMessageSheet({ text, onClose }: { text: string; onClose: () => 
   );
 }
 
-/** The ⋯ menu and what it opens, plus the header's context-usage and team sheets and the 已编辑
- *  original. */
+/** The ⋯ menu and what it opens, plus the header's context-usage, team and board sheets and the
+ *  已编辑 original. */
 function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
   const statsRows = props.sessionStatsRows?.length ? props.sessionStatsRows : null;
   return (
@@ -50,20 +51,21 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
         <MTeamSheet workers={props.workers ?? []} onClose={() => overlay.close('team')}
           onOpen={(id) => { overlay.close('team'); props.onOpenWorker!(id); }} />
       )}
+      {overlay.is('board') && props.boardId && (
+        <MBoardSheet boardId={props.boardId} onClose={() => overlay.close('board')}
+          onOpenSession={(s) => props.onOpenBoardSession?.(s.sessionId)} />
+      )}
     </>
   );
 }
 
-/** ＋ menu entries for browser control and commission mode: shown where the mode is on or can
- *  still be chosen; tappable only where it can. */
+/** ＋ menu entry for browser control: shown where it is on or can still be chosen; tappable only
+ *  where it can. */
 function attachModes({ props, overlay }: OverlayProps) {
-  const { browser, commission } = props;
+  const { browser } = props;
   return {
     browser: browser && (browser.onPick || browser.device)
       ? { device: browser.device, onOpen: browser.onPick ? () => overlay.open('browser') : undefined }
-      : undefined,
-    commission: commission && (commission.onPick || commission.value)
-      ? { label: commission.label ?? commission.value, onOpen: commission.onPick ? () => overlay.open('commission') : undefined }
       : undefined,
   };
 }
@@ -71,9 +73,8 @@ function attachModes({ props, overlay }: OverlayProps) {
 function ComposerOverlays({ props, overlay, files }: OverlayProps & {
   files: { camera: () => void; library: () => void; file: () => void };
 }): JSX.Element {
-  const { browser, commission } = props;
+  const { browser } = props;
   const pickBrowser = (device: string | null): void => { browser?.onPick?.(device); overlay.close('browser'); };
-  const pickCommission = (value: string | null): void => { commission?.onPick?.(value); overlay.close('commission'); };
   return (
     <>
       {overlay.is('attach') && (
@@ -82,9 +83,6 @@ function ComposerOverlays({ props, overlay, files }: OverlayProps & {
       )}
       {overlay.is('browser') && (
         <BrowserSheet current={browser?.device ?? null} onClose={() => overlay.close('browser')} onPick={pickBrowser} />
-      )}
-      {overlay.is('commission') && (
-        <CommissionSheet current={commission?.value ?? null} onClose={() => overlay.close('commission')} onPick={pickCommission} />
       )}
     </>
   );

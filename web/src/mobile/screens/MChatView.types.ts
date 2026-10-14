@@ -56,6 +56,10 @@ export interface MChatViewProps {
   /** Opens a worker from a team row in the transcript. Unlike `onOpenWorker` no sheet is open, so it
    *  should add a history entry: back returns to this lead. Falls back to `onOpenWorker`. */
   onOpenWorkerFromChat?: (sessionId: string) => void;
+  /** The board this session is bound to: the header gets a board key that opens it full-screen. */
+  boardId?: string | null;
+  /** Opens a session from the board's live strip. */
+  onOpenBoardSession?: (sessionId: string) => void;
   status: ChatHeaderStatus;
   /** Project the session belongs to; prefixes the header status line when known. */
   project?: string;
@@ -98,9 +102,6 @@ export interface MChatViewProps {
   onPickSelection: (row: SelectionSheetRow) => void;
   /** Browser control: the device in force; `onPick` only where it can still be chosen (a draft). */
   browser?: { device: string | null; onPick?: (device: string | null) => void };
-  /** Commission mode: the value on a draft, or on a live session what it serves. `label` is the
-   *  commission title once one has landed; `onPick` only where it can still be chosen. */
-  commission?: { value: string | null; label: string | null; onPick?: (value: string | null) => void };
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextCompactAction?: ContextCompactAction;

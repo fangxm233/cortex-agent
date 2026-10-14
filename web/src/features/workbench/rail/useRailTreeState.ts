@@ -14,22 +14,17 @@ import type { RailTreeInput } from './rail-tree';
 
 const EXPANDED_KEY = 'cortex.railExpanded';
 const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
-const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
-const COMM_OPEN_KEY = 'cortex.railCommOpen';
 const LEADS_OPEN_KEY = 'cortex.railLeadsOpen';
 
 /** The part of the tree's input that is the rail's own UI state. */
 export type RailTreeView = Pick<RailTreeInput,
-  'expanded' | 'schedulesExpanded' | 'starsCollapsed' | 'commissionsExpanded' | 'expandedCommissions'
-  | 'showAll' | 'expandedLeads' | 'filter' | 'sort' | 'manualOrder' | 'dragged'>;
+  'expanded' | 'schedulesExpanded' | 'starsCollapsed' | 'showAll' | 'expandedLeads' | 'filter' | 'sort' | 'manualOrder' | 'dragged'>;
 
 // Expansion and the scheduled sub-groups persist; "show all" is per-visit, because an uncapped
 // folder is a deliberate act for one look, not a standing preference.
 function useDisclosure() {
   const expanded = usePersistedIdSet(EXPANDED_KEY);
   const schedules = usePersistedIdSet(SCHED_EXPANDED_KEY);
-  const commissionGroups = usePersistedIdSet(COMM_EXPANDED_KEY);
-  const commissions = usePersistedIdSet(COMM_OPEN_KEY);
   const leads = usePersistedIdSet(LEADS_OPEN_KEY);
   const stars = useStarredGroups();
   const [showAll, setShowAll] = useState<ReadonlySet<string>>(() => new Set());
@@ -46,7 +41,7 @@ function useDisclosure() {
     if (expanded.ids.has(id)) showFewer(id);
     expanded.toggle(id);
   };
-  return { expanded, schedules, commissionGroups, commissions, leads, stars, showAll, showAllIn, showFewer, toggleProject };
+  return { expanded, schedules, leads, stars, showAll, showAllIn, showFewer, toggleProject };
 }
 
 function useProjectOrder() {
@@ -88,13 +83,13 @@ export function useRailTreeState() {
   const disclosure = useDisclosure();
   const order = useProjectOrder();
   const search = useSearch();
-  const { expanded, schedules, commissionGroups, commissions, leads, stars, showAll } = disclosure;
+  const { expanded, schedules, leads, stars, showAll } = disclosure;
   const view = useMemo<RailTreeView>(() => ({
     expanded: expanded.ids, schedulesExpanded: schedules.ids, starsCollapsed: stars.collapsed,
-    commissionsExpanded: commissionGroups.ids, expandedCommissions: commissions.ids, showAll,
+    showAll,
     expandedLeads: leads.ids, filter: search.filter, sort: order.sort, manualOrder: order.manualOrder,
     dragged: order.dragged,
-  }), [expanded.ids, schedules.ids, stars.collapsed, commissionGroups.ids, commissions.ids, showAll, leads.ids,
+  }), [expanded.ids, schedules.ids, stars.collapsed, showAll, leads.ids,
     search.filter, order.sort, order.manualOrder, order.dragged]);
   return {
     view,
@@ -103,8 +98,6 @@ export function useRailTreeState() {
     openProject: expanded.add,
     toggleProject: disclosure.toggleProject,
     toggleSchedules: schedules.toggle,
-    toggleCommissions: commissionGroups.toggle,
-    toggleCommission: commissions.toggle,
     toggleWorkers: leads.toggle,
     closeWorkers: leads.remove,
     toggleStars: stars.toggle,

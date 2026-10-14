@@ -26,7 +26,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     unread: false,
     scheduleId: null,
     ...over,
-    commissionId: over.commissionId ?? null,
+    boardId: over.boardId ?? null,
     teamLeadId: over.teamLeadId ?? null,
     workerName: over.workerName ?? null,
     workerRetiredAt: over.workerRetiredAt ?? null,
@@ -36,20 +36,20 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
 describe('project session list stars', () => {
   it('scopes Stars to the project and excludes stars from flat and scheduled rows', () => {
     const direct = [sess({ sessionId: 'legacy' }),
-      sess({ sessionId: 'commission', commissionId: 'c1', starred: true, label: 'Renamed' }),
+      sess({ sessionId: 'bound', boardId: 'b1', starred: true, label: 'Renamed' }),
       sess({ sessionId: 'elsewhere', projectId: 'atlas', starred: true })];
     const runs = [sess({ sessionId: 'run', origin: 'scheduled', scheduleId: 'sch', starred: true }),
       sess({ sessionId: 'old-run', origin: 'scheduled', scheduleId: 'sch' })];
     const list = buildProjectSessionList('nimbus', direct, runs, []);
     expect(list.rows.map(r => r.id)).toEqual(['legacy']);
     expect(list.rows[0].title).toBe('legacy');
-    expect(list.starredRows.map(r => r.id)).toEqual(['commission', 'run']);
+    expect(list.starredRows.map(r => r.id)).toEqual(['bound', 'run']);
     expect(list.starredRows[0].title).toBe('Renamed');
     expect(list.scheduleRows[0].runs.map(r => r.sessionId)).toEqual(['old-run']);
     const restored = buildProjectSessionList('nimbus', direct.map(s => ({ ...s, starred: false })),
       runs.map(s => ({ ...s, starred: false })), []);
     expect(restored.starredRows).toEqual([]);
-    expect(restored.rows.map(r => r.id)).toEqual(['legacy', 'commission']);
+    expect(restored.rows.map(r => r.id)).toEqual(['legacy', 'bound']);
     expect(restored.scheduleRows[0].runs.map(r => r.sessionId)).toEqual(['run', 'old-run']);
   });
 

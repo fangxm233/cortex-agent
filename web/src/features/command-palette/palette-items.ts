@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@cortex-agent/ui-contract';
+import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 import { shortSessionId } from '@/features/session/metadata/short-session-id';
 
@@ -15,17 +15,22 @@ export interface CmdkItem {
   id: string;
   label: string;
   sub: string;
-  /** Right-aligned mono type tag — currently always `session`. */
+  /** Right-aligned mono type tag: `session` or `board`. */
   kbd: string;
   route?: string;
   modal?: PaletteModal;
-  focusId: string;
+  focusId?: string;
   projectId: string;
+  /** Board rows: the board to open in the dock. */
+  boardId?: string;
+  boardStatus?: BoardInfo['status'];
   keywords: string[];
 }
 
 export interface CmdkSources {
   sessions: SessionInfo[];
+  /** Already ordered: open boards first. */
+  boards?: BoardInfo[];
 }
 
 export interface CmdkCommand {
@@ -54,6 +59,8 @@ export interface PaletteRow {
   modal?: PaletteModal;
   focusId?: string;
   projectId?: string;
+  boardId?: string;
+  boardStatus?: BoardInfo['status'];
   keywords: string[];
   labelKey?: keyof Vocab;
   subKey?: keyof Vocab;
@@ -64,6 +71,8 @@ export interface SelectOptions {
   restPerKind?: number;
   /** Max total rows shown while searching. */
   matchCap?: number;
+  /** Localized kind words by tag, so typing a kind's name lists that kind. */
+  kindWords?: Record<string, string>;
 }
 
 // Non-empty tokens only — cmdk keyword matching ignores empties but keep the list clean.
@@ -80,8 +89,16 @@ function sessionItem(s: SessionInfo): CmdkItem {
   };
 }
 
-export function buildCmdkItems({ sessions }: CmdkSources): CmdkItem[] {
-  return sessions.map(sessionItem);
+function boardItem(b: BoardInfo): CmdkItem {
+  return {
+    id: `board:${b.id}`, label: b.title || b.slug, sub: b.projectId, kbd: 'board', route: '/workbench',
+    projectId: b.projectId, boardId: b.id, boardStatus: b.status,
+    keywords: tokens(b.slug, b.projectId, b.status),
+  };
+}
+
+export function buildCmdkItems({ sessions, boards = [] }: CmdkSources): CmdkItem[] {
+  return [...boards.map(boardItem), ...sessions.map(sessionItem)];
 }
 
 // Static navigation command rows (prototype OV/ST legs + section jumps). The prototype also lists
@@ -138,21 +155,25 @@ export function selectPaletteRows(
 
   if (!q) {
     const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd).slice(0, restPerKind);
-    return [...nav, ...byKind('session')];
+    const openBoards = byKind('board').filter((b) => b.boardStatus === 'active');
+    return [...nav, ...openBoards, ...byKind('session')];
   }
 
+  const kindWords = opts.kindWords ?? {};
   const matches = (r: PaletteRow) =>
-    (r.label + ' ' + r.sub + ' ' + r.keywords.join(' ')).toLowerCase().includes(q);
+    [r.label, r.sub, ...r.keywords, r.labelKey ? '' : r.kbd, r.labelKey ? '' : kindWords[r.kbd] ?? '']
+      .join(' ').toLowerCase().includes(q);
   return [...nav, ...entities].filter(matches).slice(0, matchCap);
 }
 
 /** The localized kind tag (`PaletteRow.kbd` stays the stable tag); an unknown tag shows as-is. */
 export function paletteKindText(
   kind: string,
-  L: Pick<Vocab, 'palKindCommand' | 'palKindSession' | 'palKindPage' | 'palKindModal'>,
+  L: Pick<Vocab, 'palKindCommand' | 'palKindSession' | 'palKindPage' | 'palKindModal' | 'palKindBoard'>,
 ): string {
   const kinds: Record<string, string> = {
     command: L.palKindCommand, session: L.palKindSession, page: L.palKindPage, modal: L.palKindModal,
+    board: L.palKindBoard,
   };
   return kinds[kind] ?? kind;
 }

@@ -1,0 +1,85 @@
+import { resolveBoardRef } from './board-paths';
+
+// The board frame has an opaque origin and no credentials, so it cannot fetch `assets/x.png`
+// itself. The parent resolves every relative image reference against the board directory, fetches
+// it through the authenticated asset route, and inlines it as a data URI before the body goes in.
+
+export const ASSET_MAX_BYTES = 2 * 1024 * 1024;
+export const ASSETS_TOTAL_MAX_BYTES = 16 * 1024 * 1024;
+export const ASSETS_MAX_COUNT = 64;
+
+export interface FetchedAsset {
+  mime: string;
+  bytes: Uint8Array;
+}
+
+/** Fetches one project-relative path, capped at `limit` bytes; null when missing or too large. */
+export type AssetFetcher = (projectRelPath: string, limit: number) => Promise<FetchedAsset | null>;
+
+// `src` / `poster` on media tags, `href` on SVG <image>, and `url(...)` in styles.
+const MEDIA_TAG = /<(img|source|video|audio|image|input|track)\b[^>]*>/gi;
+const MEDIA_ATTR = /(\s(?:src|poster|href|xlink:href)\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi;
+const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")\s]+))\s*\)/gi;
+
+function eachRef(html: string, visit: (ref: string) => void): void {
+  for (const tag of html.matchAll(MEDIA_TAG)) {
+    for (const attr of tag[0].matchAll(MEDIA_ATTR)) visit(attr[2] ?? attr[3] ?? '');
+  }
+  for (const url of html.matchAll(CSS_URL)) visit(url[1] ?? url[2] ?? url[3] ?? '');
+}
+
+/** Board-directory paths the body references as media, deduplicated, in first-seen order. */
+export function assetRefs(html: string, slug: string): string[] {
+  const out = new Set<string>();
+  eachRef(html, (ref) => {
+    const path = resolveBoardRef(slug, ref);
+    if (path) out.add(path);
+  });
+  return [...out];
+}
+
+function replaceRefs(html: string, slug: string, uris: Map<string, string>): string {
+  const swap = (ref: string): string | null => {
+    const path = resolveBoardRef(slug, ref);
+    return path ? uris.get(path) ?? null : null;
+  };
+  const tagged = html.replace(MEDIA_TAG, (tag) => tag.replace(MEDIA_ATTR, (whole, lead: string, dq?: string, sq?: string) => {
+    const uri = swap(dq ?? sq ?? '');
+    return uri ? `${lead}"${uri}"` : whole;
+  }));
+  return tagged.replace(CSS_URL, (whole, dq?: string, sq?: string, bare?: string) => {
+    const uri = swap(dq ?? sq ?? bare ?? '');
+    return uri ? `url("${uri}")` : whole;
+  });
+}
+
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Inline the body's board-relative media as data URIs. A reference that is outside the board,
+ * missing, over the per-asset cap, or past the count/total budget is left as written (it then
+ * simply fails to load inside the frame).
+ */
+export async function inlineBoardAssets(html: string, slug: string, fetchAsset: AssetFetcher): Promise<string> {
+  const refs = assetRefs(html, slug).slice(0, ASSETS_MAX_COUNT);
+  if (refs.length === 0) return html;
+  const fetched = await Promise.all(refs.map((path) => fetchAsset(path, ASSET_MAX_BYTES).catch(() => null)));
+  const uris = new Map<string, string>();
+  let total = 0;
+  refs.forEach((path, i) => {
+    const asset = fetched[i];
+    if (!asset || asset.bytes.byteLength > ASSET_MAX_BYTES) return;
+    total += asset.bytes.byteLength;
+    if (total > ASSETS_TOTAL_MAX_BYTES) return;
+    const mime = asset.mime.split(';')[0]!.trim() || 'application/octet-stream';
+    uris.set(path, `data:${mime};base64,${bytesToBase64(asset.bytes)}`);
+  });
+  return uris.size ? replaceRefs(html, slug, uris) : html;
+}

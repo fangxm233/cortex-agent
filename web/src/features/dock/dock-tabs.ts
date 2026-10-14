@@ -1,8 +1,8 @@
 import { browserTabLabel, type BrowserTabState } from '@/features/browser/browser-target';
 import type { DocItem, MediaItem } from '@/features/media/preview-item';
 
-// THE DOCK holds one ordered list of tabs, and a tab is either a docked FILE PREVIEW or a live WEB
-// PAGE. That single list is what makes the pane's tab strip able to switch between the two without
+// THE DOCK holds one ordered list of tabs, and a tab is a docked FILE PREVIEW, a live WEB PAGE or a
+// BOARD. That single list is what makes the pane's tab strip able to switch between the two without
 // either side knowing about the other. The media item types are imported type-only (erased at build
 // time) so the viewers can depend on the dock provider without a runtime cycle.
 
@@ -21,7 +21,14 @@ export interface FileDockTab {
  *  keeps owning its own per-tab model (history, draft, viewport, forward) unchanged. */
 export type WebDockTab = BrowserTabState;
 
-export type DockTab = FileDockTab | WebDockTab;
+/** A board view. The title is not stored: the tab label reads it live off the board record. */
+export interface BoardDockTab {
+  kind: 'board';
+  id: string;
+  boardId: string;
+}
+
+export type DockTab = FileDockTab | WebDockTab | BoardDockTab;
 
 // ── Generic tab container ─────────────────────────────────────────────────────
 // Add / select / reorder / close only ever touch `id` and `activeId`, so the container is generic
@@ -94,6 +101,10 @@ export function isWebTab(tab: DockTab): tab is WebDockTab {
   return tab.kind === 'web';
 }
 
+export function isBoardTab(tab: DockTab): tab is BoardDockTab {
+  return tab.kind === 'board';
+}
+
 /** pdf/text/html render through the DocViewer bodies; image/video render as media. */
 export function isDocItem(item: FileItem): item is DocItem {
   return item.kind === 'pdf' || item.kind === 'text' || item.kind === 'html';
@@ -112,7 +123,7 @@ export function fileTabKey(item: FileItem): string | null {
   return url ? `url:${url}` : null;
 }
 
-export function dockTabLabel(tab: DockTab, blankLabel: string): string {
+export function dockTabLabel(tab: FileDockTab | WebDockTab, blankLabel: string): string {
   return isFileTab(tab) ? tab.item.name : browserTabLabel(tab, blankLabel);
 }
 
@@ -150,6 +161,17 @@ export function openFileTab(state: DockState | null, item: FileItem, id: string,
     if (existing) return touchTab(selectTab(state, existing.id), existing.id, now);
   }
   const tab: FileDockTab = { kind: 'file', id, item, touchedAt: now };
+  if (state === null) return { tabs: [tab], activeId: id };
+  return evictOverflow(addTab(state, tab));
+}
+
+/** Show a board: focus its tab when it is already open, else append and activate one. */
+export function openBoardTab(state: DockState | null, boardId: string, id: string): DockState {
+  if (state !== null) {
+    const existing = state.tabs.find((tab) => isBoardTab(tab) && tab.boardId === boardId);
+    if (existing) return selectTab(state, existing.id);
+  }
+  const tab: BoardDockTab = { kind: 'board', id, boardId };
   if (state === null) return { tabs: [tab], activeId: id };
   return evictOverflow(addTab(state, tab));
 }

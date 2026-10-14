@@ -3,27 +3,9 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 import { RailTree, type RailTreeProps } from './RailTree';
 import { RailSessionMenu } from './RailSessionMenu';
-import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
+import type { RailProjectNode, RailSessionRow } from './rail-tree';
 
-// The commission row's ＋ is the one-click "another session on this contract". Without it the only
-// way in is a new draft plus a trip through the composer's ＋ menu to re-pick a commission the user
-// is already standing on.
-
-const commission = (overrides: Partial<RailCommissionRow> = {}): RailCommissionRow => ({
-  commissionId: 'cm-1',
-  projectId: 'p1',
-  title: 'Refactor the rail',
-  status: 'active',
-  expanded: false,
-  running: false,
-  unread: false,
-  awaitingInput: false,
-  sessions: [],
-  totalSessions: 2,
-  ...overrides,
-});
-
-const node = (commissions: RailCommissionRow[]): RailProjectNode => ({
+const node = (): RailProjectNode => ({
   id: 'p1',
   current: true,
   expanded: true,
@@ -41,19 +23,12 @@ const node = (commissions: RailCommissionRow[]): RailProjectNode => ({
   schedules: [],
   schedulesExpanded: false,
   scheduleUnread: 0,
-  commissions,
-  commissionsExpanded: true,
-  commissionUnread: 0,
   matchCount: null,
 });
 
-function renderTree(overrides: Partial<RailTreeProps> = {}): {
-  renderer: ReactTestRenderer;
-  onNewCommissionSession: ReturnType<typeof vi.fn>;
-} {
-  const onNewCommissionSession = vi.fn();
+function renderTree(overrides: Partial<RailTreeProps> = {}): { renderer: ReactTestRenderer } {
   const props: RailTreeProps = {
-    nodes: [node([commission()])],
+    nodes: [node()],
     projectCount: 1,
     sort: 'activity',
     onSort: vi.fn(),
@@ -65,10 +40,6 @@ function renderTree(overrides: Partial<RailTreeProps> = {}): {
     onToggleProject: vi.fn(),
     onToggleSchedules: vi.fn(),
     onToggleStars: vi.fn(),
-    onToggleCommissions: vi.fn(),
-    onToggleCommission: vi.fn(),
-    onOpenCommission: vi.fn(),
-    onNewCommissionSession,
     onShowAll: vi.fn(),
     onShowFewer: vi.fn(),
     onOpenSession: vi.fn(),
@@ -81,20 +52,15 @@ function renderTree(overrides: Partial<RailTreeProps> = {}): {
   };
   let renderer!: ReactTestRenderer;
   act(() => { renderer = create(<LangProvider><RailTree {...props} /></LangProvider>); });
-  return { renderer, onNewCommissionSession };
+  return { renderer };
 }
-
-const row = (renderer: ReactTestRenderer) => renderer.root.findByProps({ 'data-commission-row': 'cm-1' });
-const plus = (renderer: ReactTestRenderer) =>
-  renderer.root.findAllByProps({ 'aria-label': 'New session on this commission' })
-    .filter((n) => typeof n.type === 'string');
 
 describe('flat project rail row', () => {
   it.each([
     ['action', 'var(--proto-amber-bg)', 'var(--proto-amber-fg)'],
     ['unread', 'var(--proto-accent)', 'var(--ink-solid-fg)'],
   ] as const)('uses the themed %s badge colors', (attentionTone, background, color) => {
-    const { renderer } = renderTree({ nodes: [{ ...node([]), attention: 1, attentionTone }] });
+    const { renderer } = renderTree({ nodes: [{ ...node(), attention: 1, attentionTone }] });
     const badge = renderer.root.findByProps({ 'data-project-attention-badge': 'p1' });
     expect(badge.props.style).toMatchObject({ background, color, minWidth: 16, height: 16 });
     expect(badge.children).toEqual(['1']);
@@ -103,7 +69,7 @@ describe('flat project rail row', () => {
 
   it.each([false, true])('keeps current=%s rows flat and stable on hover', (current) => {
     const onToggleProject = vi.fn();
-    const { renderer } = renderTree({ nodes: [{ ...node([]), current }], onToggleProject });
+    const { renderer } = renderTree({ nodes: [{ ...node(), current }], onToggleProject });
     const project = renderer.root.findByProps({ 'data-project-row': 'p1' });
     const background = current ? 'var(--proto-accent-bg)' : 'transparent';
     expect(project.props.style).toMatchObject({ position: 'relative', height: 32, gap: 7, background });
@@ -144,13 +110,13 @@ describe('flat project rail row', () => {
 describe('project Stars disclosure', () => {
   const star: RailSessionRow = { sessionId: 'star-1', projectId: 'p1', title: 'Renamed session',
     age: '1h', stamp: '', running: false, awaitingInput: false, waitingOn: false,
-    unread: false, selected: true };
+    unread: false, selected: true, boardId: null };
 
   it('renders a selected star once and toggles only its own group', () => {
     const onToggleStars = vi.fn();
     const onOpenSession = vi.fn();
-    const nodes = [{ ...node([]), starredSessions: [star] },
-      { ...node([]), id: 'p2', starredSessions: [{ ...star, sessionId: 'star-2', projectId: 'p2' }] }];
+    const nodes = [{ ...node(), starredSessions: [star] },
+      { ...node(), id: 'p2', starredSessions: [{ ...star, sessionId: 'star-2', projectId: 'p2' }] }];
     const { renderer } = renderTree({ nodes, onToggleStars, onOpenSession });
     const header = () => renderer.root.findByProps({ 'data-starred-project': 'p1' }).findByProps({ 'aria-label': 'Stars' });
     expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(1);
@@ -173,14 +139,12 @@ describe('project Stars disclosure', () => {
     act(() => renderer.unmount());
   });
 
-  it('wires the same hover menu to loose, starred and commission session rows', () => {
+  it('wires the same hover menu to loose and starred session rows', () => {
     const loose = { ...star, sessionId: 'loose', selected: false };
-    const member = { ...loose, sessionId: 'member' };
-    const nodes = [{ ...node([commission({ expanded: true, sessions: [member] })]),
-      starredSessions: [{ ...star, starred: true }], sessions: [loose] }];
+    const nodes = [{ ...node(), starredSessions: [{ ...star, starred: true }], sessions: [loose] }];
     const onOpenSession = vi.fn();
     const { renderer } = renderTree({ nodes, onOpenSession });
-    for (const sessionId of ['loose', 'star-1', 'member']) {
+    for (const sessionId of ['loose', 'star-1']) {
       const session = renderer.root.findByProps({ 'data-session-id': sessionId });
       const menu = session.findByType(RailSessionMenu);
       expect(menu.props.hovered).toBe(false);
@@ -201,46 +165,38 @@ describe('project Stars disclosure', () => {
   });
 });
 
-describe('commission rail row', () => {
-  it('offers a new session on hover without opening the board', () => {
-    const { renderer, onNewCommissionSession } = renderTree();
-    expect(plus(renderer)).toHaveLength(0);
+describe('board icon on a session row', () => {
+  const session = (boardId: string | null): RailSessionRow => ({ sessionId: 's1', projectId: 'p1', title: 'Session',
+    age: '', stamp: '', running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false, boardId });
 
-    act(() => row(renderer).props.onMouseEnter());
-    const stop = vi.fn();
-    act(() => plus(renderer)[0].props.onClick({ stopPropagation: stop }));
-
-    // The click must not fall through to the row body, which opens the board instead.
-    expect(stop).toHaveBeenCalledOnce();
-    expect(onNewCommissionSession).toHaveBeenCalledOnce();
-    expect(onNewCommissionSession.mock.calls[0][0].commissionId).toBe('cm-1');
+  it('shows only on a bound session and opens the board without opening the session', () => {
+    const onOpenBoard = vi.fn();
+    const onOpenSession = vi.fn();
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session('b1')] }], onOpenBoard, onOpenSession });
+    const icon = renderer.root.findByProps({ 'data-rail-board': 'b1' });
+    const stopPropagation = vi.fn();
+    act(() => icon.props.onClick({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onOpenBoard).toHaveBeenCalledWith('b1');
+    expect(onOpenSession).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 
-  it('keeps the count on a closed commission — it takes no new sessions', () => {
-    // The server refuses a join on a closed commission, so the row must not offer one.
-    const { renderer } = renderTree({ nodes: [node([commission({ status: 'done' })])] });
-    act(() => row(renderer).props.onMouseEnter());
-    expect(plus(renderer)).toHaveLength(0);
-    act(() => renderer.unmount());
-  });
-
-  it('offers nothing while the commission feature is off', () => {
-    const { renderer } = renderTree({ onNewCommissionSession: undefined });
-    act(() => row(renderer).props.onMouseEnter());
-    expect(plus(renderer)).toHaveLength(0);
+  it('is absent on an unbound session', () => {
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session(null)] }] });
+    expect(renderer.root.findAll((n) => n.props['data-rail-board'] !== undefined)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 });
 
 describe('team lead rail row', () => {
   const base: RailSessionRow = { sessionId: 'lead', projectId: 'p1', title: 'Lead', age: '1h', stamp: '',
-    running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false };
+    running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false, boardId: null };
   const w = (id: string, over: Partial<RailSessionRow> = {}): RailSessionRow =>
     ({ ...base, sessionId: id, title: id, ...over });
 
   it('renders a plain session row with no caret when the session has no workers', () => {
-    const { renderer } = renderTree({ nodes: [{ ...node([]), sessions: [base] }] });
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [base] }] });
     expect(renderer.root.findAllByProps({ 'data-lead-caret': 'lead' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-lead-group': 'lead' })).toHaveLength(0);
     act(() => renderer.unmount());
@@ -250,7 +206,7 @@ describe('team lead rail row', () => {
     const onToggleWorkers = vi.fn();
     const onOpenSession = vi.fn();
     const lead = { ...base, workers: [w('w1'), w('w2', { retired: true })], workersExpanded: false };
-    const { renderer } = renderTree({ nodes: [{ ...node([]), sessions: [lead] }], onToggleWorkers, onOpenSession });
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [lead] }], onToggleWorkers, onOpenSession });
     expect(renderer.root.findAllByProps({ 'data-session-id': 'w1' })).toHaveLength(0);
     const caret = renderer.root.findByProps({ 'data-lead-caret': 'lead' });
     expect(caret.props['aria-label']).toBe('Show workers');
@@ -262,7 +218,7 @@ describe('team lead rail row', () => {
 
     const props = renderer.root.findByType(RailTree).props as RailTreeProps;
     act(() => renderer.update(<LangProvider><RailTree {...props}
-      nodes={[{ ...node([]), sessions: [{ ...lead, workersExpanded: true }] }]} /></LangProvider>));
+      nodes={[{ ...node(), sessions: [{ ...lead, workersExpanded: true }] }]} /></LangProvider>));
     const w1 = renderer.root.findByProps({ 'data-session-id': 'w1' });
     const w2 = renderer.root.findByProps({ 'data-session-id': 'w2' });
     expect(w1.props.style).toMatchObject({ padding: '0 10px 0 56px' });
@@ -276,10 +232,10 @@ describe('team lead rail row', () => {
 describe('rail keyboard navigation', () => {
   it.each(['Enter', ' '])('opens sessions and expands projects with %j', (key) => {
     const session: RailSessionRow = { sessionId: 's1', projectId: 'p1', title: 'Session', age: '', stamp: '',
-      running: false, awaitingInput: false, waitingOn: false, unread: false, selected: true };
+      running: false, awaitingInput: false, waitingOn: false, unread: false, selected: true, boardId: null };
     const onOpenSession = vi.fn();
     const onToggleProject = vi.fn();
-    const { renderer } = renderTree({ nodes: [{ ...node([]), sessions: [session] }], onOpenSession, onToggleProject });
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session] }], onOpenSession, onToggleProject });
     const sessionRow = renderer.root.findByProps({ 'data-session-id': 's1' });
     const projectRow = renderer.root.findByProps({ 'data-project-row': 'p1' });
     expect(sessionRow.props).toMatchObject({ role: 'button', tabIndex: 0, 'aria-current': true });

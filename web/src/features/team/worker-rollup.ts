@@ -1,6 +1,6 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 
-// Team mode: a lead's status rolls up its workers the way a commission row rolls up its members —
+// Team mode: a lead's status rolls up its workers —
 // live if any worker is running, amber if any is blocked on the user, a hollow ring if any is
 // waiting on a machine (or on its lead), unread if any has news. The desktop rail and the mobile
 // session list both read it from here.
