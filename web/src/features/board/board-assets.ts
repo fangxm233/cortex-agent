@@ -20,8 +20,23 @@ export type AssetFetcher = (projectRelPath: string, limit: number) => Promise<Fe
 const MEDIA_TAG = /<(img|source|video|audio|image|input|track)\b[^>]*>/gi;
 const MEDIA_ATTR = /(\s(?:src|poster|href|xlink:href)\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi;
 const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")\s]+))\s*\)/gi;
+// What a comment wraps never renders, so it is never fetched (the scaffold's notes show an <img>).
+// An unclosed comment runs to the end, as it does in the browser.
+const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 
-function eachRef(html: string, visit: (ref: string) => void): void {
+/** Apply `edit` to the html between comments, leaving the comments as written. */
+function outsideComments(html: string, edit: (part: string) => string): string {
+  let out = '';
+  let last = 0;
+  for (const m of html.matchAll(COMMENT)) {
+    out += edit(html.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + edit(html.slice(last));
+}
+
+function eachRef(source: string, visit: (ref: string) => void): void {
+  const html = source.replace(COMMENT, '');
   for (const tag of html.matchAll(MEDIA_TAG)) {
     for (const attr of tag[0].matchAll(MEDIA_ATTR)) visit(attr[2] ?? attr[3] ?? '');
   }
@@ -43,14 +58,15 @@ function replaceRefs(html: string, slug: string, uris: Map<string, string>): str
     const path = resolveBoardRef(slug, ref);
     return path ? uris.get(path) ?? null : null;
   };
-  const tagged = html.replace(MEDIA_TAG, (tag) => tag.replace(MEDIA_ATTR, (whole, lead: string, dq?: string, sq?: string) => {
-    const uri = swap(dq ?? sq ?? '');
-    return uri ? `${lead}"${uri}"` : whole;
-  }));
-  return tagged.replace(CSS_URL, (whole, dq?: string, sq?: string, bare?: string) => {
-    const uri = swap(dq ?? sq ?? bare ?? '');
-    return uri ? `url("${uri}")` : whole;
-  });
+  return outsideComments(html, (part) => part
+    .replace(MEDIA_TAG, (tag) => tag.replace(MEDIA_ATTR, (whole, lead: string, dq?: string, sq?: string) => {
+      const uri = swap(dq ?? sq ?? '');
+      return uri ? `${lead}"${uri}"` : whole;
+    }))
+    .replace(CSS_URL, (whole, dq?: string, sq?: string, bare?: string) => {
+      const uri = swap(dq ?? sq ?? bare ?? '');
+      return uri ? `url("${uri}")` : whole;
+    }));
 }
 
 export function bytesToBase64(bytes: Uint8Array): string {

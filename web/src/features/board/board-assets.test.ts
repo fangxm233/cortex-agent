@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { ASSET_MAX_BYTES, assetRefs, bytesToBase64, inlineBoardAssets, type AssetFetcher } from './board-assets';
 
@@ -24,6 +26,21 @@ describe('assetRefs', () => {
       'boards/b/assets/s.png', 'boards/b/assets/bg.png',
     ]);
   });
+
+  it('skips media inside HTML comments, as the browser does', () => {
+    const html = '<!-- e.g. <img src="assets/x.png"> -->\n<img src="assets/a.png"><!--\n<img src="assets/y.png">\n-->';
+    expect(assetRefs(html, 'b')).toEqual(['boards/b/assets/a.png']);
+  });
+
+  it('treats an unclosed comment as running to the end', () => {
+    expect(assetRefs('<img src="assets/a.png"><!-- <img src="assets/b.png">', 'b')).toEqual(['boards/b/assets/a.png']);
+    expect(assetRefs('<!--', 'b')).toEqual([]);
+  });
+
+  it('finds nothing to fetch in the shipped scaffold', () => {
+    const scaffold = readFileSync(path.resolve(import.meta.dirname, '../../../../agent-server/defaults/board/scaffold.html'), 'utf8');
+    expect(assetRefs(scaffold, 'b')).toEqual([]);
+  });
 });
 
 describe('inlineBoardAssets', () => {
@@ -46,6 +63,16 @@ describe('inlineBoardAssets', () => {
     const out = await inlineBoardAssets(html, 'b', fetch);
     expect(fetch.mock.calls.map((c) => c[0])).toEqual(['boards/b/assets/missing.png', 'boards/b/assets/big.png']);
     expect(out).toBe(html);
+  });
+
+  it('inlines around comments and leaves the comments as written', async () => {
+    const fetch = fetcher({ 'boards/b/assets/a.png': PNG });
+    const html = '<!-- <img src="assets/a.png"> --><img src="assets/a.png"><!-- unclosed <img src="assets/a.png">';
+    const out = await inlineBoardAssets(html, 'b', fetch);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(out).toBe(
+      `<!-- <img src="assets/a.png"> --><img src="data:image/png;base64,${b64}"><!-- unclosed <img src="assets/a.png">`,
+    );
   });
 
   it('survives a failing fetch', async () => {
