@@ -41,7 +41,7 @@ A session is bound to at most one board. The tool returns the board directory.
 - **Replace the scaffold's examples** with real content on the first fill, and delete sections that do not apply.
 - **Use the preset classes** below. They follow the user's theme (light/dark, palette, accent) without any work from you. When they do not fit, write your own HTML, inline SVG charts, or a little inline `style`, and take colours from theme variables (`var(--proto-accent)`, `var(--proto-muted)`, …) rather than fixed values so the page still reads in dark mode.
 - **Images** go in `assets/` and are referenced relatively: `<img src="assets/loss.png" alt="loss curve">`. The app inlines them (up to 2 MB each).
-- **Outputs** are linked with `<a data-open="out/report.md">report.md</a>`. The path is relative to the board directory and must stay inside it, so write or copy the files you want to link under the board directory. A click opens the file in the app. Ordinary `https://` links open in the browser.
+- **Outputs**: put a file the user should open into the board's `assets/` and link it with `<a data-open="assets/report.md">report.md</a>`; a click opens it in the app. `data-open` only reaches files inside the board directory, so name anything elsewhere as path text without a link: `<code>experiments/run-12/metrics.json</code>`. Ordinary `https://` links open in the browser.
 - **Keep it static.** The page runs in a sandbox; scripts are not needed for anything the presets do.
 - **Decisions**: record them with `send_decision`; the strip shows them. On the page, keep at most a short "key decisions" row list.
 - Write in the user's language.
