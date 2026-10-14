@@ -119,7 +119,7 @@ Saving uses the environment file's content hash as an optimistic concurrency gua
 
 Adding a portable plugin with at least one valid root `mcp.json` server opens a confirmation that explains the local-code and network trust surface. The acknowledgment is required for that portable MCP addition, but it is not a sandbox or an independent authorization boundary. Reset discards the local draft, while Save persists it through `plugins.assign`. The Settings modal blocks section navigation and closing while an assignment draft is dirty. If a background refetch reports a different assignment hash, the page preserves the user's draft, marks it stale, disables Save, and requires Reset instead of silently replacing the edits (`web/src/features/settings/vm/plugin-assign-vm.ts:143-164,199-210`).
 
-The assignment tab and the JSON body editor write the same file, so only one of them may hold a draft at a time: the tab is frozen while the body has unsaved edits. Assignment is also not the last word on whether a plugin loads. Scoped plugins are filtered again at spawn time, so a commission-scoped or channel-scoped package shows an inline note saying it will not load outside that scope however it is assigned.
+The assignment tab and the JSON body editor write the same file, so only one of them may hold a draft at a time: the tab is frozen while the body has unsaved edits. Assignment is also not the last word on whether a plugin loads. Scoped plugins are filtered again at spawn time, so a channel-scoped package shows an inline note saying it will not load outside that scope however it is assigned.
 
 Assignments are stored as `pluginDirs` in the environment's JSON file under `$CORTEX_HOME/config/environments/`, and can be written there directly:
 

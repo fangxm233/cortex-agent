@@ -57,7 +57,7 @@ L5  entry/         → 所有层（组合根）
 
 所有写操作通过 `AsyncMutex` 序列化以防止并发写入损坏。该层使用两种仓库模式：
 
-- **模式 A（JsonRepository 委托）**：`JsonRepository<T>` 的简单 CRUD 包装器。用于 schedule-repo、cost-repo、commission-repo、waitpoint-repo、provider-state-repo 等大多数仓库。所有写入通过 `atomicWrite()`（写入 `.tmp.<pid>.<ts>` 然后 `fs.rename`）。
+- **模式 A（JsonRepository 委托）**：`JsonRepository<T>` 的简单 CRUD 包装器。用于 schedule-repo、cost-repo、board-repo、waitpoint-repo、provider-state-repo 等大多数仓库。所有写入通过 `atomicWrite()`（写入 `.tmp.<pid>.<ts>` 然后 `fs.rename`）。
 - **模式 B（内存 Map + 即发即忘持久化）**：同步内存 `Map` 用于读，异步持久化链用于写。用于 execution-repo，其中读延迟很重要，崩溃时数据陈旧是可接受的。
 
 | 文件 | 用途 |
@@ -243,6 +243,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `agent-state.json` | 选定的 profile、默认智能体与频道级 override（由 `mode.json` 一次性迁移而来） |
 | `profiles.json` | 命名智能体配置列表 |
 | `schedules.json` | 持久化定时任务列表 |
+| `boards.json` | 看板注册表：每个看板的所属项目、slug、标题和状态（`active`、`done` 或 `abandoned`）。页面本身在项目上下文的 `boards/<slug>/` 下 |
 | `session-registry.jsonl` | 仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。事件：`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`；启动时通过流式回放重建 live/pending 状态。压缩保留 live 记录 + 绑定 + live 轮次；当日志事件数超过 `max(512, live×4, 2×compacted)`（`compacted` 为一次压缩会写出的事件数），或文件同时超过 16 MB 与上次压缩后大小的两倍时触发。替代已退役的 `sessions.json` 与 `conversation-ledger.json`——一次性升级迁移会把它们重命名为 `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
 | `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |
@@ -263,5 +264,5 @@ session retention 与 registry mutation 分开协调。`session-retention-contro
 - **执行 ID**：`exec_<kind>_<base36-timestamp>_<4 位随机字符>`（如 `exec_local_1a2b3c_xyzw`）
 - **定时任务 ID**：8 位十六进制字符（来自 `randomBytes(4)`）
 - **会话 ID**：UUID 是注册表和界面中的会话标识。未设置标签的会话显示 UUID 的前 8 位。`/resume` 接受完整 UUID 或至少 6 位且唯一的前缀。
-- **委托草稿**：新草稿目录使用 `_draft-<UUID 前 8 位>`；已有草稿目录保持有效。
+- **看板 ID**：8 位十六进制字符（来自 `randomBytes(4)`）。看板目录名是标题的 slug，slug 被占用时加数字后缀；标题里没有可用于 slug 的字符时用 `board-<id>`。
 - **文件格式**：所有 TypeScript 使用 `.ts` 扩展名和 ESM 导入风格（`import { X } from './foo.js'`）

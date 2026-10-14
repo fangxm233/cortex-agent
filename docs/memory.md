@@ -28,7 +28,7 @@ context/
         ├── roadmap.md           # Milestones with testable checklist conditions
         ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
         ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines / 6KB)
-        ├── commissions/         # Commission contracts and ledgers, one directory per commission
+        ├── boards/              # One directory per board: board.html, assets/, decisions.jsonl
         ├── experiments/
         │   ├── index.md         # Auto-generated — do not edit manually
         │   └── EXP-NNN.md       # One file per experiment, YAML frontmatter

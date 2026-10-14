@@ -119,7 +119,7 @@ Assignment 是执行环境的字段，而不是插件自身的属性，因此在
 
 加入至少含一个有效 root `mcp.json` server 的 portable plugin 时，会弹出确认，说明本地代码执行与网络访问的信任面。该 portable MCP assignment 必须确认，但确认不是 sandbox，也不是独立 authorization boundary。Reset 会丢弃本地草稿，Save 则通过 `plugins.assign` 持久化。Assignment 草稿为 dirty 时，Settings modal 会阻止切换分区或关闭。如果后台 refetch 返回不同的 assignment hash，页面会保留用户草稿、标记 stale、禁用 Save，并要求 Reset，而不是静默替换编辑（`web/src/features/settings/vm/plugin-assign-vm.ts:143-164,199-210`）。
 
-Assignment tab 与 JSON 正文编辑器写的是同一个文件，因此同一时刻只能有一个持有草稿：正文有未保存修改时，该 tab 会被冻结。另外，assignment 并不等于最终会加载：scoped plugin 在 spawn 时还会被再次过滤，因此 commission-scoped 或 channel-scoped 的 package 会内联提示——无论怎么分配，超出该 scope 都不会加载。
+Assignment tab 与 JSON 正文编辑器写的是同一个文件，因此同一时刻只能有一个持有草稿：正文有未保存修改时，该 tab 会被冻结。另外，assignment 并不等于最终会加载：scoped plugin 在 spawn 时还会被再次过滤，因此 channel-scoped 的 package 会内联提示——无论怎么分配，超出该 scope 都不会加载。
 
 Assignment 以 `pluginDirs` 的形式保存在 `$CORTEX_HOME/config/environments/` 下该执行环境的 JSON 文件中，也可以直接在文件里写：
 

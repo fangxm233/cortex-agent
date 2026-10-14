@@ -537,9 +537,10 @@ status of hello-world
 Cortex reads the project's `STATUS.md`, mission, and recent experiment
 records, then gives you a summary of where things stand.
 
-For work that will span several sessions, ask Cortex to start a
-commission. It drafts a contract stating the goal, the plan, and what
-"done" means, and starts once you approve it.
+When work runs on several workers or across many hours, Cortex opens a
+board in the Web UI: a status page beside the conversation with the
+task's state, plan, and decisions. You can also ask for one. See
+[Boards](./team.md#boards).
 
 ## What to read next
 

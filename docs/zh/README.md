@@ -6,15 +6,16 @@ Cortex 是一个面向长期项目的自主智能体系统。你给它一个带�
 
 Cortex 围绕长智能体运行的三种失败模式而设计。
 **上下文腐化** —— 持久的项目状态以纯文件形式存在于你的仓库中，而非积累和衰减的聊天记录。
-**执行漂移** —— 长期工作对照一份你在开工前批准的契约推进，每一项完成声明都指向它的证据。
+**执行漂移** —— 不简单的工作从你批准的计划开始，长任务有一块实时看板展示状态、计划和决策，每一项完成声明都指向它的证据。
 **上下文窗口限制** —— 有边界的工作交给子智能体，它们以全新的上下文开始，只带回结果。
 
 ## 特性
 
-- **用委托（commission）承载长期工作** —— 交出一个目标，Cortex 先起草一份契约：意图、计划，以及"完成"的含义。你批准之后才开始工作。项目里的台账记录进展及其证据，检查点对比计划与实际完成的内容，关卡（gate）停下来等你决定。任何对话在工作超出它的范围时都可以转为委托。
-
 - **子智能体与团队模式** —— 会话把探索、规划、验证等有边界的工作交给子智能体，它们在任一后端上以干净的上下文运行，并把结果汇报回转录。开启团队模式（实验性）后，一个会话还可以带领持久的 worker 会话：继续它们的工作、回答它们的问题，并向你汇报结果。
   参见 [backends.md](https://fangxm233.github.io/cortex-agent/zh/backends/#subagents) 与 [team.md](https://fangxm233.github.io/cortex-agent/zh/team/)。
+
+- **用看板跟踪长任务** —— 任务分给多个 worker 或要持续很多小时时，agent 会开一个看板：显示在对话旁边的状态页，展示工作进行到哪、接下来做什么、哪些在等你，以及已经做出的决策。主会话和 worker 边做边更新，每次修改后几秒内页面就会刷新。
+  参见 [team.md](https://fangxm233.github.io/cortex-agent/zh/team/#boards)。
 
 - **结构化的项目日志** —— 每个项目将 mission、roadmap、status、experiments、knowledge、patterns 和 decisions 作为纯文件保存在你的仓库中。一个全新的智能体（或数周后全新的你）可以从上一个中断的地方继续——无需滚动聊天记录，无需查询向量存储。
   参见 [memory.md](https://fangxm233.github.io/cortex-agent/zh/memory/)。
@@ -62,7 +63,7 @@ projects/my-project/
 ├── roadmap.md           # 里程碑和时间线
 ├── STATUS.md            # 当前状态（覆盖式）
 ├── ISSUES.md            # 开放摩擦点（追加式）
-├── commissions/         # 委托的契约与台账
+├── boards/              # 长任务的状态页
 ├── decisions/           # DR-NNNN.md 设计决策（追加式）
 ├── experiments/         # EXP-NNN.md 原子实验记录
 ├── knowledge/           # K-NNN.md 原子知识条目

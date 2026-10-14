@@ -178,8 +178,10 @@ or Feishu-originated session never sees these tools.
 | `send_file` | `file_path` or `files[]` (`{file_path, file_name?}`), `file_name?`, `caption?`, `device?` | Send one file, or several as one grouped message with a single caption, into the chat as downloadable cards (images and video preview inline); with `device`, the files are read on that remote device |
 | `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?`, `width?` | Render an HTML view inline in the chat as a live, interactive card |
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
+| `board_open` | `title` or `board` | Create a board, or attach to an existing one by id or slug, and bind the session to it |
+| `board_close` | `status` (`done` or `abandoned`), `note?` | Close the board the session is bound to |
 
-All three tools proxy their payload to the daemon over the loopback webhook rather
+`send_file`, `send_view` and `send_decision` proxy their payload to the daemon over the loopback webhook rather
 than returning it as tool output: the normalized event stream carries tool
 results as flat strings, and the PI backend flattens rich MCP content to text,
 so anything richer than a string has to travel out of band. The daemon copies
@@ -216,10 +218,15 @@ templated message that is both recorded on the decision and delivered to the
 agent as an ordinary user message. Decisions and their action log persist in the
 conversation history, so cards keep their state across reloads and devices.
 
+`board_open` and `board_close` manage the status page of a long task: who is
+bound to it, how agents write it, and how it shows in the workbench are
+described under [Boards](./team.md#boards).
+
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
 The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts`,
-`agent-server/src/domain/mcp/tools/ui-view.ts`, and
-`agent-server/src/domain/mcp/tools/ui-decision.ts`.
+`agent-server/src/domain/mcp/tools/ui-view.ts`,
+`agent-server/src/domain/mcp/tools/ui-decision.ts`, and
+`agent-server/src/domain/mcp/tools/ui-board.ts`.
 
 ### cortex-interaction-bridge
 
