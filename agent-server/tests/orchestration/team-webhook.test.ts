@@ -24,6 +24,8 @@ interface World {
   pending: Map<string, { id: string }[]>;
   waitpoints: Map<string, number>;
   routine: string[];
+  /** boardJoined calls, as `<boardId>:<sessionId>`. */
+  joined: string[];
   delivered: Array<{ channel: string; text: string; origin: string }>;
   cancelled: string[];
   answered: any[];
@@ -45,6 +47,7 @@ function world(): World {
     pending: new Map<string, { id: string }[]>(),
     waitpoints: new Map<string, number>(),
     routine: [] as string[],
+    joined: [] as string[],
     delivered: [] as World['delivered'],
     cancelled: [] as string[],
     answered: [] as any[],
@@ -75,6 +78,7 @@ function world(): World {
         const s = w.sessions.get(id); s.workerRetiredAt = at; return s;
       },
       rename: async (id: string, label: string) => { const s = w.sessions.get(id); s.label = label; return s; },
+      bindBoard: async (id: string, boardId: string) => { const s = w.sessions.get(id); s.boardId = boardId; return s; },
     } as any,
     createSession: async (opts) => {
       const id = opts.sessionId;
@@ -85,6 +89,7 @@ function world(): World {
       return { sessionId: id, channel: `web:${id}` };
     },
     newSessionId: () => `w${++next}`,
+    boardJoined: async (boardId, worker) => { w.joined.push(`${boardId}:${worker.sessionId}`); },
     deliver: (opts) => { w.delivered.push(opts as any); },
     cancel: async (channel) => { w.cancelled.push(channel); return 1; },
     readSelection: (channel) => w.selections.get(channel)!,
@@ -178,6 +183,29 @@ test('a spawned worker inherits the lead board, and none when the lead has none'
   w.sessions.get('lead').boardId = 'b-1';
   await call(w, { action: 'spawn', name: 'boarded', prompt: 'p' });
   assert.equal(w.sessions.get('w2').boardId, 'b-1');
+  assert.deepEqual(w.joined, ['b-1:w2']);
+});
+
+test('a revived worker with no board joins the lead board; one with its own board keeps it', async () => {
+  const w = world();
+  await call(w, { action: 'spawn', name: 'bare', prompt: 'p' });
+  await call(w, { action: 'spawn', name: 'own', prompt: 'p' });
+  w.sessions.get('w1').workerRetiredAt = 5;
+  w.sessions.get('w2').workerRetiredAt = 5;
+  w.sessions.get('w2').boardId = 'b-own';
+  w.sessions.get('lead').boardId = 'b-lead';
+
+  assert.equal((await call(w, { action: 'send', worker: 'bare', message: 'go' })).success, true);
+  assert.equal(w.sessions.get('w1').boardId, 'b-lead');
+  assert.deepEqual(w.joined, ['b-lead:w1']);
+
+  await call(w, { action: 'send', worker: 'own', message: 'go' });
+  assert.equal(w.sessions.get('w2').boardId, 'b-own');
+  // An active worker is not rebound by a send either.
+  w.sessions.get('w1').boardId = null;
+  await call(w, { action: 'send', worker: 'bare', message: 'again' });
+  assert.equal(w.sessions.get('w1').boardId, null);
+  assert.deepEqual(w.joined, ['b-lead:w1']);
 });
 
 test('spawn validates the name, its uniqueness and the running cap', async () => {

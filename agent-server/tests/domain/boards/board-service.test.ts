@@ -75,6 +75,17 @@ test('a worker opening its own board binds only itself', async () => {
   assert.equal((await sessions.getById('lead'))?.boardId ?? null, null);
 });
 
+test('a lead opening a board leaves a worker that already has its own board alone', async () => {
+  await register('w-fresh', { teamLeadId: 'lead', workerName: 'f' });
+  const side = await openBoard('w-active', { title: 'Side quest' }, deps);
+  events = [];
+  const main = await openBoard('lead', { title: 'Main' }, deps);
+  assert.deepEqual(main.bound, ['lead', 'w-fresh']);
+  assert.equal((await sessions.getById('w-active'))?.boardId, side.board.id);
+  assert.equal((await sessions.getById('w-fresh'))?.boardId, main.board.id);
+  assert.deepEqual(events.filter(e => e.type === 'session.board').map(e => e.sessionId), ['lead', 'w-fresh']);
+});
+
 test('slugs avoid registered and on-disk names; titles with no ASCII fall back to the id', async () => {
   fs.mkdirSync(path.join(ctx, 'boards', 'taken'), { recursive: true });
   assert.equal((await openBoard('other', { title: 'Taken' }, deps)).board.slug, 'taken-2');
@@ -92,7 +103,7 @@ test('attaching by id or slug rebinds; a closed board reopens; one board per ses
   assert.equal(bySlug.board.id, second.board.id);
   assert.equal(bySlug.created, false);
   assert.equal((await sessions.getById('lead'))?.boardId, second.board.id, 'the newer binding replaces the old');
-  assert.equal((await sessions.getById('w-active'))?.boardId, second.board.id);
+  assert.equal((await sessions.getById('w-active'))?.boardId, first.board.id, 'a worker that has a board keeps it');
 
   const reopened = await openBoard('other', { board: first.board.id }, deps);
   assert.equal(reopened.reopened, true);

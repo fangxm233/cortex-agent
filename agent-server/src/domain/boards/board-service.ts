@@ -100,16 +100,17 @@ async function findBoard(session: Session, ref: string, deps: BoardServiceDeps):
     + (known.length ? `; known boards: ${known.join(', ')}` : ''));
 }
 
-/** A session that leads workers binds them along with itself; a worker binds only itself. */
+/** A lead binds its active workers that have no board yet along with itself (a worker that opened
+ *  its own board keeps it); a worker binds only itself. */
 async function bindTargets(session: Session, deps: BoardServiceDeps): Promise<Session[]> {
   if (session.teamLeadId) return [session];
   const workers = await deps.sessions.listWorkers(session.sessionId);
-  return [session, ...workers.filter(w => w.workerRetiredAt == null)];
+  return [session, ...workers.filter(w => w.workerRetiredAt == null && !w.boardId)];
 }
 
 /**
  * Create a board (`{title}`) or attach to an existing one (`{board}`: id or slug), and bind the
- * calling session — plus its active workers when it is a lead. Attaching to a closed board
+ * calling session — plus its active, still unboarded workers when it is a lead. Attaching to a closed board
  * reopens it. A session holds one board; binding replaces any earlier one.
  */
 export async function openBoard(

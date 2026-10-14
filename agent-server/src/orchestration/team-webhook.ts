@@ -40,7 +40,7 @@ export interface TeamWebhookReply {
 type Outcome = 'resolved' | 'already-resolved' | 'not-found';
 
 export interface TeamWebhookDeps {
-  sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'setWorkerRetired' | 'rename'>;
+  sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'setWorkerRetired' | 'rename' | 'bindBoard'>;
   /** Creates the worker on a channel whose selection is already written. Naming the same profile
    *  again only records it on the session; it leaves the channel's selection as written. */
   createSession: (opts: {
@@ -48,6 +48,8 @@ export interface TeamWebhookDeps {
     workerBrief: string; boardId: string | null;
   }) => Promise<{ sessionId: string; channel: string }>;
   newSessionId: () => string;
+  /** A worker joined `boardId`: tell clients its binding and the board's members changed. */
+  boardJoined: (boardId: string, worker: { sessionId: string; channel: string }) => Promise<void>;
   deliver: (opts: Pick<DeliverToSessionOptions, 'channel' | 'text' | 'origin'>) => void;
   cancel: (channel: string) => Promise<number>;
   readSelection: (channel: string) => ChannelSelection;
@@ -70,19 +72,19 @@ export interface TeamWebhookDeps {
 
 const defaultDeps: TeamWebhookDeps = {
   sessions: sessionStore,
-  createSession: async (opts) => {
-    const created = await createDirectSession({
-      sessionStore,
-      setChannelSession: setSessionAsync,
-      initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
-      resolveBackend: resolveBackendForChannel,
-    }, opts);
-    // A worker joining its lead's board changes the board's bound sessions.
-    const board = opts.boardId ? await boardRepo.find(opts.boardId) : null;
-    if (board) orchestrationBus()?.publish({ type: 'board.updated', boardId: board.id, projectId: board.projectId });
-    return created;
-  },
+  createSession: (opts) => createDirectSession({
+    sessionStore,
+    setChannelSession: setSessionAsync,
+    initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
+    resolveBackend: resolveBackendForChannel,
+  }, opts),
   newSessionId: () => randomUUID(),
+  boardJoined: async (boardId, worker) => {
+    const bus = orchestrationBus();
+    bus?.publish({ type: 'session.board', sessionId: worker.sessionId, channel: worker.channel });
+    const board = await boardRepo.find(boardId);
+    if (board) bus?.publish({ type: 'board.updated', boardId: board.id, projectId: board.projectId });
+  },
   deliver: (opts) => deliverToSessionDetached(opts),
   cancel: (channel) => cancelChannelRuns(channel),
   readSelection: (channel) => readChannelSelection(channel),
@@ -235,6 +237,7 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
     boardId: lead.boardId ?? null,
   });
   await deps.sessions.rename(created.sessionId, name);
+  if (lead.boardId) await deps.boardJoined(lead.boardId, created);
   noteDispatch(created.sessionId, prompt, deps.now());
   deps.deliver({ channel: created.channel, text: prompt, origin: 'team-lead' });
   return ok(
@@ -253,7 +256,14 @@ async function send(lead: Session, data: Record<string, any>, deps: TeamWebhookD
   const busy = !!view && isWorkerBusy(view);
   if (!busy && runningCount(team) >= MAX_RUNNING_WORKERS) throw capError();
   refuseWhileRestarting(deps, 'the message was not delivered');
-  if (worker.workerRetiredAt != null) await deps.sessions.setWorkerRetired(worker.sessionId, null);
+  if (worker.workerRetiredAt != null) {
+    await deps.sessions.setWorkerRetired(worker.sessionId, null);
+    // Retired when the lead opened its board, so it was left out; it joins now if it has none.
+    if (!worker.boardId && lead.boardId) {
+      await deps.sessions.bindBoard(worker.sessionId, lead.boardId);
+      await deps.boardJoined(lead.boardId, worker);
+    }
+  }
   noteDispatch(worker.sessionId, null, deps.now());
   deps.deliver({ channel: worker.channel, text: message, origin: 'team-lead' });
   return ok(busy
