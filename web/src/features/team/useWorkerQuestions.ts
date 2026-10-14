@@ -4,8 +4,8 @@ import { useVocabOptional } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { pendingQuestionText } from './worker-roster';
 
-/** What each worker that needs you is asking, by sessionId. Queried only for those workers, and
- *  only by the open team list; the live sync refreshes it when an interaction changes. */
+/** What each session waiting on the user is asking, by sessionId. Queried only for those sessions,
+ *  and only by an open list; the live sync refreshes it when an interaction changes. */
 export function useWorkerQuestions(workers: SessionInfo[]): Record<string, string> {
   const trpc = useTRPC();
   const L = useVocabOptional();

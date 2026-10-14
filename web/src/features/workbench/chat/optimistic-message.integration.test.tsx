@@ -116,7 +116,7 @@ vi.mock('@/lib/trpc', () => ({
       schedules: {
         list: query('schedules.list'),
       },
-      // The composer's WaitRail asks what this session is waiting on.
+      // The composer's activity strip asks what this session is waiting on.
       waitpoints: {
         list: query('waitpoints.list'),
         cancel: mutation('waitpoints.cancel'),
@@ -177,8 +177,8 @@ vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInte
 vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
-vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.team}</div> }));
-vi.mock('@/features/board/BoardStatusBar', () => ({ DockedBoardBar: ({ boardId }: { boardId: string }) => <span data-board-bar={boardId} /> }));
+vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.team}{props.board}</div> }));
+vi.mock('@/features/board/BoardCapsule', () => ({ DockedBoardCapsule: ({ boardId }: { boardId: string }) => <span data-board-capsule={boardId} /> }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('@/features/session/transcript/MessageStream', async () => {
@@ -324,13 +324,13 @@ describe('desktop chat team context', () => {
   });
 });
 
-describe('desktop chat board bar', () => {
-  const buttons = () => mounted!.root.findAll((n) => n.type === 'span' && n.props['data-board-bar'] !== undefined);
+describe('desktop chat board capsule', () => {
+  const buttons = () => mounted!.root.findAll((n) => n.type === 'span' && n.props['data-board-capsule'] !== undefined);
 
   it('appears only on a session bound to a board', () => {
     harness.sessions = [{ ...SESSION, boardId: 'b1' }];
     mounted = mountCenterChat();
-    expect(buttons().map((n) => n.props['data-board-bar'])).toEqual(['b1']);
+    expect(buttons().map((n) => n.props['data-board-capsule'])).toEqual(['b1']);
     harness.sessions = [{ ...SESSION, boardId: null }];
     act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
     expect(buttons()).toHaveLength(0);

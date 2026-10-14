@@ -40,10 +40,11 @@ export function spawnedWorker(workers: SessionInfo[], prompt: string | null): Se
 }
 
 /** Workers the lead is waiting to hear from: active ones still working, on their own or on a
- *  machine. One blocked on the lead or on the user is waiting for someone else, not the reverse. */
+ *  machine. One holding a question for the lead (or the user) is waiting for someone else, not the
+ *  reverse, though it reads as running. */
 export function waitedWorkers(workers: SessionInfo[]): SessionInfo[] {
   return workers.filter((w) => {
-    if (isRetiredWorker(w)) return false;
+    if (isRetiredWorker(w) || w.awaitingInput || (w.waitingOnLead ?? 0) > 0) return false;
     const state = workerState(w);
     return state === 'running' || state === 'waiting';
   });
@@ -79,8 +80,8 @@ export function threadSummary(thread: WorkerThread, L: Vocab, worker: SessionInf
   ].filter(Boolean).join(' · ');
 }
 
-/** The request a worker is blocked on in its latest card, which turns its row amber. An older card
- *  never does: whatever it asked was settled one way or another before the worker spoke again. */
+/** The request a worker is blocked on in its latest card, which its row names. An older card never
+ *  does: whatever it asked was settled one way or another before the worker spoke again. */
 export function waitingRequest(thread: WorkerThread, worker: SessionInfo | null): WorkerUpdate | null {
   if (!thread.latest || (worker && (isRetiredWorker(worker) || !worker.awaitingInput))) return null;
   return openRequest(thread);

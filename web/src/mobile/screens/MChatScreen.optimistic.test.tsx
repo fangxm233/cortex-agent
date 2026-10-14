@@ -114,7 +114,7 @@ vi.mock('@/lib/trpc', () => ({
       config: { get: query('config.get') },
       models: { catalog: query('models.catalog') },
       schedules: { list: query('schedules.list') },
-      // The composer's WaitRail asks what this session is waiting on.
+      // The composer's activity strip asks what this session is waiting on.
       waitpoints: { list: query('waitpoints.list'), cancel: mutation('waitpoints.cancel') },
       skills: { session: query('skills.session') },
     };

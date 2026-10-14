@@ -28,8 +28,6 @@ import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
 import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
-import { hasActiveWorker, MTeamRow } from './MChatTeam';
-import { BoardStatusBar } from '@/features/board/BoardStatusBar';
 import { BoardActionChatRow } from '@/features/board/BoardChatRows';
 import { LeadWaitingLine, TeamActionRow, TeamStreamProvider, TeamUpdateCard } from '@/features/team/TeamStreamRows';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
@@ -50,8 +48,7 @@ interface MChatHeaderProps {
   contextControl?: ReactNode;
 }
 
-/** The header pill and, in team mode, the team summary row under it: one floating stack, measured once
- *  (useHeaderClearance). */
+/** The floating header pill, measured once (useHeaderClearance) so the transcript clears it. */
 const HEADER_STACK: CSSProperties = {
   position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 12, right: 12, zIndex: 5,
   display: 'flex', flexDirection: 'column', gap: 6,
@@ -664,7 +661,7 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
       leading={takenOver ? undefined : <ComposerKeys browser={props.browser} overlay={overlay} />}
       tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
-      above={<ComposerAbove props={props} />}
+      above={<ComposerAbove props={props} overlay={overlay} />}
       commandMenu={commandMenu}
       onPlus={() => overlay.toggle('attach')}
       lineUnit={L.chatLineUnit}
@@ -717,8 +714,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   const files = useFilePicker(props.onAddFiles);
   const selection = selectionView(props.selection, useVocabOptional());
   const clearance = useHeaderClearance();
-  // Team mode: a lead's team summary floats in a row under the header, inside the measured stack.
-  const teamRow = !!props.onOpenWorker && hasActiveWorker(props.workers);
   return (
     <TeamStreamProvider workers={props.workers ?? NO_WORKERS} leadRunning={props.status.running}
       onOpenWorker={props.onOpenWorkerFromChat ?? props.onOpenWorker}>
@@ -732,8 +727,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
             onBack={props.onBack} onMore={() => overlay.toggle('more')}
             contextControl={headerContextControl(props, () => overlay.open('context'))} />
-          {props.boardId && <BoardStatusBar boardId={props.boardId} onOpen={() => overlay.openBoard(props.boardId!)} />}
-          {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />
         <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />

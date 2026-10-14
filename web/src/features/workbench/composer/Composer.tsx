@@ -16,8 +16,7 @@ import { SessionStatsModal } from './SessionStatsModal';
 import { sessionStatsView } from '@/features/session/list/session-stats';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
-import { TodoRail } from '@/features/session/rail/TodoRail';
-import { WaitRail } from '@/features/session/rail/WaitRail';
+import { ActivityStrip } from '@/features/session/rail/ActivityStrip';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import {
   ComposerActionRow, ComposerSlashMenu,
@@ -85,7 +84,7 @@ export interface ComposerProps {
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
   /** What this session is waiting on from outside Cortex, and how to cancel one. Supplied by the
-   *  host (useSessionWaitpoints) rather than fetched here — see WaitRail. */
+   *  host (useSessionWaitpoints) rather than fetched here — see ActivityStrip. */
   waitpoints?: SessionWaitpoints | null;
   compactAction?: ContextCompactAction;
   /** The larger surface that accepts file drops for this composer. */
@@ -301,22 +300,11 @@ export function Composer({
             />
           ) : null}
 
-          {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
-              the highest-value line on this surface and belongs at the point of gaze; it renders
-              nothing at all when the session has no task list. */}
-          {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} />}
-
-          {/* What the session is waiting on from OUTSIDE Cortex. Directly above the input for the same
-              reason the task list is: it answers "why is nothing happening right now". Renders nothing
-              when no waitpoint is armed. */}
-          {!isDraft && waitpoints && (
-            <WaitRail
-              sessionId={sessionId}
-              lang={lang}
-              waitpoints={waitpoints.waitpoints}
-              onCancel={waitpoints.cancel}
-              cancelling={waitpoints.cancelling}
-            />
+          {/* The task list and the waitpoints, one capsule each, directly above the input: they answer
+              "what is it doing now" and "why is nothing happening", which belong at the point of gaze.
+              Renders nothing at all when there is neither. */}
+          {!isDraft && (
+            <ActivityStrip todos={todos ?? null} running={running} waitpoints={waitpoints ?? null} lang={lang} />
           )}
 
           {isDraft && <DraftProjectSelector disabled={composerSend.creating} />}

@@ -38,7 +38,6 @@ function plural(L: Vocab, n: number, one: keyof Vocab, many: keyof Vocab): strin
  */
 export function sessionStatusLine(s: SessionInfo, L: Vocab = en): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
   if (s.awaitingInput) return { kind: 'awaiting', text: L.slAwaiting };
-  if ((s.waitingOnLead ?? 0) > 0) return { kind: 'waiting-external', text: L.slWaitingLead };
   if (s.running) {
     if (s.backgroundRunning) return { kind: 'background', text: L.slBackground };
     return { kind: 'running', text: s.numTurns != null ? fmt(L.slRunningTurns, { n: s.numTurns }) : L.slRunning };

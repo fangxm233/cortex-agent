@@ -49,14 +49,14 @@ export interface MChatViewProps {
   title: string;
   /** Team mode: the worker's lead, named before the title; tapping it opens the lead. */
   parent?: { title: string; onSelect: () => void } | null;
-  /** Team mode: the lead's workers, as a summary row under the header that opens the team sheet.
+  /** Team mode: the lead's workers, as a capsule above the composer that opens the team sheet.
    *  `onOpenWorker` runs from that sheet, so it should replace the sheet's history entry. */
   workers?: SessionInfo[];
   onOpenWorker?: (sessionId: string) => void;
   /** Opens a worker from a team row in the transcript. Unlike `onOpenWorker` no sheet is open, so it
    *  should add a history entry: back returns to this lead. Falls back to `onOpenWorker`. */
   onOpenWorkerFromChat?: (sessionId: string) => void;
-  /** The board this session is bound to: the header gets a board key that opens it full-screen. */
+  /** The board this session is bound to: a capsule above the composer opens it full-screen. */
   boardId?: string | null;
   /** Opens a session from the board's live strip. */
   onOpenBoardSession?: (sessionId: string) => void;
@@ -81,10 +81,10 @@ export interface MChatViewProps {
   /** Long-press on a bubble; present ⇒ the message edit affordances render. */
   onLongPress?: (rowIndex: number, anchorTop: number) => void;
   editing?: MEditMode | null;
-  /** The open session ('' for a draft): keys the live stream and scopes the rails above the composer. */
+  /** The open session ('' for a draft): keys the live stream and scopes the capsules above the composer. */
   sessionId?: string;
   todos?: TodoSnapshot | null;
-  /** What this session is waiting on from outside Cortex (WaitRail), supplied by the screen. */
+  /** What this session is waiting on from outside Cortex, supplied by the screen. */
   waitpoints?: SessionWaitpoints | null;
   composerValue: string;
   onComposerChange: (value: string) => void;

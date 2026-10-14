@@ -16,6 +16,8 @@ export interface TodoRailViewModel {
   activeLabel: string | null;
   /** True once every item is complete — the rail switches from accent to success. */
   allDone: boolean;
+  /** Completed share in [0, 1], for the capsule's progress ring. */
+  progress: number;
   rows: TodoRowViewModel[];
 }
 
@@ -77,8 +79,17 @@ export function todoRailViewModel(snapshot: TodoSnapshot | null): TodoRailViewMo
     counts: `${position}/${snapshot.total}`,
     activeLabel: snapshot.activeLabel,
     allDone: snapshot.completed >= snapshot.total,
+    progress: Math.min(1, snapshot.completed / snapshot.total),
     rows,
   };
+}
+
+/** The activity strip's task capsule: a finished list stays up while its turn is still running,
+ *  then steps aside; an unfinished one stays until the agent finishes or replaces it. */
+export function todoStripViewModel(snapshot: TodoSnapshot | null, running: boolean): TodoRailViewModel | null {
+  const vm = todoRailViewModel(snapshot);
+  if (!vm || (vm.allDone && !running)) return null;
+  return vm;
 }
 
 function isCount(value: unknown): boolean {

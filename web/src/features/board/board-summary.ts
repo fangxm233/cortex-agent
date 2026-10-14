@@ -1,5 +1,5 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { teamRoster } from '@/features/team/worker-roster';
+import { teamRoster, workerState } from '@/features/team/worker-roster';
 
 // What both live surfaces — the dock's strip and the chat's status bar — say about a board's bound
 // sessions. One selector, so the two never disagree about who is waiting on the user.
@@ -14,7 +14,7 @@ export function stripSessions(sessions: SessionInfo[]): SessionInfo[] {
 export interface BoardSummary {
   /** Sessions worth showing, in order. */
   shown: SessionInfo[];
-  /** Those waiting on the user. */
+  /** Those waiting on the user — never a worker, whose questions go to its lead. */
   pending: SessionInfo[];
 }
 
@@ -22,7 +22,7 @@ export function boardSummary(sessions: SessionInfo[]): BoardSummary {
   const shown = stripSessions(sessions);
   return {
     shown,
-    pending: shown.filter((s) => s.awaitingInput),
+    pending: shown.filter((s) => workerState(s) === 'you'),
   };
 }
 

@@ -10,12 +10,17 @@ describe('boardSummary', () => {
     const sessions = [
       s('w-idle', { teamLeadId: 'lead', workerName: 'idle' }),
       s('w-gone', { teamLeadId: 'lead', workerName: 'gone', workerRetiredAt: 1 }),
-      s('w-ask', { teamLeadId: 'lead', workerName: 'ask', awaitingInput: true }),
-      s('lead', { running: true }),
+      s('w-run', { teamLeadId: 'lead', workerName: 'run', running: true }),
+      s('lead', { running: true, awaitingInput: true }),
     ];
     const summary = boardSummary(sessions);
-    expect(summary.shown.map((x) => x.sessionId)).toEqual(['lead', 'w-ask', 'w-idle']);
-    expect(summary.pending.map((x) => x.sessionId)).toEqual(['w-ask']);
+    expect(summary.shown.map((x) => x.sessionId)).toEqual(['lead', 'w-run', 'w-idle']);
+    expect(summary.pending.map((x) => x.sessionId)).toEqual(['lead']);
+  });
+
+  it('never counts a worker as waiting on the user: its questions go to the lead', () => {
+    const asking = s('w-ask', { teamLeadId: 'lead', workerName: 'ask', running: true, awaitingInput: true });
+    expect(boardSummary([s('lead'), asking]).pending).toEqual([]);
   });
 });
 

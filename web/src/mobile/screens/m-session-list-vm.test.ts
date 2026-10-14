@@ -90,10 +90,8 @@ describe('sessionStatusLine', () => {
     expect(sessionStatusLine(sess({})).kind).toBe('idle');
   });
 
-  it('shows a worker blocked on its lead as waiting on the lead, even while its turn runs', () => {
-    expect(sessionStatusLine(sess({ running: true, waitingOnLead: 1 }), zh)).toEqual({ kind: 'waiting-external', text: '等待主会话' });
-    expect(sessionStatusLine(sess({ waitingOnLead: 1 }), en).text).toBe('Waiting on lead');
-    expect(sessionStatusLine(sess({ waitingOnLead: 1, awaitingInput: true })).kind).toBe('awaiting');
+  it('shows a worker waiting for its lead\'s answer as plainly running', () => {
+    expect(sessionStatusLine(sess({ running: true, waitingOnLead: 1 }), zh).kind).toBe('running');
   });
 });
 
@@ -163,10 +161,9 @@ describe('team workers in the session list', () => {
       .toEqual({ kind: 'awaiting', text: 'Needs your input' });
   });
 
-  it('shows a waiting worker as a wait on the lead, not as a run', () => {
+  it('rolls a worker waiting for its lead\'s answer up as a run', () => {
     const onLead = { ...active, running: true, waitingOnLead: 1 };
-    expect(buildSessionRows([lead, onLead], now, 'en', en, true)[0].status)
-      .toEqual({ kind: 'waiting-external', text: '1 worker waiting' });
+    expect(buildSessionRows([lead, onLead], now, 'en', en, true)[0].status.kind).toBe('running');
   });
 
   it('rolls up unread from workers, but nothing from retired ones, which the lead’s chat does not offer', () => {

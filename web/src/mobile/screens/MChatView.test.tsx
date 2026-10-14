@@ -46,8 +46,8 @@ vi.mock('@/mobile/ui/kit', async () => ({
   MBottomSheet: ({ children, onClose }: any) => <div data-bottom-sheet="" data-close={onClose}>{children}</div>,
 }));
 vi.mock('@/features/team/useWorkerQuestions', () => ({ useWorkerQuestions: () => ({}) }));
-vi.mock('@/features/board/BoardStatusBar', () => ({
-  BoardStatusBar: ({ boardId, onOpen }: { boardId: string; onOpen: () => void }) => <button data-board-bar={boardId} onClick={onOpen} />,
+vi.mock('@/features/board/BoardCapsule', () => ({
+  BoardChip: ({ boardId, onOpen }: { boardId: string; onOpen: () => void }) => <button data-board-chip={boardId} onClick={onOpen} />,
 }));
 vi.mock('@/features/board/BoardChatRows', () => ({
   BoardActionChatRow: ({ action, onOpen, touch }: { action: { boardId: string }; onOpen: (id: string) => void; touch?: boolean }) =>
@@ -427,7 +427,7 @@ describe('MChatView team context', () => {
     act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="lead" {...extra} /></LangProvider>); });
     return renderer;
   };
-  const teamRows = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-team-row'] !== undefined);
+  const teamRows = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-activity-chip'] === 'team');
   const crumbs = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-lead-crumb'] !== undefined);
   const stack = (r: ReactTestRenderer) => r.root.findByProps({ 'data-chat-header-stack': '' });
 
@@ -440,14 +440,15 @@ describe('MChatView team context', () => {
     act(() => { r.unmount(); retiredOnly.unmount(); });
   });
 
-  it('floats the team summary in the measured header stack and opens the team sheet from it', () => {
+  it('puts the team in a capsule above the composer, not under the header, and opens the team sheet from it', () => {
     const onOpenWorker = vi.fn();
     const r = mount({ workers: [worker('w1', false, { running: true }), worker('w2'), worker('w3', true)], onOpenWorker });
     const row = teamRows(r)[0];
-    expect(stack(r).findAll((n) => n.props['data-team-row'] !== undefined)).toHaveLength(1);
-    expect(JSON.stringify(r.toJSON())).toContain('2 workers');
+    expect(stack(r).findAll((n) => n.props['data-activity-chip'] !== undefined)).toHaveLength(0);
+    expect(r.root.findByProps({ 'data-activity-strip': '' }).findAll((n) => n.props['data-activity-chip'] === 'team')).toHaveLength(1);
+    expect(row.props['aria-label']).toContain('2 workers');
     expect(r.root.findAll((n) => n.props['data-team-sheet'] !== undefined)).toHaveLength(0);
-    act(() => row.props.onClick());
+    act(() => row.props.onClick({ stopPropagation: vi.fn() }));
     const sheet = r.root.findByProps({ 'data-team-sheet': '' });
     const workerRows = sheet.findAll((n) => n.type === 'button' && n.props['data-worker-row'] !== undefined);
     expect(workerRows.map((n) => n.props['data-worker-row'])).toEqual(['w1', 'w2']);
@@ -482,6 +483,39 @@ describe('MChatView overlays', () => {
   const sheets = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'div' && n.props['data-bottom-sheet'] !== undefined);
 
   beforeEach(() => { vi.stubGlobal('window', new EventTarget()); });
+
+  it('opens the task list and the waitpoints from their capsules as sheets', () => {
+    const todos = {
+      items: [{ content: 'Run the sweep', activeForm: 'Running the sweep', status: 'in_progress' as const }],
+      total: 1, completed: 0, activeLabel: 'Running the sweep', updatedAt: 1,
+    };
+    const waitpoints = {
+      waitpoints: [{
+        id: 'wp_1', label: 'eval-job', intent: 'compare', state: 'armed', emitFrom: { kind: 'local' },
+        quorum: { need: 1, got: 0, members: [] }, failFast: false, fires: 0, maxSignals: 1,
+        createdAt: 0, expiresAt: Date.now() + 3_600_000, signals: [],
+        delivery: { pending: false, attempts: 0, lastError: null, lastAt: null },
+        wakesLastHour: 0, wakeLimit: 12, rateLimited: false,
+      }],
+      cancel: vi.fn(), cancelling: false,
+    };
+    const r = mount({ todos, waitpoints });
+    const chip = (kind: string) => r.root.findByProps({ 'data-activity-chip': kind });
+    expect(chip('wait').props['aria-label']).toContain('eval-job');
+    act(() => chip('todo').props.onClick({ stopPropagation: vi.fn() }));
+    expect(sheets(r)).toHaveLength(1);
+    expect(sheets(r)[0].findAll((n) => n.props['data-todo-list'] !== undefined)).toHaveLength(1);
+    act(() => chip('wait').props.onClick({ stopPropagation: vi.fn() }));
+    expect(sheets(r)).toHaveLength(1);
+    expect(sheets(r)[0].findAll((n) => n.props['data-wait-panel'] !== undefined)).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
+  it('shows no activity strip when there is nothing to show', () => {
+    const r = mount();
+    expect(r.root.findAll((n) => n.props['data-activity-strip'] !== undefined)).toHaveLength(0);
+    act(() => r.unmount());
+  });
 
   it('copies the stable session ID from the sheet and closes it on another session', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -592,19 +626,20 @@ it('shows history Retry only when the mobile transcript has no rows', () => {
   act(() => tree.unmount());
 });
 
-describe('MChatView board status bar', () => {
+describe('MChatView board capsule', () => {
   const status = { running: false, tone: 'idle' as const, text: 'idle' };
   const mount = (extra: Record<string, unknown>) => {
     let renderer!: ReactTestRenderer;
     act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s1" {...extra} /></LangProvider>); });
     return renderer;
   };
-  const bars = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-board-bar'] !== undefined);
+  const bars = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-board-chip'] !== undefined);
 
-  it('sits in the header stack of a bound session and opens the full-screen board', () => {
+  it('sits in the activity strip of a bound session and opens the full-screen board', () => {
     const r = mount({ boardId: 'b1' });
     const stack = r.root.findByProps({ 'data-chat-header-stack': '' });
-    expect(stack.findAll((n) => n.type === 'button' && n.props['data-board-bar'] === 'b1')).toHaveLength(1);
+    expect(stack.findAll((n) => n.props['data-board-chip'] !== undefined)).toHaveLength(0);
+    expect(r.root.findByProps({ 'data-activity-strip': '' }).findAll((n) => n.type === 'button' && n.props['data-board-chip'] === 'b1')).toHaveLength(1);
     act(() => bars(r)[0]!.props.onClick());
     expect(r.root.findAll((n) => n.props['data-board-sheet'] === 'b1')).toHaveLength(1);
     act(() => r.unmount());

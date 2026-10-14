@@ -82,7 +82,7 @@ describe('team rows', () => {
     act(() => r.unmount());
   });
 
-  it('turns a worker with an open question amber in its latest card', () => {
+  it('names a worker\'s open question in its latest card', () => {
     const [card] = rows([ask('atlas', 0)]) as TeamUpdatesRow[];
     const r = render(<TeamRow row={card} />, [session('atlas', { waitingOnLead: 1, awaitingInput: true })]);
     expect(statuses(r)).toEqual(['waiting']);

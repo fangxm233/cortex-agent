@@ -168,10 +168,12 @@ notice, saying how often it woke you and carrying any report that had not reache
 A waitpoint belongs to a session, so that is where it shows up — no separate dashboard to go
 looking at.
 
-**Above the composer.** While a session is waiting on anything, a one-line rail sits directly above
-the input: `waiting on 2 signals · train-arm2 · expires in 3h`. Click it open for the full picture —
-the intent the agent wrote, quorum progress, every signal received so far with its source, and a
-cancel button. It renders nothing at all when nothing is armed, so an ordinary session is unchanged.
+**Above the composer.** While a session is waiting on anything, a capsule sits in the row directly
+above the input, beside the task list: `train-arm2 · 0/1 received · expires in 3h` on desktop, the
+count of armed waitpoints on a phone. Click it for the full picture — the intent the agent wrote,
+quorum progress, every signal received so far with its source, and a cancel button — in a popover
+on desktop and a sheet on a phone. It renders nothing at all when nothing is armed, so an ordinary
+session is unchanged.
 
 Only armed waitpoints appear. One that fires or expires has already posted its own notice into the
 transcript; repeating it in a panel would tell the same story twice.
@@ -181,7 +183,8 @@ name — deliberately not the amber dot, which is reserved everywhere in Cortex 
 (a pending question or plan approval). Waiting on a machine asks nothing of you, and should not
 compete for the attention of the one marker that does.
 
-**Three things worth looking for** in the expanded rail, each a way a wake can fail silently:
+**Three things worth looking for** in the opened panel, each a way a wake can fail silently. Any of
+them, or a failure signal, also puts a dot on the capsule itself:
 
 | Badge | Means |
 |---|---|

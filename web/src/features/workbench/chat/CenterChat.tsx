@@ -12,7 +12,7 @@ import { sessionSpanMs } from '@/features/session/list/session-stats';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
-import { DockedBoardBar } from '@/features/board/BoardStatusBar';
+import { DockedBoardCapsule } from '@/features/board/BoardCapsule';
 import { BoardStreamProvider } from '@/features/board/BoardChatRows';
 import { useAutoOpenNewBoard } from '@/features/board/useAutoOpenNewBoard';
 import { useTeamContext } from '@/features/team/useTeamContext';
@@ -195,8 +195,8 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
         backendSessionId={active?.backendSessionId ?? null}
         parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => setSelectedSession(team.lead!.sessionId) } : null}
         team={team.workers.length > 0 ? <TeamCapsule workers={team.workers} onOpen={setSelectedSession} /> : null}
+        board={!isDraft && active?.boardId ? <DockedBoardCapsule boardId={active.boardId} /> : null}
       />
-      {!isDraft && active?.boardId && <DockedBoardBar boardId={active.boardId} />}
       <div
         data-chat-phase={preFirstMessage ? 'pre-start' : 'active'}
         style={{

@@ -104,20 +104,21 @@ takes no parameters and marks the current turn as a routine update (see above).
 
 - The sidebar nests a lead's workers under it, behind a caret with a worker count. The lead's
   dot summarizes its workers, and retired workers are listed last and dimmed.
-- A lead's chat header carries its team as one capsule: a status dot per active worker, needs-you
-  first, then a summary such as *7 workers · 3 running · 1 needs you*. Clicking it opens the team
-  list. Each row shows a worker's status and how long it has been running or idle, and underneath
-  it what the worker is doing: the question it is waiting on you for, its current task while it
-  runs, or the brief the lead spawned it with. A row opens that worker. Retired workers are folded
-  at the bottom of the list.
+- A lead's chat header carries its team as one capsule: a status dot per active worker, running
+  ones first, then a summary such as *7 workers · 3 running*. Clicking it opens the team list. Each
+  row shows a worker's status and how long it has been running or idle, and underneath it what the
+  worker is doing: its current task while it runs, or the brief the lead spawned it with. A row
+  opens that worker. Retired workers are folded at the bottom of the list.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
   shows as running while any worker runs, and as unread while any worker has news. In the lead's
-  chat, a summary row under the header opens the same team list as a sheet. Retired workers count
+  chat, a team capsule above the composer shows a few worker dots and the worker count, and opens
+  the same team list as a sheet. Retired workers count
   toward neither state and are folded at the bottom of the list.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
-- A worker that is waiting for its lead to answer shows a hollow ring and *Waiting on lead*. The
-  amber dot stays reserved for requests only you can answer.
+- A worker never waits on you: its questions and plans go to its lead, and while it waits for the
+  answer it shows as running, like any worker mid-turn. The amber dot is reserved for requests only
+  you can answer, so it never appears on a worker.
 - In a worker's transcript, messages from the lead appear as your own messages labelled *From
   lead session*.
 - In the lead's chat, what the lead does to its workers shows as quiet rows of its own rather than
@@ -194,14 +195,13 @@ created, in a new tab when the dock already holds something. Each board opens th
 page load; reloading, switching sessions or scrolling back through the history does not open it
 again. On mobile, nothing opens by itself, and the card's button opens the board full screen.
 
-**In the workbench.** A session bound to a board shows a board status bar under its chat header.
-The bar names the board, gives a status dot for up to four bound sessions with a count of the rest
-(amber when a session is waiting on you, the accent colour while it runs, a hollow ring while it
-waits on a machine), and ends with the count of requests waiting on you and the number of
-decisions. Its flag is the accent colour, and
-turns amber while any session waits on you. Clicking the bar opens the board in the right-hand
-dock, and the bar stays hidden while the dock shows that board. On mobile the same bar sits at the
-top of the chat, and tapping it opens the board full screen.
+**In the workbench.** A session bound to a board carries a board capsule among its chat header's
+actions. The capsule shows the board's flag and title; while a session on the board waits on you,
+it turns amber and adds the count of those requests. Workers never count here, since their
+requests go to their lead. Clicking the capsule opens the board in the right-hand dock, and the
+capsule stays hidden while the dock shows that board. On mobile the board sits in the row of
+capsules above the composer as its flag alone, with the waiting count beside it once there is
+one, and tapping it opens the board full screen.
 
 The command palette reaches every board, including those of old sessions. With an empty query it
 lists the eight most recently used boards, where a board is used when it is created, when a session

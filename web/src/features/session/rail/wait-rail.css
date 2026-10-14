@@ -5,29 +5,6 @@
   line-height: 1.45;
 }
 
-.wait-rail[data-wait-rail='expanded'] {
-  display: flex;
-  flex-direction: column;
-  max-height: 40vh;
-}
-
-.wait-rail-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  width: 100%;
-  min-height: 36px;
-  padding: 7px 10px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.wait-rail-toggle:hover { background: var(--proto-accent-bg); }
 .wait-rail :is(button, summary):focus-visible {
   outline: 2px solid var(--proto-accent);
   outline-offset: -2px;
@@ -44,7 +21,7 @@
   border-radius: 50%;
 }
 
-.wait-rail-heading, .wait-rail-item-heading {
+.wait-rail-item-heading {
   display: flex;
   align-items: baseline;
   flex-wrap: nowrap;
@@ -76,11 +53,10 @@
 
 .wait-rail-received { color: var(--proto-accent); font-weight: 500; }
 .wait-rail-ttl[data-urgent='true'] { color: var(--proto-amber); }
-.wait-rail-chevron { flex: none; color: var(--proto-muted-2); font-size: 10px; }
-.wait-rail-items { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .wait-rail-item + .wait-rail-item { border-top: 1px solid var(--proto-line); }
-.wait-rail-item-heading { padding: 7px 10px 5px; }
-.wait-rail-alerts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 7px; }
+.wait-rail-item-heading { padding: 0 0 5px; }
+.wait-rail-item + .wait-rail-item .wait-rail-item-heading { padding-top: 9px; }
+.wait-rail-alerts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 0 7px; }
 
 .wait-rail-badge {
   max-width: 100%;
@@ -100,7 +76,7 @@
   background: color-mix(in srgb, var(--proto-danger) 6%, transparent);
 }
 
-.wait-rail-body { padding: 0 10px; border-top: 1px solid var(--proto-line); }
+.wait-rail-body { border-top: 1px solid var(--proto-line); }
 .wait-rail-members { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .wait-rail-members caption { padding: 5px 0; text-align: left; color: var(--proto-muted); font-size: 11px; }
 .wait-rail-status-col { width: 24%; }
@@ -154,7 +130,7 @@
 .wait-rail-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 
 @media (max-width: 380px) {
-  .wait-rail-heading, .wait-rail-item-heading { flex-direction: column; align-items: stretch; gap: 2px; }
+  .wait-rail-item-heading { flex-direction: column; align-items: stretch; gap: 2px; }
   .wait-rail-title { flex: auto; }
   .wait-rail-metrics { gap: 2px 8px; }
 }

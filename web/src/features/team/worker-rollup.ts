@@ -2,7 +2,7 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 
 // Team mode: a lead's status rolls up its workers —
 // live if any worker is running, amber if any is blocked on the user, a hollow ring if any is
-// waiting on a machine (or on its lead), unread if any has news. The desktop rail and the mobile
+// waiting on a machine, unread if any has news. The desktop rail and the mobile
 // session list both read it from here.
 
 /** The status a lead rolls up from its workers. Rows are typed by this structural slice rather than
@@ -14,14 +14,13 @@ export interface WorkerRollup {
   unread: boolean;
 }
 
-/** One session's share of a roll-up, in the rail's dot language. A worker blocked on its lead is
- *  not progressing and not blocked on the user, so it counts as waiting, not running. */
+/** One session's share of a roll-up, in the rail's dot language. A worker waiting for its lead's
+ *  answer is still mid-turn, so it rolls up as running. */
 export function sessionRollup(s: SessionInfo): WorkerRollup {
-  const onLead = (s.waitingOnLead ?? 0) > 0;
   return {
-    running: !!s.running && !onLead,
+    running: !!s.running,
     awaitingInput: !!s.awaitingInput,
-    waitingOn: (s.waitingOn ?? 0) > 0 || onLead,
+    waitingOn: (s.waitingOn ?? 0) > 0,
     unread: !!s.unread,
   };
 }

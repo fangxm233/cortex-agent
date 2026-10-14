@@ -1,12 +1,11 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
-import { TodoRail } from '@/features/session/rail/TodoRail';
-import { WaitRail } from '@/features/session/rail/WaitRail';
 import { PlusGlyph } from '@/design';
-import { useLangOptional, useVocabOptional } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 import { EditBar } from './MChatMessageActions';
+import { MChatActivityStrip } from './MChatActivity';
 import type { MChatViewProps } from './MChatView.types';
 import type { MChatSelection, MChatSelectionView } from './m-chat-selection';
 import type { ChatOverlay } from './useChatOverlay';
@@ -93,24 +92,13 @@ function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null 
   );
 }
 
-export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element {
-  const lang = useLangOptional();
+export function ComposerAbove({ props, overlay }: { props: MChatViewProps; overlay: ChatOverlay }): JSX.Element {
   let mode: ReactNode = <ComposerAttachmentStrip attachments={props.attachments} onRetry={props.onRetryAttachment} onRemove={props.onRemoveAttachment} />;
   if (props.editing) mode = <EditBar onCancel={props.editing.onCancel} />;
   else if (props.rejectBar) mode = <RejectHeader props={props} />;
   return (
     <>
-      {props.sessionId && props.todos ? <TodoRail sessionId={props.sessionId} todos={props.todos} floating /> : null}
-      {props.sessionId && props.waitpoints ? (
-        <WaitRail
-          sessionId={props.sessionId}
-          lang={lang}
-          waitpoints={props.waitpoints.waitpoints}
-          onCancel={props.waitpoints.cancel}
-          cancelling={props.waitpoints.cancelling}
-          floating
-        />
-      ) : null}
+      <MChatActivityStrip props={props} overlay={overlay} />
       {mode}
     </>
   );

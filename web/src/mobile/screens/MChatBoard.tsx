@@ -6,8 +6,8 @@ import { useVocabOptional } from '@/i18n';
 import { BoardView } from '@/features/board/BoardView';
 import { MC } from '@/mobile/ui/kit';
 
-// A bound session's board on the phone: the status bar under the chat header opens it as a
-// full-screen sheet over the chat — the same view the desktop docks.
+// A bound session's board on the phone: its capsule above the composer opens it as a full-screen
+// sheet over the chat — the same view the desktop docks.
 
 const SHEET: CSSProperties = {
   position: 'absolute', inset: 0, zIndex: 12, display: 'flex', flexDirection: 'column', pointerEvents: 'auto',

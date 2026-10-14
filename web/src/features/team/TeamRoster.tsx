@@ -15,14 +15,13 @@ import {
 const STACK_MAX = 6;
 const NOW_TICK_MS = 30_000;
 
-/** The rail's dot language: amber = blocked on you, accent = running, hollow ring = waiting (on the
- *  lead or a machine), faint = idle. */
+/** The rail's dot language: amber = blocked on you, accent = running, hollow ring = waiting on a
+ *  machine, faint = idle. */
 export function workerDotStyle(s: SessionInfo, size = 6): CSSProperties {
   const base: CSSProperties = { width: size, height: size, borderRadius: '50%', boxSizing: 'border-box', flex: 'none' };
   switch (workerState(s)) {
     case 'you': return { ...base, background: 'var(--proto-amber)' };
     case 'running': return { ...base, background: 'var(--proto-accent)' };
-    case 'lead':
     case 'waiting': return { ...base, border: '1.5px solid var(--proto-muted-3)' };
     case 'idle': return { ...base, background: 'var(--proto-line-3)' };
   }
@@ -46,16 +45,14 @@ export function WorkerDotStack({ workers }: { workers: SessionInfo[] }): JSX.Ele
   );
 }
 
-/** "8 workers · 5 running · 1 needs you" — counts in mono, the needs-you count in amber. */
+/** "8 workers · 5 running" — the running count in mono. A worker never waits on the user (its
+ *  questions go to the lead), so the summary carries no amber. */
 export function TeamSummaryLabel({ active }: { active: SessionInfo[] }): JSX.Element {
   const s = teamSummary(active, useVocabOptional());
   return (
     <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
       <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)' }}>{s.workers}</span>
-      <span style={{ font: `500 11.5px ${MONO}`, color: 'var(--proto-muted)' }}>
-        {s.running && <>{' · '}{s.running}</>}
-        {s.needsYou && <>{' · '}<span style={{ color: 'var(--proto-amber-fg)' }}>{s.needsYou}</span></>}
-      </span>
+      {s.running && <span style={{ font: `500 11.5px ${MONO}`, color: 'var(--proto-muted)' }}>{' · '}{s.running}</span>}
     </span>
   );
 }
@@ -132,7 +129,7 @@ function WorkerRow({ worker, question, now, touch, hover, setHover, onOpen }: {
 /** One row per worker, attention first; retired workers fold away at the bottom, dimmed. */
 export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
   roster: TeamRoster;
-  /** Pending questions of the workers that need you, by sessionId. */
+  /** Pending questions of the sessions waiting on the user, by sessionId. */
   questions: Record<string, string>;
   /** Mobile: taller rows for touch. */
   touch?: boolean;
@@ -174,7 +171,7 @@ export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
   );
 }
 
-/** The list with the questions of the workers that need you; mounted only while it is shown. */
+/** The list with the questions of whatever waits on the user; mounted only while it is shown. */
 export function TeamRosterPanel({ roster, touch, onOpen }: {
   roster: TeamRoster;
   touch?: boolean;

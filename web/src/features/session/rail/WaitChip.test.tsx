@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
-import { WaitRail } from './WaitRail';
+import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
+import { ActivityStrip } from './ActivityStrip';
 
 const state = vi.hoisted(() => ({
   waitpoints: [] as WaitpointInfo[],
@@ -26,84 +27,60 @@ function wp(overrides: Partial<WaitpointInfo> = {}): WaitpointInfo {
   };
 }
 
-const store = new Map<string, string>();
-
 beforeEach(() => {
   state.waitpoints = [];
   state.cancel = vi.fn();
   state.cancelling = false;
-  store.clear();
-  // No jsdom in this suite: the rail persists its expanded state, so window/localStorage are stubs.
-  vi.stubGlobal('window', {
-    localStorage: {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => { store.set(k, v); },
-    },
-  });
+  vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
+afterEach(() => vi.unstubAllGlobals());
 
-function mount(floating = false): ReactTestRenderer {
+function waits(): SessionWaitpoints {
+  return { waitpoints: state.waitpoints, cancel: state.cancel, cancelling: state.cancelling };
+}
+
+/** The capsule, as the desktop strip shows it. */
+function mount(lang: 'en' | 'zh' = 'en'): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
-  act(() => {
-    renderer = create(
-      <WaitRail
-        sessionId="s1"
-        lang="en"
-        waitpoints={state.waitpoints}
-        onCancel={state.cancel}
-        cancelling={state.cancelling}
-        floating={floating}
-      />,
-    );
-  });
+  act(() => { renderer = create(<ActivityStrip todos={null} running={false} waitpoints={waits()} lang={lang} />); });
   return renderer;
 }
+
+/** The capsule opened: its panel. */
+function mountOpen(lang: 'en' | 'zh' = 'en'): ReactTestRenderer {
+  const r = mount(lang);
+  act(() => chip(r).props.onClick({ stopPropagation: () => {} }));
+  return r;
+}
+
+const chip = (r: ReactTestRenderer) => r.root.findByProps({ 'data-activity-chip': 'wait' });
 
 function textContent(node: ReactTestInstance): string {
   return node.children.map((child) => typeof child === 'string' ? child : textContent(child)).join('');
 }
 
-function assertNoToggleAncestor(node: ReactTestInstance): void {
-  let ancestor: ReactTestInstance | null = node;
-  while (ancestor) {
-    expect(ancestor.props.onClick).toBeUndefined();
-    expect(ancestor.props.onKeyDown).toBeUndefined();
-    ancestor = ancestor.parent;
-  }
-}
-
-describe('WaitRail', () => {
+describe('wait capsule', () => {
   it('renders no pixels at all when the session is waiting on nothing', () => {
     expect(mount().toJSON()).toBeNull();
   });
 
-  it('collapses to one line naming what is being waited on', () => {
+  it('names what is being waited on and how far along, on one line', () => {
     state.waitpoints = [wp()];
     const r = mount();
-    expect(r.root.findByProps({ 'data-wait-rail': 'collapsed' })).toBeTruthy();
-    const text = JSON.stringify(r.toJSON());
-    expect(text).not.toContain('waiting on 1 signal');
+    const text = textContent(chip(r));
     expect(text).toContain('train-arm2');
     expect(text).toContain('0/1 received');
-    expect(r.root.findByType('button').props['aria-expanded']).toBe(false);
+    expect(chip(r).props['aria-expanded']).toBe(false);
+    expect(chip(r).props['aria-label']).toContain('Waiting on: train-arm2 · 0/1 received');
+    expect(r.root.findAllByType('details')).toHaveLength(0);
   });
 
-  it('takes frosted chrome only when floating over the transcript', () => {
-    state.waitpoints = [wp()];
-    const inline = mount().root.findByProps({ 'data-wait-rail': 'collapsed' }).props.style;
-    expect(inline.background).toBe('var(--proto-alt)');
-    expect(inline.backdropFilter).toBeUndefined();
-    const floating = mount(true).root.findByProps({ 'data-wait-rail': 'collapsed' }).props.style;
-    expect(floating).toMatchObject({ background: 'var(--glass-1)', backdropFilter: 'var(--glass-filter)' });
-  });
-
-  it('expands with structured reports and initially closed intent and raw signal details', () => {
-    store.set('cortex.waitRailOpen.s1', '1');
+  it('opens structured reports with initially closed intent and raw signal details', () => {
     state.waitpoints = [wp({
       signals: [{ at: T0, status: 'ok', member: 'arm2', message: 'epoch 12 done', source: 'http' }],
     })];
-    const r = mount();
-    expect(r.root.findByProps({ 'data-wait-rail': 'expanded' })).toBeTruthy();
+    const r = mountOpen();
+    expect(chip(r).props['aria-expanded']).toBe(true);
     const text = JSON.stringify(r.toJSON());
     expect(text).toContain('compare val loss when all three arms finish');
     expect(text).toContain('epoch 12 done');
@@ -115,11 +92,10 @@ describe('WaitRail', () => {
   });
 
   it('cancels only after the user confirms', async () => {
-    store.set('cortex.waitRailOpen.s1', '1');
     state.waitpoints = [wp()];
     const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
     vi.stubGlobal('confirm', confirm);
-    const r = mount();
+    const r = mountOpen();
     const button = r.root.findByProps({ 'data-waitpoint-cancel': 'wp_1' });
 
     act(() => button.props.onClick({ stopPropagation: () => {} }));
@@ -130,83 +106,50 @@ describe('WaitRail', () => {
   });
 
   it('warns that a rate-limited waitpoint holds its next wake until the hour clears', () => {
-    store.set('cortex.waitRailOpen.s1', '1');
     state.waitpoints = [wp({ rateLimited: true, wakesLastHour: 12 })];
-    const r = mount();
+    const r = mountOpen();
     const badge = r.root.findByProps({ 'data-wait-badge': 'rate-limit' });
     expect(JSON.stringify(badge.props.children)).toContain('waits until the hour clears');
   });
 
-  it('shows failures, rate limits and delivery retries even when collapsed', () => {
+  it('flags failures, rate limits and delivery retries with one dot, and spells them out when opened', () => {
     state.waitpoints = [wp({ rateLimited: true,
       signals: [{ at: T0, status: 'fail', member: null, message: 'failed', source: 'http' }],
       delivery: { pending: true, attempts: 3, lastError: 'closed', lastAt: T0 },
     })];
     const r = mount();
+    expect(r.root.findAll((n) => n.props['data-wait-alert'] !== undefined).map((n) => n.props['data-wait-alert'])).toEqual(['danger']);
+    expect(r.root.findAll((n) => n.props['data-wait-badge'] !== undefined)).toHaveLength(0);
+    expect(chip(r).props['aria-label']).toContain('1 failure signal');
+    act(() => chip(r).props.onClick({ stopPropagation: () => {} }));
     expect(r.root.findByProps({ 'data-wait-badge': 'failure' }).props.children).toBe('1 failure signal');
     expect(r.root.findByProps({ 'data-wait-badge': 'rate-limit' })).toBeTruthy();
     expect(r.root.findByProps({ 'data-wait-badge': 'delivery' }).props.title).toBe('closed');
-    expect(r.root.findAllByType('details')).toHaveLength(0);
   });
 
-  it('keeps the same summary in both states and persists only summary-button toggles', () => {
-    state.waitpoints = [wp({ quorum: { need: 1, got: 0, members: ['a'] } })];
-    const r = mount();
-    const toggle = r.root.findByProps({ 'aria-expanded': false });
-    const summary = textContent(toggle.findByProps({ className: 'wait-rail-heading' }));
-    act(() => toggle.props.onClick());
-    expect(textContent(r.root.findByProps({ className: 'wait-rail-heading' }))).toBe(summary);
-    expect(r.root.findByProps({ 'aria-expanded': true }).props['aria-label']).toContain('Waiting on: train-arm2 · 0/1 received');
-    expect(r.root.findByProps({ id: toggle.props['aria-controls'] })).toBeTruthy();
-    expect(store.get('cortex.waitRailOpen.s1')).toBe('1');
-    for (const details of r.root.findAllByType('details')) assertNoToggleAncestor(details);
-    assertNoToggleAncestor(r.root.findByType('table'));
-    expect(r.root.findAll((node) => node.props.role === 'button')).toHaveLength(0);
-    act(() => r.root.findByProps({ 'aria-expanded': true }).props.onClick());
-    expect(store.get('cortex.waitRailOpen.s1')).toBe('0');
-  });
-
-  it('restores expansion independently for each session', () => {
+  it('adds no dot to an ordinary wait', () => {
     state.waitpoints = [wp()];
-    store.set('cortex.waitRailOpen.s1', '1');
-    const r = mount();
-    const renderSession = (sessionId: string) => <WaitRail sessionId={sessionId} lang="en" waitpoints={state.waitpoints} onCancel={state.cancel} />;
-    act(() => r.update(renderSession('s2')));
-    expect(r.root.findByProps({ 'aria-expanded': false })).toBeTruthy();
-    act(() => r.update(renderSession('s1')));
-    expect(r.root.findByProps({ 'aria-expanded': true })).toBeTruthy();
+    expect(mount().root.findAll((n) => n.props['data-wait-alert'] !== undefined)).toHaveLength(0);
   });
 
-  it('labels multiple waiting items and associates each visible exception with its item', () => {
+  it('labels multiple waiting items and gives each its own section when opened', () => {
     state.waitpoints = [wp(), wp({ id: 'wp_2', label: 'second', rateLimited: true })];
     const r = mount();
-    expect(r.root.findByType('button').props['aria-label']).toBe('Waiting on: 2 waiting items · train-arm2');
+    expect(chip(r).props['aria-label']).toContain('Waiting on: 2 waiting items · train-arm2');
+    expect(r.root.findAllByType('section')).toHaveLength(0);
+    act(() => chip(r).props.onClick({ stopPropagation: () => {} }));
     const items = r.root.findAllByType('section');
-    expect(items.map((item) => item.props['aria-label'])).toEqual(['second']);
-    expect(items[0].findByProps({ 'data-wait-badge': 'rate-limit' })).toBeTruthy();
-    expect(r.root.findAllByProps({ className: 'wait-rail-metrics' })).toHaveLength(1);
-    act(() => r.root.findByType('button').props.onClick());
-    expect(r.root.findAllByType('section').map((item) => item.props['aria-label'])).toEqual(['train-arm2', 'second']);
+    expect(items.map((item) => item.props['aria-label'])).toEqual(['train-arm2', 'second']);
+    expect(items[1].findByProps({ 'data-wait-badge': 'rate-limit' })).toBeTruthy();
     expect(r.root.findAllByProps({ className: 'wait-rail-metrics' })).toHaveLength(2);
   });
 
-  it('keeps ordinary multiple waits in one collapsed summary', () => {
-    state.waitpoints = [wp(), wp({ id: 'wp_2', label: 'second' })];
-    const r = mount();
-    expect(r.root.findAllByType('section')).toHaveLength(0);
-    expect(r.root.findAllByType('button')).toHaveLength(1);
-    expect(r.root.findByProps({ className: 'wait-rail-title' }).props.title).toBe('2 waiting items · train-arm2');
-    act(() => r.root.findByType('button').props.onClick());
-    expect(r.root.findAllByType('section')).toHaveLength(2);
-  });
-
   it('preserves raw text safely without interpreting markup or truncating messages', () => {
-    store.set('cortex.waitRailOpen.s1', '1');
     const message = `  <script>bad()</script>\n${'long'.repeat(200)}  `;
     state.waitpoints = [wp({ intent: message,
       signals: [{ at: T0, status: 'progress', member: 'a', message, source: '<http>' }],
     })];
-    const r = mount();
+    const r = mountOpen();
     expect(r.root.findByType('pre').props.children).toBe(message);
     expect(r.root.findAllByType('script')).toHaveLength(0);
     expect(r.root.findAll((node) => node.props.dangerouslySetInnerHTML !== undefined)).toHaveLength(0);
@@ -216,14 +159,13 @@ describe('WaitRail', () => {
   });
 
   it('shows raw history newest first without changing source or member order', () => {
-    store.set('cortex.waitRailOpen.s1', '1');
     const signals: WaitpointInfo['signals'] = [
       { at: T0, status: 'progress', member: 'a', message: 'first', source: 'http' },
       { at: T0 + 1000, status: 'ok', member: 'b', message: 'second', source: 'http' },
       { at: T0 + 1000, status: 'ok', member: 'a', message: 'latest', source: 'http' },
     ];
     state.waitpoints = [wp({ signals, quorum: { need: 3, got: 2, members: ['a', 'b', 'c'] } })];
-    const r = mount();
+    const r = mountOpen();
     expect(r.root.findAllByType('pre').map((node) => node.props.children)).toEqual(['latest', 'second', 'first']);
     expect(signals.map((signal) => signal.message)).toEqual(['first', 'second', 'latest']);
     const members = r.root.findByType('tbody').findAllByType('tr');
@@ -231,12 +173,10 @@ describe('WaitRail', () => {
   });
 
   it('uses Chinese chrome and separates mailbox history from the current fraction', () => {
-    store.set('cortex.waitRailOpen.s1', '1');
     state.waitpoints = [wp({ maxSignals: 5, fires: 2,
       signals: [{ at: T0, status: 'ok', member: 'a', message: null, source: 'http' }],
     })];
-    let r!: ReactTestRenderer;
-    act(() => { r = create(<WaitRail sessionId="s1" lang="zh" waitpoints={state.waitpoints} onCancel={state.cancel} />); });
+    const r = mountOpen('zh');
     expect(r.root.findByType('caption').props.children).toBe('回报历史 · 所有轮次');
     expect(JSON.stringify(r.toJSON())).toContain('0/1 已回报');
     expect(JSON.stringify(r.toJSON())).toContain('第 3/5 次');
@@ -244,16 +184,28 @@ describe('WaitRail', () => {
   });
 
   it('does not offer a second cancel while one is in flight', () => {
-    store.set('cortex.waitRailOpen.s1', '1');
     state.waitpoints = [wp()];
     state.cancelling = true;
     const confirm = vi.fn().mockReturnValue(true);
     vi.stubGlobal('confirm', confirm);
-    const r = mount();
+    const r = mountOpen();
     const button = r.root.findByProps({ 'data-waitpoint-cancel': 'wp_1' });
     expect(button.props.disabled).toBe(true);
     act(() => button.props.onClick({ stopPropagation: () => {} }));
     expect(confirm).not.toHaveBeenCalled();
     expect(state.cancel).not.toHaveBeenCalled();
+  });
+
+  it('opens one capsule at a time', () => {
+    state.waitpoints = [wp()];
+    const todos = { items: [{ content: 'Run', activeForm: 'Running', status: 'in_progress' as const }], total: 1, completed: 0, activeLabel: 'Running', updatedAt: 1 };
+    let r!: ReactTestRenderer;
+    act(() => { r = create(<ActivityStrip todos={todos} running waitpoints={waits()} lang="en" />); });
+    const todoChip = () => r.root.findByProps({ 'data-activity-chip': 'todo' });
+    act(() => todoChip().props.onClick({ stopPropagation: () => {} }));
+    act(() => chip(r).props.onClick({ stopPropagation: () => {} }));
+    expect(r.root.findAll((n) => n.type === 'div' && n.props['data-activity-popover'] !== undefined)
+      .map((n) => n.props['data-activity-popover'])).toEqual(['wait']);
+    expect(todoChip().props['aria-expanded']).toBe(false);
   });
 });

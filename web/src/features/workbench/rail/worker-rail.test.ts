@@ -103,15 +103,15 @@ describe('rail tree with team mode', () => {
     expect(node.sessions[1].workers).toBeUndefined();
   });
 
-  it('shows a running worker blocked on its lead as a hollow ring, not as running', () => {
+  it('shows a running worker that waits for its lead\'s answer as plainly running', () => {
     const lead = session('atlas', { lastUsedAt: ago(10 * MIN) });
     const blocked = worker(lead, { running: true, waitingOnLead: 1 });
     const node = buildRailTree(input({
       directSessions: [blocked, lead], teamEnabled: true, expandedLeads: new Set([lead.sessionId]),
     })).projects[0];
     const row = node.sessions[0];
-    expect(row).toMatchObject({ running: false, waitingOn: true, awaitingInput: false });
-    expect(row.workers?.[0]).toMatchObject({ running: false, waitingOn: true, awaitingInput: false });
+    expect(row).toMatchObject({ running: true, waitingOn: false, awaitingInput: false });
+    expect(row.workers?.[0]).toMatchObject({ running: true, waitingOn: false, awaitingInput: false });
   });
 
   it('rolls unread up only while collapsed and opens for an expanded or selected worker', () => {

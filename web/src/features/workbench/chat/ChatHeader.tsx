@@ -99,6 +99,7 @@ export function ChatHeader({
   metadataSession,
   parent,
   team,
+  board,
 }: {
   title: string;
   running: boolean;
@@ -109,6 +110,8 @@ export function ChatHeader({
   parent?: ChatHeaderParent | null;
   /** Team mode: a lead's team capsule, first among the header's actions. */
   team?: ReactNode;
+  /** The bound board's capsule, beside the team's. */
+  board?: ReactNode;
 }): JSX.Element {
   const L = useVocab();
   const notes = useNotes();
@@ -144,7 +147,7 @@ export function ChatHeader({
           fontSize: 13.5,
           fontWeight: 600,
           color: 'var(--proto-ink)',
-          maxWidth: 420,
+          maxWidth: 280,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -172,6 +175,7 @@ export function ChatHeader({
       )}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted)' }}>
         {team}
+        {board}
         <BrowserIconButton />
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <IconButton

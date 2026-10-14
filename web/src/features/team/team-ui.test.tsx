@@ -71,14 +71,15 @@ describe('worker roster', () => {
   const onLead = session('onlead', { teamLeadId: 'lead', workerName: 'onlead', running: true, waitingOnLead: 1 });
   const signal = session('signal', { teamLeadId: 'lead', workerName: 'signal', waitingOn: 2 });
 
-  it('orders active workers needs you → running → waiting → idle and keeps retired apart', () => {
+  it('orders active workers running → waiting → idle and keeps retired apart', () => {
     const roster = teamRoster([idle, signal, run, gone, onLead, you]);
-    expect(roster.active.map((w) => w.sessionId)).toEqual(['you', 'run', 'signal', 'onlead', 'idle']);
+    // A worker asking its lead is mid-turn like any other: it sorts, and reads, as running.
+    expect(roster.active.map((w) => w.sessionId)).toEqual(['run', 'onlead', 'you', 'signal', 'idle']);
     expect(roster.retired.map((w) => w.sessionId)).toEqual(['w3']);
   });
 
   it('summarizes counts and leaves out the zero ones', () => {
-    expect(teamSummaryText([run, you, idle, onLead], en)).toBe('4 workers · 1 running · 1 needs you');
+    expect(teamSummaryText([run, you, idle, onLead], en)).toBe('4 workers · 3 running');
     expect(teamSummaryText([idle], en)).toBe('1 worker');
     expect(teamSummaryText([run, signal], zh)).toBe('2 个 worker · 1 运行');
   });
@@ -88,8 +89,10 @@ describe('worker roster', () => {
     expect(workerStatusText({ ...run, backgroundRunning: true }, NOW, en, 'en')).toBe('running');
     expect(workerStatusText(idle, NOW, en, 'en')).toBe('idle 12m');
     expect(workerStatusText({ ...idle, lastUsedAt: '' }, NOW, en, 'en')).toBe('idle');
-    expect(workerStatusText(you, NOW, en, 'en')).toBe('needs you');
-    expect(workerStatusText(onLead, NOW, en, 'en')).toBe('waiting on lead');
+    expect(workerStatusText(you, NOW, en, 'en')).toMatch(/^running /);
+    expect(workerStatusText(onLead, NOW, en, 'en')).toMatch(/^running /);
+    // Only a session without a lead can wait on the user.
+    expect(workerStatusText(session('solo', { awaitingInput: true }), NOW, en, 'en')).toBe('needs you');
     expect(workerStatusText(signal, NOW, en, 'en')).toBe('waiting');
     expect(workerStatusText(run, NOW, zh, 'zh')).toBe('运行中 4分钟');
   });
@@ -129,17 +132,17 @@ describe('TeamCapsule', () => {
     expect(render(<TeamCapsule workers={[gone]} onOpen={vi.fn()} />).toJSON()).toBeNull();
   });
 
-  it('stacks at most six dots, attention first, beside the summary', () => {
+  it('stacks at most six dots, attention first, beside the summary, and never in amber', () => {
     const many = Array.from({ length: 7 }, (_, i) => session(`m${i}`, { teamLeadId: 'lead', workerName: `m${i}` }));
-    const asking = session('ask', { teamLeadId: 'lead', workerName: 'ask', awaitingInput: true });
+    const asking = session('ask', { teamLeadId: 'lead', workerName: 'ask', running: true, awaitingInput: true });
     const r = render(<TeamCapsule workers={[...many, w1, asking]} onOpen={vi.fn()} />);
     const stack = r.root.findByProps({ 'data-worker-stack': '' });
     const dots = stack.findAllByType('span').filter((n) => n !== stack);
     expect(dots).toHaveLength(6);
-    expect(dots[0].props.style.background).toBe('var(--proto-amber)');
-    expect(dots[1].props.style.background).toBe('var(--proto-accent)');
+    expect(dots.slice(0, 2).map((d) => d.props.style.background)).toEqual(['var(--proto-accent)', 'var(--proto-accent)']);
+    expect(dots.some((d) => d.props.style.background === 'var(--proto-amber)')).toBe(false);
     expect(text(r)).toContain('9 workers');
-    expect(text(r)).toContain('1 needs you');
+    expect(text(r)).not.toContain('needs you');
     expect(r.root.findAll((n) => n.props['data-team-panel'] !== undefined)).toHaveLength(0);
     act(() => r.unmount());
   });
@@ -151,10 +154,10 @@ describe('TeamCapsule', () => {
     const r = render(<TeamCapsule workers={[w2, w1, asking, gone]} onOpen={onOpen} />);
     act(() => capsule(r)[0].props.onClick({ stopPropagation: vi.fn() }));
     expect(capsule(r)[0].props['aria-expanded']).toBe(true);
-    expect(rows(r).map((n) => n.props['data-worker-row'])).toEqual(['ask', 'w1', 'w2']);
+    expect(rows(r).map((n) => n.props['data-worker-row'])).toEqual(['w1', 'w2', 'ask']);
     expect(text(r)).toContain('Team · 3');
     expect(text(r)).toContain('Asks: Which seed?');
-    act(() => rows(r)[1].props.onClick());
+    act(() => rows(r)[0].props.onClick());
     expect(onOpen).toHaveBeenCalledWith('w1');
     expect(r.root.findAll((n) => n.props['data-team-panel'] !== undefined)).toHaveLength(0);
     act(() => r.unmount());

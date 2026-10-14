@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
-import { resolveTodos, todoRailViewModel, todoSnapshotFromLivePayload } from './todo-vm';
+import { resolveTodos, todoRailViewModel, todoSnapshotFromLivePayload, todoStripViewModel } from './todo-vm';
 
 const snapshot: TodoSnapshot = {
   items: [
@@ -95,5 +95,27 @@ describe('todoRailViewModel', () => {
     };
     expect(todoRailViewModel(done)!.allDone).toBe(true);
     expect(todoRailViewModel(done)!.counts).toBe('3/3');
+  });
+});
+
+describe('todoStripViewModel', () => {
+  const done: TodoSnapshot = {
+    items: snapshot.items.map((i) => ({ ...i, status: 'completed' })),
+    total: 3, completed: 3, activeLabel: null, updatedAt: 2,
+  };
+
+  it('keeps an unfinished list up whether or not the turn is running', () => {
+    expect(todoStripViewModel(snapshot, true)?.counts).toBe('2/3');
+    expect(todoStripViewModel(snapshot, false)?.counts).toBe('2/3');
+  });
+
+  it('shows a finished list until its turn ends, then steps aside', () => {
+    expect(todoStripViewModel(done, true)?.allDone).toBe(true);
+    expect(todoStripViewModel(done, false)).toBeNull();
+  });
+
+  it('reports the completed share for the progress ring', () => {
+    expect(todoStripViewModel(snapshot, true)?.progress).toBeCloseTo(1 / 3);
+    expect(todoStripViewModel(done, true)?.progress).toBe(1);
   });
 });

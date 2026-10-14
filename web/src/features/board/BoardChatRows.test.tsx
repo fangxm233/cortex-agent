@@ -57,7 +57,8 @@ describe('board card for a created board', () => {
     const r = render(<BoardActionChatRow action={created} onOpen={vi.fn()} />);
     const card = r.root.find((n) => n.props['data-board-card'] === 'b1' && n.type === 'div');
     expect(card.props['data-board-flag']).toBe('ask');
-    expect(text(card.findByProps({ 'data-board-pending-count': 2 }))).toBe('2 awaiting you');
+    // Only the lead: the worker's question is its lead's to answer.
+    expect(text(card.findByProps({ 'data-board-pending-count': 1 }))).toBe('1 awaiting you');
   });
 
   it('keeps the reported title and greys the button once the board is gone', () => {

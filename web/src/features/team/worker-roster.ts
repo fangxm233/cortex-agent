@@ -7,19 +7,18 @@ import { shortSessionId } from '@/features/session/metadata/short-session-id';
 // A lead's team as its chat shows it: one summary (the desktop header capsule, the mobile row) that
 // opens one list (a popover on desktop, a sheet on mobile). Workers that need attention come first.
 
-/** The rail's dot language as a state: blocked on you, running, blocked on the lead, waiting on a
- *  machine, idle. A worker blocked on its lead is mid-turn but not progressing, so it is not running. */
-export type WorkerState = 'you' | 'running' | 'lead' | 'waiting' | 'idle';
+/** The rail's dot language as a state: blocked on you, running, waiting on a machine, idle. A
+ *  worker's questions and plans go to its lead, so a worker is never blocked on the user, and while
+ *  it waits for that answer it reads as plainly running. */
+export type WorkerState = 'you' | 'running' | 'waiting' | 'idle';
 
 export function workerState(s: SessionInfo): WorkerState {
-  if (s.awaitingInput) return 'you';
-  if ((s.waitingOnLead ?? 0) > 0) return 'lead';
+  if (s.awaitingInput && !s.teamLeadId) return 'you';
   if (s.running) return 'running';
-  if ((s.waitingOn ?? 0) > 0) return 'waiting';
-  return 'idle';
+  return (s.waitingOn ?? 0) > 0 ? 'waiting' : 'idle';
 }
 
-const ATTENTION: Record<WorkerState, number> = { you: 0, running: 1, lead: 2, waiting: 2, idle: 3 };
+const ATTENTION: Record<WorkerState, number> = { you: 0, running: 1, waiting: 2, idle: 3 };
 
 export function workerTitle(s: SessionInfo): string {
   return s.workerName || s.label || shortSessionId(s.sessionId);
@@ -42,24 +41,21 @@ export function teamRoster(workers: SessionInfo[]): TeamRoster {
 export interface TeamSummary {
   workers: string;
   running: string | null;
-  needsYou: string | null;
 }
 
-/** "8 workers · 5 running · 1 needs you", in parts so the needs-you count can carry its own tone. */
+/** "8 workers · 5 running", in parts so the counts can take their own type. */
 export function teamSummary(active: SessionInfo[], L: Vocab): TeamSummary {
   const states = active.map(workerState);
   const running = states.filter((s) => s === 'running').length;
-  const you = states.filter((s) => s === 'you').length;
   return {
     workers: fmt(active.length === 1 ? L.wbTeamCountOne : L.wbTeamCountMany, { n: active.length }),
     running: running > 0 ? fmt(L.wbTeamRunningCount, { n: running }) : null,
-    needsYou: you > 0 ? fmt(L.wbTeamNeedsYouCount, { n: you }) : null,
   };
 }
 
 export function teamSummaryText(active: SessionInfo[], L: Vocab): string {
   const s = teamSummary(active, L);
-  return [s.workers, s.running, s.needsYou].filter(Boolean).join(' · ');
+  return [s.workers, s.running].filter(Boolean).join(' · ');
 }
 
 /** The row's status: what the worker is doing and, where the record says, for how long. The
@@ -71,7 +67,6 @@ export function workerStatusText(s: SessionInfo, now: number, L: Vocab, lang: Ti
   switch (workerState(s)) {
     case 'you': return L.wbTeamStatusYou;
     case 'running': return span && !s.backgroundRunning ? fmt(L.wbTeamStatusRunningFor, { span }) : L.wbTeamStatusRunning;
-    case 'lead': return L.wbTeamStatusLead;
     case 'waiting': return L.wbTeamStatusWaiting;
     case 'idle': return span ? fmt(L.wbTeamStatusIdleFor, { span }) : L.wbTeamStatusIdle;
   }

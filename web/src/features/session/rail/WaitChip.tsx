@@ -1,12 +1,10 @@
-import { useId } from 'react';
-import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import { fmt, pickVocab, type Vocab } from '@/i18n';
 import {
-  formatWaitClock, waitRailViewModel, waitStatusText,
+  formatWaitClock, waitStatusText,
   type WaitRailBadge, type WaitRailLanguage,
   type WaitRailRow, type WaitRailSignalRow, type WaitRailViewModel,
 } from './wait-rail-vm';
-import { railSurface, useExpanded } from './rail-surface';
+import { ActivityChip, CHIP_COUNT, CHIP_TEXT } from './ActivityChip';
 import './wait-rail.css';
 
 function Badge({ badge }: { badge: WaitRailBadge }): JSX.Element {
@@ -20,31 +18,6 @@ function SummaryMetrics({ row }: { row: WaitRailRow }): JSX.Element {
       {row.mailbox && <span>{row.mailbox}</span>}
       <span className="wait-rail-ttl" data-urgent={row.urgent}>{row.ttl}</span>
     </span>
-  );
-}
-
-interface HeaderProps {
-  vm: WaitRailViewModel;
-  copy: Vocab;
-  open: boolean;
-  toggle: () => void;
-  contentId: string;
-}
-
-function RailHeader({ vm, copy, open, toggle, contentId }: HeaderProps): JSX.Element {
-  const first = vm.rows[0];
-  const metrics = vm.rows.length === 1 ? [first.progress, first.mailbox, first.ttl].filter(Boolean).join(' · ') : '';
-  const label = [`${copy.waitTitle}: ${vm.headline}`, metrics].filter(Boolean).join(' · ');
-  return (
-    <button type="button" className="wait-rail-toggle" onClick={toggle}
-      aria-expanded={open} aria-controls={contentId} aria-label={label}>
-      <span className="wait-rail-ring" aria-hidden="true" />
-      <span className="wait-rail-heading">
-        <span className="wait-rail-title" title={vm.headline}>{vm.headline}</span>
-        {vm.rows.length === 1 && <SummaryMetrics row={vm.rows[0]} />}
-      </span>
-      <span className="wait-rail-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
-    </button>
   );
 }
 
@@ -127,51 +100,72 @@ function WaitBody({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
   );
 }
 
-function WaitRow({ open, multiple, ...props }: RowProps & { open: boolean; multiple: boolean }): JSX.Element | null {
+function WaitItem(props: RowProps): JSX.Element {
   const { row } = props;
-  if (!open && row.badges.length === 0) return null;
   return (
     <section className="wait-rail-item" aria-label={row.label}>
-      {multiple && <div className="wait-rail-item-heading">
-        <span className="wait-rail-title" title={row.label}>{row.label}</span><SummaryMetrics row={row} />
-      </div>}
+      <div className="wait-rail-item-heading">
+        <span className="wait-rail-title" title={row.label}>{row.label}</span>
+        <SummaryMetrics row={row} />
+      </div>
       {row.badges.length > 0 && <div className="wait-rail-alerts">
         {row.badges.map((badge) => <Badge key={badge.key} badge={badge} />)}
       </div>}
-      {open && <WaitBody {...props} />}
+      <WaitBody {...props} />
     </section>
   );
 }
 
-export interface WaitRailProps {
-  /** Keys the session's persisted expand/collapse state. */
-  sessionId: string;
+/** Everything the session waits on, as the capsule opens it: who reported, the intent, the raw
+ *  signals, and the cancel. */
+export function WaitPanel({ vm, lang, onCancel, cancelling = false }: {
+  vm: WaitRailViewModel;
   lang: WaitRailLanguage;
-  /** Armed waitpoints, fetched by the host via useSessionWaitpoints. */
-  waitpoints: WaitpointInfo[];
   onCancel: (waitpointId: string) => void;
   cancelling?: boolean;
-  /** Mobile's frosted surface over the scrolling transcript. */
-  floating?: boolean;
-}
-
-export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false, floating = false }: WaitRailProps): JSX.Element | null {
-  const [open, toggle] = useExpanded(`cortex.waitRailOpen.${sessionId}`);
-  const contentId = useId();
+}): JSX.Element {
   const copy = pickVocab(lang);
-  const vm = waitRailViewModel(waitpoints, Date.now(), copy, lang);
-  if (!vm) return null;
   const confirmCancel = (row: WaitRailRow): void => {
     if (cancelling) return;
     if (globalThis.confirm(fmt(copy.waitConfirm, { label: row.label }))) onCancel(row.id);
   };
   return (
-    <div className="wait-rail" data-wait-rail={open ? 'expanded' : 'collapsed'} style={railSurface(floating)}>
-      <RailHeader vm={vm} copy={copy} open={open} toggle={toggle} contentId={contentId} />
-      <div className="wait-rail-items" id={contentId}>
-        {vm.rows.map((row) => <WaitRow key={row.id} row={row} copy={copy} open={open}
-          multiple={vm.rows.length > 1} onCancel={confirmCancel} cancelling={cancelling} />)}
-      </div>
+    <div className="wait-rail" data-wait-panel="">
+      {vm.rows.map((row) => <WaitItem key={row.id} row={row} copy={copy} onCancel={confirmCancel} cancelling={cancelling} />)}
     </div>
+  );
+}
+
+function worstTone(vm: WaitRailViewModel): WaitRailBadge['tone'] | null {
+  const tones = vm.rows.flatMap((row) => row.badges.map((badge) => badge.tone));
+  if (tones.includes('danger')) return 'danger';
+  return tones.length > 0 ? 'warn' : null;
+}
+
+/** Desktop names what it waits on and how far along; the phone keeps only the count. A failure, a
+ *  rate limit or a stuck delivery adds one dot rather than a line of its own. */
+export function WaitChip({ vm, lang, compact = false, floating, expanded, onToggle }: {
+  vm: WaitRailViewModel;
+  lang: WaitRailLanguage;
+  compact?: boolean;
+  floating?: boolean;
+  expanded?: boolean;
+  onToggle: () => void;
+}): JSX.Element {
+  const copy = pickVocab(lang);
+  const single = vm.rows.length === 1 ? vm.rows[0] : null;
+  const tone = worstTone(vm);
+  const label = [`${copy.waitTitle}: ${vm.headline}`, single?.progress, single?.ttl, ...vm.rows.flatMap((r) => r.badges.map((b) => b.text))]
+    .filter(Boolean).join(' · ');
+  return (
+    <ActivityChip data="wait" label={label} floating={floating} expanded={expanded} onClick={onToggle} grow={!compact}>
+      <span className="wait-rail-ring" aria-hidden="true" />
+      {compact
+        ? <span style={CHIP_COUNT}>{vm.rows.length}</span>
+        : <span style={CHIP_TEXT}>{vm.headline}</span>}
+      {!compact && single && <span className="wait-rail-metrics"><span className="wait-rail-received">{single.progress}</span>
+        <span className="wait-rail-ttl" data-urgent={single.urgent}>{single.ttl}</span></span>}
+      {tone && <span className="wait-rail-alert" data-tone={tone} data-wait-alert={tone} aria-hidden="true" />}
+    </ActivityChip>
   );
 }

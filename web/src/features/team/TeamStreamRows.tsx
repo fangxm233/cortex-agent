@@ -292,14 +292,14 @@ function ThreadStatus({ thread, worker, waiting, now, range = true }: {
   const lang = useLangOptional();
   const base: CSSProperties = { font: `400 11px ${MONO}`, whiteSpace: 'nowrap', flex: 'none' };
   if (waiting) {
-    return <span data-thread-status="waiting" style={{ ...base, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>
+    return <span data-thread-status="waiting" style={{ ...base, color: 'var(--proto-ink-2)', fontWeight: 600 }}>
       {waiting.kind === 'plan' ? L.wbTeamPlanWaiting : L.wbTeamQuestionWaiting}
     </span>;
   }
   if (thread.latest && worker && worker.workerRetiredAt == null) {
     const state = workerState(worker);
-    const color = state === 'running' ? 'var(--proto-accent)' : state === 'you' ? 'var(--proto-amber-fg)' : 'var(--proto-muted)';
-    return <span data-thread-status={state} style={{ ...base, color, fontWeight: state === 'you' ? 600 : 400 }}>{workerStatusText(worker, now, L, lang)}</span>;
+    const color = state === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted)';
+    return <span data-thread-status={state} style={{ ...base, color }}>{workerStatusText(worker, now, L, lang)}</span>;
   }
   const when = range ? updateTimeRange(thread.updates) : null;
   return when ? <span data-thread-status="history" style={{ ...base, color: 'var(--proto-muted)' }}>{when}</span> : null;
@@ -316,7 +316,7 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
   const shown = headlineUpdate(thread.updates);
   return (
     <div data-team-card="" data-team-card-open={open ? 'true' : undefined}
-      style={{ ...CARD, ...(waiting ? { background: 'var(--proto-amber-bg)', borderColor: 'var(--proto-amber-border)' } : {}), opacity: row.pending ? 0.55 : 1 }}>
+      style={{ ...CARD, opacity: row.pending ? 0.55 : 1 }}>
       <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: open ? '8px 12px 6px' : '8px 12px 2px', cursor: 'pointer', minWidth: 0 }}>
         <Dot worker={thread.latest ? worker : null} />
@@ -370,7 +370,6 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
               gridTemplateColumns: touch ? '10px auto minmax(0, 1fr) auto' : '10px auto auto minmax(0, 1fr) auto',
               padding: touch ? '8px 12px' : '6px 12px', cursor: 'pointer', fontSize: touch ? 13 : 12.5,
               borderTop: i > 0 ? '1px solid var(--proto-line-2)' : undefined,
-              background: waiting ? 'var(--proto-amber-bg)' : undefined,
             }}>
             <Dot worker={thread.latest ? worker : null} />
             <span style={{ ...ELLIPSIS, maxWidth: 180, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
@@ -378,7 +377,7 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
               ? <span style={{ minWidth: 0, display: 'flex' }}><ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} /></span>
               : <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} />}
             <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown), ...(touch ? { gridRow: 2, gridColumn: '2 / 5' } : {}) }}>
-              {/* The amber status already names an open request. */}
+              {/* The status already names an open request. */}
               {!waiting && <KindTag update={shown} />}{shown.line}
             </span>
             <span style={{ ...TIME, ...(touch ? { gridRow: 1, gridColumn: 4 } : {}) }}>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>
