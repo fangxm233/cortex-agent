@@ -104,16 +104,17 @@ takes no parameters and marks the current turn as a routine update (see above).
 
 - The sidebar nests a lead's workers under it, behind a caret with a worker count. The lead's
   dot summarizes its workers, and retired workers are listed last and dimmed.
-- A lead's chat header carries its team as one capsule: a status dot per active worker, running
-  ones first, then a summary such as *7 workers · 3 running*. Clicking it opens the team list. Each
-  row shows a worker's status and how long it has been running or idle, and underneath it what the
-  worker is doing: its current task while it runs, or the brief the lead spawned it with. A row
-  opens that worker. Retired workers are folded at the bottom of the list.
+- A lead's chat header carries its team as one capsule: up to six status dots for its active
+  workers, running ones first, then a summary such as *7 workers · 3 running*. Clicking it opens the
+  team list, headed *Team · N*. Each row shows a worker's status and how long it has been running or
+  idle, and underneath it what the worker is doing: its current task while it runs, or the brief
+  the lead spawned it with. A row opens that worker. Retired workers are folded at the bottom of the
+  list under *Retired N*, and the capsule disappears once every worker is retired.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
   shows as running while any worker runs, and as unread while any worker has news. In the lead's
-  chat, a team capsule above the composer shows a few worker dots and the worker count, and opens
-  the same team list as a sheet. Retired workers count
-  toward neither state and are folded at the bottom of the list.
+  chat, a team capsule above the composer shows up to three worker dots and the count of active
+  workers, and opens the same team list as a sheet. Retired workers count toward neither state and
+  are folded at the bottom of the list.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
 - A worker never waits on you: its questions and plans go to its lead, and while it waits for the
@@ -183,9 +184,12 @@ Cortex collects every bound session's `send_decision` calls into `decisions.json
 edit it. The list of all boards is `data/boards.json`.
 
 **In the chat.** When the agent creates a board, the call appears in the conversation as a board
-card, set apart from the folded tool calls. The card shows the board's flag and title, a status dot
-for up to four bound sessions with a count of the rest, how many requests are waiting on you, and
-**Open board**. It updates live, and its flag turns amber while any bound session waits on you.
+card headed *Board created*, set apart from the folded tool calls. The card shows the board's flag
+and title, up to four bound sessions as a status dot and a name each with a count of the rest, how
+many requests are waiting on you (*N awaiting you*), and **Open board**. A worker goes by its worker
+name; any other session goes by *lead*, or by its title when more than one such session is on the
+board. Retired workers are left out. The card updates live, and its flag turns amber while any
+bound session waits on you.
 When the agent attaches to an existing board, the conversation shows a single line:
 *Attached to board* followed by the title and an **Open** link. If the board has since been deleted,
 the card and the line keep its title and their buttons are greyed out.
@@ -207,13 +211,20 @@ The command palette reaches every board, including those of old sessions. With a
 lists the eight most recently used boards, where a board is used when it is created, when a session
 attaches to it, and when its files change; typing searches all of them.
 
-The top of the board is drawn by the app and updates live: the title, the status of every bound
-session, a count of requests waiting on you that jumps
-to the session asking, and the decision stream. The decision cards are the chat's: each shows its
-status and can be approved, questioned or revised from the board, answering the session that
-announced it. Below it, `board.html` renders in a sandboxed
-frame. Images in `assets/` show inline, and a link marked `data-open` opens a file from the board
-directory in the dock. The page re-renders within a few seconds of a save, with no reload.
+The top of the board is drawn by the app and updates live. It shows the title and every bound
+session with its status; clicking a session opens it. While anything waits on you, an amber
+*N awaiting you* chip appears: with one session waiting it opens that session, and with several it
+lists them with their pending questions. The *Decisions N* chip unfolds the decision stream, newest
+first. The decision cards are the chat's: each shows its status and offers **Approve**, **Explain**
+and **Revise**, answering the session that announced it. **Approve** records your acknowledgement
+without messaging the agent; **Explain**, with an optional question, and **Revise**, with the
+change you want, send the session a message.
+
+Below the strip, `board.html` renders in a sandboxed frame. Images in `assets/` show inline. A link
+marked `data-open` opens a file from the board directory in the viewer the chat uses for files,
+which is the dock while it is open and a preview window otherwise; a file with no viewer downloads.
+Ordinary web links open in a new browser tab. The page re-renders within a few seconds of a save,
+with no reload.
 
 **Styling.** Cortex ships a default stylesheet with components the agent is encouraged to use:
 `card`, state chips (`chip`), progress meters (`meter`), stage cards (`steps`), row lists for

@@ -39,7 +39,7 @@ When enabled, the transport:
   so the browser loads `index.html` + assets and calls `/trpc` with no cross-origin plumbing;
 - exposes the tRPC API at `/trpc` (HTTP batch for queries/mutations, SSE for subscriptions),
   connected in-process directly to the server's domain services (no proxy, no sidecar);
-- gates every `/trpc` request behind a **dual-path auth** check (see
+- gates every `/trpc` request behind an auth check that accepts any of three credentials (see
   [Authentication](#authentication)).
 
 It runs in the same process as the server, binds to `127.0.0.1`, and is meant to be exposed
@@ -92,7 +92,15 @@ it. If the directory is absent (SPA not built), non-`/trpc` paths return a 404 p
 
 ### 4. Enable the Web UI endpoint
 
-Add to `~/.cortex/config/.env` on the server:
+On the server, run:
+
+```bash
+cortex ui enable          # optional: --port <n>, --home <dir>, --json
+```
+
+The command generates `CORTEX_CLIENT_TOKEN` if `.env` has none, sets the endpoint variables, and
+adds the native apps' origins to `uiCorsOrigins`. It is safe to repeat, and it reports whether the
+configuration changed. To configure the endpoint by hand instead, add to `~/.cortex/config/.env`:
 
 ```bash
 CORTEX_UI_HTTP=1          # opt-in: start the tRPC HTTP + SSE endpoint (required)
@@ -109,17 +117,18 @@ Web UI transport, along with `@trpc/server` / `jose` — never loads.
 ### 5. Restart the daemon to apply
 
 The daemon reads the SPA and env at startup, so a new build or env change takes effect on
-restart:
+restart. Start the daemon with `cortex daemon` if it is not running yet; otherwise restart it:
 
 ```bash
-cortex daemon   # or: systemctl --user restart cortex (if you registered a service)
+cortex daemon restart
 ```
 
-!!! warning "Restarting is disruptive"
-    Restarting the daemon interrupts any in-flight agents and scheduled work.
-    Treat it as a deliberate, controlled action — schedule it when the system is idle, and
-    if your Cortex instance runs under an approval policy, route the restart through that
-    approval step rather than restarting ad hoc.
+!!! warning "Restarting interrupts the connection"
+    A graceful `cortex daemon restart` waits until no turn is running and holds new turns until
+    the server is back, but every connected client loses its connection while the server restarts.
+    `cortex daemon restart --hard` and `--force` restart at once and interrupt running agents.
+    Restart when the system is idle, and if your Cortex instance runs under an approval policy,
+    route the restart through that approval step.
 
 At this point the server is reachable at `http://127.0.0.1:3004` **on the server host only**.
 Exposing it to a browser is the next section.
@@ -130,7 +139,7 @@ The `/trpc` auth gate accepts a request if **any** of three credentials is valid
 `401` before tRPC runs otherwise:
 
 1. **`x-cortex-token` header** equal to the server's `clientToken` — the desktop / machine
-   path. Checked first, with a constant-time comparison. Unchanged from before.
+   path. Checked first, with a constant-time comparison.
 2. **A live `cortex_ui` session cookie** — the token-login browser path. Minted by
    `POST /api/ui/login` after the browser proves, once, that it knows the token.
 3. **A valid `Cf-Access-Jwt-Assertion` header** — the Cloudflare Access browser path. The edge
@@ -230,18 +239,21 @@ What that buys, and what it costs:
   `HttpOnly`, so page JavaScript — including an XSS payload — cannot read it back out.
 - **`SameSite=Strict`** keeps the session off requests from other sites. Every subdomain of a
   shared parent domain still counts as the same site, and a Cloudflare Access assertion is attached
-  regardless, so the server also checks `Origin`: a `POST` to `/trpc` or to an `/api` route — login
-  included — whose `Origin` is neither this server's own nor listed in `uiCorsOrigins` is refused
-  with 403. Requests that carry no `Origin` (the CLI, devices, the native shells' own HTTP clients)
-  are left to the credential check. "Own" means the `Origin` host equals the request's `Host`
+  regardless, so the server also checks `Origin`: any request other than `GET`, `HEAD` or `OPTIONS`
+  to `/trpc` or to an `/api` route — login included — whose `Origin` is neither this server's own
+  nor listed in `uiCorsOrigins` is refused with 403, and `Origin: null` is always refused. Requests
+  that carry no `Origin` (the CLI, devices, the native shells' own HTTP clients) are left to the
+  credential check. "Own" means the `Origin` host equals the request's `Host`
   header, so a reverse proxy in front of the server must pass `Host` through unchanged (cloudflared
   does unless `httpHostHeader` is set; nginx needs `proxy_set_header Host $host`).
-- **Workspace files open sandboxed.** A workspace HTML or SVG file opened directly from a download
-  link is served with `Content-Security-Policy: sandbox allow-scripts`, so it runs in an opaque
-  origin and cannot read the session or call the API as you.
+- **Served files open sandboxed.** An HTML, XHTML, SVG or XML file opened directly from a download
+  link (workspace files, attachments, board assets and memory files alike) is served with
+  `Content-Security-Policy: sandbox allow-scripts` and `X-Content-Type-Options: nosniff`, so it
+  runs in an opaque origin and cannot read the session or call the API as you.
 - **Sessions survive a daemon restart.** They live in `~/.cortex/data/ui-sessions.json` (mode
-  `0600`) and expire 30 days after they are issued. Settings → Advanced has a
-  *Sign out of this browser* button, which revokes the session server-side.
+  `0600`) and expire 30 days after sign-in; using a session does not extend it. **Settings →
+  Advanced** has a **Sign out of this browser** button, on desktop and mobile layouts alike, which
+  revokes the session server-side.
 - **A session is strictly weaker than the token.** It carries exactly the authority of a
   Cloudflare Access login: tRPC and the `/api` routes, never `/forward`.
 - **The login endpoint is public.** It has to be — a browser with no credential must be able to
@@ -253,13 +265,13 @@ What that buys, and what it costs:
 ### Tuning or turning it off
 
 ```bash
-CORTEX_UI_TOKEN_LOGIN=0          # remove the login routes and the cookie leg entirely
-CORTEX_UI_SESSION_TTL_DAYS=30    # optional; session lifetime, default 30 days
+CORTEX_UI_TOKEN_LOGIN=0          # 0, false, off or no: remove the login routes and the cookie leg
+CORTEX_UI_SESSION_TTL_DAYS=30    # optional; session lifetime in days, default 30
 ```
 
-With token login off, the server behaves exactly as it did before this existed: header token and
-(if configured) Cloudflare Access only. The SPA then says so on the sign-in screen rather than
-offering a form that could not work.
+With token login off, the login and logout routes are not mounted and session cookies are not
+accepted, so only the header token and, if configured, Cloudflare Access admit requests. The SPA
+says so on the sign-in screen rather than offering a form that could not work.
 
 ### Where to use which
 
@@ -316,20 +328,20 @@ default) and restart, or reach the UI through Cloudflare Access / the desktop ap
 
 **The token is correct but signing in does nothing / it asks again on every page load**
 
-The browser is dropping the session cookie. This happens over plain HTTP to a non-loopback host
-if a proxy in front terminates TLS but does not pass `X-Forwarded-Proto: https` — the server then
-issues the cookie without `Secure`, which some browsers refuse on a page they consider secure.
-Check the daemon log for the "issued without Secure" warning, and make the proxy forward the
-header.
+Check the daemon log for `ui-http cross-origin request refused`. A reverse proxy that rewrites the
+`Host` header makes the page's own origin look foreign, so the server refuses the sign-in request
+with 403. Make the proxy pass `Host` through unchanged (cloudflared does unless `httpHostHeader`
+is set; nginx needs `proxy_set_header Host $host`).
 
-**The page loads but `/trpc` calls `404`**
+**The page shows `Cortex UI not built`**
 
-`web/dist` was not found, so only the API is served. Build the SPA (`pnpm --filter web run
-build`) or point `CORTEX_UI_SPA_DIR` at your built bundle, then restart.
+`web/dist` was not found, so every path except `/trpc` returns 404 with that text while the API
+keeps working. Build the SPA (`pnpm --filter web run build`) or point `CORTEX_UI_SPA_DIR` at your
+built bundle, then restart.
 
 **Nothing is reachable at the UI hostname**
 
 1. Confirm `CORTEX_UI_HTTP=1` is set and the daemon was restarted after adding it.
-2. On the server, confirm the endpoint is up: `curl http://127.0.0.1:3004/trpc` should return a
-   tRPC error (not connection-refused).
+2. On the server, confirm the endpoint is up: `curl http://127.0.0.1:3004/trpc` should answer
+   `401 Unauthorized` (not connection-refused).
 3. Confirm the Cloudflare Tunnel is running and its route points at the correct port.

@@ -1,7 +1,7 @@
 # Slack 设置 {#slack-setup}
 
 
-`cortex init` 会交互式地引导你完成整个 Slack 端的设置——它打印应用清单、复制到剪贴板、给你一个 6 步的 Slack 端清单，然后收集三个令牌并进行验证。本文档是同一流程的独立参考，适用于以下情况：
+`cortex init` 会交互式地引导你完成整个 Slack 端的设置——它打印应用清单、复制到剪贴板、给你一个 7 步的 Slack 端清单，然后收集三个令牌并进行验证。本文档是同一流程的独立参考，适用于以下情况：
 
 - 你想在开始 `cortex init` 之前阅读步骤，
 - 机器人是由团队成员创建的，你只需要知道它需要什么权限/事件，或者
@@ -24,7 +24,7 @@ Cortex 附带的应用清单设置了 `socket_mode_enabled: true` 和 `interacti
 5. Slack 会将你带到应用的基本信息页面。复制"App Credentials"下的 **Signing Secret**——这是你的 `SLACK_SIGNING_SECRET`。
 6. 向下滚动到"App-Level Tokens"→ **Generate Token and Scopes**。命名为 `cortex-socket`，添加 `connections:write` 作用域，点击 **Generate**，复制令牌（以 `xapp-` 开头）——这是你的 `SLACK_APP_TOKEN`。
 7. 在左侧边栏中转到 **OAuth & Permissions** → **Install to Workspace** → **Allow**。安装后你会在页面顶部看到 **Bot User OAuth Token**（以 `xoxb-` 开头）——这是你的 `SLACK_BOT_TOKEN`。
-8. 在左侧边栏中转到 **App Home** → 滚动到"Show Tabs"→ 启用 **Messages Tab** 并勾选 **"Allow users to send messages from the messages tab"**。如果不勾选此项，你可以在频道中 `@cortex` 机器人但无法给它发私信。
+8. 在左侧边栏中转到 **App Home** → 滚动到"Show Tabs"→ 启用 **Messages Tab** 并勾选 **"Allow users to send Slash commands and messages from the messages tab"**。如果不勾选此项，你可以在频道中 `@cortex` 机器人但无法给它发私信。
 
 现在你拥有了全部三个密钥。在 `cortex init` 询问时输入它们。如果 init 已经完成而你需要更新某个令牌，直接编辑 `$CORTEX_HOME/config/.env`。
 
@@ -125,7 +125,7 @@ Cortex 附带的应用清单设置了 `socket_mode_enabled: true` 和 `interacti
 
 ## 管理频道：自动检测，无需设置 {#admin-channel-auto-detected-no-setup-needed}
 
-设置项 `adminChannel` 是 Cortex 发送启动通知、审批请求和其他运维消息的频道。`cortex init` 不会询问它。第一次给机器人发私信时，Slack 适配器会记录频道 ID 并持久化。自动检测路径见 `src/platform/adapters/slack.ts`。
+设置项 `adminChannel` 是 Cortex 发送启动通知、审批请求和其他运维消息的频道。`cortex init` 不会询问它。第一次给机器人发私信时，Slack 适配器会记录频道 ID 并持久化到 `config/settings.json`。自动检测路径见 `agent-server/src/platform/adapters/slack.ts`。
 
 如果你想显式指定（例如你想让管理消息发送到与私信不同的频道），从 Slack 获取频道 ID（频道名称 → View channel details → 页面底部），然后在 `$CORTEX_HOME/config/settings.json` 中设置 `adminChannel`（见 [configuration.md](./configuration.md#configsettingsjson)）：
 
@@ -151,10 +151,10 @@ Cortex 附带的应用清单设置了 `socket_mode_enabled: true` 和 `interacti
 
 ## 轮换或替换令牌 {#rotating-or-replacing-a-token}
 
-令牌存放在 `$CORTEX_HOME/config/.env` 中（完整配置参考见 [configuration.md](./configuration.md)）。直接编辑文件，然后通知守护进程重启：
+令牌存放在 `$CORTEX_HOME/config/.env` 中（完整配置参考见 [configuration.md](./configuration.md)）。直接编辑文件，然后重启服务器：
 
 ```bash
-cortex restart        # 触碰 $STORE_DIR/.restart
+cortex daemon restart   # 先排空正在运行的工作，再重启服务器
 ```
 
 或者，如果你是在前台运行 `cortex start`，按 Ctrl-C 后重新启动。
