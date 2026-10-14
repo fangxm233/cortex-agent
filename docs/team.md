@@ -28,7 +28,8 @@ A lead uses workers only when there are several tasks (or the work splits into s
 switches to a different task; a single task stays in the lead's own session. For the work it hands
 off, the lead chooses between a worker and the one-shot `agent` tool by what happens next. Work that
 may need follow-up, runs long, or may need back-and-forth goes to a worker. Bounded reconnaissance or
-verification whose result the lead uses straight away goes to `agent`.
+verification whose result the lead uses straight away goes to `agent`. When the work runs on several
+workers or across many hours, the lead also opens a [board](#boards) so you can follow it at a glance.
 
 ## How work flows
 
@@ -67,9 +68,9 @@ display that section, since each of those updates already has its own row. Once 
 lead, an update counts as read and is not repeated. The inbox survives a restart and keeps the last
 five updates per worker, noting how many older ones it left out.
 
-**Questions and plans.** When a worker calls `cortex_ask_user`, submits a plan with
-`cortex_plan_exit`, or submits a commission contract, the request shows up as a card in the
-worker's session and as a notice in the lead's conversation. The lead answers with
+**Questions and plans.** When a worker calls `cortex_ask_user` or submits a plan with
+`cortex_plan_exit`, the request shows up as a card in the worker's session and as a notice in the
+lead's conversation. The lead answers with
 `worker_answer`. It may answer questions and approve plans on its own judgement, and asks you
 with `cortex_ask_user` when it is unsure what you would want. You can answer on the worker's card
 yourself; whichever answer arrives first is the one the worker gets.
@@ -135,6 +136,68 @@ takes no parameters and marks the current turn as a routine update (see above).
 - When the lead is idle while workers are still running or waiting on something, the chat ends
   with a line naming who it is waiting on, such as *Lead is waiting for docs to report*.
 
+## Boards
+
+A board is a status page for long work. It sits beside the conversation and shows at a glance where
+a task stands, what comes next, what is waiting on you, and the decisions taken so far. A board
+belongs to a project and is attached to the sessions doing the work. It does not group sessions:
+organizing several sessions around one piece of work is what the lead and its workers are for.
+Boards work in every Web UI session, with or without team mode, on Claude and PI alike.
+
+**Opening and closing.** The agent opens a board when the work calls for one, typically when it is
+about to dispatch several workers or the task will run across many turns or hours. The `board`
+skill tells it when a board is worth opening and how to keep one. You can also simply ask for a
+board.
+
+| Tool | Parameters | What it does |
+|---|---|---|
+| `board_open` | `title` or `board` | Creates a board titled `title`, or attaches to an existing board by id or slug; attaching to a closed board reopens it. Binds the calling session, and a lead's workers (below) |
+| `board_close` | `status` (`done` or `abandoned`), `note?` | Closes the session's board, with an optional one-line outcome |
+
+Both tools come from the `cortex-web` bundle (see [MCP](./mcp.md#cortex-web)). You can also close a
+board from the board itself with **Complete** or **Abandon**. A closed board stays readable.
+
+**Who is bound.** A session is bound to at most one board. When a lead opens a board, each of its
+workers that is not retired and has no board yet is bound along with it. A worker spawned later,
+or a retired worker the lead brings back, joins the lead's board if it has none of its own. A
+worker that opens a board binds only itself. While the board is active, each bound session's next
+turn opens with a short `[Board]` block naming the board and its directory, and the block comes
+back after context compaction.
+
+**Writing the page.** The page is `board.html`, an HTML fragment the agents edit like any other
+file. Every bound session may edit it, and Cortex neither locks the file nor tracks who wrote
+what. The sessions coordinate among themselves: they re-read the file right before each edit and
+keep each edit small, workers usually update their own stage, and the lead keeps the head and the
+overall shape. Each board has a directory in its project's context:
+
+```
+<project context>/boards/<slug>/
+├── board.html        # The page body the agents edit
+├── assets/           # Images and files the page shows or links
+└── decisions.jsonl   # Decisions from the bound sessions
+```
+
+Cortex collects every bound session's `send_decision` calls into `decisions.jsonl`; agents never
+edit it. The list of all boards is `data/boards.json`.
+
+**In the workbench.** A session bound to a board has a **Board** button in its header that opens
+the board in the right-hand dock, and its sidebar row carries a small board icon. The command
+palette lists every board, active ones first, so a closed board or one from an old session is a
+search away. On mobile the board opens as a full-screen page from the session's header.
+
+The top of the board is drawn by the app and updates live: the title and state with **Complete**
+and **Abandon**, the status of every bound session, a count of requests waiting on you that jumps
+to the session asking, and the decision stream. Below it, `board.html` renders in a sandboxed
+frame. Images in `assets/` show inline, and a link marked `data-open` opens a file from the board
+directory in the dock. The page re-renders within a few seconds of a save, with no reload.
+
+**Styling.** Cortex ships a default stylesheet with components the agent is encouraged to use:
+`card`, state chips (`chip`), progress meters (`meter`), stage cards (`steps`), row lists for
+acceptance criteria, decisions and risks (`rows`), and timelines (`tl`), among others. The agent can
+also write its own HTML and SVG. The stylesheet takes its colours from the app's theme, so a board
+follows light and dark mode, the palette and the accent. To restyle every board, write
+`~/.cortex/config/board.css` (see [Boards](./configuration.md#boards) in the configuration guide).
+
 ## Limits
 
 - A lead runs at most eight workers at once.
@@ -142,7 +205,8 @@ takes no parameters and marks the current turn as a routine update (see above).
 - A blocking question or plan waits at most 30 minutes, the same limit as any interaction, and
   pending requests do not survive a server restart.
 - Files, views and decisions a worker sends appear in the worker's own session. The worker names
-  the paths in its report so the lead can pass them on.
+  the paths in its report so the lead can pass them on. Decisions from a session bound to a board
+  also gather on the board.
 - Workers live as long as their lead. Session retention removes a lead and its workers together.
 - With team mode off, leads lose the worker tools and the roster from their next turn, reports
   and request routing stop, and existing workers behave as ordinary sessions whose questions come
