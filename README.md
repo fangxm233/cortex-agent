@@ -11,19 +11,13 @@ weeks of unattended work.
 Cortex is designed around three failure modes of long agent runs.
 **Context rot** — durable project state lives as plain files in your
 repo, not chat history that accumulates and decays. **Execution drift**
-— long work runs against a contract you approve before it starts, and
-every completion claim points at its evidence. **Context window
+— non-trivial work starts from a plan you approve, long tasks keep a
+live board of their state, plan, and decisions, and every completion
+claim points at its evidence. **Context window
 limits** — bounded pieces of work go to subagents that start with a
 fresh context and return only their result.
 
 ## Features
-
-- **Commissions for long work** — hand off a goal and Cortex drafts a
-  contract: the intent, the plan, and what "done" means. Work starts
-  only after you approve it. A ledger in the project records progress
-  with evidence, checkpoints compare the plan with what was done, and
-  gates stop for your decision. Any conversation can turn into a
-  commission when the work outgrows it.
 
 - **Subagents and team mode** — a session hands bounded work such as
   exploration, planning, or verification to subagents that run with a
@@ -32,6 +26,13 @@ fresh context and return only their result.
   worker sessions that it continues, answers, and reports on.
   See [docs/backends.md](./docs/backends.md#subagents) and
   [docs/team.md](./docs/team.md).
+
+- **Boards for long work** — when a task runs on several workers or
+  across many hours, the agent opens a board: a status page beside the
+  conversation that shows where the work stands, what comes next, what
+  is waiting on you, and the decisions taken so far. The lead and its
+  workers keep it current as they go, and the page refreshes within
+  seconds of each edit. See [docs/team.md](./docs/team.md#boards).
 
 - **Structured project log** — every project keeps mission, roadmap,
   status, experiments, knowledge, patterns, and decisions as plain
@@ -106,7 +107,7 @@ projects/my-project/
 ├── roadmap.md           # Milestones and timeline
 ├── STATUS.md            # Current state (overwrite)
 ├── ISSUES.md            # Open friction points (append)
-├── commissions/         # Commission contracts and ledgers
+├── boards/              # Status pages of long tasks
 ├── decisions/           # DR-NNNN.md design decisions (append)
 ├── experiments/         # EXP-NNN.md atomic experiment records
 ├── knowledge/           # K-NNN.md atomic knowledge entries

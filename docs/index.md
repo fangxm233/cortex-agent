@@ -7,13 +7,13 @@ Autonomous agent system for long-running projects. You give it a mission with a 
 Cortex is designed around three failure modes of long agent runs:
 
 - **Context rot** — durable project state lives as plain files in your repo, not chat history that accumulates and decays.
-- **Execution drift** — long work runs against a contract you approve before it starts, and every completion claim points at its evidence.
+- **Execution drift** — non-trivial work starts from a plan you approve, long tasks keep a live board of their state, plan, and decisions, and every completion claim points at its evidence.
 - **Context window limits** — bounded pieces of work go to subagents that start with a fresh context and return only their result.
 
 ## Features
 
-- **Commissions for long work** — hand off a goal; Cortex drafts a contract stating the intent, the plan, and what "done" means, and starts once you approve it.
 - **Subagents and team mode** — bounded work goes to subagents with a clean context; with team mode on, a session can lead persistent worker sessions ([Team Mode](team.md)).
+- **Boards for long work** — a long task keeps a live status page beside the conversation, showing its state, plan, what needs you, and the decisions taken ([Boards](team.md#boards)).
 - **Structured project log** — every project keeps mission, roadmap, status, experiments, knowledge, patterns, and decisions as plain files.
 - **Cron and interval scheduling** — schedule Cortex to scan, digest, or sweep on a recurring basis.
 - **Self-evolving skills** — Cortex drafts new skills when it catches itself repeating patterns.

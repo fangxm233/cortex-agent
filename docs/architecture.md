@@ -58,7 +58,7 @@ The shared kernel every other layer builds on: types, path constants, settings, 
 
 All write operations are serialized through `AsyncMutex` to prevent corruption from concurrent writes. The layer uses two repository patterns:
 
-- **Pattern A (JsonRepository delegation)**: Simple CRUD wrappers around `JsonRepository<T>`. Used for schedule-repo, cost-repo, commission-repo, waitpoint-repo, provider-state-repo and most other repositories. All writes go through `atomicWrite()` (write to `.tmp.<pid>.<ts>` then `fs.rename`).
+- **Pattern A (JsonRepository delegation)**: Simple CRUD wrappers around `JsonRepository<T>`. Used for schedule-repo, cost-repo, board-repo, waitpoint-repo, provider-state-repo and most other repositories. All writes go through `atomicWrite()` (write to `.tmp.<pid>.<ts>` then `fs.rename`).
 - **Pattern B (in-memory Map + fire-and-forget persist)**: Synchronous in-memory `Map` for reads, with async persist chain for writes. Used for execution-repo where read latency matters and stale-on-crash is acceptable.
 
 | File | Purpose |
@@ -262,6 +262,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `agent-state.json` | Selected profile, default agent, and per-channel overrides (migrated once from `mode.json`) |
 | `profiles.json` | Named agent profile list |
 | `schedules.json` | Persistent schedule list |
+| `boards.json` | Board registry: each board's project, slug, title and state (`active`, `done` or `abandoned`). The page itself lives in the project context under `boards/<slug>/` |
 | `session-registry.jsonl` | Append-only JSONL journal and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Events: `put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`; startup replays the stream to rebuild live and pending state. Compaction keeps live records + bindings + live turns; it runs once the journal holds more than `max(512, live×4, 2×compacted)` events — where `compacted` is the number of events a compaction would write — or exceeds both 16 MB and twice its size after the last compaction. Replaces the retired `sessions.json` and `conversation-ledger.json`, which a one-time upgrade migration renames to `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | Two-sweep orphan retention candidates for history and PI cleanup |
 | `conversation-history/` | Per-session transcript/history JSONL keyed by stable Cortex session id |
@@ -282,5 +283,5 @@ Session retention is coordinated separately from registry mutation. `session-ret
 - **Execution IDs**: `exec_<kind>_<base36-ts>_<4-rand>` (e.g., `exec_local_1a2b3c_xyzw`)
 - **Schedule IDs**: 8 hex characters (from `randomBytes(4)`)
 - **Session IDs**: UUIDs identify sessions in the registry and UI. Unlabeled sessions display the first 8 characters of the UUID. `/resume` accepts a full UUID or a unique prefix of at least 6 characters.
-- **Commission drafts**: New draft directories use `_draft-<first 8 UUID characters>`; existing draft directories remain valid.
+- **Board IDs**: 8 hex characters (from `randomBytes(4)`). A board's directory is a slug of its title, with a numeric suffix when the slug is taken, or `board-<id>` when the title has no slug-safe characters.
 - **File format**: All TypeScript uses `.ts` with ESM import style (`import { X } from './foo.js'`)
