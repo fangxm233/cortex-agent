@@ -1,10 +1,10 @@
 ---
 name: board
-description: "Open and keep a board: the live HTML status page the Web UI shows beside a long task. Use whenever this session carries a [Board] block or is bound to a board, before editing any board.html, when you are about to dispatch several workers or start work that will run for many turns or hours, or when the user asks for a board, status page, dashboard or 看板 for a task. Covers board_open / board_close, the preset component classes, editing alongside other sessions, and when to update."
-allowed-tools: Read, Edit, Write, Bash, mcp__cortex-core__board_open, mcp__cortex-core__board_close, mcp__cortex-core__send_decision
+description: "Open and keep a board: the live HTML status page the Web UI shows beside a long task. Use whenever this session carries a [Board] block or is bound to a board, before editing any board.html, when you are about to dispatch several workers or start work that will run for many turns or hours, or when the user asks for a board, status page, dashboard or 看板 for a task. Covers board_open / board_close, the preset component classes, and when to update."
+allowed-tools: Read, Edit, Write, Bash, mcp__cortex-core__board_open, mcp__cortex-core__board_close, mcp__cortex-core__send_decision, mcp__cortex-core__current_time, mcp__cortex-core__cortex_context
 metadata:
   author: "Cortex"
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Board
@@ -24,7 +24,7 @@ Skip it for a question, a single change, or anything you finish within the turn;
 - `board_open({title})` creates a board, writes a scaffold into `board.html`, and binds this session plus your active workers. Workers spawned later inherit the binding.
 - `board_open({board: "<id or slug>"})` attaches to an existing board; a closed one reopens.
 
-A session is bound to at most one board. The tool returns the board directory.
+A session is bound to at most one board. The tool returns the board directory; later, `cortex_context` reports which board this session is bound to (`board`: id, title, status, dir, or null).
 
 ## Files
 
@@ -69,32 +69,24 @@ Use `ask` only for things truly waiting on the user, so the amber stays meaningf
 | `card` | a glass panel; one topic each | `<div class="card">…</div>` |
 | `grid`, `grid wide-left` | cards side by side (auto columns; `wide-left` is 1.3 : 1) | `<div class="grid wide-left"><div class="card">…</div><div class="stack">…</div></div>` |
 | `h`, `.n` | small section heading, optional count | `<div class="h">Acceptance <span class="n">3 / 11</span></div>` |
-| `head`, `.meta` | title line | `<div class="head"><h1>Title</h1><span class="chip run">in progress</span><span class="meta mono faint">updated 10-13 09:00</span></div>` |
+| `head`, `.meta` | title line | `<div class="head"><h1>Title</h1><span class="chip run">in progress</span><span class="meta mono faint">updated MM-DD HH:MM</span></div>` |
 | `lead` | the one-line status under the head; `<b>` for the key fact | `<div class="lead"><b>Stage B merged.</b> C waits for a GPU.</div>` |
 | `chip` + state | a state label | `<span class="chip wait">waiting</span>` |
 | `meter`, `legend .sw` | progress, one `<i>` per unit | `<div class="meter"><i class="ok"></i><i class="run"></i><i></i></div>` and `<div class="legend"><span><span class="sw ok"></span>done 1</span></div>` |
 | `steps` > `step` + state | stage cards: `.top` (`.k` name + chip), `.t` what it delivers, `.m` a fact | `<div class="step run"><div class="top"><span class="k">C</span><span class="chip run">running</span></div><div class="t">…</div><div class="m">2 / 5</div></div>` |
 | `rows` > `row` | lists of acceptance criteria, checkpoints, decisions, risks, outputs: `.id`, `.body` (with `.sub` second line), `.end` | `<div class="row"><span class="ic ok">✓</span><span class="id">A-2</span><span class="body">…<span class="sub">…</span></span><span class="end">4a85587c</span></div>` |
 | `ic` + state, `ic risk`, `ic todo` | the icon at the start of a row; you choose the glyph (✓ ◐ ● ◌ ▲ ○) | `<span class="ic risk">▲</span>` |
-| `tl` | a timeline card: each row starts with `.when` | `<div class="card tl"><div class="rows"><div class="row"><span class="when">10-13</span><span class="chip ok">done</span><span class="body">…</span></div></div></div>` |
+| `tl` | a timeline card: each row starts with `.when` | `<div class="card tl"><div class="rows"><div class="row"><span class="when">MM-DD HH:MM</span><span class="chip ok">done</span><span class="body">…</span></div></div></div>` |
 | `mono`, `muted`, `faint`, `code` | text tones and inline code | `<span class="mono faint">…</span>`, `<code>path</code>` |
 
 Plain `p`, `ul`, `table` and `img` are styled to match. The scaffold written by `board_open` has a working example of each component.
-
-## Editing alongside other sessions
-
-The lead and its workers can all edit `board.html`, and the server neither locks nor merges. Edits stay safe when everyone works like this:
-
-- **Re-read `board.html` right before every edit.** Another session may have changed it seconds ago.
-- **Make small `Edit`s**: one row, one chip, the lead line. After the first fill, do not rewrite the whole file; a full `Write` silently drops whatever others changed since you read it.
-- If an `Edit` fails because the text moved, re-read and apply it to the new text.
-- Workers usually touch only their own stage and rows; the lead keeps the head, the lead line and the overall structure.
 
 ## When to update
 
 - At milestones: a stage finishes, a result comes in, something merges.
 - On state changes: work starts, blocks, fails, needs the user, or unblocks.
 - With each update, refresh the head chip, the `.lead` line and the `updated` time.
+- **Read the clock for every time you write**: the `updated` stamp and each timeline `.when`. Call `current_time` (or run `date`) right then; never estimate a time or reuse one from earlier in the conversation. The timeline is ordered by these times, so a guessed time puts rows from different sessions out of order.
 
 The board is a summary, not a log. Skip small steps, keep the timeline to notable events (newest first), and trim it when it grows long. The app re-renders an open board within a few seconds of a save.
 

@@ -108,4 +108,4 @@ th { font: 600 11px var(--b-mono); color: var(--proto-muted); border-top: 0; }
 .ic.todo { color: var(--proto-faint); }
 
 /* Timeline: rows led by a date */
-.tl .row .when { font: 400 11px var(--b-mono); color: var(--proto-faint); width: 40px; flex: none; }
+.tl .row .when { font: 400 11px var(--b-mono); color: var(--proto-faint); min-width: 40px; white-space: nowrap; flex: none; }

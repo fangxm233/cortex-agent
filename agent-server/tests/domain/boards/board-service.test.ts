@@ -157,3 +157,13 @@ test('the webhook validates its input and reports service errors as failures', a
   assert.match(text, /1 worker/);
   assert.match(text, /scaffold has an example of every component/);
 });
+
+test('the status action reports the bound board, closed or not, and null without one', async () => {
+  assert.deepEqual(await handleBoardWebhook({ sessionId: 'other', action: 'status' }, deps), { success: true, data: null });
+  const opened = await openBoard('lead', { title: 'Ship the Parser' }, deps);
+  const expected = { id: opened.board.id, title: 'Ship the Parser', status: 'active', dir: opened.dir };
+  assert.deepEqual((await handleBoardWebhook({ sessionId: 'lead', action: 'status' }, deps)).data, expected);
+  assert.deepEqual((await handleBoardWebhook({ sessionId: 'w-active', action: 'status' }, deps)).data, expected);
+  await closeBoard('lead', { status: 'done' }, deps);
+  assert.equal(((await handleBoardWebhook({ sessionId: 'lead', action: 'status' }, deps)).data as any).status, 'done');
+});

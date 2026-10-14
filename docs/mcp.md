@@ -121,7 +121,7 @@ composition is not `none` loads it, on Claude and PI alike; subagents do not.
 |---|---|---|
 | `cost_query` | _(none)_ | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage |
 | `query_executions` | `execution_id?`, `status?`, `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
-| `cortex_context` | _(none)_ | Return the current execution context: sessionId (UUID), profile, project, backend |
+| `cortex_context` | _(none)_ | Return the current execution context: sessionId (UUID), profile, project, backend; in a Web session also `board`, the board it is bound to (id, title, status, dir) or null |
 | `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | Arm a waitpoint and return the id, a one-time secret, and ready-to-paste signal commands; then end the turn |
 | `wait_check` | `id?` | Inspect one waitpoint, or list everything this session is waiting on |
 | `wait_cancel` | `id` | Cancel a waitpoint so it can no longer fire |

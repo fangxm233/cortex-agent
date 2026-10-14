@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 import { decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import { requestLoopbackJson } from '@core/loopback-http.js';
 
 /**
  * Everything a Cortex MCP tool needs to know about the session it serves.
@@ -85,6 +85,14 @@ export function webSessionId(ctx: CortexToolContext): string | null {
   return null;
 }
 
+/** The board a session is bound to, as cortex_context reports it. */
+export interface BoundBoardInfo {
+  id: string;
+  title: string;
+  status: 'active' | 'done' | 'abandoned';
+  dir: string | null;
+}
+
 /** Internal execution scope; channel is omitted from the public MCP response. */
 export interface CortexContextInternal {
   channel: string | null;
@@ -94,12 +102,28 @@ export interface CortexContextInternal {
   backend: string | null;
   scheduleTaskId: string | null;
   callbackSource: string | null;
+  /** Null when the session has no board; absent when the daemon could not be asked. */
+  board?: BoundBoardInfo | null;
 }
 
-/** Resolve the execution scope for MCP callers, filling in the session name from the registry
- *  when the host only knew the session id. */
-export async function resolveCortexContext(ctx: CortexToolContext): Promise<CortexContextInternal> {
-  return {
+type BoardLookup = (ctx: CortexToolContext, sessionId: string) => Promise<BoundBoardInfo | null>;
+
+/** Ask the daemon which board the session is bound to (this process has no registry). */
+const lookupBoard: BoardLookup = async (ctx, sessionId) => {
+  const { body } = await requestLoopbackJson(
+    'POST', `${ctx.webhookBaseUrl}/webhook/board`, { sessionId, action: 'status' }, webhookAuthHeaders(ctx),
+  );
+  if (!body?.success) throw new Error(body?.error || 'board status failed');
+  return body.data ?? null;
+};
+
+/** Resolve the execution scope for MCP callers. Web sessions also get the board they are bound
+ *  to; a failed lookup leaves the field out rather than reporting "no board". */
+export async function resolveCortexContext(
+  ctx: CortexToolContext,
+  findBoard: BoardLookup = lookupBoard,
+): Promise<CortexContextInternal> {
+  const scope: CortexContextInternal = {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
     profile: ctx.profile,
@@ -108,12 +132,21 @@ export async function resolveCortexContext(ctx: CortexToolContext): Promise<Cort
     scheduleTaskId: ctx.scheduleTaskId,
     callbackSource: ctx.callbackSource,
   };
+  const webSession = webSessionId(ctx);
+  if (webSession) {
+    try {
+      scope.board = await findBoard(ctx, webSession);
+    } catch {
+      // Leave `board` out: the caller can still trust everything else.
+    }
+  }
+  return scope;
 }
 
 export function registerContextTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_context',
-    'Get current session identity, profile, project, backend and trigger context.',
+    'Get current session identity, profile, project, backend, bound board and trigger context.',
     {},
     { readOnlyHint: true },
     async () => {

@@ -166,9 +166,8 @@ back after context compaction.
 
 **Writing the page.** The page is `board.html`, an HTML fragment the agents edit like any other
 file. Every bound session may edit it, and Cortex neither locks the file nor tracks who wrote
-what. The sessions coordinate among themselves: they re-read the file right before each edit and
-keep each edit small, workers usually update their own stage, and the lead keeps the head and the
-overall shape. A new board starts with a scaffold page whose heading carries the board's title and
+what; how the sessions share the page is up to them. Every time on the page, such as the
+`updated` stamp and the timeline entries, is read from the clock when it is written. A new board starts with a scaffold page whose heading carries the board's title and
 whose sections hold short examples for the agent to replace, next to an empty `assets/`. Each board
 has a directory in its project's context:
 

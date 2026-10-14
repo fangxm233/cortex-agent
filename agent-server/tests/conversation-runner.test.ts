@@ -211,7 +211,7 @@ test('the board block names the board and its path and stays short', () => {
   assert.ok(prompt.startsWith('[Board]'));
   assert.ok(prompt.includes('"Ship the parser" (b-1)'));
   assert.ok(prompt.includes('/ctx/projects/proj-a/boards/ship-the-parser'));
-  assert.ok(prompt.includes('re-read it right before every edit'));
+  assert.ok(prompt.includes('from the clock (current_time)'));
   assert.ok(prompt.length < 1_000, `block unexpectedly large: ${prompt.length}`);
 });
 

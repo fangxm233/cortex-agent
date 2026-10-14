@@ -166,6 +166,25 @@ export async function openBoard(
   return { board, dir, created, reopened, bound: targets.map(t => t.sessionId) };
 }
 
+/** The board a session is bound to, closed or not, with its absolute directory; null when the
+ *  session has no board (or the board record is gone). */
+export async function boundBoard(
+  sessionId: string,
+  deps: Pick<BoardServiceDeps, 'boards' | 'sessions' | 'contextDir'>,
+): Promise<{ id: string; title: string; status: BoardRecord['status']; dir: string | null } | null> {
+  const session = await deps.sessions.getById(sessionId);
+  if (!session?.boardId) return null;
+  const board = await deps.boards.find(session.boardId);
+  if (!board) return null;
+  const contextDir = deps.contextDir(board.projectId);
+  return {
+    id: board.id,
+    title: board.title,
+    status: board.status,
+    dir: contextDir ? path.join(contextDir, BOARDS_DIR, board.slug) : null,
+  };
+}
+
 /** Close the calling session's board as done/abandoned. Bindings stay; a closed board is simply
  *  no longer injected, and board_open on it reopens it. */
 export async function closeBoard(

@@ -147,8 +147,8 @@ export function buildBoardBlock(b: BoardPromptContext): string {
     `  board.html — the page body you edit (HTML, body content only); images go in assets/`,
     `  decisions.jsonl — written by the server from send_decision; do not edit`,
     '',
-    'Read board.html before anything else. Other sessions may be editing it at the same time: '
-    + 're-read it right before every edit and keep each edit small. Update it at milestones and '
-    + 'whenever the status changes. Prefer the preset component classes from the board skill.',
+    'Read board.html before anything else. Update it at milestones and whenever the status '
+    + 'changes. Take every time you write from the clock (current_time), never from memory. '
+    + 'Prefer the preset component classes from the board skill.',
   ].join('\n');
 }
