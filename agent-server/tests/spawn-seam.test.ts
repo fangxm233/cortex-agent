@@ -84,12 +84,17 @@ function replaceEnvironment(values: NodeJS.ProcessEnv): void {
   Object.assign(process.env, values);
 }
 
+/** Seals the built-in hooks and rules out of the capture, so its hook surface stays the empty one
+ *  of a home without hooks. The test sets it; the spawn does not, so it is not part of the golden. */
+const SEAL = 'CORTEX_CONFIG_IMMUTABLE';
+
 function deterministicEnvironment(): void {
   replaceEnvironment({
     PATH: '/usr/bin:/bin',
     HOME: '/fixture/home',
     LANG: 'C',
     CORTEX_HOME: '/fixture/cortex-home',
+    [SEAL]: '1',
   });
   resetSettingsForTests();
 }
@@ -97,7 +102,7 @@ function deterministicEnvironment(): void {
 function sortedEnvironment(env: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(
     Object.entries(env)
-      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[0] !== SEAL)
       .sort(([left], [right]) => left.localeCompare(right)),
   );
 }
