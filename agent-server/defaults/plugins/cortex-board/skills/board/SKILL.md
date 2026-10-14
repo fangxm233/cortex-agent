@@ -1,15 +1,15 @@
 ---
 name: board
-description: "Open and keep a board: the live HTML status page the Web UI shows beside a long task. Use whenever this session carries a [Board] block or is bound to a board, before editing any board.html, when you are about to dispatch several workers or start work that will run for many turns or hours, or when the user asks for a board, status page, dashboard or 看板 for a task. Covers board_open / board_close, the preset component classes, and when to update."
-allowed-tools: Read, Edit, Write, Bash, mcp__cortex-core__board_open, mcp__cortex-core__board_close, mcp__cortex-core__send_decision, mcp__cortex-core__current_time, mcp__cortex-core__cortex_context
+description: "Open and keep a board: the live HTML status page the Web UI shows beside a long task. Use whenever this session carries a [Board] block or is bound to a board, before editing any board.html, when you are about to dispatch several workers or start work that will run for many turns or hours, or when the user asks for a board, status page, dashboard or 看板 for a task. Covers board_open, the preset component classes, and when to update."
+allowed-tools: Read, Edit, Write, Bash, mcp__cortex-core__board_open, mcp__cortex-core__send_decision, mcp__cortex-core__current_time, mcp__cortex-core__cortex_context
 metadata:
   author: "Cortex"
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Board
 
-A board is one HTML page per long task, shown in the Web UI beside the conversation and on the phone. The app draws a live strip above the page by itself: title, state, Complete / Abandon, every bound session's status, questions waiting for the user, and the decision stream from `send_decision`. You write the page body: what the task is, where it stands, what comes next, and what needs the user. Someone glancing at it for five seconds should know whether things are on track.
+A board is one HTML page per long task, shown in the Web UI beside the conversation and on the phone. The app draws a live strip above the page by itself: title, every bound session's status, questions waiting for the user, and the decision stream from `send_decision`. You write the page body: what the task is, where it stands, what comes next, and what needs the user. Someone glancing at it for five seconds should know whether things are on track.
 
 ## When to open one
 
@@ -21,10 +21,10 @@ Open a board when:
 
 Skip it for a question, a single change, or anything you finish within the turn; the conversation already covers those.
 
-- `board_open({title})` creates a board, writes a scaffold into `board.html`, and binds this session plus your active workers. Workers spawned later inherit the binding.
-- `board_open({board: "<id or slug>"})` attaches to an existing board; a closed one reopens.
+- `board_open({title})` creates a board, writes a scaffold into `board.html`, and binds this session plus your active workers. Workers spawned later inherit the binding. The conversation shows a card for the new board, and on desktop the board opens beside the chat.
+- `board_open({board: "<id or slug>"})` attaches to an existing board.
 
-A session is bound to at most one board. The tool returns the board directory; later, `cortex_context` reports which board this session is bound to (`board`: id, title, status, dir, or null).
+A session is bound to at most one board. The tool returns the board directory; later, `cortex_context` reports which board this session is bound to (`board`: id, title, dir, or null).
 
 ## Files
 
@@ -45,6 +45,7 @@ A session is bound to at most one board. The tool returns the board directory; l
 - **Keep it static.** The page runs in a sandbox; scripts are not needed for anything the presets do.
 - **Decisions**: record them with `send_decision`; the strip shows them. On the page, keep at most a short "key decisions" row list.
 - Write in the user's language.
+- The user may restyle every board with `~/.cortex/config/board.css`; leave that file alone unless they ask.
 
 ### States
 
@@ -84,14 +85,8 @@ Plain `p`, `ul`, `table` and `img` are styled to match. The scaffold written by 
 ## When to update
 
 - At milestones: a stage finishes, a result comes in, something merges.
-- On state changes: work starts, blocks, fails, needs the user, or unblocks.
+- On state changes: work starts, blocks, fails, needs the user, unblocks, or finishes.
 - With each update, refresh the head chip, the `.lead` line and the `updated` time.
 - **Read the clock for every time you write**: the `updated` stamp and each timeline `.when`. Call `current_time` (or run `date`) right then; never estimate a time or reuse one from earlier in the conversation. The timeline is ordered by these times, so a guessed time puts rows from different sessions out of order.
 
 The board is a summary, not a log. Skip small steps, keep the timeline to notable events (newest first), and trim it when it grows long. The app re-renders an open board within a few seconds of a save.
-
-## Closing
-
-When the work is finished or abandoned, make a final edit (state chip, closing lead line), then call `board_close({status: "done" | "abandoned", note?: "one line on the outcome"})`. Usually the lead closes; the user can also close it from the app. A closed board stays readable, and `board_open({board})` reopens it.
-
-The user may restyle every board with `~/.cortex/config/board.css`; leave that file alone unless they ask.
