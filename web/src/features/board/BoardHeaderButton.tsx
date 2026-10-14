@@ -25,6 +25,7 @@ export function BoardHeaderButton({ boardId }: { boardId: string }): JSX.Element
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 9px', marginRight: 4,
+        whiteSpace: 'nowrap', flexShrink: 0,
         border: 0, borderRadius: 'var(--r-chip)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
         color: pressed ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
         background: pressed ? 'var(--proto-accent-bg)' : hover ? 'var(--proto-card)' : 'color-mix(in srgb, var(--proto-card) 60%, transparent)',
