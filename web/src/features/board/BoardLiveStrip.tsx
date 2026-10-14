@@ -4,9 +4,10 @@ import { MENU_FOCUS, MENU_SURFACE, MONO, useDismissMenu } from '@/design/MenuChr
 import { fmt, useLang, useVocab } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
 import { workerDotStyle } from '@/features/team/TeamRoster';
-import { teamRoster, workerState, workerStatusText, workerTitle } from '@/features/team/worker-roster';
+import { workerState, workerStatusText, workerTitle } from '@/features/team/worker-roster';
 import { useWorkerQuestions } from '@/features/team/useWorkerQuestions';
 import { BoardIcon } from './BoardIcon';
+import { boardSummary } from './board-summary';
 
 // The native strip above the board body: what the server knows live, which the agent-written body
 // cannot — the board's status, each bound session's state, what is waiting on the user, and the
@@ -20,10 +21,11 @@ export function boardStatusLabel(status: BoardInfo['status'], L: ReturnType<type
   return status === 'active' ? L.boardActive : status === 'done' ? L.boardDone : L.boardAbandoned;
 }
 
-export function BoardStatusChip({ status }: { status: BoardInfo['status'] }): JSX.Element {
+/** `quiet`: a closed board reads gray whatever the outcome (the chat's status bar). */
+export function BoardStatusChip({ status, quiet }: { status: BoardInfo['status']; quiet?: boolean }): JSX.Element {
   const L = useVocab();
   const active = status === 'active';
-  const done = status === 'done';
+  const done = status === 'done' && !quiet;
   return (
     <span data-board-status={status} style={{
       flex: 'none', font: `500 11px ${MONO}`, borderRadius: 'var(--r-chip)', padding: '1px 7px',
@@ -78,13 +80,6 @@ function StripChip({ tone, pressed, onClick, children, data }: {
       {children}
     </button>
   );
-}
-
-/** Bound sessions in the strip's order: leads first, then workers attention-first; retired
- *  workers have nothing left to report and are left out. */
-export function stripSessions(sessions: SessionInfo[]): SessionInfo[] {
-  const leads = sessions.filter((s) => !s.teamLeadId);
-  return [...teamRoster(leads).active, ...teamRoster(sessions.filter((s) => !!s.teamLeadId)).active];
 }
 
 function SessionStatus({ session, now, onOpen }: {
@@ -164,9 +159,7 @@ export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
   const closePending = useCallback(() => setPendingOpen(false), []);
   useDismissMenu(pendingOpen, closePending, closePending);
 
-  const shown = stripSessions(props.sessions);
-  const pending = shown.filter((s) => s.awaitingInput);
-  const live = props.sessions.filter((s) => s.running || s.awaitingInput).length;
+  const { shown, pending, live } = boardSummary(props.sessions);
   const active = board.status === 'active';
   const openPending = () => {
     if (pending.length === 1) props.onOpenSession(pending[0]!);
