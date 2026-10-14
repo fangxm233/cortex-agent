@@ -14,6 +14,7 @@ import { useSelectedSession } from '@/features/session/state/SelectedSessionProv
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { DockedBoardBar } from '@/features/board/BoardStatusBar';
 import { BoardStreamProvider } from '@/features/board/BoardChatRows';
+import { useAutoOpenNewBoard } from '@/features/board/useAutoOpenNewBoard';
 import { useTeamContext } from '@/features/team/useTeamContext';
 import { TeamCapsule } from '@/features/team/TeamRoster';
 import { TeamStreamProvider } from '@/features/team/TeamStreamRows';
@@ -124,6 +125,8 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
   const team = useTeamContext(isDraft ? null : active, sessionsQuery.data);
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
+  // A board the agent here creates opens in the dock as it is created (live events only).
+  useAutoOpenNewBoard(isDraft ? null : sessionId || null);
   // Schedule context (design 30c): the chat is identical to a normal conversation — the only
   // scheduled affordances left are the title annotation「schedule 名 · run #n」on an un-adopted
   // run and the reply-adopts hint under the composer. Management lives in the rail/modal.
