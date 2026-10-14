@@ -18,6 +18,11 @@ data/pi/
 # Machine-specific (generated per host)
 mcp-config.json
 mcp-config-core.json
+config/mcp-config-*.json
+config/mcp-tool-gates/
+
+# Local client bundle (installed per host)
+client/
 
 .claude/settings.local.json
 
