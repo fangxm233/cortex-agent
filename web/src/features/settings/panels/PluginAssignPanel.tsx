@@ -143,6 +143,7 @@ function PluginChoice(props: {
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(props.plugin)}</span>
+          {props.plugin.origin === 'builtin' ? <SPill tone="accent" data-plugin-builtin="">{L.plOriginBuiltin}</SPill> : null}
           <SPill>{L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}</SPill>
           {props.plugin.mcp.servers.length > 0
             ? <SPill tone="accent">{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</SPill>

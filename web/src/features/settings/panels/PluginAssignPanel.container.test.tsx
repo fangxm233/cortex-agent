@@ -95,6 +95,7 @@ vi.mock('@/lib/trpc', () => ({
       skillCreate: staticMutation(),
       skillMove: staticMutation(),
       skillRemove: staticMutation(),
+      skillRevert: staticMutation(),
       create: staticMutation(),
       remove: staticMutation(),
       convertToPortable: staticMutation(),

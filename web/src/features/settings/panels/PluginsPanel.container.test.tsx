@@ -17,6 +17,7 @@ const adapter = vi.hoisted(() => ({
   skillCreate: vi.fn<(a: MutateArgs<'plugins.skillCreate'>) => Promise<unknown>>(),
   skillMove: vi.fn<(a: MutateArgs<'plugins.skillMove'>) => Promise<unknown>>(),
   skillRemove: vi.fn<(a: MutateArgs<'plugins.skillRemove'>) => Promise<unknown>>(),
+  skillRevert: vi.fn<(a: MutateArgs<'plugins.skillRevert'>) => Promise<unknown>>(),
   create: vi.fn<(a: MutateArgs<'plugins.create'>) => Promise<unknown>>(),
   remove: vi.fn<(a: MutateArgs<'plugins.remove'>) => Promise<unknown>>(),
   convert: vi.fn<(a: MutateArgs<'plugins.convertToPortable'>) => Promise<unknown>>(),
@@ -85,6 +86,7 @@ vi.mock('@/lib/trpc', () => ({
       skillCreate: mutation(adapter.skillCreate),
       skillMove: mutation(adapter.skillMove),
       skillRemove: mutation(adapter.skillRemove),
+      skillRevert: mutation(adapter.skillRevert),
       create: mutation(adapter.create),
       remove: mutation(adapter.remove),
       convertToPortable: mutation(adapter.convert),
@@ -105,7 +107,7 @@ function plugin(id: string, over: Partial<UiPluginCatalogEntry> = {}): UiPluginC
     valid: true,
     assignable: true,
     manifest: { source: 'root', name: id, version: '1.0.0' },
-    skills: [{ name: 'review', description: 'Review a change.', managed: false }],
+    skills: [{ name: 'review', description: 'Review a change.', origin: 'local' }],
     mcp: { status: 'missing', servers: [] },
     issues: [],
     ...over,
@@ -117,7 +119,13 @@ function listData(): PluginsListReturn {
     plugins: [
       plugin('alpha'),
       plugin('legacy', { kind: 'legacy', skills: [] }),
-      plugin('shipped', { origin: 'managed', skills: [{ name: 'schedule', description: 'Shipped.', managed: true }] }),
+      plugin('shipped', {
+        origin: 'builtin',
+        skills: [
+          { name: 'notes', description: 'Edited.', origin: 'overridden' },
+          { name: 'schedule', description: 'Shipped.', origin: 'builtin' },
+        ],
+      }),
     ],
     targets: [],
   };
@@ -178,7 +186,7 @@ async function cleanup(renderer: ReactTestRenderer, queryClient: QueryClient) {
 beforeEach(() => {
   adapter.skillFile = {
     pluginId: 'alpha', skill: 'review', path: 'plugins/alpha/skills/review/SKILL.md',
-    content: SKILL_SOURCE, managed: false, baseHash: 'a'.repeat(64),
+    content: SKILL_SOURCE, origin: 'local', baseHash: 'a'.repeat(64),
   };
   adapter.mcpRead = {
     pluginId: 'alpha',
@@ -187,7 +195,7 @@ beforeEach(() => {
       { name: 'local', type: 'stdio', command: './bin/server', args: ['--verbose'], envKeys: ['TOKEN'] },
     ],
   };
-  for (const fn of [adapter.skillWrite, adapter.skillCreate, adapter.skillMove, adapter.skillRemove,
+  for (const fn of [adapter.skillWrite, adapter.skillCreate, adapter.skillMove, adapter.skillRemove, adapter.skillRevert,
     adapter.create, adapter.remove, adapter.convert, adapter.mcpWrite, adapter.toast]) {
     fn.mockReset();
   }
@@ -260,7 +268,7 @@ describe('skill editing', () => {
   });
 });
 
-describe('shipped skills', () => {
+describe('built-in skills', () => {
   it('cannot be moved or deleted, and the buttons say why', async () => {
     const queryClient = testQueryClient();
     const renderer = mount(queryClient);
@@ -268,12 +276,47 @@ describe('shipped skills', () => {
     await click(renderer.root.findByProps({ 'data-plugin-item': 'shipped' }));
     await openTab(renderer, 'skills');
 
+    const rows = renderer.root.findAllByProps({ 'data-action': 'skill-move' }).filter((node) => node.type === 'button');
+    expect(rows).toHaveLength(2);
     for (const action of ['skill-move', 'skill-delete']) {
-      const button = byAction(renderer, action);
-      expect(button.props.disabled).toBe(true);
-      expect(String(button.props.title)).toMatch(/cannot be moved or deleted/);
+      for (const button of renderer.root.findAllByProps({ 'data-action': action }).filter((node) => node.type === 'button')) {
+        expect(button.props.disabled).toBe(true);
+        expect(String(button.props.title)).toMatch(/cannot be moved or deleted/);
+      }
     }
-    expect(renderer.root.findAllByProps({ 'data-plugin-managed-note': '' })).not.toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-plugin-builtin-note': '' })).not.toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-plugin-skill-origin': 'overridden' })).not.toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-plugin-skill-origin': 'builtin' })).not.toHaveLength(0);
+    await cleanup(renderer, queryClient);
+  });
+
+  it('offers revert only for an edited one, after a confirmation step', async () => {
+    const queryClient = testQueryClient();
+    const renderer = mount(queryClient);
+    await ready(renderer);
+    await click(renderer.root.findByProps({ 'data-plugin-item': 'shipped' }));
+    await openTab(renderer, 'skills');
+
+    expect(renderer.root.findAllByProps({ 'data-action': 'skill-revert' }).filter((node) => node.type === 'button')).toHaveLength(1);
+    await click(byAction(renderer, 'skill-revert'));
+    expect(adapter.skillRevert).not.toHaveBeenCalled();
+
+    await click(byAction(renderer, 'skill-revert-confirm'));
+    expect(payloadOf(adapter.skillRevert)).toEqual({ pluginId: 'shipped', skill: 'notes' });
+    await cleanup(renderer, queryClient);
+  });
+
+  it('says in the editor that saving keeps the user version in place of the built-in one', async () => {
+    adapter.skillFile = { ...adapter.skillFile!, pluginId: 'shipped', skill: 'schedule', origin: 'builtin' };
+    const queryClient = testQueryClient();
+    const renderer = mount(queryClient);
+    await ready(renderer);
+    await click(renderer.root.findByProps({ 'data-plugin-item': 'shipped' }));
+    await openTab(renderer, 'skills');
+    const open = renderer.root.findAllByProps({ 'data-action': 'skill-open' }).filter((node) => node.type === 'button');
+    await click(open[1]);
+
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-plugin-skill-note': 'builtin' })).not.toHaveLength(0));
     await cleanup(renderer, queryClient);
   });
 });
@@ -294,7 +337,7 @@ describe('plugin lifecycle', () => {
     await cleanup(renderer, queryClient);
   });
 
-  it('blocks deleting a plugin Cortex ships and says why', async () => {
+  it('blocks deleting a built-in plugin and says why', async () => {
     const queryClient = testQueryClient();
     const renderer = mount(queryClient);
     await ready(renderer);
@@ -302,7 +345,7 @@ describe('plugin lifecycle', () => {
     await click(byAction(renderer, 'plugin-delete'));
 
     expect(byAction(renderer, 'plugin-delete-confirm').props.disabled).toBe(true);
-    expect(renderer.root.findAllByProps({ 'data-plugin-delete-managed': '' })).not.toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-plugin-delete-builtin': '' })).not.toHaveLength(0);
     await cleanup(renderer, queryClient);
   });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';
+import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';
 import { Modal, Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -19,6 +19,29 @@ const PATH_LINE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+type SkillOrigin = UiPluginSkill['origin'];
+
+function originNote(origin: PluginsSkillFile['origin'], L: Vocab): string | null {
+  if (origin === 'builtin') return L.plBuiltinSkillNote;
+  return origin === 'overridden' ? L.plModifiedSkillNote : null;
+}
+
+/** Built-in skills (edited or not) stay where Cortex ships them. */
+function isBuiltinSkill(origin: SkillOrigin): boolean {
+  return origin === 'builtin' || origin === 'overridden';
+}
+
+function OriginPill(props: { origin: SkillOrigin }) {
+  const L = useVocab();
+  if (props.origin === 'local') return null;
+  const modified = props.origin === 'overridden';
+  return (
+    <SPill tone={modified ? 'amber' : 'accent'} data-plugin-skill-origin={props.origin}>
+      {modified ? L.plOriginModified : L.plOriginBuiltin}
+    </SPill>
+  );
 }
 
 /** The open editor, keyed by skill so switching rows always reloads from disk. */
@@ -49,10 +72,11 @@ function SkillEditor(props: {
   const file = query.data;
   if (!file || !state) return null;
   const dirty = state.draft !== state.saved;
+  const note = originNote(file.origin, L);
 
   return (
     <div data-plugin-skill-editor={props.skill} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-      {file.managed ? <SNotice tone="amber" data-plugin-skill-managed="">{L.plManagedSkillNote}</SNotice> : null}
+      {note ? <SNotice tone="muted" data-plugin-skill-note={file.origin}>{note}</SNotice> : null}
       <div style={PATH_LINE}>{file.path}</div>
       <textarea data-plugin-skill-source={props.skill} value={state.draft} spellCheck={false}
         onChange={(event) => setState({ ...state, draft: event.target.value })} style={EDITOR} />
@@ -82,20 +106,25 @@ function SkillRow(props: {
   onToggle: () => void;
   onMove: () => void;
   onDelete: () => void;
+  onRevert: () => void;
 }) {
   const L = useVocab();
-  // A shipped skill moved or deleted here is restored by the next plugin update.
-  const locked = props.skill.managed;
-  const lockedTitle = locked ? L.plManagedSkillLocked : undefined;
+  const locked = isBuiltinSkill(props.skill.origin);
+  const lockedTitle = locked ? L.plBuiltinSkillLocked : undefined;
   return (
     <div data-plugin-skill={props.skill.name} style={ROW}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.skill.name}</span>
-        {props.skill.managed ? <SPill tone="accent">{L.plOriginManaged}</SPill> : null}
+        <OriginPill origin={props.skill.origin} />
         <div style={ACTIONS}>
           <SButton tone="neutral" data-action="skill-open" onClick={props.onToggle}>
             {props.open ? L.plSkillClose : L.plSkillOpen}
           </SButton>
+          {props.skill.origin === 'overridden' ? (
+            <SButton tone="neutral" data-action="skill-revert" disabled={props.busy} onClick={props.onRevert}>
+              {L.plSkillRevert}
+            </SButton>
+          ) : null}
           <SButton tone="neutral" data-action="skill-move" disabled={props.busy || locked} title={lockedTitle} onClick={props.onMove}>
             {L.plSkillRename}
           </SButton>
@@ -227,8 +256,37 @@ function DeleteSkillModal(props: {
   );
 }
 
-function managedNote(plugin: UiPluginCatalogEntry, L: Vocab): string | null {
-  return plugin.origin === 'managed' ? L.plManagedPluginNote : null;
+function RevertSkillModal(props: {
+  pluginId: string;
+  skill: string;
+  busy: boolean;
+  actions: PluginAuthoringActions;
+  onClose: () => void;
+}) {
+  const L = useVocab();
+  return (
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillRevertTitle.replace('{name}', props.skill)}
+      onOpenChange={(next) => { if (!next) props.onClose(); }}
+      footer={(
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+          <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
+          <SButton tone="danger" data-action="skill-revert-confirm" disabled={props.busy}
+            onClick={async () => {
+              await props.actions.skillRevert({ pluginId: props.pluginId, skill: props.skill });
+              props.onClose();
+            }}>
+            {L.plConfirmRevert}
+          </SButton>
+        </div>
+      )}>
+      <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{L.plSkillRevertDesc}</div>
+    </Modal>
+  );
+}
+
+function builtinNote(plugin: UiPluginCatalogEntry, L: Vocab): string | null {
+  return plugin.origin === 'builtin' ? L.plBuiltinPluginNote : null;
 }
 
 export function PluginSkillsTab(props: {
@@ -240,10 +298,11 @@ export function PluginSkillsTab(props: {
   const [open, setOpen] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const note = managedNote(props.plugin, L);
+  const [reverting, setReverting] = useState<string | null>(null);
+  const note = builtinNote(props.plugin, L);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {note ? <SNotice tone="amber" data-plugin-managed-note="">{note}</SNotice> : null}
+      {note ? <SNotice tone="muted" data-plugin-builtin-note="">{note}</SNotice> : null}
       {props.plugin.skills.length === 0
         ? <EmptyMessage text={L.plNoSkills} dataAttr="data-plugin-skills-empty" />
         : props.plugin.skills.map((skill) => (
@@ -251,7 +310,8 @@ export function PluginSkillsTab(props: {
             actions={props.actions} open={open === skill.name}
             onToggle={() => setOpen((current) => (current === skill.name ? null : skill.name))}
             onMove={() => setMoving(skill.name)}
-            onDelete={() => setDeleting(skill.name)} />
+            onDelete={() => setDeleting(skill.name)}
+            onRevert={() => setReverting(skill.name)} />
         ))}
       <CreateSkillForm pluginId={props.plugin.id} busy={props.actions.busy} actions={props.actions} />
       {moving ? (
@@ -261,6 +321,12 @@ export function PluginSkillsTab(props: {
       {deleting ? (
         <DeleteSkillModal pluginId={props.plugin.id} skill={deleting}
           busy={props.actions.busy} actions={props.actions} onClose={() => setDeleting(null)} />
+      ) : null}
+      {reverting ? (
+        // The open editor holds the text being reverted; closing it makes the next open read afresh.
+        <RevertSkillModal pluginId={props.plugin.id} skill={reverting}
+          busy={props.actions.busy} actions={props.actions}
+          onClose={() => { setOpen((current) => (current === reverting ? null : current)); setReverting(null); }} />
       ) : null}
     </div>
   );
