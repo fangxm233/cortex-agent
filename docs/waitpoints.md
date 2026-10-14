@@ -266,7 +266,7 @@ rule: a session sees and disarms its own waitpoints, never another session's.
 
 The environment variables `CORTEX_WAITPOINT_TTL_MS`, `CORTEX_WAITPOINT_SWEEP_MS` and
 `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` are read when `settings.json` does not set the key; see
-[configuration.md](./configuration.md).
+[configuration.md](./configuration.md#configsettingsjson).
 
 `wait_check` shows what you are waiting on; `wait_cancel` disarms one you no longer care about —
 worth doing, since an abandoned waitpoint wakes you days later about something nobody remembers.
