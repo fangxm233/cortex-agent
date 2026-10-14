@@ -46,6 +46,14 @@ async function eventsReach(count: number): Promise<void> {
   await settle();
 }
 
+/** Run `action` and report whether it produced at least one more event. */
+async function produces(action: () => void): Promise<boolean> {
+  const before = events.length;
+  action();
+  await eventsReach(before + 1);
+  return events.length > before;
+}
+
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-board-watch-'));
   configDir = path.join(root, 'config');
@@ -71,6 +79,44 @@ test('a burst of edits to an active board becomes one board.updated; closed boar
   fs.writeFileSync(path.join(root, 'boards', 'b', 'board.html'), 'closed');
   await eventsReach(1);
   assert.deepEqual(events, [{ type: 'board.updated', boardId: 'a', projectId: 'proj' }]);
+});
+
+test('a board.html replaced by rename is still seen when later written in place, and so are new assets', async () => {
+  const dir = path.join(root, 'boards', 'a');
+  const file = path.join(dir, 'board.html');
+  fs.writeFileSync(file, 'v0');
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+
+  // Claude's Edit: a temp file renamed over the original, so board.html gets a new inode.
+  const original = fs.statSync(file).ino;
+  assert.ok(await produces(() => {
+    fs.writeFileSync(`${file}.tmp`, 'v1');
+    fs.renameSync(`${file}.tmp`, file);
+  }), 'the rename replacement');
+  const replaced = fs.statSync(file).ino;
+  assert.notEqual(replaced, original);
+
+  // Pi's edit: an in-place write to the replacement.
+  assert.ok(await produces(() => fs.writeFileSync(file, 'v2')), 'the in-place write after the replacement');
+  assert.equal(fs.statSync(file).ino, replaced);
+  assert.ok(await produces(() => fs.writeFileSync(file, 'v3')), 'a second in-place write');
+
+  assert.ok(await produces(() => fs.writeFileSync(path.join(dir, 'assets', 'plot.png'), 'png')), 'a new asset');
+  assert.deepEqual(new Set(events.map(e => JSON.stringify(e))), new Set([JSON.stringify({ type: 'board.updated', boardId: 'a', projectId: 'proj' })]));
+});
+
+test('directories created or recreated under the board are watched too', async () => {
+  const assets = path.join(root, 'boards', 'a', 'assets');
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  assert.ok(await produces(() => fs.mkdirSync(path.join(assets, 'plots'))));
+  assert.ok(await produces(() => fs.writeFileSync(path.join(assets, 'plots', 'p.png'), 'x')), 'a file in a new subdirectory');
+  assert.ok(await produces(() => {
+    fs.rmSync(assets, { recursive: true });
+    fs.mkdirSync(assets);
+  }));
+  assert.ok(await produces(() => fs.writeFileSync(path.join(assets, 'again.png'), 'x')), 'a file in the recreated assets/');
 });
 
 test('refresh follows the registry: a new board is watched, a closed one is dropped', async () => {

@@ -6,6 +6,8 @@ import { projectStore } from '@domain/projects/project-store.js';
 export const BOARDS_DIR = 'boards';
 /** The agent-edited body fragment. */
 export const BOARD_FILE = 'board.html';
+/** Images and other files the board links to. */
+export const BOARD_ASSETS_DIR = 'assets';
 /** Server-side projection of send_decision calls from bound sessions. */
 export const DECISIONS_FILE = 'decisions.jsonl';
 

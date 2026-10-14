@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { boardRepo, newBoardId, type BoardRecord } from '@store/board-repo.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import type { CortexEventInput } from '@events/index.js';
-import { BOARD_FILE, BOARD_SCAFFOLD, BOARDS_DIR } from './board-paths.js';
+import { BOARD_ASSETS_DIR, BOARD_FILE, BOARD_SCAFFOLD, BOARDS_DIR } from './board-paths.js';
 import { projectStore } from '@domain/projects/project-store.js';
 
 /** The registry, the session store and the filesystem a board operation touches. The server only
@@ -56,6 +56,16 @@ export function slugifyBoardTitle(title: string): string | null {
   return slug || null;
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** The scaffold with every `{{title}}` replaced by the escaped board title. */
+export function fillScaffold(scaffold: string, title: string): string {
+  return scaffold.replaceAll('{{title}}', escapeHtml(title));
+}
+
 async function exists(p: string): Promise<boolean> {
   try {
     await fs.lstat(p);
@@ -82,8 +92,8 @@ async function createBoard(session: Session, title: string, deps: BoardServiceDe
   const root = path.join(contextDir, BOARDS_DIR);
   const slug = await freeSlug(slugifyBoardTitle(title) ?? `board-${id}`, session.projectId, root, deps);
   const dir = path.join(root, slug);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, BOARD_FILE), await deps.readScaffold(), { flag: 'wx' });
+  await fs.mkdir(path.join(dir, BOARD_ASSETS_DIR), { recursive: true });
+  await fs.writeFile(path.join(dir, BOARD_FILE), fillScaffold(await deps.readScaffold(), title), { flag: 'wx' });
   const now = deps.now();
   const board: BoardRecord = {
     id, projectId: session.projectId, slug, title, status: 'active', createdAt: now, updatedAt: now,
