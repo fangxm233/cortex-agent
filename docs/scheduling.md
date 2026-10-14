@@ -20,7 +20,7 @@ Four trigger types are supported:
 | `weekly` | Fire on a specific day of week at a time | `dayOfWeek` (0-6, 0=Sun), `time` | Run a weekly review Monday at 21:00 |
 | `once` | Fire once after a delay | `delay` (duration string) | Send a reminder in 2 hours |
 
-Duration strings follow the format `<number><unit>` where unit is `s` (seconds), `m` (minutes), `h` (hours), or `d` (days). Examples: `"30s"`, `"5m"`, `"2h"`, `"1d"`. A bare number in a string is rejected, so `"30"` never turns into 30 milliseconds; callers that pass JSON numbers (such as the Web UI) give milliseconds. Weekdays are `sun`..`sat` or `0`-`6`, and times are 24-hour `HH:MM` in the server's local time. The message is trimmed and must not be empty.
+Duration strings follow the format `<number><unit>` where unit is `s` (seconds), `m` (minutes), `h` (hours), or `d` (days), case-insensitive, and the number may have a decimal part. Examples: `"30s"`, `"5m"`, `"1.5h"`, `"1d"`. A bare number in a string is rejected, so `"30"` never turns into 30 milliseconds; callers that pass JSON numbers (such as the Web UI) give milliseconds. Weekdays are `sun`..`sat` (case-insensitive) or `0`-`6`, and times are 24-hour `HH:MM` with a two-digit hour (`09:00`, not `9:00`) in the server's local time. The message is trimmed and must not be empty.
 
 ## Managing schedules
 
@@ -31,7 +31,7 @@ Every entry point applies the same validation and writes the same `schedules.jso
 | `schedule` skill → `cortex schedule` | Agents inside a session (see [Agent workflow](#agent-workflow)) |
 | `cortex schedule` | Scripts and terminals (see [CLI](#cli)) |
 | `!schedule` | Chat commands in Slack or Feishu (see [Chat commands](#chat-commands)) |
-| Web UI / desktop app | The schedule list and editor |
+| Web UI / desktop app | The schedule list and editor; it sets every field except `preCheck`, and a `once` schedule's time is fixed once created |
 
 ## Schedule Records
 
@@ -63,14 +63,14 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `type` | `interval`, `daily`, `weekly`, or `once` |
 | `message` | The prompt to send when the schedule fires (a `[Scheduled Task]` prefix is added automatically at fire time) |
 | `projectId` | Project the schedule belongs to; each fire's session opens in it |
-| `profile` | Agent profile name (defaults to the configured default profile) |
+| `profile` | Agent profile name. When none is given, the default profile at creation time is stored, so a later change of default does not move existing schedules |
 | `intervalMs` | For `interval` type: milliseconds between fires |
 | `time` | For `daily`/`weekly` types: `HH:MM` 24-hour time |
 | `dayOfWeek` | For `weekly` type: 0-6 (0=Sunday) |
 | `runAt` | For `once` type: epoch milliseconds when to fire |
 | `nextRun` | Computed epoch ms of next scheduled fire |
 | `createdAt` | Epoch ms when the schedule was created |
-| `lastRun` | Epoch ms of last successful fire |
+| `lastRun` | Epoch ms of the last fire handed to the runner, including one the runner then skipped because the previous run was still going or the profile was rate-limited. A `once` schedule is deleted when it fires and never records one |
 | `lastSkipped` | Epoch ms of last skipped fire (preCheck failed) |
 | `isPaused` | Whether the schedule is currently paused |
 | `pausedAt` | Epoch ms when paused |
@@ -81,7 +81,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 
 ## Built-in periodic jobs
 
-Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, `cortex schedule list`, or the Web schedule list. Their switches and intervals are configured under **Settings → Advanced → Built-in jobs** or with these `config/settings.json` pairs: `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`.
+Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, `cortex schedule list`, or the Web schedule list. Their switches and intervals are the `config/settings.json` pairs `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` (on, every 5 minutes) and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs` (on, every 24 hours). The memory-index pair is also on **Settings → Advanced → Built-in jobs**.
 
 Enabled jobs run once when the daemon starts. Settings edits hot-reload: disabling a job clears its next timer, enabling it runs immediately, and changing an interval reschedules the next idle run. See [configuration.md](./configuration.md#configsettingsjson) for defaults and bounds.
 
@@ -90,14 +90,21 @@ Enabled jobs run once when the daemon starts. Settings edits hot-reload: disabli
 Every fire opens a new, ordinary session — the same kind you start from the Web
 UI or the desktop app — and sends the schedule's message, with a
 `[Scheduled Task]` prefix, as its first turn. The session is recorded as that
-schedule's run and labeled with the start of the message; open it to read the
-result or reply as in any other conversation. A fire never reuses an earlier
-run's session, so the runs of a recurring schedule stay in separate transcripts.
+schedule's run and labeled with the first 60 characters of the message. A fire
+never reuses an earlier run's session, so the runs of a recurring schedule stay
+in separate transcripts.
+
+In the workbench, the session rail's **Scheduled** group shows one row per
+schedule. A recurring schedule's row opens the list of its runs; a `once`
+schedule's row opens its run. Replying to a run turns it into an ordinary
+conversation, which then moves to the regular session timeline.
 
 The session opens in the schedule's `projectId`, settled when the schedule is
 created. `cortex schedule` and the Web UI take the project directly and default
 to `general`. Agents pass the intended project explicitly with `--project`;
-`!schedule` uses the creating channel's registered project, or `general`.
+`!schedule` uses the creating channel's registered project, or `general`. If
+the project no longer exists when the schedule fires, the session opens in a
+project named in the message, or in `general`.
 
 ## PreCheck
 
@@ -122,7 +129,7 @@ The scheduler watches it with
 2. **Removes** timers for tasks no longer in the file
 3. **Adds** timers for new tasks
 4. **Re-arms** tasks whose scheduling config changed (detected via config hash comparison)
-5. Sends an admin notification: `:arrows_counterclockwise: schedules.json hot-reloaded: +N -M ~P task(s)`
+5. Sends an admin notification: `🔄 schedules.json hot-reloaded: +N -M ~P task(s), T total`
 
 The scheduler's own writes trigger the watcher too; the reload that follows finds nothing changed
 and stays silent. Every write — the daemon's included — re-reads the file inside the write, so a
@@ -134,13 +141,13 @@ Each task's scheduling-relevant fields are hashed: `type`, the type-specific tim
 
 ## In-Flight Protection
 
-If a schedule fires while its previous run is still going, the new fire is skipped. This prevents overlapping runs of the same schedule.
+If a schedule fires while its previous run is still going, the new fire is skipped. This prevents overlapping runs of the same schedule. The skipped fire still counts as the schedule's `lastRun`, and the next fire follows the normal timing.
 
 ## Pause and Resume
 
 ### Pausing
 
-Schedules of type `interval`, `daily`, and `weekly` can be paused. Once-type schedules cannot be paused (they either fire or get dropped).
+Schedules of type `interval`, `daily`, and `weekly` can be paused. Pausing or resuming a `once` schedule is refused with an error; it either fires or gets removed.
 
 When paused:
 - `isPaused` is set to `true`, `pausedAt` records the timestamp, `pausedBy` records `"user"`
@@ -158,14 +165,18 @@ When resumed:
 
 ### Removing
 
-Schedules can be deleted by ID (idempotent — removing a non-existent schedule returns `{ removed: false }`). The timer is cleared and the entry is removed from `schedules.json`.
+Schedules can be deleted by ID. The timer is cleared and the entry is removed from `schedules.json`. Removal is idempotent: `cortex schedule remove` reports `"removed": false` for an id that does not exist, while the Web UI and `!schedule remove` report that the schedule was not found.
 
 ## Startup Behavior
 
 On server startup, the scheduler:
 
-1. Drops `once` tasks that are more than 1 minute overdue (past their `runAt`)
-2. Schedules all remaining tasks with their computed `nextRun` times
+1. Drops `once` tasks that are more than 1 minute overdue (past their `runAt`),
+   with an admin notice for each: `Schedule <id> skipped (<n>s overdue): <message>`
+2. Schedules all remaining tasks with their computed `nextRun` times. An
+   `interval` task whose `nextRun` passed while the server was down fires
+   immediately; a `daily` or `weekly` fire missed during downtime is not caught
+   up, and the next occurrence is scheduled
 3. Starts the file watcher for hot-reload
 4. Logs the total task count
 
@@ -193,18 +204,19 @@ Clarify uncertain conversions and explain that limitation when it matters.
 
 ## CLI
 
-`cortex schedule` manages the same schedules from an agent session, terminal or script. Every command prints JSON, timing comes from explicit flags, and the long prompt can come from stdin:
+`cortex schedule` manages the same schedules from an agent session, terminal or script. Its subcommands are `list`, `get`, `add`, `edit`, `pause`, `resume` and `remove`. Every command prints JSON with ISO timestamps, timing comes from explicit flags, and the long prompt can come from stdin:
 
 ```bash
 cortex schedule add --type daily --time 09:00 --project nimbus --message "Summarize yesterday's sessions"
-echo "Check training run r42 on lab2" | cortex schedule add --type once --delay 2h --message -
+echo "Check training run r42 on trainer" | cortex schedule add --type once --delay 2h --message -
 cortex schedule list --project nimbus
+cortex schedule get a1b2c3d4
 cortex schedule edit a1b2c3d4 --time 10:30
 cortex schedule pause a1b2c3d4
 cortex schedule remove a1b2c3d4 --dry-run
 ```
 
-A running daemon picks the change up within a second. See [cli-reference.md](./cli-reference.md) for every option.
+A timing flag that does not belong to the schedule's type is rejected, and `edit` cannot change the type; `edit --delay` on a `once` schedule sets its fire time to now plus the delay. A running daemon picks the change up within a second. See [cli-reference.md](./cli-reference.md) for every option.
 
 ## Chat commands
 
@@ -212,8 +224,8 @@ The `!schedule` command manages schedules from Slack or Feishu. A schedule added
 
 | Command | Description |
 |---------|-------------|
-| `!schedule` / `!schedule list` | List all schedules with status, next run time, and pause/resume/remove buttons |
-| `!schedule add interval <duration> [--profile <name>] <message>` | Repeat every duration |
+| `!schedule` / `!schedule list` | List all schedules with status and next run time. The first ten get a button: **Pause** or **Resume** for a recurring schedule, **Remove** for a `once` schedule |
+| `!schedule add interval <duration> [--profile <name>] <message>` | Repeat every duration (`--profile` comes right after the timing words) |
 | `!schedule add daily <HH:MM> [--profile <name>] <message>` | Run every day at a time |
 | `!schedule add weekly <day> <HH:MM> [--profile <name>] <message>` | Run every week on a day |
 | `!schedule add once <duration> [--profile <name>] <message>` | Run once after a delay |
@@ -223,8 +235,8 @@ The `!schedule` command manages schedules from Slack or Feishu. A schedule added
 
 ## Execution routing
 
-Ordinary schedule records use the `scheduled-task` runner, which opens a new session for each fire and sends the message with the `[Scheduled Task]` prefix. A small set of shipped schedules may use reserved internal handler keys, but unregistered `dispatchType` values are skipped rather than interpreted as agent prompts. Daemon-owned periodic infrastructure uses `builtin-jobs.ts` and is not routed through schedule persistence.
+Ordinary schedule records use the `scheduled-task` runner, which opens a new session for each fire and sends the message with the `[Scheduled Task]` prefix. A record may instead name an internal handler in `dispatchType`; the registered keys are `auth-expiry-scan` and `sync-public`, and an unregistered `dispatchType` is logged and skipped rather than interpreted as an agent prompt. Daemon-owned periodic infrastructure uses the built-in job controller and is not routed through schedule persistence.
 
 ## Rate limits
 
-When every configuration of a schedule's profile is rate-limited, the fire is skipped and the schedule keeps its timing: it fires again at its next time. A run that hits a rate limit after it has started is paused and resumed like any other session.
+When every configuration of a schedule's profile is rate-limited, the fire is skipped and the schedule keeps its timing: it fires again at its next time. The skip is announced as a warning notice, `Schedule <id> skipped: all configs rate-limited.`, and a fire that cannot start for another reason, such as a profile that no longer exists, raises an error notice. A run that hits a rate limit after it has started is paused and resumed like any other session.

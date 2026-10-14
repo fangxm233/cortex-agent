@@ -1,8 +1,8 @@
 # MCP — Model Context Protocol
 
 Cortex ships privilege-scoped and platform-scoped MCP (Model Context Protocol)
-servers that give agents access to remote machines, subagents, scheduling,
-costs, waitpoints, team workers, and platform integrations. This document explains
+tools that give agents access to remote machines, subagents, costs,
+waitpoints, team workers, boards, and platform integrations. This document explains
 what each server provides, how they are composed, and how to add third-party
 MCP servers.
 
@@ -14,19 +14,21 @@ transport pair. Cortex uses MCP to bridge between the agent (which reaches no
 agent-server internals of its own) and the server's capabilities. MCP support
 varies by backend — see the feature matrix in [backends.md](./backends.md).
 
-Claude Code reads MCP server configurations from a JSON file and spawns each
-server as a child process. The agent can then call MCP tools just like
+Claude Code reads MCP server configurations from JSON files and spawns each
+stdio server as a child process. The agent then calls MCP tools just like
 built-in tools (Bash, Read, Edit, etc.), with the tool names prefixed by
-`mcp__<server-name>__`.
+`mcp__<server-name>__`. PI connects MCP servers through Cortex's own bridge:
+the bundled Cortex tools keep their bare names, and a plugin server's tools are
+named `plugin_tool_plugin_server_<server>_<tool>`.
 
 ## Why Cortex ships its own MCP servers
 
-Cortex's agent-server maintains state that the agent process cannot access
-directly: WebSocket connections to remote machines, the schedule database,
-cost records, the Slack API client, and execution registry. MCP servers serve
-as a controlled bridge — the agent calls an MCP tool, the MCP server talks to
-agent-server internals (via HTTP to the local webhook server on port 3001, or
-by reading shared files), and the result flows back to the agent.
+Cortex's agent-server maintains state that the agent process cannot reach
+directly: WebSocket connections to remote machines, running subagents and
+team workers, waitpoints, the chat platforms, cost records, and the execution
+registry. The Cortex MCP tools are a controlled bridge — the agent calls a
+tool, the tool asks the server (over the loopback webhook, or by reading the
+server's stores), and the result flows back to the agent.
 
 ## The bundled MCP servers
 
@@ -35,9 +37,9 @@ a session's MCP composition is empty, the session gets exactly one Cortex-owned
 server built from `agent-server/src/domain/mcp/bundled-server.ts`, registering
 only the bundles selected for it. Claude Code starts that server as a stdio
 child; PI runs it inside the agent-server process over an in-memory transport
-pair, bound to a tool context built for that one session. Claude keeps the
-`cortex-core` server key, so core remote tools retain their existing raw names.
-Other bundled Claude tools share that prefix, such as
+pair, bound to a tool context built for that one session. Under Claude the server
+key is `cortex-core`, so every bundled tool carries that prefix — the remote
+tools are `mcp__cortex-core__remote_*`, and the context tool is
 `mcp__cortex-core__cortex_context`. PI exposes the same tools under their
 unprefixed names.
 
@@ -47,35 +49,54 @@ keep independent configurations, transports, and failure boundaries.
 
 ### cortex-core
 
-Exposes remote-machine operations, the read-only clock, and subagent delegation.
-It is loaded in all sessions. Keeping the `cortex-core` server name preserves the
-canonical `mcp__cortex-core__remote_*` names used by existing clients and skills.
+Exposes remote-machine operations, the read-only clock, and subagent
+delegation. Every session whose MCP composition is not `none` loads it,
+subagents included.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `remote_bash` | `device`, `command`, `timeout?`, `description?`, `run_in_background?` | Execute a shell command on a remote device via cortex-client |
-| `remote_read` | `device`, `file_path`, `offset?`, `limit?` | Read a file from a remote device (supports images and PDFs) |
+| `remote_bash` | `device`, `command`, `timeout?` (seconds, 1–600, default 120), `description?`, `run_in_background?` | Execute a shell command on a remote device via cortex-client |
+| `remote_read` | `device`, `file_path` (absolute), `offset?`, `limit?` | Read a file from a remote device (supports images and PDFs) |
 | `remote_write` | `device`, `file_path`, `content` | Write content to a file on a remote device |
 | `remote_edit` | `device`, `file_path`, `old_string`, `new_string`, `replace_all?` | Edit a file on a remote device by string replacement |
 | `remote_glob` | `device`, `pattern`, `path?` | Find files matching a glob pattern on a remote device |
-| `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?`, `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | Search file contents on a remote device using ripgrep |
+| `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?` (alias `context?`), `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | Search file contents on a remote device using ripgrep |
 | `current_time` | `timezone?` | Get the current date/time; optional IANA timezone (defaults to server local). Returns Unix epoch, UTC ISO, and localized wall-clock with offset |
-| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]`, plus `model?`, `backend?`, `run_in_background?` | Delegate work to an isolated subagent on either backend |
+| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]` (each item `description`, `prompt`, `subagent_type`, `model?`, `backend?`), plus `model?`, `backend?`, `run_in_background?` | Delegate work to an isolated subagent on either backend |
 | `agent_stop` | `agent_id` | Stop a running subagent and discard whatever it had produced |
 
-The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`;
-`agent` and `agent_stop` are registered by
+The remote tools are registered by
+`agent-server/src/domain/mcp/tools/remote-ops.ts`; `agent` and `agent_stop` by
 `agent-server/src/domain/mcp/tools/subagent.ts`.
 
+The remote tools share some behavior:
+
+- The first remote tool in a session's surface carries a catalog of the devices
+  registered in `machines.json` in its description, Windows machines marked, so
+  the agent knows which `device` values exist. A call to a device that is not
+  connected fails with the list of devices that are online.
+- `remote_read`, `remote_write` and `remote_edit` add the target's `AGENTS.md`
+  ancestor chain on that device to their result, once per file per session (see
+  [cross-machine.md](./cross-machine.md#remote-agentsmd-files)).
+- `remote_read` returns images and PDFs as media; the server downscales large
+  images when `sharp` is available.
+- Output above 30,000 characters (`remote_bash`), 20,000 (`remote_grep`) or
+  100,000 (`remote_glob`) is saved under `$CORTEX_HOME/tmp/tool-results/`, and
+  the tool returns the path with a 2 KB preview.
+
 `agent` replaces Claude Code's built-in `Agent` tool, which Cortex strips from
-every spawn. The replacement runs on the same role table as PI's own `agent`,
+every Claude spawn. It runs on the same role table as PI's own native `agent`,
 can place a child on either backend, and is visible to the daemon — so a
 delegated run appears in the parent's transcript, is billed to the parent, and
-can be stopped from the UI. See [backends.md](./backends.md#subagents).
+can be stopped from the UI. A foreground call that is still running after 25
+minutes is handed to the background and its result arrives later. See
+[backends.md](./backends.md#subagents).
 
-A subagent never receives `agent` or `agent_stop` itself. That is enforced by
-the tool allowlist rather than by the prompt, so a child cannot fan out further
-no matter what it is asked to do.
+PI sessions never receive the MCP `agent` and `agent_stop`: PI registers its
+own `agent`, and two tools of that name cannot coexist. A subagent receives
+neither on either backend. That is enforced by the tool allowlist rather than
+by the prompt, so a child cannot fan out further no matter what it is asked to
+do.
 
 ### cortex-workers
 
@@ -109,19 +130,16 @@ The tool is in `agent-server/src/domain/mcp/tools/workers.ts` and is served by t
 
 ### cortex-ext
 
-Agents manage schedules with `cortex schedule` through the `schedule` skill. Use
-`cortex_context` to resolve the project and pass it explicitly with `--project`;
-see [Scheduling](./scheduling.md) for operations and timing semantics.
-
-Exposes Cortex management tools: cost queries, execution
-records, context resolution, and waitpoints. Every top-level session whose MCP
-composition is not `none` loads it, on Claude and PI alike; subagents do not.
+Exposes Cortex management tools: cost queries, execution records, context
+resolution, and waitpoints. Every top-level session whose MCP composition is
+not `none` loads it, on Claude and PI alike. Claude subagents load it too; PI
+subagents do not.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `cost_query` | _(none)_ | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage |
-| `query_executions` | `execution_id?`, `status?`, `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
-| `cortex_context` | _(none)_ | Return the current execution context: sessionId (UUID), profile, project, backend; in a Web session also `board`, the board it is bound to (id, title, dir) or null |
+| `cost_query` | `projectId?` | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage; with `projectId`, scoped to that project |
+| `query_executions` | `execution_id?`, `status?` (`running`, `completed`, `failed`, `cancelled`, `stale`, `all`), `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
+| `cortex_context` | _(none)_ | Return the current execution context: `sessionId`, `profile`, `project`, `backend`, and for a scheduled or callback-triggered run `scheduleTaskId` and `callbackSource`; in a Web session also `board`, the board it is bound to (id, title, dir) or null |
 | `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | Arm a waitpoint and return the id, a one-time secret, and ready-to-paste signal commands; then end the turn |
 | `wait_check` | `id?` | Inspect one waitpoint, or list everything this session is waiting on |
 | `wait_cancel` | `id` | Cancel a waitpoint so it can no longer fire |
@@ -131,6 +149,10 @@ run, a build, an eval — without polling it. The external program reports back
 with the `cortex-signal` CLI, a loopback `POST /webhook/signal`, or a file
 dropped in a spool directory, and the session is woken with the result. See
 [waitpoints.md](./waitpoints.md).
+
+Schedules are not MCP tools: agents manage them with the `cortex schedule` CLI
+through the `schedule` skill, resolving the project with `cortex_context` and
+passing it with `--project` (see [Scheduling](./scheduling.md)).
 
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
 Individual tools are in `agent-server/src/domain/mcp/tools/`.
@@ -158,11 +180,10 @@ originates from Feishu. It exposes a single tool — sending files to a chat.
 
 Document, table, spreadsheet, and knowledge-base operations are **not** MCP
 tools. They run through the official Lark/Feishu CLI (`@larksuite/cli`), driven
-by the `feishu-doc` skill. The CLI handles native tables and block-level edits
-reliably (the previous `feishu_docx_*` MCP tools degraded tables into text
-blocks and were removed). See the `feishu-doc` skill for the install/auth
-preflight and how to delegate to the CLI's embedded `lark-doc` / `lark-sheets`
-/ `lark-base` skill guides.
+by the `feishu-doc` skill of the built-in `cortex-feishu` plugin, which handles
+native tables and block-level edits. See the `feishu-doc` skill for the
+install/auth preflight and how to delegate to the CLI's embedded `lark-doc` /
+`lark-sheets` / `lark-base` skill guides.
 
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
 The tool is in `agent-server/src/domain/mcp/feishu/file.ts`.
@@ -176,9 +197,9 @@ or Feishu-originated session never sees these tools.
 | Tool | Parameters | Description |
 |---|---|---|
 | `send_file` | `file_path` or `files[]` (`{file_path, file_name?}`), `file_name?`, `caption?`, `device?` | Send one file, or several as one grouped message with a single caption, into the chat as downloadable cards (images and video preview inline); with `device`, the files are read on that remote device |
-| `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?`, `width?` | Render an HTML view inline in the chat as a live, interactive card |
+| `send_view` | `title`, `html` or `file_path`, `caption?`, `height?` (160–900, default 360), `width?` (`narrow`, `wide`, `full`) | Render an HTML view inline in the chat as a live, interactive card |
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
-| `board_open` | `title` or `board` | Create a board, or attach to an existing one by id or slug, and bind the session to it |
+| `board_open` | `title` or `board` (exactly one) | Create a board, or attach to an existing one by id or slug, and bind the session to it |
 
 `send_file`, `send_view` and `send_decision` proxy their payload to the daemon over the loopback webhook rather
 than returning it as tool output: the normalized event stream carries tool
@@ -231,15 +252,15 @@ The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts`,
 
 Direct Claude TUI sessions, user-initiated direct Claude print sessions, and
 user-initiated direct PI sessions select this interaction bundle in their
-single Cortex MCP server. All three modes share the registrations and
-handlers in `agent-server/src/domain/mcp/tools/interaction-plan.ts` and
-`agent-server/src/domain/mcp/tools/interaction-ask.ts`.
+single Cortex MCP server. Where it is loaded, Claude's native
+`AskUserQuestion`, `EnterPlanMode` and `ExitPlanMode` are removed, so every
+question and plan goes through these tools.
 
-| Tool | Description |
-|---|---|
-| `cortex_plan_enter` | Enters the shared read-only planning protocol |
-| `cortex_plan_exit` | Reads `plan_file_path`, submits the plan for human approval, and blocks until resolved |
-| `cortex_ask_user` | Asks one or more free-text or multiple-choice questions through the session platform, waiting for the answers or continuing without them |
+| Tool | Parameters | Description |
+|---|---|---|
+| `cortex_plan_enter` | `reasoning?` | Enters the shared read-only planning protocol: investigate, write the plan under `plan/`, implement only after approval |
+| `cortex_plan_exit` | `plan_file_path`, `summary?` | Reads the plan file, submits it for human approval, and blocks until resolved |
+| `cortex_ask_user` | `questions[]` (each `question`, `header?`, `options?[]` of `{label, description?}`, `multiSelect?`), `level?` (`info`, `warning`, `error`; `warn` is an alias), `blocking?` | Asks one or more free-text or multiple-choice questions through the session platform, waiting for the answers or continuing without them |
 
 `cortex_ask_user` posts its question card the same way in either mode; the
 `blocking` parameter decides how the answer comes back. Blocking is the default:
@@ -253,29 +274,33 @@ same TTL and simply never produces a message. In the workbench, only a blocking
 question marks a session as awaiting user action; a session that asked without
 blocking keeps rendering as running.
 
+How the cards look on each platform, and how plan approval and questions route
+in team mode, is described in
+[safety-and-approvals.md](./safety-and-approvals.md#plan-approval-and-questions).
 The plan and question handlers are in
 `agent-server/src/domain/mcp/tools/interaction-plan.ts` and
 `agent-server/src/domain/mcp/tools/interaction-ask.ts`.
 
 ## MCP configuration files
 
-Cortex auto-generates MCP config files at startup (via
+Cortex generates the Claude MCP config files at startup (via
 `agent-server/src/core/config-generator.ts` and the `ensureMcpConfig()` call
-in `agent-server/src/entry/startup-helpers.ts`). Platform-specific servers
-(cortex-slack, cortex-feishu, cortex-web) are dynamically loaded based on the
-session's origin platform.
+in `agent-server/src/entry/startup-helpers.ts`). A sealed home
+(`CORTEX_CONFIG_IMMUTABLE=1`) keeps the files it was given.
 
-| File | Purpose | Default logical bundles |
-|---|---|---|
-| `~/.cortex/config/mcp-config.json` | Direct-session Cortex process | core + ext |
-| `~/.cortex/config/mcp-config-core.json` | Explicit restricted composition | core |
-| `~/.cortex/config/mcp-config-empty.json` | The `none` composition: no MCP servers | — |
-| `~/.cortex/config/mcp-config-interaction.json` | Explicit interaction composition | interaction |
-| `~/.cortex/config/mcp-config-slack.json` | Explicit Slack composition | Slack |
-| `~/.cortex/config/mcp-config-feishu.json` | Explicit Feishu composition | Feishu |
-| `~/.cortex/config/mcp-config-web.json` | Explicit Web composition | Web |
+| File | Purpose | Server key | Logical bundles |
+|---|---|---|---|
+| `$CORTEX_HOME/config/mcp-config.json` | The `direct` composition every ordinary Claude session uses | `cortex-core` | core + ext |
+| `$CORTEX_HOME/config/mcp-config-empty.json` | The `none` composition: no MCP servers | — | — |
+| `$CORTEX_HOME/config/mcp-config-core.json` | Explicit restricted composition | `cortex-core` | core |
+| `$CORTEX_HOME/config/mcp-config-interaction.json` | Explicit interaction composition | `cortex-interaction-bridge` | interaction |
+| `$CORTEX_HOME/config/mcp-config-slack.json` | Explicit Slack composition | `cortex-slack` | Slack |
+| `$CORTEX_HOME/config/mcp-config-feishu.json` | Explicit Feishu composition | `cortex-feishu` | Feishu |
+| `$CORTEX_HOME/config/mcp-config-web.json` | Explicit Web composition | `cortex-web` | Web |
 
-Each file follows Claude Code's standard MCP config format:
+Claude sessions load `mcp-config.json` or `mcp-config-empty.json`; the other
+five serve callers that pass explicit config paths. Each file follows Claude
+Code's standard MCP config format:
 
 ```json
 {
@@ -283,19 +308,23 @@ Each file follows Claude Code's standard MCP config format:
     "cortex-core": {
       "command": "node",
       "args": [
-        "/path/to/bundled-server.js",
+        "<install>/agent-server/dist/domain/mcp/bundled-server.js",
         "[\"cortex-core\",\"cortex-ext\"]"
       ],
-      "cwd": "/path/to/cwd"
+      "cwd": "<install>/agent-server"
     }
   }
 }
 ```
 
-The config files are regenerated on every agent-server startup. Manual edits
-to them will be overwritten. To customize MCP configuration, modify the
-generator in `core/config-generator.ts` or the profile/budget/schedule settings
-that the tools read.
+The config files are rewritten on every agent-server startup, so manual edits
+to them do not persist. To customize MCP configuration, use a plugin (see
+[Plugin-provided MCP servers](#plugin-provided-mcp-servers)).
+
+A spawn that runs under a tool allowlist — a subagent, or an agent role that
+declares one — gets a merged config written to
+`$CORTEX_HOME/config/mcp-tool-gates/mcp-composition-<digest>.json`, carrying
+the allowlist to the bundled server.
 
 ### How the right config gets selected
 
@@ -304,13 +333,18 @@ loads `mcp-config.json`, and one on `none` loads `mcp-config-empty.json` with
 `--strict-mcp-config`. The Claude adapter writes the final logical selection
 to `CORTEX_MCP_BUNDLES` for the stdio child it spawns: core and ext, plus the
 interaction bundle for user-initiated sessions, the workers bundle for a team
-lead, and one eligible platform bundle when the session context permits them.
-Supplemental portable MCP and browser MCP remain separate config entries.
+lead, the worker-report bundle for a worker, and the platform bundle matching
+the session's channel (`slack:`, `feishu:` or `web:`). The plugin MCP
+configuration and, for a browser-enabled direct session, the browser MCP
+config are added as separate config files.
 
 PI's bridge computes the same logical selection from the session's own
 environment and hands it directly to the in-process bundled server, alongside
-one independent state per plugin server. Subagents select only cortex-core.
-Tool allowlists are validated against the selected logical union before the
+one independent connection per plugin server; on PI the interaction, workers
+and worker-report bundles require the `direct` composition. Subagents run
+under an allowlist: Claude subagents receive core (without `agent` and
+`agent_stop`) and ext, and PI subagents receive core alone, with no plugin
+servers. Allowlists are validated against the selected bundles before the
 bundled server registers tools.
 
 ## How MCP tools communicate with agent-server
@@ -318,19 +352,23 @@ bundled server registers tools.
 User-provided stdio MCP entries are separate child processes under both
 backends, and Claude Code sessions run the Cortex-owned MCP server as a child
 too. Cortex MCP tools never reach agent-server in-process state (WebSocket
-connections, the schedule repo, or the execution registry) directly, wherever
-their server runs. They communicate through two paths:
+connections, running sessions, waitpoints) directly, wherever their server
+runs. They communicate through two paths:
 
-1. **HTTP loopback** — remote machine tools (`remote_bash`, `remote_read`,
-   etc.) send HTTP POST to `http://127.0.0.1:3001/webhook/remote-command`.
-   The webhook handler in `agent-server/src/orchestration/routing/webhook.ts`
-   forwards the request to `client-manager.sendCommand()`, which sends it over
-   WebSocket to the remote device.
+1. **Loopback webhook** — most tools POST to the server's webhook at
+   `http://127.0.0.1:<WEBHOOK_PORT>` (default 3001), authenticated with the
+   `CORTEX_WEBHOOK_TOKEN` bearer token in the `x-cortex-token` header. Remote
+   machine tools use `/webhook/remote-command`, whose handler in
+   `agent-server/src/orchestration/routing/webhook.ts` forwards the request to
+   `client-manager.sendCommand()` and on over WebSocket to the device. The
+   subagent, team, board, waitpoint, Web delivery (`ui-file`, `ui-view`,
+   `ui-decision`) and interaction (`/hook/ask-user-question`,
+   `/hook/exit-plan-mode`) tools each have their own route.
 
-2. **Shared file access** — schedule, cost, and execution tools read and write
-   the shared data files in `~/.cortex/data/` (schedules.json, costs.jsonl,
-   executions.json) directly, using the same repository layer as the main
-   server process.
+2. **Store reads** — `cost_query` reads cost records (`data/costs.jsonl`)
+   through the same repository layer as the main server, and
+   `query_executions` reads the execution registry (`data/executions.json`).
+   Neither writes.
 
 MCP calls and loopback HTTP requests share a 30-minute-30-second infrastructure
 deadline. Tool-specific business deadlines remain authoritative: shell commands
@@ -342,17 +380,17 @@ its result before an outer transport deadline closes the request.
 
 Environment-scoped third-party MCP belongs in a portable Agent Plugins package under `$CORTEX_HOME/plugins/<plugin-id>/`. The package declares servers in root `mcp.json`, and the Plugins tab of an execution environment (**Settings → Environments**) assigns the package to it. The schema supports `stdio`, `streamable-http`, and legacy `sse`; [Skills and Plugins](./skills-and-plugins.md#portable-mcp-servers) documents the complete package and trust model.
 
-A legacy plugin directory is still passed through to its backend. Claude can load a Claude-native root `.mcp.json` from such a directory, but Cortex does not inventory, summarize, or acknowledgment-gate those native servers, and PI does not receive them. The guarantees in this section apply to portable root `mcp.json` only (`agent-server/src/domain/plugins/runtime.ts:546-562`; `agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`).
+A legacy plugin directory is passed through to its backend as it is. Claude can load a Claude-native root `.mcp.json` from such a directory, but Cortex does not inventory, summarize, or acknowledgment-gate those native servers, and PI does not receive them. The guarantees in this section apply to portable root `mcp.json` only (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/claude/spawn-args.ts`).
 
-Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives the normalized server list with its session request, and its bridge opens each entry's own transport — a stdio child for a stdio entry, a direct HTTP or SSE connection for a remote one. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated by process. Materialization follows declared dependencies: unavailable plugin-scoped `PLUGIN_DATA` omits its stdio dependents while preserving remote MCP, skills, and bundled tools (`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`; `agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`).
+Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives the normalized server list with its session request, and its bridge opens each entry's own transport — a stdio child for a stdio entry, a direct HTTP or SSE connection for a remote one. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated per server. Materialization follows declared dependencies: unavailable plugin-scoped `PLUGIN_DATA` omits its stdio dependents while preserving remote MCP, skills, and bundled tools (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/claude/mcp-config.ts`; `agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`).
 
-Portable MCP is omitted when the resolved MCP composition is `none`, and it is not exposed to restricted subagents. Normal top-level Claude and PI sessions receive it only through an assigned plugin (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/pi/adapter.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`).
+Portable MCP is omitted when the resolved MCP composition is `none`, and subagents load no plugins at all. Top-level Claude and PI sessions receive it only through an assigned plugin (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/pi/adapter.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`).
 
-The plugin catalog and Settings API expose sanitized summaries. Stdio summaries contain the executable basename, argument count, and environment key names; remote summaries contain the origin and header names. Environment values, full remote URLs, and header values remain server-side (`agent-server/src/domain/plugins/mcp.ts:102-216`; `agent-server/src/domain/ui-service/plugins-shared.ts:98-134`). Installed stdio commands and their working directories remain administrator-trusted package inputs; the private config and per-server isolation are not a code sandbox.
+The plugin catalog and Settings API expose sanitized summaries. Stdio summaries contain the executable basename, argument count, and environment key names; remote summaries contain the origin and header names. Environment values, full remote URLs, and header values remain server-side (`agent-server/src/domain/plugins/mcp.ts`; `agent-server/src/domain/ui-service/plugins-shared.ts`). Installed stdio commands and their working directories remain administrator-trusted package inputs; the private config and per-server isolation are not a code sandbox.
 
 ## Global custom MCP servers
 
-The files under `$CORTEX_HOME/config/mcp-config*.json` describe Cortex's global and session-composed MCP layers. They are regenerated at server startup, so direct edits are temporary. A persistent global server requires an explicit builder and privilege-composition change in `agent-server/src/core/config-generator.ts`; it does not belong in an assignment-scoped plugin.
+The files under `$CORTEX_HOME/config/mcp-config*.json` describe Cortex's global and session-composed MCP layers. They are rewritten at server startup, so direct edits are temporary. A persistent global server requires an explicit builder and privilege-composition change in `agent-server/src/core/config-generator.ts`; it does not belong in an assignment-scoped plugin.
 
 This distinction keeps global Cortex privileges separate from administrator-installed plugin capabilities. Use a portable plugin when the server should follow environment assignment, and change the global builders only when every eligible session composition should receive the server.
 
@@ -369,55 +407,62 @@ controls:
    only the logical surfaces selected for that session, and an optional
    canonical tool allowlist filters them further. Top-level sessions receive
    core and ext tools, user-initiated sessions add the interaction tools, a
-   team lead adds the worker tools, and subagents receive core tools alone.
+   team lead adds the worker tools, a worker adds `mark_routine`, and the
+   session's platform adds its delivery tools. Subagents receive no delegation
+   tools.
 
-2. **Claude account-level MCP discovery is disabled** — the setting
-   `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
-   prevents account-level auto-discovery. It does not disable Claude-native
-   `.mcp.json` inside an explicitly assigned legacy plugin directory. Cortex
-   manages bundled and portable MCP through its config layers while preserving
-   that legacy backend behavior.
+2. **A separate Claude configuration** — every Claude process Cortex starts
+   runs with `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude`, so MCP servers and
+   plugins configured for your terminal's Claude Code (`~/.claude`) are not
+   part of a Cortex session. An execution environment's `settingSources` can
+   narrow which settings files Claude reads further. Claude-native `.mcp.json`
+   inside an explicitly assigned legacy plugin directory is still loaded by
+   Claude.
 
 3. **Bypass permissions** — Claude Code is spawned with
    `--dangerously-skip-permissions --permission-mode bypassPermissions`,
    meaning it won't prompt for each MCP tool call. Access control happens at
-   the MCP tool implementation level and through the PreToolUse hook system.
+   the MCP tool implementation level, through `agent:pre-tool` hooks, and
+   through the server's webhook token.
 
 4. **Network boundary** — MCP tools that talk to remote machines go through
-   the client-manager's WebSocket layer. The `machines.json` registry
-   controls which devices are known. Only devices with an active WebSocket
+   the client-manager's WebSocket layer. Only devices registered in
+   `machines.json` can connect, and only devices with an active WebSocket
    connection can receive commands.
 
 ## Environment variables passed to MCP servers
 
-The MCP server processes receive a subset of the agent server's environment:
+The bundled Cortex server builds its per-session context from these variables.
+Under Claude they are set in the environment of the stdio child; under PI the
+same values are passed to the in-process server directly.
 
 | Variable | Source | Used by |
 |---|---|---|
-| `SLACK_CHANNEL` | Channel parameter at spawn time | cortex-ext (slack_send_file), interaction-server |
-| `SLACK_BOT_TOKEN` | process.env | cortex-ext |
-| `CORTEX_SESSION_ID` | Session context | interaction-server, context tools |
-| `CORTEX_PROFILE` | Session context | context tools |
-| `CORTEX_PROJECT` | Session context | context tools |
-| `CORTEX_EXECUTION_ID` | Execution context | Hook scripts |
-| `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
-| `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
-| `CORTEX_SCHEDULE_TASK_ID` | Optional schedule ID | cortex-ext |
-| `ANTHROPIC_BASE_URL` | Optional API base URL override | Model routing |
+| `SLACK_CHANNEL`, `FEISHU_CHANNEL` | The session's channel | Platform-bundle selection, interaction tools, file delivery, subagent and team routing |
+| `SLACK_BOT_TOKEN` | Server environment | cortex-slack (`slack_send_file`) |
+| `CORTEX_SESSION_ID` | Session context | Interaction tools, `cortex_context`, waitpoints, Web delivery |
+| `CORTEX_PROFILE`, `CORTEX_PROJECT`, `CORTEX_BACKEND` | Session context | `cortex_context` |
+| `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | Set for scheduled or callback-triggered runs | `cortex_context` |
+| `CORTEX_WEBHOOK_TOKEN`, `WEBHOOK_PORT` | Server environment | Every tool that calls the loopback webhook |
+| `CORTEX_MCP_BUNDLES` | Backend process composition | Bundle selection in the bundled server |
+| `CORTEX_MCP_TOOL_ALLOWLIST` | Agent role or subagent spawn | Tool registration filter |
+| `CORTEX_CLAUDE_MODEL`, `CORTEX_SUBAGENT_PI_MODELS`, `CORTEX_SUBAGENT_CLAUDE_MODELS` | Session model and model catalog | The `agent` and `worker_spawn` model descriptions |
 | `PLUGIN_ROOT` | Resolved selected plugin root | Portable stdio plugin servers |
 | `PLUGIN_DATA` | Private persistent per-plugin data directory | Portable stdio plugin servers |
 
 ## Security considerations
 
 MCP tools give the agent the ability to execute shell commands on remote
-machines, read and write files, upload to Slack, and modify schedules. The
-security posture assumes:
+machines, read and write files, delegate to subagents and workers, and post to
+the chat platforms. The security posture assumes:
 
-- The `cortex-client` WebSocket port (3002) is not exposed to the public
-  internet. Use Tailscale, a VPN, or localhost-only binding (see
+- The `cortex-client` WebSocket port (3002) requires `CORTEX_CLIENT_TOKEN` on
+  every connection, and is still best kept off the public internet: use
+  Tailscale, a VPN, a tunnel, or localhost-only binding (see
   [cross-machine.md](./cross-machine.md) for network topology options).
-- The webhook HTTP port (3001) is bound to `127.0.0.1` only — MCP servers
-  talk to it via loopback, not over the network.
+- The webhook HTTP port (3001) is bound to `127.0.0.1` only and requires
+  `CORTEX_WEBHOOK_TOKEN` — MCP servers talk to it via loopback, not over the
+  network.
 - The agent operates within the same blast-radius safety boundaries documented
   in [safety-and-approvals.md](./safety-and-approvals.md). MCP tools do not
   exempt a high-privilege operation from that boundary.

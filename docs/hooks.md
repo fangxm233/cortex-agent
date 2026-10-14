@@ -44,17 +44,21 @@ for the same event — the built-in declarations carry numeric prefixes (`05-…
 
 A file in `$CORTEX_HOME/config/hooks/` with the same name as a built-in
 declaration overrides it rather than adding a hook. It is merged over the
-built-in declaration field by field, so it only needs the fields it changes —
-`{ "enabled": false }` switches a built-in hook off — and the built-in `id` is
-kept. Deleting the file restores the built-in declaration. A sealed home
+built-in declaration one top-level field at a time, so it only needs the
+fields it changes — `{ "enabled": false }` switches a built-in hook off — and
+the built-in `id` is kept. A field the override sets replaces the built-in
+field whole: an override of `run` must restate the complete `run` object,
+`script` included. Deleting the file restores the built-in declaration. A sealed home
 (`CORTEX_CONFIG_IMMUTABLE=1`, as in a benchmark trial) mounts only its own
 declarations.
 
 Loading is fail-soft and loud. A file that isn't valid JSON, fails schema
 validation, or reuses an `id` already claimed by an earlier file is skipped with
 `[hook-registry] skipped <file>: <reason>` on stderr; the rest of the registry
-still mounts. At startup the server logs how much mounted, in the form
-`Startup: mounted 12 hooks (1 cc / 2 cortex)`. The Web UI settings panel reads
+still mounts. An override that cannot be parsed is reported the same way, and
+the built-in declaration it was meant to change mounts unchanged. At startup
+the server logs how many enabled hooks mounted, in the form
+`Startup: mounted 7 hooks (0 cc / 1 cortex)`. The Web UI settings panel reads
 the same list.
 
 The desktop **Settings → Hooks** panel is a full view of that registry rather
@@ -68,7 +72,9 @@ writes the minimal override to `$CORTEX_HOME/config/hooks/`, and flipping it bac
 removes that override again. The `result` choice is constrained to the modes the
 event can actually carry, and an entry created from the UI is always a user
 entry. Each entry can also be run against an editable sample payload, with
-the exit code, stdout and stderr shown inline.
+the exit code, stdout and stderr shown inline; a test run from the panel stops
+after 15 seconds whatever the declared timeout. Filter chips and a search box
+narrow the list.
 
 On mobile the same registry is read-only: the hooks screen shows the grouped
 inventory and the full declaration behind each row, but no editing, creation or
@@ -93,12 +99,18 @@ test run. Change hooks from a desktop session.
 | `matcher` | string or object | Regex for `agent:*` / `cc:*` / `pi:*` events; equality filter object for `cortex:*` events. Omit to match everything |
 | `run.script` | string | Script filename, looked up in `$CORTEX_HOME/hooks/` and then in the built-in scripts. Absolute paths and `..` segments are rejected |
 | `run.command` | string | A raw shell command instead of a script. Exactly one of `script` or `command` must be present |
-| `run.timeout` | number | Timeout in **seconds**. Defaults to 30 |
+| `run.timeout` | number | Timeout in **seconds**, a positive number. Defaults to 30 on PI and the server; on Claude an absent timeout leaves Claude Code's own default |
 | `scope.backends` | array | Narrows which of `claude` / `pi` an `agent:*` hook compiles to |
-| `scope.requiresTool` | string | Mounts the hook only when the agent's tool list contains that tool |
-| `blocking` | object | `{ "mode": "webhook", "ttlMin": <positive number> }`, validated by the loader for hooks that block on a webhook round trip |
-| `result` | string | `stdout-as-prompt` or `none`. Governs how a `cortex:*` hook's stdout is interpreted |
+| `scope.requiresTool` | string | On Claude, mounts the hook only when the agent's tool list contains that tool |
+| `blocking` | object | `{ "mode": "webhook", "ttlMin": <positive number> }`. Descriptive metadata for a hook that blocks on a webhook round trip: the loader validates it and the settings panel shows it, but nothing enforces it at runtime |
+| `result` | string | How a `cortex:*` hook's stdout is used: `stdout-as-prompt` (accepted only on `cortex:session.new` and `cortex:session.messageEnd`) or `none`. The loader rejects a mode the event cannot carry |
+| `version` | string | Optional CalVer version of the declaration, shown read-only in the settings panel |
 | `enabled` | boolean | `false` removes the hook from every consumer without deleting the file. Defaults to `true` |
+
+The loader also rejects a `matcher` regular expression that does not compile,
+an object matcher whose values are not plain strings, numbers or booleans, and
+an `event` that is neither one of the seven `agent:*` names nor a `cc:`,
+`pi:` or `cortex:` prefix followed by a name.
 
 ### Built-in and user entries
 
@@ -146,7 +158,8 @@ never fires as things stand.
 Everything after `pi:` is registered directly as a PI extension event, so
 PI-only mount points such as `pi:session_start` or `pi:before_provider_headers`
 are reachable the same way. These mount on the PI backend only, and the script
-receives the raw PI event object rather than a Claude-shaped payload.
+receives the raw PI event object, with `hook_event_name`, `session_id` and
+`cwd` added, rather than a Claude-shaped payload.
 
 ### `cortex:*` — server-side events
 
@@ -161,6 +174,11 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 | `cortex:client.disconnected` | A remote device client drops | `device`, `reason` when known |
 | `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `backendSessionId`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
+
+In `cortex:schedule.fired`, `name` carries the schedule's message and
+`project` its `projectId`. The event fires once the schedule's `preCheck` has
+passed, before Cortex checks whether the run can start, so it also fires for a
+run that is then skipped.
 
 ### Matchers
 
@@ -201,10 +219,13 @@ matcher group:
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
         { "type": "command", "command": "node <install>/defaults/hooks/status-md-guard.mjs", "timeout": 10 }
-    ]},
-    { "matcher": "Read|Grep", "hooks": [ ... ] }
+    ]}
   ],
-  "PostToolUse": [ ... ],
+  "PostToolUse": [
+    { "matcher": "Read|Grep", "hooks": [ ... ] },
+    { "matcher": "Read|Edit|Write|Skill", "hooks": [ ... ] },
+    { "matcher": "Read|Edit", "hooks": [ ... ] }
+  ],
   "SessionStart": [ ... ]
 }
 ```
@@ -214,17 +235,24 @@ the next agent that starts.
 
 ### PI
 
-`agent-adapter/pi/hook-bridge.ts` runs as a PI extension. On load it takes the
-registry entries that mount on the `pi` backend and calls `pi.on()` once per
-entry, with the native event name from the `agent:*` mapping table above or the
-literal suffix of a `pi:*` event.
+`agent-adapter/pi/hook-bridge.ts` runs as the `cortex-hook-bridge` PI
+extension, inside the server process. On load it takes the registry entries
+that mount on the `pi` backend and calls `pi.on()` once per entry, with the
+native event name from the `agent:*` mapping table above or the literal suffix
+of a `pi:*` event. `scope.requiresTool` is not applied on PI.
 
 For `agent:*` entries the bridge normalizes PI's shapes into the Claude form the
 hook scripts expect: the tool name is mapped to PascalCase (`edit` → `Edit`,
 `web_fetch` → `WebFetch`), and `input.path` is copied to `input.file_path` for
 the `read` / `write` / `edit` tools. The payload carries `hook_event_name` (the
-Claude name), `session_id`, `tool_name`, `tool_input`, `tool_use_id`, and `cwd`;
-tool-result events add `tool_output`, `tool_response`, and `is_error`.
+Claude name — `SessionEnd`, `PreCompact`, `UserPromptSubmit` and `Stop` for the
+four PI-only events), `session_id`, `tool_name`, `tool_input`, `tool_use_id`,
+and `cwd`; tool-result events add `tool_output`, `tool_response`, and
+`is_error`. Hook processes get `CORTEX_SESSION_ID` in their environment.
+
+A `run.script` that exports a `runHook(payload, env)` function is imported and
+called in-process instead of being spawned as a child; its return value is
+treated like the JSON a spawned script prints.
 
 Script output is honored natively. On `tool_call`, a
 `hookSpecificOutput.permissionDecision` of `deny` blocks the tool and surfaces
@@ -244,10 +272,9 @@ effect the next time the server starts.
 When an event is emitted, the bus selects the enabled entries whose `event`
 matches exactly and whose object matcher is satisfied by the payload, then runs
 them one at a time. Each hook runs as `sh -c '<command> "$@"' hook <args>` with
-the working directory set to `$CORTEX_HOME`, the payload delivered as JSON on
-stdin, and stderr captured into the daemon log. `run.timeout` seconds is the
-process limit — 30 by default, and session events use 60 unless the declaration
-says otherwise.
+the working directory set to `$CORTEX_HOME` and the payload delivered as JSON on
+stdin. `run.timeout` seconds is the process limit — 30 by default, and session
+events use 60 unless the declaration says otherwise.
 
 What the bus does with stdout depends on `result`:
 
@@ -255,13 +282,16 @@ What the bus does with stdout depends on `result`:
   this to inject a turn.
 - `none`, or omitted — output is discarded; the hook is fire-and-forget.
 
-A hook that times out, exits non-zero, or writes unparseable output is logged
-and skipped. It never fails the surrounding operation.
+A hook that times out or exits non-zero is logged to the daemon log with the
+tail of its stderr, and skipped; session-event hooks also log their stderr when
+they succeed. A hook never fails the surrounding operation.
 
 ## Session events and prompt injection
 
 `cortex:session.new` fires before a session is torn down by `!new` or the "New"
-status button, and `cortex:session.messageEnd` fires after each assistant turn.
+status button, when a hook is declared for it and the channel has an active
+session. `cortex:session.messageEnd` fires after each assistant turn of a
+session that has a live stream.
 Both are declared like any other hook; the built-in `session-new-hook`
 declaration points at `new-session-hook.mjs` with `result` set to
 `stdout-as-prompt`.
@@ -288,22 +318,26 @@ its hook output is shown but not injected.
 
 Two interactions need a human in the loop, which the agent process cannot do on
 its own: asking the user a question, and getting a plan approved. Both POST to
-the server's webhook listener (`WEBHOOK_PORT`, default 3001) on
-`/hook/ask-user-question` and `/hook/exit-plan-mode`, and block on the response.
+the server's loopback webhook listener (`WEBHOOK_PORT`, default 3001) on
+`/hook/ask-user-question` and `/hook/exit-plan-mode`, authenticated with the
+`CORTEX_WEBHOOK_TOKEN` bearer token in the `x-cortex-token` header, and block on
+the response. A question posted with `blocking: false` returns as soon as the
+card is up.
 
 Agents reach that bridge through the `cortex_ask_user` and `cortex_plan_exit`
 MCP tools, and hook scripts reach it through `cortex-hook-api.mjs` / the
 `cortex-hook ask` CLI (see [Asking the user from a hook](#asking-the-user-from-a-hook)).
-The PreToolUse hooks that used to intercept the native `AskUserQuestion` and
-`ExitPlanMode` tools are retired: headless `-p` removes those tools from the
-session whatever `--tools` lists, so the matchers could never fire.
+Claude's native `AskUserQuestion` and `ExitPlanMode` are not part of a Cortex
+session that has the interaction tools, so no hook needs to intercept them.
 
 On the server, `orchestration/routing/hook-bridge.ts` registers a pending
 promise with a 30-minute TTL and publishes `ask-user.requested` or
 `plan.submitted` on the event bus. The subscribers in
-`hook-bridge-subscribers.ts` turn those into interactive Slack messages. When
-the user clicks a button or submits the modal, the interaction handler resolves
-the promise and the HTTP response returns to the waiting caller.
+`hook-bridge-subscribers.ts` present them on the session's platform — an inline
+card on the Web UI, interactive messages on Slack and Feishu (see
+[safety-and-approvals.md](./safety-and-approvals.md#where-the-cards-appear)).
+When the user responds, the interaction handler resolves the promise and the
+HTTP response returns to the waiting caller.
 
 ## Hook scripts
 
@@ -321,8 +355,8 @@ scripts are:
 
 | Script | Used by | Purpose |
 |---|---|---|
-| `status-md-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Keeps a project's `STATUS.md` and `ISSUES.md` and the memory tree's `AGENTS.md` indexes within their size caps: warns as an edit nears the cap and denies one that would exceed it |
-| `memory-ref-tracker.mjs` | `agent:post-tool`, `Read\|Grep` | Records memory-file accesses to `_meta/access-log.jsonl` |
+| `status-md-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Keeps a project's `STATUS.md` and `ISSUES.md` and the memory tree's `AGENTS.md` indexes within their size caps (see below) |
+| `memory-ref-tracker.mjs` | `agent:post-tool`, `Read\|Grep` | Records experiment, knowledge and pattern accesses to `_meta/access-log.jsonl` (see [Reference tracking](#reference-tracking)) |
 | `rules-loader.mjs` | `agent:post-tool`, `Read\|Grep` | Injects path-scoped [rules](./configuration.md#built-in-assets-and-your-overrides) — the built-in ones and those in `$CORTEX_HOME/rules/` — when a matching path is read, once per session per rule |
 | `session-activity-tracker.mjs` | `agent:post-tool`, `Read\|Edit\|Write\|Skill` | Appends activity records to `logs/session-activity/<session_id>.jsonl` |
 | `agents-md-injector.mjs` | `agent:post-tool` (`Read\|Edit`) and `agent:session-start` | Injects the AGENTS.md ancestor chain into agent context, deduplicated per session |
@@ -330,12 +364,26 @@ scripts are:
 
 A declaration may run an inline `run.command` instead of a script.
 
-`cortex-hook-api.mjs` among the built-in scripts is not a hook entry — it is a helper
-library that hook scripts import (see below). `cortex-context-lib.mjs` is not one
-either: it holds the AGENTS.md dedup cache, the inline size budget and the rules
-`paths:` parser shared by `agents-md-injector.mjs`, `rules-loader.mjs` and the
-server, so the hooks and the MCP-side injection of remote AGENTS.md files read
-and write the same per-session cache.
+The size caps `status-md-guard` enforces:
+
+| File | Warns at | Denied above |
+|---|---|---|
+| `context/projects/<project>/STATUS.md`, `ISSUES.md` | 60 lines or 4 KB | 80 lines or 6 KB |
+| Any `AGENTS.md` under `context/` | 90 lines or 6.5 KB | 120 lines or 8 KB |
+
+An edit that crosses either limit is denied with advice on what to trim. An
+edit that shrinks a file already over its cap is allowed with a warning, so an
+oversized file can be cut down step by step.
+
+Several files among the built-in scripts are not hook entries.
+`cortex-hook-api.mjs` is a helper library that hook scripts import (see below).
+`cortex-context-lib.mjs` holds the AGENTS.md dedup cache, the inline size budget
+and the rules `paths:` parser shared by `agents-md-injector.mjs`,
+`rules-loader.mjs` and the server, so the hooks and the MCP-side injection of
+remote AGENTS.md files read and write the same per-session cache.
+`git-support.mjs` is the Git helper `memory-ref-tracker.mjs` uses, and
+`overlay/` holds the `--import` loader that lets a script in
+`$CORTEX_HOME/hooks/` import the built-in helpers.
 
 ## Asking the user from a hook
 
@@ -348,7 +396,11 @@ and an icon prefix on Slack and Feishu. Without a level the card keeps its
 neutral look.
 
 Node hook scripts import the helper by its relative path, which a script in
-`$CORTEX_HOME/hooks/` can use too (see [Hook scripts](#hook-scripts)):
+`$CORTEX_HOME/hooks/` can use too (see [Hook scripts](#hook-scripts)).
+`askUser` takes `questions`, `level`, `channel`, `sessionId`, `dryRun`, and a
+client-side `timeoutMs` (60 minutes by default), and resolves to
+`{ answers, error? }`; `error` is `timeout`, `post_failed` or
+`bus_not_initialized`.
 
 ```js
 import { askUser } from './cortex-hook-api.mjs';
@@ -372,8 +424,9 @@ cortex-hook ask --question "Disk is almost full — clean old checkpoints?" \
 # → { "ok": true, "answers": { "Disk is almost full — clean old checkpoints?": "Clean" } }
 ```
 
-Both entry points POST to the server's `/hook/ask-user-question` webhook, so
-they share one routing and blocking contract:
+Both entry points POST to the server's `/hook/ask-user-question` webhook with
+the `CORTEX_WEBHOOK_TOKEN` that hooks run by Cortex inherit, so they share one
+routing and blocking contract:
 
 - **Routing.** An explicit `channel` wins. Otherwise the helper and the CLI fall
   back to the hook environment: `CORTEX_HOOK_CHANNEL` (session hooks), then
@@ -386,8 +439,9 @@ they share one routing and blocking contract:
   30-minute TTL. The response is `{ answers }`, or `{ error: "timeout",
   answers: {} }` when the TTL expires. `cortex-hook ask` exits `0` on answers,
   `2` on timeout, and `1` on other errors, so a shell hook can branch on `$?`.
-  A hook that asks must set its `run.timeout` above the expected wait and
-  declare `blocking: { "mode": "webhook", "ttlMin": 30 }`.
+  A hook that asks must set its `run.timeout` above the expected wait, and
+  should declare `blocking: { "mode": "webhook", "ttlMin": 30 }` so the
+  settings panel shows that it blocks.
 - **Multiple questions.** `askUser` takes any non-empty question array;
   `cortex-hook ask --payload <file|->` accepts the same array as JSON, e.g.
   `cat questions.json | cortex-hook ask --payload - --session-id <id>`. Cortex
@@ -402,16 +456,17 @@ Agents themselves get the same severity option through the
 ## The cortex-hook CLI
 
 `cortex-hook` inspects and operates the mounted hooks. Every command prints
-JSON.
+JSON on stdout; `--help` prints text, and an error is reported on stderr with
+exit code `1`.
 
 | Command | Flags | What it does |
 |---|---|---|
-| `cortex-hook list` | — | Lists every mounted hook as `id`, `event`, `enabled`, `source` (`builtin` or `user`) |
+| `cortex-hook list` | — | Lists every mounted hook as `id`, `event`, `enabled`, `source` (`builtin` or `user`), and `overridden` for a built-in hook with an override file |
 | `cortex-hook show` | `--id <id>` | Prints one complete declaration, including `source` |
 | `cortex-hook enable` | `--id <id>`, `--dry-run` | Sets `enabled: true`, idempotently: in the declaration file for a user hook, in the override file for a built-in one |
 | `cortex-hook disable` | `--id <id>`, `--dry-run` | Sets `enabled: false` the same way |
-| `cortex-hook test` | `--id <id>`, `--payload <file\|->` | Runs the hook once with the payload on stdin |
-| `cortex-hook ask` | `--question`, `--options "a\|b"`, `--level`, `--channel` / `--session-id`, `--payload <file\|->`, `--multi`, `--dry-run` | Posts an ask-user card on the session's platform and blocks for the answer (exit `2` on timeout) |
+| `cortex-hook test` | `--id <id>`, `--payload <file\|->` | Runs the hook once with the payload on stdin, in `$CORTEX_HOME`, with a 30-second default timeout |
+| `cortex-hook ask` | `--question`, `--header`, `--options "a\|b"`, `--level`, `--channel` / `--session-id`, `--payload <file\|->`, `--multi`, `--dry-run` | Posts an ask-user card on the session's platform and blocks for the answer (exit `2` on timeout). `--header` defaults to the first 12 characters of the question |
 
 `--help` / `-h` works on the root command and on each subcommand.
 
@@ -490,27 +545,32 @@ schedules fires.
 
 The `memory-ref-tracker` hook implements automatic reference tracking for the
 atomized memory system (see [memory.md](./memory.md) for the full architecture).
-It records every Read and Grep access to experiment, knowledge, and pattern
-files as one JSONL record of the accessed filename, the tool, and a timestamp:
+It records every Read and Grep that touches an experiment, knowledge, or
+pattern entry — `EXP-NNN.md`, `K-NNN.md` or `PAT-NNN.md` under
+`context/projects/<project>/` — as one JSONL record of the entry's filename,
+the tool, and a timestamp:
 
 ```json
-{"file": "<entry>.md", "tool": "Read", "ts": "2026-05-19T10:30:00.000Z"}
+{"file": "EXP-012.md", "tool": "Read", "ts": "2026-05-19T10:30:00.000Z"}
 ```
 
-The log lives at `<project>/_meta/access-log.jsonl`. Each write attempts a Git
-commit when Git is available and the context directory is in a repository.
-Without Git, access tracking still writes the log. Memory index regeneration reads it to compute access counts
-(`refs`) and last-access timestamps (`last-ref`), which drive index sorting and
-hot/cold classification.
+A Grep inside a project that matches no entry file is recorded as
+`"file": "_directory_search"`. The log lives at
+`<project>/_meta/access-log.jsonl`. When `$CORTEX_HOME` is a Git repository,
+the hook stages every changed `access-log.jsonl` and commits them as
+`chore: update access log`, unless something else is already staged, in which
+case it only stages them. Without Git, access tracking still writes the log.
+Memory index regeneration reads it to compute access counts (`refs`) and
+last-access timestamps (`last-ref`), which drive index sorting and hot/cold
+classification.
 
 ## Debugging hooks
 
 Start with `cortex-hook list` to confirm the hook is mounted and enabled, then
 `cortex-hook test --id <id> --payload <file>` to run it in isolation with a
 payload you control — that separates "the script is broken" from "the
-declaration never matched". Hook execution and failures are logged to
-`$CORTEX_HOME/logs/daemon.log`; anything a script writes to stderr is captured
-there too.
+declaration never matched". Server-side hook failures are logged to
+`$CORTEX_HOME/logs/daemon.log` with the tail of the script's stderr.
 
 - **Hook doesn't appear in `cortex-hook list`** — the loader rejected it. Look
   for `[hook-registry] skipped <file>` in the log: invalid JSON, a schema
@@ -527,7 +587,10 @@ there too.
 - **JSON parse error** — stdout wasn't valid JSON. Make sure nothing but the
   result is written to stdout; diagnostics belong on stderr.
 - **Timeout** — raise `run.timeout` (in seconds). The default is 30 seconds,
-  or 60 for session events.
+  or 60 for session events; on Claude an unset timeout falls back to Claude
+  Code's own default.
+- **`scope.requiresTool` has no effect on PI** — the PI bridge mounts the hook
+  regardless; narrow it with `scope.backends` instead.
 - **Script not found** — `run.script` is looked up in `$CORTEX_HOME/hooks/` and
   then among the built-in scripts; absolute paths and `..` segments are rejected
   by the loader.

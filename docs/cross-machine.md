@@ -8,14 +8,14 @@ deployment, the network topology, and the security model.
 
 ## Why remote clients
 
-The agent-server process (which runs the LLM orchestration, Slack bot, and
-scheduling) may not be on the machine with the GPUs or the project files. A
+The agent-server process (which runs the agent sessions, the chat platforms,
+and scheduling) may not be on the machine with the GPUs or the project files. A
 typical setup:
 
 - `hub` — the agent-server host (GPU training, simulation, the Cortex
   daemon itself)
 - `trainer` — a dedicated training box on the LAN with its own GPU
-- `cluster` — a remote training cluster accessed via an STCP tunnel
+- `cluster` — a remote training cluster reached through a tunnel
 - `desk` — a Windows workstation for Unity, VR, and documentation
 
 Each remote machine runs `cortex-client`, which connects to the agent-server
@@ -37,7 +37,7 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
 │  │ devices Map<name, ws>     │  │
 │  │ - hub (local)             │  │
 │  │ - trainer (remote, SSH)   │  │
-│  │ - cluster (remote, STCP)  │  │
+│  │ - cluster (remote, tunnel)│  │
 │  │ - desk (remote, Win/SSH)  │  │
 │  └───────────────────────────┘  │
 │                                 │
@@ -57,11 +57,13 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
 ```
 
 Each `cortex-client` instance:
-- Connects to the agent-server's WebSocket server (port 3002)
+- Connects to the agent-server's WebSocket server (port 3002), presenting
+  `CORTEX_CLIENT_TOKEN`
 - Registers itself with a device name on connect (`hello` message)
 - Sends a heartbeat every 5 seconds
 - Receives command messages and executes them on the local machine
-- Returns results over the same WebSocket connection
+- Returns results over the same WebSocket connection, and opens separate
+  callback sockets for file transfers and port forwards
 
 ## Installing cortex-client
 
@@ -99,14 +101,19 @@ and selected environment, with the loopback WebSocket URL and token supplied at 
 App-only reopen preserves the running daemon; server startup handles client recovery.
 
 Nothing is installed through npm on a remote device; the only requirement is Node.js.
-The server's bootstrap CLI installs the remote device files — it checks SSH and Node.js,
-ships the bundle into `~/.cortex/client/current/`, and writes the client config.
-It does not start the client or create a device-side service:
+The server's bootstrap script installs the remote device files — it checks SSH and Node.js,
+ships the bundle into `~/.cortex/client/current/`, and writes a client config with
+`serverHost`, `serverPort` and `deviceName`. It does not start the client or create a
+device-side service. It runs from the `agent-server/` directory of a source checkout,
+targets Linux and macOS devices, and takes `--host`, `--device-name` and `--server-host`
+(all required) plus `--server-port` (default 3002):
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
   --host user@machine --device-name trainer --server-host 192.0.2.10
 ```
+
+For a device that dials a `serverUrl` instead, edit `cortex-client.json` after bootstrap.
 
 Bootstrap is also the rescue path when a device's managed install is broken
 or wiped. Register the device in the server's `machines.json`, run bootstrap,
@@ -138,7 +145,12 @@ Create `~/.cortex/config/cortex-client.json` on the remote machine:
   automatically when it launches the client, so set it here only for a
   temporary hand-started diagnostic process
 - `deviceName` — a unique name for this machine, matching the key in the
-  server's `machines.json`
+  server's `machines.json`. Defaults to the machine's hostname
+
+The environment variables `CORTEX_SERVER_URL` and `CORTEX_CLIENT_TOKEN`, when
+set, take precedence over `serverUrl` and `clientToken`. The client honors
+`CORTEX_HOME` for its config, install and log directories, and writes its log
+to `~/.cortex/logs/client-YYYYMMDD.log`, kept for 14 days.
 
 For diagnostics, `cortex-client` can be run in the foreground with the token in
 its environment. Production clients are started and supervised by the
@@ -200,11 +212,13 @@ Each entry:
 `cortex-client.json`. Setting it to `ssh-reverse` makes the server maintain an
 SSH reverse tunnel and inject a loopback WebSocket URL when it launches the
 client. `clientReversePort` optionally selects the loopback port on the remote
-machine; it defaults to the server's client port and must be between 1024 and
-65535. An SSH reverse route requires `ssh`.
+machine; it is valid only with `ssh-reverse`, defaults to the server's client
+port, and must be between 1024 and 65535. An SSH reverse route requires `ssh`.
 
-The file is watched via `fs.watch()`. General registry readers see updates
-within a few hundred milliseconds. Managed client route fields are snapshotted
+An invalid `machines.json` stops the server at startup. When an edit made
+while the server runs fails validation, the server keeps the previous registry
+and sends an admin notice. The file is watched via `fs.watch()`. General
+registry readers see updates within a few hundred milliseconds. Managed client route fields are snapshotted
 when client startup begins, so changes to `clientConnection`,
 `clientReversePort`, or the associated `ssh` target require a server restart.
 Deleting an entry takes effect on the same reload: the server stops that
@@ -291,12 +305,19 @@ the server as follows:
 }
 ```
 
-The server supervises `ssh -N -R
-127.0.0.1:13002:127.0.0.1:3002 user@worker`, waits for the SSH control socket,
-and launches the client with `CORTEX_SERVER_URL=ws://127.0.0.1:13002`. The
-remote listener binds only to loopback. Tunnel failure has its own capped
-retry loop, while the client keeps its normal WebSocket reconnect behavior.
-The token remains required inside the SSH tunnel.
+The server supervises an OpenSSH master connection that carries
+`-R 127.0.0.1:13002:127.0.0.1:3002` to `user@worker`, with
+`ExitOnForwardFailure=yes` and a 15-second keepalive. Before each start it
+frees a stale listener left on the remote port by an earlier tunnel, then
+waits for the SSH control socket and launches the client with
+`CORTEX_SERVER_URL=ws://127.0.0.1:13002`. The remote listener binds only to
+loopback. Tunnel failure has its own retry loop, backing off from 1 to 30
+seconds, while the client keeps its normal WebSocket reconnect behavior. The
+token remains required inside the SSH tunnel. Control sockets live under
+`$CORTEX_HOME/data/client-ssh-tunnels/`, and the route each client was started
+on is recorded in `$CORTEX_HOME/data/client-routes.json`, so a client left
+running on a route that no longer matches the configuration is stopped and
+relaunched.
 
 Use a different `clientReversePort` if the default port is already occupied on
 the remote machine. SSH aliases and `ProxyCommand` entries in `~/.ssh/config`
@@ -323,6 +344,11 @@ because Cortex does not own the tunnel process.
 | SSH works but WebSocket doesn't | SSH only opens port 22 | Open port 3002 or use Tailscale/reverse tunnel |
 | Tailscale installed but can't connect | ACLs blocking | Check `tailscale status` and ACL rules |
 | "Device already connected" (code 4002) | Stale connection or duplicate | Kill the old client process on the remote machine |
+| "Unknown device" (code 4005) | `deviceName` not in `machines.json` | Add the machine, or fix `deviceName` |
+| HTTP 401 on connect | Missing or wrong `CORTEX_CLIENT_TOKEN` | Let the server launch the client, or copy the token from the server's `config/.env` |
+
+The client's own log, `~/.cortex/logs/client-YYYYMMDD.log` on the device,
+records each connection attempt and close code.
 
 ## WebSocket protocol
 
@@ -338,9 +364,11 @@ use `ws://` inside their protected transport.
 **Hello** (sent immediately on connect). `bundleHash` identifies the client's
 running bundle (sha256 over the bundle files in order); the
 server compares it against the desired bundle to decide whether to push an
-update:
+update. `gpuCount` is the client's own `nvidia-smi` count, or `null` when it
+cannot probe, and `pid` is the client's process id, which the server records
+for a client on its own machine:
 ```json
-{ "type": "hello", "device": "trainer", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
+{ "type": "hello", "device": "trainer", "platform": "linux", "capabilities": ["file-stream", "rg"], "gpuCount": 1, "bundleHash": "cebdfcd6…", "pid": 41822 }
 ```
 
 **Heartbeat** (every 5 seconds):
@@ -348,9 +376,10 @@ update:
 { "type": "heartbeat", "device": "trainer", "timestamp": 1716154200000 }
 ```
 
-**Command result** (in response to a server command):
+**Command result** (in response to a server command; `error` replaces `data`
+when `success` is false):
 ```json
-{ "type": "result", "id": "cmd-abc123", "success": true, "data": { "stdout": "..." } }
+{ "type": "result", "commandId": "cmd-abc123", "success": true, "data": { "stdout": "..." } }
 ```
 
 **Update result** (in response to a server `update` push):
@@ -362,10 +391,21 @@ update:
 
 **Command**:
 ```json
-{ "type": "command", "id": "cmd-abc123", "action": "bash", "params": { "command": "nvidia-smi" }, "timeout": 120000 }
+{ "type": "command", "commandId": "cmd-abc123", "action": "bash", "params": { "command": "nvidia-smi", "timeout": 120000 } }
 ```
 
 Supported actions: `bash`, `read`, `write`, `edit`, `glob`, `grep`, `file.stat`.
+A bash time limit travels in `params.timeout` in milliseconds. The server
+keeps its own timer for every command — the call's own limit when it sets one,
+otherwise 120 seconds for bash and 30 seconds for file actions — and fails the
+call if no result arrives in time.
+
+**Open stream** (a port forward: the client dials back and pipes a raw TCP
+connection to a loopback port on the device; see
+[Port forwarding](#port-forwarding)):
+```json
+{ "type": "open-stream", "streamId": "4be1…", "host": "127.0.0.1", "port": 6006 }
+```
 
 **Open file stream** (sent when the server wants a whole file off the device,
 e.g. `send_file device="trainer"`). Like `open-stream`, it is answered on a new
@@ -388,7 +428,9 @@ carry the complete artifact as base64):
 | 4001 | Missing device name in hello |
 | 4002 | Device already connected |
 | 4003 | Heartbeat timeout (15 seconds) |
+| 4004 | Unknown stream: a callback socket named a stream the server is not expecting |
 | 4005 | Unknown device: hello name is not registered in `machines.json` |
+| 1001 | Server shutting down |
 
 ## Server-side client lifecycle
 
@@ -416,9 +458,9 @@ clients:
    delay. The server retries until the client connects. A per-device timer
    prevents duplicate restart attempts.
 
-4. **PID tracking** — for SSH-launched clients, the server records the remote
-   PID in `~/.cortex/data/client-pids.json` so it can check if the process is
-   still alive before attempting a restart.
+4. **PID tracking** — the server records each launched client's PID, local or
+   remote, in `~/.cortex/data/client-pids.json` so it can check whether the
+   process is still alive before attempting a restart.
 
 5. **Command routing** — when the agent calls `remote_bash({ device: "trainer",
    ... })`, the MCP server sends an HTTP request to `client-manager`, which
@@ -431,12 +473,16 @@ clients:
 Clients update themselves; the server publishes the desired bundle. For an
 App-enrolled local client, that bundle comes from the installed server package,
 with its ordered file hash verified; a missing or invalid payload does not fall
-back to npm. For other clients, dev mode builds the client repo with esbuild and
-release mode fetches the latest published `@cortex-agent/client` from npm (cached
-per version). Every device hello carries the client's own bundle hash; when it
-differs from the desired hash, the server pushes an `update` message with the
-complete artifact over the existing WebSocket. With client hot reload disabled,
-an existing local client version is preserved rather than replaced during preparation.
+back to npm. For other clients, a server running from a source checkout
+(`CORTEX_REPO` or `CORTEX_CLIENT_REPO` set) builds the client repo with esbuild,
+and an installed server fetches the latest published `@cortex-agent/client`
+from npm, cached per version under `$CORTEX_HOME/data/client-bundles/`. Every
+device hello carries the client's own bundle hash; when it differs from the
+desired hash, the server pushes an `update` message with the complete artifact
+over the existing WebSocket. Successful and failed installs are announced as
+chat notices. Setting `clientHotReloadEnabled` to `false` in `settings.json`
+turns update pushes off, and an existing local client version is then
+preserved rather than replaced during preparation.
 
 The client writes the files into `~/.cortex/client/next/`, verifies the hash,
 rotates `current/` to `previous/` and `next/` to `current/`, reports
@@ -445,7 +491,8 @@ exits. The successor reconnects with the new hash, which the server logs as
 convergence. Any failure (bad hash, unwritable disk) leaves the running
 version untouched — the device stays online on its old bundle and the server
 is told why. A failed install is not retried on the same device for 10
-minutes.
+minutes, and a push that is in flight or has just been installed is not
+repeated for 2 minutes.
 
 Because the trigger is the hello itself, devices converge whenever they
 connect: after a server restart with a new build, after a device comes back
@@ -501,9 +548,12 @@ dispatches to the appropriate handler:
 ### bash
 
 Executes in a login shell: `/bin/bash -l -c "<command>"`. On Windows, commands
-run through git-bash. The `timeout` parameter uses integer seconds from 1 to
-600 and defaults to 120. A foreground timeout returns exit code 124 and kills
-the command's process group on POSIX or its process tree on Windows.
+run through Git Bash, found at `CORTEX_GIT_BASH_PATH` when that is set, then in
+the standard Program Files locations, then on `PATH`. The `timeout` parameter
+uses integer seconds from 1 to 600 and defaults to 120. A foreground timeout
+returns exit code 124 and kills the command's process group on POSIX or its
+process tree on Windows. Output is cut to its head and tail beyond 200 KB of
+stdout or 50 KB of stderr.
 `run_in_background: true` returns the detached shell PID immediately and
 ignores `timeout`. Cortex does not supervise long-running jobs: start one
 yourself and have it report back through a [waitpoint](./waitpoints.md). These
@@ -512,10 +562,11 @@ see [mcp.md](./mcp.md).
 
 ### read
 
-Reads a file from disk with `fs.readFileSync()`. Supports image files (PNG,
-JPEG, WebP, GIF, BMP) with an optional `sharp`-based resize/compress pipeline
-(to stay under token budgets), and PDF files handled as embedded resources.
-Paths must be absolute.
+Reads a file from disk. Paths must be absolute, and files over 10 MB are
+refused. Text is returned with line numbers, 2,000 lines by default, and a
+range over about 25,000 words is refused with a suggested `limit`. Image files
+(PNG, JPEG, WebP, GIF, BMP) and PDFs come back whole as base64; the server's
+`remote_read` tool then downscales large images when `sharp` is available.
 
 ### file.stat
 
@@ -551,28 +602,61 @@ device without copying file contents.
 ### glob and grep
 
 `glob` finds files by pattern (e.g., `**/*.ts`), limited to 500 results and
-excluding VCS directories. `grep` uses `rg` (ripgrep) when available, with
-a fallback to `grep -rn`. Supports `head_limit` and `offset` for pagination.
+excluding VCS directories, `node_modules`, `__pycache__`, `.tox` and
+`.mypy_cache`. `grep` uses `rg` (ripgrep) when available, with `head_limit`
+(default 250) and `offset` for pagination. When `rg` is not installed it falls
+back to `grep -rn`, which ignores the pagination, glob, type and context
+options.
+
+### Remote AGENTS.md files
+
+On `read`, `write` and `edit`, the client also walks up from the target file
+and returns the `AGENTS.md` and `AGENTS.local.md` files it finds (up to 20
+levels, each up to 200 KB), plus the one at the device's `~/.cortex/AGENTS.md`.
+The `remote_read`, `remote_write` and `remote_edit` tools add each of them to
+their result once per session, so instructions that live next to a project on
+a device reach the agent the same way local ones do.
+
+### Port forwarding
+
+The server can map a loopback port on a device to a loopback port on its own
+machine (at most 32 at a time): each connection to the server-side port makes
+the server send `open-stream`, and the client dials back and pipes the bytes to
+`127.0.0.1:<port>` on the device. Two features use it:
+
+- **A browser on a device.** The composer's browser selector offers this host
+  and every connected device. Choosing a device starts Chrome there and
+  connects the session's browser tools through a forwarded debugging port. The
+  browser is shared by turns on that device and closed after 10 idle minutes.
+- **The docked browser's ports panel** lists ports listening on the server or
+  a connected device and previews them in the desktop app, with a remote port
+  forwarded first.
 
 ### Long-running jobs
 
 Cortex does not launch, supervise or adopt processes on a device. Start the job
 the way you normally would (`nohup`, `setsid`, tmux, a scheduler) and arm a
 [waitpoint](./waitpoints.md) so the session is woken when it finishes. On a
-device the job drops a small JSON file in `~/.cortex/tmp/signals/`; the daemon
-collects it over the connection this client already holds open, so nothing extra
-has to be installed there.
+device the job drops a small JSON file in `~/.cortex/tmp/signals/`. On each
+sweep the server lists, reads and removes those files with ordinary `bash`
+commands over the connection this client already holds open — only on devices
+that have an armed waitpoint — so nothing extra has to be installed there.
 
 ## Checking device status
 
-From within an agent session, check which devices are online:
+The agent sees the registered devices in the description of its remote tools,
+and a call to an offline device fails with the list of devices that are
+online. A quick probe:
 
 ```
 remote_bash({ device: "trainer", command: "hostname" })
 ```
 
-The agent-server's Slack integration also supports the `!devices` command,
-which lists all registered machines with their online/offline status.
+In the Web UI and desktop app, the machines chip in the top bar shows how many
+machines are online and opens a sheet with each machine's GPUs, processes,
+load, memory, disk and uptime, probed on demand with one shell command over the
+client. In Slack or Feishu, `!devices` (alias `!clients`) lists the registered
+and connected machines with their platform, connection age and last heartbeat.
 
 From the server's CLI:
 
@@ -600,13 +684,15 @@ The remote client system operates with these security constraints:
 - The `cortex-client` npm package installs no postinstall scripts, uses no
   native addons beyond what Node.js ships, and has no external dependencies
   beyond `ws`
+- Port forwards bind to loopback on the server and reach only loopback ports
+  on the device
 
 ## Multi-client routing
 
 There is no automatic device selection. The agent explicitly specifies which
-device to target in each tool call via the `device` parameter. The agent
-learns about available devices from the `machines.json` registry (visible
-through context injection) and from tool descriptions.
+device to target in each tool call via the `device` parameter. It learns the
+available devices from the catalog in the remote tools' description, built
+from `machines.json` with Windows machines marked.
 
 For GPU-aware workloads (training), the agent can read each machine's
 `gpuCount` from the registry and check GPU utilization on the device before
@@ -620,7 +706,7 @@ provides step-by-step operational guidance for:
 - Checking online status and connectivity
 - Viewing client logs
 - Updating client configuration
-- Troubleshooting nine common symptoms with root causes and fixes
+- Troubleshooting common symptoms with root causes and fixes
 
 The skill is available to the agent automatically and serves as the
 operational reference for cross-machine management.
