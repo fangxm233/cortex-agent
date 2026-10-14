@@ -2,7 +2,7 @@
 
 `cortex init` walks you through the entire Slack side interactively — it
 prints the App Manifest, copies it to your clipboard, gives you a
-6-step Slack-side checklist, then collects the three tokens with
+7-step Slack-side checklist, then collects the three tokens with
 validation. This document is the standalone reference for the same
 flow, useful when:
 
@@ -46,8 +46,8 @@ Request URL.
    OAuth Token** at the top of the page (starts with `xoxb-`) — this
    is your `SLACK_BOT_TOKEN`.
 8. In the left sidebar go to **App Home** → scroll to "Show Tabs" →
-   enable the **Messages Tab** and check **"Allow users to send
-   messages from the messages tab"**. Without this checkbox you can
+   enable the **Messages Tab** and check **"Allow users to send Slash
+   commands and messages from the messages tab"**. Without this checkbox you can
    `@cortex` the bot in channels but cannot DM it.
 
 You now have all three secrets. Drop them into `cortex init` when it
@@ -157,8 +157,9 @@ and the Bot Token starts with `xoxb-` before writing them to `.env`.
 The `adminChannel` setting is the channel Cortex DMs for startup
 notifications, approval requests, and other operator-facing chatter.
 `cortex init` does not ask for it. The first time you DM the bot, the
-Slack adapter records the channel ID and persists it. See
-`src/platform/adapters/slack.ts` for the auto-detection path.
+Slack adapter records the channel ID and persists it to
+`config/settings.json`. See `agent-server/src/platform/adapters/slack.ts`
+for the auto-detection path.
 
 If you want to pin it explicitly (e.g. you want admin chatter to land
 in a different channel than your DM), grab the channel ID from Slack
@@ -198,10 +199,10 @@ a minute after startup, also raises a system notice in the Web UI.
 
 Tokens live in `$CORTEX_HOME/config/.env` (see
 [configuration.md](./configuration.md) for the full config reference).
-Edit the file directly, then signal the daemon to restart:
+Edit the file directly, then restart the server:
 
 ```bash
-cortex restart        # touches $STORE_DIR/.restart
+cortex daemon restart   # drains running work, then restarts the server
 ```
 
 Or, if you ran `cortex start` in the foreground, Ctrl-C and start
