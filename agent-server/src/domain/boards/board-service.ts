@@ -9,7 +9,7 @@ import { projectStore } from '@domain/projects/project-store.js';
 /** The registry, the session store and the filesystem a board operation touches. The server only
  *  registers, binds and notifies; it never writes board.html after the scaffold. */
 export interface BoardServiceDeps {
-  boards: Pick<typeof boardRepo, 'find' | 'findBySlug' | 'list' | 'add'>;
+  boards: Pick<typeof boardRepo, 'find' | 'findBySlug' | 'list' | 'add' | 'touch'>;
   sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'bindBoard'>;
   contextDir: (projectId: string) => string | null;
   readScaffold: () => Promise<string>;
@@ -143,7 +143,8 @@ export async function openBoard(
     const contextDir = deps.contextDir(found.projectId);
     if (!contextDir) throw new BoardError(`project ${found.projectId} has no context directory`);
     dir = path.join(contextDir, BOARDS_DIR, found.slug);
-    board = found;
+    // Attaching is a use: it moves the board up in "recently used".
+    board = await deps.boards.touch(found.id, deps.now()) ?? found;
   }
 
   const targets = await bindTargets(session, deps);

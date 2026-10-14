@@ -8,6 +8,8 @@ import { boardDir, USER_BOARD_CSS } from './board-paths.js';
 const log = createLogger('board-watcher');
 
 const DEFAULT_DEBOUNCE_MS = 300;
+/** A board's `updatedAt` is written for file changes at most this often. */
+const DEFAULT_TOUCH_INTERVAL_MS = 60_000;
 /** Directories watched per board at most (the board directory, assets/ and anything below). */
 const MAX_DIRS_PER_BOARD = 64;
 
@@ -21,7 +23,11 @@ export interface BoardWatcherDeps {
   /** The optional user override stylesheet. Its directory is watched, so the file may come and go. */
   userCssPath: string;
   publish: (event: CortexEventInput) => void;
+  /** Record that a board's files changed at `at` (its `updatedAt`). Absent: nothing is recorded. */
+  touch?: (boardId: string, at: number) => Promise<unknown>;
   debounceMs?: number;
+  touchIntervalMs?: number;
+  now?: () => number;
   watch?: Watch;
 }
 
@@ -140,16 +146,59 @@ function watchTree(root: string, watch: Watch, onChange: () => void, onGone: () 
 /**
  * Watch every registered board's directory (with everything below it) and the user override
  * stylesheet, and turn bursts of file changes into one `board.updated` per board / one
- * `board.style-updated`. Content-free hints: the clients refetch. A directory that is missing is
- * skipped until a later refresh finds it.
+ * `board.style-updated`. Content-free hints: the clients refetch. A change also counts as a use of
+ * the board and moves its `updatedAt`, written at most once per board per minute. A directory that
+ * is missing is skipped until a later refresh finds it.
  */
 export function createBoardWatcher(deps: BoardWatcherDeps): BoardWatcher {
   const watch = deps.watch ?? defaultWatch;
   const debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS;
+  const touchIntervalMs = deps.touchIntervalMs ?? DEFAULT_TOUCH_INTERVAL_MS;
+  const now = deps.now ?? Date.now;
   const boards = new Map<string, { dir: string; tree: TreeWatch }>();
   const timers = new Map<string, NodeJS.Timeout>();
+  /** Per board: when `updatedAt` was last written, and a change waiting for the next allowed write. */
+  const touches = new Map<string, { last: number; pending: number | null; timer: NodeJS.Timeout | null }>();
   let styleWatcher: fs.FSWatcher | null = null;
   let stopped = false;
+
+  const writeTouch = (boardId: string, at: number): void => {
+    void deps.touch?.(boardId, at).catch((e) => {
+      log.warn(`cannot record use of board ${boardId}: ${(e as Error).message}`);
+    });
+  };
+
+  /** A board's files changed: write its `updatedAt` now, or — when it was written less than an
+   *  interval ago — once the interval is up, with the latest change time. At most one write per
+   *  board per interval, and the last change in a run of edits is never lost. */
+  const noteChange = (boardId: string): void => {
+    if (!deps.touch || stopped) return;
+    const at = now();
+    let state = touches.get(boardId);
+    if (!state) touches.set(boardId, state = { last: -Infinity, pending: null, timer: null });
+    if (at - state.last >= touchIntervalMs) {
+      state.last = at;
+      writeTouch(boardId, at);
+      return;
+    }
+    state.pending = at;
+    if (state.timer) return;
+    const entry = state;
+    entry.timer = setTimeout(() => {
+      entry.timer = null;
+      if (stopped || entry.pending === null) return;
+      const pending = entry.pending;
+      entry.pending = null;
+      entry.last = now();
+      writeTouch(boardId, pending);
+    }, entry.last + touchIntervalMs - at);
+  };
+
+  const forgetTouch = (boardId: string): void => {
+    const state = touches.get(boardId);
+    if (state?.timer) clearTimeout(state.timer);
+    touches.delete(boardId);
+  };
 
   const schedule = (key: string, event: CortexEventInput): void => {
     if (stopped) return;
@@ -165,13 +214,17 @@ export function createBoardWatcher(deps: BoardWatcherDeps): BoardWatcher {
     boards.delete(id);
     clearTimeout(timers.get(id));
     timers.delete(id);
+    forgetTouch(id);
   };
 
   const watchBoard = (board: BoardRecord, dir: string): void => {
     const tree = watchTree(
       dir,
       watch,
-      () => schedule(board.id, { type: 'board.updated', boardId: board.id, projectId: board.projectId }),
+      () => {
+        noteChange(board.id);
+        schedule(board.id, { type: 'board.updated', boardId: board.id, projectId: board.projectId });
+      },
       // The directory went away (moved, deleted): drop it; a later refresh picks it up again.
       () => { if (boards.get(board.id)?.tree === tree) unwatchBoard(board.id); },
     );
@@ -239,6 +292,7 @@ export function startBoardWatcher(
     boardDir: (board) => boardDir(board.projectId, board.slug),
     userCssPath: USER_BOARD_CSS,
     publish: (event) => bus.publish(event),
+    touch: (boardId, at) => boardRepo.touch(boardId, at),
     ...deps,
   });
   const sub = bus.subscribe('board.updated', () => { void watcher.refresh(); });

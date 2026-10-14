@@ -17,6 +17,7 @@ let sessions: SessionRegistryRepo;
 let boards: BoardRepo;
 let events: any[];
 let deps: BoardServiceDeps;
+let clock: number;
 
 const SCAFFOLD = '<div class="card">scaffold</div>\n';
 
@@ -31,6 +32,7 @@ beforeEach(async () => {
   sessions = new SessionRegistryRepo(path.join(root, 'session-registry.jsonl'));
   boards = new BoardRepo(path.join(root, 'boards.json'));
   events = [];
+  clock = 1_000;
   let n = 0;
   deps = {
     boards,
@@ -38,7 +40,7 @@ beforeEach(async () => {
     contextDir: (projectId) => (projectId === 'proj' ? ctx : null),
     readScaffold: async () => SCAFFOLD,
     publish: (e) => { events.push(e); },
-    now: () => 1_000,
+    now: () => clock,
     newId: () => `b${++n}`,
   };
   await register('lead');
@@ -123,6 +125,22 @@ test('attaching by id or slug rebinds; one board per session', async () => {
   assert.deepEqual(Object.keys(byId).sort(), ['board', 'bound', 'created', 'dir']);
 
   await assert.rejects(openBoard('other', { board: 'nope' }, deps), (e: Error) => e instanceof BoardError && /known boards/.test(e.message));
+});
+
+test('attaching to an existing board records the use in updatedAt; touch never moves it back', async () => {
+  const opened = await openBoard('lead', { title: 'Used' }, deps);
+  assert.equal(opened.board.updatedAt, 1_000);
+  clock = 5_000;
+  const attached = await openBoard('other', { board: 'used' }, deps);
+  assert.equal(attached.board.updatedAt, 5_000);
+  assert.equal((await boards.find(opened.board.id))?.updatedAt, 5_000);
+  assert.equal((await boards.find(opened.board.id))?.createdAt, 1_000);
+
+  await boards.touch(opened.board.id, 2_000);
+  assert.equal((await boards.find(opened.board.id))?.updatedAt, 5_000, 'an older time is ignored');
+  const before = fs.statSync(path.join(root, 'boards.json')).mtimeMs;
+  assert.equal(await boards.touch('nope', 9_000), null);
+  assert.equal(fs.statSync(path.join(root, 'boards.json')).mtimeMs, before, 'an unknown board writes nothing');
 });
 
 test('a board written by a release that could close boards still attaches and reports', async () => {

@@ -16,6 +16,7 @@ export interface BoardRecord {
   slug: string;          // directory name under <contextDir>/boards/
   title: string;
   createdAt: number;
+  /** Last use: creation, a session attaching to it, or a change to its files. */
   updatedAt: number;
 }
 
@@ -63,6 +64,17 @@ export class BoardRepo {
     await this._repo.mutate((data) => {
       data.boards.push(record);
       return { next: data, result: undefined };
+    });
+  }
+
+  /** Record a use of the board at `at` (never moving `updatedAt` back). Null, and no write, when
+   *  the board is not registered. */
+  async touch(id: string, at: number): Promise<BoardRecord | null> {
+    if (!await this.find(id)) return null;
+    return this._repo.mutate((data) => {
+      const record = data.boards.find(b => b.id === id) ?? null;
+      if (record && at > record.updatedAt) record.updatedAt = at;
+      return { next: data, result: record };
     });
   }
 
