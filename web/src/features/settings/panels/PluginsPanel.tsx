@@ -125,7 +125,7 @@ function DeletePluginModal(props: {
   onClose: () => void;
 }) {
   const L = useVocab();
-  const managed = props.plugin.origin === 'managed';
+  const builtin = props.plugin.origin === 'builtin';
   return (
     <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
       contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
@@ -133,7 +133,7 @@ function DeletePluginModal(props: {
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
-          <SButton tone="danger" data-action="plugin-delete-confirm" disabled={props.actions.busy || managed}
+          <SButton tone="danger" data-action="plugin-delete-confirm" disabled={props.actions.busy || builtin}
             onClick={async () => {
               const done = await props.actions.pluginRemove({ id: props.plugin.id });
               if (done) props.onClose();
@@ -144,7 +144,7 @@ function DeletePluginModal(props: {
       )}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={MODAL_TEXT}>{L.plDeletePluginDesc}</div>
-        {managed ? <SNotice tone="amber" data-plugin-delete-managed="">{L.plDeletePluginManaged}</SNotice> : null}
+        {builtin ? <SNotice tone="amber" data-plugin-delete-builtin="">{L.plDeletePluginBuiltin}</SNotice> : null}
       </div>
     </Modal>
   );
@@ -237,8 +237,8 @@ function PluginHeader(props: { plugin: UiPluginCatalogEntry; busy: boolean; onDe
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</span>
       <SPill mono>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
       <SPill>{pluginKindText(plugin.kind, L)}</SPill>
-      <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'managed' ? 'accent' : 'neutral'}>
-        {plugin.origin === 'managed' ? L.plOriginManaged : L.plOriginLocal}
+      <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'builtin' ? 'accent' : 'neutral'}>
+        {plugin.origin === 'builtin' ? L.plOriginBuiltin : L.plOriginLocal}
       </SPill>
       <SPill tone={plugin.valid ? 'success' : 'danger'}>{plugin.valid ? L.plValid : L.plInvalid}</SPill>
       <SButton tone="danger" data-action="plugin-delete" disabled={props.busy}

@@ -19,6 +19,7 @@ export interface PluginAuthoringActions {
   skillCreate: (args: MutateArgs<'plugins.skillCreate'>) => Promise<boolean>;
   skillMove: (args: MutateArgs<'plugins.skillMove'>) => Promise<boolean>;
   skillRemove: (args: MutateArgs<'plugins.skillRemove'>) => Promise<boolean>;
+  skillRevert: (args: MutateArgs<'plugins.skillRevert'>) => Promise<boolean>;
   pluginCreate: (args: MutateArgs<'plugins.create'>) => Promise<boolean>;
   pluginRemove: (args: MutateArgs<'plugins.remove'>) => Promise<boolean>;
   convertToPortable: (args: MutateArgs<'plugins.convertToPortable'>) => Promise<boolean>;
@@ -38,6 +39,7 @@ export function usePluginAuthoring(): PluginAuthoringActions {
   const skillCreateM = useMutation(trpc.plugins.skillCreate.mutationOptions()) as Mutation<MutateArgs<'plugins.skillCreate'>>;
   const skillMoveM = useMutation(trpc.plugins.skillMove.mutationOptions()) as Mutation<MutateArgs<'plugins.skillMove'>>;
   const skillRemoveM = useMutation(trpc.plugins.skillRemove.mutationOptions()) as Mutation<MutateArgs<'plugins.skillRemove'>>;
+  const skillRevertM = useMutation(trpc.plugins.skillRevert.mutationOptions()) as Mutation<MutateArgs<'plugins.skillRevert'>>;
   const createM = useMutation(trpc.plugins.create.mutationOptions()) as Mutation<MutateArgs<'plugins.create'>>;
   const removeM = useMutation(trpc.plugins.remove.mutationOptions()) as Mutation<MutateArgs<'plugins.remove'>>;
   const convertM = useMutation(trpc.plugins.convertToPortable.mutationOptions()) as Mutation<MutateArgs<'plugins.convertToPortable'>>;
@@ -81,6 +83,13 @@ export function usePluginAuthoring(): PluginAuthoringActions {
     skillRemove: useCallback((args) => (
       flag(L.plToastSkillDeleted, () => skillRemoveM.mutateAsync(args))
     ), [flag, skillRemoveM, L]),
+    // The open editor shows the file the revert just replaced, so its query is stale too.
+    skillRevert: useCallback((args) => (
+      flag(L.plToastSkillReverted, async () => {
+        await skillRevertM.mutateAsync(args);
+        await queryClient.invalidateQueries(trpc.plugins.skillFile.queryFilter(args));
+      })
+    ), [flag, skillRevertM, queryClient, trpc, L]),
     pluginCreate: useCallback((args) => (
       flag(L.plToastPluginCreated, () => createM.mutateAsync(args))
     ), [flag, createM, L]),
