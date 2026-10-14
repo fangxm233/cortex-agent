@@ -166,7 +166,7 @@ export async function handleSessionsList(
       kind: s.kind,
       origin: s.origin ?? 'direct',
       scheduleId: s.scheduleId ?? null,
-      boardId: s.commissionId ?? null,
+      boardId: s.boardId ?? null,
       teamLeadId: s.teamLeadId ?? null,
       workerName: s.workerName ?? null,
       workerBrief: s.workerBrief ?? null,

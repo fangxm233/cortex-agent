@@ -328,28 +328,14 @@ test('session registry preserves explicit origin and markRead after invalidate',
   assert.ok(record?.lastReadAt);
 });
 
-test('session registry replays commissionDraft and clears it when the commission lands', async () => {
+test('session registry replays a board binding set at registration and rebinding', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession(registerOpts('sess-draft', { commissionDraft: '_draft-cortex-draft' }));
+  await repo.registerSession(registerOpts('sess-board', { boardId: 'b-1' }));
+  assert.equal((await new SessionRegistryRepo(filePath).getById('sess-board'))?.boardId, 'b-1');
 
-  // Survives a cold replay — the field must be whitelisted in the journal record assert or every
-  // restart silently drops commission mode (the bug the browser opt-in originally had).
-  const reopened = new SessionRegistryRepo(filePath);
-  const replayed = await reopened.getById('sess-draft');
-  assert.equal(replayed?.commissionDraft, '_draft-cortex-draft');
-  assert.equal(replayed?.commissionId ?? null, null);
-
-  // Landing the contract binds the id and retires the draft name.
-  await reopened.bindCommission('sess-draft', 'comm-9');
-  const landed = await reopened.getById('sess-draft');
-  assert.equal(landed?.commissionId, 'comm-9');
-  assert.equal(landed?.commissionDraft, null);
-
-  const again = new SessionRegistryRepo(filePath);
-  const afterRestart = await again.getById('sess-draft');
-  assert.equal(afterRestart?.commissionId, 'comm-9');
-  assert.equal(afterRestart?.commissionDraft, null);
+  await repo.bindBoard('sess-board', 'b-2');
+  assert.equal((await new SessionRegistryRepo(filePath).getById('sess-board'))?.boardId, 'b-2');
 });
 
 test('session registry replays worker fields, retirement, and lists a lead\'s workers', async () => {
@@ -417,13 +403,13 @@ test('retention keeps a stale worker while its lead lives and deletes fresh work
     'an in-use lead keeps its workers');
 });
 
-test('retention keeps starred and commission sessions however old; an unstarred worker follows its lead', async () => {
+test('retention keeps starred and board sessions however old; an unstarred worker follows its lead', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
   const stale = '2020-01-01T00:00:00.000Z';
   await repo.registerSession(registerOpts('sess-starred'));
   await repo.setStarred('sess-starred', true);
-  await repo.registerSession(registerOpts('sess-commission', { commissionId: 'c-1' }));
+  await repo.registerSession(registerOpts('sess-board', { boardId: 'b-1' }));
   await repo.registerSession(registerOpts('sess-plain'));
   // A kept lead keeps its workers.
   await repo.registerSession(registerOpts('sess-lead'));
@@ -435,7 +421,7 @@ test('retention keeps starred and commission sessions however old; an unstarred 
   await repo.registerSession({ ...registerOpts('sess-worker3'), teamLeadId: 'sess-lead2', workerName: 'w3' });
   await repo.setStarred('sess-worker3', true);
   const ids = [
-    'sess-starred', 'sess-commission', 'sess-plain', 'sess-lead', 'sess-worker',
+    'sess-starred', 'sess-board', 'sess-plain', 'sess-lead', 'sess-worker',
     'sess-lead2', 'sess-worker2', 'sess-worker3',
   ];
   for (const id of ids) await repo.updateSession(id, { lastUsedAt: stale });

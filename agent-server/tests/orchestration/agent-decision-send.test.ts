@@ -60,7 +60,7 @@ test('history and bus share one ts; the event carries empty action logs', async 
   assert.deepEqual(h.published[0].decisions![0].actions, [], 'the live event mirrors the DTO shape');
 });
 
-test('commission projection sees the shared ts and items; its failure never rejects the call', async () => {
+test('board projection sees the shared ts and items; its failure never rejects the call', async () => {
   const h = harness();
   await sendAgentDecisions({ sessionId: 'sess-1', decisions: [DECISION] }, h.deps);
   assert.equal(h.projected.length, 1);

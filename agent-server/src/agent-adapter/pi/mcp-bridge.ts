@@ -119,12 +119,6 @@ function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
  * `cortex-core` for backends that have no subagent of their own; PI registers its own in-process
  * `agent`, and a bundled MCP tool is exposed under its bare name, so leaving them in would mean two
  * tools called `agent`. The native one wins by construction because the MCP pair never reaches PI.
- *
- * The commission-creation tools used to be excluded here too, which made PI the only backend where
- * that gate actually worked — Claude's equivalent (`--tools`) cannot filter MCP tools at all. Rather
- * than teach Claude the same trick, DR-0037 v4 dropped the gate on both: the two tools are part of
- * the direct surface everywhere, and a submit from a session that never entered the mode is refused
- * by `commission-finalize` instead.
  */
 function toolGatedEnv(
   bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,

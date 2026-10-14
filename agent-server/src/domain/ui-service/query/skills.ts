@@ -18,8 +18,8 @@ export async function handleSkillsSession(
   const session = params.sessionId ? await deps.sessionStore.getById(params.sessionId) : null;
   if (session) {
     return conversationSkills({
-      channel: session.channel, agentName: session.agentName ?? null, commissionBound: !!session.commissionId,
+      channel: session.channel, agentName: session.agentName ?? null,
     });
   }
-  return conversationSkills({ channel: 'web:', agentName: params.agentName ?? null, commissionBound: false });
+  return conversationSkills({ channel: 'web:', agentName: params.agentName ?? null });
 }

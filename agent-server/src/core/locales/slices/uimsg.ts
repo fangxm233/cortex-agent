@@ -22,7 +22,7 @@ export const uimsgEn = {
   'ui.session.noPendingPlan': 'No pending plan for requestId: ${id}',
   'ui.session.noDecision': 'No decision ${decision} in session ${id}',
   'ui.session.decisionMessageRequired': 'message required for action "${action}"',
-  // commissions
+  // boards
   'ui.board.notFound': 'Board not found: ${id}',
   'ui.board.alreadyClosed': 'Board is already ${status}',
   // schedules (handler + zod form validation)

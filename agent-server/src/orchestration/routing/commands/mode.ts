@@ -313,7 +313,7 @@ async function channelPluginDirs(channel: string): Promise<string[]> {
   const sessionId = await getSessionAsync(channel);
   const session = sessionId ? await sessionStore.getById(sessionId) : null;
   return conversationPluginDirs({
-    channel, agentName: session?.agentName ?? null, commissionBound: !!session?.commissionId,
+    channel, agentName: session?.agentName ?? null,
   });
 }
 

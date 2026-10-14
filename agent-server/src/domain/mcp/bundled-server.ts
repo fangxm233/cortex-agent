@@ -37,13 +37,12 @@ const extLoader: RegistrarLoader = async (ctx) => {
 };
 
 const interactionLoader: RegistrarLoader = async (ctx) => {
-  const [{ registerInteractionPlanTools, interactionDepsFor }, { registerCommissionTools }, { registerInteractionAskTools }] = await Promise.all([
-    import('./tools/interaction-plan.js'), import('./tools/commission-tools.js'), import('./tools/interaction-ask.js'),
+  const [{ registerInteractionPlanTools, interactionDepsFor }, { registerInteractionAskTools }] = await Promise.all([
+    import('./tools/interaction-plan.js'), import('./tools/interaction-ask.js'),
   ]);
   const deps = interactionDepsFor(ctx);
   return server => {
     registerInteractionPlanTools(server, deps);
-    registerCommissionTools(server, deps);
     registerInteractionAskTools(server, deps);
   };
 };
@@ -64,11 +63,12 @@ const feishuLoader: RegistrarLoader = async (ctx) => {
 };
 
 const webLoader: RegistrarLoader = async (ctx) => {
-  const [{ registerUiFileTools }, { registerUiViewTools }, { registerUiDecisionTools }] = await Promise.all([
-    import('./tools/ui-file.js'), import('./tools/ui-view.js'), import('./tools/ui-decision.js'),
+  const [{ registerUiFileTools }, { registerUiViewTools }, { registerUiDecisionTools }, { registerUiBoardTools }] = await Promise.all([
+    import('./tools/ui-file.js'), import('./tools/ui-view.js'), import('./tools/ui-decision.js'), import('./tools/ui-board.js'),
   ]);
   return server => {
     registerUiFileTools(server, ctx); registerUiViewTools(server, ctx); registerUiDecisionTools(server, ctx);
+    registerUiBoardTools(server, ctx);
   };
 };
 

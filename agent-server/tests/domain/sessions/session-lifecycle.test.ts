@@ -2,7 +2,6 @@ import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 
 import { registerSessionRecord, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
-import { resetSettingsForTests } from '@core/settings.js';
 import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -107,36 +106,17 @@ describe('createDirectSession', () => {
     assert.notStrictEqual(a.sessionId, b.sessionId, 'unique ids');
   });
 
-  it('refuses a commission request when settings.commissionEnabled is switched off, creating nothing', async () => {
-    let registerCalls = 0;
+  it('registers the board a new session starts bound to', async () => {
+    const registered: Array<{ boardId?: string | null }> = [];
     const deps = {
-      sessionStore: {
-        registerSession: async () => { registerCalls++; },
-      } as SessionRegistryWriter,
+      sessionStore: { registerSession: async (opts) => { registered.push(opts); } } as SessionRegistryWriter,
       setChannelSession: async () => {},
       initConversation: async () => {},
       resolveBackend: () => 'claude',
     };
-
-    // Refusing beats downgrading: a caller that asked for a commission and silently got an
-    // ordinary session would only find out much later.
-    process.env.CORTEX_COMMISSION_ENABLED = '0';
-    resetSettingsForTests();
-    try {
-      await assert.rejects(
-        () => createDirectSession(deps, { projectId: 'p', commission: { mode: 'new' } }),
-        /Commission mode is disabled/,
-      );
-      assert.strictEqual(registerCalls, 0, 'no session registered');
-
-      // A create without a commission is untouched by the switch.
-      const ordinary = await createDirectSession(deps, { projectId: 'p' });
-      assert.ok(ordinary.sessionId);
-      assert.strictEqual(registerCalls, 1);
-    } finally {
-      delete process.env.CORTEX_COMMISSION_ENABLED;
-      resetSettingsForTests();
-    }
+    await createDirectSession(deps, { projectId: 'p', boardId: 'b-1' });
+    await createDirectSession(deps, { projectId: 'p' });
+    assert.deepStrictEqual(registered.map(r => r.boardId), ['b-1', null]);
   });
 });
 

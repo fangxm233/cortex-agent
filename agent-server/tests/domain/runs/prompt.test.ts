@@ -8,7 +8,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { composeSystemPrompt, composeUserPrompt } from '../../../src/domain/runs/prompt.js';
-import type { CommissionPromptContext } from '../../../src/domain/commissions/commission-context.js';
+import type { BoardPromptContext } from '../../../src/domain/boards/board-context.js';
 
 // --- composeSystemPrompt: the ambient rules, then the caller's own text ---
 
@@ -37,7 +37,7 @@ test('an absent template means the input verbatim', () => {
   assert.equal(composeUserPrompt({ promptTemplate: null }, 'hello'), 'hello');
 });
 
-test('prefix order is user profile, directive, project, transcripts, commission', () => {
+test('prefix order is user profile, directive, project, transcripts, board', () => {
   const prompt = composeUserPrompt(
     { directive: 'DIRECTIVE', promptTemplate: '{{input}}' },
     'BODY',
@@ -45,37 +45,28 @@ test('prefix order is user profile, directive, project, transcripts, commission'
       userContext: '[User Context]\nprofile\n[/User Context]',
       project: { id: 'cortex', contextDir: '/ctx/cortex' },
       transcriptDir: '/data/conversation-history',
-      commission: { phase: 'draft', dir: '/d' },
+      board: { id: 'b-1', title: 'T', dir: '/d' },
     },
   );
-  const order = ['[User Context]', 'DIRECTIVE', '[Session Project]', '[Session Transcripts]', '[Commission]', 'BODY']
+  const order = ['[User Context]', 'DIRECTIVE', '[Session Project]', '[Session Transcripts]', '[Board]', 'BODY']
     .map((needle) => prompt.indexOf(needle));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), prompt);
   assert.ok(order.every((i) => i >= 0), prompt);
 });
 
-const ACTIVE: CommissionPromptContext = {
-  phase: 'active', id: 'cm-1', title: 'Ship it', dir: '/root/c/cm-1', hasLedger: true,
-};
+const BOARD: BoardPromptContext = { id: 'b-1', title: 'Ship it', dir: '/root/c/boards/ship-it' };
 
-test('an active commission block is an index plus the protocol, never the file contents', () => {
-  const prompt = composeUserPrompt({ promptTemplate: '{{input}}' }, 'go', { commission: ACTIVE });
+test('the board block names the board, its files and the editing etiquette', () => {
+  const prompt = composeUserPrompt({ promptTemplate: '{{input}}' }, 'go', { board: BOARD });
   assert.equal(prompt,
-    '[Commission] This session belongs to the commission "Ship it" (cm-1).\n'
-    + 'Commission directory: /root/c/cm-1\n'
-    + '  contract.md — the binding intent reference: goal, inferences, acceptance criteria, exclusions, gates, revisions\n'
-    + '  ledger.md   — your state record: Status line, Plan items, checkpoints CP-N, log entries L-NNN\n'
-    + '  assets/     — rich content you generate; decisions.jsonl — server-written, never touch it\n'
+    '[Board] This session is bound to the board "Ship it" (b-1).\n'
+    + 'Board directory: /root/c/boards/ship-it\n'
+    + '  board.html — the page body you edit (HTML, body content only); images go in assets/\n'
+    + '  decisions.jsonl — written by the server from send_decision; do not edit\n'
     + '\n'
-    + 'Read both files now, before anything else — their contents are not reproduced here, and the '
-    + 'copies on disk are the only source of truth. Re-read contract.md (including its Revisions '
-    + 'section) at every checkpoint; the user may have edited it since you last looked.\n'
-    + '\n'
-    + 'Commission protocol:\n'
-    + '1. Surprises are three kinds: an obstacle you route around; a fork you align on (send_decision for low-stakes picks, a blocking question for high-stakes ones); a discovery that invalidates a contract premise. A discovery MUST be surfaced against the contract — never silently absorbed.\n'
-    + '2. Completion claims need evidence pointers (file paths, command outputs, EXP ids) in ledger.md. Scope cuts and deferrals go in the plan section\'s "Cuts and deferrals" note.\n'
-    + '3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including its Revisions section) before writing it.\n'
-    + '4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.'
+    + 'Read board.html before anything else. Other sessions may be editing it at the same time: '
+    + 're-read it right before every edit and keep each edit small. Update it at milestones and '
+    + 'whenever the status changes. Prefer the preset component classes from the board skill.'
     + '\n\ngo');
 });
 
@@ -100,7 +91,7 @@ test('a resumed session receives the body alone — every prefix is dropped', ()
     composeUserPrompt({ directive: 'D', promptTemplate: '{{input}}' }, 'next step', {
       userContext: '[User Context]\np\n[/User Context]',
       project: { id: 'cortex', contextDir: '/ctx' },
-      commission: ACTIVE,
+      board: BOARD,
       resumed: true,
     }),
     'next step',

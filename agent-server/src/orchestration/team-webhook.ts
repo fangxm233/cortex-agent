@@ -43,7 +43,7 @@ export interface TeamWebhookDeps {
    *  again only records it on the session; it leaves the channel's selection as written. */
   createSession: (opts: {
     projectId: string; sessionId: string; profileName: string; teamLeadId: string; workerName: string;
-    workerBrief: string;
+    workerBrief: string; boardId: string | null;
   }) => Promise<{ sessionId: string; channel: string }>;
   newSessionId: () => string;
   deliver: (opts: Pick<DeliverToSessionOptions, 'channel' | 'text' | 'origin'>) => void;
@@ -223,6 +223,8 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
     teamLeadId: lead.sessionId,
     workerName: name,
     workerBrief: briefOf(prompt),
+    // A worker joins its lead's board, if any.
+    boardId: lead.boardId ?? null,
   });
   await deps.sessions.rename(created.sessionId, name);
   noteDispatch(created.sessionId, prompt, deps.now());

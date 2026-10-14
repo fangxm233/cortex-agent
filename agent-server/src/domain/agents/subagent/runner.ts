@@ -250,7 +250,6 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       ownerSessionId: request.parent.sessionId ?? null,
       executionKind: 'local',
       isUserInitiated: false,
-      commissionMode: false,
       scheduleTaskId: null,
     },
     policy: {

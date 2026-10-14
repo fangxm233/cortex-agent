@@ -29,22 +29,13 @@ const MCP_PREFIX = 'mcp__cortex-core__';
 
 /**
  * The cortex-interaction-bridge MCP tools: the three that replace the native EnterPlanMode /
- * ExitPlanMode / AskUserQuestion, plus the two commission-creation tools. Shared by user-initiated
- * Claude print sessions and user-initiated PI sessions.
- *
- * The commission pair is listed unconditionally (DR-0037 v4). Listing it per session was v3's lever
- * for hiding it, and that lever never existed: `--tools` filters Claude's BUILT-IN set only
- * ("the list of available tools from the built-in set", `claude --help`), so an MCP tool registered
- * by the bundled server was callable from every direct session whatever this list said. What keeps
- * a commission from being bootstrapped out of an ordinary session is a state check in
- * `commission-finalize`, not tool visibility — and a check that holds on both backends.
+ * ExitPlanMode / AskUserQuestion. Shared by user-initiated Claude print sessions and user-initiated
+ * PI sessions.
  */
 export const INTERACTION_BRIDGE_TOOLS: readonly string[] = [
   `${MCP_PREFIX}cortex_plan_enter`,
   `${MCP_PREFIX}cortex_plan_exit`,
   `${MCP_PREFIX}cortex_ask_user`,
-  `${MCP_PREFIX}cortex_commission_start`,
-  `${MCP_PREFIX}cortex_commission_submit`,
 ];
 
 /** Native interaction tools that must be stripped wherever the interaction bridge replaces them —

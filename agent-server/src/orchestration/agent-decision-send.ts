@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { conversationHistory, type RawDecisionItem } from '@store/conversation-history-repo.js';
-import { projectCommissionDecisions, type DecisionProjectionDeps } from '@domain/commissions/decision-projection.js';
+import { projectBoardDecisions, type DecisionProjectionDeps } from '@domain/boards/decision-projection.js';
 import { orchestrationBus } from './runtime.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
 
@@ -83,10 +83,10 @@ export async function sendAgentDecisions(args: SendAgentDecisionsArgs, deps: Sen
     sessionId: args.sessionId, channel, role: 'assistant', text: '', ts,
     decisions: items.map(d => ({ ...d, actions: [] })),
   });
-  // Commission projection is best-effort by design (DR-0037): the chat card is the
-  // authoritative record; a projection failure must never fail the tool call.
-  const project = deps.projectDecisions ?? projectCommissionDecisions;
+  // Board projection is best-effort: the chat card is the authoritative record; a projection
+  // failure must never fail the tool call.
+  const project = deps.projectDecisions ?? projectBoardDecisions;
   await project({ sessionId: args.sessionId, ts, items }, { bus: orchestrationBus() })
-    .catch((err) => log.warn('commission decision projection failed:', (err as Error)?.message ?? err));
+    .catch((err) => log.warn('board decision projection failed:', (err as Error)?.message ?? err));
   return items;
 }

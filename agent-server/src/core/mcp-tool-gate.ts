@@ -14,12 +14,11 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
   ],
   'cortex-interaction-bridge': [
     'cortex_plan_enter', 'cortex_plan_exit',
-    'cortex_commission_start', 'cortex_commission_submit',
     'cortex_ask_user',
   ],
   'cortex-slack': ['slack_send_file'],
   'cortex-feishu': ['feishu_send_file'],
-  'cortex-web': ['send_file', 'send_view', 'send_decision'],
+  'cortex-web': ['send_file', 'send_view', 'send_decision', 'board_open', 'board_close'],
   'cortex-workers': ['worker_spawn', 'worker_send', 'worker_list', 'worker_stop', 'worker_answer'],
   'cortex-worker-report': ['mark_routine'],
 };
@@ -33,6 +32,7 @@ export const RETIRED_MCP_TOOLS: ReadonlySet<string> = new Set([
   'cortex_schedule_remove', 'cortex_schedule_pause', 'cortex_schedule_resume',
   'task_status', 'task_result', 'task_list', 'answer_subtask',
   'thread_abort', 'thread_split', 'thread_wait', 'ask_manager', 'thread_run',
+  'cortex_commission_start', 'cortex_commission_submit',
 ]);
 
 /**

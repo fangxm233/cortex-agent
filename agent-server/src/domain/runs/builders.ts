@@ -59,7 +59,6 @@ export function continuationRunRequest(o: ContinuationRunOptions): RunRequest {
       trigger: o.trigger,
       executionKind: 'local',
       isUserInitiated: false,
-      commissionMode: false,
       scheduleTaskId: null,
     },
     policy: { ...DIRECT_RUN_POLICY },

@@ -6,7 +6,7 @@ import { CONTEXT_DIR } from '../src/core/paths.js';
 import { loadUserContext } from '../src/domain/memory/user-context.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import type { ResolvedEnvironment } from '../src/core/types/environment-types.js';
-import type { CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
+import type { BoardPromptContext } from '../src/domain/boards/board-context.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 
 const USER_DIR = path.join(CONTEXT_DIR, 'user');
@@ -45,14 +45,14 @@ function conversationPrompt(
   opts: {
     includeUserContext?: boolean;
     project?: { id: string; contextDir: string } | null;
-    commission?: CommissionPromptContext | null;
+    board?: BoardPromptContext | null;
   } = {},
 ): string {
-  const { includeUserContext = true, project = null, commission = null } = opts;
+  const { includeUserContext = true, project = null, board = null } = opts;
   return composeUserPrompt(
     { directive: agentConfig.directive, promptTemplate: agentConfig.promptTemplate },
     input,
-    { userContext: userProfileBlock(includeUserContext), project, commission },
+    { userContext: userProfileBlock(includeUserContext), project, board },
   );
 }
 

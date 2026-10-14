@@ -110,21 +110,63 @@ test('contextUsage update appends exactly one small patch line', async () => {
   assert.ok(bytes <= 200, `contextUsage patch line is ${bytes} bytes, expected <= 200`);
 });
 
-test('commission fields written as patches survive a replay (main d2449c4f added commissionBlockFor)', async () => {
+test('board fields written as patches survive a replay', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession(registerOpts('sess-cm'));
-  await repo.setCommissionDraft('sess-cm', '/draft/dir');            // patch commissionDraft
-  await repo.markCommissionBlockDelivered('sess-cm', 'draft:/draft/dir'); // patch commissionBlockFor
-  await repo.bindCommission('sess-cm', 'comm-1');                    // patch commissionId (+ clears draft)
+  await repo.registerSession(registerOpts('sess-bd'));
+  await repo.bindBoard('sess-bd', 'b-1');                 // patch boardId
+  await repo.markBoardBlockDelivered('sess-bd', 'b-1');   // patch boardBlockFor
+  await repo.bindBoard('sess-bd', 'b-2');                 // patch boardId again
   const ops = rawLines(filePath).map(line => JSON.parse(line).op);
   assert.deepEqual(ops, ['put', 'patch', 'patch', 'patch']);
 
   const reopened = new SessionRegistryRepo(filePath);
-  const record = await reopened.getById('sess-cm');
-  assert.equal(record?.commissionId, 'comm-1');
-  assert.equal(record?.commissionDraft, null);
-  assert.equal(record?.commissionBlockFor, 'draft:/draft/dir');
+  const record = await reopened.getById('sess-bd');
+  assert.equal(record?.boardId, 'b-2');
+  assert.equal(record?.boardBlockFor, 'b-1');
+
+  await reopened.clearBoardBlockDelivery('sess-bd');
+  assert.equal((await new SessionRegistryRepo(filePath).getById('sess-bd'))?.boardBlockFor, null);
+});
+
+test('a journal written before boards replays: legacy commission keys map onto board fields', async () => {
+  const filePath = nextPath();
+  const record = (id: string, extra: Record<string, unknown> = {}) => ({
+    sessionId: id, projectId: 'proj', channel: `web:${id}`, backend: 'claude', kind: 'local', origin: 'direct',
+    createdAt: '2026-09-01T00:00:00.000Z', lastUsedAt: '2026-09-01T00:00:00.000Z', label: null, profileName: null,
+    ...extra,
+  });
+  const lines = [
+    { v: 1, op: 'put', id: 's-old', record: record('s-old') },
+    { v: 1, op: 'patch', id: 's-old', fields: { commissionDraft: '_draft-s-old' } },
+    { v: 1, op: 'patch', id: 's-old', fields: { commissionBlockFor: 'draft:_draft-s-old' } },
+    { v: 1, op: 'patch', id: 's-old', fields: { commissionId: 'c-1', commissionDraft: null } },
+    { v: 1, op: 'patch', id: 's-old', fields: { lastUsedAt: '2026-09-02T00:00:00.000Z' }, unset: ['commissionDraft'] },
+    { v: 1, op: 'put', id: 's-put', record: record('s-put', { commissionId: 'c-2', commissionDraft: null, commissionBlockFor: 'active:c-2' }) },
+    { v: 1, op: 'put', id: 's-draft', record: record('s-draft', { commissionDraft: '_draft-s-draft' }) },
+  ];
+  await fs.writeFile(filePath, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+
+  const repo = new SessionRegistryRepo(filePath);
+  const old = await repo.getById('s-old') as Session & Record<string, unknown>;
+  assert.equal(old.boardId, 'c-1');
+  assert.equal(old.boardBlockFor, 'draft:_draft-s-old');
+  assert.equal(old.lastUsedAt, '2026-09-02T00:00:00.000Z');
+  assert.equal(old.commissionDraft, undefined, 'commissionDraft is ignored');
+  assert.equal(old.commissionId, undefined);
+
+  const put = await repo.getById('s-put') as Session & Record<string, unknown>;
+  assert.equal(put.boardId, 'c-2');
+  assert.equal(put.boardBlockFor, 'active:c-2');
+  assert.equal(put.commissionId, undefined);
+
+  const draft = await repo.getById('s-draft');
+  assert.equal(draft?.boardId ?? null, null);
+
+  // New writes go out under the board keys only.
+  await repo.bindBoard('s-old', 'b-9');
+  const last = JSON.parse(rawLines(filePath).at(-1)!);
+  assert.deepEqual(last.fields, { boardId: 'b-9' });
 });
 
 test('an update that changes nothing appends no event', async () => {
@@ -174,7 +216,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath, { shouldCompact: () => false });
   await repo.registerSession(registerOpts('sess-rt', {
-    browser: { device: 'server' }, scheduleId: 'sched-1', commissionDraft: '_draft-cortex-rt',
+    browser: { device: 'server' }, scheduleId: 'sched-1', boardId: 'b-0',
     teamLeadId: 'sess-lead', workerName: 'scout',
   }));
   await repo.updateSession('sess-rt', {
@@ -182,7 +224,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   });
   await repo.updateContextUsage('sess-rt', usage(9.9));
   await repo.markRead('sess-rt');
-  await repo.bindCommission('sess-rt', 'comm-1'); // sets commissionId, clears commissionDraft
+  await repo.bindBoard('sess-rt', 'b-1');
   await repo.convertToDirect('sess-rt', { channel: 'C999' });
   await repo.setWorkerRetired('sess-rt', 1738454400000);
   await repo.beginTurn('sess-rt', fullTurn(0));
@@ -198,8 +240,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
     assert.equal(rec.backendSessionId, 'be-9');
     assert.equal(rec.lastUsedAt, '2025-02-02T00:00:00.000Z');
     assert.equal(rec.scheduleId, 'sched-1');
-    assert.equal(rec.commissionId, 'comm-1');
-    assert.equal(rec.commissionDraft, null);
+    assert.equal(rec.boardId, 'b-1');
     assert.equal(rec.channel, 'C999');
     assert.equal(rec.origin, 'direct');
     assert.deepEqual(rec.browser, { device: 'server' });

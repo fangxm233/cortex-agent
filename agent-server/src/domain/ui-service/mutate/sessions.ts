@@ -23,7 +23,7 @@ import type {
 } from '../types.js';
 import type { AttachmentMeta } from '@core/types/agent-types.js';
 import { removeDirectResume } from '@domain/costs/resume-registry.js';
-import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
+import { projectBoardDecisionAction } from '@domain/boards/decision-projection.js';
 import { t } from '@core/i18n.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
@@ -458,8 +458,8 @@ export async function handleRespondDecision(
     ...(args.action !== 'approve' ? { message } : {}),
     ts,
   });
-  // Best-effort commission projection (DR-0037): never fails the response itself.
-  void projectCommissionDecisionAction({
+  // Best-effort board projection: never fails the response itself.
+  void projectBoardDecisionAction({
     sessionId: args.sessionId, ts, decisionId: args.decisionId, action: args.action,
     ...(args.action !== 'approve' ? { message } : {}),
   }, { bus: deps.bus }).catch(() => {});

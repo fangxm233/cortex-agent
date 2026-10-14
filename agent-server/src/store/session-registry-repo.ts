@@ -92,8 +92,7 @@ export interface RegisterSessionOpts {
   backendSessionId?: string | null;
   scheduleId?: string | null;
   browser?: SessionBrowserOption | null;
-  commissionId?: string | null;
-  commissionDraft?: string | null;
+  boardId?: string | null;
   teamLeadId?: string | null;
   workerName?: string | null;
   workerBrief?: string | null;
@@ -196,8 +195,7 @@ export class SessionRegistryRepo {
       backendSessionId: opts.backendSessionId ?? null,
       scheduleId: opts.scheduleId ?? null,
       browser: opts.browser ?? null,
-      commissionId: opts.commissionId ?? null,
-      commissionDraft: opts.commissionDraft ?? null,
+      boardId: opts.boardId ?? null,
       ...(opts.teamLeadId
         ? {
           teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null,
@@ -310,28 +308,11 @@ export class SessionRegistryRepo {
     }));
   }
 
-  /** Bind (or unbind with null) a session to a commission. Called by the commission finalize path
-   *  (DR-0037) and by commission-mode session creation. Binding also clears commissionDraft: once
-   *  the contract is named, the draft directory no longer exists under that name.
-   *
-   *  `commissionBlockFor` is deliberately left alone: binding CHANGES the key (`draft:x` →
-   *  `active:id`), and that mismatch is exactly what makes the next turn deliver the active block. */
-  async bindCommission(sessionId: string, commissionId: string | null): Promise<Session | null> {
-    return this.updateById(sessionId, (record) => ({
-      ...record,
-      commissionId,
-      commissionDraft: commissionId ? null : record.commissionDraft,
-    }));
-  }
-
-  /** Enter (or leave, with null) the drafting half of commission mode. Called by
-   *  `cortex_commission_start`, by the composer's "new" on a live session, and by session creation.
-   *  Refuses to touch a session already bound to a commission — that is a terminal state. */
-  async setCommissionDraft(sessionId: string, draftDir: string | null): Promise<Session | null> {
+  /** Bind a session to a board, replacing any earlier binding. `boardBlockFor` is left alone: a
+   *  new boardId no longer matches it, which is what delivers the [Board] block on the next turn. */
+  async bindBoard(sessionId: string, boardId: string): Promise<Session | null> {
     return this.updateById(sessionId, (record) => (
-      record.commissionId
-        ? record
-        : { ...record, commissionDraft: draftDir }
+      record.boardId === boardId ? record : { ...record, boardId }
     ));
   }
 
@@ -340,15 +321,17 @@ export class SessionRegistryRepo {
     return this.updateById(sessionId, (record) => ({ ...record, workerRetiredAt: retiredAt }));
   }
 
-  /** Record that the `[Commission]` block for `key` is now in this session's backend history. */
-  async markCommissionBlockDelivered(sessionId: string, key: string): Promise<Session | null> {
-    return this.updateById(sessionId, (record) => ({ ...record, commissionBlockFor: key }));
+  /** Record that the `[Board]` block for `boardId` is now in this session's backend history. */
+  async markBoardBlockDelivered(sessionId: string, boardId: string): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => ({ ...record, boardBlockFor: boardId }));
   }
 
   /** Forget the delivery marker so the next turn re-injects the block. Called after compaction,
    *  which drops the copy that was in backend history. */
-  async clearCommissionBlockDelivery(sessionId: string): Promise<Session | null> {
-    return this.updateById(sessionId, (record) => ({ ...record, commissionBlockFor: null }));
+  async clearBoardBlockDelivery(sessionId: string): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => (
+      record.boardBlockFor == null ? record : { ...record, boardBlockFor: null }
+    ));
   }
 
   // --- Channel bindings (channel → conversation sessionId) ------------------------------------
@@ -570,10 +553,10 @@ export class SessionRegistryRepo {
       const intents: SessionRegistryEvent[] = [];
       const records = sortRecent(state.live.values());
       const channelsBySession = conversationChannelsBySession(state);
-      // A starred session and a commission's session are kept however old: the user marked one,
-      // and the other is the record of a contract's work.
+      // A starred session and a board's session are kept however old: the user marked one, and
+      // the other is part of the work a board records.
       const expired = (record: SessionRecord): boolean => {
-        if (record.starred === true || record.commissionId) return false;
+        if (record.starred === true || record.boardId) return false;
         const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
         return lastUsedAtMs !== null && lastUsedAtMs < toCutoffMs(cutoff);
       };

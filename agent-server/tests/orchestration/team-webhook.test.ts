@@ -80,7 +80,7 @@ function world(): World {
       const id = opts.sessionId;
       w.sessions.set(id, session(id, {
         teamLeadId: opts.teamLeadId, workerName: opts.workerName, workerBrief: opts.workerBrief,
-        profileName: opts.profileName, projectId: opts.projectId,
+        profileName: opts.profileName, projectId: opts.projectId, boardId: opts.boardId,
       }));
       return { sessionId: id, channel: `web:${id}` };
     },
@@ -169,6 +169,15 @@ test('spawn creates a named worker under the lead and hands it the prompt as tea
   _resetTeamState();
   const relisted = await call(w, { action: 'list' });
   assert.match((relisted.data as any).text, /api-refactor .* — Refactor the API$/m);
+});
+
+test('a spawned worker inherits the lead board, and none when the lead has none', async () => {
+  const w = world();
+  await call(w, { action: 'spawn', name: 'plain', prompt: 'p' });
+  assert.equal(w.sessions.get('w1').boardId, null);
+  w.sessions.get('lead').boardId = 'b-1';
+  await call(w, { action: 'spawn', name: 'boarded', prompt: 'p' });
+  assert.equal(w.sessions.get('w2').boardId, 'b-1');
 });
 
 test('spawn validates the name, its uniqueness and the running cap', async () => {

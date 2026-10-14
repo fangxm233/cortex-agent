@@ -279,8 +279,8 @@ function optionLabel(option: string | { label?: string }): string {
   return typeof option === 'string' ? option : option?.label ?? '';
 }
 
-export function buildWorkerQuestionNotice(name: string, request: WorkerRequest, view: WorkerView, commission: boolean): string {
-  const what = request.kind === 'ask-user' ? 'question' : commission ? 'commission contract approval' : 'plan approval';
+export function buildWorkerQuestionNotice(name: string, request: WorkerRequest, view: WorkerView): string {
+  const what = request.kind === 'ask-user' ? 'question' : 'plan approval';
   const head = `[Worker ${name} · ${what} · request_id=${request.requestId} · ${request.blocking ? 'blocking' : 'non-blocking'}]`;
   const lines = [head, statusLine(view), ''];
   if (request.kind === 'ask-user') {
@@ -321,7 +321,7 @@ export async function notifyLeadOfWorkerRequest(
         : await takeUnreadDigest(lead.sessionId, deps.inbox, deps.now());
       await deps.deliver({
         channel: lead.channel, origin: 'worker-question',
-        text: withDigest(buildWorkerQuestionNotice(name, request, view, !!worker.commissionDraft), digest.text),
+        text: withDigest(buildWorkerQuestionNotice(name, request, view), digest.text),
       });
       if (deps.rebuildHeld()) await digest.restore();
       return true;

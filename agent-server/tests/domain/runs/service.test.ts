@@ -132,7 +132,7 @@ function makeRequest(overrides: Partial<RunRequest> = {}): RunRequest {
     prompt: { text: 'hello' },
     context: {
       channel: 'web:sess-1', project: 'general', trigger: 'user', executionKind: 'local',
-      isUserInitiated: true, commissionMode: false,
+      isUserInitiated: true,
     },
     policy: {
       background: 'hold', recordCost: false, hooks: false, loadRules: false,
