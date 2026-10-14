@@ -15,7 +15,6 @@ import type { RailSortMode } from './rail-order';
 import { RailTree, SearchIcon } from './RailTree';
 import { useApprovals } from '@/features/approvals/useApprovals';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useBoardLiveSync } from '@/features/board/useBoardLiveSync';
 import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useLang, useVocab } from '@/i18n';
@@ -120,8 +119,6 @@ export function LeftRail(): JSX.Element {
   const teamEnabled = useTeamEnabled();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
-  // Keep sessions' board bindings current (the chat header's board button) as sessions are bound.
-  useBoardLiveSync();
 
   const { currentProjectId, setCurrentProject, setProjectOrder } = useCurrentProject();
   const { selectedSessionId, setSelectedSession } = useSelectedSession();

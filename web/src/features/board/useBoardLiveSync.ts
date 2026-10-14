@@ -7,13 +7,15 @@ function payloadOf(ev: LiveEvent): Record<string, unknown> {
   return ev.payload && typeof ev.payload === 'object' ? (ev.payload as Record<string, unknown>) : {};
 }
 
+const BOARD_UPDATED = ['board.updated'] as const;
+
 /**
  * Keep board surfaces current. `board.updated` covers the record, the directory (body, assets,
  * decisions) and the bound sessions, so it refetches the board queries and the body files;
  * `session.board` moves a binding; `board.style-updated` swaps the user stylesheet.
- * `onBoardUpdated` lets an open body re-inline its assets even when its text did not change.
+ * Mounted once per chrome (`BoardLiveSync` in ShellProviders), desktop and phone alike.
  */
-export function useBoardLiveSync(onBoardUpdated?: (boardId: string) => void): void {
+export function useBoardLiveSync(): void {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -37,7 +39,20 @@ export function useBoardLiveSync(onBoardUpdated?: (boardId: string) => void): vo
         return typeof input?.path === 'string' && input.path.startsWith('boards/');
       },
     });
+  });
+}
+
+/** Renders nothing; keeps every board surface of the chrome it is mounted in current. */
+export function BoardLiveSync(): null {
+  useBoardLiveSync();
+  return null;
+}
+
+/** Calls back on each `board.updated`, so an open body can re-inline its assets even when its
+ *  text did not change. The queries themselves are refetched by `BoardLiveSync`. */
+export function useBoardUpdated(onBoardUpdated: (boardId: string) => void): void {
+  useLiveEvents(BOARD_UPDATED, (ev) => {
     const boardId = payloadOf(ev).boardId;
-    if (typeof boardId === 'string') onBoardUpdated?.(boardId);
+    if (typeof boardId === 'string') onBoardUpdated(boardId);
   });
 }

@@ -15,7 +15,7 @@ import { BoardLiveStrip } from './BoardLiveStrip';
 import { fileNameOf, mediaKindOfName, resolveBoardRef } from './board-paths';
 import { useBoard } from './useBoard';
 import { useBoardDocument } from './useBoardDocument';
-import { useBoardLiveSync } from './useBoardLiveSync';
+import { useBoardUpdated } from './useBoardLiveSync';
 
 // One board: the native live strip, the decision stream it can unfold, and the agent-written body.
 // Shared by the desktop dock tab and the mobile sheet; each host says how to open a session.
@@ -106,7 +106,7 @@ export function BoardView({ boardId, onOpenSession, touch }: {
   const data = useBoard(boardId);
   const [decisionsOpen, setDecisionsOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  useBoardLiveSync(useCallback((id: string) => { if (id === boardId) setRefresh((n) => n + 1); }, [boardId]));
+  useBoardUpdated(useCallback((id: string) => { if (id === boardId) setRefresh((n) => n + 1); }, [boardId]));
 
   const { board } = data;
   const projectId = board?.projectId ?? '';
