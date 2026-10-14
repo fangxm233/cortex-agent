@@ -1,203 +1,241 @@
-# Cortex — Autonomous Project Owner
+<div align="center">
 
-[中文文档](./docs/zh/) | [Docs](https://fangxm233.github.io/cortex-agent/)
+# Cortex
 
-Cortex is an autonomous agent system for long-running projects. You give
-it a mission with a success criterion, and it plans the work, hands
-focused pieces to subagents, keeps a structured log of progress in your
-repo, and checks the result against what you agreed — across days or
-weeks of unattended work.
+**An autonomous agent workbench for long-running projects.**
 
-Cortex is designed around three failure modes of long agent runs.
-**Context rot** — durable project state lives as plain files in your
-repo, not chat history that accumulates and decays. **Execution drift**
-— non-trivial work starts from a plan you approve, long tasks keep a
-live board of their state, plan, and decisions, and every completion
-claim points at its evidence. **Context window
-limits** — bounded pieces of work go to subagents that start with a
-fresh context and return only their result.
+Give it a mission. It plans the work, runs it across your machines with a team of agents,<br>
+keeps the project's memory in plain files, and asks you only when it matters.
 
-## Features
+[![Release](https://img.shields.io/github/v/release/fangxm233/cortex-agent?filter=server-v*&label=release)](https://github.com/fangxm233/cortex-agent/releases)
+[![npm](https://img.shields.io/npm/v/@cortex-agent/server?label=npm)](https://www.npmjs.com/package/@cortex-agent/server)
+[![Docs](https://img.shields.io/badge/docs-fangxm233.github.io-4f46e5)](https://fangxm233.github.io/cortex-agent/)
+[![License](https://img.shields.io/github/license/fangxm233/cortex-agent)](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
 
-- **Subagents and team mode** — a session hands bounded work such as
-  exploration, planning, or verification to subagents that run with a
-  clean context on either backend and report back into the transcript.
-  With team mode on (experimental), a session can also lead persistent
-  worker sessions that it continues, answers, and reports on.
-  See [docs/backends.md](./docs/backends.md#subagents) and
-  [docs/team.md](./docs/team.md).
+[Download](#download) · [Docs](https://fangxm233.github.io/cortex-agent/) · [中文](https://github.com/fangxm233/cortex-agent/blob/main/docs/zh/README.md)
 
-- **Boards for long work** — when a task runs on several workers or
-  across many hours, the agent opens a board: a status page beside the
-  conversation that shows where the work stands, what comes next, what
-  is waiting on you, and the decisions taken so far. The lead and its
-  workers keep it current as they go, and the page refreshes within
-  seconds of each edit. See [docs/team.md](./docs/team.md#boards).
+</div>
 
-- **Structured project log** — every project keeps mission, roadmap,
-  status, experiments, knowledge, patterns, and decisions as plain
-  files in your repo. A fresh agent (or a fresh you, weeks later) can
-  pick up where the last one left off — no chat history to scroll, no
-  vector store to query.
-  See [docs/memory.md](./docs/memory.md).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/hero-dark.png">
+  <img alt="The Cortex workbench: projects and sessions on the left, a session working through an approved plan in the middle, and its live board on the right" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/hero-light.png">
+</picture>
 
-- **Cron and interval scheduling** — schedule Cortex to scan a domain
-  every morning, ship a weekly digest, or sweep an inbox every few
-  minutes. Schedules persist across restarts and hot-reload without
-  downtime.
-  See [docs/scheduling.md](./docs/scheduling.md).
+## Download
 
-- **Self-evolving skills** — when Cortex catches itself doing the same
-  thing a third time, it drafts a new skill, you approve, and future
-  runs use it automatically. The longer Cortex runs, the more your
-  patterns become first-class behavior.
-  See [docs/skills-and-plugins.md](./docs/skills-and-plugins.md).
-
-- **One agent across your machines** — your compute, documents, code,
-  and tools rarely live on one box. Connect any Mac, Windows, or Linux
-  machine as a remote host via `cortex-client`, and Cortex can read,
-  write, and execute across all of them from a single control plane.
-  See [docs/cross-machine.md](./docs/cross-machine.md).
-
-- **Backend agnostic** — runs on Claude Code or PI today, with adapter
-  abstraction for additional coding agents. Use the LLM subscription
-  you already pay for — no extra API key, no second bill.
-
-- **Use Cortex from the Web, native apps, chat, or a terminal** — open
-  the browser workbench, install the Linux/macOS/Windows desktop app or
-  Android app, message Cortex through Slack or Feishu, or use the TUI.
-  Every interface reaches the same projects, sessions, schedules, and memory.
-  See [Browser Access](./docs/browser-access.md) and
-  [Desktop and Android Apps](./docs/desktop-app.md).
-
-## Quickstart
-
-Requirements: Node ≥22.19.0. The PI backend ships inside the server package; the
-Claude Code backend is a separate install that `cortex init` performs for you.
-
-```bash
-# Install
-npm install -g @cortex-agent/server
-
-# Initialize (guided setup)
-cortex init
-
-# Start
-cortex daemon
-```
-
-Once running, use Slack or Feishu, open the browser workbench, or connect a
-native app. Every interface reads the same project context and dispatches work
-through the same server. Browser deployment is covered in
-[Browser Access](./docs/browser-access.md); native installation is covered in
-[Desktop and Android Apps](./docs/desktop-app.md).
-
-For a detailed step-by-step guide covering setup wizard prompts, what files
-are created, and how to send your first message, see
-[docs/quickstart.md](./docs/quickstart.md).
-
-## How a project looks
-
-Each project lives under `.cortex/context/projects/<name>/` with a
-predictable layout:
-
-```
-projects/my-project/
-├── mission.md           # Goal and success criteria
-├── roadmap.md           # Milestones and timeline
-├── STATUS.md            # Current state (overwrite)
-├── ISSUES.md            # Open friction points (append)
-├── boards/              # Status pages of long tasks
-├── decisions/           # DR-NNNN.md design decisions (append)
-├── experiments/         # EXP-NNN.md atomic experiment records
-├── knowledge/           # K-NNN.md atomic knowledge entries
-└── patterns/            # PAT-NNN.md cross-experiment patterns
-```
-
-This is the project log. It survives sessions, restarts, and model
-upgrades. A fresh agent can resume work from here without the previous
-conversation.
-
-## Safety boundaries
-
-Cortex classifies operations by blast radius. The harness enforces this
-at the tool-call layer.
-
-| Class             | Examples                                                   |
-|-------------------|------------------------------------------------------------|
-| Autonomous        | read files, run small scripts, edit context files, web search, in-budget compute |
-| Requires approval | modify CLAUDE.md rules, add new skills, change agent-server behavior, over-budget compute, delete data |
-| Forbidden         | system-level package install, system config changes, `rm -rf` |
-
-The approval queue lives at `.cortex/context/PENDING_APPROVALS.md`.
-Configure additional rules in `.claude/settings.json`.
-
-## Configuration
-
-All configuration lives under `$CORTEX_HOME/config/`. Only
-`CORTEX_PLATFORM` and your platform credentials (Slack tokens) are
-required. Run `cortex init` for guided setup. The full environment
-variable reference, file layout, and precedence rules are in
-[docs/configuration.md](./docs/configuration.md).
-
-## Docs
-
-| Doc | What it covers |
+| Platform | Installer |
 |---|---|
-| [Quickstart](./docs/quickstart.md) | Install, init, and first Slack message in 5 minutes |
-| [Desktop & Android Apps](./docs/desktop-app.md) | Native installation, connection, downloads, and updates |
-| [Browser Access](./docs/browser-access.md) | Web workbench authentication and deployment |
-| [Slack Setup](./docs/slack-setup.md) | App creation, token collection, Socket Mode, scopes |
-| [Configuration](./docs/configuration.md) | Full `.env` and `config/settings.json` reference, `profiles.json`, execution environments, file layout, hot-reload |
-| [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-signal` — every subcommand and flag |
-| [Backends](./docs/backends.md) | Claude Code vs PI, feature matrix, fallback, cost reporting |
-| [Architecture](./docs/architecture.md) | Server layers, WS protocol, event bus |
-| [Team Mode](./docs/team.md) | Lead and worker sessions, reports, questions, and the roster |
-| [Memory](./docs/memory.md) | EXP/K/PAT atomized knowledge, project log governance |
-| [Skills & Plugins](./docs/skills-and-plugins.md) | Skill authoring, plugin layout, third-party plugins |
-| [Scheduling](./docs/scheduling.md) | Interval/daily/weekly/once schedules, targets, preCheck |
-| [Safety & Approvals](./docs/safety-and-approvals.md) | Blast-radius classes, approval workflow, audit trail |
-| [Hooks](./docs/hooks.md) | Hook lifecycle, hook-bridge, custom hooks in settings.json |
-| [Waitpoints](./docs/waitpoints.md) | Waiting on external jobs without polling: arm, signal, quorum, expiry |
-| [MCP](./docs/mcp.md) | Privilege-scoped Cortex MCP servers, third-party MCP |
-| [Cross-machine](./docs/cross-machine.md) | cortex-client deployment, remote tools, network topology |
+| macOS · Apple Silicon | [Cortex-2026.10.6-macOS-aarch64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-macOS-aarch64.dmg) |
+| macOS · Intel | [Cortex-2026.10.6-macOS-x86_64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-macOS-x86_64.dmg) |
+| Windows · x64 | [Cortex-2026.10.6-Windows-x86_64-setup.exe](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-Windows-x86_64-setup.exe) |
+| Linux · x86_64 | [AppImage](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-Linux-x86_64.AppImage) · [deb](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-Linux-amd64.deb) · [rpm](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-Linux-x86_64.rpm) |
+| Android · arm64 | [Cortex-2026.10.6-Android-arm64.apk](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.6/Cortex-2026.10.6-Android-arm64.apk) |
 
-## Developing on Cortex
+The desktop app installs and starts a Cortex server on the same computer in one click, with no
+terminal and no Node.js to set up, or connects to a server you already run. The Android app connects
+to a server. For a headless machine, install the server with npm (see [Get started](#get-started)).
+Other versions are on the [Releases page](https://github.com/fangxm233/cortex-agent/releases).
+
+## What Cortex is
+
+Cortex runs coding agents (Claude Code, or PI with the provider you already pay for) as a
+long-lived service with a real workbench in front of them. It is built for work that takes days
+rather than minutes: research studies, multi-step engineering, and recurring scans and digests. It
+targets the three ways long agent runs go wrong:
+
+- **Context rot.** A project's mission, status, experiments, and decisions live as plain files in
+  your repo, not in a chat history that grows until it decays.
+- **Execution drift.** Non-trivial work starts from a plan you approve. Long tasks keep a live
+  board of where they stand, and claims of completion point at their evidence.
+- **Context limits.** Bounded pieces of work go to subagents and workers that start with a fresh
+  context and return only their result.
+
+## A tour of the workbench
+
+### Plans, tools, and questions in one conversation
+
+Every session streams its reasoning, tool calls, subagent runs, and files into one transcript.
+Before non-trivial work the agent writes a plan and waits. You approve it, ask for changes, or
+reject it from the card in the chat. Questions and decisions arrive the same way, as cards you
+answer in place, on desktop or on your phone.
+
+### Boards for long work
+
+<img alt="A board showing the study's stages, acceptance checklist, key decisions and timeline" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/board.png">
+
+When a task spans many hours or several workers, the agent opens a **board**: a status page
+docked beside the conversation. The board shows where the work stands, what comes next, what is
+waiting on you, and every decision taken so far. You can approve, ask about, or revise a decision
+from the board itself. The lead and its workers keep the board current, and it refreshes seconds
+after each edit. [Boards →](https://fangxm233.github.io/cortex-agent/team/#boards)
+
+### A team of workers
+
+<img alt="A lead session with its worker roster open, showing each worker's state and its latest report" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/team.png">
+
+You talk to one session, the **lead**. When the work splits, the lead hands pieces to persistent
+**worker** sessions, follows up with them, answers their questions, and reports back. The capsule in
+the chat header shows who is running, who is idle, and who needs you. Bounded jobs such as a search,
+a review, or a verification run go to one-shot subagents instead.
+[Team mode →](https://fangxm233.github.io/cortex-agent/team/)
+
+### Project memory you can read
+
+<img alt="The memory view of a project: mission, status, experiment records and knowledge entries" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/memory.png">
+
+Each project keeps its mission, roadmap, status, experiment records, knowledge entries, patterns, and
+decision records as Markdown under `context/projects/<name>/`. A new session, or you weeks later,
+picks up from those files rather than from a transcript. The **Memory** view browses them with their
+line history. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
+
+### Schedules
+
+<img alt="The schedule list with a weekly literature digest and a daily results check" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/schedules.png">
+
+Interval, daily, weekly, and one-off schedules start ordinary sessions on their own: a morning
+scan of new papers, a weekly digest, a check every few minutes. Schedules survive restarts and
+hot-reload without downtime. [Scheduling →](https://fangxm233.github.io/cortex-agent/scheduling/)
+
+### All your machines
+
+<img alt="The machines menu with live CPU, memory, disk and per-GPU telemetry" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png">
+
+Your GPUs, documents, and tools rarely live on one box. Run `cortex-client` on any Linux, macOS, or
+Windows machine and the agent can read, write, and execute there from the same session. The
+**Machines** menu shows each machine's live CPU, memory, disk, and GPU load. In the desktop app, the
+dock opens a development server running on a remote machine as if it ran locally.
+[Cross-machine →](https://fangxm233.github.io/cortex-agent/cross-machine/)
+
+### On your phone
+
+<img alt="The Android app: session list, a conversation, and the approvals screen" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/mobile-strip.png">
+
+The Android app has the same sessions, boards, approvals, and memory in a phone layout. It can
+notify you in the background when a turn finishes or when a session is waiting for your answer.
+[Desktop and Android apps →](https://fangxm233.github.io/cortex-agent/desktop-app/)
+
+### Bring your own models
+
+<img alt="Provider setup: Claude Code, connected providers, and a grid of providers to add" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/provider-setup.png">
+
+Cortex drives a coding agent instead of calling a model API itself. PI ships inside the server and
+signs in to dozens of providers, including subscriptions such as ChatGPT Plus/Pro, with OAuth or an
+API key. Claude Code is optional and uses your own Claude login. Usage and cost are tracked per
+session and per provider. [Backends →](https://fangxm233.github.io/cortex-agent/backends/)
+
+## Get started
+
+### Desktop app
+
+[Download](#download) the app for your platform, open it, and choose **Install Cortex**. The app
+unpacks its own Node.js runtime, installs the server into a private prefix under `~/.cortex`, starts
+it, and opens provider setup. Sign in to a provider, pick a default profile, and enter the
+workbench. Choose **Connect** instead to use a server running elsewhere.
+[Desktop and Android apps →](https://fangxm233.github.io/cortex-agent/desktop-app/)
+
+### Server from a terminal
+
+Requires Node.js 22.19 or later.
 
 ```bash
-# Clone and install dependencies
-git clone https://github.com/<your-org>/cortex
-cd cortex/agent-server && npm install
-
-# Build
-npm run build
-
-# Run tests
-npm test
-
-# Start in dev mode (hot-reload via .restart watcher)
-npm run build && npm start
+npm install -g @cortex-agent/server
+cortex init        # guided setup: chat platforms, machine name, provider login
+cortex ui enable   # turn on the Web workbench and app endpoint
+cortex daemon      # start the server in the background
 ```
 
-### Architecture
+Open `http://127.0.0.1:3004` on the server, or connect the desktop or Android app with the
+server's address and client token. [Quickstart →](https://fangxm233.github.io/cortex-agent/quickstart/)
 
-Cortex's core workspace and plugin packages are:
+### Other ways in
+
+Every interface reaches the same projects, sessions, schedules, and memory:
+
+| Interface | Guide |
+|---|---|
+| Browser workbench, served by the server and protected by Cloudflare Access | [Browser access](https://fangxm233.github.io/cortex-agent/browser-access/) |
+| Slack or Feishu, for chat-driven work and notifications | [Slack setup](https://fangxm233.github.io/cortex-agent/slack-setup/) · [Quickstart](https://fangxm233.github.io/cortex-agent/quickstart/) |
+| `cortex tui`, a full-screen terminal interface | [CLI reference](https://fangxm233.github.io/cortex-agent/cli-reference/) |
+
+## How a project is stored
+
+```
+context/projects/optimizer-study/
+├── mission.md        # goal and success criteria
+├── roadmap.md        # milestones
+├── STATUS.md         # current state (overwritten)
+├── ISSUES.md         # open friction points (appended)
+├── boards/           # status pages of long tasks
+├── decisions/        # design decision records
+├── experiments/      # EXP-NNN.md, one per experiment
+├── knowledge/        # K-NNN.md, one per confirmed finding
+└── patterns/         # PAT-NNN.md, patterns across experiments
+```
+
+These are ordinary files in a git repository. They survive sessions, restarts, and model upgrades,
+and any agent or person can read them.
+
+## Safety and approvals
+
+Cortex gives agents real tools: shell, files, GPUs, and other machines. Its guard rails are
+conversational rather than a sandbox:
+
+- **Plan approval.** Non-trivial work starts with a plan that waits for your approval, revision, or
+  rejection.
+- **Questions and decisions.** Agents ask through cards that you answer in place, and record the
+  choices they make on their own as decision cards you can review.
+- **Your rules.** A safety boundary in your `$CORTEX_HOME/AGENTS.md` tells every session what it may
+  do alone, what needs sign-off, and what is forbidden. Operations that need sign-off wait in the
+  **Approval Center**.
+
+[Safety and approvals →](https://fangxm233.github.io/cortex-agent/safety-and-approvals/)
+
+## Documentation
+
+| Guide | What it covers |
+|---|---|
+| [Quickstart](https://fangxm233.github.io/cortex-agent/quickstart/) | Install, `cortex init`, the Web workbench, and your first messages |
+| [Desktop & Android apps](https://fangxm233.github.io/cortex-agent/desktop-app/) | Native installation, local server setup, provider setup, the workbench, notifications, updates |
+| [Browser access](https://fangxm233.github.io/cortex-agent/browser-access/) | Serving the Web workbench and protecting it with Cloudflare Access |
+| [Slack setup](https://fangxm233.github.io/cortex-agent/slack-setup/) | App creation, tokens, Socket Mode, scopes |
+| [Team mode](https://fangxm233.github.io/cortex-agent/team/) | Leads, workers, reports, and boards |
+| [Memory](https://fangxm233.github.io/cortex-agent/memory/) | The project log: experiments, knowledge, patterns, decisions |
+| [Scheduling](https://fangxm233.github.io/cortex-agent/scheduling/) | Interval, daily, weekly, and one-off schedules |
+| [Backends](https://fangxm233.github.io/cortex-agent/backends/) | Claude Code and PI, providers, fallback, cost reporting, subagents |
+| [Configuration](https://fangxm233.github.io/cortex-agent/configuration/) | `config/.env`, `settings.json`, profiles, execution environments |
+| [CLI reference](https://fangxm233.github.io/cortex-agent/cli-reference/) | `cortex`, `cortex-signal`, and `cortex-hook` |
+| [Skills & plugins](https://fangxm233.github.io/cortex-agent/skills-and-plugins/) | Writing, overriding, and packaging skills |
+| [Safety & approvals](https://fangxm233.github.io/cortex-agent/safety-and-approvals/) | The safety boundary, approval queue, and interactive cards |
+| [Hooks](https://fangxm233.github.io/cortex-agent/hooks/) | Hook lifecycle, built-in hooks, and custom hooks |
+| [Waitpoints](https://fangxm233.github.io/cortex-agent/waitpoints/) | Waiting on external jobs without polling |
+| [MCP](https://fangxm233.github.io/cortex-agent/mcp/) | Cortex's MCP tools and third-party servers |
+| [Cross-machine](https://fangxm233.github.io/cortex-agent/cross-machine/) | Deploying `cortex-client` and using remote tools |
+| [Architecture](https://fangxm233.github.io/cortex-agent/architecture/) | Server layers, protocols, and the event bus |
+
+## Developing Cortex
+
+```bash
+git clone https://github.com/fangxm233/cortex-agent.git
+cd cortex-agent
+pnpm install
+pnpm --filter @cortex-agent/ui-contract --filter @cortex-agent/server --filter @cortex-agent/web build
+pnpm --filter @cortex-agent/server test
+```
 
 | Package | Directory | Role |
-|---------|-----------|------|
-| `@cortex-agent/server` | `agent-server/` | Control plane, chat adapters, session orchestration, and scheduling |
-| `@cortex-agent/client` | `client/` | Remote worker that executes tools over the client WebSocket |
-| `@cortex-agent/web` | `web/` | Browser, desktop, and mobile workbench SPA |
+|---|---|---|
+| `@cortex-agent/server` | `agent-server/` | Control plane: sessions, orchestration, scheduling, chat adapters, the Web UI host |
+| `@cortex-agent/client` | `client/` | Remote worker that runs tools on another machine over WebSocket |
+| `@cortex-agent/web` | `web/` | The workbench SPA for browser, desktop, and mobile |
 | `@cortex-agent/desktop` | `desktop/` | Tauri shell for Linux, macOS, Windows, and Android |
-| `@cortex-agent/ui-contract` | `packages/ui-contract/` | Shared typed contract between the server and workbench |
-| `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | Authenticated Cloudflare Worker for DeepSeek API egress |
-| Plugins | `plugins/` | Skill plugins loaded by agents at runtime |
+| `@cortex-agent/ui-contract` | `packages/ui-contract/` | Typed contract between the server and the workbench |
+| `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | Cloudflare Worker relay for DeepSeek API egress |
 
-The server is organized in six layers (`src/`): core utilities → persistence
-→ event bus → domain logic → orchestration → entry points. Test coverage is
-mandatory for all code changes. See [docs/architecture.md](./docs/architecture.md)
-for the full architecture.
+`pnpm --dir web dev` serves the workbench with hot reload against a server on port 3004 (set
+`CORTEX_CLIENT_TOKEN` in that shell), and `pnpm --dir desktop dev` runs the native shell, which needs
+a Rust toolchain. The server is organized in six layers, from core utilities to entry points, described in
+[Architecture](https://fangxm233.github.io/cortex-agent/architecture/). Code changes come with tests.
 
 ## License
 
-MIT
+[MIT](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
