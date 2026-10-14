@@ -80,6 +80,17 @@ describe('BoardStatusBar', () => {
       .toEqual(['lead', 'beta', 'alpha']);
   });
 
+  it('names each session that joined directly by its title once there is more than one', () => {
+    h.live = { board: BOARD, missing: false, decisions: [], sessions: [
+      session('s1', { teamLeadId: null, workerName: null, label: 'Survey lead' }),
+      session('s2', { teamLeadId: null, workerName: null, label: 'Side chat' }),
+      session('alpha'),
+    ] };
+    const el = bar(render(<BoardStatusBar boardId="b1" onOpen={vi.fn()} />))!;
+    expect(el.findAll((n) => n.props['data-board-peer'] !== undefined && n.type === 'span').map(text).sort())
+      .toEqual(['Side chat', 'Survey lead', 'alpha']);
+  });
+
   it('keeps the flag accent and drops the pending chip when nobody waits', () => {
     h.live = { board: BOARD, missing: false, decisions: [], sessions: [session('alpha', { running: true })] };
     const el = bar(render(<BoardStatusBar boardId="b1" onOpen={vi.fn()} />))!;
