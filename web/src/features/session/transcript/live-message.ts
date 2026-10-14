@@ -4,6 +4,7 @@ import type {
   DecisionItem,
   NoticeAction,
   SystemTurnOrigin,
+  BoardActionRef,
   TeamActionRef,
   TeamWorkerRef,
   TranscriptMessage,
@@ -31,6 +32,8 @@ export interface LiveSessionMessage {
   toolDevice?: string;
   /** Lead worker-tool rows only: what the call did to which worker. */
   teamAction?: TeamActionRef;
+  /** Successful board_open rows only: the board the call created or attached to. */
+  boardAction?: BoardActionRef;
   /** `worker-progress` rows only: the worker that sent it. */
   worker?: TeamWorkerRef;
   noticeLevel?: ChatNoticeLevel;
@@ -64,6 +67,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     toolInput: isTool ? (m.toolInput ?? '') : null,
     ...(isTool && m.toolDevice ? { toolDevice: m.toolDevice } : {}),
     ...(isTool && m.teamAction ? { teamAction: m.teamAction } : {}),
+    ...(isTool && m.boardAction ? { boardAction: m.boardAction } : {}),
     ...(m.role === 'worker-progress' && m.worker ? { worker: m.worker } : {}),
     ts: m.ts,
     elapsedMs: null,

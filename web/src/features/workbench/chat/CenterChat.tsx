@@ -13,6 +13,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { DockedBoardBar } from '@/features/board/BoardStatusBar';
+import { BoardStreamProvider } from '@/features/board/BoardChatRows';
 import { useTeamContext } from '@/features/team/useTeamContext';
 import { TeamCapsule } from '@/features/team/TeamRoster';
 import { TeamStreamProvider } from '@/features/team/TeamStreamRows';
@@ -218,13 +219,15 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
           <TranscriptLoadError onRetry={chat.retryTranscript} />
         ) : (
           <TeamStreamProvider workers={team.workers} leadRunning={chat.running} onOpenWorker={setSelectedSession}>
-            <MessageStream
-              rows={rows}
-              loading={!!sessionId && chat.transcriptPending}
-              interactionActions={chat.interactionActions}
-              edit={edit}
-              streamKey={sessionId}
-            />
+            <BoardStreamProvider>
+              <MessageStream
+                rows={rows}
+                loading={!!sessionId && chat.transcriptPending}
+                interactionActions={chat.interactionActions}
+                edit={edit}
+                streamKey={sessionId}
+              />
+            </BoardStreamProvider>
           </TeamStreamProvider>
         )}
         <Composer

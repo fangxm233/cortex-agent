@@ -13,6 +13,7 @@ import {
   type TranscriptMessageWithSpawns,
 } from './live-message';
 import type { PendingUserMessage } from './pending-user';
+import { boardActionOf } from './board-rows';
 import {
   addWorkerUpdate, createTeamBuild, finishTeamRows, parseWorkerMessage, placeTeamAction, progressUpdate,
   teamActionOf, type TeamBuild,
@@ -478,6 +479,15 @@ function placeTeamMessage(state: BuildState, m: FlatMessage): boolean {
   return false;
 }
 
+/** A board_open call at the top level: its own row, after the tool run before it. */
+function placeBoardMessage(state: BuildState, m: FlatMessage): boolean {
+  const action = boardActionOf(m);
+  if (!action) return false;
+  flushTools(state.top);
+  state.top.rows.push({ kind: 'board-action', action });
+  return true;
+}
+
 /** Rows after every persisted/live message: the in-flight block, the streaming flag, then the
  *  messages the model has not read yet. */
 function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
@@ -540,7 +550,7 @@ export function buildTranscriptRows(
     }
     const route = routeMessage(state, m);
     if (!route) continue;
-    if (!route.block && placeTeamMessage(state, m)) continue;
+    if (!route.block && (placeTeamMessage(state, m) || placeBoardMessage(state, m))) continue;
     if (m.type === 'tool') {
       if (route.block && !route.block.summary) route.block.row.toolCount += 1;
       route.sink.toolBuf.push(toolEntry(m));

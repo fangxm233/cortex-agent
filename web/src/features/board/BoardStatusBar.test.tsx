@@ -75,8 +75,8 @@ describe('BoardStatusBar', () => {
     ] };
     const el = bar(render(<BoardStatusBar boardId="b1" onOpen={vi.fn()} />))!;
     expect(el.props['data-board-flag']).toBe('ask');
-    expect(el.findByProps({ 'data-board-bar-pending': 2 }).children.join('')).toBe('2 awaiting you');
-    expect(el.findAll((n) => n.props['data-board-bar-session'] !== undefined && n.type === 'span').map(text))
+    expect(el.findByProps({ 'data-board-pending-count': 2 }).children.join('')).toBe('2 awaiting you');
+    expect(el.findAll((n) => n.props['data-board-peer'] !== undefined && n.type === 'span').map(text))
       .toEqual(['lead', 'beta', 'alpha']);
   });
 
@@ -84,7 +84,7 @@ describe('BoardStatusBar', () => {
     h.live = { board: BOARD, missing: false, decisions: [], sessions: [session('alpha', { running: true })] };
     const el = bar(render(<BoardStatusBar boardId="b1" onOpen={vi.fn()} />))!;
     expect(el.props['data-board-flag']).toBe('active');
-    expect(el.findAll((n) => n.props['data-board-bar-pending'] !== undefined)).toHaveLength(0);
+    expect(el.findAll((n) => n.props['data-board-pending-count'] !== undefined)).toHaveLength(0);
   });
 
   it('shows no state chip: a board has no status', () => {
@@ -95,8 +95,8 @@ describe('BoardStatusBar', () => {
   it('shows four sessions and folds the rest into +n', () => {
     h.live = { board: BOARD, missing: false, decisions: [], sessions: ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => session(id)) };
     const el = bar(render(<BoardStatusBar boardId="b1" onOpen={vi.fn()} />))!;
-    expect(el.findAll((n) => n.props['data-board-bar-session'] !== undefined && n.type === 'span')).toHaveLength(4);
-    expect(text(el.findByProps({ 'data-board-bar-more': '' }))).toBe('+2');
+    expect(el.findAll((n) => n.props['data-board-peer'] !== undefined && n.type === 'span')).toHaveLength(4);
+    expect(text(el.findByProps({ 'data-board-peers-more': '' }))).toBe('+2');
   });
 
   it('opens from the keyboard too', () => {

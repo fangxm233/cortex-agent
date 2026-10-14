@@ -30,6 +30,7 @@ import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import { hasActiveWorker, MTeamRow } from './MChatTeam';
 import { BoardStatusBar } from '@/features/board/BoardStatusBar';
+import { BoardActionChatRow } from '@/features/board/BoardChatRows';
 import { LeadWaitingLine, TeamActionRow, TeamStreamProvider, TeamUpdateCard } from '@/features/team/TeamStreamRows';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
@@ -339,6 +340,8 @@ interface StreamContext {
   /** Rows that open with the 由编辑重新生成 note. */
   regen: Set<number> | null;
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
+  /** Opens a board a chat card names, full screen. */
+  onOpenBoard?: (boardId: string) => void;
 }
 
 interface RowProps<K extends ChatRow['kind']> {
@@ -508,6 +511,11 @@ const ROW_RENDERERS: { [K in ChatRow['kind']]: RowRenderer<K> } = {
   'team-updates': ({ row, dimmed, copyText }) => (
     <Dimmable dimmed={dimmed} copyText={copyText}><TeamUpdateCard row={row} touch /></Dimmable>
   ),
+  'board-action': ({ row, dimmed, copyText, ctx }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}>
+      <BoardActionChatRow action={row.action} onOpen={(id) => ctx.onOpenBoard?.(id)} touch />
+    </Dimmable>
+  ),
 };
 
 function StreamRow(props: RowProps<ChatRow['kind']>): JSX.Element | null {
@@ -516,7 +524,7 @@ function StreamRow(props: RowProps<ChatRow['kind']>): JSX.Element | null {
   return <Render {...props} />;
 }
 
-export function MChatStream({ rows, start = 0, interactions, editing, onLongPress, onShowOriginal, streamKey }: {
+export function MChatStream({ rows, start = 0, interactions, editing, onLongPress, onShowOriginal, onOpenBoard, streamKey }: {
   rows: ChatRow[];
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
   start?: number;
@@ -531,11 +539,13 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
   onLongPress?: (rowIndex: number, anchorTop: number) => void;
   /** Tap on the 已编辑 note (opens the original-message sheet). */
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
+  /** A board card's Open: the full-screen board. */
+  onOpenBoard?: (boardId: string) => void;
 }): JSX.Element {
   const assistantCopies = assistantTurnCopyTargets(rows);
   const editingIdx = editing?.rowIndex ?? null;
   const ctx: StreamContext = {
-    interactions, streamKey, editing, onShowOriginal,
+    interactions, streamKey, editing, onShowOriginal, onOpenBoard,
     editable: !!onLongPress,
     regen: onLongPress ? regenNoteIndexes(rows) : null,
     // Long-press (复制 / 编辑消息) is human-messages-only — agent messages carry no copy.
@@ -600,11 +610,12 @@ const HEADER_BOTTOM = `var(${HEADER_BOTTOM_VAR})`;
 /** Rows start (and sticky subagent headers pin) 12px under the floating header stack. */
 const TRANSCRIPT_TOP = `calc(${HEADER_BOTTOM} + 12px)`;
 
-function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal }: {
+function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal, onOpenBoard }: {
   props: MChatViewProps;
   shellHeight: number;
   tailHeight: number;
   onShowOriginal: (text: string) => void;
+  onOpenBoard: (boardId: string) => void;
 }): JSX.Element {
   const { scrollRef, contentRef, win, onScroll, onContentClick } = useTranscriptScroll(props);
   // The transcript dissolves over the 48px above the floating shell instead of sliding under it
@@ -623,7 +634,8 @@ function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal }: {
       <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {props.transcriptError && props.rows.length === 0 && props.onRetryTranscript && <TranscriptLoadError onRetry={props.onRetryTranscript} />}
         <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
-          onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} streamKey={props.sessionId} />
+          onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} onOpenBoard={onOpenBoard}
+          streamKey={props.sessionId} />
         <LeadWaitingLine touch />
         {props.systemLines?.map((t, i) => <SystemLine key={i} text={t} />)}
         {/* Tail clearance for the floating composer, which no longer takes flow height. */}
@@ -675,7 +687,7 @@ function MChatBody({ props, overlay, selection }: {
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <MChatTranscript props={props} shellHeight={shellHeight} tailHeight={tailHeight}
-        onShowOriginal={overlay.showOriginal} />
+        onShowOriginal={overlay.showOriginal} onOpenBoard={overlay.openBoard} />
       <MChatComposer props={props} shellRef={composerRef} overlay={overlay} selection={selection} />
       {/* 7a long-press overlay — an absolute overlay of the BODY region, like the 2b editor above.
           Anchoring the floated bubble to the held one only works against a box whose top is the
@@ -720,7 +732,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
             onBack={props.onBack} onMore={() => overlay.toggle('more')}
             contextControl={headerContextControl(props, () => overlay.open('context'))} />
-          {props.boardId && <BoardStatusBar boardId={props.boardId} onOpen={() => overlay.open('board')} />}
+          {props.boardId && <BoardStatusBar boardId={props.boardId} onOpen={() => overlay.openBoard(props.boardId!)} />}
           {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />

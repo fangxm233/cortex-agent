@@ -51,8 +51,8 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
         <MTeamSheet workers={props.workers ?? []} onClose={() => overlay.close('team')}
           onOpen={(id) => { overlay.close('team'); props.onOpenWorker!(id); }} />
       )}
-      {overlay.is('board') && props.boardId && (
-        <MBoardSheet boardId={props.boardId} onClose={() => overlay.close('board')}
+      {overlay.boardId && (
+        <MBoardSheet boardId={overlay.boardId} onClose={() => overlay.close('board')}
           onOpenSession={(s) => props.onOpenBoardSession?.(s.sessionId)} />
       )}
     </>
