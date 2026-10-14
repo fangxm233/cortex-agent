@@ -4,6 +4,7 @@ import type { Backend } from '@core/types/agent-types.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
+import { boardRepo } from '@store/board-repo.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isTeamLead, isTeamWorker, MAX_RUNNING_WORKERS, WORKER_NAME_RE } from '@domain/sessions/team.js';
@@ -16,6 +17,7 @@ import { findProfileForProvider, getDefaultProfileForBackend } from '@domain/age
 import { parseModelSpec } from '@core/agents/subagent/model-spec.js';
 import { isRebuildHeld } from '@domain/system/rebuild-hold.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
+import { orchestrationBus } from './runtime.js';
 import { cancelChannelRuns } from './routing/commands/cancel.js';
 import { interactionRecords, type InteractionRecords } from './interactions/interaction-records.js';
 import { planApprovals } from './interactions/plan-approvals.js';
@@ -68,12 +70,18 @@ export interface TeamWebhookDeps {
 
 const defaultDeps: TeamWebhookDeps = {
   sessions: sessionStore,
-  createSession: (opts) => createDirectSession({
-    sessionStore,
-    setChannelSession: setSessionAsync,
-    initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
-    resolveBackend: resolveBackendForChannel,
-  }, opts),
+  createSession: async (opts) => {
+    const created = await createDirectSession({
+      sessionStore,
+      setChannelSession: setSessionAsync,
+      initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
+      resolveBackend: resolveBackendForChannel,
+    }, opts);
+    // A worker joining its lead's board changes the board's bound sessions.
+    const board = opts.boardId ? await boardRepo.find(opts.boardId) : null;
+    if (board) orchestrationBus()?.publish({ type: 'board.updated', boardId: board.id, projectId: board.projectId });
+    return created;
+  },
   newSessionId: () => randomUUID(),
   deliver: (opts) => deliverToSessionDetached(opts),
   cancel: (channel) => cancelChannelRuns(channel),
