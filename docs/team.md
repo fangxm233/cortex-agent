@@ -168,7 +168,9 @@ back after context compaction.
 file. Every bound session may edit it, and Cortex neither locks the file nor tracks who wrote
 what. The sessions coordinate among themselves: they re-read the file right before each edit and
 keep each edit small, workers usually update their own stage, and the lead keeps the head and the
-overall shape. Each board has a directory in its project's context:
+overall shape. A new board starts with a scaffold page whose heading carries the board's title and
+whose sections hold short examples for the agent to replace, next to an empty `assets/`. Each board
+has a directory in its project's context:
 
 ```
 <project context>/boards/<slug>/
@@ -180,10 +182,17 @@ overall shape. Each board has a directory in its project's context:
 Cortex collects every bound session's `send_decision` calls into `decisions.jsonl`; agents never
 edit it. The list of all boards is `data/boards.json`.
 
-**In the workbench.** A session bound to a board has a **Board** button in its header that opens
-the board in the right-hand dock, and its sidebar row carries a small board icon. The command
-palette lists every board, active ones first, so a closed board or one from an old session is a
-search away. On mobile the board opens as a full-screen page from the session's header.
+**In the workbench.** A session bound to a board shows a board status bar under its chat header.
+The bar names the board and its state, gives a status dot for each bound session (amber when it is
+waiting on you, the accent colour while it runs, a hollow ring while it waits on a machine), and
+ends with the count of requests waiting on you and the number of decisions. Its flag turns amber
+while any session waits on you. Clicking the bar opens the board in the right-hand dock, and the
+bar stays hidden while the dock shows that board. On mobile the same bar sits at the top of the
+chat, and tapping it opens the board full screen.
+
+The command palette reaches every board, including closed ones and those of old sessions. With an
+empty query it lists recent boards, active ones first and closed ones after; typing searches all
+of them.
 
 The top of the board is drawn by the app and updates live: the title and state with **Complete**
 and **Abandon**, the status of every bound session, a count of requests waiting on you that jumps
