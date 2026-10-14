@@ -128,8 +128,10 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `we
 | `send_file` | `file_path` 或 `files[]`（`{file_path, file_name?}`）、`file_name?`、`caption?`、`device?` | 把一个文件、或多个文件作为共用一条说明的同一条消息发进聊天，显示为可下载卡片（图片与视频内联预览）；带 `device` 时读取该远程设备上的文件 |
 | `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?`、`width?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
 | `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
+| `board_open` | `title` 或 `board` | 新建看板，或按 id、slug 接入已有看板，并把会话绑定到它 |
+| `board_close` | `status`（`done` 或 `abandoned`）、`note?` | 关闭会话绑定的看板 |
 
-这些工具都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
+`send_file`、`send_view` 与 `send_decision` 都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
 归一化事件流里的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，
 比字符串更复杂的东西只能走带外通道。daemon 把字节复制到
 `workspace/outputs/<sessionId>/`（视图再深一层，落在 `views/`），记录一条带附件的
@@ -154,10 +156,14 @@ assistant 消息，并发布实时事件。跨线的只有路径——大文档�
 在该决策的动作日志上，也作为普通用户消息发给 agent。决策及其动作日志持久化在
 会话历史里，刷新或换设备后卡片状态不丢。
 
+`board_open` 与 `board_close` 管理长任务的状态页：哪些会话绑定、agent 怎么写、工作台里怎么显示，见
+[看板](./team.md#boards)。
+
 该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具在
 `agent-server/src/domain/mcp/tools/ui-file.ts`、
-`agent-server/src/domain/mcp/tools/ui-view.ts` 与
-`agent-server/src/domain/mcp/tools/ui-decision.ts`。
+`agent-server/src/domain/mcp/tools/ui-view.ts`、
+`agent-server/src/domain/mcp/tools/ui-decision.ts` 与
+`agent-server/src/domain/mcp/tools/ui-board.ts`。
 
 ### cortex-interaction-bridge
 
