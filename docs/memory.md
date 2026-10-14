@@ -16,7 +16,7 @@ The knowledge root is `~/.cortex/context/`, structured as follows:
 context/
 ├── AGENTS.md                    # Root index — entry point for finding anything
 ├── OVERVIEW.md                  # Global overview: one-line status per project + last scan date
-├── decisions/                   # System-level design decisions (DR-NNNN-title.md)
+├── decisions/                   # System-level design decisions (NNNN-title.md)
 ├── ideas/                       # Incubating research directions
 ├── scans/                       # Knowledge scan reports, one per date
 ├── user/                        # User preferences (maintained by /user-learn)
@@ -43,6 +43,11 @@ context/
             └── access-log.jsonl # Auto-tracked Read/Grep access log
 ```
 
+`cortex init` seeds the root `AGENTS.md` and the indexes of `ideas/`, `scans/`, `user/` and
+`projects/`. The other files and directories appear as Cortex creates them: `OVERVIEW.md` and
+`decisions/` when there is something to record, `USER.md` from the `user-learn` skill, and each
+project's files from the `project-init` skill and the work that follows.
+
 ## The Three Atom Types
 
 ### Experiments (EXP-NNN.md)
@@ -64,7 +69,9 @@ links: [PAT-NNN]
 ---
 ```
 
-**Required fields:** `id`, `date`, `project`, `summary`, `tags`.
+**Required fields:** `id`, `date`, `project`, `summary` (at most 300 characters), `tags`. The index
+generator skips a file without `id`; the other fields are convention, checked by the agent rather
+than the code.
 
 **Optional fields:** `status`, `executor`, `links` (related entries).
 
@@ -72,19 +79,22 @@ Frontmatter is parsed as YAML, so quote any list item that contains a comma, a c
 
 **Body structure:** The markdown body follows a standard template with sections: Background, Execution, Results, Conclusion, and Reflection (goal attainment, unexpected findings, process defects, behavioral adjustments).
 
-**Status lifecycle:**
+**Status lifecycle:** experiments, knowledge entries and patterns share one `status` field. A
+status that points at another entry names it after a colon, such as `superseded:EXP-012`, and the
+index generator classifies a status by its prefix.
 
-| Status | Meaning |
-|--------|---------|
-| `active` | Currently in progress |
-| `valid` | Completed, conclusions stand |
-| `partial` | Incomplete but worth keeping |
-| `challenged` | Conclusions under dispute (tagged with challenging experiment) |
-| `corrected` | Conclusions were wrong, now fixed |
-| `superseded` | Replaced by a later experiment |
-| `refined` | Updated/improved by a later experiment |
-| `invalidated` | Proven wrong, tombstoned |
-| `stale` | No activity, reference count zero |
+| Status | Meaning | Index table |
+|--------|---------|-------------|
+| `active`, `valid`, `partial`, or empty | Normal, conclusions stand | Active |
+| `challenged:EXP-NNN` | Questioned by a newer experiment, pending review | Active, and listed in Stats |
+| `corrected:EXP-NNN` | Conclusion was corrected | Active |
+| `superseded:EXP-NNN` | Replaced by a better version | Superseded / Deprecated |
+| `deprecated` | No longer applies | Superseded / Deprecated |
+| `refined:EXP-NNN` | Fully replaced by an improved version | Superseded / Deprecated |
+| `stale` | No references for a long time, pending review | Superseded / Deprecated |
+| `invalidated:EXP-NNN` | Proven wrong; the body is replaced with a tombstone warning | Invalidated |
+
+Any other status counts as active.
 
 ### Knowledge Entries (K-NNN.md)
 
@@ -131,7 +141,7 @@ evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 
 ## Index Auto-Generation
 
-Each directory under a project (`experiments/`, `knowledge/`, `patterns/`) has an `index.md` generated from the frontmatter of its atom files and the project's access log. The index is git-ignored and starts with the warning:
+Each directory under a project (`experiments/`, `knowledge/`, `patterns/`) has an `index.md` generated from the frontmatter of its atom files and the project's access log. The index opens with a `# <Directory> Index — <project>` heading and a *Use when* line, followed by the warning:
 
 ```
 > Auto-generated from YAML frontmatter; Refs / Last ref come from _meta/access-log.jsonl. Do not edit manually. Not tracked by git.
@@ -142,10 +152,10 @@ The generator only reads the atom files; it never rewrites them. The server rege
 
 **Index structure:**
 
-- **Active table** — every entry not superseded, deprecated, refined, stale or invalidated, sorted by reference count (descending), with its reference count and last access date
-- **Superseded/Deprecated table** — entries replaced by later work
+- **Active table** — every active entry (see the status table above), sorted by reference count (descending), with its reference count and last access date
+- **Superseded / Deprecated table** — superseded, deprecated, refined and stale entries
 - **Invalidated table** — tombstoned entries proven wrong
-- **Stats section** — total counts, hot entries (refs >= 5), cold entries (refs = 0, age > 14 days), and any atom file whose frontmatter is not valid YAML (it is still indexed, read key by key, and should be fixed)
+- **Stats section** — total counts, challenged entries under review, hot entries (refs >= 5), cold entries (refs = 0, age > 14 days), and any atom file whose frontmatter is not valid YAML (it is still indexed, read key by key, and should be fixed)
 
 **Rebuild command:**
 
@@ -157,7 +167,8 @@ cortex memory regen
 cortex memory regen --project <project-name>
 ```
 
-The command prints the regenerated index paths as JSON.
+`--project` can be repeated, and an unknown project name is an error. The command prints JSON
+listing each project with the paths of its regenerated indexes.
 
 ## Access Tracking
 
@@ -170,9 +181,9 @@ Cortex automatically tracks which experiment, knowledge, and pattern files are a
    ```json
    {"file":"EXP-NNN.md","tool":"Read","ts":"2026-02-15T09:00:00.000Z"}
    ```
-3. For `Grep` operations that match multiple files, it parses the tool output to count per-file matches, avoiding duplicate counting
-4. If a `Grep` returns zero file matches, it records `_directory_search` instead
-5. The hook auto-commits access log changes with message `chore: update access log`
+3. A `Grep` is tracked when its search path lies inside a project's `experiments/`, `knowledge/` or `patterns/` directory. The hook appends one line for each distinct atom file named in the output
+4. If such a `Grep` names no atom file, it records `_directory_search` instead
+5. When `CORTEX_HOME` is a git repository, the hook commits the access log with message `chore: update access log`; if other changes are already staged, it stages the log without committing
 
 Reference counts exist only in the generated indexes: each rebuild counts a file's lines in the access log, so a file that is frequently read during research gets a higher count and appears higher in the index. Older atom files may still carry `refs:` and `last-ref:` frontmatter fields; nothing maintains or reads them.
 
@@ -198,13 +209,13 @@ An append-only log of problems that slow work, capped at 80 lines and 6KB with e
 
 ### decisions/ — Decision Records
 
-Each decision is one file named `NNNN-title.md`. Format follows the project decision record template: Date, Status, Context, Alternatives (at least 2), Decision, Consequences.
+Each decision is one file named `NNNN-title.md`, headed `# DR-NNNN: <Title>`. System-level decisions live in `context/decisions/`, project decisions in the project's `decisions/`, and each level numbers its records from 0001. A record lists Date, Status (`accepted`, `rejected`, or `superseded`), an optional Supersedes, and Evidence, followed by the sections Context, Options Considered (at least two), Decision, and Consequences.
 
 ## Dense Context Conventions
 
 The Dense Context system follows these operational conventions:
 
-1. **Every directory has an AGENTS.md index** — describing the directory's purpose, file list, and lookup rules. Indexes are pointer-style (one sentence + pointer per line, one line per atomic directory) and hard-capped at 120 lines and 8KB, matching the context-injection budget
+1. **Every directory has an AGENTS.md index** — describing the directory's purpose, file list, and lookup rules. Indexes are pointer-style (one sentence + pointer per line, one line per atomic directory) and hard-capped at 120 lines and 8KB, matching the context-injection budget. The shipped `status-md-guard` hook rejects an `Edit` or `Write` that would push a context `AGENTS.md`, a `STATUS.md` or an `ISSUES.md` past its cap; a write that shrinks an oversized file is allowed
 2. **Create file → update index** — when adding a new file to a directory, update that directory's AGENTS.md
 3. **Overwrite vs. append** — STATUS.md overwrites (only current state); ISSUES.md appends then deletes; experiments/knowledge/patterns append and stay
 4. **Provenance is mandatory** — every factual claim must trace to a specific EXP-NNN, K-NNN, file:line, or inline calculation
@@ -237,28 +248,37 @@ Two consequences worth knowing:
 - **Neither backend reads a `.local` variant.** `AGENTS.local.md` is a Cortex-only convention for
   machine-specific rules, delivered by the hook and kept out of git.
 
+## Browsing Memory in the Workbench
+
+The Web workbench shows a project's memory read-only. On desktop, **View → Memory** or **Open memory
+viewer** on the project's Overview opens it; on a phone, it is **Project memory** in the Projects
+panel. It lists `mission.md`, `roadmap.md`, `STATUS.md`, and the files in `experiments/`,
+`knowledge/`, `patterns/` and `decisions/` (without the generated `index.md`), renders the selected
+file, and, when the project is in a git work tree, shows how many lines differ from `HEAD` and the
+latest change behind each line.
+
 ## Fresh Session Test
 
 The acid test for Dense Context quality: if you start a fresh session with only read access to the repo, can you learn everything the previous session knew? If the answer is no, something wasn't recorded properly.
 
 ## Memory Index Regeneration Job
 
-The built-in memory-index regeneration job rebuilds all index files from YAML frontmatter. `memoryIndexRegenEnabled` and `memoryIndexRegenIntervalMs` in `config/settings.json` control it. The job:
+The built-in memory-index regeneration job rebuilds all index files from YAML frontmatter. `memoryIndexRegenEnabled` (default `true`) and `memoryIndexRegenIntervalMs` (default 24 hours) in `config/settings.json` control it. The job:
 
 1. Scans all projects under `context/projects/`
 2. Reads frontmatter from every `EXP-*.md`, `K-*.md`, and `PAT-*.md`
 3. Counts references per file from `_meta/access-log.jsonl`
 4. Writes each `index.md` atomically, leaving the atom files untouched
 
-## Lifecycle: Experiment Maintenance
+## Lifecycle: Knowledge Maintenance
 
-The `experiment-maintenance` skill runs periodic checks on experiment files, driven by `cortex memory consolidate` (`--text` for a readable summary, JSON otherwise):
+`cortex memory consolidate` reviews every project's experiments, knowledge entries and patterns and reports what needs attention. It prints JSON, or a readable summary with `--text`, and changes no files. It reports:
 
-- Identifies experiments whose conclusions may be stale (based on newer contradictory experiments)
-- Flags entries with zero references in the access log and age > 30 days (stale candidates)
-- Checks frontmatter validity
-- Suggests consolidation opportunities for related experiments
+- **Consolidation candidates** — experiments that share tags or link to each other closely enough to merge, and chains of supersessions
+- **Contradictions** — knowledge entries and patterns whose evidence experiments are invalidated, superseded or deprecated, marked as fully or partially compromised
+- **Stale candidates** — active entries older than 30 days with no references in the access log
+- **Anti-pattern signals** — process deficiencies that recur across experiments' reflections
 
 ## Scale
 
-Index rebuilds stay cheap as projects grow. A rebuild reads only YAML frontmatter, so regenerating every project's indexes at once — each project holding tens of experiments and a handful of knowledge entries and patterns — finishes in under a second.
+Index rebuilds stay cheap as projects grow. A rebuild parses only each file's YAML frontmatter, so regenerating every project's indexes at once — each project holding tens of experiments and a handful of knowledge entries and patterns — finishes in under a second.

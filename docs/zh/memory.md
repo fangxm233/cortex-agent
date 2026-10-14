@@ -1,9 +1,8 @@
-# Cortex 内存系统 {#cortex-memory-system}
-
+# Cortex 记忆系统 {#cortex-memory-system}
 
 Cortex 将所有知识以原子化、带索引的 markdown 文件存储在文件系统中——即 **Dense Context** 结构。没有向量数据库、没有 RAG 管道、没有外部知识存储。文件系统就是数据库。关于这如何融入更广泛的系统架构，参见 [architecture.md](./architecture.md)。
 
-## 为什么使用原子化内存 {#why-atomized-memory}
+## 为什么使用原子化记忆 {#why-atomized-memory}
 
 核心洞察是单体上下文文件无法扩展。单个 `EXPERIMENTS.md` 文件无限增长，使其加载到智能体上下文时代价高昂且难以搜索。解决方案是将每个实验、知识条目和模式原子化为自己的文件，并带有自动生成的索引以便快速查找。
 
@@ -17,7 +16,7 @@ Cortex 将所有知识以原子化、带索引的 markdown 文件存储在文件
 context/
 ├── AGENTS.md                    # 根索引——查找任何内容的入口点
 ├── OVERVIEW.md                  # 全局概览：每项目一行状态 + 上次扫描日期
-├── decisions/                   # 系统级设计决策（DR-NNNN-title.md）
+├── decisions/                   # 系统级设计决策（NNNN-title.md）
 ├── ideas/                       # 孵化中的研究方向
 ├── scans/                       # 知识扫描报告，每天一份
 ├── user/                        # 用户偏好（由 /user-learn 维护）
@@ -44,6 +43,10 @@ context/
             └── access-log.jsonl # 自动追踪的 Read/Grep 访问日志
 ```
 
+`cortex init` 只创建根目录的 `AGENTS.md`，以及 `ideas/`、`scans/`、`user/` 和 `projects/` 的索引。
+其余文件和目录在 Cortex 创建它们时出现：`OVERVIEW.md` 和 `decisions/` 在有内容要记录时创建，
+`USER.md` 由 `user-learn` 技能创建，各项目的文件由 `project-init` 技能和后续工作创建。
+
 ## 三种原子类型 {#the-three-atom-types}
 
 ### 实验（EXP-NNN.md） {#experiments-exp-nnnmd}
@@ -65,7 +68,8 @@ links: [PAT-NNN]
 ---
 ```
 
-**必需字段：** `id`、`date`、`project`、`summary`、`tags`。
+**必需字段：** `id`、`date`、`project`、`summary`（不超过 300 个字符）、`tags`。索引生成器会跳过没有
+`id` 的文件；其余字段属于约定，由智能体而非代码检查。
 
 **可选字段：** `status`、`executor`、`links`（相关条目）。
 
@@ -73,19 +77,21 @@ frontmatter 按 YAML 解析，列表项中含逗号、冒号加空格或花括�
 
 **正文结构：** markdown 正文遵循标准模板，包含以下部分：Background、Execution、Results、Conclusion 和 Reflection（目标达成、意外发现、过程缺陷、行为调整）。
 
-**状态生命周期：**
+**状态生命周期：** 实验、知识条目和模式共用同一个 `status` 字段。指向另一个条目的状态在冒号后写出
+该条目，例如 `superseded:EXP-012`；索引生成器按前缀给状态分类。
 
-| 状态 | 含义 |
-|--------|---------|
-| `active` | 当前进行中 |
-| `valid` | 已完成，结论成立 |
-| `partial` | 不完整但值得保留 |
-| `challenged` | 结论有争议（标记为挑战实验） |
-| `corrected` | 结论曾错误，现已修正 |
-| `superseded` | 被后续实验取代 |
-| `refined` | 被后续实验更新/改进 |
-| `invalidated` | 被证明错误，已墓碑化 |
-| `stale` | 无活动，引用计数为零 |
+| 状态 | 含义 | 索引中的表 |
+|--------|---------|---------|
+| `active`、`valid`、`partial` 或空 | 正常，结论成立 | 活跃表 |
+| `challenged:EXP-NNN` | 被更新的实验质疑，待复核 | 活跃表，并列入统计 |
+| `corrected:EXP-NNN` | 结论已修正 | 活跃表 |
+| `superseded:EXP-NNN` | 被更好的版本取代 | 取代/弃用表 |
+| `deprecated` | 不再适用 | 取代/弃用表 |
+| `refined:EXP-NNN` | 被改进版本完全替代 | 取代/弃用表 |
+| `stale` | 长期无人引用，待复核 | 取代/弃用表 |
+| `invalidated:EXP-NNN` | 被证明错误，正文替换为墓碑警告 | 无效表 |
+
+其他任何状态都按活跃处理。
 
 ### 知识条目（K-NNN.md） {#knowledge-entries-k-nnnmd}
 
@@ -132,7 +138,7 @@ evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 
 ## 索引自动生成 {#index-auto-generation}
 
-项目下的每个目录（`experiments/`、`knowledge/`、`patterns/`）都有一个 `index.md`，由该目录原子文件的 frontmatter 和项目访问日志生成。索引不进 git，开头带有警告：
+项目下的每个目录（`experiments/`、`knowledge/`、`patterns/`）都有一个 `index.md`，由该目录原子文件的 frontmatter 和项目访问日志生成。索引以 `# <Directory> Index — <project>` 标题和一行 *Use when* 开头，随后是警告：
 
 ```
 > Auto-generated from YAML frontmatter; Refs / Last ref come from _meta/access-log.jsonl. Do not edit manually. Not tracked by git.
@@ -143,10 +149,10 @@ evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 
 **索引结构：**
 
-- **活跃表** — 除取代、弃用、refined、stale、无效之外的所有条目，按引用计数排序（降序），附引用计数和最后访问日期
-- **取代/弃用表** — 被后续工作取代的条目
+- **活跃表** — 所有活跃条目（见上方状态表），按引用计数排序（降序），附引用计数和最后访问日期
+- **取代/弃用表** — superseded、deprecated、refined 和 stale 条目
 - **无效表** — 被证明错误的墓碑化条目
-- **统计部分** — 总计数、热门条目（refs >= 5）、冷条目（refs = 0，年龄 > 14 天），以及 frontmatter 不是合法 YAML 的原子文件（仍会逐键读取并入索引，应修正）
+- **统计部分** — 总计数、待复核的 challenged 条目、热门条目（refs >= 5）、冷条目（refs = 0，年龄 > 14 天），以及 frontmatter 不是合法 YAML 的原子文件（仍会逐键读取并入索引，应修正）
 
 **重建命令：**
 
@@ -158,7 +164,7 @@ cortex memory regen
 cortex memory regen --project <project-name>
 ```
 
-命令以 JSON 输出重建的索引路径。
+`--project` 可重复使用，未知的项目名会报错。命令以 JSON 输出每个项目及其重建的索引路径。
 
 ## 访问追踪 {#access-tracking}
 
@@ -171,9 +177,9 @@ Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。�
    ```json
    {"file":"EXP-NNN.md","tool":"Read","ts":"2026-02-15T09:00:00.000Z"}
    ```
-3. 对于匹配多个文件的 `Grep` 操作，它解析工具输出以计算每个文件的匹配数，避免重复计数
-4. 如果 `Grep` 返回零个文件匹配，则记录 `_directory_search`
-5. 钩子自动提交访问日志更改，消息为 `chore: update access log`
+3. 搜索路径位于项目的 `experiments/`、`knowledge/` 或 `patterns/` 目录内时，`Grep` 才会被追踪。钩子为输出中出现的每个不同原子文件追加一行
+4. 如果这样的 `Grep` 输出中没有任何原子文件，则记录 `_directory_search`
+5. `CORTEX_HOME` 是 git 仓库时，钩子以消息 `chore: update access log` 提交访问日志；如果已有其他暂存的改动，则只暂存日志而不提交
 
 引用计数只存在于生成的索引中：每次重建都按访问日志统计每个文件的行数，研究期间频繁读取的文件引用计数更高，在索引中排名更靠前。较早的原子文件可能仍带有 `refs:`、`last-ref:` frontmatter 字段，这些字段无人维护，也无人读取。
 
@@ -199,13 +205,13 @@ Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。�
 
 ### decisions/ — 决策记录 {#decisions-decision-records}
 
-每个决策是一个文件，命名为 `NNNN-title.md`。格式遵循项目决策记录模板：Date、Status、Context、Alternatives（至少 2 个）、Decision、Consequences。
+每个决策是一个文件，命名为 `NNNN-title.md`，标题为 `# DR-NNNN: <Title>`。系统级决策放在 `context/decisions/`，项目决策放在项目的 `decisions/`，两级各自从 0001 编号。记录先列出 Date、Status（`accepted`、`rejected` 或 `superseded`）、可选的 Supersedes 和 Evidence，再依次是 Context、Options Considered（至少两个方案）、Decision 和 Consequences 各节。
 
 ## Dense Context 约定 {#dense-context-conventions}
 
 Dense Context 系统遵循以下运行约定：
 
-1. **每个目录有 AGENTS.md 索引** — 描述目录的用途、文件列表和查找规则。索引是指针式的（每行一句话+指针，原子目录整目录一行），硬上限 120 行且 8KB，对齐上下文注入预算
+1. **每个目录有 AGENTS.md 索引** — 描述目录的用途、文件列表和查找规则。索引是指针式的（每行一句话+指针，原子目录整目录一行），硬上限 120 行且 8KB，对齐上下文注入预算。随附的 `status-md-guard` 钩子会拒绝让 context 下的 `AGENTS.md`、`STATUS.md` 或 `ISSUES.md` 超出上限的 `Edit` 或 `Write`；缩小超限文件的写入则允许
 2. **创建文件 → 更新索引** — 向目录添加新文件时，更新该目录的 AGENTS.md
 3. **覆盖 vs. 追加** — STATUS.md 覆盖（仅当前状态）；ISSUES.md 追加然后删除；experiments/knowledge/patterns 追加并保留
 4. **来源强制** — 每个事实声明必须追溯到特定的 EXP-NNN、K-NNN、file:line 或内联计算
@@ -230,28 +236,35 @@ Dense Context 系统遵循以下运行约定：
 - **祖先链上只要出现任何一个 `CLAUDE.md`，Claude 的 `AGENTS.md` 回退机制就会被整体关闭**——这由 `claude-md-or-agents-md` 设置控制，是全有或全无，而不是按目录合并。钩子会检测到这种情况并恢复注入以免丢规则，但仍应避免在同一棵目录树里混用两种文件名。
 - **两个后端都不读 `.local` 变体。** `AGENTS.local.md` 是 Cortex 自己的约定，用于机器相关的规则，由钩子投递并且不纳入 git。
 
+## 在工作台中浏览记忆 {#browsing-memory-in-the-workbench}
+
+Web 工作台以只读方式展示项目记忆。桌面端可通过**视图 → 记忆**或项目 Overview 上的**打开记忆查看器**进入；
+手机端则是项目面板中的**项目记忆**。它列出 `mission.md`、`roadmap.md`、`STATUS.md`，以及
+`experiments/`、`knowledge/`、`patterns/` 和 `decisions/` 中的文件（不含自动生成的 `index.md`），渲染所选
+文件；项目位于 git 工作树中时，还显示与 `HEAD` 相比改动了多少行，以及每一行最近一次的修改。
+
 ## 全新会话测试 {#fresh-session-test}
 
 Dense Context 质量的酸性测试：如果你启动一个仅对仓库有读取权限的全新会话，你能学到上一个会话知道的所有信息吗？如果答案是否定的，说明有内容未被正确记录。
 
 ## 内存索引重建作业 {#memory-index-regeneration-job}
 
-内置记忆索引重建任务会从 YAML frontmatter 重建所有索引文件，由 `config/settings.json` 中的 `memoryIndexRegenEnabled` 和 `memoryIndexRegenIntervalMs` 控制。该任务会：
+内置记忆索引重建任务会从 YAML frontmatter 重建所有索引文件，由 `config/settings.json` 中的 `memoryIndexRegenEnabled`（默认 `true`）和 `memoryIndexRegenIntervalMs`（默认 24 小时）控制。该任务会：
 
 1. 扫描 `context/projects/` 下的所有项目
 2. 从每个 `EXP-*.md`、`K-*.md` 和 `PAT-*.md` 读取 frontmatter
 3. 从 `_meta/access-log.jsonl` 统计每个文件的引用次数
 4. 原子地写入各 `index.md`，原子文件保持不变
 
-## 生命周期：实验维护 {#lifecycle-experiment-maintenance}
+## 生命周期：知识维护 {#lifecycle-knowledge-maintenance}
 
-`experiment-maintenance` 技能对实验文件运行周期性检查，检查由 `cortex memory consolidate` 完成（`--text` 输出可读摘要，否则输出 JSON）：
+`cortex memory consolidate` 检查每个项目的实验、知识条目和模式，报告需要处理的地方。它默认输出 JSON，加 `--text` 输出可读摘要，不修改任何文件。它报告：
 
-- 识别结论可能陈旧的实验（基于更新的矛盾实验）
-- 标记访问日志中引用为零且年龄 > 30 天的条目（陈旧候选）
-- 检查 frontmatter 有效性
-- 建议相关实验的合并机会
+- **合并候选** — 共享标签或彼此链接紧密、适合合并的实验，以及连续取代形成的链
+- **矛盾** — 证据实验已被标为 invalidated、superseded 或 deprecated 的知识条目和模式，按证据全部失效或部分失效标注
+- **陈旧候选** — 超过 30 天、访问日志中没有任何引用的活跃条目
+- **反模式信号** — 在多个实验的反思中反复出现的过程缺陷
 
 ## 规模 {#scale}
 
-索引重建随项目增长依然廉价。一次重建只读取 YAML frontmatter，因此一次性为所有项目重建索引——每个项目有几十个实验以及若干知识条目和模式——不到一秒即可完成。
+索引重建随项目增长依然廉价。一次重建只解析每个文件的 YAML frontmatter，因此一次性为所有项目重建索引——每个项目有几十个实验以及若干知识条目和模式——不到一秒即可完成。
