@@ -161,7 +161,7 @@ The command prints the regenerated index paths as JSON.
 
 ## Access Tracking
 
-Cortex automatically tracks which experiment, knowledge, and pattern files are accessed during research. This is implemented as a Claude Code `PostToolUse` hook in `~/.cortex/hooks/memory-ref-tracker.mjs` (see [hooks.md](./hooks.md) for the full hook system).
+Cortex automatically tracks which experiment, knowledge, and pattern files are accessed during research. This is implemented as the built-in `memory-ref-tracker.mjs` hook on `agent:post-tool` (see [hooks.md](./hooks.md) for the full hook system).
 
 **How it works:**
 

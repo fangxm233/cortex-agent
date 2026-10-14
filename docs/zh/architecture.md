@@ -11,7 +11,7 @@ Cortex 由两个 npm 包和一组插件组成：
 |---------|------|---------|
 | `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 机器人、LLM 编排、定时任务、MCP 工具。提供四个 CLI 可执行文件：`cortex`、`cortex-hook`、`cortex-evidence-export`、`cortex-signal`。 |
 | `@cortex-agent/client` | `client/` | 轻量级远程智能体守护进程。通过 WebSocket 连接，在本地执行 shell/文件命令。 |
-| 插件 | `plugins/cortex-*` | 包含技能的插件包。不是 npm 包——在运行时作为目录加载。 |
+| 插件 | `agent-server/defaults/plugins/cortex-*` | 包含技能的内置插件包。不是 npm 包——在运行时作为目录原地读取。 |
 
 ## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
 

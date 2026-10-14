@@ -443,29 +443,33 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── mcp-config-core.json    # remote execution/time layer
 │   ├── mcp-config-interaction.json # Shared interaction layer
 │   ├── profiles.json           # named (backend, model) profiles
-│   ├── environments/           # execution environments: main.json, creative.json
-│   └── hooks/                  # hook registry — one JSON declaration per hook
+│   └── environments/           # execution environments: main.json, creative.json
 ├── data/
 │   ├── agent-state.json        # active profile, default agent, channel overrides
 │   └── schedules.json          # seeded built-in schedules
 ├── context/                    # the project log lives here
 │   ├── AGENTS.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
-├── plugins/                    # skill plugins (full copy of defaults)
-├── prompts/                    # directives, system prompts, templates
-├── rules/                      # rule files auto-loaded by agents
-├── hooks/                      # hook scripts (.mjs)
+├── plugins/                    # your plugins (built-in ones are read from the install)
+├── prompts/                    # your directives, system prompts, templates
+├── hooks/                      # your hook scripts (.mjs)
 ├── .claude/                    # Claude Code hooks + settings
 └── logs/                       # daemon + LLM logs
 ```
 
 You should **not** need to edit any of these by hand for normal use.
 `cortex init --force` resets `machines.json`, agent state, language preferences,
-schedules, and budget, and replaces same-named shipped prompts, rules, plugins,
-hooks, and decision templates. MCP configs are regenerated on every init.
+schedules, and budget, and replaces same-named shipped decision templates. MCP
+configs are regenerated on every init.
 In `.env`, init updates its own settings while keeping existing client/webhook
 tokens and hand-added keys. Existing execution environments and scaffold files
 are preserved; replacing existing profiles requires confirmation. Back up
 customized files before using `--force`; it is not needed to add a platform.
+
+Cortex's built-in plugins, hooks, rules, subagent roles and system prompts are
+read from the install, not copied here, so `plugins/`, `prompts/` and `hooks/`
+start empty. A file you put there replaces the built-in one of the same name or
+adds a new one; see
+[Built-in assets and your overrides](./configuration.md#built-in-assets-and-your-overrides).
 
 `~/.aistatus/` separately holds:
 

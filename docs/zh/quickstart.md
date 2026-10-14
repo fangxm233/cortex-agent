@@ -329,22 +329,22 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── mcp-config-core.json    # 远程执行/时间分层
 │   ├── mcp-config-interaction.json # 共享交互分层
 │   ├── profiles.json           # 命名的（后端、模型）配置
-│   ├── environments/           # 执行环境：main.json、creative.json
-│   └── hooks/                  # 钩子注册表——每个钩子一个 JSON 声明
+│   └── environments/           # 执行环境：main.json、creative.json
 ├── data/
 │   ├── agent-state.json        # 活跃 profile、默认智能体、频道级 override
 │   └── schedules.json          # 初始化的内置定时任务
 ├── context/                    # 项目日志存放在这里
 │   ├── AGENTS.md、projects/、decisions/、scans/、ideas/、retrospectives/、user/
-├── plugins/                    # 技能插件（默认值的完整副本）
-├── prompts/                    # 指令、系统提示、模板
-├── rules/                      # 智能体自动加载的规则文件
-├── hooks/                      # 钩子脚本（.mjs）
+├── plugins/                    # 你的插件（内置插件从安装目录读取）
+├── prompts/                    # 你的指令、系统提示、模板
+├── hooks/                      # 你的钩子脚本（.mjs）
 ├── .claude/                    # Claude Code 钩子 + 设置
 └── logs/                       # 守护进程 + LLM 日志
 ```
 
-正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并覆盖与内置资源同名的 prompts、rules、plugins、hooks 和决策模板。每次 init 都会重新生成 MCP 配置。对于 `.env`，init 只更新自身管理的设置，保留已有的客户端/ webhook token 和手动添加的键。已有的执行环境和脚手架文件会保留；替换已有 Profile 需要确认。使用 `--force` 前请备份自定义文件；添加平台不需要使用它。
+正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并覆盖与随包决策模板同名的文件。每次 init 都会重新生成 MCP 配置。对于 `.env`，init 只更新自身管理的设置，保留已有的客户端/ webhook token 和手动添加的键。已有的执行环境和脚手架文件会保留；替换已有 Profile 需要确认。使用 `--force` 前请备份自定义文件；添加平台不需要使用它。
+
+Cortex 的内置插件、钩子、规则、子智能体角色与系统提示词从安装目录读取，不会复制到这里，所以 `plugins/`、`prompts/` 和 `hooks/` 一开始是空的。你放进去的文件会替换同名的内置文件，或新增一个；见[内置资源与你的覆盖](./configuration.md#built-in-assets-and-your-overrides)。
 
 `~/.aistatus/` 单独存放：
 

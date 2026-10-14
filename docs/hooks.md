@@ -2,8 +2,9 @@
 
 A hook is a command Cortex runs when something happens — a tool is about to
 execute, a session starts, a schedule fires, an assistant turn ends. Every hook is a
-**declaration**: one JSON file in `$CORTEX_HOME/config/hooks/` that names an
-event, an optional matcher, and the command to run. The server loads those
+**declaration**: one JSON file that names an event, an optional matcher, and the
+command to run. The built-in declarations ship with Cortex and are read from its
+install; yours live in `$CORTEX_HOME/config/hooks/`. The server loads those
 declarations at startup, and each consumer compiles the subset it cares about:
 the Claude Code backend, the PI backend, and the server's own event dispatcher.
 Adding a hook means adding a file, not changing code. For where hooks sit in the
@@ -12,7 +13,8 @@ overall system, see [architecture.md](./architecture.md).
 ## Architecture overview
 
 ```
-        $CORTEX_HOME/config/hooks/*.json   — one declaration per file
+  defaults/config/hooks/*.json + $CORTEX_HOME/config/hooks/*.json
+              — one declaration per file, built-in and yours
                             │
                             │  load + validate (store/hook-registry.ts)
         ┌───────────────────┼────────────────────────┐
@@ -27,15 +29,26 @@ overall system, see [architecture.md](./architecture.md).
         └───────────────────┴────────────────────────┘
                             │
                             ▼
-              $CORTEX_HOME/hooks/*.mjs — the scripts themselves
+     $CORTEX_HOME/hooks/*.mjs, then defaults/hooks/*.mjs — the scripts
 ```
 
 ## The hook registry
 
-The registry is the directory `$CORTEX_HOME/config/hooks/`. Every `.json` file
-in it is one hook declaration. Files are read in sorted filename order, which is
-also the order hooks run in for the same event — the shipped declarations carry
-numeric prefixes (`01-…`, `02-…`) so their relative order is explicit.
+The registry has two layers. The built-in declarations are the `.json` files in
+the install's `agent-server/defaults/config/hooks/`, read in place, so they
+always match the running version. Yours are the `.json` files in
+`$CORTEX_HOME/config/hooks/`. Each file is one declaration. Files from both
+layers are read in sorted filename order, which is also the order hooks run in
+for the same event — the built-in declarations carry numeric prefixes (`05-…`,
+`06-…`) so their relative order is explicit.
+
+A file in `$CORTEX_HOME/config/hooks/` with the same name as a built-in
+declaration overrides it rather than adding a hook. It is merged over the
+built-in declaration field by field, so it only needs the fields it changes —
+`{ "enabled": false }` switches a built-in hook off — and the built-in `id` is
+kept. Deleting the file restores the built-in declaration. A sealed home
+(`CORTEX_CONFIG_IMMUTABLE=1`, as in a benchmark trial) mounts only its own
+declarations.
 
 Loading is fail-soft and loud. A file that isn't valid JSON, fails schema
 validation, or reuses an `id` already claimed by an earlier file is skipped with
@@ -48,13 +61,13 @@ The desktop **Settings → Hooks** panel is a full view of that registry rather
 than a listing: it groups declarations by event namespace in load order, shows
 where each one actually mounts (`claude` / `pi` / `server`), whether a change
 takes effect on the next agent spawn or only after a server restart, and flags a
-`run.script` that is missing from the hooks directory. What you may change there
+`run.script` that neither scripts directory has. What you may change there
 follows the entry's source. A **user** entry is fully editable and can be created
-or deleted. A **managed** entry offers only the enabled switch, with a standing
-note that the next hook sync restores the shipped value — every other field
-would be overwritten, so the panel does not pretend otherwise. The `result` choice is constrained to the modes the event can actually
-carry, and `version` is never writable: an entry created from the UI is always a
-user entry. Each entry can also be run against an editable sample payload, with
+or deleted. A **built-in** entry offers only the enabled switch; flipping it
+writes the minimal override to `$CORTEX_HOME/config/hooks/`, and flipping it back
+removes that override again. The `result` choice is constrained to the modes the
+event can actually carry, and an entry created from the UI is always a user
+entry. Each entry can also be run against an editable sample payload, with
 the exit code, stdout and stderr shown inline.
 
 On mobile the same registry is read-only: the hooks screen shows the grouped
@@ -69,8 +82,7 @@ test run. Change hooks from a desktop session.
   "event": "agent:pre-tool",
   "matcher": "Edit|Write",
   "run": { "script": "status-md-guard.mjs", "timeout": 10 },
-  "enabled": true,
-  "version": "2026.8.2"
+  "enabled": true
 }
 ```
 
@@ -79,7 +91,7 @@ test run. Change hooks from a desktop session.
 | `id` | string, required | Unique across the registry. Used by `cortex-hook` and in log lines |
 | `event` | string, required | One of the `agent:*` events, or any `cc:` / `pi:` / `cortex:` prefixed name |
 | `matcher` | string or object | Regex for `agent:*` / `cc:*` / `pi:*` events; equality filter object for `cortex:*` events. Omit to match everything |
-| `run.script` | string | Script filename, resolved relative to `$CORTEX_HOME/hooks/`. Absolute paths and `..` segments are rejected |
+| `run.script` | string | Script filename, looked up in `$CORTEX_HOME/hooks/` and then in the built-in scripts. Absolute paths and `..` segments are rejected |
 | `run.command` | string | A raw shell command instead of a script. Exactly one of `script` or `command` must be present |
 | `run.timeout` | number | Timeout in **seconds**. Defaults to 30 |
 | `scope.backends` | array | Narrows which of `claude` / `pi` an `agent:*` hook compiles to |
@@ -87,16 +99,15 @@ test run. Change hooks from a desktop session.
 | `blocking` | object | `{ "mode": "webhook", "ttlMin": <positive number> }`, validated by the loader for hooks that block on a webhook round trip |
 | `result` | string | `stdout-as-prompt` or `none`. Governs how a `cortex:*` hook's stdout is interpreted |
 | `enabled` | boolean | `false` removes the hook from every consumer without deleting the file. Defaults to `true` |
-| `version` | string | CalVer stamp (`2026.7.29`, optionally `-1`) marking the entry as managed |
 
-### Managed and user entries
+### Built-in and user entries
 
-An entry carrying a valid CalVer `version` is **managed**: it is shipped with
-Cortex and refreshed from `defaults/config/hooks/` at startup whenever the
-shipped version is newer than the deployed one. An entry with no `version` is a
-**user** entry and is never overwritten — that is the guarantee that lets you
-drop your own declarations next to the shipped ones. Hook scripts sync the same
-way, keyed on a `@cortex-hook-version` comment in the script source.
+An entry declared in the install is **built-in**, whether or not a file in
+`$CORTEX_HOME/config/hooks/` overrides some of its fields; `cortex-hook` and the
+settings panel report it as such. An entry declared only in
+`$CORTEX_HOME/config/hooks/` is a **user** entry. Cortex never writes to the
+install, and it writes to `$CORTEX_HOME/config/hooks/` only when you edit, add,
+delete or switch a hook.
 
 ## Event namespaces
 
@@ -177,7 +188,10 @@ At spawn time, `buildHooksSettings()` in
 that are enabled, mount on the `claude` backend, and pass their
 `scope.requiresTool` check against the agent's tool list, then emits a Claude
 settings object injected through the `--settings` CLI flag. `run.script`
-becomes `node $CORTEX_HOME/hooks/<script>`, `run.command` is passed through
+becomes `node <script path>` — the script in `$CORTEX_HOME/hooks/` when there is
+one, otherwise the built-in script in the install, and a script from
+`$CORTEX_HOME/hooks/` also gets the `--import` preload that resolves its imports
+of the built-in helpers. `run.command` is passed through
 verbatim, and `run.timeout` becomes Claude's per-hook `timeout` in seconds.
 Consecutive entries on the same event with the same matcher are merged into one
 matcher group:
@@ -186,7 +200,7 @@ matcher group:
 {
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "node $CORTEX_HOME/hooks/status-md-guard.mjs", "timeout": 10 }
+        { "type": "command", "command": "node <install>/defaults/hooks/status-md-guard.mjs", "timeout": 10 }
     ]},
     { "matcher": "Read|Grep", "hooks": [ ... ] }
   ],
@@ -248,7 +262,7 @@ and skipped. It never fails the surrounding operation.
 
 `cortex:session.new` fires before a session is torn down by `!new` or the "New"
 status button, and `cortex:session.messageEnd` fires after each assistant turn.
-Both are declared like any other hook; the shipped `session-new-hook`
+Both are declared like any other hook; the built-in `session-new-hook`
 declaration points at `new-session-hook.mjs` with `result` set to
 `stdout-as-prompt`.
 
@@ -293,22 +307,30 @@ the promise and the HTTP response returns to the waiting caller.
 
 ## Hook scripts
 
-Scripts live in `$CORTEX_HOME/hooks/` and are ordinary Node.js `.mjs` files:
-read JSON context from stdin, write JSON (or, for `stdout-as-prompt` hooks,
-plain text) to stdout. The scripts shipped with Cortex are:
+Scripts are ordinary Node.js `.mjs` files: read JSON context from stdin, write
+JSON (or, for `stdout-as-prompt` hooks, plain text) to stdout. The built-in
+scripts run in place from the install's `agent-server/defaults/hooks/`; yours
+live in `$CORTEX_HOME/hooks/`. A script name is looked up in
+`$CORTEX_HOME/hooks/` first, so a file there with a built-in script's name
+replaces it, and deleting the file restores the built-in one. A script in
+`$CORTEX_HOME/hooks/` can import the built-in helper libraries
+(`./cortex-hook-api.mjs`, `./cortex-context-lib.mjs`, …) by the same relative
+path the built-in scripts use: an import that `$CORTEX_HOME/hooks/` cannot
+satisfy is resolved against the built-in scripts directory. The built-in
+scripts are:
 
 | Script | Used by | Purpose |
 |---|---|---|
 | `status-md-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Keeps a project's `STATUS.md` and `ISSUES.md` and the memory tree's `AGENTS.md` indexes within their size caps: warns as an edit nears the cap and denies one that would exceed it |
 | `memory-ref-tracker.mjs` | `agent:post-tool`, `Read\|Grep` | Records memory-file accesses to `_meta/access-log.jsonl` |
-| `rules-loader.mjs` | `agent:post-tool`, `Read\|Grep` | Injects scoped rules from `$CORTEX_HOME/rules/` when a matching path is read, once per session per rule |
+| `rules-loader.mjs` | `agent:post-tool`, `Read\|Grep` | Injects path-scoped [rules](./configuration.md#built-in-assets-and-your-overrides) — the built-in ones and those in `$CORTEX_HOME/rules/` — when a matching path is read, once per session per rule |
 | `session-activity-tracker.mjs` | `agent:post-tool`, `Read\|Edit\|Write\|Skill` | Appends activity records to `logs/session-activity/<session_id>.jsonl` |
 | `agents-md-injector.mjs` | `agent:post-tool` (`Read\|Edit`) and `agent:session-start` | Injects the AGENTS.md ancestor chain into agent context, deduplicated per session |
 | `new-session-hook.mjs` | `cortex:session.new` | Recalls valuable information from the closing session and writes it to the context files |
 
 A declaration may run an inline `run.command` instead of a script.
 
-`cortex-hook-api.mjs` in the same directory is not a hook entry — it is a helper
+`cortex-hook-api.mjs` among the built-in scripts is not a hook entry — it is a helper
 library that hook scripts import (see below). `cortex-context-lib.mjs` is not one
 either: it holds the AGENTS.md dedup cache, the inline size budget and the rules
 `paths:` parser shared by `agents-md-injector.mjs`, `rules-loader.mjs` and the
@@ -325,8 +347,8 @@ produces, and it accepts an optional severity level (`info`, `warning`, or
 and an icon prefix on Slack and Feishu. Without a level the card keeps its
 neutral look.
 
-Node hook scripts import the helper that ships next to them in
-`$CORTEX_HOME/hooks/`:
+Node hook scripts import the helper by its relative path, which a script in
+`$CORTEX_HOME/hooks/` can use too (see [Hook scripts](#hook-scripts)):
 
 ```js
 import { askUser } from './cortex-hook-api.mjs';
@@ -384,9 +406,9 @@ JSON.
 
 | Command | Flags | What it does |
 |---|---|---|
-| `cortex-hook list` | — | Lists every mounted hook as `id`, `event`, `enabled`, `source` (`managed` or `user`) |
+| `cortex-hook list` | — | Lists every mounted hook as `id`, `event`, `enabled`, `source` (`builtin` or `user`) |
 | `cortex-hook show` | `--id <id>` | Prints one complete declaration, including `source` |
-| `cortex-hook enable` | `--id <id>`, `--dry-run` | Sets `enabled: true` in the declaration file, idempotently |
+| `cortex-hook enable` | `--id <id>`, `--dry-run` | Sets `enabled: true`, idempotently: in the declaration file for a user hook, in the override file for a built-in one |
 | `cortex-hook disable` | `--id <id>`, `--dry-run` | Sets `enabled: false` the same way |
 | `cortex-hook test` | `--id <id>`, `--payload <file\|->` | Runs the hook once with the payload on stdin |
 | `cortex-hook ask` | `--question`, `--options "a\|b"`, `--level`, `--channel` / `--session-id`, `--payload <file\|->`, `--multi`, `--dry-run` | Posts an ask-user card on the session's platform and blocks for the answer (exit `2` on timeout) |
@@ -402,9 +424,9 @@ cat payload.json | cortex-hook test --id status-md-guard --payload -
 ```
 
 `enable` and `disable` report `changed` so you can tell a real state change from
-a no-op, and `--dry-run` adds a `would_set` block instead of writing. Disabling
-a managed hook returns a warning: a later sync that ships a newer version of
-that entry restores its shipped `enabled` state.
+a no-op, and `--dry-run` adds a `would_set` block instead of writing. For a
+built-in hook the override file holds only the switch, and returning the switch
+to its built-in value deletes the file.
 
 `test` returns `ok`, `id`, `exit_code`, `stdout`, `stderr`, and `error` when the
 process failed, and exits with the hook's own exit code.
@@ -441,7 +463,7 @@ process failed, and exits with the hook's own exit code.
    ```
 
 2. Declare it. Drop `$CORTEX_HOME/config/hooks/50-warn-sensitive-file.json`
-   next to the shipped entries — the numeric prefix places it after them:
+   into the registry — the numeric prefix places it after the built-in entries:
 
    ```json
    {
@@ -451,9 +473,6 @@ process failed, and exits with the hook's own exit code.
      "run": { "script": "warn-sensitive-file.mjs", "timeout": 5 }
    }
    ```
-
-   Leave `version` out. That marks the entry as yours, and hook syncs will never
-   touch it.
 
 3. Verify with `cortex-hook list` (the id appears with source `user`) and
    `cortex-hook test --id warn-sensitive-file --payload payload.json`.
@@ -509,5 +528,6 @@ there too.
   result is written to stdout; diagnostics belong on stderr.
 - **Timeout** — raise `run.timeout` (in seconds). The default is 30 seconds,
   or 60 for session events.
-- **Script not found** — `run.script` resolves relative to `$CORTEX_HOME/hooks/`;
-  absolute paths and `..` segments are rejected by the loader.
+- **Script not found** — `run.script` is looked up in `$CORTEX_HOME/hooks/` and
+  then among the built-in scripts; absolute paths and `..` segments are rejected
+  by the loader.

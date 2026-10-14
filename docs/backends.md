@@ -212,11 +212,12 @@ second delegation path the daemon cannot see. One call runs a single task, up to
 eight in parallel, or up to eight chained; `{previous}` in a chained prompt is
 replaced with the previous link's output.
 
-**Roles.** A role is a markdown file with YAML frontmatter in
-`$CORTEX_HOME/config/agents/`. `explore`, `general-purpose`, and `plan` ship as
-defaults and are copied in only if missing, so an edited role always survives an
-upgrade. The role body is appended to the child's system prompt. Its frontmatter
-may set:
+**Roles.** A role is a markdown file with YAML frontmatter. `explore`,
+`general-purpose`, and `plan` are built in and read from the install's
+`agent-server/defaults/agents/`; a file in `$CORTEX_HOME/config/agents/` adds a
+role, or replaces the built-in role of the same name, and deleting it brings the
+built-in one back. The role body is appended to the child's system prompt. Its
+frontmatter may set:
 
 | Key | Meaning |
 |---|---|
@@ -237,9 +238,9 @@ means nothing to PI and a PI `provider/model` means nothing to Claude.
 
 **What the caller can see.** The `subagent_type`, `model`, and `backend` field
 descriptions are rendered at tool-registration time rather than hardcoded, from
-what this host actually has. Roles come from the live
-`$CORTEX_HOME/config/agents/` table, so a role you add shows up in the next
-session. Claude model ids come from the same table Cortex builds the gateway's
+what this host actually has. Roles come from the live role table — the built-in
+roles with `$CORTEX_HOME/config/agents/` laid over them — so a role you add shows
+up in the next session. Claude model ids come from the same table Cortex builds the gateway's
 Anthropic routes from, plus the daemon's current model. A PI parent reads its
 own live model registry; a Claude parent cannot, because its MCP tool runs in a
 sidecar process that has no PI SDK, so the daemon passes down the provider/model

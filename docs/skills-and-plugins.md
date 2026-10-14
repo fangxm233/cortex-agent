@@ -23,7 +23,7 @@ The loader is deliberately lenient. A skill is dropped only when it cannot be us
 
 ## Supported plugin formats
 
-Cortex inventories each immediate child directory of `$CORTEX_HOME/plugins/`. It recognizes the portable Agent Plugins 1.0.0 Working Draft and the existing Claude-compatible legacy layout.
+Cortex inventories its [built-in plugins](#built-in-plugins) and each immediate child directory of `$CORTEX_HOME/plugins/`. It recognizes the portable Agent Plugins 1.0.0 Working Draft and the existing Claude-compatible legacy layout.
 
 | Format | Manifest | Skills | Cortex portable MCP |
 |---|---|---|---|
@@ -33,6 +33,20 @@ Cortex inventories each immediate child directory of `$CORTEX_HOME/plugins/`. It
 A root `plugin.json` takes precedence. If it exists but has a fatal validation error, Cortex reports the portable package as invalid rather than falling back to the legacy manifest. Unknown top-level fields and a non-object `extensions` value are reported and ignored as non-fatal exceptions. The legacy manifest is considered only when root `plugin.json` is absent. The portable format and its failure boundaries follow the [Agent Plugins 1.0.0 specification](https://agent-plugins.org/specification), while Cortex retains the legacy layout for existing installations.
 
 Legacy directories are passed through to the backend. Claude can therefore interpret Claude-native files such as a legacy package's root `.mcp.json`; those servers are not inventoried, summarized, or acknowledgment-gated by Cortex and are not mapped into PI. Use portable root `mcp.json` when MCP must be visible in Settings and consistent across Claude and PI.
+
+## Built-in plugins
+
+Cortex ships three portable plugins in its install, under `agent-server/defaults/plugins/`: `cortex-system` (approvals, schedules, project setup, client management, learning user preferences), `cortex-board` (boards) and `cortex-feishu` (Feishu documents, loaded in Feishu sessions and, with `settings.feishuSkillsInWeb`, in web sessions). Cortex reads them from the install and never copies them into `$CORTEX_HOME`, so they always match the running version.
+
+A directory `$CORTEX_HOME/plugins/<id>/` whose name is a built-in plugin's id is that plugin's user layer, not a plugin of its own. The built-in manifest stays in force, and the layer changes the plugin piece by piece:
+
+- `skills/<name>/` with a `SKILL.md`, where the built-in plugin has a skill of that name, replaces that skill whole, support files included;
+- `skills/<name>/` under any other name adds a skill to the plugin;
+- `mcp.json` replaces the plugin's MCP declarations whole.
+
+Deleting a skill directory or `mcp.json` from the layer brings back the built-in one. The catalog reports where each skill comes from: built in, modified (the user's version in place of the built-in one), or local (the user's own).
+
+Built-in plugins load in every environment that loads skills. An environment switches one off by naming it in `disabledPlugins` (see [Assigning plugins](#assigning-plugins)). An environment with `"skills": false` loads only what its `pluginDirs` lists, and a sealed home (`CORTEX_CONFIG_IMMUTABLE=1`, as in a benchmark trial) has no built-in plugins.
 
 ## Portable package layout
 
@@ -107,13 +121,13 @@ Overview carries the package's identity and health: format, manifest source and 
 
 The Skills tab lists what the package ships, each with its description and its path, and edits it. A skill opens into its `SKILL.md`, which saves against the hash it was opened with, so a file changed underneath the editor produces a conflict rather than a silent overwrite. New skills are created from a name and a description, existing ones can be renamed or moved to another plugin, and moving rewrites the frontmatter `name` (and only the frontmatter) so it keeps agreeing with the directory. Deleting removes the skill directory and everything under it.
 
-The MCP tab edits `mcp.json` as a form. Command, arguments, working directory and URL round-trip normally, but environment values and headers do not: this page is never told them. Each stored key shows as kept, and replacing one is an explicit action; keys you leave alone are merged back server-side from what is already on disk. A legacy package cannot declare MCP servers at all, so its MCP tab offers the conversion instead — writing a root `plugin.json` while leaving `.claude-plugin/plugin.json` in place so updates keep working.
+The MCP tab edits `mcp.json` as a form. Command, arguments, working directory and URL round-trip normally, but environment values and headers do not: this page is never told them. Each stored key shows as kept, and replacing one is an explicit action; keys you leave alone are merged back server-side from what is already on disk. A legacy package cannot declare MCP servers at all, so its MCP tab offers the conversion instead — writing a root `plugin.json` while leaving `.claude-plugin/plugin.json` in place. Saving the MCP form of a built-in plugin writes `mcp.json` into its user layer.
 
-Two things about a plugin are worth reading before editing it. A package Cortex ships is marked as such, and so is each shipped skill inside it: the update mechanism rewrites every shipped file at the next version bump, so an edit there lasts until then, while skills you add yourself are never touched. A shipped package cannot be deleted, and a shipped skill cannot be moved, renamed or deleted, because the next update would put it back in its original place; the buttons are disabled and say so. A local package can be deleted once no environment still references it.
+Built-in plugins are marked in the list, and each skill shows whether it is built in, modified or local. A built-in skill opens and saves like any other: saving writes your version to `$CORTEX_HOME/plugins/<id>/skills/<name>/`, where it replaces the built-in skill, and the skill shows as modified with a **Revert to built-in** action that deletes your version after a confirmation. Built-in skills cannot be moved, renamed or deleted, and a built-in plugin cannot be deleted; the buttons are disabled and say so. Skills you add to a built-in plugin are your own and can be moved and deleted. A local package can be deleted once no environment still references it.
 
 ## Assigning plugins
 
-Assignment is a field of an execution environment rather than a property of the plugin, so it is edited on the environment: **Settings → Environments**, select an environment, then the Plugins tab. Each environment has a single plugin set, and saving stores it as a complete managed set.
+Assignment is a field of an execution environment rather than a property of the plugin, so it is edited on the environment: **Settings → Environments**, select an environment, then the Plugins tab. Each environment has a single plugin set, shown as one switch per catalog plugin. Built-in plugins are marked and on by default; switching one off records it in the environment's `disabledPlugins`, while local plugins that are switched on are listed in its `pluginDirs`.
 
 Saving uses the environment file's content hash as an optimistic concurrency guard. If the environment changes on disk, Cortex refreshes the target instead of overwriting the newer file. Existing plugin paths that are outside the managed catalog remain preserved and are reported as unmanaged. An already selected invalid catalog entry can be removed, but a new invalid entry cannot be assigned.
 
@@ -121,32 +135,34 @@ Adding a portable plugin with at least one valid root `mcp.json` server opens a 
 
 The assignment tab and the JSON body editor write the same file, so only one of them may hold a draft at a time: the tab is frozen while the body has unsaved edits. Assignment is also not the last word on whether a plugin loads. Scoped plugins are filtered again at spawn time, so a channel-scoped package shows an inline note saying it will not load outside that scope however it is assigned.
 
-Assignments are stored as `pluginDirs` in the environment's JSON file under `$CORTEX_HOME/config/environments/`, and can be written there directly:
+Assignments are stored in the environment's JSON file under `$CORTEX_HOME/config/environments/`, and can be written there directly:
 
 ```json
 {
   "name": "researcher",
   "profile": "claude-sonnet",
   "pluginDirs": [
-    "plugins/cortex-system",
     "plugins/my-plugin"
+  ],
+  "disabledPlugins": [
+    "cortex-feishu"
   ]
 }
 ```
 
-The list is the complete plugin set for that environment's sessions; there is no inheritance between environments.
+The environment's sessions load the plugins `pluginDirs` lists, in order, followed by every built-in plugin that `disabledPlugins` does not name. A built-in plugin may also be listed in `pluginDirs`, which places it earlier in that order. With `"skills": false` only `pluginDirs` counts. There is no inheritance between environments.
 
 Relative paths resolve against `$CORTEX_HOME`; absolute paths remain supported as unmanaged legacy configuration. The Settings UI canonicalizes managed entries to `plugins/<plugin-id>` while preserving unmanaged entries.
 
 ## Backend loading
 
-Cortex reloads the selected catalog at spawn time. Legacy plugin directories retain their existing backend path behavior. Portable skill support trees are containment-checked, content-hashed, and copied into backend-specific private projections. Claude receives its compatibility projection through `--plugin-dir`; PI receives only the skill directories inside its private projection, as additional skill paths on its in-process session. Neither backend receives a portable skill path that points directly into the mutable installed package (`agent-server/src/domain/plugins/skill-projection.ts:23-151`; `agent-server/src/domain/plugins/runtime.ts:346-494,629-632`).
+Cortex reloads the selected catalog at spawn time. Legacy plugin directories retain their existing backend path behavior. Portable skill support trees are containment-checked, content-hashed, and copied into backend-specific private projections. Claude receives its compatibility projection through `--plugin-dir`; PI receives only the skill directories inside its private projection, as additional skill paths on its in-process session. Neither backend receives a portable skill path that points directly into the mutable installed package (`agent-server/src/domain/plugins/skill-projection.ts:23-151`; `agent-server/src/domain/plugins/runtime.ts`). Each skill is projected from the layer it comes from: a built-in skill from the install, a modified or local one from `$CORTEX_HOME/plugins/<id>/`.
 
 Portable MCP declarations pass through one backend-neutral normalization layer. Claude receives a private supplemental configuration; remote entries in that file are local stdio proxies whose separate private files hold the remote URL and headers. PI's MCP bridge receives the normalized server entries on the session request and opens each connection itself (stdio, Streamable HTTP, or SSE). Components fail at their declared dependency boundary: an invalid or unmaterializable skill is omitted without removing sibling skills or valid MCP; unavailable plugin-scoped `PLUGIN_DATA` omits the stdio servers that share it while preserving remote MCP and skills; and remote/stdio processes connect independently from sibling processes and bundled tools (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/claude/mcp-config.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`). When a selected skill or MCP server cannot be materialized, a web session shows one warning notice for the turn naming what is missing and why.
 
 Projections, snapshots and the private MCP files live under `$CORTEX_HOME/data/plugin-runtime/`. `$CORTEX_HOME` itself may be reached through a symlink (a home relocated to another disk, for instance); a symlink anywhere below it is refused. Every projection and snapshot is content-addressed: one that a spawn reuses is marked live, and one that no spawn has used for a week is removed and rebuilt at the same path when it is next needed.
 
-A capability fingerprint covers the effective plugin paths, portable skill content, projected manifest, and normalized MCP declarations. Claude pooled sessions reuse a process only when that capability matches, so assignment changes and changes to those covered inputs select a compatible process boundary. Legacy package contents and auxiliary portable files such as executable bytes are not content-hashed; changing only those files does not promise process replacement. A selected portable plugin whose `plugin.json` is invalid is left out of the spawn, and the per-turn notice names it; its issues are listed on the Plugins page. When two selected plugins offer the same skill name, the one listed first in `pluginDirs` keeps it and the other plugin loads without that skill. When two selected portable plugins share a manifest `name` (their namespace), the first keeps it and the later plugin is skipped as a whole; the Plugins page flags a shared name on every package that carries it.
+A capability fingerprint covers the effective plugin paths, portable skill content, projected manifest, and normalized MCP declarations. Claude pooled sessions reuse a process only when that capability matches, so assignment changes and changes to those covered inputs select a compatible process boundary. Legacy package contents and auxiliary portable files such as executable bytes are not content-hashed; changing only those files does not promise process replacement. A selected portable plugin whose `plugin.json` is invalid is left out of the spawn, and the per-turn notice names it; its issues are listed on the Plugins page. When two selected plugins offer the same skill name, the one that comes first in the environment's plugin order keeps it and the other plugin loads without that skill. When two selected portable plugins share a manifest `name` (their namespace), the first keeps it and the later plugin is skipped as a whole; the Plugins page flags a shared name on every package that carries it.
 
 Portable MCP is suppressed for the explicit `none` composition and for the restricted subagent surface. This keeps plugin capabilities out of execution modes that intentionally expose a narrower tool set.
 
@@ -166,13 +182,14 @@ When the `Skill` tool invokes a skill, Cortex's hook bridge records the activity
 
 | Behavior | Source |
 |---|---|
-| Catalog precedence, fixed locations, and narrow validation | `agent-server/src/domain/plugins/catalog.ts:224-390` |
+| Catalog precedence, built-in and user layers, and narrow validation | `agent-server/src/domain/plugins/catalog.ts` |
+| Built-in plugin set and the plugins an environment loads | `agent-server/src/domain/plugins/builtin.ts` |
 | Portable MCP validation and sanitized summaries | `agent-server/src/domain/plugins/mcp.ts:102-323` |
-| Spawn-time projection, normalization, and fingerprinting | `agent-server/src/domain/plugins/runtime.ts:143-688` |
+| Spawn-time projection, normalization, and fingerprinting | `agent-server/src/domain/plugins/runtime.ts` |
 | Environment plugin assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts` |
 | Connected-server catalog and environment inventory | `agent-server/src/domain/ui-service/query/plugins.ts` |
 | Settings plugin package manager | `web/src/features/settings/panels/PluginsPanel.tsx` |
-| Skill and plugin writes, containment-checked | `agent-server/src/domain/plugins/authoring.ts` |
+| Skill and plugin writes to the user layer, containment-checked | `agent-server/src/domain/plugins/authoring.ts` |
 | Authoring ops and MCP secret merging | `agent-server/src/domain/ui-service/mutate/plugin-packages.ts` |
 | Settings skill and MCP editors | `web/src/features/settings/panels/PluginSkillsTab.tsx`, `web/src/features/settings/panels/PluginMcpTab.tsx` |
 | Settings assignment and MCP acknowledgment | `web/src/features/settings/panels/PluginAssignPanel.tsx` |

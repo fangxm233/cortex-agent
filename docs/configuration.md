@@ -22,7 +22,9 @@ $CORTEX_HOME/
 │   ├── mcp-config-core.json      # Remote execution/time layer
 │   ├── mcp-config-interaction.json # Shared interaction layer
 │   ├── board.css                 # Optional stylesheet for every board (absent by default)
-│   └── hooks/                    # Hook registry — one JSON declaration per hook
+│   ├── agents/                   # Your subagent roles and overrides of the built-in ones
+│   ├── archive/                  # Configuration an upgrade retired, moved aside
+│   └── hooks/                    # Your hook declarations and overrides of the built-in ones
 ├── data/
 │   ├── agent-state.json          # Selected profile, default agent, per-channel overrides
 │   ├── schedules.json            # Persistent schedule list
@@ -37,10 +39,10 @@ $CORTEX_HOME/
 │   └── pi/                       # Cortex's PI agent dir
 ├── .claude/
 │   └── settings.json             # Cortex-scaffolded Claude Code project settings
-├── hooks/                        # Hook scripts (.mjs)
-├── plugins/                      # Skill plugins
-├── prompts/                      # System prompts, directives, templates
-├── rules/                        # Context rules for agent sessions
+├── hooks/                        # Your hook scripts (.mjs)
+├── plugins/                      # Your plugins, and your layers of the built-in ones
+├── prompts/                      # Your system prompts, directives, templates
+├── rules/                        # Your context rules for agent sessions
 ├── context/                      # Dense Context knowledge repository
 │   └── projects/                 # Research project files
 ├── logs/                         # Daemon and backend session logs
@@ -52,7 +54,10 @@ $CORTEX_HOME/
 ## Loading order and precedence
 
 1. **Built-in defaults** (`agent-server/defaults/`) ship with the npm
-   package and provide fallback values for every config file.
+   package and provide fallback values for every config file. The built-in
+   plugins, hooks, rules, agent roles and system prompts are read from there
+   in place, with your files in `$CORTEX_HOME` laid over them (see
+   [Built-in assets and your overrides](#built-in-assets-and-your-overrides)).
 2. **`$CORTEX_HOME/config/.env`** is loaded at daemon startup via
    `dotenv`. Existing launcher environment variables take precedence over the
    file, and the worker inherits the daemon environment.
@@ -301,7 +306,7 @@ Cortex ships two:
 
 | Environment | What it is for |
 |---|---|
-| `main` | General-purpose work on the currently active profile, with the Cortex system, board, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
+| `main` | General-purpose work on the currently active profile, with the built-in Cortex system, board, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
 | `creative` | A clean-room surface for writing, image prompts, naming, and copy, with the operational context stripped out (see [A minimal surface](#a-minimal-surface)) |
 
 The shipped files are copied into `config/environments/` at `cortex init`, and
@@ -324,7 +329,8 @@ match its file name, is skipped and logged.
 | `claudeAgent` | string | no | Claude Code agent name, passed as `--agent`. Claude only |
 | `outputStyle` | string | no | Claude Code output style. Claude only |
 | `tools` | string | no | Comma-separated built-in tool list that replaces the backend's default set |
-| `pluginDirs` | string[] | no | Plugin directories to load, relative to `$CORTEX_HOME` unless absolute. Absent loads none |
+| `pluginDirs` | string[] | no | Plugin directories to load, relative to `$CORTEX_HOME` unless absolute. They load first, in the order listed, followed by the built-in plugins |
+| `disabledPlugins` | string[] | no | Built-in plugin ids this environment leaves out. Every other built-in plugin loads, unless `skills` is `false`, in which case only `pluginDirs` loads |
 | `mcpComposition` | `"direct"` \| `"none"` | no | `direct` (default) gives the session the Cortex MCP tools; `none` gives it no MCP at all, plugin servers included |
 | `mcpToolAllowlist` | string[] | no | Narrows the Cortex MCP tools to the names listed. Absent keeps the full surface |
 | `loadRules` | boolean | no | Default `true`: prepend the global rules from `rules/` |
@@ -335,16 +341,17 @@ match its file name, is skipped and logged.
 
 The three prompt fields accept `file:<name>` instead of literal text. The text is
 then read from `prompts/directives/`, `prompts/systemPrompts/`, or
-`prompts/promptTemplates/` respectively; the shipped `main` uses
+`prompts/promptTemplates/` respectively, and from the built-in prompt of that
+name when `$CORTEX_HOME` has none; the shipped `main` uses
 `"systemPrompt": "file:direct.md"`. A field the schema does not know, a missing
 prompt file, or a missing plugin directory is reported as a warning, and the
 environment still loads.
 
 ### Plugins and the Environments panel
 
-Plugins attach to environments. An environment's `pluginDirs` is the complete
-set of plugin directories its sessions load; the environment's Plugins tab
-writes that same field, and **Settings → Plugins** shows which environments use
+Plugins attach to environments. An environment's sessions load the plugins its
+`pluginDirs` lists and every built-in plugin its `disabledPlugins` does not
+name; the environment's Plugins tab writes those same fields, and **Settings → Plugins** shows which environments use
 each installed plugin (see
 [Skills and Plugins](./skills-and-plugins.md#assigning-plugins)).
 
@@ -366,8 +373,10 @@ field is a `file:` reference, the tab edits that file under
 same file, since a save changes the prompt for all of them. When the field is
 literal text or absent, saving writes the text to
 `prompts/systemPrompts/<name>.md` and points the environment at it. Empty text
-leaves the environment on the backend's default prompt. For a prompt file that
-ships with Cortex, **Restore default** loads the shipped text into the editor.
+leaves the environment on the backend's default prompt. A prompt file that
+ships with Cortex shows its built-in text until you save your own version, which
+is written to `prompts/systemPrompts/` and used in its place; **Restore default**
+loads the built-in text into the editor, and saving it removes your version.
 New sessions start with the saved prompt. A session already open on the PI
 backend switches to it on its next turn; one on Claude Code keeps its prompt
 until its backend process restarts.
@@ -776,12 +785,47 @@ rule:
 Open boards pick up a save within a few seconds, and deleting the file
 restores the preset.
 
-## defaults/config/ layout
+## Built-in assets and your overrides
 
-The `agent-server/defaults/` directory in the npm package contains
-shipped defaults. Most are copied to `$CORTEX_HOME/` during init; the hook
-assets and the execution environments are additionally re-synced by the
-server on every startup:
+Cortex's plugins, hooks, rules, subagent roles and system prompts ship in the
+install's `agent-server/defaults/` and are read from there at runtime. They are
+never copied into `$CORTEX_HOME`, so they always match the running version, and
+`$CORTEX_HOME` holds only your own files. A file of yours at the matching place
+replaces the built-in one, a new name adds to them, and deleting your file
+brings the built-in one back.
+
+| Asset | Built in | Yours | How yours combine with the built-in ones |
+|---|---|---|---|
+| Plugins | `defaults/plugins/<id>/` | `plugins/<id>/` | Same id: your skills replace or add to the built-in ones and your `mcp.json` replaces the built-in one; the manifest stays built in. Any other id is a plugin of its own. See [Built-in plugins](./skills-and-plugins.md#built-in-plugins) |
+| Hook declarations | `defaults/config/hooks/*.json` | `config/hooks/*.json` | Same file name: merged over the built-in declaration field by field. See [the hook registry](./hooks.md#the-hook-registry) |
+| Hook scripts | `defaults/hooks/*.mjs` | `hooks/*.mjs` | Same file name: replaces the built-in script |
+| Rules | `defaults/rules/*.md` | `rules/*.md` | Same file name: replaces the built-in rule |
+| Subagent roles | `defaults/agents/*.md` | `config/agents/*.md` | Same file name: replaces the built-in role |
+| System prompts | `defaults/prompts/systemPrompts/*.md` | `prompts/systemPrompts/*.md` | Same file name: replaces the built-in prompt |
+
+Rules are Markdown files for agent sessions. A rule without `paths` frontmatter
+is prepended to every session whose environment loads rules (`loadRules`); a
+rule whose `paths` globs match a file the session reads is injected then by the
+`rules-loader` hook, once per session.
+
+Settings edits — a skill, a hook switch, a system prompt — are written to
+`$CORTEX_HOME` in the same way, and Cortex never writes to the install. A sealed
+home (`CORTEX_CONFIG_IMMUTABLE=1`, as in a benchmark trial) declares its whole
+surface itself and uses none of the built-in plugins, hooks or rules.
+
+A home set up by a release that kept copies of these files in `$CORTEX_HOME` is
+converted on its first start: copies identical to the shipped files are removed,
+plugin and hook copies that differ are moved to
+`config/archive/builtin-overlay-<timestamp>/`, edited rules, roles and prompts
+stay as your overrides, a switched-off built-in hook keeps its switch, and each
+environment keeps loading the same plugins.
+
+## defaults/ layout
+
+The `agent-server/defaults/` directory in the npm package contains the
+shipped defaults. The scaffold files are copied to `$CORTEX_HOME/` during init,
+and the execution environments are also merged at every server start; the
+built-in assets are read in place:
 
 | Source | Destination | Overwrite behavior |
 |---|---|---|
@@ -790,20 +834,15 @@ server on every startup:
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never — this applies only to the `$CORTEX_HOME/.claude/settings.json` scaffolded path; arbitrary repository-local `.claude/settings.json` files are outside Cortex's copy/sync loop |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |
 | `defaults/config/environments/` | `$CORTEX_HOME/config/environments/` | Per-file copy-if-missing, at init and again at every server start: a shipped environment you do not have yet is added; a file you already have is never overwritten — `--force` does not apply to this tree |
-| `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | Per-file CalVer sync at every server start: added when missing, refreshed when the shipped `version` is newer. A declaration with no `version` — yours — is never overwritten |
-| `defaults/prompts/` | `$CORTEX_HOME/prompts/` | Per-file: new files always added, existing preserved unless `--force` |
-| `defaults/plugins/` | `$CORTEX_HOME/plugins/` | Per-file: new files always added, existing preserved unless `--force` |
-| `defaults/rules/` | `$CORTEX_HOME/rules/` | Per-file: new files always added, existing preserved unless `--force` |
-| `defaults/hooks/` | `$CORTEX_HOME/hooks/` | Per-file at init: never overwrite unless `--force`. At every server start, a shipped script is re-copied unless the deployed file already carries an equal or newer `@cortex-hook-version` |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | Never (unless `--force`) |
 | `defaults/context/` | `$CORTEX_HOME/context/` | Scaffold files: never overwrite |
+| `defaults/plugins/`, `defaults/config/hooks/`, `defaults/hooks/`, `defaults/rules/`, `defaults/agents/`, `defaults/prompts/` | — | Not copied: read in place, with your files laid over them (see [Built-in assets and your overrides](#built-in-assets-and-your-overrides)) |
 | `defaults/board/` | — | Not copied: the board preset stylesheet and the scaffold of a new board are read from the package |
 
-This design means npm package upgrades automatically deliver new prompts,
-plugins, rules, hooks, and execution environments without overwriting user
-customizations. Whole-file config such as `budget.json` still requires
-`--force` to replace; `config/environments/` is merged per file instead,
-so newly shipped environments reach existing installs without touching your edits.
+An upgrade therefore brings the current built-in plugins, hooks, rules, roles
+and prompts with it, and newly shipped environments reach existing installs
+without touching your edits. Whole-file config such as `budget.json` requires
+`--force` to replace.
 
 ## Hot-reload behavior
 
@@ -833,8 +872,8 @@ polling mode as it uses with filesystem events.
   every agent spawn, so a new `agent:*` / `cc:*` / `pi:*` entry applies to the
   next agent that starts. `cortex:*` entries are snapshotted at server start
   and need a restart. See [hooks.md](./hooks.md).
-- **Hook scripts (`hooks/*.mjs`)** — read fresh on every hook invocation.
-- **Plugins, prompts, rules** — read fresh on each agent session spawn.
+- **Hook scripts** — read fresh on every hook invocation.
+- **Plugins, prompts, rules, subagent roles** — read fresh on each agent session spawn.
 - **`config/board.css`** — watched together with every board's directory. Open boards re-render within a few seconds of a change. See
   [Boards](#boards).
 
@@ -859,4 +898,4 @@ polling mode as it uses with filesystem events.
 | `conversation-history/` | Per-session transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |
 | `logs/sessions/` | Claude capture logs | `$CORTEX_HOME/logs/sessions/` |
 | `logs/sessions-pi/` | PI transcript bundles | `$CORTEX_HOME/logs/sessions-pi/` |
-| `hooks/*.json` | Hook declarations | `$CORTEX_HOME/config/hooks/` |
+| `hooks/*.json` | Your hook declarations and overrides | `$CORTEX_HOME/config/hooks/` |

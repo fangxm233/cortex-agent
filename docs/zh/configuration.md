@@ -21,7 +21,9 @@ $CORTEX_HOME/
 │   ├── mcp-config-core.json      # 远程执行/时间分层
 │   ├── mcp-config-interaction.json # 共享交互分层
 │   ├── board.css                 # 可选，所有看板的样式覆盖（默认不存在）
-│   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
+│   ├── agents/                   # 你的子智能体角色及对内置角色的覆盖
+│   ├── archive/                  # 升级时退役的配置，移到此处保留
+│   └── hooks/                    # 你的钩子声明及对内置声明的覆盖
 ├── data/
 │   ├── agent-state.json          # 选定的 profile、默认智能体、频道级 override
 │   ├── schedules.json            # 持久化的定时任务列表
@@ -36,10 +38,10 @@ $CORTEX_HOME/
 │   └── pi/                       # Cortex 的 PI agent 目录
 ├── .claude/
 │   └── settings.json             # Cortex 脚手架生成的 Claude Code 项目设置
-├── hooks/                        # 钩子脚本（.mjs）
-├── plugins/                      # 技能插件
-├── prompts/                      # 系统提示、指令、模板
-├── rules/                        # 智能体会话的上下文规则
+├── hooks/                        # 你的钩子脚本（.mjs）
+├── plugins/                      # 你的插件，以及你在内置插件上的用户层
+├── prompts/                      # 你的系统提示、指令、模板
+├── rules/                        # 你为智能体会话写的上下文规则
 ├── context/                      # Dense Context 知识库
 │   └── projects/                 # 研究项目文件
 ├── logs/                         # 守护进程和后端会话日志
@@ -50,7 +52,7 @@ $CORTEX_HOME/
 
 ## 加载顺序和优先级 {#loading-order-and-precedence}
 
-1. **内置默认值**（`agent-server/defaults/`）随 npm 包一起发布，为每个配置文件提供回退值。
+1. **内置默认值**（`agent-server/defaults/`）随 npm 包一起发布，为每个配置文件提供回退值。内置的插件、钩子、规则、子智能体角色与系统提示词直接从这里原地读取，`$CORTEX_HOME` 中你的文件叠加在它们之上（见[内置资源与你的覆盖](#built-in-assets-and-your-overrides)）。
 2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。启动环境中已有的变量优先于文件，worker 继承 daemon 的环境。
 3. **`$CORTEX_HOME/config/settings.json`** 保存运行时行为设置。它在使用点按需读取，改动热更新生效；对它显式声明的每个键，它的优先级高于同一设置的旧环境变量。
 4. **`$CORTEX_HOME/config/profiles.json`** 在每次生成智能体时读取，用于解析模型、后端和额外环境变量。
@@ -241,7 +243,7 @@ Cortex 随包提供两个：
 
 | 执行环境 | 用途 |
 |---|---|
-| `main` | 通用工作，跑在当前激活的 profile 上，加载 Cortex 的系统、看板与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
+| `main` | 通用工作，跑在当前激活的 profile 上，加载内置的 Cortex 系统、看板与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
 | `creative` | 用于写作、图像提示词、起名与文案的干净环境，运营性上下文全部剥掉（见[最小工具面](#a-minimal-surface)） |
 
 随包文件在 `cortex init` 时拷入 `config/environments/`，之后每次服务器启动时，缺失的
@@ -262,7 +264,8 @@ Cortex 随包提供两个：
 | `claudeAgent` | string | 否 | Claude Code 的 agent 名称，以 `--agent` 传入。仅 Claude |
 | `outputStyle` | string | 否 | Claude Code 的输出风格。仅 Claude |
 | `tools` | string | 否 | 逗号分隔的内置工具列表，替换后端的默认工具集 |
-| `pluginDirs` | string[] | 否 | 要加载的插件目录，非绝对路径时相对于 `$CORTEX_HOME`。缺省时不加载任何插件 |
+| `pluginDirs` | string[] | 否 | 要加载的插件目录，非绝对路径时相对于 `$CORTEX_HOME`。它们按列出的顺序最先加载，随后是内置插件 |
+| `disabledPlugins` | string[] | 否 | 该执行环境不加载的内置插件 id。其余内置插件都会加载；`skills` 为 `false` 时只加载 `pluginDirs` |
 | `mcpComposition` | `"direct"` \| `"none"` | 否 | `direct`（默认）让会话拿到 Cortex MCP 工具；`none` 不给任何 MCP，插件里的 server 也不给 |
 | `mcpToolAllowlist` | string[] | 否 | 把 Cortex MCP 工具收窄到所列名字。缺省时保留完整工具面 |
 | `loadRules` | boolean | 否 | 默认 `true`：前置 `rules/` 中的全局规则 |
@@ -272,14 +275,14 @@ Cortex 随包提供两个：
 | `projectContext` | boolean | 否 | 默认 `true`：在会话第一轮告诉它属于哪个项目 |
 
 三个提示字段都可以写成 `file:<name>` 而不是字面文本，文本分别从 `prompts/directives/`、
-`prompts/systemPrompts/`、`prompts/promptTemplates/` 读取；随包的 `main` 用的就是
+`prompts/systemPrompts/`、`prompts/promptTemplates/` 读取，`$CORTEX_HOME` 中没有该文件时读取同名的内置提示词；随包的 `main` 用的就是
 `"systemPrompt": "file:direct.md"`。schema 不认识的字段、缺失的提示文件或缺失的插件目录
 只会报警告，执行环境照常加载。
 
 ### 插件与 Environments 面板 {#plugins-and-the-environments-panel}
 
-插件挂在执行环境上。执行环境的 `pluginDirs` 就是其会话加载的完整插件目录集合；执行环境的
-Plugins 标签页写的就是这个字段，**Settings → Plugins** 则显示每个已安装插件被哪些执行环境使用
+插件挂在执行环境上。执行环境的会话加载其 `pluginDirs` 列出的插件，以及 `disabledPlugins` 未列出的
+所有内置插件；执行环境的 Plugins 标签页写的就是这两个字段，**Settings → Plugins** 则显示每个已安装插件被哪些执行环境使用
 （见[技能与插件](./skills-and-plugins.md#assigning-plugins)）。
 
 在 Web 工作台和桌面应用中，**Settings → Environments** 列出所有执行环境，一次编辑一个：
@@ -293,7 +296,8 @@ System prompt（系统提示词）标签页编辑执行环境 `systemPrompt` 解
 后端默认的系统提示词。字段是 `file:` 引用时，标签页直接编辑 `prompts/systemPrompts/` 下的那个
 文件，并列出引用同一文件的其他执行环境，因为一次保存会同时改变它们的提示词。字段是内联文本或
 未设置时，保存会把文本写入 `prompts/systemPrompts/<name>.md` 并让执行环境引用它。留空则使用
-后端默认提示词。对随 Cortex 一起提供的提示词文件，**恢复默认** 会把随包文本载入编辑框。新会话
+后端默认提示词。随 Cortex 一起提供的提示词文件在你保存自己的版本之前显示内置文本；你的版本写入
+`prompts/systemPrompts/` 并代替内置版本使用。**恢复默认** 会把内置文本载入编辑框，保存后即删除你的版本。新会话
 直接使用保存后的提示词；已打开的会话在 PI 后端上从下一轮开始使用，在 Claude Code 上则要等其
 后端进程重启后才生效。
 
@@ -540,9 +544,28 @@ Cortex 版本中已登记的 commission 会转为看板：目录从 `commissions
 
 保存后，打开着的看板几秒内刷新；删掉这个文件即恢复预设。
 
-## defaults/config/ 布局 {#defaultsconfig-layout}
+## 内置资源与你的覆盖 {#built-in-assets-and-your-overrides}
 
-npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产与执行环境还会在服务器每次启动时重新同步：
+Cortex 的插件、钩子、规则、子智能体角色与系统提示词随安装目录的 `agent-server/defaults/` 发布，运行时直接从那里读取。它们从不复制到 `$CORTEX_HOME`，因此始终与正在运行的版本一致，`$CORTEX_HOME` 中只有你自己的文件。你在对应位置放的文件会替换内置文件，新名称则是新增，删除你的文件即恢复内置版本。
+
+| 资源 | 内置 | 你的 | 你的文件如何与内置文件结合 |
+|---|---|---|---|
+| 插件 | `defaults/plugins/<id>/` | `plugins/<id>/` | 同一 id：你的 skill 替换或补充内置 skill，你的 `mcp.json` 替换内置的；manifest 保持内置。其他 id 是独立的插件。见[内置插件](./skills-and-plugins.md#built-in-plugins) |
+| 钩子声明 | `defaults/config/hooks/*.json` | `config/hooks/*.json` | 同名文件：按字段合并到内置声明之上。见[钩子注册表](./hooks.md#the-hook-registry) |
+| 钩子脚本 | `defaults/hooks/*.mjs` | `hooks/*.mjs` | 同名文件：替换内置脚本 |
+| 规则 | `defaults/rules/*.md` | `rules/*.md` | 同名文件：替换内置规则 |
+| 子智能体角色 | `defaults/agents/*.md` | `config/agents/*.md` | 同名文件：替换内置角色 |
+| 系统提示词 | `defaults/prompts/systemPrompts/*.md` | `prompts/systemPrompts/*.md` | 同名文件：替换内置提示词 |
+
+规则是给智能体会话用的 Markdown 文件。没有 `paths` frontmatter 的规则会前置到每个加载规则（`loadRules`）的执行环境的会话中；带 `paths` glob 的规则在会话读到匹配文件时由 `rules-loader` 钩子注入，每会话一次。
+
+在设置中做的修改——一个 skill、一个钩子开关、一段系统提示词——同样写入 `$CORTEX_HOME`，Cortex 从不写入安装目录。Sealed home（`CORTEX_CONFIG_IMMUTABLE=1`，例如 benchmark trial）自行声明完整的能力面，不使用任何内置插件、钩子或规则。
+
+由一个在 `$CORTEX_HOME` 中保存这些文件副本的版本建立的 home，会在首次启动时转换：与随包文件完全相同的副本被删除，内容不同的插件与钩子副本移到 `config/archive/builtin-overlay-<timestamp>/`，改过的规则、角色与提示词作为你的覆盖保留，被关闭的内置钩子保持关闭，每个执行环境继续加载同样的插件。
+
+## defaults/ 布局 {#defaults-layout}
+
+npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。脚手架文件在 init 期间复制到 `$CORTEX_HOME/`，执行环境还会在服务器每次启动时合并；内置资源则原地读取：
 
 | 源 | 目标 | 覆盖行为 |
 |---|---|---|
@@ -551,16 +574,12 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不——这里只指 `$CORTEX_HOME/.claude/settings.json` 这个脚手架路径；任意仓库内的本地 `.claude/settings.json` 都不在 Cortex 的 copy/sync 回路里 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |
 | `defaults/config/environments/` | `$CORTEX_HOME/config/environments/` | 逐文件 copy-if-missing，init 时与之后每次服务器启动时各执行一次：你尚未拥有的随包执行环境会被拷入；你已有的文件绝不被覆盖——`--force` 对这棵树不生效 |
-| `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | 每次服务器启动时逐文件按 CalVer 同步：缺失则添加，发布的 `version` 更新则刷新。没有 `version` 的声明（你自己的）永不被覆盖 |
-| `defaults/prompts/` | `$CORTEX_HOME/prompts/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
-| `defaults/plugins/` | `$CORTEX_HOME/plugins/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
-| `defaults/rules/` | `$CORTEX_HOME/rules/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
-| `defaults/hooks/` | `$CORTEX_HOME/hooks/` | init 时逐文件：从不覆盖除非 `--force`。每次服务器启动时，除非已部署文件带有相等或更新的 `@cortex-hook-version`，否则重新复制发布的脚本 |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | 从不（除非 `--force`） |
 | `defaults/context/` | `$CORTEX_HOME/context/` | 脚手架文件：从不覆盖 |
+| `defaults/plugins/`、`defaults/config/hooks/`、`defaults/hooks/`、`defaults/rules/`、`defaults/agents/`、`defaults/prompts/` | — | 不复制：原地读取，你的文件叠加其上（见[内置资源与你的覆盖](#built-in-assets-and-your-overrides)） |
 | `defaults/board/` | — | 不复制：看板的预设样式表和新看板的骨架直接从安装包读取 |
 
-这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和执行环境，而不会覆盖用户的自定义内容。整文件型配置（如 `budget.json`）仍需 `--force` 才能替换；`config/environments/` 则改为逐文件合并，新发货的执行环境能到达已有安装，同时不动你的改动。
+因此升级会带来当前版本的内置插件、钩子、规则、角色与提示词，新随包的执行环境也能到达已有安装，同时不动你的改动。整文件型配置（如 `budget.json`）需要 `--force` 才能替换。
 
 ## 热重载行为 {#hot-reload-behavior}
 
@@ -573,8 +592,8 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 - **`environments/`** — 被监视。变更去抖（300 毫秒）后重载所有执行环境，无需重启。参见[执行环境](#execution-environments)。
 - **`.env`** — 需要守护进程重启才能生效（启动时通过 dotenv 加载一次）。过去放在这里的行为设置已迁到 `config/settings.json`，后者不需要重启。
 - **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。
-- **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
-- **插件、提示、规则** — 每次智能体会话生成时重新读取。
+- **钩子脚本** — 每次钩子调用时重新读取。
+- **插件、提示、规则、子智能体角色** — 每次智能体会话生成时重新读取。
 - **`config/board.css`** — 与所有看板的目录一起被监视。变更后几秒内，打开着的看板重新渲染。参见[看板](#boards)。
 
 ## 各文件位置 {#where-each-file-lives}
@@ -598,4 +617,4 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `conversation-history/` | 按会话分文件的 transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |
 | `logs/sessions/` | Claude capture 日志 | `$CORTEX_HOME/logs/sessions/` |
 | `logs/sessions-pi/` | PI transcript bundle | `$CORTEX_HOME/logs/sessions-pi/` |
-| `hooks/*.json` | 钩子声明 | `$CORTEX_HOME/config/hooks/` |
+| `hooks/*.json` | 你的钩子声明与覆盖 | `$CORTEX_HOME/config/hooks/` |

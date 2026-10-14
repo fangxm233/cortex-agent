@@ -162,7 +162,7 @@ cortex memory regen --project <project-name>
 
 ## 访问追踪 {#access-tracking}
 
-Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。这通过 `~/.cortex/hooks/memory-ref-tracker.mjs` 中的 Claude Code `PostToolUse` 钩子实现（完整钩子系统参见 [hooks.md](./hooks.md)）。
+Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。这通过 `agent:post-tool` 上的内置钩子 `memory-ref-tracker.mjs` 实现（完整钩子系统参见 [hooks.md](./hooks.md)）。
 
 **工作原理：**
 

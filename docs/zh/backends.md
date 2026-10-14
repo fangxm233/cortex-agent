@@ -82,7 +82,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 **工具。** PI 在进程内注册 `agent` 与 `agent_stop`。Claude 拿到的是同一对 MCP 工具（`mcp__cortex-core__agent`、`mcp__cortex-core__agent_stop`），同时它内置的 `Agent` 工具会在每次 spawn 时被剥离，因此不存在第二条守护进程看不见的委派路径。一次调用可以跑单个任务、最多八个并行任务，或最多八个串行任务；串行任务提示里的 `{previous}` 会被替换成上一环的输出。
 
-**角色。** 角色是 `$CORTEX_HOME/config/agents/` 下带 YAML frontmatter 的 markdown 文件。`explore`、`general-purpose` 与 `plan` 是随附的默认角色，且只在缺失时才复制进去，所以用户改过的角色在升级后一定保留。角色正文追加到子会话的系统提示。其 frontmatter 可以设置：
+**角色。** 角色是带 YAML frontmatter 的 markdown 文件。`explore`、`general-purpose` 与 `plan` 是内置角色，从安装目录的 `agent-server/defaults/agents/` 读取；`$CORTEX_HOME/config/agents/` 中的文件新增一个角色，或替换同名的内置角色，删除该文件即恢复内置角色。角色正文追加到子会话的系统提示。其 frontmatter 可以设置：
 
 | 键 | 含义 |
 |---|---|
@@ -95,7 +95,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 **模型如何选定。** 不查 profile。顺序是：任务显式指定的 `model`，其次角色的 `model`，最后才是父会话自己的模型——且仅当子智能体与父会话同后端时才回退到最后一项，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。
 
-**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述不再写死，而是在注册工具时按本机实际拥有的内容生成。角色取自实时的 `$CORTEX_HOME/config/agents/` 角色表，新增的角色下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父会话直接读自己进程内的模型注册表；Claude 父会话读不到——它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以由守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时列不出 PI 模型——不会为了给一次 Claude spawn 装饰而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们只是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
+**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述不再写死，而是在注册工具时按本机实际拥有的内容生成。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——新增的角色下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父会话直接读自己进程内的模型注册表；Claude 父会话读不到——它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以由守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时列不出 PI 模型——不会为了给一次 Claude spawn 装饰而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们只是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
 
 **隔离。** `pi` 子智能体是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子智能体则是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、不写 transcript 日志。两种情况下子智能体的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此不能继续向下扇出。
 

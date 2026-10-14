@@ -10,7 +10,7 @@ Cortex consists of two npm packages plus a set of plugins:
 |---------|------|---------|
 | `@cortex-agent/server` | `agent-server/` | Main server: Slack bot, LLM orchestration, scheduling, MCP tools. Provides four CLI binaries: `cortex`, `cortex-hook`, `cortex-evidence-export`, `cortex-signal`. |
 | `@cortex-agent/client` | `client/` | Lightweight remote agent daemon. Connects via WebSocket and executes shell/file commands locally. |
-| Plugins | `plugins/cortex-*` | Plugin bundles containing skills. Not npm packages — loaded as directories at runtime. |
+| Plugins | `agent-server/defaults/plugins/cortex-*` | Built-in plugin bundles containing skills. Not npm packages — read in place as directories at runtime. |
 
 ## Agent-Server Architecture: Six Layers
 

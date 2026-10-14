@@ -1,11 +1,12 @@
 # 钩子 {#hooks}
 
-钩子是 Cortex 在某件事发生时运行的一条命令——工具即将执行、会话开始、定时任务触发、助手回合结束。每个钩子都是一份**声明**：`$CORTEX_HOME/config/hooks/` 下的一个 JSON 文件，声明一个事件、一个可选的匹配器，以及要运行的命令。服务器在启动时加载这些声明，各个消费方分别编译自己关心的子集：Claude Code 后端、PI 后端，以及服务器自身的事件派发器。添加一个钩子意味着添加一个文件，而不是改代码。关于钩子在整体系统中的位置，参见 [architecture.md](./architecture.md)。
+钩子是 Cortex 在某件事发生时运行的一条命令——工具即将执行、会话开始、定时任务触发、助手回合结束。每个钩子都是一份**声明**：一个 JSON 文件，声明一个事件、一个可选的匹配器，以及要运行的命令。内置声明随 Cortex 发布，直接从安装目录读取；你自己的声明放在 `$CORTEX_HOME/config/hooks/`。服务器在启动时加载这些声明，各个消费方分别编译自己关心的子集：Claude Code 后端、PI 后端，以及服务器自身的事件派发器。添加一个钩子意味着添加一个文件，而不是改代码。关于钩子在整体系统中的位置，参见 [architecture.md](./architecture.md)。
 
 ## 架构概览 {#architecture-overview}
 
 ```
-        $CORTEX_HOME/config/hooks/*.json   — 一个文件一条声明
+  defaults/config/hooks/*.json + $CORTEX_HOME/config/hooks/*.json
+              — 一个文件一条声明，内置的和你的
                             │
                             │  加载 + 校验（store/hook-registry.ts）
         ┌───────────────────┼────────────────────────┐
@@ -20,16 +21,18 @@
         └───────────────────┴────────────────────────┘
                             │
                             ▼
-              $CORTEX_HOME/hooks/*.mjs — 脚本本体
+     $CORTEX_HOME/hooks/*.mjs，其次 defaults/hooks/*.mjs — 脚本本体
 ```
 
 ## 钩子注册表 {#the-hook-registry}
 
-注册表就是目录 `$CORTEX_HOME/config/hooks/`。其中每个 `.json` 文件是一条钩子声明。文件按文件名排序读取，这个顺序同时也是同一事件下钩子的执行顺序——随 Cortex 发布的声明带有数字前缀（`01-…`、`02-…`），使相对顺序显式可见。
+注册表分两层。内置声明是安装目录 `agent-server/defaults/config/hooks/` 中的 `.json` 文件，直接原地读取，因此始终与正在运行的版本一致；你的声明是 `$CORTEX_HOME/config/hooks/` 中的 `.json` 文件。每个文件是一条声明。两层的文件合在一起按文件名排序读取，这个顺序同时也是同一事件下钩子的执行顺序——内置声明带有数字前缀（`05-…`、`06-…`），使相对顺序显式可见。
+
+`$CORTEX_HOME/config/hooks/` 中与某条内置声明同名的文件不会新增钩子，而是覆盖那条内置声明。它按字段合并到内置声明之上，因此只需写出要改的字段——`{ "enabled": false }` 即可关闭一个内置钩子——且保留内置的 `id`。删除该文件即恢复内置声明。Sealed home（`CORTEX_CONFIG_IMMUTABLE=1`，例如 benchmark trial）只挂载自己的声明。
 
 加载是容错且高声报错的。JSON 非法、schema 校验失败，或 `id` 与更早的文件重复的文件会被跳过，并在 stderr 打印 `[hook-registry] skipped <file>: <reason>`；注册表的其余部分照常挂载。服务器启动时会记录挂载数量，形如 `Startup: mounted 12 hooks (1 cc / 2 cortex)`。Web UI 的设置面板读取同一份列表。
 
-桌面端的 **设置 → 钩子** 面板不只是一份清单，而是这份注册表的完整视图：它按事件命名空间分组、按加载顺序排列，显示每条声明真正挂载到哪里（`claude` / `pi` / `server`）、改动是下次智能体启动生效还是必须重启服务端，并对 `run.script` 在钩子目录中缺失的条目打上标记。可改的范围取决于条目来源。**user** 条目完全可编辑，也可以新建与删除。**managed** 条目只开放启用开关，并常驻一条提示：下一次 hook sync 会把启用状态恢复为随附值——其余字段同样会被覆盖，因此面板不会假装它们可改。`result` 的选项收敛为该事件真正支持的模式；`version` 永不可写——从 UI 创建的条目始终是 user 条目。每个条目还可以针对一份可编辑的样例负载试跑，退出码、stdout 与 stderr 就地展示。
+桌面端的 **设置 → 钩子** 面板不只是一份清单，而是这份注册表的完整视图：它按事件命名空间分组、按加载顺序排列，显示每条声明真正挂载到哪里（`claude` / `pi` / `server`）、改动是下次智能体启动生效还是必须重启服务端，并对两个脚本目录中都找不到 `run.script` 的条目打上标记。可改的范围取决于条目来源。**user** 条目完全可编辑，也可以新建与删除。**内置**条目只开放启用开关；切换它会在 `$CORTEX_HOME/config/hooks/` 写入最小的覆盖文件，切换回原值时再删除该文件。`result` 的选项收敛为该事件真正支持的模式；从 UI 创建的条目始终是 user 条目。每个条目还可以针对一份可编辑的样例负载试跑，退出码、stdout 与 stderr 就地展示。
 
 移动端对同一份注册表只读：钩子页展示分组后的清单以及每行背后的完整声明，但不提供编辑、新建与试跑。要改钩子请使用桌面端会话。
 
@@ -41,8 +44,7 @@
   "event": "agent:pre-tool",
   "matcher": "Edit|Write",
   "run": { "script": "status-md-guard.mjs", "timeout": 10 },
-  "enabled": true,
-  "version": "2026.8.2"
+  "enabled": true
 }
 ```
 
@@ -51,7 +53,7 @@
 | `id` | string，必填 | 注册表内唯一。`cortex-hook` 和日志行用它指代钩子 |
 | `event` | string，必填 | `agent:*` 事件之一，或任意以 `cc:` / `pi:` / `cortex:` 为前缀的名称 |
 | `matcher` | string 或 object | `agent:*` / `cc:*` / `pi:*` 事件用正则；`cortex:*` 事件用等值过滤对象。省略即匹配全部 |
-| `run.script` | string | 脚本文件名，相对 `$CORTEX_HOME/hooks/` 解析。绝对路径与 `..` 片段会被拒绝 |
+| `run.script` | string | 脚本文件名，先在 `$CORTEX_HOME/hooks/` 中查找，再在内置脚本中查找。绝对路径与 `..` 片段会被拒绝 |
 | `run.command` | string | 用裸 shell 命令代替脚本。`script` 与 `command` 必须且只能有一个 |
 | `run.timeout` | number | 超时，单位**秒**。默认 30 |
 | `scope.backends` | array | 收窄 `agent:*` 钩子编译到 `claude` / `pi` 中的哪些后端 |
@@ -59,11 +61,10 @@
 | `blocking` | object | `{ "mode": "webhook", "ttlMin": <正数> }`，由加载器校验，用于需要 webhook 往返阻塞的钩子 |
 | `result` | string | `stdout-as-prompt` 或 `none`。决定 `cortex:*` 钩子的 stdout 如何被解释 |
 | `enabled` | boolean | `false` 时从所有消费方移除该钩子而不删除文件。默认 `true` |
-| `version` | string | CalVer 版本戳（`2026.7.29`，可带 `-1`），标记该条目为 managed |
 
-### managed 条目与 user 条目 {#managed-and-user-entries}
+### 内置条目与 user 条目 {#built-in-and-user-entries}
 
-带合法 CalVer `version` 的条目是 **managed**：它随 Cortex 发布，启动时只要发布版本比已部署版本更新，就从 `defaults/config/hooks/` 刷新过来。没有 `version` 的条目是 **user** 条目，永不被覆盖——正是这条保证让你可以把自己的声明直接放在随发布的声明旁边。钩子脚本以同样方式同步，依据是脚本源码里的 `@cortex-hook-version` 注释。
+在安装目录中声明的条目是**内置**条目，无论 `$CORTEX_HOME/config/hooks/` 中是否有文件覆盖了它的部分字段；`cortex-hook` 与设置面板都把它报告为内置。只在 `$CORTEX_HOME/config/hooks/` 中声明的条目是 **user** 条目。Cortex 从不写入安装目录，只有在你编辑、新增、删除或切换钩子时才写入 `$CORTEX_HOME/config/hooks/`。
 
 ## 事件命名空间 {#event-namespaces}
 
@@ -115,13 +116,13 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 
 ### Claude Code
 
-生成 Claude 进程时，`agent-adapter/claude/hooks-builder.ts` 中的 `buildHooksSettings()` 加载注册表，保留已启用、挂在 `claude` 后端、且 `scope.requiresTool` 能在该智能体工具列表中得到满足的条目，然后生成一个通过 `--settings` CLI 标志注入的 Claude 设置对象。`run.script` 变为 `node $CORTEX_HOME/hooks/<script>`，`run.command` 原样透传，`run.timeout` 成为 Claude 的每钩子 `timeout`（秒）。同一事件下相邻且匹配器相同的条目会被合并进同一个 matcher 组：
+生成 Claude 进程时，`agent-adapter/claude/hooks-builder.ts` 中的 `buildHooksSettings()` 加载注册表，保留已启用、挂在 `claude` 后端、且 `scope.requiresTool` 能在该智能体工具列表中得到满足的条目，然后生成一个通过 `--settings` CLI 标志注入的 Claude 设置对象。`run.script` 变为 `node <脚本路径>`——`$CORTEX_HOME/hooks/` 中有该脚本时用它，否则用安装目录中的内置脚本；来自 `$CORTEX_HOME/hooks/` 的脚本还会带上 `--import` 预加载，用来解析它对内置辅助库的 import。`run.command` 原样透传，`run.timeout` 成为 Claude 的每钩子 `timeout`（秒）。同一事件下相邻且匹配器相同的条目会被合并进同一个 matcher 组：
 
 ```json
 {
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "node $CORTEX_HOME/hooks/status-md-guard.mjs", "timeout": 10 }
+        { "type": "command", "command": "node <install>/defaults/hooks/status-md-guard.mjs", "timeout": 10 }
     ]},
     { "matcher": "Read|Grep", "hooks": [ ... ] }
   ],
@@ -155,7 +156,7 @@ bus 如何处理 stdout 取决于 `result`：
 
 ## 会话事件与提示注入 {#session-events-and-prompt-injection}
 
-`cortex:session.new` 在会话被 `!new` 或“New”状态按钮拆除之前触发，`cortex:session.messageEnd` 在每次助手回合之后触发。二者与其他钩子一样以声明方式配置；随发布的 `session-new-hook` 声明指向 `new-session-hook.mjs`，`result` 为 `stdout-as-prompt`。
+`cortex:session.new` 在会话被 `!new` 或“New”状态按钮拆除之前触发，`cortex:session.messageEnd` 在每次助手回合之后触发。二者与其他钩子一样以声明方式配置；内置的 `session-new-hook` 声明指向 `new-session-hook.mjs`，`result` 为 `stdout-as-prompt`。
 
 `sessionId` 是 Cortex 会话 id——会话注册表的键，`cortex-hook` 辅助工具据它解析频道。`backendSessionId` 是后端为该会话对话分配的 id（即其 transcript 的名字），会话还没有任何回合时为 `null`；一旦后端分配了自己的 id 或回退移动了对话，两者就不再相同。
 
@@ -171,26 +172,26 @@ bus 如何处理 stdout 取决于 `result`：
 
 ## 钩子脚本 {#hook-scripts}
 
-脚本位于 `$CORTEX_HOME/hooks/`，是普通的 Node.js `.mjs` 文件：从 stdin 读 JSON 上下文，向 stdout 写 JSON（对 `stdout-as-prompt` 钩子则写纯文本）。随 Cortex 发布的脚本如下：
+脚本是普通的 Node.js `.mjs` 文件：从 stdin 读 JSON 上下文，向 stdout 写 JSON（对 `stdout-as-prompt` 钩子则写纯文本）。内置脚本直接在安装目录 `agent-server/defaults/hooks/` 中运行；你的脚本放在 `$CORTEX_HOME/hooks/`。查找脚本名时先查 `$CORTEX_HOME/hooks/`，因此那里与内置脚本同名的文件会替换它，删除该文件即恢复内置脚本。`$CORTEX_HOME/hooks/` 中的脚本可以用与内置脚本相同的相对路径 import 内置辅助库（`./cortex-hook-api.mjs`、`./cortex-context-lib.mjs` 等）：`$CORTEX_HOME/hooks/` 中找不到的 import 会改到内置脚本目录中解析。内置脚本如下：
 
 | 脚本 | 使用方 | 用途 |
 |---|---|---|
 | `status-md-guard.mjs` | `agent:pre-tool`，`Edit\|Write` | 让项目的 `STATUS.md`、`ISSUES.md` 与记忆树中的 `AGENTS.md` 索引保持在各自的体积上限内：编辑接近上限时警告，超出上限时拒绝 |
 | `memory-ref-tracker.mjs` | `agent:post-tool`，`Read\|Grep` | 把内存文件访问记录到 `_meta/access-log.jsonl` |
-| `rules-loader.mjs` | `agent:post-tool`，`Read\|Grep` | 读到匹配路径时注入 `$CORTEX_HOME/rules/` 下的限定规则，每条规则每会话一次 |
+| `rules-loader.mjs` | `agent:post-tool`，`Read\|Grep` | 读到匹配路径时注入按路径限定的[规则](./configuration.md#built-in-assets-and-your-overrides)（内置规则以及 `$CORTEX_HOME/rules/` 中的规则），每条规则每会话一次 |
 | `session-activity-tracker.mjs` | `agent:post-tool`，`Read\|Edit\|Write\|Skill` | 把活动记录追加到 `logs/session-activity/<session_id>.jsonl` |
 | `agents-md-injector.mjs` | `agent:post-tool`（`Read\|Edit`）与 `agent:session-start` | 把 AGENTS.md 祖先链注入智能体上下文，并按会话去重 |
 | `new-session-hook.mjs` | `cortex:session.new` | 从即将关闭的会话中回忆有价值的信息并写入上下文文件 |
 
 声明可以用内联的 `run.command` 代替脚本。
 
-同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。`cortex-context-lib.mjs` 也不是钩子入口：它包含 AGENTS.md 去重缓存、内联体积预算和规则 `paths:` 解析，由 `agents-md-injector.mjs`、`rules-loader.mjs` 与服务端共用，因此钩子与 MCP 侧对远端 AGENTS.md 的注入读写同一份会话缓存。
+内置脚本中的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。`cortex-context-lib.mjs` 也不是钩子入口：它包含 AGENTS.md 去重缓存、内联体积预算和规则 `paths:` 解析，由 `agents-md-injector.mjs`、`rules-loader.mjs` 与服务端共用，因此钩子与 MCP 侧对远端 AGENTS.md 的注入读写同一份会话缓存。
 
 ## 从钩子向用户提问 {#asking-the-user-from-a-hook}
 
 任何钩子都可以在当前会话绑定的消息平台——Slack、飞书或 Web UI——上弹出一张 ask-user-question 卡片，并阻塞等待用户作答。卡片与 `cortex_ask_user` 工具产生的交互表单相同，并接受可选的分级（`info`、`warning`、`error`，`warn` 是别名）：Web UI 复用 ChatNotice 的分级配色，Slack 与飞书在标题前加对应图标。不带分级时卡片保持中性外观。
 
-Node 钩子脚本直接 import 与其同目录（`$CORTEX_HOME/hooks/`）的辅助库：
+Node 钩子脚本按相对路径 import 该辅助库，`$CORTEX_HOME/hooks/` 中的脚本同样可以这样做（见[钩子脚本](#hook-scripts)）：
 
 ```js
 import { askUser } from './cortex-hook-api.mjs';
@@ -229,9 +230,9 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 
 | 命令 | 标志 | 作用 |
 |---|---|---|
-| `cortex-hook list` | — | 列出每个已挂载钩子的 `id`、`event`、`enabled`、`source`（`managed` 或 `user`） |
+| `cortex-hook list` | — | 列出每个已挂载钩子的 `id`、`event`、`enabled`、`source`（`builtin` 或 `user`） |
 | `cortex-hook show` | `--id <id>` | 打印一条完整声明，含 `source` |
-| `cortex-hook enable` | `--id <id>`、`--dry-run` | 幂等地把声明文件中的 `enabled` 设为 `true` |
+| `cortex-hook enable` | `--id <id>`、`--dry-run` | 幂等地把 `enabled` 设为 `true`：user 钩子写在其声明文件中，内置钩子写在覆盖文件中 |
 | `cortex-hook disable` | `--id <id>`、`--dry-run` | 以同样方式设为 `false` |
 | `cortex-hook test` | `--id <id>`、`--payload <file\|->` | 用给定 payload 从 stdin 执行该钩子一次 |
 | `cortex-hook ask` | `--question`、`--options "a\|b"`、`--level`、`--channel` / `--session-id`、`--payload <file\|->`、`--multi`、`--dry-run` | 在会话的消息平台上发一张 ask-user 卡片并阻塞等待答案（超时退出码 `2`） |
@@ -246,7 +247,7 @@ cortex-hook test --id status-md-guard --payload payload.json
 cat payload.json | cortex-hook test --id status-md-guard --payload -
 ```
 
-`enable` 与 `disable` 会报告 `changed`，让你区分真实的状态变化和空操作；`--dry-run` 不写文件，改为附加一个 `would_set` 块。禁用一个 managed 钩子会返回警告：之后如果同步部署了该条目的更新版本，会把它恢复为发布时的 `enabled` 状态。
+`enable` 与 `disable` 会报告 `changed`，让你区分真实的状态变化和空操作；`--dry-run` 不写文件，改为附加一个 `would_set` 块。对内置钩子，覆盖文件只记录开关；开关回到内置值时该文件会被删除。
 
 `test` 返回 `ok`、`id`、`exit_code`、`stdout`、`stderr`，进程失败时还有 `error`，并以钩子自身的退出码退出。
 
@@ -280,7 +281,7 @@ cat payload.json | cortex-hook test --id status-md-guard --payload -
    }));
    ```
 
-2. 声明它。把 `$CORTEX_HOME/config/hooks/50-warn-sensitive-file.json` 放在随发布的条目旁边——数字前缀让它排在它们之后：
+2. 声明它。把 `$CORTEX_HOME/config/hooks/50-warn-sensitive-file.json` 放进注册表——数字前缀让它排在内置条目之后：
 
    ```json
    {
@@ -290,8 +291,6 @@ cat payload.json | cortex-hook test --id status-md-guard --payload -
      "run": { "script": "warn-sensitive-file.mjs", "timeout": 5 }
    }
    ```
-
-   不要写 `version`。这标记该条目属于你，钩子同步永远不会碰它。
 
 3. 用 `cortex-hook list` 验证（该 id 出现，source 为 `user`），再用 `cortex-hook test --id warn-sensitive-file --payload payload.json` 验证。
 
@@ -319,4 +318,4 @@ cat payload.json | cortex-hook test --id status-md-guard --payload -
 - **新的 `cortex:*` 钩子毫无动静** — bus 在启动时快照注册表；重启服务器。
 - **JSON 解析错误** — stdout 不是合法 JSON。确保除结果外没有别的内容写到 stdout；诊断信息应走 stderr。
 - **超时** — 调大 `run.timeout`（单位为秒）。默认 30 秒，会话事件为 60 秒。
-- **找不到脚本** — `run.script` 相对 `$CORTEX_HOME/hooks/` 解析；绝对路径与 `..` 片段会被加载器拒绝。
+- **找不到脚本** — `run.script` 先在 `$CORTEX_HOME/hooks/` 中查找，再在内置脚本中查找；绝对路径与 `..` 片段会被加载器拒绝。
