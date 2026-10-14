@@ -56,6 +56,8 @@ test('a lead opening a new board gets the directory, scaffold and record, and bi
   assert.equal(result.board.slug, 'ship-the-parser');
   assert.equal(result.dir, path.join(ctx, 'boards', 'ship-the-parser'));
   assert.equal(fs.readFileSync(path.join(result.dir, 'board.html'), 'utf8'), SCAFFOLD);
+  assert.ok(fs.statSync(path.join(result.dir, 'assets')).isDirectory(), 'assets/ is created empty');
+  assert.deepEqual(fs.readdirSync(path.join(result.dir, 'assets')), []);
   assert.deepEqual(await boards.find('b1'), {
     id: 'b1', projectId: 'proj', slug: 'ship-the-parser', title: 'Ship the Parser',
     status: 'active', createdAt: 1_000, updatedAt: 1_000,
@@ -84,6 +86,17 @@ test('a lead opening a board leaves a worker that already has its own board alon
   assert.equal((await sessions.getById('w-active'))?.boardId, side.board.id);
   assert.equal((await sessions.getById('w-fresh'))?.boardId, main.board.id);
   assert.deepEqual(events.filter(e => e.type === 'session.board').map(e => e.sessionId), ['lead', 'w-fresh']);
+});
+
+test('the scaffold gets the escaped title in every {{title}}', async () => {
+  deps.readScaffold = async () => '<h1>{{title}}</h1>\n<p data-title="{{title}}">{{title}} · {{other}}</p>\n';
+  const result = await openBoard('other', { title: `R&D <v2> "fast" & 'safe'` }, deps);
+  const escaped = 'R&amp;D &lt;v2&gt; &quot;fast&quot; &amp; &#39;safe&#39;';
+  assert.equal(
+    fs.readFileSync(path.join(result.dir, 'board.html'), 'utf8'),
+    `<h1>${escaped}</h1>\n<p data-title="${escaped}">${escaped} · {{other}}</p>\n`,
+  );
+  assert.equal(result.board.title, `R&D <v2> "fast" & 'safe'`, 'the registry keeps the raw title');
 });
 
 test('slugs avoid registered and on-disk names; titles with no ASCII fall back to the id', async () => {
