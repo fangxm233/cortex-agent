@@ -141,7 +141,8 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
 // keywords so an id/status also matches. We do the filtering ourselves (cmdk `shouldFilter={false}`)
 // so we can CAP the rendered rows — feeding cmdk hundreds of real entities blows up the DOM and
 // stalls the shared httpBatchLink fetch. Empty query → nav commands + a few recent entities per
-// kind (proto-shot shows a short populated list); typing → all matches (nav + entities), capped.
+// kind, open boards before closed ones (proto-shot shows a short populated list); typing → all
+// matches (nav + entities), capped.
 export function selectPaletteRows(
   query: string,
   sources: CmdkSources,
@@ -154,9 +155,12 @@ export function selectPaletteRows(
   const q = query.trim().toLowerCase();
 
   if (!q) {
-    const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd).slice(0, restPerKind);
-    const openBoards = byKind('board').filter((b) => b.boardStatus === 'active');
-    return [...nav, ...openBoards, ...byKind('session')];
+    const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd);
+    const boards = byKind('board');
+    // Open boards lead; closed ones follow (shown dimmed), each group capped on its own.
+    const open = boards.filter((b) => !isClosedBoardRow(b)).slice(0, restPerKind);
+    const closed = boards.filter(isClosedBoardRow).slice(0, restPerKind);
+    return [...nav, ...open, ...closed, ...byKind('session').slice(0, restPerKind)];
   }
 
   const kindWords = opts.kindWords ?? {};
@@ -164,6 +168,11 @@ export function selectPaletteRows(
     [r.label, r.sub, ...r.keywords, r.labelKey ? '' : r.kbd, r.labelKey ? '' : kindWords[r.kbd] ?? '']
       .join(' ').toLowerCase().includes(q);
   return [...nav, ...entities].filter(matches).slice(0, matchCap);
+}
+
+/** A board row for a board that is done or abandoned. */
+export function isClosedBoardRow(row: Pick<PaletteRow, 'boardStatus'>): boolean {
+  return row.boardStatus !== undefined && row.boardStatus !== 'active';
 }
 
 /** The localized kind tag (`PaletteRow.kbd` stays the stable tag); an unknown tag shows as-is. */
