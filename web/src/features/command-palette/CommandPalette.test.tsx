@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({ useNavigate: () => h.navigate }));
 vi.mock('@/features/projects/CurrentProjectProvider', () => ({ useCurrentProject: () => ({ setCurrentProject: h.project }) }));
 vi.mock('@/features/session/state/SelectedSessionProvider', () => ({ useSelectedSession: () => ({ setSelectedSession: h.session }) }));
 vi.mock('@/features/settings/useSettings', () => ({ useSettings: () => ({ open: h.settings }) }));
-vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: { list: { queryOptions: () => ({}) } } }) }));
+vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: { list: { queryOptions: () => ({}) } }, boards: { list: { queryOptions: () => ({}) } } }) }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [{ sessionId: 's1', projectId: 'orchard', label: 'Session' }] }) }));
 vi.mock('cmdk', () => {
   const wrapper = ({ children }: { children: ReactNode }) => <div>{children}</div>;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { SessionInfo } from '@cortex-agent/ui-contract';
+import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import { sortBoards } from '@/features/board/useBoard';
 import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
 
 function session(over: Partial<SessionInfo> = {}): SessionInfo {
@@ -85,5 +86,42 @@ describe('selectPaletteRows', () => {
   it('surfaces a nav command by keyword', () => {
     const rows = selectPaletteRows('settings', sources);
     expect(rows.some((r) => r.id === 'nav:settings')).toBe(true);
+  });
+});
+
+function board(id: string, status: BoardInfo['status'], updatedAt: string): BoardInfo {
+  return {
+    id, projectId: 'cortex-self', slug: 'slug-' + id, title: 'Board ' + id, status,
+    createdAt: '2026-07-01T00:00:00Z', updatedAt, closedAt: status === 'active' ? null : updatedAt, closeNote: null,
+  };
+}
+
+describe('board rows', () => {
+  const boards = sortBoards([
+    board('old-done', 'done', '2026-07-09T00:00:00Z'),
+    board('quiet', 'active', '2026-07-01T00:00:00Z'),
+    board('busy', 'active', '2026-07-08T00:00:00Z'),
+    board('dropped', 'abandoned', '2026-07-02T00:00:00Z'),
+  ]);
+
+  it('orders open boards first, each group most recent first', () => {
+    expect(boards.map((b) => b.id)).toEqual(['busy', 'quiet', 'old-done', 'dropped']);
+  });
+
+  it('maps a board to a row that opens it', () => {
+    const [item] = buildCmdkItems({ sessions: [], boards: [boards[0]!] });
+    expect(item).toMatchObject({ id: 'board:busy', kbd: 'board', boardId: 'busy', boardStatus: 'active', label: 'Board busy' });
+  });
+
+  it('lists open boards before sessions on an empty query, and finds closed ones by search', () => {
+    const rows = selectPaletteRows('', { sessions: [session()], boards });
+    const entities = rows.slice(NAV_COMMAND_ITEMS.length).map((r) => r.id);
+    expect(entities).toEqual(['board:busy', 'board:quiet', 'session:sess_1']);
+    expect(selectPaletteRows('old-done', { sessions: [], boards }).map((r) => r.id)).toEqual(['board:old-done']);
+  });
+
+  it('lists every board when the query names the kind', () => {
+    const rows = selectPaletteRows('看板', { sessions: [session()], boards }, { kindWords: { board: '看板' } });
+    expect(rows.map((r) => r.id)).toEqual(boards.map((b) => 'board:' + b.id));
   });
 });

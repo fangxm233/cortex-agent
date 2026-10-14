@@ -177,7 +177,8 @@ vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInte
 vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
-vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.team}</div> }));
+vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.board}{props.team}</div> }));
+vi.mock('@/features/board/BoardHeaderButton', () => ({ BoardHeaderButton: ({ boardId }: { boardId: string }) => <span data-board-button={boardId} /> }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('@/features/session/transcript/MessageStream', async () => {
@@ -320,6 +321,26 @@ describe('desktop chat team context', () => {
     mounted = mountCenterChat();
     expect(capsules()).toHaveLength(0);
     expect(parent()).toBeNull();
+  });
+});
+
+describe('desktop chat board button', () => {
+  const buttons = () => mounted!.root.findAll((n) => n.type === 'span' && n.props['data-board-button'] !== undefined);
+
+  it('appears only on a session bound to a board', () => {
+    harness.sessions = [{ ...SESSION, boardId: 'b1' }];
+    mounted = mountCenterChat();
+    expect(buttons().map((n) => n.props['data-board-button'])).toEqual(['b1']);
+    harness.sessions = [{ ...SESSION, boardId: null }];
+    act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
+    expect(buttons()).toHaveLength(0);
+  });
+
+  it('never appears on a draft', () => {
+    harness.sessions = [{ ...SESSION, boardId: 'b1' }];
+    harness.selection = selection(true);
+    mounted = mountCenterChat();
+    expect(buttons()).toHaveLength(0);
   });
 });
 

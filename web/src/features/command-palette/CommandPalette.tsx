@@ -7,6 +7,9 @@ import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useSettings } from '@/features/settings/useSettings';
+import { useDockIntake } from '@/design/dock-intake';
+import { sortBoards } from '@/features/board/useBoard';
+import { boardStatusLabel } from '@/features/board/BoardLiveStrip';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 import { paletteKindText } from './palette-items';
 
@@ -118,7 +121,8 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   // Nav rows are all commands; entity rows are named by their `kbd` tag. That tag is therefore
   // redundant in the hint for entities, but not for nav rows, where it says page vs modal.
   const kind = row.labelKey ? 'command' : row.kbd;
-  const hint = [sub, row.kbd === kind ? null : paletteKindText(row.kbd, L)].filter(Boolean).join(' · ');
+  const status = row.boardStatus && row.boardStatus !== 'active' ? boardStatusLabel(row.boardStatus, L) : null;
+  const hint = [sub, status, row.kbd === kind ? null : paletteKindText(row.kbd, L)].filter(Boolean).join(' · ');
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
       <span style={KIND_STYLE}>{paletteKindText(kind, L)}</span>
@@ -132,10 +136,13 @@ const STALE = 30_000;
 
 function usePaletteRows(open: boolean, query: string): PaletteRow[] {
   const trpc = useTRPC();
+  const L = useVocab();
   const sessions = useQuery(trpc.sessions.list.queryOptions({}, { enabled: open, staleTime: STALE }));
+  const boards = useQuery(trpc.boards.list.queryOptions({}, { enabled: open, staleTime: STALE }));
   return useMemo(
-    () => selectPaletteRows(query, { sessions: sessions.data ?? [] }),
-    [query, sessions.data],
+    () => selectPaletteRows(query, { sessions: sessions.data ?? [], boards: sortBoards(boards.data ?? []) },
+      { kindWords: { board: L.palKindBoard, session: L.palKindSession } }),
+    [query, sessions.data, boards.data, L],
   );
 }
 
@@ -144,9 +151,15 @@ function usePaletteTarget(onOpenChange: (open: boolean) => void) {
   const { open: openSettings } = useSettings();
   const { setCurrentProject } = useCurrentProject();
   const { setSelectedSession } = useSelectedSession();
+  const { openBoard } = useDockIntake();
   return (row: PaletteRow) => {
     onOpenChange(false);
     if (row.modal === 'settings') return openSettings();
+    if (row.boardId) {
+      // The dock lives on the workbench; the board opens there whichever page the palette was on.
+      navigate('/workbench');
+      return openBoard(row.boardId);
+    }
     if (row.focusId) {
       if (row.projectId) setCurrentProject(row.projectId);
       setSelectedSession(row.focusId);
