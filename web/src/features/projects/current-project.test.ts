@@ -21,7 +21,7 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   costUsd: null,
   unread: false,
   scheduleId: null,
-  commissionId: null,
+  boardId: null,
   teamLeadId: null,
   workerName: null,
   workerRetiredAt: null,

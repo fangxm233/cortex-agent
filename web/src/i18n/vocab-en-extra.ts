@@ -105,8 +105,6 @@ export const enExtra = {
   stAdvDisableUpdateTitle: 'Disable auto-update check',
   stAdvAutoUpdateTitle: 'Auto-update server',
   stAdvAutoUpdateDesc: 'installs new versions without asking; restarts when idle',
-  stAdvCommissionTitle: 'Commission mode',
-  stAdvCommissionDesc: 'long tasks you or the agent can start',
   stAdvTeamTitle: 'Team (experimental)',
   stAdvTeamDesc: 'a session can create and manage persistent sub-sessions',
   stAdvRetentionTitle: 'Session retention days',

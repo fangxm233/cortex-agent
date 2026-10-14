@@ -13,9 +13,6 @@ import { useDraftSelection } from '@/features/session/state/useDraftSelection';
 import type { PendingCreatedSession } from '@/features/session/state/selected-session';
 import { sessionSpanMs, sessionStatsView, type SessionStatsRow } from '@/features/session/list/session-stats';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
-import {
-  commissionRequestOf, useCommissionEnabled, useCommissionTitle, useSessionCommission,
-} from '@/features/commission/CommissionOptIn';
 import { useTeamContext } from '@/features/team/useTeamContext';
 import { attachmentType, type AttachmentUploadItem } from '@/features/attachments/types';
 import { normalizeMobilePath } from '../mobile-route-manifest';
@@ -25,7 +22,6 @@ import {
   buildMobileChatRows,
   type ChatHeaderStatus, type SelectionSheetRow, type PendingAttachmentVM,
 } from './m-chat-vm';
-import type { MChatViewProps } from './MChatView.types';
 import { useMobileInteractions, type MobileInteractionRouting } from './m-chat-interactions';
 import { useMobileMessageEdit, type MobileMessageEdit } from './m-chat-edit';
 import type { UsageNavState } from './MUsageScreen';
@@ -123,27 +119,6 @@ function sendRoute(input: {
   return { sendEnabled, onSend };
 }
 
-type CommissionMode = MChatViewProps['commission'];
-
-/** Commission mode: chosen on a draft while the setting allows it, reported on a live session. */
-function useCommissionMode(active: SessionInfo | null, draft: {
-  isDraft: boolean;
-  enabled: boolean;
-  value: null | 'new' | string;
-  setValue: (value: string | null) => void;
-}): CommissionMode {
-  const vocab = useVocab();
-  // The sheet's titles are gone once it closes, so the chip needs the chosen commission's title back.
-  const draftTitle = useCommissionTitle(draft.value);
-  const live = useSessionCommission(active);
-  if (draft.isDraft) {
-    if (!draft.enabled) return undefined;
-    const label = draft.value === 'new' ? vocab.wbCommissionNewOption : draftTitle;
-    return { value: draft.value, label, onPick: draft.setValue };
-  }
-  return live ? { value: live.value, label: live.label ?? vocab.wbCommissionUnnamed } : undefined;
-}
-
 export function MChatScreen(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
@@ -180,14 +155,9 @@ export function MChatScreen(): JSX.Element {
   });
   const onPickSelection = (row: SelectionSheetRow): void => selection.apply(row.change);
 
-  // Browser control and commission mode are chosen on the draft only: both decide what the agent's
-  // process spawns with, so a live session can report them but never change them.
+  // Browser control is chosen on the draft only: it decides what the agent's process spawns with,
+  // so a live session can report it but never change it.
   const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
-  const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
-  // settings.commissionEnabled — with it off a draft offers no entry point; a live session's
-  // read-only capsule is unaffected.
-  const commissionEnabled = useCommissionEnabled();
-  const commission = useCommissionMode(active, { isDraft, enabled: commissionEnabled, value: draftCommission, setValue: setDraftCommission });
 
   // Follow a created session only while this screen is still the draft on screen: a user who has
   // already gone back stays where they went.
@@ -199,7 +169,6 @@ export function MChatScreen(): JSX.Element {
     creation: {
       selection: draftSelection,
       browserDevice: draftBrowserDevice,
-      commission: commissionEnabled ? commissionRequestOf(draftCommission) : null,
     },
     slash: {
       profileOptions: selection.profileOptions,
@@ -262,6 +231,8 @@ export function MChatScreen(): JSX.Element {
       // Opened from the team sheet: replacing its back-guard entry keeps back from the worker on the lead.
       onOpenWorker={(id) => navigate(`/m/session/${id}`, { replace: true })}
       onOpenWorkerFromChat={(id) => navigate(`/m/session/${id}`)}
+      boardId={isDraft ? null : active?.boardId ?? null}
+      onOpenBoardSession={(id) => { if (id !== sessionId) navigate(`/m/session/${id}`); }}
       metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
       status={status}
       project={route.projectId ?? undefined}
@@ -296,7 +267,6 @@ export function MChatScreen(): JSX.Element {
       browser={isDraft
         ? { device: draftBrowserDevice, onPick: setDraftBrowserDevice }
         : { device: active?.browser?.device ?? null }}
-      commission={commission}
       contextUsage={chat.contextUsage}
       contextUsageSupported={!!active?.contextCompactionSupported}
       contextCompactAction={chat.compactAction}

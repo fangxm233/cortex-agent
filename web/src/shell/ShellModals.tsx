@@ -1,5 +1,4 @@
 import { ApprovalsModalHost } from '@/features/approvals/useApprovals';
-import { CommissionBoardModalHost } from '@/features/commission/useCommissionBoard';
 import { ExecutionDrawerHost } from '@/features/execution/useExecutionDrawer';
 import { IssuesModalHost } from '@/features/issues/useIssues';
 import { ScheduleModalHost } from '@/features/schedule/useScheduleModal';
@@ -14,13 +13,12 @@ import { AboutModalHost } from './AboutModal';
 //
 // The order below is the order these used to appear in, back when each provider rendered its modal
 // after `{children}` and the innermost one landed first in the document. Radix-portalled modals
-// (settings, execution, commission) stack by open order and their own z-index
+// (settings, execution) stack by open order and their own z-index
 // rather than by mount order; the hand-rolled ones (issues, approvals, schedule, new project) are
 // plain fixed elements that share z-index 60/61, so their relative document order is preserved here.
 export function ShellModalHost(): JSX.Element {
   return (
     <>
-      <CommissionBoardModalHost />
       <IssuesModalHost />
       <SettingsModalHost />
       <ApprovalsModalHost />

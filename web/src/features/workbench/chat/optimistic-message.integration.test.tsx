@@ -57,9 +57,6 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       if (options.__kind === 'schedules.list') return { data: [], isPending: false };
       // Nothing is waiting on an external signal in these scenarios; the rail then renders nothing.
       if (options.__kind === 'waitpoints.list') return { data: [], isPending: false };
-      // No commissions in these scenarios; the composer registers both queries either way.
-      if (options.__kind === 'commissions.list') return { data: [], isPending: false };
-      if (options.__kind === 'commissions.get') return { data: undefined, isPending: false };
       // The slash palette's skills; these scenarios never open it.
       if (options.__kind === 'skills.session') return { data: [], isPending: false };
       if (options.__kind === 'sessions.transcript') {
@@ -115,7 +112,6 @@ vi.mock('@/lib/trpc', () => ({
         setProfile: mutation('sessions.setProfile'),
         setAgent: mutation('sessions.setAgent'),
         setSelection: mutation('sessions.setSelection'),
-        setCommission: mutation('sessions.setCommission'),
       },
       schedules: {
         list: query('schedules.list'),
@@ -124,10 +120,6 @@ vi.mock('@/lib/trpc', () => ({
       waitpoints: {
         list: query('waitpoints.list'),
         cancel: mutation('waitpoints.cancel'),
-      },
-      commissions: {
-        list: query('commissions.list'),
-        get: query('commissions.get'),
       },
       skills: { session: query('skills.session') },
     };

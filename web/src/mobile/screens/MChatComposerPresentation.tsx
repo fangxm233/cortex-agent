@@ -43,7 +43,7 @@ interface AttachMenuItemProps {
 
 function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   const tap = props.onTap ? (): void => { props.onTap?.(); props.onClose(); } : undefined;
-  const reportsOnly = props.itemKey === 'browser' || props.itemKey === 'commission';
+  const reportsOnly = props.itemKey === 'browser';
   return (
     <div data-plus-item={props.itemKey} data-editable={reportsOnly ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
       {props.icon}<span style={{ fontSize: 13, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{props.label}</span>
@@ -52,13 +52,12 @@ function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   );
 }
 
-export function AttachMenu({ onClose, onCamera, onLibrary, onFile, browser, commission, onCommands }: {
+export function AttachMenu({ onClose, onCamera, onLibrary, onFile, browser, onCommands }: {
   onClose: () => void;
   onCamera: () => void;
   onLibrary: () => void;
   onFile: () => void;
   browser?: { device: string | null; onOpen?: () => void };
-  commission?: { label: string | null; onOpen?: () => void };
   onCommands: () => void;
 }): JSX.Element {
   useEffect(() => {
@@ -75,7 +74,6 @@ export function AttachMenu({ onClose, onCamera, onLibrary, onFile, browser, comm
       <AttachMenuItem label={copy.chatAttachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
       <AttachMenuItem label={copy.chatAttachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
       {browser && <AttachMenuItem label={copy.chatAttachBrowser} onTap={browser.onOpen} onClose={onClose} icon={<BrowserIcon />} itemKey="browser" value={browser.device ?? undefined} />}
-      {commission && <AttachMenuItem label={copy.chatAttachCommission} onTap={commission.onOpen} onClose={onClose} icon={<CommissionIcon />} itemKey="commission" value={commission.label ?? undefined} />}
       <AttachMenuItem label={copy.chatAttachCommands} onTap={onCommands} onClose={onClose} icon={<CommandsIcon />} itemKey="commands" last />
     </div></>
   );
@@ -174,42 +172,10 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
   );
 }
 
-/** The pennant mark a commission carries everywhere in the UI — rail, board, banner, capsule. */
-function CommissionIcon(): JSX.Element {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.muted} strokeWidth="1.4"
-      strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}>
-      <path d="M4.2 2.2v11.6" />
-      <path d="M4.2 3.1h7.8L10.4 5.7l1.6 2.6H4.2z" />
-    </svg>
-  );
-}
-
-/** Same capsule as the browser's, for the same reason: after the sheet closes there would otherwise
- *  be nothing on screen saying this conversation is a commitment with a contract behind it. */
-export function CommissionChip({ value, text, label, onClick }: {
-  value: string;
-  text: string;
-  label: string;
-  onClick?: () => void;
-}): JSX.Element {
-  return (
-    <button type="button" data-chip="commission" data-commission-value={value}
-      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${text}`} title={`${label} · ${text}`}
-      onClick={onClick} style={{ ...modeChipStyle, cursor: onClick ? 'pointer' : 'default' }}>
-      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-        strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}>
-        <path d="M4.2 2.2v11.6" />
-        <path d="M4.2 3.1h7.8L10.4 5.7l1.6 2.6H4.2z" />
-      </svg>
-    </button>
-  );
-}
-
-/** Browser and commission report as bare icon keys, the size of ＋. The phone toolbar cannot seat
- *  two named capsules next to the model chip and the send keys, and of the three the model is the
- *  one that must stay legible — so the device/commission name moves into the sheet the key opens
- *  (and into its aria-label/tooltip), while the lit key alone says the mode is on. */
+/** Browser reports as a bare icon key, the size of ＋. The phone toolbar cannot seat a named capsule
+ *  next to the model chip and the send keys, and the model is the one that must stay legible — so the
+ *  device name moves into the sheet the key opens (and into its aria-label/tooltip), while the lit
+ *  key alone says the mode is on. */
 const modeChipStyle: CSSProperties = {
   flex: 'none', width: 34, height: 34, padding: 0, boxSizing: 'border-box', borderRadius: '50%',
   border: `1.5px solid ${MC.runBorder}`, background: MC.runBg, color: MC.run,
@@ -243,8 +209,8 @@ export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Eleme
   );
 }
 
-/** The left of the toolbar: ＋, then the browser and commission keys while their mode is on. */
-export function ComposerKeys({ browser, commission, overlay }: Pick<MChatViewProps, 'browser' | 'commission'> & {
+/** The left of the toolbar: ＋, then the browser key while browsing is on. */
+export function ComposerKeys({ browser, overlay }: Pick<MChatViewProps, 'browser'> & {
   overlay: ChatOverlay;
 }): JSX.Element {
   const L = useVocabOptional();
@@ -253,15 +219,13 @@ export function ComposerKeys({ browser, commission, overlay }: Pick<MChatViewPro
       <ComposerLeading onClick={() => overlay.toggle('attach')} />
       {browser?.device && <BrowserChip device={browser.device} label={L.chatAttachBrowser}
         onClick={browser.onPick ? () => overlay.open('browser') : undefined} />}
-      {commission?.value && <CommissionChip value={commission.value} text={commission.label || L.chatAttachCommission}
-        label={L.chatAttachCommission} onClick={commission.onPick ? () => overlay.open('commission') : undefined} />}
     </>
   );
 }
 
 /** The right-hand end of the composer toolbar. Context usage used to sit here too; it moved to the
  *  header, next to ⋯ — it reports on the session rather than on the message being written, and the
- *  width it took was width the engine chip needed once browser/commission keys joined the row. */
+ *  width it took was width the engine chip needed once the browser key joined the row. */
 export function ComposerTools({ selection, view }: {
   selection: MChatSelection;
   view: MChatSelectionView;

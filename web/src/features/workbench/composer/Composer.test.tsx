@@ -13,8 +13,7 @@ const harness = vi.hoisted(() => ({
   attachmentItems: [] as any[],
   attachmentRetry: vi.fn(),
   createPending: false,
-  // Query data by key root, so a test can stock the active-commission list and the title behind
-  // commissions.get while every other query stays empty — this suite's ordinary case.
+  // Query data by key root; every query stays empty unless a test stocks it.
   queries: {} as Record<string, unknown>,
 }));
 
@@ -25,8 +24,6 @@ vi.mock('@tanstack/react-query', () => ({
       ? { mutateAsync: harness.send, isPending: harness.createPending }
       : { mutateAsync: harness.send, isPending: false },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  // The composer's commission control reads the active-commission list; no commissions is the
-  // ordinary case here, and only the commission suite below stocks a result.
   useQuery: (options: { queryKey?: unknown[] }) => ({
     data: harness.queries[String(options?.queryKey?.[0] ?? '')],
     isPending: false,
@@ -39,34 +36,19 @@ vi.mock('@/lib/trpc', () => ({
       send: { mutationOptions: () => ({ __kind: 'send' }) },
       cancel: { mutationOptions: () => ({ __kind: 'cancel' }) },
       createAndSend: { mutationOptions: () => ({ __kind: 'create' }) },
-      setCommission: { mutationOptions: () => ({ __kind: 'set-commission' }) },
       list: { queryFilter: () => ({}) },
     },
-    commissions: {
-      list: { queryOptions: () => ({ queryKey: ['commissions.list'] }), queryFilter: () => ({}) },
-      get: { queryOptions: () => ({ queryKey: ['commissions.get'] }) },
-    },
-    // The commission feature switch is read from the shared config.get snapshot; undefined data
-    // (the useQuery mock above) means "off", which is the default this suite renders under.
     config: { get: { queryOptions: () => ({ queryKey: ['config.get'] }) } },
     skills: { session: { queryOptions: () => ({ queryKey: ['skills.session'] }) } },
   }),
 }));
 
 vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
-  const React = await import('react');
-  // The draft's commission choice lives in the provider (a rail row or the board can open a draft
-  // already armed with one), so the mock holds real state: the capsule reads back what the ＋ menu
-  // wrote, exactly as it does against the real provider.
   return {
     useSelectedSession: () => {
-      const [draftCommission, setDraftCommission] = React.useState<null | 'new' | string>(null);
       return {
         selectCreatedSession: vi.fn(),
         setSelectedSession: harness.setSelectedSession,
-        draftCommission,
-        setDraftCommission,
-        startCommissionDraft: vi.fn(),
         draftSelection: { profileName: null, override: null },
         setDraftSelection: vi.fn(),
         pendingCreatedSession: null,
@@ -170,28 +152,6 @@ describe('Composer material', () => {
     expect(card.props.style.backdropFilter).toBeUndefined();
     expect(card.props.style.boxShadow).toContain('var(--material-card-shadow)');
     act(() => tree.unmount());
-  });
-});
-
-describe('Composer commission capsule', () => {
-  afterEach(() => { harness.queries = {}; });
-
-  it('names the commission a draft is joining instead of calling it unnamed', () => {
-    // The draft holds the id alone; the menu's titles are gone the moment it closes, so the capsule
-    // has to fetch the title back. "unnamed" belongs to a contract that has not been named yet.
-    harness.queries['config.get'] = { settings: [{ key: 'commissionEnabled', value: true }] };
-    harness.queries['commissions.list'] = [{ id: 'cm-1', title: 'Refactor the rail' }];
-    harness.queries['commissions.get'] = { title: 'Refactor the rail' };
-    const renderer = mountComposer(() => {}, { isDraft: true });
-
-    act(() => renderer.root.findByProps({ 'data-chip': 'plus' }).props.onClick({ stopPropagation: vi.fn() }));
-    act(() => renderer.root.findByProps({ 'data-plus-item': 'commission' }).props.onClick({ stopPropagation: vi.fn() }));
-    act(() => renderer.root.findByProps({ 'data-commission-option': 'cm-1' }).props.onClick({ stopPropagation: vi.fn() }));
-
-    const chip = renderer.root.findByProps({ 'data-chip': 'commission' });
-    expect(chip.props['data-commission-value']).toBe('cm-1');
-    expect(chip.props['aria-label']).toContain('Refactor the rail');
-    act(() => renderer.unmount());
   });
 });
 

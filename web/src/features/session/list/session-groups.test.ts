@@ -23,7 +23,7 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     costUsd: p.costUsd ?? null,
     unread: p.unread ?? false,
     scheduleId: p.scheduleId ?? null,
-    commissionId: p.commissionId ?? null,
+    boardId: p.boardId ?? null,
     teamLeadId: p.teamLeadId ?? null,
     workerName: p.workerName ?? null,
     workerRetiredAt: p.workerRetiredAt ?? null,

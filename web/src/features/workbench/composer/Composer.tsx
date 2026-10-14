@@ -3,8 +3,6 @@ import {
   useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo,
   type ReactNode, type RefObject,
 } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -23,11 +21,8 @@ import { WaitRail } from '@/features/session/rail/WaitRail';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import {
   ComposerActionRow, ComposerSlashMenu,
-  type ComposerBrowserControl, type ComposerCommissionControl,
+  type ComposerBrowserControl,
 } from './ComposerActionRow';
-import {
-  commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle, type CommissionRequest,
-} from '@/features/commission/CommissionOptIn';
 import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -72,10 +67,6 @@ export interface ComposerProps {
   isDraft?: boolean;
   /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
   sessionBrowser?: { device: string } | null;
-  /** Commission mode an EXISTING session is in. `label` is the commission title once one has
-   *  landed; a session still drilling has no title yet. Unlike the browser this one IS switchable
-   *  on a live session (DR-0037 v4) — the state lives in the registry, not in the spawned process. */
-  sessionCommission?: { value: string; label: string | null } | null;
   currentProfile: string | null;
   /** The session's model/thinking choice on top of that profile, from its sessions.list row. */
   currentOverride?: SessionSelectionOverride | null;
@@ -103,53 +94,6 @@ export interface ComposerProps {
   onOpenUsage?: () => void;
 }
 
-/**
- * The commission capsule's control, for all three states.
- *
- * A draft only records the choice (it is sent with sessions.create). A LIVE session switches for
- * real: the mode is registry state, not a property of the spawned process, so a conversation that
- * turns into a long task can be promoted where it stands (DR-0037 v4). A session already BOUND is
- * terminal and only reports — a second contract would orphan the first.
- */
-function useCommissionControl(
-  sessionId: string,
-  isDraft: boolean,
-  sessionCommission: { value: string; label: string | null } | null,
-): { control: ComposerCommissionControl | null; request: CommissionRequest | null } {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  // Draft-only, held by SelectedSessionProvider rather than here: the rail row and the commission
-  // board open a draft already armed with their commission, and that seed has to survive the
-  // composer remounting under the new selection.
-  const { draftCommission: choice, setDraftCommission: setChoice } = useSelectedSession();
-  // Commission mode is a switchable feature (settings.commissionEnabled); when it is off the
-  // composer offers no way in. A live session's read-only capsule still renders, so a session bound
-  // while the feature was on keeps saying what it serves.
-  const enabled = useCommissionEnabled();
-  // A draft holds only the chosen value, so joining an existing commission needs its title fetched
-  // back or the capsule would report a named commission as unnamed.
-  const draftLabel = useCommissionTitle(choice);
-  const setCommissionMut = useMutation(trpc.sessions.setCommission.mutationOptions());
-  const switchLive = useCallback((picked: null | 'new' | string) => {
-    if (!sessionId) return;
-    setCommissionMut.mutate(
-      { sessionId, commission: commissionSwitchOf(picked) },
-      {
-        onSettled: () => {
-          void queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-          void queryClient.invalidateQueries(trpc.commissions.list.queryFilter());
-        },
-      },
-    );
-  }, [sessionId, setCommissionMut, queryClient, trpc]);
-  const request = enabled ? commissionRequestOf(choice) : null;
-  const readOnly = sessionCommission ? { value: sessionCommission.value, label: sessionCommission.label } : null;
-  if (!enabled) return { control: isDraft ? null : readOnly, request };
-  if (isDraft) return { control: { value: choice, label: draftLabel, onChange: setChoice }, request };
-  if (sessionCommission && sessionCommission.value !== 'new') return { control: readOnly, request };
-  return { control: { value: sessionCommission?.value ?? null, label: null, onChange: switchLive }, request };
-}
-
 export function Composer({
   sessionId,
   running,
@@ -162,7 +106,6 @@ export function Composer({
   sessionSpanMs: spanMs = null,
   isDraft = false,
   sessionBrowser = null,
-  sessionCommission = null,
   currentProfile,
   currentOverride = null,
   currentAgent = null,
@@ -192,7 +135,6 @@ export function Composer({
   // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
   // creation-time choice, not a session setting.
   const [browserDevice, setBrowserDevice] = useState<string | null>(null);
-  const commission = useCommissionControl(sessionId, isDraft, sessionCommission);
   const [sendError, setSendError] = useState<Error | null>(null);
   const [slashErrorKey, setSlashErrorKey] = useState<SlashFeedbackKey>(null);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -206,7 +148,6 @@ export function Composer({
     creation: {
       selection: draftSelection,
       browserDevice,
-      commission: commission.request,
     },
     slash: {
       profileOptions: engineSelection.profileOptions,
@@ -466,7 +407,6 @@ export function Composer({
                 : sessionBrowser
                   ? { device: sessionBrowser.device }
                   : null}
-              commission={commission.control}
               onAttach={() => fileInputRef.current?.click()}
               onCommands={() => { composerSend.openCommands(); setSlashOpen(true); }}
               agentControl={<AgentSelectorView selection={engineSelection} />}

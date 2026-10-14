@@ -9,16 +9,14 @@ import { projectIndexFromKey } from '@/features/session/list/left-rail-projects'
 import {
   buildRailTree,
   projectOfSession,
-  type RailCommissionRow,
   type RailSessionRow,
 } from './rail-tree';
 import type { RailSortMode } from './rail-order';
 import { RailTree, SearchIcon } from './RailTree';
 import { useApprovals } from '@/features/approvals/useApprovals';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useCommissionBoard } from '@/features/commission/useCommissionBoard';
-import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
-import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
+import { useDockIntake } from '@/design/dock-intake';
+import { useBoardLiveSync } from '@/features/board/useBoardLiveSync';
 import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useLang, useVocab } from '@/i18n';
@@ -119,19 +117,16 @@ export function LeftRail(): JSX.Element {
   const directSessionsQuery = useAllSessions('direct');
   const scheduledSessionsQuery = useAllSessions('scheduled');
   const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
-  const commissionsQuery = useQuery(trpc.commissions.list.queryOptions({}));
   const scheduleModal = useScheduleModal();
-  const commissionBoard = useCommissionBoard();
-  // With the feature switched off a create silently drops the binding, so the row offers no ＋.
-  const commissionEnabled = useCommissionEnabled();
+  const dock = useDockIntake();
   const teamEnabled = useTeamEnabled();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
-  // Keep commission rows current: approval landings, decision projections and closes.
-  useCommissionLiveSync();
+  // Keep the rows' board icons current as sessions are bound.
+  useBoardLiveSync();
 
   const { currentProjectId, setCurrentProject, setProjectOrder } = useCurrentProject();
-  const { selectedSessionId, setSelectedSession, startCommissionDraft } = useSelectedSession();
+  const { selectedSessionId, setSelectedSession } = useSelectedSession();
 
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const directSessions = useMemo(() => directSessionsQuery.data ?? [], [directSessionsQuery.data]);
@@ -165,7 +160,6 @@ export function LeftRail(): JSX.Element {
         directSessions,
         scheduledSessions,
         schedules: schedulesQuery.data ?? [],
-        commissions: commissionsQuery.data ?? [],
         selectedSessionId,
         fallbackProjectId: currentProjectId,
         teamEnabled,
@@ -174,7 +168,7 @@ export function LeftRail(): JSX.Element {
         lang,
       }),
     [
-      projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
+      projects, directSessions, scheduledSessions, schedulesQuery.data,
       selectedSessionId, currentProjectId, teamEnabled, rail.view, now, lang,
     ],
   );
@@ -252,13 +246,10 @@ export function LeftRail(): JSX.Element {
   // so the rail no longer keeps its own listener for it.
   const onNewSession = () => newSessionIn(null);
 
-  // Another session on the same contract, from the row that already names it. The composer's ＋ menu
-  // can do this too, but only by re-picking a commission the user is already standing on.
-  const onNewCommissionSession = (row: RailCommissionRow) => {
-    setCurrentProject(row.projectId);
-    openProject(row.projectId);
-    startCommissionDraft(row.commissionId);
+  // The row's board icon: the dock lives on the workbench, so go there first.
+  const onOpenBoard = (boardId: string) => {
     navigate('/workbench');
+    dock.openBoard(boardId);
   };
 
   const onOverview = (projectId: string) => {
@@ -461,11 +452,8 @@ export function LeftRail(): JSX.Element {
             onToggleProject={rail.toggleProject}
             onToggleSchedules={rail.toggleSchedules}
             onToggleStars={rail.toggleStars}
-            onToggleCommissions={rail.toggleCommissions}
-            onToggleCommission={rail.toggleCommission}
             onToggleWorkers={onToggleWorkers}
-            onOpenCommission={commissionBoard.openCommission}
-            onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
+            onOpenBoard={onOpenBoard}
             onShowAll={rail.showAllIn}
             onShowFewer={rail.showFewer}
             onOpenSession={onOpenSession}

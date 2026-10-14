@@ -29,6 +29,7 @@ import { useComposerClearance } from './useComposerClearance';
 import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import { hasActiveWorker, MTeamRow } from './MChatTeam';
+import { MBoardKey } from './MChatBoard';
 import { LeadWaitingLine, TeamActionRow, TeamStreamProvider, TeamUpdateCard } from '@/features/team/TeamStreamRows';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
@@ -46,6 +47,8 @@ interface MChatHeaderProps {
   onMore: () => void;
   /** Context usage, as a round key left of ⋯. Absent on a session that reports no window. */
   contextControl?: ReactNode;
+  /** A bound session's board key, left of the context ring. */
+  boardControl?: ReactNode;
 }
 
 /** The header pill and, in team mode, the team summary row under it: one floating stack, measured once
@@ -106,6 +109,7 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
         </div>
         <MChatStatusLine {...props} />
       </div>
+      {props.boardControl}
       {props.contextControl}
       <button type="button" aria-label={vocab.more} onClick={props.onMore}
         style={{ ...HEADER_KEY, color: 'var(--proto-muted-2)', fontSize: 18, letterSpacing: '1px' }}>
@@ -649,7 +653,7 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? L.chatAttachPlaceholder : L.chatComposerPh)}
       value={props.composerValue} onChange={props.onComposerChange} onSend={props.onSend} sendEnabled={props.sendEnabled}
       running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
-      leading={takenOver ? undefined : <ComposerKeys browser={props.browser} commission={props.commission} overlay={overlay} />}
+      leading={takenOver ? undefined : <ComposerKeys browser={props.browser} overlay={overlay} />}
       tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
       above={<ComposerAbove props={props} />}
       commandMenu={commandMenu}
@@ -718,7 +722,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
           <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
             onBack={props.onBack} onMore={() => overlay.toggle('more')}
-            contextControl={headerContextControl(props, () => overlay.open('context'))} />
+            contextControl={headerContextControl(props, () => overlay.open('context'))}
+            boardControl={props.boardId ? <MBoardKey onOpen={() => overlay.open('board')} /> : undefined} />
           {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />

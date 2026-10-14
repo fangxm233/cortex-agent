@@ -44,7 +44,6 @@ export function manifestSourceText(source: UiPluginCatalogEntry['manifest']['sou
 }
 
 export function scopeNoticeText(plugin: UiPluginCatalogEntry, L: Vocab): string | null {
-  if (plugin.scope === 'commission') return L.plScopeCommission;
   if (plugin.scope === 'channel') return L.plScopeChannel.replace('{prefix}', plugin.scopePrefix ?? '');
   return null;
 }

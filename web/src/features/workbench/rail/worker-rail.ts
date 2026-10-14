@@ -3,7 +3,7 @@ import { isRetiredWorker } from '@/features/team/worker-groups';
 import { workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 
 // Team mode: a lead session's row expands in place to its workers, one indent deeper — the same
-// shape as a commission folder, except the folder IS a session the user can open.
+// shape as a schedule folder, except the folder IS a session the user can open.
 //
 // The lead's status dot rolls up its workers (features/team/worker-rollup). Unread only rolls up
 // while the lead is collapsed — open, each worker shows its own.

@@ -14,7 +14,7 @@ import {
 function sess(id: string, lastUsedAt: string, projectId = 'p1'): SessionInfo {
   return {
     sessionId: id, backendSessionId: null, projectId, backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: lastUsedAt, lastUsedAt, resumable: true, label: null, profileName: null, running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null, unread: false, scheduleId: null, commissionId: null, teamLeadId: null, workerName: null, workerRetiredAt: null,
+    createdAt: lastUsedAt, lastUsedAt, resumable: true, label: null, profileName: null, running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null, unread: false, scheduleId: null, boardId: null, teamLeadId: null, workerName: null, workerRetiredAt: null,
   };
 }
 

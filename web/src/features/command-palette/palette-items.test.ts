@@ -23,7 +23,7 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
     unread: false,
     scheduleId: null,
     ...over,
-    commissionId: over.commissionId ?? null,
+    boardId: over.boardId ?? null,
     teamLeadId: over.teamLeadId ?? null,
     workerName: over.workerName ?? null,
     workerRetiredAt: over.workerRetiredAt ?? null,
