@@ -16,9 +16,9 @@ Cortex is designed around three failure modes of long agent runs:
 - **Boards for long work** — a long task keeps a live status page beside the conversation, showing its state, plan, what needs you, and the decisions taken ([Boards](team.md#boards)).
 - **Structured project log** — every project keeps mission, roadmap, status, experiments, knowledge, patterns, and decisions as plain files.
 - **Cron and interval scheduling** — schedule Cortex to scan, digest, or sweep on a recurring basis.
-- **Self-evolving skills** — Cortex drafts new skills when it catches itself repeating patterns.
+- **Editable skills and plugins** — skills are plain `SKILL.md` files that Cortex and you can write, override, or revert, on disk or from **Settings → Plugins** ([Skills & Plugins](skills-and-plugins.md)).
 - **One agent across your machines** — connect any Mac, Windows, or Linux machine via `cortex-client`.
-- **Web, native app, chat, and terminal access** — use the browser workbench, Linux/macOS/Windows desktop app, Android app, Slack, Feishu, or TUI against the same server.
+- **Web, native app, chat, and terminal access** — use the browser workbench, Linux/macOS/Windows desktop app, Android app, Slack, Feishu, or TUI against the same server. The workbench shows sessions, workers, boards, approvals, machines, and project memory side by side.
 
 ## Ways to use Cortex
 
@@ -32,10 +32,13 @@ Cortex is designed around three failure modes of long agent runs:
 
 ## Quickstart
 
+The [desktop app](desktop-app.md#installing-a-server-from-the-app) installs and starts a Cortex server on macOS, Linux, or Windows without a terminal. From a terminal:
+
 ```bash
 npm install -g @cortex-agent/server
 cortex init
+cortex ui enable
 cortex daemon
 ```
 
-See [Quickstart](quickstart.md) for detailed server and chat-platform setup. After the server is running, use [Browser Access](browser-access.md) to expose the Web workbench or [Desktop and Android Apps](desktop-app.md) to connect a native client.
+See [Quickstart](quickstart.md) for detailed server and chat-platform setup. Once the server is running, open the workbench at `http://127.0.0.1:3004` on the server, use [Browser Access](browser-access.md) to reach it from elsewhere, or connect a native client as described in [Desktop and Android Apps](desktop-app.md).
