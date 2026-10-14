@@ -13,16 +13,12 @@ import { fromAgentSlot } from '@domain/runs/spec-loader.js';
 import { DIRECT_RUN_POLICY } from '@domain/runs/builders.js';
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
-import {
-  loadCommissionDraftContext, loadCommissionPromptContext,
-  type CommissionPromptContext,
-} from '@domain/commissions/commission-context.js';
+import { loadBoardPromptContext, type BoardPromptContext } from '@domain/boards/board-context.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { isTeamLead, isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { takeUnreadDigest } from './team-inbox.js';
-import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
 import type { ResolvedEnvironment } from '@core/types/environment-types.js';
 import {
@@ -45,7 +41,7 @@ export interface ConversationSessionIds {
  * One turn on a session's live engine. Every surface that opens such a turn — a user message, an
  * edit retry, an ask-user answer — builds its request here, because the pool respawns the engine
  * when two requests disagree on anything that decides it (agent tools and plugins, worker tools,
- * the commission skill, the browser, the interaction bridge).
+ * the browser, the interaction bridge).
  */
 export interface PrepareConversationRequestOptions {
   ids: ConversationSessionIds;
@@ -184,75 +180,39 @@ export function conversationTrigger(session: Partial<SessionRunFacts> | null): P
   return { trigger: 'user', executionKind: 'local', scheduleTaskId: null };
 }
 
-/** The delivery key for a session's current commission binding, or null outside the mode. Bound
- *  wins over drafting: finalize clears the draft, and the two are never both meaningful. */
-export function commissionBindingKey(
-  session: { commissionId?: string | null; commissionDraft?: string | null } | null,
-): string | null {
-  if (session?.commissionId) return `active:${session.commissionId}`;
-  if (session?.commissionDraft) return `draft:${session.commissionDraft}`;
-  return null;
-}
-
-type CommissionSessionFields = Pick<
-  Session, 'sessionId' | 'commissionId' | 'commissionDraft' | 'projectId' | 'commissionBlockFor'
->;
+type BoardSessionFields = Pick<Session, 'sessionId' | 'boardId' | 'boardBlockFor'>;
 
 /**
- * Load the [Commission] injection payload for this turn, or null when nothing needs delivering.
+ * The [Board] block payload for this turn, or null when nothing needs delivering.
  *
- * Delivery follows the STATE, not the session's age (DR-0037 v4). v3 injected on the first turn
- * only, on the same economics as USER.md / [Session Project]: resume keeps the block in backend
- * history, so re-sending it every turn is waste. True — but it silently assumed the binding is
- * decided before the first turn, and it is not: a session can enter the mode mid-conversation (the
- * agent calls `cortex_commission_start`, or the user switches it on) and it always binds its
- * contract mid-conversation. Those sessions received the block never. So the marker records WHICH
- * binding was delivered, and a turn injects when the current binding differs from it.
- *
- * `isFreshSession` still forces delivery: a spawn that died before writing history leaves the
- * marker set against a conversation that does not contain the block. `enabled` is the global
- * feature switch: off means no contract block reaches any prompt, matching the skill gate and the
- * refusal in the commission tools.
- *
- * Best-effort throughout: any failure injects nothing rather than failing the turn.
+ * Delivery follows the binding, not the session's age: a session bound mid-conversation (a lead
+ * opening a board, its workers bound with it) gets the block on its next turn. The marker records
+ * which board was delivered; compaction clears it, so the block comes back after the delivered
+ * copy is dropped. `isFreshSession` forces delivery: a spawn that died before writing history
+ * leaves the marker set against a conversation that does not contain the block. A closed board is
+ * not injected. Best-effort: any failure injects nothing rather than failing the turn.
  */
-export async function resolveConversationCommission(
-  session: CommissionSessionFields | null,
-  args: { isFreshSession?: boolean; enabled: boolean },
+export async function resolveConversationBoard(
+  session: BoardSessionFields | null,
+  args: { isFreshSession?: boolean },
   deps: {
-    load?: typeof loadCommissionPromptContext;
-    loadDraft?: typeof loadCommissionDraftContext;
-    markDelivered?: (sessionId: string, key: string) => Promise<unknown>;
+    load?: typeof loadBoardPromptContext;
+    markDelivered?: (sessionId: string, boardId: string) => Promise<unknown>;
   } = {},
-): Promise<CommissionPromptContext | null> {
+): Promise<BoardPromptContext | null> {
   try {
-    const key = commissionBindingKey(session);
-    if (!args.enabled || !session || !key) return null;
-    if (!args.isFreshSession && key === session.commissionBlockFor) return null;
-    const context = await loadCommissionContext(session, deps);
-    // Nothing loadable (contract still empty, directory gone) — leave the marker alone so the next
-    // turn tries again rather than recording a delivery that never happened.
+    const boardId = session?.boardId;
+    if (!session || !boardId) return null;
+    if (!args.isFreshSession && boardId === session.boardBlockFor) return null;
+    const context = await (deps.load ?? loadBoardPromptContext)(boardId);
     if (!context) return null;
     const mark = deps.markDelivered
-      ?? ((id: string, value: string) => sessionStore.markCommissionBlockDelivered(id, value));
-    await mark(session.sessionId, key);
+      ?? ((id: string, value: string) => sessionStore.markBoardBlockDelivered(id, value));
+    await mark(session.sessionId, boardId);
     return context;
   } catch {
     return null;
   }
-}
-
-async function loadCommissionContext(
-  session: CommissionSessionFields,
-  deps: { load?: typeof loadCommissionPromptContext; loadDraft?: typeof loadCommissionDraftContext },
-): Promise<CommissionPromptContext | null> {
-  if (session.commissionId) return (deps.load ?? loadCommissionPromptContext)(session.commissionId);
-  // A session still drafting has no commission id yet — it is the FIRST session of the
-  // commission, and the one that most needs to be told what it is here to do.
-  if (session.commissionDraft && session.projectId) {
-    return (deps.loadDraft ?? loadCommissionDraftContext)(session.projectId, session.commissionDraft);
-  }
-  return null;
 }
 
 type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName'>;
@@ -314,7 +274,7 @@ function conversationProfile(channel: string, agentConfig: ResolvedEnvironment):
 async function composeConversationPrompt(
   opts: PrepareConversationRequestOptions,
   agent: { config: ResolvedEnvironment; spec: AgentSpec },
-  state: { commissionEnabled: boolean; teamLead: boolean },
+  state: { teamLead: boolean },
 ): Promise<string> {
   const { backendSessionId, projectId } = opts.ids;
   // USER.md, the project and the transcript location go out on a session's FIRST turn only (no
@@ -326,10 +286,8 @@ async function composeConversationPrompt(
       channel: opts.channel, projectId, isFreshSession, projectContext: agent.config.projectContext,
     }),
     transcriptDir: isFreshSession ? CONVERSATION_HISTORY_DIR : null,
-    // Once per commission binding rather than once per session (see resolveConversationCommission).
-    commission: await resolveConversationCommission(opts.session, {
-      isFreshSession, enabled: state.commissionEnabled,
-    }),
+    // Once per board binding rather than once per session (see resolveConversationBoard).
+    board: await resolveConversationBoard(opts.session, { isFreshSession }),
     // Team mode: the lead's roster every turn while it has workers, a worker's orientation once.
     ...(await resolveConversationTeam(opts.session, { teamLead: state.teamLead, isFreshSession })),
   });
@@ -348,14 +306,13 @@ interface ConversationShape {
   /** The turn's request with an empty prompt. */
   request: RunRequest;
   agentConfig: ResolvedEnvironment;
-  commissionEnabled: boolean;
   teamLead: boolean;
 }
 
 /** How a turn on the session is attributed and which engine-side features it carries. */
 function conversationContext(
   opts: ConversationEngineOptions,
-  state: { commissionEnabled: boolean; teamLead: boolean; teamWorker: boolean },
+  state: { teamLead: boolean; teamWorker: boolean },
 ): RunRequest['context'] {
   const own = conversationTrigger(opts.session);
   return {
@@ -365,8 +322,6 @@ function conversationContext(
     // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
     // to, so it pauses and resumes on a rate limit exactly like one.
     isUserInitiated: true,
-    // Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
-    commissionMode: state.commissionEnabled && !!opts.session?.commissionId,
     ...(state.teamLead ? { teamLead: true } : {}),
     ...(state.teamWorker ? { teamWorker: true } : {}),
     ...own,
@@ -381,10 +336,6 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
   const { session, channel } = opts;
   const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
   const policy = conversationRunPolicy(agentConfig, { channel, browserCdpEndpoint: opts.browserCdpEndpoint });
-  // settings.commissionEnabled is the global switch for the feature. With it off, a session that
-  // was bound while it was on reverts to an ordinary session: no commission skill, no contract
-  // block, and the commission tools refuse.
-  const commissionEnabled = getSettings().commissionEnabled;
   // Team mode: a lead's engine loads the worker tools, a worker's loads `mark_routine`.
   const teamLead = isTeamLead(session);
   const teamWorker = isTeamWorker(session);
@@ -400,20 +351,20 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
     profile: conversationProfile(channel, agentConfig),
     spec: fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition }),
     prompt: { text: '' },
-    context: conversationContext(opts, { commissionEnabled, teamLead, teamWorker }),
+    context: conversationContext(opts, { teamLead, teamWorker }),
     policy,
   };
   attachBenchmarkEvidence(request);
-  return { request, agentConfig, commissionEnabled, teamLead };
+  return { request, agentConfig, teamLead };
 }
 
 /** Assemble the `RunRequest` for one turn on a session's live engine (see the options' doc). */
 export async function prepareConversationRequest(
   opts: PrepareConversationRequestOptions,
 ): Promise<PreparedRequest> {
-  const { request, agentConfig, commissionEnabled, teamLead } = conversationShape(opts);
+  const { request, agentConfig, teamLead } = conversationShape(opts);
   const prompt = await composeConversationPrompt(
-    opts, { config: agentConfig, spec: request.spec }, { commissionEnabled, teamLead },
+    opts, { config: agentConfig, spec: request.spec }, { teamLead },
   );
   const files = opts.files ?? [];
   const backendPrompt = buildBackendPrompt(prompt, files);
@@ -426,7 +377,7 @@ export async function prepareConversationRequest(
  * The request a command on a session's live engine runs under: the request the session's next turn
  * would run under, without a prompt. The pool compares identities, so this is the only way such a
  * command is handed the session's own engine rather than a respawned one. Composes no prompt, and
- * so delivers no ambient block (the [Commission] marker is left alone).
+ * so delivers no ambient block (the [Board] marker is left alone).
  */
 export function conversationEngineRequest(opts: ConversationEngineOptions): RunRequest {
   return conversationShape(opts).request;

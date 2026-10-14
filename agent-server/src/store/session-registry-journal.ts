@@ -50,20 +50,12 @@ export interface SessionRecord {
   backendSessionId?: string | null;
   lastReadAt?: string | null;
   scheduleId?: string | null;
-  /** Commission (long-task) membership — drives board grouping and [Commission] prompt injection.
-   *  Bound once at commission finalize (DR-0037); absent/null for ordinary sessions. */
-  commissionId?: string | null;
-  /** Persisted draft directory name (new drafts use `_draft-<short sessionId>`) while commission mode is on but the contract
-   *  has not been named yet. Cleared at finalize, when commissionId is filled in. Mode is ON when
-   *  either this or commissionId is set. */
-  commissionDraft?: string | null;
-  /** Which commission binding the `[Commission]` prompt block has already been delivered for —
-   *  `draft:<dir>` or `active:<commissionId>` (DR-0037 v4). The block used to be a first-turn-only
-   *  injection, which meant a session that entered the mode (or bound its contract) MID-session
-   *  never received it at all. Comparing this marker against the current binding is what makes the
-   *  block follow the state instead of the session's age; compaction clears it, because compaction
-   *  is what removes the already-delivered copy from backend history. */
-  commissionBlockFor?: string | null;
+  /** The board this session is bound to (at most one); absent/null for ordinary sessions. */
+  boardId?: string | null;
+  /** The boardId whose `[Board]` prompt block is already in this session's backend history. A
+   *  turn injects the block when this differs from `boardId`, so binding mid-session delivers it on
+   *  the next turn; compaction clears it, because compaction drops the delivered copy. */
+  boardBlockFor?: string | null;
   contextUsage?: unknown;
   browser?: SessionBrowserOption | null;
   /** Team mode: the lead session that owns this worker. Non-null means this session is a worker. */
@@ -489,10 +481,13 @@ function normalizePatchEvent(row: Record<string, unknown>, lineNo: number): Sess
 
 function normalizeUnset(raw: unknown, lineNo: number): { unset?: SessionPatchUnsetKey[] } {
   if (raw === undefined) return {};
-  if (!Array.isArray(raw) || raw.some(value => !PATCH_KEY_SET.has(value as string))) {
+  if (!Array.isArray(raw)) throw new Error(`Invalid session registry patch unset at line ${lineNo}`);
+  const keys = raw.map(value => (typeof value === 'string' ? patchKeyOf(value) : value));
+  if (keys.some(key => key !== null && !PATCH_KEY_SET.has(key as string))) {
     throw new Error(`Invalid session registry patch unset at line ${lineNo}`);
   }
-  return raw.length ? { unset: raw as SessionPatchUnsetKey[] } : {};
+  const unset = keys.filter((key): key is SessionPatchUnsetKey => key !== null);
+  return unset.length ? { unset } : {};
 }
 
 function normalizeBindEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
@@ -553,9 +548,8 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
-    commissionId: toOptionalNullableString(row?.commissionId),
-    commissionDraft: toOptionalNullableString(row?.commissionDraft),
-    commissionBlockFor: toOptionalNullableString(row?.commissionBlockFor),
+    boardId: toOptionalNullableString(row?.boardId ?? row?.commissionId),
+    boardBlockFor: toOptionalNullableString(row?.boardBlockFor ?? row?.commissionBlockFor),
     contextUsage: row?.contextUsage,
     browser: toOptionalBrowserValue(row?.browser),
     teamLeadId: toOptionalNullableString(row?.teamLeadId),
@@ -662,9 +656,8 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   backendSessionId: toOptionalNullableString,
   lastReadAt: toOptionalNullableString,
   scheduleId: toOptionalNullableString,
-  commissionId: toOptionalNullableString,
-  commissionDraft: toOptionalNullableString,
-  commissionBlockFor: toOptionalNullableString,
+  boardId: toOptionalNullableString,
+  boardBlockFor: toOptionalNullableString,
   contextUsage: value => value,
   browser: toOptionalBrowserValue,
   teamLeadId: toOptionalNullableString,
@@ -679,14 +672,31 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
 export const PATCH_KEYS = Object.keys(PATCH_FIELD_READERS) as SessionPatchUnsetKey[];
 const PATCH_KEY_SET = new Set<string>(PATCH_KEYS);
 
+/** Patch keys written before commissions became boards. Journals keep them until compaction, so
+ *  replay maps them onto the board fields (null: dropped). A record row is mapped the same way in
+ *  assertSessionRecord. A legacy `commissionBlockFor` holds `active:<id>`, which never equals a
+ *  boardId, so such a session receives the [Board] block once. */
+const LEGACY_PATCH_KEYS: Readonly<Record<string, SessionPatchUnsetKey | null>> = {
+  commissionId: 'boardId',
+  commissionBlockFor: 'boardBlockFor',
+  commissionDraft: null,
+};
+
+function patchKeyOf(key: string): SessionPatchUnsetKey | null {
+  return Object.hasOwn(LEGACY_PATCH_KEYS, key) ? LEGACY_PATCH_KEYS[key] : key as SessionPatchUnsetKey;
+}
+
 function assertPatchFields(raw: unknown): SessionPatchFields {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid session registry patch fields');
   const row = raw as Record<string, unknown>;
   const fields: Record<string, unknown> = {};
-  for (const key of Object.keys(row)) {
+  for (const rawKey of Object.keys(row)) {
+    const key = patchKeyOf(rawKey);
+    if (key === null) continue;
+    if (key !== rawKey && Object.hasOwn(row, key)) continue;
     const reader = PATCH_FIELD_READERS[key as SessionPatchUnsetKey];
-    if (!reader) throw new Error(`Unknown session registry patch field: ${key}`);
-    fields[key] = reader(row[key]);
+    if (!reader) throw new Error(`Unknown session registry patch field: ${rawKey}`);
+    fields[key] = reader(row[rawKey]);
   }
   return fields as SessionPatchFields;
 }

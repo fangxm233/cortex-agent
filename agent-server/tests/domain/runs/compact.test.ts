@@ -37,7 +37,7 @@ function target(profileOverrides: Record<string, unknown> = {}): CompactAgentTar
       prompt: { text: '' },
       context: {
         channel: 'web:track-1', project: 'nimbus', trigger: 'manual-compact', routeTrigger: 'user',
-        executionKind: 'local', isUserInitiated: true, commissionMode: false,
+        executionKind: 'local', isUserInitiated: true,
       },
       policy: {
         background: 'none', recordCost: false, hooks: true, loadRules: true, mcpComposition: 'direct',

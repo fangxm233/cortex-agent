@@ -2,27 +2,10 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCreateAndSend, handleCreateSession } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-import { resetSettingsForTests } from '../../../src/core/settings.js';
-
-/** settings.commissionEnabled is the feature's kill switch and defaults to ON (DR-0037 v4). Both
- *  helpers set it explicitly the way an operator would, so neither test depends on the default. */
-async function withCommission(value: '1' | '0', fn: () => Promise<void>): Promise<void> {
-  process.env.CORTEX_COMMISSION_ENABLED = value;
-  resetSettingsForTests();
-  try {
-    await fn();
-  } finally {
-    delete process.env.CORTEX_COMMISSION_ENABLED;
-    resetSettingsForTests();
-  }
-}
-const withCommissionEnabled = (fn: () => Promise<void>) => withCommission('1', fn);
-const withCommissionDisabled = (fn: () => Promise<void>) => withCommission('0', fn);
 
 interface CreateCall {
   projectId: string;
   browser?: { device: string } | null;
-  commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null;
 }
 
 function makeDeps(sink: CreateCall[], sessionId = 'sess-new'): UiServiceDeps {
@@ -40,30 +23,8 @@ test('sessions.create returns the new session id', async () => {
   const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus' });
   assert.equal(res.ok, true);
   if (res.ok) assert.deepEqual(res.data, { sessionId: 'sess-new' });
-  // browser/commission null is the default — a session gets either mode only when it asks.
-  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null, commission: null }], 'creates under the requested project');
-});
-
-test('sessions.create forwards a commission opt-in, both new and join', async () => {
-  await withCommissionEnabled(async () => {
-    const fresh: CreateCall[] = [];
-    await handleCreateSession(makeDeps(fresh), { projectId: 'nimbus', commission: { mode: 'new' } });
-    assert.deepEqual(fresh, [{ projectId: 'nimbus', browser: null, commission: { mode: 'new' } }]);
-
-    const join: CreateCall[] = [];
-    await handleCreateSession(makeDeps(join), { projectId: 'nimbus', commission: { mode: 'join', commissionId: 'cm_1' } });
-    assert.deepEqual(join, [{ projectId: 'nimbus', browser: null, commission: { mode: 'join', commissionId: 'cm_1' } }]);
-  });
-});
-
-test('sessions.create refuses a commission opt-in while the feature switch is off', async () => {
-  await withCommissionDisabled(async () => {
-    const sink: CreateCall[] = [];
-    const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus', commission: { mode: 'new' } });
-    assert.equal(res.ok, false);
-    if (!res.ok) assert.equal(res.code, 'invalid-args');
-    assert.deepEqual(sink, [], 'no session is created — a refused commission must not degrade to an ordinary one');
-  });
+  // browser null is the default — a session gets browser tools only when it asks.
+  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null }], 'creates under the requested project');
 });
 
 // ── sessions.createAndSend ──────────────────────────────────────

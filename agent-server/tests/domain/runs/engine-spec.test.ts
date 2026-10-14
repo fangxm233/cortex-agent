@@ -177,7 +177,7 @@ const cases: Case[] = [
     },
   },
   {
-    name: 'browser plus commission session with a mode route',
+    name: 'browser session with a mode route',
     options: {
       channel: 'web:browser-fixture',
       sessionKey: 'web:browser-fixture',
@@ -186,7 +186,6 @@ const cases: Case[] = [
       trackSessionId: 'tracked-browser',
       executionId: 'exec-browser',
       browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
-      commissionMode: true,
       isUserInitiated: true,
       callbackSource: 'web',
       scheduleTaskId: 'sched-1',

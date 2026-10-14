@@ -17,11 +17,6 @@ import type { RunRequest } from './request.js';
 export interface PluginScope {
   channel?: string;
   feishuSkillsInWeb?: boolean;
-  /** True once the session is BOUND to a landed commission. Drafting deliberately does not count
-   *  (DR-0037 v4): the creation protocol lives in `cortex_commission_start`'s return value, and the
-   *  skill covers maintenance only — it says so itself. Loading it during the drill would put the
-   *  wrong half of the procedure in front of the model. */
-  commissionMode?: boolean;
 }
 
 // --- Scoped plugin gating ---
@@ -31,15 +26,6 @@ export interface PluginScope {
 export const CHANNEL_SCOPED_PLUGINS: ReadonlyArray<{ plugin: string; channelPrefix: string }> = [
   { plugin: 'cortex-feishu', channelPrefix: 'feishu:' },
 ];
-
-/** Plugins that load only for sessions BOUND to a commission. The commission skill is long and
- *  prescriptive (ledger entries, surprise triage, checkpoint discipline); loading it into every
- *  session would put a procedure nobody asked for in front of the model (DR-0037 v2).
- *
- *  Plugin dirs are part of the pool identity, so a contract landing mid-session brings the skill in
- *  on the next turn via a fresh spawn + `--resume`. The turn the contract lands on is covered by
- *  the protocol `cortex_commission_submit` returns on approval. */
-export const COMMISSION_SCOPED_PLUGINS: readonly string[] = ['cortex-commission'];
 
 /** Drop scoped plugin dirs the current session does not qualify for. Non-scoped plugins always pass
  *  through. Matched by the plugin dir's final path segment (basename) so substrings like
@@ -53,7 +39,6 @@ export function filterScopedPlugins(
   return dirs.filter((dir) => {
     if (typeof dir !== 'string') return false;
     const base = dir.split('/').filter(Boolean).pop() ?? '';
-    if (COMMISSION_SCOPED_PLUGINS.includes(base)) return scope.commissionMode === true;
     const rule = CHANNEL_SCOPED_PLUGINS.find((r) => r.plugin === base);
     if (!rule) return true;
     const webFeishu = base === 'cortex-feishu' && scope.feishuSkillsInWeb === true && scope.channel?.startsWith('web:');
@@ -146,7 +131,6 @@ function pluginFields(
 ): EngineSpec['plugins'] & Pick<EngineSpec['mcp'], 'servers'> {
   const selectedPluginDirs = filterScopedPlugins(request.spec.pluginDirs, {
     channel: request.context.channel,
-    commissionMode: request.context.commissionMode,
     feishuSkillsInWeb: getSettings().feishuSkillsInWeb,
   });
   const runtime = resolvePluginRuntime({

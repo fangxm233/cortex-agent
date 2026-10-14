@@ -28,7 +28,6 @@ export interface Settings {
   serverUpdateDisable: boolean;
   serverAutoUpdate: boolean;
   clientHotReloadEnabled: boolean;
-  commissionEnabled: boolean;
   teamEnabled: boolean;
   feishuSkillsInWeb: boolean;
   waitpointSweepMs: number;
@@ -215,16 +214,6 @@ export const SETTINGS_SPEC = {
     default: true,
   },
   feishuSkillsInWeb: { type: 'boolean', default: false },
-  commissionEnabled: {
-    envVar: 'CORTEX_COMMISSION_ENABLED',
-    type: 'boolean',
-    // On by default since DR-0037 v4: entering the mode is now a decision the agent (or the user)
-    // makes inside an ordinary session, so a switch defaulting to off would hide a capability
-    // nobody has to opt into. It stays a switch because it is the kill switch — off refuses every
-    // entry point (create, composer, the start webhook) and stops injecting contract blocks.
-    default: true,
-    legacyParse: (raw: string) => raw === '1',
-  },
   // Experimental team mode: web sessions may spawn and manage persistent worker sessions. On by
   // default; turning it off removes the worker tools from the next turn.
   teamEnabled: {

@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { CORTEX_VERSION, CORTEX_DOCS_URL } from '@core/version.js';
-import { AISTATUS_DIR, DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
+import { AISTATUS_DIR, DATA_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '@core/paths.js';
 import { compareCalVer } from '@core/calver.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { RETIRED_MCP_TOOLS } from '@core/mcp-tool-gate.js';
@@ -12,6 +12,7 @@ import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
 import { RETIRED_SCHEDULE_TYPES } from './schedule-repo.js';
 import { importLegacySessionStores } from './session-registry-import.js';
 import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
+import { retireCommissions } from './board-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -513,6 +514,17 @@ const stepMigrations: StepMigration[] = [
     key: 'sentinel:claude-config-home',
     version: '2026.10.6',
     run: async ({ storeDir }) => { await migrateClaudeConfigHome(storeDir); },
+  },
+  // S8: commissions became boards. The registry, registered directories and session fields move
+  // over; drafts stay put; the setting and plugin are retired (see store/board-migration.ts).
+  {
+    key: 'sentinel:retire-commissions',
+    version: '2026.10.6',
+    run: async ({ dataDir, storeDir }) => {
+      const projectsDir = dataDir === DATA_DIR ? PROJECTS_DIR : path.join(dataDir, 'context', 'projects');
+      const report = await retireCommissions({ dataDir, storeDir, projectsDir, version: '2026.10.6' });
+      log.info(`Retired commissions: ${JSON.stringify(report)}`);
+    },
   },
 ];
 

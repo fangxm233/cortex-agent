@@ -13,13 +13,10 @@ import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
 import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
-import { enterCommissionDraft, recordCommissionStart } from '@domain/commissions/commission-draft.js';
-import { publishSessionCommission } from '../session-events.js';
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
-import { orchestrationBus } from '../runtime.js';
 import { handleSubagentWebhook } from '../subagent-webhook.js';
 import { handleTeamWebhook } from '../team-webhook.js';
+import { handleBoardWebhook } from '../board-webhook.js';
 import { handleBenchmarkSessionWebhook } from '../benchmark-session-webhook.js';
 import { sendAgentFiles } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
@@ -228,37 +225,6 @@ async function handleAskUserQuestion(data: any, res: Res): Promise<void> {
   }
 }
 
-// --- MCP tool: cortex_commission_start ---
-// The tool runs in the bundled MCP process and cannot touch the registry, so entering the mode is a
-// loopback call like every other state change an agent makes. Idempotent: a second call returns the
-// same directory, which is what lets the [Commission] block say "call it if you have not already"
-// without worrying about which entry the session came through.
-async function handleCommissionStart(data: any, res: Res): Promise<void> {
-  const sessionId = typeof data?.sessionId === 'string' ? data.sessionId : '';
-  if (!sessionId) { sendJson(res, 200, { error: 'no originating session id — commission start requires CORTEX_SESSION_ID' }); return; }
-  // The kill switch has to bite HERE too: this tool is the entry point, not a capability handed
-  // only to sessions the user already opted in.
-  if (!getSettings().commissionEnabled) {
-    sendJson(res, 200, { error: 'commission mode is disabled on this server (settings.commissionEnabled)' });
-    return;
-  }
-  try {
-    const result = await enterCommissionDraft(sessionId);
-    if (result.ok === false) { sendJson(res, 200, { error: result.error }); return; }
-    const reasoning = typeof data?.reasoning === 'string' ? data.reasoning.trim() : '';
-    if (reasoning) {
-      await recordCommissionStart(result.dir, { sessionId, reasoning })
-        .catch((e) => log.warn(`commission start: could not record the reasoning: ${(e as Error).message}`));
-    }
-    if (!result.alreadyDrafting && typeof data?.channel === 'string' && data.channel) {
-      publishSessionCommission({ sessionId, channel: data.channel });
-    }
-    sendJson(res, 200, { ok: true, dir: result.dir, draftDir: result.draftDir, alreadyDrafting: result.alreadyDrafting });
-  } catch (e) {
-    sendJson(res, 500, { error: (e as Error).message });
-  }
-}
-
 // --- PreToolUse hook: ExitPlanMode ---
 
 function resolvePlanContent(sessionId: unknown, planContent: unknown): string {
@@ -275,30 +241,10 @@ function resolvePlanContent(sessionId: unknown, planContent: unknown): string {
 }
 
 async function approvePlan(data: any, res: Res): Promise<void> {
-  const { sessionId, channel, planContent, toolInput, dryRun, commission } = data;
-  // Commission plan-exit (DR-0037): pre-validate BEFORE asking the human so a bad name/draft dir
-  // fails fast without burning an approval; land it only on approval.
-  const commissionArgs = commission && typeof commission === 'object'
-    ? { sessionId, name: commission.name, title: commission.title, contractPath: commission.contractPath }
-    : null;
-  if (commissionArgs) {
-    const check = await validateCommissionFinalize(commissionArgs);
-    if (check.ok === false) {
-      sendJson(res, 200, { error: 'commission-invalid', message: check.error });
-      return;
-    }
-  }
+  const { sessionId, channel, planContent, toolInput, dryRun } = data;
   const resolvedPlan = resolvePlanContent(sessionId, planContent);
   const result = await registerPlanApproval(crypto.randomUUID(), channel, sessionId, resolvedPlan, toolInput || {}, dryRun === true);
-  const approved = (result as { approved?: boolean } | undefined)?.approved === true;
-  // A finalize that throws must still answer the agent with something it can act on, not a 500.
-  const finalized = commissionArgs && approved
-    ? await finalizeCommission(commissionArgs).catch((e: Error) => ({ ok: false as const, error: e.message }))
-    : null;
-  if (finalized && finalized.ok === true) {
-    orchestrationBus()?.publish({ type: 'commission.updated', commissionId: finalized.commissionId, projectId: finalized.projectId });
-  }
-  sendJson(res, 200, finalized ? { ...result, commission: finalized } : result);
+  sendJson(res, 200, result);
 }
 
 async function handleExitPlanMode(data: any, res: Res): Promise<void> {
@@ -439,13 +385,14 @@ const POST_ROUTES: Record<string, RequestHandler> = {
   '/webhook/subagent': replyRoute(handleSubagentWebhook),
   // Every team action returns at once; worker reports and questions reach the lead as deliveries.
   '/webhook/team': replyRoute(handleTeamWebhook),
+  // board_open / board_close: register, bind, notify. Never touches board.html after the scaffold.
+  '/webhook/board': replyRoute((data) => handleBoardWebhook(data)),
   // Benchmark launcher: `start` returns once the session exists and its task is handed over;
   // `status` is polled.
   '/webhook/benchmark-session': replyRoute(handleBenchmarkSessionWebhook),
   '/webhook/signal': handleSignal,
   '/webhook/waitpoint': replyRoute(handleWaitpointOp),
   '/hook/ask-user-question': jsonRoute(handleAskUserQuestion),
-  '/hook/commission-start': jsonRoute(handleCommissionStart),
   '/hook/exit-plan-mode': jsonRoute(handleExitPlanMode),
 };
 

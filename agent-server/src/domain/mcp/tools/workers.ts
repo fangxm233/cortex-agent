@@ -99,12 +99,12 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 
   server.tool(
     'worker_answer',
-    'Answer a worker question or approve/reject its plan or commission. Ask cortex_ask_user '
+    'Answer a worker question or approve/reject its plan. Ask cortex_ask_user '
     + 'first if unsure of user intent. The user may also answer; first answer wins.',
     {
       request_id: z.string().describe('The request_id from the worker notice.'),
       answers: z.record(z.string(), z.string()).optional().describe('Exact question text → answer, for a question.'),
-      approved: z.boolean().optional().describe('Approve or reject a plan/commission.'),
+      approved: z.boolean().optional().describe('Approve or reject a plan.'),
       feedback: z.string().optional().describe('Feedback for the worker, mainly when rejecting a plan.'),
     },
     handler(ctx, 'answer'),

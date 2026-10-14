@@ -9,7 +9,7 @@ import {
 /**
  * Why this file exists at all: `executionRepo.archiveTerminal` moves week-old terminal records to
  * `archive/executions-archive.jsonl` and DELETES them from the live map. Summing the live registry
- * alone would therefore make a session quietly lose a week-old run — a long commission would
+ * alone would therefore make a session quietly lose a week-old run — a long-running session would
  * under-report its own cost forever, with nothing on screen to hint at it.
  *
  * Exactly-once without a transaction, via `carriedThrough`:

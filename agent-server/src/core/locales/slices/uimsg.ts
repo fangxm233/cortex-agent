@@ -4,8 +4,6 @@
 export const uimsgEn = {
   // sessions
   'ui.session.notFound': 'Session not found: ${id}',
-  'ui.session.commissionDisabled': 'Commission mode is disabled; enable settings.commissionEnabled to use it',
-  'ui.session.alreadyBound': 'This session is already bound to a commission — open a new session to work on another one',
   'ui.session.textOrAttachments': 'Either text or attachments required',
   'ui.session.runningCompact': 'Session is running — stop it before compacting context',
   'ui.session.compactUnsupported': 'This session backend does not support manual context compaction',
@@ -24,10 +22,9 @@ export const uimsgEn = {
   'ui.session.noPendingPlan': 'No pending plan for requestId: ${id}',
   'ui.session.noDecision': 'No decision ${decision} in session ${id}',
   'ui.session.decisionMessageRequired': 'message required for action "${action}"',
-  // commissions
-  'ui.commission.notFound': 'Commission not found: ${id}',
-  'ui.commission.notActive': 'Commission is ${status}; only an active one accepts new sessions',
-  'ui.commission.alreadyClosed': 'Commission is already ${status}',
+  // boards
+  'ui.board.notFound': 'Board not found: ${id}',
+  'ui.board.alreadyClosed': 'Board is already ${status}',
   // schedules (handler + zod form validation)
   'ui.schedule.notFound': 'Schedule not found: ${id}',
   'ui.schedule.intervalRequired': 'intervalMs is required for type=interval',
@@ -95,8 +92,6 @@ export const uimsgEn = {
 
 export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.session.notFound': '未找到会话：${id}',
-  'ui.session.commissionDisabled': '委托模式已关闭；如需使用，请开启 settings.commissionEnabled。',
-  'ui.session.alreadyBound': '该会话已绑定到一个委托——如需处理另一个委托，请新建会话。',
   'ui.session.textOrAttachments': '请输入文字或添加附件。',
   'ui.session.runningCompact': '会话正在运行——请先停止，再压缩上下文。',
   'ui.session.compactUnsupported': '该会话的后端不支持手动压缩上下文。',
@@ -115,9 +110,8 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.session.noPendingPlan': '没有待审批的计划（requestId：${id}）',
   'ui.session.noDecision': '会话 ${id} 中没有决策 ${decision}',
   'ui.session.decisionMessageRequired': '「${action}」操作需要填写消息。',
-  'ui.commission.notFound': '未找到委托：${id}',
-  'ui.commission.notActive': '该委托状态为 ${status}，只有进行中的委托可以加入新会话。',
-  'ui.commission.alreadyClosed': '该委托已结束（${status}）。',
+  'ui.board.notFound': '未找到看板：${id}',
+  'ui.board.alreadyClosed': '该看板已结束（${status}）。',
   'ui.schedule.notFound': '未找到定时任务：${id}',
   'ui.schedule.intervalRequired': '间隔类型需要填写间隔（intervalMs）。',
   'ui.schedule.timeRequired': '类型 ${type} 需要填写时间（time）。',

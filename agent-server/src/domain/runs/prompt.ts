@@ -1,7 +1,7 @@
 import { renderPromptTemplate, promptSystemVars, resolveSystemVars } from '@core/prompt-template.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 import { loadUserContext } from '../memory/user-context.js';
-import type { CommissionPromptContext, ActiveCommissionContext, DraftCommissionContext } from '../commissions/commission-context.js';
+import type { BoardPromptContext } from '../boards/board-context.js';
 
 // --- System prompt ---
 
@@ -51,8 +51,8 @@ export interface UserPromptOptions {
   project?: { id: string; contextDir: string } | null;
   /** The conversation-history directory, so the agent can find any session's transcript. */
   transcriptDir?: string | null;
-  /** Index + protocol for a commission-bound session (DR-0037). */
-  commission?: CommissionPromptContext | null;
+  /** The board this session is bound to, delivered once per binding. */
+  board?: BoardPromptContext | null;
   /** Team mode, lead side: one roster line per active worker, and the unread routine updates
    *  section (`[Unread routine updates]` …) when there is one. */
   team?: { roster: string[]; unread?: string } | null;
@@ -69,7 +69,7 @@ export interface UserPromptOptions {
  * the ambient blocks the session needs in front of it.
  *
  * Prefix order is fixed — user profile, agent directive, session project, transcript location,
- * commission, team or worker — and every block is optional. A caller that passes none gets the
+ * board, team or worker — and every block is optional. A caller that passes none gets the
  * rendered template alone, trimmed.
  */
 export function composeUserPrompt(
@@ -88,7 +88,7 @@ function ambientPrefixes(spec: UserPromptSpec, opts: UserPromptOptions): string[
     spec.directive ? resolveSystemVars(spec.directive) : null,
     opts.project ? buildProjectBlock(opts.project) : null,
     opts.transcriptDir ? buildTranscriptBlock(opts.transcriptDir) : null,
-    opts.commission ? buildCommissionBlock(opts.commission) : null,
+    opts.board ? buildBoardBlock(opts.board) : null,
     opts.team ? buildTeamBlock(opts.team.roster, opts.team.unread) : null,
     opts.worker ? buildWorkerBlock(opts.worker) : null,
   ].filter((block): block is string => !!block);
@@ -139,58 +139,16 @@ export function buildWorkerBlock(worker: { name: string; lead: string }): string
     + 'concise: conclusions, output paths, and open items. You cannot create workers yourself.';
 }
 
-/** Execution protocol for commission-bound sessions (DR-0037). Deliberately compact: the four
- *  rules the agent must not lose mid-run — surprise triage, evidence, checkpoints, gates. */
-const COMMISSION_PROTOCOL = `Commission protocol:
-1. Surprises are three kinds: an obstacle you route around; a fork you align on (send_decision for low-stakes picks, a blocking question for high-stakes ones); a discovery that invalidates a contract premise. A discovery MUST be surfaced against the contract — never silently absorbed.
-2. Completion claims need evidence pointers (file paths, command outputs, EXP ids) in ledger.md. Scope cuts and deferrals go in the plan section's "Cuts and deferrals" note.
-3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including its Revisions section) before writing it.
-4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
-
-/** A session drafting a contract. It has no contract and no ledger yet, so the block's whole job is
- *  to say so and hand the agent to cortex_commission_start, which carries the drill protocol.
- *
- *  Two ways in since v4 — the agent called the tool itself, or the user switched the mode on for a
- *  session already in flight — and the block cannot tell which. It does not need to: the tool is
- *  idempotent, so "call it if you have not already" is correct either way, and the second sentence
- *  keeps a user-initiated entry from turning into a round of asking whether to proceed. */
-function buildDraftCommissionBlock(c: DraftCommissionContext): string {
+/** Names the board and the editing etiquette; the component classes live in the board skill. */
+export function buildBoardBlock(b: BoardPromptContext): string {
   return [
-    '[Commission] This session is drafting a commission contract: a long task anchored by a '
-    + 'contract the user approves before any work begins.',
-    `Draft directory: ${c.dir}`,
+    `[Board] This session is bound to the board "${b.title}" (${b.id}).`,
+    `Board directory: ${b.dir}`,
+    `  board.html — the page body you edit (HTML, body content only); images go in assets/`,
+    `  decisions.jsonl — written by the server from send_decision; do not edit`,
     '',
-    'If you have not already received the creation protocol in this session, call '
-    + 'cortex_commission_start now, before investigating or asking anything — it carries the drill '
-    + 'protocol and the contract structure, and is idempotent. If the user turned this mode on for '
-    + 'you, that is the decision made: start drilling rather than asking whether to.',
-    'Implement nothing until the contract is approved through cortex_commission_submit. If you '
-    + 'conclude the task does not warrant a commission, say so plainly and let the user close it.',
+    'Read board.html before anything else. Other sessions may be editing it at the same time: '
+    + 're-read it right before every edit and keep each edit small. Update it at milestones and '
+    + 'whenever the status changes. Prefer the preset component classes from the board skill.',
   ].join('\n');
-}
-
-/** Index, not snapshot: the block names the two files and tells the agent to read them. Their
- *  contents are deliberately NOT pasted in — they grow without bound and the user may edit
- *  contract.md at any time, so a snapshot is both expensive and potentially stale. */
-function buildActiveCommissionBlock(c: ActiveCommissionContext): string {
-  const ledgerLine = c.hasLedger
-    ? `  ledger.md   — your state record: Status line, Plan items, checkpoints CP-N, log entries L-NNN`
-    : `  ledger.md   — NOT created yet. Derive it from the contract's acceptance criteria before working`;
-  return [
-    `[Commission] This session belongs to the commission "${c.title}" (${c.id}).`,
-    `Commission directory: ${c.dir}`,
-    `  contract.md — the binding intent reference: goal, inferences, acceptance criteria, exclusions, gates, revisions`,
-    ledgerLine,
-    `  assets/     — rich content you generate; decisions.jsonl — server-written, never touch it`,
-    '',
-    `Read both files now, before anything else — their contents are not reproduced here, and the `
-    + `copies on disk are the only source of truth. Re-read contract.md (including its Revisions `
-    + `section) at every checkpoint; the user may have edited it since you last looked.`,
-    '',
-    COMMISSION_PROTOCOL,
-  ].join('\n');
-}
-
-function buildCommissionBlock(c: CommissionPromptContext): string {
-  return c.phase === 'draft' ? buildDraftCommissionBlock(c) : buildActiveCommissionBlock(c);
 }

@@ -22,7 +22,7 @@ const MANIFEST_REL = path.join('.claude-plugin', 'plugin.json');
  *
  *  `[plugin, relative path]`; the path is joined under PLUGINS_DIR and must stay inside it. */
 export const RETIRED_PLUGIN_PATHS: ReadonlyArray<readonly [string, string]> = [
-  // Moved to cortex-commission, which loads only in commission mode (DR-0037 v2).
+  // Moved to the cortex-commission plugin, since retired in favour of cortex-board.
   ['cortex-system', 'skills/commission'],
   // Moved to cortex-system in 2026.9.8. Left in place it shadows the maintained copy: an install
   // that still loads cortex-stage-gate would offer two skills named `task` with diverged content.

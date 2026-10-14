@@ -79,12 +79,12 @@ test('reports file/runtime differences without claiming connectivity or revealin
   });
 });
 
-test('web skills are opt-in and never widen Slack/CLI or commission scope', () => {
-  const dirs = ['/plugins/cortex-feishu/', '/plugins/cortex-system', '/plugins/cortex-commission'];
+test('web skills are opt-in and never widen Slack/CLI scope', () => {
+  const dirs = ['/plugins/cortex-feishu/', '/plugins/cortex-system'];
   expect(filterScopedPlugins(dirs, { channel: 'web:session' })).toEqual([dirs[1]]);
-  expect(filterScopedPlugins(dirs, { channel: 'web:session', feishuSkillsInWeb: true })).toEqual(dirs.slice(0, 2));
+  expect(filterScopedPlugins(dirs, { channel: 'web:session', feishuSkillsInWeb: true })).toEqual(dirs);
   for (const channel of ['slack:C1', 'cli:local', '', undefined]) {
     expect(filterScopedPlugins(dirs, { channel, feishuSkillsInWeb: true })).toEqual([dirs[1]]);
   }
-  expect(filterScopedPlugins(dirs, { channel: 'feishu:oc_1', feishuSkillsInWeb: false })).toEqual(dirs.slice(0, 2));
+  expect(filterScopedPlugins(dirs, { channel: 'feishu:oc_1', feishuSkillsInWeb: false })).toEqual(dirs);
 });

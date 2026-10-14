@@ -4,6 +4,7 @@ import type { Backend } from '@core/types/agent-types.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
+import { boardRepo } from '@store/board-repo.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isTeamLead, isTeamWorker, MAX_RUNNING_WORKERS, WORKER_NAME_RE } from '@domain/sessions/team.js';
@@ -16,6 +17,7 @@ import { findProfileForProvider, getDefaultProfileForBackend } from '@domain/age
 import { parseModelSpec } from '@core/agents/subagent/model-spec.js';
 import { isRebuildHeld } from '@domain/system/rebuild-hold.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
+import { orchestrationBus } from './runtime.js';
 import { cancelChannelRuns } from './routing/commands/cancel.js';
 import { interactionRecords, type InteractionRecords } from './interactions/interaction-records.js';
 import { planApprovals } from './interactions/plan-approvals.js';
@@ -38,14 +40,16 @@ export interface TeamWebhookReply {
 type Outcome = 'resolved' | 'already-resolved' | 'not-found';
 
 export interface TeamWebhookDeps {
-  sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'setWorkerRetired' | 'rename'>;
+  sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'setWorkerRetired' | 'rename' | 'bindBoard'>;
   /** Creates the worker on a channel whose selection is already written. Naming the same profile
    *  again only records it on the session; it leaves the channel's selection as written. */
   createSession: (opts: {
     projectId: string; sessionId: string; profileName: string; teamLeadId: string; workerName: string;
-    workerBrief: string;
+    workerBrief: string; boardId: string | null;
   }) => Promise<{ sessionId: string; channel: string }>;
   newSessionId: () => string;
+  /** A worker joined `boardId`: tell clients its binding and the board's members changed. */
+  boardJoined: (boardId: string, worker: { sessionId: string; channel: string }) => Promise<void>;
   deliver: (opts: Pick<DeliverToSessionOptions, 'channel' | 'text' | 'origin'>) => void;
   cancel: (channel: string) => Promise<number>;
   readSelection: (channel: string) => ChannelSelection;
@@ -75,6 +79,12 @@ const defaultDeps: TeamWebhookDeps = {
     resolveBackend: resolveBackendForChannel,
   }, opts),
   newSessionId: () => randomUUID(),
+  boardJoined: async (boardId, worker) => {
+    const bus = orchestrationBus();
+    bus?.publish({ type: 'session.board', sessionId: worker.sessionId, channel: worker.channel });
+    const board = await boardRepo.find(boardId);
+    if (board) bus?.publish({ type: 'board.updated', boardId: board.id, projectId: board.projectId });
+  },
   deliver: (opts) => deliverToSessionDetached(opts),
   cancel: (channel) => cancelChannelRuns(channel),
   readSelection: (channel) => readChannelSelection(channel),
@@ -223,8 +233,11 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
     teamLeadId: lead.sessionId,
     workerName: name,
     workerBrief: briefOf(prompt),
+    // A worker joins its lead's board, if any.
+    boardId: lead.boardId ?? null,
   });
   await deps.sessions.rename(created.sessionId, name);
+  if (lead.boardId) await deps.boardJoined(lead.boardId, created);
   noteDispatch(created.sessionId, prompt, deps.now());
   deps.deliver({ channel: created.channel, text: prompt, origin: 'team-lead' });
   return ok(
@@ -243,7 +256,14 @@ async function send(lead: Session, data: Record<string, any>, deps: TeamWebhookD
   const busy = !!view && isWorkerBusy(view);
   if (!busy && runningCount(team) >= MAX_RUNNING_WORKERS) throw capError();
   refuseWhileRestarting(deps, 'the message was not delivered');
-  if (worker.workerRetiredAt != null) await deps.sessions.setWorkerRetired(worker.sessionId, null);
+  if (worker.workerRetiredAt != null) {
+    await deps.sessions.setWorkerRetired(worker.sessionId, null);
+    // Retired when the lead opened its board, so it was left out; it joins now if it has none.
+    if (!worker.boardId && lead.boardId) {
+      await deps.sessions.bindBoard(worker.sessionId, lead.boardId);
+      await deps.boardJoined(lead.boardId, worker);
+    }
+  }
   noteDispatch(worker.sessionId, null, deps.now());
   deps.deliver({ channel: worker.channel, text: message, origin: 'team-lead' });
   return ok(busy

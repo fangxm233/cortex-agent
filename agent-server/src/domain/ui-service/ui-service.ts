@@ -12,10 +12,11 @@ import {
 } from './query/sessions.js';
 import { handleSchedulesList } from './query/schedules.js';
 import {
-  handleCommissionsList,
-  handleCommissionsGet,
-  handleCommissionsDecisions,
-} from './query/commissions.js';
+  handleBoardsList,
+  handleBoardsGet,
+  handleBoardsDecisions,
+  handleBoardsStyle,
+} from './query/boards.js';
 import { handleExecutionsList, handleExecutionsGet } from './query/executions.js';
 import { handleWaitpointsList } from './query/waitpoints.js';
 import { handleMemoryTree, handleMemoryFile } from './query/memory.js';
@@ -77,7 +78,7 @@ import {
   handlePluginsMcpWrite,
 } from './mutate/plugin-packages.js';
 import { handleCreateProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleSetAgent, handleSetSelection, handleSetCommission, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleSetAgent, handleSetSelection, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import { handleCancelWaitpoint } from './mutate/waitpoints.js';
 import {
@@ -87,7 +88,7 @@ import {
   handleAddSchedule,
   handleUpdateSchedule,
 } from './mutate/schedules.js';
-import { handleCommissionClose } from './mutate/commissions.js';
+import { handleBoardClose } from './mutate/boards.js';
 import { handleApproveApproval, handleRejectApproval, handleRequestApproval } from './mutate/approvals.js';
 import { handleIssuesDelete, handleIssuesHandle } from './mutate/issues.js';
 import {
@@ -138,9 +139,10 @@ export const queryHandlers = {
   'sessions.debugDetails': (deps, params) => handleSessionsDebugDetails(deps, params),
   'sessions.pendingInteraction': (deps, params) => handleSessionsPendingInteraction(deps, params),
   'schedules.list': (deps, params) => handleSchedulesList(deps, params),
-  'commissions.list': (deps, params) => handleCommissionsList(deps, params),
-  'commissions.get': (deps, params) => handleCommissionsGet(deps, params),
-  'commissions.decisions': (deps, params) => handleCommissionsDecisions(deps, params),
+  'boards.list': (deps, params) => handleBoardsList(deps, params),
+  'boards.get': (deps, params) => handleBoardsGet(deps, params),
+  'boards.decisions': (deps, params) => handleBoardsDecisions(deps, params),
+  'boards.style': (deps, params) => handleBoardsStyle(deps, params),
   'executions.list': (deps, params) => handleExecutionsList(deps, params),
   'waitpoints.list': (deps, params) => handleWaitpointsList(deps, params),
   'executions.get': (deps, params) => handleExecutionsGet(deps, params),
@@ -182,7 +184,6 @@ export const mutateHandlers = {
   'sessions.setProfile': (deps, args) => handleSetProfile(deps, args),
   'sessions.setAgent': (deps, args) => handleSetAgent(deps, args),
   'sessions.setSelection': (deps, args) => handleSetSelection(deps, args),
-  'sessions.setCommission': (deps, args) => handleSetCommission(deps, args),
   'sessions.createAndSend': (deps, args) => handleCreateAndSend(deps, args),
   'sessions.setStarred': (deps, args) => handleSetStarred(deps, args),
   'sessions.rename': (deps, args) => handleRenameSession(deps, args),
@@ -200,7 +201,7 @@ export const mutateHandlers = {
   'schedules.remove': (deps, args) => handleRemoveSchedule(deps, args),
   'schedules.add': (deps, args) => handleAddSchedule(deps, args),
   'schedules.update': (deps, args) => handleUpdateSchedule(deps, args),
-  'commissions.close': (deps, args) => handleCommissionClose(deps, args),
+  'boards.close': (deps, args) => handleBoardClose(deps, args),
   'approvals.approve': (deps, args) => handleApproveApproval(deps, args),
   'approvals.reject': (deps, args) => handleRejectApproval(deps, args),
   'approvals.request': (deps, args) => handleRequestApproval(deps, args),

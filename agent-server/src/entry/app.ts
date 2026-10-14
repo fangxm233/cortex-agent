@@ -84,6 +84,7 @@ import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
+import { startBoardWatcher } from '@domain/boards/board-watcher.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
@@ -507,6 +508,8 @@ installSigtermShutdown(shutdownHandles);
   shutdownHandles.stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
     bus.publish({ type: 'config.changed', section: 'profiles' });
   });
+  // Open boards refresh live: their directories and the user stylesheet are watched.
+  shutdownHandles.stopBoardWatcher = startBoardWatcher(bus);
   await executionRepo.archiveTerminal().catch((e) => log.error(`Execution archive failed: ${(e as Error).message}`));
 
   // --- Rate-limit recovery (ordered) ---

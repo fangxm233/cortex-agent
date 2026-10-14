@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "cortex-board",
+  "version": "0.1.0",
+  "description": "Board skill bundle — how to keep a board (the HTML status page bound to sessions) current: preset component classes, editing alongside other sessions, and when a board is worth opening."
+}

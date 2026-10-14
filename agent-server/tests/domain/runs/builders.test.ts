@@ -70,7 +70,6 @@ function legacyContinuation(i: {
       trigger: 'ask-user-question',
       executionKind: 'local',
       isUserInitiated: false,
-      commissionMode: false,
       scheduleTaskId: null,
     },
     policy: {

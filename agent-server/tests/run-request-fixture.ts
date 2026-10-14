@@ -27,7 +27,6 @@ export interface RunRequestFixtureInput extends Omit<EngineSpecFixtureInput, 'to
   executionId?: string | null;
   loadCortexRules?: boolean;
   recordCost?: boolean;
-  commissionMode?: boolean;
 }
 
 /** Drop explicitly-undefined keys so an override never clobbers a value the flat literal set. */
@@ -123,7 +122,6 @@ export function runRequestFixture(
       callbackSource: partial.callbackSource ?? null,
       executionKind: 'local',
       isUserInitiated: partial.isUserInitiated ?? false,
-      commissionMode: partial.commissionMode ?? false,
     },
     policy: {
       background: 'hold',

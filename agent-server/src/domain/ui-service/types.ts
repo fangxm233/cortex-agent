@@ -65,7 +65,7 @@ import type { SessionTotals } from '@store/session-totals.js';
 export type { SessionTotals } from '@store/session-totals.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 import type { ScheduleSpec, SchedulePatch } from '../scheduling/schedule-spec.js';
-import type { CommissionRecord } from '@store/commission-repo.js';
+import type { BoardRecord } from '@store/board-repo.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import type { ProjectNote } from '@store/project-notes-repo.js';
@@ -188,15 +188,6 @@ export interface SessionSelectionOverride {
   mode?: string;
 }
 
-export interface SessionsSetCommissionReturn {
-  /** The session's state after the call: which half of the mode it is in, if any. */
-  phase: 'none' | 'draft' | 'active';
-  commissionId: string | null;
-  commissionDraft: string | null;
-  /** True when leaving also deleted an untouched draft directory. */
-  removedDraftDir?: boolean;
-}
-
 /** Return of sessions.answerQuestion / sessions.respondPlan. 'already-resolved' means another
  *  client (or Slack / timeout) resolved the interaction first — not an error; the caller
  *  refetches the transcript to show the final state. */
@@ -293,13 +284,9 @@ export interface SessionInfo {
    *  per-schedule run grouping and the chat trigger card. Survives a reply converting the run to
    *  a direct session (provenance). Null for sessions with no schedule origin / legacy records. */
   scheduleId: string | null;
-  /** The commission (CommissionInfo.id) this session is bound to — drives the left rail's
-   *  commission grouping and the chat header banner. Bound at contract approval time
-   *  (commission plan-exit); null for sessions outside any commission. */
-  commissionId: string | null;
-  /** Draft directory name while this session is in commission mode but its contract has not been
-   *  named yet. Null once the contract lands (commissionId takes over) or outside the mode. */
-  commissionDraft?: string | null;
+  /** The board (BoardInfo.id) this session is bound to, or null. At most one per session; the
+   *  binding outlives the board's closing, so a closed board stays reachable from its sessions. */
+  boardId: string | null;
   /** Team mode: the lead session that owns this worker; non-null means this session is a worker. */
   teamLeadId: string | null;
   /** The worker's short name within its team; null outside team mode. */
@@ -619,32 +606,40 @@ export interface ScheduleInfo {
   dayOfWeek: number | null;
 }
 
-// ── Commission DTOs (DR-0037) ─────────────────────────────────────
-// Registry facts only. The contract/ledger TEXT is not part of this DTO — clients read those via
-// the existing `memory.file` query (`commissions/<slug>/ledger.md` relative to the project root),
-// and gate state is derived live from member sessions' awaitingInput, never stored.
+// ── Board DTOs ────────────────────────────────────────────────────
+// Registry facts only. The body is not part of this DTO — clients read
+// `boards/<slug>/board.html` (relative to the project root) via `memory.file`, and live member
+// state is derived from the bound sessions in sessions.list, never stored.
 
-export interface CommissionInfo {
+export interface BoardInfo {
   id: string;
   projectId: string;
-  /** Final directory name under `<project context>/commissions/` — fixed at approval time. */
+  /** Directory name under `<project context>/boards/`. */
   slug: string;
   title: string;
   status: 'active' | 'done' | 'abandoned';
-  createdAt: string;   // ISO; approval time
+  createdAt: string;   // ISO
   updatedAt: string;   // ISO
   closedAt: string | null;
   closeNote: string | null;
 }
 
-/** One decision card in the commission board's stream: a projected send_decision item with its
- *  user responses merged in (same DecisionItem shape the transcript renders), plus provenance. */
-export interface CommissionDecisionEntry {
+/** One decision card in a board's stream: a projected send_decision item with its user responses
+ *  merged in (same DecisionItem shape the transcript renders), plus provenance. */
+export interface BoardDecisionEntry {
   /** ISO ts of the send_decision call — the stream's ordering key. */
   ts: string;
   /** The session that announced the decision (source row on the board card). */
   sessionId: string;
   item: DecisionItem;
+}
+
+/** `boards.style`: the preset stylesheet shipped with the server plus the user's optional
+ *  override (`<cortex home>/config/board.css`, null when absent). Clients stack them as
+ *  theme variables → defaultCss → userCss → board body. */
+export interface BoardStyle {
+  defaultCss: string;
+  userCss: string | null;
 }
 
 /** One signal that has landed on a waitpoint. `message`/`member`/`source` are written by the
@@ -1203,8 +1198,8 @@ export interface UiPluginCatalogEntry {
   id: string;
   kind: 'portable' | 'legacy' | 'unknown';
   /** Whether spawn-time filtering restricts this plugin to some sessions. 'always' means assignment
-   *  is the only gate; 'commission' and 'channel' mirror filterScopedPlugins. */
-  scope: 'always' | 'commission' | 'channel';
+   *  is the only gate; 'channel' mirrors filterScopedPlugins. */
+  scope: 'always' | 'channel';
   /** Channel prefix a 'channel'-scoped plugin requires, e.g. 'feishu:'. */
   scopePrefix?: string;
   /** 'managed' when Cortex ships this plugin id, so plugin-sync owns its shipped files and can
@@ -1682,9 +1677,10 @@ export interface QueryReturnMap {
   'sessions.debugDetails': TranscriptDebugDetails | null;
   'sessions.pendingInteraction': SessionsPendingInteraction;
   'schedules.list': ScheduleInfo[];
-  'commissions.list': CommissionInfo[];
-  'commissions.get': CommissionInfo;
-  'commissions.decisions': CommissionDecisionEntry[];
+  'boards.list': BoardInfo[];
+  'boards.get': BoardInfo;
+  'boards.decisions': BoardDecisionEntry[];
+  'boards.style': BoardStyle;
   'executions.list': ExecutionInfo[];
   'waitpoints.list': WaitpointInfo[];
   'executions.get': ExecutionDetailInfo;
@@ -1729,7 +1725,6 @@ export interface MutateReturnMap {
   'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.setAgent': SessionsSetAgentReturn;
   'sessions.setSelection': SessionsSetSelectionReturn;
-  'sessions.setCommission': SessionsSetCommissionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.setStarred': SessionsSetStarredReturn;
   'sessions.rename': SessionsRenameReturn;
@@ -1747,7 +1742,7 @@ export interface MutateReturnMap {
   'schedules.remove': void;
   'schedules.add': ScheduleInfo;
   'schedules.update': ScheduleInfo;
-  'commissions.close': CommissionInfo;
+  'boards.close': BoardInfo;
   'approvals.approve': ApprovalMutateReturn;
   'approvals.reject': ApprovalMutateReturn;
   'approvals.request': ApprovalsRequestReturn;
@@ -1847,10 +1842,6 @@ export interface UiServiceDeps {
     /** Atomic metadata-only writes. */
     setStarred(sessionId: string, starred: boolean): Promise<Session | null>;
     rename(sessionId: string, label: string): Promise<Session | null>;
-    /** Commission mode (`sessions.setCommission`): bind to a landed commission (clears any draft),
-     *  or enter/leave the drafting half. */
-    bindCommission(sessionId: string, commissionId: string | null): Promise<Session | null>;
-    setCommissionDraft(sessionId: string, draftDir: string | null): Promise<Session | null>;
   };
   /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
    *  the two fields the answer depends on so the list can answer it once per distinct profile
@@ -1926,7 +1917,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null }) => Promise<{ sessionId: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
@@ -2028,15 +2019,17 @@ export interface UiServiceDeps {
     list(): Promise<Waitpoint[]>;
     cancel(id: string): Promise<{ cancelled: boolean; state?: string }>;
   };
-  /** Commission registry seam (commissions.* ops). Optional — handlers fall back to the
-   *  commissionRepo singleton when absent, so existing fixtures/entry wiring need no change;
-   *  tests inject it for determinism. */
-  commissionStore?: {
-    list(projectId?: string): Promise<CommissionRecord[]>;
-    find(id: string): Promise<CommissionRecord | null>;
+  /** Board registry seam (boards.* ops). Optional — handlers fall back to the boardRepo
+   *  singleton when absent; tests inject it for determinism. */
+  boardStore?: {
+    list(projectId?: string): Promise<BoardRecord[]>;
+    find(id: string): Promise<BoardRecord | null>;
     /** `fn` returning `false` declines the change; the record comes back untouched. */
-    update(id: string, fn: (record: CommissionRecord) => void | false): Promise<CommissionRecord | null>;
+    update(id: string, fn: (record: BoardRecord) => void | false): Promise<BoardRecord | null>;
   };
+  /** Stylesheet sources for boards.style. Optional — defaults to the shipped preset and
+   *  `<cortex home>/config/board.css`; tests point it at temp files. */
+  boardStylePaths?: { defaultCss: string; userCss: string };
   /** Absolute path to PENDING_APPROVALS.md (the approval-center 7a markdown queue). */
   approvalsPath: string;
   /** The one busy answer (core/session-state.ts): sessions.list joins on it rather than

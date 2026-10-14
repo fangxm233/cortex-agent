@@ -16,7 +16,6 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
     sessionStore: {
       listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null,
       touchSessionUse: async () => true, markRead: async () => {}, setStarred: async () => null, rename: async () => null,
-      bindCommission: async () => null, setCommissionDraft: async () => null,
     },
     supportsSessionCompaction: () => false,
     getSessionTodos: () => null,

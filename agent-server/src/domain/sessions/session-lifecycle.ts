@@ -8,8 +8,6 @@ import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 import type { SessionBrowserOption } from '@store/session-registry-journal.js';
-import { resolveCommissionCreate, type CommissionCreateRequest } from '@domain/commissions/commission-draft.js';
-import { getSettings } from '@core/settings.js';
 
 export interface SessionRegistryWriter {
   registerSession(opts: {
@@ -17,7 +15,7 @@ export interface SessionRegistryWriter {
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
     label?: string | null; profileName?: string | null; agentName?: string | null;
     browser?: SessionBrowserOption | null;
-    commissionId?: string | null; commissionDraft?: string | null;
+    boardId?: string | null;
     teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     scheduleId?: string | null;
   }): Promise<void>;
@@ -35,8 +33,8 @@ export interface RegisterSessionRecordOpts {
   agentName?: string | null;
   /** Opt-in browser access for this session; null/absent means no browser tools at all. */
   browser?: SessionBrowserOption | null;
-  /** Resolve commission fields using the new session ID. */
-  commissionFor?: (sessionId: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
+  /** The board a new session starts bound to (a worker inherits its lead's). */
+  boardId?: string | null;
   /** Team mode: the owning lead's sessionId, this worker's name and its brief. Absent for ordinary
    *  sessions. */
   teamLeadId?: string | null;
@@ -47,9 +45,8 @@ export interface RegisterSessionRecordOpts {
   scheduleId?: string | null;
 }
 
-/** Register a session by its stable ID; resolve commission fields before persisting. */
+/** Register a session by its stable ID. */
 export async function registerSessionRecord(store: SessionRegistryWriter, opts: RegisterSessionRecordOpts): Promise<void> {
-  const commission = opts.commissionFor ? await opts.commissionFor(opts.sessionId) : null;
   // Every caller path but a schedule's fire (inbound direct message, TUI and web fresh sessions,
   // team workers) is user-initiated.
   const scheduled = !!opts.scheduleId;
@@ -64,8 +61,7 @@ export async function registerSessionRecord(store: SessionRegistryWriter, opts: 
     profileName: opts.profileName ?? null,
     agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
-    commissionId: commission?.commissionId ?? null,
-    commissionDraft: commission?.commissionDraft ?? null,
+    boardId: opts.boardId ?? null,
     ...(opts.teamLeadId
       ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerBrief: opts.workerBrief ?? null }
       : {}),
@@ -99,7 +95,7 @@ export async function createDirectSession(
   opts: {
     projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null;
     selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
-    browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
+    browser?: SessionBrowserOption | null; boardId?: string | null;
     teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     label?: string | null; scheduleId?: string | null;
   },
@@ -146,17 +142,6 @@ export async function createDirectSession(
   // composer behind this call, and a composer that named no agent stated the default.
   if (opts.selection) setSelectionDefaultAgent(opts.agentName ?? null);
 
-  // settings.commissionEnabled is the feature's kill switch (on by default since DR-0037 v4).
-  // Refuse here rather than downgrade: a caller that asked for a commission and silently got an
-  // ordinary session would only discover it much later. This is the server-side backstop for every
-  // create path; the UI hides the opt-in and the ui-service handlers reject earlier with a 400.
-  if (opts.commission && !getSettings().commissionEnabled) {
-    throw Object.assign(
-      new Error('Commission mode is disabled; enable settings.commissionEnabled to use it'),
-      { code: 'invalid-args' },
-    );
-  }
-
   await registerSessionRecord(deps.sessionStore, {
     sessionId,
     channel,
@@ -166,9 +151,7 @@ export async function createDirectSession(
     profileName: opts.profileName ?? null,
     agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
-    commissionFor: opts.commission
-      ? (id) => resolveCommissionCreate(opts.projectId, id, opts.commission!)
-      : undefined,
+    boardId: opts.boardId ?? null,
     teamLeadId: opts.teamLeadId ?? null,
     workerName: opts.workerName ?? null,
     workerBrief: opts.workerBrief ?? null,

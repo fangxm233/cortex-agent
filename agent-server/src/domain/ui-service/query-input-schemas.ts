@@ -34,18 +34,20 @@ export const schedulesListInput = z.object({
   paused: z.boolean().optional(),
 });
 
-export const commissionsListInput = z.object({
+export const boardsListInput = z.object({
   projectId: z.string().optional(),
   status: z.enum(['active', 'done', 'abandoned']).optional(),
 });
 
-export const commissionsGetInput = z.object({
-  commissionId: z.string(),
+export const boardsGetInput = z.object({
+  boardId: z.string(),
 });
 
-export const commissionsDecisionsInput = z.object({
-  commissionId: z.string(),
+export const boardsDecisionsInput = z.object({
+  boardId: z.string(),
 });
+
+export const boardsStyleInput = z.object({});
 
 /** Waitpoints belonging to ONE session. Scoped server-side: the client cannot compute the match
  *  because SessionInfo carries no `channel` (see WaitpointInfo for the ownership rule). */

@@ -44,7 +44,6 @@ export interface RunRequest {
     callbackSource?: string | null;
     executionKind: 'local' | 'scheduled';
     isUserInitiated: boolean;
-    commissionMode: boolean;
     /** The session may lead a team (team mode): its engine also loads the worker tools. */
     teamLead?: boolean;
     /** The session is a team worker: its engine also loads `mark_routine`. */
