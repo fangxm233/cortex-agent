@@ -321,9 +321,10 @@ lists only offer, they never narrow what this file accepts.
 
 At agent spawn time, Cortex resolves the profile through this chain:
 
-1. An explicitly requested profile — a schedule's `--profile`, or the
-   conversation's execution environment naming one.
-2. Otherwise the profile the session recorded when it started.
+1. An explicitly requested profile — the conversation's execution
+   environment naming one.
+2. Otherwise the profile the session recorded when it started; a scheduled
+   fire starts its session on the schedule's `--profile`.
 3. Otherwise the channel's profile (`!profile <name>`), then the host-wide
    active profile in `data/agent-state.json`.
 4. Otherwise `defaultProfile` from `profiles.json`.

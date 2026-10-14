@@ -245,8 +245,8 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 在智能体生成时，Cortex 通过以下链解析配置：
 
-1. 显式请求的 profile——定时任务的 `--profile`，或对话的执行环境所指定的 profile。
-2. 否则，使用会话启动时记录的 profile。
+1. 显式请求的 profile——对话的执行环境所指定的 profile。
+2. 否则，使用会话启动时记录的 profile；定时任务触发时，其会话以该定时任务的 `--profile` 启动。
 3. 否则，使用频道的 profile（`!profile <name>`），再其次是 `data/agent-state.json` 中整台主机的活动 profile。
 4. 否则，使用 `profiles.json` 中的 `defaultProfile`。
 
