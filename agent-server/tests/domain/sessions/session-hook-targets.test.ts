@@ -72,7 +72,10 @@ function writeHooks(entries: HookEntry[]): void {
     writeFileSync(path.join(registryDir, `${String(index + 1).padStart(2, '0')}-${entry.id}.json`), JSON.stringify(entry));
   });
   writeFileSync(path.join(HOOKS_DIR, 'capture.mjs'), CAPTURE_SCRIPT);
-  hookBus.initHookBus({ entries: loadHookRegistry(registryDir), hooksDir: HOOKS_DIR });
+  hookBus.initHookBus({
+    entries: loadHookRegistry({ user: registryDir, builtin: null }),
+    scriptDirs: { user: HOOKS_DIR, builtin: null },
+  });
 }
 
 function hook(event: HookEvent, run: HookEntry['run']): HookEntry {

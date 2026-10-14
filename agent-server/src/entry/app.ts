@@ -78,7 +78,6 @@ import {
 } from '../orchestration/resume-dispatcher.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
-import { syncManagedHooks } from '@store/hook-sync.js';
 import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -428,9 +427,6 @@ installSigtermShutdown(shutdownHandles);
   if (syncManagedAssets) ensureMcpConfig();
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
-  // Refresh version-stamped hooks in DATA_DIR/hooks from the shipped defaults. Immutable trial
-  // bundles already declare their entire role surface and may not mutate config after attestation.
-  if (syncManagedAssets) await syncManagedHooks();
   initConfiguredHooks();
   // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
   // A sealed production trial declares no plugins and keeps its attested config immutable.

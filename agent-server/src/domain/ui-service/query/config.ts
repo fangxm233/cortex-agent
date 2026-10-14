@@ -7,7 +7,7 @@ import { CONFIG_DIR } from '@core/paths.js';
 import { getSettingsSnapshot } from '@core/settings.js';
 import { getLocale } from '@core/i18n.js';
 import { langSource } from '@domain/system/preferences.js';
-import { loadMountedHookSummaries } from '@store/hook-registry.js';
+import { defaultHookRegistryDirs, loadMountedHookSummaries } from '@store/hook-registry.js';
 import { ENVIRONMENTS_DIRNAME } from '@domain/agents/environments/paths.js';
 import type {
   UiServiceDeps,
@@ -170,15 +170,17 @@ async function readEnv(file: string): Promise<ConfigEnvEntry[]> {
 
 /**
  * Read a config snapshot from the supplied directory. Files remain hermetically scoped to that
- * directory; settings and the display language are the live values the caller supplies. A missing
- * or malformed source affects only its own field.
+ * directory plus `builtinHooksDir` (the shipped hook registrations, merged under the user's);
+ * settings and the display language are the live values the caller supplies. A missing or
+ * malformed source affects only its own field.
  */
 export async function readConfigSnapshot(
   configDir: string,
   liveSettings: ConfigSettingEntry[],
   lang: ConfigLang,
+  builtinHooksDir: string | null = defaultHookRegistryDirs().builtin,
 ): Promise<ConfigSnapshot> {
-  const hooks = loadMountedHookSummaries(path.join(configDir, 'hooks'));
+  const hooks = loadMountedHookSummaries({ user: path.join(configDir, 'hooks'), builtin: builtinHooksDir });
   const parts = await Promise.all([
     readJson(path.join(configDir, 'budget.json')),
     readJson(path.join(configDir, 'profiles.json')),

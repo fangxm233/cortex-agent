@@ -41,16 +41,16 @@ import { ClaudeAdapter, _test as adapterTest } from '../../src/agent-adapter/cla
 import { claudeProcessLaunch, launchFromSpec } from '../../src/agent-adapter/claude/session-options.js';
 import { claudePool } from './claude-pool-fixture.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../../src/core/paths.js';
+import { BUILTIN_HOOKS_DIR } from '../../src/core/hook-scripts.js';
 import { safeNativeName } from '@core/native-name.js';
 import type { EngineSpec, McpServerConfig } from '../../src/agent-adapter/types.js';
 import type { HookEntry } from '../../src/store/hook-registry.js';
 
 const HOOK_REGISTRY_DIR = path.join(CONFIG_DIR, 'hooks');
-const SHIPPED_HOOK_REGISTRY_DIR = path.join(DEFAULTS_DIR, 'config', 'hooks');
 
+/** No user registrations: the shipped ones load in place. */
 function resetHookRegistry(): void {
   fs.rmSync(HOOK_REGISTRY_DIR, { recursive: true, force: true });
-  fs.cpSync(SHIPPED_HOOK_REGISTRY_DIR, HOOK_REGISTRY_DIR, { recursive: true });
 }
 
 function writeHookRegistry(entries: readonly HookEntry[]): void {
@@ -62,11 +62,14 @@ function writeHookRegistry(entries: readonly HookEntry[]): void {
   });
 }
 
+/** Run against these registrations alone, the shipped layer kept out as in a sealed home. */
 function withHookRegistry<T>(entries: readonly HookEntry[], run: () => T): T {
   writeHookRegistry(entries);
+  process.env.CORTEX_CONFIG_IMMUTABLE = '1';
   try {
     return run();
   } finally {
+    delete process.env.CORTEX_CONFIG_IMMUTABLE;
     resetHookRegistry();
   }
 }
@@ -741,7 +744,8 @@ test('Claude print respawn revalidates supplemental MCP content before spawning 
 
 // --- buildHooksSettings ---
 
-const GOLDEN_HOOKS = `{"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/status-md-guard.mjs","timeout":10}]}]}`;
+const SHIPPED = BUILTIN_HOOKS_DIR;
+const GOLDEN_HOOKS = `{"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${SHIPPED}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${SHIPPED}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${SHIPPED}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${SHIPPED}/agents-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${SHIPPED}/agents-md-injector.mjs"}]}],"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${SHIPPED}/status-md-guard.mjs","timeout":10}]}]}`;
 
 test('buildHooksSettings compiles ordered Claude events from the active registry', () => {
   const entries: HookEntry[] = [

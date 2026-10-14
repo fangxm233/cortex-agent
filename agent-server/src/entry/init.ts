@@ -1199,30 +1199,10 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
     path.join(DEFAULTS_DIR, 'config', ENVIRONMENTS_DIRNAME),
     path.join(paths.CONFIG_DIR, ENVIRONMENTS_DIRNAME),
   );
-  // Rules, agent roles and prompts are read in place from DEFAULTS_DIR; the home gets only the
-  // user's own files. The decisions scaffold is context, which is the user's.
+  // Hooks, rules, agent roles and prompts are read in place from DEFAULTS_DIR; the home gets only
+  // the user's own files. The decisions scaffold is context, which is the user's.
   safeCopyDir(path.join(DEFAULTS_DIR, 'plugins'), path.join(paths.DATA_DIR, 'plugins'), force);
   safeCopyDir(path.join(DEFAULTS_DIR, 'context', 'decisions'), path.join(paths.CONTEXT_DIR, 'decisions'), force);
-}
-
-/**
- * Deploy hook scripts from defaults/hooks/ to DATA_DIR/hooks/.
- * All hooks are standalone .mjs files referenced via HOOKS_DIR.
- */
-function deployHooks(paths: InitPaths, force: boolean): void {
-  const hooksDir = path.join(paths.DATA_DIR, 'hooks');
-  const srcDir = path.join(DEFAULTS_DIR, 'hooks');
-
-  if (!existsSync(srcDir)) return;
-  mkdirSync(hooksDir, { recursive: true });
-
-  const files = readdirSync(srcDir);
-  for (const file of files) {
-    if (!file.endsWith('.mjs')) continue;
-    const src = path.join(srcDir, file);
-    const dst = path.join(hooksDir, file);
-    safeCopy(src, dst, force);
-  }
 }
 
 function writeMcpConfigs(configDir: string): void {
@@ -1599,7 +1579,6 @@ export function writeInitConfigs(paths: InitPaths, answers: InitAnswers, force: 
   const overwrite = answers.localClient?.enabled ? false : force;
   writeDotEnv(paths, answers, overwrite);
   copyDefaults(paths, overwrite);
-  deployHooks(paths, overwrite);
   generateConfigs(paths, answers, overwrite);
   seedSchedules(paths, overwrite);
 }

@@ -1,7 +1,7 @@
 import { t } from '@core/i18n.js';
 import * as path from 'node:path';
-import { HOOKS_DIR } from '@core/paths.js';
 import { runHookProcess } from '@core/hook-exec.js';
+import { defaultHookScriptDirs } from '@core/hook-scripts.js';
 import { hookProcessOptions, loadMountedHooks } from '@store/hook-registry.js';
 import {
   createHookEntry,
@@ -95,8 +95,8 @@ export async function handleHooksSetEnabled(
   args: MutateArgs<'hooks.setEnabled'>,
 ): Promise<Result<HooksSetEnabledReturn>> {
   try {
-    const { changed, warning } = setHookEnabled(undefined, args.id, args.enabled);
-    return { ok: true, data: { changed, warning: warning ?? null } };
+    const { changed } = setHookEnabled(undefined, args.id, args.enabled);
+    return { ok: true, data: { changed, warning: null } };
   } catch (error) {
     return toErr(error);
   }
@@ -120,7 +120,7 @@ export async function handleHooksTest(
   const hook = loadMountedHooks().find((candidate) => candidate.id === args.id);
   if (!hook) return { ok: false, code: 'not-found', message: t('ui.hook.unknownId', { id: args.id }) };
   try {
-    const result = await runHookProcess(hookProcessOptions(hook, HOOKS_DIR, args.payload, TEST_TIMEOUT_CAP_MS));
+    const result = await runHookProcess(hookProcessOptions(hook, defaultHookScriptDirs(), args.payload, TEST_TIMEOUT_CAP_MS));
     return {
       ok: true,
       data: {

@@ -1,4 +1,3 @@
-// @cortex-hook-version 2026.10.2
 
 import http from 'node:http';
 

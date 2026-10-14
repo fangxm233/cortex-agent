@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.6  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
 
 import { existsSync, readFileSync, statSync } from 'fs';
 import { join, resolve, dirname, basename, sep } from 'path';

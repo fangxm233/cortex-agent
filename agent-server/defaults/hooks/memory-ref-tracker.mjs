@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.6
 
 import { readFileSync, existsSync, mkdirSync, appendFileSync } from 'fs';
 import { execSync } from 'child_process';

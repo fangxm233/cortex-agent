@@ -23,7 +23,7 @@ test('executes a registry script from a hooks directory containing spaces', asyn
     run: { script: 'spaced-script.mjs' },
     result: 'stdout-as-prompt',
   };
-  initHookBus({ entries: [hook], hooksDir });
+  initHookBus({ entries: [hook], scriptDirs: { user: hooksDir, builtin: null } });
 
   const results = await emitCortexEvent('cortex:thread.end', {});
 

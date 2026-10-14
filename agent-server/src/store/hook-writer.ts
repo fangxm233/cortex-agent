@@ -1,13 +1,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from '../core/atomic-write.js';
-import { CONFIG_DIR } from '../core/paths.js';
 import {
+  defaultHookRegistryDirs,
   loadHookRegistryRecords,
   validateHookEntry,
+  type BuiltinHookLayer,
   type HookBackend,
   type HookEntry,
   type HookFilterValue,
+  type HookRegistryDirs,
   type HookRegistryRecord,
   type HookResultMode,
   type HookRun,
@@ -26,8 +28,6 @@ export interface HookEntryDraft {
 
 export interface HookStateResult {
   changed: boolean;
-  /** Set when the change is not durable — a managed entry restored by the next sync. */
-  warning?: string;
 }
 
 export interface HookCreateResult {
@@ -42,27 +42,20 @@ export interface HookRemoveResult {
 /** Filename-safe id: rules out path separators, `..`, and leading punctuation. */
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
-/** New user declarations sort after the shipped `01-`…`12-` block. */
+/** New user declarations sort after the shipped `01-`…`13-` block. */
 const USER_PREFIX = '50-';
-
-export const MANAGED_RESYNC_WARNING =
-  'A managed hook sync that deploys a newer version will restore the shipped enabled state.';
 
 function hookError(code: 'not-found' | 'invalid-args', message: string): Error {
   return Object.assign(new Error(message), { code });
 }
 
-function registryDir(directory?: string): string {
-  return directory ?? path.join(CONFIG_DIR, 'hooks');
-}
-
-function findRecord(directory: string, id: string): HookRegistryRecord {
-  const record = loadHookRegistryRecords(directory).find((candidate) => candidate.entry.id === id);
+function findRecord(dirs: HookRegistryDirs, id: string): HookRegistryRecord {
+  const record = loadHookRegistryRecords(dirs).find((candidate) => candidate.entry.id === id);
   if (!record) throw hookError('not-found', `Unknown hook id: '${id}'`);
   return record;
 }
 
-/** Registry entries carrying a CalVer are refreshed from defaults — editing them is not durable. */
+/** A built-in is changed only through its switch; its other fields follow the shipped entry. */
 function assertEditable(record: HookRegistryRecord): void {
   if (record.source !== 'user') {
     throw hookError(
@@ -85,9 +78,7 @@ function buildRun(run: HookRun | undefined): HookRun {
 
 /**
  * Assemble a declaration from an id plus a draft. Fields are copied one at a time rather than
- * spread, so anything the caller did not ask for is dropped — in particular `version`, which is
- * what marks an entry as managed. A forged `version` would make the next hook sync treat a user
- * file as shipped and overwrite it.
+ * spread, so anything the caller did not ask for is dropped.
  */
 function buildEntry(id: string, draft: HookEntryDraft): HookEntry {
   const entry: Record<string, unknown> = { id, event: draft.event };
@@ -108,33 +99,44 @@ function serialize(entry: HookEntry): string {
   return `${JSON.stringify(entry, null, 2)}\n`;
 }
 
+/** Keep the override to what differs from the shipped entry; an empty override is no file at all,
+ *  which is what switching a built-in back on reverts to. */
+function writeBuiltinEnabled(layer: BuiltinHookLayer, enabled: boolean): void {
+  const override: Record<string, unknown> = { ...(layer.override ?? {}) };
+  delete override.version;
+  if ((layer.entry.enabled !== false) === enabled) delete override.enabled;
+  else override.enabled = enabled;
+  if (Object.keys(override).length === 0) {
+    fs.rmSync(layer.overridePath, { force: true });
+    return;
+  }
+  fs.mkdirSync(path.dirname(layer.overridePath), { recursive: true });
+  atomicWriteSync(layer.overridePath, `${JSON.stringify(override, null, 2)}\n`);
+}
+
 /**
- * Flip `enabled` on one registry declaration, preserving every other field including `version`.
- * Managed entries are allowed here (unlike edit/remove) because the toggle is the one change the
- * sync can meaningfully round-trip — but the caller is told the change is temporary.
+ * Flip `enabled` on one registry declaration. A user entry is rewritten in place; a built-in gets a
+ * partial override in the user's hooks dir, removed again when it is switched back to its default.
  */
 export function setHookEnabled(
-  directory: string | undefined,
+  dirs: HookRegistryDirs = defaultHookRegistryDirs(),
   id: string,
   enabled: boolean,
 ): HookStateResult {
-  const dir = registryDir(directory);
-  const record = findRecord(dir, id);
+  const record = findRecord(dirs, id);
   const changed = (record.entry.enabled !== false) !== enabled;
-  if (changed) {
-    atomicWriteSync(record.filePath, serialize({ ...record.entry, enabled }));
-  }
-  const result: HookStateResult = { changed };
-  if (record.source === 'managed' && !enabled) result.warning = MANAGED_RESYNC_WARNING;
-  return result;
+  if (!changed) return { changed };
+  if (record.builtin) writeBuiltinEnabled(record.builtin, enabled);
+  else atomicWriteSync(record.filePath, serialize({ ...record.entry, enabled }));
+  return { changed };
 }
 
-/** Write a new user declaration as `50-<id>.json`. Never stamps a version. */
+/** Write a new user declaration as `50-<id>.json`. */
 export function createHookEntry(
-  directory: string | undefined,
+  dirs: HookRegistryDirs = defaultHookRegistryDirs(),
   draft: HookEntryDraft & { id: string },
 ): HookCreateResult {
-  const dir = registryDir(directory);
+  const dir = dirs.user;
   const id = draft.id;
   if (typeof id !== 'string' || !ID_PATTERN.test(id)) {
     throw hookError(
@@ -142,7 +144,7 @@ export function createHookEntry(
       `Hook id '${String(id)}' must start with a letter or digit and contain only letters, digits, '-' and '_'`,
     );
   }
-  if (loadHookRegistryRecords(dir).some((record) => record.entry.id === id)) {
+  if (loadHookRegistryRecords(dirs).some((record) => record.entry.id === id)) {
     throw hookError('invalid-args', `Hook id '${id}' already exists in the registry`);
   }
   const entry = buildEntry(id, draft);
@@ -160,12 +162,11 @@ export function createHookEntry(
  * omitted optional fields are removed rather than merged — the UI always holds the whole entry.
  */
 export function updateHookEntry(
-  directory: string | undefined,
+  dirs: HookRegistryDirs = defaultHookRegistryDirs(),
   id: string,
   draft: HookEntryDraft,
 ): HookStateResult {
-  const dir = registryDir(directory);
-  const record = findRecord(dir, id);
+  const record = findRecord(dirs, id);
   assertEditable(record);
   const entry = buildEntry(id, draft);
   const changed = JSON.stringify(entry) !== JSON.stringify(record.entry);
@@ -174,9 +175,8 @@ export function updateHookEntry(
 }
 
 /** Delete one user declaration file. */
-export function removeHookEntry(directory: string | undefined, id: string): HookRemoveResult {
-  const dir = registryDir(directory);
-  const record = findRecord(dir, id);
+export function removeHookEntry(dirs: HookRegistryDirs = defaultHookRegistryDirs(), id: string): HookRemoveResult {
+  const record = findRecord(dirs, id);
   assertEditable(record);
   fs.rmSync(record.filePath, { force: true });
   return { removed: true };

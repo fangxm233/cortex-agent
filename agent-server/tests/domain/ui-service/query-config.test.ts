@@ -76,7 +76,7 @@ test('readConfigSnapshot surfaces per-project budgets and drops half-pair entrie
       notAnObject: 3,
     },
   }));
-  const snap = await readConfigSnapshot(configDir, [], LANG);
+  const snap = await readConfigSnapshot(configDir, [], LANG, null);
   assert.deepEqual(snap.budget?.projects, { alpha: { daily_usd: 5, monthly_usd: 100 } });
 });
 
@@ -115,7 +115,7 @@ test('readConfigSnapshot reports file, env, and default setting sources with pla
 
 test('readConfigSnapshot redacts .env secrets — raw value never appears in the DTO', async () => {
   const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir, [], LANG);
+  const snap = await readConfigSnapshot(configDir, [], LANG, null);
   const serialized = JSON.stringify(snap);
   assert.ok(!serialized.includes(RAW_SECRET), 'raw secret leaked into snapshot');
 
@@ -139,7 +139,7 @@ test('readConfigSnapshot redacts .env secrets — raw value never appears in the
 
 test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks', async () => {
   const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir, [], LANG);
+  const snap = await readConfigSnapshot(configDir, [], LANG, null);
 
   assert.equal(snap.profiles!.defaultProfile, 'plan');
   assert.deepEqual(snap.profiles!.profiles, [
@@ -167,9 +167,9 @@ test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks',
     { name: 'main', profile: '__active__', description: 'General' },
   ]);
   assert.deepEqual(snap.hooks, [
-    { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
-    { id: 'user-hook', event: 'pi:message_end', enabled: true, source: 'user' },
-    { id: 'disabled-hook', event: 'cc:Notification', enabled: false, source: 'user' },
+    { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'user', overridden: false },
+    { id: 'user-hook', event: 'pi:message_end', enabled: true, source: 'user', overridden: false },
+    { id: 'disabled-hook', event: 'cc:Notification', enabled: false, source: 'user', overridden: false },
   ]);
   // A thread template left on disk by an older install no longer contributes a hook.
   assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
@@ -196,7 +196,7 @@ test('readConfigSnapshot carries the editable profile fields but never an extraE
     }),
   );
 
-  const snap = await readConfigSnapshot(configDir, [], LANG);
+  const snap = await readConfigSnapshot(configDir, [], LANG, null);
   const rich = snap.profiles!.profiles[0];
   assert.equal(rich.provider, 'deepseek');
   assert.ok(!('claudeBackend' in rich), 'the retired claudeBackend key is not carried');
@@ -224,7 +224,7 @@ test('readConfigSnapshot omits persisted profiles with unsupported backends', as
     }),
   );
 
-  const snap = await readConfigSnapshot(configDir, [], LANG);
+  const snap = await readConfigSnapshot(configDir, [], LANG, null);
 
   assert.equal(snap.profiles!.defaultProfile, null);
   assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.name), ['implicit', 'claude', 'pi']);
@@ -234,7 +234,7 @@ test('readConfigSnapshot omits persisted profiles with unsupported backends', as
 test('readConfigSnapshot returns null / empty when files are absent', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-empty-'));
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-  const snap = await readConfigSnapshot(path.join(root, 'config'), [], LANG);
+  const snap = await readConfigSnapshot(path.join(root, 'config'), [], LANG, null);
   error.mockRestore();
   assert.equal(snap.budget, null);
   assert.equal(snap.profiles, null);
@@ -251,7 +251,7 @@ test('readConfigSnapshot returns empty hooks for malformed registry JSON', async
   await fs.writeFile(path.join(configDir, 'hooks', 'broken.json'), '{broken');
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-  const snap = await readConfigSnapshot(configDir, [], LANG);
+  const snap = await readConfigSnapshot(configDir, [], LANG, null);
 
   assert.deepEqual(snap.hooks, []);
   assert.match(error.mock.calls.flat().join('\n'), /broken\.json/);
@@ -267,7 +267,7 @@ test('DEBUG settings report exact opt-in without changing variable presence', as
   const { configDir } = await makeFixture();
   for (const [value, enabled] of [['1', true], ['"1"', true], ['0', false], ['false', false], ['true', false], ['', false], ['" 1 "', false]] as const) {
     await fs.writeFile(path.join(configDir, '.env'), `DEBUG=${value}\n`);
-    const snap = await readConfigSnapshot(configDir, [], LANG);
+    const snap = await readConfigSnapshot(configDir, [], LANG, null);
     assert.deepEqual(snap.env[0], { key: 'DEBUG', present: value.length > 0, masked: value ? '••••••••' : '', enabled });
   }
 });

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.3
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, sep } from 'path';

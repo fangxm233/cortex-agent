@@ -1,6 +1,5 @@
 import * as fs from 'node:fs';
 import * as http from 'node:http';
-import * as path from 'node:path';
 import {
   cliError,
   formatError,
@@ -10,14 +9,16 @@ import {
   type HelpSpec,
 } from '@core/cli-utils.js';
 import { runHookProcess } from '@core/hook-exec.js';
-import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
+import { defaultHookScriptDirs, type HookScriptDirs } from '@core/hook-scripts.js';
 import { isMainModule } from '@core/utils.js';
 import { normalizeAskLevel } from '../platform/interactive-builder.js';
-import { MANAGED_RESYNC_WARNING, setHookEnabled } from '@store/hook-writer.js';
+import { setHookEnabled } from '@store/hook-writer.js';
 import {
+  defaultHookRegistryDirs,
   hookProcessOptions,
   loadMountedHooks,
   summarizeMountedHook,
+  type HookRegistryDirs,
   type MountedHook,
   type RegistryHook,
 } from '@store/hook-registry.js';
@@ -28,8 +29,8 @@ type HookCommand = typeof COMMANDS[number];
 export type AskPostFn = (url: string, body: unknown, headers: Record<string, string>) => Promise<{ status: number; body: any }>;
 
 export interface HookCliOptions {
-  registryDir?: string;
-  hooksDir?: string;
+  registryDirs?: HookRegistryDirs;
+  scriptDirs?: HookScriptDirs;
   askPost?: AskPostFn;
 }
 
@@ -199,8 +200,8 @@ function cliFailure(message: string, validValues?: string[], hint?: string): Err
 
 function defaults(options: HookCliOptions): Required<HookCliOptions> {
   return {
-    registryDir: options.registryDir ?? path.join(CONFIG_DIR, 'hooks'),
-    hooksDir: options.hooksDir ?? HOOKS_DIR,
+    registryDirs: options.registryDirs ?? defaultHookRegistryDirs(),
+    scriptDirs: options.scriptDirs ?? defaultHookScriptDirs(),
     askPost: options.askPost ?? defaultAskPost,
   };
 }
@@ -273,11 +274,6 @@ function showHook(hook: MountedHook): Record<string, unknown> {
   return { ...hook.entry, enabled: hook.enabled, source: hook.source };
 }
 
-function managedWarnings(hook: RegistryHook, enabled: boolean): string[] | undefined {
-  if (hook.source !== 'managed' || enabled) return undefined;
-  return [MANAGED_RESYNC_WARNING];
-}
-
 function statePayload(
   hook: RegistryHook,
   enabled: boolean,
@@ -294,8 +290,6 @@ function statePayload(
     timestamp: new Date().toISOString(),
   };
   if (dryRun) payload.would_set = { enabled };
-  const warnings = managedWarnings(hook, enabled);
-  if (warnings) payload.warnings = warnings;
   return payload;
 }
 
@@ -307,7 +301,7 @@ function handleState(context: HandlerContext, enabled: boolean): CliResult {
   if (context.parsed.dryRun) {
     return success(statePayload(hook, enabled, hook.enabled !== enabled, true));
   }
-  const { changed } = setHookEnabled(context.options.registryDir, hook.id, enabled);
+  const { changed } = setHookEnabled(context.options.registryDirs, hook.id, enabled);
   return success(statePayload(hook, enabled, changed, false));
 }
 
@@ -327,7 +321,7 @@ function readPayload(payload: string): string {
 async function handleTest(context: HandlerContext): Promise<CliResult> {
   const hook = findHook(context.parsed.id!, context.hooks);
   const payload = readPayload(context.parsed.payload!);
-  const result = await runHookProcess(hookProcessOptions(hook, context.options.hooksDir, payload));
+  const result = await runHookProcess(hookProcessOptions(hook, context.options.scriptDirs, payload));
   const output: Record<string, unknown> = {
     ok: result.exitCode === 0 && !result.error,
     id: hook.id,
@@ -457,7 +451,7 @@ export async function runHookCli(
       return { exitCode: 0, stdout: formatHelp(spec), stderr: '' };
     }
     const options = defaults(cliOptions);
-    const hooks = loadMountedHooks(options.registryDir);
+    const hooks = loadMountedHooks(options.registryDirs);
     return await dispatch({ parsed, hooks, options });
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error));

@@ -1,8 +1,7 @@
-import * as path from 'node:path';
 import type { HookEntry } from '../store/hook-registry.js';
 import { runHookProcess } from './hook-exec.js';
+import { defaultHookScriptDirs, hookScriptArgs, type HookScriptDirs } from './hook-scripts.js';
 import { createLogger } from './log.js';
-import { HOOKS_DIR } from './paths.js';
 
 export type HookSpec = {
   id: string;
@@ -24,7 +23,7 @@ const DEFAULT_REGISTRY_TIMEOUT_MS = 30_000;
 const log = createLogger('hook-bus');
 
 let registryEntries: readonly HookEntry[] = [];
-let hooksDirectory = HOOKS_DIR;
+let scriptDirs: HookScriptDirs | null = null;
 
 function isObjectMatcher(
   value: HookEntry['matcher'],
@@ -44,13 +43,13 @@ function matchesPayload(
 }
 
 function registryHook(entry: HookEntry, defaultTimeoutMs: number): HookSpec {
-  const scriptPath = entry.run.script === undefined
+  const args = entry.run.script === undefined
     ? undefined
-    : path.join(hooksDirectory, entry.run.script);
+    : hookScriptArgs(entry.run.script, scriptDirs ?? defaultHookScriptDirs());
   return {
     id: entry.id,
-    command: scriptPath === undefined ? entry.run.command : 'node',
-    args: scriptPath === undefined ? undefined : [scriptPath],
+    command: args === undefined ? entry.run.command : 'node',
+    args,
     timeoutMs: entry.run.timeout === undefined
       ? defaultTimeoutMs
       : entry.run.timeout * 1_000,
@@ -115,10 +114,11 @@ async function executeHook(
 
 export function initHookBus(opts: {
   entries: readonly HookEntry[];
-  hooksDir?: string;
+  /** Test seam; production resolves scripts through the user and shipped hooks dirs. */
+  scriptDirs?: HookScriptDirs;
 }): void {
   registryEntries = [...opts.entries];
-  hooksDirectory = opts.hooksDir ?? HOOKS_DIR;
+  scriptDirs = opts.scriptDirs ?? null;
 }
 
 function serializePayload(payload: Record<string, unknown>): string {

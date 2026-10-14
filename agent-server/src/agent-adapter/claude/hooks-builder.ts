@@ -1,6 +1,6 @@
-import * as path from 'path';
+import { hookScriptArgs } from '../../core/hook-scripts.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry, type HookRun } from '../../store/hook-registry.js';
-import { DEFAULT_TOOLS, HOOKS_DIR } from './defaults.js';
+import { DEFAULT_TOOLS } from './defaults.js';
 
 interface ClaudeCommandHook {
   type: 'command';
@@ -33,7 +33,7 @@ export function claudeEventName(event: HookEntry['event']): string | null {
 
 function commandHook(run: HookRun): ClaudeCommandHook {
   const command = run.script !== undefined
-    ? `node ${path.join(HOOKS_DIR, run.script)}`
+    ? `node ${hookScriptArgs(run.script).join(' ')}`
     : run.command;
   const hook: ClaudeCommandHook = { type: 'command', command };
   if (run.timeout !== undefined) hook.timeout = run.timeout;

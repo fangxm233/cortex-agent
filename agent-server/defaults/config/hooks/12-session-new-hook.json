@@ -6,6 +6,5 @@
     "timeout": 60
   },
   "result": "stdout-as-prompt",
-  "enabled": true,
-  "version": "2026.7.29"
+  "enabled": true
 }

@@ -1,7 +1,8 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
-import { loadMountedHooks, type MountedHook } from '@store/hook-registry.js';
+import { listLayeredFiles } from '@core/builtin-layer.js';
+import { defaultHookScriptDirs, resolveHookScript, type HookScriptDirs } from '@core/hook-scripts.js';
+import { defaultHookRegistryDirs, loadMountedHooks, type HookRegistryDirs, type MountedHook } from '@store/hook-registry.js';
+import { existsSync } from 'node:fs';
 import { hookAppliesAt, hookMountTargets, legalResultModes } from '@domain/hooks/hook-view.js';
 import type {
   UiServiceDeps,
@@ -32,13 +33,13 @@ function scopeInfo(hook: MountedHook): HookScopeInfo | null {
 }
 
 /** Present only when the declaration names a script we can resolve on disk. */
-function scriptExists(hook: MountedHook, scriptsDir: string): boolean | null {
+function scriptExists(hook: MountedHook, scriptDirs: HookScriptDirs): boolean | null {
   const script = hook.entry.run.script;
   if (script === undefined) return null;
-  return fs.existsSync(path.join(scriptsDir, script));
+  return existsSync(resolveHookScript(script, scriptDirs).path);
 }
 
-function toDetail(hook: MountedHook, order: number, scriptsDir: string): HookDetail {
+function toDetail(hook: MountedHook, order: number, scriptDirs: HookScriptDirs): HookDetail {
   const matcher = hook.entry.matcher;
   return {
     id: hook.id,
@@ -51,13 +52,14 @@ function toDetail(hook: MountedHook, order: number, scriptsDir: string): HookDet
     result: hook.entry.result ?? null,
     enabled: hook.enabled,
     source: hook.source,
+    overridden: hook.overridden,
     version: hook.entry.version ?? null,
     fileName: path.basename(hook.filePath),
     order,
     mountsOn: hookMountTargets(hook.entry),
     legalResults: legalResultModes(hook.event),
     appliesAt: hookAppliesAt(hook.event),
-    scriptExists: scriptExists(hook, scriptsDir),
+    scriptExists: scriptExists(hook, scriptDirs),
     editable: hook.source === 'user',
     template: null,
     phase: null,
@@ -80,16 +82,12 @@ function referencesScript(hook: HookDetail, name: string): boolean {
     .some((token) => path.posix.basename(token.replace(/['"]/g, '')) === name);
 }
 
-function listScripts(scriptsDir: string, hooks: HookDetail[]): HookScriptInfo[] {
-  let names: string[];
-  try {
-    names = fs.readdirSync(scriptsDir).filter((file) => file.endsWith('.mjs')).sort();
-  } catch {
-    return [];
-  }
-  return names.map((name) => ({
-    name,
-    usedBy: hooks.filter((hook) => referencesScript(hook, name)).map((hook) => hook.id),
+/** The scripts of both layers: shipped, the user's copies of shipped ones, and the user's own. */
+function listScripts(scriptDirs: HookScriptDirs, hooks: HookDetail[]): HookScriptInfo[] {
+  return listLayeredFiles(scriptDirs.builtin, scriptDirs.user, '.mjs').map((file) => ({
+    name: file.name,
+    usedBy: hooks.filter((hook) => referencesScript(hook, file.name)).map((hook) => hook.id),
+    origin: file.origin,
   }));
 }
 
@@ -97,16 +95,16 @@ function listScripts(scriptsDir: string, hooks: HookDetail[]): HookScriptInfo[] 
  * Build the hooks overview from explicit directories. Pure over its arguments (no global paths) so
  * it is hermetically testable against fixtures, mirroring `readConfigSnapshot`.
  */
-export function readHooksOverview(registryDir: string, scriptsDir: string): HooksOverview {
-  const hooks = loadMountedHooks(registryDir).map((hook, index) =>
-    toDetail(hook, index, scriptsDir),
+export function readHooksOverview(registryDirs: HookRegistryDirs, scriptDirs: HookScriptDirs): HooksOverview {
+  const hooks = loadMountedHooks(registryDirs).map((hook, index) =>
+    toDetail(hook, index, scriptDirs),
   );
-  return { hooks, scripts: listScripts(scriptsDir, hooks), hooksDir: scriptsDir };
+  return { hooks, scripts: listScripts(scriptDirs, hooks), hooksDir: scriptDirs.user };
 }
 
 export async function handleHooksList(
   _deps: UiServiceDeps,
   _params: QueryParams<'hooks.list'>,
 ): Promise<HooksOverview> {
-  return readHooksOverview(path.join(CONFIG_DIR, 'hooks'), HOOKS_DIR);
+  return readHooksOverview(defaultHookRegistryDirs(), defaultHookScriptDirs());
 }

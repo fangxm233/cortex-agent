@@ -1,7 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { builtinLayerEnabled } from '../core/builtin-layer.js';
 import type { HookProcessOptions } from '../core/hook-exec.js';
-import { CONFIG_DIR } from '../core/paths.js';
+import { hookScriptArgs, type HookScriptDirs } from '../core/hook-scripts.js';
+import { CONFIG_DIR, DEFAULTS_DIR } from '../core/paths.js';
 
 export type HookBackend = 'claude' | 'pi';
 export type AgentHookEvent =
@@ -44,13 +46,41 @@ export interface HookFilterCriteria {
   availableTools?: ReadonlySet<string>;
 }
 
-export const HOOK_SOURCES = ['managed', 'user'] as const;
+/** `builtin`: shipped with Cortex (possibly with a user override); `user`: the user's own entry. */
+export const HOOK_SOURCES = ['builtin', 'user'] as const;
 export type HookSource = typeof HOOK_SOURCES[number];
 
-export interface HookRegistryRecord {
+/** The shipped registrations, read in place. */
+export const BUILTIN_HOOK_REGISTRY_DIR = path.join(DEFAULTS_DIR, 'config', 'hooks');
+
+export interface HookRegistryDirs {
+  /** The user's registrations. A file named like a built-in is a partial override merged over it. */
+  user: string;
+  /** The shipped registrations; null in a sealed home, which mounts only its own entries. */
+  builtin: string | null;
+}
+
+export function defaultHookRegistryDirs(): HookRegistryDirs {
+  return { user: path.join(CONFIG_DIR, 'hooks'), builtin: builtinLayerEnabled() ? BUILTIN_HOOK_REGISTRY_DIR : null };
+}
+
+export interface BuiltinHookLayer {
+  /** The shipped entry as it ships. */
   entry: HookEntry;
+  /** Where the user's override of it lives (present or not). */
+  overridePath: string;
+  /** The override's fields, or null when there is none. */
+  override: Record<string, unknown> | null;
+}
+
+export interface HookRegistryRecord {
+  /** The entry in effect: the user's own, or the shipped one with the override merged over it. */
+  entry: HookEntry;
+  /** The file in effect: the user's file when there is one, otherwise the shipped file. */
   filePath: string;
   source: HookSource;
+  /** Present for a built-in entry. */
+  builtin?: BuiltinHookLayer;
 }
 
 export interface MountedHookSummary {
@@ -58,6 +88,8 @@ export interface MountedHookSummary {
   event: HookEntry['event'];
   enabled: boolean;
   source: HookSource;
+  /** A built-in entry the user has changed (today: switched off or on). */
+  overridden: boolean;
 }
 
 export interface RegistryHook extends MountedHookSummary {
@@ -89,12 +121,6 @@ export const RESULT_CAPABILITY_BY_EVENT: ReadonlyMap<
   ['cortex:session.new', 'stdout-as-prompt'],
   ['cortex:session.messageEnd', 'stdout-as-prompt'],
 ]);
-
-export function classifyHookSource(entry: { version?: unknown }): HookSource {
-  return typeof entry.version === 'string' && CALVER_RE.test(entry.version)
-    ? 'managed'
-    : 'user';
-}
 
 function asObject(value: unknown, field: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -234,29 +260,64 @@ function reportInvalid(source: string, error: unknown): void {
   console.error(`[hook-registry] skipped ${source}: ${message}`);
 }
 
-function registryFiles(directory: string): string[] | null {
+function registryFiles(directory: string | null): Set<string> {
+  if (!directory) return new Set();
   try {
-    return fs.readdirSync(directory).filter((file) => file.endsWith('.json')).sort();
+    return new Set(fs.readdirSync(directory).filter((file) => file.endsWith('.json')));
   } catch (error) {
-    reportInvalid(directory, error);
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') reportInvalid(directory, error);
+    return new Set();
+  }
+}
+
+function readObject(filePath: string): Record<string, unknown> {
+  return asObject(JSON.parse(fs.readFileSync(filePath, 'utf8')), 'hook entry');
+}
+
+/** The user's partial for a built-in, or null when it is absent or unreadable (reported). */
+function readOverride(filePath: string, present: boolean): Record<string, unknown> | null {
+  if (!present) return null;
+  try {
+    return readObject(filePath);
+  } catch (error) {
+    reportInvalid(path.basename(filePath), error);
     return null;
   }
 }
 
-export function loadHookRegistryRecords(
-  directory = path.join(CONFIG_DIR, 'hooks'),
-): HookRegistryRecord[] {
-  const files = registryFiles(directory);
-  if (!files) return [];
+/** A shipped entry with the user's partial laid over it. The id stays the shipped one. */
+function builtinRecord(file: string, dirs: HookRegistryDirs, hasOverride: boolean): HookRegistryRecord {
+  const shippedPath = path.join(dirs.builtin!, file);
+  const shipped = validateHookEntry(readObject(shippedPath));
+  const overridePath = path.join(dirs.user, file);
+  const override = readOverride(overridePath, hasOverride);
+  const entry = override ? validateHookEntry({ ...shipped, ...override, id: shipped.id }) : shipped;
+  return {
+    entry,
+    filePath: override ? overridePath : shippedPath,
+    source: 'builtin',
+    builtin: { entry: shipped, overridePath, override },
+  };
+}
+
+function userRecord(file: string, dirs: HookRegistryDirs): HookRegistryRecord {
+  const filePath = path.join(dirs.user, file);
+  return { entry: validateHookEntry(readObject(filePath)), filePath, source: 'user' };
+}
+
+/** Every registration, shipped and the user's, in file-name order. A user file named like a shipped
+ *  one is merged over it (`{ "enabled": false }` switches a built-in off); other user files add. */
+export function loadHookRegistryRecords(dirs: HookRegistryDirs = defaultHookRegistryDirs()): HookRegistryRecord[] {
+  const shipped = registryFiles(dirs.builtin);
+  const user = registryFiles(dirs.user);
   const records: HookRegistryRecord[] = [];
   const ids = new Set<string>();
-  for (const file of files) {
+  for (const file of [...new Set([...shipped, ...user])].sort()) {
     try {
-      const filePath = path.join(directory, file);
-      const entry = validateHookEntry(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-      if (ids.has(entry.id)) throw new Error(`duplicate hook id "${entry.id}"`);
-      ids.add(entry.id);
-      records.push({ entry, filePath, source: classifyHookSource(entry) });
+      const record = shipped.has(file) ? builtinRecord(file, dirs, user.has(file)) : userRecord(file, dirs);
+      if (ids.has(record.entry.id)) throw new Error(`duplicate hook id "${record.entry.id}"`);
+      ids.add(record.entry.id);
+      records.push(record);
     } catch (error) {
       reportInvalid(file, error);
     }
@@ -264,10 +325,8 @@ export function loadHookRegistryRecords(
   return records;
 }
 
-export function loadHookRegistry(
-  directory = path.join(CONFIG_DIR, 'hooks'),
-): HookEntry[] {
-  return loadHookRegistryRecords(directory).map((record) => record.entry);
+export function loadHookRegistry(dirs: HookRegistryDirs = defaultHookRegistryDirs()): HookEntry[] {
+  return loadHookRegistryRecords(dirs).map((record) => record.entry);
 }
 
 function registryHook(record: HookRegistryRecord): RegistryHook {
@@ -277,27 +336,22 @@ function registryHook(record: HookRegistryRecord): RegistryHook {
     event: record.entry.event,
     enabled: record.entry.enabled !== false,
     source: record.source,
+    overridden: record.builtin?.override != null,
     entry: record.entry,
     filePath: record.filePath,
   };
 }
 
-function optionalObject(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-export function loadMountedHooks(registryDir = path.join(CONFIG_DIR, 'hooks')): MountedHook[] {
-  return loadHookRegistryRecords(registryDir).map(registryHook);
+export function loadMountedHooks(dirs: HookRegistryDirs = defaultHookRegistryDirs()): MountedHook[] {
+  return loadHookRegistryRecords(dirs).map(registryHook);
 }
 
 export function summarizeMountedHook(hook: MountedHook): MountedHookSummary {
-  return { id: hook.id, event: hook.event, enabled: hook.enabled, source: hook.source };
+  return { id: hook.id, event: hook.event, enabled: hook.enabled, source: hook.source, overridden: hook.overridden };
 }
 
-export function loadMountedHookSummaries(registryDir = path.join(CONFIG_DIR, 'hooks')): MountedHookSummary[] {
-  return loadMountedHooks(registryDir).map(summarizeMountedHook);
+export function loadMountedHookSummaries(dirs: HookRegistryDirs = defaultHookRegistryDirs()): MountedHookSummary[] {
+  return loadMountedHooks(dirs).map(summarizeMountedHook);
 }
 
 function shellQuote(value: string): string {
@@ -310,14 +364,14 @@ function shellQuote(value: string): string {
  */
 export function hookProcessOptions(
   hook: MountedHook,
-  hooksDir: string,
+  scriptDirs: HookScriptDirs,
   stdinPayload: string,
   maxTimeoutMs = Infinity,
 ): HookProcessOptions {
   const run = hook.entry.run;
   const command = run.script === undefined
     ? run.command
-    : `node ${shellQuote(path.join(hooksDir, run.script))}`;
+    : `node ${hookScriptArgs(run.script, scriptDirs).map(shellQuote).join(' ')}`;
   return {
     command,
     timeoutMs: Math.min((run.timeout ?? 30) * 1_000, maxTimeoutMs),

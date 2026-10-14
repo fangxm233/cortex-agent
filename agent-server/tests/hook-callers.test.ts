@@ -16,6 +16,10 @@ import {
   type SessionHookSpec,
 } from '../src/domain/sessions/session-hooks.js';
 import { loadHookRegistry, type HookEntry } from '../src/store/hook-registry.js';
+
+// These tests own the whole registry: keep the shipped registrations (which subscribe to
+// cortex:session.new) out, as a sealed home does.
+process.env.CORTEX_CONFIG_IMMUTABLE = '1';
 interface RecordingStream extends OutputStream {
   texts: string[];
   flushCount: number;
@@ -37,7 +41,10 @@ function writeSessionHooks(
   for (const [file, source] of Object.entries(scripts)) {
     writeFileSync(path.join(HOOKS_DIR, file), source);
   }
-  hookBus.initHookBus({ entries: loadHookRegistry(registryDir), hooksDir: HOOKS_DIR });
+  hookBus.initHookBus({
+    entries: loadHookRegistry({ user: registryDir, builtin: null }),
+    scriptDirs: { user: HOOKS_DIR, builtin: null },
+  });
 }
 
 function messageEndEntry(command: string): HookEntry {

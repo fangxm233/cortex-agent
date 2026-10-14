@@ -9,9 +9,16 @@ import {
   loadHookRegistry,
   loadHookRegistryRecords,
   loadMountedHookSummaries,
+  BUILTIN_HOOK_REGISTRY_DIR,
   validateHookEntry,
   type HookEntry,
+  type HookRegistryDirs,
 } from '../../src/store/hook-registry.js';
+
+/** The user registry alone, without the shipped layer. */
+function only(user: string): HookRegistryDirs {
+  return { user, builtin: null };
+}
 
 function makeRegistry(t: { onTestFinished(callback: () => void): void }): string {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-registry-'));
@@ -38,34 +45,61 @@ test('loads a valid hook entry synchronously with every schema field', (t) => {
   };
   writeEntry(directory, 'approval.json', entry);
 
-  assert.deepEqual(loadHookRegistry(directory), [entry]);
+  assert.deepEqual(loadHookRegistry(only(directory)), [entry]);
 });
 
-test('loads source-aware records with the owning registry file path', (t) => {
-  const directory = makeRegistry(t);
-  const entry = { ...VALID_SCHEMA_ENTRY, version: '2026.7.29' };
-  const filePath = path.join(directory, 'managed.json');
-  writeEntry(directory, 'managed.json', entry);
-
-  assert.deepEqual(loadHookRegistryRecords(directory), [
-    { entry, filePath, source: 'managed' },
-  ]);
-  assert.deepEqual(loadHookRegistry(directory), [entry]);
-});
-
-test('summarizes registry declarations through the mounted-hook loader', (t) => {
+test('a shipped entry loads in place and a user file of the same name is merged over it', (t) => {
   const root = makeRegistry(t);
-  const registryDir = path.join(root, 'hooks');
-  fs.mkdirSync(registryDir);
-  writeEntry(registryDir, '01-managed.json', {
-    ...VALID_SCHEMA_ENTRY, id: 'managed', enabled: false, version: '2026.7.29',
-  });
-  writeEntry(registryDir, '02-user.json', { ...VALID_SCHEMA_ENTRY, id: 'user' });
+  const builtin = path.join(root, 'shipped');
+  const user = path.join(root, 'user');
+  fs.mkdirSync(builtin);
+  fs.mkdirSync(user);
+  const shipped = { ...VALID_SCHEMA_ENTRY, id: 'shipped', enabled: true };
+  writeEntry(builtin, '01-shipped.json', shipped);
+  writeEntry(builtin, '02-other.json', { ...VALID_SCHEMA_ENTRY, id: 'other' });
+  writeEntry(user, '50-mine.json', { ...VALID_SCHEMA_ENTRY, id: 'mine' });
 
-  assert.deepEqual(loadMountedHookSummaries(registryDir), [
-    { id: 'managed', event: 'agent:pre-tool', enabled: false, source: 'managed' },
-    { id: 'user', event: 'agent:pre-tool', enabled: true, source: 'user' },
+  const plain = loadHookRegistryRecords({ user, builtin });
+  assert.deepEqual(plain.map((record) => [record.entry.id, record.source]), [
+    ['shipped', 'builtin'], ['other', 'builtin'], ['mine', 'user'],
   ]);
+  assert.equal(plain[0].filePath, path.join(builtin, '01-shipped.json'));
+  assert.equal(plain[0].builtin?.override, null);
+
+  writeEntry(user, '01-shipped.json', { enabled: false, id: 'renamed' });
+  const [overridden] = loadHookRegistryRecords({ user, builtin });
+  assert.deepEqual(overridden.entry, { ...shipped, enabled: false });
+  assert.equal(overridden.filePath, path.join(user, '01-shipped.json'));
+  assert.deepEqual(overridden.builtin?.entry, shipped);
+
+  assert.deepEqual(loadMountedHookSummaries({ user, builtin }), [
+    { id: 'shipped', event: 'agent:pre-tool', enabled: false, source: 'builtin', overridden: true },
+    { id: 'other', event: 'agent:pre-tool', enabled: true, source: 'builtin', overridden: false },
+    { id: 'mine', event: 'agent:pre-tool', enabled: true, source: 'user', overridden: false },
+  ]);
+  assert.deepEqual(loadHookRegistry({ user, builtin: null }).map((entry) => entry.id), ['mine']);
+});
+
+test('an unreadable override is reported and the shipped entry stays mounted', (t) => {
+  const root = makeRegistry(t);
+  const builtin = path.join(root, 'shipped');
+  const user = path.join(root, 'user');
+  fs.mkdirSync(builtin);
+  fs.mkdirSync(user);
+  writeEntry(builtin, '01-shipped.json', { ...VALID_SCHEMA_ENTRY, id: 'shipped' });
+  fs.writeFileSync(path.join(user, '01-shipped.json'), '{bad json');
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  t.onTestFinished(() => error.mockRestore());
+
+  assert.deepEqual(loadHookRegistry({ user, builtin }).map((entry) => entry.id), ['shipped']);
+  assert.match(error.mock.calls.flat().join('\n'), /01-shipped\.json/);
+});
+
+test('the shipped registrations load from an empty home', () => {
+  const ids = loadHookRegistry({ user: path.join(os.tmpdir(), 'no-such-hooks-dir'), builtin: BUILTIN_HOOK_REGISTRY_DIR })
+    .map((entry) => entry.id);
+  assert.ok(ids.includes('rules-loader'));
+  assert.ok(ids.includes('status-md-guard'));
 });
 
 const VALID_SCHEMA_ENTRY = {
@@ -110,7 +144,7 @@ test('skips invalid entries with loud errors and continues loading', (t) => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(directory), [valid]);
+  assert.deepEqual(loadHookRegistry(only(directory)), [valid]);
   assert.equal(error.mock.calls.length, 4);
   assert.match(error.mock.calls.flat().join('\n'), /02-namespace\.json/);
   assert.match(error.mock.calls.flat().join('\n'), /05-malformed\.json/);
@@ -166,7 +200,7 @@ test('skips invalid result combinations with loud errors and keeps valid combina
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(directory).map((entry) => entry.id), ['thread', 'session', 'none']);
+  assert.deepEqual(loadHookRegistry(only(directory)).map((entry) => entry.id), ['thread', 'session', 'none']);
   assert.equal(error.mock.calls.length, 3);
   const messages = error.mock.calls.flat().join('\n');
   assert.match(messages, /04-invalid-thread\.json.*stdout-as-prompt.*cortex:thread\.end/);
@@ -185,7 +219,7 @@ test('validates optional matcher shape by event namespace', (t) => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(directory).map((entry) => entry.id), ['agent-all', 'cortex-filter']);
+  assert.deepEqual(loadHookRegistry(only(directory)).map((entry) => entry.id), ['agent-all', 'cortex-filter']);
   const messages = error.mock.calls.flat().join('\n');
   assert.match(messages, /agent-object.*matcher must be a string/);
   assert.match(messages, /cortex-string.*matcher must be an object/);
@@ -197,9 +231,8 @@ test('returns an empty registry instead of throwing when the directory is missin
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(directory), []);
-  assert.equal(error.mock.calls.length, 1);
-  assert.match(error.mock.calls[0]?.join(' ') ?? '', /hook-registry/);
+  assert.deepEqual(loadHookRegistry(only(directory)), []);
+  assert.equal(error.mock.calls.length, 0, 'an absent user registry is the normal case');
 });
 
 test('keeps the first lexical entry when hook ids are duplicated', (t) => {
@@ -211,7 +244,7 @@ test('keeps the first lexical entry when hook ids are duplicated', (t) => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(directory), [first]);
+  assert.deepEqual(loadHookRegistry(only(directory)), [first]);
   assert.match(error.mock.calls.flat().join('\n'), /duplicate hook id "same-id"/);
 });
 

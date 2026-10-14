@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.6
 
 async function main() {
   // Drain stdin; the hook payload is not needed.

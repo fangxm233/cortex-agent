@@ -6,6 +6,5 @@
     "script": "status-md-guard.mjs",
     "timeout": 10
   },
-  "enabled": true,
-  "version": "2026.8.2"
+  "enabled": true
 }

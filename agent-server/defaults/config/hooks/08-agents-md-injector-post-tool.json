@@ -5,6 +5,5 @@
   "run": {
     "script": "agents-md-injector.mjs"
   },
-  "enabled": true,
-  "version": "2026.9.15"
+  "enabled": true
 }

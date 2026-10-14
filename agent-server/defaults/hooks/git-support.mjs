@@ -1,4 +1,3 @@
-// @cortex-hook-version 2026.10.6
 
 import { existsSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';

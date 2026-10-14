@@ -1355,9 +1355,9 @@ const RETIRED_HOOK_ENTRIES: readonly RetiredHook[] = [
   { file: '04-exit-plan-mode-hook.json', id: 'exit-plan-mode-hook', script: 'exit-plan-mode-hook.mjs' },
   // Ran an inline `run.command`, so there is no script to chase.
   { file: '09-permission-request-auto-allow.json', id: 'permission-request-auto-allow' },
-  // Renamed, not deleted: the same hook now ships as `agents-md-injector` under 08/10. Sync only
-  // ever adds and upgrades, so without these two rows an upgraded install would run the old
-  // CORTEX.md-named copy alongside the new one and inject every rule file twice.
+  // Renamed, not deleted: the same hook now ships as `agents-md-injector` under 08/10. Without these
+  // two rows an upgraded install would run the old CORTEX.md-named copy alongside the new one and
+  // inject every rule file twice.
   { file: '08-cortex-md-injector-post-tool.json', id: 'cortex-md-injector-post-tool', script: 'cortex-md-injector.mjs' },
   { file: '10-cortex-md-injector-session-start.json', id: 'cortex-md-injector-session-start', script: 'cortex-md-injector.mjs' },
   // The task queue they guarded and reported on was removed.
@@ -1416,8 +1416,9 @@ async function isRetiredScriptOrphaned(registryDir: string, script: string): Pro
  * spawn runs in. The next two are a rename: the CORTEX.md injector became the AGENTS.md injector
  * under new filenames, and leaving the old pair deployed would double every injection. The last
  * two served the task queue, which no longer exists.
- * `syncManagedHooks` only adds and upgrades files, so without this the dead entries would linger
- * in every upgraded registry. Idempotent, and a no-op once the files are gone.
+ * Older releases copied shipped hooks into the home and only ever added or upgraded them, so without
+ * this the dead entries would linger in every upgraded registry. Idempotent, and a no-op once the
+ * files are gone.
  *
  * Entries go first and scripts second: two entries can share one script, so a script is only
  * orphaned once every entry that ran it is gone.

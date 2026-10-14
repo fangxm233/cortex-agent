@@ -6,11 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'vitest';
 
 import { runHookCli, type HookCliOptions } from '../../src/entry/hook-cli.js';
-import { syncManagedHookEntries } from '../../src/store/hook-sync.js';
-
 interface Fixture {
   root: string;
   registryDir: string;
+  builtinRegistryDir: string;
   hooksDir: string;
   options: HookCliOptions;
 }
@@ -18,12 +17,20 @@ interface Fixture {
 function makeFixture(t: { onTestFinished(callback: () => void): void }): Fixture {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-cli-'));
   const registryDir = path.join(root, 'config', 'hooks');
+  const builtinRegistryDir = path.join(root, 'defaults', 'config', 'hooks');
   const hooksDir = path.join(root, 'hooks');
-  for (const directory of [registryDir, hooksDir]) {
+  const builtinHooksDir = path.join(root, 'defaults', 'hooks');
+  for (const directory of [registryDir, builtinRegistryDir, hooksDir, builtinHooksDir]) {
     fs.mkdirSync(directory, { recursive: true });
   }
   t.onTestFinished(() => fs.rmSync(root, { recursive: true, force: true }));
-  return { root, registryDir, hooksDir, options: { registryDir, hooksDir } };
+  return {
+    root, registryDir, builtinRegistryDir, hooksDir,
+    options: {
+      registryDirs: { user: registryDir, builtin: builtinRegistryDir },
+      scriptDirs: { user: hooksDir, builtin: builtinHooksDir },
+    },
+  };
 }
 
 function writeJson(directory: string, filename: string, value: unknown): void {
@@ -42,8 +49,8 @@ function registryEntry(id: string, extra: Record<string, unknown> = {}): Record<
 }
 
 function seedMountedHooks(fixture: Fixture): void {
-  writeJson(fixture.registryDir, '01-managed.json', registryEntry('managed', {
-    blocking: { mode: 'webhook', ttlMin: 17 }, version: '2026.7.30',
+  writeJson(fixture.builtinRegistryDir, '01-shipped.json', registryEntry('shipped', {
+    blocking: { mode: 'webhook', ttlMin: 17 },
   }));
   writeJson(fixture.registryDir, '02-user.json', registryEntry('user'));
   writeJson(fixture.registryDir, '03-disabled.json', registryEntry('disabled', { enabled: false }));
@@ -80,9 +87,9 @@ test('list reports every registry hook with source and state', async (t) => {
   assert.deepEqual(parseOutput(result), {
     ok: true,
     hooks: [
-      { id: 'managed', event: 'agent:pre-tool', enabled: true, source: 'managed' },
-      { id: 'user', event: 'agent:pre-tool', enabled: true, source: 'user' },
-      { id: 'disabled', event: 'agent:pre-tool', enabled: false, source: 'user' },
+      { id: 'shipped', event: 'agent:pre-tool', enabled: true, source: 'builtin', overridden: false },
+      { id: 'user', event: 'agent:pre-tool', enabled: true, source: 'user', overridden: false },
+      { id: 'disabled', event: 'agent:pre-tool', enabled: false, source: 'user', overridden: false },
     ],
   });
 });
@@ -91,11 +98,10 @@ test('show returns the full registry declaration', async (t) => {
   const fixture = makeFixture(t);
   seedMountedHooks(fixture);
 
-  const managed = parseOutput(await runHookCli(['show', '--id', 'managed'], fixture.options));
-  assert.equal(managed.hook.source, 'managed');
-  assert.equal(managed.hook.version, '2026.7.30');
-  assert.deepEqual(managed.hook.run, { command: 'true', timeout: 1 });
-  assert.deepEqual(managed.hook.blocking, { mode: 'webhook', ttlMin: 17 });
+  const shipped = parseOutput(await runHookCli(['show', '--id', 'shipped'], fixture.options));
+  assert.equal(shipped.hook.source, 'builtin');
+  assert.deepEqual(shipped.hook.run, { command: 'true', timeout: 1 });
+  assert.deepEqual(shipped.hook.blocking, { mode: 'webhook', ttlMin: 17 });
 });
 
 test('disable and enable are atomic idempotent transitions', async (t) => {
@@ -135,20 +141,20 @@ test('dry-run validates and previews without writing', async (t) => {
   assert.equal(fs.readFileSync(file, 'utf8'), before);
 });
 
-test('managed disable warns that a newer sync restores shipped state', async (t) => {
+test('disabling a built-in writes a partial override; enabling it removes the override', async (t) => {
   const fixture = makeFixture(t);
   seedMountedHooks(fixture);
-  const output = parseOutput(await runHookCli(['disable', '--id', 'managed'], fixture.options));
-  assert.match(output.warnings[0], /managed.*sync.*restore/i);
+  const override = path.join(fixture.registryDir, '01-shipped.json');
 
-  const source = path.join(fixture.root, 'defaults');
-  fs.mkdirSync(source);
-  writeJson(source, '01-managed.json', registryEntry('managed', { version: '2026.7.31' }));
-  assert.deepEqual(await syncManagedHookEntries({ srcDir: source, dstDir: fixture.registryDir }), [
-    '01-managed.json',
-  ]);
-  const deployed = JSON.parse(fs.readFileSync(path.join(fixture.registryDir, '01-managed.json'), 'utf8'));
-  assert.equal(deployed.enabled, true);
+  const output = parseOutput(await runHookCli(['disable', '--id', 'shipped'], fixture.options));
+  assert.equal(output.changed, true);
+  assert.equal(output.warnings, undefined);
+  assert.deepEqual(JSON.parse(fs.readFileSync(override, 'utf8')), { enabled: false });
+  const listed = parseOutput(await runHookCli(['list'], fixture.options)).hooks[0];
+  assert.deepEqual(listed, { id: 'shipped', event: 'agent:pre-tool', enabled: false, source: 'builtin', overridden: true });
+
+  assert.equal(parseOutput(await runHookCli(['enable', '--id', 'shipped'], fixture.options)).changed, true);
+  assert.equal(fs.existsSync(override), false);
 });
 
 test('test executes a registry script with a file payload through the shared runner', async (t) => {

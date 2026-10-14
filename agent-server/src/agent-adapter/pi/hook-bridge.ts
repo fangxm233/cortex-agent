@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { HOOKS_DIR } from '../../core/paths.js';
+import { hookScriptArgs, resolveHookScript } from '../../core/hook-scripts.js';
 import { createLogger } from '../../core/log.js';
 import { fromCanonical } from '../../core/tool-names.js';
 import {
@@ -249,10 +249,11 @@ function declaresRunHook(scriptPath: string): boolean {
   }
 }
 
+/** Cached by the resolved file, so a user copy added later is picked up in place of the built-in. */
 async function resolveInprocHook(script: string): Promise<InprocHook | null> {
-  const cached = inprocHooks.get(script);
+  const scriptPath = resolveHookScript(script).path;
+  const cached = inprocHooks.get(scriptPath);
   if (cached !== undefined) return cached;
-  const scriptPath = path.join(HOOKS_DIR, script);
   let handler: InprocHook | null = null;
   if (declaresRunHook(scriptPath)) {
     try {
@@ -266,7 +267,7 @@ async function resolveInprocHook(script: string): Promise<InprocHook | null> {
       log.warn(`in-process load of ${script} failed; using the spawned form: ${(error as Error).message}`);
     }
   }
-  inprocHooks.set(script, handler);
+  inprocHooks.set(scriptPath, handler);
   return handler;
 }
 
@@ -309,7 +310,7 @@ async function runHookEntry(
         const scriptEnv = hookEnvironment(env, String(payload.session_id ?? 'unknown'));
         return await withHookTimeout(inproc(payload, scriptEnv), timeoutMs, entry.id);
       }
-      return await spawnHook(process.execPath, [path.join(HOOKS_DIR, entry.run.script)], payload, timeoutMs, env);
+      return await spawnHook(process.execPath, hookScriptArgs(entry.run.script), payload, timeoutMs, env);
     }
     return await spawnHook('sh', ['-c', entry.run.command!], payload, timeoutMs, env);
   } catch (error) {

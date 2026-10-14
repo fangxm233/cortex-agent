@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { test } from 'vitest';
 
 import { hookDraftFromArgs } from '../../../src/domain/ui-service/mutate/hooks.js';
@@ -42,16 +45,37 @@ function registryHook(timeout?: number): MountedHook {
     id: 'blocking-hook',
     event: 'agent:pre-tool',
     enabled: true,
-    source: 'managed',
+    source: 'builtin',
+    overridden: false,
     entry: { id: 'blocking-hook', event: 'agent:pre-tool', run: { script: 'ask.mjs', timeout } },
     filePath: '/tmp/x.json',
   } as MountedHook;
 }
 
+const NO_SCRIPTS = { user: '/hooks', builtin: null };
+
 test('clamps a long declared timeout so a blocking hook cannot park the request', () => {
-  assert.equal(hookProcessOptions(registryHook(1800), '/hooks', '{}', 15_000).timeoutMs, 15_000);
+  assert.equal(hookProcessOptions(registryHook(1800), NO_SCRIPTS, '{}', 15_000).timeoutMs, 15_000);
 });
 
 test('resolves a script against the hooks directory with quoting', () => {
-  assert.equal(hookProcessOptions(registryHook(5), '/hooks', '{}', 15_000).command, "node '/hooks/ask.mjs'");
+  assert.equal(hookProcessOptions(registryHook(5), NO_SCRIPTS, '{}', 15_000).command, "node '/hooks/ask.mjs'");
+});
+
+test('a shipped script runs in place; a user copy runs with the helper fallback', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-scripts-'));
+  try {
+    const dirs = { user: path.join(root, 'user'), builtin: path.join(root, 'shipped') };
+    fs.mkdirSync(dirs.user);
+    fs.mkdirSync(dirs.builtin);
+    fs.writeFileSync(path.join(dirs.builtin, 'ask.mjs'), '');
+    assert.equal(hookProcessOptions(registryHook(5), dirs, '{}').command, `node '${path.join(dirs.builtin, 'ask.mjs')}'`);
+
+    fs.writeFileSync(path.join(dirs.user, 'ask.mjs'), '');
+    const command = hookProcessOptions(registryHook(5), dirs, '{}').command!;
+    assert.match(command, /^node '--import' 'file:\/\/[^']*\/hooks\/overlay\/register\.mjs' /);
+    assert.ok(command.endsWith(`'${path.join(dirs.user, 'ask.mjs')}'`));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

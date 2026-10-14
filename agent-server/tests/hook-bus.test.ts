@@ -43,7 +43,7 @@ async function waitForCallCount(expected: number): Promise<void> {
 beforeEach(() => {
   runner.runHookProcess.mockReset();
   runner.runHookProcess.mockResolvedValue({ stdout: '', stderr: '' });
-  initHookBus({ entries: [], hooksDir: '/test/hooks' });
+  initHookBus({ entries: [], scriptDirs: { user: '/test/hooks', builtin: null } });
 });
 
 test('runs only enabled exact-event entries whose matcher is a payload subset', async () => {
@@ -83,7 +83,7 @@ test('runs normalized registry hooks before scoped hooks with correct timeout un
       entry('script', { run: { script: 'script.mjs', timeout: 2 } }),
       entry('default-timeout', { run: { command: 'raw-command' } }),
     ],
-    hooksDir: '/deployed hooks',
+    scriptDirs: { user: '/deployed hooks', builtin: null },
   });
 
   const results = await emitCortexEvent(

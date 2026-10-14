@@ -9,6 +9,8 @@ import { readHooksOverview } from '../../../src/domain/ui-service/query/hooks.js
 interface Dirs {
   registry: string;
   scripts: string;
+  builtinRegistry: string;
+  builtinScripts: string;
 }
 
 function makeDirs(t: { onTestFinished(callback: () => void): void }): Dirs {
@@ -17,9 +19,18 @@ function makeDirs(t: { onTestFinished(callback: () => void): void }): Dirs {
   const dirs = {
     registry: path.join(root, 'hooks'),
     scripts: path.join(root, 'scripts'),
+    builtinRegistry: path.join(root, 'shipped', 'hooks'),
+    builtinScripts: path.join(root, 'shipped', 'scripts'),
   };
   for (const dir of Object.values(dirs)) fs.mkdirSync(dir, { recursive: true });
   return dirs;
+}
+
+function overviewOf(dirs: Dirs) {
+  return readHooksOverview(
+    { user: dirs.registry, builtin: dirs.builtinRegistry },
+    { user: dirs.scripts, builtin: dirs.builtinScripts },
+  );
 }
 
 function writeJson(dir: string, filename: string, body: unknown): void {
@@ -34,8 +45,8 @@ function find(overview: { hooks: { id: string }[] }, id: string): any {
 
 test('maps a registry declaration into the full detail DTO', (t) => {
   const dirs = makeDirs(t);
-  fs.writeFileSync(path.join(dirs.scripts, 'guard.mjs'), '');
-  writeJson(dirs.registry, '01-guard.json', {
+  fs.writeFileSync(path.join(dirs.builtinScripts, 'guard.mjs'), '');
+  writeJson(dirs.builtinRegistry, '01-guard.json', {
     id: 'guard',
     event: 'agent:pre-tool',
     matcher: 'Edit|Write',
@@ -44,14 +55,15 @@ test('maps a registry declaration into the full detail DTO', (t) => {
     version: '2026.7.29',
   });
 
-  const hook = find(readHooksOverview(dirs.registry, dirs.scripts), 'guard');
+  const hook = find(overviewOf(dirs), 'guard');
 
   assert.equal(hook.event, 'agent:pre-tool');
   assert.equal(hook.matcher, 'Edit|Write');
   assert.equal(hook.matcherFilters, null);
   assert.deepEqual(hook.run, { script: 'guard.mjs', command: null, timeoutSec: 10 });
   assert.deepEqual(hook.scope, { backends: ['claude'], requiresTool: 'Edit' });
-  assert.equal(hook.source, 'managed');
+  assert.equal(hook.source, 'builtin');
+  assert.equal(hook.overridden, false);
   assert.equal(hook.version, '2026.7.29');
   assert.equal(hook.fileName, '01-guard.json');
   assert.equal(hook.enabled, true);
@@ -70,7 +82,7 @@ test('an object matcher lands in matcherFilters, not matcher', (t) => {
     run: { command: 'true' },
   });
 
-  const hook = find(readHooksOverview(dirs.registry, dirs.scripts), 'scoped');
+  const hook = find(overviewOf(dirs), 'scoped');
 
   assert.equal(hook.matcher, null);
   assert.deepEqual(hook.matcherFilters, { origin: 'direct' });
@@ -86,14 +98,14 @@ test('flags a declaration whose script is missing from disk', (t) => {
     run: { script: 'not-there.mjs' },
   });
 
-  assert.equal(find(readHooksOverview(dirs.registry, dirs.scripts), 'broken').scriptExists, false);
+  assert.equal(find(overviewOf(dirs), 'broken').scriptExists, false);
 });
 
 test('the retired template fields stay null for clients that still read them', (t) => {
   const dirs = makeDirs(t);
   writeJson(dirs.registry, '50-plain.json', { id: 'plain', event: 'agent:pre-tool', run: { command: 'true' } });
 
-  const hook = find(readHooksOverview(dirs.registry, dirs.scripts), 'plain');
+  const hook = find(overviewOf(dirs), 'plain');
 
   assert.equal(hook.template, null);
   assert.equal(hook.phase, null);
@@ -104,7 +116,7 @@ test('order follows the registry load order, which is the execution order', (t) 
   writeJson(dirs.registry, '02-second.json', { id: 'second', event: 'agent:pre-tool', run: { command: 'true' } });
   writeJson(dirs.registry, '01-first.json', { id: 'first', event: 'agent:pre-tool', run: { command: 'true' } });
 
-  const overview = readHooksOverview(dirs.registry, dirs.scripts);
+  const overview = overviewOf(dirs);
 
   assert.deepEqual(overview.hooks.map((h) => h.id).slice(0, 2), ['first', 'second']);
   assert.equal(find(overview, 'first').order, 0);
@@ -119,9 +131,10 @@ test('lists available scripts with the hooks that reference them', (t) => {
   writeJson(dirs.registry, '50-a.json', { id: 'a', event: 'agent:pre-tool', run: { script: 'used.mjs' } });
   writeJson(dirs.registry, '51-b.json', { id: 'b', event: 'agent:post-tool', run: { script: 'used.mjs' } });
 
-  const { scripts } = readHooksOverview(dirs.registry, dirs.scripts);
+  const { scripts } = overviewOf(dirs);
 
   assert.deepEqual(scripts.map((s) => s.name), ['spare.mjs', 'used.mjs']);
+  assert.deepEqual(scripts.map((s) => s.origin), ['local', 'local']);
   assert.deepEqual(scripts.find((s) => s.name === 'used.mjs')!.usedBy, ['a', 'b']);
   assert.deepEqual(scripts.find((s) => s.name === 'spare.mjs')!.usedBy, []);
 });
@@ -137,7 +150,7 @@ test('a script invoked through a raw command still counts as used', (t) => {
     run: { command: 'node /somewhere/post-task-hook.mjs' },
   });
 
-  const { scripts } = readHooksOverview(dirs.registry, dirs.scripts);
+  const { scripts } = overviewOf(dirs);
 
   assert.deepEqual(scripts[0].usedBy, ['cmd']);
 });
@@ -151,7 +164,7 @@ test('a substring collision does not count as usage', (t) => {
     run: { command: 'node /somewhere/post-task.mjs' },
   });
 
-  const { scripts } = readHooksOverview(dirs.registry, dirs.scripts);
+  const { scripts } = overviewOf(dirs);
 
   assert.deepEqual(scripts[0].usedBy, []);
 });
@@ -159,9 +172,23 @@ test('a substring collision does not count as usage', (t) => {
 test('missing directories yield an empty overview rather than throwing', (t) => {
   const dirs = makeDirs(t);
   const overview = readHooksOverview(
-    path.join(dirs.registry, 'nope'),
-    path.join(dirs.scripts, 'nope'),
+    { user: path.join(dirs.registry, 'nope'), builtin: null },
+    { user: path.join(dirs.scripts, 'nope'), builtin: null },
   );
   assert.deepEqual(overview.hooks, []);
   assert.deepEqual(overview.scripts, []);
+});
+
+test('scripts list both layers with their origin', (t) => {
+  const dirs = makeDirs(t);
+  fs.writeFileSync(path.join(dirs.builtinScripts, 'shipped.mjs'), '');
+  fs.writeFileSync(path.join(dirs.builtinScripts, 'copied.mjs'), '');
+  fs.writeFileSync(path.join(dirs.scripts, 'copied.mjs'), '');
+  fs.writeFileSync(path.join(dirs.scripts, 'mine.mjs'), '');
+
+  const { scripts } = overviewOf(dirs);
+
+  assert.deepEqual(scripts.map((s) => [s.name, s.origin]), [
+    ['copied.mjs', 'overridden'], ['mine.mjs', 'local'], ['shipped.mjs', 'builtin'],
+  ]);
 });

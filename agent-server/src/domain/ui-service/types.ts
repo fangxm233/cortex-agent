@@ -57,6 +57,7 @@ import type {
   HookSource,
 } from '@store/hook-registry.js';
 import type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
+import type { LayerOrigin } from '@core/builtin-layer.js';
 export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ExecutionRecord } from '@store/execution-repo.js';
@@ -839,10 +840,12 @@ export interface ConfigHook {
   event: HookEvent;
   enabled: boolean;
   source: HookSource;
+  /** A built-in entry the user has switched away from its shipped state. */
+  overridden: boolean;
 }
 
 // ── hooks.* DTOs ─────────────────────────────────────────────────────────────
-// Full read/write model of the declarative hook registry. `ConfigHook` above stays the four-field
+// Full read/write model of the declarative hook registry. `ConfigHook` above stays the short
 // summary embedded in config.get; anything that edits a declaration uses HookDetail instead.
 
 /** `run` flattened for the editor: exactly one of script/command is non-null. */
@@ -871,7 +874,9 @@ export interface HookDetail {
   result: HookResultMode | null;
   enabled: boolean;
   source: HookSource;
-  /** CalVer stamp for managed entries; null for user entries. */
+  /** A built-in entry the user has switched away from its shipped state. */
+  overridden: boolean;
+  /** The declaration's own `version` field, if it carries one; null otherwise. */
   version: string | null;
   /** Declaration filename. Typed nullable for clients built against the older shape. */
   fileName: string | null;
@@ -884,7 +889,7 @@ export interface HookDetail {
   appliesAt: HookApplyTime;
   /** Whether run.script resolves on disk; null when the hook is command-based. */
   scriptExists: boolean | null;
-  /** True only for user entries — managed gets resynced. */
+  /** True only for user entries; a built-in is changed only through its switch. */
   editable: boolean;
   /** Always null. Kept so released mobile clients that still read them keep parsing the detail. */
   template: null;
@@ -894,6 +899,8 @@ export interface HookDetail {
 export interface HookScriptInfo {
   name: string;
   usedBy: string[];
+  /** Shipped, shipped but replaced by the user's copy, or the user's own. */
+  origin: LayerOrigin;
 }
 
 export interface HooksOverview {
@@ -927,7 +934,7 @@ export interface HooksUpdateReturn {
 
 export interface HooksSetEnabledReturn {
   changed: boolean;
-  /** Non-null when the change is not durable (a managed entry a later sync will restore). */
+  /** Always null. Kept so released clients that still read it keep parsing the result. */
   warning: string | null;
 }
 
