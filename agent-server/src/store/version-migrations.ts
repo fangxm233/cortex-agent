@@ -13,6 +13,7 @@ import { RETIRED_SCHEDULE_TYPES } from './schedule-repo.js';
 import { importLegacySessionStores } from './session-registry-import.js';
 import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
 import { retireCommissions } from './board-migration.js';
+import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -524,6 +525,19 @@ const stepMigrations: StepMigration[] = [
       const projectsDir = dataDir === DATA_DIR ? PROJECTS_DIR : path.join(dataDir, 'context', 'projects');
       const report = await retireCommissions({ dataDir, storeDir, projectsDir, version: '2026.10.6' });
       log.info(`Retired commissions: ${JSON.stringify(report)}`);
+    },
+  },
+  // S9: built-in plugins, hooks, rules, agent roles and system prompts are read from the install
+  // instead of copied into the home. The copies go (archived unless identical to the shipped file),
+  // the user's own files stay, and environments that listed built-in plugins keep loading the same
+  // set (see store/builtin-overlay-migration.ts). A sealed home declares its whole surface and is
+  // left as it is.
+  {
+    key: 'sentinel:builtin-overlay',
+    version: '2026.10.13',
+    run: async ({ dataDir, defaultsDir }) => {
+      if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return;
+      await migrateToBuiltinOverlay({ dataDir, defaultsDir });
     },
   },
 ];
