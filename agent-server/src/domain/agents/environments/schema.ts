@@ -86,7 +86,9 @@ export function checkPromptFileRef(
   const subdir = PROMPT_FIELD_DIRS[field];
   if (!subdir) return;
   const filename = value.slice(FILE_REF_PREFIX.length);
-  if (!refs.exists(refs.join(refs.promptsDir, subdir, filename))) {
+  const exists = refs.exists(refs.join(refs.promptsDir, subdir, filename))
+    || refs.exists(refs.join(refs.builtinDir, 'prompts', subdir, filename));
+  if (!exists) {
     warnings.push({
       path,
       message: t('ux.tpl.promptFileMissing', { subdir, filename, value }),
@@ -100,7 +102,8 @@ export function checkPluginDirs(pluginDirs: unknown, refs: RefResolver | undefin
   pluginDirs.forEach((dir, i) => {
     if (typeof dir !== 'string') return;
     const abs = refs.isAbsolute(dir) ? dir : refs.join(refs.pluginBaseDir, dir);
-    if (!refs.exists(abs)) {
+    const builtin = !refs.isAbsolute(dir) && refs.exists(refs.join(refs.builtinDir, dir));
+    if (!refs.exists(abs) && !builtin) {
       warnings.push({ path: `pluginDirs[${i}]`, message: t('ux.tpl.pluginDirMissing', { dir }) });
     }
   });

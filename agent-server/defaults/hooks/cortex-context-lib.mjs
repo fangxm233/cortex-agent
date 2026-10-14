@@ -1,5 +1,3 @@
-// @cortex-hook-version 2026.10.6  ← bump with the hooks that import it; syncManagedHooks then refreshes deployed installs
-//
 // Not a hook entry. Shared by the agents-md-injector and rules-loader hooks (imported as
 // ./cortex-context-lib.mjs next to them) and by the server's MCP-side AGENTS.md injector and rules
 // loader (imported from the shipped defaults/hooks/). One copy keeps the dedup cache format, its
@@ -9,6 +7,7 @@ import {
   closeSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const SESSION_ID_RE = /^[A-Za-z0-9._-]+$/;
 export const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -224,22 +223,47 @@ export function parseRuleFrontmatter(content) {
   return { paths, body };
 }
 
-/** Every `*.md` rule in `rulesDir`, in file-name order, with its parsed `paths` and body. */
-export function loadRules(rulesDir) {
-  let files;
+function ruleFileNames(rulesDir) {
   try {
-    files = readdirSync(rulesDir).filter((file) => file.endsWith('.md')).sort();
+    return readdirSync(rulesDir).filter((file) => file.endsWith('.md'));
   } catch {
     return [];
   }
-  const rules = [];
-  for (const file of files) {
-    const filePath = join(rulesDir, file);
-    try {
-      if (!statSync(filePath).isFile()) continue;
-      const { paths, body } = parseRuleFrontmatter(readFileSync(filePath, 'utf8'));
-      rules.push({ file, paths, body });
-    } catch { /* skip unreadable */ }
+}
+
+function readRule(file, filePath) {
+  try {
+    if (!statSync(filePath).isFile()) return null;
+    const { paths, body } = parseRuleFrontmatter(readFileSync(filePath, 'utf8'));
+    return { file, path: filePath, paths, body };
+  } catch {
+    return null;
   }
-  return rules;
+}
+
+/** Every `*.md` rule in `rulesDir`, in file-name order, with its parsed `paths` and body. */
+export function loadRules(rulesDir) {
+  return ruleFileNames(rulesDir).sort()
+    .map((file) => readRule(file, join(rulesDir, file)))
+    .filter((rule) => rule !== null);
+}
+
+/** The rules Cortex ships, read in place from the install. */
+export const BUILTIN_RULES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'rules');
+
+/** The shipped rules directory, or null in a sealed home (CORTEX_CONFIG_IMMUTABLE=1), which loads
+ *  only the rules it carries itself. */
+export function builtinRulesDir() {
+  return process.env.CORTEX_CONFIG_IMMUTABLE === '1' ? null : BUILTIN_RULES_DIR;
+}
+
+/** The built-in rules overlaid with the user's: a user rule replaces the built-in of the same file
+ *  name, a new name adds. File-name order, like {@link loadRules}. */
+export function loadLayeredRules(userDir, builtinDir = builtinRulesDir()) {
+  const byFile = new Map();
+  if (builtinDir) for (const file of ruleFileNames(builtinDir)) byFile.set(file, join(builtinDir, file));
+  for (const file of ruleFileNames(userDir)) byFile.set(file, join(userDir, file));
+  return [...byFile.keys()].sort()
+    .map((file) => readRule(file, byFile.get(file)))
+    .filter((rule) => rule !== null);
 }

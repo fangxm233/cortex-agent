@@ -12,7 +12,7 @@ import {
 } from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
-import { ensureAgentRoles } from '@core/agents/roles.js';
+import { adoptLegacyAgentRoles } from '@core/agents/roles.js';
 import { piUserAuthPath, piUserModelsPath } from '@core/pi-sdk.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
@@ -101,9 +101,9 @@ function isBrokenSymlink(p: string): boolean {
  *  after the upgrade, so a user's own PI roles carry over. */
 export const LEGACY_PI_ROLES_DIR = path.join(PI_AGENT_DIR, 'agents');
 
-/** Seed the shared role table, adopting this dir's legacy roles the first time (plan §3.1). */
+/** Carry this dir's legacy roles into the shared role table, the first time (plan §3.1). */
 export function ensurePIAgentRoles(opts?: { defaultsDir?: string; rolesDir?: string; legacyDir?: string }): void {
-  ensureAgentRoles({
+  adoptLegacyAgentRoles({
     defaultsDir: opts?.defaultsDir,
     rolesDir: opts?.rolesDir,
     legacyDir: opts?.legacyDir ?? LEGACY_PI_ROLES_DIR,

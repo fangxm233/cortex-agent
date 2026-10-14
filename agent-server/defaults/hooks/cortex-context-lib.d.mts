@@ -40,9 +40,14 @@ export declare function overflowNotice(labels: string[]): string;
 
 export interface RuleFile {
   file: string;
+  /** Absolute path of the file the rule was read from. */
+  path: string;
   paths: string[];
   body: string;
 }
 
 export declare function parseRuleFrontmatter(content: string): { paths: string[]; body: string };
 export declare function loadRules(rulesDir: string): RuleFile[];
+export declare const BUILTIN_RULES_DIR: string;
+export declare function builtinRulesDir(): string | null;
+export declare function loadLayeredRules(userDir: string, builtinDir?: string | null): RuleFile[];

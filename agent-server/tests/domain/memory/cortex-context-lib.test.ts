@@ -4,7 +4,9 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { loadRules, parseRuleFrontmatter, MAX_CONTEXT_CHARS } from '../../../defaults/hooks/cortex-context-lib.mjs';
+import {
+  BUILTIN_RULES_DIR, loadLayeredRules, loadRules, parseRuleFrontmatter, MAX_CONTEXT_CHARS,
+} from '../../../defaults/hooks/cortex-context-lib.mjs';
 import { loadCortexRules } from '../../../src/domain/memory/rules-loader.js';
 import { AgentsMDInjector } from '../../../src/domain/memory/agents-md-injector.js';
 
@@ -35,10 +37,38 @@ test('rules load in file-name order on both sides', () => {
     fs.writeFileSync(path.join(dir, 'scoped.md'), '---\npaths:\n  - "x/**"\n---\nscoped\n');
     fs.writeFileSync(path.join(dir, 'tagged.md'), '---\ntags:\n  - y\n---\ntagged\n');
     assert.deepEqual(loadRules(dir).map((r) => r.file), ['a.md', 'b.md', 'c.md', 'scoped.md', 'tagged.md']);
-    assert.deepEqual(loadCortexRules(dir), ['a.md\n', 'b.md\n', 'c.md\n', 'tagged\n']);
+    assert.deepEqual(loadCortexRules(dir, null), ['a.md\n', 'b.md\n', 'c.md\n', 'tagged\n']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('user rules overlay the shipped ones by file name', () => {
+  const builtin = tmp('rules-builtin-');
+  const user = tmp('rules-user-');
+  try {
+    fs.writeFileSync(path.join(builtin, 'a.md'), 'shipped a\n');
+    fs.writeFileSync(path.join(builtin, 'b.md'), 'shipped b\n');
+    fs.writeFileSync(path.join(user, 'b.md'), 'my b\n');
+    fs.writeFileSync(path.join(user, 'c.md'), 'my c\n');
+    const rules = loadLayeredRules(user, builtin);
+    assert.deepEqual(rules.map((r) => [r.file, r.body, r.path]), [
+      ['a.md', 'shipped a\n', path.join(builtin, 'a.md')],
+      ['b.md', 'my b\n', path.join(user, 'b.md')],
+      ['c.md', 'my c\n', path.join(user, 'c.md')],
+    ]);
+    assert.deepEqual(loadCortexRules(user, builtin), ['shipped a\n', 'my b\n', 'my c\n']);
+    assert.deepEqual(loadLayeredRules(user, null).map((r) => r.file), ['b.md', 'c.md']);
+  } finally {
+    fs.rmSync(builtin, { recursive: true, force: true });
+    fs.rmSync(user, { recursive: true, force: true });
+  }
+});
+
+test('the shipped rules load in place from an empty home', () => {
+  const shipped = fs.readdirSync(BUILTIN_RULES_DIR).filter((f) => f.endsWith('.md')).length;
+  assert.ok(shipped > 0);
+  assert.equal(loadLayeredRules(path.join(tmp('rules-empty-'), 'rules')).length, shipped);
 });
 
 test('rules-loader hook applies a scoped rule once per session and ignores non-path lists', () => {
@@ -61,6 +91,7 @@ test('rules-loader hook applies a scoped rule once per session and ignores non-p
     assert.doesNotMatch(first, /TAGGED GLOBAL/);
     assert.equal(run(), '', 'deduped within the session');
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'tmp', 'rules-cache', 'rules-s1.json'), 'utf8')), ['scoped.md']);
+    assert.match(first, new RegExp(`Applied rule from ${path.join(home, 'rules', 'scoped.md').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

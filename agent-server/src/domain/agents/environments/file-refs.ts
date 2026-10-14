@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { DATA_DIR, PROMPTS_DIR } from '@core/paths.js';
+import { DATA_DIR, DEFAULTS_DIR, PROMPTS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { resolveTemplate } from './prompt-includes.js';
 
@@ -14,6 +14,16 @@ export const PROMPT_FIELD_DIRS: Record<string, string> = {
   systemPrompt: 'systemPrompts',
 };
 
+/** The shipped prompt files, read in place. A user file of the same name under PROMPTS_DIR wins. */
+export const DEFAULT_PROMPTS_DIR = path.join(DEFAULTS_DIR, 'prompts');
+
+/** The prompts root a `<subdir>/<filename>` ref reads from: the user's when it has the file, else
+ *  the shipped one when that does. */
+function promptRoot(subdir: string, filename: string): string {
+  if (existsSync(path.join(PROMPTS_DIR, subdir, filename))) return PROMPTS_DIR;
+  return existsSync(path.join(DEFAULT_PROMPTS_DIR, subdir, filename)) ? DEFAULT_PROMPTS_DIR : PROMPTS_DIR;
+}
+
 /** Resolve a `file:<name>` reference for a given field. Returns the value unchanged when it is not
  *  a file ref, names a field without a prompt directory, or cannot be read (logged). */
 export function resolveFileRef(field: string, value: string | undefined): string | undefined {
@@ -21,18 +31,18 @@ export function resolveFileRef(field: string, value: string | undefined): string
   const filename = value.slice(FILE_REF_PREFIX.length);
   const subdir = PROMPT_FIELD_DIRS[field];
   if (!subdir) return value;
-  const filePath = path.join(PROMPTS_DIR, subdir, filename);
+  const root = promptRoot(subdir, filename);
   try {
-    const raw = readFileSync(filePath, 'utf8');
-    return resolveTemplate(raw, path.join(PROMPTS_DIR, subdir, 'templates'));
+    const raw = readFileSync(path.join(root, subdir, filename), 'utf8');
+    return resolveTemplate(raw, path.join(root, subdir, 'templates'));
   } catch (e: any) {
     log.error(`Failed to read ${field} file ref "${value}": ${e.message}`);
     return value;
   }
 }
 
-/** Absolute paths are returned as-is; relative ones resolve against DATA_DIR (plugins live under
- *  DATA_DIR/plugins/). */
+/** Absolute paths are returned as-is; relative ones resolve against DATA_DIR. `plugins/<id>` is a
+ *  plugin's address whether it is built in, the user's, or both. */
 export function resolvePluginDir(dir: string): string {
   if (path.isAbsolute(dir)) return dir;
   return path.join(DATA_DIR, dir);
@@ -43,6 +53,8 @@ export function resolvePluginDir(dir: string): string {
 export interface RefResolver {
   promptsDir: string;
   pluginBaseDir: string;
+  /** The install's defaults/: a prompt file or `plugins/<id>` found there exists as a built-in. */
+  builtinDir: string;
   join: (...parts: string[]) => string;
   exists: (absPath: string) => boolean;
   isAbsolute: (p: string) => boolean;
@@ -52,6 +64,7 @@ export function fsRefResolver(): RefResolver {
   return {
     promptsDir: PROMPTS_DIR,
     pluginBaseDir: DATA_DIR,
+    builtinDir: DEFAULTS_DIR,
     join: path.join,
     exists: existsSync,
     isAbsolute: path.isAbsolute,

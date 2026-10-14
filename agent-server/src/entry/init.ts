@@ -1199,11 +1199,8 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
     path.join(DEFAULTS_DIR, 'config', ENVIRONMENTS_DIRNAME),
     path.join(paths.CONFIG_DIR, ENVIRONMENTS_DIRNAME),
   );
-  // Seed asset trees — per-file safeCopy semantics: new files always added, existing files
-  // preserved unless force=true. These directories are referenced at runtime; without them
-  // the plugin catalog / rules-loader can't find their inputs.
-  safeCopyDir(path.join(DEFAULTS_DIR, 'prompts'), path.join(paths.DATA_DIR, 'prompts'), force);
-  safeCopyDir(path.join(DEFAULTS_DIR, 'rules'), path.join(paths.DATA_DIR, 'rules'), force);
+  // Rules, agent roles and prompts are read in place from DEFAULTS_DIR; the home gets only the
+  // user's own files. The decisions scaffold is context, which is the user's.
   safeCopyDir(path.join(DEFAULTS_DIR, 'plugins'), path.join(paths.DATA_DIR, 'plugins'), force);
   safeCopyDir(path.join(DEFAULTS_DIR, 'context', 'decisions'), path.join(paths.CONTEXT_DIR, 'decisions'), force);
 }

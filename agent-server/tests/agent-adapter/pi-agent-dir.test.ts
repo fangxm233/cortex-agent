@@ -249,37 +249,19 @@ test('ensureAuthVisible: replaces stale regular file with symlink', { skip: proc
 
 // ─── built-in subagent roles ─────────────────────────────────────
 
-test('ensurePIAgentRoles installs all roles once without clobbering user edits', () => {
+test('ensurePIAgentRoles copies nothing when there is no legacy role dir', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-roles-'));
   try {
-    const defaultsDir = path.join(tmpDir, 'defaults');
-    // The roles now live in one shared table, not under the PI agent dir.
     const rolesDir = path.join(tmpDir, 'roles');
-    fs.mkdirSync(defaultsDir, { recursive: true });
-    for (const name of ['explore', 'general-purpose', 'plan']) {
-      fs.writeFileSync(path.join(defaultsDir, `${name}.md`), `---\nname: ${name}\ndescription: built in\n---\n${name}\n`);
-    }
-
-    ensurePIAgentRoles({ defaultsDir, rolesDir });
-    const explorePath = path.join(rolesDir, 'explore.md');
-    assert.equal(fs.readFileSync(explorePath, 'utf8').includes('built in'), true);
-    for (const name of ['explore', 'general-purpose', 'plan']) {
-      assert.equal(fs.existsSync(path.join(rolesDir, `${name}.md`)), true);
-    }
-
-    fs.writeFileSync(explorePath, 'user edited role\n');
-    fs.writeFileSync(path.join(defaultsDir, 'explore.md'), 'new packaged default\n');
-    const inode = fs.statSync(explorePath).ino;
-    ensurePIAgentRoles({ defaultsDir, rolesDir });
-
-    assert.equal(fs.readFileSync(explorePath, 'utf8'), 'user edited role\n');
-    assert.equal(fs.statSync(explorePath).ino, inode);
+    ensurePIAgentRoles({ rolesDir, legacyDir: path.join(tmpDir, 'pi', 'agents') });
+    // The shipped roles are read in place; the user's table stays absent until they add one.
+    assert.equal(fs.existsSync(rolesDir), false);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
 
-test('ensurePIAgentRoles adopts a legacy PI-only role dir instead of reinstalling defaults', () => {
+test('ensurePIAgentRoles adopts a legacy PI-only role dir', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-roles-legacy-'));
   try {
     const defaultsDir = path.join(tmpDir, 'defaults');
@@ -298,8 +280,8 @@ test('ensurePIAgentRoles adopts a legacy PI-only role dir instead of reinstallin
     // The user's edits survive the move, and their own role comes along with them.
     assert.equal(fs.readFileSync(path.join(rolesDir, 'explore.md'), 'utf8'), 'user edited legacy role\n');
     assert.equal(fs.readFileSync(path.join(rolesDir, 'mine.md'), 'utf8'), 'a role only this user has\n');
-    // Builtins missing from the legacy dir are still installed.
-    assert.equal(fs.existsSync(path.join(rolesDir, 'plan.md')), true);
+    // Built-ins are read in place, never copied.
+    assert.equal(fs.existsSync(path.join(rolesDir, 'plan.md')), false);
     // The old dir is renamed aside, so nobody keeps editing files that are no longer read.
     assert.equal(fs.existsSync(legacyDir), false);
     assert.equal(fs.existsSync(`${legacyDir}.migrated`), true);

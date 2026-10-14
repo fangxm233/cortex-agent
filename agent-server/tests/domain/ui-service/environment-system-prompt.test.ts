@@ -50,6 +50,13 @@ describe('environments.get systemPrompt', () => {
     assert.match(systemPrompt.defaultText ?? '', /^You are Cortex/);
   });
 
+  test('an unedited shipped prompt reads the shipped text', async () => {
+    seedEnvironment('a', { systemPrompt: 'file:direct.md' });
+    const { systemPrompt } = await handleEnvironmentsGet(deps(), { name: 'a' });
+    assert.match(systemPrompt.text, /^You are Cortex/);
+    assert.equal(systemPrompt.text, systemPrompt.defaultText);
+  });
+
   test('a missing prompt file reads as empty text', async () => {
     seedEnvironment('a', { systemPrompt: 'file:gone.md' });
     const { systemPrompt } = await handleEnvironmentsGet(deps(), { name: 'a' });
@@ -78,6 +85,24 @@ describe('environments.savePrompt', () => {
     assert.deepEqual(result.data, { changed: true, file: 'a-prompt.md' });
     assert.equal(readFileSync(path.join(PROMPT_DIR, 'a-prompt.md'), 'utf8'), 'new prompt\n');
     assert.equal(readFileSync(path.join(ENV_DIR, 'a.json'), 'utf8'), before);
+  });
+
+  test('editing a shipped prompt writes the user copy; saving the shipped text removes it', async () => {
+    seedEnvironment('a', { systemPrompt: 'file:direct.md' });
+    const shipped = (await handleEnvironmentsGet(deps(), { name: 'a' })).systemPrompt.defaultText!;
+
+    const edited = await save('a', 'my prompt');
+    assert.ok(edited.ok, JSON.stringify(edited));
+    assert.equal(readFileSync(path.join(PROMPT_DIR, 'direct.md'), 'utf8'), 'my prompt');
+
+    const reverted = await save('a', shipped);
+    assert.ok(reverted.ok, JSON.stringify(reverted));
+    assert.equal(reverted.data.changed, true);
+    assert.equal(existsSync(path.join(PROMPT_DIR, 'direct.md')), false);
+    assert.equal((await handleEnvironmentsGet(deps(), { name: 'a' })).systemPrompt.text, shipped);
+    const again = await save('a', shipped);
+    assert.ok(again.ok);
+    assert.equal(again.data.changed, false);
   });
 
   test('saving the same text again reports no change', async () => {

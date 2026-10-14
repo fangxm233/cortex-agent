@@ -13,8 +13,9 @@ const CORE_DIR = path.dirname(fileURLToPath(import.meta.url));
  *  never write here. For user-mutable state use DATA_DIR. */
 export const INSTALL_ROOT = path.resolve(CORE_DIR, '..', '..');
 
-/** Default scaffold assets shipped with the package. Read-only at runtime;
- *  `cortex init` copies what users need from here into DATA_DIR. */
+/** Assets shipped with the package. Read-only at runtime: built-in plugins, hooks, rules, agent
+ *  roles and prompts are read in place (user files in DATA_DIR override them, see
+ *  core/builtin-layer.ts); `cortex init` copies only the user scaffolds from here into DATA_DIR. */
 export const DEFAULTS_DIR = path.join(INSTALL_ROOT, 'defaults');
 
 /** @deprecated Use INSTALL_ROOT. Kept as alias during refactor. */

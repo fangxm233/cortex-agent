@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import { DEFAULTS_DIR, PROMPTS_DIR } from '@core/paths.js';
@@ -15,7 +15,8 @@ export interface EnvironmentSystemPrompt {
   kind: SystemPromptKind;
   /** The `file:` ref target under `prompts/systemPrompts/`; null unless `kind` is `file`. */
   file: string | null;
-  /** The text the field resolves to, unrendered: the file's raw bytes or the literal. */
+  /** The text the field resolves to, unrendered: the file's raw bytes or the literal. A `file:` ref
+   *  the user has not edited reads the shipped file. */
   text: string;
   /** Other environments whose `systemPrompt` names the same file. */
   sharedWith: string[];
@@ -79,12 +80,13 @@ export function readEnvironmentSystemPrompt(
   if (file) {
     const own = containedPath(dirs.promptDir, file);
     const shipped = containedPath(dirs.defaultPromptDir, file);
+    const defaultText = shipped ? readText(shipped) : null;
     return {
       kind: 'file',
       file,
-      text: (own && readText(own)) ?? '',
+      text: (own && readText(own)) ?? defaultText ?? '',
       sharedWith: promptFileUsers(dirs.envDir, file, name),
-      defaultText: shipped ? readText(shipped) : null,
+      defaultText,
     };
   }
   const inline = typeof value === 'string' && value.length > 0;
@@ -97,17 +99,25 @@ export interface SaveSystemPromptResult {
   file: string | null;
 }
 
+/** Write the user's copy of a prompt file. Text identical to the shipped file removes the copy
+ *  instead, so the prompt follows the shipped one again. */
 function writePromptFile(dirs: SystemPromptDirs, file: string, text: string): boolean {
   const target = containedPath(dirs.promptDir, file);
   if (!target) throw writeError('invalid-args', t('ux.env.promptFileOutside', { file }));
+  const shipped = containedPath(dirs.defaultPromptDir, file);
+  if (shipped && readText(shipped) === text) {
+    if (!existsSync(target)) return false;
+    rmSync(target);
+    return true;
+  }
   if (readText(target) === text) return false;
   atomicWriteSync(target, text);
   return true;
 }
 
 /**
- * Replace one environment's system prompt with `text`. A `file:` ref is edited in place (every
- * environment naming that file sees the change). Literal text or no prompt moves to a new
+ * Replace one environment's system prompt with `text`. A `file:` ref is edited in the user's prompts
+ * dir (every environment naming that file sees the change); a shipped file is never written. Literal text or no prompt moves to a new
  * `<name>.md` the environment then refs; empty text there drops the field, i.e. the backend default.
  */
 export function saveEnvironmentSystemPrompt(

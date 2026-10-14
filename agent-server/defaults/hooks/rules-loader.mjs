@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.6
 
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { homedir } from 'os';
 import {
-  isValidSessionId, loadRules, pruneCacheDir, readJsonFile, rulesCacheDir, writeJsonFileAtomic,
+  isValidSessionId, loadLayeredRules, pruneCacheDir, readJsonFile, rulesCacheDir, writeJsonFileAtomic,
 } from './cortex-context-lib.mjs';
 
 const DATA_DIR = process.env.CORTEX_HOME
@@ -32,9 +31,10 @@ function saveCache(sessionId, cache) {
   if (file) writeJsonFileAtomic(file, Array.from(cache));
 }
 
-/** Rules scoped by a non-empty `paths` frontmatter list; global rules reach the prompt elsewhere. */
+/** Rules scoped by a non-empty `paths` frontmatter list, built-in and the user's; global rules
+ *  reach the prompt elsewhere. */
 function loadScopedRules() {
-  return loadRules(RULES_DIR).filter((rule) => rule.paths.length > 0);
+  return loadLayeredRules(RULES_DIR).filter((rule) => rule.paths.length > 0);
 }
 
 /**
@@ -58,7 +58,7 @@ function matchRules(filePath, scopedRules) {
   for (const rule of scopedRules) {
     for (const pattern of rule.paths) {
       if (globToRegex(pattern).test(filePath)) {
-        matched.push({ file: rule.file, body: rule.body });
+        matched.push({ file: rule.file, path: rule.path, body: rule.body });
         break;
       }
     }
@@ -111,7 +111,7 @@ function main() {
 
   // Build system-reminder blocks for Claude's additionalContext
   const blocks = newMatched.map(r =>
-    `<system-reminder>\nApplied rule from ~/.cortex/rules/${r.file}:\n\n${r.body}\n</system-reminder>`
+    `<system-reminder>\nApplied rule from ${r.path}:\n\n${r.body}\n</system-reminder>`
   );
   const context = blocks.join('\n\n');
 

@@ -4,9 +4,8 @@ import * as path from 'node:path';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 import {
-  BUILTIN_AGENT_ROLE_NAMES,
   DEFAULT_AGENT_ROLES_DIR,
-  ensureAgentRoles,
+  adoptLegacyAgentRoles,
   loadRoles,
   parseRole,
   roleToolsForBackend,
@@ -109,40 +108,55 @@ test('roleToolsForBackend de-duplicates and returns undefined for a role with no
 
 // --- lookup ---
 
-// --- seeding and migration ---
+// --- built-in layer and migration ---
 
-test('ensureAgentRoles seeds every built-in from the shipped defaults', () => {
+test('loadRoles reads the shipped roles in place when the user has none', () => {
   const rolesDir = path.join(tempDir(), 'agents');
-  ensureAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR });
   const names = loadRoles(rolesDir).map(r => r.name).sort();
-  assert.deepEqual(names, [...BUILTIN_AGENT_ROLE_NAMES].sort());
+  assert.deepEqual(names, ['explore', 'general-purpose', 'plan']);
+  assert.equal(fs.existsSync(rolesDir), false, 'nothing is copied into the home');
 });
 
-test('ensureAgentRoles never clobbers a role the user has edited', () => {
+test('a user role file overrides the built-in of the same name, and deleting it reverts', () => {
   const rolesDir = path.join(tempDir(), 'agents');
-  ensureAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR });
+  fs.mkdirSync(rolesDir);
   const mine = path.join(rolesDir, 'explore.md');
   fs.writeFileSync(mine, '---\nname: explore\ndescription: mine\n---\nmy prompt');
-  ensureAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR });
-  assert.match(fs.readFileSync(mine, 'utf8'), /my prompt/);
+  fs.writeFileSync(path.join(rolesDir, 'extra.md'), '---\nname: extra\ndescription: d\n---\nbody');
+  const roles = loadRoles(rolesDir);
+  assert.equal(roles.find(r => r.name === 'explore')?.systemPrompt, 'my prompt');
+  assert.ok(roles.some(r => r.name === 'extra'));
+  assert.equal(roles.filter(r => r.name === 'explore').length, 1);
+
+  fs.rmSync(mine);
+  assert.notEqual(loadRoles(rolesDir).find(r => r.name === 'explore')?.systemPrompt, 'my prompt');
 });
 
-test('ensureAgentRoles adopts a legacy PI role dir once and then retires it', () => {
+test('a user file reusing a built-in role name under another file name wins', () => {
+  const rolesDir = tempDir();
+  fs.writeFileSync(path.join(rolesDir, 'my-plan.md'), '---\nname: plan\ndescription: mine\n---\nmine');
+  const plans = loadRoles(rolesDir).filter(r => r.name === 'plan');
+  assert.deepEqual(plans.map(r => r.systemPrompt), ['mine']);
+});
+
+test('adoptLegacyAgentRoles adopts a legacy PI role dir once and then retires it', () => {
   const home = tempDir();
   const rolesDir = path.join(home, 'agents');
   const legacyDir = path.join(home, 'pi', 'agents');
   fs.mkdirSync(legacyDir, { recursive: true });
   fs.writeFileSync(path.join(legacyDir, 'mine.md'), '---\nname: mine\ndescription: legacy\n---\nbody');
+  fs.copyFileSync(path.join(DEFAULT_AGENT_ROLES_DIR, 'plan.md'), path.join(legacyDir, 'plan.md'));
 
-  ensureAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR, legacyDir });
+  adoptLegacyAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR, legacyDir });
   assert.ok(loadRoles(rolesDir).some(r => r.name === 'mine'), 'legacy role was adopted');
+  assert.equal(fs.existsSync(path.join(rolesDir, 'plan.md')), false, 'a stock copy is not pinned');
   // Renamed aside, so an edit made there can no longer look live.
   assert.equal(fs.existsSync(legacyDir), false);
   assert.ok(fs.existsSync(`${legacyDir}.migrated`));
 
-  // Second run is a pure top-up: a role deleted after migration stays deleted.
+  // Second run does nothing: a role deleted after migration stays deleted.
   fs.rmSync(path.join(rolesDir, 'mine.md'));
-  ensureAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR, legacyDir });
+  adoptLegacyAgentRoles({ rolesDir, defaultsDir: DEFAULT_AGENT_ROLES_DIR, legacyDir });
   assert.equal(loadRoles(rolesDir).some(r => r.name === 'mine'), false);
 });
 
@@ -151,6 +165,6 @@ test('loadRoles skips non-markdown and unparseable files, and tolerates a missin
   fs.writeFileSync(path.join(rolesDir, 'good.md'), '---\nname: good\ndescription: d\n---\nbody');
   fs.writeFileSync(path.join(rolesDir, 'notes.txt'), 'ignored');
   fs.writeFileSync(path.join(rolesDir, 'broken.md'), 'no frontmatter');
-  assert.deepEqual(loadRoles(rolesDir).map(r => r.name), ['good']);
-  assert.deepEqual(loadRoles(path.join(rolesDir, 'gone')), []);
+  assert.deepEqual(loadRoles(rolesDir, null).map(r => r.name), ['good']);
+  assert.deepEqual(loadRoles(path.join(rolesDir, 'gone'), null), []);
 });

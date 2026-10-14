@@ -2,9 +2,9 @@ import {
   copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync,
   constants as fsConstants,
 } from 'node:fs';
-import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
 import { parse as yamlParse } from 'yaml';
+import { listLayeredFiles } from '@core/builtin-layer.js';
 import { CONFIG_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { MCP_TOOLS_BY_SERVER } from '@core/mcp-tool-gate.js';
@@ -13,12 +13,10 @@ import type { Backend } from '@core/types/agent-types.js';
 
 const log = createLogger('agent-roles');
 
-/** The live, user-editable role table. One directory, both backends. */
+/** The user's roles. One directory, both backends. A file named like a built-in replaces it. */
 export const AGENT_ROLES_DIR = path.join(CONFIG_DIR, 'agents');
-/** The shipped seed, copied in if-missing so user edits always survive. */
+/** The shipped roles, read in place. */
 export const DEFAULT_AGENT_ROLES_DIR = path.join(DEFAULTS_DIR, 'agents');
-
-export const BUILTIN_AGENT_ROLE_NAMES = ['explore', 'general-purpose', 'plan'] as const;
 
 /** Every bundle is served under the one `cortex-core` server name, so an MCP tool named in a role
  *  file resolves to a single Claude-side spelling regardless of which bundle declares it. */
@@ -73,21 +71,31 @@ export function parseRole(content: string): AgentRole | null {
   };
 }
 
-export function loadRoles(rolesDir: string = AGENT_ROLES_DIR): AgentRole[] {
-  const roles: AgentRole[] = [];
-  let entries: Dirent[];
+function readRoleFile(filePath: string): AgentRole | null {
   try {
-    entries = readdirSync(rolesDir, { withFileTypes: true });
+    return parseRole(readFileSync(filePath, 'utf8'));
   } catch {
-    return roles;
+    return null;
   }
-  for (const entry of entries) {
-    if (!entry.name.endsWith('.md')) continue;
-    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-    const role = parseRole(readFileSync(path.join(rolesDir, entry.name), 'utf8'));
-    if (role) roles.push(role);
+}
+
+/**
+ * The shipped roles with the user's laid over them. A user file of the same file name replaces the
+ * built-in; a user role that reuses a built-in role's `name` under another file name wins as well,
+ * so `findRole` never has two candidates.
+ */
+export function loadRoles(
+  rolesDir: string = AGENT_ROLES_DIR,
+  defaultsDir: string | null = DEFAULT_AGENT_ROLES_DIR,
+): AgentRole[] {
+  const byName = new Map<string, AgentRole>();
+  const files = listLayeredFiles(defaultsDir, rolesDir, '.md');
+  const ordered = [...files.filter((file) => file.origin === 'builtin'), ...files.filter((file) => file.origin !== 'builtin')];
+  for (const file of ordered) {
+    const role = readRoleFile(file.path);
+    if (role) byName.set(role.name, role);
   }
-  return roles;
+  return [...byName.values()];
 }
 
 export function findRole(roles: AgentRole[], name: string): AgentRole {
@@ -121,7 +129,7 @@ export function roleToolsForBackend(role: AgentRole, backend: Backend): string[]
   return [...new Set(resolved)];
 }
 
-export interface EnsureAgentRolesOpts {
+export interface AdoptLegacyRolesOpts {
   rolesDir?: string;
   defaultsDir?: string;
   /** Pre-unification PI role dir. Adopted wholesale the first time, then never read again. */
@@ -129,22 +137,17 @@ export interface EnsureAgentRolesOpts {
 }
 
 /**
- * Make the shared role dir exist and hold the built-ins.
+ * Carry a pre-unification PI role dir into the user's role table, once.
  *
- * Seeding is copy-if-missing (`COPYFILE_EXCL`), so a role the user has edited is never clobbered.
- * Migration is guarded by the target dir's own absence rather than a version sentinel: once
- * `config/agents/` exists this is a pure top-up, so re-adoption cannot resurrect a role the user
- * has since deleted.
+ * Guarded by the target dir's own absence rather than a version sentinel, so adoption cannot
+ * resurrect a role the user has since deleted. A legacy file identical to a shipped role is skipped:
+ * the built-in is read in place and a copy would only pin it.
  */
-export function ensureAgentRoles(opts: EnsureAgentRolesOpts = {}): void {
+export function adoptLegacyAgentRoles(opts: AdoptLegacyRolesOpts = {}): void {
   const rolesDir = opts.rolesDir ?? AGENT_ROLES_DIR;
   const defaultsDir = opts.defaultsDir ?? DEFAULT_AGENT_ROLES_DIR;
-  const firstRun = !existsSync(rolesDir);
-  mkdirSync(rolesDir, { recursive: true });
-  if (firstRun && opts.legacyDir) adoptLegacyRoles(opts.legacyDir, rolesDir);
-  for (const name of BUILTIN_AGENT_ROLE_NAMES) {
-    copyIfMissing(path.join(defaultsDir, `${name}.md`), path.join(rolesDir, `${name}.md`));
-  }
+  if (!opts.legacyDir || existsSync(rolesDir)) return;
+  adoptLegacyRoles(opts.legacyDir, rolesDir, defaultsDir);
 }
 
 /**
@@ -154,17 +157,19 @@ export function ensureAgentRoles(opts: EnsureAgentRolesOpts = {}): void {
  * editing a role there would silently change nothing. `.migrated` keeps their files but makes it
  * obvious they are no longer the ones being read.
  */
-function adoptLegacyRoles(legacyDir: string, rolesDir: string): void {
+function adoptLegacyRoles(legacyDir: string, rolesDir: string, defaultsDir: string): void {
   let entries: string[];
   try {
     entries = readdirSync(legacyDir).filter((name) => name.endsWith('.md'));
   } catch {
     return;
   }
+  if (!entries.length) return;
+  mkdirSync(rolesDir, { recursive: true });
   for (const name of entries) {
+    if (sameText(path.join(legacyDir, name), path.join(defaultsDir, name))) continue;
     copyIfMissing(path.join(legacyDir, name), path.join(rolesDir, name));
   }
-  if (!entries.length) return;
   log.info(`Adopted ${entries.length} role file(s) from ${legacyDir}`);
   try {
     renameSync(legacyDir, `${legacyDir}.migrated`);
@@ -173,13 +178,20 @@ function adoptLegacyRoles(legacyDir: string, rolesDir: string): void {
   }
 }
 
+function sameText(left: string, right: string): boolean {
+  try {
+    return readFileSync(left, 'utf8') === readFileSync(right, 'utf8');
+  } catch {
+    return false;
+  }
+}
+
 function copyIfMissing(source: string, target: string): void {
   try {
     copyFileSync(source, target, fsConstants.COPYFILE_EXCL);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'EEXIST') return;
-    if (code === 'ENOENT') { log.warn(`Role seed missing: ${source}`); return; }
+    if (code === 'EEXIST' || code === 'ENOENT') return;
     throw error;
   }
 }
