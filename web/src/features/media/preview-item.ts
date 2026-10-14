@@ -1,5 +1,6 @@
 import type { MediaKind } from './media-kind';
 import type { DocKind } from './doc-kind';
+import type { ViewWidth } from '@/features/attachments/types';
 
 // What a previewable file looks like to everything that opens one: the lightbox, the document
 // modal, the dock's tabs and the seam between them (`design/dock-intake`). These shapes used to sit
@@ -21,6 +22,8 @@ export interface DocItem {
   /** Workspace-relative `workspace/…` path → authenticated fetch. */
   path: string;
   mimeType?: string;
+  /** A view's requested width tier; the document modal sizes its sheet from it. */
+  viewWidth?: ViewWidth;
 }
 
 /** Anything the file previewers can render: image/video (MediaItem) or pdf/text/html (DocItem). */

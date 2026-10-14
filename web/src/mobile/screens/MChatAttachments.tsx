@@ -18,7 +18,7 @@ const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--p
 function ViewTile({ attachment }: { attachment: Attachment }): JSX.Element {
   const { openDoc } = useDocViewer();
   const vocab = useVocabOptional();
-  const item = { kind: 'html' as const, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType };
+  const item = { kind: 'html' as const, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType, viewWidth: attachment.viewWidth };
   return (
     <div style={{ width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div role="button" onClick={() => openDoc(item)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderBottom: `1px solid ${MC.hairline}`, background: 'var(--material-control-bg)', cursor: 'pointer' }}>

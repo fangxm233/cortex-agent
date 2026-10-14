@@ -32,6 +32,14 @@ const TEXT_PREVIEW_LIMIT = 2 * 1024 * 1024; // 2 MB — beyond this, prompt to d
 const PDF_PREVIEW_LIMIT = 50 * 1024 * 1024; // 50 MB — likewise for a PDF.
 const mono = "'IBM Plex Mono',monospace";
 
+/** Modal sheet width. A view keeps its width tier when expanded: `wide` grows the default sheet by
+ *  half, `full` takes the whole viewport. */
+export function docSheetWidth(item: DocItem): string {
+  if (item.kind === 'html' && item.viewWidth === 'full') return '96vw';
+  if (item.kind === 'html' && item.viewWidth === 'wide') return 'min(1380px, 96vw)';
+  return 'min(920px, 96vw)';
+}
+
 interface DocViewerContextValue {
   openDoc: (item: DocItem) => void;
 }
@@ -371,7 +379,7 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(920px, 96vw)',
+          width: docSheetWidth(item),
           height: 'min(88vh, 100%)',
           // The toolbar is glass; the document body below keeps its stable reading surface.
           background: 'var(--material-overlay-bg)',

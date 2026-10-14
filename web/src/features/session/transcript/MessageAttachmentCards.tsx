@@ -204,7 +204,7 @@ function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   const dock = useDockIntake();
   const hostRef = useRef<HTMLDivElement>(null);
   const visible = useNearViewport(hostRef);
-  const item = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType };
+  const item = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType, viewWidth: a.viewWidth };
   const expand = (): void => openDoc(item);
   const toDock = (): void => dock.openFile(item);
   const source = (): void => openDoc({ kind: 'text', name: a.name, path: a.path, mimeType: 'text/plain' });
