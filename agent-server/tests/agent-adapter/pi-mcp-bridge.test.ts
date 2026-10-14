@@ -397,10 +397,7 @@ test('the bundled core env carries the session env plus the delegation gate for 
   assert.equal(env.FEISHU_CHANNEL, '');
   const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
   assert.ok(allowed.includes('cortex_plan_exit'));
-  // The commission pair rides along with the rest of the bridge since DR-0037 v4 — PI used to be
-  // the only backend where withholding it worked, which made one feature mean two things.
-  assert.ok(allowed.includes('cortex_commission_start'));
-  assert.ok(allowed.includes('cortex_commission_submit'));
+  assert.ok(allowed.includes('cortex_ask_user'));
 });
 
 test('PI always gates out the MCP delegation pair so its native agent tool is the only one', () => {
@@ -420,7 +417,7 @@ test('PI always gates out the MCP delegation pair so its native agent tool is th
   const both = JSON.parse(gated[MCP_TOOL_ALLOWLIST_ENV]) as string[];
   assert.equal(both.includes('agent'), false);
   assert.equal(both.includes('agent_stop'), false);
-  assert.ok(both.includes('cortex_commission_start'));
+  assert.ok(both.includes('cortex_plan_enter'));
 });
 
 test('eligible PI sessions register the three shared interaction tool names', async () => {

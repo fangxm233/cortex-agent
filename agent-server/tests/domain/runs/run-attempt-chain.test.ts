@@ -61,7 +61,7 @@ function request(): RunRequest {
     prompt: { text: 'hi' },
     context: {
       channel: 'slack:C1', project: 'general', trigger: 'user', executionKind: 'local',
-      isUserInitiated: true, commissionMode: false,
+      isUserInitiated: true,
     },
     policy: {
       background: 'hold', recordCost: false, hooks: false, loadRules: false,

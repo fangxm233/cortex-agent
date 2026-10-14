@@ -435,14 +435,14 @@ test('when the human answers on the worker card first, the lead gets already-res
   assert.equal(answerQuestion('req-race', { 'Which DB?': 'pg' }, 'agent', answerDeps), 'already-resolved');
 });
 
-test('a worker plan (or commission contract) reaches the lead, which can approve or reject it', async () => {
+test('a worker plan reaches the lead, which can approve or reject it', async () => {
   const r = routing();
   const approval = registerPlanApproval('req-plan', 'web:worker', 'worker', '# Plan\n1. step', { plan_file_path: '/p/plan.md' });
   await flush();
   assert.match(r.delivered[0].text, /^\[Worker alpha · plan approval · request_id=req-plan · blocking\]/);
   assert.match(r.delivered[0].text, /Plan file: \/p\/plan\.md\n# Plan\n1\. step/);
   assert.equal(respondToPlan({ planApprovals: r.planApprovals, interactionRecords: r.interactions }, 'req-plan', true, '', 'agent'), 'resolved');
-  assert.equal((await approval).approved, true, 'the blocked submit sees the approval (commission submit finalizes on it)');
+  assert.equal((await approval).approved, true, 'the blocked submit sees the approval');
 
   const rejected = registerPlanApproval('req-plan-2', 'web:worker', 'worker', 'plan', {});
   await flush();

@@ -106,8 +106,8 @@ test('skills.session lists the skills a conversation loads, with what a palette 
   }));
   loadEnvironments();
   const sessions: Record<string, unknown> = {
-    s1: { id: 's1', channel: 'web:s1', agentName: null, commissionId: null },
-    s2: { id: 's2', channel: 'web:s2', agentName: 'bare', commissionId: null },
+    s1: { id: 's1', channel: 'web:s1', agentName: null },
+    s2: { id: 's2', channel: 'web:s2', agentName: 'bare' },
   };
   const deps = { sessionStore: { getById: async (id: string) => sessions[id] ?? null } } as never;
 

@@ -143,7 +143,7 @@ test('dynamic session bundles participate in allowlist validation and config ide
 
 // A minimal-surface agent (the `creative` environment) keeps the direct composition and narrows it
 // with an allowlist instead: delivery plus the one interaction the user can answer. The rest of the
-// bridge — plan mode, the commission drill — is loaded as a bundle and must still never register.
+// bridge — plan mode — is loaded as a bundle and must still never register.
 const MINIMAL_DELIVERY_SURFACE = ['send_file', 'send_view', 'cortex_ask_user'];
 
 test('a delivery-only allowlist admits one interaction-bridge tool and no other', () => {

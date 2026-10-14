@@ -142,8 +142,7 @@ test('(g) preserves a user-added file inside a managed plugin across a refresh',
 });
 
 test('a retired skill path is removed from an existing install', async () => {
-  // The sync never deletes, so a skill that moved plugins would stay live at its old address —
-  // and for the commission skill "still live" means every ordinary session keeps loading it.
+  // The sync never deletes, so a skill that moved plugins would stay live at its old address.
   const { dst, cleanup } = await mkdirs();
   try {
     const [plugin, rel] = RETIRED_PLUGIN_PATHS[0];
