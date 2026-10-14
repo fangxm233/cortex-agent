@@ -57,8 +57,8 @@ targets the three ways long agent runs go wrong:
 <img alt="A session paused on its plan, with Request changes and Approve plan buttons" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/plan-approval.png">
 
 Every session streams its reasoning, tool calls, subagent runs, and files into one transcript.
-Before non-trivial work the agent writes a plan and waits. You approve it, ask for changes, or
-reject it from the card in the chat. Questions and decisions arrive the same way, as cards you
+Before non-trivial work the agent writes a plan and waits. You read it, then approve it or send
+it back with the changes you want, from the card in the chat. Questions and decisions arrive the same way, as cards you
 answer in place, on desktop or on your phone.
 
 ### Boards for long work
@@ -94,7 +94,7 @@ line history. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
 
 <img alt="A project's overview: spend against its daily budget, a 14-day chart, its schedules, and the execution list" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
 
-Each project's overview shows what it spent today, this week, and this month against its budget,
+Each project's overview shows what it spent today, this week, and this month against its daily budget,
 its schedules, and every execution with its duration, cost, and logs. Interval, daily, weekly, and
 one-off schedules start ordinary sessions on their own: a morning scan of new papers, a weekly
 digest, a check every few minutes. Schedules survive restarts and hot-reload without downtime.
@@ -134,7 +134,7 @@ session and per provider. [Backends →](https://fangxm233.github.io/cortex-agen
 [Download](#download) the app for your platform, open it, and choose **Install Cortex**. The app
 unpacks its own Node.js runtime, installs the server into a private prefix under `~/.cortex`, starts
 it, and opens provider setup. Sign in to a provider, pick a default profile, and enter the
-workbench. Choose **Connect** instead to use a server running elsewhere.
+workbench. Choose **Connect an existing server** instead to use a server running elsewhere.
 [Desktop and Android apps →](https://fangxm233.github.io/cortex-agent/desktop-app/)
 
 ### Server from a terminal
@@ -184,8 +184,8 @@ and any agent or person can read them.
 Cortex gives agents real tools: shell, files, GPUs, and other machines. Its guard rails are
 conversational rather than a sandbox:
 
-- **Plan approval.** Non-trivial work starts with a plan that waits for your approval, revision, or
-  rejection.
+- **Plan approval.** Non-trivial work starts with a plan that waits until you approve it or send
+  it back for changes.
 - **Questions and decisions.** Agents ask through cards that you answer in place, and record the
   choices they make on their own as decision cards you can review.
 - **Your rules.** A safety boundary in your `$CORTEX_HOME/AGENTS.md` tells every session what it may
