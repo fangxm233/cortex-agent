@@ -20,6 +20,7 @@ import type { AttachmentMeta, ChatNoticeLevel, NoticeAction, SystemTurnOrigin } 
 import { parseTodoSnapshot, renderTodoProgress } from '@core/todo.js';
 import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 import type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
+import type { BoardActionRef } from '@core/board-action.js';
 import { registerFlushable } from '@core/json-repository.js';
 
 /** Where every session's transcript lives, one `<sessionId>.jsonl` per session. */
@@ -120,6 +121,8 @@ export interface HistoryEvent {
   toolDevice?: string;
   /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool events only). */
   teamAction?: TeamActionRef;
+  /** What a successful board_open call did (its tool event only). */
+  boardAction?: BoardActionRef;
   /** The worker a `worker-progress` event came from. */
   worker?: TeamWorkerRef;
   /** Native-subagent grouping key: the `Agent`/`Task` call's tool_use id. Set BOTH on that
@@ -186,6 +189,7 @@ export interface RawEvent {
   toolInput?: string;
   toolDevice?: string;
   teamAction?: TeamActionRef;
+  boardAction?: BoardActionRef;
   /** `worker-progress` lines only. */
   worker?: TeamWorkerRef;
   subagentId?: string;
@@ -615,13 +619,14 @@ export class ConversationHistoryRepo {
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; teamAction?: TeamActionRef; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; teamAction?: TeamActionRef; boardAction?: BoardActionRef; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'tool',
       toolName: opts.toolName,
       toolInput: opts.toolInput ?? '',
       toolDevice: opts.toolDevice,
       ...(opts.teamAction ? { teamAction: opts.teamAction } : {}),
+      ...(opts.boardAction ? { boardAction: opts.boardAction } : {}),
       ts: opts.ts ?? nowIso(),
       toolUseId: opts.toolUseId,
       fullInput: opts.fullInput,

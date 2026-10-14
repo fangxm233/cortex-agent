@@ -175,3 +175,35 @@ test('team rows read back on whole and delta reads: tool rows keep their action,
   const afterRewind = await read();
   assert.equal(afterRewind.turns[0].messages.at(-1)!.type, 'worker-progress', 'rewinding a later turn keeps it');
 });
+
+test('a board_open row reads back with its board action on whole and delta reads; older rows have none', async () => {
+  const repo = new ConversationHistoryRepo(DIR);
+  const sid = 'sess-board-rows';
+  const deps = makeUiDeps({ conversationHistory: repo } as UiDepsOverrides);
+  const read = (since?: string) =>
+    handleSessionsTranscript(deps, { sessionId: sid, compactSubagents: true, ...(since ? { since } : {}) });
+  const boardAction = { op: 'open' as const, boardId: 'a1b2c3d4', title: 'Ship it', created: true };
+
+  await repo.clear(sid);
+  await repo.appendUser(sid, { text: 'open a board', ts: '2026-10-01T00:00:00.000Z' });
+  await repo.appendTool(sid, { toolName: 'mcp__cortex-web__board_open', toolInput: 'Ship it', ts: '2026-10-01T00:00:01.000Z', toolUseId: 'toolu-old' });
+  let transcript = await read();
+  let rows = flatten(transcript);
+  const cursor = transcript.cursor;
+
+  await repo.appendTool(sid, {
+    toolName: 'mcp__cortex-web__board_open', toolInput: 'Ship it', boardAction,
+    ts: '2026-10-01T00:00:02.000Z', toolUseId: 'toolu-board',
+  });
+  transcript = await read(cursor);
+  assert.deepEqual(transcript.delta!.changed.map((row) => row.message.boardAction), [boardAction], 'the delta carries it');
+  rows = applyDelta(rows, transcript);
+  const whole = await read();
+  assert.deepEqual(rows, flatten(whole));
+
+  const [, old, opened] = whole.turns[0].messages;
+  assert.equal('boardAction' in old, false, 'a row written before the field existed carries none');
+  assert.deepEqual(opened.boardAction, boardAction);
+  const full = await handleSessionsTranscript(deps, { sessionId: sid });
+  assert.deepEqual(full.turns[0].messages.at(-1)!.boardAction, boardAction, 'the uncompacted read carries it too');
+});

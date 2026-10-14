@@ -23,8 +23,6 @@ export const uimsgEn = {
   'ui.session.noDecision': 'No decision ${decision} in session ${id}',
   'ui.session.decisionMessageRequired': 'message required for action "${action}"',
   // boards
-  'ui.board.notFound': 'Board not found: ${id}',
-  'ui.board.alreadyClosed': 'Board is already ${status}',
   // schedules (handler + zod form validation)
   'ui.schedule.notFound': 'Schedule not found: ${id}',
   'ui.schedule.intervalRequired': 'intervalMs is required for type=interval',
@@ -110,8 +108,6 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.session.noPendingPlan': '没有待审批的计划（requestId：${id}）',
   'ui.session.noDecision': '会话 ${id} 中没有决策 ${decision}',
   'ui.session.decisionMessageRequired': '「${action}」操作需要填写消息。',
-  'ui.board.notFound': '未找到看板：${id}',
-  'ui.board.alreadyClosed': '该看板已结束（${status}）。',
   'ui.schedule.notFound': '未找到定时任务：${id}',
   'ui.schedule.intervalRequired': '间隔类型需要填写间隔（intervalMs）。',
   'ui.schedule.timeRequired': '类型 ${type} 需要填写时间（time）。',

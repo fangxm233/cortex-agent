@@ -16,8 +16,13 @@ let stopStarted: (() => void) | null;
 
 const DEBOUNCE = 40;
 
-function board(id: string, status: BoardRecord['status'] = 'active'): BoardRecord {
-  return { id, projectId: 'proj', slug: id, title: id, status, createdAt: 0, updatedAt: 0 };
+function board(id: string): BoardRecord {
+  return { id, projectId: 'proj', slug: id, title: id, createdAt: 0, updatedAt: 0 };
+}
+
+/** A record as a release that could close boards wrote it. */
+function legacyClosed(id: string): BoardRecord {
+  return { ...board(id), status: 'done', closedAt: 1, closeNote: 'shipped' } as BoardRecord;
 }
 
 function dirOf(b: BoardRecord): string {
@@ -59,7 +64,7 @@ beforeEach(() => {
   configDir = path.join(root, 'config');
   fs.mkdirSync(configDir);
   for (const id of ['a', 'b', 'c']) fs.mkdirSync(path.join(root, 'boards', id, 'assets'), { recursive: true });
-  records = [board('a'), board('b', 'done')];
+  records = [board('a'), legacyClosed('b')];
   events = [];
   watcher = null;
   stopStarted = null;
@@ -71,14 +76,22 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('a burst of edits to an active board becomes one board.updated; closed boards are not watched', async () => {
+test('a burst of edits to a board becomes one board.updated', async () => {
   watcher = createBoardWatcher(deps());
   await watcher.refresh();
   for (let i = 0; i < 5; i += 1) fs.writeFileSync(path.join(root, 'boards', 'a', 'board.html'), `<p>${i}</p>`);
   fs.writeFileSync(path.join(root, 'boards', 'a', 'assets', 'shot.png'), 'png');
-  fs.writeFileSync(path.join(root, 'boards', 'b', 'board.html'), 'closed');
   await eventsReach(1);
   assert.deepEqual(events, [{ type: 'board.updated', boardId: 'a', projectId: 'proj' }]);
+});
+
+test('every registered board is watched, including one an older release recorded as closed', async () => {
+  records = [board('a'), legacyClosed('b'), board('c')];
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  for (const id of ['a', 'b', 'c']) fs.writeFileSync(path.join(root, 'boards', id, 'board.html'), id);
+  await eventsReach(3);
+  assert.deepEqual(events.map(e => e.boardId).sort(), ['a', 'b', 'c']);
 });
 
 test('a board.html replaced by rename is still seen when later written in place, and so are new assets', async () => {
@@ -119,10 +132,10 @@ test('directories created or recreated under the board are watched too', async (
   assert.ok(await produces(() => fs.writeFileSync(path.join(assets, 'again.png'), 'x')), 'a file in the recreated assets/');
 });
 
-test('refresh follows the registry: a new board is watched, a closed one is dropped', async () => {
+test('refresh follows the registry: a new board is watched, one no longer registered is dropped', async () => {
   watcher = createBoardWatcher(deps());
   await watcher.refresh();
-  records = [board('a', 'done'), board('c')];
+  records = [board('c')];
   await watcher.refresh();
   fs.writeFileSync(path.join(root, 'boards', 'a', 'board.html'), 'x');
   fs.writeFileSync(path.join(root, 'boards', 'c', 'board.html'), 'y');

@@ -97,7 +97,7 @@ test('a retired tool name in an old allowlist is dropped, not rejected as a typo
   const fullPath = path.join(root, 'full.json');
   writeFileSync(fullPath, JSON.stringify(buildFullConfig('/test')));
   const [generated] = materializeMcpToolAllowlistConfigs(
-    [fullPath], ['current_time', 'task_status', 'ask_manager',
+    [fullPath], ['current_time', 'task_status', 'ask_manager', 'board_close',
       ...['add', 'list', 'get', 'remove', 'pause', 'resume'].map(name => `cortex_schedule_${name}`)],
     path.join(root, 'generated'), DIRECT_BUNDLES,
   );

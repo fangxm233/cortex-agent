@@ -20,18 +20,16 @@ function notFound(message: string): Error {
   return Object.assign(new Error(message), { code: 'not-found' });
 }
 
-/** Registry record → DTO (epoch ms → ISO strings; absent close fields → null). */
+/** Registry record → DTO (epoch ms → ISO strings). Built field by field, so the close fields a
+ *  record from an older release may still carry never reach a client. */
 export function toBoardInfo(record: BoardRecord): BoardInfo {
   return {
     id: record.id,
     projectId: record.projectId,
     slug: record.slug,
     title: record.title,
-    status: record.status,
     createdAt: new Date(record.createdAt).toISOString(),
     updatedAt: new Date(record.updatedAt).toISOString(),
-    closedAt: record.closedAt != null ? new Date(record.closedAt).toISOString() : null,
-    closeNote: record.closeNote ?? null,
   };
 }
 
@@ -43,9 +41,8 @@ export async function handleBoardsList(
   deps: UiServiceDeps,
   params: QueryParams<'boards.list'>,
 ): Promise<BoardInfo[]> {
-  let records = await store(deps).list(params.projectId);
-  if (params.status) records = records.filter((r) => r.status === params.status);
-  return records.map(toBoardInfo);
+  const records = await store(deps).list(params.projectId);
+  return [...records].sort((a, b) => b.updatedAt - a.updatedAt).map(toBoardInfo);
 }
 
 export async function handleBoardsGet(

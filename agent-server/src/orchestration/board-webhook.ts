@@ -1,8 +1,8 @@
-// `/webhook/board`: the daemon side of the board_open / board_close tools and of the board field
-// in cortex_context. The MCP server runs as
-// a separate process without the registry, so both tools proxy here.
+// `/webhook/board`: the daemon side of the board_open tool and of the board field in
+// cortex_context. The MCP server runs as a separate process without the registry, so both proxy
+// here.
 
-import { BoardError, boundBoard, closeBoard, defaultBoardServiceDeps, openBoard, type BoardServiceDeps } from '@domain/boards/board-service.js';
+import { BoardError, boundBoard, defaultBoardServiceDeps, openBoard, type BoardServiceDeps } from '@domain/boards/board-service.js';
 import { orchestrationBus } from './runtime.js';
 
 export interface BoardWebhookReply {
@@ -31,15 +31,9 @@ export async function handleBoardWebhook(
         success: true,
         data: {
           id: result.board.id, slug: result.board.slug, title: result.board.title, dir: result.dir,
-          created: result.created, reopened: result.reopened, bound: result.bound,
+          created: result.created, bound: result.bound,
         },
       };
-    }
-    if (data.action === 'close') {
-      const status = data.status;
-      if (status !== 'done' && status !== 'abandoned') return { success: false, error: 'status must be done or abandoned' };
-      const board = await closeBoard(sessionId, { status, note: str(data.note) || undefined }, deps);
-      return { success: true, data: { id: board.id, title: board.title, status: board.status } };
     }
     if (data.action === 'status') {
       return { success: true, data: await boundBoard(sessionId, deps) };

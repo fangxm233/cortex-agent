@@ -15,7 +15,7 @@ const MAX_DIRS_PER_BOARD = 64;
 type Watch = (dir: string, onChange: (event: string, file: string | null) => void) => fs.FSWatcher;
 
 export interface BoardWatcherDeps {
-  /** Every registered board; only active ones are watched. */
+  /** Every registered board; each one whose directory exists is watched. */
   listBoards: () => Promise<BoardRecord[]>;
   boardDir: (board: BoardRecord) => string | null;
   /** The optional user override stylesheet. Its directory is watched, so the file may come and go. */
@@ -26,7 +26,7 @@ export interface BoardWatcherDeps {
 }
 
 export interface BoardWatcher {
-  /** Re-read the registry and watch exactly the active boards' directories. */
+  /** Re-read the registry and watch exactly the registered boards' directories. */
   refresh(): Promise<void>;
   stop(): void;
 }
@@ -138,9 +138,10 @@ function watchTree(root: string, watch: Watch, onChange: () => void, onGone: () 
 }
 
 /**
- * Watch active board directories (with everything below them) and the user override stylesheet, and turn bursts of file
- * changes into one `board.updated` per board / one `board.style-updated`. Content-free hints: the
- * clients refetch. A directory that is missing is skipped until a later refresh finds it.
+ * Watch every registered board's directory (with everything below it) and the user override
+ * stylesheet, and turn bursts of file changes into one `board.updated` per board / one
+ * `board.style-updated`. Content-free hints: the clients refetch. A directory that is missing is
+ * skipped until a later refresh finds it.
  */
 export function createBoardWatcher(deps: BoardWatcherDeps): BoardWatcher {
   const watch = deps.watch ?? defaultWatch;
@@ -195,7 +196,6 @@ export function createBoardWatcher(deps: BoardWatcherDeps): BoardWatcher {
     if (stopped) return;
     const wanted = new Map<string, { board: BoardRecord; dir: string }>();
     for (const board of await deps.listBoards()) {
-      if (board.status !== 'active') continue;
       const dir = deps.boardDir(board);
       if (dir) wanted.set(board.id, { board, dir });
     }
@@ -228,8 +228,8 @@ export function createBoardWatcher(deps: BoardWatcherDeps): BoardWatcher {
   };
 }
 
-/** Production wiring: the live registry, the bus, and a refresh whenever a board changes (opened,
- *  closed, reopened). Returns the stop function for shutdown. */
+/** Production wiring: the live registry, the bus, and a refresh whenever a board changes (a new
+ *  board registers, a session binds). Returns the stop function for shutdown. */
 export function startBoardWatcher(
   bus: Pick<EventBus, 'publish' | 'subscribe'>,
   deps: Partial<BoardWatcherDeps> = {},

@@ -90,10 +90,10 @@ test('commissions become boards: registry, directories, sessions, settings, envi
     pluginArchived: true,
   });
 
-  // Registry: converted with status kept, original kept as a backup.
+  // Registry: converted (a commission's status has no board counterpart), original kept as a backup.
   expect(await readJson(path.join(storeDir, 'boards.json'))).toEqual({ boards: [
-    { id: 'c1', projectId: 'proj', slug: 'ship-it', title: 'Ship it', status: 'active', createdAt: 1, updatedAt: 2 },
-    { id: 'c2', projectId: 'proj', slug: 'old-one', title: 'Old one', status: 'done', createdAt: 1, updatedAt: 3, closedAt: 3, closeNote: 'fine' },
+    { id: 'c1', projectId: 'proj', slug: 'ship-it', title: 'Ship it', createdAt: 1, updatedAt: 2 },
+    { id: 'c2', projectId: 'proj', slug: 'old-one', title: 'Old one', createdAt: 1, updatedAt: 3 },
   ] });
   expect(existsSync(path.join(storeDir, 'commissions.json'))).toBe(false);
   expect(existsSync(path.join(storeDir, 'commissions.json.pre-2026.10.6.bak'))).toBe(true);

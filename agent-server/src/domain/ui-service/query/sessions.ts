@@ -314,6 +314,7 @@ function messageFromEvent(
     toolInput: event.type === 'tool' ? (event.toolInput ?? '') : null,
     ...(event.type === 'tool' && event.toolDevice ? { toolDevice: event.toolDevice } : {}),
     ...(event.type === 'tool' && event.teamAction ? { teamAction: event.teamAction } : {}),
+    ...(event.type === 'tool' && event.boardAction ? { boardAction: event.boardAction } : {}),
     ...(event.type === 'worker-progress' && event.worker ? { worker: event.worker } : {}),
     ts: event.ts,
     elapsedMs,

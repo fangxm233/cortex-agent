@@ -189,8 +189,9 @@ type BoardSessionFields = Pick<Session, 'sessionId' | 'boardId' | 'boardBlockFor
  * opening a board, its workers bound with it) gets the block on its next turn. The marker records
  * which board was delivered; compaction clears it, so the block comes back after the delivered
  * copy is dropped. `isFreshSession` forces delivery: a spawn that died before writing history
- * leaves the marker set against a conversation that does not contain the block. A closed board is
- * not injected. Best-effort: any failure injects nothing rather than failing the turn.
+ * leaves the marker set against a conversation that does not contain the block. A board whose
+ * record is gone is not injected. Best-effort: any failure injects nothing rather than failing the
+ * turn.
  */
 export async function resolveConversationBoard(
   session: BoardSessionFields | null,

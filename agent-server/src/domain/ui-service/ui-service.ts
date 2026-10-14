@@ -88,7 +88,6 @@ import {
   handleAddSchedule,
   handleUpdateSchedule,
 } from './mutate/schedules.js';
-import { handleBoardClose } from './mutate/boards.js';
 import { handleApproveApproval, handleRejectApproval, handleRequestApproval } from './mutate/approvals.js';
 import { handleIssuesDelete, handleIssuesHandle } from './mutate/issues.js';
 import {
@@ -201,7 +200,6 @@ export const mutateHandlers = {
   'schedules.remove': (deps, args) => handleRemoveSchedule(deps, args),
   'schedules.add': (deps, args) => handleAddSchedule(deps, args),
   'schedules.update': (deps, args) => handleUpdateSchedule(deps, args),
-  'boards.close': (deps, args) => handleBoardClose(deps, args),
   'approvals.approve': (deps, args) => handleApproveApproval(deps, args),
   'approvals.reject': (deps, args) => handleRejectApproval(deps, args),
   'approvals.request': (deps, args) => handleRequestApproval(deps, args),

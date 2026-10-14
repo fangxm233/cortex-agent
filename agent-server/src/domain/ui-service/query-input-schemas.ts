@@ -36,7 +36,6 @@ export const schedulesListInput = z.object({
 
 export const boardsListInput = z.object({
   projectId: z.string().optional(),
-  status: z.enum(['active', 'done', 'abandoned']).optional(),
 });
 
 export const boardsGetInput = z.object({

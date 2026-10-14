@@ -385,7 +385,7 @@ const POST_ROUTES: Record<string, RequestHandler> = {
   '/webhook/subagent': replyRoute(handleSubagentWebhook),
   // Every team action returns at once; worker reports and questions reach the lead as deliveries.
   '/webhook/team': replyRoute(handleTeamWebhook),
-  // board_open / board_close: register, bind, notify. Never touches board.html after the scaffold.
+  // board_open and cortex_context's board field. Never touches board.html after the scaffold.
   '/webhook/board': replyRoute((data) => handleBoardWebhook(data)),
   // Benchmark launcher: `start` returns once the session exists and its task is handed over;
   // `status` is polled.

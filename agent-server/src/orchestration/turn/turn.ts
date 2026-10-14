@@ -330,6 +330,7 @@ export class Turn {
             return sink.onEvent(event);
         }
       },
+      onClose: () => sink.onClose?.(),
     };
 
     try {

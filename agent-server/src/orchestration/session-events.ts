@@ -3,6 +3,7 @@ import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 import type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
+import type { BoardActionRef } from '@core/board-action.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -19,6 +20,8 @@ export interface SessionMessagePayload {
   toolDevice?: string;
   /** Lead worker-tool rows only: what the call did to which worker. */
   teamAction?: TeamActionRef;
+  /** Successful board_open rows only: the board it opened or attached to. */
+  boardAction?: BoardActionRef;
   /** `worker-progress` rows only: the worker that sent it. */
   worker?: TeamWorkerRef;
   attachments?: AttachmentMeta[];
@@ -106,6 +109,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
     ...(p.toolDevice !== undefined ? { toolDevice: p.toolDevice } : {}),
     ...(p.teamAction !== undefined ? { teamAction: p.teamAction } : {}),
+    ...(p.boardAction !== undefined ? { boardAction: p.boardAction } : {}),
     ...(p.worker !== undefined ? { worker: p.worker } : {}),
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
     ...(p.decisions !== undefined ? { decisions: p.decisions } : {}),
