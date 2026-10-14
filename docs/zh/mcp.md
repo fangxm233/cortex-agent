@@ -1,204 +1,169 @@
-# MCP — Model Context Protocol
+# MCP — Model Context Protocol {#mcp-model-context-protocol}
 
-
-Cortex 内置按权限面和平台面拆分的 MCP（Model Context Protocol）服务器，赋予智能体访问远程机器、子智能体、调度、费用、waitpoint、团队 worker 和平台集成的能力。本文档解释每个服务器提供什么、如何组合以及如何添加第三方 MCP 服务器。
+Cortex 内置按权限面和平台面拆分的 MCP（Model Context Protocol）工具，让智能体能够访问远程机器、子智能体、费用、waitpoint、团队 worker、看板和平台集成。本文说明每个服务器提供什么、它们如何组合，以及如何添加第三方 MCP 服务器。
 
 ## 什么是 MCP {#what-mcp-is}
 
-MCP 是一个开放协议，允许 LLM 应用通过标准化的 JSON-RPC 接口（基于 stdio、HTTP 或一对内存 transport）向智能体暴露工具。Cortex 使用 MCP 在智能体（本身够不到 agent-server 内部）和服务器能力之间架起桥梁。MCP 支持因后端而异——功能矩阵参见 [backends.md](./backends.md)。
+MCP 是一个开放协议，允许 LLM 应用通过标准化的 JSON-RPC 接口（基于 stdio、HTTP 或一对内存 transport）向智能体暴露工具。Cortex 用 MCP 在智能体（它自身够不到任何 agent-server 内部）和服务器能力之间架起桥梁。MCP 支持情况因后端而异——功能矩阵见 [backends.md](./backends.md)。
 
-Claude Code 从 JSON 文件读取 MCP 服务器配置，并将每个服务器作为子进程生成。智能体可以像内置工具（Bash、Read、Edit 等）一样调用 MCP 工具，工具名称以 `mcp__<server-name>__` 为前缀。
+Claude Code 从 JSON 文件读取 MCP 服务器配置，并把每个 stdio 服务器作为子进程启动。之后智能体就像调用内置工具（Bash、Read、Edit 等）一样调用 MCP 工具，工具名带 `mcp__<server-name>__` 前缀。PI 通过 Cortex 自己的 bridge 连接 MCP 服务器：Cortex 内置工具保持无前缀的原名，plugin 服务器的工具则命名为 `plugin_tool_plugin_server_<server>_<tool>`。
 
 ## 为什么 Cortex 内置自己的 MCP 服务器 {#why-cortex-ships-its-own-mcp-servers}
 
-Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到远程机器的 WebSocket 连接、调度数据库、费用记录、Slack API 客户端和执行注册表。MCP 服务器充当受控桥梁——智能体调用 MCP 工具，MCP 服务器与 agent-server 内部通信（通过 HTTP 到本地 webhook 服务器端口 3001，或通过读取共享文件），结果流回智能体。
+Cortex 的 agent-server 维护着智能体进程无法直接触及的状态：到远程机器的 WebSocket 连接、运行中的子智能体和团队 worker、waitpoint、聊天平台、费用记录以及执行注册表。Cortex MCP 工具是一座受控的桥梁——智能体调用工具，工具向服务器发起请求（经 loopback webhook，或读取服务器的存储），结果再流回智能体。
 
 ## 内置 MCP 服务器 {#the-bundled-mcp-servers}
 
-下面的名称表示逻辑能力组。只要 session 的 MCP composition 非空，它就恰好拥有一个由
-`agent-server/src/domain/mcp/bundled-server.ts` 构建的 Cortex 自有 server，且只注册该
-session 选中的能力组。Claude Code 把它作为 stdio 子进程启动；PI 则让它跑在 agent-server
-进程内，经一对内存 transport 通信，并绑定专为该 session 构建的 tool context。
-Claude 保留 `cortex-core` server key，因此 core remote tools 的 raw name 不变；其它 Cortex
-内置 Claude tools 共用这个 prefix，例如 `mcp__cortex-core__cortex_context`。PI 则以无前缀的
-名称暴露同一批工具。
+下面的名称是逻辑能力组，而不是独立进程。只要会话的 MCP composition 非空，它就恰好拥有一个由 `agent-server/src/domain/mcp/bundled-server.ts` 构建的 Cortex 自有服务器，且只注册为该会话选中的能力组。Claude Code 把这个服务器作为 stdio 子进程启动；PI 则让它跑在 agent-server 进程内，经一对内存 transport 通信，并绑定专为该会话构建的 tool context。在 Claude 下服务器 key 是 `cortex-core`，因此每个内置工具都带这个前缀——远程工具是 `mcp__cortex-core__remote_*`，上下文工具是 `mcp__cortex-core__cortex_context`。PI 以无前缀的名称暴露同一批工具。
 
-用户提供的 MCP 不进入这个 bundle。Portable plugin server、browser MCP、remote HTTP/SSE
-server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独立配置、transport 和
-故障边界。
+用户提供的 MCP 不在这个 bundle 之内。Portable plugin 服务器、browser MCP、remote HTTP/SSE 服务器，以及已分配的 legacy plugin 中的 Claude-native MCP，各自保留独立的配置、transport 和故障边界。
 
-### cortex-core
+### cortex-core {#cortex-core}
 
-暴露远程机器操作、只读时钟与子智能体委派，并在所有会话中加载。保留 `cortex-core` 服务器名，因此现有客户端和 skill 使用的 `mcp__cortex-core__remote_*` 名称不变。
+暴露远程机器操作、只读时钟和子智能体委派。MCP composition 不是 `none` 的每个会话都会加载它，子智能体也包括在内。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `remote_bash` | `device`、`command`、`timeout?`、`description?`、`run_in_background?` | 通过 cortex-client 在远程设备上执行 shell 命令 |
-| `remote_read` | `device`、`file_path`、`offset?`、`limit?` | 从远程设备读取文件（支持图像和 PDF） |
-| `remote_write` | `device`、`file_path`、`content` | 向远程设备写入文件内容 |
-| `remote_edit` | `device`、`file_path`、`old_string`、`new_string`、`replace_all?` | 通过字符串替换编辑远程设备上的文件 |
-| `remote_glob` | `device`、`pattern`、`path?` | 在远程设备上查找匹配 glob 模式的文件 |
-| `remote_grep` | `device`、`pattern`、`path?`、`glob?`、`type?`、`output_mode?`、`-A?`、`-B?`、`-C?`、`-i?`、`-n?`、`head_limit?`、`offset?`、`multiline?` | 使用 ripgrep 在远程设备上搜索文件内容 |
-| `current_time` | `timezone?` | 获取当前日期时间；可选 IANA 时区（默认服务器本地）。返回 Unix 时间戳、UTC ISO 字符串及带偏移的本地时间 |
-| `agent` | 单任务（`description`、`prompt`、`subagent_type`）**或** `parallel[]` **或** `chain[]`，另有 `model?`、`backend?`、`run_in_background?` | 把工作委派给任一后端上的隔离子智能体 |
-| `agent_stop` | `agent_id` | 停止运行中的子智能体，并丢弃其已产出的内容 |
+| `remote_bash` | `device`, `command`, `timeout?` (seconds, 1–600, default 120), `description?`, `run_in_background?` | 通过 cortex-client 在远程设备上执行 shell 命令 |
+| `remote_read` | `device`, `file_path` (absolute), `offset?`, `limit?` | 从远程设备读取文件（支持图像和 PDF） |
+| `remote_write` | `device`, `file_path`, `content` | 向远程设备上的文件写入内容 |
+| `remote_edit` | `device`, `file_path`, `old_string`, `new_string`, `replace_all?` | 通过字符串替换编辑远程设备上的文件 |
+| `remote_glob` | `device`, `pattern`, `path?` | 在远程设备上查找匹配 glob 模式的文件 |
+| `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?` (alias `context?`), `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | 用 ripgrep 在远程设备上搜索文件内容 |
+| `current_time` | `timezone?` | 获取当前日期时间；可选 IANA 时区（默认为服务器本地时区）。返回 Unix 时间戳、UTC ISO 时间，以及带偏移的本地挂钟时间 |
+| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]` (each item `description`, `prompt`, `subagent_type`, `model?`, `backend?`), plus `model?`, `backend?`, `run_in_background?` | 把工作委派给任一后端上的隔离子智能体 |
+| `agent_stop` | `agent_id` | 停止运行中的子智能体，并丢弃它已产出的内容 |
 
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；`agent` 与 `agent_stop` 由 `agent-server/src/domain/mcp/tools/subagent.ts` 注册。
+远程工具由 `agent-server/src/domain/mcp/tools/remote-ops.ts` 注册；`agent` 和 `agent_stop` 由 `agent-server/src/domain/mcp/tools/subagent.ts` 注册。
 
-`agent` 取代了 Claude Code 内置的 `Agent` 工具——后者已被 Cortex 从每次 spawn 中剥离。替代品跑在与 PI 原生 `agent` 相同的角色表上，可以把子智能体放到任一后端，并且对守护进程可见：因此一次委派会出现在父会话的 transcript 里、计入父会话的账，并且可以从界面上停止。详见 [backends.md](./backends.md#subagents)。
+远程工具有一些共同行为：
 
-子智能体自身永远拿不到 `agent` 与 `agent_stop`。这条由工具允许列表强制，而不是靠提示词约束，所以无论它被要求做什么都无法继续向下扇出。
+- 会话工具集中的第一个远程工具会在描述里附上 `machines.json` 中已注册设备的目录，并标出 Windows 机器，让智能体知道有哪些 `device` 值可用。调用未连接的设备会失败，并返回当前在线的设备列表。
+- `remote_read`、`remote_write` 和 `remote_edit` 会把目标文件在该设备上的 `AGENTS.md` 祖先链附加到结果中，每个会话每个文件只附加一次（见 [cross-machine.md](./cross-machine.md#remote-agentsmd-files)）。
+- `remote_read` 以媒体形式返回图像和 PDF；当 `sharp` 可用时，服务器会把大图缩小。
+- 输出超过 30,000 字符（`remote_bash`）、20,000 字符（`remote_grep`）或 100,000 字符（`remote_glob`）时，会保存到 `$CORTEX_HOME/tmp/tool-results/` 下，工具返回该路径和一段 2 KB 的预览。
 
-### cortex-workers
+`agent` 取代 Claude Code 内置的 `Agent` 工具，Cortex 会在每次 Claude spawn 时把后者剥离。它运行在与 PI 原生 `agent` 相同的角色表上，可以把子智能体放到任一后端，并且对 daemon 可见——因此一次委派会出现在父会话的 transcript 里、计入父会话的费用，并且可以从界面上停止。前台调用运行超过 25 分钟仍未结束时，会转入后台，结果稍后送达。见 [backends.md](./backends.md#subagents)。
 
-[团队模式](./team.md)中主会话一侧的工具。当 `teamEnabled` 开启、且会话是网页直接会话而本身不是 worker 时，Claude 和 PI 会话都会选入此能力组。worker 和子智能体永远不加载它。所有工具都立即返回；worker 的汇报和提问以新消息的形式到达主会话。
+PI 会话永远拿不到 MCP 版的 `agent` 和 `agent_stop`：PI 注册了自己的 `agent`，同名的两个工具无法共存。子智能体在两种后端上都拿不到这两个工具。这一点由工具 allowlist 强制，而不是靠提示词约束，所以无论子智能体被要求做什么，都无法继续向下扇出。
+
+### cortex-workers {#cortex-workers}
+
+[团队模式](./team.md)中主会话一侧的工具。当 `teamEnabled` 开启、且会话是本身不是 worker 的 Web 直接会话时，会选入这个能力组，Claude 和 PI 都一样。worker 和子智能体永远不加载它。所有工具都立即返回；worker 的汇报和提问以新消息的形式到达主会话。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `worker_spawn` | `name`、`prompt`、`backend?`、`model?` | 启动一个持久的 worker 会话并交给它第一个任务；除非用 `backend`/`model`（格式同 `agent`）指定，否则沿用主会话当前的模型 |
-| `worker_send` | `worker`、`message` | 给 worker 发消息：并入它正在运行的一轮，或开启新的一轮 |
-| `worker_list` | `worker?` | 主会话的名单，或某个 worker 及其完整的上一份汇报 |
-| `worker_stop` | `worker`、`retire?` | 停止 worker 当前这一轮，可选同时退役 |
-| `worker_answer` | `request_id`、`answers?`、`approved?`、`feedback?` | 解决 worker 挂起的提问或计划审批 |
+| `worker_spawn` | `name`, `prompt`, `backend?`, `model?` | 启动一个持久的 worker 会话并交给它第一个任务；除非用 `backend`/`model`（格式同 `agent`）指定其他模型，否则沿用主会话当前的模型 |
+| `worker_send` | `worker`, `message` | 给 worker 发送消息：并入它正在运行的一轮，或开启新的一轮 |
+| `worker_list` | `worker?` | 主会话的 worker 名单，或某个 worker 及其完整的上一份汇报 |
+| `worker_stop` | `worker`, `retire?` | 停止 worker 当前这一轮，可选同时将其退役 |
+| `worker_answer` | `request_id`, `answers?`, `approved?`, `feedback?` | 处理 worker 挂起的提问或计划审批 |
 
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由处理。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具位于 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由提供服务。
 
-### cortex-worker-report
+### cortex-worker-report {#cortex-worker-report}
 
 [团队模式](./team.md)中 worker 一侧的工具。每个 worker 会话都会加载它，Claude 和 PI 都一样；主会话、普通会话和子智能体永远不加载。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `mark_routine` | 无 | 把当前这一轮标记为例行：它的最终回复作为未读的例行动态记给主会话，不唤醒主会话。失败或被停止的一轮仍会汇报 |
+| `mark_routine` | none | 把当前这一轮标记为例行：它的最终回复作为一条未读动态记给主会话，不会唤醒主会话。失败或被停止的一轮仍会照常汇报 |
 
-工具在 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由处理；不是 worker 的会话调用时会被拒绝。
+该工具位于 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由提供服务；非 worker 会话调用时会被该路由拒绝。
 
-### cortex-ext
+### cortex-ext {#cortex-ext}
 
-智能体通过 `schedule` skill 使用 `cortex schedule` 管理调度。`cortex_context` 可用于获取项目，然后显式传入 CLI 的 `--project`；操作与时间语义见[调度](./scheduling.md)。
-
-暴露 Cortex 管理工具：费用查询、执行记录、上下文解析和 waitpoint。MCP composition 不是 `none` 的每个顶层会话都会加载它，Claude 与 PI 都一样；子智能体不加载。
+暴露 Cortex 管理工具：费用查询、执行记录、上下文解析和 waitpoint。MCP composition 不是 `none` 的每个顶层会话都会加载它，Claude 和 PI 都一样。Claude 子智能体也会加载；PI 子智能体不加载。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `cost_query` | _(无)_ | 查询当前费用：今天/月支出、预算限制、剩余预算、API/plan 分摊、来源细分、令牌使用量 |
-| `query_executions` | `execution_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
-| `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId（UUID）、profile、project、backend；Web 会话还有 `board`，即绑定的看板（id、title、dir），没有时为 null |
-| `wait_create` | `label`、`intent`、`members?`、`quorum?`、`fail_fast?`、`max_signals?`、`expires_in_hours?`、`device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；然后结束这一轮 |
-| `wait_check` | `id?` | 查看某个 waitpoint，或列出本 session 正在等的全部内容 |
-| `wait_cancel` | `id` | 取消一个 waitpoint，使其不再触发 |
+| `cost_query` | `projectId?` | 查询当前费用：今日/本月支出、预算上限、剩余预算、API/plan 分摊、来源细分、token 用量；传入 `projectId` 时只统计该项目 |
+| `query_executions` | `execution_id?`, `status?` (`running`, `completed`, `failed`, `cancelled`, `stale`, `all`), `project?`, `limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
+| `cortex_context` | _(none)_ | 返回当前执行上下文：`sessionId`、`profile`、`project`、`backend`；定时或回调触发的运行还有 `scheduleTaskId` 和 `callbackSource`；Web 会话还有 `board`，即会话绑定的看板（id、title、dir），未绑定时为 null |
+| `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；随后结束这一轮 |
+| `wait_check` | `id?` | 查看某个 waitpoint，或列出本会话正在等待的全部内容 |
+| `wait_cancel` | `id` | 取消一个 waitpoint，使其无法触发 |
 
-`wait_create` 是 session 等待 Cortex 之外的事情——训练、构建、评测——而不轮询它的方式。外部程序用 `cortex-signal` CLI、回环 `POST /webhook/signal`，或往 spool 目录落一个文件来回报，session 随即被带着结果唤醒。见 [waitpoints.md](./waitpoints.md)。
+`wait_create` 让会话无需轮询就能等待 Cortex 之外的事情——一次训练、一次构建、一次评测。外部程序通过 `cortex-signal` CLI、loopback `POST /webhook/signal`，或往 spool 目录放一个文件来回报，会话随即带着结果被唤醒。见 [waitpoints.md](./waitpoints.md)。
 
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。各个工具在 `agent-server/src/domain/mcp/tools/`。
+定时任务不是 MCP 工具：智能体通过 `schedule` skill 使用 `cortex schedule` CLI 管理它们，先用 `cortex_context` 确定项目，再通过 `--project` 传入（见[调度](./scheduling.md)）。
 
-### cortex-slack
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。各个工具位于 `agent-server/src/domain/mcp/tools/`。
 
-Slack 平台特定的 MCP 服务器。仅当会话源自 Slack 时加载，提供平台特定的文件上传和消息功能。
+### cortex-slack {#cortex-slack}
 
-| 工具 | 参数 | 描述 |
-|---|---|---|
-| `slack_send_file` | `file_path`、`file_name?`、`title?`、`comment?`、`device?` | 上传文件到 Slack；带 `device` 时读取该远程设备上的文件 |
-
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/slack.ts`。
-
-### cortex-feishu
-
-飞书/Lark 平台特定的 MCP 服务器。仅当会话源自飞书时加载，只暴露一个工具——向聊天发送文件。
+Slack 平台专属的 MCP 服务器。仅当会话源自 Slack 时加载，提供平台专属的文件上传和消息能力。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `feishu_send_file` | `file_path`、`file_name?`、`title?`、`channel?`、`device?` | 上传文件到飞书聊天；带 `device` 时读取该远程设备上的文件 |
+| `slack_send_file` | `file_path`, `file_name?`, `title?`, `comment?`, `device?` | 上传文件到 Slack；带 `device` 时读取该远程设备上的文件 |
 
-文档、表格、电子表格、知识库等操作**不再是 MCP 工具**。它们改由飞书官方 CLI
-（`@larksuite/cli`）完成，通过 `feishu-doc` skill 驱动。该 CLI 能可靠处理原生表格和
-block 级精修（此前的 `feishu_docx_*` MCP 工具会把表格降级成纯文本 block，已移除）。
-安装/鉴权 preflight 以及如何委托给 CLI 自带的 `lark-doc` / `lark-sheets` / `lark-base`
-skill 指南，见 `feishu-doc` skill。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具位于 `agent-server/src/domain/mcp/tools/slack.ts`。
 
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具在 `agent-server/src/domain/mcp/feishu/file.ts`。
+### cortex-feishu {#cortex-feishu}
 
-### cortex-web
-
-Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `web:` 前缀）时加载，
-源自 Slack 或飞书的会话看不到这些工具。
+飞书/Lark 平台专属的 MCP 服务器。仅当会话源自飞书时加载。它只暴露一个工具——向聊天发送文件。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `send_file` | `file_path` 或 `files[]`（`{file_path, file_name?}`）、`file_name?`、`caption?`、`device?` | 把一个文件、或多个文件作为共用一条说明的同一条消息发进聊天，显示为可下载卡片（图片与视频内联预览）；带 `device` 时读取该远程设备上的文件 |
-| `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?`、`width?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
-| `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
-| `board_open` | `title` 或 `board` | 新建看板，或按 id、slug 接入已有看板，并把会话绑定到它 |
+| `feishu_send_file` | `file_path`, `file_name?`, `title?`, `channel?`, `device?` | 上传文件到飞书聊天；带 `device` 时读取该远程设备上的文件 |
 
-`send_file`、`send_view` 与 `send_decision` 都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
-归一化事件流里的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，
-比字符串更复杂的东西只能走带外通道。daemon 把字节复制到
-`workspace/outputs/<sessionId>/`（视图再深一层，落在 `views/`），记录一条带附件的
-assistant 消息，并发布实时事件。跨线的只有路径——大文档不会进入会话记录，也不会进入事件流。
+文档、表格、电子表格和知识库操作**不是** MCP 工具。它们通过飞书官方 CLI（`@larksuite/cli`）完成，由内置 `cortex-feishu` plugin 中的 `feishu-doc` skill 驱动，能够处理原生表格和 block 级编辑。安装/鉴权 preflight，以及如何委托给 CLI 自带的 `lark-doc` / `lark-sheets` / `lark-base` skill 指南，见 `feishu-doc` skill。
 
-`send_view` 接受内联 `html` 字符串（上限 256KB）或 agent 已写好的 `.html` 文件路径
-（上限 2MB）。视图运行在只开 `allow-scripts`、不带 `allow-same-origin` 的沙箱 frame 里，
-因此文档处于 opaque origin：拿不到页面、存储、cookie、Cortex API，桌面端也拿不到
-鉴权 token 和 Tauri IPC；但仍可通过 https 加载库和数据。正因为隔离靠的是这一层，
-"要不要渲染"由服务端铸造的附件类型决定，绝不由扩展名决定——用户上传的 `.html`、
-或 agent 用 `send_file` 发出的 `.html`，打开的都是源码而不是运行中的文档。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具位于 `agent-server/src/domain/mcp/feishu/file.ts`。
 
-`width` 在三档内联卡片宽度中选一档：`narrow`（默认）落在聊天正文栏内，`wide`
-约为一栏半（最宽 1040px），`full` 铺满整个聊天面板。`wide` 和 `full` 会随面板收窄，
-窗口较窄时两者都只有面板宽。档位随消息一起保存，刷新后宽度不变。只有桌面端聊天里的内联卡片
-使用它；展开、停靠视图与手机端聊天总是填满各自的可用空间。
+### cortex-web {#cortex-web}
 
-`send_decision` 不阻塞：agent 宣告替用户做出的选择后继续干活，而不是像
-`cortex_ask_user` 那样向用户提出一个问题。每条决策（单次最多 10 条，title ≤120 字符，其余字段 ≤1000）
-在聊天里显示为一张收起卡片，展开可见背景、决策与理由。用户可以同意（仅记录——
-不向 agent 发送任何内容）、要求解释或提议修改；后两者按模板拼出完整消息，既记录
-在该决策的动作日志上，也作为普通用户消息发给 agent。决策及其动作日志持久化在
-会话历史里，刷新或换设备后卡片状态不丢。
+Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（其频道带 `web:` 前缀）时加载，因此源自 Slack 或飞书的会话看不到这些工具。
 
-`board_open` 打开长任务的状态页：哪些会话绑定、agent 怎么写、对话和工作台里怎么显示，见
-[看板](./team.md#boards)。
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `send_file` | `file_path` or `files[]` (`{file_path, file_name?}`), `file_name?`, `caption?`, `device?` | 把一个文件，或把多个文件作为共用一条说明的同一条消息，发进聊天并显示为可下载卡片（图片和视频内联预览）；带 `device` 时读取该远程设备上的文件 |
+| `send_view` | `title`, `html` or `file_path`, `caption?`, `height?` (160–900, default 360), `width?` (`narrow`, `wide`, `full`) | 在聊天里内联渲染一块 HTML 视图，作为实时可交互的卡片 |
+| `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | 记录智能体刚做出的决策，并在聊天里以卡片展示 |
+| `board_open` | `title` or `board` (exactly one) | 新建看板，或按 id、slug 接入已有看板，并把会话绑定到它 |
 
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具在
-`agent-server/src/domain/mcp/tools/ui-file.ts`、
-`agent-server/src/domain/mcp/tools/ui-view.ts`、
-`agent-server/src/domain/mcp/tools/ui-decision.ts` 与
-`agent-server/src/domain/mcp/tools/ui-board.ts`。
+`send_file`、`send_view` 和 `send_decision` 不把载荷作为工具输出返回，而是经 loopback webhook 代理给 daemon：归一化事件流中的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，所以比字符串更复杂的东西只能走带外通道。daemon 把字节复制到 `workspace/outputs/<sessionId>/`（视图再深一层，落在 `views/`），记录一条带附件的 assistant 消息，并发布实时事件。传递的只有路径——大文档既不会进入 transcript，也不会进入事件流。
 
-### cortex-interaction-bridge
+`send_view` 接受内联 `html` 字符串（上限 256KB），或智能体已经写好的 `.html` 文件路径（上限 2MB）。视图渲染在只开启 `allow-scripts`、不带 `allow-same-origin` 的沙箱 frame 中，因此文档处于 opaque origin：拿不到页面、存储、cookie、Cortex API，在桌面端也拿不到鉴权 token 和 Tauri IPC。它仍然可以通过 https 加载库和数据。正因为有这层隔离，是否渲染由服务器生成的附件分类决定，绝不由文件扩展名决定——用户上传的 `.html` 文件，或智能体用 `send_file` 发送的 `.html` 文件，打开时显示的是源码文本，而不是运行中的文档。
 
-直接 Claude TUI 会话、用户发起的直接 Claude print 会话，以及用户发起的直接 PI 会话都会在单个 Cortex stdio 进程中选择这个交互能力组。三种模式共享 `agent-server/src/domain/mcp/tools/interaction-plan.ts` 与 `agent-server/src/domain/mcp/tools/interaction-ask.ts` 中的注册与处理逻辑。
+`width` 在三档内联卡片宽度中选一档：`narrow`（默认）落在聊天正文栏内，`wide` 扩展到约一栏半（最宽 1040px），`full` 铺满整个聊天面板。`wide` 和 `full` 会随面板收窄，所以窗口较窄时两者都与面板同宽。档位随消息一起保存，视图在刷新后保持原有宽度。只有桌面端聊天中的内联卡片遵循这个设置；展开视图、停靠视图和手机端聊天总是填满各自的可用空间。
 
-| 工具 | 描述 |
-|---|---|
-| `cortex_plan_enter` | 进入共享的只读规划协议 |
-| `cortex_plan_exit` | 读取 `plan_file_path`，提交计划供人类审批，并阻塞到审批完成 |
-| `cortex_ask_user` | 通过会话所属平台提出一个或多个自由文本或选择题，可以等待回答，也可以不等 |
+`send_decision` 不阻塞：智能体宣告它替用户做出的选择后继续工作，而不是像 `cortex_ask_user` 那样向用户提出问题。每条决策（单次调用最多 10 条，title ≤120 字符，其余字段 ≤1000）在聊天中显示为一张折叠卡片；展开后可看到背景、决策和理由。用户可以批准（仅记录——不向智能体发送任何内容）、要求解释或提议修改；后两者会按模板生成一条消息，既记录在该决策上，也作为普通用户消息发给智能体。决策及其操作日志持久化在会话历史中，因此卡片在刷新和换设备后都保持状态。
 
-两种模式下 `cortex_ask_user` 张贴问题卡片的方式完全一样，区别在于 `blocking` 参数
-决定答案怎么回来。默认阻塞：工具调用最多等到 30 分钟交互 TTL，答案直接作为自己的
-`tool_result` 返回，agent 拿不到答案就无法继续。传 `blocking: false` 时，卡片一贴出
-调用就返回，agent 继续干活；人类回答后，答案以一条普通用户消息送进该会话——若此时
-仍有正在跑的轮次就并入该轮，否则开启新一轮。没人回答的非阻塞卡片同样按 TTL 过期，
-只是不会产生任何消息。在工作台里，只有阻塞提问会把会话标记为"等待用户"；用非阻塞
-方式提问的会话仍显示为运行中。
+`board_open` 打开长任务的状态页：哪些会话绑定到它、智能体如何写入、在聊天和工作台中如何显示，见[看板](./team.md#boards)。
 
-计划与提问处理器位于 `agent-server/src/domain/mcp/tools/interaction-plan.ts` 和 `agent-server/src/domain/mcp/tools/interaction-ask.ts`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具位于 `agent-server/src/domain/mcp/tools/ui-file.ts`、`agent-server/src/domain/mcp/tools/ui-view.ts`、`agent-server/src/domain/mcp/tools/ui-decision.ts` 和 `agent-server/src/domain/mcp/tools/ui-board.ts`。
+
+### cortex-interaction-bridge {#cortex-interaction-bridge}
+
+直接 Claude TUI 会话、用户发起的直接 Claude print 会话，以及用户发起的直接 PI 会话，都会在各自唯一的 Cortex MCP 服务器中选入这个交互能力组。在加载了它的会话里，Claude 原生的 `AskUserQuestion`、`EnterPlanMode` 和 `ExitPlanMode` 会被移除，因此所有提问和计划都经由这些工具。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `cortex_plan_enter` | `reasoning?` | 进入共享的只读规划协议：先调研，把计划写到 `plan/` 下，获批后才实施 |
+| `cortex_plan_exit` | `plan_file_path`, `summary?` | 读取计划文件，提交人工审批，并阻塞到审批结束 |
+| `cortex_ask_user` | `questions[]` (each `question`, `header?`, `options?[]` of `{label, description?}`, `multiSelect?`), `level?` (`info`, `warning`, `error`; `warn` is an alias), `blocking?` | 通过会话所属平台提出一个或多个自由文本或选择题，可以等待回答，也可以不等直接继续 |
+
+两种模式下 `cortex_ask_user` 张贴问题卡片的方式完全相同；`blocking` 参数决定答案如何回来。默认是阻塞的：工具调用最多等待 30 分钟的交互 TTL，并在自己的 `tool_result` 中返回答案，智能体拿不到答案就无法继续。传入 `blocking: false` 时，卡片一贴出调用就返回，智能体继续工作；人类回答后，答案以一条普通用户消息送达该会话——如果当前轮仍在运行就并入该轮，否则开启新的一轮。无人回答的非阻塞卡片按同样的 TTL 过期，只是不会产生任何消息。在工作台中，只有阻塞提问会把会话标记为等待用户操作；以非阻塞方式提问的会话仍显示为运行中。
+
+卡片在各平台上的样子，以及团队模式下计划审批和提问如何路由，见 [safety-and-approvals.md](./safety-and-approvals.md#plan-approval-and-questions)。计划与提问的处理器位于 `agent-server/src/domain/mcp/tools/interaction-plan.ts` 和 `agent-server/src/domain/mcp/tools/interaction-ask.ts`。
 
 ## MCP 配置文件 {#mcp-configuration-files}
 
-Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core/config-generator.ts` 和 `agent-server/src/entry/startup-helpers.ts` 中的 `ensureMcpConfig()` 调用）。平台特定的服务器（cortex-slack、cortex-feishu、cortex-web）根据会话的源平台动态加载。
+Cortex 在启动时生成 Claude 的 MCP 配置文件（通过 `agent-server/src/core/config-generator.ts` 以及 `agent-server/src/entry/startup-helpers.ts` 中的 `ensureMcpConfig()` 调用）。封存的 home（`CORTEX_CONFIG_IMMUTABLE=1`）保留它被给定的文件。
 
-| 文件 | 用途 | 默认逻辑能力组 |
-|---|---|---|
-| `~/.cortex/config/mcp-config.json` | 直接会话 Cortex 进程 | core + ext |
-| `~/.cortex/config/mcp-config-core.json` | 显式受限 composition | core |
-| `~/.cortex/config/mcp-config-empty.json` | `none` composition：不含任何 MCP server | — |
-| `~/.cortex/config/mcp-config-interaction.json` | 显式交互 composition | interaction |
-| `~/.cortex/config/mcp-config-slack.json` | 显式 Slack composition | Slack |
-| `~/.cortex/config/mcp-config-feishu.json` | 显式飞书 composition | Feishu |
-| `~/.cortex/config/mcp-config-web.json` | 显式 Web composition | Web |
+| 文件 | 用途 | 服务器 key | 逻辑能力组 |
+|---|---|---|---|
+| `$CORTEX_HOME/config/mcp-config.json` | 每个普通 Claude 会话使用的 `direct` composition | `cortex-core` | core + ext |
+| `$CORTEX_HOME/config/mcp-config-empty.json` | `none` composition：不含任何 MCP 服务器 | — | — |
+| `$CORTEX_HOME/config/mcp-config-core.json` | 显式的受限 composition | `cortex-core` | core |
+| `$CORTEX_HOME/config/mcp-config-interaction.json` | 显式的交互 composition | `cortex-interaction-bridge` | interaction |
+| `$CORTEX_HOME/config/mcp-config-slack.json` | 显式的 Slack composition | `cortex-slack` | Slack |
+| `$CORTEX_HOME/config/mcp-config-feishu.json` | 显式的飞书 composition | `cortex-feishu` | Feishu |
+| `$CORTEX_HOME/config/mcp-config-web.json` | 显式的 Web composition | `cortex-web` | Web |
 
-每个文件遵循 Claude Code 的标准 MCP 配置格式：
+Claude 会话加载 `mcp-config.json` 或 `mcp-config-empty.json`；其余五个文件供显式传入配置路径的调用方使用。每个文件都遵循 Claude Code 的标准 MCP 配置格式：
 
 ```json
 {
@@ -206,92 +171,87 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
     "cortex-core": {
       "command": "node",
       "args": [
-        "/path/to/bundled-server.js",
+        "<install>/agent-server/dist/domain/mcp/bundled-server.js",
         "[\"cortex-core\",\"cortex-ext\"]"
       ],
-      "cwd": "/path/to/cwd"
+      "cwd": "<install>/agent-server"
     }
   }
 }
 ```
 
-配置文件在每次 agent-server 启动时重新生成。手动编辑它们将被覆盖。要自定义 MCP 配置，修改 `core/config-generator.ts` 中的生成器或工具读取的 profile/budget/schedule 设置。
+配置文件在每次 agent-server 启动时重写，所以手动编辑不会保留。要自定义 MCP 配置，请使用 plugin（见 [插件提供的 MCP 服务器](#plugin-provided-mcp-servers)）。
+
+在工具 allowlist 下运行的 spawn——子智能体，或声明了 allowlist 的 agent 角色——会得到一份合并后的配置，写入 `$CORTEX_HOME/config/mcp-tool-gates/mcp-composition-<digest>.json`，把 allowlist 传给内置服务器。
 
 ### 如何选择正确的配置 {#how-the-right-config-gets-selected}
 
-在 `agent-adapter/claude/spawn-args.ts` 中，`direct` composition 的会话加载 `mcp-config.json`，
-`none` composition 的会话加载 `mcp-config-empty.json` 并带上 `--strict-mcp-config`。Claude
-adapter 为它启动的 stdio 子进程把最终逻辑 selection 写入 `CORTEX_MCP_BUNDLES`：core 与 ext，
-用户发起的会话再加 interaction 能力组，team lead 再加 workers 能力组，并在 session context
-允许时加入一个 platform 能力组。Supplemental portable MCP 与 browser MCP 仍是独立 config entry。
+在 `agent-adapter/claude/spawn-args.ts` 中，`direct` composition 的会话加载 `mcp-config.json`，`none` composition 的会话加载 `mcp-config-empty.json` 并带上 `--strict-mcp-config`。Claude adapter 为它启动的 stdio 子进程把最终的逻辑选择写入 `CORTEX_MCP_BUNDLES`：core 和 ext；用户发起的会话再加 interaction 能力组，团队主会话加 workers 能力组，worker 加 worker-report 能力组，另外加上与会话频道（`slack:`、`feishu:` 或 `web:`）匹配的平台能力组。plugin 的 MCP 配置，以及（对启用浏览器的直接会话而言）browser MCP 配置，作为单独的配置文件加入。
 
-PI bridge 从 session 自身的环境计算出相同的逻辑 selection，直接交给进程内的 bundled server，并为每个 plugin server 追加一个独立
-state。子智能体只选择 cortex-core。
-Tool allowlist 会先针对已选逻辑能力组的并集校验，再由 bundled server 注册工具。
+PI 的 bridge 根据会话自身的环境计算出相同的逻辑选择，直接交给进程内的内置服务器，同时为每个 plugin 服务器建立一条独立连接；在 PI 上，interaction、workers 和 worker-report 能力组要求 `direct` composition。子智能体在 allowlist 下运行：Claude 子智能体获得 core（不含 `agent` 和 `agent_stop`）和 ext，PI 子智能体只获得 core，且没有 plugin 服务器。内置服务器注册工具之前，会先对照已选能力组校验 allowlist。
 
 ## MCP 工具如何与 agent-server 通信 {#how-mcp-tools-communicate-with-agent-server}
 
-用户提供的 stdio MCP entry 在两个后端下都是独立子进程；Claude Code 会话还会把 Cortex 自有的 MCP server 也作为子进程运行。无论 server 跑在哪里，Cortex 的 MCP 工具都不会直接访问 agent-server 的进程内状态（WebSocket 连接、调度仓库、执行注册表）。它们通过两条路径通信：
+用户提供的 stdio MCP 条目在两种后端下都是独立的子进程，Claude Code 会话还会把 Cortex 自有的 MCP 服务器也作为子进程运行。无论服务器跑在哪里，Cortex MCP 工具都不会直接触及 agent-server 的进程内状态（WebSocket 连接、运行中的会话、waitpoint）。它们通过两条路径通信：
 
-1. **HTTP 环回** — 远程机器工具（`remote_bash`、`remote_read` 等）发送 HTTP POST 到 `http://127.0.0.1:3001/webhook/remote-command`。`agent-server/src/orchestration/routing/webhook.ts` 中的 webhook 处理程序将请求转发到 `client-manager.sendCommand()`，后者通过 WebSocket 发送到远程设备。
+1. **Loopback webhook** — 大多数工具向服务器位于 `http://127.0.0.1:<WEBHOOK_PORT>`（默认 3001）的 webhook 发送 POST 请求，在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token 进行认证。远程机器工具使用 `/webhook/remote-command`，它在 `agent-server/src/orchestration/routing/webhook.ts` 中的处理程序把请求转发给 `client-manager.sendCommand()`，再经 WebSocket 发送到设备。子智能体、团队、看板、waitpoint、Web 投递（`ui-file`、`ui-view`、`ui-decision`）和交互（`/hook/ask-user-question`、`/hook/exit-plan-mode`）工具各有自己的路由。
 
-2. **共享文件访问** — 调度、费用和执行工具直接读取和写入 `~/.cortex/data/` 中的共享数据文件（schedules.json、costs.jsonl、executions.json），使用与主服务器进程相同的仓库层。
+2. **读取存储** — `cost_query` 通过与主服务器相同的仓库层读取费用记录（`data/costs.jsonl`），`query_executions` 读取执行注册表（`data/executions.json`）。两者都不写入。
 
-MCP 调用与 loopback HTTP 请求统一使用 30 分 30 秒的基础设施 deadline。工具自身的业务 deadline 仍然优先：shell 命令使用其 `timeout` 参数，人工交互保留 30 分钟响应窗口。额外 30 秒用于让业务超时结果在外层 transport 关闭请求前正常返回。
+MCP 调用和 loopback HTTP 请求共用 30 分 30 秒的基础设施 deadline。工具自身的业务 deadline 仍然优先：shell 命令使用其 `timeout` 参数，人工交互保留 30 分钟的响应窗口。多出的 30 秒让业务超时能在外层 transport deadline 关闭请求之前返回结果。
 
-## 插件提供的 MCP servers {#plugin-provided-mcp-servers}
+## 插件提供的 MCP 服务器 {#plugin-provided-mcp-servers}
 
-按执行环境分配的第三方 MCP 应放入 `$CORTEX_HOME/plugins/<plugin-id>/` 下的 portable Agent Plugins package。Package 在根目录 `mcp.json` 声明 servers，再在执行环境的 Plugins 标签页（**Settings → Environments**）中分配给它。Schema 支持 `stdio`、`streamable-http` 与 legacy `sse`；完整 package 与 trust model 见[技能与插件](./skills-and-plugins.md#portable-mcp-servers)。
+按执行环境分配的第三方 MCP 应放在 `$CORTEX_HOME/plugins/<plugin-id>/` 下的 portable Agent Plugins package 中。package 在根目录的 `mcp.json` 中声明服务器，再由执行环境的 Plugins 标签页（**Settings → Environments**）把 package 分配给该环境。schema 支持 `stdio`、`streamable-http` 和 legacy `sse`；完整的 package 与信任模型见[技能与插件](./skills-and-plugins.md#portable-mcp-servers)。
 
-Legacy plugin directory 仍会原样传给 backend。Claude 可以从该目录加载 Claude-native root `.mcp.json`，但 Cortex 不会 inventory、summarize 或 acknowledgment-gate 这些 native servers，PI 也不会获得它们。本节保证只适用于 portable root `mcp.json`（`agent-server/src/domain/plugins/runtime.ts:546-562`；`agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`）。
+legacy plugin 目录会原样传给对应的后端。Claude 可以从这类目录加载 Claude-native 的根目录 `.mcp.json`，但 Cortex 不会对这些原生服务器做清点、摘要或确认门控，PI 也拿不到它们。本节所述的保证只适用于 portable 的根目录 `mcp.json`（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/claude/spawn-args.ts`）。
 
-Cortex 在 spawn 时统一校验和规范化 package。Claude 获得叠加在常规 Cortex files 之后的 private supplemental config。Stdio entry 仍是独立 process；每个 remote entry 会变成本地 stdio proxy，其 URL 与 headers 保存在 private config。PI 随 session request 获得规范化后的 server 列表，其 bridge 为每个 entry 打开各自的 transport——stdio entry 一个 stdio 子进程，remote entry 一条直连的 HTTP 或 SSE 连接。两个 remote path 使用相同的 manual-redirect fetch，并在 configured header 或 request body 被重放之前拒绝所有 redirect。Connection 与 tool registration 按 process 隔离。Materialization 遵循声明的 dependency：plugin-scoped `PLUGIN_DATA` 不可用时会省略依赖它的 stdio servers，同时保留 remote MCP、skills 与 bundled tools（`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`；`agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`）。
+Cortex 在 spawn 时对 package 统一做一次校验和规范化。Claude 获得一份私有的补充配置，叠加在常规 Cortex 配置文件之后。stdio 条目仍是独立进程；每个 remote 条目会变成一个本地 stdio 代理，其 URL 和请求头保存在私有配置中。PI 随会话请求获得规范化后的服务器列表，它的 bridge 为每个条目打开各自的 transport——stdio 条目对应一个 stdio 子进程，remote 条目对应一条直连的 HTTP 或 SSE 连接。两条 remote 路径使用同一个手动处理重定向的 fetch，在配置的请求头或请求体可能被重放之前拒绝所有重定向。连接和工具注册按服务器隔离。materialization 遵循声明的依赖：plugin 作用域的 `PLUGIN_DATA` 不可用时，会省略依赖它的 stdio 服务器，同时保留 remote MCP、skill 和内置工具（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/claude/mcp-config.ts`；`agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。
 
-Resolved MCP composition 为 `none` 时 portable MCP 会被省略；受限的子智能体也不会获得它。普通顶层 Claude 与 PI session 只有在分配了相应 plugin 时才会加载（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/pi/adapter.ts`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。
+解析出的 MCP composition 为 `none` 时，portable MCP 会被省略；子智能体完全不加载 plugin。顶层 Claude 和 PI 会话只有通过已分配的 plugin 才会获得它（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/pi/adapter.ts`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。
 
-Plugin catalog 与 Settings API 只公开 sanitized summary。Stdio summary 包含 executable basename、argument count 与 environment key names；remote summary 包含 origin 与 header names。Environment values、完整 remote URL 与 header values 都留在 server 侧（`agent-server/src/domain/plugins/mcp.ts:102-216`；`agent-server/src/domain/ui-service/plugins-shared.ts:98-134`）。Installed stdio command 与 working directory 仍是 administrator-trusted package inputs；private config 和 per-server isolation 不是 code sandbox。
+plugin 目录和 Settings API 只公开经过脱敏的摘要。stdio 摘要包含可执行文件的 basename、参数个数和环境变量的键名；remote 摘要包含 origin 和请求头名称。环境变量的值、完整的 remote URL 和请求头的值都留在服务器端（`agent-server/src/domain/plugins/mcp.ts`；`agent-server/src/domain/ui-service/plugins-shared.ts`）。已安装的 stdio 命令及其工作目录仍属于由管理员信任的 package 输入；私有配置和按服务器隔离并不是代码沙箱。
 
-## Global custom MCP servers {#global-custom-mcp-servers}
+## 全局自定义 MCP 服务器 {#global-custom-mcp-servers}
 
-`$CORTEX_HOME/config/mcp-config*.json` 描述 Cortex 的 global 与 session-composed MCP layers。这些文件在 server startup 时重新生成，因此直接修改只是临时的。要持久加入 global server，必须在 `agent-server/src/core/config-generator.ts` 中显式修改 builder 与 privilege composition；它不属于 assignment-scoped plugin。
+`$CORTEX_HOME/config/mcp-config*.json` 下的文件描述 Cortex 的全局 MCP 层和按会话组合的 MCP 层。它们在服务器启动时重写，所以直接编辑只是临时的。要持久加入一个全局服务器，必须在 `agent-server/src/core/config-generator.ts` 中显式修改 builder 和权限组合；它不属于按分配生效的 plugin。
 
-这种区分把 global Cortex privileges 与 administrator-installed plugin capabilities 分开。Server 应随执行环境的分配加载时使用 portable plugin；只有所有 eligible session composition 都应获得该 server 时才修改 global builders。
+这种区分把 Cortex 的全局权限与管理员安装的 plugin 能力分开。如果服务器应随执行环境的分配而加载，就使用 portable plugin；只有当每一种符合条件的会话 composition 都应获得该服务器时，才修改全局 builder。
 
 ## 权限模型 {#permission-model}
 
-MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Installed plugin 属于 administrator-trusted code。对 portable root `mcp.json`，assignment confirmation 会显式呈现新增 capability，但它不是 sandbox，也不是独立 authorization boundary；legacy Claude-native MCP configuration 不经过该 confirmation。Cortex 应用以下控制：
+MCP 工具跨越了从智能体进程到 agent-server 内部和远程机器的信任边界。已安装的 plugin 属于由管理员信任的代码。对于 portable 的根目录 `mcp.json`，分配时的确认会明确展示新增的能力，但它既不是沙箱，也不是独立的授权边界。legacy 的 Claude-native MCP 配置不经过这一确认。Cortex 施加以下控制：
 
-1. **注册级可用性** — bundled Cortex server 只注册当前 session 选中的逻辑能力组，可选 canonical tool allowlist 会进一步过滤。顶层会话获得 core 与 ext tools，用户发起的会话再加 interaction tools，team lead 再加 worker tools，子智能体只获得 core tools。
+1. **注册级可用性** — Cortex 内置服务器只注册为该会话选中的逻辑工具面，可选的规范化工具 allowlist 会进一步过滤。顶层会话获得 core 和 ext 工具，用户发起的会话再加交互工具，团队主会话加 worker 工具，worker 加 `mark_routine`，会话所属平台再加上它的投递工具。子智能体拿不到任何委派工具。
 
-2. **Claude account-level MCP discovery 被禁用** — `~/.cortex/.claude/settings.json` 中的 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 account-level auto-discovery，但不会禁用显式分配的 legacy plugin directory 内 Claude-native `.mcp.json`。Cortex 通过自己的 config layers 管理 bundled 与 portable MCP，同时保留该 legacy backend behavior。
+2. **独立的 Claude 配置** — Cortex 启动的每个 Claude 进程都以 `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude` 运行，因此为你终端里的 Claude Code（`~/.claude`）配置的 MCP 服务器和 plugin 不属于 Cortex 会话。执行环境的 `settingSources` 可以进一步限定 Claude 读取哪些设置文件。显式分配的 legacy plugin 目录中的 Claude-native `.mcp.json` 仍会被 Claude 加载。
 
-3. **绕过权限** — Claude Code 以 `--dangerously-skip-permissions --permission-mode bypassPermissions` 生成，意味着它不会对每个 MCP 工具调用提示。访问控制在 MCP 工具实现级别和通过 PreToolUse 钩子系统进行。
+3. **绕过权限确认** — Claude Code 以 `--dangerously-skip-permissions --permission-mode bypassPermissions` 启动，即不会对每次 MCP 工具调用弹出确认。访问控制发生在 MCP 工具的实现层、`agent:pre-tool` hook 以及服务器的 webhook token 上。
 
-4. **网络边界** — 与远程机器通信的 MCP 工具通过 client-manager 的 WebSocket 层。`machines.json` 注册表控制哪些设备是已知的。只有具有活跃 WebSocket 连接的设备才能接收命令。
+4. **网络边界** — 与远程机器通信的 MCP 工具经过 client-manager 的 WebSocket 层。只有在 `machines.json` 中注册的设备才能连接，也只有拥有活跃 WebSocket 连接的设备才能接收命令。
 
 ## 传递给 MCP 服务器的环境变量 {#environment-variables-passed-to-mcp-servers}
 
-MCP 服务器进程接收 agent server 环境变量的一个子集：
+Cortex 内置服务器根据以下变量构建每个会话的上下文。在 Claude 下，它们设置在 stdio 子进程的环境中；在 PI 下，同样的值直接传给进程内的服务器。
 
 | 变量 | 来源 | 使用者 |
 |---|---|---|
-| `SLACK_CHANNEL` | 生成时的频道参数 | cortex-ext（slack_send_file）、interaction-server |
-| `SLACK_BOT_TOKEN` | process.env | cortex-ext |
-| `CORTEX_SESSION_ID` | 会话上下文 | interaction-server、context 工具 |
-| `CORTEX_PROFILE` | 会话上下文 | context 工具 |
-| `CORTEX_PROJECT` | 会话上下文 | context 工具 |
-| `CORTEX_EXECUTION_ID` | 执行上下文 | 钩子脚本 |
-| `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
-| `CORTEX_CALLBACK_SOURCE` | 可选回调元数据 | cortex-ext |
-| `CORTEX_SCHEDULE_TASK_ID` | 可选定时任务 ID | cortex-ext |
-| `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |
-| `PLUGIN_ROOT` | 解析后的 selected plugin root | Portable stdio plugin servers |
-| `PLUGIN_DATA` | Private persistent per-plugin data directory | Portable stdio plugin servers |
+| `SLACK_CHANNEL`, `FEISHU_CHANNEL` | 会话的频道 | 平台能力组选择、交互工具、文件投递、子智能体与团队路由 |
+| `SLACK_BOT_TOKEN` | 服务器环境 | cortex-slack（`slack_send_file`） |
+| `CORTEX_SESSION_ID` | 会话上下文 | 交互工具、`cortex_context`、waitpoint、Web 投递 |
+| `CORTEX_PROFILE`, `CORTEX_PROJECT`, `CORTEX_BACKEND` | 会话上下文 | `cortex_context` |
+| `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | 定时或回调触发的运行时设置 | `cortex_context` |
+| `CORTEX_WEBHOOK_TOKEN`, `WEBHOOK_PORT` | 服务器环境 | 所有调用 loopback webhook 的工具 |
+| `CORTEX_MCP_BUNDLES` | 后端进程的 composition | 内置服务器中的能力组选择 |
+| `CORTEX_MCP_TOOL_ALLOWLIST` | agent 角色或子智能体 spawn | 工具注册过滤 |
+| `CORTEX_CLAUDE_MODEL`, `CORTEX_SUBAGENT_PI_MODELS`, `CORTEX_SUBAGENT_CLAUDE_MODELS` | 会话模型与模型目录 | `agent` 和 `worker_spawn` 的模型说明 |
+| `PLUGIN_ROOT` | 解析后的所选 plugin 根目录 | Portable stdio plugin 服务器 |
+| `PLUGIN_DATA` | 每个 plugin 私有的持久数据目录 | Portable stdio plugin 服务器 |
 
 ## 安全考量 {#security-considerations}
 
-MCP 工具赋予智能体在远程机器上执行 shell 命令、读写文件、上传到 Slack 和修改调度的能力。安全假设如下：
+MCP 工具赋予智能体在远程机器上执行 shell 命令、读写文件、委派给子智能体和 worker，以及向聊天平台发消息的能力。安全假设如下：
 
-- `cortex-client` WebSocket 端口（3002）不暴露到公网。使用 Tailscale、VPN 或 localhost-only 绑定（网络拓扑选项参见 [cross-machine.md](./cross-machine.md)）。
-- Webhook HTTP 端口（3001）仅绑定到 `127.0.0.1`——MCP 服务器通过环回而不是网络与之通信。
-- 智能体在与 [safety-and-approvals.md](./safety-and-approvals.md) 中记录的相同影响范围安全边界内运行。MCP 工具不会让高权限操作豁免于该边界。
+- `cortex-client` 的 WebSocket 端口（3002）要求每个连接都提供 `CORTEX_CLIENT_TOKEN`，但仍最好不要暴露到公网：使用 Tailscale、VPN、隧道或仅绑定 localhost（网络拓扑选项见 [cross-machine.md](./cross-machine.md)）。
+- Webhook HTTP 端口（3001）只绑定到 `127.0.0.1`，并要求 `CORTEX_WEBHOOK_TOKEN`——MCP 服务器通过 loopback 而不是网络与之通信。
+- 智能体运行在 [safety-and-approvals.md](./safety-and-approvals.md) 所述的同一套影响范围安全边界之内。MCP 工具不会让高权限操作豁免于该边界。
