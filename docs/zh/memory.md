@@ -29,7 +29,7 @@ context/
         ├── roadmap.md           # 带可测试清单条件的里程碑
         ├── STATUS.md            # 现在时状态寄存器（覆盖式，最多 80 行 / 6KB）
         ├── ISSUES.md            # 执行摩擦（仅追加，已解决项删除，最多 80 行 / 6KB）
-        ├── commissions/         # 委托的契约与台账，每个委托一个目录
+        ├── boards/              # 每个看板一个目录：board.html、assets/、decisions.jsonl
         ├── experiments/
         │   ├── index.md         # 自动生成——请勿手动编辑
         │   └── EXP-NNN.md       # 每实验一个文件，YAML frontmatter
