@@ -1,10 +1,12 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 /* Cortex board preset.
    Loaded after the app's theme variables and before ~/.cortex/config/board.css, which may override
    any --b-* variable or rule. Colours come only from theme variables (--proto-*, --material-*,
    --border-card, --r-*), so a board follows light/dark, the palette and the accent.
    State language: ok = done (success) · run = in progress (accent) · ask = needs the user (light
    amber, and nothing else is amber) · wait = blocked on a machine or someone else (hollow ring,
-   dashed line) · bad = failed / risk (danger) · no modifier = not started. */
+   dashed line) · bad = failed / risk (danger) · no modifier = not started.
+   The mono face is the one the app loads; offline it falls back to the system monospace. */
 
 :root {
   --b-font: -apple-system, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
