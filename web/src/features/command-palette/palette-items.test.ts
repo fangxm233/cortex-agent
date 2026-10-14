@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { sortBoards } from '@/features/board/useBoard';
-import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
+import { buildCmdkItems, isClosedBoardRow, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
 
 function session(over: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -113,11 +113,21 @@ describe('board rows', () => {
     expect(item).toMatchObject({ id: 'board:busy', kbd: 'board', boardId: 'busy', boardStatus: 'active', label: 'Board busy' });
   });
 
-  it('lists open boards before sessions on an empty query, and finds closed ones by search', () => {
+  it('lists open boards, then closed ones, before sessions on an empty query', () => {
     const rows = selectPaletteRows('', { sessions: [session()], boards });
-    const entities = rows.slice(NAV_COMMAND_ITEMS.length).map((r) => r.id);
-    expect(entities).toEqual(['board:busy', 'board:quiet', 'session:sess_1']);
+    const entities = rows.slice(NAV_COMMAND_ITEMS.length);
+    expect(entities.map((r) => r.id)).toEqual(['board:busy', 'board:quiet', 'board:old-done', 'board:dropped', 'session:sess_1']);
+    expect(entities.map(isClosedBoardRow)).toEqual([false, false, true, true, false]);
     expect(selectPaletteRows('old-done', { sessions: [], boards }).map((r) => r.id)).toEqual(['board:old-done']);
+  });
+
+  it('caps open and closed boards separately, so closed ones still show beside many open ones', () => {
+    const many = sortBoards([
+      ...['a', 'b', 'c'].map((id, i) => board(id, 'active', `2026-07-0${i + 1}T00:00:00Z`)),
+      ...['x', 'y', 'z'].map((id, i) => board(id, 'done', `2026-07-0${i + 1}T00:00:00Z`)),
+    ]);
+    const rows = selectPaletteRows('', { sessions: [], boards: many }, { restPerKind: 2 });
+    expect(rows.slice(NAV_COMMAND_ITEMS.length).map((r) => r.id)).toEqual(['board:c', 'board:b', 'board:z', 'board:y']);
   });
 
   it('lists every board when the query names the kind', () => {

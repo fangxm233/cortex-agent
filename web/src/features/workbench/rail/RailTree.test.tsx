@@ -110,7 +110,7 @@ describe('flat project rail row', () => {
 describe('project Stars disclosure', () => {
   const star: RailSessionRow = { sessionId: 'star-1', projectId: 'p1', title: 'Renamed session',
     age: '1h', stamp: '', running: false, awaitingInput: false, waitingOn: false,
-    unread: false, selected: true, boardId: null };
+    unread: false, selected: true };
 
   it('renders a selected star once and toggles only its own group', () => {
     const onToggleStars = vi.fn();
@@ -165,33 +165,9 @@ describe('project Stars disclosure', () => {
   });
 });
 
-describe('board icon on a session row', () => {
-  const session = (boardId: string | null): RailSessionRow => ({ sessionId: 's1', projectId: 'p1', title: 'Session',
-    age: '', stamp: '', running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false, boardId });
-
-  it('shows only on a bound session and opens the board without opening the session', () => {
-    const onOpenBoard = vi.fn();
-    const onOpenSession = vi.fn();
-    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session('b1')] }], onOpenBoard, onOpenSession });
-    const icon = renderer.root.findByProps({ 'data-rail-board': 'b1' });
-    const stopPropagation = vi.fn();
-    act(() => icon.props.onClick({ stopPropagation }));
-    expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(onOpenBoard).toHaveBeenCalledWith('b1');
-    expect(onOpenSession).not.toHaveBeenCalled();
-    act(() => renderer.unmount());
-  });
-
-  it('is absent on an unbound session', () => {
-    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session(null)] }] });
-    expect(renderer.root.findAll((n) => n.props['data-rail-board'] !== undefined)).toHaveLength(0);
-    act(() => renderer.unmount());
-  });
-});
-
 describe('team lead rail row', () => {
   const base: RailSessionRow = { sessionId: 'lead', projectId: 'p1', title: 'Lead', age: '1h', stamp: '',
-    running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false, boardId: null };
+    running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false };
   const w = (id: string, over: Partial<RailSessionRow> = {}): RailSessionRow =>
     ({ ...base, sessionId: id, title: id, ...over });
 
@@ -232,7 +208,7 @@ describe('team lead rail row', () => {
 describe('rail keyboard navigation', () => {
   it.each(['Enter', ' '])('opens sessions and expands projects with %j', (key) => {
     const session: RailSessionRow = { sessionId: 's1', projectId: 'p1', title: 'Session', age: '', stamp: '',
-      running: false, awaitingInput: false, waitingOn: false, unread: false, selected: true, boardId: null };
+      running: false, awaitingInput: false, waitingOn: false, unread: false, selected: true };
     const onOpenSession = vi.fn();
     const onToggleProject = vi.fn();
     const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session] }], onOpenSession, onToggleProject });

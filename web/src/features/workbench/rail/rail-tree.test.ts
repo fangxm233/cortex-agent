@@ -549,7 +549,7 @@ describe('buildRailTree ordering modes', () => {
 });
 
 describe('buildRailTree board-bound sessions', () => {
-  it('keeps a bound session in the flat list and marks its row with the board', () => {
+  it('keeps a bound session in the flat list like any other', () => {
     const bound = session('atlas', { boardId: 'b1', label: 'drilling' });
     const loose = session('atlas', { label: 'unrelated' });
     const tree = buildRailTree(
@@ -557,7 +557,5 @@ describe('buildRailTree board-bound sessions', () => {
     );
     const rows = tree.projects[0].sessions;
     expect(rows.map((s) => s.sessionId).sort()).toEqual([bound.sessionId, loose.sessionId].sort());
-    expect(rows.find((s) => s.sessionId === bound.sessionId)?.boardId).toBe('b1');
-    expect(rows.find((s) => s.sessionId === loose.sessionId)?.boardId).toBeNull();
   });
 });

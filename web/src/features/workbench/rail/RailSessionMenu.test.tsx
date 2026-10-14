@@ -25,7 +25,7 @@ vi.mock('@/design/Modal', () => ({ Modal: ({ open, children }: any) =>
   open ? <section role="dialog">{children}</section> : null }));
 
 const row: RailSessionRow = { sessionId: 'not-selected', projectId: 'p1', title: 'Other session',
-  age: '5m', stamp: '', running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false, boardId: null };
+  age: '5m', stamp: '', running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false };
 let renderer: ReactTestRenderer;
 let client: QueryClient;
 beforeEach(() => {

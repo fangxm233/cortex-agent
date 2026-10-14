@@ -29,7 +29,7 @@ import { useComposerClearance } from './useComposerClearance';
 import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import { hasActiveWorker, MTeamRow } from './MChatTeam';
-import { MBoardKey } from './MChatBoard';
+import { BoardStatusBar } from '@/features/board/BoardStatusBar';
 import { LeadWaitingLine, TeamActionRow, TeamStreamProvider, TeamUpdateCard } from '@/features/team/TeamStreamRows';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
@@ -47,8 +47,6 @@ interface MChatHeaderProps {
   onMore: () => void;
   /** Context usage, as a round key left of ⋯. Absent on a session that reports no window. */
   contextControl?: ReactNode;
-  /** A bound session's board key, left of the context ring. */
-  boardControl?: ReactNode;
 }
 
 /** The header pill and, in team mode, the team summary row under it: one floating stack, measured once
@@ -109,7 +107,6 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
         </div>
         <MChatStatusLine {...props} />
       </div>
-      {props.boardControl}
       {props.contextControl}
       <button type="button" aria-label={vocab.more} onClick={props.onMore}
         style={{ ...HEADER_KEY, color: 'var(--proto-muted-2)', fontSize: 18, letterSpacing: '1px' }}>
@@ -722,8 +719,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
           <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
             onBack={props.onBack} onMore={() => overlay.toggle('more')}
-            contextControl={headerContextControl(props, () => overlay.open('context'))}
-            boardControl={props.boardId ? <MBoardKey onOpen={() => overlay.open('board')} /> : undefined} />
+            contextControl={headerContextControl(props, () => overlay.open('context'))} />
+          {props.boardId && <BoardStatusBar boardId={props.boardId} onOpen={() => overlay.open('board')} />}
           {teamRow && <MTeamRow workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />

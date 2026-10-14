@@ -15,7 +15,6 @@ import type { RailSortMode } from './rail-order';
 import { RailTree, SearchIcon } from './RailTree';
 import { useApprovals } from '@/features/approvals/useApprovals';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useDockIntake } from '@/design/dock-intake';
 import { useBoardLiveSync } from '@/features/board/useBoardLiveSync';
 import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -118,11 +117,10 @@ export function LeftRail(): JSX.Element {
   const scheduledSessionsQuery = useAllSessions('scheduled');
   const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
   const scheduleModal = useScheduleModal();
-  const dock = useDockIntake();
   const teamEnabled = useTeamEnabled();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
-  // Keep the rows' board icons current as sessions are bound.
+  // Keep sessions' board bindings current (the chat header's board button) as sessions are bound.
   useBoardLiveSync();
 
   const { currentProjectId, setCurrentProject, setProjectOrder } = useCurrentProject();
@@ -245,12 +243,6 @@ export function LeftRail(): JSX.Element {
   // ⌘N itself is bound by the menu registry (shell/menu/useMenuShortcuts) — File → New session —
   // so the rail no longer keeps its own listener for it.
   const onNewSession = () => newSessionIn(null);
-
-  // The row's board icon: the dock lives on the workbench, so go there first.
-  const onOpenBoard = (boardId: string) => {
-    navigate('/workbench');
-    dock.openBoard(boardId);
-  };
 
   const onOverview = (projectId: string) => {
     setCurrentProject(projectId);
@@ -453,7 +445,6 @@ export function LeftRail(): JSX.Element {
             onToggleSchedules={rail.toggleSchedules}
             onToggleStars={rail.toggleStars}
             onToggleWorkers={onToggleWorkers}
-            onOpenBoard={onOpenBoard}
             onShowAll={rail.showAllIn}
             onShowFewer={rail.showFewer}
             onOpenSession={onOpenSession}

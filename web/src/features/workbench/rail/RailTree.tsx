@@ -7,7 +7,6 @@ import { RailSessionMenu } from './RailSessionMenu';
 import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import { NewProjectIcon, OverviewIcon, SortIcon } from './RailHeaderIcons';
 import type { RailProjectNode, RailSessionRow } from './rail-tree';
-import { BoardIcon } from '@/features/board/BoardIcon';
 import type { RailSortMode } from './rail-order';
 import { scheduleSubline, type ScheduleRow } from '@/features/session/list/schedule-rail';
 
@@ -80,8 +79,6 @@ export interface RailTreeProps {
   onToggleStars: (id: string) => void;
   /** Opens/closes a lead session's worker list (team mode). */
   onToggleWorkers?: (row: RailSessionRow) => void;
-  /** Opens a bound session's board from the row's board icon. */
-  onOpenBoard?: (boardId: string) => void;
   onShowAll: (id: string) => void;
   onShowFewer: (id: string) => void;
   onOpenSession: (row: RailSessionRow) => void;
@@ -305,21 +302,6 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         >
           {row.title}
         </span>
-        {row.boardId && (
-          <span
-            role="button"
-            title={L.boardOpen}
-            aria-label={L.boardOpen}
-            data-rail-board={row.boardId}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onOpenBoard?.(row.boardId!);
-            }}
-            style={{ display: 'flex', flex: 'none', padding: 2, borderRadius: 4, cursor: 'pointer', color: 'var(--proto-muted-3)' }}
-          >
-            <BoardIcon size={11} />
-          </span>
-        )}
         {workers.length > 0 && (
           // Lead row (team mode): this trailing caret unfolds the workers in place; the row body
           // still opens the lead itself, like any session.

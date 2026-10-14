@@ -43,8 +43,6 @@ export interface RailSessionRow {
   waitingOn: boolean;
   unread: boolean;
   selected: boolean;
-  /** The board this session is bound to; drives the row's board icon. */
-  boardId: string | null;
   /** Team mode only: a retired worker — sorted last, rendered dimmed. */
   retired?: boolean;
   /** Team mode only: this lead's workers, nested under it. Absent when it has none to show. */
@@ -181,7 +179,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     // running / awaitingInput / waitingOn / unread, in the dot language the lead rolls up.
     ...sessionRollup(s),
     selected: s.sessionId === selectedSessionId,
-    boardId: s.boardId ?? null,
   });
   const filter = input.filter.trim();
   const filtering = filter.length > 0;
