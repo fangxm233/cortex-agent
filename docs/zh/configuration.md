@@ -20,10 +20,12 @@ $CORTEX_HOME/
 │   ├── mcp-config.json           # 直接会话 MCP 配置
 │   ├── mcp-config-core.json      # 远程执行/时间分层
 │   ├── mcp-config-interaction.json # 共享交互分层
+│   ├── board.css                 # 可选，所有看板的样式覆盖（默认不存在）
 │   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
 │   ├── agent-state.json          # 选定的 profile、默认智能体、频道级 override
 │   ├── schedules.json            # 持久化的定时任务列表
+│   ├── boards.json               # 看板注册表
 │   ├── executions.json           # 统一执行注册表
 │   ├── costs.jsonl               # 90 天滚动费用记录
 │   ├── session-registry.jsonl    # 会话记录、频道绑定、对话头与轮次（唯一所有者）
@@ -239,7 +241,7 @@ Cortex 随包提供两个：
 
 | 执行环境 | 用途 |
 |---|---|
-| `main` | 通用工作，跑在当前激活的 profile 上，加载 Cortex 的系统、commission 与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
+| `main` | 通用工作，跑在当前激活的 profile 上，加载 Cortex 的系统、看板与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
 | `creative` | 用于写作、图像提示词、起名与文案的干净环境，运营性上下文全部剥掉（见[最小工具面](#a-minimal-surface)） |
 
 随包文件在 `cortex init` 时拷入 `config/environments/`，之后每次服务器启动时，缺失的
@@ -409,7 +411,6 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入） | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `serverAutoUpdate` | boolean | `true` | 更新检查发现更新的服务器版本时直接安装，不再询问。安装在没有轮次运行时才开始，装完立即重启。设为 `false` 则先请求确认，确认后同样等空闲再安装。已跳过的版本仍保持跳过 | — |
-| `commissionEnabled` | boolean | `true` | 委托（commission）模式的总开关——以契约锚定的长任务。默认开启：任何会话都能中途进入该模式，既可以由 agent 自己调用 `cortex_commission_start`，也可以由你在输入框的委托胶囊里切换。关掉它会拒绝所有入口（创建、输入框、start webhook）并停止注入契约块；已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `true` | 实验性的团队模式：任何网页会话都能用 `worker_*` 工具创建并管理持久的 worker 会话。关闭后，下一轮起不再提供这些工具，已有的 worker 变回普通会话。见 [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | waitpoint 扫描的间隔（毫秒）：收取落盘的信号（本机以及已连接设备上的）、让逾期的 waitpoint 过期、重试失败的投递。参见 [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
 | `waitpointTtlMs` | number | `604800000` | agent 未指定时 waitpoint 的默认存活时长（7 天）。单个 waitpoint 可以要更短，也可以更长但不超过 30 天硬上限；超时后 waitpoint 过期，并会告知 session「什么都没来」 | `CORTEX_WAITPOINT_TTL_MS` |
@@ -424,7 +425,7 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`serverAutoUpdate`、`commissionEnabled`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置作业的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`serverAutoUpdate`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置作业的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型额度行同时使用 `type` 和 provider 上报的精确 `label`。精确窗口策略优先于旧版 provider 级 `enabled`/`threshold` 字段；这些根字段只作为兼容回退，非默认时会在 Usage 中明确显示并可一键清除。
 
@@ -519,6 +520,26 @@ plugin 文件放在 `$CORTEX_HOME/data/claude/plugins/` 下。
 `$CORTEX_HOME/data/claude/projects` 下的相同路径，这些会话因此可以继续 resume。已存在的目标
 文件从不覆盖；不属于任何注册表会话的文件原地保留。
 
+## 看板 {#boards}
+
+看板是长任务的状态页，由推进这项工作的 agent 维护（见团队指南中的[看板](./team.md#boards)）。每个看板位于
+`<项目 context 目录>/boards/<slug>/`，`data/boards.json` 登记所有看板的所属项目、标题和状态。升级时，早期
+Cortex 版本中已登记的 commission 会转为看板：目录从 `commissions/` 移到 `boards/`，文件只移动、不删除。
+
+看板的样式来自随 Cortex 发布的预设样式表 `agent-server/defaults/board/board.css`。它直接从安装包读取，
+不会复制到 `$CORTEX_HOME`，因此每次升级都会带来最新版本。预设只引用界面的主题变量（`--proto-*`、
+`--material-*`、`--border-card`、`--r-*`），所以看板会跟随深浅色、配色和 accent。
+
+要改所有看板的样式，新建 `$CORTEX_HOME/config/board.css`。这个文件默认不存在。它在预设之后加载，所以可以
+重新定义任意变量（预设自己的 `--b-*` 或主题的 `--proto-*`），也可以覆盖任意规则：
+
+```css
+:root { --proto-accent: #0f766e; --b-gap: 16px; }
+.card { border-radius: 4px; }
+```
+
+保存后，打开着的看板几秒内刷新；删掉这个文件即恢复预设。
+
 ## defaults/config/ 布局 {#defaultsconfig-layout}
 
 npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产与执行环境还会在服务器每次启动时重新同步：
@@ -537,6 +558,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/hooks/` | `$CORTEX_HOME/hooks/` | init 时逐文件：从不覆盖除非 `--force`。每次服务器启动时，除非已部署文件带有相等或更新的 `@cortex-hook-version`，否则重新复制发布的脚本 |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | 从不（除非 `--force`） |
 | `defaults/context/` | `$CORTEX_HOME/context/` | 脚手架文件：从不覆盖 |
+| `defaults/board/` | — | 不复制：看板的预设样式表和新看板的骨架直接从安装包读取 |
 
 这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和执行环境，而不会覆盖用户的自定义内容。整文件型配置（如 `budget.json`）仍需 `--force` 才能替换；`config/environments/` 则改为逐文件合并，新发货的执行环境能到达已有安装，同时不动你的改动。
 
@@ -553,6 +575,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 - **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。
 - **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
 - **插件、提示、规则** — 每次智能体会话生成时重新读取。
+- **`config/board.css`** — 与进行中看板的目录一起被监视。变更后几秒内，打开着的看板重新渲染。参见[看板](#boards)。
 
 ## 各文件位置 {#where-each-file-lives}
 
@@ -568,6 +591,8 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `.claude/settings.json` | Claude Code 钩子/权限（不是 Cortex 的设置文件） | `$CORTEX_HOME/.claude/settings.json` |
 | `agent-state.json` | 选定的 profile、默认智能体、频道级 override | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | 定时任务 | `$CORTEX_HOME/data/schedules.json` |
+| `boards.json` | 看板注册表 | `$CORTEX_HOME/data/boards.json` |
+| `board.css` | 可选，所有看板的样式覆盖 | `$CORTEX_HOME/config/board.css` |
 | `session-registry.jsonl` | 仅追加的 session registry 日志 | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | 两轮确认的孤儿清理候选表 | `$CORTEX_HOME/data/retention-candidates.json` |
 | `conversation-history/` | 按会话分文件的 transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |
