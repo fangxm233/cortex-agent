@@ -1,31 +1,35 @@
 # Safety and Approvals
 
 Cortex can edit files, spawn processes, manage GPU training, and talk to
-multiple machines. The safety-and-approvals system defines what the agent can
-do autonomously, what requires your sign-off, and what is never permitted. It
-also provides the machinery for you to review and approve pending operations
-from Slack. The approval flow is built on the hook-bridge (see
-[hooks.md](./hooks.md)) and MCP tools (see [mcp.md](./mcp.md)).
+multiple machines. Its safety model has four parts: a written safety boundary
+that tells the agent what it may do on its own, a queue for operations that
+need your sign-off, interactive cards for plan approval and questions, and a
+small set of mechanical guards around the server's own interfaces. The
+interactive cards run over the hook-bridge (see [hooks.md](./hooks.md)) and
+the interaction MCP tools (see [mcp.md](./mcp.md)).
 
 ## The three blast-radius classes
 
-Cortex classifies every agent operation into one of three buckets. The
-classification lives in the root AGENTS.md "安全边界" (Safety Boundary) section
-and is the single source of truth. The judgment criterion is **behavioral
-impact**, not file category — fixing a typo in a skill file and adding a new
-workflow step to it are different classes of operation even though both touch
-`.claude/skills/`.
+A safety boundary sorts agent operations into three classes. It is written in
+the root `AGENTS.md` of your Cortex home (`$CORTEX_HOME/AGENTS.md`), which
+every session loads, so it is guidance the agent follows rather than a check
+the server performs. The `AGENTS.md` that `cortex init` writes has no safety
+section; you add one in your own words. The judgment criterion that works best
+is **behavioral impact**, not file category: fixing a typo in a skill file and
+adding a new workflow step to it are different classes of operation even
+though both touch the same file.
+
+A typical boundary, taken from a working installation, looks like this.
 
 ### Self-serve (autonomous)
 
-Operations the agent can perform without asking. These are read-only
-information gathering, local state updates, and low-risk maintenance.
+Operations the agent performs without asking: read-only information
+gathering, local state updates, and low-risk maintenance.
 
-- Read files, check GPU status, read logs, small test scripts
+- Read files, check GPU status, read logs, run small test scripts
 - Update context files (STATUS.md, experiments/, knowledge/, OVERVIEW.md)
 - Web search, knowledge scans
-- Start training runs within budget (GPU preflight required)
-- Run analysis scripts
+- Start training runs within budget, run analysis scripts
 - Skill maintenance changes (typo fixes, format alignment, description
   rewording — no behavioral change)
 - Agent-server non-behavioral fixes (syntax errors, log messages, comment
@@ -34,8 +38,8 @@ information gathering, local state updates, and low-risk maintenance.
 ### Needs approval (requires sign-off)
 
 Operations that change system behavior, consume significant resources, or are
-hard to reverse. These are queued to PENDING_APPROVALS.md and blocked until
-you approve them.
+hard to reverse. The agent writes them to the approval queue and leaves them
+unexecuted until you decide.
 
 - Modify AGENTS.md or CLAUDE.local.md
 - New skills or skill behavioral changes (new triggers, new workflow steps,
@@ -45,169 +49,231 @@ you approve them.
 - Over-budget training tasks, large-scale architecture modifications
 - Delete files or data
 - Modify model code or training configurations
-- Kill app.js or daemon processes
+- Stop the Cortex server or daemon processes
 
 ### Forbidden (never permitted)
 
-Operations the agent will refuse even if you ask for approval. These are
-system-level changes that could destabilize the machine.
+Operations the agent refuses even if you offer to approve them: system-level
+changes that could destabilize the machine.
 
 - Install system-level packages
 - Modify system configuration
 - `rm -rf`
 
-### Decision table
-
-The judgment examples from the safety boundary, for reference when
-classifying an edge case:
+### Classifying an edge case
 
 | Operation | Class | Reason |
 |---|---|---|
-| Fix typo in skill SKILL.md | Self-serve | Maintenance, no behavioral change |
-| Add new workflow step to a skill | Needs approval | Changes behavioral logic |
-| Fix agent-server syntax error | Self-serve | Non-behavioral fix |
+| Fix a typo in a skill's SKILL.md | Self-serve | Maintenance, no behavioral change |
+| Add a new workflow step to a skill | Needs approval | Changes behavioral logic |
+| Fix an agent-server syntax error | Self-serve | Non-behavioral fix |
 | Add new guard logic to agent-server | Needs approval | Changes behavior |
-| Start GPU training within budget | Self-serve | Within budget, but GPU preflight required |
+| Start GPU training within budget | Self-serve | Within budget |
 | Modify AGENTS.md rules | Needs approval | System convention change |
+
+The boundary is advisory. Nothing in the server inspects a command before it
+runs: Claude Code is spawned with
+`--dangerously-skip-permissions --permission-mode bypassPermissions`, and PI
+runs its tools without a permission prompt. Budgets are advisory in the same
+way — `budget.json` limits are reported by `cost_query` and the UI, and no
+caller refuses work for exceeding them. The boundary holds because the agent
+reads it on every turn and because the queue below gives it a place to put
+what it should not do alone.
 
 ## How an operation reaches the queue
 
-An operation that needs sign-off is written to
-`~/.cortex/context/PENDING_APPROVALS.md` and left unexecuted. Each entry is a
-`##` heading followed by its fields, carrying enough detail for you to decide
-without asking follow-up questions:
+The approval queue is the Markdown file
+`$CORTEX_HOME/context/PENDING_APPROVALS.md`. An agent that judges an operation
+to need sign-off appends an entry and leaves the operation unexecuted. Each
+entry is a `##` heading of the form `<YYYY-MM-DD> <title>` followed by bullet
+fields, with enough detail for you to decide without asking follow-up
+questions:
 
 ```markdown
-## [timestamp]
-- **Operation**: [concise description of what will be done]
-- **Reason**: [why this operation is needed]
-- **Impact**: [what it affects — files, machines, resources]
-- **Command/Action**: [the specific command or change to execute]
+## 2026-10-14 Delete stale checkpoints on trainer
+- **Operation**: Remove checkpoints older than 30 days under /data/ckpt
+- **Reason**: The disk is 94% full and two runs are queued
+- **Impact**: About 410 GB on trainer; no active run reads these files
+- **Command/Action**: find /data/ckpt -mtime +30 -name '*.pt' -delete
+- **Project**: nimbus
 - **Status**: pending
 ```
 
-The guiding principle is: when in doubt, queue it. Better to over-ask than to
-break something.
+`Project` is optional; an entry without one belongs to the global group. A
+free-form `Provenance` bullet may record where the request came from. The
+guiding principle is: when in doubt, queue it.
+
+Settings also writes to this queue. Adding a machine or reconnecting a chat
+platform from **Settings** queues a request ("Queued for approval — review in
+the Approval Center") rather than performing the change from the browser. The
+file is created by the first entry written to it.
 
 ## How you approve or reject
 
-### Via Slack (primary path)
+### In the Approval Center
 
-Use the `/approval` command in your admin DM channel (see
-[slack-setup.md](./slack-setup.md) for how the admin channel is configured). The `approval` skill
-(part of the cortex-system plugin) reads PENDING_APPROVALS.md and presents
-each pending item. Reply with `approve 1` or `reject 2` to act on specific
-entries.
+On the desktop, an amber pill in the left rail ("2 approvals pending") appears
+whenever the queue has pending entries, and opens the Approval Center. On a
+phone the same queue is the Approvals screen. Entries are grouped by project,
+with entries that name no project under GLOBAL, and each shows its operation,
+reason, impact and command.
 
-For the plan-approval workflow specifically, Cortex presents an interactive
-Slack message with **Approve** and **Provide Feedback** buttons. Clicking
-Approve signals the agent to proceed with the plan. Clicking Provide Feedback
-opens a modal where you can type your rejection reason — the agent receives
-that text and can revise the plan.
+Approving or rejecting there rewrites the entry's `Status` line —
+`approved <date>`, or `rejected <date> (<feedback>)` when you add feedback —
+and leaves every other line of the file untouched. The Approval Center records
+your decision; it does not run the operation or message a session. The
+operation is carried out by the agent that next works through the queue.
+
+### Through the approval skill
+
+The `approval` skill (in the built-in `cortex-system` plugin) works through the
+queue inside a conversation, on any platform. Ask the agent to show pending
+approvals, or invoke the skill directly. It lists the pending entries with
+numbers and acts on replies such as `approve 1`, `approve all`, `approve 1 3`,
+`reject 2`, or `approve 1 but change X to Y`. For an approved entry the agent
+executes the operation, verifies the result, and records it.
 
 ### What happens after
 
-- **Approved**: the agent executes the queued operation. The
-  PENDING_APPROVALS.md entry is updated to `Status: approved` with a timestamp.
-- **Rejected**: the operation is not executed. The entry is updated to
-  `Status: rejected`. The agent may propose an alternative approach.
-- **Timeout**: pending requests in the hook-bridge expire after 30 minutes.
-  If you don't respond in Slack within that window, the agent's call times out
-  and it will prompt again.
+| Outcome | Status line | What the agent does |
+|---|---|---|
+| Approved through the skill | `approved — executed <timestamp>` | Executes the operation and reports the result |
+| Approved in the Approval Center | `approved <date>` | Nothing until an agent acts on the decision |
+| Rejected | `rejected <timestamp>`, optionally with feedback | Does not execute; may propose an alternative |
+| Failed during execution | `failed — <reason>` | Reports the failure and keeps the entry |
 
-## Slack approval flow in detail
+Resolved entries stay in the file as decision history. The Approval Center
+also treats a status that starts with `resolved`, `deferred` or `superseded` as
+decided, so an entry closed by hand stops counting as pending.
 
-There are two distinct approval pathways, depending on what triggered the
-user interaction.
+## Plan approval and questions
 
-### Plan approval (`cortex_plan_exit`)
+Two interactions pause an agent until a person responds: approving a written
+plan, and answering a question. Both are MCP tools in the interaction bundle,
+which user-initiated sessions load on both backends (see
+[mcp.md](./mcp.md#cortex-interaction-bridge)).
 
-When the agent submits a written plan with the `cortex_plan_exit` MCP tool, the
-flow is:
+### Plan mode
 
-1. The tool makes an HTTP POST to
-   `agent-server:3001/hook/exit-plan-mode` with the plan content.
+`cortex_plan_enter` puts the agent into Cortex's planning protocol: it
+investigates read-only, writes the plan to a file under `plan/`, and does not
+implement anything until the plan is approved. The backends' native plan tools
+are disabled, so every plan goes through the same approval path and lands in
+the conversation's history.
+
+`cortex_plan_exit` submits the plan file for approval and blocks until you
+decide:
+
+1. The tool reads `plan_file_path` and POSTs the plan to the server's
+   loopback webhook at `/hook/exit-plan-mode`.
 2. The hook-bridge (`agent-server/src/orchestration/routing/hook-bridge.ts`)
-   registers the request in an in-memory `pendingRequests` map with a 30-minute
-   TTL, and publishes a `plan.submitted` event on the event bus.
-3. The hook-bridge subscriber
-   (`agent-server/src/orchestration/routing/hook-bridge-subscribers.ts`) receives
-   the event, registers the plan in the `PlanApprovals` singleton, and posts an
-   interactive Slack message with Approve and Provide Feedback buttons.
-4. When you click a button, the Slack interaction handler
-   (`agent-server/src/orchestration/interactions/interaction-handlers.ts`)
-   resolves or rejects the plan:
-   - **Approve** → publishes `plan.approved` on the event bus and resolves the
-     pending HTTP request, so the tool returns approval and the agent proceeds.
-   - **Reject** → the pending HTTP request resolves with `approved: false` and
-     your feedback text, which the agent receives and can use to revise.
+   registers the request with a 30-minute TTL and publishes `plan.submitted` on
+   the event bus.
+3. The subscriber
+   (`agent-server/src/orchestration/routing/hook-bridge-subscribers.ts`)
+   registers the plan and presents it on the session's platform.
+4. Your response resolves the pending request:
+   - **Approve** → the tool returns approval, `plan.approved` is published, and
+     the agent proceeds.
+   - **Reject with feedback** → the tool returns your feedback and tells the
+     agent to revise the plan and submit it again.
 
-### User questions (`cortex_ask_user`)
+### Questions
 
-When the agent calls `cortex_ask_user` (e.g., to clarify a design choice), the
-flow is structurally identical but uses different events:
+`cortex_ask_user` poses one or more questions — single-choice, multi-choice,
+or free text — and takes an optional severity `level` (`info`, `warning`,
+`error`). It POSTs to `/hook/ask-user-question`, the bridge publishes
+`ask-user.requested`, and the subscriber presents the form.
 
-1. HTTP POST to `agent-server:3001/hook/ask-user-question` with question
-   definitions.
-2. The hook-bridge publishes `ask-user.requested` on the event bus.
-3. The subscriber posts a Slack message with an **Answer** button.
-4. Clicking Answer opens a modal form (single-select, multi-select, or text
-   input per question).
-5. On modal submit, the handler publishes `ask-user.answered` and resolves the
-   HTTP request with the user's answers.
+A blocking question (the default) holds the tool call until you answer and
+returns the answers in its own result. With `blocking: false` the call returns
+as soon as the card is posted and the agent keeps working; your answer arrives
+in the session later as an ordinary user message, folded into the running turn
+if one is still live. An unanswered non-blocking card expires on the same TTL
+and never produces a message.
 
-A question the agent raises through `cortex_ask_user` with `blocking: false`
-travels the same five steps, with one difference at each end: the HTTP request
-returns the moment the card is posted rather than waiting on step 5, and the
-answers collected in step 5 are routed into the session as an ordinary user
-message instead of into a pending `tool_result`. The pending record still exists
-so the 30-minute TTL expires an unanswered card and clears its question group.
+### Where the cards appear
 
-### PI backend difference
+| Platform | Plan approval | Question |
+|---|---|---|
+| Web UI and desktop | An inline card in the chat with **Approve plan** and **Request changes**; requesting changes requires feedback and returns the plan for replanning | An inline form; the agent continues after **Submit answers** |
+| Mobile | The same cards, laid out for a phone | The same form |
+| Slack | The plan text, then a card with **Approve** and **Provide Feedback**; feedback opens a modal | A summary with an **Answer** button that opens a modal form |
+| Feishu | The plan text, then a card with **Approve** and **Provide Feedback**; feedback opens an inline form | The form is posted inline in the chat |
 
-The PI backend resolves these dialogs differently. A PI session raises them
-through PI's extension UI protocol, which
-`agent-adapter/pi/ui-context.ts` hosts inside the server process: each dialog
-becomes an `extension_ui_request` record carrying its own id, and the answer
-travels back through `sendExtensionUiResponse()` instead of resolving a pending
-HTTP request. The hook-bridge provides a non-blocking publish helper
-(`publishAskUserRequested`) for this path.
+On the Web UI the card is part of the transcript, so its outcome — approved,
+rejected, answered, expired or cancelled — stays visible after a reload and on
+other devices. The first response wins wherever it comes from. A session
+blocked on a plan or a blocking question shows the amber marker in the session
+list, the one marker that means "waiting on you"; a non-blocking question
+leaves the session marked as running.
 
-## Why the agent isn't given root
+### Team mode
 
-Cortex operates with the same privileges as the user who launched it. There is
-no `sudo`, no Docker socket, and no privilege escalation path. The forbidden
-bucket (installing system packages, modifying system config, `rm -rf`) exists
-to prevent the agent from destabilizing the machine even if it has the Unix
-permissions to do so.
+A [team worker](./team.md) that asks a question or submits a plan still shows
+its own card, and the request is also forwarded to its lead, which can answer
+with `worker_answer`. The first answer wins, whether it comes from the lead or
+from you on the worker's card. While the lead holds the request, the worker is
+shown as waiting on its lead rather than on you.
 
-On remote machines, the `cortex-client` process also runs as the user who
-started it — no privilege escalation. The WebSocket protocol between server and
-client has no authentication token (it trusts the network boundary), so the
-client should only be exposed on localhost or behind a Tailscale/VPN perimeter.
+### Timeouts
+
+A pending plan or question expires after 30 minutes (the bridge sweeps every 5
+minutes, so expiry lands between 30 and 35 minutes). A blocking call then
+returns a timeout to the agent; for a plan, the agent is told to revise and
+submit again. On the Web UI the card is marked expired.
+
+### PI extension dialogs
+
+On PI, `cortex_ask_user` and `cortex_plan_exit` behave exactly as above; the
+interaction tools run in-process. PI extensions can also open their own
+dialogs (select, confirm, input) through PI's extension UI. Cortex hosts that
+UI inside the server (`agent-server/src/agent-adapter/pi/ui-context.ts`): each
+dialog becomes an `extension_ui_request` record with its own id, is presented
+as a question card through the hook-bridge's publish helper, and the answer
+travels back through `sendExtensionUiResponse()`.
+
+## What runs with which privileges
+
+Cortex operates with the privileges of the user who launched it. It adds no
+escalation path of its own, and it adds no sandbox either: the forbidden class
+exists because the agent could otherwise do anything that account can do.
+
+The server's own interfaces are guarded mechanically:
+
+- The webhook listener that MCP tools and hook scripts call (`WEBHOOK_PORT`,
+  default 3001) binds to `127.0.0.1` only, and every route requires the
+  `CORTEX_WEBHOOK_TOKEN` bearer token in the `x-cortex-token` header. The one
+  exception is `/webhook/signal`, which authenticates each request with a
+  secret scoped to a single [waitpoint](./waitpoints.md#security).
+- Every `cortex-client` WebSocket connection must present
+  `CORTEX_CLIENT_TOKEN`; a missing or wrong token is rejected with HTTP 401.
+  Both tokens are generated into `$CORTEX_HOME/config/.env` when absent. A
+  remote client runs as the user who started it. See
+  [cross-machine.md](./cross-machine.md#security-boundary).
+- The `status-md-guard` hook denies an edit that would push a project's
+  `STATUS.md` or `ISSUES.md`, or a memory `AGENTS.md` index, past its size cap
+  (see [hooks.md](./hooks.md#hook-scripts)).
 
 ## Audit trail
 
-Approvals are logged in three places:
+Approvals and interactions leave records in four places:
 
-1. **PENDING_APPROVALS.md** — each queued operation is appended here with
-   full detail and final status (approved/rejected). This is the human-readable
-   audit trail.
-2. **Event bus JSONL** — `plan.submitted` and `plan.approved` events are
-   persisted by the event logger to daily-rolling `events-YYYYMMDD.jsonl` files
-   in `~/.cortex/data/`.
-3. **Slack conversation** — every approval interaction leaves a visible Slack
-   message with the Approve/Provide Feedback buttons or the question modal.
-   The conversation history is the operational record.
+1. **PENDING_APPROVALS.md** — each queued operation with its full detail and
+   final status. This is the human-readable decision history.
+2. **Conversation transcripts** — Web UI plan and question cards are stored in
+   the session's history with their outcome and any feedback.
+3. **Event log** — `plan.submitted`, `plan.approved` and `ask-user.requested`
+   are written with the rest of the event bus to daily
+   `$CORTEX_HOME/logs/events/events-YYYYMMDD.jsonl` files, kept for 14 days.
+   Setting `CORTEX_EVENT_LOG=off` disables the log.
+4. **Slack and Feishu** — each interaction leaves a visible message in the
+   channel.
 
 ## Configuration
 
-The safety boundary classification lives in the root AGENTS.md at
-`~/.cortex/AGENTS.md`, which is where you edit it.
-
-The PENDING_APPROVALS.md file lives at `~/.cortex/context/PENDING_APPROVALS.md`.
-It is created automatically on first use.
-
-No additional configuration is required — the approval system is built into
-the agent's core reasoning and fires automatically when the agent considers
-a high-privilege operation.
+The safety boundary is the section you write in `$CORTEX_HOME/AGENTS.md`. The
+approval queue is `$CORTEX_HOME/context/PENDING_APPROVALS.md`. Neither needs
+further configuration: the agent reads the boundary as part of its
+instructions, and the queue, the Approval Center and the interaction cards are
+built in.
