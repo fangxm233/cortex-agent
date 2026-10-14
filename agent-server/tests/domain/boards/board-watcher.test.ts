@@ -1,0 +1,138 @@
+import { afterEach, beforeEach, test } from 'vitest';
+import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { createBoardWatcher, startBoardWatcher, type BoardWatcher } from '../../../src/domain/boards/board-watcher.js';
+import { EventBus } from '../../../src/events/event-bus.js';
+import type { BoardRecord } from '../../../src/store/board-repo.js';
+
+let root: string;
+let configDir: string;
+let records: BoardRecord[];
+let events: any[];
+let watcher: BoardWatcher | null;
+let stopStarted: (() => void) | null;
+
+const DEBOUNCE = 40;
+
+function board(id: string, status: BoardRecord['status'] = 'active'): BoardRecord {
+  return { id, projectId: 'proj', slug: id, title: id, status, createdAt: 0, updatedAt: 0 };
+}
+
+function dirOf(b: BoardRecord): string {
+  return path.join(root, 'boards', b.slug);
+}
+
+function deps() {
+  return {
+    listBoards: async () => records,
+    boardDir: dirOf,
+    userCssPath: path.join(configDir, 'board.css'),
+    publish: (e: any) => { events.push(e); },
+    debounceMs: DEBOUNCE,
+  };
+}
+
+async function settle(ms = DEBOUNCE * 5): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** Wait until `count` events arrived (fs.watch latency varies under load), then a quiet window so
+ *  a stray extra event would still be caught. */
+async function eventsReach(count: number): Promise<void> {
+  const deadline = Date.now() + 3_000;
+  while (events.length < count && Date.now() < deadline) await settle(20);
+  await settle();
+}
+
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-board-watch-'));
+  configDir = path.join(root, 'config');
+  fs.mkdirSync(configDir);
+  for (const id of ['a', 'b', 'c']) fs.mkdirSync(path.join(root, 'boards', id, 'assets'), { recursive: true });
+  records = [board('a'), board('b', 'done')];
+  events = [];
+  watcher = null;
+  stopStarted = null;
+});
+
+afterEach(() => {
+  watcher?.stop();
+  stopStarted?.();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a burst of edits to an active board becomes one board.updated; closed boards are not watched', async () => {
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  for (let i = 0; i < 5; i += 1) fs.writeFileSync(path.join(root, 'boards', 'a', 'board.html'), `<p>${i}</p>`);
+  fs.writeFileSync(path.join(root, 'boards', 'a', 'assets', 'shot.png'), 'png');
+  fs.writeFileSync(path.join(root, 'boards', 'b', 'board.html'), 'closed');
+  await eventsReach(1);
+  assert.deepEqual(events, [{ type: 'board.updated', boardId: 'a', projectId: 'proj' }]);
+});
+
+test('refresh follows the registry: a new board is watched, a closed one is dropped', async () => {
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  records = [board('a', 'done'), board('c')];
+  await watcher.refresh();
+  fs.writeFileSync(path.join(root, 'boards', 'a', 'board.html'), 'x');
+  fs.writeFileSync(path.join(root, 'boards', 'c', 'board.html'), 'y');
+  await eventsReach(1);
+  assert.deepEqual(events, [{ type: 'board.updated', boardId: 'c', projectId: 'proj' }]);
+});
+
+test('a missing board directory is skipped until a later refresh finds it', async () => {
+  records = [board('later')];
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  fs.mkdirSync(path.join(root, 'boards', 'later'));
+  await watcher.refresh();
+  fs.writeFileSync(path.join(root, 'boards', 'later', 'board.html'), 'x');
+  await eventsReach(1);
+  assert.deepEqual(events, [{ type: 'board.updated', boardId: 'later', projectId: 'proj' }]);
+});
+
+test('creating, editing and deleting the user stylesheet each publish board.style-updated', async () => {
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  const css = path.join(configDir, 'board.css');
+  fs.writeFileSync(css, ':root{--proto-accent:red}');
+  await eventsReach(1);
+  assert.deepEqual(events, [{ type: 'board.style-updated' }]);
+  fs.writeFileSync(path.join(configDir, 'settings.json'), '{}');
+  await settle();
+  assert.equal(events.length, 1, 'other config files are ignored');
+  fs.unlinkSync(css);
+  await eventsReach(2);
+  assert.deepEqual(events, [{ type: 'board.style-updated' }, { type: 'board.style-updated' }]);
+});
+
+test('stop closes every watcher and cancels pending events', async () => {
+  watcher = createBoardWatcher(deps());
+  await watcher.refresh();
+  fs.writeFileSync(path.join(root, 'boards', 'a', 'board.html'), 'x');
+  watcher.stop();
+  await settle();
+  fs.writeFileSync(path.join(root, 'boards', 'a', 'board.html'), 'y');
+  fs.writeFileSync(path.join(configDir, 'board.css'), 'z');
+  await settle();
+  assert.deepEqual(events, []);
+});
+
+test('the production wiring refreshes on board.updated from the bus', async () => {
+  const bus = new EventBus();
+  records = [];
+  stopStarted = startBoardWatcher(bus, deps());
+  records = [board('c')];
+  bus.publish({ type: 'board.updated', boardId: 'c', projectId: 'proj' });
+  // The refresh is async; keep editing until the new board's watcher reports.
+  const deadline = Date.now() + 3_000;
+  while (events.length === 0 && Date.now() < deadline) {
+    fs.writeFileSync(path.join(root, 'boards', 'c', 'board.html'), String(Date.now()));
+    await settle();
+  }
+  assert.deepEqual(events.slice(0, 1), [{ type: 'board.updated', boardId: 'c', projectId: 'proj' }]);
+});
