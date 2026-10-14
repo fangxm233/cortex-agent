@@ -209,7 +209,9 @@ attaches to it, and when its files change; typing searches all of them.
 
 The top of the board is drawn by the app and updates live: the title, the status of every bound
 session, a count of requests waiting on you that jumps
-to the session asking, and the decision stream. Below it, `board.html` renders in a sandboxed
+to the session asking, and the decision stream. The decision cards are the chat's: each shows its
+status and can be approved, questioned or revised from the board, answering the session that
+announced it. Below it, `board.html` renders in a sandboxed
 frame. Images in `assets/` show inline, and a link marked `data-open` opens a file from the board
 directory in the dock. The page re-renders within a few seconds of a save, with no reload.
 

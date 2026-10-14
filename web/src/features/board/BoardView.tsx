@@ -8,8 +8,7 @@ import { openExternalUrl } from '@/lib/external-navigation';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { docKindOf } from '@/features/media/doc-kind';
-import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
-import { shortSessionId } from '@/features/session/metadata/short-session-id';
+import { BoardDecisionStream } from './BoardDecisionStream';
 import { BoardFrame } from './BoardFrame';
 import { BoardLiveStrip } from './BoardLiveStrip';
 import { fileNameOf, mediaKindOfName, resolveBoardRef } from './board-paths';
@@ -46,35 +45,6 @@ function useOpenBoardFile(projectId: string, slug: string): (ref: string) => voi
 function openLink(href: string): void {
   if (isNativeShell()) void openExternalUrl(href).catch(() => {});
   else window.open(href, '_blank', 'noopener,noreferrer');
-}
-
-function DecisionStream({ decisions, sessions, touch }: {
-  decisions: ReturnType<typeof useBoard>['decisions'];
-  sessions: SessionInfo[];
-  touch?: boolean;
-}): JSX.Element {
-  const L = useVocab();
-  const label = (id: string) => {
-    const hit = sessions.find((s) => s.sessionId === id);
-    return hit?.workerName || hit?.label || shortSessionId(id);
-  };
-  return (
-    <div data-board-decision-stream="" style={{
-      flex: 'none', maxHeight: '45%', overflowY: 'auto', margin: '8px 12px 0', padding: '2px 12px 10px',
-      borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)', border: '1px solid var(--border-card)',
-    }}>
-      {decisions.length === 0
-        ? <div style={{ ...CENTERED, minHeight: 0, padding: '10px 0' }}>{L.boardNoDecisions}</div>
-        // Read-only: no sessionId goes in, so the cards carry no approve/revise controls. Acting on a
-        // decision happens in the session that raised it, which is why each card names its source.
-        : [...decisions].reverse().map((entry, i) => (
-          <div key={`${entry.ts}:${entry.item.id}:${i}`}>
-            <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', marginTop: 10 }}>{label(entry.sessionId)}</div>
-            <DecisionCardGroup decisions={[entry.item]} touch={touch} />
-          </div>
-        ))}
-    </div>
-  );
 }
 
 function LegacyFiles({ files, onOpen }: { files: string[]; onOpen: (ref: string) => void }): JSX.Element {
@@ -134,7 +104,7 @@ export function BoardView({ boardId, onOpenSession, touch }: {
         onToggleDecisions={() => setDecisionsOpen((v) => !v)}
         onOpenSession={onOpenSession}
       />
-      {decisionsOpen && <DecisionStream decisions={data.decisions} sessions={data.sessions} touch={touch} />}
+      {decisionsOpen && <BoardDecisionStream decisions={data.decisions} touch={touch} />}
       <div data-board-scroll="" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px 16px' }}>
         {data.body.kind === 'empty'
           ? <LegacyFiles files={data.body.files} onOpen={openFile} />
