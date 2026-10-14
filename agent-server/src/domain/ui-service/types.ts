@@ -49,6 +49,8 @@ import type { PlatformAdapter } from '@platform/adapter.js';
 import type { SubagentSpawnRef } from '@core/subagent-spawn.js';
 import type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
 export type { TeamActionRef, TeamWorkerRef } from '@core/team-action.js';
+import type { BoardActionRef } from '@core/board-action.js';
+export type { BoardActionRef } from '@core/board-action.js';
 import type {
   HookBackend,
   HookEvent,
@@ -285,8 +287,7 @@ export interface SessionInfo {
    *  per-schedule run grouping and the chat trigger card. Survives a reply converting the run to
    *  a direct session (provenance). Null for sessions with no schedule origin / legacy records. */
   scheduleId: string | null;
-  /** The board (BoardInfo.id) this session is bound to, or null. At most one per session; the
-   *  binding outlives the board's closing, so a closed board stays reachable from its sessions. */
+  /** The board (BoardInfo.id) this session is bound to, or null. At most one per session. */
   boardId: string | null;
   /** Team mode: the lead session that owns this worker; non-null means this session is a worker. */
   teamLeadId: string | null;
@@ -472,6 +473,9 @@ export interface TranscriptMessage {
   toolDevice?: string;
   /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool rows only). */
   teamAction?: TeamActionRef;
+  /** What a successful `board_open` call did (its tool row only; absent on failed calls and on
+   *  rows written before this field existed). */
+  boardAction?: BoardActionRef;
   /** The worker a `worker-progress` row came from (worker-progress rows only). */
   worker?: TeamWorkerRef;
   /** User rows only: Cortex authored this turn — a resume signal, a task/thread callback, a
@@ -618,11 +622,8 @@ export interface BoardInfo {
   /** Directory name under `<project context>/boards/`. */
   slug: string;
   title: string;
-  status: 'active' | 'done' | 'abandoned';
   createdAt: string;   // ISO
   updatedAt: string;   // ISO
-  closedAt: string | null;
-  closeNote: string | null;
 }
 
 /** One decision card in a board's stream: a projected send_decision item with its user responses
@@ -1749,7 +1750,6 @@ export interface MutateReturnMap {
   'schedules.remove': void;
   'schedules.add': ScheduleInfo;
   'schedules.update': ScheduleInfo;
-  'boards.close': BoardInfo;
   'approvals.approve': ApprovalMutateReturn;
   'approvals.reject': ApprovalMutateReturn;
   'approvals.request': ApprovalsRequestReturn;
@@ -2032,8 +2032,6 @@ export interface UiServiceDeps {
   boardStore?: {
     list(projectId?: string): Promise<BoardRecord[]>;
     find(id: string): Promise<BoardRecord | null>;
-    /** `fn` returning `false` declines the change; the record comes back untouched. */
-    update(id: string, fn: (record: BoardRecord) => void | false): Promise<BoardRecord | null>;
   };
   /** Stylesheet sources for boards.style. Optional — defaults to the shipped preset and
    *  `<cortex home>/config/board.css`; tests point it at temp files. */

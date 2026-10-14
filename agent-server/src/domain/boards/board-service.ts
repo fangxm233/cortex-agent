@@ -9,7 +9,7 @@ import { projectStore } from '@domain/projects/project-store.js';
 /** The registry, the session store and the filesystem a board operation touches. The server only
  *  registers, binds and notifies; it never writes board.html after the scaffold. */
 export interface BoardServiceDeps {
-  boards: Pick<typeof boardRepo, 'find' | 'findBySlug' | 'list' | 'add' | 'update'>;
+  boards: Pick<typeof boardRepo, 'find' | 'findBySlug' | 'list' | 'add' | 'touch'>;
   sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'bindBoard'>;
   contextDir: (projectId: string) => string | null;
   readScaffold: () => Promise<string>;
@@ -37,7 +37,6 @@ export interface BoardOpenResult {
   /** Absolute board directory. */
   dir: string;
   created: boolean;
-  reopened: boolean;
   /** Session ids bound by this call (the caller first). */
   bound: string[];
 }
@@ -96,7 +95,7 @@ async function createBoard(session: Session, title: string, deps: BoardServiceDe
   await fs.writeFile(path.join(dir, BOARD_FILE), fillScaffold(await deps.readScaffold(), title), { flag: 'wx' });
   const now = deps.now();
   const board: BoardRecord = {
-    id, projectId: session.projectId, slug, title, status: 'active', createdAt: now, updatedAt: now,
+    id, projectId: session.projectId, slug, title, createdAt: now, updatedAt: now,
   };
   await deps.boards.add(board);
   return { board, dir };
@@ -120,8 +119,8 @@ async function bindTargets(session: Session, deps: BoardServiceDeps): Promise<Se
 
 /**
  * Create a board (`{title}`) or attach to an existing one (`{board}`: id or slug), and bind the
- * calling session — plus its active, still unboarded workers when it is a lead. Attaching to a closed board
- * reopens it. A session holds one board; binding replaces any earlier one.
+ * calling session — plus its active, still unboarded workers when it is a lead. A session holds one
+ * board; binding replaces any earlier one.
  */
 export async function openBoard(
   sessionId: string,
@@ -134,7 +133,6 @@ export async function openBoard(
   let board: BoardRecord;
   let dir: string;
   let created = false;
-  let reopened = false;
   if ('title' in request) {
     const title = request.title.trim();
     if (!title) throw new BoardError('title must not be empty');
@@ -145,16 +143,8 @@ export async function openBoard(
     const contextDir = deps.contextDir(found.projectId);
     if (!contextDir) throw new BoardError(`project ${found.projectId} has no context directory`);
     dir = path.join(contextDir, BOARDS_DIR, found.slug);
-    board = found;
-    if (found.status !== 'active') {
-      board = await deps.boards.update(found.id, (r) => {
-        if (r.status === 'active') return false;
-        r.status = 'active';
-        delete r.closedAt;
-        delete r.closeNote;
-      }) ?? found;
-      reopened = true;
-    }
+    // Attaching is a use: it moves the board up in "recently used".
+    board = await deps.boards.touch(found.id, deps.now()) ?? found;
   }
 
   const targets = await bindTargets(session, deps);
@@ -163,15 +153,23 @@ export async function openBoard(
     deps.publish({ type: 'session.board', sessionId: target.sessionId, channel: target.channel });
   }
   deps.publish({ type: 'board.updated', boardId: board.id, projectId: board.projectId });
-  return { board, dir, created, reopened, bound: targets.map(t => t.sessionId) };
+  return { board, dir, created, bound: targets.map(t => t.sessionId) };
 }
 
-/** The board a session is bound to, closed or not, with its absolute directory; null when the
- *  session has no board (or the board record is gone). */
+/** The board a session is bound to, as cortex_context reports it. */
+export interface BoundBoard {
+  id: string;
+  title: string;
+  /** Absolute board directory; null when the board's project has no context directory. */
+  dir: string | null;
+}
+
+/** The board a session is bound to with its absolute directory; null when the session has no
+ *  board (or the board record is gone). */
 export async function boundBoard(
   sessionId: string,
   deps: Pick<BoardServiceDeps, 'boards' | 'sessions' | 'contextDir'>,
-): Promise<{ id: string; title: string; status: BoardRecord['status']; dir: string | null } | null> {
+): Promise<BoundBoard | null> {
   const session = await deps.sessions.getById(sessionId);
   if (!session?.boardId) return null;
   const board = await deps.boards.find(session.boardId);
@@ -180,33 +178,6 @@ export async function boundBoard(
   return {
     id: board.id,
     title: board.title,
-    status: board.status,
     dir: contextDir ? path.join(contextDir, BOARDS_DIR, board.slug) : null,
   };
-}
-
-/** Close the calling session's board as done/abandoned. Bindings stay; a closed board is simply
- *  no longer injected, and board_open on it reopens it. */
-export async function closeBoard(
-  sessionId: string,
-  request: { status: 'done' | 'abandoned'; note?: string },
-  deps: BoardServiceDeps,
-): Promise<BoardRecord> {
-  const session = await deps.sessions.getById(sessionId);
-  if (!session) throw new BoardError(`session not found: ${sessionId}`);
-  if (!session.boardId) throw new BoardError('this session is not bound to a board');
-  let closedAs: string | null = null;
-  const updated = await deps.boards.update(session.boardId, (r) => {
-    if (r.status !== 'active') {
-      closedAs = r.status;
-      return false;
-    }
-    r.status = request.status;
-    r.closedAt = deps.now();
-    if (request.note?.trim()) r.closeNote = request.note.trim();
-  });
-  if (!updated) throw new BoardError(`board not found: ${session.boardId}`);
-  if (closedAs) throw new BoardError(`board is already ${closedAs}`);
-  deps.publish({ type: 'board.updated', boardId: updated.id, projectId: updated.projectId });
-  return updated;
 }

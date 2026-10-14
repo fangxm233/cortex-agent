@@ -5,6 +5,7 @@ import {
   createTranscriptSink, type TranscriptSinkDeps,
 } from '../../src/orchestration/transcript-sink.js';
 import type { ToolUseSubagent } from '../../src/agent-adapter/normalize/event-types.js';
+import { openedText } from '../../src/domain/mcp/tools/ui-board.js';
 import type { ChatNoticeLevel, NoticeAction, TodoSnapshot } from '../../src/core/types/agent-types.js';
 
 const SESSION = 'sess-sink-1';
@@ -155,6 +156,62 @@ test('a subagent calling a tool of the same name carries no team action', () => 
     subagent, phase: 'foreground',
   });
   assert.equal(h.history[0].opts.teamAction, undefined);
+});
+
+// ── board_open ───────────────────────────────────────────────────────────────
+
+const boardResult = (created: boolean) =>
+  openedText({ id: 'a1b2c3d4', title: 'Ship it', dir: '/ctx/boards/ship-it', created, bound: [SESSION] });
+
+test('a board_open row waits for its result and then carries the board it created', () => {
+  const h = harness({ debug: true });
+  h.sink.onEvent({
+    type: 'tool_use', toolUseId: 'tu-board', name: 'mcp__cortex-web__board_open', input: { title: 'Ship it' }, phase: 'foreground',
+  });
+  assert.deepEqual(h.history, [], 'nothing is written until the call returns');
+  assert.deepEqual(h.published, []);
+
+  h.sink.onEvent({ type: 'tool_result', toolUseId: 'tu-board', ok: true, content: boardResult(true), phase: 'foreground' });
+  const action = { op: 'open', boardId: 'a1b2c3d4', title: 'Ship it', created: true };
+  assert.deepEqual(h.history.map((c) => c.method), ['tool', 'toolResult'], 'the row precedes the lines that attach to it');
+  assert.deepEqual(h.history[0].opts.boardAction, action);
+  assert.equal(h.history[0].opts.toolName, 'mcp__cortex-web__board_open');
+  assert.equal(h.history[0].opts.toolUseId, 'tu-board');
+  assert.deepEqual(h.published, [{
+    sessionId: SESSION, channel: CHANNEL, role: 'tool', text: '', toolName: 'mcp__cortex-web__board_open',
+    toolInput: h.history[0].opts.toolInput, ts: h.published[0].ts, boardAction: action,
+  }]);
+  assert.equal(h.history[0].opts.ts, h.published[0].ts, 'row and event share one ts');
+});
+
+test('attaching to an existing board carries created=false, outside DEBUG too', () => {
+  const h = harness();
+  h.sink.onEvent({ type: 'tool_use', toolUseId: 'tu-b', name: 'cortex-web.board_open', input: { board: 'ship-it' }, phase: 'foreground' });
+  h.sink.onEvent({ type: 'tool_result', toolUseId: 'tu-b', ok: true, content: boardResult(false), phase: 'foreground' });
+  const action = { op: 'open', boardId: 'a1b2c3d4', title: 'Ship it', created: false };
+  assert.deepEqual(h.history.map((c) => c.opts.boardAction), [action]);
+  assert.deepEqual(h.published.map((p) => p.boardAction), [action]);
+});
+
+test('a failed board_open is written without a board action', () => {
+  const h = harness();
+  h.sink.onEvent({ type: 'tool_use', toolUseId: 'tu-f', name: 'board_open', input: { board: 'nope' }, phase: 'foreground' });
+  h.sink.onEvent({ type: 'tool_result', toolUseId: 'tu-f', ok: false, content: 'board_open failed: no board "nope"', phase: 'foreground' });
+  assert.deepEqual(h.history.map((c) => [c.method, c.opts.boardAction]), [['tool', undefined]]);
+  assert.equal('boardAction' in h.published[0], false);
+});
+
+test('a board_open with no result is still written when the run closes; a subagent call is written at once', () => {
+  const h = harness();
+  h.sink.onEvent({ type: 'tool_use', toolUseId: 'tu-killed', name: 'board_open', input: { title: 'T' }, phase: 'foreground' });
+  h.sink.onEvent({ type: 'tool_use', toolUseId: 'tu-sub', name: 'board_open', input: { title: 'T' }, subagent, phase: 'foreground' });
+  assert.deepEqual(h.history.map((c) => c.opts.toolUseId), ['tu-sub']);
+  void h.sink.onClose?.();
+  assert.deepEqual(h.history.map((c) => c.opts.toolUseId), ['tu-sub', 'tu-killed']);
+  assert.deepEqual(h.history.map((c) => c.opts.boardAction), [undefined, undefined]);
+  // A late result for a released call writes nothing more.
+  h.sink.onEvent({ type: 'tool_result', toolUseId: 'tu-killed', ok: true, content: boardResult(true), phase: 'foreground' });
+  assert.equal(h.history.length, 2);
 });
 
 // ── tool_result ──────────────────────────────────────────────────────────────

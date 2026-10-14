@@ -8,6 +8,7 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '@core/subagent-spawn.js';
 import { teamActionFromToolCall } from '@core/team-action.js';
+import { boardActionFromToolResult, isBoardOpenTool, type BoardActionRef } from '@core/board-action.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import type { RunEvent, RunPhase } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';
@@ -146,9 +147,14 @@ export function recordHistory(p: Promise<unknown>, onPersisted?: () => void): vo
 export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
   const { sessionId, channel, debug } = opts;
   const deps: TranscriptSinkDeps = { ...DEFAULT_DEPS, ...opts.deps };
+  /** Main-agent board_open calls waiting for their result, by tool-use id. Their row is written
+   *  once the result says which board the call opened, so the row and its live event carry the
+   *  board action from the start. */
+  const heldBoardOpens = new Map<string, { name: string; input: unknown }>();
 
   function persistToolUse(
     name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent,
+    boardAction?: BoardActionRef | null,
   ): void {
     const toolInput = summarizeToolInputForHistory(input);
     const toolDevice = toolDeviceForHistory(name, input);
@@ -171,6 +177,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
         toolInput,
         ...(toolDevice ? { toolDevice } : {}),
         ...(teamAction ? { teamAction } : {}),
+        ...(boardAction ? { boardAction } : {}),
         ts,
         ...(rowRef ? { subagent: rowRef } : {}),
         ...(subagentSpawns.length ? { subagentSpawns } : {}),
@@ -183,9 +190,19 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
       sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
       ...(toolDevice ? { toolDevice } : {}),
       ...(teamAction ? { teamAction } : {}),
+      ...(boardAction ? { boardAction } : {}),
       ...(subagentSpawns.length ? { subagentSpawns } : {}),
       ...subagentPayloadFields(rowRef),
     });
+  }
+
+  /** Write a held board_open row, with the board action its result reports when it succeeded. */
+  function releaseBoardOpen(toolUseId: string, result: { ok: boolean; content: string } | null): void {
+    const held = heldBoardOpens.get(toolUseId);
+    if (!held) return;
+    heldBoardOpens.delete(toolUseId);
+    const boardAction = result?.ok ? boardActionFromToolResult(result.content) : null;
+    persistToolUse(held.name, held.input, toolUseId, undefined, boardAction);
   }
 
   /** The authoritative end of one native subagent, persisted as well as published: the event order
@@ -246,9 +263,16 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     onEvent(event: RunEvent): void | Promise<void> {
       switch (event.type) {
         case 'tool_use':
+          // A subagent's call is attributed through a different path and stays as it is.
+          if (!event.subagent && event.toolUseId && isBoardOpenTool(event.name)) {
+            heldBoardOpens.set(event.toolUseId, { name: event.name, input: event.input });
+            return;
+          }
           persistToolUse(event.name, event.input, event.toolUseId, event.subagent);
           return;
         case 'tool_result':
+          // The row first: the lines below attach to it by tool-use id.
+          releaseBoardOpen(event.toolUseId, event);
           recordToolImages(sessionId, channel, event.toolUseId, event.images, deps);
           if (!debug) return;
           recordHistory(
@@ -284,6 +308,11 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
         default:
           return;
       }
+    },
+    // The run is over: a board_open that never got its result (the turn was killed mid-call) is
+    // still written, without a board action.
+    onClose(): void {
+      for (const toolUseId of [...heldBoardOpens.keys()]) releaseBoardOpen(toolUseId, null);
     },
   };
 }

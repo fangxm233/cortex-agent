@@ -1,8 +1,10 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import * as http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { resolveCortexContext, toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 
-const BOARD = { id: 'b1', title: 'Ship it', status: 'active' as const, dir: '/ctx/boards/ship-it' };
+const BOARD = { id: 'b1', title: 'Ship it', dir: '/ctx/boards/ship-it' };
 
 test('a web session reports its bound board, or null when it has none', async () => {
   const ctx = toolContextFromEnv({ CORTEX_SESSION_ID: 's1' });
@@ -26,4 +28,26 @@ test('a session outside the Web UI is not asked about boards', async () => {
   const scope = await resolveCortexContext(ctx, async () => { asked = true; return BOARD; });
   assert.equal(asked, false);
   assert.equal('board' in scope, false);
+});
+
+test('the board field asked of the daemon carries exactly id, title and dir', async (t) => {
+  const asked: any[] = [];
+  // A daemon that still sends a field this release does not report.
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      asked.push({ url: req.url, body: JSON.parse(body) });
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ success: true, data: { ...BOARD, status: 'done', closedAt: 1 } }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.onTestFinished(() => new Promise<void>(resolve => server.close(() => resolve())));
+  const port = (server.address() as AddressInfo).port;
+
+  const scope = await resolveCortexContext(toolContextFromEnv({ CORTEX_SESSION_ID: 's1', WEBHOOK_PORT: String(port) }));
+  assert.deepEqual(scope.board, BOARD);
+  assert.deepEqual(Object.keys(scope.board!).sort(), ['dir', 'id', 'title']);
+  assert.deepEqual(asked, [{ url: '/webhook/board', body: { sessionId: 's1', action: 'status' } }]);
 });

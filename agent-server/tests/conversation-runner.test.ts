@@ -254,7 +254,7 @@ test('resolveConversationBoard delivers once per binding, and again after the ma
   assert.equal((await resolveConversationBoard(session({ boardId: 'b-1', boardBlockFor: 'b-1' }), { isFreshSession: true }, deps))?.id, 'b-1');
 });
 
-test('resolveConversationBoard does not record a delivery for a closed or missing board', async () => {
+test('resolveConversationBoard does not record a delivery for a missing board', async () => {
   const marked: string[] = [];
   const nothing = await resolveConversationBoard(session({ boardId: 'b-9' }), { isFreshSession: true }, {
     load: (async () => null) as typeof loadBoard,

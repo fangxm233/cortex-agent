@@ -173,7 +173,7 @@ test('a config naming retired bundles and tools still starts with the current su
 test('built cortex-web exposes file, view, decision and board tools to a web session', async () => {
   await withQaWebhook(async (port, received) => {
     await withBundles(['cortex-web'], async (client) => {
-      assert.deepEqual(await toolNames(client), ['board_close', 'board_open', 'send_decision', 'send_file', 'send_view']);
+      assert.deepEqual(await toolNames(client), ['board_open', 'send_decision', 'send_file', 'send_view']);
 
       const result = await client.callTool({
         name: 'send_view',

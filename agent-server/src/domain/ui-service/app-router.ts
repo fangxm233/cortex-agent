@@ -32,7 +32,6 @@ import {
   boardsGetInput,
   boardsDecisionsInput,
   boardsStyleInput,
-  boardCloseInput,
   executionsListInput,
   waitpointsListInput,
   executionsGetInput,
@@ -249,7 +248,6 @@ function boardsRouter(service: UiService) {
     get: makeQuery(service, 'boards.get', boardsGetInput),
     decisions: makeQuery(service, 'boards.decisions', boardsDecisionsInput),
     style: makeQuery(service, 'boards.style', boardsStyleInput),
-    close: makeMutation(service, 'boards.close', boardCloseInput),
   });
 }
 

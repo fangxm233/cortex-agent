@@ -89,7 +89,7 @@ export function webSessionId(ctx: CortexToolContext): string | null {
 export interface BoundBoardInfo {
   id: string;
   title: string;
-  status: 'active' | 'done' | 'abandoned';
+  /** Absolute board directory; null when the board's project has no context directory. */
   dir: string | null;
 }
 
@@ -114,7 +114,9 @@ const lookupBoard: BoardLookup = async (ctx, sessionId) => {
     'POST', `${ctx.webhookBaseUrl}/webhook/board`, { sessionId, action: 'status' }, webhookAuthHeaders(ctx),
   );
   if (!body?.success) throw new Error(body?.error || 'board status failed');
-  return body.data ?? null;
+  const board = body.data;
+  if (!board) return null;
+  return { id: board.id, title: board.title, dir: board.dir ?? null };
 };
 
 /** Resolve the execution scope for MCP callers. Web sessions also get the board they are bound

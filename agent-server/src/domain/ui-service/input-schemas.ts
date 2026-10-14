@@ -376,13 +376,6 @@ export const scheduleAddInput = z
     }
   });
 
-// boards.close — the user's done/abandon action from the board view (agents use board_close).
-export const boardCloseInput = z.object({
-  boardId: z.string(),
-  status: z.enum(['done', 'abandoned']),
-  note: z.string().optional(),
-});
-
 // schedules.update — a partial patch; per-type field-allowedness needs the persisted task, so it
 // lives in the handler (handleUpdateSchedule), not here. Value shapes mirror scheduleAddInput.
 export const scheduleUpdateInput = z.object({
@@ -874,7 +867,6 @@ export const mutateInputSchemas = {
   'schedules.remove': scheduleActionInput,
   'schedules.add': scheduleAddInput,
   'schedules.update': scheduleUpdateInput,
-  'boards.close': boardCloseInput,
   'approvals.approve': approvalsApproveInput,
   'approvals.reject': approvalsRejectInput,
   'approvals.request': approvalsRequestInput,

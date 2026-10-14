@@ -64,20 +64,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** A commission as a board. A commission's status and close note have no board counterpart. */
 function toBoard(raw: unknown): BoardRecord | null {
   if (!isRecord(raw)) return null;
-  const { id, projectId, slug, title, status, createdAt, updatedAt, closedAt, closeNote } = raw;
+  const { id, projectId, slug, title, createdAt, updatedAt } = raw;
   if (typeof id !== 'string' || typeof projectId !== 'string' || typeof slug !== 'string') return null;
-  const board: BoardRecord = {
+  return {
     id, projectId, slug,
     title: typeof title === 'string' ? title : slug,
-    status: status === 'done' || status === 'abandoned' ? status : 'active',
     createdAt: typeof createdAt === 'number' ? createdAt : 0,
     updatedAt: typeof updatedAt === 'number' ? updatedAt : 0,
   };
-  if (typeof closedAt === 'number') board.closedAt = closedAt;
-  if (typeof closeNote === 'string') board.closeNote = closeNote;
-  return board;
 }
 
 /** commissions.json → boards.json (merged by id), the source renamed to `.pre-<version>.bak`. */
