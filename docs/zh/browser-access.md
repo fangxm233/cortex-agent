@@ -36,7 +36,7 @@ Web UI 传输层**内置**于 `@cortex-agent/server`，按需在 `CORTEX_UI_HTTP
   浏览器加载 `index.html` + 资源并调用 `/trpc`，无需任何跨域处理；
 - 在 `/trpc` 暴露 tRPC API（查询/变更走 HTTP 批量，订阅走 SSE），进程内直连服务器的
   domain 服务（无代理、无 sidecar）；
-- 每个 `/trpc` 请求都经过**双路认证**门控（见 [认证](#authentication)）。
+- 每个 `/trpc` 请求都经过认证门控，三种凭据任一有效即可放行（见 [认证](#authentication)）。
 
 它与服务器运行在同一进程中，绑定到 `127.0.0.1`，设计上只应通过隧道对外暴露。
 
@@ -85,31 +85,41 @@ pnpm --filter web run build      # 产出 web/dist
 
 ### 4. 启用 Web UI 端点 {#4-enable-the-web-ui-endpoint}
 
-在服务器的 `~/.cortex/config/.env` 中添加：
+在服务器上运行：
+
+```bash
+cortex ui enable          # 可选：--port <n>、--home <dir>、--json
+```
+
+该命令在 `.env` 中没有 `CORTEX_CLIENT_TOKEN` 时生成一个，设置端点变量，并把原生应用的 origin
+加入 `uiCorsOrigins`。它可以重复运行，并报告配置是否发生了变化。如果想手工配置端点，在
+`~/.cortex/config/.env` 中添加：
 
 ```bash
 CORTEX_UI_HTTP=1          # 主动开启：启动 tRPC HTTP + SSE 端点（必需）
 CORTEX_UI_PORT=3004       # 可选，默认为 3004
 ```
 
-`CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，该端点——以及 Web UI 传输层
-连同 `@trpc/server` / `jose`——都不会加载。
-
 仅这一项就足以让浏览器打开工作台：token 登录默认开启，SPA 会询问 `clientToken` 并把它换成
 一个会话（见[用 token 登录的浏览器访问](#browser-access-with-a-token-no-cloudflare)）。
 
+`CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，该端点——以及 Web UI 传输层
+连同 `@trpc/server` / `jose`——都不会加载。
+
 ### 5. 重启守护进程以生效 {#5-restart-the-daemon-to-apply}
 
-守护进程在启动时读取 SPA 与环境变量，因此新的构建或环境变量更改需在重启后生效：
+守护进程在启动时读取 SPA 与环境变量，因此新的构建或环境变量更改需在重启后生效。守护进程尚未运行时用
+`cortex daemon` 启动它；否则重启它：
 
 ```bash
-cortex daemon   # 或：systemctl --user restart cortex（如果已注册系统服务）
+cortex daemon restart
 ```
 
-!!! warning "重启具有中断性"
-    重启守护进程会中断所有进行中的智能体与定时任务。请将其视为一次审慎、
-    受控的操作——在系统空闲时执行；如果你的 Cortex 实例运行在审批策略之下，
-    请让重启走该审批步骤，而非随意重启。
+!!! warning "重启会中断连接"
+    平滑的 `cortex daemon restart` 会等到没有轮次在运行时才重启，并在服务器恢复前暂缓新的轮次，
+    但重启期间所有已连接的客户端都会断开。`cortex daemon restart --hard` 与 `--force` 立即重启，
+    会中断正在运行的智能体。请在系统空闲时重启；如果你的 Cortex 实例运行在审批策略之下，
+    请让重启走该审批步骤。
 
 此时服务器**仅在服务器主机上**可通过 `http://127.0.0.1:3004` 访问。把它暴露给浏览器
 是下一节的内容。
@@ -119,7 +129,7 @@ cortex daemon   # 或：systemctl --user restart cortex（如果已注册系统�
 `/trpc` 认证门在三种凭据中**任一**有效时放行请求，否则在 tRPC 运行前返回 `401`：
 
 1. **`x-cortex-token` 头** 等于服务器的 `clientToken`——桌面 / 机器路径。优先检查，
-   使用常量时间比较。与此前完全一致。
+   使用常量时间比较。
 2. **有效的 `cortex_ui` 会话 cookie**——token 登录的浏览器路径。浏览器通过
    `POST /api/ui/login` 证明自己知道 token（仅一次）后由服务器签发。
 3. **有效的 `Cf-Access-Jwt-Assertion` 头**——Cloudflare Access 的浏览器路径。边缘在认证
@@ -212,15 +222,18 @@ SPA 会先显示登录页而不是工作台：
   页面 JavaScript——包括 XSS 注入的脚本——读不回去。
 - **`SameSite=Strict`** 让其他站点发起的请求不带该会话。但同一父域名下的各个子域名仍算同站，
   Cloudflare Access 的凭据也会照常附带，所以服务器还会检查 `Origin`：发往 `/trpc` 或 `/api` 路由
-  （包括登录）的 `POST`，若 `Origin` 既不是本服务器自己、也不在 `uiCorsOrigins` 中，一律返回 403。
-  不带 `Origin` 的请求（CLI、设备、原生壳自身的 HTTP 客户端）照旧只做凭据校验。"本服务器自己"指
+  （包括登录）的 `GET`、`HEAD`、`OPTIONS` 以外的请求，若 `Origin` 既不是本服务器自己、也不在
+  `uiCorsOrigins` 中，一律返回 403；`Origin: null` 总是被拒绝。不带 `Origin` 的请求（CLI、设备、
+  原生壳自身的 HTTP 客户端）只做凭据校验。"本服务器自己"指
   `Origin` 的主机与请求的 `Host` header 相同，因此服务器前面的反向代理必须原样转发 `Host`
   （cloudflared 默认如此，除非设置了 `httpHostHeader`；nginx 需要 `proxy_set_header Host $host`）。
-- **工作区文件以沙箱方式打开。** 通过下载链接直接打开工作区里的 HTML 或 SVG 文件时，服务器附带
-  `Content-Security-Policy: sandbox allow-scripts`，页面运行在不透明 origin 中，读不到会话，也无法
-  以你的身份调用 API。
+- **服务器提供的文件以沙箱方式打开。** 通过下载链接直接打开 HTML、XHTML、SVG 或 XML 文件时（工作区
+  文件、附件、看板素材和记忆文件都一样），服务器附带 `Content-Security-Policy: sandbox allow-scripts`
+  与 `X-Content-Type-Options: nosniff`，页面运行在不透明 origin 中，读不到会话，也无法以你的身份
+  调用 API。
 - **会话能扛过守护进程重启**：它们存放在 `~/.cortex/data/ui-sessions.json`（权限 `0600`），
-  签发 30 天后过期。设置 → 高级里有「退出此浏览器的登录」按钮，会在服务端吊销该会话。
+  登录 30 天后过期，使用会话不会延长有效期。**设置 → 高级**里有**退出此浏览器的登录**按钮，桌面与
+  手机布局都有，会在服务端吊销该会话。
 - **会话的权限严格弱于 token**：它与 Cloudflare Access 登录的权限完全相同——tRPC 与 `/api`
   路由，永远不含 `/forward`。
 - **登录端点是公开的**。它必须如此：没有任何凭据的浏览器得够得着它。token 错误会让调用方固定
@@ -231,12 +244,12 @@ SPA 会先显示登录页而不是工作台：
 ### 调整或关闭 {#tuning-or-turning-it-off}
 
 ```bash
-CORTEX_UI_TOKEN_LOGIN=0          # 彻底移除登录路由与 cookie 这条腿
-CORTEX_UI_SESSION_TTL_DAYS=30    # 可选；会话有效期，默认 30 天
+CORTEX_UI_TOKEN_LOGIN=0          # 0、false、off 或 no：移除登录路由与 cookie 这条腿
+CORTEX_UI_SESSION_TTL_DAYS=30    # 可选；会话有效期（天），默认 30
 ```
 
-关闭之后，服务器的行为与本功能出现之前完全一致：只剩 header token 与（若已配置）Cloudflare
-Access。SPA 会在登录页如实说明这一点，而不是给出一个根本不可能成功的表单。
+关闭之后，登录与登出路由不会挂载，会话 cookie 也不再被接受，只剩 header token 与（若已配置）
+Cloudflare Access 能放行请求。SPA 会在登录页如实说明这一点，而不是给出一个根本不可能成功的表单。
 
 ### 该用哪一条 {#where-to-use-which}
 
@@ -283,14 +296,25 @@ Access 应用的策略。
 team 匹配、`CORTEX_ACCESS_AUD` 与 Access 应用的 AUD 标签完全一致，且设置后已重启守护
 进程。若这些未设置，浏览器路径被禁用，每个浏览器请求都是 `401`。
 
-**页面加载但 `/trpc` 调用返回 `404`**
+**登录页提示 token 登录已关闭**
 
-未找到 `web/dist`，因此只提供了 API。构建 SPA（`pnpm --filter web run build`）或将
-`CORTEX_UI_SPA_DIR` 指向你构建的产物，然后重启。
+服务器上设置了 `CORTEX_UI_TOKEN_LOGIN=0`。要么移除它（token 登录默认开启）并重启，要么改经
+Cloudflare Access 或桌面应用访问 UI。
+
+**token 正确，但登录没有反应 / 每次加载页面都要求重新登录**
+
+在守护进程日志中查找 `ui-http cross-origin request refused`。改写了 `Host` header 的反向代理会让
+页面自己的 origin 看起来像外来的，于是服务器以 403 拒绝登录请求。让代理原样转发 `Host`（cloudflared
+默认如此，除非设置了 `httpHostHeader`；nginx 需要 `proxy_set_header Host $host`）。
+
+**页面显示 `Cortex UI not built`**
+
+未找到 `web/dist`，因此除 `/trpc` 以外的路径都以这段文字返回 404，而 API 照常工作。构建 SPA
+（`pnpm --filter web run build`）或将 `CORTEX_UI_SPA_DIR` 指向你构建的产物，然后重启。
 
 **UI hostname 完全不可达**
 
 1. 确认已设置 `CORTEX_UI_HTTP=1` 且添加后已重启守护进程。
-2. 在服务器上确认端点已启动：`curl http://127.0.0.1:3004/trpc` 应返回 tRPC 错误
+2. 在服务器上确认端点已启动：`curl http://127.0.0.1:3004/trpc` 应返回 `401 Unauthorized`
    （而非连接拒绝）。
 3. 确认 Cloudflare Tunnel 正在运行且其路由指向正确端口。
