@@ -144,25 +144,25 @@ belongs to a project and is attached to the sessions doing the work. It does not
 organizing several sessions around one piece of work is what the lead and its workers are for.
 Boards work in every Web UI session, with or without team mode, on Claude and PI alike.
 
-**Opening and closing.** The agent opens a board when the work calls for one, typically when it is
+**Opening a board.** The agent opens a board when the work calls for one, typically when it is
 about to dispatch several workers or the task will run across many turns or hours. The `board`
 skill tells it when a board is worth opening and how to keep one. You can also simply ask for a
 board.
 
 | Tool | Parameters | What it does |
 |---|---|---|
-| `board_open` | `title` or `board` | Creates a board titled `title`, or attaches to an existing board by id or slug; attaching to a closed board reopens it. Binds the calling session, and a lead's workers (below) |
-| `board_close` | `status` (`done` or `abandoned`), `note?` | Closes the session's board, with an optional one-line outcome |
+| `board_open` | `title` or `board` | Creates a board titled `title`, or attaches to an existing board by id or slug. Binds the calling session, and a lead's workers (below) |
 
-Both tools come from the `cortex-web` bundle (see [MCP](./mcp.md#cortex-web)). You can also close a
-board from the board itself with **Complete** or **Abandon**. A closed board stays readable.
+The tool comes from the `cortex-web` bundle (see [MCP](./mcp.md#cortex-web)). A board has no open or
+closed state: it stays available, and the page itself says where the work stands, including when
+it is finished.
 
 **Who is bound.** A session is bound to at most one board. When a lead opens a board, each of its
 workers that is not retired and has no board yet is bound along with it. A worker spawned later,
 or a retired worker the lead brings back, joins the lead's board if it has none of its own. A
-worker that opens a board binds only itself. While the board is active, each bound session's next
-turn opens with a short `[Board]` block naming the board and its directory, and the block comes
-back after context compaction.
+worker that opens a board binds only itself. Once a session is bound, its next turn opens with a
+short `[Board]` block naming the board and its directory, and the block comes back after context
+compaction.
 
 **Writing the page.** The page is `board.html`, an HTML fragment the agents edit like any other
 file. Every bound session may edit it, and Cortex neither locks the file nor tracks who wrote
@@ -181,20 +181,34 @@ has a directory in its project's context:
 Cortex collects every bound session's `send_decision` calls into `decisions.jsonl`; agents never
 edit it. The list of all boards is `data/boards.json`.
 
+**In the chat.** When the agent creates a board, the call appears in the conversation as a board
+card, set apart from the folded tool calls. The card shows the board's flag and title, a status dot
+for up to four bound sessions with a count of the rest, how many requests are waiting on you, and
+**Open board**. It updates live, and its flag turns amber while any bound session waits on you.
+When the agent attaches to an existing board, the conversation shows a single line:
+*Attached to board* followed by the title and an **Open** link. If the board has since been deleted,
+the card and the line keep its title and their buttons are greyed out.
+
+On desktop, a board that the session on screen creates opens in the right-hand dock as it is
+created, in a new tab when the dock already holds something. Each board opens this way once per
+page load; reloading, switching sessions or scrolling back through the history does not open it
+again. On mobile, nothing opens by itself, and the card's button opens the board full screen.
+
 **In the workbench.** A session bound to a board shows a board status bar under its chat header.
-The bar names the board and its state, gives a status dot for each bound session (amber when it is
-waiting on you, the accent colour while it runs, a hollow ring while it waits on a machine), and
-ends with the count of requests waiting on you and the number of decisions. Its flag turns amber
-while any session waits on you. Clicking the bar opens the board in the right-hand dock, and the
-bar stays hidden while the dock shows that board. On mobile the same bar sits at the top of the
-chat, and tapping it opens the board full screen.
+The bar names the board, gives a status dot for up to four bound sessions with a count of the rest
+(amber when a session is waiting on you, the accent colour while it runs, a hollow ring while it
+waits on a machine), and ends with the count of requests waiting on you and the number of
+decisions. Its flag is the accent colour, and
+turns amber while any session waits on you. Clicking the bar opens the board in the right-hand
+dock, and the bar stays hidden while the dock shows that board. On mobile the same bar sits at the
+top of the chat, and tapping it opens the board full screen.
 
-The command palette reaches every board, including closed ones and those of old sessions. With an
-empty query it lists recent boards, active ones first and closed ones after; typing searches all
-of them.
+The command palette reaches every board, including those of old sessions. With an empty query it
+lists the eight most recently used boards, where a board is used when it is created, when a session
+attaches to it, and when its files change; typing searches all of them.
 
-The top of the board is drawn by the app and updates live: the title and state with **Complete**
-and **Abandon**, the status of every bound session, a count of requests waiting on you that jumps
+The top of the board is drawn by the app and updates live: the title, the status of every bound
+session, a count of requests waiting on you that jumps
 to the session asking, and the decision stream. Below it, `board.html` renders in a sandboxed
 frame. Images in `assets/` show inline, and a link marked `data-open` opens a file from the board
 directory in the dock. The page re-renders within a few seconds of a save, with no reload.

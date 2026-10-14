@@ -523,7 +523,7 @@ plugin 文件放在 `$CORTEX_HOME/data/claude/plugins/` 下。
 ## 看板 {#boards}
 
 看板是长任务的状态页，由推进这项工作的 agent 维护（见团队指南中的[看板](./team.md#boards)）。每个看板位于
-`<项目 context 目录>/boards/<slug>/`，`data/boards.json` 登记所有看板的所属项目、标题和状态。升级时，早期
+`<项目 context 目录>/boards/<slug>/`，`data/boards.json` 登记所有看板的所属项目、标题和最近使用时间。升级时，早期
 Cortex 版本中已登记的 commission 会转为看板：目录从 `commissions/` 移到 `boards/`，文件只移动、不删除。
 
 看板的样式来自随 Cortex 发布的预设样式表 `agent-server/defaults/board/board.css`。它直接从安装包读取，
@@ -575,7 +575,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 - **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。
 - **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
 - **插件、提示、规则** — 每次智能体会话生成时重新读取。
-- **`config/board.css`** — 与进行中看板的目录一起被监视。变更后几秒内，打开着的看板重新渲染。参见[看板](#boards)。
+- **`config/board.css`** — 与所有看板的目录一起被监视。变更后几秒内，打开着的看板重新渲染。参见[看板](#boards)。
 
 ## 各文件位置 {#where-each-file-lives}
 
