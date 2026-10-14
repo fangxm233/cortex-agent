@@ -41,13 +41,6 @@ export function resolveFileRef(field: string, value: string | undefined): string
   }
 }
 
-/** Absolute paths are returned as-is; relative ones resolve against DATA_DIR. `plugins/<id>` is a
- *  plugin's address whether it is built in, the user's, or both. */
-export function resolvePluginDir(dir: string): string {
-  if (path.isAbsolute(dir)) return dir;
-  return path.join(DATA_DIR, dir);
-}
-
 /** Filesystem probes for the validators' `file:` ref and pluginDirs existence checks. Omitted in
  *  unit tests, injected by the loaders and the API handlers. */
 export interface RefResolver {

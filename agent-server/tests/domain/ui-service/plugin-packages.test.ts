@@ -17,6 +17,7 @@ import {
   handlePluginsSkillCreate,
   handlePluginsSkillMove,
   handlePluginsSkillRemove,
+  handlePluginsSkillRevert,
   handlePluginsSkillWrite,
 } from '../../../src/domain/ui-service/mutate/plugin-packages.js';
 import {
@@ -131,13 +132,56 @@ function err<T>(result: Result<T>): { code: string; message: string } {
   return result as Err;
 }
 
-test('reads a SKILL.md with its hash and reports whether Cortex ships it', async () => {
+test('reads a SKILL.md with its hash and reports where it comes from', async () => {
   const file = await handlePluginsSkillFile(deps(), { pluginId: 'alpha', skill: 'review' });
 
   assert.equal(file.path, 'plugins/alpha/skills/review/SKILL.md');
   assert.match(file.content, /name: review/);
-  assert.equal(file.managed, false);
+  assert.equal(file.origin, 'local');
   assert.match(file.baseHash, /^[a-f0-9]{64}$/);
+});
+
+test('editing a built-in skill writes the user copy, and reverting drops it again', async () => {
+  const userDir = path.join(PLUGINS_DIR, 'cortex-system');
+  const shipped = await handlePluginsSkillFile(deps(), { pluginId: 'cortex-system', skill: 'schedule' });
+  assert.equal(shipped.origin, 'builtin');
+  assert.equal(existsSync(userDir), false);
+
+  const edited = `${shipped.content}\nLocal note.\n`;
+  ok(await handlePluginsSkillWrite(deps(), {
+    pluginId: 'cortex-system', skill: 'schedule', content: edited, baseHash: shipped.baseHash,
+  }));
+  assert.equal(readFileSync(path.join(userDir, 'skills', 'schedule', 'SKILL.md'), 'utf8'), edited);
+  const after = await handlePluginsSkillFile(deps(), { pluginId: 'cortex-system', skill: 'schedule' });
+  assert.equal(after.origin, 'overridden');
+  assert.equal(after.content, edited);
+  const listed = (await handlePluginsList(deps(), {})).plugins.find((plugin) => plugin.id === 'cortex-system');
+  assert.equal(listed?.origin, 'builtin');
+  assert.equal(listed?.skills.find((skill) => skill.name === 'schedule')?.origin, 'overridden');
+  assert.equal(listed?.skills.find((skill) => skill.name === 'approval')?.origin, 'builtin');
+
+  ok(await handlePluginsSkillRevert(deps(), { pluginId: 'cortex-system', skill: 'schedule' }));
+  assert.equal(existsSync(userDir), false);
+  const reverted = await handlePluginsSkillFile(deps(), { pluginId: 'cortex-system', skill: 'schedule' });
+  assert.equal(reverted.origin, 'builtin');
+  assert.equal(reverted.content, shipped.content);
+});
+
+test('a new skill in a built-in plugin goes to the user layer and may not take a built-in name', async () => {
+  ok(await handlePluginsSkillCreate(deps(), {
+    pluginId: 'cortex-system', skill: 'notes', description: 'Local notes.',
+  }));
+  assert.ok(existsSync(path.join(PLUGINS_DIR, 'cortex-system', 'skills', 'notes', 'SKILL.md')));
+  const listed = (await handlePluginsList(deps(), {})).plugins.find((plugin) => plugin.id === 'cortex-system');
+  assert.equal(listed?.skills.find((skill) => skill.name === 'notes')?.origin, 'local');
+
+  const taken = err(await handlePluginsSkillCreate(deps(), {
+    pluginId: 'cortex-system', skill: 'schedule', description: 'again',
+  }));
+  assert.match(taken.message, /already exists/);
+  assert.equal(err(await handlePluginsSkillRevert(deps(), { pluginId: 'cortex-system', skill: 'notes' })).code, 'invalid-args');
+  assert.equal(err(await handlePluginsRemove(deps(), { id: 'cortex-system' })).code, 'invalid-args');
+  assert.equal(err(await handlePluginsCreate(deps(), { id: 'cortex-board' })).code, 'invalid-args');
 });
 
 test('writes a SKILL.md only when the caller started from what is on disk', async () => {
@@ -166,7 +210,7 @@ test('creates a skill the catalog can immediately load', async () => {
 
   const { plugins } = await handlePluginsList(deps(), {});
   const beta = plugins.find((plugin) => plugin.id === 'beta');
-  assert.deepEqual(beta?.skills, [{ name: 'summarize', description: 'Summarize a document.', managed: false }]);
+  assert.deepEqual(beta?.skills, [{ name: 'summarize', description: 'Summarize a document.', origin: 'local' }]);
 });
 
 test('refuses to create a skill that already exists', async () => {
@@ -248,8 +292,8 @@ test('removes a skill directory and nothing above it', async () => {
   assert.ok(existsSync(path.join(PLUGINS_DIR, 'alpha', 'plugin.json')));
 });
 
-test('refuses to move or remove a skill Cortex ships, since the next update restores it', async () => {
-  // `cortex-system/schedule` ships in defaults/plugins, so plugin-sync rewrites it on a version bump.
+test('refuses to move or remove a built-in skill, even one the user has edited', async () => {
+  // `cortex-system/schedule` ships in defaults/plugins; the user's copy here overrides it.
   seedPlugin('cortex-system', ['schedule', 'notes']);
   const skillDir = path.join(PLUGINS_DIR, 'cortex-system', 'skills', 'schedule');
 
@@ -262,7 +306,9 @@ test('refuses to move or remove a skill Cortex ships, since the next update rest
   assert.ok(existsSync(skillDir));
   assert.equal(existsSync(path.join(PLUGINS_DIR, 'beta', 'skills', 'schedule')), false);
 
-  // A skill the operator added inside a shipped plugin is theirs to move and delete.
+  assert.equal(err(await handlePluginsSkillRemove(deps(), { pluginId: 'cortex-system', skill: 'approval' })).code, 'invalid-args');
+
+  // A skill the operator added inside a built-in plugin is theirs to move and delete.
   ok(await handlePluginsSkillRemove(deps(), { pluginId: 'cortex-system', skill: 'notes' }));
 });
 

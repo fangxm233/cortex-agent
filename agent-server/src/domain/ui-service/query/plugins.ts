@@ -1,7 +1,6 @@
 import { ENVIRONMENTS_DIR, listEnvironmentNames, readEnvironment } from '@domain/agents/environments/index.js';
 import {
-  normalizePluginDirs,
-  pluginDirsOf,
+  environmentPlugins,
   readPluginCatalogSnapshot,
   sanitizePluginEntry,
 } from '../plugins-shared.js';
@@ -20,7 +19,7 @@ function readAgentTargets(
   for (const name of listEnvironmentNames(ENVIRONMENTS_DIR)) {
     const entity = readEnvironment(ENVIRONMENTS_DIR, name);
     if (!entity.body) continue;
-    const normalized = normalizePluginDirs(pluginDirsOf(entity.body), snapshot);
+    const normalized = environmentPlugins(entity.body, snapshot);
     out.push({
       kind: 'agent',
       name,

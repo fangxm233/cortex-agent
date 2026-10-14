@@ -647,6 +647,8 @@ export const pluginsSkillMoveInput = z.object({
 
 export const pluginsSkillRemoveInput = z.object(pluginSkillTarget);
 
+export const pluginsSkillRevertInput = z.object(pluginSkillTarget);
+
 export const pluginsCreateInput = z.object({
   id: pluginCanonicalName,
   description: z.string().max(1024).optional(),
@@ -907,6 +909,7 @@ export const mutateInputSchemas = {
   'plugins.skillCreate': pluginsSkillCreateInput,
   'plugins.skillMove': pluginsSkillMoveInput,
   'plugins.skillRemove': pluginsSkillRemoveInput,
+  'plugins.skillRevert': pluginsSkillRevertInput,
   'plugins.create': pluginsCreateInput,
   'plugins.remove': pluginsRemoveInput,
   'plugins.convertToPortable': pluginsConvertInput,

@@ -37,6 +37,7 @@ export interface AgentDefinition extends AgentEnvironment {
   outputStyle?: string;              // Claude Code output style (--settings '{"outputStyle":"<value>"}')
   tools?: string;                    // Claude Code tools list (--tools flag, overrides default tool set)
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags, repeatable)
+  disabledPlugins?: string[];        // built-in plugin ids this agent leaves out; every other built-in loads
   mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
   mcpToolAllowlist?: string[];        // optional per-tool MCP allowlist; absent preserves full surface
   /** Whether this template may be named as a subagent delegation target. Declared now so a

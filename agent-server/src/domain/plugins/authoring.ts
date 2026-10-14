@@ -1,7 +1,11 @@
 //
-// Every path here is re-resolved against PLUGINS_DIR with resolveContainedAbsolutePath, which
-// walks each segment through realpath. A plugin directory is operator-writable, so a symlink
+// Every path here is re-resolved against its layer's plugins root with resolveContainedAbsolutePath,
+// which walks each segment through realpath. A plugin directory is operator-writable, so a symlink
 // planted inside one must not become a write outside the plugins root.
+//
+// Writes land only in the user's layer (PLUGINS_DIR). A built-in plugin is read from the install;
+// editing one of its skills copies the skill into the user's layer first, where it replaces the
+// built-in one whole.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +17,7 @@ import {
   AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
   portableMcpSchema,
 } from './agent-plugins-v1.js';
+import { defaultBuiltinPluginsDir } from './builtin.js';
 import {
   containsPath,
   isDirectoryPath,
@@ -43,9 +48,9 @@ function assertName(label: string, value: string): void {
   }
 }
 
-/** Resolve a path that must already exist inside PLUGINS_DIR. */
-function contained(absolute: string): string {
-  const real = resolveContainedAbsolutePath(PLUGINS_DIR, absolute);
+/** Resolve a path that must already exist inside a layer's plugins root. */
+function contained(absolute: string, root: string = PLUGINS_DIR): string {
+  const real = resolveContainedAbsolutePath(root, absolute);
   if (!real) throw fail('invalid-args', `path escapes the plugins directory: ${absolute}`);
   return real;
 }
@@ -64,10 +69,38 @@ function containedTarget(absolute: string): string {
   return target;
 }
 
+/** `relative` inside one layer of a plugin, or null when that layer does not have it. */
+function inLayer(root: string | null, id: string, relative: string, isKind: (p: string) => boolean): string | null {
+  const absolute = root ? path.join(root, id, relative) : null;
+  if (!root || !absolute || !pathExists(absolute)) return null;
+  const real = contained(absolute, root);
+  return isKind(real) ? real : null;
+}
+
+function userLayer(id: string, relative = '.'): string | null {
+  return inLayer(PLUGINS_DIR, id, relative, isDirectoryPath);
+}
+
+function builtinLayer(id: string, relative = '.'): string | null {
+  return inLayer(defaultBuiltinPluginsDir(), id, relative, isDirectoryPath);
+}
+
+/** The user's own plugin directory; a built-in plugin's user layer counts once it exists. */
 function pluginDirPath(id: string): string {
   assertName('plugin id', id);
-  const dir = contained(path.join(PLUGINS_DIR, id));
-  if (!isDirectoryPath(dir)) throw fail('not-found', `Unknown plugin: '${id}'`);
+  const dir = userLayer(id);
+  if (!dir) throw fail('not-found', `Unknown plugin: '${id}'`);
+  return dir;
+}
+
+/** Where a write to this plugin goes: its user layer, created for a built-in plugin without one. */
+function writablePluginDir(id: string): string {
+  assertName('plugin id', id);
+  const own = userLayer(id);
+  if (own) return own;
+  if (!builtinLayer(id)) throw fail('not-found', `Unknown plugin: '${id}'`);
+  const dir = containedTarget(path.join(PLUGINS_DIR, id));
+  fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
@@ -84,15 +117,44 @@ function skillFilePath(pluginId: string, skill: string): string {
   return file;
 }
 
+interface EffectiveSkill {
+  file: string;
+  /** Read from the user's layer rather than the install. */
+  user: boolean;
+}
+
+/** The SKILL.md in effect: the user's when their layer has one, otherwise the built-in. */
+function effectiveSkillFile(pluginId: string, skill: string): EffectiveSkill {
+  assertName('plugin id', pluginId);
+  assertName('skill name', skill);
+  const relative = path.join('skills', skill, 'SKILL.md');
+  const own = inLayer(PLUGINS_DIR, pluginId, relative, isRegularFile);
+  if (own) return { file: own, user: true };
+  const shipped = inLayer(defaultBuiltinPluginsDir(), pluginId, relative, isRegularFile);
+  if (shipped) return { file: shipped, user: false };
+  if (!userLayer(pluginId) && !builtinLayer(pluginId)) throw fail('not-found', `Unknown plugin: '${pluginId}'`);
+  throw fail('not-found', `Unknown skill: '${pluginId}/${skill}'`);
+}
+
+/** The user's SKILL.md for a skill. A built-in skill is copied into the user's layer whole first,
+ *  since the user's copy replaces the built-in one whole. */
+function userSkillFile(pluginId: string, skill: string, effective: EffectiveSkill): string {
+  if (effective.user) return effective.file;
+  const target = containedTarget(path.join(writablePluginDir(pluginId), 'skills', skill));
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.cpSync(path.dirname(effective.file), target, { recursive: true, force: false });
+  return contained(path.join(target, 'SKILL.md'));
+}
+
 export interface SkillSource {
-  /** Path relative to the plugins root, for display. */
+  /** The skill's address under the plugins root, for display. */
   path: string;
   content: string;
   baseHash: string;
 }
 
 export function readSkillSource(pluginId: string, skill: string): SkillSource {
-  const file = skillFilePath(pluginId, skill);
+  const { file } = effectiveSkillFile(pluginId, skill);
   const content = fs.readFileSync(file, 'utf8');
   return {
     path: path.posix.join('plugins', pluginId, 'skills', skill, 'SKILL.md'),
@@ -102,21 +164,41 @@ export function readSkillSource(pluginId: string, skill: string): SkillSource {
 }
 
 /** Optimistic concurrency, same contract as saveEntity: the caller passes the hash of the bytes it
- *  started from, and a mismatch means someone else — a hand edit, another tab, plugin-sync — wrote
- *  in between. Silently overwriting that is how edits disappear without anyone noticing. */
+ *  started from, and a mismatch means someone else — a hand edit, another tab — wrote in between.
+ *  Silently overwriting that is how edits disappear without anyone noticing. */
 export function writeSkillSource(
   pluginId: string,
   skill: string,
   content: string,
   baseHash: string,
 ): { baseHash: string } {
-  const file = skillFilePath(pluginId, skill);
-  const current = fs.readFileSync(file, 'utf8');
-  if (sha256(current) !== baseHash) {
+  const effective = effectiveSkillFile(pluginId, skill);
+  if (sha256(fs.readFileSync(effective.file, 'utf8')) !== baseHash) {
     throw fail('conflict', `'${pluginId}/${skill}' changed on disk`);
   }
-  atomicWriteSync(file, content);
+  atomicWriteSync(userSkillFile(pluginId, skill, effective), content);
   return { baseHash: sha256(content) };
+}
+
+/** Drop the user's copy of a built-in skill, so the built-in one is in effect again. */
+export function revertSkill(pluginId: string, skill: string): void {
+  assertName('skill name', skill);
+  if (!builtinLayer(pluginId, path.join('skills', skill))) {
+    throw fail('invalid-args', `'${pluginId}/${skill}' is not a built-in skill`);
+  }
+  const own = userLayer(pluginId, path.join('skills', skill));
+  if (!own) return;
+  fs.rmSync(own, { recursive: true, force: true });
+  removeIfEmpty(path.dirname(own));
+  removeIfEmpty(path.dirname(path.dirname(own)));
+}
+
+function removeIfEmpty(dir: string): void {
+  try {
+    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+  } catch {
+    // Not empty or already gone: either way there is nothing to tidy.
+  }
 }
 
 function skillTemplate(skill: string, description: string): string {
@@ -131,12 +213,21 @@ function skillTemplate(skill: string, description: string): string {
   ].join('\n');
 }
 
+/** A new skill must not take a built-in skill's name: in the user's layer it would replace it. */
+function freeSkillTarget(pluginId: string, skill: string): string {
+  assertName('skill name', skill);
+  const exists = fail('invalid-args', `Skill '${pluginId}/${skill}' already exists`);
+  if (builtinLayer(pluginId, path.join('skills', skill))) throw exists;
+  const skillsRoot = containedTarget(path.join(writablePluginDir(pluginId), 'skills'));
+  const dir = containedTarget(path.join(skillsRoot, skill));
+  if (pathExists(dir)) throw exists;
+  return dir;
+}
+
 export function createSkill(pluginId: string, skill: string, description: string): void {
   assertName('skill name', skill);
   if (description.trim().length === 0) throw fail('invalid-args', 'description must not be empty');
-  const skillsRoot = containedTarget(path.join(pluginDirPath(pluginId), 'skills'));
-  const dir = containedTarget(path.join(skillsRoot, skill));
-  if (pathExists(dir)) throw fail('invalid-args', `Skill '${pluginId}/${skill}' already exists`);
+  const dir = freeSkillTarget(pluginId, skill);
   fs.mkdirSync(dir, { recursive: true });
   atomicWriteSync(path.join(dir, 'SKILL.md'), skillTemplate(skill, description.trim()));
 }
@@ -165,10 +256,10 @@ export function moveSkill(
   assertName('skill name', to.skill);
   const source = skillDirPath(from.pluginId, from.skill);
   skillFilePath(from.pluginId, from.skill); // a directory without SKILL.md is not a skill to move
-  const skillsRoot = containedTarget(path.join(pluginDirPath(to.pluginId), 'skills'));
-  const target = containedTarget(path.join(skillsRoot, to.skill));
-  if (target === source) throw fail('invalid-args', 'source and destination are the same skill');
-  if (pathExists(target)) throw fail('invalid-args', `Skill '${to.pluginId}/${to.skill}' already exists`);
+  if (from.pluginId === to.pluginId && from.skill === to.skill) {
+    throw fail('invalid-args', 'source and destination are the same skill');
+  }
+  const target = freeSkillTarget(to.pluginId, to.skill);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.renameSync(source, target);
   if (from.skill === to.skill) return;
@@ -198,7 +289,7 @@ function portableManifestText(id: string, description: string): string {
 export function createPlugin(id: string, description: string): void {
   assertName('plugin id', id);
   const dir = containedTarget(path.join(PLUGINS_DIR, id));
-  if (pathExists(dir)) throw fail('invalid-args', `Plugin '${id}' already exists`);
+  if (pathExists(dir) || builtinLayer(id)) throw fail('invalid-args', `Plugin '${id}' already exists`);
   fs.mkdirSync(path.join(dir, 'skills'), { recursive: true });
   atomicWriteSync(path.join(dir, 'plugin.json'), portableManifestText(id, description));
 }
@@ -208,7 +299,7 @@ export function removePlugin(id: string): void {
 }
 
 /** Give a legacy plugin the root manifest that portable discovery needs, reusing the legacy
- *  manifest's own fields. The legacy file stays: plugin-sync reads its version and nothing else. */
+ *  manifest's own fields. The legacy file is left in place. */
 export function convertToPortable(id: string): void {
   const dir = pluginDirPath(id);
   const root = path.join(dir, 'plugin.json');
@@ -233,16 +324,21 @@ function readJson(filePath: string): Record<string, unknown> | null {
   }
 }
 
-function mcpPath(pluginId: string): string {
-  return path.join(pluginDirPath(pluginId), 'mcp.json');
+/** The mcp.json in effect: the user's when their layer has one, otherwise the built-in plugin's. */
+function effectiveMcpFile(pluginId: string): string | null {
+  assertName('plugin id', pluginId);
+  const own = inLayer(PLUGINS_DIR, pluginId, 'mcp.json', isRegularFile);
+  if (own) return own;
+  if (!userLayer(pluginId) && !builtinLayer(pluginId)) throw fail('not-found', `Unknown plugin: '${pluginId}'`);
+  return inLayer(defaultBuiltinPluginsDir(), pluginId, 'mcp.json', isRegularFile);
 }
 
 /** The raw envelope, secrets included. Only the ui-service redaction layer may see this — it must
  *  never be returned to a browser unfiltered (that is the whole point of PLUGIN_MCP_RUNTIME). */
 export function readMcpEnvelope(pluginId: string): Record<string, unknown> {
-  const file = mcpPath(pluginId);
-  if (!pathExists(file)) return {};
-  const parsed = readJson(contained(file));
+  const file = effectiveMcpFile(pluginId);
+  if (!file) return {};
+  const parsed = readJson(file);
   if (!parsed) throw fail('invalid-args', `'${pluginId}/mcp.json' is not valid JSON`);
   const servers = parsed.mcpServers;
   return servers && typeof servers === 'object' && !Array.isArray(servers)
@@ -259,5 +355,6 @@ export function writeMcpEnvelope(pluginId: string, servers: Record<string, unkno
       .join('; ');
     throw fail('invalid-args', `mcp.json would be invalid: ${detail}`);
   }
-  atomicWriteSync(containedTarget(mcpPath(pluginId)), `${JSON.stringify(envelope, null, 2)}\n`);
+  const file = containedTarget(path.join(writablePluginDir(pluginId), 'mcp.json'));
+  atomicWriteSync(file, `${JSON.stringify(envelope, null, 2)}\n`);
 }

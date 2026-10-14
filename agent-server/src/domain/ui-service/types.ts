@@ -1181,9 +1181,9 @@ export interface UiPluginSkill {
   name: string;
   /** Frontmatter description, '' when a legacy skill has none. */
   description: string;
-  /** True when Cortex ships this skill. plugin-sync overwrites every shipped file on the next
-   *  version bump, so an edit here is temporary — the UI has to say so before the edit is made. */
-  managed: boolean;
+  /** `builtin` as Cortex ships it, `overridden` by the user's edited copy (revertible), `local` the
+   *  user's own. Built-in skills can be edited but not moved or deleted. */
+  origin: LayerOrigin;
 }
 
 export interface UiPluginMcpStdioSummary {
@@ -1209,9 +1209,9 @@ export interface UiPluginCatalogEntry {
   scope: 'always' | 'channel';
   /** Channel prefix a 'channel'-scoped plugin requires, e.g. 'feishu:'. */
   scopePrefix?: string;
-  /** 'managed' when Cortex ships this plugin id, so plugin-sync owns its shipped files and can
-   *  refresh them; 'local' when it exists only on this machine and nothing will ever rewrite it. */
-  origin: 'managed' | 'local';
+  /** 'builtin' when Cortex ships this plugin (on by default in every environment that loads skills,
+   *  and not removable); 'local' when it is the user's own. */
+  origin: 'builtin' | 'local';
   rootDir: string;
   valid: boolean;
   assignable: boolean;
@@ -1252,8 +1252,8 @@ export interface PluginsSkillFile {
   /** Plugins-root-relative path, for display only. */
   path: string;
   content: string;
-  /** Shipped by Cortex: an edit here is reverted at the next plugin version bump. */
-  managed: boolean;
+  /** Where the text comes from; saving a `builtin` skill makes it `overridden`. */
+  origin: LayerOrigin;
   baseHash: string;
 }
 
@@ -1784,6 +1784,7 @@ export interface MutateReturnMap {
   'plugins.skillCreate': PluginsSkillReturn;
   'plugins.skillMove': PluginsSkillReturn;
   'plugins.skillRemove': PluginsSkillReturn;
+  'plugins.skillRevert': PluginsSkillReturn;
   'plugins.create': PluginsPackageReturn;
   'plugins.remove': PluginsPackageReturn;
   'plugins.convertToPortable': PluginsPackageReturn;

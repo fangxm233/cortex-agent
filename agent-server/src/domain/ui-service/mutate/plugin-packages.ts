@@ -7,11 +7,12 @@ import {
   readMcpEnvelope,
   removePlugin,
   removeSkill,
+  revertSkill,
   writeMcpEnvelope,
   writeSkillSource,
 } from '@domain/plugins/authoring.js';
 import { readMcpDrafts } from '../query/plugin-source.js';
-import { isManagedSkill, pluginOrigin, readPluginCatalogSnapshot } from '../plugins-shared.js';
+import { readPluginCatalogSnapshot, skillOrigin } from '../plugins-shared.js';
 import { handlePluginsList } from '../query/plugins.js';
 import { fail, toErr } from './errors.js';
 import type {
@@ -50,11 +51,12 @@ export async function handlePluginsSkillCreate(
   });
 }
 
-/** plugin-sync rewrites every shipped file on the next version bump and never deletes, so a
- *  shipped skill moved or removed here comes back at its old address — next to the moved copy. */
-function refuseManagedSkill(pluginId: string, skill: string): void {
-  if (isManagedSkill(pluginId, skill)) {
-    throw fail('invalid-args', t('ui.plugin.skillManaged', { id: `${pluginId}/${skill}` }));
+/** A built-in skill stays where Cortex ships it: it can be edited (into the user's copy) and that
+ *  copy reverted, but not moved or deleted. */
+function refuseBuiltinSkill(pluginId: string, skill: string): void {
+  const origin = skillOrigin(readPluginCatalogSnapshot(), pluginId, skill);
+  if (origin === 'builtin' || origin === 'overridden') {
+    throw fail('invalid-args', t('ui.plugin.skillBuiltin', { id: `${pluginId}/${skill}` }));
   }
 }
 
@@ -63,7 +65,7 @@ export async function handlePluginsSkillMove(
   args: MutateArgs<'plugins.skillMove'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
-    refuseManagedSkill(args.pluginId, args.skill);
+    refuseBuiltinSkill(args.pluginId, args.skill);
     moveSkill(
       { pluginId: args.pluginId, skill: args.skill },
       { pluginId: args.toPluginId, skill: args.toSkill },
@@ -77,8 +79,18 @@ export async function handlePluginsSkillRemove(
   args: MutateArgs<'plugins.skillRemove'>,
 ): Promise<Result<PluginsSkillReturn>> {
   return guarded(() => {
-    refuseManagedSkill(args.pluginId, args.skill);
+    refuseBuiltinSkill(args.pluginId, args.skill);
     removeSkill(args.pluginId, args.skill);
+    return { pluginId: args.pluginId, skill: args.skill };
+  });
+}
+
+export async function handlePluginsSkillRevert(
+  _deps: UiServiceDeps,
+  args: MutateArgs<'plugins.skillRevert'>,
+): Promise<Result<PluginsSkillReturn>> {
+  return guarded(() => {
+    revertSkill(args.pluginId, args.skill);
     return { pluginId: args.pluginId, skill: args.skill };
   });
 }
@@ -105,8 +117,8 @@ export async function handlePluginsRemove(
   args: MutateArgs<'plugins.remove'>,
 ): Promise<Result<PluginsPackageReturn>> {
   return guarded(async () => {
-    if (pluginOrigin(args.id) === 'managed') {
-      throw fail('invalid-args', t('ui.plugin.managed', { id: args.id }));
+    if (readPluginCatalogSnapshot().byId.get(args.id)?.origin === 'builtin') {
+      throw fail('invalid-args', t('ui.plugin.builtin', { id: args.id }));
     }
     const used = await pluginReferences(deps, args.id);
     if (used.length > 0) throw fail('invalid-args', t('ui.plugin.stillAssigned', { id: args.id, targets: used.join(', ') }));

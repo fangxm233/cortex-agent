@@ -1,16 +1,18 @@
 import { getSettings } from '@core/settings.js';
 import path from 'node:path';
-import { DATA_DIR, DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
+import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
 import { CHANNEL_SCOPED_PLUGINS } from '@domain/runs/engine-spec.js';
+import { builtinPluginsApply, type EnvironmentPluginFields } from '@domain/plugins/builtin.js';
 import { loadPluginCatalog } from '@domain/plugins/catalog.js';
-import { isDirectoryPath, realPath } from '@domain/plugins/fs-helpers.js';
+import { realPath } from '@domain/plugins/fs-helpers.js';
 import type { PluginCatalogEntry } from '@domain/plugins/catalog-types.js';
 import type { UiPluginCatalogEntry } from './types.js';
 
 export interface PluginCatalogSnapshot {
   entries: PluginCatalogEntry[];
   byId: Map<string, PluginCatalogEntry>;
-  realpathToId: Map<string, string>;
+  /** A plugin's `plugins/<id>` address, and its real path when it has a user layer, to its id. */
+  pathToId: Map<string, string>;
 }
 
 export interface NormalizedPluginDirs {
@@ -61,8 +63,9 @@ function resolvePluginDir(
   value: string,
   snapshot: PluginCatalogSnapshot,
 ): PluginDirResolution {
-  const real = realPath(configPathForPluginDir(value));
-  const id = real ? snapshot.realpathToId.get(real) ?? null : null;
+  const absolute = configPathForPluginDir(value);
+  const real = realPath(absolute);
+  const id = snapshot.pathToId.get(absolute) ?? (real ? snapshot.pathToId.get(real) : undefined);
   return id ? { kind: 'managed', id } : { kind: 'unmanaged', value };
 }
 
@@ -95,19 +98,17 @@ function safeServerSummary(server: PluginCatalogEntry['mcp']['servers'][number])
   return { name: server.name, type: server.type, summary: { ...server.summary } };
 }
 
-function catalogRealpath(id: string): string | null {
-  return realPath(path.join(PLUGINS_DIR, id));
-}
-
 export function readPluginCatalogSnapshot(): PluginCatalogSnapshot {
   const entries = loadPluginCatalog().sort((left, right) => left.id.localeCompare(right.id));
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const realpathToId = new Map<string, string>();
+  const pathToId = new Map<string, string>();
   for (const entry of entries) {
-    const real = catalogRealpath(entry.id);
-    if (real) realpathToId.set(real, entry.id);
+    const address = path.join(PLUGINS_DIR, entry.id);
+    pathToId.set(address, entry.id);
+    const real = realPath(address);
+    if (real) pathToId.set(real, entry.id);
   }
-  return { entries, byId, realpathToId };
+  return { entries, byId, pathToId };
 }
 
 /** Assignment is not the last word on whether a plugin loads: `filterScopedPlugins` drops scoped
@@ -119,21 +120,13 @@ function pluginScope(id: string): Pick<UiPluginCatalogEntry, 'scope' | 'scopePre
   return rule ? { scope: 'channel', scopePrefix: rule.channelPrefix } : { scope: 'always' };
 }
 
-function shippedPluginDir(id: string): string {
-  return path.join(DEFAULTS_DIR, 'plugins', id);
-}
-
-/** Whether Cortex ships this plugin id. Shipped files are rewritten by plugin-sync on the next
- *  version bump (`copyPluginTree` walks the source tree), so an edit to one is temporary while an
- *  edit to a local plugin is permanent. That difference has to reach the operator before they type. */
-export function pluginOrigin(id: string): 'managed' | 'local' {
-  return isDirectoryPath(shippedPluginDir(id)) ? 'managed' : 'local';
-}
-
-/** A skill is managed when the shipped tree has a directory of the same name: plugin-sync copies
- *  per relative path, so that is exactly the set of skill directories it will overwrite. */
-export function isManagedSkill(pluginId: string, skillName: string): boolean {
-  return isDirectoryPath(path.join(shippedPluginDir(pluginId), 'skills', skillName));
+/** Where a skill comes from, per the catalog; null when the catalog does not list it. */
+export function skillOrigin(
+  snapshot: PluginCatalogSnapshot,
+  pluginId: string,
+  skill: string,
+): PluginCatalogEntry['skills'][number]['origin'] | null {
+  return snapshot.byId.get(pluginId)?.skills.find((candidate) => candidate.name === skill)?.origin ?? null;
 }
 
 export function sanitizePluginEntry(entry: PluginCatalogEntry): UiPluginCatalogEntry {
@@ -141,7 +134,7 @@ export function sanitizePluginEntry(entry: PluginCatalogEntry): UiPluginCatalogE
     ...pluginScope(entry.id),
     id: entry.id,
     kind: entry.kind,
-    origin: pluginOrigin(entry.id),
+    origin: entry.origin,
     rootDir: entry.rootDir,
     valid: entry.valid,
     assignable: isAssignable(entry),
@@ -149,7 +142,7 @@ export function sanitizePluginEntry(entry: PluginCatalogEntry): UiPluginCatalogE
     skills: entry.skills.map((skill) => ({
       name: skill.name,
       description: skill.description,
-      managed: isManagedSkill(entry.id, skill.name),
+      origin: skill.origin,
     })),
     mcp: {
       status: entry.mcp.status,
@@ -168,6 +161,49 @@ export function normalizePluginDirs(
     appendPluginDirResolution(state, resolvePluginDir(value, snapshot));
   }
   return finalizeNormalizedPluginDirs(state);
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter(isNonEmptyString) : [];
+}
+
+function builtinIds(snapshot: PluginCatalogSnapshot): string[] {
+  return snapshot.entries.filter((entry) => entry.origin === 'builtin').map((entry) => entry.id);
+}
+
+/** The catalog plugins an environment loads: those its `pluginDirs` lists, then every built-in it
+ *  does not opt out of — unless built-ins do not apply to it (skills off). */
+export function environmentPlugins(body: unknown, snapshot: PluginCatalogSnapshot): NormalizedPluginDirs {
+  const listed = normalizePluginDirs(pluginDirsOf(body), snapshot);
+  const fields = (body ?? {}) as EnvironmentPluginFields;
+  if (!builtinPluginsApply(fields)) return listed;
+  const disabled = new Set(stringList(fields.disabledPlugins));
+  const implicit = builtinIds(snapshot).filter((id) => !disabled.has(id));
+  return { managedIds: dedupe([...listed.managedIds, ...implicit]), unmanaged: listed.unmanaged };
+}
+
+function setOrDrop(body: Record<string, unknown>, key: string, values: string[]): void {
+  if (values.length > 0) body[key] = values;
+  else delete body[key];
+}
+
+/** The environment body that loads exactly `desired` (plus its unmanaged directories). A built-in
+ *  is on by default, so switching one off records it in `disabledPlugins` rather than `pluginDirs`;
+ *  entries there that name no built-in are kept as they are. */
+export function withPluginSelection(
+  body: Record<string, unknown>,
+  desired: readonly string[],
+  unmanaged: readonly string[],
+  snapshot: PluginCatalogSnapshot,
+): Record<string, unknown> {
+  const next = { ...body };
+  const implicit = builtinPluginsApply(body as EnvironmentPluginFields) ? builtinIds(snapshot) : [];
+  const listed = desired.filter((id) => !implicit.includes(id));
+  setOrDrop(next, 'pluginDirs', [...canonicalManagedPluginDirs(listed), ...unmanaged]);
+  if (implicit.length === 0) return next;
+  const kept = stringList(body.disabledPlugins).filter((id) => !implicit.includes(id));
+  setOrDrop(next, 'disabledPlugins', [...kept, ...implicit.filter((id) => !desired.includes(id))]);
+  return next;
 }
 
 export function canonicalManagedPluginDirs(pluginIds: readonly string[]): string[] {

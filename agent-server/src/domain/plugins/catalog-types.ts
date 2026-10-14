@@ -1,3 +1,4 @@
+import type { LayerOrigin } from '@core/builtin-layer.js';
 import { safeClaudeManifestName } from '@core/native-name.js';
 
 export type PluginCatalogKind = 'portable' | 'legacy' | 'unknown';
@@ -57,6 +58,28 @@ export interface PluginCatalogSkill {
   /** The frontmatter `description`, trimmed. Always present: an empty description is fatal, so a
    *  loaded skill always has one. Carried here so a UI can list skills without re-reading each file. */
   description: string;
+  /** `builtin` as shipped, `overridden` by the user's skill of the same name, `local` the user's own. */
+  origin: LayerOrigin;
+}
+
+/** A skill as read from its SKILL.md, before the catalog places it in a layer. */
+export type PluginSkillFile = Pick<PluginCatalogSkill, 'name' | 'dir' | 'description'>;
+
+const SKILL_ROOT = Symbol('skillRoot');
+
+type SkillRootCarrier = { [SKILL_ROOT]?: string };
+
+/** A skill placed in the plugin layer it is read from: the built-in plugin in the install, or the
+ *  user's `plugins/<id>`. The layer's real path (`dir` is relative to it) is kept off the enumerable
+ *  shape, like the MCP runtime below, so a catalog entry carries no host paths. */
+export function placeSkill(skill: PluginSkillFile, root: string, origin: LayerOrigin): PluginCatalogSkill {
+  const placed: PluginCatalogSkill = { name: skill.name, dir: skill.dir, description: skill.description, origin };
+  Object.defineProperty(placed, SKILL_ROOT, { value: root, enumerable: false });
+  return placed;
+}
+
+export function skillRoot(skill: PluginCatalogSkill): string | null {
+  return (skill as SkillRootCarrier)[SKILL_ROOT] ?? null;
 }
 
 export interface PluginMcpStdioSummary {
@@ -126,6 +149,9 @@ export interface PluginCatalogMcp {
 
 export interface PluginCatalogEntry {
   id: string;
+  /** `builtin` when Cortex ships the plugin: its manifest is the shipped one, and the user's
+   *  `plugins/<id>` only adds or replaces skills (and `mcp.json`). */
+  origin: 'builtin' | 'local';
   kind: PluginCatalogKind;
   rootDir: string;
   valid: boolean;

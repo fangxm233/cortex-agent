@@ -4,10 +4,10 @@ import { saveEnvironmentBody } from './environments.js';
 import {
   addedInvalidPluginIds,
   addedMcpPluginIds,
-  canonicalManagedPluginDirs,
-  normalizePluginDirs,
+  environmentPlugins,
   normalizedDesiredPluginIds,
   readPluginCatalogSnapshot,
+  withPluginSelection,
 } from '../plugins-shared.js';
 import { fail, toErr } from './errors.js';
 import type {
@@ -44,13 +44,10 @@ function assignAgentPlugins(args: MutateArgs<'plugins.assign'>): PluginsAssignRe
   const snapshot = readPluginCatalogSnapshot();
   const entity = readEnvironment(ENVIRONMENTS_DIR, args.target.name);
   if (!entity.body) throw fail('invalid-args', `Agent '${args.target.name}' is not a JSON object`);
-  const current = normalizePluginDirs(entity.body.pluginDirs, snapshot);
+  const current = environmentPlugins(entity.body, snapshot);
   const desired = requireDesiredPluginIds(current.managedIds, args.pluginIds, snapshot);
   requireMcpAck(current.managedIds, desired, args.acknowledgeMcp, snapshot);
-  const next = { ...entity.body };
-  const pluginDirs = [...canonicalManagedPluginDirs(desired), ...current.unmanaged];
-  if (pluginDirs.length > 0) next.pluginDirs = pluginDirs;
-  else delete next.pluginDirs;
+  const next = withPluginSelection(entity.body, desired, current.unmanaged, snapshot);
   const saved = saveEnvironmentBody(args.target.name, next, args.target.baseHash);
   return { changed: saved.changed, baseHash: saved.sha256 };
 }

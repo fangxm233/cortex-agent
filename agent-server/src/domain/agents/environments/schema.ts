@@ -37,6 +37,7 @@ export const environmentSchema = z.object({
   outputStyle: z.string().optional(),
   tools: z.string().optional(),
   pluginDirs: z.array(z.string()).optional(),
+  disabledPlugins: z.array(z.string()).optional(),
   mcpComposition: z.enum(['direct', 'none']).optional(),
   mcpToolAllowlist: z.array(z.string()).optional(),
   delegable: z.boolean().optional(),

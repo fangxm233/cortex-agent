@@ -4,10 +4,5 @@
   "profile": "__active__",
   "promptTemplate": "{{input}}",
   "systemPrompt": "file:direct.md",
-  "tools": "Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
-  "pluginDirs": [
-    "plugins/cortex-system",
-    "plugins/cortex-board",
-    "plugins/cortex-feishu"
-  ]
+  "tools": "Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write"
 }

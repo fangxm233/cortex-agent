@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '../../../src/core/paths.js';
+import { listBuiltinPluginIds } from '../../../src/domain/plugins/builtin.js';
 
 vi.mock('../../../src/domain/agents/config.js', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -47,8 +48,21 @@ describe('environment registry', () => {
     loadEnvironments();
     const resolved = getEnvironment('main');
     expect(resolved?.systemPrompt).toBe('You are a test.');
-    expect(resolved?.pluginDirs).toEqual([path.join(DATA_DIR, 'plugins/p'), '/abs/q']);
+    const builtins = listBuiltinPluginIds().map((id) => path.join(DATA_DIR, 'plugins', id));
+    expect(resolved?.pluginDirs).toEqual([path.join(DATA_DIR, 'plugins/p'), '/abs/q', ...builtins]);
     expect(listEnvironments()[0].systemPrompt).toBe('file:env-test.md');
+  });
+
+  test('adds every built-in plugin not opted out of, unless skills are off', () => {
+    seed('main', env('main', { disabledPlugins: ['cortex-feishu'] }));
+    seed('creative', env('creative', { skills: false, pluginDirs: [] }));
+    seed('plain', env('plain'));
+    loadEnvironments();
+    const address = (id: string) => path.join(DATA_DIR, 'plugins', id);
+    expect(getEnvironment('main')?.pluginDirs).toEqual([address('cortex-board'), address('cortex-system')]);
+    expect(getEnvironment('creative')?.pluginDirs).toEqual([]);
+    expect(getEnvironment('plain')?.pluginDirs).toEqual(listBuiltinPluginIds().map(address));
+    expect(listEnvironments().find((e) => e.name === 'plain')?.pluginDirs).toBeUndefined();
   });
 
   test('__active__ resolves through the channel selection, then main', () => {

@@ -4,7 +4,7 @@
 // VALUES never leave the server, only their key names.
 
 import { readMcpEnvelope, readSkillSource } from '@domain/plugins/authoring.js';
-import { isManagedSkill, readPluginCatalogSnapshot } from '../plugins-shared.js';
+import { readPluginCatalogSnapshot, skillOrigin } from '../plugins-shared.js';
 import type {
   PluginsMcpRead,
   PluginsSkillFile,
@@ -54,7 +54,7 @@ export async function handlePluginsSkillFile(
     skill: params.skill,
     path: source.path,
     content: source.content,
-    managed: isManagedSkill(params.pluginId, params.skill),
+    origin: skillOrigin(readPluginCatalogSnapshot(), params.pluginId, params.skill) ?? 'local',
     baseHash: source.baseHash,
   };
 }

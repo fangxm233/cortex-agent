@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse as yamlParse } from 'yaml';
 import { isPlainObject } from './fs-helpers.js';
-import type { PluginCatalogIssue, PluginCatalogSkill } from './catalog-types.js';
+import type { PluginCatalogIssue, PluginSkillFile } from './catalog-types.js';
 
 /** The leading `---` block of a SKILL.md; group 1 is the YAML between the fences. */
 export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
@@ -18,7 +18,7 @@ const SKILL_FIELDS = new Set([
 ]);
 
 interface SkillLoadResult {
-  skill?: PluginCatalogSkill;
+  skill?: PluginSkillFile;
   issues: PluginCatalogIssue[];
 }
 

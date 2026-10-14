@@ -4,7 +4,8 @@ import { createLogger } from '@core/log.js';
 import { createSnapshotWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import type { AgentDefinition } from '@core/types/environment-types.js';
 import { ENVIRONMENTS_DIR } from './paths.js';
-import { fsRefResolver, resolveFileRef, resolvePluginDir } from './file-refs.js';
+import { environmentPluginDirs } from '@domain/plugins/builtin.js';
+import { fsRefResolver, resolveFileRef } from './file-refs.js';
 import { validateEnvironment } from './schema.js';
 
 const log = createLogger('environments');
@@ -65,9 +66,9 @@ function ensureLoaded(): void {
 }
 
 /**
- * The named environment, ready to run: `file:` prompt refs read and plugin directories made
- * absolute. Resolved on every call rather than at load, so an edited prompt file takes effect on
- * the next turn without a watcher on the prompts tree.
+ * The named environment, ready to run: `file:` prompt refs read, and `pluginDirs` made absolute
+ * with every built-in plugin it does not opt out of added. Resolved on every call rather than at
+ * load, so an edited prompt file takes effect on the next turn without a watcher on the prompts tree.
  */
 export function getEnvironment(name: string): AgentDefinition | null {
   ensureLoaded();
@@ -77,7 +78,8 @@ export function getEnvironment(name: string): AgentDefinition | null {
   out.directive = resolveFileRef('directive', out.directive);
   out.systemPrompt = resolveFileRef('systemPrompt', out.systemPrompt);
   out.promptTemplate = resolveFileRef('promptTemplate', out.promptTemplate);
-  if (out.pluginDirs) out.pluginDirs = out.pluginDirs.map(resolvePluginDir);
+  const pluginDirs = environmentPluginDirs(out);
+  if (pluginDirs) out.pluginDirs = pluginDirs;
   return out;
 }
 

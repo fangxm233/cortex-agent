@@ -7,7 +7,10 @@ import type { Backend, McpComposition, McpServerConfig } from '../../agent-adapt
 import { atomicWriteSync } from '../../core/atomic-write.js';
 import { ensurePrivateDirectory, physicalUnder } from '@core/private-dir.js';
 import { loadPluginCatalog } from './catalog.js';
-import { pluginMcpRuntime, portableNamespace, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
+import { defaultBuiltinPluginsDir, listBuiltinPluginIds } from './builtin.js';
+import {
+  pluginMcpRuntime, portableNamespace, skillRoot, type PluginCatalogEntry, type PluginMcpServer,
+} from './catalog-types.js';
 import { listImmediateChildNames, realPath } from './fs-helpers.js';
 import { markInUse, sweepStaleRuntimeDirs } from './runtime-gc.js';
 import { safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
@@ -24,6 +27,8 @@ export interface ResolvePluginRuntimeOptions {
   mcpComposition?: McpComposition;
   dataDir?: string;
   pluginsDir?: string;
+  /** The built-in plugins under the user's; null leaves them out. Defaults as the catalog does. */
+  builtinDir?: string | null;
   runtimeDir?: string;
 }
 
@@ -44,11 +49,12 @@ interface CatalogRootInfo {
 
 interface PortableSelection {
   entry: PluginCatalogEntry;
-  root: CatalogRootInfo;
 }
 
 interface PortableSkillDetail {
   name: string;
+  /** The plugin layer the skill is read from; its files must stay inside it. */
+  root: string;
   target: string;
   contentSha256: string;
   tree: ProjectedSkillTree;
@@ -191,10 +197,12 @@ function portableSkill(
   warnings: string[],
 ): PortableSkillDetail | null {
   try {
-    const source = path.join(selection.root.real, skill.dir);
+    const root = skillRoot(skill);
+    if (!root) throw new Error('its plugin layer is unknown');
+    const source = path.join(root, skill.dir);
     const target = realPath(source) ?? source;
-    const tree = buildProjectedSkillTree(selection.root.real, target);
-    return { name: skill.name, target, contentSha256: tree.sha256, tree };
+    const tree = buildProjectedSkillTree(root, target);
+    return { name: skill.name, root, target, contentSha256: tree.sha256, tree };
   } catch (error) {
     reportSkip(warnings, `Skipping portable skill '${selection.entry.id}/${skill.name}': ${(error as Error).message}`);
     return null;
@@ -343,7 +351,7 @@ function createSkillSnapshot(
 ): boolean {
   const tmp = projectionTemp(path.dirname(target), target);
   try {
-    copyProjectedSkillTree(selection.root.real, skill.target, skill.tree, tmp, { requireSourceSignature: true });
+    copyProjectedSkillTree(skill.root, skill.target, skill.tree, tmp, { requireSourceSignature: true });
     fs.renameSync(tmp, target);
     return true;
   } catch (error) {
@@ -515,20 +523,7 @@ function fingerprint(
   });
 }
 
-function requiredPortableRoot(
-  roots: ReadonlyMap<string, CatalogRootInfo>,
-  id: string,
-): CatalogRootInfo {
-  const root = roots.get(id);
-  if (!root) throw new Error(`Portable plugin root missing for '${id}'`);
-  return root;
-}
-
-function addPortableSelection(
-  entry: PluginCatalogEntry,
-  roots: ReadonlyMap<string, CatalogRootInfo>,
-  result: ClassifiedSelections,
-): void {
+function addPortableSelection(entry: PluginCatalogEntry, result: ClassifiedSelections): void {
   // Skipped, not fatal: one broken manifest must not stop every session that selects it from
   // starting. The catalog already lists the manifest issues on the plugin's page.
   if (!entry.valid) {
@@ -537,8 +532,7 @@ function addPortableSelection(
     return;
   }
   if (result.portableSelections.has(entry.id)) return;
-  const root = requiredPortableRoot(roots, entry.id);
-  result.portableSelections.set(entry.id, { entry, root });
+  result.portableSelections.set(entry.id, { entry });
   result.items.push({ kind: 'portable', id: entry.id });
 }
 
@@ -546,11 +540,10 @@ function addClassifiedSelection(
   absolute: string,
   real: string | null,
   entry: PluginCatalogEntry | undefined,
-  roots: ReadonlyMap<string, CatalogRootInfo>,
   result: ClassifiedSelections,
   preserved: Set<string>,
 ): void {
-  if (entry?.kind === 'portable') return addPortableSelection(entry, roots, result);
+  if (entry?.kind === 'portable') return addPortableSelection(entry, result);
   if (entry?.kind === 'legacy') {
     result.selectedLegacySkills.push(
       ...entry.skills.map((skill) => ({ name: skill.name, pluginId: entry.id })));
@@ -576,7 +569,7 @@ function classifySelections(
     const absolute = selectedPath(dataDir, value);
     const real = realPath(absolute);
     const entry = lookup.byAbsolute.get(absolute) ?? (real ? lookup.byRealpath.get(real) : undefined);
-    addClassifiedSelection(absolute, real, entry, roots, result, preserved);
+    addClassifiedSelection(absolute, real, entry, result, preserved);
   }
   return result;
 }
@@ -730,8 +723,11 @@ function resolvedRuntime(
   };
 }
 
-/** Catalog ids the selection names (by path or realpath), so the catalog loads only those. */
-function selectedCatalogIds(pluginsDir: string, dataDir: string, selectedPluginDirs: readonly string[]): Set<string> {
+/** Catalog ids the selection names (by path or realpath), so the catalog loads only those. A
+ *  built-in plugin is selected by its `plugins/<id>` address, whether or not the user has a layer. */
+function selectedCatalogIds(
+  pluginsDir: string, dataDir: string, selectedPluginDirs: readonly string[], builtinIds: readonly string[],
+): Set<string> {
   const wanted = new Set<string>();
   for (const value of selectedPluginDirs) {
     const absolute = selectedPath(dataDir, value);
@@ -740,7 +736,7 @@ function selectedCatalogIds(pluginsDir: string, dataDir: string, selectedPluginD
     if (real) wanted.add(real);
   }
   const ids = new Set<string>();
-  for (const id of listImmediateChildNames(pluginsDir)) {
+  for (const id of new Set([...listImmediateChildNames(pluginsDir), ...builtinIds])) {
     const absolute = path.resolve(pluginsDir, id);
     if (wanted.has(absolute) || wanted.has(realPath(absolute) ?? absolute)) ids.add(id);
   }
@@ -769,9 +765,9 @@ export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): Reso
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
   if (selectedPluginDirs.length === 0) return {};
-  const entries = loadPluginCatalog({
-    pluginsDir, dataDir: physicalDataDir, ids: selectedCatalogIds(pluginsDir, dataDir, selectedPluginDirs),
-  });
+  const builtinDir = options.builtinDir === undefined ? defaultBuiltinPluginsDir() : options.builtinDir;
+  const ids = selectedCatalogIds(pluginsDir, dataDir, selectedPluginDirs, listBuiltinPluginIds(builtinDir));
+  const entries = loadPluginCatalog({ pluginsDir, dataDir: physicalDataDir, builtinDir, ids });
   const classified = classifySelections(entries, catalogRoots(pluginsDir, entries), dataDir, selectedPluginDirs);
   if (classified.items.length === 0) return withWarnings({}, classified.warnings);
   const portable = collectPortableDetails(

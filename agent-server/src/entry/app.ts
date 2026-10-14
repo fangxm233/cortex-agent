@@ -81,7 +81,6 @@ import { runMigrations, migrateAistatusConfigLocation } from '@store/version-mig
 import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
-import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { startBoardWatcher } from '@domain/boards/board-watcher.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -428,9 +427,6 @@ installSigtermShutdown(shutdownHandles);
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
   initConfiguredHooks();
-  // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
-  // A sealed production trial declares no plugins and keeps its attested config immutable.
-  if (syncManagedAssets) await syncManagedPlugins();
   executionRepo.load();
   // An in-process execution dies with the server, so stale it immediately — otherwise a
   // 'running' dispatch record poisons a dispatch concurrency slot until the reconciler's next tick.

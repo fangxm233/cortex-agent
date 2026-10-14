@@ -20,6 +20,8 @@ import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { getEnvironment } from '../../../src/domain/agents/environments/index.js';
 
 const ENV_DIR = path.join(CONFIG_DIR, 'environments');
+/** The plugins Cortex ships (defaults/plugins), on in every environment that loads skills. */
+const BUILTINS = ['cortex-board', 'cortex-feishu', 'cortex-system'];
 const WRITER_FILE = path.join(ENV_DIR, 'writer.json');
 const MALFORMED_AGENT_FILE = path.join(ENV_DIR, 'badreader.json');
 
@@ -171,7 +173,9 @@ test('plugins.list sanitizes DTOs and maps invalid installs', async () => {
   const writer = agentTarget(result, 'writer');
   const alpha = result.plugins.find((plugin) => plugin.id === 'alpha');
 
-  assert.equal(result.plugins.length, 4);
+  assert.deepEqual(result.plugins.filter((plugin) => plugin.origin === 'local').map((plugin) => plugin.id),
+    ['alpha', 'beta', 'broken', 'mcp-plugin']);
+  assert.deepEqual(result.plugins.filter((plugin) => plugin.origin === 'builtin').map((plugin) => plugin.id), BUILTINS);
   assert.equal(alpha?.manifest.schema, AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL);
   assert.ok(result.plugins.some((plugin) => plugin.id === 'broken' && plugin.assignable === false));
   assert.ok(result.plugins.some((plugin) => plugin.id === 'mcp-plugin' && plugin.mcp.servers.length === 2));
@@ -180,7 +184,7 @@ test('plugins.list sanitizes DTOs and maps invalid installs', async () => {
   assert.ok(!serialized.includes('super-secret-header'));
   assert.ok(!serialized.includes('super-secret-query'));
   assert.ok(!serialized.includes('/opt/agent-extra'));
-  assert.deepEqual(writer.managedPluginIds, ['alpha', 'broken']);
+  assert.deepEqual(writer.managedPluginIds, ['alpha', 'broken', ...BUILTINS]);
   assert.equal(writer.unmanagedPluginCount, 1);
   assert.deepEqual(result.targets.map((target) => target.name).sort(), ['reviewer', 'writer']);
 });
@@ -191,10 +195,54 @@ test('plugins.assign keeps only out-of-catalog agent paths', async () => {
 
   assert.ok(result.ok, JSON.stringify(result));
   assert.deepEqual(readJson(WRITER_FILE).pluginDirs, ['plugins/beta', '/opt/agent-extra']);
+  assert.deepEqual(readJson(WRITER_FILE).disabledPlugins, BUILTINS);
   assert.deepEqual(getEnvironment('writer')?.pluginDirs, [
     path.join(PLUGINS_DIR, 'beta'),
     '/opt/agent-extra',
   ]);
+});
+
+test('built-in plugins load by default and are switched off through disabledPlugins', async () => {
+  const reviewer = agentTarget(await listed(), 'reviewer');
+  assert.deepEqual(reviewer.managedPluginIds, BUILTINS);
+  assert.deepEqual(getEnvironment('reviewer')?.pluginDirs, BUILTINS.map((id) => path.join(PLUGINS_DIR, id)));
+
+  const off = await assignAgent(reviewer, ['cortex-board', 'cortex-system', 'alpha']);
+  assert.ok(off.ok, JSON.stringify(off));
+  assert.deepEqual(readJson(path.join(ENV_DIR, 'reviewer.json')).pluginDirs, ['plugins/alpha']);
+  assert.deepEqual(readJson(path.join(ENV_DIR, 'reviewer.json')).disabledPlugins, ['cortex-feishu']);
+  assert.deepEqual(agentTarget(await listed(), 'reviewer').managedPluginIds, ['alpha', 'cortex-board', 'cortex-system']);
+  assert.deepEqual(getEnvironment('reviewer')?.pluginDirs, [
+    path.join(PLUGINS_DIR, 'alpha'), path.join(PLUGINS_DIR, 'cortex-board'), path.join(PLUGINS_DIR, 'cortex-system'),
+  ]);
+
+  const on = await assignAgent(agentTarget(await listed(), 'reviewer'), [...BUILTINS]);
+  assert.ok(on.ok, JSON.stringify(on));
+  const body = readJson(path.join(ENV_DIR, 'reviewer.json'));
+  assert.equal('pluginDirs' in body, false);
+  assert.equal('disabledPlugins' in body, false);
+});
+
+test('an opt-out naming no built-in plugin is kept as it is', async () => {
+  seedEnvironment('reviewer', { ...environmentBody('reviewer'), disabledPlugins: ['retired-pack'] });
+  const reviewer = agentTarget(await listed(), 'reviewer');
+
+  const result = await assignAgent(reviewer, ['cortex-system']);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.deepEqual(readJson(path.join(ENV_DIR, 'reviewer.json')).disabledPlugins, ['retired-pack', 'cortex-board', 'cortex-feishu']);
+});
+
+test('an environment with skills off loads only the plugins it lists, built-in or not', async () => {
+  seedEnvironment('reviewer', { ...environmentBody('reviewer'), skills: false });
+  const reviewer = agentTarget(await listed(), 'reviewer');
+  assert.deepEqual(reviewer.managedPluginIds, []);
+
+  const result = await assignAgent(reviewer, ['cortex-system']);
+  assert.ok(result.ok, JSON.stringify(result));
+  const body = readJson(path.join(ENV_DIR, 'reviewer.json'));
+  assert.deepEqual(body.pluginDirs, ['plugins/cortex-system']);
+  assert.equal('disabledPlugins' in body, false);
+  assert.deepEqual(getEnvironment('reviewer')?.pluginDirs, [path.join(PLUGINS_DIR, 'cortex-system')]);
 });
 
 test('agent MCP additions require acknowledgeMcp', async () => {

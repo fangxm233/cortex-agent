@@ -14,14 +14,18 @@ import {
 import { loadPortableMcpCatalog } from './mcp.js';
 import { loadSkillFile, readSkillDescription } from './skill.js';
 import { buildProjectedSkillTree } from './skill-projection.js';
+import { defaultBuiltinPluginsDir } from './builtin.js';
 import {
   formatPath,
   makeIssue,
+  placeSkill,
   portableNamespace,
+  skillRoot as layerRootOf,
   type PluginCatalogEntry,
   type PluginCatalogIssue,
   type PluginCatalogManifest,
   type PluginCatalogSkill,
+  type PluginSkillFile,
 } from './catalog-types.js';
 
 interface PortableManifestResult {
@@ -45,6 +49,7 @@ function publicRootDir(id: string): string {
 function emptyEntry(id: string): PluginCatalogEntry {
   return {
     id,
+    origin: 'local',
     kind: 'unknown',
     rootDir: publicRootDir(id),
     valid: false,
@@ -218,7 +223,7 @@ function discoverSkills(
   const issues = [...listed.issues];
   for (const name of listed.names) {
     const result = loadContainedSkill(pluginRoot, root.path, name, format);
-    if (result.skill) skills.push(result.skill);
+    if (result.skill) skills.push(placeSkill(result.skill, pluginRoot, 'local'));
     issues.push(...result.issues);
   }
   return { skills, issues };
@@ -228,7 +233,7 @@ function loadPortableContainedSkill(
   pluginRoot: string,
   name: string,
   skillFile: string,
-): { skill?: PluginCatalogSkill; issues: PluginCatalogIssue[] } {
+): { skill?: PluginSkillFile; issues: PluginCatalogIssue[] } {
   const loaded = loadSkillFile(name, skillFile);
   if (!loaded.skill) return loaded;
   try {
@@ -247,7 +252,7 @@ function loadContainedSkill(
   skillsRoot: string,
   name: string,
   format: SkillFormat,
-): { skill?: PluginCatalogSkill; issues: PluginCatalogIssue[] } {
+): { skill?: PluginSkillFile; issues: PluginCatalogIssue[] } {
   const skillFile = path.join(skillsRoot, name, 'SKILL.md');
   const contained = resolveContainedAbsolutePath(pluginRoot, skillFile);
   if (!contained || !isRegularFile(contained)) {
@@ -430,18 +435,95 @@ function safePluginEntry(
   }
 }
 
-/** `ids` limits the load to those plugin ids: a spawn needs only the plugins it selected, and
- *  validating every other plugin's skill trees on each spawn is wasted work. */
-export function loadPluginCatalog(
-  options: { pluginsDir?: string; dataDir?: string; ids?: ReadonlySet<string> } = {},
-): PluginCatalogEntry[] {
-  const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
-  const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
-  if (!pathExists(pluginsDir)) return [];
-  const pluginsRoot = fs.realpathSync(pluginsDir);
-  const entries = listImmediateChildNames(pluginsRoot)
+interface CatalogLayers {
+  /** Real path of the user's plugins dir; null when there is none. */
+  user: string | null;
+  /** Real path of the built-in plugins dir; null when built-ins are left out. */
+  builtin: string | null;
+  dataDir: string;
+}
+
+function physicalDir(dir: string | null): string | null {
+  return dir && isDirectoryPath(dir) ? realPath(dir) : null;
+}
+
+function catalogIds(layers: CatalogLayers): string[] {
+  const builtin = layers.builtin ? listImmediateChildNames(layers.builtin) : [];
+  const user = layers.user ? listImmediateChildNames(layers.user) : [];
+  return [...new Set([...builtin, ...user])].sort();
+}
+
+function byName(left: { name: string }, right: { name: string }): number {
+  return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+}
+
+/** The user's skills replace the built-in ones of the same name whole, and the rest add. */
+function overlaySkills(entry: PluginCatalogEntry, user: { skills: PluginCatalogSkill[]; issues: PluginCatalogIssue[] }): void {
+  const skills = new Map(entry.skills.map((skill) => [skill.name, skill]));
+  for (const skill of user.skills) {
+    skills.set(skill.name, placeSkill(skill, layerRootOf(skill)!, skills.has(skill.name) ? 'overridden' : 'local'));
+  }
+  entry.skills = [...skills.values()].sort(byName);
+  entry.issues.push(...user.issues);
+}
+
+/** A user `mcp.json` replaces the built-in plugin's whole, servers and issues alike. */
+function overlayMcp(entry: PluginCatalogEntry, userRoot: string, dataDir: string): void {
+  if (!pathExists(path.join(userRoot, 'mcp.json')) || !entry.manifest.schema) return;
+  const mcp = loadPortableMcpCatalog(entry.id, userRoot, dataDir, entry.manifest.schema);
+  entry.mcp = { status: mcp.status, servers: mcp.servers };
+  entry.issues = [...entry.issues.filter((issue) => issue.scope !== 'mcp' && issue.scope !== 'server'), ...mcp.issues];
+}
+
+function withUserLayer(entry: PluginCatalogEntry, userPlugins: string | null, dataDir: string): PluginCatalogEntry {
+  const requested = userPlugins ? path.join(userPlugins, entry.id) : null;
+  if (!requested || !pathExists(requested)) return entry;
+  const userRoot = validPluginRoot(userPlugins!, requested);
+  if (!userRoot) return { ...entry, issues: [...entry.issues, ...pluginRootError(entry.id, requested).issues] };
+  if (entry.kind === 'portable' && entry.valid) {
+    overlaySkills(entry, discoverSkills(userRoot, 'portable'));
+    overlayMcp(entry, userRoot, dataDir);
+  }
+  return entry;
+}
+
+function builtinEntry(id: string, layers: CatalogLayers): PluginCatalogEntry {
+  const shipped = safePluginEntry(id, layers.builtin!, layers.dataDir);
+  const entry: PluginCatalogEntry = {
+    ...shipped,
+    origin: 'builtin',
+    skills: shipped.skills.map((skill) => placeSkill(skill, layerRootOf(skill)!, 'builtin')),
+  };
+  return withUserLayer(entry, layers.user, layers.dataDir);
+}
+
+function layeredEntry(id: string, layers: CatalogLayers): PluginCatalogEntry {
+  if (layers.builtin && pathExists(path.join(layers.builtin, id))) return builtinEntry(id, layers);
+  return safePluginEntry(id, layers.user!, layers.dataDir);
+}
+
+export interface PluginCatalogOptions {
+  pluginsDir?: string;
+  dataDir?: string;
+  /** The built-in plugins laid under the user's; null leaves them out. Defaults to the install's,
+   *  except in a sealed home. */
+  builtinDir?: string | null;
+  /** Limits the load to those plugin ids: a spawn needs only the plugins it selected, and
+   *  validating every other plugin's skill trees on each spawn is wasted work. */
+  ids?: ReadonlySet<string>;
+}
+
+/** Every plugin, built-in and the user's: a user `plugins/<id>` with a built-in id is that plugin's
+ *  user layer, and any other is a plugin of its own. */
+export function loadPluginCatalog(options: PluginCatalogOptions = {}): PluginCatalogEntry[] {
+  const layers: CatalogLayers = {
+    user: physicalDir(path.resolve(options.pluginsDir ?? PLUGINS_DIR)),
+    builtin: physicalDir(options.builtinDir === undefined ? defaultBuiltinPluginsDir() : options.builtinDir),
+    dataDir: path.resolve(options.dataDir ?? DATA_DIR),
+  };
+  const entries = catalogIds(layers)
     .filter((id) => !options.ids || options.ids.has(id))
-    .map((id) => safePluginEntry(id, pluginsRoot, dataDir));
+    .map((id) => layeredEntry(id, layers));
   flagSharedNamespaces(entries);
   return entries;
 }
@@ -497,21 +579,39 @@ function sortedSkills<T extends { name: string }>(skills: readonly T[]): T[] {
   return [...skills].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Catalog entries by the paths that select them: the `plugins/<id>` address, and its real path. */
+function entriesByAddress(entries: readonly PluginCatalogEntry[], pluginsDir: string): Map<string, PluginCatalogEntry> {
+  const byAddress = new Map<string, PluginCatalogEntry>();
+  for (const entry of entries) {
+    const address = path.join(pluginsDir, entry.id);
+    byAddress.set(address, entry);
+    const real = realPath(address);
+    if (real) byAddress.set(real, entry);
+  }
+  return byAddress;
+}
+
+function skillGroup(value: string, directory: string, entry: PluginCatalogEntry | undefined): SelectedSkill[] {
+  if (entry?.kind === 'portable' && !entry.valid) return [];
+  const plugin = entry?.id ?? value;
+  const namespace = entry ? portableNamespace(entry) : path.basename(directory);
+  const skills = entry?.kind === 'portable' ? entry.skills : passThroughSkills(directory);
+  return sortedSkills(skills).map((skill) => ({
+    plugin, namespace, name: skill.name, description: skill.description,
+  }));
+}
+
 /** The skills a session selecting `pluginDirs` loads, grouped by plugin in selection order, following
  *  the runtime's classification (runtime.ts `classifySelections`): a valid portable plugin
  *  contributes its catalog skills, an invalid one is skipped, and every other directory is passed
  *  through. */
 function selectedSkillGroups(
   entries: readonly PluginCatalogEntry[],
-  pluginsRoot: string,
+  pluginsDir: string,
   dataDir: string,
   pluginDirs: readonly string[],
 ): SelectedSkill[][] {
-  const byRealpath = new Map<string, PluginCatalogEntry>();
-  for (const entry of entries) {
-    const real = realPath(path.join(pluginsRoot, entry.id));
-    if (real) byRealpath.set(real, entry);
-  }
+  const byAddress = entriesByAddress(entries, pluginsDir);
   const groups: SelectedSkill[][] = [];
   const seen = new Set<string>();
   for (const value of pluginDirs) {
@@ -519,34 +619,35 @@ function selectedSkillGroups(
     const directory = realPath(absolute) ?? absolute;
     if (seen.has(directory)) continue;
     seen.add(directory);
-    const entry = byRealpath.get(directory);
-    if (entry?.kind === 'portable' && !entry.valid) continue;
-    const plugin = entry?.id ?? value;
-    const namespace = entry ? portableNamespace(entry) : path.basename(directory);
-    const skills = entry?.kind === 'portable' ? entry.skills : passThroughSkills(directory);
-    groups.push(sortedSkills(skills).map((skill) => ({
-      plugin, namespace, name: skill.name, description: skill.description,
-    })));
+    groups.push(skillGroup(value, directory, byAddress.get(absolute) ?? byAddress.get(directory)));
   }
   return groups.filter((group) => group.length > 0);
 }
 
-/** Every skill a session selecting `pluginDirs` loads, in the order {@link listSkillGroups} lists them. */
-export function listSelectedSkills(
-  options: { pluginDirs: readonly string[]; pluginsDir?: string; dataDir?: string },
-): SelectedSkill[] {
+interface SkillListOptions {
+  pluginsDir?: string;
+  dataDir?: string;
+  builtinDir?: string | null;
+}
+
+function catalogFor(options: SkillListOptions): { entries: PluginCatalogEntry[]; pluginsDir: string; dataDir: string } {
   const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
-  const entries = loadPluginCatalog({ pluginsDir, dataDir });
+  return { entries: loadPluginCatalog({ pluginsDir, dataDir, builtinDir: options.builtinDir }), pluginsDir, dataDir };
+}
+
+/** Every skill a session selecting `pluginDirs` loads, in the order {@link listSkillGroups} lists them. */
+export function listSelectedSkills(
+  options: SkillListOptions & { pluginDirs: readonly string[] },
+): SelectedSkill[] {
+  const { entries, pluginsDir, dataDir } = catalogFor(options);
   return selectedSkillGroups(entries, pluginsDir, dataDir, options.pluginDirs).flat();
 }
 
 export function listSkillGroups(
-  options: { pluginDirs?: readonly string[]; pluginsDir?: string; dataDir?: string } = {},
+  options: SkillListOptions & { pluginDirs?: readonly string[] } = {},
 ): PluginSkillGroup[] {
-  const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
-  const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
-  const entries = loadPluginCatalog({ pluginsDir, dataDir });
+  const { entries, pluginsDir, dataDir } = catalogFor(options);
   if (options.pluginDirs) {
     return selectedSkillGroups(entries, pluginsDir, dataDir, options.pluginDirs)
       .map((group) => ({ plugin: group[0].plugin, skills: group.map((skill) => skill.name) }));

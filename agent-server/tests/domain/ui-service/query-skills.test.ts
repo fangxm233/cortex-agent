@@ -13,6 +13,9 @@ import { MockAdapter } from '../../../src/platform/testing.js';
 
 // Skill listings come from the plugin catalog, the same discovery a spawn uses: a skill the
 // catalog rejects (bad frontmatter, nested too deep, plugin without a manifest) is not offered.
+// The built-in plugins are left out (a sealed home) so the listings hold only the fixtures; the
+// catalog tests cover how built-in plugins join them.
+process.env.CORTEX_CONFIG_IMMUTABLE = '1';
 
 function writePlugin(id: string): string {
   const root = path.join(PLUGINS_DIR, id);

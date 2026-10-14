@@ -898,3 +898,30 @@ test('suppresses portable MCP for restricted compositions only', () => {
   assert.equal(direct.mcpServers?.length, 1);
   assert.equal(none.mcpServers, undefined);
 });
+
+test('a built-in plugin projects its shipped skills with the user layer laid over them', () => {
+  const harness = makeHarness();
+  const builtinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-plugin-builtin-'));
+  cleanup.push(builtinDir);
+  const shipped = path.join(builtinDir, 'shipped-pack');
+  writePortableManifest(shipped, { id: 'shipped-pack', version: '1.0.0' });
+  writeSkillFixture(shipped, { name: 'alpha', files: [{ path: 'notes.md', content: 'shipped alpha\n' }] });
+  writeSkillFixture(shipped, { name: 'beta', files: [{ path: 'notes.md', content: 'shipped beta\n' }] });
+  writeSkillFixture(path.join(harness.pluginsDir, 'shipped-pack'),
+    { name: 'beta', files: [{ path: 'notes.md', content: 'user beta\n' }] });
+
+  const resolve = (backend: 'claude' | 'pi', dir: string | null) => resolvePluginRuntime({
+    backend, selectedPluginDirs: ['plugins/shipped-pack'], mcpComposition: 'direct',
+    dataDir: harness.dataDir, pluginsDir: harness.pluginsDir, runtimeDir: harness.runtimeDir, builtinDir: dir,
+  });
+
+  const pi = resolve('pi', builtinDir);
+  const notes = (pi.pluginSkillDirs ?? []).map((dir) => fs.readFileSync(path.join(dir, 'notes.md'), 'utf8'));
+  assert.deepEqual(notes, ['shipped alpha\n', 'user beta\n']);
+  const claude = resolve('claude', builtinDir);
+  assert.equal(claude.pluginDirs?.length, 1);
+  assert.deepEqual(fs.readdirSync(path.join(claude.pluginDirs![0], 'skills')).sort(), ['alpha', 'beta']);
+  assert.equal(fs.readFileSync(path.join(claude.pluginDirs![0], 'skills', 'beta', 'notes.md'), 'utf8'), 'user beta\n');
+  // Without the built-in layer the user's directory is all there is, and it has no manifest.
+  assert.deepEqual(resolve('pi', null).pluginSkillDirs, undefined);
+});

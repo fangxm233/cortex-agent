@@ -1199,9 +1199,8 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
     path.join(DEFAULTS_DIR, 'config', ENVIRONMENTS_DIRNAME),
     path.join(paths.CONFIG_DIR, ENVIRONMENTS_DIRNAME),
   );
-  // Hooks, rules, agent roles and prompts are read in place from DEFAULTS_DIR; the home gets only
-  // the user's own files. The decisions scaffold is context, which is the user's.
-  safeCopyDir(path.join(DEFAULTS_DIR, 'plugins'), path.join(paths.DATA_DIR, 'plugins'), force);
+  // Plugins, hooks, rules, agent roles and prompts are read in place from DEFAULTS_DIR; the home
+  // gets only the user's own files. The decisions scaffold is context, which is the user's.
   safeCopyDir(path.join(DEFAULTS_DIR, 'context', 'decisions'), path.join(paths.CONTEXT_DIR, 'decisions'), force);
 }
 

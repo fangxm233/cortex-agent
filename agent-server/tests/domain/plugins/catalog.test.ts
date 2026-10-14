@@ -10,7 +10,7 @@ import {
   portableMcpSchema,
   portableMcpServerSchema,
 } from '../../../src/domain/plugins/agent-plugins-v1.js';
-import { loadPluginCatalog } from '../../../src/domain/plugins/catalog.js';
+import { listSelectedSkills, loadPluginCatalog } from '../../../src/domain/plugins/catalog.js';
 
 type CatalogEntry = ReturnType<typeof loadPluginCatalog>[number];
 type McpServer = CatalogEntry['mcp']['servers'][number];
@@ -647,4 +647,64 @@ it('skips immediate skills and MCP commands that resolve outside the plugin root
   expect(entry.skills).toEqual([]);
   expect(entry.mcp.servers).toEqual([]);
   expect(issueCodes(entry)).toEqual(['mcp_server_invalid', 'skill_outside_plugin_root']);
+});
+
+function makeBuiltinPlugin(builtinDir: string, id: string, skills: string[]): string {
+  const dir = path.join(builtinDir, id);
+  fs.mkdirSync(dir, { recursive: true });
+  writePortableManifest(dir, { ...OFFICIAL_VALID_MANIFEST, name: id });
+  for (const name of skills) makeSkill(dir, name);
+  return dir;
+}
+
+describe('built-in plugins under the user layer', () => {
+  it('merges a user layer into the built-in plugin of the same id, skill by skill', () => {
+    const builtinDir = outsideDir('plugin-builtin-');
+    const shipped = makeBuiltinPlugin(builtinDir, 'shipped-pack', ['alpha', 'beta']);
+    writeMcp(shipped, { shippedServer: { type: 'streamable-http', url: 'https://shipped.example.com/mcp' } });
+    const user = makePlugin('shipped-pack');
+    writePortableManifest(user, { ...OFFICIAL_VALID_MANIFEST, name: 'renamed-by-user' });
+    makeSkill(user, 'beta', skillText('beta', { description: 'The user edit of beta.' }));
+    makeSkill(user, 'gamma');
+    fs.mkdirSync(path.join(user, 'skills', 'leftover'), { recursive: true });
+    writeMcp(user, { userServer: { type: 'streamable-http', url: 'https://user.example.com/mcp' } });
+
+    const entry = pickPlugin(loadPluginCatalog({ builtinDir }), 'shipped-pack');
+
+    expect(entry.origin).toBe('builtin');
+    expect(entry.manifest.name).toBe('shipped-pack');
+    expect(entry.skills.map((skill) => [skill.name, skill.origin])).toEqual([
+      ['alpha', 'builtin'], ['beta', 'overridden'], ['gamma', 'local'],
+    ]);
+    expect(entry.skills.find((skill) => skill.name === 'beta')?.description).toBe('The user edit of beta.');
+    expect(entry.mcp.servers.map((server) => server.name)).toEqual(['userServer']);
+    expect(issueCodes(entry)).toEqual(['skill_outside_plugin_root']);
+    expect(JSON.stringify(entry)).not.toContain(builtinDir);
+  });
+
+  it('lists a built-in plugin without a user layer, even with no plugins dir at all', () => {
+    const builtinDir = outsideDir('plugin-builtin-');
+    makeBuiltinPlugin(builtinDir, 'shipped-pack', ['alpha']);
+    const root = makeRootFixture('plugin-no-user-');
+
+    const entries = loadPluginCatalog({ builtinDir, pluginsDir: root.pluginsDir, dataDir: root.dataDir });
+
+    expect(entries.map((entry) => [entry.id, entry.origin, entry.rootDir])).toEqual([
+      ['shipped-pack', 'builtin', path.join('plugins', 'shipped-pack')],
+    ]);
+    expect(entries[0].skills.map((skill) => [skill.name, skill.origin])).toEqual([['alpha', 'builtin']]);
+    expect(loadPluginCatalog({ builtinDir: null, pluginsDir: root.pluginsDir, dataDir: root.dataDir })).toEqual([]);
+  });
+
+  it('selects a built-in plugin by its plugins/<id> address', () => {
+    const builtinDir = outsideDir('plugin-builtin-');
+    makeBuiltinPlugin(builtinDir, 'shipped-pack', ['alpha', 'beta']);
+    makeSkill(makePlugin('shipped-pack'), 'gamma');
+
+    const skills = listSelectedSkills({ pluginDirs: ['plugins/shipped-pack'], builtinDir });
+
+    expect(skills.map((skill) => `${skill.namespace}:${skill.name}`)).toEqual([
+      'shipped-pack:alpha', 'shipped-pack:beta', 'shipped-pack:gamma',
+    ]);
+  });
 });
