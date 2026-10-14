@@ -21,10 +21,12 @@ $CORTEX_HOME/
 │   ├── mcp-config.json           # Direct-session MCP configuration
 │   ├── mcp-config-core.json      # Remote execution/time layer
 │   ├── mcp-config-interaction.json # Shared interaction layer
+│   ├── board.css                 # Optional stylesheet for every board (absent by default)
 │   └── hooks/                    # Hook registry — one JSON declaration per hook
 ├── data/
 │   ├── agent-state.json          # Selected profile, default agent, per-channel overrides
 │   ├── schedules.json            # Persistent schedule list
+│   ├── boards.json               # Board registry
 │   ├── executions.json           # Unified execution registry
 │   ├── costs.jsonl               # 90-day rolling cost records
 │   ├── session-registry.jsonl    # Session records, channel bindings, conversation headers + turns (single owner)
@@ -299,7 +301,7 @@ Cortex ships two:
 
 | Environment | What it is for |
 |---|---|
-| `main` | General-purpose work on the currently active profile, with the Cortex system, commission, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
+| `main` | General-purpose work on the currently active profile, with the Cortex system, board, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
 | `creative` | A clean-room surface for writing, image prompts, naming, and copy, with the operational context stripped out (see [A minimal surface](#a-minimal-surface)) |
 
 The shipped files are copied into `config/environments/` at `cortex init`, and
@@ -515,7 +517,6 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `serverAutoUpdate` | boolean | `true` | When the update check finds a newer server release, install it without asking. Installation starts only once no turn is running, and the server restarts right after. `false` asks for confirmation first; an agreed update waits for idle the same way. A skipped version stays skipped | — |
-| `commissionEnabled` | boolean | `true` | Kill switch for commission mode — contract-anchored long tasks. On by default: any session can enter the mode mid-conversation, either because the agent calls `cortex_commission_start` or because you flip the composer's commission capsule. Turn it off to refuse every entry point (create, composer, the start webhook) and stop injecting contract blocks; existing commissions stay readable on the board | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `true` | Experimental team mode: any web session can start and manage persistent worker sessions with the `worker_*` tools. Turning it off removes those tools from the next turn and leaves existing workers as ordinary sessions. See [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | Interval, in milliseconds, of the waitpoint sweep: it drains spooled signals (locally and from connected devices), expires overdue waitpoints, and retries deliveries that failed. See [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
 | `waitpointTtlMs` | number | `604800000` | Default lifetime of a waitpoint (7 days) when the agent does not set one. A waitpoint may ask for less, or for more up to a hard ceiling of 30 days; past it the waitpoint expires and the session is told nothing arrived | `CORTEX_WAITPOINT_TTL_MS` |
@@ -533,7 +534,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`, `serverAutoUpdate`, `commissionEnabled`, `teamEnabled`, `sessionRetentionDays`,
+`serverUpdateDisable`, `serverAutoUpdate`, `teamEnabled`, `sessionRetentionDays`,
 `maxContextTokens`, `piCompactReserveTokens`, and the
 built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.
@@ -746,6 +747,35 @@ under `$CORTEX_HOME/data/claude/projects`, so those sessions keep resuming. A
 destination that already exists is never overwritten, and files no registry
 session owns stay where they are.
 
+## Boards
+
+A board is the status page of a long task, kept by the agents working on it
+(see [Boards](./team.md#boards) in the team guide). Each board lives in
+`<project context>/boards/<slug>/`, and `data/boards.json` lists every board
+with its project, title and state. On upgrade, registered commissions from
+earlier Cortex releases become boards: their directories move from
+`commissions/` to `boards/`, and their files are moved, never deleted.
+
+Boards are styled by a preset stylesheet that ships with Cortex in
+`agent-server/defaults/board/board.css`. It is read from the package and never
+copied into `$CORTEX_HOME`, so every upgrade brings its current version. The
+preset uses only the app's theme variables (`--proto-*`, `--material-*`,
+`--border-card`, `--r-*`), so boards follow light and dark mode, the palette
+and the accent.
+
+To restyle every board, create `$CORTEX_HOME/config/board.css`. The file does
+not exist by default. It loads after the preset, so it can redefine any
+variable, the preset's own `--b-*` or a theme `--proto-*`, or override any
+rule:
+
+```css
+:root { --proto-accent: #0f766e; --b-gap: 16px; }
+.card { border-radius: 4px; }
+```
+
+Open boards pick up a save within a few seconds, and deleting the file
+restores the preset.
+
 ## defaults/config/ layout
 
 The `agent-server/defaults/` directory in the npm package contains
@@ -767,6 +797,7 @@ server on every startup:
 | `defaults/hooks/` | `$CORTEX_HOME/hooks/` | Per-file at init: never overwrite unless `--force`. At every server start, a shipped script is re-copied unless the deployed file already carries an equal or newer `@cortex-hook-version` |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | Never (unless `--force`) |
 | `defaults/context/` | `$CORTEX_HOME/context/` | Scaffold files: never overwrite |
+| `defaults/board/` | — | Not copied: the board preset stylesheet and the scaffold of a new board are read from the package |
 
 This design means npm package upgrades automatically deliver new prompts,
 plugins, rules, hooks, and execution environments without overwriting user
@@ -804,6 +835,9 @@ polling mode as it uses with filesystem events.
   and need a restart. See [hooks.md](./hooks.md).
 - **Hook scripts (`hooks/*.mjs`)** — read fresh on every hook invocation.
 - **Plugins, prompts, rules** — read fresh on each agent session spawn.
+- **`config/board.css`** — watched together with the directories of active
+  boards. Open boards re-render within a few seconds of a change. See
+  [Boards](#boards).
 
 ## Where each file lives
 
@@ -819,6 +853,8 @@ polling mode as it uses with filesystem events.
 | `.claude/settings.json` | Claude Code hooks/permissions (not the Cortex settings file) | `$CORTEX_HOME/.claude/settings.json` |
 | `agent-state.json` | Selected profile, default agent, per-channel overrides | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | Schedules | `$CORTEX_HOME/data/schedules.json` |
+| `boards.json` | Board registry | `$CORTEX_HOME/data/boards.json` |
+| `board.css` | Optional stylesheet for every board | `$CORTEX_HOME/config/board.css` |
 | `session-registry.jsonl` | Append-only session registry journal | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | Two-sweep orphan cleanup candidates | `$CORTEX_HOME/data/retention-candidates.json` |
 | `conversation-history/` | Per-session transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |
