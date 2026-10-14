@@ -6,7 +6,6 @@ import { fmt, useVocab } from '@/i18n';
 import { workerDotStyle } from '@/features/team/TeamRoster';
 import { workerTitle } from '@/features/team/worker-roster';
 import { BoardIcon } from './BoardIcon';
-import { BoardStatusChip } from './BoardLiveStrip';
 import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from './board-summary';
 import { useBoardLive } from './useBoard';
 import './board-bar.css';
@@ -50,7 +49,7 @@ export function BoardStatusBar({ boardId, onOpen, column }: {
   const { board, sessions, decisions } = useBoardLive(boardId);
   if (!board) return null;
   const { shown, pending } = boardSummary(sessions);
-  const tone = boardFlagTone(board.status, pending.length);
+  const tone = boardFlagTone(pending.length);
   const visible = shown.slice(0, BAR_SESSIONS);
   const more = shown.length - visible.length;
   const name = `${L.boardTitle} · ${board.title}`;
@@ -64,7 +63,6 @@ export function BoardStatusBar({ boardId, onOpen, column }: {
         aria-label={`${L.boardOpen} · ${board.title}`} title={name} onClick={onOpen} onKeyDown={onKeyDown} style={BAR}>
         <BoardIcon size={12} stroke={BOARD_FLAG_COLOR[tone]} />
         <span style={{ ...ELLIPSIS, flexShrink: 1, fontWeight: 600 }}>{name}</span>
-        <BoardStatusChip status={board.status} quiet />
         {visible.length > 0 && (
           <span className="board-bar-sessions" style={{ alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 }}>
             <Sep />

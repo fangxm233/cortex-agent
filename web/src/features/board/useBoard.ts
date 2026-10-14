@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { boardBodyPath, boardDir, LEGACY_BOARD_FILES } from './board-paths';
@@ -74,29 +74,6 @@ export function useBoard(boardId: string): BoardData {
   }
 
   return { ...live, body, style: styleQuery.data ?? null };
-}
-
-export function useCloseBoard(boardId: string) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  return useMutation(trpc.boards.close.mutationOptions({
-    onSettled: () => {
-      void queryClient.invalidateQueries(trpc.boards.list.queryFilter());
-      void queryClient.invalidateQueries(trpc.boards.get.queryFilter({ boardId }));
-    },
-  }));
-}
-
-/** Every board, open ones first, each group newest first. */
-export function useBoardList() {
-  const trpc = useTRPC();
-  const query = useQuery(trpc.boards.list.queryOptions({}));
-  return useMemo(() => sortBoards(query.data ?? []), [query.data]);
-}
-
-export function sortBoards(boards: BoardInfo[]): BoardInfo[] {
-  const ms = (b: BoardInfo) => Date.parse(b.updatedAt || b.createdAt) || 0;
-  return [...boards].sort((a, b) => Number(a.status !== 'active') - Number(b.status !== 'active') || ms(b) - ms(a));
 }
 
 /** A board's title for chrome that has only its id (a dock tab). */

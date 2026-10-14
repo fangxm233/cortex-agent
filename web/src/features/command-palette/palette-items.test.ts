@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
-import { sortBoards } from '@/features/board/useBoard';
-import { buildCmdkItems, isClosedBoardRow, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
+import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
 
 function session(over: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -89,45 +88,30 @@ describe('selectPaletteRows', () => {
   });
 });
 
-function board(id: string, status: BoardInfo['status'], updatedAt: string): BoardInfo {
-  return {
-    id, projectId: 'cortex-self', slug: 'slug-' + id, title: 'Board ' + id, status,
-    createdAt: '2026-07-01T00:00:00Z', updatedAt, closedAt: status === 'active' ? null : updatedAt, closeNote: null,
-  };
+function board(id: string, updatedAt = '2026-07-01T00:00:00Z'): BoardInfo {
+  return { id, projectId: 'cortex-self', slug: 'slug-' + id, title: 'Board ' + id, createdAt: '2026-07-01T00:00:00Z', updatedAt };
 }
 
 describe('board rows', () => {
-  const boards = sortBoards([
-    board('old-done', 'done', '2026-07-09T00:00:00Z'),
-    board('quiet', 'active', '2026-07-01T00:00:00Z'),
-    board('busy', 'active', '2026-07-08T00:00:00Z'),
-    board('dropped', 'abandoned', '2026-07-02T00:00:00Z'),
-  ]);
-
-  it('orders open boards first, each group most recent first', () => {
-    expect(boards.map((b) => b.id)).toEqual(['busy', 'quiet', 'old-done', 'dropped']);
-  });
+  // The server's order: most recently updated first.
+  const boards = ['busy', 'quiet', 'older', 'oldest'].map((id) => board(id));
 
   it('maps a board to a row that opens it', () => {
     const [item] = buildCmdkItems({ sessions: [], boards: [boards[0]!] });
-    expect(item).toMatchObject({ id: 'board:busy', kbd: 'board', boardId: 'busy', boardStatus: 'active', label: 'Board busy' });
+    expect(item).toMatchObject({ id: 'board:busy', kbd: 'board', boardId: 'busy', label: 'Board busy' });
   });
 
-  it('lists open boards, then closed ones, before sessions on an empty query', () => {
+  it('lists the recent boards before sessions on an empty query, in the server\'s order', () => {
     const rows = selectPaletteRows('', { sessions: [session()], boards });
-    const entities = rows.slice(NAV_COMMAND_ITEMS.length);
-    expect(entities.map((r) => r.id)).toEqual(['board:busy', 'board:quiet', 'board:old-done', 'board:dropped', 'session:sess_1']);
-    expect(entities.map(isClosedBoardRow)).toEqual([false, false, true, true, false]);
-    expect(selectPaletteRows('old-done', { sessions: [], boards }).map((r) => r.id)).toEqual(['board:old-done']);
+    expect(rows.slice(NAV_COMMAND_ITEMS.length).map((r) => r.id))
+      .toEqual(['board:busy', 'board:quiet', 'board:older', 'board:oldest', 'session:sess_1']);
   });
 
-  it('caps open and closed boards separately, so closed ones still show beside many open ones', () => {
-    const many = sortBoards([
-      ...['a', 'b', 'c'].map((id, i) => board(id, 'active', `2026-07-0${i + 1}T00:00:00Z`)),
-      ...['x', 'y', 'z'].map((id, i) => board(id, 'done', `2026-07-0${i + 1}T00:00:00Z`)),
-    ]);
-    const rows = selectPaletteRows('', { sessions: [], boards: many }, { restPerKind: 2 });
-    expect(rows.slice(NAV_COMMAND_ITEMS.length).map((r) => r.id)).toEqual(['board:c', 'board:b', 'board:z', 'board:y']);
+  it('shows at most eight boards without a query, and searches them all with one', () => {
+    const many = Array.from({ length: 12 }, (_, i) => board(`b${i}`));
+    const rows = selectPaletteRows('', { sessions: [], boards: many });
+    expect(rows.slice(NAV_COMMAND_ITEMS.length).map((r) => r.id)).toEqual(many.slice(0, 8).map((b) => 'board:' + b.id));
+    expect(selectPaletteRows('b11', { sessions: [], boards: many }).map((r) => r.id)).toEqual(['board:b11']);
   });
 
   it('lists every board when the query names the kind', () => {

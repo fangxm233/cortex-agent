@@ -14,8 +14,8 @@ vi.mock('./useBoard', () => ({ useBoardLive: () => h.live }));
 import { BoardStatusBar, DockedBoardBar } from './BoardStatusBar';
 
 const BOARD: BoardInfo = {
-  id: 'b1', projectId: 'p', slug: 'survey', title: 'Survey', status: 'active',
-  createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', closedAt: null, closeNote: null,
+  id: 'b1', projectId: 'p', slug: 'survey', title: 'Survey',
+  createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
 };
 const session = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInfo =>
   ({ sessionId, boardId: 'b1', teamLeadId: 'lead', workerName: sessionId, workerRetiredAt: null, running: false, awaitingInput: false, ...over }) as SessionInfo;
@@ -87,11 +87,9 @@ describe('BoardStatusBar', () => {
     expect(el.findAll((n) => n.props['data-board-bar-pending'] !== undefined)).toHaveLength(0);
   });
 
-  it('mutes the flag and grays the state of a closed board', () => {
-    h.live = { board: { ...BOARD, status: 'done' }, missing: false, decisions: [], sessions: [] };
+  it('shows no state chip: a board has no status', () => {
     const el = bar(render(<BoardStatusBar boardId="b1" onOpen={vi.fn()} />))!;
-    expect(el.props['data-board-flag']).toBe('closed');
-    expect(el.findByProps({ 'data-board-status': 'done' }).props.style.color).toBe('var(--proto-muted)');
+    expect(el.findAll((n) => n.props['data-board-status'] !== undefined)).toHaveLength(0);
   });
 
   it('shows four sessions and folds the rest into +n', () => {

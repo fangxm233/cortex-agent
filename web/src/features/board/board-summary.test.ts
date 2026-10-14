@@ -16,16 +16,12 @@ describe('boardSummary', () => {
     const summary = boardSummary(sessions);
     expect(summary.shown.map((x) => x.sessionId)).toEqual(['lead', 'w-ask', 'w-idle']);
     expect(summary.pending.map((x) => x.sessionId)).toEqual(['w-ask']);
-    expect(summary.live).toBe(2);
   });
 });
 
 describe('boardFlagTone', () => {
-  it('is amber while anyone waits on the user, accent while open, muted once closed', () => {
-    expect(boardFlagTone('active', 1)).toBe('ask');
-    expect(boardFlagTone('done', 2)).toBe('ask');
-    expect(boardFlagTone('active', 0)).toBe('active');
-    expect(boardFlagTone('done', 0)).toBe('closed');
-    expect(boardFlagTone('abandoned', 0)).toBe('closed');
+  it('is amber while anyone waits on the user, else accent', () => {
+    expect(boardFlagTone(1)).toBe('ask');
+    expect(boardFlagTone(0)).toBe('active');
   });
 });

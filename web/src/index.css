@@ -177,10 +177,6 @@ textarea::placeholder {
   .cmdk-row[data-selected='true'] .cmdk-row-label {
     color: var(--proto-accent);
   }
-  /* A closed board, dimmed like retired rows in the rail. */
-  .cmdk-row[data-closed]:not([data-selected='true']) {
-    opacity: 0.55;
-  }
 }
 
 @keyframes cxblink {
