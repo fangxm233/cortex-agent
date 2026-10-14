@@ -252,14 +252,14 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 ### 2.8 aistatus 令牌使用报告？ {#28-aistatus-token-usage-reporting}
 
-可选。选择是会把你的 token 用量放到 [aistatus.cc 公开排行榜](https://aistatus.cc/leaderboard)上，排行榜显示你的名称、组织和 token 数。需要填写名称和邮箱，组织可选；邮箱只用于识别身份，不会公开显示。
+可选，且这一项默认为「是」。选择是会把你的 token 用量放到 [aistatus.cc 公开排行榜](https://aistatus.cc/leaderboard)上，排行榜显示你的名称、组织和 token 数；不想上榜请选否。加入时需要填写名称和邮箱，组织可选；邮箱只用于识别身份，不会公开显示。
 
 桌面应用的 Provider 设置页也以可选的**公开用量排行榜**卡片提供同一选项，之后可随时在**设置 → 用量**中开启或关闭。关闭后会保留已填写的名称、组织和邮箱，再次开启时沿用。
 
 ### 2.9 注册为系统服务？ {#29-register-as-a-system-service}
 
 - **macOS** — 在 `~/Library/LaunchAgents/cc.cortex.agent-server.plist` 创建 `launchd` plist。运行打印的启用命令后，守护进程会在登录时自动启动。
-- **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。运行打印的启用命令后，守护进程会在登录时自动启动。
+- **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。运行打印的启用命令后，守护进程会在登录时自动启动。如需登出后继续运行，再执行 `loginctl enable-linger`。
 - **Windows** — 不支持。需手动运行 `cortex daemon`。
 
 ### 2.10 检测凭据、登录并配置 Profile {#210-auto-detect-backends-for-gatewayprofiles}
@@ -268,10 +268,10 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 终端提供以下操作：
 
-- **使用已配置的服务商继续**（Continue with configured providers）——使用检测到的凭据，从发现的端点配置 gateway 路由与 Profile。选择用于 `plan`（planner、doc-writer、coder 等执行智能体）和 `execute`（审查智能体）的（mode, model）对。
+- **使用已配置的服务商继续**（Continue with configured providers）——检测到凭据后才出现。使用这些凭据，从发现的端点配置 gateway 路由与 Profile。选择用于 `plan`（planner、doc-writer、coder 等执行智能体）和 `execute`（审查智能体）的（mode, model）对。
 - **登录 / 安装并登录 Claude Code**（Login / install and login Claude Code）——选择后端、Provider 及其支持的 OAuth 或 API key 方式。PI 已内置；Claude Code 已安装时直接复用，只有选择其登录路径时才会询问是否安装缺失的程序。登录后返回凭据检测。
-- **重新扫描凭据**（Rescan credentials）——读取在其他终端配置的凭据，再继续同步 gateway 路由与 Profile。
-- **稍后配置**（Configure later）——完成初始化，同时警告：配置好凭据与 Profile 前，Agent 可能暂不可用。
+- **重新扫描凭据**（Rescan credentials）——重新检测凭据（例如在其他终端配置的凭据），然后回到这个菜单。
+- **稍后配置**（Configure later (Agent may be unavailable)）——不配置 Provider 直接完成初始化；配置好凭据与 Profile 前，Agent 不可用。
 
 也可直接从终端登录，无需运行 daemon：
 
@@ -284,7 +284,7 @@ cortex auth status
 
 登录要求交互式 TTY。密钥与授权响应通过提示输入，不能作为命令参数传入。命令将 JSON 结果写入 stdout，将面向人的提示与指引写入 stderr。`cortex auth login --help` 列出选项，详见 [CLI 参考](./cli-reference.md#commands)。
 
-使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录，再用 `cortex setup-gateway` 配置 Profile。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
+使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录；`cortex auth login` 成功后也会配置 gateway 路由与 Profile。`cortex setup-gateway` 可单独重新执行这一配置。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
 
 ### 2.11 后端登录过期怎么办 {#211-when-the-backend-login-expires}
 
@@ -318,6 +318,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 ```
 ~/.cortex/
 ├── .git/                       # 可选：已有可用 Git 时创建
+├── .gitignore                  # 把运行时状态和密钥排除在版本历史之外
 ├── AGENTS.md                   # 根智能体上下文（从默认值初始化）
 ├── config/
 │   ├── .env                    # CORTEX_PLATFORM 列表 + 平台令牌 + CORTEX_MACHINE
@@ -327,8 +328,9 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── machines.json           # 本机能力（gpuCount、路径）
 │   ├── mcp-config.json         # 直接会话 MCP 服务器
 │   ├── mcp-config-core.json    # 远程执行/时间分层
+│   ├── mcp-config-empty.json   # 不含 MCP 服务器
 │   ├── mcp-config-interaction.json # 共享交互分层
-│   ├── profiles.json           # 命名的（后端、模型）配置
+│   ├── profiles.json           # 命名的（后端、模型）配置，检测到凭据后生成
 │   └── environments/           # 执行环境：main.json、creative.json
 ├── data/
 │   ├── agent-state.json        # 活跃 profile、默认智能体、频道级 override
@@ -338,11 +340,11 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 ├── plugins/                    # 你的插件（内置插件从安装目录读取）
 ├── prompts/                    # 你的指令、系统提示、模板
 ├── hooks/                      # 你的钩子脚本（.mjs）
-├── .claude/                    # Claude Code 钩子 + 设置
+├── .claude/                    # Claude Code 设置
 └── logs/                       # 守护进程 + LLM 日志
 ```
 
-正常使用时你**不应该**手动编辑任何这些文件。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并覆盖与随包决策模板同名的文件。每次 init 都会重新生成 MCP 配置。对于 `.env`，init 只更新自身管理的设置，保留已有的客户端/ webhook token 和手动添加的键。已有的执行环境和脚手架文件会保留；替换已有 Profile 需要确认。使用 `--force` 前请备份自定义文件；添加平台不需要使用它。
+正常使用时你**不应该**手动编辑任何这些文件。再次运行 `cortex init` 时，已有的 `.env`、`machines.json`、Agent 状态、语言偏好、计划任务和预算保持不变，MCP 配置会重新生成。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并更新 init 写入 `.env` 的键，同时保留已有的客户端与 webhook token 以及你手动添加的键。两种情况下，已有的执行环境和脚手架文件都会保留，替换已有 Profile 需要确认。使用 `--force` 前请备份自定义文件。要给已经可用的安装添加平台，把该平台的键加入 `.env` 并重启守护进程即可（见 [2.3](#23-which-interaction-platforms)）。
 
 Cortex 的内置插件、钩子、规则、子智能体角色与系统提示词从安装目录读取，不会复制到这里，所以 `plugins/`、`prompts/` 和 `hooks/` 一开始是空的。你放进去的文件会替换同名的内置文件，或新增一个；见[内置资源与你的覆盖](./configuration.md#built-in-assets-and-your-overrides)。
 
@@ -350,17 +352,19 @@ Cortex 的内置插件、钩子、规则、子智能体角色与系统提示词�
 
 ```
 ~/.aistatus/
-├── gateway.yaml                # 网关路由配置（自动生成）
+├── gateway.yaml                # 网关路由配置（检测到凭据后生成）
 └── config.yaml                 # aistatus 上传器设置（你的姓名/组织/邮箱）
 ```
 
 ## 第三步 — 启动服务器 {#step-3-start-the-server}
 
 ```bash
-cortex daemon         # 受监督运行，崩溃重启 + 热重载
+cortex daemon         # 在后台受监督运行，崩溃重启 + 热重载
 # 或
 cortex start          # 前台运行，Ctrl-C 停止
 ```
+
+`cortex daemon` 会立即返回，服务器留在后台运行；`cortex daemon stop` 停止它。
 
 如果你在第二步 2.9 中选择了注册系统服务，init 会写入服务文件并打印启用命令。需要运行该命令才能启动服务：
 
@@ -371,11 +375,22 @@ systemctl --user enable --now cortex
 launchctl load ~/Library/LaunchAgents/cc.cortex.agent-server.plist
 ```
 
-用 `cortex daemon status` 检查守护进程状态；`cortex config` 显示解析后的路径和初始化状态。
+用 `cortex daemon status` 检查守护进程状态；`cortex config` 显示解析后的路径和初始化状态；`cortex doctor` 检查运行时、登录、平台和 gateway（`--fix` 修复能修复的部分）。
+
+### 打开 Web 工作台 {#open-the-web-workbench}
+
+浏览器工作台以及桌面和 Android 应用都连接服务器的 Web UI 端点，终端安装默认不开启它。用以下命令开启：
+
+```bash
+cortex ui enable
+cortex daemon restart   # 仅当守护进程已在运行时需要
+```
+
+`cortex ui enable` 会在需要时生成客户端 token，在 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT=3004`，放行原生应用的 origin，并打印本地地址。在服务器上用浏览器打开 `http://127.0.0.1:3004`，用 `.env` 中 `CORTEX_CLIENT_TOKEN` 的值登录；或在[桌面应用](./desktop-app.md#first-connection)中填入同样的地址和 token。要从其他电脑访问工作台，见[浏览器访问](./browser-access.md)。
 
 ## 第四步 — 发送你的第一条消息 {#step-4-send-your-first-messages}
 
-现在进入有趣的部分。打开 Slack 或飞书，找到你刚安装的 Cortex 机器人，发起私信（DM）。
+现在进入有趣的部分。打开 Slack 或飞书，找到你刚安装的 Cortex 机器人，发起私信（DM）。在 Web 工作台中，则在新会话的输入框里发送同样的消息。
 
 ### 4.1 打个招呼 {#41-say-hello}
 

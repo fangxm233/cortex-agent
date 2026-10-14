@@ -326,11 +326,11 @@ don't have an NVIDIA GPU, it prints 0 — perfectly fine for most usage.
 
 ### 2.8 aistatus token-usage reporting?
 
-Optional. Answering yes puts your token usage on the public
-[aistatus.cc leaderboard](https://aistatus.cc/leaderboard), which shows
-your name, organization, and token counts. Provide a name and an email;
-the organization is optional. The email only identifies you and is never
-displayed.
+Optional, and the prompt defaults to yes. Answering yes puts your token
+usage on the public [aistatus.cc leaderboard](https://aistatus.cc/leaderboard),
+which shows your name, organization, and token counts; answer no to stay
+off it. If you join, provide a name and an email; the organization is
+optional. The email only identifies you and is never displayed.
 
 The same choice appears as an optional **Public usage leaderboard** card
 on the desktop app's provider setup page, and you can turn it on or off
@@ -344,6 +344,7 @@ organization, and email for the next time you turn it on.
   automatically on login after you run the printed enable command.
 - **Linux** — creates a `systemd --user` unit (no `sudo` needed). The
   daemon starts automatically on login after you run the printed enable command.
+  To keep it running after you log out, also run `loginctl enable-linger`.
 - **Windows** — not supported. Start manually with `cortex daemon`.
 
 ### 2.10 Detect credentials, sign in, and configure profiles {#210-auto-detect-backends-for-gatewayprofiles}
@@ -355,18 +356,20 @@ that a model call will succeed.
 
 The terminal offers these actions:
 
-- **Continue with configured providers** — use detected credentials and
-  configure gateway routes and profiles from discovered endpoints. Choose
-  the discovered (mode, model) pairs for `plan` (executor agents such as
-  planner, doc-writer, and coder) and `execute` (reviewer agents).
+- **Continue with configured providers** — shown once credentials are
+  detected. Uses them to configure gateway routes and profiles from the
+  discovered endpoints. Choose the discovered (mode, model) pairs for
+  `plan` (executor agents such as planner, doc-writer, and coder) and
+  `execute` (reviewer agents).
 - **Login / install and login Claude Code** — choose a backend, provider,
   and supported OAuth or API-key method. PI is bundled. Claude Code is
   reused if installed; only choosing its login path prompts to install a
   missing copy. Login returns to credential detection.
-- **Rescan credentials** — pick up credentials configured in another
-  terminal, then continue to synchronize gateway routes and profiles.
-- **Configure later** — finish setup with a warning that the Agent may be
-  unavailable until credentials and profiles are configured.
+- **Rescan credentials** — detects credentials again, for example ones
+  configured in another terminal, and returns to this menu.
+- **Configure later (Agent may be unavailable)** — finishes setup without
+  configuring providers; the Agent stays unavailable until credentials and
+  profiles are configured.
 
 You can also sign in from a terminal without a running daemon:
 
@@ -388,7 +391,9 @@ status without starting provider login or waiting for input. Omitted
 `backends` defaults to PI; explicit `backends` answers retain their supplied
 selection and installation behavior. These runs can finish without a
 configured provider. Sign in later with `cortex auth login` or
-**Settings → Accounts**, then use `cortex setup-gateway` to configure profiles.
+**Settings → Accounts**; a successful `cortex auth login` also configures
+the gateway routes and profiles. `cortex setup-gateway` runs that
+configuration again on its own.
 Remote login is also available through `!login` in Slack or Feishu; see
 [Backends: Remote login](./backends.md#remote-login).
 
@@ -432,6 +437,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 ```
 ~/.cortex/
 ├── .git/                       # optional: created when usable Git is installed
+├── .gitignore                  # keeps runtime state and secrets out of history
 ├── AGENTS.md                   # root agent context (seeded from defaults)
 ├── config/
 │   ├── .env                    # CORTEX_PLATFORM list + platform tokens + CORTEX_MACHINE
@@ -441,8 +447,9 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── machines.json           # this machine's capabilities (gpuCount, path)
 │   ├── mcp-config.json         # direct-session MCP servers
 │   ├── mcp-config-core.json    # remote execution/time layer
+│   ├── mcp-config-empty.json   # no MCP servers
 │   ├── mcp-config-interaction.json # Shared interaction layer
-│   ├── profiles.json           # named (backend, model) profiles
+│   ├── profiles.json           # named (backend, model) profiles, once credentials are detected
 │   └── environments/           # execution environments: main.json, creative.json
 ├── data/
 │   ├── agent-state.json        # active profile, default agent, channel overrides
@@ -452,18 +459,21 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 ├── plugins/                    # your plugins (built-in ones are read from the install)
 ├── prompts/                    # your directives, system prompts, templates
 ├── hooks/                      # your hook scripts (.mjs)
-├── .claude/                    # Claude Code hooks + settings
+├── .claude/                    # Claude Code settings
 └── logs/                       # daemon + LLM logs
 ```
 
 You should **not** need to edit any of these by hand for normal use.
-`cortex init --force` resets `machines.json`, agent state, language preferences,
-schedules, and budget, and replaces same-named shipped decision templates. MCP
-configs are regenerated on every init.
-In `.env`, init updates its own settings while keeping existing client/webhook
-tokens and hand-added keys. Existing execution environments and scaffold files
-are preserved; replacing existing profiles requires confirmation. Back up
-customized files before using `--force`; it is not needed to add a platform.
+Running `cortex init` again leaves an existing `.env`, `machines.json`, agent
+state, language preferences, schedules, and budget untouched, and regenerates
+the MCP configs. `cortex init --force` resets `machines.json`, agent state,
+language preferences, schedules, and budget, and updates the keys init writes
+in `.env` while keeping the existing client and webhook tokens and any keys you
+added by hand. Existing execution environments and scaffold files are preserved
+either way, and replacing existing profiles requires confirmation. Back up
+customized files before using `--force`. To add a platform to a working
+install, add its keys to `.env` and restart the daemon
+(see [2.3](#23-which-interaction-platforms)).
 
 Cortex's built-in plugins, hooks, rules, subagent roles and system prompts are
 read from the install, not copied here, so `plugins/`, `prompts/` and `hooks/`
@@ -475,17 +485,20 @@ adds a new one; see
 
 ```
 ~/.aistatus/
-├── gateway.yaml                # gateway routing config (auto-generated)
+├── gateway.yaml                # gateway routing config (generated once credentials are detected)
 └── config.yaml                 # aistatus uploader settings (your name/org/email)
 ```
 
 ## Step 3 — Start the server
 
 ```bash
-cortex daemon         # supervised, restarts on crash + hot-reload
+cortex daemon         # supervised in the background, restarts on crash + hot-reload
 # or
 cortex start          # foreground, Ctrl-C to stop
 ```
+
+`cortex daemon` returns at once and leaves the server running in the
+background; `cortex daemon stop` stops it.
 
 If you chose to register a system service in Step 2.9, init writes the
 service file and prints its enable command. Run that command to start it:
@@ -498,12 +511,32 @@ launchctl load ~/Library/LaunchAgents/cc.cortex.agent-server.plist
 ```
 
 Check the daemon with `cortex daemon status`. `cortex config` shows resolved
-paths and initialization status.
+paths and initialization status, and `cortex doctor` checks the runtime, login,
+platform, and gateway (`--fix` repairs what it can).
+
+### Open the Web workbench
+
+The browser workbench and the desktop and Android apps connect to the
+server's Web UI endpoint, which terminal setup leaves off. Turn it on with:
+
+```bash
+cortex ui enable
+cortex daemon restart   # only if the daemon is already running
+```
+
+`cortex ui enable` generates the client token if needed, sets
+`CORTEX_UI_HTTP=1` and `CORTEX_UI_PORT=3004` in `$CORTEX_HOME/config/.env`,
+allows the native apps' origins, and prints the local address. Open
+`http://127.0.0.1:3004` in a browser on the server and sign in with the value of
+`CORTEX_CLIENT_TOKEN` from `.env`, or enter the same address and token in the
+[desktop app](./desktop-app.md#first-connection). To reach the workbench from
+another computer, see [Browser Access](./browser-access.md).
 
 ## Step 4 — Send your first messages
 
 Now the fun part. Open Slack or Feishu, find the Cortex bot you just
-installed, and start a direct message with it.
+installed, and start a direct message with it. In the Web workbench, send the
+same messages from the composer of a new session.
 
 ### 4.1 Say hello
 
