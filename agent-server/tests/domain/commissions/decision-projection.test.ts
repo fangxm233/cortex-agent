@@ -50,5 +50,5 @@ test('the board refresh hint goes to the bus it was handed, after the line lands
   const h = harness('comm-1');
   const published: unknown[] = [];
   await projectCommissionDecisions({ sessionId: 's1', ts: 'T', items: [ITEM] }, { ...h.deps, bus: { publish: (e: any) => { published.push(e); } } });
-  assert.deepEqual(published, [{ type: 'commission.updated', commissionId: 'comm-1', projectId: 'proj' }]);
+  assert.deepEqual(published, [{ type: 'board.updated', boardId: 'comm-1', projectId: 'proj' }]);
 });

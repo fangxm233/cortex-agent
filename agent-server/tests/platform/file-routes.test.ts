@@ -1,15 +1,16 @@
 import { describe, test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   createFileRoutes,
-  COMMISSION_ASSET_PATH,
+  BOARD_ASSET_PATH,
   DOWNLOAD_PATH,
   UPLOAD_PATH,
 } from '@platform/ui-http/file-routes.js';
+import { resolveMemoryFilePath } from '@domain/ui-service/query/memory.js';
 
 const MAX = 4096;
 
@@ -26,8 +27,11 @@ beforeAll(async () => {
   attachments = path.join(workspace, 'attachments');
   projectDir = path.join(base, 'project');
   mkdirSync(attachments, { recursive: true });
-  mkdirSync(path.join(projectDir, 'commissions', 'c1', 'assets'), { recursive: true });
-  writeFileSync(path.join(projectDir, 'commissions', 'c1', 'assets', 'chart.svg'), '<svg/>');
+  mkdirSync(path.join(projectDir, 'boards', 'b1', 'assets'), { recursive: true });
+  writeFileSync(path.join(projectDir, 'boards', 'b1', 'assets', 'chart.svg'), '<svg/>');
+  writeFileSync(path.join(projectDir, 'mission.md'), 'secret');
+  writeFileSync(path.join(base, 'outside.md'), 'secret');
+  symlinkSync(path.join(base, 'outside.md'), path.join(projectDir, 'boards', 'b1', 'assets', 'escape.md'));
 
   const routes = createFileRoutes({
     attachmentsDir: attachments,
@@ -37,11 +41,7 @@ beforeAll(async () => {
       return target.startsWith(workspace + path.sep) ? target : null;
     },
     projectContextDir: (id) => (id === 'p1' ? projectDir : undefined),
-    resolveMemoryFilePath: (root, rel) => {
-      const target = path.resolve(root, rel);
-      if (!target.startsWith(root + path.sep)) throw new Error('escape');
-      return target;
-    },
+    resolveMemoryFilePath,
     maxUploadBytes: MAX,
   });
   server = http.createServer((req, res) => {
@@ -200,17 +200,20 @@ describe('download', () => {
   });
 });
 
-describe('commission asset', () => {
-  test('serves an asset under commissions/ with the same headers as a download', async () => {
-    const res = await get(`${COMMISSION_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('commissions/c1/assets/chart.svg')}`);
+describe('board asset', () => {
+  test('serves a file under boards/ with the same headers as a download', async () => {
+    const res = await get(`${BOARD_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('boards/b1/assets/chart.svg')}`);
     assert.equal(res.status, 200);
     assert.equal(res.body, '<svg/>');
     assert.match(String(res.headers['content-security-policy']), /^sandbox\b/);
   });
 
-  test('refuses paths outside commissions/ and unknown projects', async () => {
-    assert.equal((await get(`${COMMISSION_ASSET_PATH}?projectId=p1&path=mission.md`)).status, 403);
-    assert.equal((await get(`${COMMISSION_ASSET_PATH}?projectId=nope&path=commissions/c1/assets/chart.svg`)).status, 404);
-    assert.equal((await get(`${COMMISSION_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('commissions/../../x')}`)).status, 404);
+  test('refuses paths outside boards/, traversal, symlink escape and unknown projects', async () => {
+    assert.equal((await get(`${BOARD_ASSET_PATH}?projectId=p1&path=mission.md`)).status, 403);
+    assert.equal((await get(`${BOARD_ASSET_PATH}?projectId=nope&path=boards/b1/assets/chart.svg`)).status, 404);
+    assert.equal((await get(`${BOARD_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('boards/../../x')}`)).status, 404);
+    assert.equal((await get(`${BOARD_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('boards/../mission.md')}`)).status, 404);
+    assert.equal((await get(`${BOARD_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('boards/b1/assets/escape.md')}`)).status, 404);
+    assert.equal((await get(`${BOARD_ASSET_PATH}?projectId=p1&path=${encodeURIComponent('/etc/passwd')}`)).status, 403);
   });
 });

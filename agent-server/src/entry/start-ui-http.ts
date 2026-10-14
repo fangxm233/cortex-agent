@@ -154,7 +154,7 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
       ...(sessionStore
         ? createUiAuthRoutes({ store: sessionStore, getToken, authorize, ttlMs: sessionTtlMs(env) })
         : createUiSessionProbeRoute(authorize)),
-      // Composer uploads, workspace downloads and commission board assets.
+      // Composer uploads, workspace downloads and board assets.
       ...createFileRoutes({
         attachmentsDir: path.join(WORKSPACE_DIR, 'attachments'),
         resolveWorkspaceRelPath,

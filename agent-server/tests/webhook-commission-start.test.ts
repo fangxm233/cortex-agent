@@ -16,7 +16,7 @@ import { resetSettingsForTests } from '../src/core/settings.js';
 const TOKEN = 'test-webhook-token-commission';
 let prevToken: string | undefined;
 let handler: ReturnType<typeof createWebhookHandler>;
-let events: Extract<CortexEvent, { type: 'session.commission' }>[];
+let events: Extract<CortexEvent, { type: 'session.board' }>[];
 
 // The store cached its scan before this test home existed; `general` is synthesized by the rescan.
 projectStore.refresh();
@@ -29,12 +29,12 @@ beforeAll(() => {
   resetSettingsForTests();
   const bus = new EventBus();
   initHookBridge(bus);
-  // publishSessionCommission reaches for the orchestration runtime's bus, the way a webhook
+  // publishSessionBoard reaches for the orchestration runtime's bus, the way a webhook
   // running hours after boot has to.
   setOrchestrationRuntime({ bus });
   events = [];
-  bus.subscribe('session.commission', (e) => {
-    events.push(e as Extract<CortexEvent, { type: 'session.commission' }>);
+  bus.subscribe('session.board', (e) => {
+    events.push(e as Extract<CortexEvent, { type: 'session.board' }>);
   });
   handler = createWebhookHandler();
 });
@@ -88,7 +88,7 @@ test('an ordinary session can put itself into the drafting phase', async () => {
   assert.equal(res.body.dir, path.join(commissionsRoot(PROJECT)!, `_draft-${s.sessionId.slice(0, 8)}`));
   assert.ok(fs.existsSync(res.body.dir), 'the tool reports a directory that exists');
   assert.equal((await sessionStore.getById(s.sessionId))?.commissionDraft, `_draft-${s.sessionId.slice(0, 8)}`);
-  assert.deepEqual(events.at(-1), { type: 'session.commission', sessionId: s.sessionId, channel: s.channel, ts: events.at(-1)!.ts });
+  assert.deepEqual(events.at(-1), { type: 'session.board', sessionId: s.sessionId, channel: s.channel, ts: events.at(-1)!.ts });
 });
 
 test('the reasoning for entering the mode is recorded in the draft directory', async () => {

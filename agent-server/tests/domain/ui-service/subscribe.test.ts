@@ -6,16 +6,16 @@ import { createSubscription } from '../../../src/domain/ui-service/subscribe.js'
 test('subscribe receives published events matching filter', async () => {
   const bus = new EventBus();
   const sub = createSubscription(bus, {
-    events: ['commission.updated', 'scheduler.tick'],
+    events: ['board.updated', 'scheduler.tick'],
   });
 
-  bus.publish({ type: 'commission.updated', commissionId: 'c1', projectId: 'p1' });
+  bus.publish({ type: 'board.updated', boardId: 'b1', projectId: 'p1' });
   bus.publish({ type: 'scheduler.tick', jobKey: 'memory-index-regen' });
 
   const iter = sub[Symbol.asyncIterator]();
   const event1 = await iter.next();
   assert.equal(event1.done, false);
-  assert.equal(event1.value.type, 'commission.updated');
+  assert.equal(event1.value.type, 'board.updated');
   assert.ok(event1.value.ts);
 
   const event2 = await iter.next();

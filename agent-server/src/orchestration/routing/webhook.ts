@@ -15,7 +15,7 @@ import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
 import { enterCommissionDraft, recordCommissionStart } from '@domain/commissions/commission-draft.js';
-import { publishSessionCommission } from '../session-events.js';
+import { publishSessionBoard } from '../session-events.js';
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
 import { orchestrationBus } from '../runtime.js';
 import { handleSubagentWebhook } from '../subagent-webhook.js';
@@ -251,7 +251,7 @@ async function handleCommissionStart(data: any, res: Res): Promise<void> {
         .catch((e) => log.warn(`commission start: could not record the reasoning: ${(e as Error).message}`));
     }
     if (!result.alreadyDrafting && typeof data?.channel === 'string' && data.channel) {
-      publishSessionCommission({ sessionId, channel: data.channel });
+      publishSessionBoard({ sessionId, channel: data.channel });
     }
     sendJson(res, 200, { ok: true, dir: result.dir, draftDir: result.draftDir, alreadyDrafting: result.alreadyDrafting });
   } catch (e) {
@@ -296,7 +296,7 @@ async function approvePlan(data: any, res: Res): Promise<void> {
     ? await finalizeCommission(commissionArgs).catch((e: Error) => ({ ok: false as const, error: e.message }))
     : null;
   if (finalized && finalized.ok === true) {
-    orchestrationBus()?.publish({ type: 'commission.updated', commissionId: finalized.commissionId, projectId: finalized.projectId });
+    orchestrationBus()?.publish({ type: 'board.updated', boardId: finalized.commissionId, projectId: finalized.projectId });
   }
   sendJson(res, 200, finalized ? { ...result, commission: finalized } : result);
 }

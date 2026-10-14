@@ -42,7 +42,7 @@ async function appendProjection(sessionId: string, line: CommissionDecisionLine,
   const append = deps.appendLine ?? ((file: string, text: string) => fsp.appendFile(file, text, 'utf8'));
   await append(target.filePath, `${JSON.stringify(line)}\n`);
   // SSE hint after a successful append (an open board refetches commissions.decisions).
-  deps.bus?.publish({ type: 'commission.updated', commissionId: target.commissionId, projectId: target.projectId });
+  deps.bus?.publish({ type: 'board.updated', boardId: target.commissionId, projectId: target.projectId });
   return true;
 }
 

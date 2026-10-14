@@ -1,0 +1,2 @@
+/* Board preset stylesheet — placeholder; the real preset lands with the board view. */
+.card { border-radius: var(--r-md, 10px); }

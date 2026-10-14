@@ -18,9 +18,10 @@ import {
   sessionsDebugDetailsInput,
   sessionsPendingInteractionInput,
   schedulesListInput,
-  commissionsListInput,
-  commissionsGetInput,
-  commissionsDecisionsInput,
+  boardsListInput,
+  boardsGetInput,
+  boardsDecisionsInput,
+  boardsStyleInput,
   executionsListInput,
   executionsGetInput,
   waitpointsListInput,
@@ -37,9 +38,10 @@ export {
   sessionsDebugDetailsInput,
   sessionsPendingInteractionInput,
   schedulesListInput,
-  commissionsListInput,
-  commissionsGetInput,
-  commissionsDecisionsInput,
+  boardsListInput,
+  boardsGetInput,
+  boardsDecisionsInput,
+  boardsStyleInput,
   executionsListInput,
   executionsGetInput,
   waitpointsListInput,
@@ -93,7 +95,7 @@ export const machineDetailInput = z.object({
 
 export const skillsListInput = z.object({});
 
-/** A live session (its own agent and commission binding), or a draft about to run `agentName`. */
+/** A live session (its own agent and board binding), or a draft about to run `agentName`. */
 export const skillsSessionInput = z.object({
   sessionId: z.string().min(1).optional(),
   agentName: z.string().min(1).nullable().optional(),
@@ -187,35 +189,11 @@ export const sessionBrowserInput = z.object({
   device: z.string(),
 });
 
-/** Commission mode, chosen at creation like the browser opt-in. `new` makes the server create the
- *  draft directory; `join` attaches this session to a commission that already landed. */
-export const sessionCommissionInput = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('new') }),
-  z.object({ mode: z.literal('join'), commissionId: z.string() }),
-]);
-
-/** Switching a LIVE session's commission mode (DR-0037 v4). The create-time choices plus `off`,
- *  which creation had no need for. Spelled as a third union member rather than a nullable field so
- *  the emitted client type keeps it: this package compiles with `strict: false`, where `X | null`
- *  erases to `X` and a null the server accepts becomes unspellable in the strict-mode web client.
- *  A session already bound to a commission is terminal and refuses every transition. */
-export const sessionsSetCommissionInput = z.object({
-  sessionId: z.string(),
-  commission: z.discriminatedUnion('mode', [
-    z.object({ mode: z.literal('off') }),
-    z.object({ mode: z.literal('new') }),
-    z.object({ mode: z.literal('join'), commissionId: z.string() }),
-  ]),
-});
-
 export const sessionsCreateInput = z.object({
   /** Project the new session belongs to. Omitted → the default project (handler fallback). */
   projectId: z.string().optional(),
   /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
   browser: sessionBrowserInput.nullish(),
-  /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
-   *  server create the draft directory; `join` attaches the session to a landed commission. */
-  commission: sessionCommissionInput.nullish(),
 });
 
 export const sessionsSendInput = z.object({
@@ -343,9 +321,6 @@ export const sessionsCreateAndSendInput = z.object({
   selection: sessionSelectionInput.optional(),
   /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
   browser: sessionBrowserInput.nullish(),
-  /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
-   *  server create the draft directory; `join` attaches the session to a landed commission. */
-  commission: sessionCommissionInput.nullish(),
   /** First user message text. */
   text: z.string(),
   /** Temporary upload directory id (draft mode). Attachments were uploaded under this id
@@ -401,9 +376,9 @@ export const scheduleAddInput = z
     }
   });
 
-// commissions.close — the user's 完成/放弃 action from the board UI (the only close path, DR-0037).
-export const commissionCloseInput = z.object({
-  commissionId: z.string(),
+// boards.close — the user's done/abandon action from the board view (agents use board_close).
+export const boardCloseInput = z.object({
+  boardId: z.string(),
   status: z.enum(['done', 'abandoned']),
   note: z.string().optional(),
 });
@@ -835,9 +810,10 @@ export const queryInputSchemas = {
   'sessions.debugDetails': sessionsDebugDetailsInput,
   'sessions.pendingInteraction': sessionsPendingInteractionInput,
   'schedules.list': schedulesListInput,
-  'commissions.list': commissionsListInput,
-  'commissions.get': commissionsGetInput,
-  'commissions.decisions': commissionsDecisionsInput,
+  'boards.list': boardsListInput,
+  'boards.get': boardsGetInput,
+  'boards.decisions': boardsDecisionsInput,
+  'boards.style': boardsStyleInput,
   'executions.list': executionsListInput,
   'waitpoints.list': waitpointsListInput,
   'executions.get': executionsGetInput,
@@ -879,7 +855,6 @@ export const mutateInputSchemas = {
   'sessions.setProfile': sessionsSetProfileInput,
   'sessions.setAgent': sessionsSetAgentInput,
   'sessions.setSelection': sessionsSetSelectionInput,
-  'sessions.setCommission': sessionsSetCommissionInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
   'sessions.setStarred': sessionsSetStarredInput,
   'sessions.rename': sessionsRenameInput,
@@ -897,7 +872,7 @@ export const mutateInputSchemas = {
   'schedules.remove': scheduleActionInput,
   'schedules.add': scheduleAddInput,
   'schedules.update': scheduleUpdateInput,
-  'commissions.close': commissionCloseInput,
+  'boards.close': boardCloseInput,
   'approvals.approve': approvalsApproveInput,
   'approvals.reject': approvalsRejectInput,
   'approvals.request': approvalsRequestInput,

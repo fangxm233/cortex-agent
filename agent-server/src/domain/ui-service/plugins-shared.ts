@@ -1,7 +1,7 @@
 import { getSettings } from '@core/settings.js';
 import path from 'node:path';
 import { DATA_DIR, DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
-import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/runs/engine-spec.js';
+import { CHANNEL_SCOPED_PLUGINS } from '@domain/runs/engine-spec.js';
 import { loadPluginCatalog } from '@domain/plugins/catalog.js';
 import { isDirectoryPath, realPath } from '@domain/plugins/fs-helpers.js';
 import type { PluginCatalogEntry } from '@domain/plugins/catalog-types.js';
@@ -114,7 +114,6 @@ export function readPluginCatalogSnapshot(): PluginCatalogSnapshot {
  *  plugins again at spawn time. Surfacing the rule here keeps that second gate from being invisible
  *  knowledge the operator has to rediscover by debugging a session that silently lacks a skill. */
 function pluginScope(id: string): Pick<UiPluginCatalogEntry, 'scope' | 'scopePrefix'> {
-  if (COMMISSION_SCOPED_PLUGINS.includes(id)) return { scope: 'commission' };
   if (id === 'cortex-feishu' && getSettings().feishuSkillsInWeb) return { scope: 'channel', scopePrefix: 'feishu: / web:' };
   const rule = CHANNEL_SCOPED_PLUGINS.find((candidate) => candidate.plugin === id);
   return rule ? { scope: 'channel', scopePrefix: rule.channelPrefix } : { scope: 'always' };

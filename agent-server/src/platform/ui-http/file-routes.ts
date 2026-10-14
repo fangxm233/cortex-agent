@@ -1,5 +1,5 @@
 // File routes: composer uploads into the workspace, workspace downloads (agent-sent files and the
-// user's own uploads), and commission board assets. Every one of them is mounted through
+// user's own uploads), and board assets. Every one of them is mounted through
 // `customRoutes`, so the server's auth gate runs before any handler here.
 
 import * as path from 'node:path';
@@ -16,7 +16,7 @@ import type { CustomRouteHandler } from './ui-http-server.js';
 
 export const UPLOAD_PATH = '/api/attachments/upload';
 export const DOWNLOAD_PATH = '/api/files/download';
-export const COMMISSION_ASSET_PATH = '/api/commissions/asset';
+export const BOARD_ASSET_PATH = '/api/boards/asset';
 
 /** Max upload size: 100 MB. The web composer mirrors this to refuse a file before sending it. */
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -207,25 +207,26 @@ export function createFileRoutes(deps: FileRouteDeps): Record<string, CustomRout
   };
 
   /**
-   * GET /api/commissions/asset?projectId=…&path=commissions/<slug>/assets/…&disposition=…
+   * GET /api/boards/asset?projectId=…&path=boards/<slug>/…&disposition=…
    *
-   * Binary assets from a project's commissions/ tree (ledger-referenced images etc.). The rel path
-   * must start with `commissions/` and passes the same absolute/`..`/symlink guard as memory.file.
-   * `.html` assets are FETCHED by the board and rendered via srcdoc — an iframe never points here.
+   * Files from a project's boards/ tree (images under assets/ etc.). The rel path must start with
+   * `boards/`; the rest is resolved with the memory.file guard (absolute/`..`/symlink) rooted at
+   * the boards/ directory itself, so `boards/../x` cannot reach the rest of the project.
    */
-  const commissionAsset: CustomRouteHandler = async (req, res) => {
+  const boardAsset: CustomRouteHandler = async (req, res) => {
     const query = parseQuery(req, res);
     if (!query) return;
     const projectId = (query.get('projectId') ?? '').trim();
     const rel = (query.get('path') ?? '').trim();
     const disposition = query.get('disposition') === 'attachment' ? 'attachment' : 'inline';
     if (!projectId || !rel) return sendError(res, 400, 'missing-params', 'projectId and path query params required');
-    if (!rel.startsWith('commissions/')) return sendError(res, 403, 'forbidden', 'path must be under commissions/');
+    if (!rel.startsWith('boards/')) return sendError(res, 403, 'forbidden', 'path must be under boards/');
     const contextDir = deps.projectContextDir(projectId);
     let target: string;
     try {
       if (!contextDir) throw new Error('unknown project');
-      target = deps.resolveMemoryFilePath(fs.realpathSync(contextDir), rel);
+      const boardsRoot = fs.realpathSync(path.join(contextDir, 'boards'));
+      target = deps.resolveMemoryFilePath(boardsRoot, rel.slice('boards/'.length));
     } catch {
       return sendError(res, 404, 'not-found', 'File not found');
     }
@@ -235,6 +236,6 @@ export function createFileRoutes(deps: FileRouteDeps): Record<string, CustomRout
   return {
     [UPLOAD_PATH]: upload,
     [DOWNLOAD_PATH]: download,
-    [COMMISSION_ASSET_PATH]: commissionAsset,
+    [BOARD_ASSET_PATH]: boardAsset,
   };
 }

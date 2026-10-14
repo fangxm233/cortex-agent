@@ -14,7 +14,6 @@ import type {
   SessionsSetProfileReturn,
   SessionsSetAgentReturn,
   SessionsSetSelectionReturn,
-  SessionsSetCommissionReturn,
   SessionsCreateAndSendReturn,
   SessionsRespondDecisionReturn,
   SessionsInteractionMutateReturn,
@@ -25,27 +24,12 @@ import type {
 import type { AttachmentMeta } from '@core/types/agent-types.js';
 import { removeDirectResume } from '@domain/costs/resume-registry.js';
 import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
-import { enterCommissionDraft, leaveCommissionDraft } from '@domain/commissions/commission-draft.js';
-import { commissionRepo } from '@store/commission-repo.js';
-import { getSettings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
 // project (falling back to the default project when omitted), delegates the real creation to the
 // injected `createDirectSession` dep (domain primitive wired in entry/app.ts), and returns the new
 // session's id.
-/** Commission mode ships behind `settings.commissionEnabled`, its kill switch (on by default since
- *  DR-0037 v4). The composer hides the opt-in when it is off, so reaching this is either a stale
- *  client or a direct API call; answer with a 400 rather than letting createDirectSession throw. */
-function commissionDisabled(commission: unknown): Result<never> | null {
-  if (!commission || getSettings().commissionEnabled) return null;
-  return {
-    ok: false,
-    code: 'invalid-args',
-    message: t('ui.session.commissionDisabled'),
-  };
-}
-
 /** The " (expected one of: …)" tail of a refused selection value; empty when the rule gave no list. */
 function expectedOneOf(allowed: readonly string[] | undefined): string {
   return allowed ? t('ui.session.expectedOneOf', { values: allowed.join(', ') }) : '';
@@ -55,95 +39,11 @@ export async function handleCreateSession(
   deps: UiServiceDeps,
   args: MutateArgs<'sessions.create'>,
 ): Promise<Result<SessionsCreateReturn>> {
-  const disabled = commissionDisabled(args.commission);
-  if (disabled) return disabled;
   const projectId = args.projectId ?? deps.projectStore.getDefault().id;
   const { sessionId } = await deps.createDirectSession({
-    projectId, browser: args.browser ?? null, commission: args.commission ?? null,
+    projectId, browser: args.browser ?? null,
   });
   return { ok: true, data: { sessionId } };
-}
-
-/**
- * Switch a LIVE session in or out of commission mode (DR-0037 v4).
- *
- * The user's half of "either side may start a commission": the agent calls
- * `cortex_commission_start`, the user flips the composer's capsule, and both land in the same
- * `enterCommissionDraft`. It exists for a session already in flight — creation could only ever say
- * yes at birth, which meant a conversation that turned into a long task had no way in.
- *
- * `bound` is terminal: a second contract would orphan the first, so a bound session refuses every
- * transition (open a new session and join instead).
- */
-export async function handleSetCommission(
-  deps: UiServiceDeps,
-  args: MutateArgs<'sessions.setCommission'>,
-): Promise<Result<SessionsSetCommissionReturn>> {
-  // `off` stays allowed with the feature switched off: a session left drafting when the switch
-  // flipped must still be able to get out.
-  const disabled = commissionDisabled(args.commission.mode === 'off' ? null : args.commission);
-  if (disabled) return disabled;
-  const session = await deps.sessionStore.getById(args.sessionId);
-  if (!session) return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
-  if (session.commissionId) {
-    return {
-      ok: false,
-      code: 'invalid-args',
-      message: t('ui.session.alreadyBound'),
-    };
-  }
-
-  const settled = (removedDraftDir?: boolean): Result<SessionsSetCommissionReturn> => ({
-    ok: true,
-    data: {
-      phase: 'none', commissionId: null, commissionDraft: null,
-      ...(removedDraftDir === undefined ? {} : { removedDraftDir }),
-    },
-  });
-
-  // Every registry read and write goes through the injected store, including the draft helpers'.
-  const draftDeps = {
-    getSession: (id: string) => deps.sessionStore.getById(id),
-    setDraft: (id: string, draftDir: string | null) => deps.sessionStore.setCommissionDraft(id, draftDir),
-  };
-
-  if (args.commission.mode === 'off') {
-    const left = await leaveCommissionDraft(args.sessionId, draftDeps);
-    if (left.ok === false) return { ok: false, code: 'invalid-args', message: left.error };
-    deps.bus.publish({ type: 'session.commission', sessionId: args.sessionId, channel: session.channel });
-    return settled(left.removed);
-  }
-
-  if (args.commission.mode === 'join') {
-    const commission = await (deps.commissionStore ?? commissionRepo).find(args.commission.commissionId);
-    if (!commission) {
-      return { ok: false, code: 'not-found', message: t('ui.commission.notFound', { id: args.commission.commissionId }) };
-    }
-    if (commission.status !== 'active') {
-      return { ok: false, code: 'invalid-args', message: t('ui.commission.notActive', { status: commission.status }) };
-    }
-    // A drafting session that joins instead leaves its own draft directory behind; clear it the way
-    // `off` does — removed only while nothing was written into it.
-    const left = session.commissionDraft ? await leaveCommissionDraft(args.sessionId, draftDeps) : null;
-    // Joining mid-conversation is safe because the [Commission] block follows the binding rather
-    // than the session's first turn: the next turn carries the contract index (DR-0037 v4).
-    await deps.sessionStore.bindCommission(args.sessionId, commission.id);
-    deps.bus.publish({ type: 'commission.updated', commissionId: commission.id, projectId: commission.projectId });
-    return {
-      ok: true,
-      data: {
-        phase: 'active', commissionId: commission.id, commissionDraft: null,
-        ...(left?.ok ? { removedDraftDir: left.removed } : {}),
-      },
-    };
-  }
-
-  const entered = await enterCommissionDraft(args.sessionId, draftDeps);
-  if (entered.ok === false) return { ok: false, code: 'invalid-args', message: entered.error };
-  if (!entered.alreadyDrafting) {
-    deps.bus.publish({ type: 'session.commission', sessionId: args.sessionId, channel: session.channel });
-  }
-  return { ok: true, data: { phase: 'draft', commissionId: null, commissionDraft: entered.draftDir } };
 }
 
 export async function handleSendSession(
@@ -265,9 +165,6 @@ export async function handleCreateAndSend(
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: t('ui.session.textOrAttachments') };
   }
-  const disabled = commissionDisabled(args.commission);
-  if (disabled) return disabled;
-
   const { sessionId, channel } = await deps.createDirectSession({
     projectId: args.projectId,
     profileName: args.profileName ?? null,
@@ -282,7 +179,6 @@ export async function handleCreateAndSend(
     // that has to re-seed what the NEXT new conversation opens on.
     selection: args.selection ?? {},
     browser: args.browser ?? null,
-    commission: args.commission ?? null,
   });
 
   // If the client uploaded files under a draft upload id, move them to the real

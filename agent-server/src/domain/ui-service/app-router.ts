@@ -16,7 +16,6 @@ import {
   sessionsSetProfileInput,
   sessionsSetAgentInput,
   sessionsSetSelectionInput,
-  sessionsSetCommissionInput,
   sessionsCreateAndSendInput,
   sessionsMarkReadInput,
   sessionsSetStarredInput,
@@ -29,10 +28,11 @@ import {
   sessionsRewindInput,
   sessionsPendingInteractionInput,
   schedulesListInput,
-  commissionsListInput,
-  commissionsGetInput,
-  commissionsDecisionsInput,
-  commissionCloseInput,
+  boardsListInput,
+  boardsGetInput,
+  boardsDecisionsInput,
+  boardsStyleInput,
+  boardCloseInput,
   executionsListInput,
   waitpointsListInput,
   executionsGetInput,
@@ -218,7 +218,6 @@ function sessionsRouter(service: UiService) {
     setProfile: makeMutation(service, 'sessions.setProfile', sessionsSetProfileInput),
     setAgent: makeMutation(service, 'sessions.setAgent', sessionsSetAgentInput),
     setSelection: makeMutation(service, 'sessions.setSelection', sessionsSetSelectionInput),
-    setCommission: makeMutation(service, 'sessions.setCommission', sessionsSetCommissionInput),
     createAndSend: makeMutation(service, 'sessions.createAndSend', sessionsCreateAndSendInput),
     setStarred: makeMutation(service, 'sessions.setStarred', sessionsSetStarredInput),
     rename: makeMutation(service, 'sessions.rename', sessionsRenameInput),
@@ -243,12 +242,13 @@ function schedulesRouter(service: UiService) {
   });
 }
 
-function commissionsRouter(service: UiService) {
+function boardsRouter(service: UiService) {
   return router({
-    list: makeQuery(service, 'commissions.list', commissionsListInput),
-    get: makeQuery(service, 'commissions.get', commissionsGetInput),
-    decisions: makeQuery(service, 'commissions.decisions', commissionsDecisionsInput),
-    close: makeMutation(service, 'commissions.close', commissionCloseInput),
+    list: makeQuery(service, 'boards.list', boardsListInput),
+    get: makeQuery(service, 'boards.get', boardsGetInput),
+    decisions: makeQuery(service, 'boards.decisions', boardsDecisionsInput),
+    style: makeQuery(service, 'boards.style', boardsStyleInput),
+    close: makeMutation(service, 'boards.close', boardCloseInput),
   });
 }
 
@@ -448,7 +448,7 @@ export function createAppRouter(service: UiService) {
     projects: projectsRouter(service),
     sessions: sessionsRouter(service),
     schedules: schedulesRouter(service),
-    commissions: commissionsRouter(service),
+    boards: boardsRouter(service),
     executions: executionsRouter(service),
     waitpoints: waitpointsRouter(service),
     memory: memoryRouter(service),

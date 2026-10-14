@@ -64,10 +64,9 @@ export type CortexEvent =
   // A tool call's returned images were filed and attached to its row. Content-free: clients
   // refetch the transcript, which carries the attachment paths.
   | { type: 'session.tool-images';    ts: string; sessionId: string; channel: string }
-  // A session's commission binding changed WITHOUT a commission record changing — it entered or
-  // left the drafting phase (DR-0037 v4). Content-free: clients refetch the session record, which
-  // is what carries commissionDraft / commissionId.
-  | { type: 'session.commission';     ts: string; sessionId: string; channel: string }
+  // A session's board binding changed. Content-free: clients refetch the session record, which
+  // carries boardId.
+  | { type: 'session.board';          ts: string; sessionId: string; channel: string }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; planContent: string; toolInput: any; dryRun?: boolean }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; questions: any[]; level?: 'info' | 'warning' | 'error'; dryRun?: boolean; extensionUiId?: string; blocking?: boolean }
@@ -87,10 +86,12 @@ export type CortexEvent =
   | { type: 'auth.required';          ts: string; backend: 'claude' | 'pi'; provider: string; authType: 'oauth' | 'api_key' | null; kind: AuthErrorKind; channel: string | null; sessionId: string | null }
   | { type: 'auth.recovered';         ts: string; backend: 'claude' | 'pi'; provider: string }
 
-  // Commission (DR-0037). Content-free change hint — published on approval landing, close, and
-  // decision projection. Clients refetch commissions.* queries; `projectId` feeds the subscribe
-  // post-filter so project-scoped streams only see their own commissions.
-  | { type: 'commission.updated';     ts: string; commissionId: string; projectId: string }
+  // Boards. Content-free change hints. `board.updated`: the registry record, the board directory
+  // (board.html, assets, decisions.jsonl) or the set of bound sessions changed — clients refetch
+  // boards.* and re-render an open body; `projectId` feeds the subscribe post-filter.
+  // `board.style-updated`: the user override stylesheet changed — clients refetch boards.style.
+  | { type: 'board.updated';          ts: string; boardId: string; projectId: string }
+  | { type: 'board.style-updated';    ts: string }
 
   // System
   | { type: 'system.notice';          ts: string; level: 'info' | 'warning' | 'error'; text: string; title?: string }
