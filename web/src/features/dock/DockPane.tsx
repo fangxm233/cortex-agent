@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
+import { BoardDockBody } from '@/features/board/BoardDockBody';
 import { splitFromDrag } from './dock-split';
 import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
 import { DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
 import { useVocabOptional } from '@/i18n';
 import {
+  isBoardTab,
   isFileTab,
   syncBodyOrder,
   type DockState,
@@ -123,7 +125,9 @@ function DockTabBody({ state, id, onUpdateWeb }: {
   };
   return (
     <div data-dock-tab-body={tab.id} style={style}>
-      {isFileTab(tab) ? <DockFileBody item={tab.item} /> : <WebBody tab={tab} active={active} onUpdate={update} />}
+      {isFileTab(tab) ? <DockFileBody item={tab.item} />
+        : isBoardTab(tab) ? <BoardDockBody boardId={tab.boardId} />
+          : <WebBody tab={tab} active={active} onUpdate={update} />}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   activeTabOf,
   closeTab,
   isWebTab,
+  openBoardTab,
   openFileTab,
   openWebTab,
   reorderTabs,
@@ -65,6 +66,8 @@ interface DockContextValue {
   openFile: (item: FileItem) => void;
   /** Opens the dock on a web tab, reusing a blank one when there is one. */
   openWeb: () => void;
+  /** Opens the dock on a board, focusing its tab when it is already open. */
+  openBoard: (boardId: string) => void;
   select: (id: string) => void;
   close: (id: string) => void;
   reorder: (orderedIds: string[]) => void;
@@ -93,6 +96,7 @@ const DockContext = createContext<DockContextValue>({
   split: DOCK_SPLIT_DEFAULT,
   openFile: () => {},
   openWeb: () => {},
+  openBoard: () => {},
   select: () => {},
   close: () => {},
   reorder: () => {},
@@ -160,6 +164,12 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
     setState((current) => openWebTab(current, tab, isBlankWebTab));
   }, [mintId, show]);
 
+  const openBoard = useCallback((boardId: string) => {
+    show();
+    const id = mintId('dock-board');
+    setState((current) => openBoardTab(current, boardId, id));
+  }, [mintId, show]);
+
   const select = useCallback((id: string) => {
     setState((current) => (current === null ? current : touchTab(selectTab(current, id), id, Date.now())));
   }, []);
@@ -222,6 +232,7 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
       split,
       openFile,
       openWeb,
+      openBoard,
       select,
       close,
       reorder,
@@ -231,7 +242,7 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
       setSplit,
       registerHost,
     }),
-    [hosts, open, state, split, openFile, openWeb, select, close, reorder, updateWeb, closeDock, toggleDock, setSplit, registerHost],
+    [hosts, open, state, split, openFile, openWeb, openBoard, select, close, reorder, updateWeb, closeDock, toggleDock, setSplit, registerHost],
   );
 
   // The narrow surface, memoised on its own members: a divider drag changes `split` sixty times a
@@ -242,10 +253,12 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
       canDock: value.canDock,
       active: value.active,
       activeKind: activeTab?.kind ?? null,
+      activeBoardId: activeTab?.kind === 'board' ? activeTab.boardId : null,
       openFile,
       openWeb,
+      openBoard,
     }),
-    [value.canDock, value.active, activeTab?.kind, openFile, openWeb],
+    [value.canDock, value.active, activeTab, openFile, openWeb, openBoard],
   );
 
   return (

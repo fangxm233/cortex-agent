@@ -20,11 +20,15 @@ export interface DockIntakeValue {
   /** The dock is open AND a host is mounted → openMedia / openDoc route to a tab. */
   active: boolean;
   /** What the dock is showing right now, for surfaces that reflect it (the Web button's pressed state). */
-  activeKind: 'file' | 'web' | null;
+  activeKind: 'file' | 'web' | 'board' | null;
+  /** The board the active tab shows, if it is a board tab (the chat header's board button). */
+  activeBoardId: string | null;
   /** Preview a file in the dock: opens it, and focuses the tab if that file is already open. */
   openFile: (item: PreviewItem) => void;
   /** Open the dock on a web tab, reusing a blank one when there is one. */
   openWeb: () => void;
+  /** Open the dock on a board, focusing its tab when it is already open. */
+  openBoard: (boardId: string) => void;
 }
 
 // No dock in scope (mobile shell, isolated component tests) → inert: nothing can dock, so every
@@ -33,8 +37,10 @@ const DockIntakeContext = createContext<DockIntakeValue>({
   canDock: false,
   active: false,
   activeKind: null,
+  activeBoardId: null,
   openFile: () => {},
   openWeb: () => {},
+  openBoard: () => {},
 });
 
 export const DockIntakeProvider = DockIntakeContext.Provider;

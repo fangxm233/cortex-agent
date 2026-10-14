@@ -57,7 +57,7 @@ export const SESSION_LIVE_EVENTS = [
  * The server delivers `session.message.delta` only to a subscription that names the session it
  * belongs to (`SESSION_SCOPED_ONLY` in agent-server `domain/ui-service/subscribe.ts`): a preview is
  * renderable by exactly one surface — the chat showing that session — and an app-wide stream taking
- * every session's previews would fill its 256-slot server queue and drop-oldest the status / commission
+ * every session's previews would fill its 256-slot server queue and drop-oldest the status / board
  * / system events it exists to deliver. The shared stream is unscoped by design, so it could not
  * receive these anyway.
  *
@@ -77,10 +77,9 @@ export const CONFIG_LIVE_EVENTS = ['config.changed'] as const;
 /** Provider rate-limit state changed; consumers refetch the authoritative snapshot. */
 export const RATE_LIMIT_LIVE_EVENTS = ['rate-limit.changed'] as const;
 
-/** Anything that changes what the commission surfaces show: the registry (approval landing,
- *  decision projection, close) or a session's binding to it (entering/leaving the drafting phase,
- *  joining a landed one from a live session). */
-export const COMMISSION_LIVE_EVENTS = ['commission.updated', 'session.commission'] as const;
+/** Board changes: a board's record, directory or bound sessions (`board.updated`), a session's
+ *  binding (`session.board`), and the user's override stylesheet (`board.style-updated`). */
+export const BOARD_LIVE_EVENTS = ['board.updated', 'session.board', 'board.style-updated'] as const;
 
 /**
  * The FIXED union the shared stream subscribes to. Fixed rather than reference-counted over the
@@ -94,7 +93,7 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
   ...SYSTEM_LIVE_EVENTS,
   ...CONFIG_LIVE_EVENTS,
   ...RATE_LIMIT_LIVE_EVENTS,
-  ...COMMISSION_LIVE_EVENTS,
+  ...BOARD_LIVE_EVENTS,
 ];
 
 /**

@@ -2,12 +2,37 @@ import { apiBase, authHeaders, isNativeShell, isMobileShell } from './desktop-co
 import { hasNativeCapability, safeInvoke, type NativeInvokeResult } from './native-bridge';
 
 const DOWNLOAD_PATH = '/api/files/download';
+const BOARD_ASSET_PATH = '/api/boards/asset';
+const BOARD_FILE_SCHEME = 'board:';
 
 // A plain browser download is a no-op inside native WebViews, so shell modes use native commands.
 // The canonical bridge keeps missing/older shell capabilities observable without touching globals.
 
-/** Build the download URL for a UI-relative `workspace/…` path. `disposition=inline` for preview. */
+/** A previewable path for a file in a project's `boards/` tree. Board files live outside the
+ *  workspace, so they are served by the board asset route; every previewer and download builds its
+ *  URL through `fileDownloadUrl`, which is the one place that tells the two apart. */
+export function boardFilePath(projectId: string, projectRelPath: string): string {
+  return `${BOARD_FILE_SCHEME}${encodeURIComponent(projectId)}/${projectRelPath}`;
+}
+
+export function parseBoardFilePath(path: string): { projectId: string; relPath: string } | null {
+  if (!path.startsWith(BOARD_FILE_SCHEME)) return null;
+  const rest = path.slice(BOARD_FILE_SCHEME.length);
+  const slash = rest.indexOf('/');
+  if (slash <= 0) return null;
+  return { projectId: decodeURIComponent(rest.slice(0, slash)), relPath: rest.slice(slash + 1) };
+}
+
+export function boardAssetUrl(projectId: string, relPath: string, disposition: 'inline' | 'attachment' = 'inline'): string {
+  const qs = new URLSearchParams({ projectId, path: relPath, disposition });
+  return `${apiBase()}${BOARD_ASSET_PATH}?${qs.toString()}`;
+}
+
+/** Build the download URL for a UI-relative `workspace/…` path (or a `boardFilePath`).
+ *  `disposition=inline` for preview. */
 export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attachment' = 'attachment'): string {
+  const board = parseBoardFilePath(relPath);
+  if (board) return boardAssetUrl(board.projectId, board.relPath, disposition);
   const qs = new URLSearchParams({ path: relPath, disposition });
   return `${apiBase()}${DOWNLOAD_PATH}?${qs.toString()}`;
 }
