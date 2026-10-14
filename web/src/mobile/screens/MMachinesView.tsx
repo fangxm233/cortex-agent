@@ -69,21 +69,15 @@ function Notice({ text, tone }: { text: string; tone?: 'fail' }) {
   return <div style={{ ...META, color: tone === 'fail' ? MC.fail : MC.muted, marginTop: 6 }}>{text}</div>;
 }
 
-/** Static facts from machines.list — shown whether or not a probe succeeded. */
+/** Connection facts from machines.list — shown whether or not a probe succeeded. */
 function CardStatics({ card, L, uptime }: { card: MMachineCard; L: Vocab; uptime: string }) {
   const parts: string[] = [];
   if (card.connectedFor) parts.push(`${L.mConnectedFor} ${card.connectedFor}`);
   if (uptime) parts.push(`${L.mUptime} ${uptime}`);
-  if (card.sshConfigured) parts.push('ssh ✓');
-  if (card.capabilities.length > 0) parts.push(card.capabilities.join(','));
+  if (parts.length === 0) return null;
   return (
     <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${MC.divider}` }}>
       <div style={{ ...META, color: MC.muted }}>{parts.join(' · ')}</div>
-      {card.cortexPath && (
-        <div style={{ ...META, color: MC.muted, overflowWrap: 'anywhere' }}>
-          {L.mPath} {card.cortexPath}
-        </div>
-      )}
     </div>
   );
 }

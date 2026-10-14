@@ -88,9 +88,7 @@ export const enBase = {
   mProbeFailed: 'Probe failed',
   mNoGpuReported: 'No GPU reported',
   mOfflineNoTelemetry: 'Offline — no live telemetry',
-  mConnectedFor: 'up',
-  mPath: 'path',
-  mSsh: 'ssh',
+  mConnectedFor: 'connected',
   mUptime: 'uptime',
 
   // ── Group J: desktop i18n migration (workbench / tasks / overview / settings) ──

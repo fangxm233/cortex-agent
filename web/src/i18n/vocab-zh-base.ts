@@ -89,8 +89,6 @@ export const zhBase = {
   mNoGpuReported: '未检测到 GPU',
   mOfflineNoTelemetry: '离线 — 无实时数据',
   mConnectedFor: '已连接',
-  mPath: '路径',
-  mSsh: 'ssh',
   mUptime: '运行时长',
 
   // ── Group J: desktop i18n migration ──

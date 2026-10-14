@@ -19,10 +19,6 @@ export interface MMachineCard {
   heartbeat: string;
   /** Connection age ("3h 0m"); '' when the machine has never connected. Expand panel only. */
   connectedFor: string;
-  /** Capabilities advertised on connect; [] when offline. Expand panel only. */
-  capabilities: string[];
-  cortexPath: string | null;
-  sshConfigured: boolean;
 }
 
 export interface MMachinesVm {
@@ -51,9 +47,6 @@ export function buildMMachinesVm(machines: MachineInfo[], lang: TimeLang, now: n
     gpuCount: m.gpuCount,
     heartbeat: fmtConnected(m.lastHeartbeat, now, lang),
     connectedFor: formatSince(m.connectedAt, lang, now),
-    capabilities: m.capabilities,
-    cortexPath: m.cortexPath,
-    sshConfigured: m.sshConfigured,
   }));
   return {
     cards,

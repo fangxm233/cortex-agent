@@ -1,3 +1,4 @@
+import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useLang, useVocab } from '@/i18n';
 import { useMachinesResource, type MachineDetailResource } from './useMachinesResource';
@@ -47,59 +48,85 @@ function barColor(percent: number): string {
   return 'var(--proto-accent)';
 }
 
-function Bar({ percent, width = 46 }: { percent: number; width?: number }) {
+function Bar({ percent }: { percent: number }) {
   return (
-    <span
-      style={{
-        width, height: 5, borderRadius: 3, background: 'var(--proto-line-2)',
-        overflow: 'hidden', flexShrink: 0, display: 'inline-block',
-      }}
-    >
-      <span style={{ display: 'block', width: `${percent}%`, height: '100%', background: barColor(percent) }} />
+    <span style={{ height: 4, borderRadius: 2, background: 'var(--proto-line-4)', overflow: 'hidden', minWidth: 0 }}>
+      <span style={{ display: 'block', width: `${percent}%`, height: '100%', borderRadius: 2, background: barColor(percent) }} />
     </span>
   );
 }
 
-function MeterRow({ meters }: { meters: MachineMeter[] }) {
+const VALUE: CSSProperties = { color: 'var(--proto-ink-3)', textAlign: 'right', whiteSpace: 'nowrap' };
+const FAINT: CSSProperties = { color: 'var(--proto-muted-3)' };
+
+function Section({ children, divided = true }: { children: ReactNode; divided?: boolean }) {
+  return <div style={{ padding: '8px 12px', borderTop: divided ? '1px solid var(--proto-line-soft)' : 0 }}>{children}</div>;
+}
+
+/** Host vitals as aligned rows: label · bar · value. */
+function Vitals({ meters }: { meters: MachineMeter[] }) {
   return (
-    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', padding: '8px 14px' }}>
-      {meters.map((meter) => (
-        <span key={meter.key} style={{ display: 'flex', alignItems: 'center', gap: 5, font: META_FONT, color: 'var(--proto-muted)' }}>
-          <span style={{ color: 'var(--proto-muted)' }}>{meter.label}</span>
-          <Bar percent={meter.percent} width={34} />
-          <span style={{ color: 'var(--proto-muted)' }}>{meter.text}</span>
-        </span>
+    <Section divided={false}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(40px, 1fr) auto', alignItems: 'center',
+        columnGap: 10, rowGap: 5, font: META_FONT, color: 'var(--proto-muted)' }}>
+        {meters.map((meter) => <Fragment key={meter.key}>
+          <span>{meter.label}</span>
+          <Bar percent={meter.percent} />
+          <span style={VALUE}>{meter.text}</span>
+        </Fragment>)}
+      </div>
+    </Section>
+  );
+}
+
+/** One shared model label when every card is the same model; otherwise each row names its own. */
+function sharedGpuModel(gpus: MachineGpuRow[]): string | null {
+  const first = gpus[0]?.name;
+  return first && gpus.every((gpu) => gpu.name === first) ? first : null;
+}
+
+function GpuRows({ gpus, divided }: { gpus: MachineGpuRow[]; divided: boolean }) {
+  const L = useVocab();
+  const model = sharedGpuModel(gpus);
+  return (
+    <Section divided={divided}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6, font: META_FONT }}>
+        <span style={{ fontWeight: 600, color: 'var(--proto-muted)' }}>{L.mGpu}</span>
+        {model && <span title={model} style={{ ...FAINT, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model}</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(28px, 1fr) auto auto auto auto', alignItems: 'center',
+        columnGap: 9, rowGap: 3, font: META_FONT, color: 'var(--proto-muted)' }}>
+        {gpus.map((gpu) => <Fragment key={gpu.index}>
+          <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{gpu.index}</span>
+          <Bar percent={gpu.utilPercent} />
+          <span style={VALUE}>{gpu.utilText}</span>
+          <span style={VALUE}>{gpu.memText}</span>
+          <span style={{ textAlign: 'right' }}>{gpu.tempText}</span>
+          <span style={{ textAlign: 'right' }}>{gpu.powerText}</span>
+          <GpuSubline gpu={gpu} showName={!model} />
+        </Fragment>)}
+      </div>
+    </Section>
+  );
+}
+
+/** Model (mixed hosts only) and the heaviest processes, under the bar column. */
+function GpuSubline({ gpu, showName }: { gpu: MachineGpuRow; showName: boolean }) {
+  if (!showName && gpu.processes.length === 0) return null;
+  return (
+    <div style={{ gridColumn: '2 / -1', marginBottom: 4, fontSize: 10.5, lineHeight: 1.5, ...FAINT, overflowWrap: 'anywhere' }}>
+      {showName && <div title={gpu.name} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gpu.name}</div>}
+      {gpu.processes.map((proc) => (
+        <div key={proc.pid}>
+          <span style={{ color: 'var(--proto-muted)' }}>{proc.name}</span> {proc.memText} · {proc.pid}
+        </div>
       ))}
+      {gpu.hiddenProcessCount > 0 && <div>+{gpu.hiddenProcessCount}</div>}
     </div>
   );
 }
 
-function GpuRow({ gpu }: { gpu: MachineGpuRow }) {
-  return <div style={{ padding: '6px 14px', borderTop: '1px solid var(--proto-line-soft)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', font: META_FONT, color: 'var(--proto-muted)' }}>
-        <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{gpu.index}</span>
-        <span title={gpu.name} style={{ color: 'var(--proto-muted)', flex: '1 1 80px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {gpu.name}
-        </span>
-        <Bar percent={gpu.utilPercent} width={34} />
-        <span style={{ width: 30, textAlign: 'right' }}>{gpu.utilText}</span>
-        <span style={{ color: 'var(--proto-muted)' }}>{gpu.memText}</span>
-        <span style={{ color: 'var(--proto-muted)' }}>{gpu.tempText}</span>
-      </div>
-      {gpu.processes.map((proc) => (
-        <div key={proc.pid} style={{ font: META_FONT, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 14, overflowWrap: 'anywhere' }}>
-          {proc.pid} {proc.name} · {proc.memText}
-        </div>
-      ))}
-      {gpu.hiddenProcessCount > 0 && (
-        <div style={{ font: META_FONT, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 14 }}>
-          +{gpu.hiddenProcessCount}
-        </div>
-      )}
-    </div>;
-}
-
-/** Static facts from machines.list — rendered even when the machine is offline or the probe fails. */
+/** Connection facts from machines.list — rendered even when the machine is offline or the probe fails. */
 function MetaFooter({ machine, uptime }: { machine: MachineInfo; uptime: string }) {
   const L = useVocab();
   const lang = useLang();
@@ -107,16 +134,11 @@ function MetaFooter({ machine, uptime }: { machine: MachineInfo; uptime: string 
   if (machine.connectedAt) parts.push(`${L.mConnectedFor} ${formatSince(machine.connectedAt, lang)}`);
   if (machine.lastHeartbeat) parts.push(`${L.mHeartbeat} ${formatSince(machine.lastHeartbeat, lang)}`);
   if (uptime) parts.push(`${L.mUptime} ${uptime}`);
-  if (machine.sshConfigured) parts.push(`${L.mSsh} ✓`);
-  if (machine.capabilities.length > 0) parts.push(machine.capabilities.join(','));
+  if (parts.length === 0) return null;
   return (
-    <div style={{ padding: '7px 14px 9px', borderTop: '1px solid var(--proto-line-soft)' }}>
-      <div style={{ font: META_FONT, color: 'var(--proto-muted)', lineHeight: 1.7, overflowWrap: 'anywhere' }}>{parts.join(' · ')}</div>
-      {machine.cortexPath && (
-        <div title={machine.cortexPath} style={{ font: META_FONT, color: 'var(--proto-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {L.mPath} {machine.cortexPath}
-        </div>
-      )}
+    <div style={{ padding: '6px 12px 8px', borderTop: '1px solid var(--proto-line-soft)',
+      font: `400 10.5px ${MONO}`, ...FAINT, lineHeight: 1.6, overflowWrap: 'anywhere' }}>
+      {parts.join(' · ')}
     </div>
   );
 }
@@ -125,7 +147,7 @@ function Notice({ text, tone }: { text: string; tone: 'muted' | 'danger' }) {
   return (
     <div
       style={{
-        padding: '8px 14px',
+        padding: '8px 12px',
         font: META_FONT,
         color: tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-muted)',
       }}
@@ -147,8 +169,8 @@ function MachineDetailBody({ detail }: { detail: MachineDetailResource }) {
   const vm = detail.facts;
   return <>
     {vm.probeError && <Notice text={`${L.mProbeFailed}: ${vm.probeError}`} tone="danger" />}
-    {vm.meters.length > 0 && <MeterRow meters={vm.meters} />}
-    {vm.gpus.map((gpu) => <GpuRow key={gpu.index} gpu={gpu} />)}
+    {vm.meters.length > 0 && <Vitals meters={vm.meters} />}
+    {vm.gpus.length > 0 && <GpuRows gpus={vm.gpus} divided={vm.meters.length > 0} />}
     {!vm.probeError && vm.gpus.length === 0 && <Notice text={L.mNoGpuReported} tone="muted" />}
     <MetaFooter machine={detail.machine} uptime={detail.uptime} />
   </>;
