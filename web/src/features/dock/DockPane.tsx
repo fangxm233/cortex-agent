@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { BoardDockBody } from '@/features/board/BoardDockBody';
-import { splitFromDrag } from './dock-split';
+import { DockDivider } from './DockDivider';
 import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
 import { DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
@@ -38,47 +38,13 @@ export function DockPane(): JSX.Element | null {
 
   bodyOrder.current = syncBodyOrder(bodyOrder.current, state?.tabs ?? []);
 
-  // Divider drag: the resizable region is the chat pane + this pane (the rails hold still meanwhile),
-  // measured from this pane and its preceding sibling at drag start.
-  const onResizeStart = (e: React.MouseEvent): void => {
-    e.preventDefault();
-    const pane = paneRef.current;
-    const chat = pane?.previousElementSibling as HTMLElement | null;
-    if (!pane || !chat) return;
-    const paneRect = pane.getBoundingClientRect();
-    const chatRect = chat.getBoundingClientRect();
-    const regionLeft = chatRect.left;
-    const regionWidth = chatRect.width + paneRect.width;
-    let last = split;
-    const onMove = (ev: MouseEvent): void => {
-      last = splitFromDrag(regionLeft, regionWidth, ev.clientX);
-      setSplit(last);
-    };
-    const onUp = (): void => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      document.body.style.userSelect = '';
-      setSplit(last, true);
-    };
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
   // Closing the dock hides it but keeps its tabs alive, so reopening resumes where it left off.
   // The pane therefore stays mounted while it holds tabs, and only disappears once it holds none.
   if (!open && state === null) return null;
 
   return (
     <div ref={paneRef} data-pane="dock" style={{ ...PANE_STYLE, flexGrow: split, display: open ? 'flex' : 'none' }}>
-      {/* Divider — drag to re-balance chat vs dock. */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        title={L.dockResize}
-        onMouseDown={onResizeStart}
-        style={{ position: 'absolute', left: -3, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 3 }}
-      />
+      <DockDivider split={split} label={L.dockResize} paneRef={paneRef} onCommit={(value) => setSplit(value, true)} />
 
       <DockTabStrip
         state={state}
