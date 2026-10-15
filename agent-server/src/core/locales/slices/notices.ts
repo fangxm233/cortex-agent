@@ -4,7 +4,7 @@
 export const noticesEn = {
   'notice.admin.autoRegistered': 'This DM has been auto-registered as the Cortex admin channel. `${setting}=${channel}` has been written to `settings.json`. System notifications (startup, rate-limit, disk alerts) will be sent here.',
   'notice.cancel.nothingRunning': 'Nothing running to cancel.',
-  'notice.profile.unknown': 'Unknown profile: ${name}',
+  'notice.selection.unknown': 'Unknown model selection: ${name}',
   'notice.cost.title': 'Cost Report',
   'notice.cost.titleProject': 'Cost Report (project: ${project})',
   'notice.cost.scopeProject': 'per-project limits',
@@ -84,7 +84,7 @@ export const noticesEn = {
 export const noticesZh: Record<keyof typeof noticesEn, string> = {
   'notice.admin.autoRegistered': '此私聊已自动注册为 Cortex 管理频道，`${setting}=${channel}` 已写入 `settings.json`。系统通知（启动、限流、磁盘告警）将发送到这里。',
   'notice.cancel.nothingRunning': '当前没有正在运行的任务可取消。',
-  'notice.profile.unknown': '未知的配置：${name}',
+  'notice.selection.unknown': '未知的模型选择：${name}',
   'notice.cost.title': '费用报告',
   'notice.cost.titleProject': '费用报告（项目：${project}）',
   'notice.cost.scopeProject': '项目独立限额',
