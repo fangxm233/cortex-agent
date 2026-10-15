@@ -20,7 +20,7 @@ export const paletteZh: Record<keyof typeof paletteEn, string> = {
 export const workbenchEn = {
   wbOpenWebPage: 'Open a web page in the dock',
   wbSessionMenu: 'Session menu',
-  wbNoSession: 'No session',
+  wbSessionsFailed: 'Failed to load conversations',
   wbAttachQueued: 'queued',
   wbAttachRetry: 'retry',
   wbRunCaption: 'RUN',
@@ -31,7 +31,7 @@ export const workbenchEn = {
 export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
   wbOpenWebPage: '在停靠面板中打开网页',
   wbSessionMenu: '会话菜单',
-  wbNoSession: '无会话',
+  wbSessionsFailed: '无法加载会话',
   wbAttachQueued: '排队中',
   wbAttachRetry: '重试',
   wbRunCaption: '运行',
