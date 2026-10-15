@@ -141,7 +141,10 @@ function useScheduleResources(form: ScheduleForm | null) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const config = useQuery(trpc.config.get.queryOptions({}));
-  const catalog = useQuery(trpc.models.catalog.queryOptions({}, { enabled: form !== null }));
+  const catalog = useQuery(trpc.models.catalog.queryOptions({}, {
+    enabled: form !== null,
+    refetchInterval: (query) => query.state.data?.piPending ? 2_500 : false,
+  }));
   const add = useMutation(trpc.schedules.add.mutationOptions({}));
   const update = useMutation(trpc.schedules.update.mutationOptions({}));
   return {

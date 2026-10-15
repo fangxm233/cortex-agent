@@ -137,6 +137,42 @@ describe('useScheduleEditorController', () => {
     expect(controller?.form).toBeNull();
   });
 
+  it('never replaces a persisted selection with the configured default or model memory', async () => {
+    const stored = { ...selection, thinking: null, mode: 'plan' };
+    const { queryClient } = await mount({ mode: 'edit', schedule: schedule({ selection: stored }) });
+    await act(async () => {
+      queryClient.setQueryData(['config.get'], { models: {
+        default: { ...selection, model: 'other' }, favorites: [],
+        memory: { '["claude",null,"opus"]': { thinking: 'xhigh', mode: 'api' } },
+      } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(controller?.form?.selection).toEqual(stored);
+    expect(controller?.modelOptions).toEqual([expect.objectContaining({ selection: stored })]);
+    await act(async () => { expect(await controller?.submit()).toBe(true); });
+    expect(adapter.update).toHaveBeenCalledWith(expect.objectContaining({ selection: stored }));
+  });
+
+  it('keeps legacy null selections untouched when editing', async () => {
+    await mount({ mode: 'edit', schedule: schedule({ selection: null }) });
+    expect(controller?.form?.selection).toBeNull();
+    await act(async () => { expect(await controller?.submit()).toBe(true); });
+    expect(adapter.update.mock.calls[0]?.[0]).not.toHaveProperty('selection');
+  });
+
+  it('does not overwrite a picked model when configuration refreshes', async () => {
+    const { queryClient } = await mount({ mode: 'create', projectId: 'nimbus' });
+    const picked = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: null, mode: 'deepseek' };
+    act(() => controller?.onChange({ selection: picked, message: 'new task' }));
+    await act(async () => {
+      queryClient.setQueryData(['config.get'], { models: { ...config.models, default: { ...selection, model: 'new-default' } } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(controller?.form?.selection).toEqual(picked);
+    await act(async () => { expect(await controller?.submit()).toBe(true); });
+    expect(adapter.add).toHaveBeenCalledWith(expect.objectContaining({ selection: picked }));
+  });
+
   it('does not let an old success notify or close a newly opened editor', async () => {
     const gate = deferred<ScheduleInfo>();
     adapter.add.mockReturnValue(gate.promise);

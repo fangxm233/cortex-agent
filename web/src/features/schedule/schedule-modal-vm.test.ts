@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import type { ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
+import { modelKey } from '@/lib/model-selection';
 import {
   defaultScheduleForm,
   buildScheduleAddArgs,
@@ -16,12 +18,49 @@ function form(overrides: Partial<ScheduleForm> = {}): ScheduleForm {
 
 const selection = { backend: 'claude' as const, provider: null, model: 'claude-haiku', thinking: 'high', mode: 'api' };
 
- describe('scheduleModelOptions', () => {
+const piSelection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const catalog: ModelCatalogSnapshot = {
+  routes: [
+    { backend: 'claude', provider: null, endpoint: 'anthropic', modes: ['plan', 'api'], models: ['claude-haiku', 'flash'], source: 'builtin' },
+    { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', modes: ['deepseek'], models: ['flash'], source: 'pi', modelThinking: { flash: ['high', 'xhigh'] } },
+  ],
+  thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'low', 'high', 'xhigh'] }, piPending: false,
+};
+
+function modelConfig(): Pick<ConfigSnapshot, 'models'> {
+  return { models: { default: selection, favorites: [piSelection, selection],
+    memory: { [modelKey(piSelection)]: { thinking: 'xhigh', mode: 'deepseek' },
+      [modelKey(selection)]: { thinking: 'low', mode: 'plan' } } } };
+}
+
+describe('scheduleModelOptions', () => {
   it('retains a full current selection without config or catalog', () => {
     expect(scheduleModelOptions(undefined, undefined, selection)).toEqual([
       expect.objectContaining({ selection, favorite: false }),
     ]);
     expect(scheduleModelOptions(undefined, undefined, null)).toEqual([]);
+  });
+  it('merges favorites then catalog, retaining identity and full remembered choices', () => {
+    const options = scheduleModelOptions(modelConfig(), catalog, selection);
+    expect(options.map((option) => option.value)).toEqual([
+      modelKey(piSelection), modelKey(selection), modelKey({ ...selection, model: 'flash' }),
+    ]);
+    expect(options.map((option) => option.favorite)).toEqual([true, true, false]);
+    expect(options.map((option) => option.selection)).toEqual([
+      piSelection, selection, { ...selection, model: 'flash', thinking: null, mode: 'plan' },
+    ]);
+    expect(options[0].label).toContain('deepseek');
+    expect(options[2].label).toContain('claude');
+  });
+  it('renders favorites and their remembered settings before catalog loads', () => {
+    const options = scheduleModelOptions(modelConfig(), undefined, null);
+    expect(options.map((option) => option.selection)).toEqual([
+      piSelection, { ...selection, thinking: 'low', mode: 'plan' },
+    ]);
+  });
+  it('uses model-specific thinking levels and tolerates an older catalog without ladders', () => {
+    expect(scheduleThinkingOptions(catalog, piSelection)).toEqual(['', 'high', 'xhigh']);
+    expect(scheduleThinkingOptions({ routes: [], piPending: false }, selection)).toEqual(['', 'high']);
   });
   it('keeps default thinking and the current level available before catalog loads', () => {
     expect(scheduleThinkingOptions(undefined, selection)).toEqual(['', 'high']);

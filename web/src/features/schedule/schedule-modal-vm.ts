@@ -30,7 +30,7 @@ export interface ScheduleModelOption {
 
 /** Favorites render without the catalog; deduplicate by backend/provider/model, not model name. */
 export function scheduleModelOptions(
-  config: ConfigSnapshot | undefined,
+  config: Pick<ConfigSnapshot, 'models'> | undefined,
   catalog: ModelCatalogSnapshot | undefined,
   current: EngineSelection | null,
 ): ScheduleModelOption[] {
@@ -50,8 +50,11 @@ export function scheduleModelOptions(
 export function scheduleThinkingOptions(
   catalog: ModelCatalogSnapshot | undefined, selection: EngineSelection | null,
 ): string[] {
-  const levels = selection ? catalog?.thinkingLevels[selection.backend] ?? [] : [];
-  return [...new Set(['', ...levels, selection?.thinking ?? ''])];
+  if (!selection) return [''];
+  const route = catalog?.routes.find((entry) =>
+    entry.backend === selection.backend && entry.provider === selection.provider);
+  const levels = route?.modelThinking?.[selection.model] ?? catalog?.thinkingLevels?.[selection.backend] ?? [];
+  return [...new Set(['', ...levels, selection.thinking ?? ''])];
 }
 
 export function scheduleModelPatch(options: ScheduleModelOption[], value: string): Partial<ScheduleForm> {
