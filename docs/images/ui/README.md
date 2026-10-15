@@ -15,7 +15,7 @@ DPR 3 (1170×2532). All images are palette-compressed PNGs.
 
 | File | What it shows | Suggested caption |
 |------|---------------|-------------------|
-| `hero-light.png` | Workbench, light theme. Left: the project rail with sessions, two worker sessions under the lead, and schedules. Centre: the lead session with a decision card, tool-call chips, the result plot sent via `send_file`, and a results table. Right: the study's board in the dock. | Cortex runs a research project end to end: sessions, workers, results and a live board in one window. |
+| `hero-light.png` | Workbench, light theme. Left: the project rail with sessions, two worker sessions under the lead, and schedules. Centre: the lead session with a worker report card, tool-call chips, a decision card and the result plot sent via `send_file`. Right: the study's board in the dock, with its results table. | Cortex runs a research project end to end: sessions, workers, results and a live board in one window. |
 | `hero-dark.png` | The same view in the dark theme. | Same view, dark theme. |
 | `board.png` | A board in the dock. Live strip with the bound sessions and 7 decisions; head card with state chip and status line; stage cards (done / scheduled); a results table; the merged plot; and the evidence links. | A board keeps a long task readable at a glance: stages, results and decisions, updated by the agents themselves. |
 | `team.png` | Team mode. The lead session with the "2 workers" capsule open, a worker's approved-plan card, and two expanded worker report cards with "Open worker session" links. | The lead splits work across workers, approves their plans and merges their reports. |
