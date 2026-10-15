@@ -59,7 +59,7 @@ export function scheduleThinkingOptions(
 
 export function scheduleModelPatch(options: ScheduleModelOption[], value: string): Partial<ScheduleForm> {
   const option = options.find((candidate) => candidate.value === value);
-  return option ? { selection: option.selection } : {};
+  return option?.selection.mode ? { selection: option.selection } : {};
 }
 
 export function scheduleThinkingPatch(form: ScheduleForm, value: string): Partial<ScheduleForm> {

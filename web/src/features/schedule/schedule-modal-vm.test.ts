@@ -8,6 +8,7 @@ import {
   editableScheduleFields,
   computeNextRun,
   scheduleModelOptions,
+  scheduleModelPatch,
   scheduleThinkingOptions,
   type ScheduleForm,
 } from './schedule-modal-vm';
@@ -237,5 +238,15 @@ describe('buildScheduleUpdateArgs', () => {
   it('once → no timing patch (runAt is not editable from the web)', () => {
     const f = form({ type: 'once', selection: null, projectId: null, message: 'm' });
     expect(buildScheduleUpdateArgs('sch4', f)).toEqual({ scheduleId: 'sch4', message: 'm' });
+  });
+});
+
+describe('scheduleModelPatch', () => {
+  it('waits for the catalog route when a favorite has no remembered mode', () => {
+    const config = { models: { default: null, favorites: [selection], memory: {} } };
+    const pending = scheduleModelOptions(config, undefined, null);
+    expect(scheduleModelPatch(pending, modelKey(selection))).toEqual({});
+    const ready = scheduleModelOptions(config, catalog, null);
+    expect(scheduleModelPatch(ready, modelKey(selection))).toEqual({ selection: { ...selection, thinking: null, mode: 'plan' } });
   });
 });

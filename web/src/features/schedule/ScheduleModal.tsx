@@ -85,7 +85,7 @@ function ModelFields({ form, editableFields, onChange, modelOptions, thinkingOpt
       <div style={CELL_BOX}><Select data-schedule-select="model" density="bare" aria-label={L.scModel}
         value={form.selection ? modelKey(form.selection) : ''} placeholder={L.scChooseModel}
         disabled={!editableFields.selection} options={modelOptions.map((option) => ({
-          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`,
+          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !option.selection.mode,
         }))} onValueChange={(value) => onChange(scheduleModelPatch(modelOptions, value))}
         style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")} /></div>
     </div>

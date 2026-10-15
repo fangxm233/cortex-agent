@@ -171,7 +171,7 @@ function ModelField({ copy, form, editableFields, modelOptions, onChange }: Fiel
         value={form.selection ? modelKey(form.selection) : ''} disabled={!editableFields.selection}
         onChange={(event) => onChange(scheduleModelPatch(modelOptions, event.target.value))}>
         <option value="" disabled>{copy.scChooseModel}</option>
-        {modelOptions.map((option) => <option key={option.value} value={option.value}>
+        {modelOptions.map((option) => <option key={option.value} value={option.value} disabled={!option.selection.mode}>
           {option.favorite ? '★ ' : ''}{option.label}
         </option>)}
       </select>
