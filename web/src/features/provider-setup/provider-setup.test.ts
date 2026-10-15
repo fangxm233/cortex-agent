@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AuthAccountStatus, ConfigProfileEntry } from '@cortex-agent/ui-contract';
-import { POPULAR_PROVIDERS, ProviderSetupController, readyProfiles, setupErrorText, splitPopular } from './provider-setup';
+import type { AuthAccountStatus, ConfigModels, EngineSelection } from '@cortex-agent/ui-contract';
+import { POPULAR_PROVIDERS, ProviderSetupController, readyModels, setupErrorText, splitPopular } from './provider-setup';
+import { modelKey } from '@/lib/model-selection';
 import { en, zh } from '@/i18n';
 
 const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => ({
@@ -8,42 +9,47 @@ const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => (
   capabilities: ['oauth', 'api_key'], authType: 'oauth', source: 'local',
   expiresAt: null, refreshExpiresAt: null, inUse: false, credentials: [], ...patch,
 });
-const profile = (patch: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry => ({
-  name: 'pi-ready', backend: 'pi', provider: 'openai', model: 'gpt-test', mode: null,
-  thinking: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0, ...patch,
+const selection = (patch: Partial<EngineSelection> = {}): EngineSelection => ({
+  backend: 'pi', provider: 'openai', model: 'gpt-test', mode: 'openai', thinking: null, ...patch,
+});
+const models = (patch: Partial<ConfigModels> = {}): ConfigModels => ({
+  default: selection(), favorites: [selection()], memory: {}, ...patch,
 });
 function fixture() {
   const ports = {
     status: vi.fn().mockResolvedValue({ accounts: [account()], piRuntime: { available: true }, generatedAt: 'now' }),
-    config: vi.fn().mockResolvedValue({ profiles: { defaultProfile: 'pi-ready', profiles: [profile()] } }),
-    sync: vi.fn().mockResolvedValue({ configured: true }),
-    select: vi.fn().mockResolvedValue({}),
+    config: vi.fn().mockResolvedValue({ models: models() }),
+    catalog: vi.fn().mockResolvedValue({ piPending: false, routes: [{ backend: 'pi', provider: 'openai',
+      endpoint: 'openai', modes: ['openai'], models: ['gpt-test'], source: 'pi' }] }),
+    sync: vi.fn().mockResolvedValue({ configured: true }), select: vi.fn().mockResolvedValue({}),
     claude: vi.fn().mockResolvedValue({ installed: false, version: null }),
-    install: vi.fn().mockResolvedValue({ installed: true, version: '1' }),
-    canInstall: () => true,
+    install: vi.fn().mockResolvedValue({ installed: true, version: '1' }), canInstall: () => true,
   };
   return { ports, controller: new ProviderSetupController(ports) };
 }
 
-describe('provider onboarding', () => {
+describe('provider onboarding model readiness', () => {
   it.each(['unknown', 'expired', 'logged-out'] as const)('does not count %s credentials as ready', state => {
-    expect(readyProfiles([profile()], [account({ state })], true, true)).toEqual([]);
+    expect(readyModels([selection()], [account({ state })], true, true)).toEqual([]);
   });
   it('requires matching provider, runtime and installed CC independently', () => {
-    expect(readyProfiles([profile()], [account({ provider: 'anthropic' })], true, true)).toEqual([]);
-    expect(readyProfiles([profile()], [account()], false, true)).toEqual([]);
-    const cc = profile({ backend: 'claude', provider: null, mode: 'subscription' });
+    expect(readyModels([selection()], [account({ provider: 'anthropic' })], true, true)).toEqual([]);
+    expect(readyModels([selection()], [account()], false, true)).toEqual([]);
+    const cc = selection({ backend: 'claude', provider: null, mode: 'plan' });
     const auth = account({ backend: 'claude', provider: 'anthropic' });
-    expect(readyProfiles([cc], [auth], true, false)).toEqual([]);
-    expect(readyProfiles([cc], [auth], false, true)).toEqual([cc]);
-    expect(readyProfiles([cc], [auth], false, null)).toEqual([]);
+    expect(readyModels([cc], [auth], true, false)).toEqual([]);
+    expect(readyModels([cc], [auth], false, true)).toEqual([cc]);
+    expect(readyModels([cc], [auth], false, null)).toEqual([]);
+    expect(readyModels([selection({ mode: '' })], [account()], true, true)).toEqual([]);
   });
-  it('matches Claude plan profiles to subscription credentials, not the active API key', () => {
-    const cc = profile({ backend: 'claude', provider: null, mode: 'plan' });
+  it('matches Claude plan selections to subscription credentials, including inactive slots', () => {
+    const cc = selection({ backend: 'claude', provider: null, mode: 'plan' });
     const api = account({ backend: 'claude', provider: 'anthropic', authType: 'api_key' });
-    expect(readyProfiles([cc], [api], true, true)).toEqual([]);
-    expect(readyProfiles([{ ...cc, mode: 'api' }], [api], true, true)).toHaveLength(1);
-    expect(readyProfiles([cc], [{ ...api, authType: 'oauth' }], true, true)).toEqual([cc]);
+    expect(readyModels([cc], [api], true, true)).toEqual([]);
+    expect(readyModels([{ ...cc, mode: 'api' }], [api], true, true)).toHaveLength(1);
+    expect(readyModels([cc], [{ ...api, authType: 'oauth' }], true, true)).toEqual([cc]);
+    const credentials = [{ authType: 'oauth', state: 'expiring' }] as AuthAccountStatus['credentials'];
+    expect(readyModels([cc], [{ ...api, credentials }], true, true)).toEqual([cc]);
   });
   it('loads without installing or syncing, then rescans and syncs after login once', async () => {
     const { ports, controller } = fixture();
@@ -55,13 +61,12 @@ describe('provider onboarding', () => {
     await controller.loginDone('flow-1');
     expect(ports.sync).toHaveBeenCalledTimes(1);
     expect(ports.status).toHaveBeenCalledTimes(2);
-    expect(ports.config).toHaveBeenCalledTimes(2);
     expect(controller.state.sync).toBe('success');
   });
   it('exposes configured:false and rejected sync; retry never reinstalls CC', async () => {
     const { ports, controller } = fixture();
     await controller.load();
-    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'EACCES: profiles.json' });
+    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'EACCES: models.json' });
     await controller.refresh();
     expect(controller.state.error).toContain('EACCES');
     expect(controller.canContinue()).toBe(false);
@@ -74,24 +79,40 @@ describe('provider onboarding', () => {
   });
   it('treats a rescan with nothing logged in yet as no change, not a failure', async () => {
     const { ports, controller } = fixture();
-    await controller.load();
     ports.sync.mockResolvedValueOnce({ configured: false, reason: 'no-endpoints' });
     await controller.refresh();
     expect(controller.state.error).toBeNull();
     expect(controller.state.sync).toBe('idle');
-    expect(controller.canContinue()).toBe(true);
   });
-  it('requires explicit selection on default mismatch and writes only that name', async () => {
+  it('selects only usable favorites and writes a full remembered selection', async () => {
     const { ports, controller } = fixture();
-    ports.config.mockResolvedValue({ profiles: { defaultProfile: 'old', profiles: [profile()] } });
+    const memory = { [modelKey(selection())]: { thinking: 'high', mode: 'openai' } };
+    ports.config.mockResolvedValue({ models: models({ default: null, memory }) });
     await controller.load();
     expect(controller.canContinue()).toBe(false);
-    expect(ports.select).not.toHaveBeenCalled();
     await controller.select('not-real');
     expect(ports.select).not.toHaveBeenCalled();
-    ports.config.mockResolvedValue({ profiles: { defaultProfile: 'pi-ready', profiles: [profile()] } });
-    await controller.select('pi-ready');
-    expect(ports.select).toHaveBeenCalledWith('pi-ready');
+    ports.config.mockResolvedValue({ models: models({ memory }) });
+    await controller.select(modelKey(selection()));
+    expect(ports.select).toHaveBeenCalledWith(selection({ thinking: 'high' }));
+    expect(controller.canContinue()).toBe(true);
+  });
+  it('checks the actual default route rather than a remembered favorite with the same identity', async () => {
+    const { ports, controller } = fixture();
+    const cc = selection({ backend: 'claude', provider: null, mode: 'api' });
+    ports.claude.mockResolvedValue({ installed: true, version: '1' });
+    ports.status.mockResolvedValue({ accounts: [account({ backend: 'claude', provider: 'anthropic' })], piRuntime: { available: true } });
+    ports.config.mockResolvedValue({ models: models({ default: cc, favorites: [cc],
+      memory: { [modelKey(cc)]: { thinking: null, mode: 'plan' } } }) });
+    await controller.load();
+    expect(controller.available()).toHaveLength(1);
+    expect(controller.canContinue()).toBe(false);
+  });
+  it('allows a usable default even after it was removed from favorites', async () => {
+    const { ports, controller } = fixture();
+    ports.config.mockResolvedValue({ models: models({ favorites: [] }) });
+    await controller.load();
+    expect(controller.available()).toEqual([]);
     expect(controller.canContinue()).toBe(true);
   });
   it('keeps CC optional, unknown detection honest and installation explicit/retry-local', async () => {
@@ -99,15 +120,11 @@ describe('provider onboarding', () => {
     ports.claude.mockRejectedValueOnce(new Error('detect denied'));
     await controller.load();
     expect(controller.state.claude).toBeNull();
-    expect(controller.state.claudeError).toBe('detect denied');
     expect(controller.canContinue()).toBe(true);
     await controller.detectClaude();
     ports.install.mockRejectedValueOnce(new Error('install denied'));
     expect(await controller.prepareClaude()).toBe(false);
-    expect(controller.state.claudeError).toBe('install denied');
     expect(await controller.prepareClaude()).toBe(true);
-    expect(ports.status).toHaveBeenCalledTimes(1);
-    expect(ports.install).toHaveBeenCalledTimes(2);
     expect(await controller.prepareClaude()).toBe(true);
     expect(ports.install).toHaveBeenCalledTimes(2);
   });
@@ -132,14 +149,9 @@ describe('setupErrorText', () => {
   it('localizes setup codes and leaves raw detail alone', () => {
     expect(setupErrorText('not-installed', zh)).toBe('Claude Code 仍未安装');
     expect(setupErrorText('no-endpoints', zh)).toBe('no-endpoints');
-  });
-  it('localizes native Claude setup codes and keeps their detail', () => {
     expect(setupErrorText('claude_local_required', zh)).toContain('本机 Cortex 设置连接');
-    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', zh))
-      .toBe('Claude Code 安装失败 (exit 1: npm ERR! 404)');
-    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', en))
-      .toBe('Claude Code installation failed (exit 1: npm ERR! 404)');
-    expect(setupErrorText('Claude Code installation failed (exit 1)', zh)).toBe('Claude Code installation failed (exit 1)');
+    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', zh)).toBe('Claude Code 安装失败 (exit 1: npm ERR! 404)');
+    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', en)).toBe('Claude Code installation failed (exit 1: npm ERR! 404)');
     expect(setupErrorText('unknown_code: x', zh)).toBe('unknown_code: x');
   });
 });

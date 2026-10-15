@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import type { LoginFlowState } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
+import { modelKey, modelLabel } from '@/lib/model-selection';
 import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowModal';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { buildAccountsVm, type AvailableProviderVm, type ClaudeAccountVm } from '@/features/settings/vm/accounts-vm';
@@ -73,21 +74,25 @@ function ClaudeSection({ controller, login }: {
     </div>
   </section>;
 }
-function ProfileSection({ controller }: { controller: ProviderSetupController }) {
+function ModelSection({ controller }: { controller: ProviderSetupController }) {
   const L = useVocab();
   const available = controller.available();
-  const current = controller.state.profiles?.defaultProfile ?? '';
-  const matching = available.some(p => p.name === current);
+  const current = controller.state.models?.default;
+  const key = current ? modelKey(current) : '';
+  const matching = controller.canContinue();
+  const listed = available.some(ref => modelKey(ref) === key);
   return <section className="setup-card">
-    <div className="setup-card-header"><h2><label htmlFor="setup-profile">{L.setupProfile}</label></h2>
-      {current ? <span className="setup-pill">{current}</span> : null}</div>
-    <div className="setup-card-body setup-profile-body">
-      <select id="setup-profile" className="setup-input" disabled={controller.state.busy || !available.length} value={matching ? current : ''}
+    <div className="setup-card-header"><h2><label htmlFor="setup-model">{L.setupModel}</label></h2>
+      {current ? <span className="setup-pill">{modelLabel(current)}</span> : null}</div>
+    <div className="setup-card-body setup-model-body">
+      <select id="setup-model" className="setup-input" disabled={controller.state.busy || !available.length} value={listed && matching ? key : ''}
         onChange={event => void controller.select(event.target.value)}>
-        <option value="" disabled>{L.setupChooseProfile}</option>
-        {available.map(p => <option key={p.name} value={p.name}>{p.name} · {p.model} · {p.backend ?? 'claude'}</option>)}
+        <option value="" disabled>{L.setupChooseModel}</option>
+        {available.map(ref => <option key={modelKey(ref)} value={modelKey(ref)}>
+          {modelLabel(ref)} · {ref.backend}{ref.provider ? ` · ${ref.provider}` : ''}
+        </option>)}
       </select>
-      {!matching ? <p className="setup-hint">{available.length ? L.setupMismatch : L.setupNoProfiles}</p> : null}
+      {!matching ? <p className="setup-hint">{available.length ? L.setupMismatch : L.setupNoModels}</p> : null}
     </div>
   </section>;
 }
@@ -164,7 +169,7 @@ export function ProviderSetupView({ controller, usageSharing, ...exit }: {
     <ClaudeSection controller={controller} login={setTarget} />
     <PiSection controller={controller} login={setTarget} />
     <SetupFeedback controller={controller} />
-    <ProfileSection controller={controller} />
+    <ModelSection controller={controller} />
     {usageSharing ? <UsageSharingCard controller={usageSharing} variant="setup" /> : null}
     <SetupFooter controller={controller} {...exit} />
   </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onDone={loginDone} /></>;
@@ -201,7 +206,8 @@ export function ProviderSetupPage() {
   const controller = useMemo(() => new ProviderSetupController({
     status: () => client.auth.status.query({}), config: () => client.config.get.query({}),
     sync: () => client.auth.syncGateway.mutate({}),
-    select: name => client.config.set.mutate({ section: 'profiles', value: { defaultProfile: name } }),
+    catalog: () => client.models.catalog.query({}),
+    select: selection => client.models.setDefault.mutate({ selection }),
     claude: () => setupClaude(false), install: () => setupClaude(true), canInstall: canSetupClaude,
   }), [client]);
   useEffect(() => { void controller.load(); }, [controller]);
