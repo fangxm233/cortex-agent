@@ -22,7 +22,7 @@ import { MDaemonScreen } from './screens/MDaemonScreen';
 import { MUsageScreen } from './screens/MUsageScreen';
 import { MAppearanceScreen } from './screens/MAppearanceScreen';
 import { MPlatformScreen } from './screens/MPlatformScreen';
-import { MProfilesScreen } from './screens/MProfilesScreen';
+import { MModelsScreen } from './screens/MModelsScreen';
 import { MBudgetScreen } from './screens/MBudgetScreen';
 import { MMcpScreen } from './screens/MMcpScreen';
 import { MAdvancedScreen, MNotificationsScreen } from './screens/MRuntimeSettingsScreen';
@@ -43,7 +43,7 @@ const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
   settingsAccounts: <MAccountsScreen />,
   settingsAppearance: <MAppearanceScreen />,
   settingsPlatform: <MPlatformScreen />,
-  settingsProfiles: <MProfilesScreen />,
+  settingsModels: <MModelsScreen />,
   settingsBudget: <MBudgetScreen />,
   settingsMcp: <MMcpScreen />,
   settingsNotifications: <MNotificationsScreen />,

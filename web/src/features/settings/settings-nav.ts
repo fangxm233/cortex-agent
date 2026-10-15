@@ -4,7 +4,7 @@ export type SettingsSectionKey =
   | 'appearance'
   | 'platform'
   | 'accounts'
-  | 'profiles'
+  | 'models'
   | 'budget'
   | 'usage'
   | 'machines'
@@ -35,7 +35,7 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   appearance: 'stNavAppearance',
   platform: 'stNavPlatform',
   accounts: 'stNavAccounts',
-  profiles: 'stNavProfiles',
+  models: 'stNavModels',
   budget: 'stNavBudget',
   usage: 'stNavUsage',
   machines: 'stNavMachines',
@@ -55,7 +55,7 @@ const NAV_ICONS: Record<SettingsSectionKey, string> = {
   accounts: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5a7.5 7.5 0 0 1 15 0',
   platform: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3.3 12h17.4M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18',
   notifications: 'M18 8.5a6 6 0 1 0-12 0c0 6.5-2.5 7.5-2.5 7.5h17S18 15 18 8.5M13.7 19.5a2 2 0 0 1-3.4 0',
-  profiles: 'M4 7h9M17 7h3M4 17h3M11 17h9M14.5 4.2v5.6M7.5 14.2v5.6',
+  models: 'M4 7h9M17 7h3M4 17h3M11 17h9M14.5 4.2v5.6M7.5 14.2v5.6',
   environments: 'M12 3 3 7.5l9 4.5 9-4.5zM3 12l9 4.5L21 12M3 16.5 12 21l9-4.5',
   plugins: 'M4.5 4.5h6v6h-6zM13.5 4.5h6v6h-6zM4.5 13.5h6v6h-6zM13.5 13.5h6v6h-6z',
   mcp: 'M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3zM9 9h6v6H9zM12 4V2M12 22v-2M4 12H2M22 12h-2',
@@ -79,7 +79,7 @@ const GROUP_LABEL_KEYS: Record<SettingsGroupKey, keyof Vocab> = {
 // what it consumes, and the one escape hatch. Order inside a group is most- to least-visited.
 const NAV_GROUPS: { key: SettingsGroupKey; keys: SettingsSectionKey[] }[] = [
   { key: 'workspace', keys: ['appearance', 'accounts', 'platform', 'notifications'] },
-  { key: 'agent', keys: ['profiles', 'environments', 'plugins', 'mcp', 'hooks'] },
+  { key: 'agent', keys: ['models', 'environments', 'plugins', 'mcp', 'hooks'] },
   { key: 'resources', keys: ['budget', 'usage', 'machines'] },
   { key: 'system', keys: ['advanced'] },
 ];

@@ -53,7 +53,7 @@ import { MAdvancedScreen, MNotificationsScreen } from './MRuntimeSettingsScreen'
 
 const snapshot: ConfigSnapshot = {
   budget: null,
-  profiles: null,
+  models: { default: null, favorites: [], memory: {} }, selectionDefault: null,
   machines: [],
   mcp: null,
   hooks: [],

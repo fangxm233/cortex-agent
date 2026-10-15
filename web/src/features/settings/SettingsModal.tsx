@@ -9,7 +9,7 @@ import { getSettingsNavGroups, getSectionTitle, type SettingsSectionKey } from '
 import { McpPanel } from '@/features/settings/panels/SettingsPanels';
 import { PlatformPanel } from '@/features/settings/panels/PlatformPanel';
 import { MachinesPanel } from '@/features/settings/panels/MachinesPanel';
-import { ProfilesPanel } from '@/features/settings/panels/ProfilesPanel';
+import { ModelsPanel } from '@/features/settings/panels/ModelsPanel';
 import { AdvancedPanel, NotificationsPanel } from '@/features/settings/panels/RuntimeSettingsPanels';
 import { BudgetPanel } from '@/features/settings/panels/BudgetPanel';
 import { HooksPanel } from '@/features/settings/panels/HooksPanel';
@@ -370,7 +370,7 @@ type PanelRenderer = (props: PanelBodyProps) => JSX.Element;
 
 const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   platform: (props) => <PlatformPanel snapshot={props.snapshot} onDirtyChange={props.onPanelDirtyChange} />,
-  profiles: (props) => <ProfilesPanel snapshot={props.snapshot} onDirtyChange={props.onPanelDirtyChange} />,
+  models: (props) => <ModelsPanel snapshot={props.snapshot} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} />,
   machines: () => <MachinesPanel />,
   environments: (props) => <EnvironmentsPanel onDirtyChange={props.onPanelDirtyChange} />,

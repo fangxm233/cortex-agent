@@ -43,7 +43,7 @@ function policyEntry(value: ConfigSettingEntry['value']): ConfigSettingEntry {
 
 const baseConfig: ConfigSnapshot = {
   budget: null,
-  profiles: null,
+  models: { default: null, favorites: [], memory: {} }, selectionDefault: null,
   machines: [],
   mcp: null,
   hooks: [],

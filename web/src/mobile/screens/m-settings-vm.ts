@@ -1,20 +1,15 @@
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
+import { modelLabel } from '@/lib/model-selection';
 
 export interface MSettingsVm {
-  profileName: string | null;
-  profileModel: string | null;
-  profileThinking: string | null;
+  modelLabel: string | null;
+  thinking: string | null;
 }
 
 export function buildMSettingsVm(snapshot: ConfigSnapshot): MSettingsVm {
-  const profiles = snapshot.profiles;
-  const defaultName = profiles?.defaultProfile ?? null;
-  const defaultEntry = defaultName
-    ? profiles?.profiles.find((profile) => profile.name === defaultName) ?? null
-    : null;
+  const selection = snapshot.models.default;
   return {
-    profileName: defaultName,
-    profileModel: defaultEntry?.model ?? null,
-    profileThinking: defaultEntry?.thinking ?? null,
+    modelLabel: selection ? modelLabel(selection) : null,
+    thinking: selection?.thinking ?? null,
   };
 }

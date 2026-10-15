@@ -49,10 +49,10 @@ vi.mock('@/lib/trpc', () => {
       usageStatus: query('system.usageStatus'),
       refreshUsage: mutation('system.refreshUsage'),
     },
-    profiles: {
-      create: mutation('profiles.create'),
-      update: mutation('profiles.update'),
-      remove: mutation('profiles.remove'),
+    models: {
+      catalog: query('models.catalog'),
+      setDefault: mutation('models.setDefault'),
+      favorites: { add: mutation('models.favorites.add'), remove: mutation('models.favorites.remove') },
     },
     auth: {
       status: query('auth.status'),
@@ -95,7 +95,7 @@ import { markSelectOutsideInteraction } from '@/design/select-outside-interactio
 
 const snapshot: ConfigSnapshot = {
   budget: null,
-  profiles: null,
+  models: { default: null, favorites: [], memory: {} }, selectionDefault: null,
   machines: [],
   mcp: null,
   hooks: [],

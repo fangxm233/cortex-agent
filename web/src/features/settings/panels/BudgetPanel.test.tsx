@@ -46,7 +46,7 @@ const snapshot = {
     monthly_usd: 200,
     projects: { alpha: { daily_usd: 5, monthly_usd: 100 } },
   },
-  profiles: null,
+  models: { default: null, favorites: [], memory: {} }, selectionDefault: null,
   machines: [],
   mcp: null,
   hooks: [],

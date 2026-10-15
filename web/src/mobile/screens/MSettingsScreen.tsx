@@ -12,14 +12,14 @@ import { buildMSettingsVm } from './m-settings-vm';
 import { MSettingsView } from './MSettingsView';
 
 const EMPTY_SNAPSHOT: ConfigSnapshot = {
-  budget: null, profiles: null, machines: [], mcp: null,
+  budget: null, models: { default: null, favorites: [], memory: {} }, selectionDefault: null, machines: [], mcp: null,
   hooks: [], env: [], settings: [],
 };
 
 // Environments and plugins are edited on desktop only, so they have no mobile route.
 const SECTION_PATH: Partial<Record<SettingsSectionKey, string>> = {
   appearance: '/m/settings/appearance', platform: '/m/settings/platform',
-  accounts: '/m/settings/accounts', profiles: '/m/settings/profiles', budget: '/m/settings/budget',
+  accounts: '/m/settings/accounts', models: '/m/settings/models', budget: '/m/settings/budget',
   usage: '/m/settings/usage', machines: '/m/machines', mcp: '/m/settings/mcp',
   notifications: '/m/settings/notifications', hooks: '/m/settings/hooks', advanced: '/m/settings/advanced',
 };
