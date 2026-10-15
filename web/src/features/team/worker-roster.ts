@@ -1,7 +1,7 @@
 import type { SessionInfo, SessionsPendingInteraction } from '@cortex-agent/ui-contract';
 import { fmt, type Vocab } from '@/i18n';
 import { formatSpan, type TimeLang } from '@/i18n/time-format';
-import { isRetiredWorker } from './worker-groups';
+import { isInactiveWorker } from './worker-groups';
 import { shortSessionId } from '@/features/session/metadata/short-session-id';
 
 // A lead's team as its chat shows it: one summary (the desktop header capsule, the mobile row) that
@@ -27,14 +27,16 @@ export function workerTitle(s: SessionInfo): string {
 export interface TeamRoster {
   /** Needs you → running → waiting → idle; the list's own order (unread, then recency) within each. */
   active: SessionInfo[];
-  retired: SessionInfo[];
+  /** Idle past the fold age, folded away at the bottom. */
+  inactive: SessionInfo[];
 }
 
-export function teamRoster(workers: SessionInfo[]): TeamRoster {
-  const active = workers.filter((w) => !isRetiredWorker(w));
+export function teamRoster(workers: SessionInfo[], now: number = Date.now()): TeamRoster {
+  const inactive = (w: SessionInfo) => isInactiveWorker(w, now);
+  const active = workers.filter((w) => !inactive(w));
   return {
     active: [...active].sort((a, b) => ATTENTION[workerState(a)] - ATTENTION[workerState(b)]),
-    retired: workers.filter(isRetiredWorker),
+    inactive: workers.filter(inactive),
   };
 }
 

@@ -126,8 +126,7 @@ class ProtocolTest {
         val rows = Protocol.sessions("""[
           {"sessionId":"lead","origin":"direct","running":false,"awaitingInput":false,"teamLeadId":null},
           {"sessionId":"worker","origin":"direct","running":false,"awaitingInput":false,"teamLeadId":"lead"},
-          {"sessionId":"retired","origin":"direct","running":false,"awaitingInput":false,
-            "teamLeadId":"lead","workerRetiredAt":1767225600000},
+          {"sessionId":"idle","origin":"direct","running":false,"awaitingInput":false,"teamLeadId":"lead"},
           {"sessionId":"older","origin":"direct","running":false,"awaitingInput":false}
         ]""")
         assertEquals(listOf(false, true, true, false), rows.map { it.worker })

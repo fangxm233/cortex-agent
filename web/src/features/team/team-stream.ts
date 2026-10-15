@@ -3,22 +3,19 @@ import { fmt, type Vocab } from '@/i18n';
 import {
   messageTimeLabel, openRequest, updateCounts, type WorkerThread, type WorkerUpdate,
 } from '@/features/session/transcript/transcript-vm';
-import { isRetiredWorker } from './worker-groups';
 import { workerState } from './worker-roster';
 
 // What a lead's chat needs from its live team to draw the transcript's team rows: which session a
 // worker name stands for, who the lead is still waiting on, and the card's summary text.
 
-/** The session behind a worker name (or id). A name a retired worker freed may be in use again, so
- *  the active holder wins. */
+/** The session behind a worker name (or id). Names are unique within a lead's team. */
 export function findWorker(workers: SessionInfo[], name: string | null, sessionId?: string | null): SessionInfo | null {
   if (sessionId) {
     const byId = workers.find((w) => w.sessionId === sessionId);
     if (byId) return byId;
   }
   if (!name) return null;
-  const named = workers.filter((w) => w.workerName === name);
-  return named.find((w) => !isRetiredWorker(w)) ?? named[0] ?? null;
+  return workers.find((w) => w.workerName === name) ?? null;
 }
 
 const MIN_BRIEF = 12;
@@ -39,12 +36,12 @@ export function spawnedWorker(workers: SessionInfo[], prompt: string | null): Se
   }) ?? null;
 }
 
-/** Workers the lead is waiting to hear from: active ones still working, on their own or on a
- *  machine. One holding a question for the lead (or the user) is waiting for someone else, not the
- *  reverse, though it reads as running. */
+/** Workers the lead is waiting to hear from: ones still working, on their own or on a machine. One
+ *  holding a question for the lead (or the user) is waiting for someone else, not the reverse,
+ *  though it reads as running. */
 export function waitedWorkers(workers: SessionInfo[]): SessionInfo[] {
   return workers.filter((w) => {
-    if (isRetiredWorker(w) || w.awaitingInput || (w.waitingOnLead ?? 0) > 0) return false;
+    if (w.awaitingInput || (w.waitingOnLead ?? 0) > 0) return false;
     const state = workerState(w);
     return state === 'running' || state === 'waiting';
   });
@@ -83,6 +80,6 @@ export function threadSummary(thread: WorkerThread, L: Vocab, worker: SessionInf
 /** The request a worker is blocked on in its latest card, which its row names. An older card never
  *  does: whatever it asked was settled one way or another before the worker spoke again. */
 export function waitingRequest(thread: WorkerThread, worker: SessionInfo | null): WorkerUpdate | null {
-  if (!thread.latest || (worker && (isRetiredWorker(worker) || !worker.awaitingInput))) return null;
+  if (!thread.latest || (worker && !worker.awaitingInput)) return null;
   return openRequest(thread);
 }

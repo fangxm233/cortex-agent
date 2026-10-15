@@ -55,9 +55,8 @@ test('answer resolves its worker from the request id and carries the answer or t
   );
 });
 
-test('stop names the worker and whether it retires', () => {
+test('stop names the worker; a legacy retire flag is ignored', () => {
+  assert.deepEqual(teamActionFromToolCall('worker_stop', { worker: 'alpha' }, noRequest), { op: 'stop', worker: 'alpha' });
   assert.deepEqual(teamActionFromToolCall('worker_stop', { worker: 'alpha', retire: true }, noRequest),
-    { op: 'stop', worker: 'alpha', retire: true });
-  assert.deepEqual(teamActionFromToolCall('worker_stop', { worker: 'alpha' }, noRequest),
-    { op: 'stop', worker: 'alpha', retire: false });
+    { op: 'stop', worker: 'alpha' });
 });

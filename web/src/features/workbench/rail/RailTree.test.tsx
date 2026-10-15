@@ -178,10 +178,10 @@ describe('team lead rail row', () => {
     act(() => renderer.unmount());
   });
 
-  it('toggles workers from the caret without opening the lead, and dims retired workers', () => {
+  it('toggles workers from the caret without opening the lead, and dims inactive workers', () => {
     const onToggleWorkers = vi.fn();
     const onOpenSession = vi.fn();
-    const lead = { ...base, workers: [w('w1'), w('w2', { retired: true })], workersExpanded: false };
+    const lead = { ...base, workers: [w('w1'), w('w2', { inactive: true })], workersExpanded: false };
     const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [lead] }], onToggleWorkers, onOpenSession });
     expect(renderer.root.findAllByProps({ 'data-session-id': 'w1' })).toHaveLength(0);
     const caret = renderer.root.findByProps({ 'data-lead-caret': 'lead' });

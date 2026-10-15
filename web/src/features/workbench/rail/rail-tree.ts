@@ -43,8 +43,8 @@ export interface RailSessionRow {
   waitingOn: boolean;
   unread: boolean;
   selected: boolean;
-  /** Team mode only: a retired worker — sorted last, rendered dimmed. */
-  retired?: boolean;
+  /** Team mode only: a worker idle past the fold age — sorted last, rendered dimmed. */
+  inactive?: boolean;
   /** Team mode only: this lead's workers, nested under it. Absent when it has none to show. */
   workers?: RailSessionRow[];
   workersExpanded?: boolean;
@@ -213,7 +213,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const matchingStars = partition.starred.filter((s) => sessionMatchesFilter(s, filter));
     // Team mode: workers hang under their lead and count as part of its row, so the folder cap and
     // ordering see one row per lead.
-    const nesting = input.teamEnabled ? groupWorkers(own) : null;
+    const nesting = input.teamEnabled ? groupWorkers(own, input.now) : null;
     const workersOf = (s: SessionInfo): SessionInfo[] => nesting?.workers.get(s.sessionId) ?? [];
     const scheduleRows = buildScheduleRows(
       schedulesByProject.get(project.id) ?? [],
@@ -238,7 +238,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const toTopRow = (s: SessionInfo): RailSessionRow => {
       const workers = workersOf(s);
       if (workers.length === 0) return toSessionRow(s);
-      const all = workers.map((w) => workerRow(w, toSessionRow));
+      const all = workers.map((w) => workerRow(w, toSessionRow, input.now));
       const shown = filtering ? all.filter((_, i) => sessionMatchesFilter(workers[i], filter)) : all;
       // Open while filtering (the hits must be visible) and while a worker is the selection.
       const expandedLead = filtering || !!input.expandedLeads?.has(s.sessionId) ||

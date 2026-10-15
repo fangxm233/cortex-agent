@@ -338,7 +338,7 @@ test('session registry replays a board binding set at registration and rebinding
   assert.equal((await new SessionRegistryRepo(filePath).getById('sess-board'))?.boardId, 'b-2');
 });
 
-test('session registry replays worker fields, retirement, and lists a lead\'s workers', async () => {
+test('session registry replays worker fields and lists a lead\'s workers', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
   await repo.registerSession(registerOpts('sess-lead'));
@@ -354,23 +354,14 @@ test('session registry replays worker fields, retirement, and lists a lead\'s wo
   assert.equal(lead?.workerName ?? null, null);
   assert.equal(lead?.workerBrief ?? null, null);
 
-  await repo.setWorkerRetired('sess-w2', 1738454400000);
-
   const reopened = new SessionRegistryRepo(filePath);
   const w1 = await reopened.getById('sess-w1');
   assert.equal(w1?.teamLeadId, 'sess-lead');
   assert.equal(w1?.workerName, 'scout');
   assert.equal(w1?.workerBrief, 'Map the grasp dataset');
-  assert.equal(w1?.workerRetiredAt, null);
-  assert.equal((await reopened.getById('sess-w2'))?.workerRetiredAt, 1738454400000);
+  assert.equal((await reopened.getById('sess-w2'))?.workerName, 'builder');
   assert.deepEqual((await reopened.listWorkers('sess-lead')).map(s => s.sessionId).sort(), ['sess-w1', 'sess-w2']);
   assert.deepEqual(await reopened.listWorkers('sess-w1'), []);
-
-  // Reactivating clears the retirement and survives another restart.
-  await reopened.setWorkerRetired('sess-w2', null);
-  const again = new SessionRegistryRepo(filePath);
-  assert.equal((await again.getById('sess-w2'))?.workerRetiredAt, null);
-  assert.equal((await again.getById('sess-w2'))?.workerName, 'builder');
 });
 
 test('retention keeps a stale worker while its lead lives and deletes fresh workers with their lead', async () => {

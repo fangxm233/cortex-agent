@@ -1,5 +1,5 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { isRetiredWorker } from '@/features/team/worker-groups';
+import { isInactiveWorker } from '@/features/team/worker-groups';
 import { workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 
 // Team mode: a lead session's row expands in place to its workers, one indent deeper — the same
@@ -8,10 +8,12 @@ import { workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 // The lead's status dot rolls up its workers (features/team/worker-rollup). Unread only rolls up
 // while the lead is collapsed — open, each worker shows its own.
 
-/** A worker's rail row: the ordinary row, flagged when retired so the tree can dim it. */
-export function workerRow<R extends WorkerRollup>(s: SessionInfo, toRow: (s: SessionInfo) => R): R & { retired?: boolean } {
+/** A worker's rail row: the ordinary row, flagged when inactive so the tree can dim it. */
+export function workerRow<R extends WorkerRollup>(
+  s: SessionInfo, toRow: (s: SessionInfo) => R, now: number = Date.now(),
+): R & { inactive?: boolean } {
   const row = toRow(s);
-  return isRetiredWorker(s) ? { ...row, retired: true } : row;
+  return isInactiveWorker(s, now) ? { ...row, inactive: true } : row;
 }
 
 /** The lead's row carrying its nested workers and their rolled-up state. State rolls up from ALL

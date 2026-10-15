@@ -91,7 +91,8 @@ describe('teamActionOf', () => {
     const send = teamActionOf(tool(SEND, '{"worker":"atlas","message":"Continue with the \\"second\\" step and keep…', 1))!;
     expect(send).toMatchObject({ op: 'send', worker: 'atlas', text: 'Continue with the "second" step and keep', partial: true });
     const stop = teamActionOf(tool('worker_stop', '{"worker":"atlas","retire":true}', 1))!;
-    expect(stop).toMatchObject({ op: 'stop', worker: 'atlas', retire: true });
+    expect(stop).toMatchObject({ op: 'stop', worker: 'atlas' });
+    expect(stop).not.toHaveProperty('retire');
     const spawn = teamActionOf(tool('worker_spawn', 'Implement the parser. Read the plan first…', 1))!;
     expect(spawn).toMatchObject({ op: 'spawn', worker: null, text: 'Implement the parser. Read the plan first', partial: true });
     const approve = teamActionOf(tool(ANSWER, '{"request_id":"r2","approved":false,"feedback":"Narrow it"}', 1))!;

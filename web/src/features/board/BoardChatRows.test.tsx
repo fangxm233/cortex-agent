@@ -15,7 +15,7 @@ import { BoardActionChatRow, BoardStreamProvider } from './BoardChatRows';
 
 const BOARD: BoardInfo = { id: 'b1', projectId: 'p', slug: 'survey', title: 'Survey (live)', createdAt: '', updatedAt: '' };
 const session = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInfo =>
-  ({ sessionId, boardId: 'b1', teamLeadId: 'lead', workerName: sessionId, workerRetiredAt: null, running: false, awaitingInput: false, ...over }) as SessionInfo;
+  ({ sessionId, boardId: 'b1', teamLeadId: 'lead', workerName: sessionId, running: false, awaitingInput: false, ...over }) as SessionInfo;
 const created = { boardId: 'b1', title: 'Survey', created: true, ts: null };
 const attached = { ...created, created: false };
 

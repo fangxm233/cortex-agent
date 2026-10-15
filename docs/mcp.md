@@ -110,7 +110,7 @@ as new messages.
 | `worker_spawn` | `name`, `prompt`, `backend?`, `model?` | Start a persistent worker session with its first task; it runs the lead's current model unless `backend`/`model` (same format as `agent`) name another |
 | `worker_send` | `worker`, `message` | Deliver a message to a worker, folded into its running turn or opening a new one |
 | `worker_list` | `worker?` | The lead's roster, or one worker with its full last report |
-| `worker_stop` | `worker`, `retire?` | Stop a worker's current turn, optionally retiring it |
+| `worker_stop` | `worker` | Stop a worker's current turn |
 | `worker_answer` | `request_id`, `answers?`, `approved?`, `feedback?` | Resolve a worker's pending question or plan approval |
 
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tools are in

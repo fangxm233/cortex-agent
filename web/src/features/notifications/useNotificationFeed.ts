@@ -12,7 +12,7 @@ import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';
 interface DirectEntry {
   label: string | null;
   projectId: string | null;
-  /** A team worker (active or retired): its turns reach the user through the lead, never on their own. */
+  /** A team worker (active or not): its turns reach the user through the lead, never on their own. */
   silent: boolean;
   awaitingInput: boolean;
 }

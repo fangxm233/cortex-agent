@@ -5,6 +5,7 @@ import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import type { CortexEventInput } from '@events/index.js';
 import { BOARD_ASSETS_DIR, BOARD_FILE, BOARD_SCAFFOLD, BOARDS_DIR } from './board-paths.js';
 import { projectStore } from '@domain/projects/project-store.js';
+import { isWorkerStale } from '@domain/sessions/team.js';
 
 /** The registry, the session store and the filesystem a board operation touches. The server only
  *  registers, binds and notifies; it never writes board.html after the scaffold. */
@@ -109,12 +110,14 @@ async function findBoard(session: Session, ref: string, deps: BoardServiceDeps):
     + (known.length ? `; known boards: ${known.join(', ')}` : ''));
 }
 
-/** A lead binds its active workers that have no board yet along with itself (a worker that opened
- *  its own board keeps it); a worker binds only itself. */
+/** A lead binds its recently active workers that have no board yet along with itself (a worker that
+ *  opened its own board keeps it; a long-idle one joins when the lead next sends it work); a worker
+ *  binds only itself. */
 async function bindTargets(session: Session, deps: BoardServiceDeps): Promise<Session[]> {
   if (session.teamLeadId) return [session];
   const workers = await deps.sessions.listWorkers(session.sessionId);
-  return [session, ...workers.filter(w => w.workerRetiredAt == null && !w.boardId)];
+  const now = deps.now();
+  return [session, ...workers.filter(w => !w.boardId && !isWorkerStale(w, now))];
 }
 
 /**

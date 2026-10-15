@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { en, LangProvider, zh } from '@/i18n';
@@ -29,15 +29,18 @@ const session = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInf
     origin: 'direct',
     teamLeadId: null,
     workerName: null,
-    workerRetiredAt: null,
     ...over,
   }) as SessionInfo;
 
 const lead = session('lead');
 const w1 = session('w1', { teamLeadId: 'lead', workerName: 'bench', running: true });
 const w2 = session('w2', { teamLeadId: 'lead', workerName: 'docs', waitingOn: 1 });
-const gone = session('w3', { teamLeadId: 'lead', workerName: 'old', workerRetiredAt: 1 });
+// Idle past the fold age (3h) at the pinned clock below; the others last worked an hour before it.
+const gone = session('w3', { teamLeadId: 'lead', workerName: 'old', lastUsedAt: '2026-07-15T05:00:00Z' });
 const all = [lead, w1, w2, gone];
+
+beforeAll(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Date.parse('2026-07-15T10:00:00Z')); });
+afterAll(() => { vi.useRealTimers(); });
 
 describe('teamContext', () => {
   it('is empty with team mode off, for a draft, or for a session with no team', () => {
@@ -71,11 +74,11 @@ describe('worker roster', () => {
   const onLead = session('onlead', { teamLeadId: 'lead', workerName: 'onlead', running: true, waitingOnLead: 1 });
   const signal = session('signal', { teamLeadId: 'lead', workerName: 'signal', waitingOn: 2 });
 
-  it('orders active workers running → waiting → idle and keeps retired apart', () => {
-    const roster = teamRoster([idle, signal, run, gone, onLead, you]);
+  it('orders active workers running → waiting → idle and keeps inactive ones apart', () => {
+    const roster = teamRoster([idle, signal, run, gone, onLead, you], NOW);
     // A worker asking its lead is mid-turn like any other: it sorts, and reads, as running.
     expect(roster.active.map((w) => w.sessionId)).toEqual(['run', 'onlead', 'you', 'signal', 'idle']);
-    expect(roster.retired.map((w) => w.sessionId)).toEqual(['w3']);
+    expect(roster.inactive.map((w) => w.sessionId)).toEqual(['w3']);
   });
 
   it('summarizes counts and leaves out the zero ones', () => {
@@ -163,12 +166,12 @@ describe('TeamCapsule', () => {
     act(() => r.unmount());
   });
 
-  it('folds retired workers at the bottom until asked', () => {
+  it('folds inactive workers at the bottom until asked', () => {
     const onOpen = vi.fn();
     const r = render(<TeamCapsule workers={[w1, gone]} onOpen={onOpen} />);
     act(() => capsule(r)[0].props.onClick({ stopPropagation: vi.fn() }));
-    const toggle = r.root.findByProps({ 'data-team-retired': '' });
-    expect(text(r)).toContain('Retired 1');
+    const toggle = r.root.findByProps({ 'data-team-inactive': '' });
+    expect(text(r)).toContain('Inactive 1');
     expect(rows(r).map((n) => n.props['data-worker-row'])).toEqual(['w1']);
     act(() => toggle.props.onClick());
     expect(rows(r).map((n) => n.props['data-worker-row'])).toEqual(['w1', 'w3']);

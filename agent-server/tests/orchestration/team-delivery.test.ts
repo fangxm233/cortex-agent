@@ -26,7 +26,7 @@ const WORKER = { sessionId: 'worker', channel: 'web:worker', origin: 'direct', t
 function view(extra: Partial<WorkerView> = {}): WorkerView {
   return {
     name: 'alpha', sessionId: 'worker', channel: 'web:worker', status: 'idle', waitingOn: [], waitpoints: 0, brief: null,
-    lastReport: null, userTouched: false, retired: false, ...extra,
+    lastReport: null, userTouched: false, inactive: false, ...extra,
   };
 }
 

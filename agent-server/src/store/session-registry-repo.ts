@@ -199,7 +199,7 @@ export class SessionRegistryRepo {
       ...(opts.teamLeadId
         ? {
           teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null,
-          workerBrief: opts.workerBrief ?? null, workerRetiredAt: null,
+          workerBrief: opts.workerBrief ?? null,
         }
         : {}),
     });
@@ -261,7 +261,7 @@ export class SessionRegistryRepo {
     ));
   }
 
-  /** Every worker owned by `leadSessionId`, retired or not. */
+  /** Every worker owned by `leadSessionId`, active or not. */
   async listWorkers(leadSessionId: string): Promise<Session[]> {
     return this.withState(async (state) => sortRecent(filterLive(state, s => s.teamLeadId === leadSessionId)));
   }
@@ -314,11 +314,6 @@ export class SessionRegistryRepo {
     return this.updateById(sessionId, (record) => (
       record.boardId === boardId ? record : { ...record, boardId }
     ));
-  }
-
-  /** Retire a worker (epoch ms), or reactivate it with null. */
-  async setWorkerRetired(sessionId: string, retiredAt: number | null): Promise<Session | null> {
-    return this.updateById(sessionId, (record) => ({ ...record, workerRetiredAt: retiredAt }));
   }
 
   /** Record that the `[Board]` block for `boardId` is now in this session's backend history. */

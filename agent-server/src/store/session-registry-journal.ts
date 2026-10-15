@@ -64,8 +64,6 @@ export interface SessionRecord {
   workerName?: string | null;
   /** What the lead spawned the worker to do: the first line of its spawn prompt, capped. */
   workerBrief?: string | null;
-  /** Epoch ms when the worker was retired; null while active. */
-  workerRetiredAt?: number | null;
 }
 
 /** Copied VERBATIM from store/conversation-ledger-repo.ts:9-22 (B.T1). The journal owns turn history
@@ -555,7 +553,6 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     teamLeadId: toOptionalNullableString(row?.teamLeadId),
     workerName: toOptionalNullableString(row?.workerName),
     workerBrief: toOptionalNullableString(row?.workerBrief),
-    workerRetiredAt: toOptionalNullableNumber(row?.workerRetiredAt),
   } satisfies SessionRecord;
   return assertRecordId(record, expectedId);
 }
@@ -595,12 +592,6 @@ function toOptionalBrowserValue(value: unknown): SessionBrowserOption | null | u
   const device = (value as Record<string, unknown>).device;
   if (typeof device !== 'string' || !device) throw new Error('Invalid session registry browser option');
   return { device };
-}
-
-function toOptionalNullableNumber(value: unknown): number | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  return toNumberValue(value);
 }
 
 function toKindValue(value: unknown): SessionKind {
@@ -663,7 +654,6 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   teamLeadId: toOptionalNullableString,
   workerName: toOptionalNullableString,
   workerBrief: toOptionalNullableString,
-  workerRetiredAt: toOptionalNullableNumber,
 };
 
 /** Every key a `patch` may carry, derived from the exhaustive reader table so the WRITER (repo
@@ -672,14 +662,15 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
 export const PATCH_KEYS = Object.keys(PATCH_FIELD_READERS) as SessionPatchUnsetKey[];
 const PATCH_KEY_SET = new Set<string>(PATCH_KEYS);
 
-/** Patch keys written before commissions became boards. Journals keep them until compaction, so
- *  replay maps them onto the board fields (null: dropped). A record row is mapped the same way in
- *  assertSessionRecord. A legacy `commissionBlockFor` holds `active:<id>`, which never equals a
- *  boardId, so such a session receives the [Board] block once. */
+/** Patch keys written by earlier versions. Journals keep them until compaction, so replay maps them
+ *  onto current fields (null: dropped). A record row is mapped the same way in assertSessionRecord.
+ *  A legacy `commissionBlockFor` holds `active:<id>`, which never equals a boardId, so such a session
+ *  receives the [Board] block once. `workerRetiredAt` went when workers began folding by idle time. */
 const LEGACY_PATCH_KEYS: Readonly<Record<string, SessionPatchUnsetKey | null>> = {
   commissionId: 'boardId',
   commissionBlockFor: 'boardBlockFor',
   commissionDraft: null,
+  workerRetiredAt: null,
 };
 
 function patchKeyOf(key: string): SessionPatchUnsetKey | null {

@@ -32,7 +32,6 @@ export interface TeamActionView {
   model: string | null;
   /** answer to a plan: approved (true) or rejected (false); absent for a question's answer. */
   approved?: boolean;
-  retire?: boolean;
   /** answer only: the request it answers, when the row names it. */
   requestId: string | null;
   ts: string | null;
@@ -136,7 +135,7 @@ function fromInputObject(op: TeamOp, input: Record<string, unknown>): Omit<TeamA
       return { ...base, worker: str(input.name), text: str(input.prompt), model: model || null };
     }
     case 'send': return { ...base, worker: str(input.worker), text: str(input.message) };
-    case 'stop': return { ...base, worker: str(input.worker), text: null, ...(input.retire === true ? { retire: true } : {}) };
+    case 'stop': return { ...base, worker: str(input.worker), text: null };
     case 'answer': {
       const approved = typeof input.approved === 'boolean' ? input.approved : undefined;
       return {
@@ -161,7 +160,7 @@ function fromSummary(op: TeamOp, summary: string): Omit<TeamActionView, 'op' | '
   }
   const worker = jsonString(s, 'worker');
   if (op === 'stop') {
-    return { ...base, worker: worker?.complete ? worker.value : null, text: null, partial: false, ...(jsonBool(s, 'retire') ? { retire: true } : {}) };
+    return { ...base, worker: worker?.complete ? worker.value : null, text: null, partial: false };
   }
   if (op === 'send') {
     const message = jsonString(s, 'message');
@@ -195,7 +194,6 @@ export function teamActionOf(m: TranscriptMessage): TeamActionView | null {
     return {
       op, worker: t.worker ?? null, text: t.text ?? null, partial: false, model: t.model ?? null,
       ...(t.approved !== undefined ? { approved: t.approved } : {}),
-      ...(t.retire ? { retire: true } : {}),
       requestId, ts,
     };
   }

@@ -290,8 +290,8 @@ describe('desktop chat metadata target', () => {
 });
 
 describe('desktop chat team context', () => {
-  const lead = { ...SESSION, teamLeadId: null, workerName: null, workerRetiredAt: null };
-  const worker = { ...SESSION, sessionId: 'w1', teamLeadId: 's1', workerName: 'bench', workerRetiredAt: null };
+  const lead = { ...SESSION, teamLeadId: null, workerName: null };
+  const worker = { ...SESSION, sessionId: 'w1', teamLeadId: 's1', workerName: 'bench' };
   const capsules = () => mounted!.root.findAll((n) => n.type === 'button' && n.props['data-team-capsule'] !== undefined);
   const parent = () => mounted!.root.findByProps({ 'data-chat-header': true }).props['data-parent'];
 

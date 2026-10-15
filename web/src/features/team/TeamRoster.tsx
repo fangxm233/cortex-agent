@@ -126,7 +126,7 @@ function WorkerRow({ worker, question, now, touch, hover, setHover, onOpen }: {
   );
 }
 
-/** One row per worker, attention first; retired workers fold away at the bottom, dimmed. */
+/** One row per worker, attention first; inactive workers fold away at the bottom, dimmed. */
 export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
   roster: TeamRoster;
   /** Pending questions of the sessions waiting on the user, by sessionId. */
@@ -138,7 +138,7 @@ export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
   const L = useVocabOptional();
   const now = useNowTick(true, NOW_TICK_MS);
   const [hover, setHover] = useState<string | null>(null);
-  const [showRetired, setShowRetired] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const row = (w: SessionInfo) => (
     <WorkerRow key={w.sessionId} worker={w} question={questions[w.sessionId] ?? null} now={now} touch={touch}
       hover={hover} setHover={setHover} onOpen={onOpen} />
@@ -151,20 +151,20 @@ export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
         <span style={ELLIPSIS}>{L.wbTeamPanelHint}</span>
       </div>
       {roster.active.map(row)}
-      {roster.retired.length > 0 && (
+      {roster.inactive.length > 0 && (
         <>
           <div style={{ height: 1, background: 'var(--proto-line)', margin: '4px 10px' }} />
-          <button type="button" data-team-retired="" className={MENU_FOCUS} aria-expanded={showRetired}
-            onClick={() => setShowRetired((v) => !v)}
+          <button type="button" data-team-inactive="" className={MENU_FOCUS} aria-expanded={showInactive}
+            onClick={() => setShowInactive((v) => !v)}
             style={{
               ...meta, fontWeight: 400, display: 'inline-flex', alignItems: 'center', gap: 4, border: 0,
               background: 'transparent', cursor: 'pointer', borderRadius: 'var(--r-chip)',
               padding: touch ? '12px 10px' : '6px 10px 4px',
             }}>
-            {fmt(L.wbTeamRetired, { n: roster.retired.length })}
-            <Chevron open={showRetired} direction="right" />
+            {fmt(L.wbTeamInactive, { n: roster.inactive.length })}
+            <Chevron open={showInactive} direction="right" />
           </button>
-          {showRetired && <div data-team-retired-rows="" style={{ opacity: 0.55 }}>{roster.retired.map(row)}</div>}
+          {showInactive && <div data-team-inactive-rows="" style={{ opacity: 0.55 }}>{roster.inactive.map(row)}</div>}
         </>
       )}
     </div>

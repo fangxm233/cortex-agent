@@ -17,7 +17,7 @@ import { loadBoardPromptContext, type BoardPromptContext } from '@domain/boards/
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
 import { isTeamLead, isTeamWorker } from '@domain/sessions/team.js';
-import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
+import { describeTeam, inactiveLine, rosterLine, type WorkerView } from './team-state.js';
 import { takeUnreadDigest } from './team-inbox.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
 import type { ResolvedEnvironment } from '@core/types/environment-types.js';
@@ -218,6 +218,27 @@ export async function resolveConversationBoard(
 
 type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName'>;
 
+interface TeamBlockDeps {
+  getSession?: (id: string) => Promise<Pick<Session, 'sessionId' | 'label'> | null>;
+  describeTeam?: (leadSessionId: string) => Promise<WorkerView[]>;
+  /** The lead's unread routine updates section, now marked read ('' when none). */
+  takeUnread?: (leadSessionId: string) => Promise<string>;
+  now?: () => number;
+}
+
+/** The lead's roster: its active workers, then one line counting the inactive ones. Null when it has
+ *  neither an active worker nor unread updates. */
+async function leadTeam(leadId: string, deps: TeamBlockDeps): Promise<{ roster: string[]; unread?: string } | null> {
+  const team = await (deps.describeTeam ?? describeTeam)(leadId);
+  const active = team.filter(v => !v.inactive);
+  const unread = await (deps.takeUnread ?? (async (id: string) => (await takeUnreadDigest(id)).text))(leadId);
+  if (active.length === 0 && !unread) return null;
+  const now = (deps.now ?? Date.now)();
+  const folded = inactiveLine(team, 'count');
+  const roster = [...active.map(v => rosterLine(v, now)), ...(folded ? [folded] : [])];
+  return { roster, ...(unread ? { unread } : {}) };
+}
+
 /**
  * The team-mode blocks for this turn. A lead with at least one active worker, or with unread routine
  * updates, gets the [Team] block on every turn (its state changes between turns, and a lead with no
@@ -228,24 +249,12 @@ type TeamSessionFields = Pick<Session, 'sessionId' | 'teamLeadId' | 'workerName'
 export async function resolveConversationTeam(
   session: TeamSessionFields | null,
   args: { teamLead?: boolean; isFreshSession?: boolean },
-  deps: {
-    getSession?: (id: string) => Promise<Pick<Session, 'sessionId' | 'label'> | null>;
-    describeTeam?: (leadSessionId: string) => Promise<WorkerView[]>;
-    /** The lead's unread routine updates section, now marked read ('' when none). */
-    takeUnread?: (leadSessionId: string) => Promise<string>;
-    now?: () => number;
-  } = {},
+  deps: TeamBlockDeps = {},
 ): Promise<{ team: { roster: string[]; unread?: string } | null; worker: { name: string; lead: string } | null }> {
   const none = { team: null, worker: null };
   try {
     if (!session) return none;
-    if (args.teamLead) {
-      const team = (await (deps.describeTeam ?? describeTeam)(session.sessionId)).filter(v => !v.retired);
-      const unread = await (deps.takeUnread ?? (async (id: string) => (await takeUnreadDigest(id)).text))(session.sessionId);
-      if (team.length === 0 && !unread) return none;
-      const now = (deps.now ?? Date.now)();
-      return { team: { roster: team.map(v => rosterLine(v, now)), ...(unread ? { unread } : {}) }, worker: null };
-    }
+    if (args.teamLead) return { team: await leadTeam(session.sessionId, deps), worker: null };
     if (!args.isFreshSession || !isTeamWorker(session)) return none;
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
     const lead = await getSession(session.teamLeadId!);

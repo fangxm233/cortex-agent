@@ -6,7 +6,7 @@ import { partitionStarredSessions } from '@/features/session/list/starred-sessio
 import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { orderSessions } from '@/features/session/list/session-groups';
-import { groupWorkers, isRetiredWorker } from '@/features/team/worker-groups';
+import { groupWorkers, isInactiveWorker } from '@/features/team/worker-groups';
 import { sessionRollup, workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 import { relTime } from '@/i18n/time-format';
 import { en, fmt, type Vocab } from '@/i18n';
@@ -75,9 +75,9 @@ function leadStatusLine(own: MSessionStatus, workers: WorkerRollup[], L: Vocab):
 
 function toLeadRow(s: SessionInfo, workers: SessionInfo[], now: number, lang: Lang, L: Vocab): MSessionRow {
   const row = toRow(s, now, lang, L);
-  // The workers the lead's chat offers (its worker strip leaves retired ones out): whatever the
+  // The workers the lead's chat offers (its worker strip leaves inactive ones out): whatever the
   // row signals, the user can reach from there.
-  const team = workers.filter((w) => !isRetiredWorker(w)).map(sessionRollup);
+  const team = workers.filter((w) => !isInactiveWorker(w, now)).map(sessionRollup);
   if (team.length === 0) return row;
   return {
     ...row,
@@ -117,7 +117,7 @@ export function buildSessionRows(
   listed: SessionInfo[] = sessions,
 ): MSessionRow[] {
   if (!team) return orderSessions(sessions).map((s) => toRow(s, now, lang, L));
-  const { top, workers } = groupWorkers(listed);
+  const { top, workers } = groupWorkers(listed, now);
   const shown = new Set(top.map((s) => s.sessionId));
   return orderSessions(sessions.filter((s) => shown.has(s.sessionId)))
     .map((s) => toLeadRow(s, workers.get(s.sessionId) ?? [], now, lang, L));
