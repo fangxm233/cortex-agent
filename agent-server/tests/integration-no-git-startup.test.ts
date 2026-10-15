@@ -85,16 +85,16 @@ async function call(url: string, token: string, method: string, mutation = false
 const query = (url: string, token: string, method: string) => call(url, token, method);
 /** The Provider page's model refresh. */
 const refreshModels = (url: string, token: string) => call(url, token, 'auth.syncGateway', true) as Promise<{
-  configured: boolean; reason?: string; profiles: string[];
+  configured: boolean; reason?: string; defaultSet: boolean; favorites: {backend:string;provider:string|null;model:string}[];
 }>;
 
-/** Model refresh before and after the first PI login, while no profiles.json exists yet. */
+/** Model refresh before and after the first PI login, while no models.json exists yet. */
 async function firstLoginRefresh(home: string, endpoint: { uiUrl: string; clientToken: string }) {
   expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: false, reason: 'no-endpoints' });
   mkdirSync(join(home, '.pi/agent'), { recursive: true });
   writeFileSync(join(home, '.pi/agent/auth.json'), JSON.stringify({ openai: { type: 'api_key', key: 'sk-test' } }));
-  expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: true, profiles: ['plan', 'execute'] });
-  expect(existsSync(join(home, 'config/profiles.json'))).toBe(true);
+  expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: true, defaultSet: true, favorites: [expect.objectContaining({ backend: 'pi', provider: 'openai' })] });
+  expect(existsSync(join(home, 'config/models.json'))).toBe(true);
   const status = await query(endpoint.uiUrl, endpoint.clientToken, 'auth.status') as {
     accounts: { provider: string; inUse: boolean }[];
   };
@@ -114,12 +114,12 @@ test.skipIf(process.platform === 'win32')('Git-free init starts a real server an
   expect(status.piRuntime.available).toBe(true);
   expect(status.accounts.length).toBeGreaterThan(0);
   expect(status.accounts.every(account => !account.inUse)).toBe(true);
-  expect(existsSync(join(home, 'config/profiles.json'))).toBe(false);
+  expect(existsSync(join(home, 'config/models.json'))).toBe(false);
   expect(await query(endpoint.uiUrl, endpoint.clientToken, 'config.get')).toBeTruthy();
   await firstLoginRefresh(home, endpoint);
   expect(existsSync(join(home, '.git'))).toBe(false);
   const closed = once(run.child, 'close');
   run.child.kill('SIGTERM');
   expect((await closed)[0], run.errors()).toBe(0);
-  expect(run.errors()).not.toMatch(/unhandledRejection|profiles unreadable/);
+  expect(run.errors()).not.toMatch(/unhandledRejection|models unreadable/);
 });
