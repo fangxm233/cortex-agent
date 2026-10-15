@@ -292,6 +292,6 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
   planApprovals.clearByChannel(channel);
   const newDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: '' };
   await _adapter.postMessage(newDest, {
-    text: t('interaction.newConversation', { model: `${selection.backend} · ${selection.model}` }),
+    text: t('interaction.newConversation', { selection: `${selection.backend} · ${selection.model}` }),
   }).catch(() => {});
 }

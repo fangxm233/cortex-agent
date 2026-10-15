@@ -41,3 +41,10 @@ test('mode accepts a route and reports the current route', async () => {
   await handleModeCmd('model-cmd', adapter, '!mode');
   expect(adapter.posted.at(-1)?.content.text).toContain('plan');
 });
+
+vi.mock('@core/gateway-generator.js', async (original) => ({
+  ...await original<typeof import('../src/core/gateway-generator.js')>(),
+  readGatewayYaml: () => ({ top: {}, endpoints: {
+    anthropic: { plan: {}, api: {}, anthropic: {} }, openai: { openai: {} },
+  } }),
+}));

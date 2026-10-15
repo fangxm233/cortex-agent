@@ -1,4 +1,4 @@
-/** Provider slug this reading is attributed to; matches the gateway route and profile provider. */
+/** Provider slug this reading is attributed to; matches the gateway route and model provider. */
 export const CODEX_PROVIDER = 'openai-codex';
 
 /** The two limit buckets Codex advertises per response. `secondary` is empty on plans without a

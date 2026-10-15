@@ -23,11 +23,11 @@ function selectionText(selection: EngineSelection): string {
   return `${selection.backend} · ${selection.provider ? `${selection.provider}/` : ''}${selection.model} · ${selection.thinking ?? t('cmd.thinking.none')} · ${selection.mode}`;
 }
 
-function selectionFailure(result: ApplySelectionResult): string {
+function selectionFailure(result: ApplySelectionResult, requested: Partial<EngineSelection>): string {
   if (result.reason === 'cross-backend-live-session') {
-    return t('cmd.model.crossBackendBlocked', { target: result.targetBackend ?? '', current: result.currentBackend ?? '' });
+    return t('cmd.selection.crossBackendBlocked', { name: requested.model ?? result.model, target: result.targetBackend ?? '', current: result.currentBackend ?? '' });
   }
-  if (result.reason === 'invalid-mode') return t('cmd.mode.invalid', { modes: (result.allowed ?? []).join(', ') });
+  if (result.reason === 'invalid-mode') return t('cmd.mode.invalid', { mode: requested.mode ?? '', routes: (result.allowed ?? []).join(', ') });
   return t('cmd.error', { error: result.reason ?? '' });
 }
 
@@ -35,7 +35,7 @@ async function selectReply(channel: string, selection: Partial<EngineSelection>)
   const result = await applyChannelSelection({ channel, ...selection, seedDefault: false });
   return result.ok
     ? `${Icons.ok} ${t('cmd.model.set', { model: selectionText(result) })}`
-    : `${Icons.error} ${selectionFailure(result)}`;
+    : `${Icons.error} ${selectionFailure(result, selection)}`;
 }
 
 export async function handleModeCmd(channel: string, adapter: PlatformAdapter, message = '!mode'): Promise<void> {

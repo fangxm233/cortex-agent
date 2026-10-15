@@ -39,7 +39,7 @@ export async function handleNewCmd(
   // resolves (broadcasts session.interaction) instead of dangling.
   void interactionRecords.resolvePendingByChannel(channel, 'cancelled', 'command');
   log.info('New conversation started in channel:', channel);
-  await adapter.postMessage(dest, { text: t('cmd.session.newConversation', { model: `${selection.backend} · ${selection.model}` }) });
+  await adapter.postMessage(dest, { text: t('cmd.session.newConversation', { selection: `${selection.backend} · ${selection.model}` }) });
 }
 
 const MAX_RESUME_BUTTONS = 10;
