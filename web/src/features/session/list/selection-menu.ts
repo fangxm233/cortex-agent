@@ -83,7 +83,7 @@ export function buildAgentOptions(agents: ConfigAgentEntry[], opts: { agentName:
     name: agent.name, description: agent.description ?? null, active: agent.name === opts.agentName, disabled: false,
   }));
 }
-export function agentRowSub(option: AgentOption, _crossBackend?: string): string | null { return option.description; }
+export function agentRowSub(option: AgentOption): string | null { return option.description; }
 export function agentChipParts(options: AgentOption[], agentName: string | null) {
   const name = agentName ?? options.find((option) => option.name === 'main')?.name ?? null;
   return { name, description: options.find((option) => option.name === name)?.description ?? null, followingDefault: agentName === null };

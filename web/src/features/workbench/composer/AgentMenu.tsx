@@ -33,7 +33,7 @@ export function AgentMenu({ agents, overridden, onPick }: AgentMenuProps): JSX.E
           key={`agent:${option.name}`}
           id={`agent:${option.name}`}
           label={option.name}
-          sub={agentRowSub(option, L.wbAgentCrossBackend)}
+          sub={agentRowSub(option)}
           active={option.active}
           disabled={option.disabled}
           onPick={() => onPick(option.name)}
