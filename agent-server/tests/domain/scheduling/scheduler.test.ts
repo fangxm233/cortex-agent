@@ -14,9 +14,9 @@ import * as path from 'path';
 
 import { Scheduler } from '../../../src/domain/scheduling/scheduler.js';
 import { normalizeScheduleSpec } from '../../../src/domain/scheduling/schedule-spec.js';
-import { getDefaultProfileName } from '../../../src/domain/agents/profile-manager.js';
+import { getDefaultSelection } from '../../../src/domain/agents/models.js';
 import { SCHEDULES_FILE } from '../../../src/store/schedule-repo.js';
-import { seedTestProfiles } from '../../_seed-profiles.js';
+import { DEFAULT_SELECTION, OTHER_SELECTION, seedScheduleModels } from './selection-fixture.js';
 
 // Tripwire: if any test accidentally binds Scheduler/ScheduleRepo to the production
 // schedules.json (rather than a tempdir), the stale entries leak and the daemon
@@ -35,7 +35,7 @@ function snapshotProductionTaskIds(): string {
 let productionTaskIdSnapshot = '';
 beforeAll(() => {
   productionTaskIdSnapshot = snapshotProductionTaskIds();
-  seedTestProfiles();
+  seedScheduleModels();
 });
 beforeEach(() => {
   hookBus.emitCortexEvent.mockReset();
@@ -64,7 +64,7 @@ function withTempSchedules(testFn) {
           intervalMs: 3600000,
           message: 'interval task',
           projectId: 'project-one',
-          profile: null,
+          selection: DEFAULT_SELECTION,
           lastRun: 100,
           nextRun: 200,
           createdAt: 50,
@@ -75,7 +75,7 @@ function withTempSchedules(testFn) {
           time: '09:00',
           message: 'daily task',
           projectId: 'project-two',
-          profile: null,
+          selection: DEFAULT_SELECTION,
           lastRun: 100,
           nextRun: 300,
           createdAt: 60,
@@ -93,32 +93,30 @@ function withTempSchedules(testFn) {
   };
 }
 
-test('scheduler add persists default profile when profile is null or omitted', withTempSchedules(async ({ scheduler }) => {
-  const defaultProfile = getDefaultProfileName();
-
-  const nullProfileTask = await scheduler.add(normalizeScheduleSpec({
-    type: 'interval', interval: 60000, message: 'null profile task', projectId: 'project-three', profile: null,
-  }));
-  const omittedProfileTask = await scheduler.add(normalizeScheduleSpec({
-    type: 'interval', interval: 60000, message: 'omitted profile task', projectId: 'project-four',
-  }));
-
-  assert.equal(nullProfileTask.profile, defaultProfile);
-  assert.equal(omittedProfileTask.profile, defaultProfile);
-  assert.equal((await scheduler.get(nullProfileTask.id))!.profile, defaultProfile);
-  assert.equal((await scheduler.get(omittedProfileTask.id))!.profile, defaultProfile);
+test('scheduler add materializes the default selection when null or omitted', withTempSchedules(async ({ scheduler }) => {
+  for (const selection of [null, undefined]) {
+    const task = await scheduler.add(normalizeScheduleSpec({
+      type: 'interval', interval: 60000, message: 'default selection task', selection,
+    }));
+    assert.deepEqual(task.selection, getDefaultSelection());
+    assert.deepEqual((await scheduler.get(task.id))!.selection, getDefaultSelection());
+  }
 }));
 
-test('scheduler add preserves explicit profile', withTempSchedules(async ({ scheduler }) => {
+test('scheduler add snapshots the explicit selection and fires it unchanged', withTempSchedules(async ({ scheduler }) => {
+  const selection = { ...OTHER_SELECTION };
   const task = await scheduler.add(normalizeScheduleSpec({
-    type: 'interval', interval: 60000, message: 'explicit profile task', projectId: 'project-three', profile: 'qa',
+    type: 'interval', interval: 60000, message: 'explicit selection task', selection,
   }));
-
-  assert.equal(task.profile, 'qa');
-  assert.equal((await scheduler.get(task.id))!.profile, 'qa');
+  selection.thinking = 'low';
+  assert.deepEqual((await scheduler.get(task.id))!.selection, OTHER_SELECTION);
+  const runner = vi.fn(async () => {});
+  scheduler.runner = runner;
+  await scheduler._runTask(task);
+  assert.deepEqual(runner.mock.calls[0][0].selection, OTHER_SELECTION);
 }));
 
-test('scheduler run resolves legacy null profile tasks to default profile', withTempSchedules(async ({ scheduler }) => {
+test('scheduler run resolves tasks without selection to the default', withTempSchedules(async ({ scheduler }) => {
   const calls = [];
   scheduler.runner = async (payload) => { calls.push(payload); };
 
@@ -126,13 +124,13 @@ test('scheduler run resolves legacy null profile tasks to default profile', with
     id: 'legacy1',
     type: 'interval',
     intervalMs: 60000,
-    message: 'legacy null profile',
+    message: 'missing selection',
     projectId: 'legacy-one',
-    profile: null,
+    createdAt: 1,
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].profileName, getDefaultProfileName());
+  assert.deepEqual(calls[0].selection, getDefaultSelection());
 }));
 
 test('scheduler skips an unregistered dispatch type instead of falling through to the LLM runner', withTempSchedules(async ({ scheduler }) => {
@@ -146,7 +144,7 @@ test('scheduler skips an unregistered dispatch type instead of falling through t
     message: 'retired programmatic job',
     dispatchType: 'task-archive',
     projectId: 'general',
-    profile: 'plan',
+    selection: DEFAULT_SELECTION,
     createdAt: 1,
   });
 
@@ -171,7 +169,7 @@ test('scheduler run emits cortex:schedule.fired with matcher payload keys', with
     intervalMs: 60000,
     message: 'refresh project index',
     projectId: 'atlas',
-    profile: 'plan',
+    selection: DEFAULT_SELECTION,
     createdAt: 1,
   });
 
@@ -192,7 +190,7 @@ test('scheduler run continues when the schedule hook rejects', withTempSchedules
     type: 'once',
     message: 'send digest',
     projectId: 'orchard',
-    profile: 'plan',
+    selection: DEFAULT_SELECTION,
     runAt: Date.now(),
     createdAt: 1,
   });
@@ -255,8 +253,8 @@ test('scheduler _hotReload picks up external removal from schedules.json', async
   const schedulesFile = path.join(tempDir, 'schedules.json');
   fs.writeFileSync(schedulesFile, JSON.stringify({
     tasks: [
-      { id: 'keep', type: 'interval', intervalMs: 60_000, message: 'keep', projectId: 'project-one', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 },
-      { id: 'remove-me', type: 'interval', intervalMs: 60_000, message: 'removeme', projectId: 'project-one', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 },
+      { id: 'keep', type: 'interval', intervalMs: 60_000, message: 'keep', projectId: 'project-one', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: Date.now() + 60_000 },
+      { id: 'remove-me', type: 'interval', intervalMs: 60_000, message: 'removeme', projectId: 'project-one', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: Date.now() + 60_000 },
     ],
   }, null, 2));
   const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
@@ -268,7 +266,7 @@ test('scheduler _hotReload picks up external removal from schedules.json', async
     // External writer (e.g. `cortex schedule remove`) modifies the file directly, bypassing the repo.
     fs.writeFileSync(schedulesFile, JSON.stringify({
       tasks: [
-        { id: 'keep', type: 'interval', intervalMs: 60_000, message: 'keep', projectId: 'project-one', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 },
+        { id: 'keep', type: 'interval', intervalMs: 60_000, message: 'keep', projectId: 'project-one', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: Date.now() + 60_000 },
       ],
     }, null, 2));
 
@@ -300,7 +298,7 @@ test('scheduler _hotReload picks up external additions from schedules.json', asy
 
     fs.writeFileSync(schedulesFile, JSON.stringify({
       tasks: [
-        { id: 'new', type: 'interval', intervalMs: 60_000, message: 'new', projectId: 'project-one', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 },
+        { id: 'new', type: 'interval', intervalMs: 60_000, message: 'new', projectId: 'project-one', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: Date.now() + 60_000 },
       ],
     }, null, 2));
 
@@ -317,7 +315,7 @@ test('scheduler _hotReload picks up external additions from schedules.json', asy
 test('scheduler _hotReload applies a pause and a resume written by another process', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-hot-reload-'));
   const schedulesFile = path.join(tempDir, 'schedules.json');
-  const task = { id: 'ext', type: 'interval', intervalMs: 60_000, message: 'ext', projectId: 'p', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 };
+  const task = { id: 'ext', type: 'interval', intervalMs: 60_000, message: 'ext', projectId: 'p', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: Date.now() + 60_000 };
   fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [task] }));
   const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
   try {
@@ -346,9 +344,9 @@ test('scheduler _hotReload after its own writes reports nothing, paused and fire
   scheduler.setAdminNotifier((text) => notices.push(text));
   try {
     await scheduler.start();
-    const recurring = await scheduler.add(normalizeScheduleSpec({ type: 'interval', interval: '1h', message: 'r', profile: 'plan' }));
+    const recurring = await scheduler.add(normalizeScheduleSpec({ type: 'interval', interval: '1h', message: 'r', selection: DEFAULT_SELECTION }));
     await scheduler.pause(recurring.id);
-    const once = await scheduler.add(normalizeScheduleSpec({ type: 'once', delay: '1h', message: 'o', profile: 'plan' }));
+    const once = await scheduler.add(normalizeScheduleSpec({ type: 'once', delay: '1h', message: 'o', selection: DEFAULT_SELECTION }));
     await scheduler.remove(once.id);
 
     await scheduler._hotReload();
@@ -363,7 +361,7 @@ test('a failing fire does not end a recurring task: the next fire still happens'
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-fire-error-'));
   const schedulesFile = path.join(tempDir, 'schedules.json');
   fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{
-    id: 'fast', type: 'interval', intervalMs: 50, message: 'tick', projectId: 'p', profile: 'plan', createdAt: 1, nextRun: 0,
+    id: 'fast', type: 'interval', intervalMs: 50, message: 'tick', projectId: 'p', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: 0,
   }] }));
   let runs = 0;
   const scheduler = new Scheduler(async () => { runs++; }, {}, { schedulesFile, watchFile: false });
@@ -389,7 +387,7 @@ test('startup reports an overdue once task before dropping it', withTempSchedule
   scheduler.setAdminNotifier((text: string) => notices.push(text));
   fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{
     id: 'missed', type: 'once', runAt: now - 120_000, message: 'send digest',
-    projectId: 'general', profile: 'plan', createdAt: now - 180_000,
+    projectId: 'general', selection: DEFAULT_SELECTION, createdAt: now - 180_000,
   }] }));
   try {
     await scheduler.start();

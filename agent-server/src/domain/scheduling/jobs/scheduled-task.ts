@@ -5,12 +5,12 @@ import * as executionRegistry from '../../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { applyChannelSelection, resolveBackendForChannel } from '../../agents/index.js';
-import { getDefaultProfileName } from '../../agents/profile-manager.js';
+import type { EngineSelection } from '../../agents/engine-selection.js';
 import { projectStore } from '@domain/projects/index.js';
 import { createDirectSession, type CreateDirectSessionDeps } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../run-guards.js';
-import { allConfigsRateLimited } from '../../runs/fallback.js';
+import { configIsRateLimited } from '../../agents/provider-run-lifecycle.js';
 import type { Destination } from '@platform/index.js';
 import { t } from '@core/i18n.js';
 import { publishSystemNotice } from '@domain/system/system-notice.js';
@@ -38,7 +38,7 @@ export interface RunScheduledTaskInput {
   message: string;
   projectId: string;
   scheduleTaskId: string;
-  profileName: string;
+  selection: EngineSelection;
 }
 
 /** Collaborators the run is opened with. Production uses the real stores; tests inject their own. */
@@ -73,26 +73,18 @@ export function runScheduledTask(input: RunScheduledTaskInput, deps: ScheduledRu
  * (the run itself, a rate-limit pause and its resume, a reply adopting the run) is the session's.
  */
 export async function fireScheduledTask(
-  { message, projectId, scheduleTaskId, profileName }: RunScheduledTaskInput,
+  input: RunScheduledTaskInput,
   deps: ScheduledRunDeps = defaultDeps,
 ): Promise<void> {
+  const { projectId, scheduleTaskId } = input;
   const schedKey = `sched:${scheduleTaskId || projectId}`;
   if (!passScheduledGuards(schedKey, scheduleTaskId)) return;
-
-  if (!isValidDispatchPrompt(message)) {
-    log.warn(`Guard dropped null/empty prompt for schedule ${scheduleTaskId} (project=${projectId}, profile=${profileName}): "${message?.substring(0, 60) || String(message)}"`);
-    return;
-  }
-
-  if (allConfigsRateLimited(profileName)) {
-    log.info(`Skipping schedule ${scheduleTaskId} — all configs rate-limited for profile ${profileName}`);
-    await notifySkippedSchedule(projectId, t('notice.schedule.rateLimited', { id: scheduleTaskId, message }));
-    return;
-  }
-
+  if (!(await canOpenScheduledRun(input))) return;
+  // Re-check after the async guard: another fire may already have reserved this schedule.
+  if (!passScheduledGuards(schedKey, scheduleTaskId)) return;
   scheduledTaskActive.add(schedKey);
   try {
-    await openScheduledRun({ message, projectId, scheduleTaskId, profileName }, deps);
+    await openScheduledRun(input, deps);
   } catch (error) {
     // Nothing ran, so the notice is the only trace this fire leaves.
     log.error(`Scheduled task ${scheduleTaskId} setup failed:`, (error as Error).message);
@@ -102,29 +94,36 @@ export async function fireScheduledTask(
   }
 }
 
+async function canOpenScheduledRun({ message, projectId, scheduleTaskId, selection }: RunScheduledTaskInput): Promise<boolean> {
+  if (!isValidDispatchPrompt(message)) {
+    log.warn(`Guard dropped null/empty prompt for schedule ${scheduleTaskId} (project=${projectId}, model=${selection.model}): "${message?.substring(0, 60) || String(message)}"`);
+    return false;
+  }
+  if (!configIsRateLimited(selection)) return true;
+  log.info(`Skipping schedule ${scheduleTaskId} — selection ${selection.backend}/${selection.model} is rate-limited`);
+  await notifySkippedSchedule(projectId, t('notice.schedule.rateLimited', { id: scheduleTaskId, message }));
+  return false;
+}
+
 async function openScheduledRun(
-  { message, projectId, scheduleTaskId, profileName }: {
-    message: string; projectId: string; scheduleTaskId: string; profileName: string;
-  },
+  { message, projectId, scheduleTaskId, selection }: RunScheduledTaskInput,
   deps: ScheduledRunDeps,
 ): Promise<void> {
   const deliver = requireJobCtx('deliverScheduledTurn');
   const sessionId = deps.newSessionId();
   const channel = `web:${sessionId}`;
 
-  // The profile is written before the session exists, so its first turn already runs on it. A fire
-  // is not a pick the user made, so it leaves what the next new conversation opens on alone.
-  const applied = await deps.applySelection({
-    channel, profileName: profileName || getDefaultProfileName(), seedDefault: false,
-  });
-  if (!applied.ok) throw new Error(`cannot run on profile "${profileName}": ${applied.reason}`);
+  // Apply the complete stored selection before creating the session, without changing the seed
+  // for the user's next conversation.
+  const applied = await deps.applySelection({ channel, ...selection, seedDefault: false });
+  if (!applied.ok) throw new Error(`cannot run on model "${selection.model}": ${applied.reason}`);
 
   const created = await deps.createSession({
     projectId: projectStore.exists(projectId)
       ? projectId
       : projectStore.resolveFromMessage(message)?.id ?? 'general',
     sessionId,
-    profileName: applied.profileName,
+    selection,
     scheduleId: scheduleTaskId || null,
     label: message.substring(0, 60) || null,
   });

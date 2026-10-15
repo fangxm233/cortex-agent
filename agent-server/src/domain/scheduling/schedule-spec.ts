@@ -1,3 +1,4 @@
+import type { EngineSelection } from '../agents/engine-selection.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 import { isValidDispatchPrompt } from './run-guards.js';
 
@@ -17,7 +18,7 @@ export type ScheduleTiming =
 export type ScheduleSpec = ScheduleTiming & {
   message: string;
   projectId: string;
-  profile: string | null;
+  selection?: EngineSelection;
   preCheck?: string;
 };
 
@@ -27,7 +28,7 @@ export interface ScheduleSpecInput {
   type: string | undefined;
   message: string | null | undefined;
   projectId?: string | null;
-  profile?: string | null;
+  selection?: EngineSelection | null;
   preCheck?: string | null;
   interval?: string | number;
   time?: string;
@@ -39,7 +40,7 @@ export interface ScheduleSpecInput {
 export interface SchedulePatch {
   message?: string;
   projectId?: string;
-  profile?: string | null;
+  selection?: EngineSelection;
   preCheck?: string;
   dispatchType?: string;
   intervalMs?: number;
@@ -129,13 +130,13 @@ export function normalizeScheduleSpec(input: ScheduleSpecInput): ScheduleSpec {
     ...timing,
     message: normalizeMessage(input.message),
     projectId: input.projectId?.trim() || 'general',
-    profile: input.profile?.trim() || null,
+    selection: input.selection ? { ...input.selection } : undefined,
     ...(preCheck ? { preCheck } : {}),
   };
 }
 
 const BUILTIN_JOB_DISPATCH_TYPES = new Set(['memory-index-regen']);
-const COMMON_PATCH_FIELDS = ['message', 'projectId', 'profile', 'dispatchType', 'preCheck'];
+const COMMON_PATCH_FIELDS = ['message', 'projectId', 'selection', 'dispatchType', 'preCheck'];
 export const TIMING_PATCH_FIELDS: Record<ScheduleType, readonly (keyof SchedulePatch)[]> = {
   interval: ['intervalMs'],
   daily: ['time'],
@@ -204,10 +205,10 @@ export function retimeTask(task: ScheduleTask, now = Date.now()): void {
   task.nextRun = task.isPaused ? null : now + nextFireDelayMs(task, now);
 }
 
-/** The persisted record for a new schedule. `profile` is already resolved by the caller. */
-export function buildScheduleTask(spec: ScheduleSpec, id: string, now: number, profile: string): ScheduleTask {
-  const { message, projectId, preCheck, profile: _profile, ...timing } = spec;
-  const base = { id, message, projectId, profile, preCheck, createdAt: now };
+/** The persisted record for a new schedule. The caller has materialized its selection. */
+export function buildScheduleTask(spec: ScheduleSpec, id: string, now: number, selection: EngineSelection): ScheduleTask {
+  const { message, projectId, preCheck, selection: _selection, ...timing } = spec;
+  const base = { id, message, projectId, selection: { ...selection }, preCheck, createdAt: now };
   if (timing.type === 'once') return { ...base, type: 'once', runAt: now + timing.delayMs };
   const task: ScheduleTask = { ...base, ...timing, lastRun: null, nextRun: null };
   retimeTask(task, now);

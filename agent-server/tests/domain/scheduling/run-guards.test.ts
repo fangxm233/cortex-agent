@@ -34,6 +34,6 @@ test('isValidDispatchPrompt accepts valid prompt values', () => {
   assert.equal(isValidDispatchPrompt('true'), true);
   assert.equal(isValidDispatchPrompt('0'), true);
   assert.equal(isValidDispatchPrompt('false'), true);
-  assert.equal(isValidDispatchPrompt(' null profile task'), true);  // has real content beyond "null"
+  assert.equal(isValidDispatchPrompt(' null selection task'), true);  // has real content beyond "null"
   assert.equal(isValidDispatchPrompt('task is null-ish'), true);    // substring, not exact match
 });

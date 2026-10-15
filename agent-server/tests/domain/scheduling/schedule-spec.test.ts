@@ -1,5 +1,8 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
+
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
 import {
   buildScheduleTask, nextFireDelayMs, normalizeSchedulePatch, normalizeScheduleSpec, ScheduleSpecError,
 } from '../../../src/domain/scheduling/schedule-spec.js';
@@ -17,16 +20,16 @@ function specError(fn: () => unknown): ScheduleSpecError {
 test('normalizeScheduleSpec types each schedule kind from its own fields', () => {
   assert.deepEqual(
     normalizeScheduleSpec({ type: 'interval', interval: '30m', message: ' check GPU \n' }),
-    { type: 'interval', intervalMs: 1_800_000, message: 'check GPU', projectId: 'general', profile: null },
+    { type: 'interval', intervalMs: 1_800_000, message: 'check GPU', projectId: 'general', selection: undefined },
   );
   assert.deepEqual(
-    normalizeScheduleSpec({ type: 'weekly', dayOfWeek: 'Mon', time: '21:00', message: 'review', projectId: 'p1', profile: 'qa' }),
-    { type: 'weekly', dayOfWeek: 1, time: '21:00', message: 'review', projectId: 'p1', profile: 'qa' },
+    normalizeScheduleSpec({ type: 'weekly', dayOfWeek: 'Mon', time: '21:00', message: 'review', projectId: 'p1', selection }),
+    { type: 'weekly', dayOfWeek: 1, time: '21:00', message: 'review', projectId: 'p1', selection },
   );
   assert.equal(normalizeScheduleSpec({ type: 'weekly', dayOfWeek: '0', time: '08:00', message: 'm' }).type, 'weekly');
   assert.deepEqual(
     normalizeScheduleSpec({ type: 'once', delay: 90_000, message: 'later', preCheck: ' test -f x ' }),
-    { type: 'once', delayMs: 90_000, message: 'later', projectId: 'general', profile: null, preCheck: 'test -f x' },
+    { type: 'once', delayMs: 90_000, message: 'later', projectId: 'general', selection: undefined, preCheck: 'test -f x' },
   );
 });
 
@@ -63,14 +66,14 @@ test('normalizeSchedulePatch allows only the fields of the schedule type and nor
 
 test('buildScheduleTask computes the first run from the spec', () => {
   const now = new Date(2026, 9, 5, 10, 0).getTime();
-  const interval = buildScheduleTask(normalizeScheduleSpec({ type: 'interval', interval: '1h', message: 'm' }), 'a1', now, 'plan');
+  const interval = buildScheduleTask(normalizeScheduleSpec({ type: 'interval', interval: '1h', message: 'm' }), 'a1', now, selection);
   assert.equal(interval.nextRun, now + 3_600_000);
-  assert.equal(interval.profile, 'plan');
+  assert.deepEqual(interval.selection, selection);
 
-  const daily = buildScheduleTask(normalizeScheduleSpec({ type: 'daily', time: '09:00', message: 'm' }), 'a2', now, 'plan');
+  const daily = buildScheduleTask(normalizeScheduleSpec({ type: 'daily', time: '09:00', message: 'm' }), 'a2', now, selection);
   assert.equal(daily.nextRun, new Date(2026, 9, 6, 9, 0).getTime());
 
-  const once = buildScheduleTask(normalizeScheduleSpec({ type: 'once', delay: '2h', message: 'm' }), 'a3', now, 'plan');
+  const once = buildScheduleTask(normalizeScheduleSpec({ type: 'once', delay: '2h', message: 'm' }), 'a3', now, selection);
   assert.equal(once.runAt, now + 7_200_000);
   assert.equal(once.nextRun, undefined);
 });

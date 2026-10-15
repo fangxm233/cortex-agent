@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { DEFAULT_SELECTION, seedScheduleModels } from './selection-fixture.js';
+
+const selection = { ...DEFAULT_SELECTION, model: 'claude-sonnet-5', thinking: 'medium' };
 
 // A schedule's fire opens an ordinary session of its own and hands it the prompt as its first turn.
 // These tests pin what that session looks like, that the fire never moves what the next new
@@ -9,13 +12,7 @@ import * as path from 'node:path';
 
 const HOME = process.env.CORTEX_HOME!;
 mkdirSync(path.join(HOME, 'config'), { recursive: true });
-writeFileSync(path.join(HOME, 'config', 'profiles.json'), JSON.stringify({
-  defaultProfile: 'opus',
-  profiles: {
-    opus: { model: 'claude-opus-5', backend: 'claude', mode: 'plan' },
-    sonnet: { model: 'claude-sonnet-5', backend: 'claude', mode: 'plan' },
-  },
-}));
+seedScheduleModels();
 // An installed skill whose name is an ordinary English word: a prompt starting with it is prose.
 mkdirSync(path.join(HOME, 'plugins', 'cortex-maintain', 'skills', 'release'), { recursive: true });
 writeFileSync(path.join(HOME, 'plugins', 'cortex-maintain', 'skills', 'release', 'SKILL.md'),
@@ -27,14 +24,14 @@ vi.mock('../../../src/domain/executions/registry.js', () => ({
 }));
 
 const { listSystemNotices, resetSystemNoticeHistory } = await import('../../../src/domain/system/notice-history.js');
-const fallback = await import('../../../src/domain/runs/fallback.js');
+const providerLifecycle = await import('../../../src/domain/agents/provider-run-lifecycle.js');
 const { fireScheduledTask } = await import('../../../src/domain/scheduling/jobs/scheduled-task.js');
 const { ctx } = await import('../../../src/domain/scheduling/job-registry.js');
 const { createDirectSession } = await import('../../../src/domain/sessions/session-lifecycle.js');
 const { getSessionAsync, setSessionAsync } = await import('../../../src/domain/sessions/session.js');
 const { sessionStore } = await import('../../../src/store/session-registry-repo.js');
 const { conversationLedger } = await import('../../../src/store/conversation-ledger-repo.js');
-const { applyChannelSelection, getActiveProfile, getSelectionDefault } = await import('../../../src/domain/agents/index.js');
+const { applyChannelSelection, getChannelSelection, getSelectionDefault } = await import('../../../src/domain/agents/index.js');
 const { projectStore } = await import('../../../src/domain/projects/index.js');
 const { hasRunningExecutionForSchedule } = await import('../../../src/domain/scheduling/run-guards.js');
 const { conversationTrigger } = await import('../../../src/orchestration/conversation-request.js');
@@ -60,7 +57,7 @@ function fire(overrides: Partial<Parameters<typeof fireScheduledTask>[0]> = {}) 
     message: '[Scheduled Task] summarize new arxiv papers',
     projectId: 'proj-a',
     scheduleTaskId: 'sch-1',
-    profileName: 'sonnet',
+    selection,
     ...overrides,
   };
 }
@@ -94,7 +91,7 @@ test('a fire opens a scheduled session on its own web channel and delivers the p
     kind: 'scheduled',
     scheduleId: 'sch-1',
     projectId: 'proj-a',
-    profileName: 'sonnet',
+    selection,
     label: '[Scheduled Task] summarize new arxiv papers',
   });
   expect(await getSessionAsync(channel)).toBe(sessionId);
@@ -116,24 +113,24 @@ test('a schedule bound to an unknown project lands in general', async () => {
   expect((await sessionStore.getById(sessionId))?.projectId).toBe('general');
 });
 
-test('the profile is applied to the new channel without moving what the next conversation opens on', async () => {
+test('the full selection is applied without moving what the next conversation opens on', async () => {
   const { sessionId, deps } = makeDeps();
   const before = getSelectionDefault();
   await fireScheduledTask(fire({ scheduleTaskId: 'sch-2' }), deps);
 
   expect(deps.applySelection).toHaveBeenCalledWith({
-    channel: `web:${sessionId}`, profileName: 'sonnet', seedDefault: false,
+    channel: `web:${sessionId}`, ...selection, seedDefault: false,
   });
   // Written before the session exists, so the first turn already runs on it.
   expect(deps.applySelection.mock.invocationCallOrder[0])
     .toBeLessThan(deps.createSession.mock.invocationCallOrder[0]);
-  expect(getActiveProfile(`web:${sessionId}`)).toBe('sonnet');
+  expect(getChannelSelection(`web:${sessionId}`)).toEqual(selection);
   expect(getSelectionDefault()).toEqual(before);
 });
 
-test('a profile that will not apply opens nothing and says so', async () => {
+test('a selection that will not apply opens nothing and says so', async () => {
   const { sessionId, deps } = makeDeps();
-  await fireScheduledTask(fire({ scheduleTaskId: 'sch-3', profileName: 'no-such-profile' }), deps);
+  await fireScheduledTask(fire({ scheduleTaskId: 'sch-3', selection: { ...selection, thinking: 'invalid' } }), deps);
 
   expect(deps.createSession).not.toHaveBeenCalled();
   expect(await sessionStore.getById(sessionId)).toBeNull();
@@ -195,10 +192,12 @@ test('a session adopted by a reply runs as an ordinary user turn again', () => {
   expect(conversationTrigger(null)).toEqual({ trigger: 'user', executionKind: 'local', scheduleTaskId: null });
 });
 
-test('all-config rate limiting reports the skipped schedule without opening a session', async () => {
-  vi.spyOn(fallback, 'allConfigsRateLimited').mockReturnValue(true);
+test('only the stored selection is checked for rate limiting before opening a session', async () => {
+  const rateLimit = vi.spyOn(providerLifecycle, 'configIsRateLimited').mockReturnValue(true);
   const { deps } = makeDeps();
   await fireScheduledTask(fire(), deps);
+  expect(rateLimit).toHaveBeenCalledTimes(1);
+  expect(rateLimit).toHaveBeenCalledWith(selection);
   expect(deps.createSession).not.toHaveBeenCalled();
   expect(notify).toHaveBeenCalledTimes(1);
   expect(notify.mock.calls[0][0]).toMatchObject({ type: 'project-report', projectId: 'proj-a' });
