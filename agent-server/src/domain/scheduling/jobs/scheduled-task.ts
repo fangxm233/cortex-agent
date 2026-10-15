@@ -124,6 +124,7 @@ async function openScheduledRun(
       : projectStore.resolveFromMessage(message)?.id ?? 'general',
     sessionId,
     selection,
+    seedDefault: false,
     scheduleId: scheduleTaskId || null,
     label: message.substring(0, 60) || null,
   });
