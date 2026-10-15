@@ -10,7 +10,6 @@ import {
   configSetInput,
   configSetProviderRateLimitPolicyInput,
 } from '../input-schemas.js';
-import { readProfilesFile, writeProfilesFile } from './profiles.js';
 import type {
   UiServiceDeps,
   Result,
@@ -71,23 +70,6 @@ export async function writeBudget(
   await atomicWrite(file, JSON.stringify(next, null, 2) + '\n');
 }
 
-/**
- * Re-point profiles.json `defaultProfile`, PRESERVING every other field. Pure over its dir
- * argument. The target MUST already exist in the file's `profiles` map — the write can only SELECT
- * an existing profile, never invent one (a non-existent default would break agent startup). A
- * missing / malformed profiles.json or an unknown profile throws with `code: 'invalid-args'` so the
- * handler maps it to BAD_REQUEST rather than an internal error.
- */
-export async function writeDefaultProfile(configDir: string, defaultProfile: string): Promise<void> {
-  const raw = await readProfilesFile(configDir);
-  if (!Object.prototype.hasOwnProperty.call(raw.profiles, defaultProfile)) {
-    throw Object.assign(new Error(t('ui.profile.notFound', { name: defaultProfile })), {
-      code: 'invalid-args',
-    });
-  }
-  await writeProfilesFile(configDir, { ...raw, defaultProfile });
-}
-
 export async function handleConfigSet(
   deps: UiServiceDeps,
   args: MutateArgs<'config.set'>,
@@ -105,10 +87,6 @@ export async function handleConfigSet(
       // in-process budget must be dropped or the new limits would not apply until restart.
       costRepo.invalidateBudget();
       return { ok: true, data: { written: true, section: 'budget' } };
-    }
-    if (parsed.data.section === 'profiles') {
-      await writeDefaultProfile(CONFIG_DIR, parsed.data.value.defaultProfile);
-      return { ok: true, data: { written: true, section: 'profiles' } };
     }
     if (parsed.data.section === 'preferences') {
       // One knob, two effects: preferences.json is rewritten AND the live locale switches, so the

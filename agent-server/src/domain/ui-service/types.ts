@@ -7,6 +7,8 @@ export type {
 } from './session-metadata-schemas.js';
 
 import type { z } from 'zod';
+import type { EngineSelection, ModelRef } from '@domain/agents/engine-selection.js';
+export type { EngineSelection, ModelRef } from '@domain/agents/engine-selection.js';
 import type { queryInputSchemas, mutateInputSchemas } from './input-schemas.js';
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
@@ -159,7 +161,8 @@ export interface AuthSyncGatewayReturn {
   /** False when nothing was written (see `reason`); not an error. */
   configured: boolean;
   endpoints: number;
-  profiles: string[];
+  defaultSet: boolean;
+  favorites: ModelRef[];
   reason?: string;
 }
 
@@ -178,17 +181,6 @@ export interface SessionsMarkManyReadReturn {
   /** How many of the requested sessions were stamped — ids that no longer resolve (purged runs)
    *  are skipped rather than failing the batch. */
   marked: number;
-}
-
-/** The part of a session's engine selection that came from the user rather than from its profile.
- *  Every field is optional: a session may override only its thinking level, only its model, or any
- *  mix. Backend is never here — it belongs to the profile (and a live conversation cannot change it). */
-export interface SessionSelectionOverride {
-  model?: string;
-  provider?: string;
-  thinking?: string;
-  /** Which gateway route of the profile's endpoint bills the turn — anthropic `plan` vs `api`. */
-  mode?: string;
 }
 
 /** Return of sessions.answerQuestion / sessions.respondPlan. 'already-resolved' means another
@@ -217,8 +209,7 @@ export interface SessionsRewindReturn {
 
 // Safely-writable config.set sections (Stage 7 + task b983). Each section has its own validated
 // write path; any section not listed here is rejected by both the zod schema and the handler.
-// `budget` writes budget.json (daily/monthly); `profiles` re-points the default profile (which must
-// already exist in profiles.json — the write can only SELECT an existing profile, never invent one).
+// `budget` writes budget.json (daily/monthly).
 export interface BudgetValue {
   daily_usd: number;
   monthly_usd: number;
@@ -232,29 +223,8 @@ export interface ProviderRateLimitPolicy {
   threshold: number | null;
 }
 
-// profiles.* — CRUD over the `profiles` map of profiles.json. `config.set {section:'profiles'}`
-// still owns the ONE other write (re-pointing defaultProfile) and is untouched by these ops.
-// The draft carries only the fields the settings editor can express; `extraEnv` (secret-bearing)
-// and `fallback[]` (nested chain) are preserved from the stored entry across an update.
-export interface ProfileDraftInput {
-  model: string;
-  backend?: Backend;
-  mode?: string;
-  provider?: string;
-  thinking?: string;
-  extraOption?: Record<string, string>;
-}
-
-export interface ProfilesCreateReturn {
-  name: string;
-}
-
-export interface ProfilesUpdateReturn {
+export interface ModelsMutationReturn {
   changed: boolean;
-}
-
-export interface ProfilesRemoveReturn {
-  removed: boolean;
 }
 
 // ── Query return types (DTOs) ─────────────────────────────────────
@@ -304,17 +274,12 @@ export interface SessionInfo {
   starred?: boolean;
   /** Explicitly renamed labels take precedence over generated scheduled-run titles. */
   labelRenamed?: boolean;
-  /** The session's active agent profile (registry record). Null when never explicitly set — the
-   *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
-  profileName: string | null;
+  /** Complete engine choice persisted with the session. */
+  selection: EngineSelection | null;
   /** The agent template the session runs as — its environment (prompt, tools, skills, rules), the
    *  other half of "what will the next turn be". Null when the session follows its channel's
    *  selection and, beneath that, the global default. Kept in sync by the agent-switch rule. */
   agentName?: string | null;
-  /** What the user selected on top of that profile (model / provider / thinking), or null when the
-   *  session runs its profile as declared. The composer needs both halves to show what the next turn
-   *  will actually run; the profile alone would lie whenever a model was picked. */
-  selectionOverride?: SessionSelectionOverride | null;
   /** Browser control this session opted into at creation, or null. Fixed for the session's life:
    *  the agent's tool set is decided when its process spawns, so this is a fact to display, not a
    *  setting to flip. */
@@ -322,7 +287,7 @@ export interface SessionInfo {
   /** Latest backend context occupancy, or null until a supported backend reports one. Optional only
    *  for rolling compatibility with older servers/fixtures; current sessions.list always supplies it. */
   contextUsage?: SessionContextUsage | null;
-  /** True only for PI and Claude print sessions under their fixed profile. */
+  /** Whether this backend supports manual context compaction. */
   contextCompactionSupported?: boolean;
   /** The agent's latest task list, or null when it has not written one. Queryable snapshot half of
    *  snapshot+delta — `session.todos` is the delta. Live state, not persisted: a server restart
@@ -595,9 +560,8 @@ export interface ScheduleInfo {
   type: 'interval' | 'daily' | 'weekly' | 'once';
   message: string;
   projectId: string;
-  /** The agent profile this schedule runs under, from the schedule config source.
-   *  null for legacy records that never recorded a profile (honest placeholder — no fabrication). */
-  profile: string | null;
+  /** Complete engine choice materialized when the schedule is created. */
+  selection: EngineSelection | null;
   nextRun: string | null;
   lastRun: string | null;
   paused: boolean;
@@ -750,34 +714,17 @@ export interface ConfigBudget {
   projects: Record<string, BudgetValue>;
 }
 
-export interface ConfigProfileEntry {
-  name: string;
-  model: string | null;
-  backend: Backend | null;
-  mode: string | null;
-  /** Thinking level (backend-native value: claude --effort / pi --thinking). */
-  thinking: string | null;
-  /** Rate-limit provider identity; required by profiles whose effective backend is 'pi'. */
-  provider: string | null;
-  /** Extra CLI flags (keys start with '--'). Returned in full — the editor must round-trip them. */
-  extraOption: Record<string, string>;
-  /** KEYS ONLY of `extraEnv`. Values are environment injection and may hold a token, so they are
-   *  never returned; an edit preserves the stored values untouched. */
-  extraEnvKeys: string[];
-  /** Number of declared fallback entries. The fallback chain itself is not editable from the UI. */
-  fallbackCount: number;
-}
-
-export interface ConfigProfiles {
-  defaultProfile: string | null;
-  profiles: ConfigProfileEntry[];
+export interface ConfigModels {
+  default: EngineSelection | null;
+  favorites: ModelRef[];
+  memory: Record<string, { thinking: string | null; mode: string }>;
 }
 
 export interface ModelCatalogRoute {
   /** Gateway endpoint group: 'anthropic' for claude, the PI provider name otherwise. */
   endpoint: string;
   backend: Backend;
-  /** PI `--provider`; null for claude, whose provider identity is not a profile field. */
+  /** PI `--provider`; null for claude. */
   provider: string | null;
   /** Mode names gateway.yaml actually declares for this endpoint, in file order. Never empty: an
    *  endpoint with no gateway section falls back to the name `discoverEndpoints` would generate. */
@@ -799,7 +746,7 @@ export interface ModelCatalogSnapshot {
   /** True while PI's first model scan is still in flight — the client may refetch shortly. */
   piPending: boolean;
   /** The backend-wide thinking ladders, served so a picker does not keep a second copy of the
-   *  table the profile validator already enforces. Optional for the same roll-skew reason as
+   *  table the selection validator already enforces. Optional for the same roll-skew reason as
    *  `modelThinking`. */
   thinkingLevels?: Record<Backend, string[]>;
 }
@@ -816,13 +763,10 @@ export interface ConfigMcp {
   servers: string[];
 }
 
-/** One execution environment (`config/environments/`) as a picker needs it: what it is for, and
- *  which profile it pins (or `__active__` — it runs whatever the conversation's own profile
- *  resolves to). */
+/** One execution environment (`config/environments/`) offered by the picker. */
 export interface ConfigAgentEntry {
   name: string;
   description?: string;
-  profile: string;
 }
 
 export interface ConfigEnvEntry {
@@ -949,20 +893,15 @@ export interface HooksTestReturn {
   error: string | null;
 }
 
-/** What a brand-new conversation starts on: the profile the composer should preselect, plus the
- *  model / provider / thinking / route the last pick left on top of it. Null on a host where
- *  nobody has picked anything yet — the composer then falls back to the default profile. */
-export interface ConfigSelectionDefault extends SessionSelectionOverride {
-  profileName?: string;
-  /** The agent the last composer pick ran as — a draft opens in the environment the previous
-   *  conversation was working in, the same way it opens on its profile. */
+/** Last composer choice; absent state falls back to models.default. */
+export interface ConfigSelectionDefault extends EngineSelection {
   agentName?: string;
 }
 
 export interface ConfigSnapshot {
   platforms?: PlatformSettingsSnapshot[];
   budget: ConfigBudget | null;
-  profiles: ConfigProfiles | null;
+  models: ConfigModels;
   machines: ConfigMachine[];
   mcp: ConfigMcp | null;
   /** The execution environments a composer may pick from, with what each one is and pins. Always
@@ -980,9 +919,8 @@ export interface ConfigSnapshot {
    * falls back to its local cache.
    */
   lang?: ConfigLang;
-  /** Seed for a draft composer — see {@link ConfigSelectionDefault}. Optional while clients and
-   *  servers roll independently. */
-  selectionDefault?: ConfigSelectionDefault | null;
+  /** Seed for a draft composer — see {@link ConfigSelectionDefault}. */
+  selectionDefault: ConfigSelectionDefault | null;
 }
 
 export interface ConfigLang {
@@ -1580,36 +1518,13 @@ export interface SessionsCompactReturn {
   contextUsage: SessionContextUsage | null;
 }
 
-export interface SessionsSetProfileReturn {
-  /** The profile now active on the session. */
-  profileName: string;
-  /** True when the switch moved to a different backend (only possible on a session with no history). */
-  backendChanged: boolean;
-}
-
 export interface SessionsSetAgentReturn {
-  /** The agent now selected for the session; null when it follows the global default again. */
+  /** The selected environment; null follows the global default agent. */
   agentName: string | null;
-  /** The profile that agent will run under — its own when it pins one, the channel's otherwise.
-   *  For display: the switch never writes the channel's profile. */
-  profileName: string;
-  /** True when the switch moved to a different backend (only possible on a session with no history). */
-  backendChanged: boolean;
 }
 
-/** What the session will run on its next turn, after the change — effective values, so the client
- *  can render the chip without re-deriving the profile/override layering. */
-export interface SessionsSetSelectionReturn {
-  profileName: string;
-  backend: Backend;
-  model: string;
-  provider: string | null;
-  thinking: string | null;
-  /** The gateway route the next turn bills to. */
-  mode: string;
-  /** The fields that came from the selection rather than from the profile. Null when the session
-   *  runs its profile as declared. */
-  override: SessionSelectionOverride | null;
+/** Effective engine choice after the mutation. */
+export interface SessionsSetSelectionReturn extends EngineSelection {
   backendChanged: boolean;
 }
 
@@ -1632,7 +1547,7 @@ export interface WaitpointsCancelReturn {
 
 export interface ConfigSetReturn {
   written: true;
-  section: 'budget' | 'profiles' | 'settings' | 'preferences';
+  section: 'budget' | 'settings' | 'preferences';
 }
 
 export interface ConfigSetProviderRateLimitPolicyReturn {
@@ -1728,7 +1643,6 @@ export interface MutateReturnMap {
   'sessions.send': SessionsSendReturn;
   'sessions.cancel': SessionsCancelReturn;
   'sessions.compact': SessionsCompactReturn;
-  'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.setAgent': SessionsSetAgentReturn;
   'sessions.setSelection': SessionsSetSelectionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
@@ -1774,9 +1688,9 @@ export interface MutateReturnMap {
   'hooks.setEnabled': HooksSetEnabledReturn;
   'hooks.remove': HooksRemoveReturn;
   'hooks.test': HooksTestReturn;
-  'profiles.create': ProfilesCreateReturn;
-  'profiles.update': ProfilesUpdateReturn;
-  'profiles.remove': ProfilesRemoveReturn;
+  'models.favorites.add': ModelsMutationReturn;
+  'models.favorites.remove': ModelsMutationReturn;
+  'models.setDefault': ModelsMutationReturn;
   'plugins.assign': PluginsAssignReturn;
   'plugins.skillWrite': PluginsSkillWriteReturn;
   'plugins.skillCreate': PluginsSkillReturn;
@@ -1822,7 +1736,7 @@ export interface UiServiceDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
-  /** Re-derives gateway modes and profiles; defaults to the real discovery-backed sync. */
+  /** Re-derives gateway routes and favorites; defaults to discovery-backed sync. */
   syncGateway?: (options: { backends?: string[] }) => Promise<AuthSyncGatewayReturn>;
   /** Files custom providers are read from and written to; defaults to the host's own two files. */
   customProviderStores?: CustomProviderStores;
@@ -1849,10 +1763,8 @@ export interface UiServiceDeps {
     setStarred(sessionId: string, starred: boolean): Promise<Session | null>;
     rename(sessionId: string, label: string): Promise<Session | null>;
   };
-  /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
-   *  the two fields the answer depends on so the list can answer it once per distinct profile
-   *  instead of once per row. */
-  supportsSessionCompaction: (session: Pick<Session, 'backend' | 'profileName'>) => boolean;
+  /** Capability hint for sessions.list; execution revalidates inside orchestration. */
+  supportsSessionCompaction: (session: Pick<Session, 'backend'>) => boolean;
   /** Latest task-list snapshot for a session (in-memory registry). */
   getSessionTodos: (sessionId: string) => TodoSnapshot | null;
   /** Idle-only manual context compaction, injected at the entry layer. */
@@ -1923,7 +1835,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null }) => Promise<{ sessionId: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; agentName?: string | null; selection?: EngineSelection; browser?: { device: string } | null }) => Promise<{ sessionId: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
@@ -1937,71 +1849,22 @@ export interface UiServiceDeps {
    * and return updated AttachmentMeta with corrected paths. No-op when draftUploadId is null.
    */
   moveDraftAttachments: (opts: { draftUploadId: string | null; sessionId: string; attachments: AttachmentMeta[] }) => Promise<AttachmentMeta[]>;
-  /**
-   * Switch the active agent profile for a session's channel under the shared profile-switch rule
-   * (same `switchChannelProfile` the Slack/Feishu `!profile` command uses). Wired in the entry layer
-   * (app.ts) so the ui-service domain never imports domain/agents. Returns a structured outcome:
-   * `ok:false` with `reason` when the profile is unknown or a cross-backend switch is attempted on a
-   * session that already has conversation history.
-   */
-  switchSessionProfile: (opts: { channel: string; name: string }) => Promise<{
-    ok: boolean;
-    name: string;
-    currentBackend: string;
-    targetBackend: string;
-    backendChanged: boolean;
-    reason?: 'unknown-profile' | 'cross-backend-live-session';
-  }>;
-  /**
-   * Switch the agent — the execution environment — a session's channel runs, under the shared
-   * agent-switch rule (the same `switchChannelAgent` the Slack/Feishu `!agent` command uses). A
-   * null name clears the channel's selection. Wired in the entry layer (app.ts) for the same reason
-   * as the profile switch above: the ui-service domain never imports domain/agents.
-   */
+  /** Switch execution environment without changing the engine. */
   switchSessionAgent: (opts: { channel: string; name: string | null }) => Promise<{
     ok: boolean;
     agentName: string | null;
-    /** The profile the agent will run under, for display. */
-    effectiveProfile: string;
-    backendChanged: boolean;
-    reason?: 'unknown-agent' | 'cross-backend-live-session';
-    currentBackend?: string;
-    targetBackend?: string;
+    reason?: 'unknown-agent';
   }>;
-  /**
-   * Apply a session's engine selection (profile and/or model / provider / thinking) under the
-   * shared rule — the domain `applyChannelSelection`, wired in the entry layer (app.ts) so the
-   * ui-service domain never imports domain/agents. Returns the effective selection, or a structured
-   * refusal the handler maps to a Result code.
-   */
-  applySessionSelection: (opts: {
-    channel: string;
-    profileName?: string;
-    model?: string | null;
-    provider?: string | null;
-    thinking?: string | null;
-    mode?: string | null;
-  }) => Promise<{
+  /** Shared domain selection rule, wired at the entry layer. */
+  applySessionSelection: (opts: EngineSelection & { channel: string }) => Promise<EngineSelection & {
     ok: boolean;
     backendChanged: boolean;
-    /** The channel's selection after the change — or the untouched one when `ok` is false. */
-    profileName: string;
-    backend: Backend;
-    model: string;
-    provider: string | null;
-    thinking: string | null;
-    mode: string;
-    override: SessionSelectionOverride | null;
-    /** Present only when `ok` is false. */
-    reason?: 'unknown-profile' | 'cross-backend-live-session' | 'invalid-thinking' | 'provider-not-supported'
-      | 'invalid-mode';
+    reason?: string;
     currentBackend?: string;
     targetBackend?: string;
     allowed?: readonly string[];
   }>;
-  /** What a session selected on top of its profile, by channel — the read half of
-   *  `applySessionSelection`, used to render `sessions.list`. Injected for the same reason. */
-  getChannelSelectionOverride: (channel: string) => SessionSelectionOverride | null;
+  getModelMemory: () => ConfigModels['memory'];
   /** The last composer pick on this host, which a draft conversation starts from. Injected for the
    *  same reason as the two above. */
   getSelectionDefault: () => ConfigSelectionDefault | null;

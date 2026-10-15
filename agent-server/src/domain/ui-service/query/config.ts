@@ -14,8 +14,7 @@ import type {
   ConfigLang,
   ConfigSnapshot,
   ConfigBudget,
-  ConfigProfiles,
-  ConfigProfileEntry,
+  ConfigModels,
   ConfigMachine,
   ConfigMcp,
   ConfigAgentEntry,
@@ -23,7 +22,7 @@ import type {
   ConfigSettingEntry,
   QueryParams,
 } from '../types.js';
-import type { Backend } from '../../../agent-adapter/types.js';
+import { engineSelectionInput, modelRefInput } from '../input-schemas.js';
 
 const MASK = '••••••••';
 
@@ -36,7 +35,7 @@ async function readJson(file: string): Promise<any | null> {
 }
 
 /** The execution environments (`config/environments/`), read as documents rather than filenames: a
- *  picker has to say what each environment is for and which profile it pins. Read under
+ *  picker has to say what each environment is for. Read under
  *  `configDir`, so the snapshot stays hermetic; a malformed file is skipped rather than failing the
  *  whole snapshot. */
 async function readAgentEntries(dir: string, names: readonly string[]): Promise<ConfigAgentEntry[]> {
@@ -44,9 +43,8 @@ async function readAgentEntries(dir: string, names: readonly string[]): Promise<
     const raw = await readJson(path.join(dir, `${name}.json`));
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const doc = raw as Record<string, unknown>;
-    const profile = typeof doc.profile === 'string' && doc.profile ? doc.profile : '__active__';
     const description = typeof doc.description === 'string' && doc.description ? doc.description : undefined;
-    return { name, profile, ...(description ? { description } : {}) };
+    return { name, ...(description ? { description } : {}) };
   }));
   return entries.filter((entry): entry is ConfigAgentEntry => entry !== null);
 }
@@ -84,43 +82,17 @@ function parseBudget(raw: any): ConfigBudget | null {
   };
 }
 
-function isLiveBackend(value: unknown): value is Backend {
-  return value === 'claude' || value === 'pi';
-}
-
-// extraOption is CLI flags and is returned whole — the settings editor has to round-trip it.
-function parseStringMap(raw: unknown): Record<string, string> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
-  );
-}
-
-function parseProfiles(raw: any): ConfigProfiles | null {
-  if (!raw || typeof raw !== 'object' || !raw.profiles || typeof raw.profiles !== 'object') return null;
-  const profiles = Object.entries(raw.profiles).flatMap(([name, p]: [string, any]): ConfigProfileEntry[] => {
-    if (p?.backend != null && !isLiveBackend(p.backend)) return [];
-    return [{
-      name,
-      model: typeof p?.model === 'string' ? p.model : null,
-      backend: isLiveBackend(p?.backend) ? p.backend : null,
-      mode: typeof p?.mode === 'string' ? p.mode : null,
-      thinking: typeof p?.thinking === 'string' ? p.thinking : null,
-      provider: typeof p?.provider === 'string' ? p.provider : null,
-      extraOption: parseStringMap(p?.extraOption),
-      // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
-      extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)
-        ? Object.keys(p.extraEnv).sort()
-        : [],
-      fallbackCount: Array.isArray(p?.fallback) ? p.fallback.length : 0,
-    }];
-  });
-  const requestedDefault = typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null;
+function parseModels(raw: unknown): ConfigModels {
+  const file = raw as { default?: unknown; favorites?: unknown } | null;
+  const selection = engineSelectionInput.safeParse(file?.default);
+  const favorites = Array.isArray(file?.favorites) ? file.favorites : [];
   return {
-    defaultProfile: requestedDefault && profiles.some((profile) => profile.name === requestedDefault)
-      ? requestedDefault
-      : null,
-    profiles,
+    default: selection.success ? selection.data : null,
+    favorites: favorites.flatMap((ref) => {
+      const parsed = modelRefInput.safeParse(ref);
+      return parsed.success ? [parsed.data] : [];
+    }),
+    memory: {},
   };
 }
 
@@ -183,16 +155,17 @@ export async function readConfigSnapshot(
   const hooks = loadMountedHookSummaries({ user: path.join(configDir, 'hooks'), builtin: builtinHooksDir });
   const parts = await Promise.all([
     readJson(path.join(configDir, 'budget.json')),
-    readJson(path.join(configDir, 'profiles.json')),
+    readJson(path.join(configDir, 'models.json')),
     readJson(path.join(configDir, 'machines.json')),
     readJson(path.join(configDir, 'mcp-config.json')),
     readEnv(path.join(configDir, '.env')),
     listJsonBasenames(path.join(configDir, ENVIRONMENTS_DIRNAME)),
   ]);
-  const [budget, profiles, machines, mcp, env, environments] = parts;
+  const [budget, models, machines, mcp, env, environments] = parts;
   return {
     platforms: await readPlatformSettings(path.join(configDir, '.env')),
-    budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
+    budget: parseBudget(budget), models: parseModels(models), machines: parseMachines(machines),
+    selectionDefault: null,
     mcp: parseMcp(mcp),
     agents: await readAgentEntries(path.join(configDir, ENVIRONMENTS_DIRNAME), environments),
     hooks, env, settings: liveSettings, lang,
@@ -206,5 +179,9 @@ export async function handleConfigGet(deps: UiServiceDeps, _params: QueryParams<
   const snapshot = await readConfigSnapshot(
     CONFIG_DIR, getSettingsSnapshot(), { value: getLocale(), source: langSource() },
   );
-  return { ...snapshot, selectionDefault: deps.getSelectionDefault() ?? null };
+  return {
+    ...snapshot,
+    models: { ...snapshot.models, memory: deps.getModelMemory() },
+    selectionDefault: deps.getSelectionDefault() ?? null,
+  };
 }

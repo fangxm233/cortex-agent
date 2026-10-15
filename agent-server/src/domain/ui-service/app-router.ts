@@ -13,7 +13,6 @@ import {
   sessionsSendInput,
   sessionsCancelInput,
   sessionsCompactInput,
-  sessionsSetProfileInput,
   sessionsSetAgentInput,
   sessionsSetSelectionInput,
   sessionsCreateAndSendInput,
@@ -76,9 +75,8 @@ import {
   hooksSetEnabledInput,
   hooksRemoveInput,
   hooksTestInput,
-  profilesCreateInput,
-  profilesUpdateInput,
-  profilesRemoveInput,
+  modelsFavoriteInput,
+  modelsSetDefaultInput,
   modelsCatalogInput,
   machinesListInput,
   machineDetailInput,
@@ -215,7 +213,6 @@ function sessionsRouter(service: UiService) {
     send: makeMutation(service, 'sessions.send', sessionsSendInput),
     cancel: makeMutation(service, 'sessions.cancel', sessionsCancelInput),
     compact: makeMutation(service, 'sessions.compact', sessionsCompactInput),
-    setProfile: makeMutation(service, 'sessions.setProfile', sessionsSetProfileInput),
     setAgent: makeMutation(service, 'sessions.setAgent', sessionsSetAgentInput),
     setSelection: makeMutation(service, 'sessions.setSelection', sessionsSetSelectionInput),
     createAndSend: makeMutation(service, 'sessions.createAndSend', sessionsCreateAndSendInput),
@@ -312,20 +309,15 @@ function hooksRouter(service: UiService) {
   });
 }
 
-// The profiles map of profiles.json. `config.set {section:'profiles'}` keeps owning defaultProfile.
-function profilesRouter(service: UiService) {
-  return router({
-    create: makeMutation(service, 'profiles.create', profilesCreateInput),
-    update: makeMutation(service, 'profiles.update', profilesUpdateInput),
-    remove: makeMutation(service, 'profiles.remove', profilesRemoveInput),
-  });
-}
-
-// The engine catalog the profile editor picks from. Read-only and host-wide, so it is its own
-// router rather than a field of config.get — see query/models.ts for why the cost is isolated.
+// Model catalog, favorites and the default engine choice.
 function modelsRouter(service: UiService) {
   return router({
     catalog: makeQuery(service, 'models.catalog', modelsCatalogInput),
+    favorites: router({
+      add: makeMutation(service, 'models.favorites.add', modelsFavoriteInput),
+      remove: makeMutation(service, 'models.favorites.remove', modelsFavoriteInput),
+    }),
+    setDefault: makeMutation(service, 'models.setDefault', modelsSetDefaultInput),
   });
 }
 
@@ -457,7 +449,6 @@ export function createAppRouter(service: UiService) {
     notes: notesRouter(service),
     cost: costRouter(service),
     config: configRouter(service),
-    profiles: profilesRouter(service),
     models: modelsRouter(service),
     auth: authRouter(service),
     usageSharing: usageSharingRouter(service),

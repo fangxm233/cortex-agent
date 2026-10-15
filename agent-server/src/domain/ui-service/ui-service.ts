@@ -56,10 +56,10 @@ import {
   handleHooksTest,
 } from './mutate/hooks.js';
 import {
-  handleProfilesCreate,
-  handleProfilesUpdate,
-  handleProfilesRemove,
-} from './mutate/profiles.js';
+  handleModelsFavoriteAdd,
+  handleModelsFavoriteRemove,
+  handleModelsSetDefault,
+} from './mutate/models.js';
 import {
   handleEnvironmentsValidate,
   handleEnvironmentsSave,
@@ -79,7 +79,7 @@ import {
   handlePluginsMcpWrite,
 } from './mutate/plugin-packages.js';
 import { handleCreateProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleSetAgent, handleSetSelection, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetAgent, handleSetSelection, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import { handleCancelWaitpoint } from './mutate/waitpoints.js';
 import {
@@ -181,7 +181,6 @@ export const mutateHandlers = {
   'sessions.send': (deps, args) => handleSendSession(deps, args),
   'sessions.cancel': (deps, args) => handleCancelSession(deps, args),
   'sessions.compact': (deps, args) => handleCompactSession(deps, args),
-  'sessions.setProfile': (deps, args) => handleSetProfile(deps, args),
   'sessions.setAgent': (deps, args) => handleSetAgent(deps, args),
   'sessions.setSelection': (deps, args) => handleSetSelection(deps, args),
   'sessions.createAndSend': (deps, args) => handleCreateAndSend(deps, args),
@@ -227,9 +226,9 @@ export const mutateHandlers = {
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
   'hooks.remove': (deps, args) => handleHooksRemove(deps, args),
   'hooks.test': (deps, args) => handleHooksTest(deps, args),
-  'profiles.create': (deps, args) => handleProfilesCreate(deps, args),
-  'profiles.update': (deps, args) => handleProfilesUpdate(deps, args),
-  'profiles.remove': (deps, args) => handleProfilesRemove(deps, args),
+  'models.favorites.add': (deps, args) => handleModelsFavoriteAdd(deps, args),
+  'models.favorites.remove': (deps, args) => handleModelsFavoriteRemove(deps, args),
+  'models.setDefault': (deps, args) => handleModelsSetDefault(deps, args),
   'plugins.assign': (deps, args) => handlePluginsAssign(deps, args),
   'plugins.skillWrite': (deps, args) => handlePluginsSkillWrite(deps, args),
   'plugins.skillCreate': (deps, args) => handlePluginsSkillCreate(deps, args),

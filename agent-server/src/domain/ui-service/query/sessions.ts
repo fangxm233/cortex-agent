@@ -88,16 +88,13 @@ export async function handleSessionsList(
     totalsBySession.set(sessionId, addTotalsAcc(live ?? emptyTotalsAcc(), carried));
   }
 
-  // Every row asks the same question — can this session's profile compact? — and the answer is a
-  // function of (backend, profileName) alone, of which a list holds a handful. Asking per row made
-  // a 300-session list resolve (and revalidate) profiles.json 300 times per request.
-  const compactionByProfile = new Map<string, boolean>();
-  const supportsCompaction = (session: { backend: string; profileName: string | null }): boolean => {
-    const key = `${session.backend}\u0000${session.profileName ?? ''}`;
-    const known = compactionByProfile.get(key);
+  // Compaction support depends only on the backend, not a model choice.
+  const compactionByBackend = new Map<string, boolean>();
+  const supportsCompaction = (session: { backend: string }): boolean => {
+    const known = compactionByBackend.get(session.backend);
     if (known !== undefined) return known;
     const supported = deps.supportsSessionCompaction(session);
-    compactionByProfile.set(key, supported);
+    compactionByBackend.set(session.backend, supported);
     return supported;
   };
 
@@ -176,16 +173,13 @@ export async function handleSessionsList(
       label: s.label ?? null,
       starred: s.starred ?? false,
       labelRenamed: s.labelRenamed ?? false,
-      profileName: s.profileName ?? null,
+      selection: s.selection ?? null,
       // The environment half of the same question: which agent template the session runs as.
       agentName: s.agentName ?? null,
-      // The other half of "what will the next turn run": the profile alone would misreport every
-      // session whose model or thinking level the user picked in the composer.
-      selectionOverride: deps.getChannelSelectionOverride(s.channel) ?? null,
       browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos(s.sessionId) ?? null,
-      contextCompactionSupported: supportsCompaction({ backend: s.backend, profileName: s.profileName ?? null }),
+      contextCompactionSupported: supportsCompaction({ backend: s.backend }),
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
