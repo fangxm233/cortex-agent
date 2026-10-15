@@ -107,11 +107,11 @@ def closed_upstream() -> str:
 
 def arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 120, "max_output_tokens": 65536,
@@ -125,7 +125,7 @@ def trial_seed(upstream: str) -> dict[str, object]:
         "root_run_id": ROOT_RUN_ID,
         "task": {"task_id": "terminal-task", "image_ref": f"task@{DIGEST}",
                  "image_digest": DIGEST},
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": {
             "upstream_base_url": upstream, "route_identity_host": "api.deepseek.com",
             "proxy_base_url": "http://proxy.invalid", "dummy_token_ref": "dummy-ref",
@@ -346,8 +346,9 @@ def write_trial_state_outputs(logs_dir: Path) -> None:
     state = logs_dir / "trial-home/cortex-home/state"
     for name in ("tasks", "threads", "sessions", "executions"):
         write_json(state / f"{name}.json", {})
-    write_json(logs_dir / "trial-home/cortex-home/config/profiles.json", {
-        "defaultProfile": "benchmark", "profiles": {"benchmark": {"backend": "claude"}},
+    write_json(logs_dir / "trial-home/cortex-home/config/models.json", {
+        "default": {"backend": "claude", "provider": None, "model": "test",
+                    "thinking": None, "mode": "plan"}, "favorites": [],
     })
     (logs_dir / "trial-home/tmp").mkdir(parents=True)
     (logs_dir / "trial-home/tmp/backend-cache.txt").write_text("clean optional state\n")
@@ -521,7 +522,7 @@ def test_a_run_records_every_collected_file_and_publishes_one_envelope(
     expected = {
         ("agent", "instruction.md"), ("agent", "workspace.diff"),
         ("agent", "trajectory/events.jsonl"), ("agent", "trajectory/composite-manifest.json"),
-        ("agent", "production-cortex-home/config/profiles.json"),
+        ("agent", "production-cortex-home/config/models.json"),
         ("artifacts", MANIFEST_FILENAME), ("artifacts", ADMISSION_EVIDENCE_FILENAME),
         ("artifacts", f"proxy/{EXPORT_FILENAME}"),
     }
@@ -1150,11 +1151,11 @@ def production_proxy_outputs(artifact_dir: Path) -> TrialRevocation:
 
 def production_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "cortex",
         "name": ARM_NAME, "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
@@ -1164,7 +1165,7 @@ def production_arm() -> dict[str, object]:
 
 def vendor_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "vendor-baseline",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "vendor-baseline",
         "name": "pi-vendor", "vendor_agent": "pi", "vendor_cli_version": "0.82.1",
         "provider": "deepseek", "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
@@ -1672,7 +1673,7 @@ def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(
     artifact_dir.mkdir()
     attestation = launch_attestation(npm_artifact)
     attestation["arm_bundle"] = {
-        "key": "retired-arm", "profile_name": "retired", "environment": "retired",
+        "key": "retired-arm", "selection": {}, "environment": "retired",
     }
     write_json(artifact_dir / "cortex-bench-launch-attestation.json", attestation)
     write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
@@ -1704,7 +1705,7 @@ def test_an_attestation_naming_no_bundle_key_is_recorded_as_such_without_a_looku
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()
     attestation = launch_attestation(npm_artifact)
-    attestation["arm_bundle"] = {"profile_name": "retired", "environment": "retired"}
+    attestation["arm_bundle"] = {"selection": {}, "environment": "retired"}
     write_json(artifact_dir / "cortex-bench-launch-attestation.json", attestation)
     write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())
     revocation = production_proxy_outputs(artifact_dir)

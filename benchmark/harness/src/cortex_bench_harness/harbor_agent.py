@@ -62,7 +62,6 @@ from .trial_lifecycle import TrialLifecycle, consume_host_credential
 from .scan.models import ArtifactInventory, ScanPolicy
 
 PACKAGE_VERSION = "0.1.0"
-PROFILE_NAME = "benchmark"
 NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 BUNDLE_PACKAGE = "@cortex-agent/server"
 PRODUCTION_HOME_NAME = PRODUCTION_HOME_DIRNAME
@@ -259,7 +258,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         actual = {
             "root_run_id": self._trial_seed.root_run_id,
             "trial_id": self._trial_seed.trial_id,
-            "profile_name": self._trial_seed.profile_name,
             "arm": self._trial_seed.arm.get("name"),
             "image_ref": self._trial_seed.task.get("image_ref"),
             "image_digest": self._trial_seed.task.get("image_digest"),
@@ -267,7 +265,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         expected = {
             "root_run_id": self._manifest_seed.root_run_id,
             "trial_id": self._manifest_seed.trial_id,
-            "profile_name": PROFILE_NAME,
             "arm": self._manifest_seed.arm,
             "image_ref": self._manifest_seed.container.image_ref,
             "image_digest": self._manifest_seed.container.image_digest,

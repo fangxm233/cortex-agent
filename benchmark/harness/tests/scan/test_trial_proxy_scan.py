@@ -55,11 +55,11 @@ def closed_upstream() -> str:
 
 def cortex_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": MODEL,
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,
@@ -73,7 +73,7 @@ def trial_seed(upstream: str) -> dict[str, object]:
         "root_run_id": ROOT_RUN_ID,
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": {
             "upstream_base_url": upstream, "route_identity_host": "api.deepseek.com",
             "proxy_base_url": "http://trial-proxy.invalid",
