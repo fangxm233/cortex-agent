@@ -140,7 +140,6 @@ MCP 标签页以表单形式编辑 `mcp.json`。命令、参数、工作目录�
 ```json
 {
   "name": "researcher",
-  "profile": "claude-sonnet",
   "pluginDirs": [
     "plugins/my-plugin"
   ],

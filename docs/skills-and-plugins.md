@@ -140,7 +140,6 @@ Assignments are stored in the environment's JSON file under `$CORTEX_HOME/config
 ```json
 {
   "name": "researcher",
-  "profile": "claude-sonnet",
   "pluginDirs": [
     "plugins/my-plugin"
   ],

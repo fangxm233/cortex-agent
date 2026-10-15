@@ -64,7 +64,7 @@ L5  entry/         → everything (composition root)
 | `types/environment-types.ts` | 执行环境类型：`AgentDefinition`（对应一个 `config/environments/*.json` 文件），以及一次运行打开时使用的 `ResolvedEnvironment` |
 | `config-generator.ts` | 新安装的配置文件初始化，以及每次启动时写入的 MCP 配置 |
 | `gateway-generator.ts` | API 网关 YAML 生成 |
-| `profile-generator.ts` | Profile JSON 生成 |
+| `models-generator.ts` | 默认模型与收藏 JSON 生成 |
 
 ### 第 1 层：`store/` — 持久化 {#layer-1-store-persistence}
 
@@ -83,7 +83,7 @@ L5  entry/         → everything (composition root)
 | `project-dir-repo.ts` | `projectName → machineName → dirPath`，支持反向频道查找 |
 | `schedule-repo.ts` | 定时任务持久化。`ScheduleTask` 接口；`schedules.json` 与进程外的写入方共用 |
 | `cost-repo.ts` | 费用存为 JSONL（仅追加），预算存为 JSON。启动时修剪超过 90 天的记录 |
-| `profile-repo.ts` | 同步/异步混合读取器。`startProfileWatcher()` 用于热重载 |
+| `models-repo.ts` | 同步缓存读取器。`startModelsWatcher()` 用于热重载 |
 | `waitpoint-repo.ts`、`provider-state-repo.ts`、`board-repo.ts` | Waitpoint、提供商限流状态与恢复队列，以及看板注册表 |
 | `team-inbox-repo.ts`、`team-outbox-repo.ts` | 团队 lead 与其 worker 之间的消息，跨重启保留 |
 | `hook-registry.ts`、`hook-writer.ts` | 钩子注册表：内置声明之上叠加 `config/hooks/`，以及钩子开关背后的写入器 |
@@ -114,8 +114,8 @@ L5  entry/         → everything (composition root)
 
 | 子目录 | 用途 |
 |-------------|---------|
-| `agents/` | Profile、执行环境（`agents/environments/`）、子代理运行器和凭据：一次运行可以配置成什么。启动运行属于 `runs/` |
-| `runs/` | 运行层：`startRun` 与 `AgentRun` 所有权对象、`RunRequest` 的 profile/spec/提示解析及其共享构建器（`builders.ts`）、后端中立的 `RunEvent` 流、用于回退的可重试错误分类，以及 `SessionEngines` 池 |
+| `agents/` | 引擎选择、收藏、模型记忆、执行环境（`agents/environments/`）、子代理运行器和凭据：一次运行可以配置成什么。启动运行属于 `runs/` |
+| `runs/` | 运行层：`startRun` 与 `AgentRun` 所有权对象、`RunRequest` 的引擎选择/spec/提示解析及其共享构建器（`builders.ts`）、后端中立的 `RunEvent` 流，以及 `SessionEngines` 池 |
 | `sessions/` | 会话生命周期与记录、会话钩子管道（`onNew`、`onMessageEnd`、关闭前）及可选的智能体注入、团队会话，以及保留期清理 |
 | `executions/` | 基于 `store/execution-repo.ts` 的执行注册表访问，以及存活执行的清理与停止 |
 | `auth/` | Claude Code、PI 和 Codex 的凭据与登录流程、认证状态与过期监视，以及登录后的网关同步 |
@@ -165,7 +165,7 @@ L5  entry/         → everything (composition root)
 | `busy-tracker.ts` | 追踪活跃 LLM 数量，向父守护进程发送 IPC `busy`/`idle` |
 | `human-answer-backstop.ts` | 等待人工自由文本回复的频道的叶子注册表，每个进入会话的入口都会查询它，使回复被消费而不是开启新回合 |
 | `routing/message-router.ts` | 平台消息入口：在适配器上注册入站消息处理器，并委托给 orchestrator |
-| `routing/commands/` | `!command` 处理器，每个命令族一个模块：`cancel`、`channel`、`compact`、`cost`、`device`、`lang`、`login`（含 `login-custom`）、`mode`、`nvtop`、`orient`、`restart`、`schedule`、`sendfile`、`session`、`status`、`tail`、`usage`（含 `usage-reset`）。`index.ts` 把命令词——`!agent`、`!backend`、`!model`、`!profile`、`!thinking`、`!new`、`!resume`、`!usage` 等——映射到这些模块 |
+| `routing/commands/` | `!command` 处理器，每个命令族一个模块：`cancel`、`channel`、`compact`、`cost`、`device`、`lang`、`login`（含 `login-custom`）、`mode`、`nvtop`、`orient`、`restart`、`schedule`、`sendfile`、`session`、`status`、`tail`、`usage`（含 `usage-reset`）。`index.ts` 把命令词——`!agent`、`!backend`、`!model`、`!thinking`、`!new`、`!resume`、`!usage` 等——映射到这些模块 |
 | `routing/webhook.ts` | 回环 webhook 服务器（`WEBHOOK_PORT`，默认 3001）：钩子回调、`cortex-signal`、子代理、团队和看板回调 |
 | `routing/hook-bridge.ts` | PreToolUse 钩子 → EventBus 桥接。发布 `plan.submitted` 和 `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | 把问题或提交的计划转为交互记录的订阅者，各个界面将其渲染为卡片 |
@@ -323,8 +323,8 @@ Cortex 把所有状态存放在 `~/.cortex/` 下的文件系统中。没有数�
 
 | 路径 | 用途 |
 |------|---------|
-| `data/agent-state.json` | 选定的 profile、默认智能体和按频道的覆盖（由 `mode.json` 一次性迁移而来） |
-| `config/profiles.json` | 命名的智能体 profile 列表 |
+| `data/agent-state.json` | 频道引擎选择、模型记忆、新会话选择与默认智能体 |
+| `config/models.json` | 默认引擎选择与收藏模型列表 |
 | `config/budget.json` | 每日和每月预算上限 |
 | `config/environments/` | 执行环境——每个环境一个 JSON 文件 |
 | `data/schedules.json` | 持久化定时任务列表 |

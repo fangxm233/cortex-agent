@@ -120,7 +120,7 @@ session and per provider. [Backends →](https://fangxm233.github.io/cortex-agen
 
 [Download](#download) the app for your platform, open it, and choose **Install Cortex**. The app
 unpacks its own Node.js runtime, installs the server into a private prefix under `~/.cortex`, starts
-it, and opens provider setup. Sign in to a provider, pick a default profile, and enter the
+it, and opens provider setup. Sign in to a provider, pick a default model, and enter the
 workbench. Choose **Connect an existing server** instead to use a server running elsewhere.
 [Desktop and Android apps →](https://fangxm233.github.io/cortex-agent/desktop-app/)
 
@@ -192,8 +192,8 @@ conversational rather than a sandbox:
 | [Team mode](https://fangxm233.github.io/cortex-agent/team/) | Leads, workers, reports, and boards |
 | [Memory](https://fangxm233.github.io/cortex-agent/memory/) | The project log: experiments, knowledge, patterns, decisions |
 | [Scheduling](https://fangxm233.github.io/cortex-agent/scheduling/) | Interval, daily, weekly, and one-off schedules |
-| [Backends](https://fangxm233.github.io/cortex-agent/backends/) | Claude Code and PI, providers, fallback, cost reporting, subagents |
-| [Configuration](https://fangxm233.github.io/cortex-agent/configuration/) | `config/.env`, `settings.json`, profiles, execution environments |
+| [Backends](https://fangxm233.github.io/cortex-agent/backends/) | Claude Code and PI, providers, model selection, cost reporting, subagents |
+| [Configuration](https://fangxm233.github.io/cortex-agent/configuration/) | `config/.env`, `settings.json`, models and favorites, execution environments |
 | [CLI reference](https://fangxm233.github.io/cortex-agent/cli-reference/) | `cortex`, `cortex-signal`, and `cortex-hook` |
 | [Skills & plugins](https://fangxm233.github.io/cortex-agent/skills-and-plugins/) | Writing, overriding, and packaging skills |
 | [Safety & approvals](https://fangxm233.github.io/cortex-agent/safety-and-approvals/) | The safety boundary, approval queue, and interactive cards |

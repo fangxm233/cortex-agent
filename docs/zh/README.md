@@ -87,7 +87,7 @@ Cortex 驱动编程智能体，而不是自己调用模型 API。PI 随服务端
 
 ### 桌面应用
 
-[下载](#下载)对应平台的应用，打开后选择 **安装 Cortex**。应用会解压自带的 Node.js 运行时，把服务端安装到 `~/.cortex` 下的私有目录，启动它，然后打开 provider 设置。登录一个 provider、选一个默认 profile，就可以进入工作台。如果要用别处运行的服务器，选择 **连接已有服务器**。[桌面与 Android 应用 →](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)
+[下载](#下载)对应平台的应用，打开后选择 **安装 Cortex**。应用会解压自带的 Node.js 运行时，把服务端安装到 `~/.cortex` 下的私有目录，启动它，然后打开 provider 设置。登录一个 provider、选一个默认模型，就可以进入工作台。如果要用别处运行的服务器，选择 **连接已有服务器**。[桌面与 Android 应用 →](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)
 
 ### 在终端安装服务端
 
@@ -150,8 +150,8 @@ Cortex 给智能体的是真实的工具：shell、文件、GPU 和其他机器�
 | [团队模式](https://fangxm233.github.io/cortex-agent/zh/team/) | 主会话、worker、汇报和看板 |
 | [记忆](https://fangxm233.github.io/cortex-agent/zh/memory/) | 项目日志：实验、知识、模式、决策 |
 | [调度](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | 间隔、每日、每周和一次性定时任务 |
-| [后端](https://fangxm233.github.io/cortex-agent/zh/backends/) | Claude Code 与 PI、provider、回退、花费统计、子智能体 |
-| [配置](https://fangxm233.github.io/cortex-agent/zh/configuration/) | `config/.env`、`settings.json`、profiles、执行环境 |
+| [后端](https://fangxm233.github.io/cortex-agent/zh/backends/) | Claude Code 与 PI、provider、模型选择、花费统计、子智能体 |
+| [配置](https://fangxm233.github.io/cortex-agent/zh/configuration/) | `config/.env`、`settings.json`、模型与收藏、执行环境 |
 | [CLI 参考](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-signal` 和 `cortex-hook` |
 | [技能与插件](https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/) | 编写、覆盖和打包技能 |
 | [安全与审批](https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/) | 安全边界、审批队列和交互卡片 |

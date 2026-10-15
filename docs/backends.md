@@ -230,7 +230,7 @@ ignored — and may set:
 | `tools` | Canonical tool names, translated into each backend's own spelling |
 | `model` | `provider/model[:thinking]` for a PI child, a bare model id for a Claude child |
 | `backend` | `claude` or `pi`; absent means "whatever the parent is running" |
-| `mode` | Explicit gateway route for the child; absent falls back to the provider name |
+| `mode` | PI child route: role value, then the PI parent’s route on the same provider, then the provider name. Claude children use their Claude parent’s route or the configured Claude-backend default route |
 
 When `$CORTEX_HOME/config/agents/` does not exist yet, roles found in an
 `agents/` directory inside Cortex's private PI agent directory are moved into
@@ -240,7 +240,11 @@ there cannot silently do nothing.
 **Choosing the model.** The model is the task's
 explicit `model` when given, then the role's `model`, then the parent's own
 model — but only when the child runs the same backend, since a Claude model id
-means nothing to PI and a PI `provider/model` means nothing to Claude.
+means nothing to PI and a PI `provider/model` means nothing to Claude. A Claude
+child without an explicit or same-backend parent model uses the Claude-backend
+default (the configured default if Claude, otherwise the first Claude favorite).
+A PI parent starting a Claude child also uses that Claude default’s route and
+requires a Claude default or favorite to be configured.
 
 **What the caller can see.** The `subagent_type`, `model`, and `backend` field
 descriptions are rendered at tool-registration time rather than hardcoded, from

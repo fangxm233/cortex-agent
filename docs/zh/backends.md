@@ -89,11 +89,11 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 | `tools` | 规范工具名，翻译成各后端自己的拼写 |
 | `model` | PI 子智能体用 `provider/model[:thinking]`，Claude 子智能体用裸模型 id |
 | `backend` | `claude` 或 `pi`；不填表示"父端运行的是哪个就用哪个" |
-| `mode` | 子智能体的显式 gateway 路由；不填时回退到 provider 名 |
+| `mode` | PI 子端依次使用角色值、同 provider 的 PI 父端路由、provider 名称。Claude 子端使用 Claude 父端路由或配置的 Claude 后端默认路由 |
 
 当 `$CORTEX_HOME/config/agents/` 尚不存在时，Cortex 私有 PI agent 目录内 `agents/` 目录中的角色会在启动时被移入其中，该目录随后被改名为 `agents.migrated`，这样在那里做的修改不会悄无声息地毫无效果。
 
-**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。
+**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。PI 父端创建 Claude 子端时也使用该 Claude 默认值的路由，需要事先配置 Claude 默认值或收藏。
 
 **调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——因此你新增的角色在下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父端读取自己的实时模型注册表；Claude 父端读不到，因为它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 Claude spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
 
