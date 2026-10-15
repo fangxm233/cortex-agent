@@ -29,13 +29,14 @@ function NativeCaption() {
   const actions = useWindowActions();
   return <WindowControls actions={actions} />;
 }
-export function SetupHeader() {
+/** `label` names the screen in the header; the first-run screens default to "Setup". */
+export function SetupHeader({ label }: { label?: string } = {}) {
   const L = useVocab();
   const mode = titleBarMode();
   return <header className="setup-header" data-tauri-drag-region="deep" data-caption={mode}
     style={mode === 'overlay' ? { paddingLeft: captionInsetLeft() + 16 } : undefined}>
     <div className="setup-brand"><BrandMark />Cortex</div>
-    <span className="setup-header-label">{L.setupHeader}</span>
+    <span className="setup-header-label">{label ?? L.setupHeader}</span>
     <AppearanceControls />
     {mode === 'custom' ? <NativeCaption /> : null}
   </header>;

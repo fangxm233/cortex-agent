@@ -1,0 +1,26 @@
+/* The uninstaller window, on top of the onboarding frame (provider-setup.css, onboarding.css). */
+.provider-setup .uninst-option { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; cursor: pointer; }
+.provider-setup .uninst-option:first-child { padding-top: 0; }
+.provider-setup .uninst-option + .uninst-option { border-top: 1px solid var(--proto-line-2); }
+.provider-setup .uninst-option input { margin: 2px 0 0; accent-color: var(--proto-accent); flex: none; }
+.provider-setup .uninst-option strong { font-size: 12px; font-weight: 600; }
+.provider-setup .uninst-option .setup-hint { margin-top: 3px; }
+.provider-setup .uninst-paths {
+  margin-top: 16px; padding: 10px 12px; border: 1px solid var(--state-fail); border-radius: 8px;
+  color: var(--proto-muted); font-size: 11px;
+}
+.provider-setup .uninst-paths code, .provider-setup .uninst-location {
+  display: block; margin-top: 4px; color: var(--proto-ink); overflow-wrap: anywhere;
+  font: 11px 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.provider-setup .uninst-location { margin-top: 8px; font-size: 12px; }
+.provider-setup .uninst-actions {
+  display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--proto-line-2);
+}
+.provider-setup .uninst-result-actions { border-top: 0; padding: 20px 0 0; }
+.provider-setup .uninst-danger { background: var(--state-fail); border-color: var(--state-fail); color: var(--ink-solid-fg); }
+.provider-setup .uninst-danger:hover:not(:disabled) { background: var(--state-fail); filter: brightness(0.92); }
+.provider-setup .uninst-detail {
+  margin-top: 4px; color: var(--proto-muted); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}

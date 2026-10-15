@@ -48,6 +48,39 @@ impl PkgManager {
             PkgManager::Rpm => vec!["-U".into(), f],
         }
     }
+
+    /// Non-interactive removal arguments for the installed package `name`.
+    pub fn remove_args(self, name: &str) -> Vec<String> {
+        let n = name.to_string();
+        match self {
+            PkgManager::Apt => vec!["remove".into(), "-y".into(), n],
+            PkgManager::Dnf => vec!["remove".into(), "-y".into(), n],
+            PkgManager::Zypper => vec!["--non-interactive".into(), "remove".into(), n],
+            PkgManager::Rpm => vec!["-e".into(), n],
+        }
+    }
+
+    /// The query that names the package owning a file, and how to read its answer.
+    pub fn owner_query(self) -> (&'static str, &'static [&'static str]) {
+        match self {
+            PkgManager::Apt => ("dpkg", &["-S"]),
+            _ => ("rpm", &["-qf", "--qf", "%{NAME}\\n"]),
+        }
+    }
+}
+
+/// The package name out of `dpkg -S <file>` (`cortex: /usr/bin/cortex-desktop`) or
+/// `rpm -qf --qf '%{NAME}\n' <file>` (`cortex`). Architecture qualifiers (`cortex:amd64`) are kept
+/// off: removal by bare name is what apt expects.
+#[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
+pub fn parse_package_owner(manager: PkgManager, output: &str) -> Option<String> {
+    let line = output.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let name = match manager {
+        PkgManager::Apt => line.split(": ").next()?.split(':').next()?,
+        _ => line,
+    };
+    let name = name.split(',').next()?.trim();
+    (!name.is_empty() && !name.contains(char::is_whitespace)).then(|| name.to_string())
 }
 
 /// Where this running build actually lives, and therefore what may be done to it.
@@ -595,5 +628,26 @@ mod tests {
             vec!["--non-interactive", "install", "--allow-unsigned-rpm", "/tmp/x.rpm"]
         );
         assert_eq!(PkgManager::Rpm.args("/tmp/x.rpm"), vec!["-U", "/tmp/x.rpm"]);
+    }
+
+    #[test]
+    fn removal_arguments_are_non_interactive() {
+        assert_eq!(PkgManager::Apt.remove_args("cortex"), vec!["remove", "-y", "cortex"]);
+        assert_eq!(PkgManager::Dnf.remove_args("cortex"), vec!["remove", "-y", "cortex"]);
+        assert_eq!(
+            PkgManager::Zypper.remove_args("cortex"),
+            vec!["--non-interactive", "remove", "cortex"]
+        );
+        assert_eq!(PkgManager::Rpm.remove_args("cortex"), vec!["-e", "cortex"]);
+    }
+
+    #[test]
+    fn package_owner_is_read_from_dpkg_and_rpm_answers() {
+        let apt = PkgManager::Apt;
+        assert_eq!(parse_package_owner(apt, "cortex: /usr/bin/cortex-desktop\n").as_deref(), Some("cortex"));
+        assert_eq!(parse_package_owner(apt, "cortex:amd64: /usr/bin/cortex-desktop").as_deref(), Some("cortex"));
+        assert_eq!(parse_package_owner(PkgManager::Dnf, "cortex\n").as_deref(), Some("cortex"));
+        assert_eq!(parse_package_owner(apt, "").as_deref(), None);
+        assert_eq!(parse_package_owner(PkgManager::Rpm, "file /x is not owned by any package").as_deref(), None);
     }
 }

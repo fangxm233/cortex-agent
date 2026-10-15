@@ -424,6 +424,68 @@ mod service {
             assert!(render_launchd(&value).is_err());
         }
 
+        fn run_disable(os: &str, home: &Path, steps: Vec<Step>) -> Result<bool, String> {
+            let mut steps = VecDeque::from(steps);
+            let result = disable_for(os, home, &mut |program, args, _| {
+                let expected = steps.pop_front().expect("unexpected service-manager call");
+                let actual: Vec<OsString> = std::iter::once(OsString::from(program))
+                    .chain(args.iter().cloned())
+                    .collect();
+                assert_eq!(actual, expected.command);
+                expected.output
+            });
+            assert!(steps.is_empty(), "missing service-manager calls");
+            result
+        }
+
+        #[test]
+        fn disabling_without_a_registration_touches_nothing() {
+            let home = scratch();
+            assert_eq!(run_disable("linux", &home, vec![]), Ok(false));
+            assert_eq!(run_disable("macos", &home, vec![]), Ok(false));
+            assert_eq!(run_disable("windows", &home, vec![]), Ok(false));
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn owned_systemd_unit_is_disabled_and_removed_even_when_never_loaded() {
+            let home = scratch();
+            let unit = home.join(".config/systemd/user/cortex.service");
+            ensure_file(&unit, &render_systemd(&launch()).unwrap()).unwrap();
+            let wants = home.join(".config/systemd/user/default.target.wants");
+            fs::create_dir_all(&wants).unwrap();
+            std::os::unix::fs::symlink(&unit, wants.join(UNIT)).unwrap();
+            let mut disable = step("/usr/bin/systemctl", &["--user", "disable", "--now", UNIT], false, "");
+            disable.output = Ok(Output { ok: false, stdout: String::new() });
+            let steps = vec![disable, step("/usr/bin/systemctl", &["--user", "daemon-reload"], false, "")];
+            assert_eq!(run_disable("linux", &home, steps), Ok(true));
+            assert!(!unit.exists());
+            assert!(fs::symlink_metadata(wants.join(UNIT)).is_err());
+        }
+
+        #[test]
+        fn launchd_agent_is_booted_out_before_its_plist_is_removed() {
+            let home = scratch();
+            let plist = home.join("Library/LaunchAgents").join(format!("{LABEL}.plist"));
+            ensure_file(&plist, &render_launchd(&launch()).unwrap()).unwrap();
+            let steps = vec![
+                step("/usr/bin/id", &["-u"], true, "501\n"),
+                step("/bin/launchctl", &["bootout", &format!("gui/501/{LABEL}")], false, ""),
+            ];
+            assert_eq!(run_disable("macos", &home, steps), Ok(true));
+            assert!(!plist.exists());
+        }
+
+        #[test]
+        fn a_registration_cortex_did_not_write_is_preserved() {
+            let home = scratch();
+            let unit = home.join(".config/systemd/user/cortex.service");
+            fs::create_dir_all(unit.parent().unwrap()).unwrap();
+            fs::write(&unit, "[Service]\nExecStart=/usr/bin/cortex daemon\n").unwrap();
+            assert!(run_disable("linux", &home, vec![]).unwrap_err().contains("preserved"));
+            assert!(unit.is_file());
+        }
+
         #[cfg(unix)]
         #[test]
         fn non_utf8_launch_is_rejected() {
