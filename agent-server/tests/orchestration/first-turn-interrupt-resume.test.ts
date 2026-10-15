@@ -26,7 +26,6 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   return {
     ...orig,
     getDefaultAgent: () => 'main',
-    getActiveProfile: () => 'default',
     resolveBackendForChannel: () => 'claude',
   };
 });
@@ -36,7 +35,6 @@ vi.mock('@domain/agents/environments/index.js', async (importOriginal) => {
   return {
     ...orig,
     resolveEnvironmentByName: () => ({
-      profile: '__active__',
       directive: '',
       systemPrompt: null,
       promptTemplate: '{{input}}',
@@ -58,10 +56,9 @@ import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import { runRegistry } from '../../src/core/run-registry.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { seedSelections } from './selection-fixture.js';
 
-// Opening a turn resolves the channel's profile; a scoped run starts from an empty skeleton home.
-beforeAll(seedTestProfiles);
+beforeAll(seedSelections);
 
 /** The synthetic attempt shape `startAttempt` hands the run; only the fields the run reads. */
 function makeSyntheticAttempt(opts: {
@@ -256,7 +253,7 @@ function heldAttempt(backendSessionId: string | null) {
   return { attempt: makeSyntheticAttempt({ backendSessionId, foreground: promise }), fail };
 }
 
-/** A turn resolves its status message, profile, project and prompt before it opens the attempt. */
+/** A turn resolves its status message, selection, project and prompt before it opens the attempt. */
 async function awaitAttemptStart(read: () => ((event: any) => void) | null, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {

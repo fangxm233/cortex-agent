@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { createLogger } from '@core/log.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -29,7 +30,7 @@ export interface PendingInjectionCommitDeps {
     initAndBeginTurn(channel: string, opts: {
       sessionId: string;
           backend: string;
-      profileName: string | null;
+      selection: EngineSelection | null;
       userMessageTs: string;
       userMessageText: string;
       statusMessageTs: string;
@@ -62,7 +63,7 @@ async function ensureLedgerTurn(
   await deps.ledger.initAndBeginTurn(record.channel, {
     sessionId: record.sessionId,
     backend: record.backend,
-    profileName: record.profileName,
+    selection: record.selection,
     userMessageTs: record.messageId,
     userMessageText: record.text,
     statusMessageTs: '',

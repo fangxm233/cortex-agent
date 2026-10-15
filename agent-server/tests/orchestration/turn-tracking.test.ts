@@ -1,4 +1,5 @@
 import { test } from 'vitest';
+import { CLAUDE_SELECTION, PI_SELECTION } from './selection-fixture.js';
 import assert from 'node:assert/strict';
 import {
   consumePendingTurnSupersession,
@@ -43,8 +44,7 @@ test('turn mutation lock claims atomically and hands off queued owners', async (
 test('stale generation finish and supersession cannot affect the next turn', async () => {
   const channel = 'generation-channel';
   const deps = {
-    resolveBackend: () => 'claude',
-    getProfile: () => 'default',
+    getSelection: () => CLAUDE_SELECTION,
     ledger: {
       initAndBeginTurn: async () => ({ turn: {} as never, turnIndex: 0 }),
       setBackupPath: async () => {},
@@ -74,8 +74,7 @@ test('idle user acceptance publishes after snapshot completion and before backen
   const order: string[] = [];
   const copy = deferred<string | null>();
   const deps = {
-    resolveBackend: () => 'pi',
-    getProfile: () => 'execute',
+    getSelection: () => PI_SELECTION,
     ledger: {
       initAndBeginTurn: async () => {
         order.push('ledger');

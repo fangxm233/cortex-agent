@@ -11,7 +11,7 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { runMessageEndForTurn } from '@domain/sessions/session-hooks.js';
 import * as askUserQuestion from '../interactions/ask-user-question.js';
-import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 
 import { maybeNotifyTurnComplete } from '../turn-notify.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
@@ -207,14 +207,15 @@ export async function persistErrorSession(args: {
     }).catch(() => {});
   }
   if (!trackSessionId) return;
-  const backend = resolveBackendForChannel(channel);
+  const selection = resolveRunSelection({ channel });
+  const backend = selection.backend;
   await setSessionAsync(channel, trackSessionId);
   // Backfill the ledger's session id: a conversation opened before the backend reported one.
   const conv = await conversationLedger.getConversation(channel);
   if (conv && !conv.sessionId) await conversationLedger.updateSessionId(channel, trackSessionId);
   const existing = await sessionStore.getById(trackSessionId);
   if (!existing) {
-    await sessionStore.registerSession({ sessionId: trackSessionId, channel, backend, kind: 'local', origin: 'direct', profileName: getActiveProfile(channel), projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
+    await sessionStore.registerSession({ sessionId: trackSessionId, channel, backend, kind: 'local', origin: 'direct', selection, projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
   }
 }
 

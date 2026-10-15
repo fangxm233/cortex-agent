@@ -9,6 +9,7 @@
  * refusal leaves no trace so the caller falls through to the normal queue.
  */
 
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { randomUUID } from 'node:crypto';
 import type { UserMessage } from '../agent-adapter/types.js';
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';
@@ -42,7 +43,7 @@ export interface MidTurnInjectCtx {
   channel: string;
   /** Stable Cortex track session id. Null (never-used channel) ⇒ nothing to surface against. */
   sessionId: string | null;
-  profileName?: string | null;
+  selection?: EngineSelection | null;
   text: string;
   senderId: string;
   /** Set when Cortex authored this turn rather than a human (see `SystemTurnOrigin`). Only
@@ -97,7 +98,7 @@ function buildPendingRecord(
     channel: ctx.channel,
     messageId: ctx.messageId,
     backend,
-    profileName: ctx.profileName ?? null,
+    selection: ctx.selection ?? null,
     text: ctx.text,
     attachments: ctx.attachments,
     ...(ctx.systemOrigin ? { systemOrigin: ctx.systemOrigin } : {}),

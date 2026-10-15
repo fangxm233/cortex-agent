@@ -7,6 +7,7 @@
 
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { CLAUDE_SELECTION, seedSelections } from './selection-fixture.js';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs/promises';
@@ -72,13 +73,14 @@ function fakeRun(resultOf: () => Promise<any>): AgentRun {
 const FAKE_REQUEST = {
   request: {
     runId: 'run-lease', session: { sessionId: 'track-live', backendSessionId: null, engineKey: 'c'},
-    profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
+    selection: CLAUDE_SELECTION, spec: {} as any, prompt: { text: 'hello', attachments: [] },
     context: { channel: 'c', project: 'proj', trigger: 'user' }, policy: {} as any,
   } as any,
   backendPrompt: 'hello',
 };
 
 beforeEach(() => {
+  seedSelections();
   vi.restoreAllMocks();
   mockPrepareRequest.mockReset();
   mockStartRun.mockReset();

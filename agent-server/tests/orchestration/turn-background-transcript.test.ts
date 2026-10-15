@@ -20,9 +20,9 @@ import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orch
 import { sessionHolds } from '../../src/core/session-holds.js';
 import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { MockAdapter } from '../../src/platform/testing.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { CLAUDE_SELECTION, seedSelections } from './selection-fixture.js';
 
-beforeAll(seedTestProfiles);
+beforeAll(seedSelections);
 
 const subagent = { parentToolUseId: 'toolu_bg', type: 'Explore', description: 'survey' };
 const snapshot: TodoSnapshot = {
@@ -99,7 +99,7 @@ function input(channel: string, adapter: MockAdapter): TurnInput {
       request: {
         runId: 'run-bg',
         session: { sessionId: 's', backendSessionId: null, engineKey: 'c'},
-        profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
+        selection: CLAUDE_SELECTION, spec: {} as any, prompt: { text: 'hello', attachments: [] },
         context: { channel, project: 'general', trigger: 'user' }, policy: {} as any,
       } as any,
       backendPrompt: 'hello',

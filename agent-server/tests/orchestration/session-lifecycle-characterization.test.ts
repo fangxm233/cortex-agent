@@ -1,4 +1,6 @@
-import { test } from 'vitest';
+import { beforeAll, test } from 'vitest';
+import { seedSelections } from './selection-fixture.js';
+beforeAll(seedSelections);
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { handleNewCmd, createResumeHandler } from '../../src/orchestration/routing/commands/session.js';

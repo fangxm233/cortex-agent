@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DownloadedFile } from '@platform/index.js';
 import type { AttachmentFailure } from './routing/file-handler.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
-import { getDefaultProfileName, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
-import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { FALLBACK_ENVIRONMENT, resolveEnvironmentByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
 import { resolveSystemVars } from '@core/prompt-template.js';
@@ -142,13 +141,12 @@ export function conversationRunPolicy(
 /**
  * Which agent — which execution environment — a conversation turn opens under.
  *
- * The chain is the profile chain's twin: the session's own choice (what the composer set, or what
+ * The chain follows the session's own choice (what the composer set, or what
  * `!agent` recorded on the session), then the channel's selection, then the global default, then
  * `main`. `getDefaultAgent(channel)` already folds the middle two together.
  *
  * A candidate that no longer resolves is SKIPPED rather than fatal: an agent renamed or deleted
- * since it was persisted must not kill every turn of the session that named it, exactly as an
- * unknown channel profile falls back instead of throwing (see the run-config resolution below).
+ * since it was persisted must not kill every turn of the session that named it.
  */
 export function resolveConversationAgent(
   candidates: ReadonlyArray<string | null | undefined>,
@@ -265,21 +263,6 @@ export async function resolveConversationTeam(
   }
 }
 
-/** The profile a turn runs on: the agent's own, or the channel's when it says `__active__`. */
-function conversationProfile(channel: string, agentConfig: ResolvedEnvironment): ResolvedProfileConfig {
-  // D5: one resolution for name, profile and the channel's `!model` override. A hardcoded agent
-  // profile is an explicit override; `__active__` means "whatever this channel resolves to".
-  const runConfig = resolveRunConfig({
-    channel,
-    override: agentConfig.profile === '__active__' ? null : agentConfig.profile,
-  });
-  if (runConfig.resolved) return effectiveProfile(runConfig);
-  // An unknown name here is not the user naming a bad profile — it is a channel profile that was
-  // renamed or deleted since it was persisted, so the turn falls back to the default rather than
-  // dying. (Named-profile errors surface through `!profile`, which validates before it writes.)
-  return effectiveProfile(resolveRunConfig({ channel, override: getDefaultProfileName() }));
-}
-
 /** The user prompt with the ambient blocks this turn owes the session. */
 async function composeConversationPrompt(
   opts: PrepareConversationRequestOptions,
@@ -358,7 +341,7 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
       // turn has opened its engine under — changing it would silently re-pool every live session.
       engineKey: channel,
     },
-    profile: conversationProfile(channel, agentConfig),
+    selection: resolveRunSelection({ channel, session }),
     spec: fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition }),
     prompt: { text: '' },
     context: conversationContext(opts, { teamLead, teamWorker }),

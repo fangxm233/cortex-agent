@@ -36,7 +36,7 @@ export interface CompactSessionDeps {
     has(channel: string): boolean;
     run<T>(channel: string, fn: () => Promise<T>): Promise<T>;
   };
-  supports(session: { backend: string; profileName: string | null }): boolean;
+  supports(session: { backend: string }): boolean;
   /** Compact the session's live engine, which holds `backendSessionId`. */
   compactAgent(session: Session, backendSessionId: string): Promise<AgentCompactResult>;
   publish(event: {
@@ -63,7 +63,7 @@ const defaultDeps: CompactSessionDeps = {
 
 /**
  * Compaction asks the pool for the session's engine exactly as the session's next turn would: the
- * same request (agent, profile, policy, route) and the same browser, held for the command. Anything
+ * same request (agent, selection, policy, route) and the same browser, held for the command. Anything
  * else is a different identity, and the pool would respawn the process — compacting a fresh one
  * and leaving the next turn to respawn it again.
  */

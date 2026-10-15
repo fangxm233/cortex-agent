@@ -14,7 +14,7 @@ export interface TuiSessionDeps {
         kind: 'local' | 'scheduled';
         projectId: string;
         label?: string | null;
-        profileName?: string | null;
+        selection?: import('@domain/agents/engine-selection.js').EngineSelection | null;
       },
     ): Promise<void>;
   };

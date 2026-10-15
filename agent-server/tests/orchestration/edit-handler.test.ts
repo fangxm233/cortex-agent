@@ -6,23 +6,20 @@ import { conversationLedger } from '../../src/store/conversation-ledger-repo.js'
 import { runRegistry } from '../../src/core/run-registry.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import {
-  setActiveProfile,
-  clearChannelProfile,
+  setChannelSelection,
+  clearChannelSelection,
   resolveBackendForChannel,
 } from '../../src/domain/agents/config.js';
 import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import * as sessionBackup from '../../src/domain/sessions/session-backup.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
-import { resolveProfileConfig } from '../../src/domain/agents/profile-manager.js';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { DATA_DIR } from '../../src/core/paths.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { CLAUDE_SELECTION, PI_SELECTION, seedSelections } from './selection-fixture.js';
 
-// The tests below select the 'plan' (claude) and 'execute' (pi) profiles; a scoped run starts from
-// an empty skeleton home, so seed the same minimal set run-tests.sh would.
-beforeAll(seedTestProfiles);
+beforeAll(seedSelections);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,43 +148,25 @@ async function cleanupPIEditFixture(fixture: PIEditFixture): Promise<void> {
 
 // ── Bug 2 (root cause): channel-aware backend resolution ─────────────────────
 
-// D5: "global activeBackend" is retired — a channel with no profile of its own falls through to
-// the default profile's backend, which is what `resolveRunBackend` reports.
-test('resolveBackendForChannel returns the default profile backend when the channel has no profile', () => {
+test('resolveBackendForChannel returns the default backend without a channel selection', () => {
   const ch = freshChannel();
-  clearChannelProfile(ch); // ensure clean state
+  clearChannelSelection(ch);
   assert.equal(resolveBackendForChannel(ch), resolveRunBackend({ channel: ch }));
 });
 
-test('resolveBackendForChannel returns profile backend when channel has a profile override', () => {
-  // Use 'plan' profile — it always exists (it is the seeded default in profiles.json) and has backend=claude.
-  // Even users with custom profiles cannot remove 'plan' without first changing defaultProfile.
+test('resolveBackendForChannel returns the selected Claude backend', () => {
   const ch = freshChannel();
-  setActiveProfile('plan', ch);
-  try {
-    assert.equal(resolveBackendForChannel(ch), 'claude');
-  } finally {
-    clearChannelProfile(ch);
-  }
+  setChannelSelection(ch, CLAUDE_SELECTION);
+  try { assert.equal(resolveBackendForChannel(ch), 'claude'); }
+  finally { clearChannelSelection(ch); }
 });
 
-test('resolveBackendForChannel routes to PI when channel profile sets backend=pi', { skip: !hasPiProfile() }, () => {
+test('resolveBackendForChannel routes to PI when the channel selection uses PI', () => {
   const ch = freshChannel();
-  setActiveProfile('execute', ch);
-  try {
-    assert.equal(resolveBackendForChannel(ch), 'pi');
-  } finally {
-    clearChannelProfile(ch);
-  }
+  setChannelSelection(ch, PI_SELECTION);
+  try { assert.equal(resolveBackendForChannel(ch), 'pi'); }
+  finally { clearChannelSelection(ch); }
 });
-
-function hasPiProfile(): boolean {
-  try {
-    return resolveProfileConfig('execute').backend === 'pi';
-  } catch {
-    return false;
-  }
-}
 
 // ── Bug 1 + Bug 2 regression: processEdit closes pool, uses channel backend ──
 
@@ -243,13 +222,13 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
   }
 });
 
-test('Bug 2: edit on conversation with PI channel profile routes through PI restore branch', async () => {
+test('Bug 2: edit on conversation with PI channel selection routes through PI restore branch', async () => {
   const channel = freshChannel();
   const sessionId = `019de999-0000-7000-8000-${Date.now().toString(16).padStart(12, '0')}`;
   // Conversation was initialized when global backend was 'claude' (bug scenario).
   await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3 });
-  // But the channel uses 'execute' profile (backend=pi).
-  setActiveProfile('execute', channel);
+  // The channel's selected backend is PI.
+  setChannelSelection(channel, PI_SELECTION);
 
   // Stage a PI session file + turn-1 backup so the PI restore branch returns true.
   const piDir = path.join(os.tmpdir(), `cortex-test-pi-${Date.now()}`);
@@ -281,13 +260,13 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
   await waitFor(() => reprocessCalls.length >= 1);
 
   try {
-    // After the fix: backend should be resolved from channel profile, not conv.backend.
+    // Backend should be resolved from the channel selection, not conv.backend.
     assert.equal(closeCalls.length, 1, 'closePooledSession invoked');
-    assert.equal(closeCalls[0].backend, 'pi', 'backend resolved from channel profile, not conv.backend');
+    assert.equal(closeCalls[0].backend, 'pi', 'backend resolved from channel selection, not conv.backend');
     assert.equal(reprocessCalls.length, 1, 'reprocessMessage ran');
   } finally {
     await clearLedgerEntry(channel);
-    clearChannelProfile(channel);
+    clearChannelSelection(channel);
     try { rmSync(piDir, { recursive: true, force: true }); } catch {}
   }
 });

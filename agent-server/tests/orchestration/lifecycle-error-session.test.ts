@@ -1,4 +1,6 @@
-import { test } from 'vitest';
+import { beforeAll, test } from 'vitest';
+import { seedSelections } from './selection-fixture.js';
+beforeAll(seedSelections);
 import assert from 'node:assert/strict';
 
 import { handleAgentError } from '../../src/orchestration/turn/terminal.js';

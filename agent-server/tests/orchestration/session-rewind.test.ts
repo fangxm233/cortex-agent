@@ -14,7 +14,7 @@ interface CallLog { calls: string[] }
 
 function makeConversation() {
   return {
-    sessionId: 'track-1', backend: 'claude', profileName: null,
+    sessionId: 'track-1', backend: 'claude', selection: null,
     turns: [
       { turnIndex: 0, userMessageTs: 'ts0', userMessageText: 'first', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
       { turnIndex: 1, userMessageTs: 'ts1', userMessageText: 'orig text', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
