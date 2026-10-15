@@ -113,13 +113,9 @@ export function whereItGoesRows(byTriggerScoped: TriggerBreakdown | null | undef
   }));
 }
 
-/**
- * The agent profile a schedule runs under, from the real `ScheduleInfo.profile` (schedule config
- * source). Empty string when the schedule has no recorded profile — the caller omits the chip
- * (honest placeholder, no fabricated default).
- */
-export function scheduleProfileLabel(s: ScheduleInfo): string {
-  return s.profile ?? '';
+/** Omit the chip when no concrete model selection was recorded. */
+export function scheduleModelLabel(s: ScheduleInfo): string {
+  return s.selection?.model ?? '';
 }
 
 /** `next in 19h` / `due` / `—` · `19小时后` / `到期` / `—`. */

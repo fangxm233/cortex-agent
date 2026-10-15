@@ -49,7 +49,7 @@ describe('resolveMobileBack nested routes', () => {
     });
     expect(resolveMobileBack('/m/memory/file', false)).toEqual({ kind: 'navigate', to: '/m/memory' });
     expect(resolveMobileBack('/m/daemon', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
-    for (const section of ['accounts', 'appearance', 'platform', 'profiles', 'budget', 'mcp', 'notifications', 'advanced', 'hooks', 'usage']) {
+    for (const section of ['accounts', 'appearance', 'platform', 'models', 'budget', 'mcp', 'notifications', 'advanced', 'hooks', 'usage']) {
       expect(resolveMobileBack(`/m/settings/${section}`, false)).toEqual({ kind: 'navigate', to: '/m/settings' });
     }
     expect(resolveMobileBack('/m/settings/usage/', false)).toEqual({ kind: 'navigate', to: '/m/settings' });

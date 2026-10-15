@@ -9,7 +9,9 @@ import {
   defaultScheduleForm,
   editableScheduleFields,
   formFromSchedule,
-  profileOptions,
+  scheduleModelOptions,
+  scheduleThinkingOptions,
+  type ScheduleModelOption,
   validateScheduleForm,
   type ScheduleEditableFields,
   type ScheduleEditorMode,
@@ -38,7 +40,8 @@ export interface ScheduleEditorControllerOptions {
 export interface ScheduleEditorController {
   form: ScheduleForm | null;
   mode: ScheduleEditorMode | null;
-  profileOptions: string[];
+  modelOptions: ScheduleModelOption[];
+  thinkingOptions: string[];
   editableFields: ScheduleEditableFields;
   valid: boolean;
   pending: boolean;
@@ -138,12 +141,17 @@ function useScheduleResources(form: ScheduleForm | null) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const config = useQuery(trpc.config.get.queryOptions({}));
+  const catalog = useQuery(trpc.models.catalog.queryOptions({}, {
+    enabled: form !== null,
+    refetchInterval: (query) => query.state.data?.piPending ? 2_500 : false,
+  }));
   const add = useMutation(trpc.schedules.add.mutationOptions({}));
   const update = useMutation(trpc.schedules.update.mutationOptions({}));
-  const names = config.data?.profiles?.profiles.map((profile) => profile.name);
   return {
     add, update, pending: add.isPending || update.isPending,
-    profiles: profileOptions(names, form?.profile ?? ''),
+    defaultSelection: config.data?.models?.default,
+    models: scheduleModelOptions(config.data, catalog.data, form?.selection ?? null),
+    thinking: scheduleThinkingOptions(catalog.data, form?.selection ?? null),
     invalidate: () => queryClient.invalidateQueries(trpc.schedules.list.queryFilter()),
   };
 }
@@ -208,9 +216,14 @@ export function useScheduleEditorController(
   const editor = useEditorState(initial);
   const view = editorView(editor.state);
   const resources = useScheduleResources(view.form);
+  useEffect(() => {
+    if (view.mode === 'create' && view.form?.selection === null && resources.defaultSelection) {
+      editor.onChange({ selection: resources.defaultSelection });
+    }
+  }, [view.mode, view.form?.selection, resources.defaultSelection, editor.onChange]);
   const submit = useScheduleSubmit(editor.state, resources, editor, options);
   return {
-    ...view, profileOptions: resources.profiles,
+    ...view, modelOptions: resources.models, thinkingOptions: resources.thinking,
     pending: resources.pending, error: editor.error,
     openEdit: editor.openEdit,
     close: editor.close, onChange: editor.onChange, submit,

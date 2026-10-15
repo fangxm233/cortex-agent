@@ -63,7 +63,8 @@ function ScheduleEditorSurface({ request, onClose }: {
       onCreate={() => { void editor.submit(); }}
       valid={editor.valid}
       pending={editor.pending}
-      profileOptions={editor.profileOptions}
+      modelOptions={editor.modelOptions}
+      thinkingOptions={editor.thinkingOptions}
     />
   );
 }

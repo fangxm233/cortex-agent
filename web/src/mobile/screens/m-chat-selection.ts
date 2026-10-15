@@ -5,12 +5,13 @@ import { buildAgentSheet, buildSelectionSheet, type SelectionSheetRow, type Sele
 
 /** The part of the shared selection controller the chat's chips and sheets draw from. */
 export type MChatSelection = Pick<SessionSelection,
-  | 'open' | 'setOpen' | 'agentOpen' | 'setAgentOpen' | 'profiles' | 'defaultProfile' | 'agents'
-  | 'catalog' | 'catalogLoading' | 'modelsReady' | 'effective' | 'override' | 'hasHistory'
+  | 'open' | 'setOpen' | 'agentOpen' | 'setAgentOpen' | 'agents'
+  | 'catalogLoading' | 'modelsReady' | 'effective' | 'favoriteOptions' | 'modelGroups'
+  | 'thinkingOptions' | 'modeOptions' | 'rootRows' | 'toggleFavorite'
   | 'agentOptions' | 'agentName'>;
 
 export interface MChatSelectionView {
-  /** The model (or, with none pinned, the profile) and the thinking level beside it. */
+  /** The selected model and the thinking level beside it. */
   chip: { main: string; sub: string | null };
   /** The environment capsule; null on a host with fewer than two agents — nothing to choose. */
   agentChip: { label: string; followingDefault: boolean } | null;
@@ -23,16 +24,10 @@ export interface MChatSelectionView {
 function engineSheet(selection: MChatSelection, L: Vocab): MChatSelectionView['sheet'] {
   if (!selection.open) return null;
   const vm = buildSelectionSheet({
-    profiles: selection.profiles,
-    catalog: selection.catalog,
-    effective: selection.effective,
-    override: selection.override,
-    hasHistory: selection.hasHistory,
-    defaultProfile: selection.defaultProfile,
+    ...selection,
     copy: {
-      profile: L.chatProfileTitle, model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute,
-      followProfile: L.wbFollowProfile, followAll: L.wbFollowAll, hiddenModels: L.wbHiddenModels,
-      hiddenProfiles: L.wbHiddenProfiles, hiddenNoProfile: L.wbHiddenNoProfile,
+      favorites: L.chatFavoritesTitle, model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute,
+      defaultThinking: L.chatThinkingDefault, crossBackend: L.chatModelCrossBackend,
     },
   });
   return { vm, pending: selection.catalogLoading || !selection.modelsReady };
@@ -42,13 +37,9 @@ function agentRows(selection: MChatSelection, L: Vocab): SelectionSheetRow[] | n
   if (!selection.agentOpen || !hasAgentChoice(selection.agents)) return null;
   return buildAgentSheet({
     agents: selection.agents,
-    profiles: selection.profiles,
     agentName: selection.agentName,
-    currentBackend: selection.effective.backend,
-    hasHistory: selection.hasHistory,
     copy: {
       agentDefault: L.wbAgentDefault, agentFollowDefault: L.wbAgentFollowDefault,
-      agentCrossBackend: L.wbAgentCrossBackend,
     },
   });
 }

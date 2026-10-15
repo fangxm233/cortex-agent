@@ -14,7 +14,8 @@ const platform: PlatformSettingsSnapshot = {
   ],
 };
 const snapshot: ConfigSnapshot = {
-  platforms: [platform], budget: null, profiles: null, machines: [], mcp: null, hooks: [], env: [],
+  platforms: [platform], budget: null, models: { default: null, favorites: [], memory: {} }, selectionDefault: null,
+  machines: [], mcp: null, hooks: [], env: [],
   settings: [{ key: 'feishuSkillsInWeb', value: false, source: 'default' },
     { key: 'feishuAdminChannel', value: 'oc_old', source: 'file' }],
 };

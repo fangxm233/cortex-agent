@@ -24,14 +24,14 @@ import {
 } from './ComposerActionRow';
 import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
-import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
+import type { EngineSelection, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { TurnClock } from '@/features/session/transcript/transcript-vm';
 import { DraftProjectSelector } from './DraftProjectSelector';
 import { useFileDropTarget } from './useFileDropTarget';
 import { ChatDropOverlay } from './ChatDropOverlay';
 
 // Composer — a unified card: full-width input on top, one toolbar row below. The toolbar keeps the
-// ＋ menu (attach · browser opt-in · local slash commands) on the left and the profile chip, context
+// ＋ menu (attach · browser opt-in · local slash commands) on the left and the model chip, context
 // ring and Send/Stop cluster on the right.
 // Three entry points for files: ＋ menu "attach" · paste (clipboard images) · drag & drop.
 // Files upload to the server's tmp/attachments/<sessionId>/ and are referenced by path.
@@ -66,9 +66,7 @@ export interface ComposerProps {
   isDraft?: boolean;
   /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
   sessionBrowser?: { device: string } | null;
-  currentProfile: string | null;
-  /** The session's model/thinking choice on top of that profile, from its sessions.list row. */
-  currentOverride?: SessionSelectionOverride | null;
+  currentSelection: EngineSelection | null | undefined;
   /** The agent it runs in, from that same row. Null = it follows the host's default. */
   currentAgent?: string | null;
   hasHistory: boolean;
@@ -80,7 +78,7 @@ export interface ComposerProps {
   showStatus?: boolean;
   /** True after this turn emits its first agent progress or streamed output. */
   turnProgressStarted?: boolean;
-  /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
+  /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the model. */
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
   /** What this session is waiting on from outside Cortex, and how to cancel one. Supplied by the
@@ -105,8 +103,7 @@ export function Composer({
   sessionSpanMs: spanMs = null,
   isDraft = false,
   sessionBrowser = null,
-  currentProfile,
-  currentOverride = null,
+  currentSelection,
   currentAgent = null,
   hasHistory,
   projectId = 'general',
@@ -128,7 +125,7 @@ export function Composer({
     draftReloadToken,
   } = useSelectedSession();
   const engineSelection = useSessionSelection({
-    sessionId, currentProfile, currentOverride, currentAgent, hasHistory, isDraft,
+    sessionId, currentSelection, currentAgent, hasHistory, isDraft,
     draftSelection, setDraftSelection, pendingCreatedSession,
   });
   // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
@@ -149,11 +146,11 @@ export function Composer({
       browserDevice,
     },
     slash: {
-      profileOptions: engineSelection.profileOptions,
+      modelOptions: engineSelection.favoriteOptions,
       backend: engineSelection.effective.backend,
       agentName: engineSelection.agentName,
       onNew: () => setSelectedSession(DRAFT_SENTINEL),
-      onProfile: engineSelection.pickProfile,
+      onModel: engineSelection.pickModel,
       onSettings: onOpenSettings,
       onUsage: onOpenUsage,
     },
@@ -382,7 +379,7 @@ export function Composer({
               }}
             />
 
-            {/* Toolbar: ＋ menu left; agent, profile, context ring and Send/Stop right.
+            {/* Toolbar: ＋ menu left; agent, model, context ring and Send/Stop right.
                 Send is ALWAYS rendered. While a turn is running the composer still sends —
                 the server injects the text into the live turn rather than queuing it behind
                 that turn. Showing send as the secondary action next to Stop makes the

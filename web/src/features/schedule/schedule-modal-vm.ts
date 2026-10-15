@@ -1,4 +1,5 @@
-import type { ScheduleInfo, MutateArgs } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, EngineSelection, ModelCatalogSnapshot, ModelRef, ScheduleInfo, MutateArgs } from '@cortex-agent/ui-contract';
+import { modelKey, modelLabel, selectionForModel } from '@/lib/model-selection';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 import type { Vocab } from '@/i18n';
 
@@ -20,25 +21,55 @@ export function scheduleOptionLabel(option: IntervalUnit, L: Vocab): string {
   return L[OPTION_LABEL_KEY[option]];
 }
 
-// PROFILE options are the real agent profiles, sourced from `config.get` (ConfigSnapshot.profiles —
-// read from ~/.cortex/config/profiles.json, redacted to names). `profile` is optional in
-// MutateArgs<'schedules.add'>. This pure helper derives the <select> options from those real names while
-// guaranteeing the form's current value stays selectable (controlled-select invariant). When no
-// source is available (profiles.json absent → undefined/empty) it returns only the current value —
-// or nothing when current is empty — never a fabricated list.
-export function profileOptions(names: string[] | undefined, current: string): string[] {
-  const out: string[] = [];
-  for (const name of names ?? []) {
-    if (!out.includes(name)) out.push(name);
-  }
-  if (current && !out.includes(current)) out.push(current);
-  return out;
+export interface ScheduleModelOption {
+  value: string;
+  label: string;
+  selection: EngineSelection;
+  favorite: boolean;
+}
+
+/** Favorites render without the catalog; deduplicate by backend/provider/model, not model name. */
+export function scheduleModelOptions(
+  config: Pick<ConfigSnapshot, 'models'> | undefined,
+  catalog: ModelCatalogSnapshot | undefined,
+  current: EngineSelection | null,
+): ScheduleModelOption[] {
+  const favorites = config?.models?.favorites ?? [];
+  const refs: ModelRef[] = [...favorites, ...(catalog?.routes ?? []).flatMap((route) =>
+    route.models.map((model) => ({ backend: route.backend,
+      provider: route.provider, model })))];
+  if (current) refs.push(current);
+  const unique = new Map(refs.map((ref) => [modelKey(ref), ref]));
+  return [...unique].map(([value, ref]) => ({
+    value, label: `${modelLabel(ref)} · ${ref.provider ?? ref.backend}`,
+    selection: current && modelKey(current) === value ? current : selectionForModel(ref, config, catalog),
+    favorite: favorites.some((favorite) => modelKey(favorite) === value),
+  }));
+}
+
+export function scheduleThinkingOptions(
+  catalog: ModelCatalogSnapshot | undefined, selection: EngineSelection | null,
+): string[] {
+  if (!selection) return [''];
+  const route = catalog?.routes.find((entry) =>
+    entry.backend === selection.backend && entry.provider === selection.provider);
+  const levels = route?.modelThinking?.[selection.model] ?? catalog?.thinkingLevels?.[selection.backend] ?? [];
+  return [...new Set(['', ...levels, selection.thinking ?? ''])];
+}
+
+export function scheduleModelPatch(options: ScheduleModelOption[], value: string): Partial<ScheduleForm> {
+  const option = options.find((candidate) => candidate.value === value);
+  return option?.selection.mode ? { selection: option.selection } : {};
+}
+
+export function scheduleThinkingPatch(form: ScheduleForm, value: string): Partial<ScheduleForm> {
+  return form.selection ? { selection: { ...form.selection, thinking: value || null } } : {};
 }
 
 export interface ScheduleForm {
   type: SchedType;
   message: string;
-  profile: string;
+  selection: EngineSelection | null;
   time: string; // HH:MM (daily / weekly)
   dayOfWeek: number; // 0..6 (weekly)
   intervalValue: number; // interval
@@ -52,7 +83,7 @@ export function defaultScheduleForm(projectId: string | null): ScheduleForm {
   return {
     type: 'daily',
     message: '',
-    profile: 'claude-haiku',
+    selection: null,
     time: '09:00',
     dayOfWeek: 1,
     intervalValue: 30,
@@ -76,7 +107,7 @@ export type ScheduleEditorMode = 'create' | 'edit';
 export interface ScheduleEditableFields extends FieldVisibility {
   type: boolean;
   message: boolean;
-  profile: boolean;
+  selection: boolean;
   projectId: boolean;
 }
 
@@ -101,7 +132,7 @@ export function editableScheduleFields(
     delay: timing.delay && !editing,
     type: !editing,
     message: true,
-    profile: true,
+    selection: true,
     projectId: true,
   };
 }
@@ -147,7 +178,7 @@ export function buildScheduleAddArgs(form: ScheduleForm): MutateArgs<'schedules.
     message: form.message.trim(),
   };
   if (form.projectId) args.projectId = form.projectId;
-  if (form.profile) args.profile = form.profile;
+  if (form.selection) args.selection = form.selection;
 
   if (form.type === 'interval') args.intervalMs = unitToMs(form.intervalValue, form.intervalUnit);
   if (form.type === 'daily' || form.type === 'weekly') args.time = form.time;
@@ -157,11 +188,11 @@ export function buildScheduleAddArgs(form: ScheduleForm): MutateArgs<'schedules.
 }
 
 // ── Edit mode (design 27b「Edit schedule ↗」) ────────────────────────────────
-// The schedule's type is immutable and `schedules.update` patches only message/projectId/profile +
+// The schedule's type is immutable and `schedules.update` patches only message/projectId/selection +
 // the type's own timing fields — a once-schedule's runAt is not patchable.
 
 /** Prefill the form from a persisted schedule. Missing fields fall back to the create defaults so
- *  every control stays controlled; the profile falls back to '' (never a fabricated name). */
+ *  every control stays controlled; a missing selection stays null. */
 export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
   const base = defaultScheduleForm(s.projectId || null);
   const ms = s.intervalMs ?? 0;
@@ -170,7 +201,7 @@ export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
     ...base,
     type: s.type,
     message: s.message,
-    profile: s.profile ?? '',
+    selection: s.selection,
     time: s.time ?? base.time,
     dayOfWeek: s.dayOfWeek ?? base.dayOfWeek,
     intervalValue: ms > 0 ? (wholeHours ? ms / 3_600_000 : Math.round(ms / 60_000)) : base.intervalValue,
@@ -181,7 +212,7 @@ export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
 /** The real `schedules.update` payload: only patchable fields, timing scoped to the form's type. */
 export function buildScheduleUpdateArgs(scheduleId: string, form: ScheduleForm): MutateArgs<'schedules.update'> {
   const args: MutateArgs<'schedules.update'> = { scheduleId, message: form.message.trim() };
-  if (form.profile) args.profile = form.profile;
+  if (form.selection) args.selection = form.selection;
   if (form.projectId) args.projectId = form.projectId;
   if (form.type === 'interval') args.intervalMs = unitToMs(form.intervalValue, form.intervalUnit);
   if (form.type === 'daily' || form.type === 'weekly') args.time = form.time;

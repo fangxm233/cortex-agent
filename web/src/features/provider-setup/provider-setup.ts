@@ -1,13 +1,15 @@
-import type { AuthAccountStatus, AuthStatusSnapshot, ConfigProfileEntry, ConfigProfiles } from '@cortex-agent/ui-contract';
+import type { AuthAccountStatus, AuthStatusSnapshot, ConfigModels, EngineSelection, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
+import { modelKey, selectionForModel } from '@/lib/model-selection';
 import type { Vocab } from '@/i18n';
 import { nativeErrorText } from '@/lib/native-error';
 
 export interface ClaudeStatus { installed: boolean; version: string | null }
 interface Ports {
   status: () => Promise<AuthStatusSnapshot>;
-  config: () => Promise<{ profiles: ConfigProfiles | null }>;
+  config: () => Promise<{ models: ConfigModels }>;
+  catalog: () => Promise<ModelCatalogSnapshot>;
   sync: () => Promise<{ configured: boolean; reason?: string }>;
-  select: (name: string) => Promise<unknown>;
+  select: (selection: EngineSelection) => Promise<unknown>;
   claude: () => Promise<ClaudeStatus>;
   install: () => Promise<ClaudeStatus>;
   canInstall: () => boolean;
@@ -55,26 +57,26 @@ export function splitPopular<T extends { provider: string }>(providers: T[]): { 
   };
 }
 
-function matchesAccount(profile: ConfigProfileEntry, account: AuthAccountStatus): boolean {
-  const backend = profile.backend ?? 'claude';
-  const provider = backend === 'claude' ? 'anthropic' : profile.provider;
+function matchesAccount(selection: EngineSelection, account: AuthAccountStatus): boolean {
+  const { backend } = selection;
+  const provider = backend === 'claude' ? 'anthropic' : selection.provider;
   if (account.backend !== backend || account.provider !== provider) return false;
-  const type = profile.mode === 'api' ? 'api_key' : 'oauth';
+  const type = selection.mode === 'api' ? 'api_key' : 'oauth';
   if (backend === 'pi') return usable(account.state);
   return (account.authType === type && usable(account.state))
     || account.credentials.some(c => c.authType === type && usable(c.state));
 }
-export function readyProfiles(profiles: ConfigProfileEntry[], accounts: AuthAccountStatus[], pi: boolean, cc: boolean | null): ConfigProfileEntry[] {
-  return profiles.filter(p => {
-    const backend = p.backend ?? 'claude';
-    const available = backend === 'pi' ? pi : backend === 'claude' && cc === true;
-    return available && !!p.model && accounts.some(a => matchesAccount(p, a));
+export function readyModels(selections: EngineSelection[], accounts: AuthAccountStatus[], pi: boolean, cc: boolean | null): EngineSelection[] {
+  return selections.filter(selection => {
+    const available = selection.backend === 'pi' ? pi : cc === true;
+    return available && !!selection.model && !!selection.mode && accounts.some(a => matchesAccount(selection, a));
   });
 }
 
 export class ProviderSetupController {
   state = {
-    status: null as AuthStatusSnapshot | null, profiles: null as ConfigProfiles | null,
+    status: null as AuthStatusSnapshot | null, models: null as ConfigModels | null,
+    catalog: null as ModelCatalogSnapshot | null,
     busy: false, error: null as string | null, sync: 'idle' as 'idle' | 'success' | 'failed',
     claude: null as ClaudeStatus | null, claudeBusy: false, claudeError: null as string | null,
   };
@@ -86,13 +88,19 @@ export class ProviderSetupController {
   private patch(patch: Partial<typeof this.state>) {
     this.state = { ...this.state, ...patch }; this.listeners.forEach(listener => listener());
   }
-  available() {
-    return readyProfiles(this.state.profiles?.profiles ?? [], this.state.status?.accounts ?? [],
+  private ready(selections: EngineSelection[]) {
+    return readyModels(selections, this.state.status?.accounts ?? [],
       this.state.status?.piRuntime.available === true, this.state.claude?.installed ?? null);
   }
+  available() {
+    const { models, catalog } = this.state;
+    if (!models) return [];
+    return this.ready(models.favorites.map(ref => selectionForModel(ref, { models }, catalog)));
+  }
   canContinue() {
+    const current = this.state.models?.default;
     return !this.state.busy && !this.state.error && this.state.sync !== 'failed'
-      && this.available().some(p => p.name === this.state.profiles?.defaultProfile);
+      && !!current && this.ready([current]).length > 0;
   }
   private async scan(sync: boolean) {
     if (this.state.busy) return;
@@ -100,14 +108,15 @@ export class ProviderSetupController {
     try {
       this.patch({ status: await this.ports.status() });
       if (sync) await this.syncModels();
-      this.patch({ profiles: (await this.ports.config()).profiles });
+      const [config, catalog] = await Promise.all([this.ports.config(), this.ports.catalog()]);
+      this.patch({ models: config.models, catalog });
     } catch (error) { this.patch({ error: message(error) }); }
     finally { this.patch({ busy: false }); }
   }
   private async syncModels() {
     try {
       const result = await this.ports.sync();
-      // Nothing logged in yet is not a failure; the profile card already asks the user to sign in.
+      // Nothing logged in yet is not a failure; the model card already asks the user to sign in.
       if (result.configured || result.reason === 'no-endpoints') {
         this.patch({ sync: result.configured ? 'success' : 'idle', error: null });
       } else this.patch({ sync: 'failed', error: result.reason ?? 'not-configured' });
@@ -124,12 +133,13 @@ export class ProviderSetupController {
     });
     await this.refresh();
   };
-  select = async (name: string) => {
-    if (this.state.busy || !this.available().some(p => p.name === name)) return;
+  select = async (key: string) => {
+    const selection = this.available().find(ref => modelKey(ref) === key);
+    if (this.state.busy || !selection) return;
     this.patch({ busy: true, error: null });
     try {
-      await this.ports.select(name);
-      this.patch({ profiles: (await this.ports.config()).profiles });
+      await this.ports.select(selection);
+      this.patch({ models: (await this.ports.config()).models });
     } catch (error) { this.patch({ error: message(error) }); }
     finally { this.patch({ busy: false }); }
   };

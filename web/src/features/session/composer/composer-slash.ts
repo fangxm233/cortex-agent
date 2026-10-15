@@ -1,6 +1,6 @@
 import { SLASH_COMMANDS, type SlashVocab } from './chat-content';
 
-export interface SlashProfileOption {
+export interface SlashModelOption {
   name: string;
   detail?: string;
   disabled?: boolean;
@@ -18,7 +18,7 @@ export type SlashAction =
   | { type: 'new' }
   | { type: 'cancel' }
   | { type: 'compact' }
-  | { type: 'profile'; profileName: string }
+  | { type: 'model'; modelName: string }
   | { type: 'settings' }
   | { type: 'usage' };
 
@@ -61,7 +61,7 @@ export interface SlashActionHandlers {
   onNew: () => void;
   onCancel: () => void;
   onCompact: () => void;
-  onProfile: (name: string) => void;
+  onModel: (name: string) => void;
   onSettings: () => void;
   onUsage: () => void;
 }
@@ -102,14 +102,14 @@ function skillMatches(query: string, skill: SlashSkillOption): boolean {
 }
 
 function isActionDisabled(action: SlashAction, availability: SlashAvailability): boolean {
-  if (action.type === 'profile') return false;
+  if (action.type === 'model') return false;
   return !!availability[`${action.type}Disabled`];
 }
 
 /** A skill invocation resolves to `none`: it is sent to the agent as typed. */
 export function resolveSlashInput(
   text: string,
-  profiles: SlashProfileOption[],
+  models: SlashModelOption[],
   availability: SlashAvailability = {},
   skills: readonly SlashSkillOption[] = [],
 ): SlashResolution {
@@ -120,44 +120,44 @@ export function resolveSlashInput(
   const prefix = SLASH_COMMANDS.some((item) => item.cmd.slice(1).startsWith(parsed.command))
     || skills.some((skill) => skillMatches(parsed.command, skill));
   if (!known) return prefix && !parsed.hasArgsSeparator ? { kind: 'incomplete' } : { kind: 'invalid' };
-  if (parsed.command === 'profile') return resolveProfile(parsed, profiles);
+  if (parsed.command === 'model') return resolveModel(parsed, models);
   const action = actionFor(parsed.command);
   if (parsed.args || !action) return { kind: 'invalid' };
   return isActionDisabled(action, availability) ? { kind: 'disabled' } : { kind: 'action', action };
 }
 
-function resolveProfile(parsed: ParsedSlash, profiles: SlashProfileOption[]): SlashResolution {
+function resolveModel(parsed: ParsedSlash, models: SlashModelOption[]): SlashResolution {
   if (!parsed.hasArgsSeparator || !parsed.args) return { kind: 'incomplete' };
   if (/\s/.test(parsed.args)) return { kind: 'invalid' };
-  const profile = profiles.find((item) => item.name.toLowerCase() === parsed.args.toLowerCase());
-  if (!profile) return { kind: 'invalid' };
-  if (profile.disabled) return { kind: 'disabled' };
-  return { kind: 'action', action: { type: 'profile', profileName: profile.name } };
+  const model = models.find((item) => item.name.toLowerCase() === parsed.args.toLowerCase());
+  if (!model) return { kind: 'invalid' };
+  if (model.disabled) return { kind: 'disabled' };
+  return { kind: 'action', action: { type: 'model', modelName: model.name } };
 }
 
-function profileSuggestions(query: string, profiles: SlashProfileOption[], L: SlashVocab): SlashSuggestion[] {
-  return profiles
-    .filter((profile) => profile.name.toLowerCase().startsWith(query))
-    .map((profile) => ({
-      command: `/profile ${profile.name}`,
-      description: profile.detail ?? L.chatSlashProfile,
-      action: { type: 'profile' as const, profileName: profile.name },
-      disabled: profile.disabled ?? false,
+function modelSuggestions(query: string, models: SlashModelOption[], L: SlashVocab): SlashSuggestion[] {
+  return models
+    .filter((model) => model.name.toLowerCase().startsWith(query))
+    .map((model) => ({
+      command: `/model ${model.name}`,
+      description: model.detail ?? L.chatSlashModel,
+      action: { type: 'model' as const, modelName: model.name },
+      disabled: model.disabled ?? false,
     }));
 }
 
 /** Local commands first, then the conversation's skills; picking a skill puts its command in. */
 export function buildSlashSuggestions(
   text: string,
-  profiles: SlashProfileOption[],
+  models: SlashModelOption[],
   L: SlashVocab,
   availability: SlashAvailability = {},
   skills: readonly SlashSkillOption[] = [],
 ): SlashSuggestion[] {
   const parsed = parseSlashInput(text);
   if (!parsed) return [];
-  if (parsed.command === 'profile' && parsed.hasArgsSeparator) {
-    return profileSuggestions(parsed.args.toLowerCase(), profiles, L);
+  if (parsed.command === 'model' && parsed.hasArgsSeparator) {
+    return modelSuggestions(parsed.args.toLowerCase(), models, L);
   }
   if (parsed.hasArgsSeparator) return [];
   const local = SLASH_COMMANDS
@@ -165,8 +165,8 @@ export function buildSlashSuggestions(
     .map((item) => ({
       command: item.cmd,
       description: L[item.desc],
-      action: item.cmd === '/profile' ? null : actionFor(item.cmd.slice(1)),
-      disabled: item.cmd === '/profile'
+      action: item.cmd === '/model' ? null : actionFor(item.cmd.slice(1)),
+      disabled: item.cmd === '/model'
         ? false
         : isActionDisabled(actionFor(item.cmd.slice(1))!, availability),
     }));
@@ -179,8 +179,8 @@ export function buildSlashSuggestions(
 }
 
 export function runSlashAction(action: SlashAction, handlers: SlashActionHandlers): void {
-  if (action.type === 'profile') {
-    handlers.onProfile(action.profileName);
+  if (action.type === 'model') {
+    handlers.onModel(action.modelName);
     return;
   }
   const actions = {

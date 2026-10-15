@@ -68,12 +68,10 @@ import type { MChatSelection } from './m-chat-selection';
 
 const selection: MChatSelection = {
   open: false, setOpen: () => {}, agentOpen: false, setAgentOpen: () => {},
-  profiles: [], defaultProfile: null, agents: [], catalog: null, catalogLoading: false, modelsReady: true,
-  effective: {
-    profileName: 'plan', backend: 'claude', model: 'claude-opus-5', provider: null, thinking: 'high', mode: null,
-    modelOverridden: false, thinkingOverridden: false, modeOverridden: false,
-  },
-  override: null, hasHistory: false, agentOptions: [], agentName: null,
+  agents: [], catalogLoading: false, modelsReady: true,
+  effective: { backend: 'claude', model: 'claude-opus-5', provider: null, thinking: 'high', mode: 'plan' },
+  favoriteOptions: [], modelGroups: [], thinkingOptions: [], modeOptions: [], rootRows: [],
+  toggleFavorite: () => {}, agentOptions: [], agentName: null,
 };
 
 const baseProps = {
@@ -572,11 +570,14 @@ describe('MChatView overlays', () => {
   it('hands an engine-sheet pick to the screen and closes the sheet', () => {
     const setOpen = vi.fn();
     const onPickSelection = vi.fn();
-    const profiles = [{ name: 'plan', backend: 'claude' }, { name: 'fast', backend: 'claude' }] as MChatSelection['profiles'];
-    const r = mount({ selection: { ...selection, open: true, setOpen, profiles }, onPickSelection });
-    act(() => r.root.findByProps({ 'data-selection-row': 'profile:fast' }).props.onClick());
+    const favoriteOptions: MChatSelection['favoriteOptions'] = [{
+      id: 'fast', backend: 'claude', provider: null, group: 'claude', active: false,
+      disabled: false, disabledReason: null, favorite: true, selection: { ...selection.effective, model: 'fast' },
+    }];
+    const r = mount({ selection: { ...selection, open: true, setOpen, favoriteOptions }, onPickSelection });
+    act(() => r.root.findByProps({ 'data-selection-row': 'favorite:claude::fast' }).props.onClick());
     expect(setOpen).toHaveBeenCalledWith(false);
-    expect(onPickSelection.mock.calls[0][0]).toMatchObject({ id: 'profile:fast', label: 'fast' });
+    expect(onPickSelection.mock.calls[0][0]).toMatchObject({ id: 'favorite:claude::fast', label: 'fast' });
     act(() => r.unmount());
     vi.unstubAllGlobals();
   });

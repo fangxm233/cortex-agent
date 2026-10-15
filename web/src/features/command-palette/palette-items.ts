@@ -129,7 +129,7 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     id: 'nav:settings',
     label: 'Settings',
     labelKey: 'settings',
-    sub: 'platform · profiles · budget · machines…',
+    sub: 'platform · models · budget · machines…',
     subKey: 'cpSubSettings',
     kbd: 'modal',
     modal: 'settings',

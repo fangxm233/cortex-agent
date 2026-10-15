@@ -8,7 +8,7 @@
  * model is actually running.
  *
  * The prefix carries no information a chip can use: every id under it reads `opus-5` / `sonnet-4-6`
- * on its own, and the vendor is already stated by the profile behind the chip.
+ * on its own, and the vendor is already stated by the model behind the chip.
  */
 export function modelLabel(model: string): string {
   return model.replace(/^claude-/, '').replace(/-\d{8}$/, '');

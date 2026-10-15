@@ -8,7 +8,7 @@ import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashSuggestion,
 } from '@/features/session/composer/composer-slash';
-import type { ProfileOption } from '@/features/session/list/selection-menu';
+import type { ModelOption } from '@/features/session/list/selection-menu';
 import type { DraftSelection } from '@/features/session/state/selected-session';
 import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
 import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
@@ -24,14 +24,14 @@ export interface DraftCreation {
 }
 
 export interface ComposerSlashHost {
-  /** The profiles this conversation can move to — the same filtered list its picker shows. */
-  profileOptions: ProfileOption[];
+  /** The models this conversation can move to — the same filtered list its picker shows. */
+  modelOptions: ModelOption[];
   /** The backend this conversation runs on; it decides how a skill is invoked. */
   backend: string | null;
   /** The agent it runs in (null = the host's default), whose plugins decide its skills. */
   agentName: string | null;
   onNew: () => void;
-  onProfile: (name: string) => void;
+  onModel: (option: ModelOption) => void;
   onSettings: () => void;
   onUsage: () => void;
 }
@@ -97,8 +97,8 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     if (!sessionId || cancelMut.isPending) return;
     cancelMut.mutate({ sessionId });
   };
-  const slashProfiles = options.slash.profileOptions.map((option) => ({
-    name: option.name, detail: option.sub, disabled: option.disabled,
+  const slashModels = options.slash.modelOptions.map((option) => ({
+    name: option.provider ? `${option.provider}/${option.id}` : option.id, detail: option.selection.thinking ?? undefined, disabled: option.disabled,
   }));
   const slashSkills = useSlashSkills({
     sessionId, isDraft, agentName: options.slash.agentName, backend: options.slash.backend,
@@ -118,13 +118,16 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       onNew: options.slash.onNew,
       onCancel: () => { if (running) stop(); },
       onCompact: () => compactAction?.onCompact(),
-      onProfile: options.slash.onProfile,
+      onModel: (name) => {
+        const option = options.slash.modelOptions.find((o) => (o.provider ? `${o.provider}/${o.id}` : o.id) === name);
+        if (option) options.slash.onModel(option);
+      },
       onSettings: options.slash.onSettings,
       onUsage: options.slash.onUsage,
     });
   };
   const handleSlash = (value: string): boolean => {
-    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability, slashSkills);
+    const resolution = resolveSlashInput(value, slashModels, slashAvailability, slashSkills);
     if (resolution.kind === 'none') return false;
     if (resolution.kind === 'action') runSlash(resolution.action);
     options.onSlashFeedback(slashFeedbackKey(resolution));
@@ -140,8 +143,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     const { selection, browserDevice } = options.creation;
     return createAndSendMut.mutateAsync({
       projectId: options.projectId,
-      profileName: selection.profileName ?? undefined,
-      ...(selection.override ? { selection: selection.override } : {}),
+      ...(selection.selection ? { selection: selection.selection } : {}),
       ...(selection.agentName ? { agentName: selection.agentName } : {}),
       text,
       draftUploadId,
@@ -201,7 +203,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       if (!draft.text) draft.setText('/');
       else setBrowsingCommands(true);
     },
-    slashSuggestions: buildSlashSuggestions(browsingCommands ? '/' : draft.text, slashProfiles, L, slashAvailability, slashSkills),
+    slashSuggestions: buildSlashSuggestions(browsingCommands ? '/' : draft.text, slashModels, L, slashAvailability, slashSkills),
     pickSlash: (suggestion) => {
       if (suggestion.disabled) return false;
       setBrowsingCommands(false);
