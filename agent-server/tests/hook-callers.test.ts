@@ -1,4 +1,4 @@
-import { test, vi } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -7,7 +7,8 @@ import * as hookBus from '../src/core/hook-bus.js';
 import type { AgentRun } from '../src/domain/runs/run.js';
 import type { RunRequest } from '../src/domain/runs/request.js';
 import type { OutputStream } from '../src/platform/output-stream.js';
-import { MockAdapter } from '../src/platform/testing.js';
+import { setChannelSelection } from '../src/domain/agents/config.js';
+import { TEST_CLAUDE_SELECTION, TEST_PI_SELECTION } from './_seed-models.js';
 import {
   isOnMessageEndHookConfigured,
   isOnNewHookConfigured,
@@ -73,7 +74,7 @@ function makeStream(): RecordingStream {
 function makeSessionSpec(): SessionHookSpec {
   return {
     name: 'onMessageEnd',
-    ctx: { channel: 'C-session-hook', sessionId: 'sess-1'},
+    ctx: { channel: 'C-session-hook', sessionId: 'sess-1', selection: TEST_PI_SELECTION },
     format: {
       statusLine: () => 'status',
       previewLine: output => `preview:${output}`,
@@ -88,7 +89,7 @@ function makeInjectedSpec(): SessionHookSpec {
   spec.inject = {
     sessionId: 'sess-track',
     backendSessionId: 'sess-target',
-    profileName: 'review-profile',
+    selection: TEST_PI_SELECTION,
     sessionKey: spec.ctx.channel,
     trigger: 'hook:onMessageEnd',
   };
@@ -144,6 +145,25 @@ test('session public path requests the legacy timeout for omitted registry value
   await runSessionHook(makeSessionSpec(), makeStream());
 
   assert.equal(emitSpy.mock.calls[0]?.[2]?.defaultTimeoutMs, 60_000);
+});
+
+test('new-session hook payload exposes the recorded backend and model with stable and backend ids', async (t) => {
+  writeSessionHooks([{
+    id: 'session-new-hook', event: 'cortex:session.new',
+    run: { command: "node -e 'process.exit(0)'" }, result: 'none',
+  }]);
+  const emitSpy = vi.spyOn(hookBus, 'emitCortexEvent');
+  t.onTestFinished(() => emitSpy.mockRestore());
+  const spec = makeSessionSpec();
+  spec.name = 'onNew';
+  spec.ctx.backendSessionId = 'backend-original';
+  await runSessionHook(spec, makeStream());
+  assert.equal(emitSpy.mock.calls[0]?.[0], 'cortex:session.new');
+  expect(emitSpy.mock.calls[0]?.[1]).toEqual({
+    channel: spec.ctx.channel, sessionId: 'sess-1', backendSessionId: 'backend-original', executionId: null,
+    backend: TEST_PI_SELECTION.backend, model: TEST_PI_SELECTION.model, trigger: 'new',
+    timestampIso: expect.any(String),
+  });
 });
 
 test('session public path formats a delegated process error and flushes', async () => {
@@ -204,6 +224,8 @@ test('session event injects only prompt results with preserved agent context', a
   const stream = makeStream();
   const { deps, calls, closeCalls } = makeInjectDeps();
   const spec = makeInjectedSpec();
+  // A hook resumes its recorded selection, not a newer channel pick.
+  setChannelSelection(spec.ctx.channel, TEST_CLAUDE_SELECTION);
 
   await runSessionHook(spec, stream, deps);
 
@@ -212,7 +234,8 @@ test('session event injects only prompt results with preserved agent context', a
   assert.equal(calls[0].message, 'inject me');
   assert.equal(calls[0].request.context.channel, spec.ctx.channel);
   assert.equal(calls[0].request.session.backendSessionId, 'sess-target');
-  assert.equal(calls[0].request.profile.name, 'review-profile');
+  assert.equal(calls[0].request.session.sessionId, 'sess-track');
+  assert.deepEqual(calls[0].request.selection, TEST_PI_SELECTION);
   assert.equal(calls[0].request.session.engineKey, spec.ctx.channel);
   assert.deepEqual(closeCalls, []);
   assert.deepEqual(stream.texts, ['status', 'preview:inject me', 'agent follow-up']);

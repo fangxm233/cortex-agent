@@ -6,13 +6,13 @@ import path from 'node:path';
 
 import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '../../src/store/session-registry-repo.js';
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { seedTestModels, TEST_CLAUDE_SELECTION, TEST_PI_SELECTION } from '../_seed-models.js';
+import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
 import { setSessionAsync } from '../../src/domain/sessions/session.js';
 import {
-  getActiveProfile,
-  setActiveProfile,
-  switchChannelProfile,
-  channelHasHistory,
+  getChannelSelection,
+  setChannelSelection,
+  applyChannelSelection,
 } from '../../src/domain/agents/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,12 +48,12 @@ import {
 
 let tmpDir = '';
 let testId = 0;
+const FAST_SELECTION: EngineSelection = { ...TEST_CLAUDE_SELECTION, model: 'claude-haiku-4-5' };
+const REVIEW_SELECTION: EngineSelection = { ...TEST_CLAUDE_SELECTION, thinking: 'high', mode: 'api' };
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-session-identity-golden-'));
-  // Same minimal profile set the run-tests.sh harness seeds, so the file also passes under a
-  // scoped `vitest run` that starts from an empty skeleton home.
-  seedTestProfiles();
+  seedTestModels();
 });
 
 afterAll(async () => {
@@ -105,7 +105,7 @@ test('golden 5: turn lifecycle records the turn verbatim (text, response ts, sta
   const userText1 = 'first user message\nwith a newline and unicode ☃ kept verbatim';
 
   await ledger.initAndBeginTurn(channel, {
-    sessionId: 'sid-5', backend: 'claude', profileName: 'plan',
+    sessionId: 'sid-5', backend: 'claude', selection: TEST_CLAUDE_SELECTION,
     userMessageTs: 'u-msg-1', userMessageText: userText1, statusMessageTs: 'status-1',
   });
   await ledger.setBackupPath(channel, 'u-msg-1', '/backups/turn-0.bak');
@@ -117,7 +117,7 @@ test('golden 5: turn lifecycle records the turn verbatim (text, response ts, sta
   assert.deepEqual(normalize(await ledger.getConversation(channel)), {
     sessionId: 'sid-5',
     backend: 'claude',
-    profileName: 'plan',
+    selection: TEST_CLAUDE_SELECTION,
     turns: [
       {
         turnIndex: 0,
@@ -200,7 +200,7 @@ test('golden 6: rollbackTo marks superseded and truncateTurns rewinds the conver
     conversationAfter: {
       sessionId: 'sid-6',
       backend: 'claude',
-      profileName: null,
+      selection: null,
       turns: [
         {
           turnIndex: 0,
@@ -233,7 +233,7 @@ test('golden 7: updateSessionId late-binds a null-session conversation', async (
   assert.deepEqual(normalize(await ledger.getConversation(channel)), {
     sessionId: 'sid-late-7',
     backend: 'claude',
-    profileName: null,
+    selection: null,
     turns: [],
     updatedAt: '<ts>',
   });
@@ -245,116 +245,113 @@ test('golden 8: switchSession replaces the header and resets turns', async () =>
   const channel = 'web:g8-channel';
 
   await ledger.initConversation(channel, {
-    sessionId: 'sid-8a', backend: 'claude', profileName: 'plan',
+    sessionId: 'sid-8a', backend: 'claude', selection: TEST_CLAUDE_SELECTION,
   });
   await ledger.beginTurn(channel, { userMessageTs: 'u1', userMessageText: 'old turn' });
 
   await ledger.switchSession(channel, {
-    sessionId: 'sid-8b', backend: 'claude', profileName: 'scan',
+    sessionId: 'sid-8b', backend: 'claude', selection: FAST_SELECTION,
   });
 
   assert.deepEqual(normalize(await ledger.getConversation(channel)), {
     sessionId: 'sid-8b',
     backend: 'claude',
-    profileName: 'scan',
+    selection: FAST_SELECTION,
     turns: [],
     updatedAt: '<ts>',
   });
 });
 
-test('golden 10: switchChannelProfile syncs the record on same-backend and refuses cross-backend with history', async () => {
+async function bindSelectionSession(channel: string, sessionId: string): Promise<void> {
+  setChannelSelection(channel, TEST_CLAUDE_SELECTION);
+  await sessionStore.registerSession({
+    sessionId, channel, backend: 'claude', kind: 'local', projectId: 'projX', selection: TEST_CLAUDE_SELECTION,
+  });
+  await setSessionAsync(channel, sessionId);
+  await conversationLedger.initConversation(channel, {
+    sessionId, backend: 'claude', selection: TEST_CLAUDE_SELECTION,
+  });
+}
+
+// Route validation is independent of any gateway configuration seeded by the test harness.
+function select(channel: string, selection: EngineSelection) {
+  return applyChannelSelection({ channel, ...selection, readGateway: () => null });
+}
+
+async function assertSelected(channel: string, sessionId: string, selection: EngineSelection): Promise<void> {
+  assert.equal(await sessionStore.getBoundSessionId(channel), sessionId);
+  const record = await sessionStore.getById(sessionId);
+  assert.equal(record?.sessionId, sessionId);
+  assert.deepEqual(record?.selection, selection);
+  assert.deepEqual(getChannelSelection(channel), selection);
+}
+
+test('golden 10: selection writer syncs the bound record and refuses cross-backend with turns', async () => {
   const channel = 'slack:g10-channel';
   const sid = 'sid-10';
-
-  setActiveProfile('plan', channel); // deterministic starting backend (claude)
-  await sessionStore.registerSession({
-    sessionId: sid, channel, backend: 'claude', kind: 'local', projectId: 'projX', profileName: 'plan',
-  });
-  await setSessionAsync(channel, sid); // so getBoundSessionId resolves the binding
-  await conversationLedger.initConversation(channel, {
-    sessionId: sid, backend: 'claude', profileName: 'plan',
-  });
-
-  const recordBefore = await sessionStore.getById(sid);
-  const historyBefore = await channelHasHistory(channel);
-
-  // Fresh session (no turns): same-backend switch allowed; record profileName synced.
-  const switch1 = await switchChannelProfile({ channel, name: 'scan' });
-  const recordAfter1 = await sessionStore.getById(sid);
-  const activeProfileAfter1 = getActiveProfile(channel);
-
+  await bindSelectionSession(channel, sid);
+  assert.equal((await sessionStore.getTurns(channel)).length, 0);
+  await assertSelected(channel, sid, TEST_CLAUDE_SELECTION);
+  assert.deepEqual(await select(channel, FAST_SELECTION), { ...FAST_SELECTION, ok: true, backendChanged: false });
+  await assertSelected(channel, sid, FAST_SELECTION);
   await conversationLedger.beginTurn(channel, { userMessageTs: 'u1', userMessageText: 'now live' });
-  const historyAfterTurn = await channelHasHistory(channel);
-
-  // Live conversation: cross-backend switch (execute = pi) rejected, record untouched.
-  const switch2 = await switchChannelProfile({ channel, name: 'execute' });
-  const recordAfter2 = await sessionStore.getById(sid);
-
-  // Live conversation: same-backend switch (qa = claude) still allowed.
-  const switch3 = await switchChannelProfile({ channel, name: 'qa' });
-  const recordAfter3 = await sessionStore.getById(sid);
-
-  const snapshot = {
-    profileBefore: recordBefore?.profileName,
-    historyBefore,
-    switch1,
-    profileAfter1: recordAfter1?.profileName, // 'scan' proves getBoundSessionId resolved + updateSession ran
-    activeProfileAfter1,
-    historyAfterTurn,
-    switch2,
-    profileAfter2: recordAfter2?.profileName, // unchanged: rejected switch does not sync
-    switch3,
-    profileAfter3: recordAfter3?.profileName,
-  };
-
-  assert.deepEqual(normalize(snapshot), {
-    profileBefore: 'plan',
-    historyBefore: false,
-    switch1: { ok: true, name: 'scan', currentBackend: 'claude', targetBackend: 'claude', backendChanged: false },
-    profileAfter1: 'scan',
-    activeProfileAfter1: 'scan',
-    historyAfterTurn: true,
-    switch2: { ok: false, name: 'execute', currentBackend: 'claude', targetBackend: 'pi', backendChanged: true, reason: 'cross-backend-live-session' },
-    profileAfter2: 'scan',
-    switch3: { ok: true, name: 'qa', currentBackend: 'claude', targetBackend: 'claude', backendChanged: false },
-    profileAfter3: 'qa',
+  assert.equal((await sessionStore.getTurns(channel)).length, 1);
+  assert.deepEqual(await select(channel, TEST_PI_SELECTION), {
+    ...FAST_SELECTION, ok: false, backendChanged: false, reason: 'cross-backend-live-session',
+    currentBackend: 'claude', targetBackend: 'pi',
   });
+  await assertSelected(channel, sid, FAST_SELECTION);
+  assert.deepEqual(await select(channel, REVIEW_SELECTION), { ...REVIEW_SELECTION, ok: true, backendChanged: false });
+  await assertSelected(channel, sid, REVIEW_SELECTION);
+  assert.equal((await conversationLedger.findTurn(channel, 'u1'))?.turn.userMessageText, 'now live');
 });
 
-// ── 11. The session record's profileName is not touched by ledger conversation headers ──
-// B.T2 deleted the ledger fallback: the registry record's profileName is the single source of truth.
-// Case (b) — a registry record with no profile but a ledger conversation that DOES carry one —
-// therefore resolves to null now (it was 'scan' before the fallback was removed). The ledger
-// conversations below are set up precisely to prove they do not write through to the record.
-test('golden 11: session-record profileName is isolated from ledger conversation headers', async () => {
+test('golden 10b: backend picks are channel-local and keep a fresh session identity stable', async () => {
+  const channel = 'slack:g10b-channel';
+  const other = 'slack:g10b-other';
+  await bindSelectionSession(channel, 'sid-10b');
+  await bindSelectionSession(other, 'sid-10b-other');
+  await conversationLedger.beginTurn(other, { userMessageTs: 'other-u1', userMessageText: 'other history' });
+  assert.deepEqual(await select(channel, TEST_PI_SELECTION), { ...TEST_PI_SELECTION, ok: true, backendChanged: true });
+  await assertSelected(channel, 'sid-10b', TEST_PI_SELECTION);
+  await assertSelected(other, 'sid-10b-other', TEST_CLAUDE_SELECTION);
+  assert.equal(effectiveBackendSessionId((await sessionStore.getById('sid-10b'))!), null);
+  assert.equal((await conversationLedger.getConversation(channel))?.sessionId, 'sid-10b');
+  assert.equal((await conversationLedger.findTurn(other, 'other-u1'))?.turn.userMessageText, 'other history');
+});
+
+test('golden 10c: a resumed backend id blocks a backend change even without channel turns', async () => {
+  const channel = 'slack:g10c-channel';
+  await bindSelectionSession(channel, 'sid-10c');
+  await sessionStore.updateSession('sid-10c', { backendSessionId: 'backend-10c' });
+  assert.equal((await sessionStore.getTurns(channel)).length, 0);
+  assert.deepEqual(await select(channel, TEST_PI_SELECTION), {
+    ...TEST_CLAUDE_SELECTION, ok: false, backendChanged: false, reason: 'cross-backend-live-session',
+    currentBackend: 'claude', targetBackend: 'pi',
+  });
+  await assertSelected(channel, 'sid-10c', TEST_CLAUDE_SELECTION);
+  assert.equal(effectiveBackendSessionId((await sessionStore.getById('sid-10c'))!), 'backend-10c');
+});
+
+// Ledger headers never write through to the authoritative session-record selection.
+test('golden 11: session-record selection is isolated from ledger conversation headers', async () => {
   const { registry, ledger } = freshStores();
-  const recordProfile = async (sessionId: string) => {
-    return (await registry.getById(sessionId))?.profileName ?? null;
-  };
-
-  // (a) registry has the profile → wins (and the disagreeing ledger profile is ignored).
+  const recordSelection = async (sessionId: string) => (await registry.getById(sessionId))?.selection ?? null;
   await registry.registerSession({
-    sessionId: 'sid-11a', channel: 'web:11a', backend: 'claude', kind: 'local', projectId: 'projX', profileName: 'plan',
+    sessionId: 'sid-11a', channel: 'web:11a', backend: 'claude', kind: 'local', projectId: 'projX', selection: TEST_CLAUDE_SELECTION,
   });
-  await ledger.initConversation('web:11a', { sessionId: 'sid-11a', backend: 'claude', profileName: 'qa' });
-
-  // (b) registry record lacks a profile; the ledger has one but is no longer a fallback → null.
+  await ledger.initConversation('web:11a', { sessionId: 'sid-11a', backend: 'claude', selection: REVIEW_SELECTION });
   await registry.registerSession({
-    sessionId: 'sid-11b', channel: 'web:11b', backend: 'claude', kind: 'local', projectId: 'projX', profileName: null,
+    sessionId: 'sid-11b', channel: 'web:11b', backend: 'claude', kind: 'local', projectId: 'projX', selection: null,
   });
-  await ledger.initConversation('web:11b', { sessionId: 'sid-11b', backend: 'claude', profileName: 'scan' });
-
-  // (c) neither source → null.
-
-  const snapshot = {
-    a_registryWins: await recordProfile('sid-11a'),
-    b_ledgerFallback: await recordProfile('sid-11b'),
-    c_neither: await recordProfile('sid-11c'),
-  };
-
-  assert.deepEqual(normalize(snapshot), {
-    a_registryWins: 'plan',
-    b_ledgerFallback: null, // B.T2: ledger fallback deleted (was 'scan')
+  await ledger.initConversation('web:11b', { sessionId: 'sid-11b', backend: 'claude', selection: FAST_SELECTION });
+  assert.deepEqual({
+    a_registryWins: await recordSelection('sid-11a'),
+    b_ledgerFallback: await recordSelection('sid-11b'),
+    c_neither: await recordSelection('sid-11c'),
+  }, {
+    a_registryWins: TEST_CLAUDE_SELECTION,
+    b_ledgerFallback: null,
     c_neither: null,
   });
 });
