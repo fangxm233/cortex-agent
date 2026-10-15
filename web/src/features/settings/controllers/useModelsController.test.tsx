@@ -11,7 +11,7 @@ const other: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
 const snapshot = { models: { default: { ...ref, mode: 'plan', thinking: 'high' }, favorites: [ref, other],
   memory: { [modelKey(ref)]: { mode: 'api', thinking: 'max' } } } } as ConfigSnapshot;
 const catalog = { routes: [{ endpoint: 'deepseek', backend: 'pi', provider: 'deepseek',
-  modes: ['deepseek'], models: ['flash'], source: 'pi' }], piPending: false };
+  modes: ['deepseek'], models: ['flash', 'new-model'], source: 'pi' }], piPending: false };
 const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), toast: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const mutation = (fn: (input: unknown) => unknown) => ({ mutationOptions: (options: object) => ({ ...options, mutationFn: (input: unknown) => fn(input) }) });
@@ -40,12 +40,12 @@ beforeEach(() => {
 });
 
 describe('model settings writes', () => {
-  it('renders favorites without loading the catalog and lazy-loads on request', async () => {
+  it('loads catalog choices for the default picker without opening the favorites editor', async () => {
     const { view } = await mount();
     expect(controller.facts).toHaveLength(2);
-    expect(adapter.catalog).not.toHaveBeenCalled();
-    await act(async () => controller.setCatalogOpen(true));
-    await vi.waitFor(() => expect(controller.catalogModels).toEqual([other]));
+    await vi.waitFor(() => expect(controller.options).toContainEqual({ ...other, model: 'new-model' }));
+    expect(adapter.catalog).toHaveBeenCalledOnce();
+    expect(controller.catalogOpen).toBe(false);
     act(() => view.unmount());
   });
   it('writes a complete selection using memory and refreshes config', async () => {

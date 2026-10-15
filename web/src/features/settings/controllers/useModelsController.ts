@@ -30,7 +30,7 @@ function useModelsResources(initialSnapshot?: ConfigSnapshot) {
   const options = trpc.config.get.queryOptions({});
   const config = useQuery(initialSnapshot ? { ...options, initialData: initialSnapshot } : options);
   const catalog = useQuery({
-    ...trpc.models.catalog.queryOptions({}), enabled: catalogOpen, staleTime: 60_000,
+    ...trpc.models.catalog.queryOptions({}), staleTime: 60_000,
     refetchInterval: query => query.state.data?.piPending ? 2_500 : false,
   });
   return { config, catalog, catalogOpen, setCatalogOpen };
