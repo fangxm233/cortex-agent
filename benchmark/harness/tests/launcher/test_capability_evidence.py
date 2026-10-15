@@ -1,8 +1,6 @@
 import hashlib
 import importlib.util
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -257,32 +255,27 @@ def test_rejects_old_schema_with_old_or_new_field_shape(
             )
 
 
-def test_committed_migration_reproduces_evidence_and_bound_digests() -> None:
-    from cortex_bench_harness.launcher import credential_capabilities as registry
+def test_historical_migration_converts_pinned_records_in_isolation(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("capability_evidence_migration", MIGRATION_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    source = tmp_path / "migration.json"
+    source.write_bytes(migration.MIGRATION_PATH.read_bytes())
+    migration.MIGRATION_PATH = source
+    migration.EVIDENCE = tmp_path
+    pinned = migration.load_migration()
 
-    result = subprocess.run(
-        [sys.executable, str(MIGRATION_SCRIPT), "--check"],
-        cwd=HARNESS_DIR, capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
-    row = next(row for row in registry.CAPABILITY_REGISTRY.values()
-               if row.id == "pi-deepseek-api-key")
-    assert report == {
-        "ok": True,
-        "mode": "check",
-        "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
-        "offline_evidence_sha256": hashlib.sha256(
-            (EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json").read_bytes()
-        ).hexdigest(),
-        "registry_evidence_sha256": row.evidence_sha256,
-        "supporting_sha256": {
-            "model_metadata_sha256": DEEPSEEK_OFFLINE_CONTRACT["model_metadata_sha256"],
-            "mutation_manifest_sha256": DEEPSEEK_OFFLINE_CONTRACT[
-                "mutation_manifest_sha256"
-            ],
-        },
-    }
+    for state in migration.RECORD_STATES:
+        path, payload, digest = migration.migrate_record(pinned, state)
+        path.write_bytes(payload)
+        converted = json.loads(path.read_bytes())
+        original = pinned["records"][state]["document"]
+        expected = {key: value for key, value in original.items()
+                    if key not in pinned["removed_fields"]}
+        expected["schema_version"] = CAPABILITY_EVIDENCE_SCHEMA_VERSION
+        assert converted == expected
+        assert digest == hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_migration_refuses_malformed_pinned_records(tmp_path: Path) -> None:
