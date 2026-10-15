@@ -229,6 +229,36 @@ A server release can also carry native packages as GitHub Release assets. The se
 
 Sessions run on the server, so restarting or reinstalling a client does not stop them. Native shell update checks are disabled when `CORTEX_FRONTEND_DIR` marks a development run, when the installed app does not carry a CalVer release version, or when `CORTEX_APP_UPDATE_DISABLE=1` is set.
 
+## Uninstalling
+
+**Settings → Advanced → Uninstall Cortex** opens the uninstaller: a separate window that asks what to remove, removes it, and lists each step's result. On Windows, uninstalling Cortex from **Settings → Apps** opens the same window before the program files are removed.
+
+The window offers two choices:
+
+- **What to remove** appears when the app installed a server on this computer. **App and local server**, the default, turns off start at login, stops the daemon and the local client it launched, takes the `cortex` terminal command off `PATH`, and deletes `~/.cortex/runtime`. **App only** leaves the server running and reachable from a browser or other devices. An app that connects to a remote server shows no such choice and never touches that server.
+- **Also delete data** is off by default. Together with the server it deletes the whole Cortex home (`~/.cortex`, or `CORTEX_HOME`): configuration and tokens, conversations, project context, plugins and logs. It also deletes the app's own data directories, named `dev.cortex.desktop`, and the connection saved in the system keychain. With **App only** it deletes just the app's own data and saved connection. The window lists every path before you confirm; deletion cannot be undone.
+
+With the data kept, installing Cortex again picks up where it left off: setup unpacks the runtime, reinstalls the server package, and connects to the existing configuration and sessions.
+
+The app itself is removed the way it was installed. The Windows uninstaller deletes the program files once the window closes. macOS moves `Cortex.app` to the Trash. An AppImage deletes its file. A DEB or RPM install is removed by its package manager after a system authorization prompt. A copy that no package owns shows its folder for you to delete. When stopping the server or deleting its files fails, the app stays installed and the window offers **Try again**. A login service the app did not write, such as a `cortex.service` created by `cortex init` on the command line, is reported and left in place.
+
+Windows app updates and silent uninstalls (`/S`, `/P`, `/UPDATE`) do not open the window; they only replace or remove the program files.
+
+Removing the app any other way, by dragging `Cortex.app` to the Trash, running `apt remove`, or deleting the AppImage, leaves the server and its data in place. To remove the server afterwards, turn off its login service, stop it, and delete the runtime:
+
+```bash
+# Linux
+systemctl --user disable --now cortex.service && rm ~/.config/systemd/user/cortex.service
+# macOS
+launchctl bootout gui/$(id -u)/cc.cortex.agent-server && rm ~/Library/LaunchAgents/cc.cortex.agent-server.plist
+# Both
+cortex daemon stop
+cortex path remove
+rm -rf ~/.cortex/runtime
+```
+
+Deleting the rest of `~/.cortex` removes the data as well.
+
 ## Troubleshooting
 
 ### Unauthorized
