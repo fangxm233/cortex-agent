@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
+vi.mock('@core/log.js', () => ({ createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
+
 const HOME = process.env.CORTEX_HOME!;
 const STATE = path.join(HOME, 'data/agent-state.json');
 const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'medium', mode: 'plan' };
@@ -171,6 +173,15 @@ test('platform picks and seedDefault false do not change the new-conversation se
   expect(stored().selectionDefault).toEqual({ ...claude, agentName: 'creative' });
   await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' });
   expect(stored().selectionDefault.agentName).toBe('creative');
+});
+
+test('concurrent partial updates merge rather than losing either choice', async () => {
+  const api = await fresh();
+  await Promise.all([
+    api.applyChannelSelection({ channel: 'web:a', thinking: 'xhigh' }),
+    api.applyChannelSelection({ channel: 'web:a', mode: 'api' }),
+  ]);
+  expect(api.readChannelSelection('web:a')).toEqual({ ...claude, thinking: 'xhigh', mode: 'api' });
 });
 
 test('session write failure is surfaced before channel, memory or seed writes', async () => {
