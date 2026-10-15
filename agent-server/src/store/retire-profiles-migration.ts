@@ -189,8 +189,8 @@ function replaySessionName(names: Map<string, string>, row: JsonObject): void {
   if (row.op === 'delete-intent' || row.op === 'delete-commit') names.delete(id);
 }
 
-/** Read the committed raw lines BEFORE loading the repo: the new replay intentionally discards
- * profileName. An unterminated tail is not committed (the repo truncates it on load). */
+/** Read committed legacy names, including those carried through earlier import/compaction.
+ * An unterminated tail is not committed (the repo truncates it on load). */
 async function readRawNames(file: string): Promise<RawNames> {
   const names: RawNames = { sessions: new Map(), conversations: new Map() };
   const raw = await readOptional(file);
@@ -209,6 +209,8 @@ async function readRawNames(file: string): Promise<RawNames> {
 async function migrateRegistry(file: string, state: JsonObject, snapshot: Snapshot): Promise<void> {
   const names = await readRawNames(file);
   if (!names.sessions.size && !names.conversations.size) return;
+  // Old homes lacking both a stored session name and a channel entry lose that session's old
+  // choice and follow the default; S1/S8 deliberately do not materialize selections in advance.
   // Never use the singleton, and never compact away the raw names needed by a partial retry.
   const repo = new SessionRegistryRepo(file, { shouldCompact: () => false });
   const overrides = object(state.channelOverrides);

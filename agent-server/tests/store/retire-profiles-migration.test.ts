@@ -95,7 +95,7 @@ describe('S10 retire profiles', () => {
     expect(JSON.stringify(report)).not.toContain('never-log-this');
   });
 
-  it('captures raw put/patch/unset names before the new reader drops them, then appends through a local repo', async () => {
+  it('resolves raw put/patch/unset names, then appends selections through a local repo', async () => {
     seed();
     journal([
       put('changed', 'a', 'flash'), { v: 1, op: 'patch', id: 'changed', fields: { profileName: 'plan' } },
@@ -123,6 +123,20 @@ describe('S10 retire profiles', () => {
     expect((await repo().getConversationHeader('a'))?.selection).toEqual((await repo().getById('changed'))?.selection);
     expect((await repo().getConversationHeader('standalone'))?.selection).toEqual(PI);
     expect(report).toMatchObject({ sessions: 2, conversations: 2 });
+  });
+
+  it('preserves a legacy name through compaction until S10 materializes and clears it', async () => {
+    seed();
+    journal([put('old', 'no-channel-entry', 'flash')]);
+    await repo().compactNow();
+    expect((await repo().getById('old'))?.profileName).toBe('flash');
+    expect(JSON.parse(read('data/session-registry.jsonl')).record.profileName).toBe('flash');
+    await migrate();
+    const session = await repo().getById('old');
+    expect(session?.selection).toEqual(PI);
+    expect(session).not.toHaveProperty('profileName');
+    await repo().compactNow();
+    expect(read('data/session-registry.jsonl')).not.toContain('profileName');
   });
 
   it('resumes a failed append without losing overrides or duplicating earlier patches', async () => {
