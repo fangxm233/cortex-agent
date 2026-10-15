@@ -114,7 +114,7 @@ CODEX_NOW_MS = 1_900_000_000_000
 
 def arm_document(name: str, **overrides: object) -> dict[str, object]:
     return {
-        "name": name, "kind": "cortex", "bundle": "direct-pi-deepseek", "mode": "trial",
+        "name": name, "kind": "cortex", "bundle": "direct-pi-deepseek",
         "limits": {
             "max_provider_requests": 200, "max_cost_usd": "2.00",
             "deadline_seconds": 1800, "max_output_tokens": 32768,
