@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCreateAndSend, handleCreateSession } from '../../../src/domain/ui-service/mutate/sessions.js';
-import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import type { EngineSelection, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 interface CreateCall {
   projectId: string;
@@ -28,14 +28,10 @@ test('sessions.create returns the new session id', async () => {
 });
 
 // ── sessions.createAndSend ──────────────────────────────────────
-// The draft composer is the only create path with a user's engine pick behind it, so what it states
-// is also what the NEXT new conversation opens on. An absent selection is that statement too —
-// "follow the profile" — and has to reach the domain rule, or a model taken back in a draft is
-// re-offered by every draft after it.
+// Apply the draft's complete engine choice before the first turn.
+interface CreateAndSendCall { selection?: EngineSelection }
 
-interface CreateAndSendCall { profileName: string | null; selection: unknown }
-
-test('sessions.createAndSend states the composer selection, empty when nothing is overridden', async () => {
+test('sessions.createAndSend forwards an optional complete engine choice', async () => {
   const calls: CreateAndSendCall[] = [];
   const deps = {
     createDirectSession: async (opts: CreateAndSendCall) => {
@@ -45,12 +41,11 @@ test('sessions.createAndSend states the composer selection, empty when nothing i
     sendSessionMessage: () => {},
   } as unknown as UiServiceDeps;
 
-  const bare = await handleCreateAndSend(deps, { projectId: 'nimbus', profileName: 'opus', text: 'hi' });
+  const bare = await handleCreateAndSend(deps, { projectId: 'nimbus', text: 'hi' });
   assert.equal(bare.ok, true);
-  assert.deepEqual(calls[0]?.selection, {}, 'a composer overriding nothing still states the empty selection');
+  assert.equal(calls[0]?.selection, undefined, 'omission lets the lifecycle materialize its default');
 
-  await handleCreateAndSend(deps, {
-    projectId: 'nimbus', profileName: 'opus', selection: { model: 'claude-sonnet-5' }, text: 'hi',
-  });
-  assert.deepEqual(calls[1]?.selection, { model: 'claude-sonnet-5' }, 'a stated override is passed through as-is');
+  const selection: EngineSelection = { backend: 'claude', provider: null, model: 'claude-sonnet-5', thinking: null, mode: 'plan' };
+  await handleCreateAndSend(deps, { projectId: 'nimbus', selection, text: 'hi' });
+  assert.deepEqual(calls[1]?.selection, selection);
 });

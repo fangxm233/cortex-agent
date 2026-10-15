@@ -19,7 +19,7 @@ import { makeUiDeps } from './ui-deps-fixture.js';
 const ENV_DIR = path.join(CONFIG_DIR, 'environments');
 
 function environmentBody(name: string) {
-  return { name, description: `${name} environment`, profile: 'plan', persistSession: true, tools: 'Read' };
+  return { name, description: `${name} environment`, persistSession: true, tools: 'Read' };
 }
 
 function seedEnvironment(name: string, body: unknown): void {

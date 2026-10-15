@@ -2,13 +2,15 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resetSettingsForTests } from '../../../src/core/settings.js';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
-import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import type { EngineSelection, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
+const piSelection: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'high', mode: 'deepseek' };
+const claudeSelection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' };
 const mockSessions = [
-  { sessionId: 's1', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
-  { sessionId: 's2', projectId: 'proj2', channel: 'C2', backend: 'pi', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, profileName: null },
-  { sessionId: 's3', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', profileName: 'pi' },
+  { sessionId: 's1', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', selection: piSelection, contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
+  { sessionId: 's2', projectId: 'proj2', channel: 'C2', backend: 'pi', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, selection: null },
+  { sessionId: 's3', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', selection: claudeSelection },
 ];
 
 function makeDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
@@ -82,9 +84,8 @@ test('sessions.list exposes persisted context usage and uses null for legacy ses
   assert.equal(byId['s2'], null);
 });
 
-test('sessions.list resolves compaction support once per profile, not once per session', async () => {
-  // Resolving a profile is not free — it revalidates profiles.json — so a rail holding hundreds of
-  // sessions must not ask once per row. Three distinct (backend, profileName) pairs, 120 rows.
+test('sessions.list resolves compaction support once per backend, not once per session', async () => {
+  // Two backend capabilities serve all 120 rows.
   const many = Array.from({ length: 120 }, (_, i) => ({
     ...mockSessions[i % mockSessions.length],
     sessionId: `bulk-${i}`,
@@ -100,14 +101,14 @@ test('sessions.list resolves compaction support once per profile, not once per s
       getById: async () => null,
     },
     supportsSessionCompaction: (session) => {
-      asked.push(`${session.backend}/${session.profileName ?? ''}`);
+      asked.push(session.backend);
       return session.backend === 'pi';
     },
   }), { projectId: 'proj1' });
 
   assert.equal(result.length, 120);
-  assert.deepEqual([...new Set(asked)].sort(), ['claude/pi', 'pi/', 'pi/default']);
-  assert.equal(asked.length, 3, `resolved the profile ${asked.length} times for 120 sessions`);
+  assert.deepEqual([...new Set(asked)].sort(), ['claude', 'pi']);
+  assert.equal(asked.length, 2, `resolved the backend ${asked.length} times for 120 sessions`);
   // The answer still lands on every row.
   assert.deepEqual(
     [...new Set(result.map((session) => `${session.backend}=${session.contextCompactionSupported}`))].sort(),
@@ -706,7 +707,7 @@ test('sessions.transcript returns durable pending messages even before committed
     pendingInjections: {
       listBySession: async (sessionId: string) => sessionId === 's1' ? [{
         id: 'pin-1', sessionId: 's1', channel: 'web:s1', messageId: 'web-1',
-        backend: 'claude', profileName: 'default',
+        backend: 'claude',
         text: 'change direction', attachments, createdAt: '2026-05-01T00:00:03.000Z',
       }] : [],
     },
@@ -741,7 +742,7 @@ test('sessions.transcript reads active pending before history to avoid a cross-s
 test('sessions.transcript suppresses an active record whose committed history row already landed', async () => {
   const pending = {
     id: 'pin-race', sessionId: 's1', channel: 'web:s1', messageId: 'web-race',
-    backend: 'claude', profileName: 'default',
+    backend: 'claude',
     text: 'change direction', createdAt: '2026-05-01T00:00:03.000Z',
   };
   const deps = makeDeps({

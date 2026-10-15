@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   writeBudget,
-  writeDefaultProfile,
   handleConfigSet,
   handleConfigSetProviderRateLimitPolicy,
 } from '../../../src/domain/ui-service/mutate/config.js';

@@ -265,7 +265,7 @@ test('auth.syncGateway rebuilds model routing and reports what it produced', asy
   const deps = {
     syncGateway: async (options: unknown) => {
       calls.push(options);
-      return { configured: true, endpoints: 2, profiles: ['plan', 'execute'] };
+      return { configured: true, endpoints: 2, defaultSet: true, favorites: [{ backend: 'claude', provider: null, model: 'opus' }] };
     },
   } as unknown as UiServiceDeps;
 
@@ -273,7 +273,7 @@ test('auth.syncGateway rebuilds model routing and reports what it produced', asy
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.ok && result.data, {
-    configured: true, endpoints: 2, profiles: ['plan', 'execute'],
+    configured: true, endpoints: 2, defaultSet: true, favorites: [{ backend: 'claude', provider: null, model: 'opus' }],
   });
   assert.equal(calls.length, 1);
 });

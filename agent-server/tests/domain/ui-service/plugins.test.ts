@@ -38,7 +38,6 @@ function environmentBody(name: string, pluginDirs?: string[]) {
   return {
     name,
     description: `${name} environment`,
-    profile: 'plan',
     persistSession: true,
     tools: 'Read',
     ...(pluginDirs ? { pluginDirs } : {}),

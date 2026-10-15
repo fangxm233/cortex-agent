@@ -2,6 +2,7 @@ import { platformSettingsInput } from '@core/platform-settings-spec.js';
 export { platformSettingsInput } from '@core/platform-settings-spec.js';
 
 import { z } from 'zod';
+import type { EngineSelection, ModelRef } from '@domain/agents/engine-selection.js';
 import { RESET_PROVIDERS } from '@domain/costs/reset-account.js';
 import { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
 export { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
@@ -237,13 +238,15 @@ export const sessionsSetAgentInput = z.object({
 });
 
 /** Complete engine choice. Backend-specific thinking and route validation belong to the domain. */
-export const engineSelectionInput = z.object({
+const engineSelectionShape = z.object({
   backend: z.enum(['claude', 'pi']),
   provider: z.string().min(1).nullable(),
   model: z.string().min(1),
   thinking: z.string().min(1).nullable(),
   mode: z.string().min(1),
 }).strict();
+// Preserve required nullable fields in declarations even with strictNullChecks disabled.
+export const engineSelectionInput = engineSelectionShape as z.ZodType<EngineSelection, EngineSelection>;
 
 export const sessionsSetSelectionInput = z.object({
   sessionId: z.string(),
@@ -533,7 +536,7 @@ export const hooksTestInput = z.object({
 });
 
 // ── models.* ──────────────────────────────────────────────────────
-export const modelRefInput = engineSelectionInput.pick({ backend: true, provider: true, model: true });
+export const modelRefInput = engineSelectionShape.pick({ backend: true, provider: true, model: true }) as z.ZodType<ModelRef, ModelRef>;
 
 export const modelsFavoriteInput = z.object({
   backend: z.enum(['claude', 'pi']),

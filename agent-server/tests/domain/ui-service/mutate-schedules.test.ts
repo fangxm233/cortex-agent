@@ -64,7 +64,7 @@ test('schedules.add interval creates a schedule and returns ScheduleInfo', async
   }
   assert.equal(spy.calls.length, 1);
   assert.equal(spy.calls[0].type, 'interval');
-  assert.deepEqual(spy.calls[0], { type: 'interval', intervalMs: 60_000, message: 'ping', projectId: 'general', profile: null });
+  assert.deepEqual(spy.calls[0], { type: 'interval', intervalMs: 60_000, message: 'ping', projectId: 'general', selection: undefined });
 });
 
 test('schedules.add rejects a whitespace message and an out-of-range time without writing', async () => {
@@ -118,8 +118,9 @@ function makeUpdateSpy(task: ScheduleTask | null): UpdateSpy {
   return { calls, scheduler };
 }
 
+const selection = { backend: 'claude' as const, provider: null, model: 'haiku', thinking: null, mode: 'plan' };
 const dailyTask = {
-  id: 'sch_d', type: 'daily' as const, message: 'digest', projectId: 'proj1', profile: 'claude-haiku',
+  id: 'sch_d', type: 'daily' as const, message: 'digest', projectId: 'proj1', selection,
   time: '09:00', createdAt: 1_700_000_000_000, nextRun: 1_700_000_060_000, lastRun: null,
 } as ScheduleTask;
 
@@ -157,7 +158,7 @@ test('schedules.update forwards only the defined fields and returns the updated 
     assert.equal(result.data.id, 'sch_d');
     assert.equal(result.data.message, 'evening digest');
     assert.equal(result.data.time, '19:30');
-    assert.equal(result.data.profile, 'claude-haiku');
+    assert.deepEqual(result.data.selection, selection);
   }
   assert.equal(spy.calls.length, 1);
   assert.equal(spy.calls[0].id, 'sch_d');

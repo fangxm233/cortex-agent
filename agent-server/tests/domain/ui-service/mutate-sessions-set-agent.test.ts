@@ -3,81 +3,44 @@ import assert from 'node:assert/strict';
 import { handleSetAgent } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { Session } from '../../../src/store/session-registry-repo.js';
-import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
-// The web twin of `!agent <name>`: resolve session→channel, delegate to the ONE switch rule, and
-// map its refusals the way `sessions.setProfile` maps its own.
-
-type SwitchOutcome = Awaited<ReturnType<NonNullable<UiServiceDeps['switchSessionAgent']>>>;
-type SwitchCall = { channel: string; name: string | null };
-
-function makeDeps(session: Session | null, outcome: SwitchOutcome, sink: SwitchCall[]): UiServiceDeps {
+type Outcome = Awaited<ReturnType<UiServiceDeps['switchSessionAgent']>>;
+type Call = { channel: string; name: string | null };
+const session = { sessionId: 's', channel: 'web:s', backend: 'claude' } as Session;
+function deps(record: Session | null, outcome: Outcome, sink: Call[]): UiServiceDeps {
   return makeUiDeps({
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
-    switchSessionAgent: async (opts: SwitchCall) => { sink.push(opts); return outcome; },
-  } as UiDepsOverrides);
+    sessionStore: { getById: async () => record },
+    switchSessionAgent: async (opts) => { sink.push(opts); return outcome; },
+    applySessionSelection: async () => { throw new Error('agent changes must not change engines'); },
+  });
 }
 
-const session = (channel: string): Session => ({
-  sessionId: 'sess-1', projectId: 'general', channel,
-  backend: 'claude', kind: 'local', createdAt: '', lastUsedAt: '', label: null, profileName: 'plan',
-} as unknown as Session);
-
-const ok = (agentName: string | null, effectiveProfile: string): SwitchOutcome =>
-  ({ ok: true, agentName, effectiveProfile, backendChanged: false });
-
-test('sessions.setAgent returns not-found when the session does not exist', async () => {
-  const sink: SwitchCall[] = [];
-  const res = await handleSetAgent(makeDeps(null, ok('nimbus', 'plan'), sink), { sessionId: 'ghost', agentName: 'nimbus' });
+test('setAgent returns not-found without invoking the domain rule', async () => {
+  const sink: Call[] = [];
+  const res = await handleSetAgent(deps(null, { ok: true, agentName: 'nimbus' }, sink), { sessionId: 'ghost', agentName: 'nimbus' });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.code, 'not-found');
-  assert.equal(sink.length, 0, 'no switch is attempted for a missing session');
+  assert.deepEqual(sink, []);
 });
 
-test('sessions.setAgent resolves session→channel and reports the profile the agent runs under', async () => {
-  const sink: SwitchCall[] = [];
-  const res = await handleSetAgent(
-    makeDeps(session('web:sess-1'), ok('nimbus', 'execute'), sink),
-    { sessionId: 'sess-1', agentName: 'nimbus' },
-  );
-  assert.equal(res.ok, true);
-  if (res.ok) assert.deepEqual(res.data, { agentName: 'nimbus', profileName: 'execute', backendChanged: false });
-  assert.deepEqual(sink[0], { channel: 'web:sess-1', name: 'nimbus' });
+test('setAgent resolves the session channel and changes only the environment', async () => {
+  const sink: Call[] = [];
+  const res = await handleSetAgent(deps(session, { ok: true, agentName: 'nimbus' }, sink), { sessionId: 's', agentName: 'nimbus' });
+  assert.deepEqual(res, { ok: true, data: { agentName: 'nimbus' } });
+  assert.deepEqual(sink, [{ channel: 'web:s', name: 'nimbus' }]);
 });
 
-test('sessions.setAgent passes a null name through as "follow the global default"', async () => {
-  const sink: SwitchCall[] = [];
-  const res = await handleSetAgent(
-    makeDeps(session('web:sess-1'), ok(null, 'plan'), sink),
-    { sessionId: 'sess-1', agentName: null },
-  );
-  assert.equal(res.ok, true);
-  if (res.ok) assert.equal(res.data.agentName, null);
-  assert.deepEqual(sink[0], { channel: 'web:sess-1', name: null });
+test('null and absent agentName both follow the default environment', async () => {
+  const sink: Call[] = [];
+  const d = deps(session, { ok: true, agentName: null }, sink);
+  assert.deepEqual(await handleSetAgent(d, { sessionId: 's', agentName: null }), { ok: true, data: { agentName: null } });
+  assert.deepEqual(await handleSetAgent(d, { sessionId: 's' }), { ok: true, data: { agentName: null } });
+  assert.deepEqual(sink, [{ channel: 'web:s', name: null }, { channel: 'web:s', name: null }]);
 });
 
-test('sessions.setAgent maps unknown-agent to invalid-args', async () => {
-  const sink: SwitchCall[] = [];
-  const outcome: SwitchOutcome = { ok: false, agentName: null, effectiveProfile: '', backendChanged: false, reason: 'unknown-agent' };
-  const res = await handleSetAgent(makeDeps(session('web:sess-1'), outcome, sink), { sessionId: 'sess-1', agentName: 'nope' });
+test('unknown environments map to invalid-args', async () => {
+  const res = await handleSetAgent(deps(session, { ok: false, agentName: null, reason: 'unknown-agent' }, []), { sessionId: 's', agentName: 'nope' });
   assert.equal(res.ok, false);
-  if (!res.ok) {
-    assert.equal(res.code, 'invalid-args');
-    assert.equal(res.message, 'Unknown environment: nope');
-  }
+  if (!res.ok) { assert.equal(res.code, 'invalid-args'); assert.equal(res.message, 'Unknown environment: nope'); }
 });
-
-test('sessions.setAgent maps a cross-backend block to backend-locked (CONFLICT)', async () => {
-  const sink: SwitchCall[] = [];
-  const outcome: SwitchOutcome = {
-    ok: false, agentName: null, effectiveProfile: '', backendChanged: false,
-    reason: 'cross-backend-live-session', currentBackend: 'claude', targetBackend: 'pi',
-  };
-  const res = await handleSetAgent(makeDeps(session('web:sess-1'), outcome, sink), { sessionId: 'sess-1', agentName: 'atlas' });
-  assert.equal(res.ok, false);
-  if (!res.ok) {
-    assert.equal(res.code, 'backend-locked');
-    assert.match(res.message, /new session/i);
-  }
-});
-
