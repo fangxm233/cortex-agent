@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { formatDurationCompact } from './utils.js';
 import { Icons } from './icons.js';
 import { t } from './i18n.js';
@@ -22,12 +23,12 @@ export function buildSessionTag(sessionId: string | null): string {
 /** `todoProgress` is a pre-rendered task-list line (see core/todo.ts renderTodoProgress).
  *  Passing the rendered string rather than a snapshot keeps this formatter free of todo parsing
  *  and lets every caller decide whether the surface shows task progress at all. */
-export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionId?: string | null; todoProgress?: string | null }): string {
+export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, selection, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; selection: Pick<EngineSelection, 'backend' | 'model'>; sessionId?: string | null; todoProgress?: string | null }): string {
   const elapsed = elapsed_s ?? ((Date.now() - startTime) / 1000);
   const sessionTag = buildSessionTag(sessionId);
   const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${t('notice.turns', { n: num_turns })}` : '';
   const todoStr = todoProgress ? ` | ${Icons.todo} ${todoProgress}` : '';
-  return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
+  return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${selection.backend} · ${selection.model} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
 }
 
 /** Every line a chat turn's status message can end on. `processing` — the live line this replaces

@@ -8,7 +8,7 @@ import type { CommandActionRouter } from '@orch/interactions/command-action-rout
 import { handleOrientCmd } from './orient.js';
 import { createScheduleHandler, type ScheduleCommandScheduler } from './schedule.js';
 import { handleCostCmd, handleBudgetCmd } from './cost.js';
-import { handleModeCmd, handleBackendCmd, handleModelCmd, handleThinkingCmd, createProfileHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
+import { handleModeCmd, handleBackendCmd, handleThinkingCmd, createModelHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
 import { createStatusHandler, createHelpHandler } from './status.js';
 import { createCancelHandler } from './cancel.js';
 import { createCompactHandler, type CompactSessionByChannel } from './compact.js';
@@ -98,7 +98,7 @@ function createHandlerSet(deps: CommandDeps) {
     help: createHelpHandler(router),
     devices: createDevicesHandler(router),
     resume: createResumeHandler(router),
-    profile: createProfileHandler(router),
+    model: createModelHandler(router),
     agent: createAgentHandler(router),
     register: createRegisterHandler(router),
     projectDir: createProjectDirHandler(router),
@@ -144,9 +144,9 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
   return [
     { prefix: '!cancel', handler: h.cancel },
     { prefix: '!backend', handler: handleBackendCmd },
-    { prefix: '!model', handler: handleModelCmd },
+    { prefix: '!model', handler: h.model },
     { prefix: '!thinking', handler: handleThinkingCmd },
-    { prefix: '!profile', handler: h.profile },
+    { prefix: '!mode ', handler: handleModeCmd },
     { prefix: '!usage ', handler: h.usage },
     { prefix: '!cost', handler: handleCostCmd },
     { prefix: '!budget', handler: handleBudgetCmd },

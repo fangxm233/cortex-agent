@@ -14,7 +14,7 @@ import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { getActiveProfile } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { engines } from '@domain/runs/engines.js';
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { attachExistingSession } from '@domain/sessions/session-lifecycle.js';
@@ -251,12 +251,12 @@ async function handleStatusResume(ctx: ActionContext): Promise<void> {
   const record = await sessionStore.getById(sessionId);
   if (!record) return;
   await attachExistingSession(ctx.channelId, {
-    sessionId: record.sessionId, backend: record.backend, profileName: record.profileName,
+    sessionId: record.sessionId, backend: record.backend, selection: record.selection,
   });
-  const profileNote = record.profileName ? t('interaction.sessionProfileNote', { profileName: record.profileName }) : '';
+  const selectionNote = record.selection ? ` (${record.selection.backend} · ${record.selection.model})` : '';
   const resumeDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: record.sessionId ?? '' };
   await _adapter.postMessage(resumeDest, {
-    text: `${Icons.refresh} ${t('interaction.sessionActive', { sessionId: shortSessionId(sessionId), profileNote })}`,
+    text: `${Icons.refresh} ${t('interaction.sessionActive', { sessionId: shortSessionId(sessionId), selectionNote })}`,
   }).catch(() => {});
 }
 
@@ -283,7 +283,7 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
 
   void engines.close(channel);
   const conv = await conversationLedger.getConversation(channel);
-  const profileName = getActiveProfile(channel) || 'default';
+  const selection = resolveRunSelection({ channel });
   if (conv) {
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
@@ -292,6 +292,6 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
   planApprovals.clearByChannel(channel);
   const newDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: '' };
   await _adapter.postMessage(newDest, {
-    text: t('interaction.newConversation', { profileName }),
+    text: t('interaction.newConversation', { model: `${selection.backend} · ${selection.model}` }),
   }).catch(() => {});
 }

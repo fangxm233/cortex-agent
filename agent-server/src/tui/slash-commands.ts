@@ -35,11 +35,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   // Agents / scheduling
   cmd('agent'),
   cmd('schedule'),
-  // Mode / model / profile
+  // Engine selection
   cmd('mode'),
   cmd('model'),
   cmd('backend'),
-  cmd('profile'),
+  cmd('thinking'),
   cmd('skills'),
   // Devices / GPU / logs
   cmd('devices'),

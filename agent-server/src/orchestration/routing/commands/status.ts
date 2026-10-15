@@ -75,7 +75,7 @@ function configHelpCategory(): HelpCategory {
   return {
     label: t('cmd.help.catConfig'),
     commands: [t('cmd.help.config.mode'), t('cmd.help.config.backend'),
-      t('cmd.help.config.model'), t('cmd.help.config.thinking'), t('cmd.help.config.profile'),
+      t('cmd.help.config.model'), t('cmd.help.config.thinking'),
       t('cmd.help.config.agent'), t('cmd.help.config.skills')],
   };
 }
