@@ -155,7 +155,10 @@ def test_real_production_direct_trial_runs_one_session_and_exports_its_evidence(
     )
     assert len(identities) == 1
     identity = identities[0]
-    assert identity["schema_version"] == "cortex-production-attempt-identity/4"
+    assert identity["schema_version"] == "cortex-production-attempt-identity/5"
+    assert identity["thinking"] == "off"
+    assert identity["mode"] == "trial"
+    assert "profile_name" not in identity
     assert identity["session_id"]
     assert identity["spawn_parent_attempt_id"] is None
     assert "thread_id" not in identity and "role" not in identity
