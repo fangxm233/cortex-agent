@@ -10,7 +10,7 @@ import { validateEnvironment } from './schema.js';
 
 const log = createLogger('environments');
 
-/** Definitions exactly as they sit on disk (no `file:` refs resolved), keyed by file name. */
+/** Definitions with retired engine fields removed (no `file:` refs resolved), keyed by file name. */
 let definitions: Record<string, AgentDefinition> = {};
 let loaded = false;
 let revision = 0;
@@ -42,6 +42,7 @@ function readDefinitions(dir: string): Record<string, AgentDefinition> {
       log.warn(`Skipping environment ${file}: name field "${(def as any)?.name}" ≠ filename`);
       continue;
     }
+    delete (def as AgentDefinition & { profile?: unknown }).profile;
     out[name] = def;
   }
   return out;

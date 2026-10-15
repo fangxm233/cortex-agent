@@ -47,6 +47,8 @@ describe('environment registry', () => {
     loadEnvironments();
     expect(environmentSchema.parse(env('main', { profile: 'retired' }))).not.toHaveProperty('profile');
     expect(resolveEnvironmentByName('main')).not.toHaveProperty('profile');
+    expect(getEnvironment('main')).not.toHaveProperty('profile');
+    expect(listEnvironments()[0]).not.toHaveProperty('profile');
     expect(validateEnvironment('main', env('main', { profile: 42 })).errors).toEqual([]);
   });
 
