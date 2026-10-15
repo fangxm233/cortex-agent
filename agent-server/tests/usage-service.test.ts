@@ -1,153 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, test, vi } from 'vitest';
-import type { AgentUsageScope, Backend } from '../src/agent-adapter/types.js';
-import { Capability } from '../src/agent-adapter/capabilities.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { reportCodexQuota } from '../src/agent-adapter/pi/quota-sink.js';
+import { UsageService } from '../src/domain/costs/usage-service.js';
+import { usageRecordKey, type ProviderUsage } from '../src/domain/costs/usage-store.js';
 import {
-  UsageService,
-  type UsageServiceStore,
-} from '../src/domain/costs/usage-service.js';
-import {
-  UsageStore,
-  usageRecordKey,
-  type ProviderUsage,
-} from '../src/domain/costs/usage-store.js';
-
-class MemoryUsageStore implements UsageServiceStore {
-  private records: ProviderUsage[] = [];
-  commitCalls = 0;
-
-  constructor(records: ProviderUsage[] = []) {
-    this.records = structuredClone(records);
-  }
-
-  async list(): Promise<ProviderUsage[]> {
-    return structuredClone(this.records).sort(
-      (a, b) => a.provider.localeCompare(b.provider) || usageRecordKey(a).localeCompare(usageRecordKey(b)),
-    );
-  }
-
-  async commit(records: ProviderUsage[]): Promise<void> {
-    this.commitCalls += 1;
-    this.records = structuredClone(records);
-  }
-}
-
-function usage(
-  provider: string,
-  freshness: ProviderUsage['freshness'],
-  options: Partial<ProviderUsage> = {},
-): ProviderUsage {
-  return {
-    provider,
-    displayName: provider,
-    modes: [provider],
-    windows: [],
-    observedAt: freshness === 'never' || freshness === 'unsupported' ? null : 1_700_000_000,
-    freshness,
-    ...options,
-  };
-}
-
-/** The adapter shape the usage service reads (its dependency is structural, not a class). */
-interface UsageProbeAdapter {
-  backend: Backend;
-  capabilities: Set<Capability>;
-  getUsage: (scope: AgentUsageScope) => Promise<ProviderUsage[] | null>;
-}
-
-function fakeAdapter(
-  backend: Backend,
-  getUsage: UsageProbeAdapter['getUsage'],
-): UsageProbeAdapter {
-  return {
-    backend,
-    capabilities: new Set([Capability.Usage]),
-    getUsage,
-  };
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-/** Route A gateway: groups by provider and billing mode. Without `allRows` it predates lifetime totals. */
-function gatewayFetch(
-  todayRows: unknown,
-  monthRows: unknown,
-  quotaProviders: unknown = [],
-  allRows?: unknown,
-): typeof fetch {
-  return vi.fn(async (input) => {
-    const url = String(input);
-    if (url.includes('/quota?')) return json({ providers: quotaProviders });
-    if (url.includes('period=all')) {
-      return allRows === undefined ? new Response('unsupported period', { status: 400 }) : json({ rows: allRows });
-    }
-    return json({ rows: url.includes('period=today') ? todayRows : monthRows });
-  }) as typeof fetch;
-}
-
-/** Route B gateway: rejects composite grouping, serves raw records instead. */
-function legacyGatewayFetch(
-  todayRecords: unknown[],
-  monthRecords: unknown[],
-  quotaProviders: unknown = [],
-): typeof fetch {
-  return vi.fn(async (input) => {
-    const url = String(input);
-    if (url.includes('/quota?')) return json({ providers: quotaProviders });
-    if (url.includes('group_by=')) return new Response('unsupported group_by', { status: 400 });
-    // The two period reads differ only by `since`; anything older than a week is the month read.
-    const since = Date.parse(decodeURIComponent(new URL(url).searchParams.get('since') ?? ''));
-    const isToday = Date.now() - since < 7 * 24 * 60 * 60 * 1000;
-    return json({ records: isToday ? todayRecords : monthRecords });
-  }) as typeof fetch;
-}
-
-function spend(provider: string, billingMode: string, costUsd: unknown) {
-  return { provider, billing_mode: billingMode, cost_usd: costUsd };
-}
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => { resolve = done; });
-  return { promise, resolve };
-}
-
-function durableMemoryStore(): UsageStore {
-  let records: ProviderUsage[] = [];
-  return new UsageStore({
-    load: async () => structuredClone(records),
-    save: async (next) => { records = structuredClone(next); },
-  });
-}
-
-function serviceWith(options: {
-  store?: MemoryUsageStore;
-  anthropicModes?: string[];
-  subscriptionModes?: string[];
-  pi?: UsageProbeAdapter;
-  fetch?: typeof globalThis.fetch;
-}) {
-  const store = options.store ?? new MemoryUsageStore();
-  const pi = options.pi ?? fakeAdapter('pi', async () => []);
-  const service = new UsageService({
-    store,
-    getAdapter: () => pi,
-    getSettings: () => ({
-      anthropicSubscriptionModes: options.anthropicModes ?? ['plan'],
-      subscriptionBillingModes: options.subscriptionModes ?? ['plan', 'openai-codex'],
-    }),
-    fetch: options.fetch ?? gatewayFetch([], []),
-    gatewayUrl: 'http://gateway.test',
-  });
-  return { service, store };
-}
+  MemoryUsageStore, usage, fakeAdapter, json, gatewayFetch, legacyGatewayFetch,
+  spend, deferred, durableMemoryStore, serviceWith,
+} from './usage-service-fixtures.js';
 
 describe('UsageService', () => {
   test('status is a side-effect-free read that hides legacy Anthropic model-scoped rows', async () => {
@@ -219,7 +79,7 @@ describe('UsageService', () => {
 
     const providers = (await service.collect()).map((record) => record.provider);
 
-    assert.deepEqual(providers, ['anthropic']);
+    assert.deepEqual(providers, []);
     assert.ok(!providers.includes('deepseek'));
     assert.ok(!providers.includes('qwen-local'));
   });
@@ -624,21 +484,13 @@ describe('UsageService', () => {
     assert.match(anthropic?.note ?? '', /utilization is invalid/);
   });
 
-  test('a source with no observation remains never and does not throw', async () => {
+  test('sources with no observations do not invent provider rows or throw', async () => {
     const { service } = serviceWith({
       pi: fakeAdapter('pi', async () => null),
     });
 
     const result = await service.collect();
-    const anthropic = result.find((record) => record.provider === 'anthropic');
-
-    assert.equal(anthropic?.freshness, 'never');
-    assert.match(anthropic?.note ?? '', /no Anthropic quota observation/);
-    assert.equal(
-      result.find((record) => record.provider === 'openai-codex'),
-      undefined,
-      'an unused Codex account is not invented',
-    );
+    assert.deepEqual(result, []);
   });
 
   test('a malformed provider cost does not discard a valid sibling provider', async () => {
