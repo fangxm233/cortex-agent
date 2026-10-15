@@ -544,6 +544,8 @@ export const modelsFavoriteInput = z.object({
   model: z.string().min(1),
 }).strict();
 
+export const modelsSetThinkingInput = z.object({ ref: modelRefInput, thinking: z.string().nullable() }).strict();
+
 export const modelsSetDefaultInput = z.object({ selection: engineSelectionInput }).strict();
 
 const componentByteLength = (value: string): boolean => new TextEncoder().encode(value).byteLength <= 255;
@@ -847,6 +849,7 @@ export const mutateInputSchemas = {
   'models.favorites.add': modelsFavoriteInput,
   'models.favorites.remove': modelsFavoriteInput,
   'models.setDefault': modelsSetDefaultInput,
+  'models.setThinking': modelsSetThinkingInput,
   'plugins.assign': pluginsAssignInput,
   'plugins.skillWrite': pluginsSkillWriteInput,
   'plugins.skillCreate': pluginsSkillCreateInput,

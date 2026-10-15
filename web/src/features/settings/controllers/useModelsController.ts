@@ -21,7 +21,8 @@ function useModelWrites() {
   const add = useMutation(trpc.models.favorites.add.mutationOptions(effects));
   const remove = useMutation(trpc.models.favorites.remove.mutationOptions(effects));
   const setDefault = useMutation(trpc.models.setDefault.mutationOptions(effects));
-  return { add, remove, setDefault };
+  const setThinking = useMutation(trpc.models.setThinking.mutationOptions(effects));
+  return { add, remove, setDefault, setThinking };
 }
 
 function useModelsResources(initialSnapshot?: ConfigSnapshot) {
@@ -70,6 +71,7 @@ function useModelActions(resources: ReturnType<typeof useModelsResources>, optio
     });
   };
   return { pending, setDefault,
+    setThinking: (ref: ModelRef, thinking: string | null) => run(() => writes.setThinking.mutateAsync({ ref, thinking })),
     add: (ref: ModelRef) => run(() => writes.add.mutateAsync({ ...ref, provider: ref.provider ?? undefined })),
     remove: (ref: ModelRef) => run(() => writes.remove.mutateAsync({ ...ref, provider: ref.provider ?? undefined })),
   };
@@ -84,6 +86,7 @@ export function useModelsController(initialSnapshot?: ConfigSnapshot) {
   const actions = useModelActions(resources, options);
   return {
     snapshot, facts, options, loading: config.isLoading, error: config.error,
+    catalog: catalog.error ? null : catalog.data ?? null,
     catalogOpen, setCatalogOpen, catalogModels: catalogModels(catalog.data ?? null),
     catalogPending: catalog.isLoading || !!catalog.data?.piPending, catalogError: catalog.error,
     ...actions,

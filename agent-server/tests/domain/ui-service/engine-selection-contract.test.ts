@@ -39,9 +39,11 @@ test('tRPC routes dispatch the exact model operations and preserve null selectio
   await caller.models.favorites.add({ backend: 'claude', model: 'opus' });
   await caller.models.favorites.remove({ backend: 'pi', provider: 'deepseek', model: 'flash' });
   await caller.models.setDefault({ selection: selection as any });
+  await caller.models.setThinking({ ref: { backend: 'claude', provider: null, model: 'opus' }, thinking: null });
   assert.deepEqual(calls, [
     ['models.favorites.add', { backend: 'claude', model: 'opus' }],
     ['models.favorites.remove', { backend: 'pi', provider: 'deepseek', model: 'flash' }],
     ['models.setDefault', { selection }],
+    ['models.setThinking', { ref: { backend: 'claude', provider: null, model: 'opus' }, thinking: null }],
   ]);
 });

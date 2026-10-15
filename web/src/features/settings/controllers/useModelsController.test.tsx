@@ -12,13 +12,13 @@ const snapshot = { models: { default: { ...ref, mode: 'plan', thinking: 'high' }
   memory: { [modelKey(ref)]: { mode: 'api', thinking: 'max' } } } } as ConfigSnapshot;
 const catalog = { routes: [{ endpoint: 'deepseek', backend: 'pi', provider: 'deepseek',
   modes: ['deepseek'], models: ['flash', 'new-model'], source: 'pi' }], piPending: false };
-const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), toast: vi.fn() }));
+const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), toast: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const mutation = (fn: (input: unknown) => unknown) => ({ mutationOptions: (options: object) => ({ ...options, mutationFn: (input: unknown) => fn(input) }) });
   return { useTRPC: () => ({
     config: { get: { queryOptions: () => ({ queryKey: ['config'], queryFn: adapter.config }), queryFilter: () => ({ queryKey: ['config'] }) } },
     models: { catalog: { queryOptions: () => ({ queryKey: ['catalog'], queryFn: adapter.catalog }) },
-      favorites: { add: mutation(adapter.add), remove: mutation(adapter.remove) }, setDefault: mutation(adapter.setDefault) },
+      favorites: { add: mutation(adapter.add), remove: mutation(adapter.remove) }, setDefault: mutation(adapter.setDefault), setThinking: mutation(adapter.setThinking) },
   }) };
 });
 vi.mock('@/design', () => ({ useToast: () => ({ toast: adapter.toast }) }));
@@ -37,6 +37,59 @@ beforeEach(() => {
   adapter.config.mockResolvedValue(snapshot); adapter.catalog.mockResolvedValue(catalog);
   adapter.add.mockResolvedValue({ changed: true }); adapter.remove.mockResolvedValue({ changed: true });
   adapter.setDefault.mockResolvedValue({ changed: true });
+  adapter.setThinking.mockResolvedValue({ changed: true });
+});
+
+describe('favorite thinking writes', () => {
+  it.each(['high', 'off', null])('writes only the ref and thinking (%s), then refreshes config', async thinking => {
+    const { view, invalidate } = await mount();
+    const target = thinking === 'off' ? other : ref;
+    await act(async () => controller.setThinking(target, thinking));
+    expect(adapter.setThinking).toHaveBeenCalledWith({ ref: target, thinking });
+    expect(adapter.setDefault).not.toHaveBeenCalled();
+    expect(adapter.add).not.toHaveBeenCalled();
+    expect(adapter.remove).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['config'] });
+    expect(adapter.toast).toHaveBeenCalledWith(expect.objectContaining({ tone: 'done' }));
+    act(() => view.unmount());
+  });
+  it('disables writes while pending and retains memory on failure without a success toast', async () => {
+    let reject!: (error: Error) => void;
+    adapter.setThinking.mockReturnValueOnce(new Promise((_, fail) => { reject = fail; }));
+    const { view, invalidate } = await mount();
+    await act(async () => { controller.setThinking(ref, null); controller.remove(other); });
+    expect(controller.pending).toBe(true);
+    expect(controller.facts[0].thinking).toBe('max');
+    expect(adapter.remove).not.toHaveBeenCalled();
+    await act(async () => reject(new Error('denied')));
+    expect(controller.pending).toBe(false);
+    expect(controller.facts[0].thinking).toBe('max');
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(adapter.toast).toHaveBeenCalledOnce();
+    expect(adapter.toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining('denied'), tone: 'failed' }));
+    act(() => view.unmount());
+  });
+});
+
+describe('thinking catalog availability', () => {
+  it('exposes no capabilities until the catalog has loaded, preserving memory', async () => {
+    adapter.catalog.mockReturnValueOnce(new Promise(() => {}));
+    const { view } = await mount();
+    expect(controller.catalog).toBeNull();
+    expect(controller.catalogPending).toBe(true);
+    expect(controller.facts[0].thinking).toBe('max');
+    expect(adapter.setThinking).not.toHaveBeenCalled();
+    act(() => view.unmount());
+  });
+  it('exposes no capabilities on catalog failure, preserving memory', async () => {
+    adapter.catalog.mockRejectedValueOnce(new Error('catalog unavailable'));
+    const { view } = await mount();
+    await vi.waitFor(() => expect(controller.catalogError?.message).toBe('catalog unavailable'));
+    expect(controller.catalog).toBeNull();
+    expect(controller.facts[0].thinking).toBe('max');
+    expect(adapter.setThinking).not.toHaveBeenCalled();
+    act(() => view.unmount());
+  });
 });
 
 describe('model settings writes', () => {
