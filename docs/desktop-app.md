@@ -34,13 +34,13 @@ The Android APK is intended for arm64 devices and is distributed outside the Pla
 
 Choose **Install Cortex** on the first screen and wait for installation to finish. Setup needs no terminal, Homebrew, Command Line Tools, or administrator access. Progress stays brief; **Activity log** is a folded troubleshooting entry. If installation fails, follow the message and choose **Try again**. **Cancel** during installation stops the active installation step, not an existing server; it does not undo files already installed.
 
-Each desktop installer carries the runtime the local server needs: the official Node.js 24 build for its platform and, on Windows, Git for Windows (PortableGit) with Git Bash. Setup unpacks them into versioned directories under `~/.cortex/runtime`, then uses that npm to install the Cortex server package into the private prefix `~/.cortex/runtime/prefix`. Only the server package, and Claude Code when you choose to install it, come from the npm registry; npm follows your `.npmrc` registry, proxy, and credential settings. Setup does not change global npm settings, shell profiles, or the system `PATH`, and it neither uses nor modifies a Node.js, npm, Git, or `cortex` already installed on the computer.
+Each desktop installer carries the runtime the local server needs: the official Node.js 24 build for its platform and, on Windows, Git for Windows (PortableGit) with Git Bash. Setup unpacks them into versioned directories under `~/.cortex/runtime`, then uses that npm to install the Cortex server package into the private prefix `~/.cortex/runtime/prefix`. Only the server package, and Claude Code when you choose to install it, come from the npm registry; npm follows your `.npmrc` registry, proxy, and credential settings. Setup does not change global npm settings, and it neither uses nor modifies a Node.js, npm, Git, or `cortex` already installed on the computer. Once the server is running, setup adds the `cortex` command to new terminal windows, described in [Using cortex in a terminal](#using-cortex-in-a-terminal).
 
 The local server always runs on the bundled runtime. When a runtime directory is missing or damaged, the app unpacks it again during setup, or at launch before it starts the daemon. A saved server installation that no longer runs, or is older than the app requires, is reinstalled into the private prefix. On Windows, Cortex runs shell commands with the bundled Git Bash. On macOS and Linux, Git is optional and setup does not install it; Git-based history and Git-sourced extensions require it.
 
 The bundled Node.js determines where local installation works: macOS 13.5 or later, Linux x86_64 with glibc 2.28 or later, and Windows 10 or 11 on x86_64. On other systems the app can still connect to an existing server.
 
-Installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, port 3004, and no login service. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default model before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
+Installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, port 3004, no login service, and the `cortex` terminal command. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default model before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
 
 If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; starting from this form can restart the local server to apply an explicitly selected port. Automatic setup preserves a responding server. Installation failures offer retry, not machine settings.
 
@@ -61,6 +61,17 @@ cortex ui enable
 ```
 
 This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. [Server configuration](#server-configuration) describes the same settings by hand.
+
+### Using cortex in a terminal
+
+Local setup runs `cortex path install` after the server starts. The command writes launchers for `cortex`, `cortex-signal`, `cortex-hook` and `cortex-evidence-export` into `~/.cortex/runtime/bin`. Each launcher starts the bundled Node.js with the installed server, so a terminal needs no Node.js of its own. That directory is on `PATH` in every terminal opened afterwards:
+
+- **Linux and macOS:** a block marked `# >>> cortex >>>` sits at the end of `~/.profile`, and of `~/.bash_profile` and `~/.zshenv` where those shells are in use. The same block sits at the top of `~/.bashrc`, so `ssh host cortex …` works as well. fish is not configured; add the directory with `fish_add_path ~/.cortex/runtime/bin`.
+- **Windows:** the directory is part of the user `Path`, which Command Prompt, PowerShell and Git Bash all read.
+
+When the app starts the server on a different bundled Node.js, for example after an app update, the daemon rewrites the launchers to match. `cortex path status` shows the launchers and where they are registered. `cortex path remove` deletes them and takes the directory back off `PATH`. The **Use cortex in the terminal** switch on the repair form leaves this step out.
+
+Agent sessions do not depend on any of this. The server puts its own `node`, `cortex` and `cortex-signal` on the `PATH` of every session it starts, so skills and waitpoint commands work even with the terminal command turned off. If setup could not add the command, the workbench opens with a warning. Ask Cortex to run `cortex path install` in a session, or run it through the full path shown under [The server does not answer after the wizard starts it](#the-server-does-not-answer-after-the-wizard-starts-it).
 
 ## Provider setup
 
@@ -234,20 +245,17 @@ Choose **Try again** first: setup unpacks missing runtime files again and reinst
 
 ### The server does not answer after the wizard starts it
 
-A cold start loads the whole agent runtime and can outlast the wizard's wait on a slow machine. The streamed log shows what the daemon reported. Check the state from a terminal:
-
-The app-private CLI is not added to your terminal's PATH. On Linux/macOS:
+A cold start loads the whole agent runtime and can outlast the wizard's wait on a slow machine. The streamed log shows what the daemon reported. Check the state from a new terminal:
 
 ```bash
-~/.cortex/runtime/prefix/bin/cortex daemon status
-~/.cortex/runtime/prefix/bin/cortex doctor
+cortex daemon status
+cortex doctor
 ```
 
-These commands need Node on PATH. If it is absent, use the absolute `node` path
-recorded in `~/.cortex/runtime/selection.json` to invoke the CLI:
+A terminal opened before setup finished does not see the command yet. When the terminal command is turned off, call the launcher directly, for example `~/.cortex/runtime/bin/cortex doctor`. If there are no launchers, run the CLI with the absolute `node` path recorded in `~/.cortex/runtime/selection.json`:
 `"<node path>" ~/.cortex/runtime/prefix/bin/cortex doctor` (or `daemon status`).
 
-On Windows, use PowerShell with the saved runtime, without needing Node on PATH:
+On Windows without launchers, use PowerShell with the saved runtime:
 
 ```powershell
 $runtime = Get-Content "$env:USERPROFILE\.cortex\runtime\selection.json" -Raw | ConvertFrom-Json

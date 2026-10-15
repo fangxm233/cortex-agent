@@ -34,13 +34,13 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 在首屏选择**安装 Cortex**并等待完成。安装无需终端、Homebrew、Command Line Tools 或管理员权限。界面仅显示简短进度，**查看运行日志**是折叠的排查入口。安装失败时，按提示处理并选择**重试**。安装期间的**取消**只停止当前安装步骤，不停止已有服务端，也不会撤销已经安装的文件。
 
-每个桌面安装包都自带本机服务端所需的运行环境：对应平台的官方 Node.js 24，Windows 安装包另含带 Git Bash 的 Git for Windows（PortableGit）。安装时将它们解压到 `~/.cortex/runtime` 下按版本命名的目录，再用其中的 npm 把 Cortex 服务端包安装到私有 prefix `~/.cortex/runtime/prefix`。只有服务端包，以及你选择安装的 Claude Code，从 npm registry 获取；npm 沿用你 `.npmrc` 中的 registry、代理和凭据设置。安装不修改全局 npm 设置、shell profile 或系统 `PATH`，也不使用、不改动电脑上已有的 Node.js、npm、Git 或 `cortex`。
+每个桌面安装包都自带本机服务端所需的运行环境：对应平台的官方 Node.js 24，Windows 安装包另含带 Git Bash 的 Git for Windows（PortableGit）。安装时将它们解压到 `~/.cortex/runtime` 下按版本命名的目录，再用其中的 npm 把 Cortex 服务端包安装到私有 prefix `~/.cortex/runtime/prefix`。只有服务端包，以及你选择安装的 Claude Code，从 npm registry 获取；npm 沿用你 `.npmrc` 中的 registry、代理和凭据设置。安装不修改全局 npm 设置，也不使用、不改动电脑上已有的 Node.js、npm、Git 或 `cortex`。服务端启动后，安装会让新开的终端窗口可以使用 `cortex` 命令，详见[在终端中使用 cortex](#using-cortex-in-a-terminal)。
 
 本机服务端始终运行在自带的运行环境上。运行环境目录缺失或损坏时，应用会在安装过程中，或在启动时拉起 daemon 之前重新解压。已保存的服务端安装无法运行或低于应用要求的版本时，会重新安装到私有 prefix。Windows 上 Cortex 用自带的 Git Bash 执行 shell 命令。macOS 与 Linux 上 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
 
 自带的 Node.js 决定了本机安装支持的系统：macOS 13.5 及以上、glibc 2.28 及以上的 x86_64 Linux，以及 x86_64 的 Windows 10 或 11。其他系统仍可连接已有服务器。
 
-安装后会自动继续初始化、启动服务端并连接。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；正常流程没有机器设置页，也无需点击**启动 Cortex**确认。界面始终以一行安装进度展示，技术细节收在**查看运行日志**中。全新安装随后进入 `/setup/providers` 的 Provider 设置页，登录并选择默认模型 后再进入工作台。Cortex 已内置 PI，安装时不询问后端选择。
+安装后会自动继续初始化、启动服务端并连接。全新安装使用本机 hostname、端口 3004，不安装登录自启服务，并添加 `cortex` 终端命令；正常流程没有机器设置页，也无需点击**启动 Cortex**确认。界面始终以一行安装进度展示，技术细节收在**查看运行日志**中。全新安装随后进入 `/setup/providers` 的 Provider 设置页，登录并选择默认模型 后再进入工作台。Cortex 已内置 PI，安装时不询问后端选择。
 
 初始化、启动或连接失败时，**重试**复用原设置；**修改设置**打开修复表单，从此表单再次启动时可重启本地服务端，以应用明确选择的端口。自动设置会保留正在响应的服务端。安装失败只提供重试，不显示机器设置。
 
@@ -61,6 +61,17 @@ cortex ui enable
 ```
 
 它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。[服务器配置](#server-configuration)一节说明如何手工完成同样的设置。
+
+### 在终端中使用 cortex {#using-cortex-in-a-terminal}
+
+本地安装在服务端启动后执行 `cortex path install`。它在 `~/.cortex/runtime/bin` 中写入 `cortex`、`cortex-signal`、`cortex-hook` 和 `cortex-evidence-export` 的启动器。每个启动器都用自带的 Node.js 运行已安装的服务端，因此终端本身不需要装 Node.js。之后新开的终端，`PATH` 中都会包含该目录：
+
+- **Linux 和 macOS：** 以 `# >>> cortex >>>` 标记的块位于 `~/.profile` 末尾，正在使用的 shell 对应的 `~/.bash_profile` 和 `~/.zshenv` 末尾也有。同样的块位于 `~/.bashrc` 开头，因此 `ssh host cortex …` 也能用。不配置 fish，请用 `fish_add_path ~/.cortex/runtime/bin` 自行添加。
+- **Windows：** 该目录在用户 `Path` 中，命令提示符、PowerShell 和 Git Bash 都会读取。
+
+应用用另一个版本的自带 Node.js 启动服务端时（例如应用更新后），daemon 会相应改写启动器。`cortex path status` 显示启动器及其登记位置。`cortex path remove` 删除启动器，并把该目录从 `PATH` 中撤下。修复表单中的**在终端中使用 cortex 命令**开关可以跳过这一步。
+
+agent 会话不依赖这些设置。服务端会把自己的 `node`、`cortex` 和 `cortex-signal` 放进它启动的每个会话的 `PATH`，所以即使关闭终端命令，skill 和 waitpoint 命令照常可用。若安装未能添加该命令，工作台打开时会给出提示。可以让 Cortex 在会话中执行 `cortex path install`，也可以按[向导启动后服务端没有响应](#the-server-does-not-answer-after-the-wizard-starts-it)中给出的完整路径执行。
 
 ## Provider 设置 {#provider-setup}
 
@@ -234,19 +245,17 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 ### 向导启动后服务端没有响应 {#the-server-does-not-answer-after-the-wizard-starts-it}
 
-冷启动需要加载整个 agent 运行时，在较慢的机器上可能超过向导的等待时间。实时日志会显示 daemon 的输出。也可从终端检查状态：
-
-应用私有的 CLI 不会加入终端 PATH。Linux/macOS 下使用：
+冷启动需要加载整个 agent 运行时，在较慢的机器上可能超过向导的等待时间。实时日志会显示 daemon 的输出。也可在新开的终端中检查状态：
 
 ```bash
-~/.cortex/runtime/prefix/bin/cortex daemon status
-~/.cortex/runtime/prefix/bin/cortex doctor
+cortex daemon status
+cortex doctor
 ```
 
-这些命令需要 PATH 中有 Node。如果没有，请使用 `~/.cortex/runtime/selection.json` 中记录的 `node` 绝对路径来执行 CLI：
+安装完成前打开的终端还找不到该命令。关闭了终端命令时，可直接调用启动器，例如 `~/.cortex/runtime/bin/cortex doctor`。没有启动器时，请用 `~/.cortex/runtime/selection.json` 中记录的 `node` 绝对路径执行 CLI：
 `"<node 路径>" ~/.cortex/runtime/prefix/bin/cortex doctor`（或 `daemon status`）。
 
-Windows 下可在 PowerShell 中使用保存的运行环境，无需 PATH 中有 Node：
+Windows 上没有启动器时，可在 PowerShell 中使用保存的运行环境：
 
 ```powershell
 $runtime = Get-Content "$env:USERPROFILE\.cortex\runtime\selection.json" -Raw | ConvertFrom-Json

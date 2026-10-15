@@ -112,6 +112,34 @@ Options:
 - `--dry-run` — print what would be removed and change nothing
 - `--home <path>` — set `CORTEX_HOME`
 
+**`cortex path <install|remove|status> [--home <path>] [--dry-run] [--json]`**
+
+Make this install's commands available in new terminals. `install` writes a
+launcher for each binary above into `$CORTEX_HOME/runtime/bin`. The launcher
+runs the Node.js that executed the command against this install's entry file,
+so the terminal does not need Node.js on `PATH`. It then registers that
+directory on `PATH`. On Linux and macOS it uses a block marked
+`# >>> cortex >>>`. The block goes at the end of `~/.profile`, and of
+`~/.bash_profile` and `~/.zshenv` (under `$ZDOTDIR` when set) where those
+shells are in use. It goes at the top of `~/.bashrc`, so that non-interactive
+SSH commands see it. On Windows the directory goes at the front of the user
+`Path`, which keeps its registry type and announces the change to new
+processes. Running `install` again rewrites only what differs. New terminals
+use this install even when another `cortex` is on `PATH`; the result lists
+those under `shadowed`. fish is not configured.
+
+The daemon rewrites existing launchers at startup when its Node.js or entry
+path has changed. It never creates them. `remove` deletes only the files this
+command wrote and takes the directory back off `PATH`, which leaves the
+profiles and the user `Path` as they were before `install`. `status` reports
+whether the launchers exist, which are out of date, and where the directory is
+registered.
+
+Options:
+- `--home <path>` — set `CORTEX_HOME`, which also becomes the launchers' default `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex`)
+- `--dry-run` — for `install` and `remove`, report the changes and write nothing
+- `--json` — print `{ ok, action, dry_run, dir, … }`: `written` and `shadowed` for install, `removed` for remove, and `path_targets` with each profile file or `HKCU\Environment\Path` and whether it changed
+
 **`cortex start`**
 
 Run the server in the foreground: fork `dist/entry/app.js` with inherited
