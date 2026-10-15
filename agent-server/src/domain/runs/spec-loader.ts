@@ -21,7 +21,7 @@ import type { McpComposition } from '../../agent-adapter/types.js';
 export type ToolSurface = string[] | string | null;
 
 /**
- * What an agent *is*, independent of which profile/route runs it. Every field is resolved: no
+ * What an agent *is*, independent of which model/route runs it. Every field is resolved: no
  * file refs, no `__active__`, no template placeholders left to expand.
  */
 export interface AgentSpec {

@@ -26,9 +26,9 @@ const DISPLAY_NAMES: Record<string, string> = {
  * Resolve the two keys the dispatch gate looks a throttle up by. `configIsRateLimited` asks
  * `isProviderModeRateLimited(resolveRateLimitProvider(config), config.mode || 'api')`, so a reading
  * filed under any other pair would be recorded and then never consulted. The provider mirrors
- * `resolveRateLimitProvider` (profile provider, else the backend name); the mode is recovered from
- * the gateway sub-path `/m/<mode>/<provider>` that the engine spec derives from the profile's mode,
- * and its absence means the profile had no mode — which the gate reads as 'api'.
+ * `resolveRateLimitProvider` (selection provider, else the backend name); the mode is recovered from
+ * the gateway sub-path `/m/<mode>/<provider>` that the engine spec derives from the selection's mode,
+ * and its absence means no gateway mode was attached — which the gate reads as 'api'.
  */
 export function resolveQuotaSource(
   route: { provider?: string | null; gatewayPath?: string | null },

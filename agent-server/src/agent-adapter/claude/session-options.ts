@@ -60,7 +60,7 @@ export interface ClaudeSessionOptions {
   pinnedEnv?: NodeJS.ProcessEnv;
   /** Selected thinking level → `--effort <level>`. Absent → no flag. */
   thinking?: string | null;
-  /** Cortex execution context surfaced to the MCP server child as CORTEX_PROFILE/PROJECT/SESSION_NAME env vars.
+  /** Cortex execution context surfaced to the MCP server child as CORTEX_PROJECT/SESSION_ID env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
   context?: CortexAgentContext;
 }
