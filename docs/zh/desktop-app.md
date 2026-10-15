@@ -34,7 +34,7 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 在首屏选择**安装 Cortex**并等待完成。安装无需终端、Homebrew、Command Line Tools 或管理员权限。界面仅显示简短进度，**查看运行日志**是折叠的排查入口。安装失败时，按提示处理并选择**重试**。安装期间的**取消**只停止当前安装步骤，不停止已有服务端，也不会撤销已经安装的文件。
 
-每个桌面安装包都自带本机服务端所需的运行环境：对应平台的官方 Node.js 24，Windows 安装包另含带 Git Bash 的 Git for Windows（PortableGit）。安装时将它们解压到 `~/.cortex/runtime` 下按版本命名的目录，再用其中的 npm 把 Cortex 服务端包安装到私有 prefix `~/.cortex/runtime/prefix`。只有服务端包，以及你选择安装的 Claude Code，从 npm registry 获取；npm 沿用你 `.npmrc` 中的 registry、代理和凭据设置。安装不修改全局 npm 设置，也不使用、不改动电脑上已有的 Node.js、npm、Git 或 `cortex`。服务端启动后，安装会让新开的终端窗口可以使用 `cortex` 命令，详见[在终端中使用 cortex](#using-cortex-in-a-terminal)。
+每个桌面安装包都自带本机服务端所需的运行环境：对应平台的官方 Node.js 24，Windows 安装包另含带 Git Bash 的 Git for Windows（PortableGit）。安装时将它们解压到 `~/.cortex/runtime` 下按版本命名的目录，再用其中的 npm 把 Cortex 服务端包安装到私有 prefix `~/.cortex/runtime/prefix`。只有服务端包，以及你选择安装的 Claude Code，从 npm registry 获取；npm 沿用你 `.npmrc` 中的 registry、代理和凭据设置。安装不修改全局 npm 设置，也不使用、不改动电脑上已有的 Node.js、npm、Git 或 `cortex`。服务端会自行让新开的终端窗口可以使用 `cortex` 命令，详见[在终端中使用 cortex](#using-cortex-in-a-terminal)。
 
 本机服务端始终运行在自带的运行环境上。运行环境目录缺失或损坏时，应用会在安装过程中，或在启动时拉起 daemon 之前重新解压。已保存的服务端安装无法运行或低于应用要求的版本时，会重新安装到私有 prefix。Windows 上 Cortex 用自带的 Git Bash 执行 shell 命令。macOS 与 Linux 上 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
 
@@ -64,14 +64,14 @@ cortex ui enable
 
 ### 在终端中使用 cortex {#using-cortex-in-a-terminal}
 
-本地安装在服务端启动后执行 `cortex path install`。它在 `~/.cortex/runtime/bin` 中写入 `cortex`、`cortex-signal`、`cortex-hook` 和 `cortex-evidence-export` 的启动器。每个启动器都用自带的 Node.js 运行已安装的服务端，因此终端本身不需要装 Node.js。之后新开的终端，`PATH` 中都会包含该目录：
+从应用运行环境启动的服务端，每次启动都会检查终端启动器。启动器缺失时，它会自行执行 `cortex path install`。全新安装由此获得该命令，已有安装在服务端更新后也会获得。该命令在 `~/.cortex/runtime/bin` 中写入 `cortex`、`cortex-signal`、`cortex-hook` 和 `cortex-evidence-export` 的启动器。每个启动器都用自带的 Node.js 运行已安装的服务端，因此终端本身不需要装 Node.js。之后新开的终端，`PATH` 中都会包含该目录：
 
 - **Linux 和 macOS：** 以 `# >>> cortex >>>` 标记的块位于 `~/.profile` 末尾，正在使用的 shell 对应的 `~/.bash_profile` 和 `~/.zshenv` 末尾也有。同样的块位于 `~/.bashrc` 开头，因此 `ssh host cortex …` 也能用。不配置 fish，请用 `fish_add_path ~/.cortex/runtime/bin` 自行添加。
 - **Windows：** 该目录在用户 `Path` 中，命令提示符、PowerShell 和 Git Bash 都会读取。
 
-应用用另一个版本的自带 Node.js 启动服务端时（例如应用更新后），daemon 会相应改写启动器。`cortex path status` 显示启动器及其登记位置。`cortex path remove` 删除启动器，并把该目录从 `PATH` 中撤下。修复表单中的**在终端中使用 cortex 命令**开关可以跳过这一步。
+服务端用另一个版本的自带 Node.js 启动时（例如应用更新后），会相应改写启动器。`cortex path status` 显示启动器及其登记位置。`cortex path remove` 删除启动器，并把该目录从 `PATH` 中撤下。这次移除会记录在 `~/.cortex/runtime/terminal-cli.json` 中，在再次执行 `cortex path install` 之前，服务端不会重新添加该命令。修复表单中的**在终端中使用 cortex 命令**开关会执行这两条命令之一。
 
-agent 会话不依赖这些设置。服务端会把自己的 `node`、`cortex` 和 `cortex-signal` 放进它启动的每个会话的 `PATH`，所以即使关闭终端命令，skill 和 waitpoint 命令照常可用。若安装未能添加该命令，工作台打开时会给出提示。可以让 Cortex 在会话中执行 `cortex path install`，也可以按[向导启动后服务端没有响应](#the-server-does-not-answer-after-the-wizard-starts-it)中给出的完整路径执行。
+agent 会话不依赖这些设置。服务端会把自己的 `node`、`cortex` 和 `cortex-signal` 放进它启动的每个会话的 `PATH`，所以即使关闭终端命令，skill 和 waitpoint 命令照常可用。添加失败时，服务端会记录错误，并在下次启动时重试。修复表单中的开关打开时，安装界面也会给出提示。
 
 ## Provider 设置 {#provider-setup}
 

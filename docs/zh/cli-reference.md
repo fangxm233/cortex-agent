@@ -78,7 +78,7 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 
 让新开的终端可以直接使用本安装的命令。`install` 为上表中的每个二进制在 `$CORTEX_HOME/runtime/bin` 写入一个启动器：启动器用执行本命令的那个 Node.js 运行本安装的入口文件，因此终端的 `PATH` 中不需要有 Node.js。随后把该目录登记到 `PATH`：Linux 和 macOS 上写入以 `# >>> cortex >>>` 标记的块，放在 `~/.profile` 末尾，以及正在使用的 shell 对应的 `~/.bash_profile` 和 `~/.zshenv`（设置了 `$ZDOTDIR` 时位于其下）末尾；`~/.bashrc` 中的块放在文件开头，让非交互的 SSH 命令也能读到。Windows 上把该目录加到用户 `Path` 的最前面，保留其注册表类型，并通知新进程环境已变化。重复执行 `install` 只改写有差异的部分。即使 `PATH` 上还有别的 `cortex`，新终端也会使用本安装；结果的 `shadowed` 列出这些被覆盖的命令。不配置 fish。
 
-daemon 启动时，若自己的 Node.js 或入口路径与已有启动器不一致，会改写这些启动器，但从不新建启动器。`remove` 只删除本命令写入的文件，并把该目录从 `PATH` 中撤下，profile 文件和用户 `Path` 恢复为 `install` 之前的样子。`status` 报告启动器是否存在、哪些已过期，以及该目录登记在哪里。
+服务端启动时，若自己的 Node.js 或入口路径与已有启动器不一致，会改写这些启动器。由桌面应用安装在 `$CORTEX_HOME/runtime/prefix` 中的服务端，在没有启动器时还会自行执行 `install`，除非最近一次选择是 `remove`。`install` 和 `remove` 把这一选择记录在 `$CORTEX_HOME/runtime/terminal-cli.json`。`remove` 只删除本命令写入的文件，并把该目录从 `PATH` 中撤下，profile 文件和用户 `Path` 恢复为 `install` 之前的样子。`status` 报告启动器是否存在、哪些已过期，以及该目录登记在哪里。
 
 选项：
 - `--home <path>` — 设置 `CORTEX_HOME`，它同时成为启动器默认使用的 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex`）

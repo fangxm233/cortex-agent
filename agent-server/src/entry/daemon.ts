@@ -91,7 +91,6 @@ import {
 import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 import { ensureOwnBinsOnPath } from '@domain/system/own-bin-path.js';
-import { refreshTerminalCli } from '@domain/system/terminal-cli/index.js';
 import {
   finishRebuildStep,
   planRebuildProgress,
@@ -940,22 +939,12 @@ function setupProcessErrorHandlers(): void {
   });
 }
 
-function refreshTerminalLaunchers(): void {
-  try {
-    const written = refreshTerminalCli(DATA_DIR);
-    if (written.length) log.info(`Refreshed terminal launchers: ${written.join(', ')}`);
-  } catch (error) {
-    log.warn(`Terminal launcher refresh failed: ${String(error)}`);
-  }
-}
-
 function main() {
   setupProcessErrorHandlers();
   acquireSingletonLock();
   process.on('exit', releaseSingletonLock);
   log.info('Cortex Daemon starting...');
   ensureOwnBinsOnPath();
-  refreshTerminalLaunchers();
   setupShutdown();
   startChild();
   watchMonitors = setupWatchers();

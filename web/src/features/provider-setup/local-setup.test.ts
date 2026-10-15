@@ -20,7 +20,7 @@ function fixture(overrides: Partial<LocalSetupPorts> = {}, ready: Promise<unknow
     enableUi: async () => endpoint,
     startDaemon: async () => true,
     enableAutostart: async () => true,
-    installCli: async () => undefined,
+    setTerminalCli: async () => undefined,
     connect: async () => undefined,
     ...overrides,
   };
@@ -56,9 +56,9 @@ describe('local setup flow', () => {
     flow.subscribe(() => stages.push(flow.state.stage));
     await flow.prepare('zh');
     expect(runInit).toHaveBeenCalledWith('/isolated/bin/cortex', {
-      lang: 'zh', machineName: 'host', port: 3004, installService: false, installCli: true, backends: ['pi'],
+      lang: 'zh', machineName: 'host', port: 3004, installService: false, backends: ['pi'],
     });
-    expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'installCli', 'connect']);
+    expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'connect']);
     expect(stages).not.toContain('configure');
     expect(flow.state).toMatchObject({ stage: 'ready', destination: 'index.html#/setup/providers' });
   });
@@ -68,7 +68,7 @@ describe('local setup flow', () => {
     const { flow, calls } = fixture({ probe: async () => ({ ...probe, os, homeExists: true }), enableUi });
     await flow.prepare('en');
     expect(enableUi).toHaveBeenCalledWith('/isolated/bin/cortex', undefined);
-    expect(calls).toEqual(['probe', 'installServer', 'enableUi', 'startDaemon', 'installCli', 'connect']);
+    expect(calls).toEqual(['probe', 'installServer', 'enableUi', 'startDaemon', 'connect']);
     expect(flow.state).toMatchObject({ stage: 'ready', destination: 'index.html' });
   });
 
@@ -167,7 +167,7 @@ describe('local setup flow', () => {
       installServer: async () => ({ cortexBin: '/selected/cortex', serverVersion: '2026.9.7' }),
       enableUi, startDaemon, connect });
     await flow.prepare('en');
-    expect(calls).toEqual(['probe', 'installServer', 'enableUi', 'startDaemon', 'installCli', 'connect']);
+    expect(calls).toEqual(['probe', 'installServer', 'enableUi', 'startDaemon', 'connect']);
     expect(enableUi).toHaveBeenCalledWith('/selected/cortex', undefined);
     expect(startDaemon).toHaveBeenCalledWith('/selected/cortex', endpoint, false);
     expect(connect).toHaveBeenCalledWith(endpoint, '/selected/cortex', false);
@@ -316,21 +316,25 @@ describe('local setup flow', () => {
     expect(flow.state.progress.autostart).toBe('warning');
   });
 
-  it('adds the terminal command with the selected server and survives its failure', async () => {
-    const installCli = vi.fn(async () => { throw new Error('CLI_PATH_FAILED: denied'); });
-    const { flow } = fixture({ installCli });
-    await flow.prepare('en');
-    expect(installCli).toHaveBeenCalledWith('/isolated/bin/cortex');
+  it('applies an explicit terminal choice before the daemon and survives its failure', async () => {
+    const setTerminalCli = vi.fn(async () => { throw new Error('CLI_PATH_FAILED: denied'); });
+    const { flow, calls } = fixture({ setTerminalCli });
+    await flow.prepare();
+    await flow.start({ ...answers, installCli: true });
+    expect(setTerminalCli).toHaveBeenLastCalledWith('/isolated/bin/cortex', true);
+    expect(calls.indexOf('setTerminalCli')).toBeLessThan(calls.indexOf('startDaemon'));
     expect(flow.state).toMatchObject({ stage: 'ready', warning: 'CLI_PATH_FAILED' });
     expect(flow.state.progress.terminal).toBe('warning');
   });
 
-  it('skips the terminal command when it is turned off', async () => {
-    const { flow, calls } = fixture({ startDaemon: async () => false });
-    await flow.prepare('en');
-    flow.configure();
+  it('records a turned-off terminal command quietly', async () => {
+    const setTerminalCli = vi.fn(async () => { throw new Error('CLI_PATH_FAILED: denied'); });
+    const { flow } = fixture({ setTerminalCli });
+    await flow.prepare();
     await flow.start({ ...answers, installCli: false });
-    expect(calls).not.toContain('installCli');
+    expect(setTerminalCli).toHaveBeenCalledWith('/isolated/bin/cortex', false);
+    expect(flow.state).toMatchObject({ stage: 'ready', warning: null });
+    expect(flow.state.progress.terminal).toBeUndefined();
   });
 });
 

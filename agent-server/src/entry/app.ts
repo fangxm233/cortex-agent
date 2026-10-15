@@ -115,6 +115,7 @@ import { onLoginSuccess } from '@domain/auth/login-flow.js';
 import { syncGatewayFromBackends } from '@domain/auth/gateway-sync.js';
 import { createSessionRetentionController } from '@orch/session-retention-controller.js';
 import { ensureOwnBinsOnPath } from '@domain/system/own-bin-path.js';
+import { defaultTerminalCliContext, syncTerminalCli } from '@domain/system/terminal-cli/index.js';
 
 // Static imports are evaluated before this line, so this is how long module loading took.
 const importsMs = Math.round(performance.now());
@@ -180,6 +181,18 @@ async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Pr
   // afterwards, and before this sweep existed they accumulated in the workspace forever.
   const attachmentsPruned = result.stopped ? 0 : await pruneInboundAttachments(retentionDays);
   log.info(`Retention sweep${result.stopped ? ' stopped early' : ''}: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} toolImages=${result.toolImagesDeleted} attachments=${attachmentsPruned} errors=${result.errors.length} in ${Date.now() - startedAt}ms`);
+}
+
+/** Deferred past startup: the first Windows install calls PowerShell synchronously. */
+function syncTerminalCommand(): void {
+  setTimeout(() => {
+    try {
+      const result = syncTerminalCli(defaultTerminalCliContext(DATA_DIR));
+      if (result.files.length) log.info(`Terminal command ${result.action}: ${result.files.join(', ')}`);
+    } catch (error) {
+      log.warn(`Terminal command setup failed; retrying at next start: ${(error as Error).message}`);
+    }
+  }, 0);
 }
 
 const retentionController = createSessionRetentionController({
@@ -622,4 +635,5 @@ installSigtermShutdown(shutdownHandles);
     `Cortex agent is running (${adapter.name}) — ${selectionSummary}`
     + ` · boot ${Math.round(performance.now())}ms (imports ${importsMs}ms)`,
   );
+  syncTerminalCommand();
 })();

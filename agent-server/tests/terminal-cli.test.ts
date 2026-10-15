@@ -8,8 +8,9 @@ import { profileTargets, posixRegistrar, removeBlock, renderBlock, upsertBlock }
 import { addUserPathEntry, removeUserPathEntry, windowsRegistrar } from '../src/domain/system/terminal-cli/windows-user-path.js';
 import { refreshShims, renderShims, shimDir } from '../src/domain/system/terminal-cli/shims.js';
 import {
-  installTerminalCli, removeTerminalCli, terminalCliStatus, type TerminalCliContext,
+  installTerminalCli, removeTerminalCli, syncTerminalCli, terminalCliStatus, type TerminalCliContext,
 } from '../src/domain/system/terminal-cli/index.js';
+import { isManagedRuntimeInstall, readTerminalCliState } from '../src/domain/system/terminal-cli/state.js';
 import { runPathCli } from '../src/entry/path-cli.js';
 
 describe('own bin dirs on PATH', () => {
@@ -136,6 +137,38 @@ describe('cortex path install / remove (POSIX, real shell)', () => {
     installTerminalCli(ctx, false);
     expect(refreshShims(shimDir(ctx.home), render('/new/node'))).toEqual(['cortex']);
     expect(fs.readFileSync(path.join(shimDir(ctx.home), 'cortex'), 'utf8')).toContain("exec '/new/node' '/e.js'");
+  });
+
+  it('server start installs once for a desktop-runtime install and honors remove', () => {
+    const managed = path.join(ctx.home, 'runtime/prefix/lib/node_modules/@cortex-agent/server');
+    fs.mkdirSync(path.dirname(managed), { recursive: true });
+    fs.cpSync(ctx.installRoot, managed, { recursive: true });
+    const server = { ...ctx, installRoot: managed };
+    expect(syncTerminalCli(server)).toEqual({ action: 'installed', files: ['cortex'] });
+    expect(readTerminalCliState(ctx.home)).toBe('installed');
+    expect(JSON.parse(shell(path.join(tmp, 'home/.profile'))).args).toEqual(['a', 'b c']);
+    expect(syncTerminalCli(server)).toEqual({ action: 'refreshed', files: [] });
+    removeTerminalCli(server, false);
+    expect(syncTerminalCli(server)).toEqual({ action: 'skipped', files: [] });
+    expect(fs.existsSync(shimDir(ctx.home))).toBe(false);
+  });
+
+  it('server start leaves other installs alone and retries an interrupted install', () => {
+    expect(syncTerminalCli(ctx)).toEqual({ action: 'refreshed', files: [] });
+    expect(fs.existsSync(path.join(tmp, 'home/.profile'))).toBe(false);
+    const managed = path.join(ctx.home, 'runtime/prefix/lib/node_modules/@cortex-agent/server');
+    fs.mkdirSync(path.dirname(managed), { recursive: true });
+    fs.cpSync(ctx.installRoot, managed, { recursive: true });
+    const failing = { ...ctx, installRoot: managed, registrar: { ...ctx.registrar, apply: () => { throw new Error('EACCES'); } } };
+    expect(() => syncTerminalCli(failing)).toThrow('EACCES');
+    expect(syncTerminalCli({ ...ctx, installRoot: managed }).action).toBe('installed');
+  });
+
+  it('recognizes the desktop runtime prefix on each platform', () => {
+    expect(isManagedRuntimeInstall('/h/.cortex', '/h/.cortex/runtime/prefix/lib/node_modules/@cortex-agent/server', 'linux')).toBe(true);
+    expect(isManagedRuntimeInstall('/h/.cortex', '/h/.npm-global/lib/node_modules/@cortex-agent/server', 'linux')).toBe(false);
+    expect(isManagedRuntimeInstall('C:\\Users\\X\\.cortex',
+      'c:\\users\\x\\.cortex\\runtime\\prefix\\node_modules\\@cortex-agent\\server', 'win32')).toBe(true);
   });
 
   it('CLI rejects unknown subcommands with the valid list', () => {
