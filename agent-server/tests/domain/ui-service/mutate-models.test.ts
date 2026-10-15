@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { addFavorite, removeFavorite, setDefaultModel, setModelThinking } from '../../../src/domain/ui-service/mutate/models.js';
+import { addFavorite, removeFavorite, setDefaultModel, setModelThinking, handleModelsSetThinking } from '../../../src/domain/ui-service/mutate/models.js';
 import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } from '../../../src/domain/ui-service/input-schemas.js';
 import { getModelMemory, getChannelSelection, getSelectionDefault, reloadAgentState, rememberModelSelection, setChannelSelection, setSelectionDefault } from '../../../src/domain/agents/config.js';
 import { loadAgentState } from '../../../src/domain/agents/agent-state.js';
+import { selectionForModel } from '../../../src/domain/agents/models.js';
+import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { modelKey } from '../../../src/domain/agents/engine-selection.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
@@ -145,6 +147,7 @@ test('setThinking persists only the favorite memory and preserves mode and indep
   assert.equal(await setModelThinking(dir, { ref, thinking: 'max' }), true);
   reloadAgentState();
   assert.deepEqual(getModelMemory()[modelKey(ref)], { thinking: 'max', mode: 'api' });
+  assert.deepEqual(selectionForModel(ref), { ...ref, thinking: 'max', mode: 'api' });
   assert.deepEqual(loadAgentState(), { ...before, modelMemory: {
     ...before.modelMemory, [modelKey(ref)]: { thinking: 'max', mode: 'api' },
   } });
@@ -203,4 +206,16 @@ test('setThinking schema accepts only a model ref and explicit nullable thinking
     { ref: { ...ref, mode: 'plan' }, thinking: 'high' }]) {
     assert.equal(modelsSetThinkingInput.safeParse(input).success, false);
   }
+});
+
+test('setThinking handler never invokes current-session mutation dependencies', async () => {
+  const { CONFIG_DIR } = await import('../../../src/core/paths.js');
+  await fs.writeFile(path.join(CONFIG_DIR, 'models.json'), JSON.stringify({ default: selection, favorites: [ref] }));
+  const deps = new Proxy({} as UiServiceDeps, {
+    get(_target, key) { assert.fail(`Model memory edit accessed session/service dependency ${String(key)}`); },
+  });
+  assert.deepEqual(await handleModelsSetThinking(deps, { ref, thinking: 'medium' }), { ok: true, data: { changed: true } });
+  const invalid = await handleModelsSetThinking(deps, { ref, thinking: 'off' });
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.code, 'invalid-args');
 });
