@@ -13,7 +13,7 @@ $CORTEX_HOME/
 │   ├── .env                      # 密钥、平台凭据、启动变量
 │   ├── settings.json             # 运行时行为设置（热更新）
 │   ├── preferences.json          # 系统消息的界面语言（`!lang`）
-│   ├── profiles.json             # 命名的智能体配置
+│   ├── models.json             # 默认引擎与收藏模型
 │   ├── environments/             # 执行环境——每个环境一个 JSON
 │   ├── machines.json             # 远程客户端机器注册表
 │   ├── budget.json               # 每日/每月预算限制
@@ -23,7 +23,7 @@ $CORTEX_HOME/
 │   ├── archive/                  # 升级时退役的配置，移到此处保留
 │   └── hooks/                    # 你的钩子声明及对内置声明的覆盖
 ├── data/
-│   ├── agent-state.json          # 选定的 profile、默认智能体、频道级 override
+│   ├── agent-state.json          # 频道引擎选择、模型记忆、新会话选择、默认智能体
 │   ├── schedules.json            # 持久化的定时任务列表
 │   ├── boards.json               # 看板注册表
 │   ├── executions.json           # 统一执行注册表
@@ -59,7 +59,7 @@ $CORTEX_HOME/
 1. **内置默认值**（`agent-server/defaults/`）随 npm 包一起发布，为每个配置文件提供回退值。内置的插件、钩子、规则、子智能体角色与系统提示词直接从这里原地读取，`$CORTEX_HOME` 中你的文件叠加在它们之上（见[内置资源与你的覆盖](#built-in-assets-and-your-overrides)）。
 2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。启动环境中已有的变量优先于文件，worker 继承 daemon 的环境。
 3. **`$CORTEX_HOME/config/settings.json`** 保存运行时行为设置。它被缓存，文件变化时重新读取，每个设置在各自的使用点生效。对它定义的每个键，它的优先级高于同一设置的旧环境变量。
-4. **`$CORTEX_HOME/config/profiles.json`** 在每次生成智能体时读取，用于解析模型、后端和额外环境变量。
+4. **`$CORTEX_HOME/config/models.json`** 缓存并监视文件变化，用于读取默认引擎与收藏模型。
 5. **`$CORTEX_HOME/.claude/settings.json`** 是 Cortex 脚手架生成的 Claude Code 项目设置文件。Claude Code 还可能读取 `<spawn cwd>/.claude/settings.local.json`、`<spawn cwd>/.claude/settings.json`，以及它的用户设置文件；对 Cortex 启动的每个 `claude`，这个文件是 `$CORTEX_HOME/data/claude/settings.json`（见 [Claude Code 配置目录](#claude-code-config-directory)）。终端的 `~/.claude/settings.json` 不会被读取。
 
 `.env` 文件支持标准的 `KEY=VALUE` 语法和 `#` 注释。已在 shell 中设置的环境变量优先于 `.env` 文件（dotenv 默认行为）。
@@ -191,36 +191,25 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 `DEBUG` 会把未截断的 prompt、工具参数和工具结果持久化到各会话的 conversation-history 文件中。这些内容可能包含密钥、私有文件内容或体积很大的输出，存储占用也按完整内容增长。仅应在可信的开发服务器上启用，检查完成后及时关闭。关闭后 transcript 响应会立即去掉调试字段和按钮，但此前已记录的内容不会被删除。
 
-## profiles.json {#profilesjson}
+## models.json {#modelsjson}
 
-位于 `$CORTEX_HOME/config/profiles.json`。定义命名智能体配置，控制每个智能体会话使用的后端、模型和额外配置。可用后端对比参见 [backends.md](./backends.md)。
-
-**设置 → 配置** 编辑这个文件。其中 `provider`、`model`、`mode` 从列表中选择而非手填：provider 选定一个网关 endpoint，其模型（来自已登录的后端）与路由（来自 `gateway.yaml`）随之确定。三者都保留一项 **自定义…**，对于服务器无法枚举的 endpoint 则退回普通文本框——列表只做提供，从不收窄这个文件接受的取值。
+位于 `$CORTEX_HOME/config/models.json`，保存默认引擎选择和收藏模型列表。**设置 → 模型** 管理默认模型与收藏；输入框的完整模型列表也可以用星标收藏或取消收藏。后端详情见 [backends.md](./backends.md)。
 
 ### 模式 {#schema}
 
 ```json
 {
-  "defaultProfile": "plan",
-  "defaultProfileByBackend": { "claude": "plan", "pi": "deepseek" },
-  "profiles": {
-    "plan": {
-      "backend": "claude",
-      "model": "opus",
-      "mode": "plan",
-      "thinking": "high",
-      "fallback": [
-        { "backend": "pi", "provider": "deepseek", "mode": "deepseek", "model": "deepseek-v4-pro" }
-      ]
-    },
-    "deepseek": {
-      "backend": "pi",
-      "provider": "deepseek",
-      "mode": "deepseek",
-      "model": "deepseek-v4-pro",
-      "thinking": "medium"
-    }
-  }
+  "default": {
+    "backend": "claude",
+    "provider": null,
+    "model": "opus",
+    "thinking": "high",
+    "mode": "plan"
+  },
+  "favorites": [
+    { "backend": "claude", "provider": null, "model": "opus" },
+    { "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-pro" }
+  ]
 }
 ```
 
@@ -228,33 +217,27 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 | 字段 | 类型 | 必需 | 描述 |
 |---|---|---|---|
-| `defaultProfile` | string | 是 | 未指定配置时使用的默认配置名称。必须存在于 `profiles` 中 |
-| `defaultProfileByBackend` | object | 否 | 按后端（`claude`、`pi`）指定 `!backend <name>` 切换到的 profile。没有条目时，使用为该后端声明的第一个 profile |
-| `profiles` | object | 是 | 配置名称到配置项的映射 |
-| `profiles.<name>.model` | string | 是 | 模型标识符，按后端的命名 |
-| `profiles.<name>.backend` | string | 否 | 后端：`claude` 或 `pi`（默认：`claude`） |
-| `profiles.<name>.provider` | string | `pi` 需要 | Provider id（例如 `anthropic`、`openai-codex`，或一个[自定义 provider](./backends.md#custom-providers)）。在 `pi` 上它选择请求协议和网关 endpoint，每个 `pi` 条目都必须声明它；在任何后端上，它也是限流跟踪所用的身份 |
-| `profiles.<name>.mode` | string | 否 | 网关路由名，由 `gateway.yaml` 解析（例如订阅用 `plan`，计量密钥用 `api`）。运行经由网关的 `/m/<mode>/…` |
-| `profiles.<name>.extraEnv` | object | 否 | 传递给后端进程的额外环境变量。键必须匹配 `^[A-Z_][A-Z0-9_]*$`；值必须是字符串 |
-| `profiles.<name>.extraOption` | object | 否 | 传递给 Claude Code 后端的额外 CLI 标志。键必须以 `--` 开头；值必须是字符串。在 `pi` 上只有 `--thinking` 生效，作为 `thinking` 字段的覆盖值；其余键会被记录日志并忽略，因为没有可接收它们的 PI 命令行 |
-| `profiles.<name>.thinking` | string | 否 | 思考档位，取后端原生值域：`claude` 为 `low`/`medium`/`high`/`xhigh`/`max` 之一（以 `--effort` 标志传递），`pi` 为 `off`/`minimal`/`low`/`medium`/`high`/`xhigh` 之一（作为会话的 thinking level 传递）。不写则使用后端自身默认值 |
-| `profiles.<name>.maxOutputTokens` | integer | 否 | 仅 `pi`：模型的输出 token 上限，写入生成的 provider 目录 |
-| `profiles.<name>.fallback` | array | 否 | 有序的回退条目列表，某次尝试以可重试错误失败时按顺序尝试（见[回退行为](./backends.md#fallback-behavior)）。每个条目需要自己的 `model`；省略时从主配置继承 `backend` 和 `mode`，其他一概不继承 |
+| `default` | object | 是 | 会话与频道都没有选择时使用的完整引擎选择 |
+| `default.backend` | string | 是 | `claude` 或 `pi` |
+| `default.provider` | string 或 null | 是 | Claude 为 `null`；PI 必须指定 provider id，例如 `openai-codex`、`deepseek` 或[自定义 provider](./backends.md#custom-providers) |
+| `default.model` | string | 是 | 非空模型标识符，按后端命名 |
+| `default.thinking` | string 或 null | 是 | 后端原生思考档位；`null` 使用后端默认值 |
+| `default.mode` | string | 是 | 网关路由，例如 Claude 的 `plan` 或 `api`；PI 使用 provider 名称 |
+| `favorites` | object[] | 是 | 按顺序存放模型引用，每项包含 `backend`、`provider`、`model`。同一模型身份最多出现一次 |
 
-### 配置解析 {#profile-resolution}
+收藏只保存模型身份，不保存思考档位或路由。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`。
 
-在智能体生成时，Cortex 通过以下链解析配置：
+### 引擎选择解析 {#selection-resolution}
 
-1. 显式请求的 profile——对话的执行环境所指定的 profile。
-2. 否则，使用会话启动时记录的 profile；定时任务触发时，其会话以该定时任务的 `--profile` 启动。
-3. 否则，使用频道的 profile（`!profile <name>`），再其次是 `data/agent-state.json` 中整台主机的活动 profile。
-4. 否则，使用 `profiles.json` 中的 `defaultProfile`。
+普通回合依次使用会话记录的选择、`data/agent-state.json` 中的频道选择、`models.json` 的 `default`。显式运行请求（例如定时触发）可以直接提供完整选择。每个选择包含 `backend`、`provider`、`model`、`thinking` 和 `mode`；执行环境与此相互独立。
 
-解析出的 profile 提供 `model`、`backend`、`provider`、`mode`、`extraEnv`、`extraOption`、`thinking` 和回退链。直接会话可以在该 profile 之上覆盖 `model`、`provider`（在 `pi` 上）、`thinking` 和 `mode`，在 Web 输入框的引擎选择器中选定并按会话保存；平台频道用 `!model` 和 `!thinking` 设置同样的覆盖。其余一概不可覆盖——后端、环境变量与回退链仍属于 profile。参见 [backends.md](./backends.md#per-session-model-thinking-level-and-route)。
+`data/agent-state.json` 保存 `channelSelections`、按模型的 `modelMemory`（`thinking` 和 `mode`，键为 JSON 数组 `[backend, provider, model]`），以及用于新建 Web 对话的上次引擎选择 `selectionDefault`。选择模型时恢复其记住的思考档位与路由。没有记忆时，thinking 为 `null`；Claude 使用 `gateway.yaml` 中第一条 Anthropic 路由（未声明时用 `plan`），PI 使用 provider 名称。用户修改选择时会更新这份记忆。参见[按会话控制](./backends.md#per-session-model-thinking-level-and-route)。
+
+`!backend <claude|pi>` 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。
 
 ### 验证规则 {#validation-rules}
 
-配置名称、`mode` 和 `provider` 必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。`pi` 条目，无论主条目还是回退条目，都必须声明 `provider`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表），`maxOutputTokens` 只在 `pi` 上接受。未知字段会被静默忽略。能解析但未通过校验的文件会被整体拒绝：在文件修好之前，配置解析会报告该校验错误。
+`mode` 和 PI 的 `provider` 必须匹配 `^[a-zA-Z0-9_-]+$`。Claude 的 provider 必须为 null。Thinking 必须为 null 或后端允许的值，收藏中的模型身份不能重复。写入选择时，若 `gateway.yaml` 可用，会据此校验路由。能解析但未通过 schema 校验的文件会被整体拒绝，直到修正。
 
 ## 执行环境 {#execution-environments}
 
@@ -264,7 +247,7 @@ Cortex 随包提供两个：
 
 | 执行环境 | 用途 |
 |---|---|
-| `main` | 通用工作，跑在当前激活的 profile 上，加载内置的 Cortex 系统、看板与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
+| `main` | 通用工作，使用会话选定的引擎，加载内置的 Cortex 系统、看板与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
 | `creative` | 用于写作、图像提示词、起名与文案的干净环境，运营性上下文全部剥掉（见[最小工具面](#a-minimal-surface)） |
 
 随包文件在 `cortex init` 时拷入 `config/environments/`，之后每次服务器启动时，缺失的文件会再补上（sealed home，即设置了 `CORTEX_CONFIG_IMMUTABLE=1` 时，跳过启动时的这次拷贝）。你已有的文件绝不被覆盖，所以你的改动在升级后依然保留；你自己新增的文件也和其他执行环境一样。目录变更约 300 毫秒后生效，无需重启。不是合法 JSON、或 `name` 与文件名不一致的文件会被跳过并记录日志。
@@ -275,7 +258,6 @@ Cortex 随包提供两个：
 |---|---|---|---|
 | `name` | string | 是 | 必须等于去掉 `.json` 的文件名 |
 | `description` | string | 否 | 一行用途说明，显示在选择器里 |
-| `profile` | string | 是 | `profiles.json` 中的某个 profile，或 `"__active__"` 表示跟随对话解析出的 profile。指定具体 profile 时，它只覆盖该环境下各轮的模型，不改写对话自己的 profile |
 | `directive` | string | 否 | 前置到提示前面的角色或身份说明 |
 | `systemPrompt` | string | 否 | 替换后端默认的系统提示 |
 | `promptTemplate` | string | 否 | 包裹每条消息；`{{input}}` 代表发送的内容 |
@@ -302,17 +284,13 @@ Cortex 随包提供两个：
 
 **系统提示词** 标签页编辑执行环境 `systemPrompt` 解析出的文本，这段文本会整体替换后端默认的系统提示词。字段是 `file:` 引用时，标签页编辑 `prompts/systemPrompts/` 下的那个文件，并列出引用同一文件的其他执行环境，因为一次保存会同时改变它们的提示词。字段是字面文本或未设置时，保存会把文本写入 `prompts/systemPrompts/<name>.md` 并让执行环境指向它。留空则执行环境使用后端默认提示词。随 Cortex 一起提供的提示词文件在你保存自己的版本之前显示内置文本；你的版本写入 `prompts/systemPrompts/` 并代替内置版本使用。**恢复默认** 会把内置文本载入编辑框，保存后即删除你的版本。新会话使用保存后的提示词。已在 PI 后端上打开的会话从下一轮开始使用它；Claude Code 上的会话则保持原提示词，直到其后端进程重启。
 
-## 执行环境与 profile {#environments-vs-profiles}
+## 执行环境与引擎选择 {#environments-and-engine-selection}
 
-决定一次会话怎么跑的是两个实体，它们各自独立变化。
-
-**profile** 管模型路由：backend、model、mode、thinking 级别、额外环境变量和回退链。**执行环境**（见上文）管会话的其余一切：提示、工具、插件、MCP 面与环境上下文。
-
-`!profile <name>` 只换模型不动环境；`!agent <name>` 只换环境不动模型。钉了 `"profile": "__active__"` 的执行环境跟随所在对话当前解析出的 profile；指定了具体 profile 的执行环境则跑在该 profile 上，以 override 的形式在运行路径上生效。它从不改写对话自己的 profile，所以之后 `!agent reset` 时模型仍停在原处。
+引擎选择决定 backend、provider、model、thinking 和 mode。**执行环境**决定提示、工具、插件、MCP 面与环境上下文。两者独立：`!model <id>` 只换模型，`!agent <name>` 只换环境；`!agent reset` 也保留引擎选择。
 
 ### 按对话选执行环境 {#choosing-an-environment-per-conversation}
 
-执行环境的选择方式与 profile 相同：按对话选，下面垫着一个全局默认。
+执行环境按对话选择；没有选择时使用全局默认。
 
 | 命令 | 作用 |
 |---|---|
@@ -324,11 +302,11 @@ Cortex 随包提供两个：
 
 所有不带前缀的形式都只作用于输入它的对话；只有显式的 `global` 前缀才会动全局默认。
 
-在 Web App 和桌面客户端里，同一个选择是输入框自己的控件：一枚独立的胶囊，紧挨在引擎胶囊左侧——先说在哪里跑，再说用什么跑。它显示本对话所在的执行环境；本对话没选过时，显示它回退到的全局默认，并以灰色呈现，好让“自己选的”和“回退到的”一眼可分。点开是一个平铺列表：一行 `default` 表示“跟随全局默认”，下面是本机声明的每个执行环境，各自标注用途与它钉住的 profile。只声明一个执行环境的主机不显示这枚胶囊——没有可选的余地。新对话里的选择随第一条消息一起提交；进行中的对话立即应用，从下一轮开始生效。
+在 Web App 和桌面客户端里，同一个选择是输入框自己的控件：一枚独立的胶囊，紧挨在引擎胶囊左侧——先说在哪里跑，再说用什么跑。它显示本对话所在的执行环境；本对话没选过时，显示它回退到的全局默认，并以灰色呈现，好让“自己选的”和“回退到的”一眼可分。点开是一个平铺列表：一行 `default` 表示“跟随全局默认”，下面是本机声明的每个执行环境，各自标注用途。只声明一个执行环境的主机不显示这枚胶囊——没有可选的余地。新对话里的选择随第一条消息一起提交；进行中的对话立即应用，从下一轮开始生效。
 
 一轮对话按这条链解析自己的执行环境：会话自己的选择 → 所在对话的 → 全局默认 → `main`。已经无法解析的名字（执行环境被改名或删除）会被跳过。
 
-切换遵循与 `!profile` 相同的规则：有历史的对话不能换 backend，所以钉在另一个 backend 的 profile 上的执行环境会被拒绝，并说明它需要哪个 backend。尚无对话轮次的对话可以任选。同一 backend 内切换在下一轮生效，历史保留——也就是说模型会看到自己在上一个环境里产生的那几轮；不希望如此就 `!new`。
+切换环境不改变后端，在下一轮生效且保留历史，因此模型会看到上一个环境产生的回合；需要全新上下文时使用 `!new`。
 
 ### 最小工具面 {#a-minimal-surface}
 
@@ -338,7 +316,6 @@ Cortex 随包提供两个：
 {
   "name": "creative",
   "description": "Clean-room creative environment: writing, image prompts, naming, copy. No skills, no project rules, minimal tools.",
-  "profile": "__active__",
   "promptTemplate": "{{input}}",
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
@@ -545,7 +522,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/plugins/`, `defaults/config/hooks/`, `defaults/hooks/`, `defaults/rules/`, `defaults/agents/`, `defaults/prompts/` | — | 不复制：原地读取，你的文件叠加其上（见[内置资源与你的覆盖](#built-in-assets-and-your-overrides)） |
 | `defaults/board/` | — | 不复制：看板的预设样式表和新看板的骨架从安装包读取 |
 
-init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agent-state.json` 缺失时（或使用 `--force` 时）生成它们，写入 `config/mcp-config*.json` 文件，并设置网关配置和 `profiles.json`（见 [`cortex init`](./cli-reference.md#commands)）。服务器每次启动都会重写 `mcp-config*.json` 文件，所以对它们的编辑不会保留。
+init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agent-state.json` 缺失时（或使用 `--force` 时）生成它们，写入 `config/mcp-config*.json` 文件，并设置网关配置和 `models.json`（见 [`cortex init`](./cli-reference.md#commands)）。服务器每次启动都会重写 `mcp-config*.json` 文件，所以对它们的编辑不会保留。
 
 因此升级会带来当前版本的内置插件、钩子、规则、角色与提示词，新随包的执行环境也能到达已有安装，同时不动你的改动。整文件型配置（如 `budget.json`）需要 `--force` 才能替换。
 
@@ -555,7 +532,7 @@ init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agen
 
 - **`config/settings.json`** — 通过文件监视器监视，去抖 300 毫秒。新值在下一个使用点生效，无需重启；文件损坏时保留上一份设置。参见 [config/settings.json](#configsettingsjson)。
 - **`schedules.json`** — 通过文件监视器监视。更改在几秒钟内生效，无需重启。完整调度系统参见 [scheduling.md](./scheduling.md)。
-- **`profiles.json`** — 缓存并监视可解析的 JSON 变更。更新会在下一次智能体生成前刷新缓存；JSON 损坏时保留上一份配置。
+- **`models.json`** — 缓存并监视可解析的 JSON 变更。更新会在下一次智能体生成前刷新缓存；JSON 损坏时保留上一份配置。
 - **`machines.json`** — 监视并在有效变更后重新加载。条目无效时保留上一份机器注册表。
 - **`environments/`** — 被监视。变更去抖（300 毫秒）后重载所有执行环境，无需重启。参见[执行环境](#execution-environments)。
 - **`.env`** — 需要重启守护进程才能生效（启动时通过 dotenv 加载一次）。行为设置位于 `config/settings.json`，后者不需要重启。
@@ -570,14 +547,14 @@ init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agen
 |---|---|---|
 | `.env` | 环境变量 | `$CORTEX_HOME/config/.env` |
 | `settings.json` | 运行时行为设置（热更新） | `$CORTEX_HOME/config/settings.json` |
-| `profiles.json` | 智能体配置 | `$CORTEX_HOME/config/profiles.json` |
+| `models.json` | 默认引擎与收藏模型 | `$CORTEX_HOME/config/models.json` |
 | `environments/` | 执行环境——每个环境一个 JSON | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | 机器注册表 | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | 预算限制 | `$CORTEX_HOME/config/budget.json` |
 | `preferences.json` | 系统消息的界面语言 | `$CORTEX_HOME/config/preferences.json` |
 | `mcp-config*.json` | 生成的 MCP 服务器配置（每次启动时重写） | `$CORTEX_HOME/config/` |
 | `.claude/settings.json` | Claude Code 钩子/权限（不是 Cortex 的设置文件） | `$CORTEX_HOME/.claude/settings.json` |
-| `agent-state.json` | 选定的 profile、默认智能体、频道级 override | `$CORTEX_HOME/data/agent-state.json` |
+| `agent-state.json` | 频道引擎选择、模型记忆、新会话选择、默认智能体 | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | 定时任务 | `$CORTEX_HOME/data/schedules.json` |
 | `boards.json` | 看板注册表 | `$CORTEX_HOME/data/boards.json` |
 | `provider-state.json` | provider 用量、限流窗口、恢复队列 | `$CORTEX_HOME/data/provider-state.json` |

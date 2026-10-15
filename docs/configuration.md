@@ -15,7 +15,7 @@ $CORTEX_HOME/
 │   ├── .env                      # Secrets, platform credentials, startup variables
 │   ├── settings.json             # Runtime behavior settings (hot-reloaded)
 │   ├── preferences.json          # UI language for system messages (`!lang`)
-│   ├── profiles.json             # Named agent profiles
+│   ├── models.json             # Default engine and favorite models
 │   ├── environments/             # Execution environments — one JSON per environment
 │   ├── machines.json             # Machine registry for remote clients
 │   ├── budget.json               # Daily/monthly budget limits
@@ -25,7 +25,7 @@ $CORTEX_HOME/
 │   ├── archive/                  # Configuration an upgrade retired, moved aside
 │   └── hooks/                    # Your hook declarations and overrides of the built-in ones
 ├── data/
-│   ├── agent-state.json          # Selected profile, default agent, per-channel overrides
+│   ├── agent-state.json          # Channel selections, model memory, new-session choice, default agent
 │   ├── schedules.json            # Persistent schedule list
 │   ├── boards.json               # Board registry
 │   ├── executions.json           # Unified execution registry
@@ -72,8 +72,8 @@ The gateway configuration, `~/.aistatus/gateway.yaml`, lives outside
    takes effect at its own point of use.
    For every key it defines, it overrides the legacy environment
    variable of the same setting.
-4. **`$CORTEX_HOME/config/profiles.json`** is read on every agent
-   spawn to resolve model, backend, and extra environment.
+4. **`$CORTEX_HOME/config/models.json`** is cached and watched for changes
+   to the default engine selection and favorite models.
 5. **`$CORTEX_HOME/.claude/settings.json`** is the Cortex-scaffolded
    Claude Code project settings file. Claude Code may also read
    `<spawn cwd>/.claude/settings.local.json`, `<spawn cwd>/.claude/settings.json`,
@@ -259,44 +259,28 @@ keys — see [`config/settings.json`](#configsettingsjson).
 
 `DEBUG` persists unabridged prompts, tool parameters, and tool results in per-session conversation-history files. These values can contain secrets, private file contents, or large outputs, and storage grows with their full size. Enable this mode only on a trusted development server and turn it off when inspection is complete. Turning it off immediately removes debug fields and buttons from transcript responses, but it does not delete records captured earlier.
 
-## profiles.json
+## models.json
 
-Located at `$CORTEX_HOME/config/profiles.json`. Defines named agent profiles
-that control which backend, model, and extra configuration each agent session
-uses. For a comparison of available backends, see
-[backends.md](./backends.md).
-
-**Settings → Profiles** edits this file. There, `provider`, `model` and `mode`
-are picked from lists rather than typed: the provider selects a gateway
-endpoint, and its models (from the logged-in backends) and routes (from
-`gateway.yaml`) follow. Each of the three keeps a **Custom…** entry, and falls
-back to a plain text box for an endpoint the server cannot enumerate — the
-lists only offer, they never narrow what this file accepts.
+Located at `$CORTEX_HOME/config/models.json`. It stores the default engine
+selection and a list of favorite models. **Settings → Models** manages the
+default and favorites; the composer's full model list also lets you star or
+unstar models. For backend details, see [backends.md](./backends.md).
 
 ### Schema
 
 ```json
 {
-  "defaultProfile": "plan",
-  "defaultProfileByBackend": { "claude": "plan", "pi": "deepseek" },
-  "profiles": {
-    "plan": {
-      "backend": "claude",
-      "model": "opus",
-      "mode": "plan",
-      "thinking": "high",
-      "fallback": [
-        { "backend": "pi", "provider": "deepseek", "mode": "deepseek", "model": "deepseek-v4-pro" }
-      ]
-    },
-    "deepseek": {
-      "backend": "pi",
-      "provider": "deepseek",
-      "mode": "deepseek",
-      "model": "deepseek-v4-pro",
-      "thinking": "medium"
-    }
-  }
+  "default": {
+    "backend": "claude",
+    "provider": null,
+    "model": "opus",
+    "thinking": "high",
+    "mode": "plan"
+  },
+  "favorites": [
+    { "backend": "claude", "provider": null, "model": "opus" },
+    { "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-pro" }
+  ]
 }
 ```
 
@@ -304,49 +288,47 @@ lists only offer, they never narrow what this file accepts.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `defaultProfile` | string | yes | Name of the default profile when none is specified. Must exist in `profiles` |
-| `defaultProfileByBackend` | object | no | The profile `!backend <name>` switches to, per backend (`claude`, `pi`). Without an entry, the first profile declared for that backend is used |
-| `profiles` | object | yes | Map of profile name to profile entry |
-| `profiles.<name>.model` | string | yes | Model identifier, as the backend names it |
-| `profiles.<name>.backend` | string | no | Backend: `claude` or `pi` (default: `claude`) |
-| `profiles.<name>.provider` | string | for `pi` | Provider id (for example `anthropic`, `openai-codex`, or a [custom provider](./backends.md#custom-providers)). On `pi` it selects the request protocol and the gateway endpoint, and every `pi` entry must declare it; on any backend it is also the identity rate-limit throttling tracks |
-| `profiles.<name>.mode` | string | no | Gateway route name, resolved by `gateway.yaml` (for example `plan` for a subscription, `api` for a metered key). Runs go through the gateway at `/m/<mode>/…` |
-| `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`; values must be strings |
-| `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the Claude Code backend. Keys must start with `--`; values must be strings. On `pi` only `--thinking` is honored, as an override of the `thinking` field; any other key is logged and ignored, since there is no PI command line to hand it to |
-| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (delivered as the `--effort` flag), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (delivered as the session's thinking level). Absent → the backend's own default applies |
-| `profiles.<name>.maxOutputTokens` | integer | no | `pi` only: the model's output-token cap, written into the generated provider catalog |
-| `profiles.<name>.fallback` | array | no | Ordered list of fallback entries, tried in order when an attempt fails with a retryable error (see [Fallback behavior](./backends.md#fallback-behavior)). Each entry needs its own `model`; it inherits `backend` and `mode` from the primary when it omits them, and nothing else |
+| `default` | object | yes | Complete engine selection used when a session or channel has none |
+| `default.backend` | string | yes | `claude` or `pi` |
+| `default.provider` | string or null | yes | `null` for Claude; an explicit provider id for PI, such as `openai-codex`, `deepseek`, or a [custom provider](./backends.md#custom-providers) |
+| `default.model` | string | yes | Non-empty model identifier, as the backend names it |
+| `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
+| `default.mode` | string | yes | Gateway route, such as `plan` or `api` for Claude; PI uses its provider name |
+| `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
 
-### Profile resolution
+Favorites store model identities, not thinking levels or routes. The default
+need not be a favorite, and the favorites list may be empty. `thinking` accepts
+`low`/`medium`/`high`/`xhigh`/`max` on Claude and
+`off`/`minimal`/`low`/`medium`/`high`/`xhigh` on PI.
 
-At agent spawn time, Cortex resolves the profile through this chain:
+### Selection resolution
 
-1. An explicitly requested profile — the conversation's execution
-   environment naming one.
-2. Otherwise the profile the session recorded when it started; a scheduled
-   fire starts its session on the schedule's `--profile`.
-3. Otherwise the channel's profile (`!profile <name>`), then the host-wide
-   active profile in `data/agent-state.json`.
-4. Otherwise `defaultProfile` from `profiles.json`.
+An ordinary turn uses the session's recorded selection, then the channel's
+selection in `data/agent-state.json`, then `models.json`'s `default`. An explicit
+run request, such as a scheduled fire, can supply a complete selection directly.
+Each selection contains `backend`, `provider`, `model`, `thinking`, and `mode`;
+execution environments are independent of this choice.
 
-The resolved profile supplies `model`, `backend`, `provider`, `mode`,
-`extraEnv`, `extraOption`, `thinking`, and the fallback chain. A direct session
-may override `model`, `provider` (on `pi`), `thinking` and `mode` on top of
-that profile, chosen in the Web composer's engine picker and stored per
-session; platform channels set the same overrides with `!model` and
-`!thinking`. Nothing else is overridable — the backend, environment and
-fallback chain stay the profile's. See
-[backends.md](./backends.md#per-session-model-thinking-level-and-route).
+`data/agent-state.json` stores `channelSelections`, per-model `modelMemory`
+(`thinking` and `mode`, keyed by the JSON array `[backend, provider, model]`),
+and `selectionDefault`, the last Web engine choice used to seed new conversations.
+Selecting a model restores its remembered thinking and route. Without a memory,
+thinking is `null`; Claude uses the first Anthropic route in `gateway.yaml`
+(`plan` if none is declared), and PI uses its provider name. User selection
+changes update this memory. See
+[per-session controls](./backends.md#per-session-model-thinking-level-and-route).
+
+`!backend <claude|pi>` uses the configured default when it belongs to the target
+backend; otherwise it uses the first favorite on that backend, with its
+remembered settings. If neither exists, favorite a model on that backend first.
 
 ### Validation rules
 
-Profile names, `mode` and `provider` must match `^[a-zA-Z0-9_-]+$`. Backend
-must be `claude` or `pi`. A `pi` entry, primary or fallback, must declare
-`provider`. `thinking`, if specified, must be a value from the entry's backend
-value set (see the fields table), and `maxOutputTokens` is accepted only on
-`pi`. Unknown fields are silently ignored. A file that parses but fails
-validation is rejected as a whole: profile resolution reports the validation
-error until the file is fixed.
+`mode` and PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null
+provider. Thinking must be null or one of the backend's allowed values, and
+favorite identities must be unique. Selection writes validate the route against
+`gateway.yaml` when it is available. A file that parses but fails schema
+validation is rejected as a whole until corrected.
 
 ## Execution environments
 
@@ -361,7 +343,7 @@ Cortex ships two:
 
 | Environment | What it is for |
 |---|---|
-| `main` | General-purpose work on the currently active profile, with the built-in Cortex system, board, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
+| `main` | General-purpose work on the session’s selected engine, with the built-in Cortex system, board, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
 | `creative` | A clean-room surface for writing, image prompts, naming, and copy, with the operational context stripped out (see [A minimal surface](#a-minimal-surface)) |
 
 The shipped files are copied into `config/environments/` at `cortex init`, and
@@ -378,7 +360,6 @@ match its file name, is skipped and logged.
 |---|---|---|---|
 | `name` | string | yes | Must equal the file name without `.json` |
 | `description` | string | no | One line describing what the environment is for, shown in pickers |
-| `profile` | string | yes | A profile from `profiles.json`, or `"__active__"` to run on whatever profile the conversation resolves to. A named profile overrides the model for this environment's turns without changing the conversation's own profile |
 | `directive` | string | no | Role or identity text prepended to the prompt |
 | `systemPrompt` | string | no | Replaces the backend's default system prompt |
 | `promptTemplate` | string | no | Wraps each message; `{{input}}` stands for what was sent |
@@ -437,26 +418,17 @@ New sessions start with the saved prompt. A session already open on the PI
 backend switches to it on its next turn; one on Claude Code keeps its prompt
 until its backend process restarts.
 
-## Environments vs profiles
+## Environments and engine selection
 
-Two entities decide how a session runs, and they change independently.
-
-A **profile** is model routing: backend, model, mode, thinking level, extra
-environment, and the fallback chain. An **execution environment** (above)
-decides everything else about the session: its prompt, tools, plugins, MCP
-surface, and ambient context.
-
-`!profile <name>` changes the model and leaves the environment alone; `!agent
-<name>` changes the environment and leaves the model alone. An environment that
-pins `"profile": "__active__"` runs on whatever its conversation currently
-resolves to; one that names a profile runs on that profile, as an override along
-the run path. It never rewrites the conversation's own profile, so a later
-`!agent reset` leaves the model exactly where it was.
+The engine selection decides backend, provider, model, thinking, and mode. An
+**execution environment** decides the prompt, tools, plugins, MCP surface, and
+ambient context. They change independently: `!model <id>` changes the model;
+`!agent <name>` changes the environment. `!agent reset` also leaves the engine
+selection intact.
 
 ### Choosing an environment per conversation
 
-The environment is chosen the way the profile is: per conversation, over a
-host-wide default.
+The environment is chosen per conversation, over a host-wide default.
 
 | Command | What it does |
 |---|---|
@@ -475,8 +447,7 @@ runs, before what runs it. It names the environment the conversation is in, or,
 when the conversation has picked none, the host-wide default it falls back to,
 drawn muted so a choice reads differently from a fallback. Clicking it opens one
 flat list: a `default` row meaning "follow the host-wide default", then every
-environment this host declares, each with what it is for and the profile it
-pins. A host declaring a single environment shows no chip — there is nothing to
+environment this host declares, each with what it is for. A host declaring a single environment shows no chip — there is nothing to
 choose between. A pick on a new conversation travels with its first message; on
 a live one it applies at once and takes effect on the next turn.
 
@@ -484,12 +455,9 @@ A turn resolves its environment through this chain: the session's own choice,
 then the conversation's, then the host-wide default, then `main`. A name that no
 longer resolves, because the environment was renamed or deleted, is skipped.
 
-Switching obeys the same rule `!profile` does — a conversation with history may
-not change backend, so an environment pinning a profile on the other backend is
-refused and says which backend it would have needed. A conversation with no
-turns yet may take any environment. Within one backend the switch lands on the next
-turn and the history stays, which means the model sees turns it produced in the
-previous environment; `!new` if that is not what you want.
+Switching environments leaves the backend unchanged. It takes effect on the
+next turn and preserves history, so the model sees turns from the previous
+environment; use `!new` for a fresh context.
 
 ### A minimal surface
 
@@ -500,7 +468,6 @@ image prompts, naming and copy, with the operational context stripped out:
 {
   "name": "creative",
   "description": "Clean-room creative environment: writing, image prompts, naming, copy. No skills, no project rules, minimal tools.",
-  "profile": "__active__",
   "promptTemplate": "{{input}}",
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
@@ -912,7 +879,7 @@ built-in assets are read in place:
 Init also generates `config/machines.json`, `config/preferences.json` and
 `data/agent-state.json` when they are missing (or with `--force`), writes the
 `config/mcp-config*.json` files, and sets up the gateway configuration and
-`profiles.json` (see [`cortex init`](./cli-reference.md#commands)). The server
+`models.json` (see [`cortex init`](./cli-reference.md#commands)). The server
 rewrites the `mcp-config*.json` files at every start, so edits to them do not
 persist.
 
@@ -934,9 +901,9 @@ polling mode as it uses with filesystem events.
 - **`schedules.json`** — watched via file watcher. Changes are picked up
   within seconds without restart. See [scheduling.md](./scheduling.md)
   for the full scheduling system.
-- **`profiles.json`** — cached and watched for parseable JSON changes. An
+- **`models.json`** — cached and watched for parseable JSON changes. An
   update refreshes the cache before the next agent spawn; malformed JSON keeps
-  the previous profiles.
+  the previous model configuration.
 - **`machines.json`** — watched and reloaded after valid changes. Invalid
   entries keep the previous machine registry.
 - **`environments/`** — watched. Changes are debounced (300 ms) and every
@@ -960,14 +927,14 @@ polling mode as it uses with filesystem events.
 |---|---|---|
 | `.env` | Environment variables | `$CORTEX_HOME/config/.env` |
 | `settings.json` | Runtime behavior settings (hot-reloaded) | `$CORTEX_HOME/config/settings.json` |
-| `profiles.json` | Agent profiles | `$CORTEX_HOME/config/profiles.json` |
+| `models.json` | Default engine and favorite models | `$CORTEX_HOME/config/models.json` |
 | `environments/` | Execution environments — one JSON per environment | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | Machine registry | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | Budget limits | `$CORTEX_HOME/config/budget.json` |
 | `preferences.json` | UI language for system messages | `$CORTEX_HOME/config/preferences.json` |
 | `mcp-config*.json` | Generated MCP server configs (rewritten at every start) | `$CORTEX_HOME/config/` |
 | `.claude/settings.json` | Claude Code hooks/permissions (not the Cortex settings file) | `$CORTEX_HOME/.claude/settings.json` |
-| `agent-state.json` | Selected profile, default agent, per-channel overrides | `$CORTEX_HOME/data/agent-state.json` |
+| `agent-state.json` | Channel selections, model memory, new-session choice, default agent | `$CORTEX_HOME/data/agent-state.json` |
 | `schedules.json` | Schedules | `$CORTEX_HOME/data/schedules.json` |
 | `boards.json` | Board registry | `$CORTEX_HOME/data/boards.json` |
 | `provider-state.json` | Provider usage, throttle windows, resume queue | `$CORTEX_HOME/data/provider-state.json` |
