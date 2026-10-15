@@ -21,10 +21,13 @@ vi.mock('@store/session-registry-repo.js', async (importOriginal) => ({
     getTurns: async () => Array(turns).fill({}),
     getBoundSessionId: async () => session?.sessionId ?? null,
     getById: async () => session,
-    updateSession: async (_id: string, patch: { selection: EngineSelection }) => {
+    updateById: async (_id: string, mutate: (record: NonNullable<typeof session>) => NonNullable<typeof session>) => {
       if (syncFailure) throw new Error('journal unavailable');
-      patches.push(patch);
-      if (session) session = { ...session, ...patch };
+      if (session) {
+        session = mutate(session);
+        patches.push({ backend: session.backend, selection: session.selection });
+      }
+      return session;
     },
   },
 }));
@@ -49,7 +52,7 @@ test('read reports a complete default; model change writes channel, session, mem
   expect(stored().channelSelections['web:a']).toEqual(expected);
   expect(stored().modelMemory['["claude",null,"sonnet"]']).toEqual({ thinking: 'xhigh', mode: 'api' });
   expect(stored().selectionDefault).toEqual(expected);
-  expect(patches).toEqual([{ selection: expected }]);
+  expect(patches).toEqual([{ backend: 'claude', selection: expected }]);
   expect((await fresh()).readChannelSelection('web:a')).toEqual(expected);
 });
 
@@ -123,14 +126,14 @@ test('partial edits after a cross-channel resume use the bound session, not stal
     .toEqual({ ...resumed, thinking: 'xhigh', ok: true, backendChanged: false });
   expect(stored().channelSelections['web:resumed']).toEqual({ ...resumed, thinking: 'xhigh' });
   expect(stored().channelSelections['web:old']).toEqual(claude);
-  expect(patches).toEqual([{ selection: { ...resumed, thinking: 'xhigh' } }]);
+  expect(patches).toEqual([{ backend: 'claude', selection: { ...resumed, thinking: 'xhigh' } }]);
 });
 
 test('a fresh session may change backend and updates the session selection', async () => {
   const api = await fresh();
   expect(await api.applyChannelSelection({ channel: 'web:a', ...pi }))
     .toEqual({ ...pi, ok: true, backendChanged: true });
-  expect(patches).toEqual([{ selection: pi }]);
+  expect(patches).toEqual([{ backend: 'pi', selection: pi }]);
 });
 
 test('backend-only change uses that backend default; missing favorites refuses', async () => {

@@ -136,13 +136,15 @@ async function persistSelection(
   // Attach/resume clears channel turns, but the backend conversation still exists.
   const hasHistory = !!(session && effectiveBackendSessionId(session))
     || (await sessionStore.getTurns(request.channel)).length > 0;
-  const currentBackend = session?.selection?.backend ?? session?.backend ?? current.backend;
+  const currentBackend = session?.backend ?? current.backend;
   const decision = decideBackendSwitch({ currentBackend, targetBackend: target.backend, hasHistory });
   if (!decision.allowed) return {
     ...refuse(current, 'cross-backend-live-session'), currentBackend, targetBackend: target.backend,
   };
   // Session selection wins at run time: never acknowledge a pick if its journal write failed.
-  if (session) await sessionStore.updateSession(session.sessionId, { selection: target });
+  if (session) await sessionStore.updateById(session.sessionId, (record) => ({
+    ...record, backend: target.backend, selection: target,
+  }));
   setChannelSelection(request.channel, target);
   rememberModelSelection(target);
   if (request.channel.startsWith('web:') && request.seedDefault !== false) setSelectionDefault(target);
