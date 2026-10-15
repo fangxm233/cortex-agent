@@ -104,7 +104,7 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
     thinkingOptions, modeOptions, agentOptions: buildAgentOptions(agents, { agentName }),
     rootRows: selectionRootRows(effective, { model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute, default: L.wbThinkingDefault },
       { hasThinking: thinkingOptions.length > 1, hasModes: modeOptions.length > 0 }),
-    modelsReady: !data.catalogQuery.data?.piPending,
+    modelsReady: !data.catalogQuery.isLoading && !data.catalogQuery.data?.piPending,
     catalogLoading: data.catalogQuery.isLoading,
   };
 }
