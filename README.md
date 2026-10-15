@@ -81,25 +81,6 @@ the chat header shows how many workers are running and opens a list of what each
 a review, or a verification run go to one-shot subagents instead.
 [Team mode →](https://fangxm233.github.io/cortex-agent/team/)
 
-### Project memory you can read
-
-<img alt="The memory view of a project: mission, status, experiment records and knowledge entries" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/memory.png">
-
-Each project keeps its mission, roadmap, status, experiment records, knowledge entries, patterns, and
-decision records as Markdown under `context/projects/<name>/`. A new session, or you weeks later,
-picks up from those files rather than from a transcript. The **Memory** view browses them and, when
-the project is in a git work tree, shows the latest change behind each line. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
-
-### Spend, schedules, and runs per project
-
-<img alt="A project's overview: today's spend against its daily budget, a 14-day chart, its schedules, and recent executions" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
-
-Each project's overview shows today's spend against its daily budget, the week's and month's totals,
-its schedules, and its recent executions with their duration, cost, and logs. Interval, daily, weekly, and
-one-off schedules start ordinary sessions on their own: a morning scan of new papers, a weekly
-digest, a check every few minutes. Schedules survive restarts and hot-reload without downtime.
-[Scheduling →](https://fangxm233.github.io/cortex-agent/scheduling/)
-
 ### All your machines
 
 <p align="center"><img width="560" alt="The machines menu with live CPU, memory, disk and per-GPU telemetry" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png"></p>
@@ -117,6 +98,12 @@ dock opens a development server running on a remote machine as if it ran locally
 The Android app has the same sessions, boards, approvals, and memory in a phone layout. It can
 notify you in the background when a turn finishes or when a session is waiting for your answer.
 [Desktop and Android apps →](https://fangxm233.github.io/cortex-agent/desktop-app/)
+
+### Integrate with your workflow
+
+Cortex connects to Slack and Feishu (Lark), so you can work with it from the chat app you already
+use: start and continue sessions there, and get notified when work finishes or needs you.
+[Slack setup →](https://fangxm233.github.io/cortex-agent/slack-setup/) · [Quickstart →](https://fangxm233.github.io/cortex-agent/quickstart/)
 
 ### Bring your own models
 

@@ -61,18 +61,6 @@ Cortex 把编程智能体（Claude Code，或者用你已经付费的 provider �
 
 你只和一个会话对话，也就是**主会话**。工作可以拆开时，主会话把各部分交给持久的 **worker** 会话，之后继续跟进、回答它们的问题，再把结果汇报给你。聊天标题栏上的胶囊显示有几个 worker 在运行，点开可以看到每个 worker 在做什么。搜索、审查、验证这类有边界的一次性工作则交给子智能体。[团队模式 →](https://fangxm233.github.io/cortex-agent/zh/team/)
 
-### 看得懂的项目记忆
-
-<img alt="项目的记忆视图：mission、status、实验记录和知识条目" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/memory.png">
-
-每个项目把使命、路线图、状态、实验记录、知识条目、模式和决策记录以 Markdown 存在 `context/projects/<name>/` 下。新的会话，或者几周后的你，都从这些文件接着做，而不是去翻聊天记录。**记忆**视图可以浏览这些文件；项目在 git 工作区里时，还能看到每一行最近一次的改动。[记忆 →](https://fangxm233.github.io/cortex-agent/zh/memory/)
-
-### 每个项目的花费、定时任务和执行记录
-
-<img alt="项目概览：今日花费与每日预算、14 天图表、定时任务和最近的执行" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
-
-每个项目的概览页显示今天的花费与每日预算的对比、本周和本月的总花费、项目的定时任务，以及最近几次执行的时长、花费和日志。间隔、每日、每周和一次性的定时任务会自己启动普通会话：每天早上扫一遍新论文、每周出一份摘要、每隔几分钟检查一次。定时任务在重启后保留，修改后热重载，不需要停机。[调度 →](https://fangxm233.github.io/cortex-agent/zh/scheduling/)
-
 ### 你的所有机器
 
 <p align="center"><img width="560" alt="机器菜单：实时 CPU、内存、磁盘和逐 GPU 状态" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png"></p>
@@ -84,6 +72,10 @@ Cortex 把编程智能体（Claude Code，或者用你已经付费的 provider �
 <img alt="Android 应用：会话列表、带决策和 worker 的主会话，以及等待批准的计划" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/mobile-strip.png">
 
 Android 应用以手机布局提供同样的会话、看板、审批和记忆。它可以在后台通知你：一轮对话结束了，或者某个会话在等你回答。[桌面与 Android 应用 →](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)
+
+### 接入你的工作流
+
+Cortex 可以接入 Slack 和飞书（Lark），你可以直接在常用的聊天应用里使用它：在那里发起和继续会话，工作完成或需要你处理时也会在那里收到通知。[Slack 设置 →](https://fangxm233.github.io/cortex-agent/zh/slack-setup/) · [快速入门 →](https://fangxm233.github.io/cortex-agent/zh/quickstart/)
 
 ### 用你自己的模型
 
