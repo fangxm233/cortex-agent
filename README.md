@@ -43,8 +43,8 @@ long-lived service with a real workbench in front of them. It is built for work 
 rather than minutes: research studies, multi-step engineering, and recurring scans and digests. It
 targets the three ways long agent runs go wrong:
 
-- **Context rot.** A project's mission, status, experiments, and decisions live as plain files in
-  your repo, not in a chat history that grows until it decays.
+- **Context rot.** A project's mission, status, experiments, and decisions live as plain files on
+  disk, not in a chat history that grows until it decays.
 - **Execution drift.** Non-trivial work starts from a plan you approve. Long tasks keep a live
   board of where they stand, and claims of completion point at their evidence.
 - **Context limits.** Bounded pieces of work go to subagents and workers that start with a fresh
@@ -77,7 +77,7 @@ after each edit. [Boards →](https://fangxm233.github.io/cortex-agent/team/#boa
 
 You talk to one session, the **lead**. When the work splits, the lead hands pieces to persistent
 **worker** sessions, follows up with them, answers their questions, and reports back. The capsule in
-the chat header shows who is running, who is idle, and who needs you. Bounded jobs such as a search,
+the chat header shows how many workers are running and opens a list of what each one is doing. Bounded jobs such as a search,
 a review, or a verification run go to one-shot subagents instead.
 [Team mode →](https://fangxm233.github.io/cortex-agent/team/)
 
@@ -87,15 +87,15 @@ a review, or a verification run go to one-shot subagents instead.
 
 Each project keeps its mission, roadmap, status, experiment records, knowledge entries, patterns, and
 decision records as Markdown under `context/projects/<name>/`. A new session, or you weeks later,
-picks up from those files rather than from a transcript. The **Memory** view browses them with their
-line history. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
+picks up from those files rather than from a transcript. The **Memory** view browses them and, when
+the project is in a git work tree, shows the latest change behind each line. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
 
 ### Spend, schedules, and runs per project
 
-<img alt="A project's overview: spend against its daily budget, a 14-day chart, its schedules, and the execution list" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
+<img alt="A project's overview: today's spend against its daily budget, a 14-day chart, its schedules, and recent executions" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
 
-Each project's overview shows what it spent today, this week, and this month against its daily budget,
-its schedules, and every execution with its duration, cost, and logs. Interval, daily, weekly, and
+Each project's overview shows today's spend against its daily budget, the week's and month's totals,
+its schedules, and its recent executions with their duration, cost, and logs. Interval, daily, weekly, and
 one-off schedules start ordinary sessions on their own: a morning scan of new papers, a weekly
 digest, a check every few minutes. Schedules survive restarts and hot-reload without downtime.
 [Scheduling →](https://fangxm233.github.io/cortex-agent/scheduling/)
@@ -176,8 +176,8 @@ context/projects/optimizer-study/
 └── patterns/         # PAT-NNN.md, patterns across experiments
 ```
 
-These are ordinary files in a git repository. They survive sessions, restarts, and model upgrades,
-and any agent or person can read them.
+These are ordinary Markdown files, kept in a git repository when Git is installed. They survive
+sessions, restarts, and model upgrades, and any agent or person can read them.
 
 ## Safety and approvals
 

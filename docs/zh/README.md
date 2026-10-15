@@ -37,7 +37,7 @@
 
 Cortex 把编程智能体（Claude Code，或者用你已经付费的 provider 跑 PI）作为一个长期运行的服务，并在前面放了一个真正的工作台。它面向的是以天计、而不是以分钟计的工作：研究课题、多步骤工程、周期性的扫描和摘要。它针对长时间智能体运行最常见的三种问题：
 
-- **上下文腐化。** 项目的使命、状态、实验和决策以纯文件的形式保存在你的仓库里，而不是存在越积越长、最终失效的聊天记录里。
+- **上下文腐化。** 项目的使命、状态、实验和决策以纯文件的形式保存在磁盘上，而不是存在越积越长、最终失效的聊天记录里。
 - **执行漂移。** 不简单的工作从你批准的计划开始。长任务有一块实时看板记录进展，每一项“已完成”都指向它的证据。
 - **上下文窗口限制。** 有边界的工作交给子智能体和 worker，它们以全新的上下文开始，只带回结果。
 
@@ -59,19 +59,19 @@ Cortex 把编程智能体（Claude Code，或者用你已经付费的 provider �
 
 <img alt="展开团队列表的主会话，显示每个 worker 的状态和最新汇报" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/team.png">
 
-你只和一个会话对话，也就是**主会话**。工作可以拆开时，主会话把各部分交给持久的 **worker** 会话，之后继续跟进、回答它们的问题，再把结果汇报给你。聊天标题栏上的胶囊显示谁在运行、谁空闲、谁在等你。搜索、审查、验证这类有边界的一次性工作则交给子智能体。[团队模式 →](https://fangxm233.github.io/cortex-agent/zh/team/)
+你只和一个会话对话，也就是**主会话**。工作可以拆开时，主会话把各部分交给持久的 **worker** 会话，之后继续跟进、回答它们的问题，再把结果汇报给你。聊天标题栏上的胶囊显示有几个 worker 在运行，点开可以看到每个 worker 在做什么。搜索、审查、验证这类有边界的一次性工作则交给子智能体。[团队模式 →](https://fangxm233.github.io/cortex-agent/zh/team/)
 
 ### 看得懂的项目记忆
 
 <img alt="项目的记忆视图：mission、status、实验记录和知识条目" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/memory.png">
 
-每个项目把使命、路线图、状态、实验记录、知识条目、模式和决策记录以 Markdown 存在 `context/projects/<name>/` 下。新的会话，或者几周后的你，都从这些文件接着做，而不是去翻聊天记录。**记忆**视图可以浏览这些文件和它们的逐行历史。[记忆 →](https://fangxm233.github.io/cortex-agent/zh/memory/)
+每个项目把使命、路线图、状态、实验记录、知识条目、模式和决策记录以 Markdown 存在 `context/projects/<name>/` 下。新的会话，或者几周后的你，都从这些文件接着做，而不是去翻聊天记录。**记忆**视图可以浏览这些文件；项目在 git 工作区里时，还能看到每一行最近一次的改动。[记忆 →](https://fangxm233.github.io/cortex-agent/zh/memory/)
 
 ### 每个项目的花费、定时任务和执行记录
 
-<img alt="项目概览：今日花费与每日预算、14 天图表、定时任务和执行列表" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
+<img alt="项目概览：今日花费与每日预算、14 天图表、定时任务和最近的执行" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/usage.png">
 
-每个项目的概览页显示今天、本周、本月的花费和每日预算的对比，项目的定时任务，以及每一次执行的时长、花费和日志。间隔、每日、每周和一次性的定时任务会自己启动普通会话：每天早上扫一遍新论文、每周出一份摘要、每隔几分钟检查一次。定时任务在重启后保留，修改后热重载，不需要停机。[调度 →](https://fangxm233.github.io/cortex-agent/zh/scheduling/)
+每个项目的概览页显示今天的花费与每日预算的对比、本周和本月的总花费、项目的定时任务，以及最近几次执行的时长、花费和日志。间隔、每日、每周和一次性的定时任务会自己启动普通会话：每天早上扫一遍新论文、每周出一份摘要、每隔几分钟检查一次。定时任务在重启后保留，修改后热重载，不需要停机。[调度 →](https://fangxm233.github.io/cortex-agent/zh/scheduling/)
 
 ### 你的所有机器
 
@@ -135,7 +135,7 @@ context/projects/optimizer-study/
 └── patterns/         # PAT-NNN.md，跨实验的模式
 ```
 
-这些都是 git 仓库里的普通文件。它们在会话结束、重启和模型升级之后依然存在，任何智能体或人都可以直接阅读。
+这些都是普通的 Markdown 文件，装了 Git 时会放在 git 仓库里。它们在会话结束、重启和模型升级之后依然存在，任何智能体或人都可以直接阅读。
 
 ## 安全与审批
 
