@@ -15,7 +15,7 @@ const nativePorts: LocalSetupPorts = {
   enableUi: (bin, port) => invokeNative('setup_enable_ui', { run: 'start', bin, port }),
   startDaemon: (bin, { url, token }, restart) => invokeNative('setup_start_daemon', { run: 'start', bin, url, token, restart }),
   enableAutostart: () => invokeNative('setup_enable_autostart', { run: 'start' }),
-  installCli: bin => invokeNative('setup_install_cli', { run: 'start', bin }),
+  setTerminalCli: (bin, enabled) => invokeNative('setup_terminal_cli', { run: 'start', bin, enabled }),
   connect: ({ url, token }, cortexBin, newInstall) => invokeNative('connect', {
     serverUrl: url, token, local: { cortexBin, ...(newInstall === true ? { providerSetupPending: true } : {}) },
   }),
@@ -36,11 +36,9 @@ const STATUS_ICON: Partial<Record<LocalStepStatus, string>> = { done: '✓', err
 
 function visibleSteps(state: LocalSetupState): LocalSetupStep[] {
   if (state.stage === 'prepare' || state.automatic) return ['install'];
-  const optional: LocalSetupStep[] = [
-    ...(state.answers?.installService ? ['autostart' as const] : []),
-    ...(state.answers?.installCli ? ['terminal' as const] : []),
-  ];
-  return ['config', 'daemon', ...optional, 'connect'];
+  const terminal: LocalSetupStep[] = state.answers?.installCli ? ['terminal'] : [];
+  const autostart: LocalSetupStep[] = state.answers?.installService ? ['autostart'] : [];
+  return ['config', ...terminal, 'daemon', ...autostart, 'connect'];
 }
 
 function stepStatus(step: LocalSetupStep, state: LocalSetupState): LocalStepStatus {

@@ -454,17 +454,18 @@ fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: Option<u16>) -> Result
         .ok_or_else(|| format!("UI_ENABLE_FAILED: {}", outcome.combined()))
 }
 
-/// Put this install's `cortex` on new terminals' PATH. Like autostart, a failure is reported but
-/// never fatal: the server and app work without it.
+/// Apply an explicit choice about the `cortex` terminal command. Without one the server adds it
+/// on its own first start. Like autostart, a failure is reported but never fatal.
 #[tauri::command]
-pub async fn setup_install_cli(app: AppHandle, run: String, bin: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || install_cli(&app, &run, &bin))
+pub async fn setup_terminal_cli(app: AppHandle, run: String, bin: String, enabled: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || terminal_cli(&app, &run, &bin, enabled))
         .await
         .map_err(|e| format!("SETUP_TASK_FAILED: terminal command: {e}"))?
 }
 
-fn install_cli(app: &AppHandle, run: &str, bin: &str) -> Result<(), String> {
-    let outcome = run_streaming(app, run, bin, &["path", "install", "--json"])?;
+fn terminal_cli(app: &AppHandle, run: &str, bin: &str, enabled: bool) -> Result<(), String> {
+    let action = if enabled { "install" } else { "remove" };
+    let outcome = run_streaming(app, run, bin, &["path", action, "--json"])?;
     if !outcome.ok() {
         return Err(format!("CLI_PATH_FAILED: {}", outcome.combined()));
     }
