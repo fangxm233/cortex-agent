@@ -57,11 +57,11 @@ MODEL_REJECTED_WIRE_REASON = "request_model_rejected"
 
 def row_four_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex", "name": "cortex-direct", "backend": "pi",
         "provider": "openai-codex", "model": CODEX_MODEL,
         "credential_capability": CAPABILITY_ID,
-        "bundle": "direct-pi-openai-codex", "thinking": "xhigh",
+        "bundle": "direct-pi-openai-codex", "mode": "trial", "thinking": "xhigh",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "50.00",
             "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65_536,

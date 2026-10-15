@@ -44,13 +44,12 @@ DUMMY_OAUTH_JWT = dummy_oauth_jwt()
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
 DIRECT_CODEX_BUNDLE = production_arm_bundle("direct-pi-openai-codex")
 
-EXPECTED_PROFILE = {
-    "defaultProfile": "direct",
-    "profiles": {"direct": {
-        "model": "deepseek-v4-flash", "backend": "pi", "mode": "trial",
-        "provider": "deepseek", "thinking": "off", "maxOutputTokens": 65536,
-        "fallback": [],
-    }},
+EXPECTED_MODELS = {
+    "default": {
+        "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
+        "thinking": "off", "mode": "trial",
+    },
+    "favorites": [{"backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash"}],
 }
 EXPECTED_SETTINGS = {
     "clientHotReloadEnabled": False, "taskDispatchMaxConcurrent": 1,
@@ -64,7 +63,6 @@ EXPECTED_SETTINGS = {
 EXPECTED_ENVIRONMENT = {
     "name": "main",
     "description": "Handles a task directly in one session",
-    "profile": "direct",
     "promptTemplate": "{{input}}", "directive": "file:direct.md",
     "systemPrompt": "file:direct.md",
     "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
@@ -72,14 +70,13 @@ EXPECTED_ENVIRONMENT = {
     "disableHooks": True,
 }
 # The server's own agent-state shape: the selection only, no retired backend/model globals.
-EXPECTED_AGENT_STATE = {"activeProfile": "direct", "defaultAgent": "main"}
-EXPECTED_CODEX_PROFILE = {
-    "defaultProfile": "direct",
-    "profiles": {"direct": {
-        "model": "gpt-5.6-sol", "backend": "pi", "mode": "trial",
-        "provider": "openai-codex", "thinking": "xhigh", "maxOutputTokens": 65536,
-        "fallback": [],
-    }},
+EXPECTED_AGENT_STATE = {"defaultAgent": "main"}
+EXPECTED_CODEX_MODELS = {
+    "default": {
+        "backend": "pi", "provider": "openai-codex", "model": "gpt-5.6-sol",
+        "thinking": "xhigh", "mode": "trial",
+    },
+    "favorites": [{"backend": "pi", "provider": "openai-codex", "model": "gpt-5.6-sol"}],
 }
 EXPECTED_GATEWAY = (
     "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
@@ -118,7 +115,6 @@ HOST_REDIRECT_ENVIRONMENT = {
     "CORTEX_BUDGET_FILE": "/host/private/.cortex/config/budget.json",
     "CORTEX_COSTS_FILE": "/host/private/.cortex/data/costs.jsonl",
     "CORTEX_EXECUTIONS_FILE": "/host/private/.cortex/data/executions.json",
-    "CORTEX_PROFILE": "host-profile",
     "CORTEX_BACKEND": "claude",
     "CORTEX_MACHINE": "host-machine",
     "CORTEX_THREAD_ID": "thr-host",
@@ -202,10 +198,11 @@ def expected_attestation(
         "pre_boot_input_bundle_sha256": bundle_sha,
     })
     return {
-        "schema_version": "cortex-bench-launch-attestation/5",
+        "schema_version": "cortex-bench-launch-attestation/6",
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
         "arm_bundle": {
-            "key": "direct-pi-deepseek", "profile_name": "direct",
+            "key": "direct-pi-deepseek",
+            "selection": EXPECTED_MODELS["default"],
             "environment": "main",
         },
         "arm_confinement": DIRECT_BUNDLE.confinement_record(),
@@ -234,7 +231,7 @@ def copy_bundle(destination: Path, symlink_target: Path | None = None) -> Produc
 def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path) -> None:
     home = materialize(tmp_path).cortex_home
 
-    assert read_json(home / "config/profiles.json") == EXPECTED_PROFILE
+    assert read_json(home / "config/models.json") == EXPECTED_MODELS
     assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
     assert read_json(home / "config/environments/main.json") == EXPECTED_ENVIRONMENT
     assert not (home / "config/thread-templates").exists()
@@ -252,15 +249,15 @@ def test_committed_bundle_is_the_exact_production_direct_surface(tmp_path: Path)
         assert (home / "prompts" / kind / "direct.md").read_bytes().strip()
 
 
-def test_direct_openai_codex_bundle_seals_its_xhigh_profile(tmp_path: Path) -> None:
+def test_direct_openai_codex_bundle_seals_its_xhigh_selection(tmp_path: Path) -> None:
     home = materialize(tmp_path, bundle=DIRECT_CODEX_BUNDLE).cortex_home
 
-    assert read_json(home / "config/profiles.json") == EXPECTED_CODEX_PROFILE
+    assert read_json(home / "config/models.json") == EXPECTED_CODEX_MODELS
     assert read_json(home / "config/settings.json") == EXPECTED_SETTINGS
     assert read_json(home / "data/agent-state.json") == EXPECTED_AGENT_STATE
 
 
-def test_declared_output_cap_is_projected_into_the_sealed_profile(tmp_path: Path) -> None:
+def test_declared_output_cap_is_frozen_without_mutating_the_models(tmp_path: Path) -> None:
     launch = dataclasses.replace(facts(tmp_path), max_output_tokens=256)
     result = materialize_production_home(
         cortex_home=tmp_path / "smoke-home",
@@ -270,8 +267,7 @@ def test_declared_output_cap_is_projected_into_the_sealed_profile(tmp_path: Path
         inherited_environment={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
     )
 
-    profile = read_json(result.cortex_home / "config/profiles.json")
-    assert profile["profiles"]["direct"]["maxOutputTokens"] == 256
+    assert read_json(result.cortex_home / "config/models.json") == EXPECTED_MODELS
     context = result.production_evidence_context
     assert context["model_execution"]["max_output_tokens"] == 256
 
@@ -514,9 +510,9 @@ def test_one_bundle_byte_mutation_changes_bundle_home_and_manifest_hashes(
         facts=facts(tmp_path, copied), inherited_environment={"PATH": "/bin"},
         runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
     )
-    profile = copied_bundle / "config/profiles.json"
-    profile.chmod(0o644)
-    profile.write_bytes(profile.read_bytes() + b"\n")
+    models = copied_bundle / "config/models.json"
+    models.chmod(0o644)
+    models.write_bytes(models.read_bytes() + b"\n")
     after = materialize_production_home(
         cortex_home=tmp_path / "home-after", artifacts_dir=tmp_path / "artifacts-after",
         facts=facts(tmp_path, copied), inherited_environment={"PATH": "/bin"},

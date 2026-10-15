@@ -12,10 +12,10 @@ SECRET = "synthetic-relay-secret-UNIQUE"
 
 def exact_inputs() -> dict[str, object]:
     arm = {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "cortex",
         "name": "cortex-deepseek-paid-smoke", "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 1, "max_cost_usd": "0.05",
             "deadline_seconds": 120, "max_output_tokens": 256,

@@ -29,8 +29,8 @@ LAUNCHER = "benchmark/harness/src/cortex_bench_harness/launcher"
 DEEPSEEK = f"{PROXY}/adapters/deepseek_chat_completions.py"
 SERVER = f"{PROXY}/server.py"
 EVIDENCE_MODULE = f"{LAUNCHER}/capability_evidence.py"
-PRODUCTION_HOME = f"{LAUNCHER}/production_home.py"
-SPAWN_CONFIG = "agent-server/src/domain/agents/spawn-config.ts"
+PRODUCTION_SESSION = f"{LAUNCHER}/production_session.py"
+ENGINE_SPEC = "agent-server/src/domain/runs/engine-spec.ts"
 ADAPTER_TESTS = "tests/proxy/test_deepseek_adapter.py"
 
 ROUTE_GUARD = "        if target.path not in CHAT_COMPLETIONS_PATHS or target.query:"
@@ -180,31 +180,31 @@ MUTATIONS: tuple[tuple[str, str, list[tuple[str, str]], str, str], ...] = (
         '    if mutation["killed"] is not True:', "    if False:",
     )], "tests/launcher/test_capability_evidence.py", "counts_kills_or_binding"),
     # --- the current two-step projection of the declared cap ---
-    ("pi_cap_declared", PRODUCTION_HOME, [(
-        '    profile["maxOutputTokens"] = max_output_tokens',
-        '    profile["maxOutputTokens"] = max_output_tokens + 1',
-    )], "tests/launcher/test_production_home.py",
-     "declared_output_cap_is_projected_into_the_sealed_profile"),
-    ("pi_cap_projection", SPAWN_CONFIG, [(
-        "    piModelMaxTokens: config.backend === 'pi' "
-        "? config.maxOutputTokens ?? undefined : undefined,",
-        "    piModelMaxTokens: undefined,",
-    )], "tests/domain/agents/profile-thinking.test.ts",
-     "PI maxOutputTokens is validated and propagated into the resolved spawn"),
+    ("pi_cap_declared", PRODUCTION_SESSION, [(
+        '            payload["benchmarkMaxOutputTokens"] = cap',
+        '            payload["benchmarkMaxOutputTokens"] = cap + 1',
+    )], "tests/launcher/test_production_session.py",
+     "declared_output_cap_is_projected_into_the_session_request"),
+    ("pi_cap_projection", ENGINE_SPEC, [(
+        "        ? request.benchmarkMaxOutputTokens : undefined,",
+        "        ? undefined : undefined,",
+    )], "tests/domain/runs/engine-selection.test.ts",
+     "output cap is benchmark PI only"),
 )
 
 
 def run_test(test_file: str, selector: str) -> int:
     if test_file.endswith(".ts"):
-        command = ["npx", "vitest", "run", test_file, "-t", selector]
+        command = ["pnpm", "exec", "vitest", "run", test_file, "-t", selector]
         cwd = AGENT_SERVER
     else:
         command = [
-            "uv", "run", "--offline", "pytest", test_file, "-k", selector,
+            sys.executable, "-m", "pytest", test_file, "-k", selector,
             "-p", "no:randomly", "-q",
         ]
         cwd = HARNESS
-    environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    environment = {**os.environ, "PYTHONPATH": str(HARNESS / "src") + os.pathsep
+                   + str(HARNESS / "tests")}
     return subprocess.run(  # noqa: S603
         command, cwd=cwd, env=environment, capture_output=True, text=True,
     ).returncode

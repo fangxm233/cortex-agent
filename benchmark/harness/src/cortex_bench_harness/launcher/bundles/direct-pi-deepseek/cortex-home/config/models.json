@@ -1,0 +1,16 @@
+{
+  "default": {
+    "backend": "pi",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "thinking": "off",
+    "mode": "trial"
+  },
+  "favorites": [
+    {
+      "backend": "pi",
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash"
+    }
+  ]
+}

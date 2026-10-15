@@ -1,7 +1,6 @@
 {
   "name": "main",
   "description": "Handles a task directly in one session",
-  "profile": "direct",
   "promptTemplate": "{{input}}",
   "directive": "file:direct.md",
   "systemPrompt": "file:direct.md",

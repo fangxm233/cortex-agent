@@ -17,7 +17,7 @@ def baseline_arm(
     vendor_agent: str, provider: str | None, model: str,
 ) -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "vendor-baseline",
         "name": f"pure-{vendor_agent}",
         "vendor_agent": vendor_agent,

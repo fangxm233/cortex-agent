@@ -68,7 +68,7 @@ ARM_NAMES = {"direct-pi-deepseek": "zero-paid-pi-direct"}
 
 def production_arm(bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "cortex",
         "name": ARM_NAMES[bundle.key], **bundle.arm_fields(),
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.00",
@@ -124,7 +124,7 @@ def launch_kwargs(root: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE) -> di
             "trial_id": TRIAL_ID, "root_run_id": f"{TRIAL_ID}.{arm_name}",
             "task": {"task_id": "sealed-task", "image_ref": IMAGE_REF,
                      "image_digest": DIGEST},
-            "profile_name": "benchmark", "paid_run": False,
+            "paid_run": False,
             "credential": {
                 "upstream_base_url": "http://127.0.0.1:9099",
                 "route_identity_host": "api.deepseek.com",
