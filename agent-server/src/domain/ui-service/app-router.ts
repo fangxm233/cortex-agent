@@ -77,6 +77,7 @@ import {
   hooksTestInput,
   modelsFavoriteInput,
   modelsSetDefaultInput,
+  modelsSetThinkingInput,
   modelsCatalogInput,
   machinesListInput,
   machineDetailInput,
@@ -318,6 +319,7 @@ function modelsRouter(service: UiService) {
       remove: makeMutation(service, 'models.favorites.remove', modelsFavoriteInput),
     }),
     setDefault: makeMutation(service, 'models.setDefault', modelsSetDefaultInput),
+    setThinking: makeMutation(service, 'models.setThinking', modelsSetThinkingInput),
   });
 }
 
