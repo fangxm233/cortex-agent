@@ -165,6 +165,48 @@ describe('S10 retire profiles', () => {
     expect((await repo().getById('already'))?.selection).toEqual(preserved);
   });
 
+  it('retries after the final archive fails without losing merged session overrides', async () => {
+    seed();
+    journal([put('one', 'a', 'plan')]);
+    write(ARCHIVE, 'an older archive must not be overwritten');
+    await expect(migrate()).rejects.toThrow('Archive target already exists');
+    expect(read(ARCHIVE)).toBe('an older archive must not be overwritten');
+    expect(exists('config/profiles.json')).toBe(true);
+    expect(json('data/agent-state.json')).not.toHaveProperty('channelOverrides');
+    const beforeRetry = read('data/session-registry.jsonl');
+    await retireProfiles({ dataDir: home, storeDir: path.join(home, 'data'), now: new Date(NOW.getTime() + 1) });
+    expect(read('data/session-registry.jsonl')).toBe(beforeRetry);
+    expect((await repo().getById('one'))?.selection).toEqual({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' });
+    expect(exists('config/profiles.json')).toBe(false);
+  });
+
+  it('ignores an uncommitted tail but refuses malformed committed journal lines', async () => {
+    seed();
+    journal([put('one', 'a', 'plan')]);
+    const committed = read('data/session-registry.jsonl');
+    write('data/session-registry.jsonl', committed + '{bad committed line}\n');
+    await expect(migrate()).rejects.toThrow();
+    expect(exists('config/profiles.json')).toBe(true);
+    expect(json('data/agent-state.json').channelOverrides).toBeDefined();
+    write('data/session-registry.jsonl', committed + '{"v":1,"op":"patch","id":"one","fields":{"profileName":"flash"}}');
+    await migrate();
+    expect((await repo().getById('one'))?.selection).toEqual({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' });
+  });
+
+  it('leaves non-engine schedules intact and does not archive after malformed state', async () => {
+    seed();
+    const jobs = { tasks: [{ id: 'script', dispatchType: 'script', command: 'keep' }] };
+    write('data/schedules.json', jobs);
+    write('data/agent-state.json', '{ broken');
+    await expect(migrate()).rejects.toThrow();
+    expect(exists('config/models.json')).toBe(false);
+    expect(exists('config/profiles.json')).toBe(true);
+    write('data/agent-state.json', {});
+    const report = await migrate();
+    expect(report.schedules).toBe(0);
+    expect(json('data/schedules.json')).toEqual(jobs);
+  });
+
   it('honors immutable homes before any config, state or registry write', async () => {
     seed();
     journal([put('one', 'a', 'plan')]);
