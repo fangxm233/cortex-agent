@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
+import { validateEngineSelection, validateModelRef, type ModelsFile } from '../../../src/domain/agents/engine-selection.js';
+import { environmentSchema } from '../../../src/domain/agents/environments/schema.js';
 import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
 import { runRequestFixture } from '../../run-request-fixture.js';
 
@@ -48,4 +51,23 @@ test('route credentials are not overridable by retired selection properties', ()
   expect(spec.env.sets).toBeUndefined();
   expect(spec.env.unsets).toContain('ANTHROPIC_API_KEY');
   expect(spec).not.toHaveProperty('extraOption');
+});
+
+
+test.each(['deepseek', 'openai-codex'])('sealed %s bundle uses the server selection contract', (provider) => {
+  const home = new URL(`../../../../benchmark/harness/src/cortex_bench_harness/launcher/bundles/direct-pi-${provider}/cortex-home/`, import.meta.url);
+  const read = (relative: string) => JSON.parse(readFileSync(new URL(relative, home), 'utf8'));
+  const models = read('config/models.json') as ModelsFile;
+  validateEngineSelection(models.default);
+  models.favorites.forEach(validateModelRef);
+  expect(models.favorites).toEqual([{ backend: 'pi', provider, model: models.default.model }]);
+  expect(read('data/agent-state.json')).toEqual({ defaultAgent: 'main' });
+  const environment = read('config/environments/main.json');
+  expect(environmentSchema.parse(environment)).toEqual(environment);
+  const request = runRequestFixture({ loadCortexRules: false, benchmarkMaxOutputTokens: 8192 }, models.default);
+  request.benchmark = { evidenceContext: context, identityDirective: '' };
+  const spec = buildEngineSpec(request, models.default);
+  expect(spec.route.gatewayPath).toBe(`/m/trial/${provider}`);
+  expect(spec.model.benchmarkMaxOutputTokens).toBe(8192);
+  expect(spec.model.thinking).toBe(models.default.thinking);
 });
