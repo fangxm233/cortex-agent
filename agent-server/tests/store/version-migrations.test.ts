@@ -199,7 +199,7 @@ test('runMigrations - backfills pi provider from mode when missing', async () =>
     },
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const m = await readJson(path.join(configDir, 'profiles.json')) as any;
   assert.equal(m.profiles.plan.provider, undefined, 'claude profile gets no provider');
@@ -221,7 +221,7 @@ test('runMigrations - does not overwrite an existing pi provider', async () => {
     },
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const m = await readJson(path.join(configDir, 'profiles.json')) as any;
   assert.equal(m.profiles.execute.provider, 'deepseek', 'existing provider preserved');
@@ -246,7 +246,7 @@ test('runMigrations - backfills pi provider in fallback entries (inherits backen
     },
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const m = await readJson(path.join(configDir, 'profiles.json')) as any;
   assert.equal(m.profiles.p.provider, 'anthropic');
@@ -268,13 +268,32 @@ test('runMigrations - profiles.json migration is idempotent / no-op when already
   };
   await writeJson(path.join(configDir, 'profiles.json'), valid);
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
   const first = await readJson(path.join(configDir, 'profiles.json'));
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
   const second = await readJson(path.join(configDir, 'profiles.json'));
 
   assert.deepEqual(first, valid);
   assert.deepEqual(second, first);
+});
+
+test('runMigrations - S10 retires the backfilled snapshot and tracks its sentinel', async () => {
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as Record<string, string>;
+  assert.equal(versions['sentinel:retire-profiles'], '2026.10.15');
+  const models = await readJson(path.join(configDir, 'models.json')) as any;
+  assert.deepEqual(models.default, {
+    backend: 'pi', provider: 'anthropic', model: 'deepseek-v4-flash', thinking: null, mode: 'anthropic',
+  });
+  await assert.rejects(fs.stat(path.join(configDir, 'profiles.json')), { code: 'ENOENT' });
+  const archives = (await fs.readdir(path.join(configDir, 'archive'))).filter(name => name.startsWith('profiles-'));
+  assert.equal(archives.length, 1);
+  const archived = await readJson(path.join(configDir, 'archive', archives[0], 'profiles.json')) as any;
+  assert.equal(archived.profiles.execute.provider, 'anthropic');
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.deepEqual(await readJson(path.join(configDir, 'models.json')), models);
 });
 
 // ── M3: sessions.json conduit prefixing ────────────────────────

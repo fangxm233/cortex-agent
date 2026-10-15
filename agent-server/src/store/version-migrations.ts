@@ -14,6 +14,7 @@ import { importLegacySessionStores } from './session-registry-import.js';
 import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
 import { retireCommissions } from './board-migration.js';
 import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
+import { retireProfiles } from './retire-profiles-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -539,6 +540,13 @@ const stepMigrations: StepMigration[] = [
       if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return;
       await migrateToBuiltinOverlay({ dataDir, defaultsDir });
     },
+  },
+  // S10: materialize engine selections before retiring the named preset snapshot. The helper owns
+  // its temporary registry repo and keeps raw names/overrides available until all patches land.
+  {
+    key: 'sentinel:retire-profiles',
+    version: '2026.10.15',
+    run: async ({ dataDir, storeDir }) => { await retireProfiles({ dataDir, storeDir }); },
   },
 ];
 
