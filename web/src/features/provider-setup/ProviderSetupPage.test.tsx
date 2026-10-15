@@ -192,7 +192,7 @@ it('always offers warned skip, disables unready continuation and refreshes login
   view.unmount();
 });
 it('opens the login target for the tapped provider row', async () => {
-  const accounts = ['anthropic', 'openai-codex', 'deepseek', 'custom-provider'].map(provider => ({
+  const accounts = ['anthropic', 'openai-codex', 'openai', 'deepseek', 'custom-provider'].map(provider => ({
     backend: 'pi', provider, label: provider, capabilities: ['api_key'], authType: null,
     state: 'logged-out', source: null, expiresAt: null, refreshExpiresAt: null, inUse: false, credentials: [],
   } as AuthAccountStatus));
@@ -203,11 +203,11 @@ it('opens the login target for the tapped provider row', async () => {
   let view!: ReturnType<typeof create>;
   await act(async () => { await controller.load(); view = create(<ProviderSetupView controller={controller} leave={vi.fn()} />); });
   const rows = view.root.findAll(node => node.type === 'div' && node.props['data-account-row'] !== undefined);
-  expect(rows.map(row => row.props['data-account-row'])).toEqual(['openai-codex', 'deepseek', 'anthropic', 'custom-provider']);
+  expect(rows.map(row => row.props['data-account-row'])).toEqual(['openai', 'deepseek', 'anthropic', 'custom-provider', 'openai-codex']);
   const group = (name: string) => view.root.findByProps({ 'data-setup-providers': name })
     .findAll(node => node.type === 'div' && node.props['data-account-row'] !== undefined).map(node => node.props['data-account-row']);
-  expect(group('popular')).toEqual(['openai-codex', 'deepseek']);
-  expect(group('more')).toEqual(['anthropic', 'custom-provider']);
+  expect(group('popular')).toEqual(['openai', 'deepseek']);
+  expect(group('more')).toEqual(['anthropic', 'custom-provider', 'openai-codex']);
   const headings = view.root.findAllByType('h2').map(node => node.children.filter(child => typeof child === 'string').join(''));
   expect(headings.indexOf('Claude Code')).toBeLessThan(headings.indexOf(en.setupProviders));
   expect(headings.indexOf('Claude Code')).toBeGreaterThanOrEqual(0);

@@ -158,10 +158,10 @@ describe('setupErrorText', () => {
 
 describe('splitPopular', () => {
   it('lists popular providers in the curated order and keeps the rest in place', () => {
-    const rows = ['zai', 'anthropic', 'openai-codex', 'groq', 'deepseek'].map(provider => ({ provider }));
+    const rows = ['zai', 'anthropic', 'openai-codex', 'groq', 'openai', 'deepseek'].map(provider => ({ provider }));
     const { popular, more } = splitPopular(rows);
-    expect(popular.map(p => p.provider)).toEqual(['openai-codex', 'zai', 'deepseek']);
-    expect(more.map(p => p.provider)).toEqual(['anthropic', 'groq']);
+    expect(popular.map(p => p.provider)).toEqual(['openai', 'zai', 'deepseek']);
+    expect(more.map(p => p.provider)).toEqual(['anthropic', 'openai-codex', 'groq']);
     expect(POPULAR_PROVIDERS).toHaveLength(8);
   });
 });
