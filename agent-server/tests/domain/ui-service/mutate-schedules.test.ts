@@ -124,6 +124,21 @@ const dailyTask = {
   time: '09:00', createdAt: 1_700_000_000_000, nextRun: 1_700_000_060_000, lastRun: null,
 } as ScheduleTask;
 
+test('schedules.add and update forward a complete engine selection', async () => {
+  const add = makeAddSpy();
+  const update = makeUpdateSpy(dailyTask);
+  const deps = makeDeps({ scheduler: { ...update.scheduler, add: add.add } });
+  const added = await handleAddSchedule(deps, { type: 'interval', message: 'ping', intervalMs: 60_000, selection });
+  assert.equal(added.ok, true);
+  assert.deepEqual(add.calls[0].selection, selection);
+  if (added.ok) assert.deepEqual(added.data.selection, selection);
+  const changed = { ...selection, thinking: 'high' };
+  const updated = await handleUpdateSchedule(deps, { scheduleId: dailyTask.id, selection: changed });
+  assert.equal(updated.ok, true);
+  assert.deepEqual(update.calls[0].patch, { selection: changed });
+  if (updated.ok) assert.deepEqual(updated.data.selection, changed);
+});
+
 test('schedules.update returns not-found for a missing schedule and does not write', async () => {
   const spy = makeUpdateSpy(null);
   const result = await handleUpdateSchedule(makeDeps({ scheduler: spy.scheduler }), { scheduleId: 'sch_missing', message: 'x' });

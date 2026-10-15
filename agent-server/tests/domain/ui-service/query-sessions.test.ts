@@ -48,6 +48,18 @@ test('sessions.list with projectId returns filtered sessions', async () => {
   assert.equal(result[1].resumable, true);
 });
 
+test('sessions.list exposes only the persisted engine choice, null for legacy sessions', async () => {
+  const result = await handleSessionsList(makeDeps(), {});
+  const byId = Object.fromEntries(result.map((session) => [session.sessionId, session]));
+  assert.deepEqual(byId.s1.selection, piSelection);
+  assert.equal(byId.s2.selection, null);
+  assert.deepEqual(byId.s3.selection, claudeSelection);
+  for (const row of result) {
+    assert.equal('profileName' in row, false);
+    assert.equal('selectionOverride' in row, false);
+  }
+});
+
 test('sessions.list exposes display metadata and defaults legacy records to false', async () => {
   const deps = makeDeps();
   deps.sessionStore.listByProject = async () => [

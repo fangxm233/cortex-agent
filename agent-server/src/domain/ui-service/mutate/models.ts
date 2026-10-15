@@ -80,8 +80,9 @@ export async function removeFavorite(configDir: string, args: MutateArgs<'models
 function validateDefault(selection: EngineSelection, readGateway: GatewayReader): void {
   validateEngineSelection(selection);
   const endpoint = selection.backend === 'claude' ? 'anthropic' : selection.provider;
-  const modes = Object.keys(readGateway()?.endpoints?.[endpoint] ?? {});
-  if (modes.length && !modes.includes(selection.mode)) throw invalid(`Unknown mode '${selection.mode}' for ${endpoint}`);
+  const gateway = readGateway();
+  const modes = Object.keys(gateway?.endpoints?.[endpoint] ?? {});
+  if (gateway && !modes.includes(selection.mode)) throw invalid(`Unknown mode '${selection.mode}' for ${endpoint}`);
   if (selection.backend === 'pi' && selection.mode !== selection.provider) throw invalid('PI mode must equal provider');
 }
 
@@ -99,7 +100,8 @@ export async function setDefaultModel(
       throw error;
     });
     const raw = await readModelsFile(configDir, selection);
-    if (exists && JSON.stringify(raw.default) === JSON.stringify(selection)) return false;
+    if (exists && modelKey(raw.default) === modelKey(selection)
+      && raw.default.thinking === selection.thinking && raw.default.mode === selection.mode) return false;
     await writeModelsFile(configDir, { ...raw, default: selection });
     return true;
   });

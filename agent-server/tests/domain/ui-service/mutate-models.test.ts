@@ -75,6 +75,13 @@ test('setDefault replaces the whole choice, preserves favorites and reports no-o
   assert.equal(await setDefaultModel(dir, { selection: next }, noGateway), false);
 });
 
+test('setDefault treats equivalent field order as a no-op', async () => {
+  const dir = await seed({ default: { mode: 'plan', thinking: 'high', model: 'opus', provider: null, backend: 'claude' } });
+  invalidate.mockClear();
+  assert.equal(await setDefaultModel(dir, { selection }, noGateway), false);
+  assert.equal(invalidate.mock.calls.length, 0);
+});
+
 test('setDefault initializes a missing file without inventing favorites', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'models-init-'));
   assert.equal(await setDefaultModel(dir, { selection }, noGateway), true);
@@ -94,6 +101,13 @@ test('setDefault checks declared gateway routes before writing', async () => {
   const gateway = () => ({ endpoints: { anthropic: { plan: {} } } }) as any;
   await assert.rejects(() => setDefaultModel(dir, { selection: { ...selection, mode: 'missing' } }, gateway),
     (e: any) => e.code === 'invalid-args');
+  assert.deepEqual((await read(dir)).default, selection);
+});
+
+test('setDefault rejects an endpoint absent from a readable gateway', async () => {
+  const dir = await seed();
+  const gateway = () => ({ endpoints: {} });
+  await assert.rejects(() => setDefaultModel(dir, { selection }, gateway), (e: any) => e.code === 'invalid-args');
   assert.deepEqual((await read(dir)).default, selection);
 });
 
