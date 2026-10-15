@@ -166,15 +166,11 @@ export class PIAdapter implements EngineAdapter {
 
   private gatewayOverrides(
     discovered: string[], currentProvider: string | null,
-    gatewayPath: string | null, model: string | undefined, maxTokens?: number,
+    gatewayPath: string | null,
   ): ProviderOverride[] {
     if (currentProvider) {
       const [current] = buildProviderOverrides([], currentProvider, gatewayPath);
-      const modelOverrides = model && maxTokens !== undefined
-        ? { [model]: { maxTokens } } : undefined;
-      this.configuredProviderOverrides.set(currentProvider, {
-        ...current, ...(modelOverrides ? { modelOverrides } : {}),
-      });
+      this.configuredProviderOverrides.set(currentProvider, current);
     }
     const byName = new Map(
       buildProviderOverrides(discovered, null, null).map((override) => [override.name, override]),
@@ -222,8 +218,6 @@ export class PIAdapter implements EngineAdapter {
         this.providerDiscovery.getProviders(),
         spec.model.provider ?? null,
         spec.route.gatewayPath ?? null,
-        spec.model.id,
-        spec.model.benchmarkMaxOutputTokens,
       ),
       this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
     );

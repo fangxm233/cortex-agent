@@ -16,7 +16,7 @@ export interface ProviderOverride {
    * (e.g. deepseek's anthropic-compat endpoint: `/deepseek/anthropic`).
    */
   basePath?: string;
-  /** Exact built-in model metadata overrides for this spawn. */
+  /** Catalog-wide model metadata defaults. Never put per-session benchmark caps here. */
   modelOverrides?: Record<string, { maxTokens: number }>;
   /**
    * Complete provider block for a user-defined provider, written verbatim. PI knows nothing about

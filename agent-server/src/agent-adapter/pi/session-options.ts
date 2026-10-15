@@ -104,6 +104,8 @@ export interface PiSessionRequest {
   provider: string | null;
   /** Model id with any context-window suffix (`[1m]`) stripped. */
   model: string | null;
+  /** Benchmark-only output cap, applied to this session's selected model, never models.json. */
+  benchmarkMaxOutputTokens?: number;
   thinking: string | null;
   systemPrompt: string | null;
   appendSystemPrompt: string[];
@@ -208,6 +210,7 @@ export function buildSessionRequest(
     sessionPath: inputs.sessionPath,
     provider: spec.model.provider ?? null,
     model: spec.model.id ? stripModelSuffix(spec.model.id) : null,
+    benchmarkMaxOutputTokens: spec.model.benchmarkMaxOutputTokens,
     thinking: spec.model.thinking ?? null,
     systemPrompt: spec.prompt.system || null,
     appendSystemPrompt: promptValues(spec.prompt.append),
