@@ -59,6 +59,7 @@ import {
   handleModelsFavoriteAdd,
   handleModelsFavoriteRemove,
   handleModelsSetDefault,
+  handleModelsSetThinking,
 } from './mutate/models.js';
 import {
   handleEnvironmentsValidate,
@@ -229,6 +230,7 @@ export const mutateHandlers = {
   'models.favorites.add': (deps, args) => handleModelsFavoriteAdd(deps, args),
   'models.favorites.remove': (deps, args) => handleModelsFavoriteRemove(deps, args),
   'models.setDefault': (deps, args) => handleModelsSetDefault(deps, args),
+  'models.setThinking': (deps, args) => handleModelsSetThinking(deps, args),
   'plugins.assign': (deps, args) => handlePluginsAssign(deps, args),
   'plugins.skillWrite': (deps, args) => handlePluginsSkillWrite(deps, args),
   'plugins.skillCreate': (deps, args) => handlePluginsSkillCreate(deps, args),

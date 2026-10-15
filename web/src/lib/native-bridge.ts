@@ -94,7 +94,7 @@ export interface NativeSetupAnswers {
   machineName: string;
   backends: string[];
   installService: boolean;
-  /** Put this install's `cortex` on new terminals' PATH (`cortex path install`). */
+  /** Explicit terminal-command choice (`cortex path install` / `remove`); unset leaves it to the server. */
   installCli?: boolean;
   port: number;
   /** Internal setup intent: reuse the configured UI port when enabling an existing endpoint. */
@@ -158,7 +158,7 @@ interface NativeCommandMap {
   setup_enable_ui: { args: { run: string; bin: string; port?: number }; result: { url: string; token: string } };
   setup_start_daemon: { args: { run: string; bin: string; url: string; token: string; restart?: boolean }; result: boolean };
   setup_enable_autostart: { args: { run: string }; result: boolean };
-  setup_install_cli: { args: { run: string; bin: string }; result: null };
+  setup_terminal_cli: { args: { run: string; bin: string; enabled: boolean }; result: null };
   // Uninstaller (desktop only). `uninstall_open` hands over to it from the workbench and quits;
   // the rest run in the uninstaller's own window (`cortex-desktop --uninstall`).
   uninstall_open: { args: undefined; result: null };

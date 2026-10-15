@@ -19,7 +19,7 @@ export interface LocalSetupPorts {
   enableUi: (bin: string, port?: number) => Promise<Endpoint>;
   startDaemon: (bin: string, endpoint: Endpoint, restart?: boolean) => Promise<boolean>;
   enableAutostart: () => Promise<unknown>;
-  installCli: (bin: string) => Promise<unknown>;
+  setTerminalCli: (bin: string, enabled: boolean) => Promise<unknown>;
   connect: (endpoint: Endpoint, cortexBin: string, newInstall?: boolean) => Promise<NativePageConfig | null | void>;
 }
 
@@ -107,7 +107,7 @@ export class LocalSetupFlow {
 
   private defaultAnswers(lang: string): NativeSetupAnswers {
     return { lang, machineName: this.state.probe?.hostname ?? '', backends: ['pi'],
-      port: 3004, installService: false, installCli: true, ...(!this.state.needsInit ? { preserveEndpoint: true } : {}) };
+      port: 3004, installService: false, ...(!this.state.needsInit ? { preserveEndpoint: true } : {}) };
   }
 
   cancelInstall = async () => {
@@ -133,12 +133,13 @@ export class LocalSetupFlow {
     this.patch({ stage: 'start', progress: {}, answers });
     const endpoint = await this.initialize(answers);
     const bin = this.state.bin ?? '';
+    // Before the daemon: a server that starts without a recorded choice adds the command itself.
+    if (answers.installCli !== undefined) await this.terminalCli(bin, answers.installCli);
     this.mark('daemon', 'running');
     const restart = answers.restartDaemon === true;
     if (!await this.ports.startDaemon(bin, endpoint, restart)) throw new Error('DAEMON_TIMEOUT');
     this.mark('daemon', 'done');
     if (answers.installService) await this.optionalStep('autostart', () => this.ports.enableAutostart(), 'AUTOSTART_FAILED');
-    if (answers.installCli) await this.optionalStep('terminal', () => this.ports.installCli(bin), 'CLI_PATH_FAILED');
     this.mark('connect', 'running');
     const connection = await this.ports.connect(endpoint, bin, this.state.newInstall === true);
     const pending = connection?.providerSetupPending ?? this.state.newInstall;
@@ -168,6 +169,11 @@ export class LocalSetupFlow {
     this.patch({ endpoint, needsInit: false });
     this.mark('config', 'done');
     return endpoint;
+  }
+
+  private async terminalCli(bin: string, enabled: boolean) {
+    if (enabled) return this.optionalStep('terminal', () => this.ports.setTerminalCli(bin, true), 'CLI_PATH_FAILED');
+    await this.ports.setTerminalCli(bin, false).catch(() => undefined);
   }
 
   /** A step whose failure leaves a usable install: report it and carry on. */

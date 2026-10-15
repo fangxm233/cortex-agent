@@ -4,7 +4,7 @@ import { useVocab } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
 import { MButton } from '@/mobile/ui/kit';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
-import { groupModelFacts, modelOptionLabel } from '@/features/settings/vm/models-panel-vm';
+import { favoriteThinkingControl, groupModelFacts, modelOptionLabel, thinkingFromValue, type ModelFact } from '@/features/settings/vm/models-panel-vm';
 import { MSettingsCard, MSettingsFeedback, MSettingsPage, MSettingsRow, MSettingsSelect } from './MSettingsControls';
 
 function DefaultModel({ c }: { c: ModelsController }) {
@@ -17,13 +17,26 @@ function DefaultModel({ c }: { c: ModelsController }) {
   </MSettingsSelect></MSettingsCard>;
 }
 
+function FavoriteThinking({ c, fact }: { c: ModelsController; fact: ModelFact }) {
+  const L = useVocab();
+  const control = favoriteThinkingControl(fact, c.catalog, L);
+  return <MSettingsSelect label={L.stColThinking} aria-label={`${L.stColThinking} · ${modelOptionLabel(fact.ref)}`}
+    title={L.stModelThinkingNote} value={control.value} disabled={c.pending || control.disabled}
+    onChange={event => c.setThinking(fact.ref, thinkingFromValue(event.target.value))}>
+    {control.options.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>
+      {option.label}
+    </option>)}
+  </MSettingsSelect>;
+}
+
 function Favorites({ c }: { c: ModelsController }) {
   const L = useVocab();
   return <>
     {!c.facts.length && <MSettingsCard title={L.stModelFavorites}><MSettingsFeedback hint={L.stNoFavorites} /></MSettingsCard>}
     {groupModelFacts(c.facts).map(([group, facts]) => <MSettingsCard key={group} title={`${L.stModelFavorites} · ${group}`}>
       {facts.map(fact => <MSettingsRow key={fact.key} stacked title={fact.ref.model}
-        sub={fact.thinking ?? L.default} trailing={<div className="mobile-settings-actions">
+        trailing={<div className="mobile-settings-actions">
+          <FavoriteThinking c={c} fact={fact} />
           <MButton compact variant="accent-outline" disabled={c.pending || fact.current}
             onClick={() => c.setDefault(fact.key)}>{fact.current ? L.default : L.stSetDefaultModel}</MButton>
           <MButton compact variant="danger-outline" disabled={c.pending}

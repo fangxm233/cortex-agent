@@ -128,8 +128,11 @@ processes. Running `install` again rewrites only what differs. New terminals
 use this install even when another `cortex` is on `PATH`; the result lists
 those under `shadowed`. fish is not configured.
 
-The daemon rewrites existing launchers at startup when its Node.js or entry
-path has changed. It never creates them. `remove` deletes only the files this
+At startup the server re-points existing launchers when its Node.js or entry
+path has changed. A server that the desktop app installed in
+`$CORTEX_HOME/runtime/prefix` also runs `install` itself when no launchers
+exist, unless `remove` was the last choice. `install` and `remove` record that
+choice in `$CORTEX_HOME/runtime/terminal-cli.json`. `remove` deletes only the files this
 command wrote and takes the directory back off `PATH`, which leaves the
 profiles and the user `Path` as they were before `install`. `status` reports
 whether the launchers exist, which are out of date, and where the directory is

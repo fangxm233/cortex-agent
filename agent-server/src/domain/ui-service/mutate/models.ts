@@ -9,8 +9,9 @@ import {
 } from '@domain/agents/engine-selection.js';
 import { GATEWAY_CONFIG_PATH } from '@domain/pi-providers/gateway-route-store.js';
 import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
-import { rememberModelSelection } from '@domain/agents/config.js';
-import { modelsFavoriteInput, modelsSetDefaultInput } from '../input-schemas.js';
+import { selectionForModel } from '@domain/agents/models.js';
+import { getModelMemory, rememberModelSelection } from '@domain/agents/config.js';
+import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } from '../input-schemas.js';
 import type { UiServiceDeps, Result, ModelsMutationReturn, MutateArgs } from '../types.js';
 
 type RawModelsFile = ModelsFile & Record<string, unknown>;
@@ -105,6 +106,24 @@ export async function setDefaultModel(
   });
 }
 
+export async function setModelThinking(
+  configDir: string,
+  args: MutateArgs<'models.setThinking'>,
+  resolveSelection: (ref: ModelRef) => EngineSelection = selectionForModel,
+): Promise<boolean> {
+  const { ref, thinking } = validate(() => modelsSetThinkingInput.parse(args));
+  validate(() => validateModelRef(ref));
+  return modelsWriteLock.run(async () => {
+    const raw = await readModelsFile(configDir);
+    if (!raw.favorites.some(entry => modelKey(entry) === modelKey(ref))) throw invalid('Model is not a favorite');
+    const selection = validate(() => ({ ...resolveSelection(ref), thinking }));
+    validate(() => validateEngineSelection(selection));
+    if (getModelMemory()[modelKey(ref)]?.thinking === thinking) return false;
+    rememberModelSelection(selection);
+    return true;
+  });
+}
+
 async function mutation(write: () => Promise<boolean>): Promise<Result<ModelsMutationReturn>> {
   try { return { ok: true, data: { changed: await write() } }; }
   catch (error) {
@@ -132,4 +151,10 @@ export async function handleModelsSetDefault(
   _deps: UiServiceDeps, args: MutateArgs<'models.setDefault'>,
 ): Promise<Result<ModelsMutationReturn>> {
   return mutation(() => setDefaultModel(CONFIG_DIR, args));
+}
+
+export async function handleModelsSetThinking(
+  _deps: UiServiceDeps, args: MutateArgs<'models.setThinking'>,
+): Promise<Result<ModelsMutationReturn>> {
+  return mutation(() => setModelThinking(CONFIG_DIR, args));
 }

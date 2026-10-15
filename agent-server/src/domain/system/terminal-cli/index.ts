@@ -10,6 +10,7 @@ import {
   listManagedShims, packageBins, refreshShims, removeShims, renderShims, shimDir, staleShims, writeShims,
   type RenderedShim,
 } from './shims.js';
+import { isManagedRuntimeInstall, readTerminalCliState, writeTerminalCliState } from './state.js';
 
 export interface TerminalCliContext {
   home: string;
@@ -63,12 +64,22 @@ function shadowedCortex(ctx: TerminalCliContext, dir: string): string[] {
   return findOnPath(names, ctx.pathEnv, ctx.platform, [dir, ...ownBinDirs(ctx.node, ctx.installRoot, ctx.platform)]);
 }
 
+/**
+ * PATH first, launchers second, state last: an interrupted install leaves no launchers behind, so
+ * the next server start sees it as not installed and runs it again.
+ */
+function applyInstall(ctx: TerminalCliContext, dir: string, shims: RenderedShim[], changes: PathChange[]): string[] {
+  ctx.registrar.apply(changes);
+  const written = writeShims(dir, shims);
+  writeTerminalCliState(ctx.home, 'installed');
+  return written;
+}
+
 export function installTerminalCli(ctx: TerminalCliContext, dryRun: boolean) {
   const dir = shimDir(ctx.home);
   const shims = renderFor(ctx);
   const changes = ctx.registrar.plan(dir, 'add');
-  const written = dryRun ? staleShims(dir, shims) : writeShims(dir, shims);
-  if (!dryRun) ctx.registrar.apply(changes);
+  const written = dryRun ? staleShims(dir, shims) : applyInstall(ctx, dir, shims, changes);
   return {
     ok: true, action: 'install', dry_run: dryRun, dir, shims: shims.map((shim) => shim.file), written,
     path_targets: summarize(changes), shadowed: shadowedCortex(ctx, dir),
@@ -79,7 +90,10 @@ export function removeTerminalCli(ctx: TerminalCliContext, dryRun: boolean) {
   const dir = shimDir(ctx.home);
   const changes = ctx.registrar.plan(dir, 'remove');
   const removed = dryRun ? listManagedShims(dir) : removeShims(dir);
-  if (!dryRun) ctx.registrar.apply(changes);
+  if (!dryRun) {
+    ctx.registrar.apply(changes);
+    writeTerminalCliState(ctx.home, 'removed');
+  }
   return { ok: true, action: 'remove', dry_run: dryRun, dir, removed, path_targets: summarize(changes) };
 }
 
@@ -92,8 +106,19 @@ export function terminalCliStatus(ctx: TerminalCliContext) {
   return { ok: true, dir, installed: installed.length > 0, shims: installed, stale, path_targets: registered, on_current_path: onPath };
 }
 
-/** Daemon start: keep installed shims pointing at the node and entry that are running now. */
-export function refreshTerminalCli(home: string): string[] {
-  const ctx = { home, node: process.execPath, installRoot: INSTALL_ROOT, platform: process.platform };
-  return refreshShims(shimDir(home), renderFor(ctx));
+export type TerminalCliSync = { action: 'skipped' | 'installed' | 'refreshed'; files: string[] };
+
+/**
+ * Server start. A desktop-runtime install gets the terminal command unless the user removed it,
+ * which also covers installs that predate it once they update. Elsewhere, existing launchers are
+ * only re-pointed at the node and entry running now (e.g. after a bundled Node upgrade).
+ */
+export function syncTerminalCli(ctx: TerminalCliContext): TerminalCliSync {
+  if (readTerminalCliState(ctx.home) === 'removed') return { action: 'skipped', files: [] };
+  const dir = shimDir(ctx.home);
+  const missing = listManagedShims(dir).length === 0;
+  if (missing && isManagedRuntimeInstall(ctx.home, ctx.installRoot, ctx.platform)) {
+    return { action: 'installed', files: installTerminalCli(ctx, false).written };
+  }
+  return { action: 'refreshed', files: refreshShims(dir, renderFor(ctx)) };
 }

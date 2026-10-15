@@ -5,7 +5,7 @@ import { Select } from '@/design';
 import { useVocab } from '@/i18n';
 import { matchesModelFilter, modelKey } from '@/lib/model-selection';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
-import { groupModelFacts, modelOptionLabel } from '@/features/settings/vm/models-panel-vm';
+import { favoriteThinkingControl, groupModelFacts, modelOptionLabel, thinkingFromValue, type ModelFact } from '@/features/settings/vm/models-panel-vm';
 import { SLinkAction, SNotice, SPill, SRow, SRowGroup, SSection, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 
 function DefaultModelRow({ controller: c }: { controller: ModelsController }) {
@@ -20,6 +20,17 @@ function DefaultModelRow({ controller: c }: { controller: ModelsController }) {
   } /></SRowGroup>;
 }
 
+function FavoriteThinking({ c, fact }: { c: ModelsController; fact: ModelFact }) {
+  const L = useVocab();
+  const control = favoriteThinkingControl(fact, c.catalog, L);
+  return <span className="settings-model-cell" data-label={L.stColThinking}>
+    <Select aria-label={`${L.stColThinking} · ${modelOptionLabel(fact.ref)}`} title={L.stModelThinkingNote}
+      value={control.value} options={control.options} disabled={c.pending || control.disabled}
+      popupClassName="settings-surface settings-select-popup"
+      onValueChange={value => c.setThinking(fact.ref, thinkingFromValue(value))} />
+  </span>;
+}
+
 function FavoriteGroups({ controller: c }: { controller: ModelsController }) {
   const L = useVocab();
   return <SSection label={L.stModelFavorites}>
@@ -28,7 +39,7 @@ function FavoriteGroups({ controller: c }: { controller: ModelsController }) {
       <SRowGroup data-model-group={group}>{facts.map(fact => <SRow className="settings-model-row" key={fact.key} data-model-row={fact.key}
         title={<span className="settings-model-name">{fact.ref.model} {fact.current && <SPill tone="accent">{L.default}</SPill>}</span>}
         control={<div className="settings-model-controls">
-          <span className="settings-model-cell" data-label={L.stColThinking}>{fact.thinking ?? L.default}</span>
+          <FavoriteThinking c={c} fact={fact} />
           <SLinkAction disabled={c.pending || fact.current} onClick={() => c.setDefault(fact.key)}>{L.stSetDefaultModel}</SLinkAction>
           <SLinkAction disabled={c.pending} onClick={() => c.remove(fact.ref)}>{L.stRemoveFavorite}</SLinkAction>
         </div>}

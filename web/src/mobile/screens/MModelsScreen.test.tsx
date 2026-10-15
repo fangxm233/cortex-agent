@@ -13,9 +13,47 @@ function controller(): ModelsController {
   return { snapshot, facts: [{ ref, key: modelKey(ref), thinking: 'xhigh', current: true }], options: [ref],
     loading: false, error: null, catalogOpen: true, catalogModels: [{ ...ref, model: 'pro' }],
     catalogPending: false, catalogError: null, pending: false,
-    setCatalogOpen: vi.fn(), setDefault: vi.fn(), add: vi.fn(), remove: vi.fn(),
+    catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high', 'xhigh'], claude: ['high'] } },
+    setCatalogOpen: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
   };
 }
+
+function render(c: ModelsController) { return create(<LangProvider><MModelsView controller={c} onBack={vi.fn()} /></LangProvider>); }
+
+describe('mobile favorite thinking', () => {
+  it.each([['high', 'high'], ['off', 'off'], ['', null]])('maps %s to %s without changing default or optimistic memory', (value, thinking) => {
+    const c = controller();
+    const view = render(c);
+    const select = view.root.findAllByType('select')[1];
+    expect(select.props.disabled).toBe(false);
+    act(() => select.props.onChange({ target: { value } }));
+    expect(c.setThinking).toHaveBeenCalledWith(ref, thinking);
+    expect(c.setDefault).not.toHaveBeenCalled();
+    expect(select.props.value).toBe('xhigh');
+    expect(select.findAllByType('option')[0].children).toEqual([en.stThinkingBackendDefault]);
+    view.unmount();
+  });
+  it.each(['write', 'missing', 'scan'])('disables the thinking picker during %s', state => {
+    const c = controller();
+    c.pending = state === 'write';
+    c.catalog = state === 'missing' ? null : { ...c.catalog!, piPending: state === 'scan' };
+    const view = render(c);
+    const select = view.root.findAllByType('select')[1];
+    expect(select.props.disabled).toBe(true);
+    expect(select.props.value).toBe('xhigh');
+    expect(c.setThinking).not.toHaveBeenCalled();
+    view.unmount();
+  });
+  it('keeps unsupported memory visible as a disabled option', () => {
+    const c = controller();
+    c.facts[0].thinking = 'max';
+    const view = render(c);
+    const select = view.root.findAllByType('select')[1];
+    expect(select.props.value).toBe('max');
+    expect(select.findByProps({ value: 'max', disabled: true }).children).toEqual([`max · ${en.stThinkingUnsupported}`]);
+    view.unmount();
+  });
+});
 
 describe('mobile models', () => {
   it('shares favorite add/remove and full default model keys with desktop', () => {
@@ -26,7 +64,7 @@ describe('mobile models', () => {
     expect(c.remove).toHaveBeenCalledWith(ref);
     act(() => buttons.find(button => button.children.includes(en.stAddFavorite))!.props.onClick());
     expect(c.add).toHaveBeenCalledWith({ ...ref, model: 'pro' });
-    const select = view.root.findByType('select');
+    const select = view.root.findAllByType('select')[0];
     expect(select.props.value).toBe(modelKey(ref));
     act(() => select.props.onChange({ target: { value: modelKey(ref) } }));
     expect(c.setDefault).toHaveBeenCalledWith(modelKey(ref));

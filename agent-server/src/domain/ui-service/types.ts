@@ -1691,6 +1691,7 @@ export interface MutateReturnMap {
   'models.favorites.add': ModelsMutationReturn;
   'models.favorites.remove': ModelsMutationReturn;
   'models.setDefault': ModelsMutationReturn;
+  'models.setThinking': ModelsMutationReturn;
   'plugins.assign': PluginsAssignReturn;
   'plugins.skillWrite': PluginsSkillWriteReturn;
   'plugins.skillCreate': PluginsSkillReturn;

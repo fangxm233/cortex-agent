@@ -227,7 +227,7 @@ pub fn run() {
             setup::setup_enable_ui,
             setup::setup_start_daemon,
             setup::setup_enable_autostart,
-            setup::setup_install_cli,
+            setup::setup_terminal_cli,
             forward::forward_start,
             forward::forward_stop,
             forward::forward_list,
