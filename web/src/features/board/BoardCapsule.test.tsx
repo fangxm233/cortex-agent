@@ -18,7 +18,7 @@ const BOARD: BoardInfo = {
   createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
 };
 const session = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInfo =>
-  ({ sessionId, boardId: 'b1', teamLeadId: 'lead', workerName: sessionId, workerRetiredAt: null, running: false, awaitingInput: false, ...over }) as SessionInfo;
+  ({ sessionId, boardId: 'b1', teamLeadId: 'lead', workerName: sessionId, running: false, awaitingInput: false, ...over }) as SessionInfo;
 
 let mounted: ReactTestRenderer | null = null;
 beforeEach(() => { h.live = { board: BOARD, missing: false, decisions: [], sessions: [] }; });

@@ -4,7 +4,7 @@ import { teamRoster, workerState } from '@/features/team/worker-roster';
 // What both live surfaces — the dock's strip and the chat's status bar — say about a board's bound
 // sessions. One selector, so the two never disagree about who is waiting on the user.
 
-/** Bound sessions in display order: leads first, then workers attention-first; retired workers
+/** Bound sessions in display order: leads first, then workers attention-first; inactive workers
  *  have nothing left to report and are left out. */
 export function stripSessions(sessions: SessionInfo[]): SessionInfo[] {
   const leads = sessions.filter((s) => !s.teamLeadId);

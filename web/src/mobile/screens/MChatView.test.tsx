@@ -418,9 +418,9 @@ describe('MChatView header status line', () => {
 
 describe('MChatView team context', () => {
   const status = { running: false, tone: 'idle' as const, text: 'idle' };
-  const worker = (sessionId: string, retired = false, extra: Record<string, unknown> = {}) => ({
+  const worker = (sessionId: string, inactive = false, extra: Record<string, unknown> = {}) => ({
     sessionId, projectId: 'p', label: null, origin: 'direct', teamLeadId: 'lead',
-    workerName: 'w-' + sessionId, workerRetiredAt: retired ? 1 : null, createdAt: '', lastUsedAt: '', ...extra,
+    workerName: 'w-' + sessionId, createdAt: '', lastUsedAt: inactive ? '2026-01-01T00:00:00Z' : '', ...extra,
   }) as unknown as import('@cortex-agent/ui-contract').SessionInfo;
   const mount = (extra: Record<string, unknown>) => {
     let renderer!: ReactTestRenderer;
@@ -435,9 +435,9 @@ describe('MChatView team context', () => {
     const r = mount({ workers: [], parent: null, onOpenWorker: vi.fn() });
     expect(teamRows(r)).toHaveLength(0);
     expect(crumbs(r)).toHaveLength(0);
-    const retiredOnly = mount({ workers: [worker('w0', true)], onOpenWorker: vi.fn() });
-    expect(teamRows(retiredOnly)).toHaveLength(0);
-    act(() => { r.unmount(); retiredOnly.unmount(); });
+    const inactiveOnly = mount({ workers: [worker('w0', true)], onOpenWorker: vi.fn() });
+    expect(teamRows(inactiveOnly)).toHaveLength(0);
+    act(() => { r.unmount(); inactiveOnly.unmount(); });
   });
 
   it('puts the team in a capsule above the composer, not under the header, and opens the team sheet from it', () => {
@@ -452,7 +452,7 @@ describe('MChatView team context', () => {
     const sheet = r.root.findByProps({ 'data-team-sheet': '' });
     const workerRows = sheet.findAll((n) => n.type === 'button' && n.props['data-worker-row'] !== undefined);
     expect(workerRows.map((n) => n.props['data-worker-row'])).toEqual(['w1', 'w2']);
-    expect(sheet.findByProps({ 'data-team-retired': '' })).toBeTruthy();
+    expect(sheet.findByProps({ 'data-team-inactive': '' })).toBeTruthy();
     act(() => workerRows[1].props.onClick());
     expect(onOpenWorker).toHaveBeenCalledWith('w2');
     expect(r.root.findAll((n) => n.props['data-team-sheet'] !== undefined)).toHaveLength(0);

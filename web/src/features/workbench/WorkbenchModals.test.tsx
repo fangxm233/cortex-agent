@@ -65,7 +65,6 @@ function run(sessionId: string): SessionInfo {
     boardId: null,
     teamLeadId: null,
     workerName: null,
-    workerRetiredAt: null,
   };
 }
 

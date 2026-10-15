@@ -26,7 +26,6 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
     boardId: over.boardId ?? null,
     teamLeadId: over.teamLeadId ?? null,
     workerName: over.workerName ?? null,
-    workerRetiredAt: over.workerRetiredAt ?? null,
   };
 }
 

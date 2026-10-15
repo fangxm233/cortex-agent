@@ -23,7 +23,6 @@ const session = (projectId: string, overrides: Partial<SessionInfo> = {}): Sessi
     origin: 'direct',
     teamLeadId: null,
     workerName: null,
-    workerRetiredAt: null,
     ...overrides,
   }) as SessionInfo;
 
@@ -63,13 +62,15 @@ describe('groupWorkers', () => {
     expect(g.workers.has(w1.sessionId)).toBe(false);
   });
 
-  it('orders workers active-first by recency, retired last', () => {
+  it('orders workers active-first by recency, inactive last', () => {
     const lead = session('atlas');
-    const retired = worker(lead, { lastUsedAt: ago(MIN), workerRetiredAt: NOW - MIN });
-    const old = worker(lead, { lastUsedAt: ago(3 * HOUR) });
+    const inactive = worker(lead, { lastUsedAt: ago(4 * HOUR) });
+    const older = worker(lead, { lastUsedAt: ago(2 * HOUR) });
     const fresh = worker(lead, { lastUsedAt: ago(2 * MIN) });
-    expect(ids(workersOf(lead.sessionId, [lead, retired, old, fresh])))
-      .toEqual([fresh.sessionId, old.sessionId, retired.sessionId]);
+    // Running is never inactive, however old its last stamp.
+    const busy = worker(lead, { lastUsedAt: ago(5 * HOUR), running: true });
+    expect(ids(workersOf(lead.sessionId, [lead, inactive, older, fresh, busy], NOW)))
+      .toEqual([fresh.sessionId, older.sessionId, busy.sessionId, inactive.sessionId]);
   });
 });
 
@@ -80,7 +81,7 @@ describe('rail tree with team mode', () => {
     const withWorkers = [lead, worker(lead), worker(lead), ...plain];
     // Off: worker fields are ignored entirely.
     const off = buildRailTree(input({ directSessions: withWorkers, teamEnabled: false, expandedLeads: new Set([lead.sessionId]) }));
-    const stripped = withWorkers.map((s) => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null }));
+    const stripped = withWorkers.map((s) => ({ ...s, teamLeadId: null, workerName: null }));
     expect(off).toEqual(buildRailTree(input({ directSessions: stripped })));
     // On, but no session has workers: the same tree as without the feature.
     expect(buildRailTree(input({ directSessions: plain, teamEnabled: true })))
@@ -130,14 +131,14 @@ describe('rail tree with team mode', () => {
     expect(selected.workers?.[0].selected).toBe(true);
   });
 
-  it('marks retired workers and sorts them last', () => {
+  it('marks inactive workers and sorts them last', () => {
     const lead = session('atlas');
-    const retired = worker(lead, { lastUsedAt: ago(MIN), workerRetiredAt: NOW });
+    const inactive = worker(lead, { lastUsedAt: ago(4 * HOUR) });
     const active = worker(lead, { lastUsedAt: ago(2 * HOUR) });
-    const row = buildRailTree(input({ directSessions: [lead, retired, active], teamEnabled: true })).projects[0].sessions[0];
-    expect(ids(row.workers ?? [])).toEqual([active.sessionId, retired.sessionId]);
-    expect(row.workers?.[0].retired).toBeUndefined();
-    expect(row.workers?.[1].retired).toBe(true);
+    const row = buildRailTree(input({ directSessions: [lead, inactive, active], teamEnabled: true })).projects[0].sessions[0];
+    expect(ids(row.workers ?? [])).toEqual([active.sessionId, inactive.sessionId]);
+    expect(row.workers?.[0].inactive).toBeUndefined();
+    expect(row.workers?.[1].inactive).toBe(true);
   });
 
   it('keeps a worker flat when its lead is missing or starred', () => {

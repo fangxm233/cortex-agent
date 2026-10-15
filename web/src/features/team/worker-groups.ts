@@ -9,21 +9,31 @@ import { orderSessions } from '@/features/session/list/session-groups';
 export interface WorkerGrouping {
   /** Rows at the list's own level: ordinary sessions, leads and orphaned workers, in input order. */
   top: SessionInfo[];
-  /** Lead sessionId → its workers: active ones in list order, retired ones last. */
+  /** Lead sessionId → its workers: active ones in list order, inactive ones last. */
   workers: Map<string, SessionInfo[]>;
 }
 
-export function isRetiredWorker(s: SessionInfo): boolean {
-  return s.workerRetiredAt != null;
+/** How long a worker with nothing running or pending stays in view after its last activity. The
+ *  server folds its lead's roster by the same age (`WORKER_FOLD_MS` in agent-server
+ *  `domain/sessions/team.ts`). */
+export const WORKER_FOLD_MS = 3 * 60 * 60 * 1000;
+
+/** A worker with nothing running or pending whose last activity is older than the fold age. Never a
+ *  session that is not a worker. */
+export function isInactiveWorker(s: SessionInfo, now: number = Date.now()): boolean {
+  if (!s.teamLeadId || s.running || s.awaitingInput || (s.waitingOnLead ?? 0) > 0 || (s.waitingOn ?? 0) > 0) return false;
+  const at = Date.parse(s.lastUsedAt);
+  return !Number.isNaN(at) && now - at > WORKER_FOLD_MS;
 }
 
-/** Active first (unread, then recency — the list's own order), retired after. */
-export function orderWorkers(workers: SessionInfo[]): SessionInfo[] {
+/** Active first (unread, then recency — the list's own order), inactive after. */
+export function orderWorkers(workers: SessionInfo[], now: number = Date.now()): SessionInfo[] {
   const ordered = orderSessions(workers);
-  return [...ordered.filter((w) => !isRetiredWorker(w)), ...ordered.filter(isRetiredWorker)];
+  const inactive = (w: SessionInfo) => isInactiveWorker(w, now);
+  return [...ordered.filter((w) => !inactive(w)), ...ordered.filter(inactive)];
 }
 
-export function groupWorkers(sessions: SessionInfo[]): WorkerGrouping {
+export function groupWorkers(sessions: SessionInfo[], now: number = Date.now()): WorkerGrouping {
   const ids = new Set(sessions.map((s) => s.sessionId));
   const leadOf = (s: SessionInfo): string | null =>
     s.teamLeadId && s.teamLeadId !== s.sessionId && ids.has(s.teamLeadId) ? s.teamLeadId : null;
@@ -41,19 +51,19 @@ export function groupWorkers(sessions: SessionInfo[]): WorkerGrouping {
     if (list) list.push(s);
     else workers.set(lead, [s]);
   }
-  for (const [lead, list] of workers) workers.set(lead, orderWorkers(list));
+  for (const [lead, list] of workers) workers.set(lead, orderWorkers(list, now));
   return { top, workers };
 }
 
 /** A lead's workers out of a session list — what the lead's own view shows. */
-export function workersOf(leadId: string, sessions: SessionInfo[]): SessionInfo[] {
-  return orderWorkers(sessions.filter((s) => s.teamLeadId === leadId && s.sessionId !== leadId));
+export function workersOf(leadId: string, sessions: SessionInfo[], now: number = Date.now()): SessionInfo[] {
+  return orderWorkers(sessions.filter((s) => s.teamLeadId === leadId && s.sessionId !== leadId), now);
 }
 
 export interface TeamContext {
   /** The open session's lead, when it is a worker and the lead is in the list. */
   lead: SessionInfo | null;
-  /** The open session's own workers (retired included; the strip drops those). */
+  /** The open session's own workers (inactive included; the strip drops those). */
   workers: SessionInfo[];
 }
 

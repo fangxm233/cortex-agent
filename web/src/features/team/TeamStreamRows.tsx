@@ -11,6 +11,7 @@ import {
 } from '@/features/session/transcript/transcript-vm';
 import { workerDotStyle } from './TeamRoster';
 import { workerState, workerStatusText } from './worker-roster';
+import { isInactiveWorker } from './worker-groups';
 import {
   findWorker, spawnedWorker, threadSummary, updateTimeRange, waitedWorkers, waitingRequest,
 } from './team-stream';
@@ -174,7 +175,7 @@ function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean 
   const { workers } = useStream();
   const [open, setOpen] = useState(false);
   const worker = findWorker(workers, action.worker);
-  const message = action.op === 'stop' ? (action.retire ? L.wbTeamActRetire : null) : action.text;
+  const message = action.op === 'stop' ? null : action.text;
   const canOpen = action.op !== 'stop' && !!action.text;
   const time = messageTimeLabel(action.ts ?? undefined);
   const line = (
@@ -296,7 +297,7 @@ function ThreadStatus({ thread, worker, waiting, now, range = true }: {
       {waiting.kind === 'plan' ? L.wbTeamPlanWaiting : L.wbTeamQuestionWaiting}
     </span>;
   }
-  if (thread.latest && worker && worker.workerRetiredAt == null) {
+  if (thread.latest && worker && !isInactiveWorker(worker, now)) {
     const state = workerState(worker);
     const color = state === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted)';
     return <span data-thread-status={state} style={{ ...base, color }}>{workerStatusText(worker, now, L, lang)}</span>;

@@ -32,7 +32,7 @@ function run(p: Partial<SessionInfo> = {}): SessionInfo {
     kind: 'scheduled', origin: 'scheduled', scheduleId: 'repeat-1', createdAt: '2030-01-01T07:00:00.000Z',
     lastUsedAt: '2030-01-01T07:00:00.000Z', resumable: true, label: null, profileName: null,
     running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null,
-    unread: false, ...p, boardId: p.boardId ?? null, teamLeadId: p.teamLeadId ?? null, workerName: p.workerName ?? null, workerRetiredAt: p.workerRetiredAt ?? null,
+    unread: false, ...p, boardId: p.boardId ?? null, teamLeadId: p.teamLeadId ?? null, workerName: p.workerName ?? null,
   };
 }
 

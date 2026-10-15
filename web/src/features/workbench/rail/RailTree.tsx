@@ -256,7 +256,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             : isHover(key)
               ? 'var(--proto-gray)'
               : 'transparent',
-          opacity: row.retired && !row.selected ? 0.55 : undefined,
+          opacity: row.inactive && !row.selected ? 0.55 : undefined,
         }}
       >
         {row.selected && (

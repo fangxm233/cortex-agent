@@ -24,7 +24,6 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   boardId: null,
   teamLeadId: null,
   workerName: null,
-  workerRetiredAt: null,
 });
 
 const project = (id: string): ProjectConduitInfo => ({

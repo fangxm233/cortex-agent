@@ -3,13 +3,13 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { boardFlagTone, boardSummary } from './board-summary';
 
 const s = (sessionId: string, over: Partial<SessionInfo> = {}): SessionInfo =>
-  ({ sessionId, teamLeadId: null, workerName: null, workerRetiredAt: null, running: false, awaitingInput: false, ...over }) as SessionInfo;
+  ({ sessionId, teamLeadId: null, workerName: null, running: false, awaitingInput: false, ...over }) as SessionInfo;
 
 describe('boardSummary', () => {
-  it('orders leads first, workers by attention, and drops retired workers', () => {
+  it('orders leads first, workers by attention, and drops inactive workers', () => {
     const sessions = [
       s('w-idle', { teamLeadId: 'lead', workerName: 'idle' }),
-      s('w-gone', { teamLeadId: 'lead', workerName: 'gone', workerRetiredAt: 1 }),
+      s('w-gone', { teamLeadId: 'lead', workerName: 'gone', lastUsedAt: '2026-01-01T00:00:00Z' }),
       s('w-run', { teamLeadId: 'lead', workerName: 'run', running: true }),
       s('lead', { running: true, awaitingInput: true }),
     ];

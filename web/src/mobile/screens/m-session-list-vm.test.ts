@@ -29,7 +29,6 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     boardId: over.boardId ?? null,
     teamLeadId: over.teamLeadId ?? null,
     workerName: over.workerName ?? null,
-    workerRetiredAt: over.workerRetiredAt ?? null,
   };
 }
 
@@ -131,14 +130,14 @@ describe('buildSessionRows', () => {
 
 describe('team workers in the session list', () => {
   const lead = sess({ sessionId: 'lead', lastUsedAt: '2026-07-15T10:00:00Z' });
-  const active = sess({ sessionId: 'w-active', teamLeadId: 'lead', workerName: 'a', lastUsedAt: '2026-07-15T08:00:00Z' });
-  const retired = sess({ sessionId: 'w-retired', teamLeadId: 'lead', workerName: 'b',
-    lastUsedAt: '2026-07-15T11:00:00Z', workerRetiredAt: Date.parse('2026-07-15T11:00:00Z') });
+  const active = sess({ sessionId: 'w-active', teamLeadId: 'lead', workerName: 'a', lastUsedAt: '2026-07-15T09:15:00Z' });
+  // Idle past the fold age (3h) at `now`.
+  const inactive = sess({ sessionId: 'w-inactive', teamLeadId: 'lead', workerName: 'b', lastUsedAt: '2026-07-15T07:00:00Z' });
   const orphan = sess({ sessionId: 'orphan', teamLeadId: 'gone', workerName: 'c', lastUsedAt: '2026-07-15T09:30:00Z' });
   const now = Date.parse('2026-07-15T12:00:00Z');
 
   it('leaves out workers whose lead is listed, keeps orphans as rows', () => {
-    const rows = buildSessionRows([active, lead, retired, orphan], now, 'en', en, true);
+    const rows = buildSessionRows([active, lead, inactive, orphan], now, 'en', en, true);
     expect(rows.map(r => r.id)).toEqual(['lead', 'orphan']);
     expect(rows[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
   });
@@ -166,33 +165,33 @@ describe('team workers in the session list', () => {
     expect(buildSessionRows([lead, onLead], now, 'en', en, true)[0].status.kind).toBe('running');
   });
 
-  it('rolls up unread from workers, but nothing from retired ones, which the lead’s chat does not offer', () => {
+  it('rolls up unread from workers, but nothing from inactive ones, which the lead’s chat does not offer', () => {
     expect(buildSessionRows([lead, { ...active, unread: true }], now, 'en', en, true)[0].unread).toBe(true);
-    const dormant = { ...retired, unread: true, running: true };
+    const dormant = { ...inactive, unread: true };
     expect(buildSessionRows([lead, dormant], now, 'en', en, true)[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
   });
 
   it('keeps a starred lead’s workers off both lists and rolls them onto the starred row', () => {
     const starredLead = { ...lead, starred: true };
-    const list = buildProjectSessionList('nimbus', [starredLead, { ...active, running: true }, retired, orphan], [], [], now, 'en', en, true);
+    const list = buildProjectSessionList('nimbus', [starredLead, { ...active, running: true }, inactive, orphan], [], [], now, 'en', en, true);
     expect(list.starredRows.map(r => r.id)).toEqual(['lead']);
     expect(list.starredRows[0].status).toEqual({ kind: 'running', text: '1 worker running' });
     expect(list.rows.map(r => r.id)).toEqual(['orphan']);
   });
 
   it('still hands the hidden workers to the lead’s chat for its worker strip', () => {
-    const sessions = [lead, active, retired];
+    const sessions = [lead, active, inactive];
     expect(buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, true).rows.map(r => r.id)).toEqual(['lead']);
-    expect(teamContext(true, lead, sessions).workers.map(w => w.sessionId)).toEqual(['w-active', 'w-retired']);
+    expect(teamContext(true, lead, sessions).workers.map(w => w.sessionId)).toEqual(['w-active', 'w-inactive']);
   });
 
   it('is the plain flat list when team mode is off', () => {
-    const sessions = [active, lead, retired, orphan];
+    const sessions = [active, lead, inactive, orphan];
     const off = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, false);
     const plain = buildProjectSessionList('nimbus',
-      sessions.map(s => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null })), [], [], now, 'en', en);
+      sessions.map(s => ({ ...s, teamLeadId: null, workerName: null })), [], [], now, 'en', en);
     expect(off).toEqual(plain);
-    expect(off.rows.map(r => r.id)).toEqual(['w-retired', 'lead', 'orphan', 'w-active']);
+    expect(off.rows.map(r => r.id)).toEqual(['lead', 'orphan', 'w-active', 'w-inactive']);
     const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, true);
     expect(on.rows.map(r => r.id)).toEqual(['lead', 'orphan']);
   });

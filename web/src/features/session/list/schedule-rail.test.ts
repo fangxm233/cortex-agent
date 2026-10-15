@@ -32,7 +32,6 @@ function mkRun(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     boardId: p.boardId ?? null,
     teamLeadId: p.teamLeadId ?? null,
     workerName: p.workerName ?? null,
-    workerRetiredAt: p.workerRetiredAt ?? null,
   };
 }
 

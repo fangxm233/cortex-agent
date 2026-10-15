@@ -10,7 +10,7 @@ import { findWorker, spawnedWorker, threadSummary, updateTimeRange, waitedWorker
 const session = (name: string, over: Partial<SessionInfo> = {}): SessionInfo => ({
   sessionId: `w-${name}`, projectId: 'atlas', label: null, origin: 'direct',
   createdAt: '2026-07-15T09:00:00Z', lastUsedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-  teamLeadId: 'lead', workerName: name, workerRetiredAt: null, ...over,
+  teamLeadId: 'lead', workerName: name, ...over,
 }) as SessionInfo;
 
 const at = (min: number): string => new Date(Date.UTC(2026, 6, 15, 16, min)).toISOString();
@@ -43,12 +43,13 @@ const statuses = (r: ReactTestRenderer): string[] =>
   r.root.findAll((n) => typeof n.type === 'string' && n.props['data-thread-status'] !== undefined).map((n) => n.props['data-thread-status']);
 
 describe('team stream helpers', () => {
-  it('finds a worker by session, then by name with the active holder first', () => {
-    const old = session('atlas', { sessionId: 'old', workerRetiredAt: 1 });
-    const cur = session('atlas', { sessionId: 'cur' });
-    expect(findWorker([old, cur], 'atlas')?.sessionId).toBe('cur');
-    expect(findWorker([old, cur], 'atlas', 'old')?.sessionId).toBe('old');
-    expect(findWorker([old, cur], null)).toBeNull();
+  it('finds a worker by session, then by name', () => {
+    const atlas = session('atlas');
+    const orchard = session('orchard');
+    expect(findWorker([atlas, orchard], 'orchard')?.sessionId).toBe('w-orchard');
+    expect(findWorker([atlas, orchard], 'orchard', 'w-atlas')?.sessionId).toBe('w-atlas');
+    expect(findWorker([atlas, orchard], 'gone')).toBeNull();
+    expect(findWorker([atlas, orchard], null)).toBeNull();
   });
 
   it('matches an unnamed spawn to its worker by the recorded brief', () => {
@@ -60,7 +61,7 @@ describe('team stream helpers', () => {
   it('waits on running and machine-waiting workers only', () => {
     const list = [
       session('a', { running: true }), session('b', { waitingOn: 1 }), session('c', { awaitingInput: true }),
-      session('d', { running: true, waitingOnLead: 1 }), session('e'), session('f', { running: true, workerRetiredAt: 1 }),
+      session('d', { running: true, waitingOnLead: 1 }), session('e'), session('f', { lastUsedAt: '2026-01-01T00:00:00Z' }),
     ];
     expect(waitedWorkers(list).map((w) => w.workerName)).toEqual(['a', 'b']);
   });
@@ -90,7 +91,7 @@ describe('team rows', () => {
     act(() => r.unmount());
   });
 
-  it.each([{}, { workerRetiredAt: 1, awaitingInput: true }])('ignores unanswered history when the worker is no longer awaiting input: %j', (over) => {
+  it.each([{}, { lastUsedAt: '2026-01-01T00:00:00Z' }])('ignores unanswered history when the worker is no longer awaiting input: %j', (over) => {
     const [card] = rows([ask('atlas', 0)]) as TeamUpdatesRow[];
     const r = render(<TeamRow row={card} />, [session('atlas', over)]);
     expect(statuses(r)).not.toContain('waiting');
