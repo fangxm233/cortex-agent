@@ -1,7 +1,6 @@
 {
   "name": "creative",
   "description": "Clean-room creative environment: writing, image prompts, naming, copy. No skills, no project rules, minimal tools.",
-  "profile": "__active__",
   "promptTemplate": "{{input}}",
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",

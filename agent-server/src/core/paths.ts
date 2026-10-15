@@ -63,7 +63,7 @@ export function resolveSpawnCwd(cwd?: string): string {
  *  DATA_DIR: aistatus reads it from there regardless of CORTEX_HOME. */
 export const AISTATUS_DIR = path.join(os.homedir(), '.aistatus');
 
-/** Configuration files — .env, budget, mode, profiles, templates, etc. (DATA_DIR/config/). */
+/** Configuration files — .env, budget, models, environments, etc. (DATA_DIR/config/). */
 export const CONFIG_DIR = path.join(DATA_DIR, 'config');
 
 /** Persistent store for runtime JSON state files (DATA_DIR/data/). */

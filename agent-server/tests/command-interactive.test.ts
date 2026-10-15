@@ -168,7 +168,7 @@ test('!status Refresh button click re-runs report and updates message', async ()
 // (sessionStore) that hangs in the test environment without a real data dir.
 
 // ============================================================
-// Interactive !profile (Phase 3)
+// Interactive !model
 // ============================================================
 
 // ============================================================

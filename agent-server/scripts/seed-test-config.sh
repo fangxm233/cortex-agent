@@ -3,7 +3,7 @@
 #
 # Overwrites:
 #   $CORTEX_HOME/config/machines.json  → generic testbox entry
-#   $CORTEX_HOME/config/profiles.json  → minimal profile set
+#   $CORTEX_HOME/config/models.json    → default selection and favorites
 
 set -euo pipefail
 
@@ -20,35 +20,17 @@ MACHINES
 # Replace placeholder with actual path (sed -i differs between Linux/macOS)
 sed -i "s|CORTEX_HOME_PLACEHOLDER|$CORTEX_HOME|g" "$CONFIG_DIR/machines.json"
 
-# ── profiles.json ──────────────────────────────────────────────
+# ── models.json ────────────────────────────────────────────────
 
-cat > "$CONFIG_DIR/profiles.json" <<'PROFILES'
+cat > "$CONFIG_DIR/models.json" <<'MODELS'
 {
-  "defaultProfile": "plan",
-  "profiles": {
-    "plan": {
-      "model": "claude-sonnet-4-6",
-      "backend": "claude",
-      "mode": "plan",
-      "fallback": [
-        { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "api" },
-        { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" }
-      ]
-    },
-    "execute": {
-      "model": "claude-sonnet-4-6",
-      "backend": "pi",
-      "provider": "anthropic",
-      "mode": "plan",
-      "fallback": [
-        { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" }
-      ]
-    },
-    "scan":    { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" },
-    "qa":      { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" }
-  }
+  "default": { "backend": "claude", "provider": null, "model": "claude-sonnet-4-6", "thinking": null, "mode": "plan" },
+  "favorites": [
+    { "backend": "claude", "provider": null, "model": "claude-sonnet-4-6" },
+    { "backend": "pi", "provider": "anthropic", "model": "claude-sonnet-4-6" }
+  ]
 }
-PROFILES
+MODELS
 
 echo "[seed-test-config] machines.json → $CONFIG_DIR/machines.json"
-echo "[seed-test-config] profiles.json → $CONFIG_DIR/profiles.json"
+echo "[seed-test-config] models.json → $CONFIG_DIR/models.json"

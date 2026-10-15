@@ -40,7 +40,7 @@ export type CustomProviderIssue =
   | 'model-id-required'
   | 'model-id-duplicate';
 
-/** Same charset the profile loader enforces on a PI provider name (domain/agents/profile-manager). */
+/** Safe provider names used by the model selection and gateway endpoints. */
 export const CUSTOM_PROVIDER_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
 /**
