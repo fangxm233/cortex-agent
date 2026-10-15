@@ -1,5 +1,8 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
+
 import type { SelectionSheetRow, SelectionSheetVM } from './m-chat-vm';
 
 // MBottomSheet's entrance animation needs rAF and window.history; this suite is about what the
@@ -235,4 +238,22 @@ describe('AgentSheet', () => {
     expect(onPick).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
+});
+
+it('opens mobile Models settings after closing the selection sheet', () => {
+  const { renderer, onClose, onPick } = renderSheet();
+  act(() => renderer.root.findByProps({ 'data-selection-settings': true }).props.onClick());
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(navigate).toHaveBeenCalledWith('/m/settings/models');
+  expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(navigate.mock.invocationCallOrder.at(-1)!);
+  expect(onPick).not.toHaveBeenCalled();
+  act(() => renderer.unmount());
+});
+
+it('omits the session subtitle and next-turn footer from the selection sheet', () => {
+  const { renderer } = renderSheet();
+  const text = JSON.stringify(renderer.toJSON());
+  expect(text).not.toContain('This session');
+  expect(text).not.toContain('Applies from the next turn');
+  act(() => renderer.unmount());
 });

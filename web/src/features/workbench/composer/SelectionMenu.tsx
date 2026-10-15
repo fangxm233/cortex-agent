@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
+import { useSettings } from '@/features/settings/useSettings';
 import { SelectionPane as PaneMotion } from '@/design/SelectionPane';
 import type {
   ModeOption, ModelOption, SelectionPane, SelectionRootRow, ThinkingOption,
@@ -99,6 +100,7 @@ export interface SelectionMenuProps {
   modelsReady: boolean;
   pane: SelectionPane;
   setPane: (pane: SelectionPane) => void;
+  onClose: () => void;
   onPickFavorite: (option: ModelOption) => void;
   onPickModel: (option: ModelOption) => void;
   onToggleFavorite: (option: ModelOption) => void;
@@ -123,11 +125,25 @@ function FavoriteRow({ option, onPick, hover, setHover }: { option: ModelOption;
   );
 }
 
+function SelectionHeader({ onClose }: { onClose: () => void }) {
+  const L = useVocab();
+  const { openSection } = useSettings();
+  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <SectionTitle text={L.wbFavorites} />
+    <button type="button" className={MENU_FOCUS} data-selection-settings
+      onClick={(event) => { event.stopPropagation(); onClose(); openSection('models'); }}
+      style={{ border: 0, background: 'transparent', color: 'var(--proto-accent)',
+        font: `400 11px ${mono}`, padding: '6px 8px 3px', cursor: 'pointer' }}>
+      {L.wbModelSettings}
+    </button>
+  </div>;
+}
+
 function RootPane({ props, shared }: { props: SelectionMenuProps; shared: HoverProps }) {
   const L = useVocab();
   const groups = groupModelOptions(props.favorites, props.favorites.find((o) => o.active)?.backend ?? '');
   return <>
-    <SectionTitle text={L.wbFavorites} />
+    <SelectionHeader onClose={props.onClose} />
     {groups.map((group) => <div key={`${group.backend}:${group.group}`}>
       <GroupLabel text={group.group} />
       {group.options.map((option) => <FavoriteRow key={modelKey(option.selection)} option={option} onPick={() => props.onPickFavorite(option)} {...shared} />)}

@@ -13,9 +13,11 @@ const harness = vi.hoisted(() => ({
   catalog: undefined as ModelCatalogSnapshot | undefined,
   setDraftSelection: vi.fn(), setSelection: vi.fn(), setAgent: vi.fn(),
   addFavorite: vi.fn(), removeFavorite: vi.fn(), fetchQuery: vi.fn(),
-  toast: vi.fn(), invalidateQueries: vi.fn(),
+  toast: vi.fn(), invalidateQueries: vi.fn(), openSection: vi.fn(),
   errors: {} as Record<string, (error: Error) => void>,
 }));
+
+vi.mock('@/features/settings/useSettings', () => ({ useSettings: () => ({ openSection: harness.openSection }) }));
 
 type MutationOptions = { __kind: string; onError: (error: Error) => void };
 vi.mock('@/design/Toast', async (importOriginal) => ({
@@ -382,3 +384,13 @@ it.each(['sessions.setSelection', 'sessions.setAgent', 'models.favorites.add', '
     expect(harness.toast).toHaveBeenCalledWith({ title: 'Could not change selection', description: 'offline', tone: 'failed' });
   },
 );
+
+it('opens Models settings and closes the selection menu without changing the model', () => {
+  const renderer = mount();
+  open(renderer);
+  press(renderer.root.findByProps({ 'data-selection-settings': true }));
+  expect(harness.openSection).toHaveBeenCalledWith('models');
+  expect(renderer.root.findByProps({ 'data-chip': 'selection' }).props['aria-expanded']).toBe(false);
+  expect(harness.setSelection).not.toHaveBeenCalled();
+  expect(harness.setDraftSelection).not.toHaveBeenCalled();
+});

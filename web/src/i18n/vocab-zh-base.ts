@@ -98,6 +98,7 @@ export const zhBase = {
   connReconnecting: '正在重连',
   connDisconnected: '已断开',
   wbIdle: '空闲',
+  wbModelSettings: '模型设置',
   wbFavorites: '收藏模型',
   wbFavoritesEmpty: '暂无收藏，在全部模型中点击星标添加。',
   wbAllModels: '全部模型',

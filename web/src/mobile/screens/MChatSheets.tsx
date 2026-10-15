@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, type ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/session/list/session-id';
@@ -237,6 +238,20 @@ function SelectionSection({ section, pending, back, onPick, onToggleFavorite }: 
   );
 }
 
+function ModelSettingsRow({ onClose }: { onClose: () => void }): JSX.Element {
+  const copy = useVocabOptional();
+  const navigate = useNavigate();
+  return <SheetCard>
+    <button type="button" data-selection-settings
+      onClick={() => { onClose(); navigate('/m/settings/models'); }}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+        minHeight: 44, padding: '12px 13px', border: 0, background: 'transparent',
+        font: 'inherit', color: MC.run, textAlign: 'left', cursor: 'pointer' }}>
+      <span>{copy.wbModelSettings}</span><span aria-hidden="true">›</span>
+    </button>
+  </SheetCard>;
+}
+
 function SelectionRoot({ vm, onClose, onPick, setPane }: SelectionSheetProps & {
   setPane: (pane: SelectionRootRow['key']) => void;
 }): JSX.Element {
@@ -244,7 +259,7 @@ function SelectionRoot({ vm, onClose, onPick, setPane }: SelectionSheetProps & {
   const pick = (row: SelectionSheetRow): void => { onClose(); onPick(row); };
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.chatFavoritesTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.chatSelectionSubtitle}</span></div>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.chatFavoritesTitle}</span></div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
         {vm.sections[0]?.rows.length
           ? <SectionRows section={vm.sections[0]} onPick={pick} />
@@ -254,8 +269,8 @@ function SelectionRoot({ vm, onClose, onPick, setPane }: SelectionSheetProps & {
             <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1} onOpen={() => setPane(row.key)} />
           ))}
         </SheetCard>
+        <ModelSettingsRow onClose={onClose} />
       </div>
-      <SheetNote text={copy.chatSelectionFooter} />
     </>
   );
 }

@@ -98,6 +98,7 @@ export const enBase = {
   connReconnecting: 'reconnecting',
   connDisconnected: 'disconnected',
   wbIdle: 'idle',
+  wbModelSettings: 'Model settings',
   wbFavorites: 'Favorites',
   wbFavoritesEmpty: 'No favorites yet. Add a star in All models.',
   wbAllModels: 'All models',
