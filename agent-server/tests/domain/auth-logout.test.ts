@@ -85,7 +85,7 @@ function claudeStatusOptions(root: string, mode: 'api' | 'plan'): GetAuthStatusO
     loadPiRuntime: async () => unavailablePi(),
     getClaudeMode: () => mode,
     getActiveBackend: () => 'claude',
-    listProfiles: () => [],
+    listFavorites: () => [],
     readClaudeAuthStatus: async () => {
       try {
         const parsed = JSON.parse(fs.readFileSync(claudeCredentialsPath, 'utf8'));
@@ -167,8 +167,8 @@ function piStatusOptions(
     }),
     getClaudeMode: () => 'plan',
     getActiveBackend: () => 'pi',
-    listProfiles: () => [],
-    getActiveProfileConfig: () => ({ backend: 'pi', provider: 'deepseek' }),
+    listFavorites: () => [],
+    getDefaultSelection: () => ({ backend: 'pi', provider: 'deepseek' }),
   };
 }
 

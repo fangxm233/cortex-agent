@@ -1031,77 +1031,47 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
   return parseInitAnswersLines(lines);
 }
 
-export function parseInitAnswersLines(lines: string[]): InitAnswers {
-  // Line format:
-  //   backends, platform, gatewayEnabled, name, org, email, installService
-  //   [+ platform-specific token blocks, concatenated in fixed order: slack first, then feishu]
-  //   defaultChoice, favorites (comma-separated mode:model pairs)
-  // `platform` is a comma-separated list (e.g. "slack,feishu"); single values are back-compat.
-  const [backendsRaw, platformRaw, gatewayEnabledRaw, name, org, email, installServiceRaw] = lines;
+function stdinPlatforms(raw = ''): PlatformChoice[] {
+  const values = raw.split(',').map(value => value.trim().toLowerCase());
+  return [...new Set(values.filter((value): value is PlatformChoice => value === 'slack' || value === 'feishu'))];
+}
 
-  const backends = (backendsRaw || 'pi')
-    .split(',')
-    .map(s => s.trim())
-    .filter((s): s is InitBackend => s === 'claude' || s === 'pi');
-
-  // Parse the platform list, keeping valid values in order and de-duplicating.
-  const platforms: PlatformChoice[] = [];
-  const seenPlatforms = new Set<string>();
-  for (const raw of (platformRaw || '').split(',')) {
-    const p = raw.trim().toLowerCase();
-    if ((p === 'slack' || p === 'feishu') && !seenPlatforms.has(p)) {
-      seenPlatforms.add(p);
-      platforms.push(p);
-    }
-  }
-
-  const gatewayChoice = gatewayEnabledRaw?.trim().toLowerCase();
-
-  // Parse platform token blocks from remaining lines (starting at index 7). Blocks are
-  // concatenated in fixed order — slack (3 lines), then feishu (3 lines) — regardless of the
-  // order given in the platform list. The two model-choice lines (optional "mode:model"; empty
-  // → auto-infer) follow whatever token lines were consumed. Single-platform layouts are
-  // back-compatible: slack-only → choices at 10; feishu-only → choices at 10.
+/** Token blocks always use Slack then Feishu order, regardless of platform display order. */
+function stdinPlatformTokens(lines: string[], platforms: PlatformChoice[]) {
   let slackConfig: SlackInitConfig | undefined;
   let feishuConfig: FeishuInitConfig | undefined;
   let cursor = 7;
-
   if (platforms.includes('slack') && lines.length >= cursor + 3) {
-    slackConfig = {
-      signingSecret: lines[cursor] || '',
-      appToken: lines[cursor + 1] || '',
-      botToken: lines[cursor + 2] || '',
-    };
+    slackConfig = { signingSecret: lines[cursor] || '', appToken: lines[cursor + 1] || '', botToken: lines[cursor + 2] || '' };
     cursor += 3;
   }
   if (platforms.includes('feishu') && lines.length >= cursor + 3) {
-    const domainVal = (lines[cursor + 2] || '').trim().toLowerCase();
-    feishuConfig = {
-      appId: lines[cursor] || '',
-      appSecret: lines[cursor + 1] || '',
-      domain: (domainVal === 'feishu' || domainVal === 'lark')
-        ? (domainVal as 'feishu' | 'lark')
-        : undefined,
-    };
+    const domain = (lines[cursor + 2] || '').trim().toLowerCase();
+    feishuConfig = { appId: lines[cursor] || '', appSecret: lines[cursor + 1] || '',
+      domain: domain === 'feishu' || domain === 'lark' ? domain : undefined };
     cursor += 3;
   }
-  const defaultChoice = parseChoiceLine(lines[cursor]);
-  const favorites = parseFavoritesLine(lines[cursor + 1]);
+  return { slackConfig, feishuConfig, cursor };
+}
 
+/** Seven setup lines, platform token blocks, then defaultChoice and comma-separated favorites. */
+export function parseInitAnswersLines(lines: string[]): InitAnswers {
+  const [backendsRaw, platformRaw, gatewayEnabledRaw, name, org, email, installServiceRaw] = lines;
+  const backends = (backendsRaw || 'pi').split(',').map(s => s.trim())
+    .filter((s): s is InitBackend => s === 'claude' || s === 'pi');
+  const platforms = stdinPlatforms(platformRaw);
+  const { slackConfig, feishuConfig, cursor } = stdinPlatformTokens(lines, platforms);
+  const gatewayChoice = gatewayEnabledRaw?.trim().toLowerCase();
   return {
     lang: process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : detectSystemLocale(),
     backends: backends.length > 0 ? backends : ['claude'],
-    machineName: os.hostname(),
-    gpuCount: detectGpuCount(),
-    platforms,
-    slackConfig,
-    feishuConfig,
+    machineName: os.hostname(), gpuCount: detectGpuCount(), platforms, slackConfig, feishuConfig,
     gatewayUsage: gatewayChoice === 'y'
       ? { enabled: true, name: name || '', org: org || '', email: email || '' }
       : gatewayChoice === 'n' ? { enabled: false } : undefined,
     installService: installServiceRaw?.toLowerCase() === 'y',
-    defaultChoice,
-    favorites,
+    defaultChoice: parseChoiceLine(lines[cursor]),
+    favorites: parseFavoritesLine(lines[cursor + 1]),
   };
 }
 
@@ -1324,56 +1294,51 @@ async function pickModelsInteractive(
   return { defaultChoice: parseChoiceLine(selected as string), favorites: [...values].map(v => parseChoiceLine(v)!), overwrite: true };
 }
 
-/** Returns false when no backend is logged in yet, so nothing could be generated. */
-async function runGatewaySetup(
-  backends: InitBackend[],
-  paths: InitPaths,
-  gatewayConfigDir?: string,
-  answers?: Pick<InitAnswers, 'defaultChoice' | 'favorites'>,
-  interactive = false,
-): Promise<boolean> {
-  // Discover endpoints from Claude/PI local configs — filtered by user-selected backends
-  const endpoints = await discoverEndpoints(backends);
-
-  if (endpoints.length === 0) {
-    clack.log.warn(t('init.gatewaySetup.noBackends'));
-    clack.log.info(t('init.gatewaySetup.rerunHint'));
-    return false;
-  }
-
-  // Show discovered summary
+function writeDiscoveredGateway(endpoints: Awaited<ReturnType<typeof discoverEndpoints>>, configDir?: string) {
   const summary = endpoints.map(ep =>
     `  ${ep.mode}/${ep.endpoint}: ${ep.models.slice(0, 3).join(', ')}${ep.models.length > 3 ? ', ...' : ''} (${ep.keys.length > 0 ? 'with key' : 'passthrough'})`,
   ).join('\n');
   clack.log.success(t('init.gatewaySetup.discovered', { count: endpoints.length, summary }));
-
-  // Generate gateway.yaml — scoped to gatewayConfigDir when provided (test/alt env),
-  // otherwise defaults to ~/.aistatus/gateway.yaml (production). Merge-aware: preserves
-  // hand-maintained modes/keys and never drops previously-configured modes if discovery
-  // under-reports (e.g. a transient PI model scan failure).
-  const { path: gatewayPath, result: mergeResult } = writeMergedGatewayYaml(endpoints, gatewayConfigDir);
+  const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, configDir);
   clack.log.success(t('init.gatewaySetup.gatewayWritten', { path: gatewayPath }));
-  if (mergeResult.droppedFromDiscovery.length > 0) {
-    const list = mergeResult.droppedFromDiscovery.map(p => `${p.mode}/${p.endpoint}`).join(', ');
-    clack.log.warn(t('init.gatewaySetup.preservedModes', { count: mergeResult.droppedFromDiscovery.length, list }));
+  if (result.droppedFromDiscovery.length > 0) {
+    const list = result.droppedFromDiscovery.map(p => `${p.mode}/${p.endpoint}`).join(', ');
+    clack.log.warn(t('init.gatewaySetup.preservedModes', { count: result.droppedFromDiscovery.length, list }));
     clack.log.info(t('init.gatewaySetup.preservedModesHint'));
   }
+  return result.endpoints;
+}
 
+function reportModelsSetup(configDir: string, endpoints: ReturnType<typeof writeDiscoveredGateway>): void {
+  const models = readExistingModels(configDir)!;
+  clack.log.info(t('init.gatewaySetup.generatedModels', {
+    names: models.favorites!.map(ref => ref.model).join(', '), default: models.default!.model,
+  }));
+  const issues = validateModelsAgainstGateway(endpoints, configDir);
+  if (!issues.length) return;
+  const lines = issues.map(i => `  - ${i.model}: ${i.reason}`).join('\n');
+  clack.log.warn(t('init.gatewaySetup.modelIssues', { count: issues.length, lines }));
+  clack.log.info(t('init.gatewaySetup.modelIssuesHint'));
+}
+
+/** Returns false when no backend is logged in yet, so nothing could be generated. */
+async function runGatewaySetup(
+  backends: InitBackend[], paths: InitPaths, gatewayConfigDir?: string,
+  answers?: Pick<InitAnswers, 'defaultChoice' | 'favorites'>, interactive = false,
+): Promise<boolean> {
+  const endpoints = await discoverEndpoints(backends);
+  if (!endpoints.some(endpoint => endpoint.models.length > 0)) {
+    clack.log.warn(t('init.gatewaySetup.noBackends'));
+    clack.log.info(t('init.gatewaySetup.rerunHint'));
+    return false;
+  }
+  const mergedEndpoints = writeDiscoveredGateway(endpoints, gatewayConfigDir);
   const options: WriteModelsOpts = interactive
     ? await pickModelsInteractive(endpoints, paths.CONFIG_DIR)
     : { ...answers, overwrite: !!answers?.defaultChoice };
   const modelsPath = writeModelsJson(endpoints, { ...options, outputDir: paths.CONFIG_DIR });
   clack.log.success(t('init.gatewaySetup.modelsWritten', { path: modelsPath }));
-  const models = readExistingModels(paths.CONFIG_DIR)!;
-  clack.log.info(t('init.gatewaySetup.generatedModels', {
-    names: models.favorites!.map(ref => ref.model).join(', '), default: models.default!.model,
-  }));
-  const issues = validateModelsAgainstGateway(mergeResult.endpoints, paths.CONFIG_DIR);
-  if (issues.length > 0) {
-    const lines = issues.map(i => `  - ${i.model}: ${i.reason}`).join('\n');
-    clack.log.warn(t('init.gatewaySetup.modelIssues', { count: issues.length, lines }));
-    clack.log.info(t('init.gatewaySetup.modelIssuesHint'));
-  }
+  reportModelsSetup(paths.CONFIG_DIR, mergedEndpoints);
   return true;
 }
 

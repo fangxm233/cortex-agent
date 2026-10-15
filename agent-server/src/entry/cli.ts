@@ -423,7 +423,7 @@ function gatewayOutput(
 
 async function writeGatewayConfiguration(outputDir: string | undefined): Promise<CliResult> {
   const endpoints = await discoverEndpoints();
-  if (endpoints.length === 0) {
+  if (!endpoints.some(endpoint => endpoint.models.length > 0)) {
     return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
   }
   const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, outputDir);

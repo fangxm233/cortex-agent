@@ -2,6 +2,7 @@ import { describe, it, afterEach } from 'vitest';
 import * as assert from 'node:assert/strict';
 import { t, setLocale, normalizeLocale, detectSystemLocale } from '../../src/core/i18n.js';
 import { en } from '../../src/core/locales/en.js';
+import { zh } from '../../src/core/locales/zh.js';
 
 describe('i18n', () => {
   afterEach(() => setLocale('en'));
@@ -52,6 +53,22 @@ describe('i18n', () => {
       assert.equal(t(key), 'english-only');
     } finally {
       delete (en as any)[key];
+    }
+  });
+
+  it('model selection vocabulary has no retired preset keys or wording', () => {
+    for (const messages of [en, zh]) {
+      assert.doesNotMatch(JSON.stringify(messages), /profile/i);
+    }
+  });
+
+  it('selection messages interpolate the same fields in both locales', () => {
+    for (const locale of ['en', 'zh'] as const) {
+      setLocale(locale);
+      assert.doesNotMatch(t('cmd.session.newConversation', { selection: 'pi · flash' }), /\$\{/);
+      assert.doesNotMatch(t('interaction.sessionSelectionNote', { selection: 'claude · opus' }), /\$\{/);
+      assert.doesNotMatch(t('schedule.help.availableModels', { modelNames: 'opus, flash' }), /\$\{/);
+      assert.doesNotMatch(t('init.gatewaySetup.generatedModels', { names: 'opus', default: 'opus' }), /\$\{/);
     }
   });
 
