@@ -79,7 +79,7 @@ function profileSelection(name: string, raw: unknown): EngineSelection {
   const extra = object(entry.extraOption);
   return { backend, provider, model,
     thinking: text(entry.thinking) ?? text(extra['--thinking']) ?? text(extra['--effort']) ?? null,
-    mode: backend === 'pi' ? provider! : text(entry.mode) ?? 'plan' };
+    mode: text(entry.mode) ?? (backend === 'pi' ? provider! : 'plan') };
 }
 
 function recordDiscarded(name: string, entry: unknown, report: RetireProfilesReport): void {

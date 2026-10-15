@@ -81,7 +81,6 @@ function validateDefault(selection: EngineSelection, readGateway: GatewayReader)
   const gateway = readGateway();
   const modes = Object.keys(gateway?.endpoints?.[endpoint] ?? {});
   if (gateway && !modes.includes(selection.mode)) throw invalid(`Unknown mode '${selection.mode}' for ${endpoint}`);
-  if (selection.backend === 'pi' && selection.mode !== selection.provider) throw invalid('PI mode must equal provider');
 }
 
 export async function setDefaultModel(
