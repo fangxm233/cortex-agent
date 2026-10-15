@@ -9,30 +9,29 @@ import {
 import { bareSpec } from '../../../src/domain/runs/spec-loader.js';
 import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
 import { SessionEngines } from '../../../src/domain/runs/engines.js';
-import type { RunAttemptConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { makeFakeRuntimeFactory } from '../../agent-adapter/pi-fake-runtime.js';
 import { piPool } from '../../agent-adapter/pi-pool-fixture.js';
 
-function profile(overrides: Record<string, unknown> = {}): any {
+function selection(overrides: Partial<EngineSelection> = {}): EngineSelection {
   return {
-    name: 'deepseek', backend: 'pi', model: 'deepseek-chat', mode: 'deepseek', provider: 'anthropic',
-    fallback: [], extraEnv: {}, extraOption: {}, thinking: null,
+    backend: 'pi', model: 'deepseek-chat', mode: 'deepseek', provider: 'anthropic', thinking: null,
     ...overrides,
   };
 }
 
 /** What the orchestration hands compaction: the request the session's next turn would run under. */
-function target(profileOverrides: Record<string, unknown> = {}): CompactAgentTarget {
+function target(selectionOverrides: Partial<EngineSelection> = {}): CompactAgentTarget {
   return {
     backend: 'pi',
     request: {
       runId: 'compact-run',
       session: {
         sessionId: 'track-1', backendSessionId: 'backend-1', engineKey: 'web:track-1', },
-      profile: profile(profileOverrides),
+      selection: selection(selectionOverrides),
       spec: bareSpec(),
       prompt: { text: '' },
       context: {
@@ -47,16 +46,10 @@ function target(profileOverrides: Record<string, unknown> = {}): CompactAgentTar
   };
 }
 
-test('support requires a profile whose backend matches the session’s', () => {
-  assert.equal(isSessionCompactionSupported({ backend: 'pi', profileName: 'deepseek' }, () => profile()), true);
-  assert.equal(isSessionCompactionSupported(
-    { backend: 'claude', profileName: 'print' },
-    () => profile({ backend: 'claude' }),
-  ), true);
-  assert.equal(isSessionCompactionSupported(
-    { backend: 'pi', profileName: 'wrong' },
-    () => profile({ backend: 'claude' }),
-  ), false);
+test('support depends only on backend capability', () => {
+  assert.equal(isSessionCompactionSupported({ backend: 'pi' }), true);
+  assert.equal(isSessionCompactionSupported({ backend: 'claude' }), true);
+  assert.equal(isSessionCompactionSupported({ backend: 'unknown' }), false);
 });
 
 test('compactAgentContext resumes the channel’s pooled session, compacts without a turn, and records reported cost', async () => {
@@ -80,7 +73,6 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
       calls.push(['acquire']);
       return pool.open(spec);
     },
-    isPooled: () => false,
     route: (request, attempt) => {
       calls.push(['route', attempt.mode, request.context.routeTrigger]);
       return { ANTHROPIC_BASE_URL: 'http://gateway', ANTHROPIC_API_KEY: null };
@@ -99,7 +91,7 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
     assert.equal(acquiredSpec!.engineKey, 'web:track-1');
     assert.equal(acquiredSpec!.context.channel, 'web:track-1');
     assert.equal(acquiredSpec!.route.anthropicBaseUrl, 'http://gateway');
-    // The route is asked for the profile's first attempt, as the run would open it.
+    // The route is asked for the selection's first attempt, as the run would open it.
     assert.deepEqual(calls.filter((entry) => entry[0] === 'route'), [['route', 'deepseek', 'user']]);
     assert.deepEqual(acquiredSpec!.env.unsets, ['ANTHROPIC_API_KEY']);
 
@@ -126,15 +118,14 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
   }
 });
 
-test('compactAgentContext rejects a profile whose backend is not the session’s, before acquiring an engine', async () => {
+test('compactAgentContext rejects a selection whose backend is not the session’s, before acquiring an engine', async () => {
   let acquired = false;
   await assert.rejects(
     () => compactAgentContext(
       target({ backend: 'claude' }),
       {
         acquireEngine: () => { acquired = true; throw new Error('must not acquire'); },
-        isPooled: () => false,
-        route: () => ({}),
+            route: () => ({}),
         recordCost: async () => {},
       },
     ),
@@ -143,15 +134,15 @@ test('compactAgentContext rejects a profile whose backend is not the session’s
   assert.equal(acquired, false);
 });
 
-const FALLBACK = {
-  model: 'deepseek-reasoner', backend: 'pi', mode: 'deepseek-backup', provider: 'anthropic',
-} as RunAttemptConfig;
+const SELECTED: EngineSelection = {
+  model: 'deepseek-reasoner', backend: 'pi', mode: 'deepseek-backup', provider: 'anthropic', thinking: null,
+};
 
-function routeOf(_request: RunRequest, attempt: RunAttemptConfig) {
+function routeOf(_request: RunRequest, attempt: EngineSelection) {
   return { ANTHROPIC_BASE_URL: `http://gateway/${attempt.mode}`, ANTHROPIC_API_KEY: null };
 }
 
-test('compaction runs on the fallback engine the session\'s last turn left live', async () => {
+test('compaction reuses the selected engine in place', async () => {
   const fake = makeFakeRuntimeFactory({
     compact: {
       summary: 'short', firstKeptEntryId: 'e1', tokensBefore: 100, estimatedTokensAfter: 20,
@@ -162,16 +153,12 @@ test('compaction runs on the fallback engine the session\'s last turn left live'
     },
   });
   const engines = new SessionEngines({ pi: new PIAdapter(fake.factory) });
-  const { request } = target({ fallback: [FALLBACK] });
-  // The primary was rate-limited, so the turn ran on the fallback: a fresh backend conversation
-  // under the session's engine key, opened the way the run opens a fallback attempt.
-  const fallbackTurn = { ...request, session: { ...request.session, backendSessionId: null } };
-  const live = engines.acquire(buildEngineSpec(fallbackTurn, FALLBACK, { route: routeOf(fallbackTurn, FALLBACK) }));
+  const { request } = target(SELECTED);
+  const live = engines.acquire(buildEngineSpec(request, SELECTED, { route: routeOf(request, SELECTED) }));
   const costs: unknown[] = [];
   try {
     const result = await compactAgentContext({ backend: 'pi', request }, {
       acquireEngine: (spec) => engines.acquire(spec),
-      isPooled: (spec) => engines.reuses(spec),
       route: routeOf,
       recordCost: async (entry) => { costs.push(entry); },
     });
@@ -189,16 +176,13 @@ test('compaction runs on the fallback engine the session\'s last turn left live'
   }
 });
 
-test('with no attempt\'s engine live, compaction asks for the primary', async () => {
+test('with no engine live, compaction asks only for the selection', async () => {
   const acquired: EngineSpec[] = [];
-  const crossBackend = { ...FALLBACK, backend: 'claude' } as RunAttemptConfig;
-  await compactAgentContext(target({ fallback: [FALLBACK, crossBackend] }), {
+  await compactAgentContext(target(), {
     acquireEngine: (spec) => {
       acquired.push(spec);
       return { compact: async () => ({ status: 'not-needed', usage: null }) } as never;
     },
-    // Only an engine on another backend is live: it is not this session's conversation.
-    isPooled: (spec) => spec.backend.kind === 'claude',
     route: routeOf,
     recordCost: async () => {},
   });

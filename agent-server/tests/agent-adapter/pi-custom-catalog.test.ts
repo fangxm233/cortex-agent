@@ -170,7 +170,7 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
       resume: false,
       model: 'deepseek-v4-flash',
       piProvider: 'deepseek',
-      piModelMaxTokens: 65_536,
+      benchmarkMaxOutputTokens: 65_536,
       piGatewayBaseUrl: 'http://127.0.0.1:9880',
       piGatewayPath: '/deepseek',
     }));
@@ -190,8 +190,9 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
     const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
     const deepseek = catalog.providers.deepseek;
     assert.equal(deepseek.compat.maxTokensField, 'max_completion_tokens');
-    assert.equal(deepseek.modelOverrides['deepseek-v4-flash'].maxTokens, 65_536);
+    assert.equal(deepseek.modelOverrides, undefined, 'session caps must not mutate the shared catalog');
     assert.equal(stub.requests.length, 2);
+    assert.deepEqual(stub.requests.map(request => request.benchmarkMaxOutputTokens), [65_536, 65_536]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

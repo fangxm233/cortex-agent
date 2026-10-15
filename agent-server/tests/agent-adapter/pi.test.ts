@@ -149,24 +149,23 @@ test('open places portable pluginSkillDirs before pluginDirs in skillPaths', () 
   engine.kill();
 });
 
-test('open resolves the thinking level from the profile, letting an explicit --thinking extraOption win', () => {
+test('open resolves thinking only from the selection', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
   const engines = [
-    piPool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey: 'thinking-profile', resume: false, thinking: 'high' })),
+    piPool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey: 'thinking-selection', resume: false, thinking: 'high' })),
     piPool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey: 'thinking-absent', resume: false })),
     piPool(adapter).open(engineSpecFixture({
       sessionId: null,
       sessionKey: 'thinking-extra',
       resume: false,
       thinking: 'high',
-      extraOption: { '--thinking': 'xhigh' },
     })),
   ];
 
   assert.equal(fake.requests[0].thinking, 'high');
-  assert.equal(fake.requests[1].thinking, null, 'no thinking level when the profile has none');
-  assert.equal(fake.requests[2].thinking, 'xhigh', 'an explicit extraOption still wins');
+  assert.equal(fake.requests[1].thinking, null, 'no thinking level when the selection has none');
+  assert.equal(fake.requests[2].thinking, 'high', 'only the selected thinking level reaches PI');
   for (const engine of engines) engine.kill();
 });
 
@@ -183,7 +182,6 @@ test('open forwards authoritative Cortex thread context to the session env', () 
     scheduleTaskId: 'schedule-1',
     env: { CORTEX_PROFILE: 'spoofed', CUSTOM_ENV: 'kept' },
     cortexContext: {
-      profile: 'deepseek-pro',
       project: 'vr-security',
       trackSessionId: 'tracked-session',
       executionId: 'exec-test',
@@ -191,7 +189,7 @@ test('open forwards authoritative Cortex thread context to the session env', () 
   }));
 
   const env = fake.requests[0].env;
-  assert.equal(env.CORTEX_PROFILE, 'deepseek-pro');
+  assert.equal(env.CORTEX_PROFILE, undefined);
   assert.equal(env.CORTEX_PROJECT, 'vr-security');
   assert.equal(env.CORTEX_SESSION_NAME, undefined);
   assert.equal(env.CORTEX_SESSION_ID, 'tracked-session');
@@ -326,10 +324,10 @@ test('buildPiEnv unsetEnv deletes a key inherited from the parent env', () => {
   assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
 });
 
-test('buildPiEnv unsetEnv runs after the extraEnv merge, so an extraEnv-set key is still deleted', () => {
+test('buildPiEnv unsetEnv runs after the route environment merge', () => {
   const env = buildPiEnv({
     piAgentDir: '/pi-agent',
-    extraEnv: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+    routeEnv: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
     unsetEnv: ['ANTHROPIC_API_KEY'],
   }, {
     ANTHROPIC_API_KEY: 'sk-ant-inherited',

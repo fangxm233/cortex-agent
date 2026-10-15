@@ -28,7 +28,7 @@ import type { RunRequest, RunObserver } from '../src/domain/runs/request.js';
 import type { RunEvent } from '../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { AwaitBackground } from '../src/agent-adapter/continuation-phase.js';
-import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../src/domain/agents/engine-selection.js';
 import { isRetryableResult } from '../src/domain/runs/fallback.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
 import { DATA_DIR, PLUGINS_DIR } from '../src/core/paths.js';
@@ -41,8 +41,8 @@ import type { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js'
 
 type FakeRuntimeFactory = ReturnType<typeof makeFakeRuntimeFactory>;
 
-const CLAUDE: Partial<RunAttemptConfig> = { backend: 'claude', mode: null };
-const PI: Partial<RunAttemptConfig> = { backend: 'pi', mode: null };
+const CLAUDE: Partial<EngineSelection> = { backend: 'claude', mode: 'plan' };
+const PI: Partial<EngineSelection> = { backend: 'pi', mode: 'deepseek' };
 
 // `startAttempt` reaches the module singleton, so the fake PI adapter must be installed before
 // that import resolves. The delegating factory reads `fixtures.current`, so each test installs its
@@ -152,7 +152,7 @@ interface ClaudeHandle {
 function claudeAttempt(
   partial: RunRequestFixtureInput,
   scripts: unknown[][],
-  opts: { background?: AwaitBackground; override?: Partial<RunAttemptConfig> } = {},
+  opts: { background?: AwaitBackground; override?: Partial<EngineSelection> } = {},
 ): ClaudeHandle {
   const children: any[] = [];
   const override = { ...CLAUDE, ...opts.override };
@@ -187,7 +187,7 @@ interface PiHandle {
 
 function piAttempt(
   partial: RunRequestFixtureInput,
-  opts: { background?: AwaitBackground; override?: Partial<RunAttemptConfig> } = {},
+  opts: { background?: AwaitBackground; override?: Partial<EngineSelection> } = {},
 ): PiHandle {
   const index = fixtures.current.runtimes.length;
   const override = { ...PI, ...opts.override };

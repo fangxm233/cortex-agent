@@ -19,7 +19,7 @@ function modelIdentity(): ModelExecutionIdentityInput {
     modelAliasPolicy: { aliases: { stable: 'claude-sonnet' }, policy: 'exact' },
     providerProtocol: 'anthropic', configuredRouteBaseHost: 'gateway.invalid',
     claudeCliVersion: '1.2.3', cliName: 'claude', cliVersion: '1.2.3',
-    reasoningEffort: 'high', maxOutputTokens: null, fallbackEmpty: true,
+    reasoningEffort: 'high', maxOutputTokens: null,
   };
 }
 
@@ -58,7 +58,7 @@ it('projects exactly the model identity keys', () => {
     model_alias_policy: { aliases: { stable: 'claude-sonnet' }, policy: 'exact' },
     provider_protocol: 'anthropic', configured_route_base_host: 'gateway.invalid',
     claude_cli_version: '1.2.3', cli_name: 'claude', cli_version: '1.2.3',
-    reasoning_effort: 'high', max_output_tokens: null, fallback_empty: true,
+    reasoning_effort: 'high', max_output_tokens: null,
   }));
 });
 

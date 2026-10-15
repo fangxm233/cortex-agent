@@ -36,19 +36,18 @@ const home = await loadThrottleHome('run-preflight-gates-test');
 const { resolveRateLimitProvider } = await import(
   '../src/domain/agents/provider-run-lifecycle.js'
 );
-const { resolveProfileConfig } = await import('../src/domain/agents/profile-manager.js');
+const { getDefaultSelection } = await import('../src/domain/agents/models.js');
 const { startRun } = await import('../src/domain/runs/service.js');
 const { runRequestFixture } = await import('./run-request-fixture.js');
 
 afterAll(() => home.dispose());
 
-/** A run request around one of the fixture profiles (the profile itself IS its first attempt). */
-function requestFor(profileName: string, overrides: Partial<RunRequest> = {}): RunRequest {
+/** A run request around the selected default engine. */
+function requestFor(_label: string, overrides: Partial<RunRequest> = {}): RunRequest {
   const base = runRequestFixture({
-    channel: 'web:rate-limit', profileName, project: 'general', trigger: 'user',
-    promptText: 'hello',
+    channel: 'web:rate-limit', project: 'general', trigger: 'user', promptText: 'hello',
   });
-  return { ...base, profile: resolveProfileConfig(profileName), ...overrides };
+  return { ...base, selection: getDefaultSelection(), ...overrides };
 }
 
 function collector(): { observer: RunObserver; events: RunEvent[] } {
@@ -122,9 +121,7 @@ test('a single-attempt run skips the engine when its mode is rate-limited and na
   );
 });
 
-test('the fallback walk skips every rate-limited config, reports a transition per skip, and refuses when exhausted', async (t) => {
-  // plan profile: mode=plan, fallback=[mode=api, mode=plan]. Rate-limit both plan and api — all
-  // three attempt selections are skipped, so the last one reports the terminal refusal.
+test('a throttled background selection terminates without a spawn or transition', async (t) => {
   const rl = await home.initThrottle(['plan', 'api']);
   t.onTestFinished(() => rl._testReset());
   const { observer, events } = collector();
@@ -135,18 +132,9 @@ test('the fallback walk skips every rate-limited config, reports a transition pe
   assert.ok(result.rateLimitMessage?.includes('plan'));
   assert.equal(result.rateLimitProvider, 'anthropic');
   assert.equal(result.sessionId, null);
-  // onFallback used to be a facade callback; it is now the run stream's own event, one per
-  // transition (3 configs → 2 transitions).
-  assert.deepEqual(
-    events
-      .filter((event): event is Extract<RunEvent, { type: 'run_fallback' }> =>
-        event.type === 'run_fallback')
-      .map((event) => [event.from, event.to]),
-    [
-      ['claude-sonnet-4-6/plan', 'claude-sonnet-4-6/api'],
-      ['claude-sonnet-4-6/api', 'claude-sonnet-4-6/plan'],
-    ],
-  );
+  assert.equal(run.status, 'rate-limited');
+  assert.equal(run.attempt.index, 0);
+  assert.equal(events.some(event => event.type === 'engine_started'), false);
 });
 
 // --- provider identity (pure) ---
@@ -173,8 +161,8 @@ function attemptOutcome(foreground: Promise<AgentResult>): RunAttempt {
 
 test('the run stamps the attempt provider on an unattributed result and on a retryable error', async () => {
   home.rl._testReset();
-  const providerProfile = { ...resolveProfileConfig('scan'), provider: 'provider-z' };
-  const request = (): RunRequest => requestFor('scan', { profile: providerProfile });
+  const selection = { ...getDefaultSelection(), backend: 'pi' as const, provider: 'provider-z', mode: 'provider-z' };
+  const request = (): RunRequest => requestFor('scan', { selection });
 
   const baseResult: AgentResult = {
     sessionId: 's', total_cost_usd: 0, num_turns: 1,

@@ -46,7 +46,7 @@ import {
 } from '../../../src/domain/benchmark/production-attempt-journal.js';
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
-import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
@@ -116,16 +116,15 @@ function initialize(backend: Backend): ProductionBenchmarkEvidenceContext {
   activeEvidence = evidence(backend);
   initializeProductionAttemptIdentity({
     storePath: identityStorePath(),
-    configurationRevision: () => ({ profiles: 1, environments: 1 }),
+    configurationRevision: () => ({ models: 1, environments: 1 }),
   });
   return activeEvidence;
 }
 
-function profile(backend: Backend): ResolvedProfileConfig {
+function selection(backend: Backend): EngineSelection {
   return {
-    name: `benchmark-${backend}`, model: `${backend}-model`, backend, mode: 'trial',
-    provider: backend === 'claude' ? 'anthropic' : 'deepseek', fallback: [],
-    extraEnv: {}, extraOption: {}, thinking: null,
+    model: `${backend}-model`, backend, mode: 'trial',
+    provider: backend === 'claude' ? null : 'deepseek', thinking: null,
   };
 }
 
@@ -138,7 +137,7 @@ interface RequestOptions {
 
 function makeRequest(
   backend: Backend,
-  resolved: ResolvedProfileConfig,
+  resolved: EngineSelection,
   sessionId: string,
   opts: RequestOptions = {},
 ): RunRequest {
@@ -146,7 +145,6 @@ function makeRequest(
     sessionKey: opts.sessionKey ?? `journal-${backend}-${sessionId}`,
     trackSessionId: sessionId,
     promptText: 'do work',
-    profileName: resolved.name,
     systemPrompt: 'System prompt',
     tools: 'Read,Write',
     pluginDirs: [],
@@ -157,7 +155,7 @@ function makeRequest(
     cwd: opts.cwd,
     processSpawner: opts.processSpawner,
   }, attemptOf(resolved));
-  request.profile = resolved;
+  request.selection = resolved;
   request.benchmark = {
     evidenceContext: opts.evidenceContext === undefined ? activeEvidence : opts.evidenceContext,
     identityDirective: 'Directive for the session',
@@ -223,7 +221,7 @@ interface JournalRun {
 function startJournalAttempt(
   backend: Backend,
   request: RunRequest,
-  resolved: ResolvedProfileConfig,
+  resolved: EngineSelection,
   executionId: string | null,
 ): JournalRun {
   const raw: NormalizedEvent[] = [];
@@ -252,7 +250,7 @@ async function finishRun(handle: RunAttempt, backend: Backend, piIndex = 0): Pro
 function makeDirectJournal(
   backend: Backend,
   executionId: string,
-  resolved: ResolvedProfileConfig,
+  resolved: EngineSelection,
 ): ReturnType<typeof createProductionAttemptJournalSink> {
   const request = makeRequest(backend, resolved, sessionOf(executionId));
   const spec = buildEngineSpec(request, attemptOf(resolved), {
@@ -260,7 +258,7 @@ function makeDirectJournal(
     executionId,
   });
   const identity = freezeProductionAttemptIdentity({
-    adapterBackend: backend, spec, request, executionId, resolvedProfile: resolved,
+    adapterBackend: backend, spec, request, executionId, selection: resolved,
   });
   assert.ok(identity);
   return createProductionAttemptJournalSink({
@@ -296,7 +294,7 @@ function onlyOpenJournalPath(): string {
 
 test('records the exact model-visible role asset witnesses used by host finalization', async () => {
   const evidenceContext = initialize('pi');
-  const resolved = profile('pi');
+  const resolved = selection('pi');
   const { handle } = startJournalAttempt(
     'pi', makeRequest('pi', resolved, sessionOf('exec-asset-witness'), { evidenceContext }),
     resolved, 'exec-asset-witness',
@@ -314,7 +312,7 @@ test('records the exact model-visible role asset witnesses used by host finaliza
 
 test('records the cwd the backend was actually spawned with, not the server process cwd', async () => {
   const evidenceContext = initialize('pi');
-  const resolved = profile('pi');
+  const resolved = selection('pi');
   const { handle } = startJournalAttempt(
     'pi', makeRequest('pi', resolved, sessionOf('exec-resolved-cwd'), { evidenceContext }),
     resolved, 'exec-resolved-cwd',
@@ -334,7 +332,7 @@ test('records the cwd the backend was actually spawned with, not the server proc
 
 test('journals an explicitly requested cwd verbatim', async () => {
   const evidenceContext = initialize('pi');
-  const resolved = profile('pi');
+  const resolved = selection('pi');
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'attempt-cwd-'));
   try {
     const { handle } = startJournalAttempt(
@@ -354,7 +352,7 @@ test('journals an explicitly requested cwd verbatim', async () => {
 for (const backend of ['claude', 'pi'] as const) {
   test(`journals every ${backend} normalized event once and links frozen identity`, async () => {
     const evidenceContext = initialize(backend);
-    const resolved = profile(backend);
+    const resolved = selection(backend);
     const executionId = `exec-${backend}-direct`;
     const { handle, raw } = startJournalAttempt(
       backend,
@@ -428,7 +426,7 @@ for (const lifecycle of [
 ] as const) {
   test(`closes and persists an honest ${lifecycle} attempt journal`, async () => {
     const evidenceContext = initialize('claude');
-    const resolved = profile('claude');
+    const resolved = selection('claude');
     const executionId = `exec-${lifecycle}`;
     const { handle, raw } = startJournalAttempt(
       'claude',
@@ -453,7 +451,7 @@ for (const lifecycle of [
 
 test('a synchronous adapter spawn failure still closes and links its zero-event attempt', () => {
   const evidenceContext = initialize('claude');
-  const resolved = profile('claude');
+  const resolved = selection('claude');
   const request = makeRequest('claude', resolved, sessionOf('exec-spawn-failure'), {
     evidenceContext,
     processSpawner: (() => { throw new Error('spawn failed'); }) as AgentProcessSpawner,
@@ -470,7 +468,7 @@ test('a synchronous adapter spawn failure still closes and links its zero-event 
 
 test('keeps concurrent attempt journals of one session isolated and ordered', async () => {
   const evidenceContext = initialize('pi');
-  const resolved = profile('pi');
+  const resolved = selection('pi');
   const executions = Array.from({ length: 6 }, (_, index) => `exec-concurrent-${index}`);
   const runs = executions.map((executionId, index) => startJournalAttempt(
     'pi',
@@ -503,7 +501,7 @@ test('keeps concurrent attempt journals of one session isolated and ordered', as
 
 test('a recoverable required journal write failure cannot publish an incomplete index row', () => {
   initialize('claude');
-  const sink = makeDirectJournal('claude', 'exec-write-failure', profile('claude'));
+  const sink = makeDirectJournal('claude', 'exec-write-failure', selection('claude'));
   let failNextWrite = false;
   const originalWrite = fs.writeSync;
   fs.writeSync = ((...args: Parameters<typeof fs.writeSync>) => {
@@ -529,7 +527,7 @@ test('a recoverable required journal write failure cannot publish an incomplete 
 
 test('a required journal close failure never publishes placeholder evidence', () => {
   initialize('pi');
-  const sink = makeDirectJournal('pi', 'exec-close-failure', profile('pi'));
+  const sink = makeDirectJournal('pi', 'exec-close-failure', selection('pi'));
   fs.closeSync(findOpenFd(onlyOpenJournalPath()));
   assert.throws(() => sink.onClose?.(), /trajectory|journal|sink/i);
   assert.equal(getProductionAttemptJournal('exec-close-failure'), null);
@@ -538,7 +536,7 @@ test('a required journal close failure never publishes placeholder evidence', ()
 
 test('a journal close failure publishes nothing even when the fd close also fails', () => {
   initialize('pi');
-  const sink = makeDirectJournal('pi', 'exec-send-close-double-fault', profile('pi'));
+  const sink = makeDirectJournal('pi', 'exec-send-close-double-fault', selection('pi'));
   const originalClose = fs.closeSync;
   fs.closeSync = (() => { throw new Error('close failed'); }) as typeof fs.closeSync;
   try {
@@ -552,7 +550,7 @@ test('a journal close failure publishes nothing even when the fd close also fail
 
 test('reload fails closed when persisted journal bytes no longer match their digest', async () => {
   const evidenceContext = initialize('claude');
-  const resolved = profile('claude');
+  const resolved = selection('claude');
   const { handle } = startJournalAttempt(
     'claude',
     makeRequest('claude', resolved, sessionOf('exec-tampered'), {
@@ -572,8 +570,7 @@ test('reload fails closed when persisted journal bytes no longer match their dig
 
 test('ordinary non-benchmark runs do not create production attempt evidence', async () => {
   initializeProductionAttemptIdentity({ storePath: identityStorePath() });
-  const resolved = profile('claude');
-  resolved.name = 'ordinary';
+  const resolved = selection('claude');
   const { handle } = startJournalAttempt(
     'claude',
     makeRequest('claude', resolved, sessionOf('exec-ordinary'), {

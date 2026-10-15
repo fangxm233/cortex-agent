@@ -280,7 +280,7 @@ export interface CortexAgentContext {
 /** Ambient Cortex context keys re-derived on every spawn, so a stale parent value can never leak
  *  in. CORTEX_EXECUTION_ID is deliberately absent: it is set from context but never reset. */
 const CORTEX_CONTEXT_RESET_KEYS = [
-  'CORTEX_PROJECT', 'CORTEX_SESSION_NAME',
+  'CORTEX_PROFILE', 'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', // Never inherit the retired key.
 ] as const;
 
 function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null): void {

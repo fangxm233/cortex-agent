@@ -932,12 +932,11 @@ test('buildClaudeEnv — a pinned trial keeps its own CLAUDE_CONFIG_DIR, or none
 
 // --- buildClaudeEnv: cortex context env vars (CORTEX_PROFILE/PROJECT/SESSION_NAME) ---
 
-test('buildClaudeEnv — context profile/project surface as CORTEX_* env vars', () => {
+test('buildClaudeEnv — project is exposed without the retired context key', () => {
   const env = buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, {
-    profile: 'fast-worker',
     project: 'cortex-self',
     });
-  assert.equal(env.CORTEX_PROFILE, 'fast-worker');
+  assert.equal(env.CORTEX_PROFILE, undefined);
   assert.equal(env.CORTEX_PROJECT, 'cortex-self');
   assert.equal(env.CORTEX_SESSION_NAME, undefined);
   // Existing fields still intact

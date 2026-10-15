@@ -18,7 +18,7 @@ import {
 } from '../../../src/domain/benchmark/production-attempt-identity.js';
 import { startAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
-import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   attemptFromFixture, attemptOf, runRequestFixture, type RunRequestFixtureInput,
@@ -65,10 +65,9 @@ afterEach(async () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-function profile(): ResolvedProfileConfig {
+function selection(): EngineSelection {
   return {
-    name: 'benchmark-pi', model: 'deepseek-fixture', backend: 'pi', mode: 'trial', provider: 'deepseek',
-    extraEnv: {}, extraOption: {}, thinking: null, fallback: [],
+    model: 'deepseek-fixture', backend: 'pi', mode: 'trial', provider: 'deepseek', thinking: null,
   };
 }
 
@@ -111,12 +110,11 @@ async function runAttempt(
   suffix: string,
   event: Extract<RunEvent, { type: 'cost_record' }>,
 ): Promise<void> {
-  const resolved = profile();
+  const resolved = selection();
   const override = attemptOf(resolved);
   const partial: RunRequestFixtureInput = {
     sessionKey: `engine-${suffix}`,
     trackSessionId: 'session-accounting',
-    profileName: resolved.name,
     model: resolved.model,
     piProvider: resolved.provider,
    

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import * as path from 'node:path';
 import { specFromFixture, type RunRequestFixtureInput } from '../../run-request-fixture.js';
-import type { RunAttemptConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import type { ModeEnv } from '../../../src/domain/runs/mode-env.js';
 import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import { DATA_DIR, CONFIG_DIR } from '../../../src/core/paths.js';
@@ -15,12 +15,12 @@ import { resetSettingsForTests } from '../../../src/core/settings.js';
 // present-but-`undefined` key from an absent one, so the literals list every key the builder emits.
 // The only key removed since is `backend.claudeBackend`, which selected the retired TUI runtime and
 // never reached argv. Any further drift here is a regression, not a restatement.
-const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
+const FIXTURE_CONFIG: Partial<EngineSelection> = { model: 'claude-fixture', backend: 'claude', mode: 'plan' };
 
 interface Case {
   name: string;
   options: RunRequestFixtureInput;
-  config: Partial<RunAttemptConfig>;
+  config: Partial<EngineSelection>;
   route: ModeEnv | undefined;
   expected: EngineSpec;
 }
@@ -29,7 +29,6 @@ const DIRECT_OPTIONS: RunRequestFixtureInput = {
   channel: 'general',
   sessionKey: 'direct-fixture',
   sessionId: '11111111-1111-4111-8111-111111111111',
-  profileName: 'fixture-profile',
   trackSessionId: 'tracked-direct',
   executionId: 'exec-direct',
 };
@@ -44,7 +43,7 @@ const cases: Case[] = [
       engineKey: 'direct-fixture',
       cwd: undefined,
       resume: { backendSessionId: '11111111-1111-4111-8111-111111111111', resume: true },
-      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, maxOutputTokens: undefined },
+      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, benchmarkMaxOutputTokens: undefined },
       prompt: { system: undefined, append: undefined },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
@@ -55,7 +54,6 @@ const cases: Case[] = [
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
         context: {
-          profile: 'fixture-profile',
           project: null,
           trackSessionId: 'tracked-direct',
           executionId: 'exec-direct',
@@ -68,31 +66,29 @@ const cases: Case[] = [
         isUserInitiated: false,
       },
       context: { channel: 'general', callbackSource: undefined, scheduleTaskId: undefined },
-      extraOption: undefined,
       backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined },
       process: { spawner: undefined, cliPath: undefined },
     },
   },
   {
-    name: 'PI with provider, gateway and maxOutputTokens',
+    name: 'PI with selected provider and gateway',
     options: {
       channel: 'pi-channel',
       sessionKey: 'pi-fixture',
       sessionId: '33333333-3333-4333-8333-333333333333',
-      profileName: 'pi-profile',
       trackSessionId: 'tracked-pi',
       executionId: 'exec-pi',
     },
     config: {
       model: 'pi-model', backend: 'pi', mode: 'pi-mode', provider: 'deepseek',
-      maxOutputTokens: 4096, thinking: 'high',
+      thinking: 'high',
     },
     route: undefined,
     expected: {
       engineKey: 'pi-fixture',
       cwd: undefined,
       resume: { backendSessionId: '33333333-3333-4333-8333-333333333333', resume: true },
-      model: { id: 'pi-model', provider: 'deepseek', thinking: 'high', maxOutputTokens: 4096 },
+      model: { id: 'pi-model', provider: 'deepseek', thinking: 'high', benchmarkMaxOutputTokens: undefined },
       prompt: { system: undefined, append: undefined },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
@@ -103,7 +99,6 @@ const cases: Case[] = [
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
         context: {
-          profile: 'pi-profile',
           project: null,
           trackSessionId: 'tracked-pi',
           executionId: 'exec-pi',
@@ -116,7 +111,6 @@ const cases: Case[] = [
         isUserInitiated: false,
       },
       context: { channel: 'pi-channel', callbackSource: undefined, scheduleTaskId: undefined },
-      extraOption: undefined,
       backend: { kind: 'pi' },
       process: { spawner: undefined, cliPath: undefined },
     },
@@ -145,7 +139,7 @@ const cases: Case[] = [
       engineKey: 'subagent-fixture',
       cwd: undefined,
       resume: { backendSessionId: '44444444-4444-4444-8444-444444444444', resume: true },
-      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, maxOutputTokens: undefined },
+      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, benchmarkMaxOutputTokens: undefined },
       prompt: { system: 'Frozen system prompt', append: 'You are a frozen role.\nDo only the assigned work.' },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
@@ -158,7 +152,6 @@ const cases: Case[] = [
         sets: undefined, unsets: undefined,
         pinned: { PATH: '/usr/bin:/bin', HOME: '/fixture/home', LANG: 'C' },
         context: {
-          profile: null,
           project: null,
           trackSessionId: 'tracked-subagent',
           executionId: 'exec-subagent',
@@ -171,7 +164,6 @@ const cases: Case[] = [
         isUserInitiated: false,
       },
       context: { channel: 'subagent-channel', callbackSource: undefined, scheduleTaskId: undefined },
-      extraOption: undefined,
       backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined },
       process: { spawner: undefined, cliPath: '/fixture/bin/claude' },
     },
@@ -182,7 +174,6 @@ const cases: Case[] = [
       channel: 'web:browser-fixture',
       sessionKey: 'web:browser-fixture',
       sessionId: '55555555-5555-4555-8555-555555555555',
-      profileName: 'web-profile',
       trackSessionId: 'tracked-browser',
       executionId: 'exec-browser',
       browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
@@ -194,7 +185,6 @@ const cases: Case[] = [
     },
     config: {
       ...FIXTURE_CONFIG, mode: 'plan', thinking: 'medium',
-      extraOption: { foo: 'bar' }, extraEnv: { EXTRA_ONE: '1' },
     },
     route: {
       ANTHROPIC_API_KEY: 'sk-route-fixture',
@@ -205,7 +195,7 @@ const cases: Case[] = [
       engineKey: 'web:browser-fixture',
       cwd: undefined,
       resume: { backendSessionId: '55555555-5555-4555-8555-555555555555', resume: true },
-      model: { id: 'claude-fixture', provider: undefined, thinking: 'medium', maxOutputTokens: undefined },
+      model: { id: 'claude-fixture', provider: undefined, thinking: 'medium', benchmarkMaxOutputTokens: undefined },
       prompt: { system: undefined, append: undefined },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
@@ -214,11 +204,10 @@ const cases: Case[] = [
         browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
       },
       env: {
-        sets: { ANTHROPIC_API_KEY: 'sk-route-fixture', EXTRA_ONE: '1' },
+        sets: { ANTHROPIC_API_KEY: 'sk-route-fixture' },
         unsets: ['CLAUDE_CODE_OAUTH_TOKEN'],
         pinned: undefined,
         context: {
-          profile: 'web-profile',
           project: null,
           trackSessionId: 'tracked-browser',
           executionId: 'exec-browser',
@@ -235,7 +224,6 @@ const cases: Case[] = [
         isUserInitiated: true,
       },
       context: { channel: 'web:browser-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
-      extraOption: { foo: 'bar' },
       backend: { kind: 'claude', claudeAgent: 'my-agent', outputStyle: 'concise' },
       process: { spawner: undefined, cliPath: undefined },
     },

@@ -81,7 +81,7 @@ test('a held card is flushed when the turn recovers and settles successfully', (
     'a turn that recovered from a mid-flight API error still reports it');
 });
 
-test('a fallback transition flushes the held card before the fallback warning', (t) => {
+test('terminal failure flushes the held rate-limit card once', (t) => {
   home.rl._testReset();
   t.onTestFinished(() => home.rl._testReset());
 
@@ -89,26 +89,21 @@ test('a fallback transition flushes the held card before the fallback warning', 
   const tracker = makeTracker(seen);
 
   tracker.observe(RATE_LIMIT_TEXT, undefined, 'error');
-  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' }, 'rate-limited');
+  tracker.emitTerminalError(new Error(RATE_LIMIT_TEXT));
 
   assert.deepEqual(seen.map((s) => [s.text, s.level]), [
     [RATE_LIMIT_TEXT, 'error'],
-    ['m1/plan is rate limited; falling back to m2/api.', 'warning'],
   ]);
 });
 
-test('the fallback warning names a transport failure as one, not as a rate limit', () => {
+test('transport failure is terminal, not a retry warning', () => {
   const seen: Seen[] = [];
   const tracker = makeTracker(seen);
-
-  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' }, 'transport-error');
-
-  assert.deepEqual(seen.map((s) => [s.text, s.level]), [
-    ['Could not reach m1/plan; falling back to m2/api.', 'warning'],
-  ]);
+  tracker.emitTerminalError(new Error('API Error: connection closed'));
+  assert.deepEqual(seen.map((s) => [s.text, s.level]), [['API Error: connection closed', 'error']]);
 });
 
-test('a fallback opens a fresh dedupe window so the next provider can still report a failure', (t) => {
+test('the single attempt keeps its dedupe window through terminal failure', (t) => {
   home.rl._testReset();
   t.onTestFinished(() => home.rl._testReset());
 
@@ -116,13 +111,8 @@ test('a fallback opens a fresh dedupe window so the next provider can still repo
   const tracker = makeTracker(seen);
 
   tracker.observe('API Error: first provider died', undefined, 'error');
-  tracker.transitionToFallback({ model: 'm1', mode: 'plan' }, { model: 'm2', mode: 'api' }, 'transport-error');
-  seen.length = 0;
-
-  tracker.emitTerminalError(new Error('API Error: second provider died too'));
-
-  assert.deepEqual(seen.map((s) => [s.text, s.level]), [['API Error: second provider died too', 'error']],
-    "the new provider's failure is not hidden by the old provider's notice");
+  tracker.emitTerminalError(new Error('API Error: first provider died'));
+  assert.deepEqual(seen.map((s) => [s.text, s.level]), [['API Error: first provider died', 'error']]);
 });
 
 test('the notice path forwards native-subagent attribution', () => {

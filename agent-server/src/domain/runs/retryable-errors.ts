@@ -24,26 +24,3 @@ export function isRetryableError(error: Error | null | undefined): boolean {
     || TRANSIENT_TRANSPORT_ERROR.test(message)
     || TRANSIENT_PROVIDER_GUIDANCE.test(message);
 }
-
-/** Why a retryable outcome moves the chain on to a fallback. */
-export type FallbackReason = 'rate-limited' | 'transport-error';
-
-/** A retryable thrown failure is either the provider refusing on quota or the request failing on
- *  its way (connection reset, 5xx, timeout). Only call this on an `isRetryableError` failure. */
-export function fallbackReasonOf(error: Error): FallbackReason {
-  return isApiRateLimitError(error.message) ? 'rate-limited' : 'transport-error';
-}
-
-/**
- * A retryable failure the chain deliberately did not retry: the attempt had already started a tool
- * call, and re-running the turn on a fallback would run that tool again. It ends the turn as a
- * plain failure — no fallback, and no automatic resume either, which is what a rate-limit message
- * would otherwise get. The message itself says what happened and asks the user to send again.
- */
-export function notRetriedFailure(message: string): Error {
-  return Object.assign(new Error(message), { notRetried: true as const });
-}
-
-export function isNotRetriedFailure(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { notRetried?: unknown }).notRetried === true;
-}
