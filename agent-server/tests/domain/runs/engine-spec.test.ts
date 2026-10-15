@@ -13,8 +13,8 @@ import { resetSettingsForTests } from '../../../src/core/settings.js';
 // path on the `refactor/runs` base, in this exact test home (no rules dir, default settings), and
 // converted one-for-one into the EngineSpec shape. `assert.deepStrictEqual` distinguishes a
 // present-but-`undefined` key from an absent one, so the literals list every key the builder emits.
-// The only key removed since is `backend.claudeBackend`, which selected the retired TUI runtime and
-// never reached argv. Any further drift here is a regression, not a restatement.
+// `backend.claudeBackend` was removed with the retired TUI runtime. The execution context now
+// additionally carries the selected attempt so both backends can populate MCP selection identity.
 const FIXTURE_CONFIG: Partial<EngineSelection> = { model: 'claude-fixture', backend: 'claude', mode: 'plan' };
 
 interface Case {
@@ -57,6 +57,7 @@ const cases: Case[] = [
           project: null,
           trackSessionId: 'tracked-direct',
           executionId: 'exec-direct',
+          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: null, mode: 'plan' },
         },
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
@@ -102,6 +103,7 @@ const cases: Case[] = [
           project: null,
           trackSessionId: 'tracked-pi',
           executionId: 'exec-pi',
+          selection: { backend: 'pi', provider: 'deepseek', model: 'pi-model', thinking: 'high', mode: 'pi-mode' },
         },
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: 'http://127.0.0.1:9880', gatewayPath: '/m/pi-mode/deepseek' },
@@ -155,6 +157,7 @@ const cases: Case[] = [
           project: null,
           trackSessionId: 'tracked-subagent',
           executionId: 'exec-subagent',
+          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: null, mode: 'plan' },
         },
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
@@ -211,6 +214,7 @@ const cases: Case[] = [
           project: null,
           trackSessionId: 'tracked-browser',
           executionId: 'exec-browser',
+          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: 'medium', mode: 'plan' },
         },
       },
       route: {

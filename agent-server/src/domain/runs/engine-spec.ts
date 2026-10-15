@@ -62,16 +62,15 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
 
 // --- Spec helpers ---
 
-function spawnContext(request: RunRequest, executionId: string | null): CortexContextEnv {
+function spawnContext(
+  request: RunRequest, attempt: EngineSelection, executionId: string | null,
+): CortexContextEnv {
   return {
+    selection: { ...attempt },
     project: request.context.project ?? null,
     trackSessionId: request.session.sessionId ?? request.session.backendSessionId ?? null,
     executionId: executionId ?? null,
   };
-}
-
-function hasSpawnContext(context: CortexContextEnv): boolean {
-  return Object.values(context).some(Boolean);
 }
 
 /** A spec's tool surface is either a canonical list or Claude's raw `--tools` string. */
@@ -196,7 +195,7 @@ export function buildEngineSpec(
 ): EngineSpec {
   const { route, executionId = null } = opts;
   const mcpComposition = resolveMcpComposition(request.policy.mcpComposition);
-  const context = spawnContext(request, executionId);
+  const context = spawnContext(request, attempt, executionId);
   const appendSystemPrompt = composeSystemPrompt(request.spec, {
     rules: globalRuleBodies(request.policy.loadRules !== false),
   });
@@ -241,7 +240,7 @@ export function buildEngineSpec(
       sets: routeEnv.sets,
       unsets: routeEnv.unsets,
       pinned: request.isolation?.pinnedEnv,
-      context: hasSpawnContext(context) ? context : undefined,
+      context,
     },
     route: {
       anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,

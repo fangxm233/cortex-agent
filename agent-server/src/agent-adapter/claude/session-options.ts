@@ -3,10 +3,10 @@ import { resolveSpawnCwd } from '@core/paths.js';
 import { fromCanonical } from '@core/tool-names.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import { resolveMcpComposition } from '../types.js';
-import type { AgentProcessSpawner, EngineSpec, McpComposition } from '../types.js';
+import type { AgentProcessSpawner, CortexContextEnv, EngineSpec, McpComposition } from '../types.js';
 import {
   buildClaudeEnv, buildSpawnArgs, resolveClaudeMcpBundles,
-  type ClaudeSpawnOptions, type CortexAgentContext,
+  type ClaudeSpawnOptions,
 } from './spawn-args.js';
 import { writeClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { writeBrowserMcpConfig } from './browser-mcp.js';
@@ -60,9 +60,9 @@ export interface ClaudeSessionOptions {
   pinnedEnv?: NodeJS.ProcessEnv;
   /** Selected thinking level → `--effort <level>`. Absent → no flag. */
   thinking?: string | null;
-  /** Cortex execution context surfaced to the MCP server child as CORTEX_PROJECT/SESSION_ID env vars.
+  /** Cortex execution identity and engine selection surfaced to the MCP server child as env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
-  context?: CortexAgentContext;
+  context?: CortexContextEnv;
 }
 
 /** One launch of a session's process: which transcript, whether it resumes, and the options. */

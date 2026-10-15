@@ -3,6 +3,7 @@ import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.j
 import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 // Re-exported so every `import { Backend } from '.../agent-adapter/types.js'` keeps working;
 // the definition moved to core so `core/agents/*` can name a backend without importing up.
@@ -39,6 +40,8 @@ export type RateLimitReporter = (
 
 /** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
 export interface CortexContextEnv {
+  /** The actual selected attempt, not the request's original selection. */
+  selection?: EngineSelection;
   project?: string | null;
   /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
    *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing

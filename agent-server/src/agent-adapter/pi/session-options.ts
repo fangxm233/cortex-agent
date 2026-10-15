@@ -38,6 +38,7 @@ export interface PIEnvOptions {
 const RESET_CONTEXT_KEYS = [
   'SLACK_CHANNEL', 'FEISHU_CHANNEL',
   'CORTEX_SESSION_ID', 'CORTEX_PROFILE', // Strip the retired context key from inherited env.
+  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_MODE',
   'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
@@ -53,6 +54,10 @@ function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void 
 
 function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
   const context = options.context;
+  setOptional(env, 'CORTEX_MODEL', context?.selection?.model);
+  setOptional(env, 'CORTEX_PROVIDER', context?.selection?.provider);
+  setOptional(env, 'CORTEX_THINKING', context?.selection?.thinking);
+  setOptional(env, 'CORTEX_MODE', context?.selection?.mode);
   setOptional(env, 'CORTEX_SESSION_ID', context?.trackSessionId ?? options.sessionId);
   setOptional(env, 'CORTEX_CALLBACK_SOURCE', options.callbackSource);
   setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
@@ -117,9 +122,9 @@ export interface PiSessionRequest {
   /** Plugin/browser MCP servers, already filtered by composition. Empty when none apply. */
   pluginMcpServers: McpServerConfig[];
   /**
-   * The session's CORTEX_* environment. Nothing in-process reads scope from it; it exists for the
-   * two things that are still child processes (hook scripts, plugin MCP servers), for the child
-   * subagent of the transition period, and as the pool identity.
+   * The session's CORTEX_* environment. Both in-process MCP context and child processes (hook
+   * scripts, plugin MCP servers, subagents) read scope from this snapshot, also used as the pool
+   * identity.
    */
   env: NodeJS.ProcessEnv;
   streamDeltas: boolean;

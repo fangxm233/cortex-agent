@@ -18,7 +18,7 @@ import {
 } from '@core/agents/subagent/catalog.js';
 import { anthropicModelDiscovery, anthropicModelIds } from '@core/anthropic-model-discovery.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
-import type { McpComposition } from '../types.js';
+import type { CortexContextEnv, McpComposition } from '../types.js';
 import { piProviderDiscovery } from '../pi/discovery.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
@@ -265,22 +265,11 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   return args;
 }
 
-/** Cortex agent execution context — surfaces as CORTEX_* env vars so MCP tools
- *  such as cortex_context can discover the current session and project.
- *  Optional fields are omitted from env when undefined, so child processes see no key
- *  rather than an empty string. */
-export interface CortexAgentContext {
-  project?: string | null;
-  /** Stable Cortex tracking id (decoupled from the backend session id) → CORTEX_SESSION_ID. */
-  trackSessionId?: string | null;
-  /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
-  executionId?: string | null;
-}
-
 /** Ambient Cortex context keys re-derived on every spawn, so a stale parent value can never leak
  *  in. CORTEX_EXECUTION_ID is deliberately absent: it is set from context but never reset. */
 const CORTEX_CONTEXT_RESET_KEYS = [
   'CORTEX_PROFILE', 'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', // Never inherit the retired key.
+  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_MODE',
 ] as const;
 
 function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null): void {
@@ -406,8 +395,13 @@ export function claudeRouteIdentity(route: ClaudeRouteInputs): string {
   return [endpoint, ...credentials].join(' ');
 }
 
-function cortexContextEnv(context?: CortexAgentContext): Record<string, string | undefined> {
+function cortexContextEnv(context?: CortexContextEnv): Record<string, string | null | undefined> {
   return {
+    CORTEX_BACKEND: 'claude',
+    CORTEX_MODEL: context?.selection?.model,
+    CORTEX_PROVIDER: context?.selection?.provider,
+    CORTEX_THINKING: context?.selection?.thinking,
+    CORTEX_MODE: context?.selection?.mode,
     CORTEX_PROJECT: context?.project,
     CORTEX_EXECUTION_ID: context?.executionId,
   };
@@ -415,7 +409,7 @@ function cortexContextEnv(context?: CortexAgentContext): Record<string, string |
 
 /** Authoritative last word on the Cortex context keys: a child can neither inherit a stale value
  *  nor forge one through routeEnv/unsetEnv. */
-function applyCortexContextEnv(env: NodeJS.ProcessEnv, context?: CortexAgentContext): void {
+function applyCortexContextEnv(env: NodeJS.ProcessEnv, context?: CortexContextEnv): void {
   for (const key of CORTEX_CONTEXT_RESET_KEYS) delete env[key];
   for (const [key, value] of Object.entries(cortexContextEnv(context))) setIfPresent(env, key, value);
 }
@@ -473,7 +467,7 @@ export function buildClaudeEnv(
   scheduleTaskId?: string | null,
   anthropicBaseUrl?: string,
   routeEnv?: Record<string, string>,
-  context?: CortexAgentContext,
+  context?: CortexContextEnv,
   pinnedEnv?: NodeJS.ProcessEnv,
   unsetEnv?: string[],
 ): NodeJS.ProcessEnv {
@@ -486,10 +480,6 @@ export function buildClaudeEnv(
   // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
   // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset.
   env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;
-  // Declared, not inferred: hooks branch on which backend loaded the AGENTS.md chain natively
-  // (agents-md-injector.mjs), and "absent means Claude" would silently mis-handle any future
-  // spawn path that forgets to set it. PI states itself in agent-adapter/pi/session-options.ts.
-  env.CORTEX_BACKEND = 'claude';
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
