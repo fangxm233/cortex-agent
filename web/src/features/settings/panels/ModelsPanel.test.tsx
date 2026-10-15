@@ -8,9 +8,9 @@ import { ModelsPanelView } from './ModelsPanel';
 
 vi.mock('@/design', async importOriginal => ({
   ...await importOriginal<typeof import('@/design')>(),
-  Select: ({ value, onValueChange, options, ...props }: { value: string; onValueChange: (value: string) => void; options: { value: string; label: string }[] }) =>
+  Select: ({ value, onValueChange, options, ...props }: { value: string; onValueChange: (value: string) => void; options: { value: string; label: string; disabled?: boolean }[] }) =>
     <select {...props} value={value} onChange={event => onValueChange(event.target.value)}>
-      {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      {options.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
     </select>,
 }));
 
@@ -19,10 +19,48 @@ function controller(): ModelsController {
   return { snapshot: { models: { default: { ...ref, thinking: 'high', mode: 'deepseek' }, favorites: [ref], memory: {} } } as ConfigSnapshot,
     facts: [{ ref, key: modelKey(ref), thinking: 'high', current: true }], options: [ref],
     loading: false, error: null, catalogOpen: false, catalogModels: [], catalogPending: false, catalogError: null,
-    pending: false, setCatalogOpen: vi.fn(), setDefault: vi.fn(), add: vi.fn(), remove: vi.fn(),
+    catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high'], claude: ['high'] } },
+    pending: false, setCatalogOpen: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
   };
 }
 function render(c: ModelsController) { return create(<LangProvider><ModelsPanelView controller={c} /></LangProvider>); }
+
+describe('desktop favorite thinking', () => {
+  it.each([['off', 'off'], ['', null]])('maps %s to %s without changing default or optimistic memory', (value, thinking) => {
+    const c = controller();
+    const view = render(c);
+    const select = view.root.findByProps({ 'data-model-row': modelKey(ref) }).findByType('select');
+    expect(select.props.disabled).toBe(false);
+    act(() => select.props.onChange({ target: { value } }));
+    expect(c.setThinking).toHaveBeenCalledWith(ref, thinking);
+    expect(c.setDefault).not.toHaveBeenCalled();
+    expect(select.props.value).toBe('high');
+    expect(select.findAllByType('option')[0].children).toEqual([en.stThinkingBackendDefault]);
+    view.unmount();
+  });
+  it.each(['write', 'missing', 'scan'])('disables the thinking picker during %s', state => {
+    const c = controller();
+    c.pending = state === 'write';
+    c.catalog = state === 'missing' ? null : { ...c.catalog!, piPending: state === 'scan' };
+    const view = render(c);
+    const select = view.root.findByProps({ 'data-model-row': modelKey(ref) }).findByType('select');
+    expect(select.props.disabled).toBe(true);
+    expect(select.props.value).toBe('high');
+    expect(c.setThinking).not.toHaveBeenCalled();
+    view.unmount();
+  });
+  it('keeps unsupported memory visible and disabled while offering backend default', () => {
+    const c = controller();
+    c.facts[0].thinking = 'max';
+    const view = render(c);
+    const select = view.root.findByProps({ 'data-model-row': modelKey(ref) }).findByType('select');
+    expect(select.props.value).toBe('max');
+    const legacy = select.findByProps({ value: 'max', disabled: true });
+    expect(legacy.children).toEqual([`max · ${en.stThinkingUnsupported}`]);
+    expect(select.props.disabled).toBe(false);
+    view.unmount();
+  });
+});
 
 describe('desktop models', () => {
   it('renders complete identifiers and remembered thinking; default favorites can be removed', () => {
@@ -30,7 +68,7 @@ describe('desktop models', () => {
     const view = render(c);
     const row = view.root.findByProps({ 'data-model-row': modelKey(ref) });
     expect(JSON.stringify(view.toJSON())).toContain(ref.model);
-    expect(row.findByProps({ 'data-label': en.stColThinking }).children).toEqual(['high']);
+    expect(row.findByType('select').props.value).toBe('high');
     const buttons = row.findAllByType('button');
     expect(buttons[0].props.disabled).toBe(true);
     expect(buttons[1].props.disabled).toBe(false);

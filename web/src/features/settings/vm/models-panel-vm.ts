@@ -35,6 +35,34 @@ export function defaultModelOptions(snapshot: ConfigSnapshot, catalog: ModelCata
   return uniqueModels([...favorites, ...catalogModels(catalog), ...(current ? [current] : [])]);
 }
 
+type ThinkingCopy = { stThinkingBackendDefault: string; stThinkingUnsupported: string };
+
+function favoriteThinkingLevels(ref: ModelRef, catalog: ModelCatalogSnapshot | null): string[] | null {
+  if (!catalog || (ref.backend === 'pi' && catalog.piPending)) return null;
+  const allowed = catalog.thinkingLevels?.[ref.backend];
+  if (!allowed) return null;
+  const route = catalog.routes.find(entry => entry.backend === ref.backend && entry.provider === ref.provider);
+  const levels = route?.modelThinking?.[ref.model] ?? allowed;
+  return [...new Set(levels.filter(level => allowed.includes(level)))];
+}
+
+export function thinkingFromValue(value: string): string | null {
+  return value === '' ? null : value;
+}
+
+export function favoriteThinkingControl(fact: ModelFact, catalog: ModelCatalogSnapshot | null, copy: ThinkingCopy) {
+  const levels = favoriteThinkingLevels(fact.ref, catalog);
+  const options: { value: string; label: string; disabled?: boolean }[] = [
+    { value: '', label: copy.stThinkingBackendDefault },
+    ...(levels ?? []).map(level => ({ value: level, label: level })),
+  ];
+  if (fact.thinking !== null && !levels?.includes(fact.thinking)) {
+    const label = levels === null ? fact.thinking : `${fact.thinking} · ${copy.stThinkingUnsupported}`;
+    options.push({ value: fact.thinking, label, disabled: true });
+  }
+  return { value: fact.thinking ?? '', options, disabled: levels === null };
+}
+
 export function groupModelFacts(facts: ModelFact[]): [string, ModelFact[]][] {
   const groups = new Map<string, ModelFact[]>();
   for (const fact of facts) {
