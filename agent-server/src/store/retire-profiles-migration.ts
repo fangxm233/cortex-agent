@@ -115,8 +115,32 @@ function resolveName(snapshot: Snapshot, name: unknown, context: string): Engine
   const selected = snapshot.selections.get(String(name));
   if (selected) return { ...selected };
   snapshot.report.missingNames.push({ name: String(name), context });
-  log.warn(`Unknown profile ${String(name)} at ${context}; using default selection`);
+  log.warn(`Unknown profile ${String(name)} at ${context}; resolving fallback selection`);
   return { ...snapshot.models.default };
+}
+
+function compatible(value: unknown, backend: string | undefined): boolean {
+  return Boolean(value) && (backend === undefined || object(value).backend === backend);
+}
+
+function resolveCompatibleName(
+  snapshot: Snapshot, name: unknown, context: string, backend: string | undefined,
+): EngineSelection | null {
+  const selected = resolveName(snapshot, name, context);
+  if (compatible(selected, backend)) return selected;
+  if (compatible(snapshot.models.default, backend)) return { ...snapshot.models.default };
+  const favorite = snapshot.models.favorites.find(ref => ref.backend === backend);
+  return favorite ? { ...favorite, ...snapshot.memory[key(favorite)] } : null;
+}
+
+/** Bindings, not session.channel (the creation origin), identify the resume target. */
+async function channelBackend(repo: SessionRegistryRepo, channel: string): Promise<string | undefined> {
+  const boundId = await repo.getBoundSessionId(channel);
+  const bound = boundId ? await repo.getById(boundId) : null;
+  if (bound) return bound.backend;
+  const header = await repo.getConversationHeader(channel);
+  const session = header?.sessionId ? await repo.getById(header.sessionId) : null;
+  return session?.backend ?? header?.backend;
 }
 
 function mergeOverride(selection: EngineSelection, raw: unknown): EngineSelection {
@@ -135,14 +159,17 @@ function mergeOverride(selection: EngineSelection, raw: unknown): EngineSelectio
   return next;
 }
 
-function migrateChannels(state: JsonObject, snapshot: Snapshot): JsonObject {
+async function migrateChannels(state: JsonObject, snapshot: Snapshot, repo: SessionRegistryRepo): Promise<JsonObject> {
   const profiles = object(state.channelProfiles);
   const overrides = object(state.channelOverrides);
   const channels = new Set([...Object.keys(profiles), ...Object.keys(overrides)]);
   const selections = { ...object(state.channelSelections) };
   for (const channel of channels) {
-    if (selections[channel]) continue;
-    const base = resolveName(snapshot, profiles[channel] ?? state.activeProfile, `channel:${channel}`);
+    const backend = await channelBackend(repo, channel);
+    if (compatible(selections[channel], backend)) continue;
+    const base = resolveCompatibleName(snapshot, profiles[channel] ?? state.activeProfile, `channel:${channel}`, backend);
+    delete selections[channel];
+    if (!base) continue;
     selections[channel] = mergeOverride(base, overrides[channel]);
     snapshot.report.channels += 1;
     if (Object.keys(object(overrides[channel])).length) snapshot.report.overrides += 1;
@@ -157,8 +184,8 @@ function migrateSeed(state: JsonObject, snapshot: Snapshot): unknown {
   return { ...selection, ...(text(seed.agentName) ? { agentName: seed.agentName } : {}) };
 }
 
-function migrateState(state: JsonObject, snapshot: Snapshot): JsonObject {
-  const next: JsonObject = { ...state, channelSelections: migrateChannels(state, snapshot),
+async function migrateState(state: JsonObject, snapshot: Snapshot, repo: SessionRegistryRepo): Promise<JsonObject> {
+  const next: JsonObject = { ...state, channelSelections: await migrateChannels(state, snapshot, repo),
     modelMemory: { ...snapshot.memory, ...object(state.modelMemory) } };
   if ('selectionDefault' in state) next.selectionDefault = migrateSeed(state, snapshot);
   for (const field of ['activeProfile', 'channelProfiles', 'channelOverrides']) delete next[field];
@@ -206,28 +233,43 @@ async function readRawNames(file: string): Promise<RawNames> {
   return names;
 }
 
-async function migrateRegistry(file: string, state: JsonObject, snapshot: Snapshot): Promise<void> {
-  const names = await readRawNames(file);
-  if (!names.sessions.size && !names.conversations.size) return;
-  // Old homes lacking both a stored session name and a channel entry lose that session's old
-  // choice and follow the default; S1/S8 deliberately do not materialize selections in advance.
-  // Never use the singleton, and never compact away the raw names needed by a partial retry.
-  const repo = new SessionRegistryRepo(file, { shouldCompact: () => false });
-  const overrides = object(state.channelOverrides);
-  for (const [id, name] of names.sessions) {
+async function migrateSessions(
+  names: Map<string, string>, repo: SessionRegistryRepo, overrides: JsonObject, snapshot: Snapshot,
+): Promise<void> {
+  // Sessions without a stored name stay unmaterialized; runtime guards their resume backend.
+  for (const [id, name] of names) {
     const session = await repo.getById(id);
-    if (!session || session.selection) continue;
-    const selection = mergeOverride(resolveName(snapshot, name, `session:${id}`), overrides[session.channel]);
+    if (!session || compatible(session.selection, session.backend)) continue;
+    const base = resolveCompatibleName(snapshot, name, `session:${id}`, session.backend);
+    if (!base && !session.selection) continue;
+    const selection = base ? mergeOverride(base, overrides[session.channel]) : null;
     await repo.updateSession(id, { selection });
     snapshot.report.sessions += 1;
   }
-  for (const [channel, name] of names.conversations) {
+}
+
+async function migrateConversations(
+  names: Map<string, string>, repo: SessionRegistryRepo, overrides: JsonObject, snapshot: Snapshot,
+): Promise<void> {
+  for (const [channel, name] of names) {
     const header = await repo.getConversationHeader(channel);
-    if (!header || header.selection) continue;
-    const selection = mergeOverride(resolveName(snapshot, name, `conversation:${channel}`), overrides[channel]);
+    const backend = await channelBackend(repo, channel);
+    if (!header || compatible(header.selection, backend)) continue;
+    const base = resolveCompatibleName(snapshot, name, `conversation:${channel}`, backend);
+    if (!base && !header.selection) continue;
+    const selection = base ? mergeOverride(base, overrides[channel]) : null;
     await repo.setConversation(channel, { selection });
     snapshot.report.conversations += 1;
   }
+}
+
+async function migrateRegistry(
+  file: string, repo: SessionRegistryRepo, state: JsonObject, snapshot: Snapshot,
+): Promise<void> {
+  const names = await readRawNames(file);
+  const overrides = object(state.channelOverrides);
+  await migrateSessions(names.sessions, repo, overrides, snapshot);
+  await migrateConversations(names.conversations, repo, overrides, snapshot);
   await repo.flush();
 }
 
@@ -280,7 +322,7 @@ async function archiveProfiles(source: string, now: Date): Promise<string> {
 }
 
 /** S10 only. Registry migration finishes before removing channel overrides; archive is LAST.
- * Each destination preserves already materialized values, so any interrupted prefix can retry.
+ * Each destination preserves compatible materialized values, so any interrupted prefix can retry.
  * A sealed home is entirely untouched, including its mutable state. */
 export async function retireProfiles(options: {
   dataDir: string; storeDir: string; now?: Date;
@@ -294,10 +336,13 @@ export async function retireProfiles(options: {
   const snapshot = buildSnapshot(source, report);
   const statePath = path.join(options.storeDir, 'agent-state.json');
   const state = await readObject(statePath) ?? {};
-  const nextState = migrateState(state, snapshot);
+  const registryPath = path.join(options.storeDir, 'session-registry.jsonl');
+  // Never use the singleton or compact away legacy names needed by a partial retry.
+  const repo = new SessionRegistryRepo(registryPath, { shouldCompact: () => false });
+  const nextState = await migrateState(state, snapshot, repo);
   const modelsPath = path.join(configDir, 'models.json');
   if (!await readObject(modelsPath)) await writeObject(modelsPath, snapshot.models);
-  await migrateRegistry(path.join(options.storeDir, 'session-registry.jsonl'), state, snapshot);
+  await migrateRegistry(registryPath, repo, state, snapshot);
   await migrateSchedules(path.join(options.storeDir, 'schedules.json'), snapshot);
   await migrateEnvironments(path.join(configDir, 'environments'), report);
   await writeObject(statePath, nextState);

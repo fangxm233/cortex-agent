@@ -22,9 +22,9 @@ function json(relative: string): any { return JSON.parse(read(relative)); }
 function exists(relative: string): boolean { return fs.existsSync(path.join(home, relative)); }
 function migrate() { return retireProfiles({ dataDir: home, storeDir: path.join(home, 'data'), now: NOW }); }
 function repo() { return new SessionRegistryRepo(path.join(home, 'data/session-registry.jsonl')); }
-function put(id: string, channel: string, profileName: string | null) {
+function put(id: string, channel: string, profileName: string | null, backend = 'claude') {
   return { v: 1, op: 'put', id, record: {
-    sessionId: id, channel, profileName, backend: 'claude', kind: 'local', origin: 'direct',
+    sessionId: id, channel, profileName, backend, kind: 'local', origin: 'direct',
     projectId: 'general', createdAt: NOW.toISOString(), lastUsedAt: NOW.toISOString(), label: null,
   } };
 }
@@ -103,7 +103,7 @@ describe('S10 retire profiles', () => {
       put('deleted', 'a', 'plan'),
       { ...put('deleted', 'a', 'plan'), op: 'delete-intent', cleanup: { claudeBackupPaths: [] } },
       { v: 1, op: 'delete-commit', id: 'deleted' },
-      put('pi', 'b', 'flash'),
+      put('pi', 'b', 'flash', 'pi'),
       { v: 1, op: 'conversation', channel: 'a', kind: 'set', fields: {
         sessionId: 'changed', backend: 'claude', profileName: 'plan', updatedAt: NOW.toISOString(),
       } },
@@ -125,9 +125,104 @@ describe('S10 retire profiles', () => {
     expect(report).toMatchObject({ sessions: 2, conversations: 2 });
   });
 
+  it.each(['qwen-ksu', 'plan'])('resolves %s on the recorded PI backend using favorite memory', async (name) => {
+    seed();
+    const profiles = json('config/profiles.json');
+    profiles.profiles.laterPi = { ...PI, model: 'later', thinking: 'low' };
+    profiles.profiles.duplicatePi = { ...PI, thinking: 'low' };
+    write('config/profiles.json', profiles);
+    journal([put('pi', 'plain', name, 'pi')]);
+    const before = read('data/session-registry.jsonl');
+    await migrate();
+    expect((await repo().getById('pi'))?.selection).toEqual(PI);
+    expect((await repo().getById('pi'))?.backend).toBe('pi');
+    expect(read('data/session-registry.jsonl').startsWith(before)).toBe(true);
+    const after = read('data/session-registry.jsonl');
+    await migrate();
+    expect(read('data/session-registry.jsonl')).toBe(after);
+  });
+
+  it('prefers a compatible global default over the first favorite', async () => {
+    write('config/profiles.json', { defaultProfile: 'last', profiles: {
+      first: { ...DEFAULT, model: 'first' }, last: DEFAULT, flash: PI,
+    } });
+    journal([put('claude', 'plain', 'flash')]);
+    await migrate();
+    expect((await repo().getById('claude'))?.selection).toEqual(DEFAULT);
+  });
+
+  it('uses persisted bindings rather than session origin channels for channel compatibility', async () => {
+    seed();
+    write('data/agent-state.json', { channelProfiles: { bound: 'qwen-ksu', conflict: 'plan' } });
+    journal([
+      put('pi', 'old-origin', null, 'pi'),
+      { v: 1, op: 'bind', channel: 'bound', sessionId: 'pi' },
+      { v: 1, op: 'bind', channel: 'conflict', sessionId: 'pi' },
+      { v: 1, op: 'conversation', channel: 'bound', kind: 'set', fields: {
+        sessionId: 'pi', backend: 'claude', profileName: 'qwen-ksu', updatedAt: NOW.toISOString(),
+      } },
+    ]);
+    await migrate();
+    expect(json('data/agent-state.json').channelSelections).toEqual({ bound: PI, conflict: PI });
+    expect((await repo().getConversationHeader('bound'))?.selection).toEqual(PI);
+    expect((await repo().getById('pi'))?.selection).toBeNull();
+  });
+
+  it.each(['qwen-ksu', 'plan'])('leaves %s unmaterialized without a compatible favorite', async (name) => {
+    write('config/profiles.json', { defaultProfile: 'plan', profiles: { plan: DEFAULT } });
+    write('data/agent-state.json', { channelProfiles: { bound: name } });
+    journal([
+      put('pi', 'origin', name, 'pi'),
+      { v: 1, op: 'bind', channel: 'bound', sessionId: 'pi' },
+      { v: 1, op: 'conversation', channel: 'bound', kind: 'set', fields: {
+        sessionId: 'pi', backend: 'pi', profileName: name, updatedAt: NOW.toISOString(),
+      } },
+    ]);
+    const before = read('data/session-registry.jsonl');
+    const report = await migrate();
+    expect((await repo().getById('pi'))?.selection).toBeNull();
+    expect((await repo().getConversationHeader('bound'))?.selection).toBeNull();
+    expect(json('data/agent-state.json').channelSelections).toEqual({});
+    expect(read('data/session-registry.jsonl')).toBe(before);
+    expect(report).toMatchObject({ sessions: 0, channels: 0, conversations: 0 });
+  });
+
+  it.each([true, false])('repairs incompatible materialized choices (PI favorite: %s)', async (hasPi) => {
+    write('config/profiles.json', { defaultProfile: 'plan', profiles: { plan: DEFAULT, ...(hasPi ? { flash: PI } : {}) } });
+    write('data/agent-state.json', { channelProfiles: { bound: 'plan' }, channelSelections: { bound: DEFAULT } });
+    journal([
+      { ...put('pi', 'origin', 'plan', 'pi'), record: { ...put('pi', 'origin', 'plan', 'pi').record, selection: DEFAULT } },
+      { v: 1, op: 'bind', channel: 'bound', sessionId: 'pi' },
+      { v: 1, op: 'conversation', channel: 'bound', kind: 'set', fields: {
+        sessionId: 'pi', backend: 'pi', profileName: 'plan', selection: DEFAULT, updatedAt: NOW.toISOString(),
+      } },
+    ]);
+    const before = read('data/session-registry.jsonl');
+    await migrate();
+    expect((await repo().getById('pi'))?.selection).toEqual(hasPi ? PI : null);
+    expect((await repo().getConversationHeader('bound'))?.selection).toEqual(hasPi ? PI : null);
+    expect(json('data/agent-state.json').channelSelections).toEqual(hasPi ? { bound: PI } : {});
+    expect(read('data/session-registry.jsonl').startsWith(before)).toBe(true);
+  });
+
+  it('preserves compatible materialized choices despite conflicting legacy names', async () => {
+    seed();
+    const preserved = { ...PI, model: 'already-selected', thinking: 'low' };
+    write('data/agent-state.json', { channelProfiles: { bound: 'plan' }, channelSelections: { bound: preserved } });
+    journal([
+      { ...put('pi', 'origin', 'plan', 'pi'), record: { ...put('pi', 'origin', 'plan', 'pi').record, selection: preserved } },
+      { v: 1, op: 'bind', channel: 'bound', sessionId: 'pi' },
+    ]);
+    const before = read('data/session-registry.jsonl');
+    await migrate();
+    expect((await repo().getById('pi'))?.selection).toEqual(preserved);
+    expect(json('data/agent-state.json').channelSelections.bound).toEqual(preserved);
+    expect(read('data/session-registry.jsonl')).toBe(before);
+  });
+
   it('preserves a legacy name through compaction until S10 materializes and clears it', async () => {
     seed();
-    journal([put('old', 'no-channel-entry', 'flash')]);
+    journal([put('old', 'no-channel-entry', 'flash', 'pi')]);
     await repo().compactNow();
     expect((await repo().getById('old'))?.profileName).toBe('flash');
     expect(JSON.parse(read('data/session-registry.jsonl')).record.profileName).toBe('flash');
@@ -141,7 +236,7 @@ describe('S10 retire profiles', () => {
 
   it('resumes a failed append without losing overrides or duplicating earlier patches', async () => {
     seed();
-    journal([put('first', 'a', 'plan'), put('second', 'b', 'flash')]);
+    journal([put('first', 'a', 'plan'), put('second', 'b', 'flash', 'pi')]);
     const original = SessionRegistryRepo.prototype.updateSession;
     let calls = 0;
     const append = vi.spyOn(SessionRegistryRepo.prototype, 'updateSession').mockImplementation(async function(id, fields) {
@@ -169,7 +264,7 @@ describe('S10 retire profiles', () => {
     write('data/agent-state.json', { channelSelections: { a: preserved }, selectionDefault: preserved,
       modelMemory: { [JSON.stringify(['pi', 'deepseek', 'flash'])]: { thinking: 'low', mode: 'deepseek' } } });
     write('data/schedules.json', { tasks: [{ id: 'one', selection: preserved, profile: 'plan' }] });
-    journal([{ ...put('already', 'a', 'plan'), record: { ...put('already', 'a', 'plan').record, selection: preserved } }]);
+    journal([{ ...put('already', 'a', 'plan', 'pi'), record: { ...put('already', 'a', 'plan', 'pi').record, selection: preserved } }]);
     await migrate();
     expect(json('config/models.json').default).toEqual(preserved);
     expect(json('data/agent-state.json').channelSelections.a).toEqual(preserved);
