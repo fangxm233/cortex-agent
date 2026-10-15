@@ -13,6 +13,9 @@ mod process;
 mod runtime;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod service;
+// The uninstaller's server half: autostart, daemon, terminal command, runtime, data.
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+pub mod teardown;
 
 use package::{server_package, validate_server_version};
 use process::{npm_bin, probe_output, probe_server_version, resolve_cortex_bin, run_streaming};

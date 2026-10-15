@@ -202,6 +202,19 @@ pub(super) fn run_streaming(
     })
 }
 
+/// Run a setup command to completion without streaming it anywhere (the uninstaller has no log view).
+#[cfg_attr(not(any(target_os = "macos", target_os = "linux", target_os = "windows")), allow(dead_code))]
+pub(super) fn run_quiet(program: &str, args: &[&str]) -> Result<RunOutcome, String> {
+    let output = setup_command(program, args)?
+        .output()
+        .map_err(|e| format!("PROGRAM_FAILED: {program}: {e}"))?;
+    Ok(RunOutcome {
+        code: output.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    })
+}
+
 /// Missing/failing probes mean "absent", not a wizard error.
 pub(super) fn probe_output(program: &str, args: &[&str]) -> Option<String> {
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]

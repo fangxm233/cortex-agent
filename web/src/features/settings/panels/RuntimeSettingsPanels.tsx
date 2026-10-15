@@ -19,6 +19,7 @@ import {
   Toggle,
 } from '@/features/settings/ui/settings-ui';
 import { AppUpdateCard } from './AppUpdateCard';
+import { UninstallCard } from './UninstallCard';
 import { UiSignOutCard } from './UiSignOutCard';
 import {
   ADVANCED_FLAGS,
@@ -482,6 +483,7 @@ export function AdvancedPanelView({ snapshot, pending, onToggle, onSet }: Advanc
       <BuiltinJobsSection settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
       <AppUpdateCard />
       <UiSignOutCard />
+      <UninstallCard />
     </>
   );
 }

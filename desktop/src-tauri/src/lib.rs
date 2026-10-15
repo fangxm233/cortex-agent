@@ -50,6 +50,14 @@ mod app_update;
 // app_update for asset selection and by update_checks for the silent-apply decision.
 mod install_site;
 mod setup;
+// `cortex-desktop --uninstall`: the uninstaller window every uninstall entry point launches.
+// Android uninstalls through the system; its shell gets refusing stubs so the command list stays
+// identical on every platform.
+#[cfg(not(target_os = "android"))]
+mod uninstall;
+#[cfg(target_os = "android")]
+#[path = "uninstall_stub.rs"]
+mod uninstall;
 mod frontend;
 mod ota;
 mod update_checks;
@@ -81,6 +89,41 @@ pub(crate) fn no_console_window(command: &mut std::process::Command) -> &mut std
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
+}
+
+/// The title bar the SPA draws on desktop: under the macOS traffic lights, or all of it elsewhere.
+#[cfg(not(target_os = "android"))]
+fn desktop_title_bar_mode() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "overlay"
+    } else {
+        "custom"
+    }
+}
+
+/// Window chrome matching `desktop_title_bar_mode`, shared by the workbench and the uninstaller.
+#[cfg(not(target_os = "android"))]
+pub(crate) fn desktop_chrome<'a, R: tauri::Runtime, M: Manager<R>>(
+    win: tauri::WebviewWindowBuilder<'a, R, M>,
+) -> tauri::WebviewWindowBuilder<'a, R, M> {
+    // macOS keeps its decorations: Overlay is the supported way to run content under the title
+    // bar, and it preserves the native traffic lights, fullscreen button and window menu. The
+    // lights are centred in the SPA's 44px bar.
+    #[cfg(target_os = "macos")]
+    {
+        let lights = traffic_lights::position();
+        shell_log!("[cortex-desktop] traffic lights at ({}, {})", lights.x, lights.y);
+        win.title_bar_style(tauri::TitleBarStyle::Overlay)
+            .traffic_light_position(lights)
+            .hidden_title(true)
+    }
+    // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow` keeps the drop
+    // shadow (and, on Windows 11, the rounded corners) that an undecorated window otherwise loses;
+    // tao still handles the resize borders and Aero Snap for undecorated windows.
+    #[cfg(not(target_os = "macos"))]
+    {
+        win.decorations(false).shadow(true)
+    }
 }
 
 fn initial_url(config: &ConnectionConfig, runtime_repair: bool) -> String {
@@ -189,7 +232,16 @@ pub fn run() {
             forward::forward_stop,
             forward::forward_list,
             native_menu::set_native_menu,
+            uninstall::uninstall_info,
+            uninstall::uninstall_run,
+            uninstall::uninstall_exit,
+            uninstall::uninstall_open,
         ]);
+
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.on_window_event(uninstall::on_window_event);
+    }
 
     // A native menu click carries only its id; the SPA looks that id up in the same model it sent
     // and runs the same handler the in-window bar would have. Failing to emit is a no-op (no window
@@ -229,6 +281,11 @@ pub fn run() {
 
     builder
         .setup(move |app| {
+            #[cfg(not(target_os = "android"))]
+            if uninstall::launch().is_some() {
+                uninstall::open_window(app, desktop_title_bar_mode())?;
+                return Ok(());
+            }
             // Load credentials (platform store → env fallback) and seed AppState.
             shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
             let initial_config = connection::load_initial_config(&app.handle());
@@ -288,11 +345,7 @@ pub fn run() {
             // Desktop always uses app-drawn chrome, independent of the OTA content hash.
             // Hand the same mode to the SPA so its window controls match the native window.
             #[cfg(not(target_os = "android"))]
-            let title_bar_mode = if cfg!(target_os = "macos") {
-                "overlay"
-            } else {
-                "custom"
-            };
+            let title_bar_mode = desktop_title_bar_mode();
             #[cfg(target_os = "android")]
             let title_bar_mode = "native";
             shell_log!("[cortex-desktop] title bar mode: {title_bar_mode}");
@@ -318,26 +371,7 @@ pub fn run() {
                     .inner_size(1400.0, 900.0)
                     .resizable(true)
                     .disable_drag_drop_handler();
-                // macOS keeps its decorations: Overlay is the supported way to run content under
-                // the title bar, and it preserves the native traffic lights, fullscreen button
-                // and window menu. The lights are centred in the SPA's 44px bar.
-                #[cfg(target_os = "macos")]
-                {
-                    let lights = traffic_lights::position();
-                    shell_log!("[cortex-desktop] traffic lights at ({}, {})", lights.x, lights.y);
-                    win = win
-                        .title_bar_style(tauri::TitleBarStyle::Overlay)
-                        .traffic_light_position(lights)
-                        .hidden_title(true);
-                }
-                // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow`
-                // keeps the drop shadow (and, on Windows 11, the rounded corners) that an
-                // undecorated window otherwise loses; tao still handles the resize borders and
-                // Aero Snap for undecorated windows.
-                #[cfg(not(target_os = "macos"))]
-                {
-                    win = win.decorations(false).shadow(true);
-                }
+                win = desktop_chrome(win);
             }
             win.build()?;
 

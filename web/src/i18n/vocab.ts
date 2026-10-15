@@ -23,6 +23,7 @@ import { settingsSystemEn, settingsSystemZh } from './settings-system-vocab';
 import { projectEn, projectZh } from './project-vocab';
 import { contentEn, contentZh } from './content-vocab';
 import { boardEn, boardZh } from './board-vocab';
+import { uninstallEn, uninstallZh } from './uninstall-vocab';
 import { enBase } from './vocab-en-base';
 import { enExtra } from './vocab-en-extra';
 import { zhBase } from './vocab-zh-base';
@@ -59,6 +60,7 @@ export const en = {
   ...projectEn,
   ...contentEn,
   ...boardEn,
+  ...uninstallEn,
 };
 
 export type Vocab = typeof en;
@@ -94,4 +96,5 @@ export const zh: Record<keyof Vocab, string> = {
   ...projectZh,
   ...contentZh,
   ...boardZh,
+  ...uninstallZh,
 };

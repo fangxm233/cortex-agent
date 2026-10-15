@@ -229,6 +229,36 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 会话在服务器上运行，因此重启或重新安装客户端不会停止它们。设置了 `CORTEX_FRONTEND_DIR` 的开发运行、未携带 CalVer release version 的应用，或设置 `CORTEX_APP_UPDATE_DISABLE=1` 时，都不会检查原生壳更新。
 
+## 卸载 {#uninstalling}
+
+**设置 → 高级 → 卸载 Cortex** 会打开卸载程序：一个独立窗口，询问要移除哪些内容，执行移除，并列出每一步的结果。在 Windows 上，从**设置 → 应用**卸载 Cortex 时，会先打开同一个窗口，再删除程序文件。
+
+窗口提供两项选择：
+
+- **移除范围**在应用曾于本机安装服务器时出现。默认的**应用和本机服务器**会取消开机自启，停止 daemon 及其启动的本机 client，把 `cortex` 终端命令从 `PATH` 中移除，并删除 `~/.cortex/runtime`。**仅应用**保留服务器继续运行，仍可从浏览器或其他设备访问。连接远程服务器的应用不显示这一项，也不会触碰那台服务器。
+- **同时删除数据**默认关闭。与服务器一起选择时，它删除整个 Cortex home（`~/.cortex` 或 `CORTEX_HOME`）：配置与 token、对话、项目上下文、插件和日志；同时删除应用自身名为 `dev.cortex.desktop` 的数据目录，以及保存在系统钥匙串里的连接。选择**仅应用**时，只删除应用自身的数据和保存的连接。确认前窗口会列出所有将删除的路径；删除无法恢复。
+
+保留数据时，重新安装 Cortex 即可接着使用：安装流程会重新解压运行时、重新安装服务器包，并连接到原有的配置和会话。
+
+应用本体按安装方式移除。Windows 卸载程序在窗口关闭后删除程序文件；macOS 把 `Cortex.app` 移到废纸篓；AppImage 删除其文件；DEB 或 RPM 安装在系统授权提示后由包管理器移除；不属于任何软件包的副本会显示所在文件夹，由你手动删除。停止服务器或删除其文件失败时，应用保持安装状态，窗口提供**重试**。不是由应用写入的登录服务（例如在命令行运行 `cortex init` 生成的 `cortex.service`）会在结果中注明并保持原样。
+
+Windows 应用更新和静默卸载（`/S`、`/P`、`/UPDATE`）不会打开该窗口，只替换或删除程序文件。
+
+用其他方式移除应用，例如把 `Cortex.app` 拖进废纸篓、运行 `apt remove` 或删除 AppImage，服务器和数据会保留。之后要移除服务器，依次取消其登录服务、停止服务器并删除运行时：
+
+```bash
+# Linux
+systemctl --user disable --now cortex.service && rm ~/.config/systemd/user/cortex.service
+# macOS
+launchctl bootout gui/$(id -u)/cc.cortex.agent-server && rm ~/Library/LaunchAgents/cc.cortex.agent-server.plist
+# 两者都需要
+cortex daemon stop
+cortex path remove
+rm -rf ~/.cortex/runtime
+```
+
+再删除 `~/.cortex` 的其余部分即同时删除数据。
+
 ## 故障排查 {#troubleshooting}
 
 ### Unauthorized

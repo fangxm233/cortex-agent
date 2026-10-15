@@ -63,6 +63,29 @@ export interface NativeSetupProbe {
   os: string;
 }
 
+/** `uninstall_info`: what the uninstaller can remove here (desktop/src-tauri/src/uninstall.rs). */
+export interface NativeUninstallInfo {
+  /** A server this app installed lives on this machine. */
+  localServer: boolean;
+  /** Its Cortex home — removed with the server when data is deleted. */
+  home: string | null;
+  /** The app's own data directories. */
+  appData: string[];
+  /** How the app itself goes: the NSIS uninstaller, the Trash, deleting a file, a package, or by hand. */
+  removal: 'installer' | 'trash' | 'file' | 'package' | 'manual';
+  appLocation: string | null;
+  /** Started by the Windows uninstaller, which removes the program files after this window closes. */
+  fromInstaller: boolean;
+}
+
+export type NativeUninstallStepName = 'autostart' | 'daemon' | 'terminal' | 'runtime' | 'data' | 'credentials' | 'app';
+export type NativeUninstallStepStatus = 'done' | 'skipped' | 'failed' | 'manual' | 'deferred';
+export interface NativeUninstallStep {
+  step: NativeUninstallStepName;
+  status: NativeUninstallStepStatus;
+  detail?: string;
+}
+
 /** The `cortex init --answers` document the local setup sends. */
 export interface NativeSetupAnswers {
   /** Only an explicit failed-start repair may replace the current POSIX daemon. */
@@ -136,6 +159,12 @@ interface NativeCommandMap {
   setup_start_daemon: { args: { run: string; bin: string; url: string; token: string; restart?: boolean }; result: boolean };
   setup_enable_autostart: { args: { run: string }; result: boolean };
   setup_terminal_cli: { args: { run: string; bin: string; enabled: boolean }; result: null };
+  // Uninstaller (desktop only). `uninstall_open` hands over to it from the workbench and quits;
+  // the rest run in the uninstaller's own window (`cortex-desktop --uninstall`).
+  uninstall_open: { args: undefined; result: null };
+  uninstall_info: { args: undefined; result: NativeUninstallInfo };
+  uninstall_run: { args: { scope: 'app' | 'server'; deleteData: boolean }; result: NativeUninstallStep[] };
+  uninstall_exit: { args: { proceed: boolean }; result: null };
   check_for_updates: { args: undefined; result: NativeCheckReport };
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };

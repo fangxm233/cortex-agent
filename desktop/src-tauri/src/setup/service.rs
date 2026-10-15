@@ -451,3 +451,61 @@ fn enable_launchd(
     // bootstrapping now would repeatedly fail its singleton lock under KeepAlive.
     Ok(())
 }
+
+/// Remove the autostart registration setup made. Ok(false) = none registered (or no autostart on
+/// this platform). A registration this app did not write is reported and left alone.
+pub(super) fn disable_user_service() -> Result<bool, String> {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return Ok(false);
+    };
+    disable_for(std::env::consts::OS, &home, &mut |program, args, _| {
+        let output = Command::new(program)
+            .args(args)
+            .output()
+            .map_err(|_| format!("cannot run {program}"))?;
+        Ok(Output {
+            ok: output.status.success(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        })
+    })
+}
+
+fn disable_for(os: &str, home: &Path, runner: &mut Runner<'_>) -> Result<bool, String> {
+    let path = match os {
+        "linux" => home.join(".config/systemd/user").join(UNIT),
+        "macos" => home.join("Library/LaunchAgents").join(format!("{LABEL}.plist")),
+        _ => return Ok(false),
+    };
+    if fs::symlink_metadata(&path).is_err() {
+        return Ok(false);
+    }
+    if !fs::read_to_string(&path).is_ok_and(|content| content.contains(OWNER)) {
+        return Err(format!("{} was not created by Cortex; preserved unchanged", path.display()));
+    }
+    match os {
+        "linux" => unregister_systemd(home, &path, runner),
+        _ => unregister_launchd(&path, runner),
+    }
+}
+
+// Disabling is best-effort: a unit systemd never loaded cannot be stopped, and removing the file
+// plus its wants link is what actually keeps it from starting at the next login.
+fn unregister_systemd(home: &Path, path: &Path, runner: &mut Runner<'_>) -> Result<bool, String> {
+    let systemctl = "/usr/bin/systemctl";
+    let _ = runner(systemctl, &["--user".into(), "disable".into(), "--now".into(), UNIT.into()], false);
+    let wants = home.join(".config/systemd/user/default.target.wants").join(UNIT);
+    if fs::symlink_metadata(&wants).is_ok() {
+        let _ = fs::remove_file(&wants);
+    }
+    fs::remove_file(path).map_err(|e| format!("cannot remove {}: {e}", path.display()))?;
+    let _ = runner(systemctl, &["--user".into(), "daemon-reload".into()], false);
+    Ok(true)
+}
+
+// Booting out first matters: under KeepAlive launchd would restart a daemon stopped any other way.
+fn unregister_launchd(path: &Path, runner: &mut Runner<'_>) -> Result<bool, String> {
+    let (_, target) = launchd_target(runner)?;
+    let _ = runner("/bin/launchctl", &["bootout".into(), target.into()], false);
+    fs::remove_file(path).map_err(|e| format!("cannot remove {}: {e}", path.display()))?;
+    Ok(true)
+}
