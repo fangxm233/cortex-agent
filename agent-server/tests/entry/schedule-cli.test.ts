@@ -7,12 +7,13 @@ import { runScheduleCli } from '../../src/entry/schedule-cli.js';
 import { runCli } from '../../src/entry/cli.js';
 import { Scheduler } from '../../src/domain/scheduling/scheduler.js';
 import { ScheduleRepo } from '../../src/store/schedule-repo.js';
-import { getDefaultProfileName } from '../../src/domain/agents/profile-manager.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { getDefaultSelection, resolveModelRef, selectionForModel } from '../../src/domain/agents/models.js';
+import { rememberModelSelection } from '../../src/domain/agents/config.js';
+import { DEFAULT_SELECTION, OTHER_SELECTION, seedScheduleModels } from '../domain/scheduling/selection-fixture.js';
 
 let tmpDir: string;
 beforeAll(() => {
-  seedTestProfiles();
+  seedScheduleModels();
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-cli-'));
 });
 afterAll(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
@@ -29,8 +30,8 @@ function setup(tasks: object[] = []) {
   return { file, repo, cli, onDisk: () => JSON.parse(fs.readFileSync(file, 'utf8')).tasks };
 }
 
-const DAILY = { id: 'daily1', type: 'daily', time: '09:00', message: 'digest', projectId: 'p1', profile: 'plan', createdAt: 1, nextRun: 2 };
-const ONCE = { id: 'once1', type: 'once', runAt: Date.now() + 60_000, message: 'later', projectId: 'p2', profile: 'plan', createdAt: 1 };
+const DAILY = { id: 'daily1', type: 'daily', time: '09:00', message: 'digest', projectId: 'p1', selection: DEFAULT_SELECTION, createdAt: 1, nextRun: 2 };
+const ONCE = { id: 'once1', type: 'once', runAt: Date.now() + 60_000, message: 'later', projectId: 'p2', selection: DEFAULT_SELECTION, createdAt: 1 };
 
 test('add creates each kind from flags and prints it with ISO timestamps', async () => {
   const { cli, onDisk } = setup();
@@ -40,7 +41,7 @@ test('add creates each kind from flags and prints it with ISO timestamps', async
   assert.equal(interval.json.created, true);
   assert.equal(interval.json.schedule.intervalMs, 1_800_000);
   assert.equal(interval.json.schedule.projectId, 'nimbus');
-  assert.equal(interval.json.schedule.profile, getDefaultProfileName());
+  assert.deepEqual(interval.json.schedule.selection, getDefaultSelection());
   assert.match(interval.json.schedule.nextRun, /^\d{4}-\d{2}-\d{2}T/);
 
   const weekly = await cli('add', '--type', 'weekly', '--day', 'mon', '--time', '21:00', '--message', 'review');
@@ -139,6 +140,43 @@ test('a CLI add reaches a running daemon and survives the daemon\'s next write',
   } finally {
     daemon.stop();
   }
+});
+
+test('model flags persist a concrete selection with memory and validated thinking', async () => {
+  const { cli, onDisk } = setup();
+  rememberModelSelection(OTHER_SELECTION);
+  const args = ['add', '--type', 'daily', '--time', '09:00', '--message', 'm'];
+  const remembered = await cli(...args, '--model', 'openai/gpt-test');
+  assert.equal(remembered.exitCode, 0, remembered.stderr);
+  assert.deepEqual(remembered.json.schedule.selection, selectionForModel(resolveModelRef('openai/gpt-test')));
+  const explicit = await cli(...args, '--model', 'openai/gpt-test', '--thinking', 'high');
+  assert.deepEqual(explicit.json.schedule.selection, { ...OTHER_SELECTION, thinking: 'high' });
+  const bare = await cli(...args, '--model', DEFAULT_SELECTION.model);
+  assert.equal(bare.exitCode, 0, bare.stderr);
+  assert.equal(bare.json.schedule.selection.backend, 'claude');
+  assert.equal(bare.json.schedule.selection.model, DEFAULT_SELECTION.model);
+  assert.equal(onDisk().length, 3);
+});
+
+test('thinking-only edits preserve the scheduled model instead of taking the current default', async () => {
+  const { cli } = setup([{ ...DAILY, selection: OTHER_SELECTION }]);
+  const result = await cli('edit', 'daily1', '--thinking', 'low');
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(result.json.schedule.selection, { ...OTHER_SELECTION, thinking: 'low' });
+  const modelEdit = await cli('edit', 'daily1', '--model', DEFAULT_SELECTION.model, '--thinking', 'high');
+  assert.equal(modelEdit.exitCode, 0, modelEdit.stderr);
+  assert.deepEqual(modelEdit.json.schedule.selection, DEFAULT_SELECTION);
+});
+
+test('model flag errors reject writes, including retired flags and backend-specific thinking', async () => {
+  const { cli, onDisk } = setup();
+  const args = ['add', '--type', 'daily', '--time', '09:00', '--message', 'm'];
+  for (const flags of [['--profile', 'plan'], ['--model'], ['--model', '--thinking', 'low'], ['--thinking', 'bogus'], ['--thinking', 'minimal']]) {
+    const result = await cli(...args, ...flags);
+    assert.equal(result.exitCode, 1, flags.join(' '));
+  }
+  assert.match((await cli(...args, '--thinking', 'bogus')).stderr, /Valid values:/);
+  assert.equal(onDisk().length, 0);
 });
 
 test('cortex schedule is wired into the main CLI with help and subcommand errors', async () => {

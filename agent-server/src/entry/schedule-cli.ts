@@ -6,6 +6,7 @@ import {
 } from '@domain/scheduling/schedule-spec.js';
 import { addSchedule, pauseSchedule, resumeSchedule, updateSchedule } from '@domain/scheduling/schedule-ops.js';
 import { getScheduleHelp } from './cli-help.js';
+import { resolveScheduleSelection } from '@domain/scheduling/schedule-selection.js';
 
 // `cortex schedule` shares schedule-ops with the daemon, which watches the file and re-arms changes.
 // Both writers hold the schedules.json lock across read-modify-write to preserve concurrent changes.
@@ -15,13 +16,13 @@ type Command = typeof COMMANDS[number];
 
 const VALUE_FLAGS = {
   '--type': 'type', '--interval': 'interval', '--time': 'time', '--day': 'day', '--delay': 'delay',
-  '--message': 'message', '--project': 'project', '--profile': 'profile', '--pre-check': 'preCheck',
+  '--message': 'message', '--project': 'project', '--model': 'model', '--thinking': 'thinking', '--pre-check': 'preCheck',
   '--idempotency-key': 'idempotencyKey',
 } as const;
 type Flag = typeof VALUE_FLAGS[keyof typeof VALUE_FLAGS];
 type Flags = Partial<Record<Flag, string>>;
 
-const SPEC_FLAGS: Flag[] = ['interval', 'time', 'day', 'delay', 'message', 'project', 'profile', 'preCheck'];
+const SPEC_FLAGS: Flag[] = ['interval', 'time', 'day', 'delay', 'message', 'project', 'model', 'thinking', 'preCheck'];
 const COMMAND_FLAGS: Record<Command, Flag[]> = {
   list: ['project'],
   get: [],
@@ -65,7 +66,7 @@ function readFlag(command: Command, args: string[], i: number, flags: Flags): vo
     const valid = [...flagNames(COMMAND_FLAGS[command]), ...(command === 'remove' ? ['--dry-run'] : [])];
     throw new UsageError(`Unknown option for '${command}': '${args[i]}'.`, valid.length ? valid : ['(none)']);
   }
-  if (args[i + 1] === undefined) throw new UsageError(`Missing value for ${args[i]}.`);
+  if (args[i + 1] === undefined || args[i + 1].startsWith('--')) throw new UsageError(`Missing value for ${args[i]}.`);
   flags[name] = args[i + 1];
 }
 
@@ -105,7 +106,8 @@ function found(task: ScheduleTask | null, id: string): Record<string, unknown> {
 async function runAdd({ flags }: Parsed, repo: Repo): Promise<object> {
   if (!flags.type) throw new UsageError('Missing --type.', [...SCHEDULE_TYPES]);
   const spec = normalizeScheduleSpec({
-    type: flags.type, message: flags.message, projectId: flags.project, profile: flags.profile,
+    type: flags.type, message: flags.message, projectId: flags.project,
+    selection: resolveScheduleSelection(flags.model, flags.thinking),
     preCheck: flags.preCheck, interval: flags.interval, time: flags.time, dayOfWeek: flags.day, delay: flags.delay,
   });
   const allowed = TIMING_FLAGS[spec.type];
@@ -120,7 +122,6 @@ async function runAdd({ flags }: Parsed, repo: Repo): Promise<object> {
 const EDIT_FIELDS: Record<string, (value: string) => SchedulePatch> = {
   message: (message) => ({ message }),
   project: (projectId) => ({ projectId }),
-  profile: (profile) => ({ profile }),
   preCheck: (preCheck) => ({ preCheck }),
   interval: (value) => ({ intervalMs: parseDurationMs(value, 'interval') }),
   time: (time) => ({ time }),
@@ -129,7 +130,12 @@ const EDIT_FIELDS: Record<string, (value: string) => SchedulePatch> = {
 };
 
 async function runEdit({ id, flags }: Parsed, repo: Repo): Promise<object> {
-  const patch: SchedulePatch = Object.assign({}, ...Object.entries(flags).map(([name, value]) => EDIT_FIELDS[name](value!)));
+  const task = await repo.findTask(id);
+  found(task, id);
+  const { model, thinking, ...fields } = flags;
+  const patch: SchedulePatch = Object.assign({}, ...Object.entries(fields).map(([name, value]) => EDIT_FIELDS[name](value!)));
+  const selection = resolveScheduleSelection(model, thinking, task?.selection);
+  if (selection) patch.selection = selection;
   return { ok: true, schedule: found(await updateSchedule(repo, id, patch), id) };
 }
 

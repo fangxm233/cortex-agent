@@ -7,7 +7,8 @@ import {
   type ScheduleSpec, type ScheduleSpecInput, type ScheduleType,
 } from '@domain/scheduling/schedule-spec.js';
 import { formatDuration } from '@core/format-duration.js';
-import { listProfiles, resolveProfile, getDefaultProfileName } from '@domain/agents/profile-manager.js';
+import { listFavorites } from '@domain/agents/models.js';
+import { resolveScheduleSelection } from '@domain/scheduling/schedule-selection.js';
 import { channelToProjectId } from '@store/schedule-repo.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
@@ -30,12 +31,12 @@ function formatTimeUntilCompact(ms: number): string {
 
 function formatTaskLine(task: ScheduleTask, now: number): string {
   const id = `\`${task.id}\``;
-  const profile = task.profile ? ` · ${task.profile}` : '';
+  const model = task.selection ? ` · ${task.selection.backend} · ${task.selection.model}` : '';
   const paused = task.isPaused ? ` · *${t('cmd.schedule.paused')}*` : '';
   const nextMs = (task.nextRun || task.runAt || 0) - now;
   const next = task.isPaused ? '' : ` · ${t('cmd.schedule.nextLabel')}: ${formatTimeUntilCompact(nextMs)}`;
   const msg = task.message.length > 40 ? task.message.slice(0, 37) + '...' : task.message;
-  return `${id} ${task.type}${profile}${paused}${next} · "${msg}"`;
+  return `${id} ${task.type}${model}${paused}${next} · "${msg}"`;
 }
 
 function taskButton(task: ScheduleTask, index: number): ActionElement {
@@ -94,12 +95,12 @@ const fmtTime = (ts: number): string => new Date(ts).toLocaleString('en-US', FMT
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function scheduleHelp(): string {
-  const profileNames = listProfiles().map(p => `\`${p.name}\``).join(', ');
+  const modelNames = listFavorites().map(({ provider, model }) => `\`${provider ? `${provider}/` : ''}${model}\``).join(', ');
   const keys: MessageKey[] = [
     'schedule.help.title', 'schedule.help.addInterval', 'schedule.help.addDaily', 'schedule.help.addWeekly',
     'schedule.help.addOnce', 'schedule.help.list', 'schedule.help.pause', 'schedule.help.resume', 'schedule.help.remove',
   ];
-  return [...keys.map((key) => t(key)), t('schedule.help.availableProfiles', { profileNames })].join('\n');
+  return [...keys.map((key) => t(key)), t('schedule.help.availableModels', { modelNames })].join('\n');
 }
 
 function normalizeTaskId(id: string | undefined): string | undefined {
@@ -157,17 +158,26 @@ const SPEC_ERROR_TEXT: Record<string, (value: string, type: ScheduleType) => str
 };
 
 function specErrorText(error: ScheduleSpecError, type: ScheduleType): string {
+  if (error.field === 'thinking') return error.message;
   const text = SPEC_ERROR_TEXT[error.field];
   return text && error.value !== undefined ? text(String(error.value), type) : t(ADD_USAGE[type]);
 }
 
-/** `[--profile <name>] <message…>` → the profile to run under (validated) and the message words. */
-function splitProfile(words: string[], type: ScheduleType): { profile: string; message: string } {
-  if (words[0] !== '--profile') return { profile: getDefaultProfileName(), message: words.join(' ') };
-  const profile = words[1];
-  if (!profile) throw new Error(t(ADD_USAGE[type]));
-  resolveProfile(profile);
-  return { profile, message: words.slice(2).join(' ') };
+/** Leading model/thinking flags precede the free-form message; retired flags are rejected. */
+function splitSelection(words: string[]): Pick<ScheduleSpecInput, 'selection' | 'message'> {
+  const flags: Record<string, string> = {};
+  let i = 0;
+  while (words[i]?.startsWith('--')) {
+    const flag = words[i];
+    if (flag !== '--model' && flag !== '--thinking') {
+      throw new Error(`Unknown option '${flag}'. Use --model [provider/]model [--thinking L].`);
+    }
+    const value = words[i + 1];
+    if (!value || value.startsWith('--')) throw new Error(`Missing value for ${flag}.`);
+    flags[flag] = value;
+    i += 2;
+  }
+  return { selection: resolveScheduleSelection(flags['--model'], flags['--thinking']), message: words.slice(i).join(' ') };
 }
 
 const SCHEDULED_TEXT: { [K in ScheduleType]: (spec: Extract<ScheduleSpec, { type: K }>) => string } = {
@@ -179,11 +189,11 @@ const SCHEDULED_TEXT: { [K in ScheduleType]: (spec: Extract<ScheduleSpec, { type
 
 function scheduledText(spec: ScheduleSpec, task: ScheduleTask): string {
   const summary = (SCHEDULED_TEXT[spec.type] as (s: ScheduleSpec) => string)(spec);
-  const profile = task.profile ? `\nprofile: *${task.profile}*` : '';
+  const model = task.selection ? `\nmodel: *${task.selection.backend} · ${task.selection.model}*` : '';
   const firstRun = task.type === 'once' ? task.runAt : task.nextRun;
   const label = task.type === 'once' ? 'runs at' : 'first run';
   const when = firstRun ? ` | ${label}: ${fmtTime(firstRun)}` : '';
-  return `${Icons.ok} ${summary}\nid: \`${task.id}\`${profile}${when}`;
+  return `${Icons.ok} ${summary}\nid: \`${task.id}\`${model}${when}`;
 }
 
 const handleAdd: SubHandler = async ([type, ...words], { channel, scheduler }) => {
@@ -192,8 +202,9 @@ const handleAdd: SubHandler = async ([type, ...words], { channel, scheduler }) =
   const [arity, timing] = TIMING_ARGS[type];
   let spec: ScheduleSpec;
   try {
-    const { profile, message } = splitProfile(words.slice(arity), type);
-    spec = normalizeScheduleSpec({ type, ...timing(words.slice(0, arity)), message, profile, projectId: channelToProjectId(channel) });
+    spec = normalizeScheduleSpec({
+      type, ...timing(words.slice(0, arity)), ...splitSelection(words.slice(arity)), projectId: channelToProjectId(channel),
+    });
   } catch (error) {
     return reply(error instanceof ScheduleSpecError ? specErrorText(error, type) : `${Icons.error} ${(error as Error).message}`);
   }
