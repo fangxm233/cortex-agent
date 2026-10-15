@@ -114,11 +114,13 @@ import { registerAuthWatch } from '@domain/auth/auth-watch.js';
 import { onLoginSuccess } from '@domain/auth/login-flow.js';
 import { syncGatewayFromBackends } from '@domain/auth/gateway-sync.js';
 import { createSessionRetentionController } from '@orch/session-retention-controller.js';
+import { ensureOwnBinsOnPath } from '@domain/system/own-bin-path.js';
 
 // Static imports are evaluated before this line, so this is how long module loading took.
 const importsMs = Math.round(performance.now());
 
 loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
+ensureOwnBinsOnPath();
 await migrateEnvToSettings();
 
 // Ensure the WebSocket + webhook bearer tokens exist before either server starts. Generates

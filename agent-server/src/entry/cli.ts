@@ -33,6 +33,7 @@ import {
 } from './cli-help.js';
 import { runUiCli } from './ui-cli.js';
 import { runClientCli } from './client-cli.js';
+import { runPathCli } from './path-cli.js';
 import { LoginCliError } from './auth-login-cli.js';
 import { t } from '@core/i18n.js';
 import type { CliResult } from '@core/cli-utils.js';
@@ -496,6 +497,7 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
   'setup-gateway': (args) => runSetupGatewayCli(args),
   ui: (args) => runUiCli(args),
   client: (args) => runClientCli(args),
+  path: (args) => runPathCli(args),
   install: (args) => runInstallCli(args),
   schedule: async (args) => (await import('./schedule-cli.js')).runScheduleCli(args),
   memory: async (args) => (await import('./memory-cli.js')).runMemoryCli(args),

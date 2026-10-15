@@ -76,6 +76,35 @@ export function getUiHelp(): string {
   });
 }
 
+export function getPathHelp(): string {
+  return formatHelp({
+    name: 'cortex path',
+    description: 'Make this install\'s commands (cortex, cortex-signal, …) available in new terminals',
+    usage: 'cortex path <install|remove|status> [--home <path>] [--dry-run] [--json]',
+    commands: [
+      {
+        name: 'install',
+        description: 'Write launchers that use this install\'s Node into <home>/runtime/bin and put that '
+          + 'directory on PATH (shell profiles on Linux/macOS, the user Path on Windows)',
+      },
+      { name: 'remove', description: 'Delete the launchers and undo the PATH change' },
+      { name: 'status', description: 'Show whether the launchers exist, are current, and are on PATH' },
+    ],
+    options: [
+      { flag: '--home <path>', description: 'CORTEX_HOME the launchers belong to', default: '$CORTEX_HOME or ~/.cortex' },
+      { flag: '--dry-run', description: 'Report what install or remove would change and change nothing' },
+      { flag: '--json', description: 'Print the result as JSON' },
+      { flag: '--help, -h', description: 'Show this help' },
+    ],
+    examples: [
+      { description: 'Add cortex to new terminals', command: 'cortex path install' },
+      { description: 'Preview the change', command: 'cortex path install --dry-run --json' },
+      { description: 'Check the current state', command: 'cortex path status' },
+      { description: 'Undo it', command: 'cortex path remove' },
+    ],
+  });
+}
+
 export function getClientHelp(): string {
   return formatHelp({
     name: 'cortex client',
@@ -189,6 +218,7 @@ function getCliCommands() {
     { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + models.json' },
     { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
     { name: 'client remove', description: 'Unregister a remote machine and uninstall its cortex-client' },
+    { name: 'path install', description: 'Make cortex available in new terminals (remove / status to undo or check)' },
     { name: 'schedule', description: 'List, add, edit, pause, resume and remove scheduled tasks' },
     { name: 'memory', description: 'Rebuild project memory indexes; report knowledge lifecycle findings' },
     { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
@@ -207,6 +237,7 @@ function getCliExamples() {
     { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
     { description: 'Enable the local Web UI endpoint', command: 'cortex ui enable' },
     { description: 'Remove a remote machine and its client', command: 'cortex client remove --device trainer' },
+    { description: 'Add cortex to new terminals', command: 'cortex path install' },
     { description: 'List scheduled tasks', command: 'cortex schedule list' },
     { description: 'Rebuild every project memory index', command: 'cortex memory regen' },
     { description: 'Start the server', command: 'cortex start' },
