@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 import { decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';
@@ -14,7 +15,7 @@ export interface CortexToolContext {
   /** Chat channel the session is bound to (Slack or Feishu), null for channel-less sessions. */
   channel: string | null;
   sessionId: string | null;
-  profile: string | null;
+  selection: EngineSelection | null;
   project: string | null;
   backend: string | null;
   /** Daemon's current Claude model (CORTEX_CLAUDE_MODEL), null when the host did not set one. */
@@ -52,11 +53,23 @@ function positiveInt(value: string | undefined, fallback: number): number {
  * Build the tool context from the environment a stdio MCP entry was spawned with. Throws for an
  * unparsable or unknown tool allowlist so a misconfigured server refuses to start.
  */
+function selectionFromEnv(env: NodeJS.ProcessEnv): EngineSelection | null {
+  const backend = env.CORTEX_BACKEND;
+  const model = optional(env.CORTEX_MODEL);
+  if ((backend !== 'claude' && backend !== 'pi') || !model) return null;
+  return {
+    backend, model,
+    provider: backend === 'pi' ? optional(env.CORTEX_PROVIDER) : null,
+    thinking: optional(env.CORTEX_THINKING),
+    mode: env.CORTEX_MODE ?? '',
+  };
+}
+
 export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): CortexToolContext {
   return {
     channel: optional(env.SLACK_CHANNEL) ?? optional(env.FEISHU_CHANNEL),
     sessionId: optional(env.CORTEX_SESSION_ID),
-    profile: optional(env.CORTEX_PROFILE),
+    selection: selectionFromEnv(env),
     project: optional(env.CORTEX_PROJECT),
     backend: optional(env.CORTEX_BACKEND),
     claudeModel: optional(env.CORTEX_CLAUDE_MODEL),
@@ -97,7 +110,9 @@ export interface BoundBoardInfo {
 export interface CortexContextInternal {
   channel: string | null;
   sessionId: string | null;
-  profile: string | null;
+  model: string | null;
+  thinking: string | null;
+  mode: string | null;
   project: string | null;
   backend: string | null;
   scheduleTaskId: string | null;
@@ -128,7 +143,9 @@ export async function resolveCortexContext(
   const scope: CortexContextInternal = {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
-    profile: ctx.profile,
+    model: ctx.selection?.model ?? null,
+    thinking: ctx.selection?.thinking ?? null,
+    mode: ctx.selection?.mode ?? null,
     project: ctx.project,
     backend: ctx.backend,
     scheduleTaskId: ctx.scheduleTaskId,
@@ -148,7 +165,7 @@ export async function resolveCortexContext(
 export function registerContextTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_context',
-    'Get current session identity, profile, project, backend, bound board and trigger context.',
+    'Get current session identity, backend, model, thinking, mode, project, bound board and trigger context.',
     {},
     { readOnlyHint: true },
     async () => {

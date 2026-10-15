@@ -11,10 +11,8 @@ import { getPiEngineAdapter } from '../../runs/adapters.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { type AgentRole } from '@core/agents/roles.js';
 import { buildPiGatewaySubPath } from '../../runs/engine-spec.js';
-import {
-  getDefaultProfileForBackend, resolveProfileConfig,
-  type RunAttemptConfig, type ResolvedProfileConfig,
-} from '../profile-manager.js';
+import { getDefaultSelectionForBackend } from '../models.js';
+import type { EngineSelection } from '../engine-selection.js';
 import { startRun } from '../../runs/service.js';
 import { engines } from '../../runs/engines.js';
 import { fromRole } from '../../runs/spec-loader.js';
@@ -31,7 +29,7 @@ const log = createLogger('subagent-runner');
 /** Which MCP surface a one-shot child is allowed. `direct` is what an ordinary turn gets. */
 const CHILD_MCP_BUNDLES = ['cortex-core', 'cortex-ext'];
 
-/** What the delegating turn already resolved. A child inherits routing from here — never a profile. */
+/** The delegating turn's materialized engine context. */
 export interface SubagentParentContext {
   backend: Backend;
   /** The parent run's resolved gateway route. A same-backend Claude child reuses it verbatim. */
@@ -88,7 +86,7 @@ export async function runSubagent(request: SubagentRunRequest): Promise<Subagent
 /**
  * Route resolution for a `pi` child, in order: the role's own `mode:`, then the parent's route when
  * the parent is a PI run on this same provider, and finally the provider's own name — which is the
- * convention `profiles.json` already follows (`provider: deepseek` pairs with `mode: deepseek`).
+ * PI convention (`provider: deepseek` pairs with `mode: deepseek`).
  */
 function resolvePiMode(request: SubagentRunRequest, provider: string): string {
   if (request.role.mode) return request.role.mode;
@@ -158,27 +156,24 @@ function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefin
 
 // ─── claude child ─────────────────────────────────────────────────
 
-/** The fallback route for a Claude child must itself be a Claude profile. Using the caller's
- * channel default here can smuggle a PI gateway mode into a cross-backend Claude attempt. */
-function claudeFallbackProfile(): ResolvedProfileConfig {
-  const name = getDefaultProfileForBackend('claude');
-  if (!name) {
-    throw new Error('A claude subagent needs a configured Claude profile for routing.');
-  }
-  return resolveProfileConfig(name);
+/** A cross-backend child must use a Claude route, never the PI parent's route. */
+function claudeDefaultSelection(): EngineSelection {
+  const selection = getDefaultSelectionForBackend('claude');
+  if (!selection) throw new Error('A claude subagent needs a Claude default or favorite; favorite a Claude model first.');
+  return selection;
 }
 
 /**
  * The child model comes from the task or role, then the parent's own model when that parent is
  * Claude, and finally the configured Claude-backend default. The route follows the Claude parent
  * when there is one; a cross-backend child uses that Claude default instead of the PI channel's
- * mode. The fallback profile supplies routing only — the child remains an unnamed one-shot run.
+ * mode. The child remains a one-shot run.
  */
-function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): RunAttemptConfig {
+function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): EngineSelection {
   const sameBackend = request.parent.backend === 'claude';
-  let fallback: ResolvedProfileConfig | null = null;
-  const claudeDefault = (): ResolvedProfileConfig => fallback ??= claudeFallbackProfile();
-  const inheritedMode = sameBackend && request.parent.mode !== undefined
+  let fallback: EngineSelection | null = null;
+  const claudeDefault = (): EngineSelection => fallback ??= claudeDefaultSelection();
+  const inheritedMode = sameBackend && request.parent.mode != null
     ? request.parent.mode
     : claudeDefault().mode;
   return {
@@ -186,28 +181,7 @@ function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): RunAtt
     backend: 'claude',
     mode: inheritedMode,
     provider: null,
-    extraEnv: {},
-    extraOption: {},
     thinking: spec.thinking ?? null,
-  };
-}
-
-/** Wrap the child's resolved config as the run's profile: the run layer plans its attempt chain
- *  from `request.profile`, so a synthesized single-attempt profile is how a role/task model reaches
- *  the spawn without any named profile being consulted. */
-function claudeChildProfile(config: RunAttemptConfig): ResolvedProfileConfig {
-  return {
-    // Unnamed on purpose: no profile was consulted for the child, so none is attested to it.
-    name: '',
-    model: config.model,
-    backend: config.backend,
-    mode: config.mode,
-    provider: config.provider ?? null,
-    extraEnv: config.extraEnv ?? {},
-    extraOption: config.extraOption ?? {},
-    thinking: config.thinking ?? null,
-    maxOutputTokens: config.maxOutputTokens ?? null,
-    fallback: [],
   };
 }
 
@@ -225,7 +199,7 @@ function childEngineKey(request: SubagentRunRequest, runId: string): string {
 
 /** The request a Claude child runs under. A frozen one-shot role: no session to resume, no
  *  hooks, no ambient rules, no transcript log, and a leaf tool surface. */
-function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfig): RunRequest {
+function claudeChildRequest(request: SubagentRunRequest, config: EngineSelection): RunRequest {
   const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
   const runId = randomUUID();
   return {
@@ -235,7 +209,7 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       backendSessionId: null,
       engineKey: childEngineKey(request, runId),
     },
-    profile: claudeChildProfile(config),
+    selection: config,
     // The child runs where the caller asked (the parent's workspace), not where the server lives.
     cwd: request.cwd,
     spec: fromRole(request.role, 'claude', { mcpAllowlist: mcpToolAllowlist ?? null }),

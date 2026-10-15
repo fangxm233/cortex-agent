@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { CONFIG_DIR } from '../../src/core/paths.js';
+import { modelsRepo } from '../../src/store/models-repo.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
 import { handleTeamWebhook, type TeamWebhookDeps } from '../../src/orchestration/team-webhook.js';
 import {
@@ -7,13 +10,14 @@ import {
 } from '../../src/orchestration/team-state.js';
 import { MAX_RUNNING_WORKERS } from '../../src/domain/sessions/team.js';
 import type {
-  ApplySelectionRequest, ApplySelectionResult, ChannelSelection,
+  ApplySelectionRequest, ApplySelectionResult,
 } from '../../src/domain/agents/model-selection.js';
+import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
 
 function session(id: string, extra: Record<string, unknown> = {}): any {
   return {
     sessionId: id, channel: `web:${id}`, origin: 'direct', projectId: 'proj',
-    backend: 'claude', kind: 'local', createdAt: '', lastUsedAt: '', label: null, profileName: null,
+    backend: 'claude', kind: 'local', createdAt: '', lastUsedAt: '', label: null, selection: null,
     ...extra,
   };
 }
@@ -31,7 +35,7 @@ interface World {
   answered: any[];
   records: Map<string, any>;
   /** What each channel runs; the lead's is seeded, a worker's is what spawn applied. */
-  selections: Map<string, ChannelSelection>;
+  selections: Map<string, EngineSelection>;
   applied: ApplySelectionRequest[];
   /** When set, the next applySelection refuses with this. */
   refuse: Partial<ApplySelectionResult> | null;
@@ -52,9 +56,9 @@ function world(): World {
     cancelled: [] as string[],
     answered: [] as any[],
     records: new Map<string, any>(),
-    selections: new Map<string, ChannelSelection>([['web:lead', {
-      profileName: 'lead-profile', backend: 'claude', model: 'claude-opus-5', provider: null,
-      thinking: 'high', mode: 'plan', override: { model: 'claude-opus-5', thinking: 'high' },
+    selections: new Map<string, EngineSelection>([['web:lead', {
+      backend: 'claude', model: 'claude-opus-5', provider: null,
+      thinking: 'high', mode: 'plan',
     }]]),
     applied: [] as ApplySelectionRequest[],
     refuse: null,
@@ -81,7 +85,7 @@ function world(): World {
       const id = opts.sessionId;
       w.sessions.set(id, session(id, {
         teamLeadId: opts.teamLeadId, workerName: opts.workerName, workerBrief: opts.workerBrief,
-        profileName: opts.profileName, projectId: opts.projectId, boardId: opts.boardId,
+        selection: opts.selection, projectId: opts.projectId, boardId: opts.boardId,
       }));
       return { sessionId: id, channel: `web:${id}` };
     },
@@ -90,15 +94,14 @@ function world(): World {
     deliver: (opts) => { w.delivered.push(opts as any); },
     cancel: async (channel) => { w.cancelled.push(channel); return 1; },
     readSelection: (channel) => w.selections.get(channel)!,
-    defaultProfile: (backend) => (backend === 'pi' ? 'pi-default' : 'claude-default'),
-    providerProfile: () => null,
+    defaultSelection: (backend) => ({ backend, model: 'default-model', provider: backend === 'pi' ? 'deepseek' : null, thinking: null, mode: backend === 'pi' ? 'deepseek' : 'plan' }),
     applySelection: async (request) => {
       w.applied.push(request);
       if (w.refuse) return { ok: false, ...w.refuse } as ApplySelectionResult;
-      const selection: ChannelSelection = {
-        profileName: request.profileName!, backend: /^(pi|ds)/.test(request.profileName!) ? 'pi' : 'claude',
-        model: request.model ?? 'profile-model', provider: request.provider ?? null,
-        thinking: request.thinking ?? null, mode: request.mode ?? 'api', override: null,
+      const selection: EngineSelection = {
+        backend: request.backend!,
+        model: request.model ?? 'default-model', provider: request.provider ?? null,
+        thinking: request.thinking ?? null, mode: request.mode ?? 'api',
       };
       w.selections.set(request.channel, selection);
       return { ok: true, backendChanged: false, ...selection };
@@ -120,6 +123,10 @@ function world(): World {
 const call = (w: World, data: Record<string, unknown>) => handleTeamWebhook({ sessionId: 'lead', ...data }, w.deps);
 
 beforeEach(() => {
+  writeFileSync(`${CONFIG_DIR}/models.json`, JSON.stringify({
+    default: { backend: 'claude', model: 'opus', provider: null, thinking: null, mode: 'plan' }, favorites: [],
+  }));
+  modelsRepo.invalidate();
   process.env.CORTEX_TEAM_ENABLED = '1';
   resetSettingsForTests();
   _resetTeamState();
@@ -153,12 +160,12 @@ test('spawn creates a named worker under the lead and hands it the prompt as tea
   assert.equal(created.workerName, 'api-refactor');
   assert.equal(created.workerBrief, 'Refactor the API', 'the brief is stored on the record');
   assert.equal(created.label, 'api-refactor', 'the worker is titled by its name');
-  assert.equal(created.profileName, 'lead-profile', 'the lead profile is inherited');
+  assert.deepEqual(created.selection, w.selections.get('web:lead'), 'the full lead selection is inherited');
   // The lead's own pick rides along, written before the session exists and without moving the
   // composer default.
   assert.deepEqual(w.applied, [{
-    channel: 'web:w1', profileName: 'lead-profile', model: 'claude-opus-5', provider: null,
-    thinking: 'high', mode: null, seedDefault: false,
+    channel: 'web:w1', backend: 'claude', model: 'claude-opus-5', provider: null,
+    thinking: 'high', mode: 'plan', seedDefault: false,
   }]);
   assert.equal(created.projectId, 'proj');
   assert.deepEqual(w.delivered, [{ channel: 'web:w1', text: 'Refactor the API\nmore detail', origin: 'team-lead' }]);
@@ -324,60 +331,57 @@ test('answer only resolves requests raised by this lead’s own workers, by kind
 test('spawn with a model on the lead backend replaces only the fields it names', async () => {
   const w = world();
   w.selections.set('web:lead', {
-    profileName: 'ds', backend: 'pi', model: 'deepseek-v4', provider: 'deepseek', thinking: 'high',
-    mode: 'deepseek-plan', override: { model: 'deepseek-v4', thinking: 'high', mode: 'deepseek-plan' },
+    backend: 'pi', model: 'deepseek-v4', provider: 'deepseek', thinking: 'high', mode: 'deepseek-plan',
   });
   await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'deepseek/deepseek-v4-flash' });
   assert.deepEqual(w.applied[0], {
-    channel: 'web:w1', profileName: 'ds', model: 'deepseek-v4-flash', provider: 'deepseek',
+    channel: 'web:w1', backend: 'pi', model: 'deepseek-v4-flash', provider: 'deepseek',
     thinking: 'high', mode: 'deepseek-plan', seedDefault: false,
   }, 'same provider: the route and level stay the lead\'s');
 
   await call(w, { action: 'spawn', name: 'b', prompt: 'p', model: 'openai/gpt-6:low' });
   assert.deepEqual(w.applied[1], {
-    channel: 'web:w2', profileName: 'ds', model: 'gpt-6', provider: 'openai',
-    thinking: 'low', mode: null, seedDefault: false,
+    channel: 'web:w2', backend: 'pi', model: 'gpt-6', provider: 'openai',
+    thinking: 'low', mode: 'openai', seedDefault: false,
   }, 'another provider: the lead\'s route does not travel with it');
 
   const text = ((await call(w, { action: 'list', worker: 'b' })).data as any).text;
   assert.match(text, /^Model: pi openai\/gpt-6:low$/m);
 });
 
-test('spawn on the other backend starts from its default profile with only the parsed spec', async () => {
+test('spawn on the other backend starts from its default selection with the parsed spec', async () => {
   const w = world();
   await call(w, { action: 'spawn', name: 'a', prompt: 'p', backend: 'pi', model: 'deepseek/deepseek-v4-flash:high' });
   assert.deepEqual(w.applied[0], {
-    channel: 'web:w1', profileName: 'pi-default', model: 'deepseek-v4-flash', provider: 'deepseek',
-    thinking: 'high', mode: null, seedDefault: false,
+    channel: 'web:w1', backend: 'pi', model: 'deepseek-v4-flash', provider: 'deepseek',
+    thinking: 'high', mode: 'deepseek', seedDefault: false,
   });
-  assert.equal(w.sessions.get('w1').profileName, 'pi-default');
+  assert.deepEqual(w.sessions.get('w1').selection, w.selections.get('web:w1'));
 
-  w.selections.set('web:lead', { ...w.selections.get('web:w1')!, profileName: 'pi-default' });
+  w.selections.set('web:lead', { ...w.selections.get('web:w1')! });
   await call(w, { action: 'spawn', name: 'b', prompt: 'p', backend: 'claude', model: 'anthropic/claude-sonnet-5' });
   assert.deepEqual(w.applied[1], {
-    channel: 'web:w2', profileName: 'claude-default', model: 'claude-sonnet-5', provider: null,
-    thinking: null, mode: null, seedDefault: false,
+    channel: 'web:w2', backend: 'claude', model: 'claude-sonnet-5', provider: null,
+    thinking: null, mode: 'plan', seedDefault: false,
   }, 'a claude worker drops the provider segment');
 
-  w.deps.defaultProfile = () => null;
+  w.deps.defaultSelection = () => null;
   assert.match((await call(w, { action: 'spawn', name: 'c', prompt: 'p', backend: 'claude' })).error!,
-    /no profile is configured for the claude backend/);
+    /no default or favorite for the claude backend/);
 });
 
-test('spawn moves a PI worker onto the profile configured for the provider it names', async () => {
+test('spawn uses the lead record rather than old profile mocks or changed channel state', async () => {
   const w = world();
-  w.deps.providerProfile = (provider) => (provider === 'openai' ? 'oa' : provider === 'deepseek' ? 'ds' : null);
-  w.selections.set('web:lead', {
-    profileName: 'ds', backend: 'pi', model: 'deepseek-v4', provider: 'deepseek', thinking: 'high',
-    mode: 'deepseek-plan', override: { model: 'deepseek-v4', thinking: 'high', mode: 'deepseek-plan' },
-  });
+  const own: EngineSelection = {
+    backend: 'pi', model: 'deepseek-v4', provider: 'deepseek', thinking: 'high', mode: 'deepseek',
+  };
+  Object.assign(w.sessions.get('lead'), { selection: own, profileName: 'obsolete' });
   await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'openai/gpt-6:low' });
   assert.deepEqual(w.applied[0], {
-    channel: 'web:w1', profileName: 'oa', model: 'gpt-6', provider: null, thinking: 'low', mode: null, seedDefault: false,
+    channel: 'web:w1', backend: 'pi', model: 'gpt-6', provider: 'openai', thinking: 'low', mode: 'openai', seedDefault: false,
   });
-  await call(w, { action: 'spawn', name: 'b', prompt: 'p', model: 'deepseek/deepseek-v4-flash' });
-  assert.equal(w.applied[1].profileName, 'ds', 'the lead\'s own provider keeps the lead\'s profile');
-  assert.equal(w.applied[1].mode, 'deepseek-plan');
+  await call(w, { action: 'spawn', name: 'b', prompt: 'p' });
+  assert.deepEqual(w.applied[1], { ...own, channel: 'web:w2', seedDefault: false });
 });
 
 test('spawn refuses a selection the rule rejects, and an unknown backend, creating nothing', async () => {

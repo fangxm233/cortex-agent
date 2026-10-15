@@ -21,7 +21,7 @@ import type { SubagentToolDeps } from '../src/agent-adapter/pi/subagent.js';
 import { handleSubagentWebhook } from '../src/orchestration/subagent-webhook.js';
 import { runSubagent } from '../src/domain/agents/subagent/runner.js';
 import { runRegistry } from '../src/core/run-registry.js';
-import { profileRepo } from '../src/store/profile-repo.js';
+import { modelsRepo } from '../src/store/models-repo.js';
 import { handleSessionsTranscript, handleSessionsSubagentTranscript } from '../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../src/domain/ui-service/types.js';
 import { transcriptHttp } from './subagent-transcript-http-fixture.js';
@@ -82,14 +82,11 @@ beforeEach(async () => {
   fs.writeFileSync(path.join(rolesDir, 'explore.md'), '---\nname: explore\ndescription: fixture\n---\nExplore');
   await conversationHistory.clear(SESSION);
   await conversationHistory.appendUser(SESSION, { text: 'delegate' });
-  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
-    defaultProfile: 'claude-fixture', defaultProfileByBackend: { claude: 'claude-fixture' },
-    profiles: {
-      'claude-fixture': { backend: 'claude', model: 'fixture-model', mode: 'api' },
-      'pi-fixture': { backend: 'pi', model: 'fixture-model', mode: 'api', provider: 'fixture' },
-    },
+  fs.writeFileSync(path.join(CONFIG_DIR, 'models.json'), JSON.stringify({
+    default: { backend: 'claude', model: 'fixture-model', mode: 'api', provider: null, thinking: null },
+    favorites: [{ backend: 'pi', model: 'fixture-model', provider: 'fixture' }],
   }));
-  profileRepo.invalidate();
+  modelsRepo.invalidate();
   execution.create.mockReset(); execution.start.mockReset();
 });
 
@@ -196,7 +193,11 @@ async function spawn(fixture: Awaited<ReturnType<typeof parent>>, route: Route, 
   if (route.entry === 'webhook') {
     const reply = await handleSubagentWebhook({
       action: 'start', background: true, sessionId: SESSION, channel: CHANNEL,
-      profile: `${route.parentBackend}-fixture`, cwd: CONFIG_DIR,
+      selection: {
+        backend: route.parentBackend, model: 'fixture-model', thinking: null,
+        provider: route.parentBackend === 'pi' ? 'fixture' : null,
+        mode: route.parentBackend === 'pi' ? 'fixture' : 'api',
+      }, cwd: CONFIG_DIR,
       params: { ...params, backend: route.childBackend },
     });
     assert.equal(reply.success, true, reply.error);

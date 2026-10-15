@@ -14,7 +14,7 @@ import {
   _test as subagentRunnerTest, supportsSubagents,
 } from '../src/domain/agents/subagent/runner.js';
 import { parseModelSpec, selectChildModel } from '@core/agents/subagent/model-spec.js';
-import { profileRepo } from '../src/store/profile-repo.js';
+import { modelsRepo } from '../src/store/models-repo.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type {
   RunChildFn, SubagentResult, SubagentTask,
@@ -57,18 +57,18 @@ function writeRole(name: string, frontmatter: string[] = []): void {
   );
 }
 
-function withProfiles<T>(profiles: unknown, run: () => T): T {
-  const file = path.join(CONFIG_DIR, 'profiles.json');
+function withModels<T>(models: unknown, run: () => T): T {
+  const file = path.join(CONFIG_DIR, 'models.json');
   const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
   try {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(profiles));
-    profileRepo.invalidate();
+    fs.writeFileSync(file, JSON.stringify(models));
+    modelsRepo.invalidate();
     return run();
   } finally {
     if (original === null) fs.rmSync(file, { force: true });
     else fs.writeFileSync(file, original);
-    profileRepo.invalidate();
+    modelsRepo.invalidate();
   }
 }
 
@@ -108,14 +108,12 @@ test('selectChildModel: task, then role, then the parent\'s whole selection — 
 });
 
 test('a cross-backend Claude child uses the Claude backend default, never the PI channel mode', () => {
-  withProfiles({
-    defaultProfile: 'pi-default',
-    defaultProfileByBackend: { claude: 'claude-route' },
-    profiles: {
-      'pi-default': { model: 'pi-model', backend: 'pi', mode: 'deepseek', provider: 'deepseek' },
-      'claude-first': { model: 'claude-first-model', backend: 'claude', mode: 'api' },
-      'claude-route': { model: 'claude-default-model', backend: 'claude', mode: 'plan' },
-    },
+  withModels({
+    default: { model: 'pi-model', backend: 'pi', mode: 'deepseek', provider: 'deepseek', thinking: null },
+    favorites: [
+      { model: 'claude-default-model', backend: 'claude', provider: null },
+      { model: 'claude-second-model', backend: 'claude', provider: null },
+    ],
   }, () => {
     const request = {
       parent: {
@@ -137,26 +135,24 @@ test('a cross-backend Claude child uses the Claude backend default, never the PI
 
 test('a Claude child keeps its Claude parent model and route', () => {
   const request = {
-    parent: { backend: 'claude', model: 'parent-model', mode: null, channel: 'web:claude' },
+    parent: { backend: 'claude', model: 'parent-model', mode: 'api', channel: 'web:claude' },
   } as any;
   const config = subagentRunnerTest.claudeChildConfig(request, {});
   assert.equal(config.model, 'parent-model');
-  assert.equal(config.mode, null);
+  assert.equal(config.mode, 'api');
 });
 
-test('a cross-backend Claude child fails clearly when no Claude profile can supply its route', () => {
-  withProfiles({
-    defaultProfile: 'pi-only',
-    profiles: {
-      'pi-only': { model: 'pi-model', backend: 'pi', mode: 'deepseek', provider: 'deepseek' },
-    },
+test('a cross-backend Claude child fails clearly when no Claude favorite can supply its route', () => {
+  withModels({
+    default: { model: 'pi-model', backend: 'pi', mode: 'deepseek', provider: 'deepseek', thinking: null },
+    favorites: [],
   }, () => {
     const request = {
       parent: { backend: 'pi', model: 'pi-model', mode: 'deepseek', channel: 'web:pi' },
     } as any;
     assert.throws(
       () => subagentRunnerTest.claudeChildConfig(request, parseModelSpec('claude-haiku-4-5')),
-      /configured Claude profile for routing/,
+      /favorite a Claude model first/,
     );
   });
 });
@@ -172,8 +168,7 @@ function childRequestInput(channel: string | undefined) {
     parent: { backend: 'claude', model: 'parent-model', mode: null, channel },
   } as any;
   const config = {
-    model: 'child-model', backend: 'claude', mode: null, provider: null,
-    extraEnv: {}, extraOption: {}, thinking: null,
+    model: 'child-model', backend: 'claude', mode: 'plan', provider: null, thinking: null,
   } as any;
   return { request, config };
 }
