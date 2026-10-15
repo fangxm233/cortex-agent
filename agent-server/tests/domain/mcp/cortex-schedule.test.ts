@@ -16,7 +16,8 @@ async function withBundledClient(
 ): Promise<void> {
   const ctx = toolContextFromEnv({
     CORTEX_SESSION_ID: 'test-session', CORTEX_PROJECT: 'nimbus',
-    CORTEX_PROFILE: 'test-profile', CORTEX_BACKEND: 'pi',
+    CORTEX_BACKEND: 'pi', CORTEX_PROVIDER: 'openai-codex', CORTEX_MODEL: 'gpt-6-astra',
+    CORTEX_THINKING: 'high', CORTEX_MODE: 'openai-codex',
     ...(allowlist ? { CORTEX_MCP_TOOL_ALLOWLIST: JSON.stringify(allowlist) } : {}),
   });
   const server = await createBundledServer(bundles, ctx);
@@ -46,7 +47,7 @@ test('the actual ext surface omits all six schedule tools and preserves context'
     assert.equal(result.isError ?? false, false);
     const context = JSON.parse((result.content as Array<{ text: string }>)[0].text);
     assert.deepEqual(context, {
-      sessionId: 'test-session', profile: 'test-profile', project: 'nimbus',
+      sessionId: 'test-session', model: 'gpt-6-astra', thinking: 'high', mode: 'openai-codex', project: 'nimbus',
       backend: 'pi', scheduleTaskId: null, callbackSource: null,
     });
   });

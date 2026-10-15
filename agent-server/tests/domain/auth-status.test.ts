@@ -459,6 +459,8 @@ test('PI import and export failures degrade without suppressing Claude status', 
 });
 
 test('fresh install auth status does not require a configured model', async () => {
+  fs.rmSync(MODELS_FILE, { force: true });
+  modelsRepo.invalidate();
   const fixture = createPiFixture();
   const options = baseStatusOptions(fixture, await loadFixture(fixture), path.join(fixture.root, 'missing'));
   try {

@@ -1,4 +1,4 @@
-import { afterEach, test } from 'vitest';
+import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -8,6 +8,7 @@ const STATE = path.join(process.env.CORTEX_HOME!, 'data', 'agent-state.json');
 const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, mode: 'api' };
 const empty = { channelSelections: {}, modelMemory: {}, defaultAgent: null, channelAgents: {} };
 const fresh = () => importWithFreshRegistry(() => import('../../../src/domain/agents/agent-state.js'));
+beforeEach(() => rmSync(STATE, { force: true }));
 afterEach(() => rmSync(STATE, { force: true }));
 
 test('an empty home yields empty state and writes nothing', async () => {
