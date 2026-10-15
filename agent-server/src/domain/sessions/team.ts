@@ -6,6 +6,17 @@ export const MAX_RUNNING_WORKERS = 8;
 /** A worker's name: a short slug, unique within its lead's team. */
 export const WORKER_NAME_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
+/** A worker with nothing running or pending folds out of its lead's roster after this long idle.
+ *  The web client folds by the same rule (`web/src/features/team/worker-groups.ts`). */
+export const WORKER_FOLD_MS = 3 * 60 * 60 * 1000;
+
+/** Whether a worker's last activity (`lastUsedAt`, stamped as a turn opens and ends) is old enough to
+ *  fold. The caller checks it has nothing running or pending. */
+export function isWorkerStale(worker: { lastUsedAt: string }, now: number): boolean {
+  const at = Date.parse(worker.lastUsedAt);
+  return !Number.isNaN(at) && now - at > WORKER_FOLD_MS;
+}
+
 interface TeamSessionFields {
   origin?: string | null;
   channel?: string | null;

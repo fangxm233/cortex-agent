@@ -13,8 +13,6 @@ export interface TeamActionRef {
   model?: string;
   /** answer only: plan approvals carry true/false; question answers omit it. */
   approved?: boolean;
-  /** stop only. */
-  retire?: boolean;
 }
 
 /** The worker a `worker-progress` row came from. */
@@ -86,6 +84,6 @@ export function teamActionFromToolCall(
       };
     }
     case 'stop':
-      return { op, worker: str(record.worker) || null, retire: record.retire === true };
+      return { op, worker: str(record.worker) || null };
   }
 }

@@ -74,9 +74,6 @@ function world(): World {
     sessions: {
       getById: async (id: string) => w.sessions.get(id) ?? null,
       listWorkers,
-      setWorkerRetired: async (id: string, at: number | null) => {
-        const s = w.sessions.get(id); s.workerRetiredAt = at; return s;
-      },
       rename: async (id: string, label: string) => { const s = w.sessions.get(id); s.label = label; return s; },
       bindBoard: async (id: string, boardId: string) => { const s = w.sessions.get(id); s.boardId = boardId; return s; },
     } as any,
@@ -186,13 +183,12 @@ test('a spawned worker inherits the lead board, and none when the lead has none'
   assert.deepEqual(w.joined, ['b-1:w2']);
 });
 
-test('a revived worker with no board joins the lead board; one with its own board keeps it', async () => {
+test('a worker sent work with no board joins the lead board; one with its own board keeps it', async () => {
   const w = world();
   await call(w, { action: 'spawn', name: 'bare', prompt: 'p' });
   await call(w, { action: 'spawn', name: 'own', prompt: 'p' });
-  w.sessions.get('w1').workerRetiredAt = 5;
-  w.sessions.get('w2').workerRetiredAt = 5;
   w.sessions.get('w2').boardId = 'b-own';
+  // The lead opened its board after both were spawned (and left them out, being inactive by then).
   w.sessions.get('lead').boardId = 'b-lead';
 
   assert.equal((await call(w, { action: 'send', worker: 'bare', message: 'go' })).success, true);
@@ -201,11 +197,8 @@ test('a revived worker with no board joins the lead board; one with its own boar
 
   await call(w, { action: 'send', worker: 'own', message: 'go' });
   assert.equal(w.sessions.get('w2').boardId, 'b-own');
-  // An active worker is not rebound by a send either.
-  w.sessions.get('w1').boardId = null;
   await call(w, { action: 'send', worker: 'bare', message: 'again' });
-  assert.equal(w.sessions.get('w1').boardId, null);
-  assert.deepEqual(w.joined, ['b-lead:w1']);
+  assert.deepEqual(w.joined, ['b-lead:w1'], 'a worker already on the board is not announced again');
 });
 
 test('spawn validates the name, its uniqueness and the running cap', async () => {
@@ -216,24 +209,21 @@ test('spawn validates the name, its uniqueness and the running cap', async () =>
   await call(w, { action: 'spawn', name: 'dup', prompt: 'p' });
   const dup = await call(w, { action: 'spawn', name: 'dup', prompt: 'p' });
   assert.match(dup.error!, /already exists.*worker_send/);
-  w.sessions.get('w1').workerRetiredAt = 5;
-  assert.match((await call(w, { action: 'spawn', name: 'dup', prompt: 'p' })).error!, /retired.*revive/);
 
   for (let i = 0; i < MAX_RUNNING_WORKERS; i++) {
     await call(w, { action: 'spawn', name: `w-${i}`, prompt: 'p' });
   }
-  for (const s of w.sessions.values()) if (s.teamLeadId && s.workerRetiredAt == null) w.running.add(s.sessionId);
+  for (const s of w.sessions.values()) if (s.teamLeadId) w.running.add(s.sessionId);
   const capped = await call(w, { action: 'spawn', name: 'one-more', prompt: 'p' });
   assert.match(capped.error!, /already running/);
 });
 
-test('send revives a retired worker, injects into a busy one, and respects the cap for an idle one', async () => {
+test('send reaches an inactive worker, injects into a busy one, and respects the cap for an idle one', async () => {
   const w = world();
   await call(w, { action: 'spawn', name: 'alpha', prompt: 'p' });
-  w.sessions.get('w1').workerRetiredAt = 5;
-  const revived = await call(w, { action: 'send', worker: 'alpha', message: 'continue' });
-  assert.equal(revived.success, true);
-  assert.equal(w.sessions.get('w1').workerRetiredAt, null);
+  w.sessions.get('w1').lastUsedAt = '2026-01-01T00:00:00.000Z';
+  const resumed = await call(w, { action: 'send', worker: 'alpha', message: 'continue' });
+  assert.equal(resumed.success, true);
   assert.deepEqual(w.delivered.at(-1), { channel: 'web:w1', text: 'continue', origin: 'team-lead' });
 
   for (let i = 0; i < MAX_RUNNING_WORKERS; i++) {
@@ -246,14 +236,30 @@ test('send revives a retired worker, injects into a busy one, and respects the c
   assert.match((await call(w, { action: 'send', worker: 'nobody', message: 'x' })).error!, /no worker named/);
 });
 
-test('stop cancels the worker channel and can retire it', async () => {
+test('stop cancels the worker channel', async () => {
   const w = world();
   await call(w, { action: 'spawn', name: 'alpha', prompt: 'p' });
-  const reply = await call(w, { action: 'stop', worker: 'alpha', retire: true });
+  const reply = await call(w, { action: 'stop', worker: 'alpha' });
   assert.equal(reply.success, true);
   assert.deepEqual(w.cancelled, ['web:w1']);
-  assert.equal(w.sessions.get('w1').workerRetiredAt, 1000);
-  assert.match(((await call(w, { action: 'list' })).data as any).text, /Retired: alpha/);
+  assert.match((reply.data as any).text, /Stopped its running turn/);
+});
+
+test('a worker idle past the fold age lists as inactive; one running or waiting on anything does not', async () => {
+  const w = world();
+  for (const name of ['fresh', 'idle', 'busy', 'asking', 'armed']) await call(w, { action: 'spawn', name, prompt: 'p' });
+  for (const id of ['w2', 'w3', 'w4', 'w5']) w.sessions.get(id).lastUsedAt = '2026-01-01T00:00:00.000Z';
+  w.running.add('w3');
+  w.pending.set('web:w4', [{ id: 'req-1' }]);
+  w.waitpoints.set('w5', 1);
+
+  const views = await w.deps.describeTeam('lead');
+  assert.deepEqual(views.map(v => [v.name, v.inactive]), [
+    ['fresh', false], ['busy', false], ['asking', false], ['armed', false], ['idle', true],
+  ]);
+  const text = ((await call(w, { action: 'list' })).data as any).text as string;
+  assert.match(text, /\nInactive \(idle over 3h\): idle$/);
+  assert.match(((await call(w, { action: 'list', worker: 'idle' })).data as any).text, /Status: idle \(inactive\)/);
 });
 
 test('list with a name shows the worker detail; waiting lists its request ids', async () => {
@@ -391,7 +397,7 @@ test('spawn refuses a selection the rule rejects, and an unknown backend, creati
 
 test('spawn and send say so while the server is about to restart, creating and delivering nothing', async () => {
   const w = world();
-  w.sessions.set('old', session('old', { teamLeadId: 'lead', workerName: 'old', workerRetiredAt: 5 }));
+  w.sessions.set('old', session('old', { teamLeadId: 'lead', workerName: 'old' }));
   w.held = true;
 
   const spawned = await call(w, { action: 'spawn', name: 'fresh', prompt: 'p' });
@@ -403,7 +409,6 @@ test('spawn and send say so while the server is about to restart, creating and d
   const sent = await call(w, { action: 'send', worker: 'old', message: 'go' });
   assert.equal(sent.success, false);
   assert.match(sent.error!, /about to restart.*the message was not delivered/);
-  assert.equal(w.sessions.get('old').workerRetiredAt, 5, 'not revived by a send that did not happen');
   assert.deepEqual(w.delivered, []);
 
   w.held = false;

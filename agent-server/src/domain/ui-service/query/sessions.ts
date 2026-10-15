@@ -170,7 +170,6 @@ export async function handleSessionsList(
       teamLeadId: s.teamLeadId ?? null,
       workerName: s.workerName ?? null,
       workerBrief: s.workerBrief ?? null,
-      workerRetiredAt: s.workerRetiredAt ?? null,
       createdAt: s.createdAt,
       lastUsedAt: s.lastUsedAt,
       resumable: s.kind !== 'scheduled',
@@ -201,7 +200,7 @@ export async function handleSessionsList(
       // (sessions.markRead → lastReadAt). Legacy DIRECT records without lastReadAt → read
       // (no unread flood on first deploy). SCHEDULED runs invert the default: a run the user
       // never opened IS the unread state (27c result → blue dot until opened).
-      // Workers never contribute unread state, including retired workers or team mode off.
+      // Workers never contribute unread state, even with team mode off.
       unread: !s.teamLeadId && (s.origin === 'scheduled'
         ? (!s.lastReadAt || s.lastUsedAt > s.lastReadAt)
         : (!!s.lastReadAt && s.lastUsedAt > s.lastReadAt)),

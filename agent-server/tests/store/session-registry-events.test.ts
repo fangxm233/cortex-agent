@@ -169,6 +169,26 @@ test('a journal written before boards replays: legacy commission keys map onto b
   assert.deepEqual(last.fields, { boardId: 'b-9' });
 });
 
+test('a journal written while workers could be retired replays: workerRetiredAt is dropped', async () => {
+  const filePath = nextPath();
+  const record = {
+    sessionId: 'w', projectId: 'proj', channel: 'web:w', backend: 'claude', kind: 'local', origin: 'direct',
+    createdAt: '2026-10-01T00:00:00.000Z', lastUsedAt: '2026-10-01T00:00:00.000Z', label: null, profileName: null,
+    teamLeadId: 'lead', workerName: 'scout', workerRetiredAt: null,
+  };
+  const lines = [
+    { v: 1, op: 'put', id: 'w', record },
+    { v: 1, op: 'patch', id: 'w', fields: { workerRetiredAt: 1738454400000 } },
+    { v: 1, op: 'patch', id: 'w', fields: { label: 'kept' }, unset: ['workerRetiredAt'] },
+  ];
+  await fs.writeFile(filePath, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+
+  const worker = await new SessionRegistryRepo(filePath).getById('w') as Session & Record<string, unknown>;
+  assert.equal(worker.workerName, 'scout');
+  assert.equal(worker.label, 'kept');
+  assert.equal(worker.workerRetiredAt, undefined);
+});
+
 test('an update that changes nothing appends no event', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
@@ -226,7 +246,6 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   await repo.markRead('sess-rt');
   await repo.bindBoard('sess-rt', 'b-1');
   await repo.convertToDirect('sess-rt', { channel: 'C999' });
-  await repo.setWorkerRetired('sess-rt', 1738454400000);
   await repo.beginTurn('sess-rt', fullTurn(0));
   await repo.patchTurn('sess-rt', 0, {
     status: 'completed', responseMessageTimestamps: ['a', 'b', 'c'], executionId: 'exec_z',
@@ -246,7 +265,6 @@ test('every TurnRecord and patch field round-trips through write → replay → 
     assert.deepEqual(rec.browser, { device: 'server' });
     assert.equal(rec.teamLeadId, 'sess-lead');
     assert.equal(rec.workerName, 'scout');
-    assert.equal(rec.workerRetiredAt, 1738454400000);
     assert.deepEqual(rec.contextUsage, usage(9.9));
     assert.ok(rec.lastReadAt);
     const [turn] = await r.getTurns('sess-rt');

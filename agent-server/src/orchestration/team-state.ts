@@ -12,6 +12,7 @@ import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
 import { ownsWaitpoint } from '@domain/waitpoints/view.js';
 import { sessionState } from '@core/session-state.js';
 import { shortSessionId } from '@core/short-session-id.js';
+import { isWorkerStale, WORKER_FOLD_MS } from '@domain/sessions/team.js';
 import { conduitQueues } from './conduit-queue.js';
 import { interactionRecords, type InteractionIndexEntry } from './interactions/interaction-records.js';
 
@@ -26,7 +27,7 @@ export interface WorkerReport {
 
 /** `waiting`: on a question or plan of its own. `external`: no turn running, but an open
  *  waitpoint will wake it. */
-export type WorkerStatus = 'running' | 'idle' | 'waiting' | 'external' | 'error' | 'retired';
+export type WorkerStatus = 'running' | 'idle' | 'waiting' | 'external' | 'error';
 
 export interface WorkerView {
   name: string;
@@ -40,7 +41,8 @@ export interface WorkerView {
   brief: string | null;
   lastReport: WorkerReport | null;
   userTouched: boolean;
-  retired: boolean;
+  /** Idle past the fold age: left out of the lead's roster until it works again. */
+  inactive: boolean;
 }
 
 /** A dispatch counts as running until its turn opens, so back-to-back spawns respect the cap. */
@@ -185,7 +187,6 @@ export async function describeWorker(
   worker: Session, deps: WorkerViewDeps = defaultViewDeps, opts: { running?: boolean } = {},
 ): Promise<WorkerView> {
   await recoverFromHistory(worker, deps);
-  const retired = worker.workerRetiredAt != null;
   const dispatched = dispatchedAt.get(worker.sessionId);
   const running = opts.running ?? (deps.isRunning(worker.sessionId) || deps.isQueued(worker.channel)
     || (dispatched !== undefined && deps.now() - dispatched < DISPATCH_PENDING_MS));
@@ -195,9 +196,8 @@ export async function describeWorker(
   const status: WorkerStatus = waitingOn.length > 0 ? 'waiting'
     : running ? 'running'
       : waitpoints > 0 ? 'external'
-        : retired ? 'retired'
-          : lastReport?.status === 'failed' ? 'error'
-            : 'idle';
+        : lastReport?.status === 'failed' ? 'error'
+          : 'idle';
   const name = worker.workerName ?? shortSessionId(worker.sessionId);
   workerNames.set(worker.sessionId, name);
   return {
@@ -210,18 +210,18 @@ export async function describeWorker(
     brief: briefs.get(worker.sessionId) ?? null,
     lastReport,
     userTouched: userTouched.has(worker.sessionId),
-    retired,
+    inactive: (status === 'idle' || status === 'error') && isWorkerStale(worker, deps.now()),
   };
 }
 
-/** Every worker of a lead, active first (most recent first within each group). */
+/** Every worker of a lead, active first, inactive last (most recent first within each group). */
 export async function describeTeam(
   leadSessionId: string,
   deps: WorkerViewDeps = defaultViewDeps,
   listWorkers: (id: string) => Promise<Session[]> = (id) => sessionStore.listWorkers(id),
 ): Promise<WorkerView[]> {
   const views = await Promise.all((await listWorkers(leadSessionId)).map(w => describeWorker(w, deps)));
-  return [...views.filter(v => !v.retired), ...views.filter(v => v.retired)];
+  return [...views.filter(v => !v.inactive), ...views.filter(v => v.inactive)];
 }
 
 export function isWorkerBusy(view: WorkerView): boolean {
@@ -251,4 +251,15 @@ export function rosterLine(view: WorkerView, now = Date.now()): string {
   else parts.push('no report yet');
   if (view.userTouched) parts.push('user talked to it directly');
   return `- ${parts.join(' · ')}${view.brief ? ` — ${view.brief}` : ''}`;
+}
+
+const FOLD_HOURS = WORKER_FOLD_MS / 3_600_000;
+
+/** The one line standing for a lead's inactive workers: their names in full, or just their count. */
+export function inactiveLine(views: WorkerView[], form: 'names' | 'count'): string | null {
+  const inactive = views.filter(v => v.inactive);
+  if (inactive.length === 0) return null;
+  return form === 'names'
+    ? `Inactive (idle over ${FOLD_HOURS}h): ${inactive.map(v => v.name).join(', ')}`
+    : `- ${inactive.length} inactive (idle over ${FOLD_HOURS}h): worker_list names them, worker_send still reaches them`;
 }

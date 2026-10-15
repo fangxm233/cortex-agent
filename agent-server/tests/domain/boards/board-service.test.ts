@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { BoardRepo } from '../../../src/store/board-repo.js';
 import { SessionRegistryRepo } from '../../../src/store/session-registry-repo.js';
+import { WORKER_FOLD_MS } from '../../../src/domain/sessions/team.js';
 import {
   BoardError, boundBoard, openBoard, slugifyBoardTitle, type BoardServiceDeps,
 } from '../../../src/domain/boards/board-service.js';
@@ -45,14 +46,14 @@ beforeEach(async () => {
   };
   await register('lead');
   await register('w-active', { teamLeadId: 'lead', workerName: 'a' });
-  await register('w-retired', { teamLeadId: 'lead', workerName: 'r' });
-  await sessions.setWorkerRetired('w-retired', 500);
+  await register('w-idle', { teamLeadId: 'lead', workerName: 'r' });
+  await sessions.updateSession('w-idle', { lastUsedAt: new Date(clock - WORKER_FOLD_MS - 1).toISOString() });
   await register('other');
 });
 
 afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
 
-test('a lead opening a new board gets the directory, scaffold and record, and binds its active workers', async () => {
+test('a lead opening a new board gets the directory, scaffold and record, and binds its recently active workers', async () => {
   const result = await openBoard('lead', { title: 'Ship the Parser' }, deps);
   assert.equal(result.created, true);
   assert.equal(result.board.slug, 'ship-the-parser');
@@ -67,7 +68,7 @@ test('a lead opening a new board gets the directory, scaffold and record, and bi
   assert.deepEqual(result.bound, ['lead', 'w-active']);
   assert.equal((await sessions.getById('lead'))?.boardId, 'b1');
   assert.equal((await sessions.getById('w-active'))?.boardId, 'b1');
-  assert.equal((await sessions.getById('w-retired'))?.boardId ?? null, null, 'retired workers stay unbound');
+  assert.equal((await sessions.getById('w-idle'))?.boardId ?? null, null, 'long-idle workers stay unbound');
   assert.equal((await sessions.getById('other'))?.boardId ?? null, null);
   assert.deepEqual(events.map(e => e.type), ['session.board', 'session.board', 'board.updated']);
   assert.deepEqual(events.at(-1), { type: 'board.updated', boardId: 'b1', projectId: 'proj' });

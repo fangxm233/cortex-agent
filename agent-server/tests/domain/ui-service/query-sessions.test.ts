@@ -63,7 +63,6 @@ test('sessions.list exposes worker fields and uses null for ordinary sessions', 
   deps.sessionStore.listByProject = async () => [
     {
       ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout', workerBrief: 'Map the dataset',
-      workerRetiredAt: 1738454400000,
     },
     mockSessions[2],
   ];
@@ -71,11 +70,9 @@ test('sessions.list exposes worker fields and uses null for ordinary sessions', 
   assert.equal(worker.teamLeadId, 'lead-1');
   assert.equal(worker.workerName, 'scout');
   assert.equal(worker.workerBrief, 'Map the dataset');
-  assert.equal(worker.workerRetiredAt, 1738454400000);
   assert.equal(ordinary.teamLeadId, null);
   assert.equal(ordinary.workerName, null);
   assert.equal(ordinary.workerBrief, null);
-  assert.equal(ordinary.workerRetiredAt, null);
 });
 
 test('sessions.list exposes persisted context usage and uses null for legacy sessions', async () => {
@@ -581,7 +578,6 @@ test.each(['0', '1'])('sessions.list excludes workers from unread with team mode
   const rows = [
     base,
     { ...base, sessionId: 'worker', teamLeadId: base.sessionId },
-    { ...base, sessionId: 'retired', teamLeadId: base.sessionId, workerRetiredAt: base.lastUsedAt },
     { ...base, sessionId: 'unviewed', teamLeadId: base.sessionId, lastReadAt: null },
   ];
   const deps = makeDeps();
@@ -589,7 +585,7 @@ test.each(['0', '1'])('sessions.list excludes workers from unread with team mode
   try {
     const result = await handleSessionsList(deps, { origin: 'direct' });
     assert.deepEqual(result.map(s => [s.sessionId, s.unread]), [
-      ['s1', true], ['worker', false], ['retired', false], ['unviewed', false],
+      ['s1', true], ['worker', false], ['unviewed', false],
     ]);
   } finally {
     if (previous === undefined) delete process.env.CORTEX_TEAM_ENABLED;

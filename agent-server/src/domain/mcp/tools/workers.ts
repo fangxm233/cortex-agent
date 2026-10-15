@@ -71,7 +71,7 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
   server.tool(
     'worker_send',
     'Continue or redirect a worker; injects into a running turn or starts a new one. '
-    + 'Revives retired workers. Reuse a relevant worker rather than spawning another. '
+    + 'Reaches inactive workers too. Reuse a relevant worker rather than spawning another. '
     + NON_BLOCKING,
     {
       worker: z.string().describe('The worker name.'),
@@ -89,11 +89,8 @@ export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): 
 
   server.tool(
     'worker_stop',
-    'Stop a worker\'s current turn. With retire=true it also leaves the roster (worker_send revives it).',
-    {
-      worker: z.string().describe('The worker name.'),
-      retire: z.boolean().optional().describe('Also retire the worker.'),
-    },
+    'Stop a worker\'s current turn. worker_send continues it later.',
+    { worker: z.string().describe('The worker name.') },
     handler(ctx, 'stop'),
   );
 

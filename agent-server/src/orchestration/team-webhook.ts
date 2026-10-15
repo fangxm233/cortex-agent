@@ -25,8 +25,8 @@ import { answerQuestion } from './interactions/answer-question.js';
 import { getGroupByHookRequestId } from './interactions/ask-user-question.js';
 import { respondToPlan } from './interactions/plan-response.js';
 import {
-  briefOf, clearDispatch, describeTeam, formatAge, isWorkerBusy, markTurnRoutine, noteDispatch, rosterLine,
-  statusLabel, type WorkerView,
+  briefOf, clearDispatch, describeTeam, formatAge, inactiveLine, isWorkerBusy, markTurnRoutine, noteDispatch,
+  rosterLine, statusLabel, type WorkerView,
 } from './team-state.js';
 
 const log = createLogger('team-webhook');
@@ -40,7 +40,7 @@ export interface TeamWebhookReply {
 type Outcome = 'resolved' | 'already-resolved' | 'not-found';
 
 export interface TeamWebhookDeps {
-  sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'setWorkerRetired' | 'rename' | 'bindBoard'>;
+  sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'rename' | 'bindBoard'>;
   /** Creates the worker on a channel whose selection is already written. Naming the same profile
    *  again only records it on the session; it leaves the channel's selection as written. */
   createSession: (opts: {
@@ -133,7 +133,7 @@ async function findWorker(lead: Session, name: string, deps: TeamWebhookDeps): P
 }
 
 function runningCount(team: WorkerView[]): number {
-  return team.filter(v => !v.retired && isWorkerBusy(v)).length;
+  return team.filter(isWorkerBusy).length;
 }
 
 /** A worker cannot start a turn while the server is about to restart: say so instead of claiming
@@ -210,9 +210,7 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
   if (!prompt) throw new TeamError('prompt required');
   const existing = (await deps.sessions.listWorkers(lead.sessionId)).find(w => w.workerName === name);
   if (existing) {
-    throw new TeamError(existing.workerRetiredAt != null
-      ? `a retired worker is already named "${name}"; revive it with worker_send, or pick another name`
-      : `a worker named "${name}" already exists; continue it with worker_send, or pick another name`);
+    throw new TeamError(`a worker named "${name}" already exists; continue it with worker_send, or pick another name`);
   }
   if (runningCount(await deps.describeTeam(lead.sessionId)) >= MAX_RUNNING_WORKERS) throw capError();
   refuseWhileRestarting(deps, 'the worker was not created');
@@ -256,13 +254,10 @@ async function send(lead: Session, data: Record<string, any>, deps: TeamWebhookD
   const busy = !!view && isWorkerBusy(view);
   if (!busy && runningCount(team) >= MAX_RUNNING_WORKERS) throw capError();
   refuseWhileRestarting(deps, 'the message was not delivered');
-  if (worker.workerRetiredAt != null) {
-    await deps.sessions.setWorkerRetired(worker.sessionId, null);
-    // Retired when the lead opened its board, so it was left out; it joins now if it has none.
-    if (!worker.boardId && lead.boardId) {
-      await deps.sessions.bindBoard(worker.sessionId, lead.boardId);
-      await deps.boardJoined(lead.boardId, worker);
-    }
+  // Inactive when the lead opened its board, so it was left out; it joins now that it works again.
+  if (!worker.boardId && lead.boardId) {
+    await deps.sessions.bindBoard(worker.sessionId, lead.boardId);
+    await deps.boardJoined(lead.boardId, worker);
   }
   noteDispatch(worker.sessionId, null, deps.now());
   deps.deliver({ channel: worker.channel, text: message, origin: 'team-lead' });
@@ -279,7 +274,7 @@ function modelLabel(selection: ChannelSelection): string {
 function describeOne(view: WorkerView, selection: ChannelSelection, now: number): string {
   const lines = [
     `Worker "${view.name}" (session ${view.sessionId})`,
-    `Status: ${statusLabel(view)}${view.retired ? ' (retired)' : ''}`,
+    `Status: ${statusLabel(view)}${view.inactive ? ' (inactive)' : ''}`,
     `Model: ${modelLabel(selection)}`,
   ];
   if (view.brief) lines.push(`Brief: ${view.brief}`);
@@ -302,11 +297,11 @@ async function list(lead: Session, data: Record<string, any>, deps: TeamWebhookD
     if (!view) throw new TeamError(`no worker named "${name}"`);
     return ok(describeOne(view, deps.readSelection(view.channel), now));
   }
-  const active = team.filter(v => !v.retired);
-  const retired = team.filter(v => v.retired);
   if (team.length === 0) return ok('No workers yet.');
+  const active = team.filter(v => !v.inactive);
   const lines = active.length > 0 ? active.map(v => rosterLine(v, now)) : ['No active workers.'];
-  if (retired.length > 0) lines.push(`Retired: ${retired.map(v => v.name).join(', ')}`);
+  const inactive = inactiveLine(team, 'names');
+  if (inactive) lines.push(inactive);
   return ok(lines.join('\n'));
 }
 
@@ -314,10 +309,7 @@ async function stop(lead: Session, data: Record<string, any>, deps: TeamWebhookD
   const worker = await findWorker(lead, str(data.worker), deps);
   const stopped = await deps.cancel(worker.channel);
   clearDispatch(worker.sessionId);
-  const retire = data.retire === true;
-  if (retire) await deps.sessions.setWorkerRetired(worker.sessionId, deps.now());
-  const what = stopped > 0 ? 'Stopped its running turn' : 'It had nothing running';
-  return ok(`${what}${retire ? '; retired' : ''}.`);
+  return ok(stopped > 0 ? 'Stopped its running turn.' : 'It had nothing running.');
 }
 
 async function answer(lead: Session, data: Record<string, any>, deps: TeamWebhookDeps): Promise<TeamWebhookReply> {
