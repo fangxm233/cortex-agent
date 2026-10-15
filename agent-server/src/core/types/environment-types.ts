@@ -28,7 +28,6 @@ export interface AgentEnvironment {
 export interface AgentDefinition extends AgentEnvironment {
   name: string;                      // agent ID (key in agents map)
   description?: string;              // human-readable description
-  profile: string;                   // profile name from profiles.json, or "__active__"
   persistSession?: boolean;          // accepted for older files; conversations always keep their session
   directive?: string;                 // agent role/identity definition, prepended to the prompt
   systemPrompt?: string;             // full system prompt override (--system-prompt flag, replaces default)
@@ -50,7 +49,6 @@ export interface AgentDefinition extends AgentEnvironment {
 /** An environment resolved for one run: its definition without the catalog-only fields, with the
  *  MCP allowlist canonicalized. */
 export interface ResolvedEnvironment extends AgentEnvironment {
-  profile: string;                   // profile name from profiles.json, or "__active__"
   directive?: string;                 // agent role/identity definition, prepended to the prompt
   systemPrompt?: string;             // full system prompt override (--system-prompt flag)
   promptTemplate?: string;           // template with an {{input}} var

@@ -1,123 +1,35 @@
 import { sessionStore } from '@store/session-registry-repo.js';
-import {
-  clearChannelAgent, getActiveProfile, resolveBackendForChannel, setDefaultAgent,
-  setSelectionDefaultAgent,
-} from './config.js';
-import { resolveProfileConfig } from './profile-manager.js';
-import { channelHasHistory, decideProfileSwitch } from './profile-switch.js';
+import { clearChannelAgent, setDefaultAgent, setSelectionDefaultAgent } from './config.js';
 import { getEnvironment } from './environments/registry.js';
 
-export type SwitchAgentFailure = 'unknown-agent' | 'cross-backend-live-session';
-
-export interface SwitchAgentSuccess {
-  ok: true;
-  /** The agent the channel now runs. */
-  agentName: string;
-  /** The profile that agent will actually run under — its own when it pins one, otherwise the
-   *  channel's. FOR DISPLAY ONLY: the run path re-resolves it every turn, and this rule never
-   *  writes `channelProfiles` (a pinned profile is already an override there). */
-  effectiveProfile: string;
-  /** True when the switch moved to a different backend (only possible on a fresh session). */
-  backendChanged: boolean;
-}
-
-export interface SwitchAgentRefusal {
-  ok: false;
-  reason: SwitchAgentFailure;
-  /** The channel's effective backend before the switch; absent when the agent was unknown. */
-  currentBackend?: string;
-  /** The backend the agent would have run on; absent when the agent was unknown. */
-  targetBackend?: string;
-}
-
+export type SwitchAgentFailure = 'unknown-agent';
+export interface SwitchAgentSuccess { ok: true; agentName: string }
+export interface SwitchAgentRefusal { ok: false; reason: SwitchAgentFailure }
 export type SwitchAgentResult = SwitchAgentSuccess | SwitchAgentRefusal;
 
-/**
- * The backend an agent runs on for a given channel: its own profile's when it pins one, else the
- * channel's — an `__active__` agent follows whatever the channel already resolves to, so it can
- * never move the backend by itself.
- */
-function targetBackendOf(agentProfile: string, currentBackend: string): string {
-  if (agentProfile === '__active__') return currentBackend;
-  try {
-    return resolveProfileConfig(agentProfile).backend;
-  } catch {
-    // A pinned profile that no longer exists cannot state a backend; the channel's own answer is
-    // the honest one, and the run path reports the bad name when the turn opens.
-    return currentBackend;
-  }
-}
-
-/**
- * Switch the agent for a channel/session under the shared switch rule.
- *
- * Takes effect on the NEXT turn, like `!model`: the EngineSpec changes identity, so `SessionEngines`
- * restarts the process with `--resume` and the conversation keeps its history under the new prompt
- * and tool surface. Nothing is reset.
- *
- * The cross-backend refusal is {@link decideProfileSwitch}, unchanged — an agent that pins a
- * profile on the other backend is a backend move wearing a different hat, and a live conversation
- * cannot be resumed there.
- */
+/** An environment pick changes prompt/tools, never the engine or its conversation history. */
 export async function switchChannelAgent(opts: { channel: string; name: string }): Promise<SwitchAgentResult> {
-  const { channel, name } = opts;
-  const agent = getEnvironment(name);
-  if (!agent) return { ok: false, reason: 'unknown-agent' };
-
-  const currentBackend = resolveBackendForChannel(channel);
-  const targetBackend = targetBackendOf(agent.profile, currentBackend);
-  const decision = decideProfileSwitch({
-    currentBackend, targetBackend, hasHistory: await channelHasHistory(channel),
-  });
-  if (!decision.allowed) {
-    return { ok: false, reason: 'cross-backend-live-session', currentBackend, targetBackend };
-  }
-
-  setDefaultAgent(name, channel);
-  seedNextConversation(channel, name);
-  await syncSessionAgent(channel, name);
-
-  return {
-    ok: true,
-    agentName: name,
-    effectiveProfile: agent.profile === '__active__' ? resolveChannelProfileName(channel) : agent.profile,
-    backendChanged: decision.backendChanged,
-  };
+  if (!getEnvironment(opts.name)) return { ok: false, reason: 'unknown-agent' };
+  setDefaultAgent(opts.name, opts.channel);
+  seedNextConversation(opts.channel, opts.name);
+  await syncSessionAgent(opts.channel, opts.name);
+  return { ok: true, agentName: opts.name };
 }
 
-/** Drop the channel's agent selection: it follows the global default again, from the next turn. */
 export async function clearChannelAgentSelection(channel: string): Promise<void> {
   clearChannelAgent(channel);
   seedNextConversation(channel, null);
   await syncSessionAgent(channel, null);
 }
 
-/** A pick made in the app says how the user wants to work, so the NEXT new conversation opens in
- *  the same environment. Direct (`web:`) channels only, for the reason `applyChannelSelection`
- *  gives: an `!agent` in some Slack thread is a tool for that thread. */
 function seedNextConversation(channel: string, agentName: string | null): void {
   if (channel.startsWith('web:')) setSelectionDefaultAgent(agentName);
 }
 
-/** Keep the session-registry record in lock-step (best-effort), so the Web session list and
- *  `!resume` report the agent the channel is on. The channel map is the runtime source of truth;
- *  a failure here costs a label, not the switch. */
+/** The engine is not touched; a failed label sync does not discard the environment pick. */
 async function syncSessionAgent(channel: string, agentName: string | null): Promise<void> {
   try {
     const session = await sessionStore.getById((await sessionStore.getBoundSessionId(channel)) ?? '');
     if (session) await sessionStore.updateSession(session.sessionId, { agentName });
-  } catch {
-    // non-fatal — see above
-  }
-}
-
-/** The profile name an `__active__` agent displays: whatever the channel itself resolves to. */
-function resolveChannelProfileName(channel: string): string {
-  try {
-    return resolveProfileConfig(getActiveProfile(channel)).name;
-  } catch {
-    // No profile resolvable at all (profiles.json unreadable) — say what the agent declares rather
-    // than inventing a name the run would not use.
-    return '__active__';
-  }
+  } catch { /* The channel's environment selection is already persisted. */ }
 }

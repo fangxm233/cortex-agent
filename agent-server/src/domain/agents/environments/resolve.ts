@@ -16,7 +16,6 @@ export function resolveActiveAgentName(name: string, channel?: string): string {
 /** The run config for a loaded environment definition. */
 export function resolveEnvironment(def: AgentDefinition): ResolvedEnvironment {
   return {
-    profile: def.profile,
     directive: def.directive,
     systemPrompt: def.systemPrompt,
     promptTemplate: def.promptTemplate,
