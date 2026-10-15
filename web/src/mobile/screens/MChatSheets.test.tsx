@@ -63,44 +63,49 @@ describe.each(floatingMenus)('$name menu dismissal', ({ render }) => {
 });
 
 // `buildSelectionSheet` decides what the rows SAY (m-chat-vm.test); this is only about drawing them:
-// a root that lists the profiles and collapses the overrides, a pane behind each of those rows, and
-// which pick closes the sheet — a profile is the wholesale move, a pane pick leaves it open so the
-// next facet can be chosen in the same visit.
+// favorites close the sheet; pane picks return to the root; stars change only favorite state.
 
+const engine = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, mode: 'plan' };
+const sonnet = {
+  id: 'sonnet', backend: 'claude' as const, provider: null, group: 'claude', active: false,
+  disabled: false, disabledReason: null, favorite: false, selection: { ...engine, model: 'sonnet' },
+};
 const vm: SelectionSheetVM = {
   sections: [
-    { key: 'profile', title: 'PROFILE', rows: [
-      { id: 'profile:plan', label: 'plan', sub: 'opus · claude', current: true, change: null },
-      { id: 'profile:ds', label: 'ds', sub: 'glm-5 · pi', current: false, change: { profileName: 'ds' } },
-    ], footer: '1 more profiles run on pi' },
+    { key: 'favorites', title: 'Favorites', rows: [
+      { id: 'favorite:claude::opus', label: 'opus', sub: null, group: 'claude', current: true, change: null },
+      { id: 'favorite:claude::sonnet', label: 'sonnet', sub: 'high', group: 'claude', current: false, change: { selection: sonnet.selection } },
+      { id: 'favorite:pi:deepseek:ds', label: 'ds', sub: 'New conversation only · pi', group: 'pi · deepseek', current: false, change: null, disabled: true },
+    ] },
     { key: 'model', title: 'MODEL', rows: [
-      { id: 'model:follow', label: 'follow profile', sub: 'opus', current: true, change: null },
-      { id: 'model:claude::sonnet', label: 'sonnet', sub: 'claude', current: false, change: { selection: { model: 'sonnet' } } },
-    ], footer: '2 more models run on pi' },
+      { id: 'model:claude::opus', label: 'opus', sub: null, group: 'claude', current: true, change: null },
+      { id: 'model:claude::sonnet', label: 'sonnet', sub: null, group: 'claude', current: false, change: { selection: sonnet.selection }, modelOption: sonnet },
+    ] },
     { key: 'thinking', title: 'THINKING', rows: [
-      { id: 'thinking:high', label: 'high', sub: null, current: false, change: { selection: { thinking: 'high' } } },
+      { id: 'thinking:default', label: 'Default', sub: null, current: false, change: { selection: engine } },
+      { id: 'thinking:high', label: 'high', sub: null, current: false, change: { selection: { ...engine, thinking: 'high' } } },
     ] },
   ],
   rootRows: [
-    { key: 'model', label: 'model', value: 'opus', overridden: false },
-    { key: 'thinking', label: 'thinking', value: 'high', overridden: true },
+    { key: 'model', label: 'model', value: 'opus' },
+    { key: 'thinking', label: 'thinking', value: 'high' },
   ],
-  clearRow: { id: 'selection:clear', label: 'follow the profile for everything', sub: null, current: false, change: { selection: {} } },
 };
 
 function renderSheet(pending = true) {
+  const onToggleFavorite = vi.fn();
   const onPick = vi.fn();
   const onClose = vi.fn();
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <SelectionSheet vm={vm} pending={pending} onClose={onClose} onPick={onPick} />,
+      <SelectionSheet vm={vm} pending={pending} onClose={onClose} onPick={onPick} onToggleFavorite={onToggleFavorite} />,
     );
   });
   const open = (pane: string): void => {
     act(() => renderer.root.findByProps({ 'data-selection-pane': pane }).props.onClick());
   };
-  return { renderer, onPick, onClose, open };
+  return { renderer, onPick, onClose, open, onToggleFavorite };
 }
 
 describe('SelectionSheet', () => {
@@ -141,17 +146,35 @@ describe('SelectionSheet', () => {
     expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:claude::sonnet' })).toHaveLength(0);
   });
 
-  it('a profile pick closes the sheet — it replaces the whole engine', () => {
+  it('a favorite pick closes the sheet', () => {
     const { renderer, onPick, onClose } = renderSheet();
-    act(() => renderer.root.findByProps({ 'data-selection-row': 'profile:ds' }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-selection-row': 'favorite:claude::sonnet' }).props.onClick());
     expect(onPick).toHaveBeenCalledWith(vm.sections[0].rows[1]);
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('hands every override back at once from the root', () => {
-    const { renderer, onPick } = renderSheet();
-    act(() => renderer.root.findByProps({ 'data-selection-row': 'selection:clear' }).props.onClick());
-    expect(onPick).toHaveBeenCalledWith(vm.clearRow);
+  it('shows backend/provider groups and prevents cross-backend picks', () => {
+    const { renderer, onPick, onClose } = renderSheet();
+    expect(renderer.root.findByProps({ 'data-selection-group': 'pi · deepseek' })).toBeDefined();
+    const row = renderer.root.findByProps({ 'data-selection-row': 'favorite:pi:deepseek:ds' });
+    expect(row.props['data-disabled']).toBe('true');
+    act(() => row.props.onClick());
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('stars change favorites without picking or navigating away', () => {
+    const { renderer, open, onPick, onClose, onToggleFavorite } = renderSheet();
+    open('model');
+    const stopPropagation = vi.fn();
+    const star = renderer.root.findByProps({ 'data-model-star': 'sonnet' });
+    expect(star.props['aria-pressed']).toBe(false);
+    act(() => star.props.onClick({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onToggleFavorite).toHaveBeenCalledWith(sonnet);
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ className: 'selection-pane' }).props['data-pane']).toBe('model');
   });
 
   it('steps back out of a pane without closing the sheet', () => {

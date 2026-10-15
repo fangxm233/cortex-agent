@@ -26,12 +26,13 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       }
       if (options.__kind === 'config.get') return {
         data: {
-          profiles: {
-            defaultProfile: 'plan',
-            profiles: [
-              { name: 'plan', model: 'opus', backend: 'claude' },
-              { name: 'execute', model: 'sonnet', backend: 'claude' },
+          models: {
+            default: { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' },
+            favorites: [
+              { model: 'opus', backend: 'claude', provider: null },
+              { model: 'sonnet', backend: 'claude', provider: null },
             ],
+            memory: { '["claude",null,"sonnet"]': { thinking: null, mode: 'plan' } },
           },
           agents: [],
         },
@@ -67,7 +68,7 @@ vi.mock('@/lib/trpc', () => ({
         compact: mutation('sessions.compact'),
       },
       config: { get: query('config.get') },
-      models: { catalog: query('models.catalog') },
+      models: { catalog: query('models.catalog'), favorites: { add: mutation('models.favorites.add'), remove: mutation('models.favorites.remove') } },
       schedules: { list: query('schedules.list') },
       waitpoints: { list: query('waitpoints.list'), cancel: mutation('waitpoints.cancel') },
       skills: { session: query('skills.session') },
@@ -171,7 +172,7 @@ describe('mobile draft becoming its session', () => {
     harness.createAndSendMutateAsync.mockReturnValue(gate.promise);
     const router = mountAt('/m/session/new');
 
-    typeAndSend('/profile execute');
+    typeAndSend('/model sonnet');
     typeAndSend('first message');
     expect(users()).toEqual(['first message']);
 
