@@ -98,7 +98,7 @@ export class FakeRuntime implements PiRuntimeHandle {
       steer: (text) => {
         self.record({ kind: 'steer', text });
         const rejection = self.steerRejections.shift();
-        return rejection ? Promise.reject(rejection) : Promise.resolve();
+        return rejection ? Promise.reject(rejection) : Promise.resolve('queued' as const);
       },
       abort: async () => { self.record({ kind: 'abort' }); },
       compact: async () => {

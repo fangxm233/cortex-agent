@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { GENERIC_PROVIDER_ICON, ProviderIcon, providerBrand, resolveProviderIcon, scopeSvgIds } from './ProviderIcon';
 import { PROVIDER_ICON_SVGS } from './provider-icon-data';
 
-// The providers PI ships with (pi-ai providers/*.js); each must show its own brand glyph.
+// The chat providers PI ships with (pi-ai providers/*.js); each must show its own brand glyph.
+// The classifier-only `typesafe` provider has no brand glyph and takes the generic one.
 const BUILT_IN_PI_PROVIDERS = [
-  'amazon-bedrock', 'ant-ling', 'anthropic', 'azure-openai-responses', 'baseten', 'cerebras',
+  'amazon-bedrock', 'ant-ling', 'anthropic', 'azure', 'baseten', 'cerebras',
   'cloudflare-ai-gateway', 'cloudflare-workers-ai', 'deepseek', 'fireworks', 'github-copilot', 'google',
   'google-vertex', 'groq', 'huggingface', 'kimi-coding', 'meta', 'minimax', 'minimax-cn', 'mistral',
   'moonshotai', 'moonshotai-cn', 'nvidia', 'openai', 'openai-codex', 'opencode', 'opencode-go', 'openrouter',
