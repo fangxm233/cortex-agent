@@ -2,9 +2,9 @@ import '@/features/settings/ui/desktop-panels.css';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab } from '@/i18n';
-import { modelKey, modelLabel } from '@/lib/model-selection';
+import { modelKey } from '@/lib/model-selection';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
-import { groupModelFacts } from '@/features/settings/vm/models-panel-vm';
+import { groupModelFacts, modelOptionLabel } from '@/features/settings/vm/models-panel-vm';
 import { SLinkAction, SNotice, SPill, SRow, SRowGroup, SSection, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 
 function DefaultModelRow({ controller: c }: { controller: ModelsController }) {
@@ -14,7 +14,7 @@ function DefaultModelRow({ controller: c }: { controller: ModelsController }) {
     <Select aria-label={L.stDefaultModel} value={current ? modelKey(current) : ''}
       disabled={c.pending || !c.options.length} placeholder={L.stChooseModel}
       popupClassName="settings-surface settings-select-popup" style={S_CONTROL_STYLE}
-      options={c.options.map(ref => ({ value: modelKey(ref), label: modelLabel(ref) }))}
+      options={c.options.map(ref => ({ value: modelKey(ref), label: modelOptionLabel(ref) }))}
       onValueChange={c.setDefault} />
   } /></SRowGroup>;
 }
@@ -42,7 +42,7 @@ function Catalog({ controller: c }: { controller: ModelsController }) {
     {c.catalogPending && <SNotice tone="muted">{L.stModelCatalogPending}</SNotice>}
     {c.catalogError && <SNotice tone="danger">{c.catalogError.message}</SNotice>}
     {!c.catalogPending && !c.catalogModels.length && <SNotice tone="muted">{L.stNoCatalogModels}</SNotice>}
-    <SRowGroup>{c.catalogModels.map(ref => <SRow key={modelKey(ref)} title={modelLabel(ref)} control={
+    <SRowGroup>{c.catalogModels.map(ref => <SRow key={modelKey(ref)} title={modelOptionLabel(ref)} control={
       <SLinkAction disabled={c.pending || keys.has(modelKey(ref))} onClick={() => c.add(ref)}>
         {keys.has(modelKey(ref)) ? L.stFavorited : L.stAddFavorite}
       </SLinkAction>

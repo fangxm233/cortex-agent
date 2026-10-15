@@ -1,5 +1,5 @@
 import type { ConfigSnapshot, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { modelKey } from '@/lib/model-selection';
+import { modelKey, modelLabel } from '@/lib/model-selection';
 
 export interface ModelFact {
   ref: ModelRef;
@@ -10,6 +10,10 @@ export interface ModelFact {
 
 function uniqueModels(refs: ModelRef[]): ModelRef[] {
   return [...new Map(refs.map(ref => [modelKey(ref), ref])).values()];
+}
+
+export function modelOptionLabel(ref: ModelRef): string {
+  return [modelLabel(ref), ref.backend, ref.provider].filter(Boolean).join(' · ');
 }
 
 export function catalogModels(catalog: ModelCatalogSnapshot | null): ModelRef[] {

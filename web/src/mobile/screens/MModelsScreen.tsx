@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useVocab } from '@/i18n';
-import { modelKey, modelLabel } from '@/lib/model-selection';
+import { modelKey } from '@/lib/model-selection';
 import { MButton } from '@/mobile/ui/kit';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
-import { groupModelFacts } from '@/features/settings/vm/models-panel-vm';
+import { groupModelFacts, modelOptionLabel } from '@/features/settings/vm/models-panel-vm';
 import { MSettingsCard, MSettingsFeedback, MSettingsPage, MSettingsRow, MSettingsSelect } from './MSettingsControls';
 
 function DefaultModel({ c }: { c: ModelsController }) {
@@ -13,7 +13,7 @@ function DefaultModel({ c }: { c: ModelsController }) {
   return <MSettingsCard><MSettingsSelect label={L.stDefaultModel} value={current ? modelKey(current) : ''}
     disabled={c.pending || !c.options.length} onChange={event => c.setDefault(event.target.value)}>
     <option value="" disabled>{L.stChooseModel}</option>
-    {c.options.map(ref => <option key={modelKey(ref)} value={modelKey(ref)}>{modelLabel(ref)}</option>)}
+    {c.options.map(ref => <option key={modelKey(ref)} value={modelKey(ref)}>{modelOptionLabel(ref)}</option>)}
   </MSettingsSelect></MSettingsCard>;
 }
 
@@ -40,7 +40,7 @@ function Catalog({ c }: { c: ModelsController }) {
   return <MSettingsCard title={L.stAllModels}>
     <MSettingsFeedback hint={c.catalogPending ? L.stModelCatalogPending : undefined} error={c.catalogError?.message} />
     {!c.catalogPending && !c.catalogModels.length && <MSettingsFeedback hint={L.stNoCatalogModels} />}
-    {c.catalogModels.map(ref => <MSettingsRow key={modelKey(ref)} stacked title={modelLabel(ref)} trailing={
+    {c.catalogModels.map(ref => <MSettingsRow key={modelKey(ref)} stacked title={modelOptionLabel(ref)} trailing={
       <MButton compact variant="accent-outline" disabled={c.pending || keys.has(modelKey(ref))} onClick={() => c.add(ref)}>
         {keys.has(modelKey(ref)) ? L.stFavorited : L.stAddFavorite}
       </MButton>
