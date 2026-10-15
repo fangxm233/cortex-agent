@@ -17,7 +17,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     lastUsedAt: '2026-07-15T09:00:00Z',
     resumable: true,
     label: null,
-    profileName: null,
+    selection: null,
     running: false,
     backgroundRunning: false,
     awaitingInput: false,

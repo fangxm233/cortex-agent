@@ -53,7 +53,7 @@ export interface ChatSession extends Omit<SessionLiveState, 'getMessageSnapshot'
   turns: number | null;
   /** The current turn's clock; the status line ticks it while the turn runs. */
   turnClock: TurnClock | null;
-  /** At least one turn, live output included — a live conversation may then only switch profiles
+  /** At least one turn, live output included — a live conversation may then only switch models
    *  within its backend. */
   hasHistory: boolean;
   isScheduledRun: boolean;

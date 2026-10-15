@@ -6,7 +6,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useSystemNotices } from './useSystemNotices';
 
 // Read side of the server's system-notice ring (agent-server domain/system/notice-history.ts):
-// the notices that were fanned out to the admin channels (startup/restart, config & profile
+// the notices that were fanned out to the admin channels (startup/restart, config & model
 // hot-reload, disk, rate limit, auth expiry, job summaries). In-memory on the server, so the list
 // starts empty after a restart — the restart notice itself is then the first entry.
 //

@@ -302,7 +302,7 @@ export const zhExtra = {
   accountsLoginWith: '改用 {type}',
   accountsLogoutType: '登出 {type}',
   accountsLogoutConfirm: '确认登出？',
-  accountsLogoutConfirmInUse: '使用它的 profile 将无法运行。',
+  accountsLogoutConfirmInUse: '使用此账号的模型将无法运行。',
   accountsNotSet: '未设置',
   accountsExpiresWhen: '{when}过期',
   accountsExpiresOn: '{date}到期',

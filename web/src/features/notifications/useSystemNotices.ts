@@ -2,7 +2,7 @@ import { useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SYSTEM_LIVE_EVENTS } from '@/features/live/live-events';
 
 // Thin glue: `system.notice` off the SHARED live stream. The server publishes these for admin/system
-// broadcasts (startup, restart, profile/config/machine hot-reload, disk, rate-limit) via the
+// broadcasts (startup, restart, model/config/machine hot-reload, disk, rate-limit) via the
 // encapsulated `emitSystemNotice` seam. Unlike DM replies these carry a server-classified level and
 // no session, so there is no membership gate — every system.notice surfaces as a toast. All shaping
 // (buildSystemNotice) lives in the caller (NotificationMount). Mirrors useDmNotifications.

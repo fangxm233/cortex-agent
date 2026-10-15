@@ -531,7 +531,6 @@ const SAMPLE_SESSION_ENVELOPE = {
   channel: 'C0000000',
   sessionId: '123e4567-e89b-42d3-a456-426614174000',
   executionId: 'exec_example',
-  profile: 'default',
   timestampIso: '2026-01-01T00:00:00.000Z',
 };
 

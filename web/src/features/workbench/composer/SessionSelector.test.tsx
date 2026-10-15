@@ -251,12 +251,12 @@ describe('model favorites and presentation', () => {
     expect(renderer.root.findByProps({ 'data-menu': 'selection' }).props['data-selection-level']).toBe('model');
   });
 
-  it('has no profile, follow, or clear-override engine rows in any pane', () => {
+  it('has no follow or clear-override engine rows in any pane', () => {
     const renderer = mount({ currentSelection: sonnet });
     open(renderer);
     const forbiddenRows = () => renderer.root.findAll((node) =>
       typeof node.props['data-selection-row'] === 'string'
-      && /profile:|:follow|selection:clear/.test(node.props['data-selection-row']));
+      && /:follow|selection:clear/.test(node.props['data-selection-row']));
     expect(forbiddenRows()).toHaveLength(0);
     for (const pane of ['model', 'thinking', 'mode']) {
       drill(renderer, pane);

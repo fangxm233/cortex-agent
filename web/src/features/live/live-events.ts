@@ -99,7 +99,7 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
 /**
  * True for a `config.changed` whose section is one `config.get` actually reports, i.e. one that
  * makes the cached snapshot stale:
- *   - `profiles`    — profiles.json reloaded successfully.
+ *   - `models`    — models.json reloaded successfully.
  *   - `preferences` — the display language was switched (from `!lang` or another open surface);
  *                     the SPA reads its own vocabulary out of that snapshot, so it must refetch.
  * Any other section is a write the snapshot does not carry — invalidating on it would be noise.
@@ -107,7 +107,7 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
 export function isConfigSnapshotChanged(ev: LiveEvent): boolean {
   if (ev.type !== 'config.changed' || !ev.payload || typeof ev.payload !== 'object') return false;
   const section = (ev.payload as { section?: unknown }).section;
-  return section === 'profiles' || section === 'preferences';
+  return section === 'models' || section === 'preferences';
 }
 
 /** The event's session id, when it carries one. */

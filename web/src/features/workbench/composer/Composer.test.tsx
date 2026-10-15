@@ -177,7 +177,7 @@ describe('Composer draft project selector', () => {
 });
 
 describe('Composer UI slash shortcuts', () => {
-  it.each(['/unknown hello', '/model missing', '/profile execute', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
+  it.each(['/unknown hello', '/model missing', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
     const renderer = mountComposer(() => {});
     enterCommand(renderer, text);
     expect(renderer.root.findByProps({ 'data-slash-error': true }).props.children).toMatch(/not sent|未发送/i);
