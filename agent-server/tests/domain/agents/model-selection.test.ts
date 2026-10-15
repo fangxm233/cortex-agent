@@ -12,18 +12,22 @@ const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opu
 const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: null, mode: 'deepseek' };
 const gateway = { endpoints: { anthropic: { api: {}, plan: {} }, deepseek: { deepseek: {} }, other: { other: {} } } } as never;
 let turns = 0;
-let session: { sessionId: string; backend: string; selection?: EngineSelection } | null;
+let session: { sessionId: string; backend: string; backendSessionId?: string | null; selection?: EngineSelection } | null;
 let patches: unknown[] = [];
 let syncFailure = false;
-vi.mock('@store/session-registry-repo.js', () => ({ sessionStore: {
-  getTurns: async () => Array(turns).fill({}),
-  getBoundSessionId: async () => session?.sessionId ?? null,
-  getById: async () => session,
-  updateSession: async (_id: string, patch: unknown) => {
-    if (syncFailure) throw new Error('journal unavailable');
-    patches.push(patch);
+vi.mock('@store/session-registry-repo.js', async (importOriginal) => ({
+  effectiveBackendSessionId: (await importOriginal<typeof import('../../../src/store/session-registry-repo.js')>()).effectiveBackendSessionId,
+  sessionStore: {
+    getTurns: async () => Array(turns).fill({}),
+    getBoundSessionId: async () => session?.sessionId ?? null,
+    getById: async () => session,
+    updateSession: async (_id: string, patch: { selection: EngineSelection }) => {
+      if (syncFailure) throw new Error('journal unavailable');
+      patches.push(patch);
+      if (session) session = { ...session, ...patch };
+    },
   },
-} }));
+}));
 vi.mock('../../../src/core/gateway-generator.js', () => ({ readGatewayYaml: () => gateway }));
 vi.mock('../../../src/agent-adapter/pi/discovery.js', () => ({ piProviderDiscovery: { peekModels: () => [] } }));
 const fresh = () => importWithFreshRegistry(() => import('../../../src/domain/agents/model-selection.js'));
@@ -31,7 +35,7 @@ const stored = () => JSON.parse(readFileSync(STATE, 'utf8'));
 function seed(state: Record<string, unknown> = {}) { writeFileSync(STATE, JSON.stringify(state)); }
 beforeEach(() => {
   turns = 0; patches = []; syncFailure = false;
-  session = { sessionId: 's1', backend: 'claude', selection: claude };
+  session = { sessionId: 's1', backend: 'claude', backendSessionId: null, selection: claude };
   writeFileSync(path.join(HOME, 'config/models.json'), JSON.stringify({ default: claude, favorites: [pi] }));
   seed();
 });
@@ -97,8 +101,29 @@ test('the live session backend is authoritative even when the channel map is sta
   turns = 1;
   seed({ channelSelections: { 'web:a': pi } });
   const api = await fresh();
-  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'another-pi' }))
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi, model: 'another-pi' }))
     .toMatchObject({ ok: false, reason: 'cross-backend-live-session' });
+});
+
+test.each(['backend-claude-id', undefined])('resumed session with durable backend ID %s rejects switching despite an empty ledger', async (backendSessionId) => {
+  session = { ...session!, backendSessionId };
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:resumed', ...pi }))
+    .toMatchObject({ ok: false, reason: 'cross-backend-live-session', currentBackend: 'claude', targetBackend: 'pi' });
+  expect(stored()).toEqual({});
+  expect(patches).toEqual([]);
+});
+
+test('partial edits after a cross-channel resume use the bound session, not stale channel settings', async () => {
+  const resumed = { ...claude, model: 'sonnet', thinking: 'high', mode: 'api' };
+  session = { ...session!, selection: resumed, backendSessionId: 'claude-resumed' };
+  seed({ channelSelections: { 'web:old': claude, 'web:resumed': claude } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:resumed', thinking: 'xhigh' }))
+    .toEqual({ ...resumed, thinking: 'xhigh', ok: true, backendChanged: false });
+  expect(stored().channelSelections['web:resumed']).toEqual({ ...resumed, thinking: 'xhigh' });
+  expect(stored().channelSelections['web:old']).toEqual(claude);
+  expect(patches).toEqual([{ selection: { ...resumed, thinking: 'xhigh' } }]);
 });
 
 test('a fresh session may change backend and updates the session selection', async () => {
@@ -117,6 +142,30 @@ test('backend-only change uses that backend default; missing favorites refuses',
   seed();
   expect(await empty.applyChannelSelection({ channel: 'web:b', backend: 'pi' }))
     .toMatchObject({ ok: false, reason: 'no-model-for-backend' });
+});
+
+test.each([false, true])('backend-only pick preserves all configured default settings (same backend: %s)', async (sameBackend) => {
+  const current = sameBackend ? { ...claude, model: 'sonnet', thinking: 'low', mode: 'api' } : pi;
+  session = { ...session!, selection: current, backend: current.backend };
+  seed({ channelSelections: { 'web:a': current }, modelMemory: { '["claude",null,"opus"]': { thinking: 'low', mode: 'api' } } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude' }))
+    .toEqual({ ...claude, ok: true, backendChanged: !sameBackend });
+  expect(stored().channelSelections['web:a']).toEqual(claude);
+});
+
+test('backend-only pick without memory preserves default thinking and route, while explicit model loads memory', async () => {
+  session = { ...session!, selection: pi, backend: 'pi' };
+  seed({ channelSelections: { 'web:a': pi } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude' }))
+    .toMatchObject({ ...claude, ok: true });
+  await api.applyChannelSelection({ channel: 'web:a', ...pi });
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude', model: 'opus', thinking: 'low', mode: 'api' }))
+    .toMatchObject({ thinking: 'low', mode: 'api', ok: true });
+  await api.applyChannelSelection({ channel: 'web:a', ...pi });
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude', model: 'opus' }))
+    .toMatchObject({ thinking: 'low', mode: 'api', ok: true });
 });
 
 test('target backend thinking is validated before any write', async () => {

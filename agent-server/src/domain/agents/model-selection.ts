@@ -1,6 +1,6 @@
 import { AsyncMutex } from '@core/async-mutex.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import { effectiveBackendSessionId, sessionStore, type Session } from '@store/session-registry-repo.js';
 import { GATEWAY_CONFIG_PATH } from '../pi-providers/gateway-route-store.js';
 import {
   getChannelSelection, getModelMemory, rememberModelSelection, setChannelSelection, setSelectionDefault,
@@ -49,7 +49,7 @@ function refuse(current: EngineSelection, reason: SelectionFailure, allowed?: re
   return { ...current, ok: false, backendChanged: false, reason, ...(allowed ? { allowed } : {}) };
 }
 
-/** A backend-only pick uses its configured default. A complete identity needs no favorite. */
+/** A complete identity needs no favorite. */
 function targetRef(request: ApplySelectionRequest, current: EngineSelection): ModelRef | null {
   const backend = request.backend ?? current.backend;
   const changingBackend = backend !== current.backend;
@@ -69,6 +69,16 @@ function mergeSelection(request: ApplySelectionRequest, current: EngineSelection
     thinking: request.thinking !== undefined ? request.thinking : settings.thinking,
     mode: request.mode !== undefined ? request.mode : settings.mode,
   };
+}
+
+function targetSelection(request: ApplySelectionRequest, current: EngineSelection): EngineSelection | null {
+  // A backend pick selects its complete default, not just its model identity.
+  if (request.backend !== undefined && request.model === undefined && request.provider === undefined) {
+    const defaults = getDefaultSelectionForBackend(request.backend);
+    return defaults ? mergeSelection(request, defaults, defaults) : null;
+  }
+  const ref = targetRef(request, current);
+  return ref ? mergeSelection(request, current, ref) : null;
 }
 
 const SAFE_NAME = /^[a-zA-Z0-9_-]+$/;
@@ -110,21 +120,22 @@ export function applyChannelSelection(request: ApplySelectionRequest): Promise<A
 }
 
 async function applySelection(request: ApplySelectionRequest): Promise<ApplySelectionResult> {
-  const current = readChannelSelection(request.channel);
-  const ref = targetRef(request, current);
-  if (!ref) return refuse(current, 'no-model-for-backend');
-  const target = mergeSelection(request, current, ref);
+  const sessionId = await sessionStore.getBoundSessionId(request.channel);
+  const session = sessionId ? await sessionStore.getById(sessionId) : null;
+  const current = session?.selection ?? readChannelSelection(request.channel);
+  const target = targetSelection(request, current);
+  if (!target) return refuse(current, 'no-model-for-backend');
   const invalid = validateTarget(request, current, target);
   if (invalid) return invalid;
-  return persistSelection(request, current, target);
+  return persistSelection(request, current, target, session);
 }
 
 async function persistSelection(
-  request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection,
+  request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection, session: Session | null,
 ): Promise<ApplySelectionResult> {
-  const sessionId = await sessionStore.getBoundSessionId(request.channel);
-  const session = sessionId ? await sessionStore.getById(sessionId) : null;
-  const hasHistory = (await sessionStore.getTurns(request.channel)).length > 0;
+  // Attach/resume clears channel turns, but the backend conversation still exists.
+  const hasHistory = !!(session && effectiveBackendSessionId(session))
+    || (await sessionStore.getTurns(request.channel)).length > 0;
   const currentBackend = session?.selection?.backend ?? session?.backend ?? current.backend;
   const decision = decideBackendSwitch({ currentBackend, targetBackend: target.backend, hasHistory });
   if (!decision.allowed) return {
