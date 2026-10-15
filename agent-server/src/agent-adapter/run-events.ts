@@ -10,21 +10,16 @@ import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.j
  *  - `done` — terminal bookkeeping after every background task has settled. */
 export type RunPhase = 'foreground' | 'background' | 'done';
 
-/** Opaque label identifying one attempt of the fallback chain, e.g. `model/mode`.
- *  The plan sketches `run_fallback` with this type but does not define it; declared here so the
- *  event union is self-contained until `domain/runs/run.ts` owns the real shape. */
-export type AttemptLabel = string;
-
 /** The one event union every run produces. Passthrough kinds keep the exact field names of the
  *  `NormalizedEvent` member they translate from and add a `phase` tag; the remaining kinds are the
- *  run's own vocabulary (dialogs, injections, accounting, fallback, terminal results). */
+ *  run's own vocabulary (dialogs, injections, accounting, terminal results). */
 export type RunEvent =
   | { type: 'engine_started'; backendSessionId: string; sessionFile?: string }
   | { type: 'phase'; phase: RunPhase; pendingBackground: number; undeliveredBackground: number }
   | {
       type: 'assistant_text'; text: string; blockId?: string; model?: string | null;
       subagent?: ToolUseSubagent; phase: RunPhase;
-      // Notices are synthesized by the run layer (rate-limit hold, compaction, fallback) and reach the
+      // Notices are synthesized by the run layer (rate-limit hold, compaction) and reach the
       // transcript through the same `onAssistantMessage` callback as ordinary prose. They are part
       // of the event so the transcript sink can persist/publish them identically; `NormalizedEvent`
       // never sets them.
@@ -80,7 +75,6 @@ export type RunEvent =
       provider_requests: number | null; cost_usd: number | null;
     }
   | { type: 'turn_progress'; numTurns: number }
-  | { type: 'run_fallback'; from: AttemptLabel; to: AttemptLabel; reason: 'rate-limited' | 'transport-error' }
   | { type: 'foreground_result'; result: AgentResult }
   | { type: 'background_result'; result: AgentResult }
   // The run's own background watchdog gave up waiting. `grace` = finished-but-unnotified work

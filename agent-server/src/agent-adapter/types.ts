@@ -39,7 +39,6 @@ export type RateLimitReporter = (
 
 /** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
 export interface CortexContextEnv {
-  profile?: string | null;
   project?: string | null;
   /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
    *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
@@ -59,7 +58,7 @@ export interface EngineSpec {
   engineKey: string;
   cwd?: string;
   resume: { backendSessionId: string | null; resume: boolean };
-  model: { id?: string; provider?: string; thinking?: string; maxOutputTokens?: number };
+  model: { id?: string; provider?: string; thinking?: string; benchmarkMaxOutputTokens?: number };
   prompt: { system?: string; append?: string };
   tools: { canonical?: string[]; rawClaude?: string };
   plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string;
@@ -80,7 +79,6 @@ export interface EngineSpec {
            /** Team worker: a direct session that also gets the `cortex-worker-report` tool. */
            teamWorker?: boolean };
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
-  extraOption?: Record<string, string>;
   backend:
     | { kind: 'claude'; claudeAgent?: string; outputStyle?: string }
     | { kind: 'pi' };

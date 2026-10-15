@@ -8,15 +8,12 @@ import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
 import type { ModeEnv } from './mode-env.js';
-import {
-  fallbackReasonOf, isRetryableError, isRetryableResult, notRetriedFailure, type FallbackReason,
-} from './retryable-errors.js';
-import { NO_SPEND, addSpend, countSpend, spendOfResult, type RunSpend } from './spend.js';
-import type { RunAttemptConfig } from '../agents/profile-manager.js';
+import { isRetryableError } from './retryable-errors.js';
+import { NO_SPEND, countSpend, spendOfResult, type RunSpend } from './spend.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
   attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
-  planAttempts, attemptLabel,
 } from './fallback.js';
 import { requestRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
@@ -43,14 +40,10 @@ export interface AgentRun {
   readonly status: RunStatus;
   readonly phase: RunPhase;
   readonly numTurns: number | null;
-  readonly attempt: { index: number; config: RunAttemptConfig };
-  /**
-   * The session's resume target: the backend session id on the session's OWN backend (the
-   * profile's). A fallback attempt on another backend never names it — its id would be resumed by
-   * the wrong CLI next turn — so across such a fallback this keeps the primary's id.
-   */
+  readonly attempt: { index: number; config: EngineSelection };
+  /** The session's resume target on the selected backend. */
   readonly backendSessionId: string | null;
-  /** What the attempt running now can do. Follows the chain onto a fallback's backend. */
+  /** What the selected backend can do. */
   readonly capabilities: ReadonlySet<Capability>;
   /** The awaited foreground turn's result. */
   readonly result: Promise<RunResult>;
@@ -95,9 +88,7 @@ export interface RunTerminalInfo {
   /** What the run had produced when it ended — the foreground turn plus every continuation that
    *  settled, also on a cancelled or failed run, so the spend already incurred is not lost. */
   result: RunResult | null;
-  /** Everything the run spent, over every attempt the chain made — what the execution record and
-   *  the session totals carry. The attempts the chain moved past count by the cost rows they
-   *  streamed (the rows the ledger got); the last one by `result` when there is one. */
+  /** Everything the run spent, including background continuations. */
   spend: RunSpend;
   error?: Error;
   durationS: number;
@@ -117,13 +108,6 @@ function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-/** The error a turn ends with when a retryable failure hit after it had started a tool call. It
- *  keeps the original message — auth classification and provider attribution read it. */
-function notRetriedAfterTools(reason: FallbackReason, message: string): Error {
-  const key = reason === 'rate-limited' ? 'status.rateLimitedMidTurn' : 'status.notRetriedAfterTools';
-  return notRetriedFailure(t(key, { message }));
-}
-
 function cancellationError(reason: string): Error {
   return Object.assign(new Error(`Run cancelled (${reason})`), { cancelled: true });
 }
@@ -136,7 +120,7 @@ export class AgentRunImpl implements AgentRun {
   readonly result: Promise<RunResult>;
   readonly settled: Promise<RunResult>;
 
-  private attemptValue: { index: number; config: RunAttemptConfig };
+  private attemptValue: { index: number; config: EngineSelection };
   /** Reporting model of the latest assistant event, restamped onto the synthesized notices. */
   private lastAssistantModel: string | null = null;
   private backgroundTranscriptOwnedValue = false;
@@ -148,9 +132,6 @@ export class AgentRunImpl implements AgentRun {
   /** Continuation results seen so far. The live tally and a run that ends before its attempt
    *  settles (Stop, failure) read them; a settled attempt reports its own merged result. */
   private readonly continuations: RunResult[] = [];
-  /** What each attempt the chain moved past had spent. Each entry keeps counting until the run
-   *  ends: a retired attempt's late cost rows still reach the ledger, so they count here too. */
-  private readonly retiredSpend: RunSpend[] = [];
   /** What the running attempt has streamed so far: a run that ends with no result still cost it. */
   private liveSpend: RunSpend | null = null;
 
@@ -160,9 +141,7 @@ export class AgentRunImpl implements AgentRun {
   private readonly startedAt: number;
   private readonly settleDeferred = deferred<RunResult>();
   private readonly resultDeferred = deferred<RunResult>();
-  /** Everything this run is allowed to try, in order (fallback.ts). */
-  private readonly plan: RunAttemptConfig[];
-  /** Narrates the chain. It sits IN the event path because it can swallow a line. */
+  /** Narrates the attempt. It sits in the event path because it can swallow a line. */
   private readonly notices: AttemptNoticeTracker;
   /** Mirrors the old dispatcher's `active`: once the foreground turn is over, the run stops
    *  synthesizing notices about itself — the background phase is not a new turn to announce. */
@@ -179,8 +158,7 @@ export class AgentRunImpl implements AgentRun {
     this.request = args.request;
     this.executionId = args.executionId;
     this.id = args.request.runId;
-    this.plan = planAttempts(args.request.profile);
-    this.attemptValue = { index: 0, config: this.plan[0] };
+    this.attemptValue = { index: 0, config: args.request.selection };
     this.notices = new AttemptNoticeTracker(
       {
         channel: args.request.context.channel,
@@ -211,7 +189,7 @@ export class AgentRunImpl implements AgentRun {
     void this.settled.catch(() => undefined);
   }
 
-  get attempt(): { index: number; config: RunAttemptConfig } { return this.attemptValue; }
+  get attempt(): { index: number; config: EngineSelection } { return this.attemptValue; }
   get status(): RunStatus { return this.statusValue; }
   get phase(): RunPhase { return this.phaseValue; }
   get numTurns(): number | null { return this.numTurnsValue; }
@@ -221,7 +199,7 @@ export class AgentRunImpl implements AgentRun {
   /** True while the running attempt is on the session's own backend, i.e. while its backend id
    *  may become the session's resume target (see `backendSessionId`). */
   private get onSessionBackend(): boolean {
-    return this.attemptValue.config.backend === this.request.profile.backend;
+    return this.attemptValue.config.backend === this.request.selection.backend;
   }
 
   /** Adopt `id` as the resume target, unless the running attempt is on another backend. */
@@ -236,145 +214,52 @@ export class AgentRunImpl implements AgentRun {
   start(): void {
     if (this.started) return;
     this.started = true;
-    void this.walkChain();
+    void this.runOnce();
   }
 
-  /**
-   * Walk the attempt chain: try each engine selection in turn, and stop at the first one that
-   * produces a non-retryable outcome. An attempt whose provider/mode is already known blocked is
-   * skipped without spawning, unless a person is waiting on it.
-   *
-   * The whole chain is one run: the same runId, the same observers, one execution record. Only
-   * `attempt.index` moves.
-   */
-  private async walkChain(): Promise<void> {
-    let reason: FallbackReason = 'rate-limited';
-    for (let index = 0; index < this.plan.length; index++) {
-      if (this.terminal) return;
-      const attempt = this.plan[index];
-      const isLast = index === this.plan.length - 1;
-      if (index > 0) this.advanceAttempt(index, attempt, reason);
-
-      if (shouldSkipAttempt(attempt, { isUserInitiated: this.request.context.isUserInitiated })) {
-        const blocked = rateLimitedResult(attempt.mode || 'api', attemptProvider(attempt));
-        if (isLast) {
-          this.notices.emitTerminalRateLimit(blocked);
-          this.settleBlocked(blocked);
-          return;
-        }
-        log.info(`${attemptLabel(attempt)} rate-limited, skipping to fallback[${index}]`);
-        reason = 'rate-limited';
-        this.notices.transitionToFallback(attempt, this.plan[index + 1], reason);
-        continue;
-      }
-
-      const outcome = await this.runAttempt(attempt, index, isLast);
-      if (outcome === 'settled') return;
-      reason = outcome;
-      this.notices.transitionToFallback(attempt, this.plan[index + 1], reason);
+  /** One selection, at most one spawn. Background work never waits for a throttled provider. */
+  private async runOnce(): Promise<void> {
+    const attempt = this.request.selection;
+    if (shouldSkipAttempt(attempt, this.request.context)) {
+      const blocked = rateLimitedResult(attempt.mode, attemptProvider(attempt));
+      this.notices.emitTerminalRateLimit(blocked);
+      this.settleBlocked(blocked);
+      return;
     }
-    // Unreachable: the last attempt always settles or throws. Guard rather than hang.
-    if (!this.terminal) this.finishForegroundError(new Error('All fallback configs exhausted without result'));
-  }
-
-  /**
-   * One attempt. Returns 'settled' when the run is over, or why the chain should advance.
-   *
-   * A fallback re-runs the whole turn in a fresh backend conversation. That is only safe before
-   * the turn started any tool call — a rate limit or a transport failure alike; after one, the
-   * re-run would repeat its side effects, so the turn ends with an error that says why it was not
-   * retried. The last attempt has nothing to fall back to and settles as it always did.
-   */
-  private async runAttempt(
-    attempt: RunAttemptConfig, index: number, isLast: boolean,
-  ): Promise<'settled' | FallbackReason> {
-    // A retry starts a fresh backend conversation: the previous attempt's resume target belongs to
-    // a provider that just failed us.
-    const request = index === 0
-      ? this.request
-      : { ...this.request, session: { ...this.request.session, backendSessionId: null } };
-    // Once the chain moves on, whatever this attempt still streams (a hold-mode background phase,
-    // the close of its engine) belongs to no one: observers follow the attempt that replaced it.
-    let abandoned = false;
-    let toolStarted = false;
-    const spend: RunSpend = { ...NO_SPEND };
-    this.liveSpend = spend;
-    const retire = (reason: FallbackReason): FallbackReason => {
-      abandoned = true;
-      this.retiredSpend.push(spend);
-      this.liveSpend = null;
-      return reason;
-    };
     let current: RunAttempt;
     try {
-      current = startAttempt({
-        request, attempt, executionId: this.executionId,
-        route: this.routeFor(attempt),
-        onEvent: (event) => {
-          countSpend(spend, event);
-          if (abandoned) return;
-          if (event.type === 'tool_use') toolStarted = true;
-          this.onRunEvent(event);
-        },
-      });
+      current = this.openAttempt(attempt);
     } catch (error) {
       this.onForegroundError(error);
-      return 'settled';
+      return;
     }
+    try {
+      this.settleAttemptResult(current, await current.foreground);
+    } catch (error) {
+      this.onAttemptError(current, attempt, error);
+    }
+  }
+
+  private openAttempt(attempt: EngineSelection): RunAttempt {
+    const spend: RunSpend = { ...NO_SPEND };
+    this.liveSpend = spend;
+    const current = startAttempt({
+      request: this.request, attempt, executionId: this.executionId,
+      route: this.routeFor(attempt),
+      onEvent: (event) => {
+        countSpend(spend, event);
+        this.onRunEvent(event);
+      },
+    });
     this.current = current;
     this.registerAttempt(current);
     this.announcePluginWarnings(current.spec);
-
-    try {
-      const result = await current.foreground;
-      if (!isRetryableResult(result) || isLast) {
-        this.settleAttemptResult(current, result);
-        return 'settled';
-      }
-      // The attempt ends here with a result of its own: its turn count is the last word.
-      const resultTurns = spendOfResult(result).numTurns;
-      if (resultTurns !== null) spend.numTurns = Math.max(spend.numTurns ?? 0, resultTurns);
-      if (toolStarted) {
-        log.info(`${attemptLabel(attempt)} rate limited after a tool ran; not retrying on fallback[${index}]`);
-        const detail = result.rateLimitMessage || t('status.rateLimitedExhausted');
-        this.onAttemptError(current, attempt, notRetriedAfterTools('rate-limited', detail));
-        return 'settled';
-      }
-      log.info(`${attemptLabel(attempt)} rate limited, trying fallback[${index}]`);
-      return retire('rate-limited');
-    } catch (error) {
-      const failure = asError(error);
-      if (this.cancelRequested || !isRetryableError(failure) || isLast) {
-        this.onAttemptError(current, attempt, error);
-        return 'settled';
-      }
-      const reason = fallbackReasonOf(failure);
-      if (toolStarted) {
-        log.info(`${attemptLabel(attempt)} ${reason} after a tool ran; not retrying on fallback[${index}]`);
-        this.onAttemptError(current, attempt, notRetriedAfterTools(reason, failure.message));
-        return 'settled';
-      }
-      log.info(`${attemptLabel(attempt)} retryable error (${reason}), trying fallback[${index}]`);
-      return retire(reason);
-    }
+    return current;
   }
 
-  /** The route (base URL + credentials) this attempt runs under. Per-attempt, because a fallback
-   *  may be a different mode entirely. */
-  private routeFor(attempt: RunAttemptConfig): ModeEnv {
+  /** The route (base URL + credentials) this run uses. */
+  private routeFor(attempt: EngineSelection): ModeEnv {
     return requestRoute(this.request, attempt);
-  }
-
-  /** The chain moved on. Report it on the stream; the surface renders the notice. */
-  private advanceAttempt(index: number, next: RunAttemptConfig, reason: FallbackReason): void {
-    const previous = this.attemptValue.config;
-    this.attemptValue = { index, config: next };
-    this.absorb({
-      type: 'run_fallback',
-      from: attemptLabel(previous),
-      to: attemptLabel(next),
-      reason,
-    });
   }
 
   /** Every attempt that reached a backend settles here: provider attribution and the auth
@@ -400,7 +285,7 @@ export class AgentRunImpl implements AgentRun {
     this.finishTerminal('rate-limited', result);
   }
 
-  private onAttemptError(current: RunAttempt, attempt: RunAttemptConfig, error: unknown): void {
+  private onAttemptError(current: RunAttempt, attempt: EngineSelection, error: unknown): void {
     const failure = this.attributeError(error);
     this.notices.emitTerminalError(failure);
     this.publishAuthOutcome(null, failure, attempt);
@@ -408,8 +293,7 @@ export class AgentRunImpl implements AgentRun {
     this.onForegroundError(failure);
   }
 
-  /** Stamp the attempt's provider onto a result that did not name one. An attempt with no engine
-   *  selection (an unknown profile name) names no provider: see `attemptProviderOrNull`. */
+  /** Stamp the selected provider onto a result that did not name one. */
   private attribute(result: RunResult): RunResult {
     const provider = attemptProviderOrNull(this.attemptValue.config);
     if (!provider || result.rateLimitProvider) return result;
@@ -557,7 +441,7 @@ export class AgentRunImpl implements AgentRun {
         }
         break;
       case 'model_fallback':
-        // The BACKEND swapped models under us (not our fallback chain) — say so.
+        // The backend itself swapped models — report its native event.
         if (this.noticesActive) {
           this.notices.observe(t('notify.agentFallback', {
             from: event.originalModel, to: event.fallbackModel,
@@ -745,7 +629,7 @@ export class AgentRunImpl implements AgentRun {
    *  what it streamed. */
   private runSpend(result: RunResult | null): RunSpend {
     const last = result ? spendOfResult(result) : this.liveSpend ?? NO_SPEND;
-    return [...this.retiredSpend, last].reduce(addSpend, NO_SPEND);
+    return last;
   }
 
   // ── observer fan-out ───────────────────────────────────────────────────

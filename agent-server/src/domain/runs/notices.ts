@@ -2,7 +2,7 @@
 // Two jobs, both about narration rather than execution:
 //
 //   1. Classify assistant prose the backend emits (`API Error:` → an error notice).
-//   2. Synthesize lines the backend never sends: "falling back to X", "context compacted",
+//   2. Synthesize lines the backend never sends: "context compacted",
 //      "rate-limited, will auto-resume".
 //
 // The subtle part is a HELD rate-limit card. A backend surfaces a 429 as an assistant message
@@ -13,10 +13,8 @@
 import { t } from '../../core/i18n.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
-import type { RunAttemptConfig } from '../agents/profile-manager.js';
-import { isApiRateLimitError, isNotRetriedFailure, type FallbackReason } from './retryable-errors.js';
+import { isApiRateLimitError, isNotRetriedFailure } from './retryable-errors.js';
 import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
-import { attemptLabel } from './fallback.js';
 
 /** `API Error:` prose is the backend reporting its own failure, not the agent talking. */
 export function assistantNoticeLevel(text: string): ChatNoticeLevel | undefined {
@@ -49,8 +47,7 @@ export type NoticeEmit = (
 
 /**
  * Tracks error notices within one attempt so terminal handling is durable but not noisy: an
- * attempt that already showed an error card does not get a second one, and a fallback opens a
- * fresh dedupe window so the new provider's failure is not hidden by the old provider's notice.
+ * attempt that already showed an error card does not get a second one.
  */
 export class AttemptNoticeTracker {
   private readonly synthesize: boolean;
@@ -115,22 +112,6 @@ export class AttemptNoticeTracker {
       this.emit(t('notify.rateLimitAutoResume'), undefined, 'warning', { kind: 'cancel-resume' });
     }
     return true;
-  }
-
-  /** This attempt is over and another one follows: its held card is now terminal for that
-   *  provider, and the next attempt starts with a clean dedupe window. */
-  transitionToFallback(
-    current: Pick<RunAttemptConfig, 'model' | 'mode'>,
-    next: Pick<RunAttemptConfig, 'model' | 'mode'>,
-    reason: FallbackReason,
-  ): void {
-    this.flushHeldError();
-    if (this.synthesize) {
-      const key = reason === 'rate-limited'
-        ? 'notify.attemptFallback.rateLimited' : 'notify.attemptFallback.transportError';
-      this.observe(t(key, { from: attemptLabel(current), to: attemptLabel(next) }), undefined, 'warning');
-    }
-    this.attemptHasErrorNotice = false;
   }
 
   emitTerminalError(error: unknown): void {

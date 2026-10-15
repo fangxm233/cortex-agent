@@ -27,7 +27,7 @@ import { PISession } from './pi-session.js';
 import { PIEngineSession, type PIEngineOpenHooks } from './engine.js';
 import { createPiRuntime, type PiRuntimeFactory } from './runtime.js';
 import {
-  buildSessionRequest, sessionIdentity, unsupportedExtraOptions, type PiSessionRequest,
+  buildSessionRequest, sessionIdentity, type PiSessionRequest,
 } from './session-options.js';
 import type { SwitchResult } from './session-support.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR, piModelsPath } from './defaults.js';
@@ -223,12 +223,12 @@ export class PIAdapter implements EngineAdapter {
         spec.model.provider ?? null,
         spec.route.gatewayPath ?? null,
         spec.model.id,
-        spec.model.maxOutputTokens,
+        spec.model.benchmarkMaxOutputTokens,
       ),
       this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
     );
     if (overrides.length === 0) {
-      log.warn('No PI providers to route (empty discovery and no profile provider); the PI session may fail to authenticate');
+      log.warn('No PI providers to route (empty discovery and no selected provider); the PI session may fail to authenticate');
       return;
     }
     writeProvidersConfig(overrides, gatewayBaseUrl, { modelsPath: piModelsPath(agentDir) });
@@ -260,12 +260,10 @@ export class PIAdapter implements EngineAdapter {
     gatewayPath?: string | null;
     gatewayBaseUrl: string;
     model?: string;
-    maxTokens?: number;
   }): void {
     const spec = minimalEngineSpec();
     spec.model.provider = opts.provider;
     spec.model.id = opts.model;
-    spec.model.maxOutputTokens = opts.maxTokens;
     spec.route.gatewayPath = opts.gatewayPath ?? undefined;
     spec.route.gatewayBaseUrl = opts.gatewayBaseUrl;
     this.syncGatewayConfig(spec, this.agentDir);
@@ -295,9 +293,6 @@ export class PIAdapter implements EngineAdapter {
     mkdirSync(this.sessionDir, { recursive: true });
     const sessionPath = this.resolveSpawnSessionPath(spec, this.sessionDir);
     this.syncGatewayConfig(spec, agentDir);
-    for (const key of unsupportedExtraOptions(spec)) {
-      log.warn(`PI extraOption ${key} was a CLI flag; the in-process backend ignores it`);
-    }
     return this.buildRequest(spec, sessionPath);
   }
 

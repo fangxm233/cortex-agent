@@ -7,20 +7,26 @@
 import type { ProductionBenchmarkEvidenceContext } from './benchmark-types.js';
 
 const bound = new Map<string, ProductionBenchmarkEvidenceContext>();
+const outputCaps = new Map<string, number>();
 
 /** Bind `context` to `sessionId`. A trial run (trial id + root run id) owns exactly one session. */
 export function bindSessionEvidenceContext(
-  sessionId: string, context: ProductionBenchmarkEvidenceContext,
+  sessionId: string, context: ProductionBenchmarkEvidenceContext, benchmarkMaxOutputTokens?: number,
 ): void {
   const owner = sessionForRun(context.trial_id, context.root_run_id);
   if (owner && owner !== sessionId) {
     throw new Error(`trial run ${context.trial_id}/${context.root_run_id} already has a session`);
   }
   bound.set(sessionId, context);
+  if (benchmarkMaxOutputTokens !== undefined) outputCaps.set(sessionId, benchmarkMaxOutputTokens);
 }
 
 export function sessionEvidenceContext(sessionId: string): ProductionBenchmarkEvidenceContext | null {
   return bound.get(sessionId) ?? null;
+}
+
+export function sessionBenchmarkMaxOutputTokens(sessionId: string): number | undefined {
+  return outputCaps.get(sessionId);
 }
 
 export function sessionForRun(trialId: string, rootRunId: string): string | null {
@@ -32,4 +38,5 @@ export function sessionForRun(trialId: string, rootRunId: string): string | null
 
 export function _resetSessionEvidence(): void {
   bound.clear();
+  outputCaps.clear();
 }

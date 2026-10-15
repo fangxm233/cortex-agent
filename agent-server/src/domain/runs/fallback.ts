@@ -1,92 +1,29 @@
-//
-// A run is not one call to a backend: a profile may name fallbacks, and each attempt can be
-// skipped before it spawns (its provider/mode is already rate-limited) or retired after it
-// returns (rate-limited result, transient error). This module owns that sequence and nothing
-// else — no events, no notices, no process. `AgentRun` walks the plan; `notices.ts` narrates it.
-
-import { isThrottled } from '../costs/rate-limit-throttle.js';
-import { resolveProfileConfig } from '../agents/profile-manager.js';
-import type { ResolvedProfileConfig, RunAttemptConfig } from '../agents/profile-manager.js';
+// Provider and credential attribution for the run's single engine selection.
+import type { EngineSelection } from '../agents/engine-selection.js';
 import { configIsRateLimited, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
 
 export { configIsRateLimited, rateLimitedResult, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
 export { isRetryableError, isRetryableResult } from './retryable-errors.js';
 
-/**
- * The attempts a run may make, in order: the profile itself, then its declared fallbacks.
- *
- * The head is the profile's own engine selection with `name`/`fallback` dropped — a profile IS its
- * first attempt, which is why `ResolvedProfileConfig` extends {@link RunAttemptConfig}. Building
- * the list here (rather than at each caller) is what makes "attempt index" a meaningful number.
- */
-export function planAttempts(profile: ResolvedProfileConfig): RunAttemptConfig[] {
-  const head: RunAttemptConfig = {
-    model: profile.model,
-    backend: profile.backend,
-    mode: profile.mode,
-    provider: profile.provider,
-    extraEnv: profile.extraEnv,
-    extraOption: profile.extraOption,
-    thinking: profile.thinking,
-    maxOutputTokens: profile.maxOutputTokens,
-  };
-  return [head, ...(profile.fallback ?? [])];
-}
-
-/** How an attempt is named in logs and in the fallback notice the user reads. Takes only the two
- *  fields it prints so a caller holding a partial config can still label it. */
-export function attemptLabel(attempt: Pick<RunAttemptConfig, 'model' | 'mode'>): string {
-  return `${attempt.model}/${attempt.mode || 'default'}`;
-}
-
-/**
- * True when every attempt in the profile's chain is currently rate-limited, so a job runner can
- * decline to claim work instead of spawning a backend that will only come back 429.
- * Cheap-exits on the global throttle flag: with nothing throttled there is nothing to check.
- */
-export function allConfigsRateLimited(profileName: string | null): boolean {
-  if (!isThrottled()) return false;
-  try {
-    return planAttempts(resolveProfileConfig(profileName)).every(configIsRateLimited);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Whether this attempt should be skipped without spawning. A user-initiated run always spawns:
- * the person is waiting, and a stale throttle entry must not silently swallow their turn.
- */
+/** A person waiting on a run bypasses cached throttle state. */
 export function shouldSkipAttempt(
-  attempt: Parameters<typeof configIsRateLimited>[0],
+  selection: Parameters<typeof configIsRateLimited>[0],
   opts: { isUserInitiated?: boolean },
 ): boolean {
-  return configIsRateLimited(attempt) && !opts.isUserInitiated;
+  return configIsRateLimited(selection) && !opts.isUserInitiated;
 }
 
-/** The provider an attempt's rate-limit windows and cost rows are attributed to. */
-export function attemptProvider(attempt: Parameters<typeof resolveRateLimitProvider>[0]): string {
-  return resolveRateLimitProvider(attempt);
+export function attemptProvider(selection: Parameters<typeof resolveRateLimitProvider>[0]): string {
+  return resolveRateLimitProvider(selection);
 }
 
-/** The credential an attempt ran on: Claude's `api` mode uses the API key and its other modes the
- *  subscription. A PI provider's credential type is not visible from the attempt. */
 export function attemptAuthType(
-  attempt: Pick<RunAttemptConfig, 'backend' | 'mode'>,
+  selection: Pick<EngineSelection, 'backend' | 'mode'>,
 ): 'oauth' | 'api_key' | null {
-  if (attempt.backend !== 'claude') return null;
-  return attempt.mode === 'api' ? 'api_key' : 'oauth';
+  if (selection.backend !== 'claude') return null;
+  return selection.mode === 'api' ? 'api_key' : 'oauth';
 }
 
-/**
- * The same attribution, but honest about not knowing: null when the attempt carries no engine
- * selection at all.
- *
- * An unknown profile name deliberately resolves to a synthetic config with an empty model
- * (`config-resolver.syntheticProfile`) so the execution record can be opened with a truthful
- * backend and the run itself rejects the name. Attributing that attempt's failure to a provider
- * would open an outage window against a provider that was never called.
- */
-export function attemptProviderOrNull(attempt: RunAttemptConfig): string | null {
-  return attempt.model ? resolveRateLimitProvider(attempt) : null;
+export function attemptProviderOrNull(selection: EngineSelection): string | null {
+  return selection.model ? resolveRateLimitProvider(selection) : null;
 }

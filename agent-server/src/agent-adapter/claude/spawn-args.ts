@@ -60,11 +60,9 @@ export interface ClaudeSpawnOptions {
   /** Path to a Playwright MCP config for a browser-enabled session. Absent → the session gets zero
    *  browser tools, which is the default and the reason this is opt-in at all. */
   browserMcpConfigPath?: string | null;
-  /** Thinking level from the profile's `thinking` field → `--effort <level>`
+  /** Selected thinking level → `--effort <level>`
    *  (low/medium/high/xhigh/max). Absent → no flag. */
   thinking?: string | null;
-  /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
-  extraOption?: Record<string, string> | null;
   /** True for conversation turns (not subagents or the onNew pre-close turn). Such
    *  sessions additionally get the cortex-interaction-bridge MCP tools
    *  (cortex_plan_enter/exit, cortex_ask_user) because the native EnterPlanMode/ExitPlanMode/
@@ -235,13 +233,6 @@ function appendEnvironmentOptions(args: string[], options: ClaudeSpawnOptions): 
   if (options.settingSources) args.push('--setting-sources', options.settingSources.join(','));
 }
 
-function appendExtraOptions(
-  args: string[],
-  options: Record<string, string> | null | undefined,
-): void {
-  for (const [flag, value] of Object.entries(options ?? {})) args.push(flag, value);
-}
-
 function buildClaudeSettings(
   options: ClaudeSpawnOptions,
   effectiveTools: string,
@@ -269,18 +260,16 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   appendPromptOptions(args, options);
   appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);
   appendEnvironmentOptions(args, options);
-  appendExtraOptions(args, options.extraOption);
   args.push('--settings', JSON.stringify(buildClaudeSettings(options, tools)));
   appendSessionIdentity(args, options);
   return args;
 }
 
 /** Cortex agent execution context — surfaces as CORTEX_* env vars so MCP tools
- *  such as cortex_context can discover the current session/profile/etc.
+ *  such as cortex_context can discover the current session and project.
  *  Optional fields are omitted from env when undefined, so child processes see no key
  *  rather than an empty string. */
 export interface CortexAgentContext {
-  profile?: string | null;
   project?: string | null;
   /** Stable Cortex tracking id (decoupled from the backend session id) → CORTEX_SESSION_ID. */
   trackSessionId?: string | null;
@@ -291,7 +280,7 @@ export interface CortexAgentContext {
 /** Ambient Cortex context keys re-derived on every spawn, so a stale parent value can never leak
  *  in. CORTEX_EXECUTION_ID is deliberately absent: it is set from context but never reset. */
 const CORTEX_CONTEXT_RESET_KEYS = [
-  'CORTEX_PROFILE', 'CORTEX_PROJECT', 'CORTEX_SESSION_NAME',
+  'CORTEX_PROJECT', 'CORTEX_SESSION_NAME',
 ] as const;
 
 function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null): void {
@@ -349,15 +338,15 @@ function applyChannelEnv(env: NodeJS.ProcessEnv, channel: string, pinned: boolea
   env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 }
 
-/** Per-spawn env overrides: `extraEnv` sets (last-wins over everything above), then `unsetEnv`
+/** Per-spawn route environment sets, then `unsetEnv`
  *  deletes. Deletion is a separate channel because a value can never mean "absent" — the empty
  *  string is a legal value elsewhere in the spawn path. */
 function applyEnvOverrides(
   env: NodeJS.ProcessEnv,
-  extraEnv?: Record<string, string>,
+  routeEnv?: Record<string, string>,
   unsetEnv?: string[],
 ): void {
-  for (const [key, value] of Object.entries(extraEnv ?? {})) env[key] = value;
+  for (const [key, value] of Object.entries(routeEnv ?? {})) env[key] = value;
   for (const key of unsetEnv ?? []) delete env[key];
 }
 
@@ -370,7 +359,7 @@ const ROUTE_CREDENTIAL_KEYS = [
  *  credential: the dedicated base-URL field, the env overrides, and the env deletions. */
 export interface ClaudeRouteInputs {
   anthropicBaseUrl?: string;
-  extraEnv?: Record<string, string>;
+  routeEnv?: Record<string, string>;
   unsetEnv?: string[];
 }
 
@@ -382,7 +371,7 @@ function credentialFingerprint(value: string): string {
 }
 
 /** What the child ends up with for `key`, in the order {@link buildClaudeEnv} applies: the
- *  dedicated field is the base, `extraEnv` overrides it, `unsetEnv` deletes it.
+ *  dedicated field is the base, `routeEnv` overrides it, `unsetEnv` deletes it.
  *  `null` = deleted, `undefined` = inherited from the daemon env. */
 function routeEnvValue(
   key: string,
@@ -390,7 +379,7 @@ function routeEnvValue(
   base?: string,
 ): string | null | undefined {
   if (route.unsetEnv?.includes(key)) return null;
-  return route.extraEnv?.[key] ?? base;
+  return route.routeEnv?.[key] ?? base;
 }
 
 /** `deleted` and `inherited` stay distinct on purpose: one pins the child to no credential at
@@ -419,14 +408,13 @@ export function claudeRouteIdentity(route: ClaudeRouteInputs): string {
 
 function cortexContextEnv(context?: CortexAgentContext): Record<string, string | undefined> {
   return {
-    CORTEX_PROFILE: context?.profile,
     CORTEX_PROJECT: context?.project,
     CORTEX_EXECUTION_ID: context?.executionId,
   };
 }
 
 /** Authoritative last word on the Cortex context keys: a child can neither inherit a stale value
- *  nor forge one through extraEnv/unsetEnv. */
+ *  nor forge one through routeEnv/unsetEnv. */
 function applyCortexContextEnv(env: NodeJS.ProcessEnv, context?: CortexAgentContext): void {
   for (const key of CORTEX_CONTEXT_RESET_KEYS) delete env[key];
   for (const [key, value] of Object.entries(cortexContextEnv(context))) setIfPresent(env, key, value);
@@ -484,7 +472,7 @@ export function buildClaudeEnv(
   callbackSource?: string | null,
   scheduleTaskId?: string | null,
   anthropicBaseUrl?: string,
-  extraEnv?: Record<string, string>,
+  routeEnv?: Record<string, string>,
   context?: CortexAgentContext,
   pinnedEnv?: NodeJS.ProcessEnv,
   unsetEnv?: string[],
@@ -507,7 +495,7 @@ export function buildClaudeEnv(
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
   if (!pinnedEnv) applyHostClaudeEnv(env);
   applySubagentModelEnv(env);
-  applyEnvOverrides(env, extraEnv, unsetEnv);
+  applyEnvOverrides(env, routeEnv, unsetEnv);
   applyCortexContextEnv(env, context);
   return env;
 }

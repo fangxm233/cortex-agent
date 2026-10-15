@@ -1,6 +1,5 @@
 //
-// A run is not one call to a backend. `AgentRun` walks a chain of attempts (domain/runs/fallback.ts);
-// THIS is one link of that chain: acquire the pooled engine session for the spec, open a run on it,
+// A run opens one attempt: acquire the pooled engine session for the selection, open a run on it,
 // and hand back the stream plus the two results a caller can await. Everything downstream of
 // `engine.run()` — the background phase, the watchdog, when the run is really over — belongs to the
 // engine, so this module is wiring plus the two things that must happen per attempt and nowhere
@@ -21,7 +20,7 @@ import type { RunEvent } from '../../agent-adapter/run-events.js';
 import type { EventObserver, NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
 import type { ModeEnv } from './mode-env.js';
-import type { RunAttemptConfig } from '../agents/profile-manager.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';
 import type { RunRequest } from './request.js';
@@ -34,8 +33,8 @@ const log = createLogger('run-attempt');
 
 export interface StartAttemptInput {
   request: RunRequest;
-  /** Which engine this attempt selects — the profile itself, or one of its fallbacks. */
-  attempt: RunAttemptConfig;
+  /** The engine selection this run executes. */
+  attempt: EngineSelection;
   /** The execution record the attempt is billed and attested under. */
   executionId: string | null;
   /** The resolved mode route (base URL + credentials) for this attempt. */
@@ -202,7 +201,7 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
   const spec = buildEngineSpec(request, attempt, { route, executionId });
   const identity = freezeProductionAttemptIdentity({
     adapterBackend: attempt.backend, spec, request, executionId,
-    resolvedProfile: request.profile,
+    selection: request.selection,
   });
   const journal = identity
     ? createProductionAttemptJournalSink({

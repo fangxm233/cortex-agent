@@ -8,7 +8,7 @@ import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
 import type { ModeEnv } from './mode-env.js';
-import type { RunAttemptConfig } from '../agents/profile-manager.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import type { RunRequest } from './request.js';
 
 // --- Types ---
@@ -53,12 +53,7 @@ export function filterScopedPlugins(
  * convention `/m/<mode>/<endpoint>`. The `mode` selects the gateway route (gateway.yaml owns the
  * upstream + keys); the `provider` is both the PI `--provider` and the gateway endpoint segment.
  *
- * `provider` is required for pi profiles (validated at load time — no default, no fallback). Returns
- * undefined when `mode` is absent — the PI adapter then falls back to the default `/<provider>` path
- * (direct per-provider routing, no `/m/` mode indirection).
- *
- * Keeping this derivation in code (not in the profile) means profiles only carry the logical
- * `mode` name; no gateway path string leaks into profiles.json.
+ * The selection carries a logical mode, not a gateway URL. An absent mode uses direct routing.
  */
 export function buildPiGatewaySubPath(mode: string | null, provider: string): string | undefined {
   if (!mode) return undefined;
@@ -69,10 +64,6 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
 
 function spawnContext(request: RunRequest, executionId: string | null): CortexContextEnv {
   return {
-    // `|| null`, not `?? null`: a synthesized profile (a subagent child, a fixture) carries an
-    // empty name because it was never looked up by name, and the child env must stay as it was
-    // before the run model — CORTEX_PROFILE absent, not set to an invented profile name.
-    profile: request.profile.name || null,
     project: request.context.project ?? null,
     trackSessionId: request.session.sessionId ?? request.session.backendSessionId ?? null,
     executionId: executionId ?? null,
@@ -126,7 +117,7 @@ function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' 
 
 function pluginFields(
   request: RunRequest,
-  attempt: RunAttemptConfig,
+  attempt: EngineSelection,
   mcpComposition: McpComposition,
 ): EngineSpec['plugins'] & Pick<EngineSpec['mcp'], 'servers'> {
   const selectedPluginDirs = filterScopedPlugins(request.spec.pluginDirs, {
@@ -159,23 +150,19 @@ function routeEnvSets(route: ModeEnv): Record<string, string> {
   return sets;
 }
 
-/** A route fully decides the base URL, so an absent one means "delete": otherwise this spawn
- *  inherits whatever mode configured the daemon last. A key the profile set explicitly is never
- *  deleted — profile configuration outranks the mode's delete intent. */
-function routeEnvDeletes(route: ModeEnv, extraEnv?: Record<string, string>): string[] {
+/** An absent route base URL must not inherit a previous daemon route. */
+function routeEnvDeletes(route: ModeEnv): string[] {
   const deletes: string[] = ROUTE_CREDENTIAL_KEYS.filter(key => route[key] === null);
   if (!route.ANTHROPIC_BASE_URL) deletes.push('ANTHROPIC_BASE_URL');
-  return deletes.filter(key => !extraEnv || !(key in extraEnv));
+  return deletes;
 }
 
-/** Per-spawn env: the route's sets first, then the profile's extraEnv (last-wins), then the
- *  route's deletes. An absent route states no routing opinion and touches neither channel. */
+/** Environment comes only from the resolved route, not user configuration. */
 function routeEnvFields(
   route: ModeEnv | undefined,
-  extraEnv?: Record<string, string>,
 ): { sets?: Record<string, string>; unsets?: string[] } {
-  const sets = { ...(route ? routeEnvSets(route) : {}), ...extraEnv };
-  const unsets = route ? routeEnvDeletes(route, extraEnv) : [];
+  const sets = route ? routeEnvSets(route) : {};
+  const unsets = route ? routeEnvDeletes(route) : [];
   return {
     sets: Object.keys(sets).length > 0 ? sets : undefined,
     unsets: unsets.length > 0 ? unsets : undefined,
@@ -184,7 +171,7 @@ function routeEnvFields(
 
 function backendField(
   request: RunRequest,
-  attempt: RunAttemptConfig,
+  attempt: EngineSelection,
 ): EngineSpec['backend'] {
   const claudeFields = {
     claudeAgent: request.spec.backendOptions.claudeAgent ?? undefined,
@@ -204,7 +191,7 @@ function backendField(
  */
 export function buildEngineSpec(
   request: RunRequest,
-  attempt: RunAttemptConfig,
+  attempt: EngineSelection,
   opts: { route?: ModeEnv; executionId?: string | null } = {},
 ): EngineSpec {
   const { route, executionId = null } = opts;
@@ -215,7 +202,7 @@ export function buildEngineSpec(
   });
   const plugins = pluginFields(request, attempt, mcpComposition);
   const policy = spawnPolicy(request);
-  const routeEnv = routeEnvFields(route, attempt.extraEnv);
+  const routeEnv = routeEnvFields(route);
   const provider = attempt.backend === 'pi' ? attempt.provider || undefined : undefined;
   return {
     engineKey: request.session.engineKey || request.context.channel || 'default',
@@ -228,7 +215,8 @@ export function buildEngineSpec(
       id: attempt.model,
       provider,
       thinking: attempt.thinking || undefined,
-      maxOutputTokens: attempt.backend === 'pi' ? attempt.maxOutputTokens ?? undefined : undefined,
+      benchmarkMaxOutputTokens: attempt.backend === 'pi' && request.benchmark?.evidenceContext
+        ? request.benchmarkMaxOutputTokens : undefined,
     },
     prompt: {
       system: typeof request.spec.systemPrompt === 'string' ? request.spec.systemPrompt : undefined,
@@ -266,8 +254,6 @@ export function buildEngineSpec(
       callbackSource: request.context.callbackSource ?? undefined,
       scheduleTaskId: request.context.scheduleTaskId ?? undefined,
     },
-    extraOption: attempt.extraOption && Object.keys(attempt.extraOption).length > 0
-      ? attempt.extraOption : undefined,
     backend: backendField(request, attempt),
     process: policy.process,
   };

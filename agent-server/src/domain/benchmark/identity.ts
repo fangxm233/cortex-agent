@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { McpComposition } from '../../agent-adapter/types.js';
-import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
+import type { Backend, McpComposition } from '../../agent-adapter/types.js';
 
 export type IdentityJsonValue =
   | null
@@ -11,7 +10,7 @@ export type IdentityJsonValue =
   | { [key: string]: IdentityJsonValue };
 
 export interface ModelExecutionIdentityInput {
-  backend: ResolvedProfileConfig['backend'];
+  backend: Backend;
   requestedModel: string;
   modelAliasPolicy: IdentityJsonValue;
   providerProtocol: string | null;
@@ -19,11 +18,10 @@ export interface ModelExecutionIdentityInput {
   claudeCliVersion: string | null;
   /** Backend-neutral CLI identity; `claudeCliVersion` keeps its Claude-only meaning so every
    *  hash frozen before the neutral pair existed stays reproducible from its own inputs. */
-  cliName: ResolvedProfileConfig['backend'] | null;
+  cliName: Backend | null;
   cliVersion: string | null;
   reasoningEffort: string | null;
   maxOutputTokens?: number | null;
-  fallbackEmpty: true;
 }
 
 export interface PluginDirIdentityInput {
@@ -100,7 +98,6 @@ export function computeModelExecutionIdentityHash(input: ModelExecutionIdentityI
     cli_version: input.cliVersion,
     reasoning_effort: input.reasoningEffort,
     max_output_tokens: input.maxOutputTokens ?? null,
-    fallback_empty: input.fallbackEmpty,
   });
 }
 

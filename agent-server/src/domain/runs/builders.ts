@@ -1,14 +1,14 @@
 // A continuation run forwards one prompt into a session whose live engine it does not share: the
 // onNew hook's pre-close turn, which resumes the old session on its own isolated pool key. It runs
 // on a bare spec (`bareSpec()` — no agent identity), the direct-run policy and a machine-driven
-// context; only the session ids, the profile and the trigger differ.
+// context; only the session ids, the selection and the trigger differ.
 //
 // A turn on a session's LIVE engine must not use it: the pool compares the spec identity and would
 // respawn the process. Those turns build their request the way a user turn does
 // (`orchestration/conversation-request.ts`).
 
 import { randomUUID } from 'node:crypto';
-import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import type { RunRequest } from './request.js';
 import { bareSpec } from './spec-loader.js';
 
@@ -35,7 +35,7 @@ export interface ContinuationRunOptions {
   /** Ids the caller already resolved: the Cortex track id, the backend resume target, the engine
    *  pool key and the display name. */
   session: RunRequest['session'];
-  profile: ResolvedProfileConfig;
+  selection: EngineSelection;
   /** Prompt text; continuation runs never carry attachments. */
   prompt: string;
   channel: string;
@@ -50,7 +50,7 @@ export function continuationRunRequest(o: ContinuationRunOptions): RunRequest {
   return {
     runId: randomUUID(),
     session: o.session,
-    profile: o.profile,
+    selection: o.selection,
     spec: bareSpec(),
     prompt: { text: o.prompt, attachments: [] },
     context: {
