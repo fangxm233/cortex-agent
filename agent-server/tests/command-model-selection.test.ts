@@ -21,7 +21,8 @@ test('model listing offers model-level favorites as buttons', async () => {
   const router = { registerCommand: vi.fn(), getAdapter: vi.fn() };
   const handler = createModelHandler(router as never);
   const result = await handler('model-cmd', new MockAdapter(), '!model');
-  expect(result?.actions).toHaveLength(2);
+  if (!result) throw new Error('Expected favorite actions');
+  expect(result.actions).toHaveLength(2);
   expect(result?.actions?.[1].actionId).toBe('cmd:model:set-1');
   expect(JSON.parse(result!.actions![1].value!).ref).toEqual({ backend: 'pi', provider: 'openai', model: 'gpt-test' });
 });
