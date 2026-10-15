@@ -111,13 +111,12 @@ test('runMigrations - handles missing user config file gracefully', async () => 
   }
 });
 
-test('runMigrations - handles corrupt user config gracefully', async () => {
+test('runMigrations - leaves corrupt legacy selection config intact and blocks startup', async () => {
   const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
   await fs.mkdir(configDir, { recursive: true });
   await fs.writeFile(path.join(configDir, 'profiles.json'), '{ not valid json }');
 
-  // Should not throw
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await assert.rejects(() => runMigrations({ dataDir, defaultsDir, storeDir }), SyntaxError);
 
   // The file is left as it was, and its migrations stay pending
   assert.equal(await readText(path.join(configDir, 'profiles.json')), '{ not valid json }');
@@ -809,4 +808,17 @@ test('the registered built-in overlay step runs on the release that ships it', a
   const versions = await readJson(path.join(storeDir, 'versions.json')) as Record<string, string>;
   assert.ok(versions['sentinel:builtin-overlay'], 'step ran and was tracked');
   await assert.rejects(fs.stat(path.join(dataDir, 'rules', 'shipped.md')));
+});
+
+test('failed selection migration aborts startup without marking it complete', async () => {
+  const dirs = setupDirs(_testIdx++);
+  const stateFile = path.join(dirs.storeDir, 'agent-state.json');
+  const legacy = { channelProfiles: { 'web:old': 'plan' }, channelOverrides: { 'web:old': { thinking: 'high' } } };
+  await writeJson(stateFile, legacy);
+  const steps: StepMigration[] = [{
+    key: 'sentinel:retire-profiles', version: '2026.10.15',
+    run: async () => { throw new Error('registry append failed'); },
+  }];
+  await assert.rejects(() => runMigrations({ ...dirs, stepMigrations: steps }), /registry append failed/);
+  assert.deepEqual(await readJson(stateFile), legacy);
 });

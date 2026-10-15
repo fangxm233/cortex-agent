@@ -19,7 +19,7 @@ export function resolveRunSelection(query: RunSelectionQuery = {}): EngineSelect
 
 /** Startup and login can precede configuration; malformed configuration still throws. */
 export function resolveConfiguredDefaultRun(): EngineSelection | null {
-  if (!modelsRepo.readIfPresent()) return null;
+  if (!modelsRepo.readIfPresent()?.default) return null;
   return getDefaultSelection();
 }
 

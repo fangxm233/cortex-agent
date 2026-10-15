@@ -1076,7 +1076,7 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
 
   // Step migrations run AFTER the file loop (so a step sees the file rewrites above) with the same
   // pending rule and the same versions.json, keyed by `key`. A throwing step logs and is skipped
-  // WITHOUT bumping — it retries next boot — and never blocks a later step. Only a step that
+  // WITHOUT bumping — it retries next boot. S10 is required before runtime state writes. Only a step that
   // resolves bumps its key.
   for (const step of opts.stepMigrations ?? stepMigrations) {
     const tracked = versions[step.key] || '0.0.0';
@@ -1088,6 +1088,8 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
       log.info(`Step migration ${step.version} applied for ${step.key}`);
     } catch (err) {
       log.error(`Step migration ${step.version} for ${step.key} failed: ${(err as Error).message}; not bumping`);
+      // Runtime state writes must not discard the legacy inputs needed to retry this conversion.
+      if (step.key === 'sentinel:retire-profiles') throw err;
     }
   }
 
