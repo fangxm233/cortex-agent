@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigModels, EngineSelection, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { catalogModels, modelKey, modelLabel, selectionForModel } from './model-selection';
+import { catalogModels, matchesModelFilter, modelKey, modelLabel, selectionForModel } from './model-selection';
 
 const claude: ModelRef = { backend: 'claude', provider: null, model: 'claude-opus-5' };
 const pi: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash' };
@@ -74,5 +74,13 @@ describe('catalogModels', () => {
   it('returns no rows before the catalog loads', () => {
     expect(catalogModels(null)).toEqual([]);
     expect(catalogModels()).toEqual([]);
+  });
+});
+
+describe('shared model filter', () => {
+  it('uses the same trimmed case-insensitive substring match on both surfaces', () => {
+    expect(matchesModelFilter('Claude-Opus-5', ' OPUS ')).toBe(true);
+    expect(matchesModelFilter('Claude-Opus-5', '')).toBe(true);
+    expect(matchesModelFilter('Claude-Opus-5', 'sonnet')).toBe(false);
   });
 });

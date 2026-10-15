@@ -23,3 +23,7 @@ export function catalogModels(catalog?: ModelCatalogSnapshot | null): ModelRef[]
     backend: route.backend, provider: route.provider, model,
   })));
 }
+
+export function matchesModelFilter(model: string, filter: string): boolean {
+  return model.toLowerCase().includes(filter.trim().toLowerCase());
+}

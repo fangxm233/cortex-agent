@@ -10,7 +10,7 @@ import {
 } from '@/design/MenuChrome';
 
 import { groupModelOptions } from '@/features/session/list/selection-menu';
-import { modelKey, modelLabel } from '@/lib/model-selection';
+import { matchesModelFilter, modelKey, modelLabel } from '@/lib/model-selection';
 function DrillRow({ row, onOpen, hover, setHover }: {
   row: SelectionRootRow;
   onOpen: () => void;
@@ -117,7 +117,7 @@ function FavoriteRow({ option, onPick, hover, setHover }: { option: ModelOption;
       style={{ ...MENU_BUTTON_STYLE, display: 'flex', gap: 8, alignItems: 'center', padding: '5px 8px',
         opacity: option.disabled ? 0.45 : 1, cursor: option.disabled ? 'default' : 'pointer', background: rowBackground(id, hover, option.active) }}>
       <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-ink)', flex: 1 }}>{modelLabel(option.selection)}</span>
-      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', width: '8ch' }}>{option.selection.thinking ?? L.wbThinkingDefault}</span>
+      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', width: '8ch' }}>{option.selection.thinking ?? L.default}</span>
       <span style={{ width: 10, color: 'var(--proto-accent)', fontSize: 11 }}>{option.active ? '✓' : ''}</span>
     </button>
   );
@@ -156,7 +156,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
   const L = useVocab();
   const [filter, setFilter] = useState('');
   const groups = props.modelGroups.map((group) => ({ ...group,
-    options: group.options.filter((option) => option.id.toLowerCase().includes(filter.trim().toLowerCase())),
+    options: group.options.filter((option) => matchesModelFilter(option.id, filter)),
   })).filter((group) => group.options.length);
   return <>
     <BackRow title={L.wbAllModels} onBack={() => props.setPane('root')} {...shared} />

@@ -1,10 +1,9 @@
 .settings-surface .settings-models { container: settings-models / inline-size; }
-.settings-surface .settings-model-row {
+.settings-surface .settings-model-controls {
   display: grid;
-  grid-template-columns: minmax(120px, 2fr) minmax(60px, 1fr) auto auto;
+  grid-template-columns: minmax(60px, 1fr) auto auto;
   gap: 12px;
   align-items: center;
-  padding: 11px 16px;
 }
 .settings-surface .settings-model-row > * { min-width: 0; overflow-wrap: anywhere; }
 .settings-surface .settings-model-cell::before { display: none; }
@@ -57,7 +56,7 @@
 .settings-modal .settings-platform-summary { min-height: 34px; font-size: 13px !important; }
 
 @container settings-models (max-width: 620px) {
-  .settings-surface .settings-model-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-surface .settings-model-controls { width: 100%; }
   .settings-surface .settings-model-cell::before {
     content: attr(data-label);
     display: block;

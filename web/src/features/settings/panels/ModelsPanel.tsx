@@ -1,8 +1,9 @@
 import '@/features/settings/ui/desktop-panels.css';
+import { useState } from 'react';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab } from '@/i18n';
-import { modelKey } from '@/lib/model-selection';
+import { matchesModelFilter, modelKey } from '@/lib/model-selection';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
 import { groupModelFacts, modelOptionLabel } from '@/features/settings/vm/models-panel-vm';
 import { SLinkAction, SNotice, SPill, SRow, SRowGroup, SSection, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
@@ -24,25 +25,30 @@ function FavoriteGroups({ controller: c }: { controller: ModelsController }) {
   return <SSection label={L.stModelFavorites}>
     {!c.facts.length && <SNotice tone="muted">{L.stNoFavorites}</SNotice>}
     {groupModelFacts(c.facts).map(([group, facts]) => <SSection key={group} label={group}>
-      <SRowGroup>{facts.map(fact => <div className="settings-model-row" key={fact.key} data-model-row={fact.key}>
-        <span className="settings-model-name">{fact.ref.model} {fact.current && <SPill tone="accent">{L.default}</SPill>}</span>
-        <span className="settings-model-cell" data-label={L.stColThinking}>{fact.thinking ?? L.default}</span>
-        <SLinkAction disabled={c.pending || fact.current} onClick={() => c.setDefault(fact.key)}>{L.stSetDefaultModel}</SLinkAction>
-        <SLinkAction disabled={c.pending} onClick={() => c.remove(fact.ref)}>{L.stRemoveFavorite}</SLinkAction>
-      </div>)}</SRowGroup>
+      <SRowGroup data-model-group={group}>{facts.map(fact => <SRow className="settings-model-row" key={fact.key} data-model-row={fact.key}
+        title={<span className="settings-model-name">{fact.ref.model} {fact.current && <SPill tone="accent">{L.default}</SPill>}</span>}
+        control={<div className="settings-model-controls">
+          <span className="settings-model-cell" data-label={L.stColThinking}>{fact.thinking ?? L.default}</span>
+          <SLinkAction disabled={c.pending || fact.current} onClick={() => c.setDefault(fact.key)}>{L.stSetDefaultModel}</SLinkAction>
+          <SLinkAction disabled={c.pending} onClick={() => c.remove(fact.ref)}>{L.stRemoveFavorite}</SLinkAction>
+        </div>}
+      />)}</SRowGroup>
     </SSection>)}
   </SSection>;
 }
 
 function Catalog({ controller: c }: { controller: ModelsController }) {
   const L = useVocab();
+  const [filter, setFilter] = useState('');
   if (!c.catalogOpen) return <SLinkAction onClick={() => c.setCatalogOpen(true)}>{L.stAddFavorite}</SLinkAction>;
   const keys = new Set(c.facts.map(fact => fact.key));
   return <SSection label={L.stAllModels} action={<SLinkAction onClick={() => c.setCatalogOpen(false)}>{L.cancel}</SLinkAction>}>
+    <input className="settings-control" data-model-filter aria-label={L.wbFilterModels} placeholder={L.wbFilterModels}
+      value={filter} onChange={event => setFilter(event.target.value)} style={{ marginBottom: 8 }} />
     {c.catalogPending && <SNotice tone="muted">{L.stModelCatalogPending}</SNotice>}
     {c.catalogError && <SNotice tone="danger">{c.catalogError.message}</SNotice>}
     {!c.catalogPending && !c.catalogModels.length && <SNotice tone="muted">{L.stNoCatalogModels}</SNotice>}
-    <SRowGroup>{c.catalogModels.map(ref => <SRow key={modelKey(ref)} title={modelOptionLabel(ref)} control={
+    <SRowGroup>{c.catalogModels.filter(ref => matchesModelFilter(ref.model, filter)).map(ref => <SRow key={modelKey(ref)} title={modelOptionLabel(ref)} control={
       <SLinkAction disabled={c.pending || keys.has(modelKey(ref))} onClick={() => c.add(ref)}>
         {keys.has(modelKey(ref)) ? L.stFavorited : L.stAddFavorite}
       </SLinkAction>

@@ -48,4 +48,31 @@ describe('desktop models', () => {
     expect(buttons.find(button => button.children.includes(en.stFavorited))?.props.disabled).toBe(true);
     view.unmount();
   });
+  it('keeps same-provider favorites in one card with divider rows', () => {
+    const c = controller();
+    const second = { ...ref, model: 'pro' };
+    c.facts.push({ ref: second, key: modelKey(second), thinking: null, current: false });
+    const view = render(c);
+    const group = view.root.find(node => node.type === 'div' && node.props['data-model-group'] === 'pi · deepseek');
+    expect(group.findAll(node => node.type === 'div' && !!node.props['data-model-row'])).toHaveLength(2);
+    expect(group.children).toHaveLength(2);
+    const dividers = group.findAll(node => node.type === 'div' && node.props.style?.borderBottom);
+    expect(dividers).toHaveLength(1);
+    view.unmount();
+  });
+  it('filters the add list with trimmed case-insensitive model matching, without changing favorites', () => {
+    const c = { ...controller(), catalogOpen: true, catalogModels: [ref, { ...ref, model: 'Pro-2' }] };
+    const view = render(c);
+    const input = view.root.findByProps({ 'data-model-filter': true });
+    act(() => input.props.onChange({ target: { value: ' PRO ' } }));
+    const add = view.root.findAllByType('button').find(button => button.children.includes(en.stAddFavorite))!;
+    act(() => add.props.onClick());
+    expect(c.add).toHaveBeenCalledWith({ ...ref, model: 'Pro-2' });
+    expect(view.root.findAllByType('button').some(button => button.children.includes(en.stFavorited))).toBe(false);
+    expect(view.root.findAll(node => node.type === 'div' && !!node.props['data-model-row'])).toHaveLength(1);
+    act(() => input.props.onChange({ target: { value: 'no-match' } }));
+    expect(view.root.findAllByType('button').some(button => button.children.includes(en.stAddFavorite))).toBe(false);
+    view.unmount();
+  });
+
 });
