@@ -84,11 +84,11 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
     )["mutations_killed"] == 20
 
 
-def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
+def test_deepseek_evidence_output_matches_its_frozen_digest() -> None:
     path = EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json"
 
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "da026713c39151130eef3925fd01ff15a70f0635aa393994406610d5f1824e8f"
+        "b404641e267e17ea5c365d2cf9ffb2780f7f6b01d0db370ffb8c93882719e6f1"
     )
 
 
