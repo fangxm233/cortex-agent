@@ -1,7 +1,7 @@
 import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/design';
+import { promptDialog, useToast } from '@/design';
 import { useLang, useVocab } from '@/i18n';
 import { MC } from '@/mobile/ui/kit';
 import { MSettingsPage } from './MSettingsControls';
@@ -24,7 +24,10 @@ function useAddMachine(resource: MachinesResource) {
   const L = useVocab();
   const { toast } = useToast();
   return async () => {
-    const name = window.prompt(L.stAddMachinePrompt)?.trim();
+    const name = await promptDialog({
+      title: L.stAddMachineTitle, description: L.stAddMachineDesc,
+      inputLabel: L.stAddMachineName, confirmLabel: L.stAddMachineSubmit,
+    });
     if (!name) return;
     try {
       await resource.requestAddMachine(name);

@@ -1,6 +1,6 @@
 import '@/features/settings/ui/desktop-panels.css';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { useToast } from '@/design';
+import { promptDialog, useToast } from '@/design';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import { useVocab } from '@/i18n';
 import {
@@ -69,7 +69,10 @@ export function MachinesPanel() {
   const { toast } = useToast();
   const machines = useMachinesResource();
   const onAdd = async () => {
-    const name = window.prompt(L.stAddMachinePrompt)?.trim();
+    const name = await promptDialog({
+      title: L.stAddMachineTitle, description: L.stAddMachineDesc,
+      inputLabel: L.stAddMachineName, confirmLabel: L.stAddMachineSubmit,
+    });
     if (!name) return;
     try {
       await machines.requestAddMachine(name);

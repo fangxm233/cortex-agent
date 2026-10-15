@@ -175,6 +175,7 @@ export const enExtra = {
   scToastCreated: 'Schedule created',
   scToastCreateFailed: 'Could not create schedule',
   scEditSchedule: 'Edit schedule',
+  scDeleteTitle: 'Delete this schedule?',
   scSaveSchedule: 'Save changes',
   scToastUpdated: 'Schedule updated',
   scToastUpdateFailed: 'Could not update schedule',

@@ -278,6 +278,7 @@ export const zhBase = {
   pfNew: '新建配置',
   pfEdit: '编辑',
   pfDelete: '删除',
+  pfDeleteTitle: '删除配置「{name}」？',
   pfConfirmDelete: '确认删除',
   pfDeleteDefaultBlocked: '默认配置不能删除 — 请先把默认指向其他配置',
   pfCreateTitle: '新建配置',
@@ -545,7 +546,10 @@ export const zhBase = {
   // ── Settings panels misc ──
   stWinOs: 'windows',
   stUnixOs: 'unix',
-  stAddMachinePrompt: '要添加的机器名称（需审批）：',
+  stAddMachineTitle: '添加机器',
+  stAddMachineDesc: '添加机器需经审批。',
+  stAddMachineName: '机器名称',
+  stAddMachineSubmit: '提交审批',
   // ── Desktop menu bar (top bar) ──
   menuFile: '文件',
   menuEdit: '编辑',

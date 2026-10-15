@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
+import { confirmDialog, dismissDialog, type ConfirmDialogOptions } from '@/design/dialog-store';
 import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
 import { mobileHomeView, mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';
 
@@ -47,7 +48,7 @@ export interface MobileBackDeps {
   exit: () => unknown | Promise<unknown>;
   navigate: MobileNavigate;
   /** False when the screen being left holds unsaved changes the user chose to keep. */
-  canLeave?: () => boolean;
+  canLeave?: () => boolean | Promise<boolean>;
 }
 
 export async function runMobileBack(
@@ -58,7 +59,7 @@ export async function runMobileBack(
 ): Promise<void> {
   const action = resolveMobileBack(pathname, overlayActive, canGoBack);
   // Dismissing an overlay stays on the screen, so only leaving it asks the screen first.
-  if (!overlayActive && deps.canLeave && !deps.canLeave()) return;
+  if (!overlayActive && deps.canLeave && !(await deps.canLeave())) return;
   if (action.kind === 'history') return deps.historyBack();
   if (action.kind === 'exit') return void (await deps.exit());
   deps.navigate(action.to, { replace: true });
@@ -80,19 +81,19 @@ async function exitNativeApp(): Promise<void> {
 
 // Screens holding unsaved edits register here so the system back button asks the same question
 // their header back button does.
-const leaveGuards = new Set<() => boolean>();
+const leaveGuards = new Set<() => Promise<boolean>>();
 
-export function confirmMobileLeave(): boolean {
-  for (const guard of leaveGuards) if (!guard()) return false;
+export async function confirmMobileLeave(): Promise<boolean> {
+  for (const guard of leaveGuards) if (!(await guard())) return false;
   return true;
 }
 
-/** Asks `message` before the screen is left while `dirty`; returns the check for the screen's
+/** Asks `dialog` before the screen is left while `dirty`; returns the check for the screen's
  *  own back button. */
-export function useMobileLeaveGuard(dirty: boolean, message: string): () => boolean {
-  const latest = useRef({ dirty, message });
-  latest.current = { dirty, message };
-  const guard = useCallback(() => !latest.current.dirty || window.confirm(latest.current.message), []);
+export function useMobileLeaveGuard(dirty: boolean, dialog: ConfirmDialogOptions): () => Promise<boolean> {
+  const latest = useRef({ dirty, dialog });
+  latest.current = { dirty, dialog };
+  const guard = useCallback(async () => !latest.current.dirty || confirmDialog(latest.current.dialog), []);
   useEffect(() => {
     leaveGuards.add(guard);
     return () => { leaveGuards.delete(guard); };
@@ -109,6 +110,8 @@ export function useMobileBackNavigation(pathname: string, navigate: MobileNaviga
   const latest = useRef({ pathname, navigate });
   latest.current = { pathname, navigate };
   useEffect(() => listenNativeBack((payload) => {
+    // An open confirm / prompt answers the system back first, as a cancel.
+    if (dismissDialog()) return;
     const current = latest.current;
     const routerHistory = window.history.state as { idx?: unknown } | null;
     const canGoBack = hasRouterHistory(nativeCanGoBack(payload), routerHistory);

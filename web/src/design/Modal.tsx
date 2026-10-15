@@ -82,6 +82,10 @@ export interface ModalProps {
   onPointerDownOutside?: (event: Event) => void;
   /** Called when the dialog would move focus inside on open; preventDefault keeps the default off. */
   onOpenAutoFocus?: (event: Event) => void;
+  /** Called before Escape dismisses the dialog; preventDefault keeps it open. */
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
+  /** Called when the dialog would return focus on close; preventDefault keeps the default off. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 function CloseControl(): JSX.Element {
@@ -116,10 +120,11 @@ function ModalBody({ children, chrome, bodyStyle }: Pick<ModalProps, 'children' 
 const StandardPanel = forwardRef<HTMLDivElement, ModalProps & { showClose: boolean }>(function StandardPanel(props, ref) {
   const { title, description, hideTitle, hideDescription, children, footer, bodyStyle,
     contentStyle, contentClassName = '', contentDataAttributes, size = 'default', layer = 'default', showClose,
-    onPointerDownOutside, onOpenAutoFocus } = props;
+    onPointerDownOutside, onOpenAutoFocus, onEscapeKeyDown, onCloseAutoFocus } = props;
   return (
     <RadixDialog.Content ref={ref} {...contentDataAttributes} className={`${modalContentClass(size, layer)} ${contentClassName}`}
-      style={contentStyle} onPointerDownOutside={onPointerDownOutside} onOpenAutoFocus={onOpenAutoFocus}>
+      style={contentStyle} onPointerDownOutside={onPointerDownOutside} onOpenAutoFocus={onOpenAutoFocus}
+      onEscapeKeyDown={onEscapeKeyDown} onCloseAutoFocus={onCloseAutoFocus}>
       <ModalHeader title={title} hideTitle={hideTitle} showClose={showClose} />
       {description ? <RadixDialog.Description
         className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]'}
@@ -132,11 +137,12 @@ const StandardPanel = forwardRef<HTMLDivElement, ModalProps & { showClose: boole
 
 const BarePanel = forwardRef<HTMLDivElement, ModalProps & { showClose: boolean }>(function BarePanel(props, ref) {
   const { title, description, children, contentStyle, contentClassName = '', bodyStyle, contentDataAttributes,
-    layer = 'default', showClose, onPointerDownOutside, onOpenAutoFocus } = props;
+    layer = 'default', showClose, onPointerDownOutside, onOpenAutoFocus, onEscapeKeyDown, onCloseAutoFocus } = props;
   const style = { ...contentStyle, zIndex: BARE_LAYER[layer].content };
   return (
     <RadixDialog.Content ref={ref} {...contentDataAttributes} className={`focus:outline-none ${contentClassName}`} style={style}
-      onPointerDownOutside={onPointerDownOutside} onOpenAutoFocus={onOpenAutoFocus}>
+      onPointerDownOutside={onPointerDownOutside} onOpenAutoFocus={onOpenAutoFocus} onEscapeKeyDown={onEscapeKeyDown}
+      onCloseAutoFocus={onCloseAutoFocus}>
       <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
       <RadixDialog.Description className="sr-only">{description ?? title}</RadixDialog.Description>
       {showClose ? <CloseControl /> : null}

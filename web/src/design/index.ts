@@ -19,6 +19,13 @@ export { Select, type SelectDensity, type SelectOption, type SelectProps, type S
 export { CONTROL_HEIGHT } from './controls';
 export { ToastProvider, useToast, useToastOptional, useToastItems, type ToastInput } from './Toast';
 export { ToastViewport, useAutoDismiss } from './ToastViewport';
+export { DialogHost } from './DialogHost';
+export {
+  confirmDialog,
+  promptDialog,
+  type ConfirmDialogOptions,
+  type PromptDialogOptions,
+} from './dialog-store';
 export {
   relativeAge,
   splitVisible,

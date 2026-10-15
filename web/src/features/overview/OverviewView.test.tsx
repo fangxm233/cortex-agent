@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
+import { currentDialog, dismissDialog, settleDialog } from '@/design/dialog-store';
 
 const adapter = vi.hoisted(() => ({
   openEdit: vi.fn(),
@@ -134,15 +135,16 @@ describe('Overview schedule actions', () => {
   });
 
   it('deletes the selected schedule only after confirmation', async () => {
-    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
-    vi.stubGlobal('confirm', confirm);
     const renderer = await mount();
     const deleteButton = renderer.root.findByProps({ 'data-schedule-delete': schedule.id });
 
-    act(() => deleteButton.props.onClick());
+    act(() => { deleteButton.props.onClick(); });
+    expect(currentDialog()).toMatchObject({ description: schedule.message, tone: 'danger' });
+    await act(async () => { dismissDialog(); });
     expect(adapter.remove).not.toHaveBeenCalled();
 
-    await act(async () => deleteButton.props.onClick());
+    act(() => { deleteButton.props.onClick(); });
+    await act(async () => settleDialog(currentDialog()!.id, ''));
     expect(adapter.remove).toHaveBeenCalledWith({ scheduleId: schedule.id });
   });
 

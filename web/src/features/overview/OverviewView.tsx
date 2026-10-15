@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { confirmDialog } from '@/design/dialog-store';
 import { useLang, useVocab } from '@/i18n';
 import { formatSpanOrDash } from '@/i18n/time-format';
 import { useExecutionDrawer } from '@/features/execution/useExecutionDrawer';
@@ -523,10 +524,12 @@ export function OverviewView(): JSX.Element {
                     <button
                       type="button"
                       data-schedule-delete={s.id}
-                      onClick={() => {
-                        if (!remove.isPending && globalThis.confirm(`${L.delete} "${s.message}"?`)) {
-                          remove.mutate({ scheduleId: s.id });
-                        }
+                      onClick={async () => {
+                        if (remove.isPending) return;
+                        const confirmed = await confirmDialog({
+                          title: L.scDeleteTitle, description: s.message, confirmLabel: L.delete, tone: 'danger',
+                        });
+                        if (confirmed) remove.mutate({ scheduleId: s.id });
                       }}
                       style={{ padding: 0, border: 0, background: 'none', fontSize: 11, fontWeight: 600, color: 'var(--proto-danger)', cursor: remove.isPending ? 'not-allowed' : 'pointer' }}
                     >

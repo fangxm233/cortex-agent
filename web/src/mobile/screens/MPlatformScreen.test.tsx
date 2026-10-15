@@ -6,7 +6,6 @@ import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 const h = vi.hoisted(() => ({
   back: null as ((payload: unknown) => void) | null,
   navigate: vi.fn(),
-  confirm: vi.fn(),
   historyBack: vi.fn(),
   dirty: true,
 }));
@@ -35,6 +34,7 @@ vi.mock('@/features/settings/panels/PlatformPanel', () => ({
 }));
 
 import { en } from '@/i18n/vocab';
+import { currentDialog, dismissDialog, settleDialog } from '@/design/dialog-store';
 import { useMobileBackNavigation } from '@/mobile/mobile-navigation';
 import { MPlatformScreen } from './MPlatformScreen';
 
@@ -48,9 +48,10 @@ let renderer: ReactTestRenderer;
 beforeEach(() => {
   vi.clearAllMocks();
   h.dirty = true;
-  vi.stubGlobal('window', { confirm: h.confirm, history: { state: { idx: 3 }, back: h.historyBack } });
+  vi.stubGlobal('window', { history: { state: { idx: 3 }, back: h.historyBack } });
 });
 afterEach(() => {
+  while (dismissDialog());
   act(() => renderer.unmount());
   vi.unstubAllGlobals();
 });
@@ -63,29 +64,43 @@ async function pressSystemBack(canGoBack: boolean): Promise<void> {
   await act(async () => { h.back?.({ canGoBack }); await Promise.resolve(); });
 }
 
+async function answer(confirmed: boolean): Promise<void> {
+  const dialog = currentDialog();
+  expect(dialog).toMatchObject({ title: en.psUnsaved, confirmLabel: en.psDiscard, cancelLabel: en.psKeepEditing });
+  await act(async () => { settleDialog(dialog!.id, confirmed ? '' : null); await Promise.resolve(); });
+}
+
 describe('mobile Platform settings unsaved changes', () => {
   it('keeps the screen when the system back is pressed and the user keeps the edits', async () => {
-    h.confirm.mockReturnValue(false);
     mount();
     await pressSystemBack(true);
+    await answer(false);
     await pressSystemBack(false);
-    expect(h.confirm).toHaveBeenCalledWith(en.psUnsaved);
+    await answer(false);
     expect(h.historyBack).not.toHaveBeenCalled();
     expect(h.navigate).not.toHaveBeenCalled();
   });
 
   it('leaves through the system back once the user discards the edits', async () => {
-    h.confirm.mockReturnValue(true);
     mount();
     await pressSystemBack(false);
+    await answer(true);
     expect(h.navigate).toHaveBeenCalledWith('/m/settings', { replace: true });
   });
 
-  it('asks the same question from the header back button', () => {
-    h.confirm.mockReturnValue(false);
+  it('closes the open question on a second system back without leaving', async () => {
     mount();
-    act(() => renderer.root.findByProps({ 'aria-label': en.back }).props.onClick());
-    expect(h.confirm).toHaveBeenCalledWith(en.psUnsaved);
+    await pressSystemBack(false);
+    expect(currentDialog()).toBeDefined();
+    await pressSystemBack(false);
+    expect(currentDialog()).toBeUndefined();
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it('asks the same question from the header back button', async () => {
+    mount();
+    act(() => { renderer.root.findByProps({ 'aria-label': en.back }).props.onClick(); });
+    await answer(false);
     expect(h.navigate).not.toHaveBeenCalled();
   });
 
@@ -93,7 +108,7 @@ describe('mobile Platform settings unsaved changes', () => {
     h.dirty = false;
     mount();
     await pressSystemBack(false);
-    expect(h.confirm).not.toHaveBeenCalled();
+    expect(currentDialog()).toBeUndefined();
     expect(h.navigate).toHaveBeenCalledWith('/m/settings', { replace: true });
   });
 });

@@ -282,6 +282,7 @@ export const enBase = {
   pfNew: 'New profile',
   pfEdit: 'Edit',
   pfDelete: 'Delete',
+  pfDeleteTitle: 'Delete profile "{name}"?',
   pfConfirmDelete: 'Confirm delete',
   pfDeleteDefaultBlocked: 'The default profile cannot be deleted — point the default at another profile first',
   pfCreateTitle: 'New profile',
@@ -549,7 +550,10 @@ export const enBase = {
   // ── Settings panels misc ──
   stWinOs: 'windows',
   stUnixOs: 'unix',
-  stAddMachinePrompt: 'Machine name to add (requires approval):',
+  stAddMachineTitle: 'Add machine',
+  stAddMachineDesc: 'Adding a machine requires approval.',
+  stAddMachineName: 'Machine name',
+  stAddMachineSubmit: 'Request approval',
   // ── Desktop menu bar (top bar) ──
   menuFile: 'File',
   menuEdit: 'Edit',

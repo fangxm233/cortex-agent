@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'rea
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
+import { currentDialog, dismissDialog, settleDialog } from '@/design/dialog-store';
 import { ActivityStrip } from './ActivityStrip';
 
 const state = vi.hoisted(() => ({
@@ -33,7 +34,10 @@ beforeEach(() => {
   state.cancelling = false;
   vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  while (dismissDialog());
+  vi.unstubAllGlobals();
+});
 
 function waits(): SessionWaitpoints {
   return { waitpoints: state.waitpoints, cancel: state.cancel, cancelling: state.cancelling };
@@ -93,15 +97,16 @@ describe('wait capsule', () => {
 
   it('cancels only after the user confirms', async () => {
     state.waitpoints = [wp()];
-    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
-    vi.stubGlobal('confirm', confirm);
     const r = mountOpen();
     const button = r.root.findByProps({ 'data-waitpoint-cancel': 'wp_1' });
 
-    act(() => button.props.onClick({ stopPropagation: () => {} }));
+    act(() => { button.props.onClick({ stopPropagation: () => {} }); });
+    expect(currentDialog()).toMatchObject({ title: 'Cancel waitpoint "train-arm2"?', tone: 'danger', confirmLabel: 'Cancel wait' });
+    await act(async () => { dismissDialog(); });
     expect(state.cancel).not.toHaveBeenCalled();
 
-    await act(async () => button.props.onClick({ stopPropagation: () => {} }));
+    act(() => { button.props.onClick({ stopPropagation: () => {} }); });
+    await act(async () => settleDialog(currentDialog()!.id, ''));
     expect(state.cancel).toHaveBeenCalledWith('wp_1');
   });
 
@@ -186,13 +191,11 @@ describe('wait capsule', () => {
   it('does not offer a second cancel while one is in flight', () => {
     state.waitpoints = [wp()];
     state.cancelling = true;
-    const confirm = vi.fn().mockReturnValue(true);
-    vi.stubGlobal('confirm', confirm);
     const r = mountOpen();
     const button = r.root.findByProps({ 'data-waitpoint-cancel': 'wp_1' });
     expect(button.props.disabled).toBe(true);
-    act(() => button.props.onClick({ stopPropagation: () => {} }));
-    expect(confirm).not.toHaveBeenCalled();
+    act(() => { button.props.onClick({ stopPropagation: () => {} }); });
+    expect(currentDialog()).toBeUndefined();
     expect(state.cancel).not.toHaveBeenCalled();
   });
 

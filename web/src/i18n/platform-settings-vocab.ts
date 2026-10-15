@@ -10,7 +10,8 @@ export const platformEn = {
   psStored: 'Saved · leave blank to keep', psNotStored: 'Not saved', psInherited: 'Present only in running environment',
   psSecretHint: 'Secrets are never returned. Enter a replacement or explicitly clear a saved secret.',
   psClear: 'Clear saved value', psUndoClear: 'Keep saved value',
-  psClearConfirm: 'Clear this saved credential on Save? The running connection is unchanged until the daemon restarts.',
+  psClearTitle: 'Clear saved credential?', psClearAction: 'Clear',
+  psClearConfirm: 'It is cleared when you save. The running connection is unchanged until the daemon restarts.',
   psWillClear: 'Will be cleared on Save', psOptional: 'Optional security fields',
   psSave: 'Save connection settings', psSaving: 'Saving…', psSaved: 'Saved.',
   psFailed: 'Could not save. Check the fields and connection, then retry.', psRefreshFailed: 'Saved, but refresh failed. Reload to check the saved configuration.',
@@ -23,6 +24,7 @@ export const platformEn = {
   psSkills: 'Feishu skills in Web / apps',
   psSkillsHint: "Requires plugin assignment and lark-cli authorization. Applies to new Web and app sessions.",
   psRuntimeSaved: 'Setting saved', psUnsaved: 'Discard unsaved platform changes?',
+  psDiscard: 'Discard', psKeepEditing: 'Keep editing',
 };
 export const platformZh: Record<keyof typeof platformEn, string> = {
   psFeishu: '飞书 / Lark', psSlack: 'Slack', psSetup: '接入配置',
@@ -36,7 +38,8 @@ export const platformZh: Record<keyof typeof platformEn, string> = {
   psStored: '已保存 · 留空保留', psNotStored: '尚未保存', psInherited: '仅在在役环境中存在',
   psSecretHint: '密钥不会回显。输入新值可替换；清除已保存的密钥需显式操作。',
   psClear: '清除已保存值', psUndoClear: '保留已保存值',
-  psClearConfirm: '保存时清除此凭据？在役连接在 daemon 重启前不受影响。',
+  psClearTitle: '清除已保存的凭据？', psClearAction: '清除',
+  psClearConfirm: '保存时清除。在役连接在 daemon 重启前不受影响。',
   psWillClear: '将在保存时清除', psOptional: '可选安全配置',
   psSave: '保存接入配置', psSaving: '保存中…', psSaved: '已保存。',
   psFailed: '保存失败，请检查字段与连接后重试。', psRefreshFailed: '已保存，但刷新失败。请重新加载以检查配置。',
@@ -49,4 +52,5 @@ export const platformZh: Record<keyof typeof platformEn, string> = {
   psSkills: '在网页 / App 会话加载飞书技能',
   psSkillsHint: "需分配插件并完成 lark-cli 授权；新建网页或 App 会话后生效。",
   psRuntimeSaved: '设置已保存', psUnsaved: '放弃尚未保存的平台设置？',
+  psDiscard: '放弃', psKeepEditing: '继续编辑',
 };

@@ -1,6 +1,7 @@
 // Keeps every user-visible string in the shared vocab under src/i18n. Outside this directory it
 // rejects local { en, zh } copy tables, language branches that pick strings, CJK literals, and
-// English JSX text / visible attribute literals that are not in the short allowlist below.
+// English JSX text / visible attribute literals that are not in the short allowlist below. It also
+// rejects the browser's own confirm / alert / prompt boxes: those go through design/dialog-store.
 // UI_COPY_SCOPE=features/foo,mobile/screens narrows the scan to path prefixes under src/.
 // Parses with TypeScript 5.9 (the `typescript-5` alias): TypeScript 7 ships no JS compiler API.
 import { readdirSync, readFileSync } from 'node:fs';
@@ -23,6 +24,8 @@ const VISIBLE_ATTRS = new Set(['title', 'placeholder', 'aria-label', 'alt', 'lab
 // `label` on these frames is a design-spec screen id rendered only as data-screen-label.
 const SCREEN_FRAMES = new Set(['MScreen', 'MSettingsFrame']);
 const UI_SINKS = new Set(['toast', 'addToast', 'notify', 'confirm', 'alert', 'prompt']);
+const NATIVE_DIALOGS = new Set(['confirm', 'alert', 'prompt']);
+const NATIVE_DIALOG_HOSTS = new Set(['window', 'globalThis', 'self']);
 
 interface Hit { file: string; line: number; kind: string; text: string }
 
@@ -70,6 +73,12 @@ function calleeName(call: ts.CallExpression): string | null {
   return null;
 }
 
+function isNativeDialog(call: ts.CallExpression): boolean {
+  const expr = call.expression;
+  return ts.isPropertyAccessExpression(expr) && NATIVE_DIALOGS.has(expr.name.text)
+    && ts.isIdentifier(expr.expression) && NATIVE_DIALOG_HOSTS.has(expr.expression.text);
+}
+
 function scanFile(file: string): Hit[] {
   const rel = path.relative(SRC, file).split(path.sep).join('/');
   const source = readFileSync(file, 'utf8');
@@ -108,6 +117,7 @@ function scanFile(file: string): Hit[] {
     }
     if (ts.isCallExpression(node) && UI_SINKS.has(calleeName(node) ?? '')
       && node.arguments.some((arg) => stringParts(arg).some(isCopy))) add(node, 'UI message literal', node.getText(sf));
+    if (ts.isCallExpression(node) && isNativeDialog(node)) add(node, 'native dialog', node.getText(sf));
     ts.forEachChild(node, visit);
   };
   visit(sf);
@@ -125,7 +135,7 @@ function scan(): Hit[] {
 }
 
 describe('UI copy lives in the shared vocab', () => {
-  it('has no local copy tables, language branches or hard-coded visible text outside src/i18n', () => {
+  it('has no local copy tables, language branches, hard-coded visible text or native dialogs outside src/i18n', () => {
     const hits = scan();
     const report = hits.map((h) => `${h.file}:${h.line} [${h.kind}] ${h.text.replace(/\s+/g, ' ')}`);
     expect(report).toEqual([]);

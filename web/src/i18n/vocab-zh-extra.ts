@@ -175,6 +175,7 @@ export const zhExtra = {
   scToastCreated: '调度已创建',
   scToastCreateFailed: '无法创建调度',
   scEditSchedule: '编辑调度',
+  scDeleteTitle: '删除此调度？',
   scSaveSchedule: '保存修改',
   scToastUpdated: '调度已更新',
   scToastUpdateFailed: '无法更新调度',

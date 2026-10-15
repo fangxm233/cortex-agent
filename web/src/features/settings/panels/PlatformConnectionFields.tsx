@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { PlatformFieldSnapshot } from '@cortex-agent/ui-contract';
+import { confirmDialog } from '@/design/dialog-store';
 import { useVocab } from '@/i18n';
 import { FIELD_LABELS, type PlatformDraft } from '@/features/settings/vm/platform-settings-vm';
 import { PS_HINT_STYLE, psFieldStyle } from '@/features/settings/ui/platform-ui';
@@ -19,9 +20,12 @@ interface FieldProps {
 function SecretControls({ field, draft, disabled, onChange }: FieldProps) {
   const L = useVocab();
   const clearing = draft[field.key] === null;
-  const clear = () => {
+  const clear = async () => {
     if (clearing) { onChange(field.key, ''); return; }
-    if (window.confirm(L.psClearConfirm)) onChange(field.key, null);
+    const confirmed = await confirmDialog({
+      title: L.psClearTitle, description: L.psClearConfirm, confirmLabel: L.psClearAction, tone: 'danger',
+    });
+    if (confirmed) onChange(field.key, null);
   };
   return <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
     <span>{clearing ? L.psWillClear : field.present ? L.psStored : field.runtimePresent ? L.psInherited : L.psNotStored}</span>

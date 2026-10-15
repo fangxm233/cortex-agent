@@ -11,8 +11,10 @@ export function MPlatformScreen() {
   const navigate = useNavigate();
   const [dirty, setDirty] = useState(false);
   const config = useConfigSnapshot();
-  const canLeave = useMobileLeaveGuard(dirty, L.psUnsaved);
-  const back = () => { if (canLeave()) mobileHeaderBack(navigate, '/m/settings'); };
+  const canLeave = useMobileLeaveGuard(dirty, {
+    title: L.psUnsaved, confirmLabel: L.psDiscard, cancelLabel: L.psKeepEditing, tone: 'danger',
+  });
+  const back = async () => { if (await canLeave()) mobileHeaderBack(navigate, '/m/settings'); };
   return <MSettingsQueryPage title={L.stNavPlatform} onBack={back} query={config}>
     {(snapshot) => <PlatformPanel snapshot={snapshot} onDirtyChange={setDirty} />}
   </MSettingsQueryPage>;

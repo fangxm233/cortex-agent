@@ -2,7 +2,8 @@ import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { confirmDialog } from '@/design/dialog-store';
+import { fmt, useVocab } from '@/i18n';
 import { MButton, MC } from '@/mobile/ui/kit';
 import {
   PROFILE_BACKENDS, THINKING_LEVELS, isProfileFormValid, profileFieldChoices,
@@ -211,7 +212,13 @@ export function MProfilesView(props: { controller: ProfilesController; onBack: (
       removePending={profiles.removePendingName !== null}
       onDefault={() => profiles.setDefault(fact.profile.name)} onEdit={() => profiles.openEdit(fact.profile.name)}
       onDuplicate={() => profiles.openDuplicate(fact.profile.name)}
-      onDelete={() => { if (window.confirm(`${L.pfDelete} ${fact.profile.name}?`)) profiles.confirmDelete(fact.profile.name); }} />)}
+      onDelete={async () => {
+        const name = fact.profile.name;
+        const confirmed = await confirmDialog({
+          title: fmt(L.pfDeleteTitle, { name }), confirmLabel: L.pfDelete, tone: 'danger',
+        });
+        if (confirmed) profiles.confirmDelete(name);
+      }} />)}
     </MSettingsCard>
   </MSettingsPage>;
 }

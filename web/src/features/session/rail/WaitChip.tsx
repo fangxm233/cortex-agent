@@ -1,3 +1,4 @@
+import { confirmDialog } from '@/design/dialog-store';
 import { fmt, pickVocab, type Vocab } from '@/i18n';
 import {
   formatWaitClock, waitStatusText,
@@ -125,9 +126,13 @@ export function WaitPanel({ vm, lang, onCancel, cancelling = false }: {
   cancelling?: boolean;
 }): JSX.Element {
   const copy = pickVocab(lang);
-  const confirmCancel = (row: WaitRailRow): void => {
+  const confirmCancel = async (row: WaitRailRow): Promise<void> => {
     if (cancelling) return;
-    if (globalThis.confirm(fmt(copy.waitConfirm, { label: row.label }))) onCancel(row.id);
+    const confirmed = await confirmDialog({
+      title: fmt(copy.waitConfirmTitle, { label: row.label }), description: copy.waitConfirmBody,
+      confirmLabel: copy.waitCancel, cancelLabel: copy.waitKeep, tone: 'danger',
+    });
+    if (confirmed) onCancel(row.id);
   };
   return (
     <div className="wait-rail" data-wait-panel="">
