@@ -30,7 +30,7 @@ export function spendOfResult(result: RunResult): RunSpend {
 /**
  * Fold one event of an attempt's stream into what that attempt has spent: every cost row (the
  * same rows the ledger records) and its latest turn count. This is how an attempt that ends with
- * no result of its own — retried on a fallback, failed, stopped — still accounts for its spend.
+ * no result of its own — failed or stopped — still accounts for its spend.
  */
 export function countSpend(spend: RunSpend, event: RunEvent): void {
   if (event.type === 'cost_record') {
