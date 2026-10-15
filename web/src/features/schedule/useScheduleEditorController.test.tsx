@@ -12,6 +12,7 @@ const adapter = vi.hoisted(() => ({
   add: vi.fn<(args: unknown) => Promise<unknown>>(),
   update: vi.fn<(args: unknown) => Promise<unknown>>(),
   config: vi.fn<() => Promise<unknown>>(),
+  catalog: vi.fn<() => Promise<unknown>>(),
   created: vi.fn(),
   updated: vi.fn(),
   error: vi.fn(),
@@ -24,6 +25,9 @@ vi.mock('@/lib/trpc', () => ({
         queryOptions: () => ({ queryKey: ['config.get'], queryFn: adapter.config }),
       },
     },
+    models: { catalog: { queryOptions: (_input: object, options: object) => ({
+      ...options, queryKey: ['models.catalog'], queryFn: adapter.catalog,
+    }) } },
     schedules: {
       add: {
         mutationOptions: (options: object) => ({
@@ -42,13 +46,16 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
+const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', mode: 'api' };
+const config = { models: { default: selection, favorites: [selection], memory: {} } };
+
 function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
     id: 'once-1',
     type: 'once',
     message: 'ship report',
     projectId: 'nimbus',
-    profile: 'review',
+    selection,
     nextRun: '2030-01-01T08:00:00.000Z',
     lastRun: null,
     paused: false,
@@ -76,9 +83,7 @@ async function mount(initial?: ScheduleEditorRequest) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } },
   });
-  queryClient.setQueryData(['config.get'], {
-    profiles: { defaultProfile: 'default', profiles: [{ name: 'default' }, { name: 'review' }] },
-  });
+  queryClient.setQueryData(['config.get'], config);
   queryClient.setQueryData(['schedules.list'], []);
   await act(async () => {
     renderers.push(create(
@@ -105,18 +110,18 @@ afterEach(() => {
 beforeEach(() => {
   controller = null;
   Object.values(adapter).forEach((mock) => mock.mockReset());
-  adapter.config.mockResolvedValue({
-    profiles: { defaultProfile: 'default', profiles: [{ name: 'default' }, { name: 'review' }] },
-  });
+  adapter.config.mockResolvedValue(config);
+  adapter.catalog.mockResolvedValue({ routes: [], thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high'] } });
 });
 
 describe('useScheduleEditorController', () => {
-  it('owns profile options, create initialization, add payload, and list invalidation', async () => {
+  it('owns model options, create initialization, full add payload, and list invalidation', async () => {
     adapter.add.mockResolvedValue(schedule({ id: 'daily-1', type: 'daily' }));
     const { queryClient } = await mount({ mode: 'create', projectId: 'nimbus' });
 
-    act(() => controller?.onChange({ message: '  scan arXiv  ', profile: 'review' }));
-    expect(controller?.profileOptions).toEqual(['default', 'review']);
+    expect(controller?.form?.selection).toEqual(selection);
+    act(() => controller?.onChange({ message: '  scan arXiv  ' }));
+    expect(controller?.modelOptions).toEqual([expect.objectContaining({ selection, favorite: true })]);
     expect(controller?.mode).toBe('create');
     expect(controller?.form?.projectId).toBe('nimbus');
     expect(controller?.editableFields.type).toBe(true);
@@ -126,7 +131,7 @@ describe('useScheduleEditorController', () => {
 
     expect(saved).toBe(true);
     expect(adapter.add).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'daily', message: 'scan arXiv', projectId: 'nimbus', profile: 'review', time: '09:00',
+      type: 'daily', message: 'scan arXiv', projectId: 'nimbus', selection, time: '09:00',
     }));
     expect(queryClient.getQueryState(['schedules.list'])?.isInvalidated).toBe(true);
     expect(controller?.form).toBeNull();
@@ -204,10 +209,10 @@ describe('useScheduleEditorController', () => {
     act(() => controller?.openEdit(realSchedule));
     expect(controller?.mode).toBe('edit');
     expect(controller?.form).toMatchObject({
-      type: 'once', message: 'ship report', profile: 'review',
+      type: 'once', message: 'ship report', selection,
     });
     expect(controller?.editableFields).toMatchObject({
-      type: false, delay: false, message: true, profile: true,
+      type: false, delay: false, message: true, selection: true,
     });
 
     act(() => controller?.onChange({
@@ -221,7 +226,7 @@ describe('useScheduleEditorController', () => {
 
     await act(async () => { expect(await controller?.submit()).toBe(true); });
     expect(adapter.update).toHaveBeenCalledWith({
-      scheduleId: 'once-1', message: 'updated', profile: 'review', projectId: 'nimbus',
+      scheduleId: 'once-1', message: 'updated', selection, projectId: 'nimbus',
     });
     expect(queryClient.getQueryState(['schedules.list'])?.isInvalidated).toBe(true);
   });

@@ -1,11 +1,15 @@
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
+import { modelKey } from '@/lib/model-selection';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
   SCHED_TYPES,
   scheduleOptionLabel,
+  scheduleModelPatch,
+  scheduleThinkingPatch,
+  type ScheduleModelOption,
   visibleFields,
   type ScheduleEditableFields,
   type ScheduleEditorMode,
@@ -30,7 +34,8 @@ export interface MScheduleEditorProps {
   form: ScheduleForm;
   mode: ScheduleEditorMode;
   editableFields: ScheduleEditableFields;
-  profileOptions: string[];
+  modelOptions: ScheduleModelOption[];
+  thinkingOptions: string[];
   valid: boolean;
   pending: boolean;
   error: string | null;
@@ -158,13 +163,32 @@ function DayField({ copy, form, editableFields, onChange }: FieldsProps) {
   );
 }
 
-function ProfileField({ copy, form, editableFields, profileOptions, onChange }: FieldsProps) {
+function ModelField({ copy, form, editableFields, modelOptions, onChange }: FieldsProps) {
   return (
     <label>
-      <span style={label}>{copy.scProfile}</span>
-      <select style={field} value={form.profile} disabled={!editableFields.profile}
-        onChange={(event) => onChange({ profile: event.target.value })}>
-        {profileOptions.map((profile) => <option key={profile} value={profile}>{profile}</option>)}
+      <span style={label}>{copy.scModel}</span>
+      <select style={field} data-schedule-select="model" aria-label={copy.scModel}
+        value={form.selection ? modelKey(form.selection) : ''} disabled={!editableFields.selection}
+        onChange={(event) => onChange(scheduleModelPatch(modelOptions, event.target.value))}>
+        <option value="" disabled>{copy.scChooseModel}</option>
+        {modelOptions.map((option) => <option key={option.value} value={option.value}>
+          {option.favorite ? '★ ' : ''}{option.label}
+        </option>)}
+      </select>
+    </label>
+  );
+}
+
+function ThinkingField({ copy, form, editableFields, thinkingOptions, onChange }: FieldsProps) {
+  return (
+    <label>
+      <span style={label}>{copy.scThinking}</span>
+      <select style={field} data-schedule-select="thinking" aria-label={copy.scThinking}
+        value={form.selection?.thinking ?? ''} disabled={!editableFields.selection || !form.selection}
+        onChange={(event) => onChange(scheduleThinkingPatch(form, event.target.value))}>
+        {thinkingOptions.map((value) => <option key={value} value={value}>
+          {value || copy.scThinkingDefault}
+        </option>)}
       </select>
     </label>
   );
@@ -204,7 +228,8 @@ export function EditorFields(props: FieldsProps) {
       <DelayField {...props} />
       <OnceTimingNote {...props} />
       <DayField {...props} />
-      <ProfileField {...props} />
+      <ModelField {...props} />
+      <ThinkingField {...props} />
       <MessageField {...props} />
       <SubmitFields {...props} />
     </div>

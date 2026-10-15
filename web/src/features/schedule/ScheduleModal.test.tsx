@@ -1,7 +1,8 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { defaultScheduleForm, editableScheduleFields, type ScheduleForm } from './schedule-modal-vm';
+import { defaultScheduleForm, editableScheduleFields, scheduleModelOptions, type ScheduleForm } from './schedule-modal-vm';
+import { modelKey } from '@/lib/model-selection';
 
 vi.mock('@/design', async () => ({
   ...(await vi.importActual<typeof import('@/design/controls')>('@/design/controls')),
@@ -11,6 +12,8 @@ vi.mock('@/design', async () => ({
 }));
 
 import { ScheduleModal } from './ScheduleModal';
+
+const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
 
 let onWindowKeyDown: ((event: { key: string; defaultPrevented: boolean }) => void) | null;
 
@@ -33,7 +36,8 @@ function mount(
           onCreate={() => {}}
           valid
           pending={false}
-          profileOptions={['default', 'review']}
+          modelOptions={scheduleModelOptions(undefined, undefined, selection)}
+          thinkingOptions={['', 'high', 'xhigh']}
           now={new Date('2030-01-01T00:00:00.000Z')}
         />
       </LangProvider>,
@@ -74,16 +78,20 @@ describe('ScheduleModal custom selections', () => {
     expect(renderer.root.findAll(node => node.props.style?.background === 'var(--proto-card)')).toHaveLength(0);
   });
 
-  it('emits typed patches for interval and profile fields', () => {
+  it('emits full selection patches for model and thinking fields', () => {
     const onChange = vi.fn();
-    const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const };
+    const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const, selection };
     const renderer = mount(form, onChange);
     pick(renderer, 'intervalUnit', 'hr');
-    pick(renderer, 'profile', 'review');
+    pick(renderer, 'model', modelKey(selection));
+    pick(renderer, 'thinking', 'high');
+    pick(renderer, 'thinking', '');
 
     expect(onChange.mock.calls.map(([patch]) => patch)).toEqual([
       { intervalUnit: 'hr' },
-      { profile: 'review' },
+      { selection },
+      { selection: { ...selection, thinking: 'high' } },
+      { selection: { ...selection, thinking: null } },
     ]);
   });
 
