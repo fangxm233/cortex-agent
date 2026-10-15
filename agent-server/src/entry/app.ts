@@ -78,6 +78,7 @@ import {
 } from '../orchestration/resume-dispatcher.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
+import { reloadAgentState } from '@domain/agents/config.js';
 import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -236,6 +237,7 @@ process.on('exit', () => releaseSingletonLock(APP_PID_FILE));
 // Cross-file migrations must finish before adapters, ports, and background services
 // become externally visible. Provider-state extraction runs before schedule cleanup.
 await runMigrations();
+reloadAgentState();
 await migrateBuiltinJobSchedules();
 // Before any Claude spawn: a fresh Cortex Claude config dir takes its model/effort/context
 // settings over from the terminal's once, so the first sessions behave as they did before.

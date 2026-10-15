@@ -5,6 +5,11 @@ import type { Backend } from '@core/types/agent-types.js';
 
 let agentState: AgentState = loadAgentState();
 
+/** Startup migrations run after static imports and may replace the persisted state. */
+export function reloadAgentState(): void {
+  agentState = loadAgentState();
+}
+
 function commit(next: AgentState): void {
   saveAgentState(next);
   agentState = next;
