@@ -186,6 +186,18 @@ test('a second fire before the first run\'s turn is admitted is skipped', async 
   expect(third.deps.createSession).toHaveBeenCalledTimes(1);
 });
 
+test('simultaneous fires reserve a schedule only once after their guards', async () => {
+  const first = makeDeps();
+  const second = makeDeps();
+  await Promise.all([
+    fireScheduledTask(fire({ scheduleTaskId: 'sch-race' }), first.deps),
+    fireScheduledTask(fire({ scheduleTaskId: 'sch-race' }), second.deps),
+  ]);
+  expect(first.deps.createSession).toHaveBeenCalledTimes(1);
+  expect(second.deps.createSession).not.toHaveBeenCalled();
+  expect(deliver).toHaveBeenCalledTimes(1);
+});
+
 test('a session adopted by a reply runs as an ordinary user turn again', () => {
   expect(conversationTrigger({ origin: 'direct', scheduleId: 'sch-4' }))
     .toEqual({ trigger: 'user', executionKind: 'local', scheduleTaskId: null });

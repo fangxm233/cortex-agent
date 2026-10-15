@@ -4,6 +4,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { ScheduleRepo, type ScheduleTask } from '../../src/store/schedule-repo.js';
+import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
+
+const selection: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt-test', thinking: 'high', mode: 'openai' };
 
 // ── Shared tmp directory ───────────────────────────────────────
 
@@ -31,7 +34,7 @@ function makeTask(overrides = {}): ScheduleTask {
     type: 'interval',
     message: 'test task',
     projectId: 'project-one',
-    profile: 'plan',
+    selection,
     createdAt: Date.now(),
     ...overrides,
   };
@@ -132,6 +135,8 @@ test('ScheduleRepo - on-disk schema contains schedule tasks only', async () => {
   const raw = JSON.parse(await fs.readFile(filePath, 'utf8'));
   assert.deepEqual(Object.keys(raw), ['tasks']);
   assert.equal(raw.tasks[0].id, 'schema-1');
+  assert.deepEqual(raw.tasks[0].selection, selection);
+  assert.equal('profile' in raw.tasks[0], false);
 });
 
 // ── retired dispatch target ───────────────────────
@@ -143,9 +148,9 @@ test('ScheduleRepo - a stored target and its fallback are dropped on read, the r
     tasks: [
       {
         id: 'thread-1', type: 'daily', time: '09:00', message: 'morning digest', projectId: 'p1',
-        profile: 'plan', createdAt: 1, target: { kind: 'thread', threadId: 'thr_1', channel: 'C1' }, fallback: 'skip',
+        selection, createdAt: 1, target: { kind: 'thread', threadId: 'thr_1', channel: 'C1' }, fallback: 'skip',
       },
-      { id: 'project-1', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', profile: null, createdAt: 1, target: { kind: 'project', projectId: 'p1' } },
+      { id: 'project-1', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', selection, createdAt: 1, target: { kind: 'project', projectId: 'p1' } },
     ],
   }));
   const repo = new ScheduleRepo(filePath);
@@ -161,7 +166,7 @@ test('ScheduleRepo - a stored target and its fallback are dropped on read, the r
 test('ScheduleRepo - a migration that rewrites records in place is persisted on read', async () => {
   const filePath = path.join(tmpDir, `schedules-${_testIdx++}.json`);
   await fs.writeFile(filePath, JSON.stringify({
-    tasks: [{ id: 'legacy', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', profile: null, createdAt: 1, target: { kind: 'fresh' } }],
+    tasks: [{ id: 'legacy', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', selection, createdAt: 1, target: { kind: 'fresh' } }],
   }));
 
   await new ScheduleRepo(filePath).read();
@@ -196,7 +201,7 @@ test('ScheduleRepo - invalidate() clears in-memory cache', async () => {
   assert.equal((await repo.read()).tasks.length, 1);
 
   // Write directly to disk, bypassing the repo
-  await fs.writeFile(filePath, JSON.stringify({ tasks: [{ id: 'external', type: 'interval', message: 'external', projectId: 'project-one', profile: 'plan', createdAt: Date.now() }] }));
+  await fs.writeFile(filePath, JSON.stringify({ tasks: [{ id: 'external', type: 'interval', message: 'external', projectId: 'project-one', selection, createdAt: Date.now() }] }));
 
   // Without invalidate, cache would still have the old data
   repo.invalidate();
@@ -225,13 +230,13 @@ test('ScheduleRepo - migrate converts channel to projectId via channel-registry 
   await fs.writeFile(schedulesFile, JSON.stringify({
     tasks: [
       // Legacy record: channel is mapped in channel-registry
-      { id: 'mapped', type: 'interval', intervalMs: 60000, message: 'mapped task', channel: 'C12345', profile: 'plan', createdAt: now },
+      { id: 'mapped', type: 'interval', intervalMs: 60000, message: 'mapped task', channel: 'C12345', selection, createdAt: now },
       // Legacy record: channel is NOT in channel-registry → fallback to 'general'
-      { id: 'unmapped', type: 'daily', time: '09:00', message: 'unmapped task', channel: 'C99999', profile: null, createdAt: now },
+      { id: 'unmapped', type: 'daily', time: '09:00', message: 'unmapped task', channel: 'C99999', createdAt: now },
       // New-format record: already has projectId → pass through unchanged
-      { id: 'new-format', type: 'once', runAt: now + 60000, message: 'new format task', projectId: 'research', profile: 'plan', createdAt: now },
+      { id: 'new-format', type: 'once', runAt: now + 60000, message: 'new format task', projectId: 'research', selection, createdAt: now },
       // Mixed: has both channel and projectId → remove channel, keep projectId
-      { id: 'mixed', type: 'interval', intervalMs: 30000, message: 'mixed task', channel: 'C67890', projectId: 'research', profile: null, createdAt: now },
+      { id: 'mixed', type: 'interval', intervalMs: 30000, message: 'mixed task', channel: 'C67890', projectId: 'research', createdAt: now },
     ],
   }));
 
@@ -277,8 +282,8 @@ test('ScheduleRepo - migrate is idempotent on re-read', async () => {
   const now = Date.now();
   await fs.writeFile(schedulesFile, JSON.stringify({
     tasks: [
-      { id: 'legacy', type: 'interval', intervalMs: 60000, message: 'old', channel: 'C12345', profile: null, createdAt: now },
-      { id: 'new', type: 'daily', time: '10:00', message: 'new', projectId: 'cortex-self', profile: 'plan', createdAt: now },
+      { id: 'legacy', type: 'interval', intervalMs: 60000, message: 'old', channel: 'C12345', createdAt: now },
+      { id: 'new', type: 'daily', time: '10:00', message: 'new', projectId: 'cortex-self', selection, createdAt: now },
     ],
   }));
 

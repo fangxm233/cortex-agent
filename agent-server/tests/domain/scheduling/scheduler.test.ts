@@ -110,10 +110,43 @@ test('scheduler add snapshots the explicit selection and fires it unchanged', wi
   }));
   selection.thinking = 'low';
   assert.deepEqual((await scheduler.get(task.id))!.selection, OTHER_SELECTION);
-  const runner = vi.fn(async () => {});
+  const runner = vi.fn(async (_input: { selection: unknown }) => {});
   scheduler.runner = runner;
   await scheduler._runTask(task);
   assert.deepEqual(runner.mock.calls[0][0].selection, OTHER_SELECTION);
+}));
+
+test('a default change never changes an already-created schedule selection', withTempSchedules(async ({ scheduler }) => {
+  const task = await scheduler.add(normalizeScheduleSpec({ type: 'once', delay: '1h', message: 'snapshot' }));
+  const runner = vi.fn(async (_input: { selection: unknown }) => {});
+  scheduler.runner = runner;
+  try {
+    seedScheduleModels(OTHER_SELECTION);
+    await scheduler._runTask((await scheduler.get(task.id))!);
+    assert.deepEqual(runner.mock.calls[0][0].selection, DEFAULT_SELECTION);
+    const next = await scheduler.add(normalizeScheduleSpec({ type: 'once', delay: '1h', message: 'new default' }));
+    assert.deepEqual(next.selection, OTHER_SELECTION);
+  } finally {
+    seedScheduleModels();
+  }
+}));
+
+test('hot reload re-arms a schedule when any selection field changes', withTempSchedules(async ({ scheduler, schedulesFile }) => {
+  const task = await scheduler.add(normalizeScheduleSpec({ type: 'interval', interval: '1h', message: 'selection changes' }));
+  const changes = [
+    { ...DEFAULT_SELECTION, thinking: 'low' },
+    { ...DEFAULT_SELECTION, model: 'sonnet' },
+    { ...DEFAULT_SELECTION, mode: 'api' },
+    OTHER_SELECTION,
+    { ...OTHER_SELECTION, provider: 'other', mode: 'other' },
+  ];
+  for (const selection of changes) {
+    const timer = scheduler.timers.get(task.id);
+    fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [{ ...task, selection }] }));
+    await scheduler._hotReload();
+    assert.notEqual(scheduler.timers.get(task.id), timer);
+    assert.deepEqual((await scheduler.get(task.id))!.selection, selection);
+  }
 }));
 
 test('scheduler run resolves tasks without selection to the default', withTempSchedules(async ({ scheduler }) => {

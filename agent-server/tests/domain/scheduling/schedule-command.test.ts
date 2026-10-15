@@ -5,7 +5,7 @@ import { buildScheduleTask, type ScheduleSpec } from '../../../src/domain/schedu
 import { getDefaultSelection, resolveModelRef, selectionForModel } from '../../../src/domain/agents/models.js';
 import { DEFAULT_SELECTION, seedScheduleModels } from './selection-fixture.js';
 
-beforeEach(seedScheduleModels);
+beforeEach(() => seedScheduleModels());
 
 function setup() {
   const add = vi.fn(async (spec: ScheduleSpec) => buildScheduleTask(spec, 'task1', Date.now(), spec.selection ?? getDefaultSelection()));
@@ -31,6 +31,15 @@ test('schedule command accepts bare model references and leaves absent selection
   expect(add.mock.calls[0][0].selection).toEqual(selectionForModel(resolveModelRef(DEFAULT_SELECTION.model)));
   await run('!schedule add once 5m remind me');
   expect(add.mock.calls[1][0]).toMatchObject({ message: 'remind me', selection: undefined });
+});
+
+test('schedule help lists favorite models and the new flags without the retired option', async () => {
+  const { run } = setup();
+  const result = await run('!schedule');
+  expect(result.text).toContain('--model');
+  expect(result.text).toContain('--thinking');
+  expect(result.text).toContain('openai/gpt-test');
+  expect(result.text).not.toContain('--profile');
 });
 
 test('schedule command rejects retired flags, missing model, and invalid thinking without adding', async () => {

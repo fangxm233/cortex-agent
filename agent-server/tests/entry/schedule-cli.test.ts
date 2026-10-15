@@ -158,6 +158,13 @@ test('model flags persist a concrete selection with memory and validated thinkin
   assert.equal(onDisk().length, 3);
 });
 
+test('thinking without a model on add uses a concrete copy of the default', async () => {
+  const { cli } = setup();
+  const result = await cli('add', '--type', 'daily', '--time', '09:00', '--message', 'm', '--thinking', 'low');
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(result.json.schedule.selection, { ...getDefaultSelection(), thinking: 'low' });
+});
+
 test('thinking-only edits preserve the scheduled model instead of taking the current default', async () => {
   const { cli } = setup([{ ...DAILY, selection: OTHER_SELECTION }]);
   const result = await cli('edit', 'daily1', '--thinking', 'low');
@@ -183,6 +190,9 @@ test('cortex schedule is wired into the main CLI with help and subcommand errors
   const help = await runCli(['schedule', '--help']);
   assert.equal(help.exitCode, 0);
   assert.match(help.stdout, /cortex schedule add --type interval/);
+  assert.match(help.stdout, /--model \[provider\/\]model/);
+  assert.match(help.stdout, /--thinking/);
+  assert.doesNotMatch(help.stdout, /--profile/);
   assert.match((await runCli(['--help'])).stdout, /schedule/);
 
   const unknown = await runCli(['schedule', 'set']);
