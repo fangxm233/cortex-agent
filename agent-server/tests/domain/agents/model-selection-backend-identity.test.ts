@@ -44,7 +44,7 @@ test('a history-free switch journals backend and selection together and locks re
 });
 
 test.each(['claude-resume', undefined])('recorded backend wins over inconsistent legacy selection (resume: %s)', async (backendSessionId) => {
-  await sessionStore.updateById(sessionId, (record) => ({ ...record, selection: pi, backendSessionId }));
+  await sessionStore.batch(batch => batch.updateById(sessionId, record => ({ ...record, selection: pi, backendSessionId })));
   const before = readFileSync(REGISTRY_FILE, 'utf8');
   expect(await sessionStore.getTurns(channel)).toEqual([]);
   expect(await applyChannelSelection({ channel, ...pi })).toMatchObject({

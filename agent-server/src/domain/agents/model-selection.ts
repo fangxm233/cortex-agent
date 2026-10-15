@@ -142,9 +142,7 @@ async function persistSelection(
     ...refuse(current, 'cross-backend-live-session'), currentBackend, targetBackend: target.backend,
   };
   // Session selection wins at run time: never acknowledge a pick if its journal write failed.
-  if (session) await sessionStore.updateById(session.sessionId, (record) => ({
-    ...record, backend: target.backend, selection: target,
-  }));
+  if (session) await sessionStore.updateSession(session.sessionId, { backend: target.backend, selection: target });
   setChannelSelection(request.channel, target);
   rememberModelSelection(target);
   if (request.channel.startsWith('web:') && request.seedDefault !== false) setSelectionDefault(target);

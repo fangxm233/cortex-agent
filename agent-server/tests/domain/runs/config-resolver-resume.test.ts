@@ -28,10 +28,10 @@ async function recordedSession(backendSessionId: string | null | undefined) {
     sessionId: 'resume-guard', channel, backend: 'claude', kind: 'local', backendSessionId,
   });
   // Legacy records without backendSessionId resume by their Cortex session ID.
-  if (backendSessionId === undefined) await sessionStore.updateById('resume-guard', (record) => {
+  if (backendSessionId === undefined) await sessionStore.batch(batch => batch.updateById('resume-guard', (record) => {
     delete record.backendSessionId;
     return record;
-  });
+  }));
   return (await sessionStore.getById('resume-guard'))!;
 }
 

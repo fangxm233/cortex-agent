@@ -21,13 +21,10 @@ vi.mock('@store/session-registry-repo.js', async (importOriginal) => ({
     getTurns: async () => Array(turns).fill({}),
     getBoundSessionId: async () => session?.sessionId ?? null,
     getById: async () => session,
-    updateById: async (_id: string, mutate: (record: NonNullable<typeof session>) => NonNullable<typeof session>) => {
+    updateSession: async (_id: string, patch: { backend: string; selection: EngineSelection }) => {
       if (syncFailure) throw new Error('journal unavailable');
-      if (session) {
-        session = mutate(session);
-        patches.push({ backend: session.backend, selection: session.selection });
-      }
-      return session;
+      patches.push(patch);
+      if (session) session = { ...session, ...patch };
     },
   },
 }));
