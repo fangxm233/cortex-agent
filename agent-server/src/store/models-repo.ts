@@ -30,7 +30,7 @@ export class ModelsRepo {
     }
   }
 
-  invalidate(): void { this.cache = null; }
+  invalidate(): void { this.cache = null; modelsConfigRevision += 1; }
 
   /** Parse before replacing the cache: a failed reload keeps the last usable snapshot. */
   reload(): void {

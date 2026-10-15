@@ -119,3 +119,11 @@ test('strict models schemas accept concrete nullable fields but reject retired o
   assert.equal(modelsSetDefaultInput.safeParse({ selection: { ...selection, extraOption: {} } }).success, false);
   assert.equal(modelsSetDefaultInput.safeParse({ selection: { model: 'opus' } }).success, false);
 });
+
+test('setDefault completes an unconfigured file and remembers its model settings', async () => {
+  const dir = await seed({ default: null });
+  assert.equal(await setDefaultModel(dir, { selection }, noGateway), true);
+  assert.deepEqual((await read(dir)).default, selection);
+  const { getModelMemory } = await import('../../../src/domain/agents/config.js');
+  assert.deepEqual(getModelMemory()['["claude",null,"opus"]'], { thinking: 'high', mode: 'plan' });
+});

@@ -10,6 +10,7 @@ import {
 } from '@domain/agents/engine-selection.js';
 import { GATEWAY_CONFIG_PATH } from '@domain/pi-providers/gateway-route-store.js';
 import { modelsRepo } from '@store/models-repo.js';
+import { rememberModelSelection } from '@domain/agents/config.js';
 import { modelsFavoriteInput, modelsSetDefaultInput } from '../input-schemas.js';
 import type { UiServiceDeps, Result, ModelsMutationReturn, MutateArgs } from '../types.js';
 
@@ -33,7 +34,7 @@ async function readModelsFile(configDir: string, initial?: EngineSelection): Pro
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.favorites)) {
       throw invalid('models.json must contain a default selection and favorites array');
     }
-    validate(() => validateEngineSelection(raw.default));
+    validate(() => validateEngineSelection(raw.default ?? initial));
     return raw;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT' && initial) return { default: initial, favorites: [] };
@@ -100,9 +101,10 @@ export async function setDefaultModel(
       throw error;
     });
     const raw = await readModelsFile(configDir, selection);
-    if (exists && modelKey(raw.default) === modelKey(selection)
+    if (exists && raw.default && modelKey(raw.default) === modelKey(selection)
       && raw.default.thinking === selection.thinking && raw.default.mode === selection.mode) return false;
     await writeModelsFile(configDir, { ...raw, default: selection });
+    rememberModelSelection(selection);
     return true;
   });
 }

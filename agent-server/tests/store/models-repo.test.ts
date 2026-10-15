@@ -96,3 +96,13 @@ test('atomic file replacement is picked up by the resilient watcher', async (t) 
   await waitFor(() => reloads > 0);
   expect(repo.readSync().default.model).toBe('replacement');
 });
+
+test('explicit write invalidation advances revision before the watcher debounce', async () => {
+  const { repo, filePath } = await createRepo();
+  repo.readSync();
+  const revision = getModelsConfigRevision();
+  await fs.writeFile(filePath, JSON.stringify(config('new-default')));
+  repo.invalidate();
+  expect(getModelsConfigRevision()).toBeGreaterThan(revision);
+  expect(repo.readSync().default.model).toBe('new-default');
+});
