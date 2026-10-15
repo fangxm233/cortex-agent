@@ -32,11 +32,11 @@ describe('LIVE_EVENT_TYPES', () => {
 
 describe('CONFIG_LIVE_EVENTS', () => {
   it('recognizes only the sections config.get actually reports', () => {
-    expect(isConfigSnapshotChanged(ev('config.changed', { section: 'profiles' }))).toBe(true);
+    expect(isConfigSnapshotChanged(ev('config.changed', { section: 'models' }))).toBe(true);
     // the language lives in the same snapshot, so a !lang switch must invalidate it too
     expect(isConfigSnapshotChanged(ev('config.changed', { section: 'preferences' }))).toBe(true);
     expect(isConfigSnapshotChanged(ev('config.changed', { section: 'budget' }))).toBe(false);
-    expect(isConfigSnapshotChanged(ev('system.notice', { section: 'profiles' }))).toBe(false);
+    expect(isConfigSnapshotChanged(ev('system.notice', { section: 'models' }))).toBe(false);
     expect(isConfigSnapshotChanged(ev('config.changed'))).toBe(false);
   });
 });
