@@ -4,6 +4,7 @@ import { atomicWriteSync } from '@core/atomic-write.js';
 import { discoverEndpoints, writeMergedGatewayYaml, type DiscoveredEndpoint } from '@core/gateway-generator.js';
 import { generateModels, mergeModelsJson, readExistingModels, recommendedChoice } from '@core/models-generator.js';
 import { CONFIG_DIR } from '@core/paths.js';
+import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
 import type { ModelRef } from '../agents/engine-selection.js';
 
 const log = createLogger('gateway-sync');
@@ -38,6 +39,7 @@ function syncModels(endpoints: DiscoveredEndpoint[], configDir: string): Pick<Ga
   }
   const merged = mergeModelsJson(generated, configDir);
   atomicWriteSync(path.join(configDir, 'models.json'), JSON.stringify(merged, null, 2) + '\n');
+  modelsRepo.invalidate();
   return { defaultSet: !saved?.default, favorites: merged.favorites };
 }
 
@@ -49,7 +51,7 @@ export async function syncGatewayFromBackends(options: GatewaySyncOptions = {}):
       return { configured: false, endpoints: 0, defaultSet: false, favorites: [], reason: 'no-endpoints' };
     }
     writeMergedGatewayYaml(endpoints, options.gatewayConfigDir);
-    const result = syncModels(endpoints, options.configDir ?? CONFIG_DIR);
+    const result = await modelsWriteLock.run(() => syncModels(endpoints, options.configDir ?? CONFIG_DIR));
     log.info(`Synced ${endpoints.length} endpoint(s) → ${result.favorites.length} favorite model(s)`);
     return { configured: true, endpoints: endpoints.length, ...result };
   } catch (error) {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
+import { AsyncMutex } from '@core/async-mutex.js';
 import { createLogger } from '@core/log.js';
 import { createFileWatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '@core/icons.js';
@@ -9,6 +10,8 @@ import type { ModelsFile } from '@domain/agents/engine-selection.js';
 const log = createLogger('models-repo');
 let modelsConfigRevision = 0;
 export const MODELS_FILE = path.join(CONFIG_DIR, 'models.json');
+// UI mutations and login sync must hold this across read, write, and invalidation.
+export const modelsWriteLock = new AsyncMutex();
 
 export function getModelsConfigRevision(): number { return modelsConfigRevision; }
 

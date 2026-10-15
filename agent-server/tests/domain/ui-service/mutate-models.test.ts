@@ -8,7 +8,10 @@ import { modelsFavoriteInput, modelsSetDefaultInput } from '../../../src/domain/
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
 const invalidate = vi.hoisted(() => vi.fn());
-vi.mock('../../../src/store/models-repo.js', () => ({ modelsRepo: { invalidate } }));
+vi.mock('../../../src/store/models-repo.js', async importOriginal => ({
+  ...await importOriginal<typeof import('../../../src/store/models-repo.js')>(),
+  modelsRepo: { invalidate },
+}));
 const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
 const ref = { backend: 'claude' as const, provider: null, model: 'opus' };
 const pi = { backend: 'pi' as const, provider: 'openai', model: 'gpt' };

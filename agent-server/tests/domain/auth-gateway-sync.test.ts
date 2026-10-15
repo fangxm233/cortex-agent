@@ -1,8 +1,15 @@
-import { test, afterEach } from 'vitest';
+import { test, afterEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
+import { CONFIG_DIR } from '../../src/core/paths.js';
+import { modelsRepo } from '../../src/store/models-repo.js';
+import {
+  handleModelsFavoriteAdd, handleModelsFavoriteRemove, handleModelsSetDefault,
+} from '../../src/domain/ui-service/mutate/models.js';
+import type { UiServiceDeps } from '../../src/domain/ui-service/types.js';
 import { syncGatewayFromBackends } from '../../src/domain/auth/gateway-sync.js';
 import type { DiscoveredEndpoint } from '../../src/core/gateway-generator.js';
 const tempDirs: string[] = [];
@@ -71,3 +78,59 @@ test('discovery failures do not fail login', async () => {
   assert.equal(result.configured, false);
   assert.match(result.reason!, /exploded/);
 });
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function pauseModelsRead() {
+  const captured = deferred();
+  const resume = deferred();
+  const readFile = fsPromises.readFile;
+  vi.spyOn(fsPromises, 'readFile').mockImplementationOnce(async file => {
+    assert.equal(file, path.join(CONFIG_DIR, 'models.json'));
+    const snapshot = await readFile(file, 'utf8');
+    captured.resolve();
+    await resume.promise;
+    return snapshot;
+  });
+  return { captured: captured.promise, resume: resume.resolve };
+}
+
+const deps = {} as UiServiceDeps;
+const sonnet = { backend: 'claude' as const, provider: null, model: 'sonnet' };
+const nextDefault = { ...sonnet, mode: 'plan', thinking: 'high' as const };
+const mutations = [
+  { name: 'add favorite', run: () => handleModelsFavoriteAdd(deps, sonnet), favorites: [favorite, sonnet], selection: existing },
+  { name: 'remove favorite', run: () => handleModelsFavoriteRemove(deps, sonnet), favorites: [favorite], selection: existing },
+  { name: 'set default', run: () => handleModelsSetDefault(deps, { selection: nextDefault }), favorites: [favorite, sonnet], selection: nextDefault },
+];
+
+for (const mutation of mutations) {
+  test(`UI ${mutation.name} and login sync serialize their full models transactions`, async () => {
+    const dirs = { ...makeDirs(), configDir: CONFIG_DIR };
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    save(CONFIG_DIR, { default: existing, favorites: [favorite, ...(mutation.name === 'add favorite' ? [] : [sonnet])] });
+    const invalidate = vi.spyOn(modelsRepo, 'invalidate');
+    const pause = pauseModelsRead();
+    const ui = mutation.run();
+    await pause.captured;
+    let syncFinished = false;
+    const sync = syncGatewayFromBackends({ ...dirs, discover: () => [piEndpoint('acme', ['large'])] })
+      .then(result => { syncFinished = true; return result; });
+    // Sync discovery and its synchronous transaction can finish in this turn unless locked.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const finishedWhileUiPaused = syncFinished;
+    pause.resume();
+    const [uiResult, syncResult] = await Promise.all([ui, sync]);
+    assert.equal(finishedWhileUiPaused, false, 'login sync must wait for the UI snapshot to be committed');
+    assert.deepEqual(uiResult, { ok: true, data: { changed: true } });
+    assert.equal(syncResult.configured, true);
+    const favorites = [...mutation.favorites, { backend: 'pi', provider: 'acme', model: 'large' }];
+    assert.deepEqual(load(CONFIG_DIR), { default: mutation.selection, favorites });
+    assert.deepEqual(syncResult.favorites, favorites);
+    assert.equal(invalidate.mock.calls.length, 2, 'both writes invalidate before releasing the lock');
+  });
+}

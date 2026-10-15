@@ -2,20 +2,17 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
-import { AsyncMutex } from '@core/async-mutex.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
 import {
   modelKey, validateModelRef, validateEngineSelection,
   type EngineSelection, type ModelRef, type ModelsFile,
 } from '@domain/agents/engine-selection.js';
 import { GATEWAY_CONFIG_PATH } from '@domain/pi-providers/gateway-route-store.js';
-import { modelsRepo } from '@store/models-repo.js';
+import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
 import { rememberModelSelection } from '@domain/agents/config.js';
 import { modelsFavoriteInput, modelsSetDefaultInput } from '../input-schemas.js';
 import type { UiServiceDeps, Result, ModelsMutationReturn, MutateArgs } from '../types.js';
 
-// Serialize the whole read-modify-write transaction, not merely the final rename.
-const writes = new AsyncMutex();
 type RawModelsFile = ModelsFile & Record<string, unknown>;
 type GatewayReader = () => ReturnType<typeof readGatewayYaml>;
 
@@ -59,7 +56,7 @@ function favorite(args: MutateArgs<'models.favorites.add'>): ModelRef {
 
 export async function addFavorite(configDir: string, args: MutateArgs<'models.favorites.add'>): Promise<boolean> {
   const ref = favorite(args);
-  return writes.run(async () => {
+  return modelsWriteLock.run(async () => {
     const raw = await readModelsFile(configDir);
     if (raw.favorites.some((entry) => modelKey(entry) === modelKey(ref))) return false;
     await writeModelsFile(configDir, { ...raw, favorites: [...raw.favorites, ref] });
@@ -69,7 +66,7 @@ export async function addFavorite(configDir: string, args: MutateArgs<'models.fa
 
 export async function removeFavorite(configDir: string, args: MutateArgs<'models.favorites.remove'>): Promise<boolean> {
   const ref = favorite(args);
-  return writes.run(async () => {
+  return modelsWriteLock.run(async () => {
     const raw = await readModelsFile(configDir);
     const favorites = raw.favorites.filter((entry) => modelKey(entry) !== modelKey(ref));
     if (favorites.length === raw.favorites.length) return false;
@@ -94,7 +91,7 @@ export async function setDefaultModel(
 ): Promise<boolean> {
   const { selection } = validate(() => modelsSetDefaultInput.parse(args));
   validate(() => validateDefault(selection, readGateway));
-  return writes.run(async () => {
+  return modelsWriteLock.run(async () => {
     const file = path.join(configDir, 'models.json');
     const exists = await fs.stat(file).then(() => true, (error) => {
       if (error.code === 'ENOENT') return false;
