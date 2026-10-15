@@ -27,7 +27,7 @@ cortex <command> [options]
 
 初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config*.json` 文件、`machines.json`、`preferences.json` 和 `agent-state.json`。它还会初始化 `schedules.json`，在 `git` 可用时在 `CORTEX_HOME` 中创建 git 仓库，并可按回答启用本地 Web UI、安装系统服务。
 
-写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由与 Profile。检测不会发起付费推理请求，也不验证模型是否可调用。
+写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由，并询问默认模型与收藏。默认项预选推荐模型，并包含在收藏中。检测不会发起付费推理请求，也不验证模型是否可调用。
 
 使用 `--answers` 或 `--json` 运行时，不会启动 Provider 登录或等待输入；命令会报告凭据状态，并允许在 Provider 设置未完成时结束。
 
@@ -37,6 +37,17 @@ cortex <command> [options]
 - `--force` — 覆盖已有配置（`.env`、`budget.json`、`agent-state.json` 等）
 - `--answers <file>` — 从 JSON 文档读取回答，不进行交互提问。省略的字段使用默认值；`{}` 创建使用 PI 的单机安装，若未检测到凭据，仍需登录 Provider。桌面安装器使用此选项。显式 `backends` 数组保留指定的后端选择与安装语义（`claude`、`pi` 或两者）；显式空数组保留回退到 Claude 的行为。
 - `--json` — 在 stdout 输出按行分隔的进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。
+
+模型答案采用以下结构（所选组合须属于检测到的模型）：
+
+```json
+{
+  "defaultChoice": { "mode": "openai-codex", "model": "gpt-5.5" },
+  "favorites": [{ "mode": "openai-codex", "model": "gpt-5.5" }]
+}
+```
+
+显式 `defaultChoice` 会替换保存的默认值，否则保留它。收藏合并并包含所选默认模型。按位置读取的 stdin 协议以两行模型选择结束：默认模型的 `mode:model`，以及逗号分隔的收藏 `mode:model`。
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
 
@@ -113,7 +124,7 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 一次性对整个安装做健康检查并报告问题。默认运行是只读的，任何时候运行都安全。它检查四个方面：
 
 - 运行时与进程——Node 版本、PATH 上的 `git`（Windows 上缺失为失败，其他平台为警告）、PATH 上的 `claude` 可执行文件（缺失为警告；PI 始终通过，因为它在进程内由内置 SDK 运行），以及守护进程是否在运行。
-- 后端安装 / 登录——数据目录存在且可写、`.env` 存在、客户端与 webhook token 已设置、`ANTHROPIC_API_KEY` 状态，以及 `agent-state.json`、`profiles.json` 和 `mcp-config.json` 存在且有效。缺少 `profiles.json` 为警告；JSON 无效或 `defaultProfile` 指向不存在的 profile 为失败。它还会对已安装的 PI 运行时及其 `login` 导出做烟测，再从不含凭据的后端认证快照中汇总使用中但已过期或未登录的 provider。这两项检查只产生警告，不会失败。API 模式下，若 gateway 健康但本地没有 key，会报告为由 gateway 托管的说明信息，而不是误报未登录警告。
+- 后端安装 / 登录——数据目录存在且可写、`.env` 存在、客户端与 webhook token 已设置、`ANTHROPIC_API_KEY` 状态，以及 `agent-state.json`、`models.json` 和 `mcp-config.json` 存在且有效。缺少 `models.json` 为警告；JSON 无效、默认引擎选择无效、收藏数组缺失或无效为失败。它还会对已安装的 PI 运行时及其 `login` 导出做烟测，再从不含凭据的后端认证快照中汇总使用中但已过期或未登录的 provider。这两项检查只产生警告，不会失败。API 模式下，若 gateway 健康但本地没有 key，会报告为由 gateway 托管的说明信息，而不是误报未登录警告。
 - 消息平台——解析 `CORTEX_PLATFORM`，并校验每个已启用平台的凭据（Slack `xoxb-`/signing/`xapp-`，飞书 app id/secret）。
 - 网关——`~/.aistatus/gateway.yaml` 是否存在，以及对 `http://127.0.0.1:9880/status` 的健康探测。只有在网关实际被使用时，探测才会报告为失败；否则跳过。
 
@@ -142,7 +153,7 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 
 即使已提供全部选择参数，登录仍要求 stdin 和 stderr 都是 TTY。API key 与授权响应通过隐藏输入提示收集；此命令不接受密钥、token 或授权码参数。浏览器链接与设备授权指引显示在 stderr。非 TTY 登录会立即失败，不启动认证流程；帮助信息无需 TTY。
 
-结果以 JSON 写入 stdout，面向人的提示与错误写入 stderr；不需要也不接受 `--json` 参数。结果不含秘密值。登录成功后同步 gateway/Profile 配置，并报告同步结果与 `inferenceVerified: false`：凭据已配置，但未经推理测试，也不会发送付费模型请求。
+结果以 JSON 写入 stdout，面向人的提示与错误写入 stderr；不需要也不接受 `--json` 参数。结果不含秘密值。登录成功后同步 gateway/模型配置，并报告同步结果与 `inferenceVerified: false`：凭据已配置，但未经推理测试，也不会发送付费模型请求。
 
 选项：
 - `--backend pi|claude` — 选择后端；省略时交互选择
@@ -188,11 +199,13 @@ cortex auth provider remove --name my-vllm --dry-run
 
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
-从本地配置文件自动检测 Claude Code 和 PI 配置，生成 `~/.aistatus/gateway.yaml`（备份已有文件），并写入 `$CORTEX_HOME/config/profiles.json`。每当你添加新的 API key 或更换模型时运行此命令。
+从本地配置文件自动检测 Claude Code 和 PI 配置，生成 `~/.aistatus/gateway.yaml`（备份已有文件），并写入 `$CORTEX_HOME/config/models.json`。每当你添加新的 API key 或更换模型时运行此命令。
 
 选项：
 - `--dry-run` — 将生成的 gateway.yaml 打印到 stdout 而不写入
-- `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 profiles.json，而不是默认位置
+- `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 models.json，而不是默认位置
+
+设置保留已有默认选择并合并收藏，摘要显示默认模型与收藏；修改默认值可用**设置 → 模型**。登录后的同步也保留已有选择，补齐缺失的默认值，并为尚无收藏的新接通 backend/provider 组合添加一个推荐收藏。同步结果包含 `defaultSet` 和 `favorites`。
 
 **`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
 
@@ -205,7 +218,7 @@ cortex auth provider remove --name my-vllm --dry-run
 - `list [--project <id>]` — 列出全部调度，或某个项目的调度
 - `get <id>` — 查看一个调度；id 不存在时以 1 退出
 - `add --type <type> …` — 创建调度；`--idempotency-key` 命中已有调度时输出 `created: false` 和那个调度。不属于该类型的时间标志会被拒绝
-- `edit <id> …` — 修改消息、项目、profile、pre-check，或该调度类型对应的时间字段；类型本身固定不变
+- `edit <id> …` — 修改消息、项目、模型选择、pre-check，或该调度类型对应的时间字段；类型本身固定不变
 - `pause <id>` / `resume <id>` — 暂停或恢复周期性调度；重复执行不会改变任何内容
 - `remove <id> [--dry-run]` — 删除调度（不存在时输出 `removed: false`）；`--dry-run` 输出 `would_remove`，不删除任何内容
 
@@ -217,7 +230,8 @@ cortex auth provider remove --name my-vllm --dry-run
 - `--delay <duration>` — `once`：从现在起多久后触发；用于 `edit` 时移动触发时间
 - `--message <text|->` — 触发会话收到的提示；`-` 从 stdin 读取
 - `--project <id>` — 触发会话所属的项目（默认：`general`）
-- `--profile <name>` — 运行所用的 agent profile（默认：配置的默认 profile，不一定是当前会话的 active profile）
+- `--model <[provider/]model>` — 运行所用的模型；PI 可显式使用 `provider/model`。创建时不传模型相关标志则保存配置的默认选择，它可能与当前会话不同
+- `--thinking <level>` — 后端原生思考档位。不传模型标志时，创建操作以配置默认选择的副本为基础，编辑操作以调度保存的选择为基础；换模型时省略则使用该模型记住的档位
 - `--pre-check <cmd>` — 每次触发前运行的 shell 门控；非零退出则跳过这次触发
 - `--idempotency-key <key>` — `add`：用同一个 key 重试会返回第一次创建的调度
 - `--help`、`-h` — 显示 schedule 帮助

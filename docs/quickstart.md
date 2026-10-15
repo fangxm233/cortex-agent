@@ -11,7 +11,7 @@ prompt and shows you exactly where to click.
 
 ## Prefer not to use a terminal?
 
-The [desktop app](desktop-app.md#installing-a-server-from-the-app) can install and configure Cortex for you on macOS, Linux, and Windows. Choose **Install Cortex** and wait for installation and startup to finish automatically, then sign in and select a default profile. New installations use the hostname, port 3004, and no login service; existing machine, port, and service settings are preserved. Only a failed initialization or start/connection offers repair settings. Slack and Feishu setup is skipped — the app is the interface. Login may open your browser for authorization or MFA, and macOS may require Gatekeeper approval when opening the app.
+The [desktop app](desktop-app.md#installing-a-server-from-the-app) can install and configure Cortex for you on macOS, Linux, and Windows. Choose **Install Cortex** and wait for installation and startup to finish automatically, then sign in and select a default model. New installations use the hostname, port 3004, and no login service; existing machine, port, and service settings are preserved. Only a failed initialization or start/connection offers repair settings. Slack and Feishu setup is skipped — the app is the interface. Login may open your browser for authorization or MFA, and macOS may require Gatekeeper approval when opening the app.
 
 The installer carries its own Node.js and, on Windows, Git Bash, so no terminal, separately installed Node.js or Git, Homebrew, or administrator access is needed. Local installation supports macOS 13.5+, Linux x86_64 with glibc 2.28+, and Windows 10/11 x86_64; see the desktop guide for details. Continue below for terminal installation and chat-platform setup.
 
@@ -129,7 +129,7 @@ Interactive `cortex init` uses **PI** by default without a backend-selection
 prompt. PI ships inside Cortex and needs provider credentials, not a
 separate installation. Continue with platform and machine settings; provider
 detection and login follow after configuration files are written in
-[section 2.10](#210-auto-detect-backends-for-gatewayprofiles).
+[section 2.10](#210-detect-credentials-and-configure-models).
 
 **Claude Code** is optional and separate from the Anthropic provider in PI.
 Choosing Claude Code in the login step reuses an existing installation or
@@ -347,7 +347,7 @@ organization, and email for the next time you turn it on.
   To keep it running after you log out, also run `loginctl enable-linger`.
 - **Windows** — not supported. Start manually with `cortex daemon`.
 
-### 2.10 Detect credentials, sign in, and configure profiles {#210-auto-detect-backends-for-gatewayprofiles}
+### 2.10 Detect credentials, sign in, and configure models {#210-detect-credentials-and-configure-models}
 
 After writing the configuration files, Cortex automatically detects local
 Claude Code and PI credentials. This is credential detection, not a live
@@ -357,10 +357,10 @@ that a model call will succeed.
 The terminal offers these actions:
 
 - **Continue with configured providers** — shown once credentials are
-  detected. Uses them to configure gateway routes and profiles from the
-  discovered endpoints. Choose the discovered (mode, model) pairs for
-  `plan` (executor agents such as planner, doc-writer, and coder) and
-  `execute` (reviewer agents).
+  detected. Uses them to configure gateway routes and `models.json` from the
+  discovered endpoints. Choose one default model (the recommended model is
+  preselected), then select favorites. The default model is included among
+  favorites even if you deselect it in this step.
 - **Login / install and login Claude Code** — choose a backend, provider,
   and supported OAuth or API-key method. PI is bundled. Claude Code is
   reused if installed; only choosing its login path prompts to install a
@@ -369,7 +369,7 @@ The terminal offers these actions:
   configured in another terminal, and returns to this menu.
 - **Configure later (Agent may be unavailable)** — finishes setup without
   configuring providers; the Agent stays unavailable until credentials and
-  profiles are configured.
+  a default model are configured.
 
 You can also sign in from a terminal without a running daemon:
 
@@ -392,10 +392,17 @@ status without starting provider login or waiting for input. Omitted
 selection and installation behavior. These runs can finish without a
 configured provider. Sign in later with `cortex auth login` or
 **Settings → Accounts**; a successful `cortex auth login` also configures
-the gateway routes and profiles. `cortex setup-gateway` runs that
+the gateway routes, default model, and favorites. `cortex setup-gateway` runs that
 configuration again on its own.
 Remote login is also available through `!login` in Slack or Feishu; see
 [Backends: Remote login](./backends.md#remote-login).
+
+For non-interactive model choices, `--answers` accepts `defaultChoice` and
+`favorites`, each choice an object with `mode` and `model`. An explicit
+`defaultChoice` replaces the saved default; otherwise it is preserved. Favorites
+are merged, with the selected default included. In the positional stdin protocol,
+the model-selection tail is two lines: `mode:model` for the default, followed by
+comma-separated `mode:model` favorites.
 
 ### 2.11 When the backend login expires
 
@@ -419,8 +426,8 @@ are close to expiring.
 
 Once the login finishes, the refreshed credentials are picked up on the
 next agent run. If the endpoint or model changed, re-run
-`cortex setup-gateway` so the `plan` and `execute` profiles point at
-the new backend.
+`cortex setup-gateway` to refresh the gateway and model list, then choose the
+desired default in **Settings → Models**. Sync preserves an existing default.
 
 ---
 
@@ -449,10 +456,10 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── mcp-config-core.json    # remote execution/time layer
 │   ├── mcp-config-empty.json   # no MCP servers
 │   ├── mcp-config-interaction.json # Shared interaction layer
-│   ├── profiles.json           # named (backend, model) profiles, once credentials are detected
+│   ├── models.json             # default engine and favorites, once credentials are detected
 │   └── environments/           # execution environments: main.json, creative.json
 ├── data/
-│   ├── agent-state.json        # active profile, default agent, channel overrides
+│   ├── agent-state.json        # channel selections, model memory, new-session choice, default agent
 │   └── schedules.json          # seeded built-in schedules
 ├── context/                    # the project log lives here
 │   ├── AGENTS.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
@@ -470,7 +477,8 @@ the MCP configs. `cortex init --force` resets `machines.json`, agent state,
 language preferences, schedules, and budget, and updates the keys init writes
 in `.env` while keeping the existing client and webhook tokens and any keys you
 added by hand. Existing execution environments and scaffold files are preserved
-either way, and replacing existing profiles requires confirmation. Back up
+either way. Interactive setup asks before replacing an existing default model;
+favorites are merged with the saved list. Back up
 customized files before using `--force`. To add a platform to a working
 install, add its keys to `.env` and restart the daemon
 (see [2.3](#23-which-interaction-platforms)).

@@ -33,6 +33,8 @@
 | `!schedule` | Slack 或飞书里的聊天命令（见[聊天命令](#chat-commands)） |
 | Web UI / 桌面端 | 调度列表和编辑器；可设置除 `preCheck` 外的所有字段，`once` 调度的时间在创建后固定 |
 
+Web 和移动端编辑器选择模型与思考档位。CLI 与聊天命令的 `--model` 接受模型 id 或 PI 的 `provider/model`，选择时读取模型记忆；`--thinking` 可覆盖档位。创建或编辑时保存完整选择，触发时使用该快照。
+
 ## 调度记录 {#schedule-records}
 
 每个调度以 JSON 对象的形式存储在 `~/.cortex/data/schedules.json` 中：
@@ -45,7 +47,13 @@
       "type": "interval",
       "message": "Check the active projects and report blockers",
       "projectId": "general",
-      "profile": "claude-haiku",
+      "selection": {
+        "backend": "claude",
+        "provider": null,
+        "model": "haiku",
+        "thinking": null,
+        "mode": "plan"
+      },
       "intervalMs": 3600000,
       "createdAt": 1747680000000,
       "nextRun": 1747683600000,
@@ -63,14 +71,14 @@
 | `type` | `interval`、`daily`、`weekly` 或 `once` |
 | `message` | 调度触发时发送的提示（触发时自动加上 `[Scheduled Task]` 前缀） |
 | `projectId` | 调度所属的项目；每次触发的会话都在这个项目中打开 |
-| `profile` | 智能体 profile 名称。未指定时，保存创建时的默认 profile，因此之后更换默认 profile 不会影响已有调度 |
+| `selection` | 完整引擎选择：`backend`、`provider`、`model`、`thinking`、`mode`。未指定时保存创建时的配置默认选择；之后更换默认值或模型记忆不影响已有调度 |
 | `intervalMs` | `interval` 类型：两次触发之间的毫秒数 |
 | `time` | `daily`/`weekly` 类型：`HH:MM` 24 小时制时间 |
 | `dayOfWeek` | `weekly` 类型：0-6（0=周日） |
 | `runAt` | `once` 类型：触发时刻的纪元毫秒数 |
 | `nextRun` | 计算得出的下一次触发时刻（纪元毫秒） |
 | `createdAt` | 调度创建时刻（纪元毫秒） |
-| `lastRun` | 最近一次交给 runner 的触发时刻（纪元毫秒），包括因上一次运行尚未结束或 profile 被限速而被 runner 跳过的触发。`once` 调度在触发时即被删除，从不记录该字段 |
+| `lastRun` | 最近一次交给 runner 的触发时刻（纪元毫秒），包括因上一次运行尚未结束或 所选引擎被限速而被 runner 跳过的触发。`once` 调度在触发时即被删除，从不记录该字段 |
 | `lastSkipped` | 最近一次被跳过的触发时刻（纪元毫秒，preCheck 失败） |
 | `isPaused` | 调度当前是否暂停 |
 | `pausedAt` | 暂停时刻（纪元毫秒） |
@@ -127,7 +135,7 @@ Provider 用量采集和记忆索引重建是 daemon 自有的作业。它们不
 
 ### 用于变更检测的配置哈希 {#config-hash-for-change-detection}
 
-每个任务中与调度相关的字段会被哈希：`type`、该类型对应的时间字段（`intervalMs`、`time`、`dayOfWeek`、`runAt`）、`message`、`projectId`、`profile`、`dispatchType`、`preCheck`，以及是否暂停。如果文件中某个任务的哈希与当前已设置的不同，就重新设置它的 timer，因此任何写入方所做的编辑、暂停或恢复都无需重启即可生效。
+每个任务中与调度相关的字段会被哈希：`type`、该类型对应的时间字段（`intervalMs`、`time`、`dayOfWeek`、`runAt`）、`message`、`projectId`、`selection`、`dispatchType`、`preCheck`，以及是否暂停。如果文件中某个任务的哈希与当前已设置的不同，就重新设置它的 timer，因此任何写入方所做的编辑、暂停或恢复都无需重启即可生效。
 
 ## 运行中保护 {#in-flight-protection}
 
@@ -175,8 +183,8 @@ Provider 用量采集和记忆索引重建是 daemon 自有的作业。它们不
 `CORTEX_HOME` 运行，不会从调用它的会话或频道推断项目。智能体使用用户显式指定的项目，或从
 会话上下文或 `cortex_context` 解析出会话所属项目，然后在添加调度时传入 `--project <id>`。
 如果用户要求使用当前项目但取不到项目，应询问用哪个项目，而不是回退到 `general`。不能保证
-Bash 带有会话专属的环境变量，在 PI 上也是如此。不传 `--profile` 时使用配置的默认 profile，
-它可能与当前会话的 profile 不同。
+Bash 带有会话专属的环境变量，在 PI 上也是如此。创建时不传模型相关标志会保存配置的默认选择，
+它可能与当前会话不同。`--model` 选择模型，`--thinking` 指定其后端原生档位。
 
 每条消息都必须自包含：触发的会话需要知道项目、run、机器和文件路径，而不是引用创建调度时的对话。
 
@@ -208,10 +216,10 @@ cortex schedule remove a1b2c3d4 --dry-run
 | 命令 | 描述 |
 |---------|-------------|
 | `!schedule` / `!schedule list` | 列出所有调度及其状态和下次运行时间。前十个调度附带按钮：周期性调度为 **Pause** 或 **Resume**，`once` 调度为 **Remove** |
-| `!schedule add interval <duration> [--profile <name>] <message>` | 每隔一段时间重复（`--profile` 紧跟在时间参数之后） |
-| `!schedule add daily <HH:MM> [--profile <name>] <message>` | 每天在固定时间运行 |
-| `!schedule add weekly <day> <HH:MM> [--profile <name>] <message>` | 每周在固定的某天运行 |
-| `!schedule add once <duration> [--profile <name>] <message>` | 延迟一段时间后运行一次 |
+| `!schedule add interval <duration> [--model <[provider/]model>] [--thinking <level>] <message>` | 每隔一段时间重复（`--model` 紧跟在时间参数之后） |
+| `!schedule add daily <HH:MM> [--model <[provider/]model>] [--thinking <level>] <message>` | 每天在固定时间运行 |
+| `!schedule add weekly <day> <HH:MM> [--model <[provider/]model>] [--thinking <level>] <message>` | 每周在固定的某天运行 |
+| `!schedule add once <duration> [--model <[provider/]model>] [--thinking <level>] <message>` | 延迟一段时间后运行一次 |
 | `!schedule pause <id>` | 暂停周期性调度 |
 | `!schedule resume <id>` | 恢复已暂停的调度 |
 | `!schedule remove <id>` | 移除调度 |
@@ -222,4 +230,4 @@ cortex schedule remove a1b2c3d4 --dry-run
 
 ## 速率限制 {#rate-limits}
 
-当调度所用 profile 的所有配置都被限速时，这次触发会被跳过，调度保持原有的时间安排，到下一次时间再触发。跳过时会发出一条警告通知 `Schedule <id> skipped: all configs rate-limited.`；因其他原因（例如 profile 已不存在）无法启动的触发会发出一条错误通知。运行开始后才遇到限速的，会像其他会话一样被暂停并在之后恢复。
+调度所选引擎被限速时，会跳过本次触发并发出警告通知。周期性调度保持原有安排，在下一次计划时间触发；`once` 调度在触发时删除，不会再次尝试。其他启动失败（例如路由无效）也会发送通知。运行开始后才遇到限速的，会像其他会话一样暂停并在之后恢复。
