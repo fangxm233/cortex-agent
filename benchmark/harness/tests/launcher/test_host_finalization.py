@@ -211,7 +211,7 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
         "pre_boot_input_bundle_sha256": "4" * 64,
     }
     return {
-        "schema_version": "cortex-bench-launch-attestation/5", "trial_id": TRIAL_ID,
+        "schema_version": "cortex-bench-launch-attestation/6", "trial_id": TRIAL_ID,
         "capture_boundary": "launcher_pre_boot",
         "arm_bundle": production_arm_bundle("direct-pi-deepseek").attested_record(),
         "arm_confinement": production_arm_bundle(

@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from ..trial_assets import canonical_sha256
 from .production_arms import ProductionArmBundle, production_arm_bundle
 
-LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/5"
+LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/6"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
 LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
 # The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into

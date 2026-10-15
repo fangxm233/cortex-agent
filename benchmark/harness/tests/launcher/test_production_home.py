@@ -44,7 +44,13 @@ DUMMY_OAUTH_JWT = dummy_oauth_jwt()
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
 DIRECT_CODEX_BUNDLE = production_arm_bundle("direct-pi-openai-codex")
 
-EXPECTED_MODELS = {'default': {'backend': 'pi', 'provider': 'deepseek', 'model': 'deepseek-v4-flash', 'thinking': 'off', 'mode': 'trial'}, 'favorites': [{'backend': 'pi', 'provider': 'deepseek', 'model': 'deepseek-v4-flash'}]}
+EXPECTED_MODELS = {
+    "default": {
+        "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
+        "thinking": "off", "mode": "trial",
+    },
+    "favorites": [{"backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash"}],
+}
 EXPECTED_SETTINGS = {
     "clientHotReloadEnabled": False, "taskDispatchMaxConcurrent": 1,
     "taskDispatchEnabled": False, "taskDispatchIntervalMs": 2147483647,
@@ -65,7 +71,13 @@ EXPECTED_ENVIRONMENT = {
 }
 # The server's own agent-state shape: the selection only, no retired backend/model globals.
 EXPECTED_AGENT_STATE = {"defaultAgent": "main"}
-EXPECTED_CODEX_MODELS = {'default': {'backend': 'pi', 'provider': 'openai-codex', 'model': 'gpt-5.6-sol', 'thinking': 'xhigh', 'mode': 'trial'}, 'favorites': [{'backend': 'pi', 'provider': 'openai-codex', 'model': 'gpt-5.6-sol'}]}
+EXPECTED_CODEX_MODELS = {
+    "default": {
+        "backend": "pi", "provider": "openai-codex", "model": "gpt-5.6-sol",
+        "thinking": "xhigh", "mode": "trial",
+    },
+    "favorites": [{"backend": "pi", "provider": "openai-codex", "model": "gpt-5.6-sol"}],
+}
 EXPECTED_GATEWAY = (
     "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
     "deepseek:\n  trial:\n"
@@ -186,7 +198,7 @@ def expected_attestation(
         "pre_boot_input_bundle_sha256": bundle_sha,
     })
     return {
-        "schema_version": "cortex-bench-launch-attestation/5",
+        "schema_version": "cortex-bench-launch-attestation/6",
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
         "arm_bundle": {
             "key": "direct-pi-deepseek",

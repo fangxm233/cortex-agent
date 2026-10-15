@@ -5,6 +5,8 @@ import pytest
 
 from cortex_bench_harness.launcher.production_arms import (
     PRODUCTION_ARM_BUNDLES,
+    _assert_bundle_selection,
+    _bundle_selection,
     ProductionArmError,
     production_arm_bundle,
     require_production_arm,
@@ -173,3 +175,31 @@ def test_the_provider_pair_differs_in_exactly_one_file() -> None:
                   for path in left.rglob("*") if path.is_file()) == sorted(
         path.relative_to(right).as_posix()
         for path in right.rglob("*") if path.is_file())
+
+
+@pytest.mark.parametrize("change", [
+    {"defaultAgent": "other"},
+    {"defaultAgent": "main", "channelSelections": {"web:trial": {}}},
+    {"defaultAgent": "main", "selectionDefault": {}},
+])
+def test_sealed_state_cannot_override_the_fresh_default(tmp_path: Path, change) -> None:
+    (tmp_path / "config/environments").mkdir(parents=True)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config/environments/main.json").write_text('{"name": "main"}')
+    (tmp_path / "data/agent-state.json").write_text(json.dumps(change))
+
+    with pytest.raises(ProductionArmError, match="fresh default"):
+        _assert_bundle_selection(tmp_path, "test")
+
+
+def test_bundle_selection_preserves_nullable_thinking(tmp_path: Path) -> None:
+    selection = {"backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
+                 "thinking": None, "mode": "trial"}
+    (tmp_path / "config").mkdir()
+    path = tmp_path / "config/models.json"
+    path.write_text(json.dumps({"default": selection, "favorites": []}))
+    assert _bundle_selection(tmp_path, "test") == selection
+    del selection["mode"]
+    path.write_text(json.dumps({"default": selection, "favorites": []}))
+    with pytest.raises(ProductionArmError, match="incomplete"):
+        _bundle_selection(tmp_path, "test")
