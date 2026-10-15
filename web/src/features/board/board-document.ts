@@ -119,10 +119,13 @@ export interface BoardDocumentParts {
   defaultCss: string;
   userCss: string | null;
   body: string;
+  pendingContent: string;
   theme: 'light' | 'dark';
 }
 
 export function assembleBoardDocument(parts: BoardDocumentParts): string {
+  const pending = parts.pendingContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const body = parts.body.replaceAll('{{boardPendingContent}}', () => pending);
   const base = `:root{color-scheme:${parts.theme}}html,body{background:transparent}`;
   return '<!DOCTYPE html><html><head>'
     + '<meta charset="utf-8">'
@@ -132,5 +135,5 @@ export function assembleBoardDocument(parts: BoardDocumentParts): string {
     + `<style data-board-layer="preset">${styleText(parts.defaultCss)}</style>`
     + (parts.userCss ? `<style data-board-layer="user">${styleText(parts.userCss)}</style>` : '')
     + `<script>${BOOTSTRAP}</script>`
-    + `</head><body>${parts.body}</body></html>`;
+    + `</head><body>${body}</body></html>`;
 }

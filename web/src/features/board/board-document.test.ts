@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { boardEn, boardZh } from '@/i18n/board-vocab';
 import { describe, expect, it, vi } from 'vitest';
 import { VIEW_SANDBOX } from '@/features/media/html-sandbox';
 import {
@@ -50,6 +53,7 @@ describe('assembleBoardDocument', () => {
     defaultCss: '.card{border-radius:var(--r-card)}',
     userCss: '.card{border-radius:0}',
     body: '<div class="card">BODY</div>',
+    pendingContent: 'Pending',
     theme: 'dark',
   });
 
@@ -68,13 +72,32 @@ describe('assembleBoardDocument', () => {
   });
 
   it('omits the user layer when there is no override', () => {
-    const plain = assembleBoardDocument({ themeCss: '', defaultCss: 'a{}', userCss: null, body: '', theme: 'light' });
+    const plain = assembleBoardDocument({ themeCss: '', defaultCss: 'a{}', userCss: null, body: '', pendingContent: 'Pending', theme: 'light' });
     expect(plain).not.toContain('data-board-layer="user"');
   });
 
   it('keeps a stylesheet from closing its own element', () => {
-    const hostile = assembleBoardDocument({ themeCss: '', defaultCss: 'a{}', userCss: '</style><script>alert(1)</script>', body: '', theme: 'light' });
+    const hostile = assembleBoardDocument({ themeCss: '', defaultCss: 'a{}', userCss: '</style><script>alert(1)</script>', body: '', pendingContent: 'Pending', theme: 'light' });
     expect(hostile).not.toContain('</style><script>alert(1)');
+  });
+
+  it.each([boardEn, boardZh])('shows only the title and localized empty state in the shipped scaffold', (vocab) => {
+    const scaffold = readFileSync(path.resolve(import.meta.dirname, '../../../../agent-server/defaults/board/scaffold.html'), 'utf8');
+    const body = scaffold.replaceAll('{{title}}', 'A &amp; B');
+    const rendered = assembleBoardDocument({ themeCss: '', defaultCss: '', userCss: null, body,
+      pendingContent: vocab.boardPendingContent, theme: 'light' });
+    const visible = rendered.split('<body>')[1]!.split('</body>')[0]!.replace(/<!--[\s\S]*?-->/g, '');
+    expect(visible.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim())
+      .toBe(`A &amp; B ${vocab.boardPendingContent}`);
+    expect(visible).not.toMatch(/chip|meter|MM-DD|Stage|GPU|Needs you/);
+    expect(rendered).toContain('COMPONENT EXAMPLES');
+    expect(rendered).toContain('What stage 1 delivers');
+  });
+
+  it('escapes empty-state text and does not interpret replacement patterns', () => {
+    const rendered = assembleBoardDocument({ themeCss: '', defaultCss: '', userCss: null,
+      body: '<p>{{boardPendingContent}}</p>', pendingContent: '<b>A & B</b> $&', theme: 'light' });
+    expect(rendered).toContain('<p>&lt;b&gt;A &amp; B&lt;/b&gt; $&amp;</p>');
   });
 
   it('is meant for the view sandbox and nothing wider', () => {

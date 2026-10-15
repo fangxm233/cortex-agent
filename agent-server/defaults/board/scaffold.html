@@ -1,18 +1,29 @@
-<!-- Board body (body content only). Replace the examples with real content and drop sections you
+<!-- Board body (body content only). On first fill, replace this empty-state card with real
+     content in the user's language. The component examples below are reference only, not task
+     status; copy only what applies. {{boardPendingContent}} is localized by the app. -->
+<div class="stack">
+  <div class="card">
+    <div class="head"><h1>{{title}}</h1></div>
+    <div class="lead muted">{{boardPendingContent}}</div>
+  </div>
+</div>
+
+<!-- COMPONENT EXAMPLES (not displayed)
+Board body (body content only). Replace the examples with real content and drop sections you
      do not need. States: ok done · run in progress · ask needs the user · wait blocked on a machine
-     or someone else · bad failed/risk · none = not started. Classes: see the board skill. -->
+     or someone else · bad failed/risk · none = not started. Classes: see the board skill.
 <div class="stack">
 
-<!-- Head: title, overall state, then one line on where things stand. -->
+Head: title, overall state, then one line on where things stand.
 <div class="card">
   <div class="head"><h1>{{title}}</h1><span class="chip run">in progress</span><span class="meta mono faint">updated MM-DD HH:MM</span></div>
   <div class="lead"><b>Stage 1 done.</b> Stage 2 is running; stage 3 waits for a GPU.</div>
-  <!-- One <i> per unit of work. -->
+  One <i> per unit of work.
   <div class="meter"><i class="ok"></i><i class="run"></i><i class="wait"></i><i></i></div>
   <div class="legend"><span><span class="sw ok"></span>done 1</span><span><span class="sw run"></span>running 1</span><span><span class="sw wait"></span>waiting 1</span><span><span class="sw"></span>to do 1</span></div>
 </div>
 
-<!-- Stages: one .step each, state on the step and its chip. -->
+Stages: one .step each, state on the step and its chip.
 <div class="card">
   <div class="h">Stages</div>
   <div class="steps">
@@ -23,7 +34,7 @@
   </div>
 </div>
 
-<!-- Rows serve acceptance criteria, checkpoints, decisions, risks and outputs alike. -->
+Rows serve acceptance criteria, checkpoints, decisions, risks and outputs alike.
 <div class="grid wide-left">
   <div class="card">
     <div class="h">Acceptance <span class="n">1 / 3</span></div>
@@ -49,8 +60,8 @@
   </div>
 </div>
 
-<!-- Timeline: newest first, a date then a state chip. Images go in assets/ as
-     <img src="assets/x.png">; name other outputs by path in <code>. -->
+Timeline: newest first, a date then a state chip. Images go in assets/ as
+     <img src="assets/x.png">; name other outputs by path in <code>.
 <div class="card tl">
   <div class="h">Progress</div>
   <div class="rows">
@@ -61,3 +72,5 @@
 </div>
 
 </div>
+
+-->

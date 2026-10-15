@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useVocab } from '@/i18n';
 import { authHeaders } from '@/lib/desktop-config';
 import { boardAssetUrl } from '@/lib/files';
 import { readCappedBody } from '@/features/media/workspace-bytes';
@@ -55,9 +56,7 @@ export interface BoardDocumentInput {
   refresh: number;
 }
 
-/** The frame's `srcdoc`, or null until the body, the stylesheets and the body's assets are ready.
- *  While a newer body is being prepared the previous document stays up. */
-export function useBoardDocument({ projectId, slug, body, style, refresh }: BoardDocumentInput): string | null {
+function useInlinedBody({ projectId, slug, body, refresh }: BoardDocumentInput): string | null {
   const [inlined, setInlined] = useState<string | null>(null);
   useEffect(() => {
     if (body === null || !projectId || !slug) return;
@@ -68,6 +67,14 @@ export function useBoardDocument({ projectId, slug, body, style, refresh }: Boar
     return () => { cancelled = true; };
   }, [body, projectId, slug, refresh]);
 
+  return inlined;
+}
+
+/** The frame's `srcdoc`, or null until the body, stylesheets and assets are ready. */
+export function useBoardDocument(input: BoardDocumentInput): string | null {
+  const { body, style } = input;
+  const inlined = useInlinedBody(input);
+  const { boardPendingContent } = useVocab();
   const tick = useAppearanceTick();
   const names = useMemo(
     () => referencedVars(style?.defaultCss, style?.userCss, body),
@@ -86,7 +93,8 @@ export function useBoardDocument({ projectId, slug, body, style, refresh }: Boar
       defaultCss: style.defaultCss,
       userCss: style.userCss,
       body: inlined,
+      pendingContent: boardPendingContent,
       theme: theme.mode,
     });
-  }, [inlined, style, theme]);
+  }, [inlined, style, theme, boardPendingContent]);
 }
