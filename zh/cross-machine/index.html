@@ -1,0 +1,2123 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/cross-machine/">
+      
+      
+        <link rel="prev" href="../mcp/">
+      
+      
+      
+        
+          <link rel="alternate" href="../../cross-machine/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>跨机器 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cross-machine-operation" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              跨机器
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../cross-machine/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-remote-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么需要远程客户端
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        架构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installing-cortex-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装 cortex-client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="安装 cortex-client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        前置条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registering-machines-on-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在服务器上注册机器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        网络拓扑
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="网络拓扑">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#same-lan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        同一局域网
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tailscale-recommended-for-cross-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tailscale（跨网络推荐）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudflare-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloudflare Tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managed-ssh-reverse-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        托管 SSH 反向路由
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#externally-managed-reverse-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        外部托管的反向隧道
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        连接故障排查
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket 协议
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket 协议">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端 → 服务器
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        服务器 → 客户端
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        错误代码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-side-client-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        服务器端客户端生命周期
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端更新
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-side-reconnect-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端重连行为
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-command-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        远程命令执行
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="远程命令执行">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filestat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        file.stat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-a-devices-file-to-the-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        把设备上的文件发到聊天
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-and-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write 和 edit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glob-and-grep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        glob 和 grep
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remote-agentsmd-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        远程 AGENTS.md 文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#port-forwarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        端口转发
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-running-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        长时间运行的任务
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-device-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        检查设备状态
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安全边界
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-client-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        多客户端路由
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-client-manage-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        client-manage 技能
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-remote-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么需要远程客户端
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        架构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installing-cortex-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装 cortex-client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="安装 cortex-client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        前置条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registering-machines-on-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在服务器上注册机器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        网络拓扑
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="网络拓扑">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#same-lan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        同一局域网
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tailscale-recommended-for-cross-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tailscale（跨网络推荐）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudflare-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloudflare Tunnel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managed-ssh-reverse-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        托管 SSH 反向路由
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#externally-managed-reverse-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        外部托管的反向隧道
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        连接故障排查
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket 协议
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket 协议">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端 → 服务器
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        服务器 → 客户端
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        错误代码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-side-client-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        服务器端客户端生命周期
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端更新
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-side-reconnect-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端重连行为
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-command-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        远程命令执行
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="远程命令执行">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filestat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        file.stat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-a-devices-file-to-the-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        把设备上的文件发到聊天
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-and-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write 和 edit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#glob-and-grep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        glob 和 grep
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remote-agentsmd-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        远程 AGENTS.md 文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#port-forwarding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        端口转发
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-running-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        长时间运行的任务
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-device-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        检查设备状态
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安全边界
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-client-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        多客户端路由
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-client-manage-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        client-manage 技能
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cross-machine-operation">跨机器操作<a class="headerlink" href="#cross-machine-operation" title="Permanent link">&para;</a></h1>
+<p>Cortex 可以把工作分派到远程机器上：运行命令、读写文件、搜索代码，以及执行长时间运行的训练作业。这一切通过 <code>cortex-client</code> 完成——它是一个轻量级的 WebSocket 守护进程，运行在每台远程机器上，并主动连回 agent-server。本文档介绍部署方式、网络拓扑和安全模型。</p>
+<h2 id="why-remote-clients">为什么需要远程客户端<a class="headerlink" href="#why-remote-clients" title="Permanent link">&para;</a></h2>
+<p>agent-server 进程（负责运行智能体 session、聊天平台和调度）不一定与 GPU 或项目文件在同一台机器上。一个典型的配置：</p>
+<ul>
+<li><code>hub</code> — agent-server 主机（GPU 训练、仿真，以及 Cortex 守护进程本身）</li>
+<li><code>trainer</code> — 局域网内的专用训练机，配有独立 GPU</li>
+<li><code>cluster</code> — 通过隧道访问的远程训练集群</li>
+<li><code>desk</code> — 用于 Unity、VR 和文档工作的 Windows 工作站</li>
+</ul>
+<p>每台远程机器都运行 <code>cortex-client</code>，它连接到 agent-server，并代表该机器执行命令。在智能体看来，所有机器构成一个扁平的资源池，每次工具调用时自行选择目标设备。</p>
+<h2 id="architecture">架构<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>完整的服务器端架构（包括六层结构、事件总线和 WebSocket 协议细节）参见 <a href="../architecture/">architecture.md</a>。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│  Agent-Server (hub)             │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│                                 │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│  client-manager.ts              │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  ┌───────────────────────────┐  │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  │ WebSocketServer :3002     │  │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│  │ devices Map&lt;name, ws&gt;     │  │
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│  │ - hub (local)             │  │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│  │ - trainer (remote, SSH)   │  │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│  │ - cluster (remote, tunnel)│  │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│  │ - desk (remote, Win/SSH)  │  │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│  └───────────────────────────┘  │
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│                                 │
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│  MCP core-server                │
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│  ┌───────────────────────────┐  │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│  │ remote_bash/read/write    │──┼──→ HTTP :3001 → client-manager → WS → device
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  │ remote_edit/glob/grep     │  │
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  └───────────────────────────┘  │
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>└─────────────────────────────────┘
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>         ▲ WebSocket              ▲ SSH
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>         │ (port 3002)            │ (port 22)
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>┌────────┴────────┐    ┌──────────┴──────────┐
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>│ cortex-client   │    │ cortex-client        │
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│ (hub, local)    │    │ (trainer, remote)    │
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>│ ws://127.0.0.1  │    │ ws://192.0.2.10      │
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>└─────────────────┘    └─────────────────────┘
+</code></pre></div>
+<p>每个 <code>cortex-client</code> 实例：
+- 连接 agent-server 的 WebSocket 服务器（端口 3002），并出示 <code>CORTEX_CLIENT_TOKEN</code>
+- 连接时以设备名注册自己（<code>hello</code> 消息）
+- 每 5 秒发送一次心跳
+- 接收命令消息并在本机执行
+- 通过同一条 WebSocket 连接返回结果；文件传输和端口转发则另开独立的回连 socket</p>
+<h2 id="installing-cortex-client">安装 cortex-client<a class="headerlink" href="#installing-cortex-client" title="Permanent link">&para;</a></h2>
+<h3 id="prerequisites">前置条件<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Node.js ≥ 20</li>
+<li>从远程机器直连 agent-server 的 WebSocket 路径，或者从 agent-server 到远程机器的 SSH 路径（用于托管的反向路由），二者满足其一</li>
+<li>如果服务器需要远程启动/重启客户端，还需要从 agent-server 到远程机器 22 端口（SSH）的网络路径</li>
+</ul>
+<h3 id="installation">安装<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
+<p>客户端以一个自包含的 bundle——<code>client.mjs</code>——分发，按托管布局存放在每台设备上。另有一个 <code>cortex-run-watcher.mjs</code> 作为空的兼容占位文件随之下发：更新包在两端都按文件名校验，如果不带上它，在 <code>cortex-run</code> 移除之前安装的客户端会拒绝此后的每一次更新。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>~/.cortex/client/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── current/    # the running version (client.mjs + a compatibility stub)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>└── previous/   # the prior version, kept for manual rollback
+</code></pre></div>
+<p>新的本地桌面安装会在 init 期间显式请求准备客户端。服务器包中携带由同一份源码构建出的两个客户端文件；init 把它们准备到 <code>&lt;CORTEX_HOME&gt;/client/current/</code> 下，并创建本机客户端配置。服务器在 <code>client/local-install.json</code> 中记录所有权，并在启动自己的客户端时恢复被中断的准备过程。已有的、没有所有权记录的客户端文件或用户手动修改过的配置不会被接管。普通 init 和远程连接不会请求这项准备。本机客户端使用服务器的 Node 和所选环境，loopback WebSocket URL 与 token 在启动时注入。仅重新打开 App 会保留正在运行的守护进程；客户端的恢复由服务器启动流程负责。</p>
+<p>远程设备上不通过 npm 安装任何东西，唯一的要求是 Node.js。服务器的 bootstrap 脚本负责安装远程设备上的文件——它检查 SSH 和 Node.js，把 bundle 传到 <code>~/.cortex/client/current/</code>，并写入包含 <code>serverHost</code>、<code>serverPort</code> 和 <code>deviceName</code> 的客户端配置。它不会启动客户端，也不会在设备侧创建服务。该脚本在源码 checkout 的 <code>agent-server/</code> 目录下运行，面向 Linux 和 macOS 设备，接受 <code>--host</code>、<code>--device-name</code> 和 <code>--server-host</code>（均为必填）以及 <code>--server-port</code>（默认 3002）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>node<span class="w"> </span>--import<span class="w"> </span>tsx<span class="w"> </span>src/domain/remote/client-bootstrap.ts<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>--host<span class="w"> </span>user@machine<span class="w"> </span>--device-name<span class="w"> </span>trainer<span class="w"> </span>--server-host<span class="w"> </span><span class="m">192</span>.0.2.10
+</code></pre></div>
+<p>如果设备改为拨号 <code>serverUrl</code>，在 bootstrap 之后编辑 <code>cortex-client.json</code> 即可。</p>
+<p>当设备上的托管安装损坏或被清空时，bootstrap 也是救援手段。先在服务器的 <code>machines.json</code> 中注册该设备，运行 bootstrap，然后启动或重启 agent-server。客户端的启动与恢复由服务器负责；不要在客户端设备上创建 systemd、launchd、计划任务、tmux 或 screen 自启动项。</p>
+<h3 id="configuration">配置<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
+<p>在远程机器上创建 <code>~/.cortex/config/cortex-client.json</code>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"serverHost"</span><span class="p">:</span><span class="w"> </span><span class="s2">"192.0.2.10"</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"serverPort"</span><span class="p">:</span><span class="w"> </span><span class="mi">3002</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"deviceName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"trainer"</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><code>serverHost</code> — agent-server 机器的 IP 或主机名，需从这台远程机器可达</li>
+<li><code>serverPort</code> — WebSocket 端口（默认 3002）</li>
+<li><code>serverUrl</code> —（可选）客户端拨号使用的完整 WebSocket URL，优先级高于 <code>serverHost</code>/<code>serverPort</code>。用于 Cloudflare Tunnel 或任何经反向代理的路由，例如 <code>"wss://cortex.example.com"</code>——这样客户端就能连上没有公网 IP 的服务器（见下文 Cloudflare Tunnel）</li>
+<li><code>clientToken</code> — 服务器的 <code>CORTEX_CLIENT_TOKEN</code> 共享密钥；缺少它时 WS 升级会被 <code>401</code> 拒绝。服务器启动客户端时会自动注入，因此只有临时手动启动的诊断进程才需要在这里设置</li>
+<li><code>deviceName</code> — 本机的唯一名称，需与服务器 <code>machines.json</code> 中的键一致。默认为本机主机名</li>
+</ul>
+<p>环境变量 <code>CORTEX_SERVER_URL</code> 和 <code>CORTEX_CLIENT_TOKEN</code> 一旦设置，优先级高于 <code>serverUrl</code> 和 <code>clientToken</code>。客户端的配置、安装和日志目录遵循 <code>CORTEX_HOME</code>，日志写入 <code>~/.cortex/logs/client-YYYYMMDD.log</code>，保留 14 天。</p>
+<p>诊断时，可以在环境中提供 token，以前台方式运行 <code>cortex-client</code>。生产环境的客户端由 agent-server 启动和监督；在设备侧再配置一个监督进程会产生相互竞争的生命周期管理者，因此不得这样配置。</p>
+<h2 id="registering-machines-on-the-server">在服务器上注册机器<a class="headerlink" href="#registering-machines-on-the-server" title="Permanent link">&para;</a></h2>
+<p>机器注册在 agent-server 主机的 <code>~/.cortex/config/machines.json</code> 中：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"hub"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">"cortexPath"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/home/user/Cortex"</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">"gpuCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">"trainer"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">"cortexPath"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/home/user/Cortex"</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nt">"gpuCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">"ssh"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user@192.0.2.10"</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="nt">"desk"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="nt">"cortexPath"</span><span class="p">:</span><span class="w"> </span><span class="s2">"D:\\Projects\\Cortex"</span><span class="p">,</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="nt">"gpuCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="nt">"ssh"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user@desk.example.com"</span><span class="p">,</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="nt">"win"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">  </span><span class="nt">"cluster"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">    </span><span class="nt">"cortexPath"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/home/user"</span><span class="p">,</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">    </span><span class="nt">"gpuCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">    </span><span class="nt">"ssh"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user@cluster.example.com"</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="p">}</span>
+</code></pre></div>
+<p>每个条目：
+- <code>cortexPath</code>（必填）— 该机器上的工作目录路径
+- <code>gpuCount</code>（必填）— GPU 数量（无 GPU 的机器填 0）。每个客户端连接时会用 <code>nvidia-smi</code> 探测本机并上报数量；服务器发现数值不一致时会直接写回本文件，因此过期的数字会在下次连接时自动纠正。无法运行 <code>nvidia-smi</code> 的机器不上报，保留你在这里填写的值。
+- <code>ssh</code>（可选）— SSH 连接用的 <code>user@host</code>。省略时视为本地机器，不需要 SSH
+- <code>win</code>（可选）— Windows 目标设为 <code>true</code>（会改变 SSH 命令语法）
+- <code>clientCommand</code>（可选）— 服务器（通过 SSH）在该机器上启动客户端所用的命令。默认为 <code>node "$HOME/.cortex/client/current/client.mjs"</code>（Linux）或 <code>node "%USERPROFILE%\.cortex\client\current\client.mjs"</code>（Windows）。当 <code>node</code> 不在该机器<strong>非登录</strong> SSH 的 PATH 上时需要覆盖它——最常见的是 <code>nvm</code> 安装，node 位于 <code>~/.nvm/...</code> 下；这时写绝对 node 路径，例如 <code>"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"</code>。服务器会用自己的 token 注入以及 <code>nohup</code>/<code>echo $!</code>（Linux）或 <code>cmd.exe</code> 包裹的 WMI（Windows）启动机制来包裹这条命令。</p>
+<p><code>clientConnection</code> 用于选择路由。默认值 <code>direct</code> 使用 <code>cortex-client.json</code> 中的 URL。设为 <code>ssh-reverse</code> 时，服务器会维护一条 SSH 反向隧道，并在启动客户端时注入 loopback WebSocket URL。<code>clientReversePort</code> 可选，用于指定远程机器上的 loopback 端口；它只在 <code>ssh-reverse</code> 下有效，默认等于服务器的客户端端口，取值必须在 1024 到 65535 之间。SSH 反向路由要求配置 <code>ssh</code>。</p>
+<p><code>machines.json</code> 无效时，服务器在启动阶段就会停止。服务器运行期间所做的修改若未通过校验，服务器会保留先前的注册表，并发送一条管理员通知。该文件通过 <code>fs.watch()</code> 监视，普通的注册表读取方会在几百毫秒内看到更新。托管客户端的路由字段在客户端启动开始时生成快照，因此修改 <code>clientConnection</code>、<code>clientReversePort</code> 或对应的 <code>ssh</code> 目标需要重启服务器。删除条目在同一次重载中生效：服务器会停止该机器的 SSH 反向隧道，并取消其待执行的客户端重启。<code>cortex client remove --device &lt;name&gt;</code> 会删除条目，同时停止并卸载该机器上的客户端（参见 <a href="../cli-reference/">CLI 参考</a>）。</p>
+<h2 id="network-topology">网络拓扑<a class="headerlink" href="#network-topology" title="Permanent link">&para;</a></h2>
+<p>远程客户端到服务器的连接需要一条通往 3002 端口的 TCP 路径。根据网络布局，有以下几种选择。</p>
+<h3 id="same-lan">同一局域网<a class="headerlink" href="#same-lan" title="Permanent link">&para;</a></h3>
+<p>最简单的情况。把服务器的局域网 IP 作为 <code>serverHost</code>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"serverHost"</span><span class="p">:</span><span class="w"> </span><span class="s2">"192.168.1.100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"serverPort"</span><span class="p">:</span><span class="w"> </span><span class="mi">3002</span><span class="p">,</span><span class="w"> </span><span class="nt">"deviceName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"trainer"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>如果连接失败，检查服务器的防火墙：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="m">3002</span>
+</code></pre></div>
+<h3 id="tailscale-recommended-for-cross-network">Tailscale（跨网络推荐）<a class="headerlink" href="#tailscale-recommended-for-cross-network" title="Permanent link">&para;</a></h3>
+<p>无论物理网络如何，Tailscale 都会为每台机器分配一个稳定的 CGNAT IP（<code>100.x.y.z</code>）。客户端连接服务器的 Tailscale IP：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"serverHost"</span><span class="p">:</span><span class="w"> </span><span class="s2">"100.64.12.34"</span><span class="p">,</span><span class="w"> </span><span class="nt">"serverPort"</span><span class="p">:</span><span class="w"> </span><span class="mi">3002</span><span class="p">,</span><span class="w"> </span><span class="nt">"deviceName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cluster"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>查询服务器的 Tailscale IP：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>tailscale<span class="w"> </span>ip<span class="w"> </span>-4
+</code></pre></div>
+<p>Tailscale 无需端口转发即可穿透 NAT 和防火墙，是位于不同网络的机器的推荐方案。</p>
+<h3 id="cloudflare-tunnel">Cloudflare Tunnel<a class="headerlink" href="#cloudflare-tunnel" title="Permanent link">&para;</a></h3>
+<p>当服务器和客户端都位于 NAT 之后、没有公网 IP 时，在服务器上运行 <code>cloudflared</code>，通过隧道暴露其 WebSocket 端口，再用 <code>serverUrl</code> 让客户端指向隧道主机名。服务器的 <code>cloudflared</code> ingress 把主机名映射到本地 WS 端口：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">ingress</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cortex.example.com</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:3002</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http_status:404</span>
+</code></pre></div>
+<p>然后客户端经 wss/443 拨号连接隧道：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"serverUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"wss://cortex.example.com"</span><span class="p">,</span><span class="w"> </span><span class="nt">"deviceName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk"</span><span class="p">,</span><span class="w"> </span><span class="nt">"clientToken"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;token&gt;"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>两端都是向 Cloudflare 边缘发起出站连接，所以双方都不需要公网 IP 或端口转发，WebSocket 升级也会透明地穿过隧道。</p>
+<h3 id="managed-ssh-reverse-route">托管 SSH 反向路由<a class="headerlink" href="#managed-ssh-reverse-route" title="Permanent link">&para;</a></h3>
+<p>当服务器能够 SSH 登录远程机器时，Cortex 可以通过一条持久的反向转发把客户端 WebSocket 传回来。在服务器上这样配置该机器：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">"worker"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nt">"cortexPath"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/srv/workspace"</span><span class="p">,</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">"gpuCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nt">"ssh"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user@worker"</span><span class="p">,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="nt">"clientConnection"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ssh-reverse"</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="nt">"clientReversePort"</span><span class="p">:</span><span class="w"> </span><span class="mi">13002</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">}</span>
+</code></pre></div>
+<p>服务器会监督一条到 <code>user@worker</code> 的 OpenSSH master 连接，承载 <code>-R 127.0.0.1:13002:127.0.0.1:3002</code>，并设置 <code>ExitOnForwardFailure=yes</code> 和 15 秒 keepalive。每次启动前，它会先释放早先隧道遗留在远程端口上的陈旧 listener，然后等待 SSH control socket 就绪，再以 <code>CORTEX_SERVER_URL=ws://127.0.0.1:13002</code> 启动客户端。远程 listener 只绑定 loopback。隧道故障有独立的重试循环，退避时间从 1 秒到 30 秒，客户端则保持常规的 WebSocket 重连行为。在 SSH 隧道内仍然必须提供 token。control socket 存放在 <code>$CORTEX_HOME/data/client-ssh-tunnels/</code> 下，每个客户端启动时所用的路由记录在 <code>$CORTEX_HOME/data/client-routes.json</code> 中，因此仍运行在与当前配置不符的路由上的客户端会被停止并重新启动。</p>
+<p>如果默认端口在远程机器上已被占用，可以改用其他 <code>clientReversePort</code>。<code>~/.ssh/config</code> 中的 SSH alias 和 <code>ProxyCommand</code> 条目可以直接使用，因为配置的 <code>ssh</code> 值会作为单个 OpenSSH host 参数传入。</p>
+<h3 id="externally-managed-reverse-tunnel">外部托管的反向隧道<a class="headerlink" href="#externally-managed-reverse-tunnel" title="Permanent link">&para;</a></h3>
+<p>由其他进程单独监督的 SSH 隧道也能提供同样的网络路径：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>ssh<span class="w"> </span>-N<span class="w"> </span>-R<span class="w"> </span><span class="m">127</span>.0.0.1:3002:127.0.0.1:3002<span class="w"> </span>user@server
+</code></pre></div>
+<p>这种方式下，把客户端配置为 <code>"serverUrl": "ws://127.0.0.1:3002"</code>，并让 <code>clientConnection</code> 保持 <code>direct</code>，因为隧道进程不归 Cortex 管理。</p>
+<h3 id="connection-troubleshooting">连接故障排查<a class="headerlink" href="#connection-troubleshooting" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>可能原因</th>
+<th>解决方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>客户端无法连接</td>
+<td>3002 端口被阻断</td>
+<td>检查防火墙：<code>sudo ufw allow 3002</code></td>
+</tr>
+<tr>
+<td>客户端连上后又断开</td>
+<td>NAT 超时</td>
+<td>使用 Tailscale 或启用 TCP keepalive</td>
+</tr>
+<tr>
+<td>SSH 可用但 WebSocket 不可用</td>
+<td>只开放了 22 端口</td>
+<td>开放 3002 端口，或使用 Tailscale/反向隧道</td>
+</tr>
+<tr>
+<td>已安装 Tailscale 但无法连接</td>
+<td>ACL 阻断</td>
+<td>检查 <code>tailscale status</code> 和 ACL 规则</td>
+</tr>
+<tr>
+<td>"Device already connected"（代码 4002）</td>
+<td>陈旧连接或重复客户端</td>
+<td>终止远程机器上的旧客户端进程</td>
+</tr>
+<tr>
+<td>"Unknown device"（代码 4005）</td>
+<td><code>deviceName</code> 不在 <code>machines.json</code> 中</td>
+<td>添加该机器，或修正 <code>deviceName</code></td>
+</tr>
+<tr>
+<td>连接时返回 HTTP 401</td>
+<td><code>CORTEX_CLIENT_TOKEN</code> 缺失或错误</td>
+<td>让服务器来启动客户端，或从服务器的 <code>config/.env</code> 复制 token</td>
+</tr>
+</tbody>
+</table>
+<p>客户端自己的日志——设备上的 <code>~/.cortex/logs/client-YYYYMMDD.log</code>——会记录每次连接尝试及其 close code。</p>
+<h2 id="websocket-protocol">WebSocket 协议<a class="headerlink" href="#websocket-protocol" title="Permanent link">&para;</a></h2>
+<p>agent-server 与 cortex-client 之间的协议是 WebSocket 上的 JSON 消息流。每次 HTTP upgrade 都必须在 <code>x-cortex-token</code> header 中携带共享的 <code>CORTEX_CLIENT_TOKEN</code>；token 缺失或不匹配时会以 HTTP 401 拒绝。TLS 取决于所选路由：<code>wss://</code> endpoint 提供 TLS，而直接 loopback 和 SSH 反向路由则在各自受保护的传输通道内使用 <code>ws://</code>。</p>
+<h3 id="client-server">客户端 → 服务器<a class="headerlink" href="#client-server" title="Permanent link">&para;</a></h3>
+<p><strong>Hello</strong>（连接后立即发送）。<code>bundleHash</code> 标识客户端正在运行的 bundle（按顺序对各 bundle 文件计算 sha256）；服务器把它与期望的 bundle 比较，以决定是否推送更新。<code>gpuCount</code> 是客户端自己用 <code>nvidia-smi</code> 得到的数量，无法探测时为 <code>null</code>；<code>pid</code> 是客户端的进程 ID，服务器会为运行在其本机上的客户端记录它：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"hello"</span><span class="p">,</span><span class="w"> </span><span class="nt">"device"</span><span class="p">:</span><span class="w"> </span><span class="s2">"trainer"</span><span class="p">,</span><span class="w"> </span><span class="nt">"platform"</span><span class="p">:</span><span class="w"> </span><span class="s2">"linux"</span><span class="p">,</span><span class="w"> </span><span class="nt">"capabilities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"file-stream"</span><span class="p">,</span><span class="w"> </span><span class="s2">"rg"</span><span class="p">],</span><span class="w"> </span><span class="nt">"gpuCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"bundleHash"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cebdfcd6…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"pid"</span><span class="p">:</span><span class="w"> </span><span class="mi">41822</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Heartbeat</strong>（每 5 秒）：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"heartbeat"</span><span class="p">,</span><span class="w"> </span><span class="nt">"device"</span><span class="p">:</span><span class="w"> </span><span class="s2">"trainer"</span><span class="p">,</span><span class="w"> </span><span class="nt">"timestamp"</span><span class="p">:</span><span class="w"> </span><span class="mi">1716154200000</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Command result</strong>（响应服务器命令；<code>success</code> 为 false 时用 <code>error</code> 代替 <code>data</code>）：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"result"</span><span class="p">,</span><span class="w"> </span><span class="nt">"commandId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cmd-abc123"</span><span class="p">,</span><span class="w"> </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"stdout"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Update result</strong>（响应服务器的 <code>update</code> 推送）：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"update-result"</span><span class="p">,</span><span class="w"> </span><span class="nt">"device"</span><span class="p">:</span><span class="w"> </span><span class="s2">"trainer"</span><span class="p">,</span><span class="w"> </span><span class="nt">"hash"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cebdfcd6…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<h3 id="server-client">服务器 → 客户端<a class="headerlink" href="#server-client" title="Permanent link">&para;</a></h3>
+<p><strong>Command</strong>：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"command"</span><span class="p">,</span><span class="w"> </span><span class="nt">"commandId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cmd-abc123"</span><span class="p">,</span><span class="w"> </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bash"</span><span class="p">,</span><span class="w"> </span><span class="nt">"params"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"nvidia-smi"</span><span class="p">,</span><span class="w"> </span><span class="nt">"timeout"</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p>支持的 action：<code>bash</code>、<code>read</code>、<code>write</code>、<code>edit</code>、<code>glob</code>、<code>grep</code>、<code>file.stat</code>。bash 的时间限制以毫秒为单位放在 <code>params.timeout</code> 中。服务器为每条命令维护自己的计时器——调用自带限制时用该限制，否则 bash 为 120 秒、文件类 action 为 30 秒——超时仍未收到结果就判定调用失败。</p>
+<p><strong>Open stream</strong>（端口转发：客户端回连，把一条原始 TCP 连接接到设备上的某个 loopback 端口；参见<a href="#port-forwarding">端口转发</a>）：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"open-stream"</span><span class="p">,</span><span class="w"> </span><span class="nt">"streamId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4be1…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"127.0.0.1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">6006</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Open file stream</strong>（服务器需要从设备上取回整个文件时发送，例如 <code>send_file device="trainer"</code>）。与 <code>open-stream</code> 一样，它通过一条新的出站 socket 应答，而不走这条连接，因此大文件传输既不会阻塞命令，也不必 base64 编码后挤进控制通道：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"open-file-stream"</span><span class="p">,</span><span class="w"> </span><span class="nt">"streamId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"9f3c…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/home/x/report.csv"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Update</strong>（当设备 hello 上报的 bundle 与期望不一致时推送；<code>files</code> 以 base64 携带完整 artifact）：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"update"</span><span class="p">,</span><span class="w"> </span><span class="nt">"updateId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a1b2c3"</span><span class="p">,</span><span class="w"> </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026.7.30-dev"</span><span class="p">,</span><span class="w"> </span><span class="nt">"hash"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cebdfcd6…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"files"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"client.mjs"</span><span class="p">,</span><span class="w"> </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…"</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cortex-run-watcher.mjs"</span><span class="p">,</span><span class="w"> </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…"</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<h3 id="error-codes">错误代码<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4001</td>
+<td>hello 中缺少设备名</td>
+</tr>
+<tr>
+<td>4002</td>
+<td>设备已连接</td>
+</tr>
+<tr>
+<td>4003</td>
+<td>心跳超时（15 秒）</td>
+</tr>
+<tr>
+<td>4004</td>
+<td>未知 stream：回连 socket 指定了服务器并未预期的 stream</td>
+</tr>
+<tr>
+<td>4005</td>
+<td>未知设备：hello 中的名称未在 <code>machines.json</code> 中注册</td>
+</tr>
+<tr>
+<td>1001</td>
+<td>服务器正在关闭</td>
+</tr>
+</tbody>
+</table>
+<h2 id="server-side-client-lifecycle">服务器端客户端生命周期<a class="headerlink" href="#server-side-client-lifecycle" title="Permanent link">&para;</a></h2>
+<p>agent-server <code>domain/remote/</code> 下的两个模块共同负责远程客户端的生命周期：<code>client-manager.ts</code> 持有设备连接（心跳和命令路由），<code>client-lifecycle.ts</code> 负责启动、跟踪和重启客户端：</p>
+<ol>
+<li>
+<p><strong>启动时</strong> — <code>startAllRemoteClients()</code> 遍历 <code>machines.json</code>，在每台机器上直接 spawn 或经 SSH 启动客户端。对于本地机器（无 <code>ssh</code> 字段），直接 spawn <code>node ~/.cortex/client/current/client.mjs</code>。对于远程机器，通过 SSH 以 <code>nohup</code>/<code>echo $!</code>（Linux）或 WMI（Windows）运行启动命令。<code>ssh-reverse</code> 机器会先建立一条受监督的反向隧道；首次启动和自动重启共用同一个感知路由的 launcher 和远程 PID 跟踪。如果启动命令已返回 PID，但客户端尚未发送 <code>hello</code>，服务器会让该设备的恢复计时器保持就绪，直到连接到来。</p>
+</li>
+<li>
+<p><strong>心跳监控</strong> — 服务器每 5 秒检查一次，确认每个已连接设备在最近 15 秒内发送过心跳。错过心跳会触发断开连接并尝试自动重启。</p>
+</li>
+<li>
+<p><strong>自动重启</strong> — 首次启动后、断开连接或心跳超时后，离线设备会在 60 秒延迟后再次尝试启动。服务器会一直重试，直到客户端连上。每台设备各有一个计时器，防止重复发起重启。</p>
+</li>
+<li>
+<p><strong>PID 跟踪</strong> — 服务器把每个已启动客户端的 PID（无论本地还是远程）记录在 <code>~/.cortex/data/client-pids.json</code> 中，以便在尝试重启前检查进程是否仍然存活。</p>
+</li>
+<li>
+<p><strong>命令路由</strong> — 当智能体调用 <code>remote_bash({ device: "trainer", ... })</code> 时，MCP 服务器向 <code>client-manager</code> 发送 HTTP 请求，后者在设备映射中查找 <code>trainer</code> 的 WebSocket 连接并下发命令。只有在线设备才会收到命令——目标设备离线时，工具调用返回错误。</p>
+</li>
+</ol>
+<h2 id="client-updates">客户端更新<a class="headerlink" href="#client-updates" title="Permanent link">&para;</a></h2>
+<p>客户端自行更新；服务器负责发布期望的 bundle。对于由 App 登记的本机客户端，bundle 来自已安装的服务器包，并校验其按序计算的文件 hash；payload 缺失或无效时不会回退到 npm。对于其他客户端，从源码 checkout 运行的服务器（设置了 <code>CORTEX_REPO</code> 或 <code>CORTEX_CLIENT_REPO</code>）会用 esbuild 构建 client 仓库，已安装的服务器则从 npm 拉取最新发布的 <code>@cortex-agent/client</code>，按版本缓存在 <code>$CORTEX_HOME/data/client-bundles/</code> 下。每个设备的 hello 都携带客户端自己的 bundle hash；与期望 hash 不一致时，服务器通过已有的 WebSocket 推送一条携带完整 artifact 的 <code>update</code> 消息。安装成功和失败都会以聊天通知的形式告知。在 <code>settings.json</code> 中把 <code>clientHotReloadEnabled</code> 设为 <code>false</code> 会关闭更新推送，此时已有的本机客户端版本在准备过程中会被保留，而不是被替换。</p>
+<p>客户端把文件写入 <code>~/.cortex/client/next/</code>，校验 hash，把 <code>current/</code> 轮换为 <code>previous/</code>、<code>next/</code> 轮换为 <code>current/</code>，回报 <code>update-result</code>，关闭 socket，从 <code>current/</code> 启动后继进程，然后退出。后继进程带着新 hash 重连，服务器将其记录为收敛完成。任何失败（hash 不符、磁盘不可写）都不会触动正在运行的版本——设备继续以旧 bundle 在线，服务器也会收到失败原因。同一设备上安装失败后，10 分钟内不会重试；正在推送或刚刚安装完成的推送在 2 分钟内不会重复。</p>
+<p>由于触发点就是 hello 本身，设备在任何一次连接时都会收敛：服务器带着新构建重启之后、设备离线数日后重新上线时，或者刚做完 bootstrap 时。不存在定时更新任务。如果新 bundle 一启动就崩溃，SSH 监督会不断重新拉起 <code>current/</code>。手动恢复时，先把故障版本挪开，再在设备上恢复 <code>previous/</code>，或者重新执行一次 bootstrap。这些路径是真实目录，不是符号链接：把 <code>previous/</code> 移到原位之前，<code>current/</code> 必须不存在。下面的命令把故障版本保留在 <code>broken/</code> 中，并要求这个名称尚未被占用；如有需要，换一个未使用的名称。如果客户端安装根目录不是 <code>~/.cortex/client</code>，请换成实际路径。</p>
+<p>Linux/macOS（Bash）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nb">cd</span><span class="w"> </span>~/.cortex/client<span class="w"> </span><span class="o">&amp;&amp;</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nb">test</span><span class="w"> </span>-d<span class="w"> </span>previous<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">test</span><span class="w"> </span>!<span class="w"> </span>-e<span class="w"> </span>broken<span class="w"> </span><span class="o">&amp;&amp;</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">  </span>mv<span class="w"> </span>current<span class="w"> </span>broken<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mv<span class="w"> </span>previous<span class="w"> </span>current
+</code></pre></div>
+<p>Windows（PowerShell）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">&amp;</span> <span class="p">{</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>  <span class="nb">Set-Location</span> <span class="s2">"$HOME/.cortex/client"</span> <span class="n">-ErrorAction</span> <span class="n">Stop</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>  <span class="k">if</span> <span class="p">(</span><span class="o">-not</span> <span class="p">(</span><span class="nb">Test-Path</span> <span class="n">-LiteralPath</span> <span class="n">previous</span> <span class="n">-PathType</span> <span class="n">Container</span><span class="p">))</span> <span class="p">{</span> <span class="k">throw</span> <span class="s1">'previous/ is missing'</span> <span class="p">}</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>  <span class="k">if</span> <span class="p">(</span><span class="nb">Test-Path</span> <span class="n">-LiteralPath</span> <span class="n">broken</span><span class="p">)</span> <span class="p">{</span> <span class="k">throw</span> <span class="s1">'Choose an unused backup name for broken/'</span> <span class="p">}</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>  <span class="nb">Move-Item</span> <span class="n">-LiteralPath</span> <span class="n">current</span> <span class="n">-Destination</span> <span class="n">broken</span> <span class="n">-ErrorAction</span> <span class="n">Stop</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>  <span class="nb">Move-Item</span> <span class="n">-LiteralPath</span> <span class="n">previous</span> <span class="n">-Destination</span> <span class="n">current</span> <span class="n">-ErrorAction</span> <span class="n">Stop</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="p">}</span>
+</code></pre></div>
+<h2 id="client-side-reconnect-behavior">客户端重连行为<a class="headerlink" href="#client-side-reconnect-behavior" title="Permanent link">&para;</a></h2>
+<p><code>cortex-client</code> 进程会自动处理重连：</p>
+<ul>
+<li>断开后，等待 1 秒再进行首次重连</li>
+<li>采用指数退避：1s、2s、4s、8s、16s，上限 30 秒</li>
+<li>如果服务器以代码 4002（"Device already connected"）拒绝，客户端退出。这可以防止两个客户端争抢同一个设备名</li>
+<li>如果服务器以代码 4005（"Unknown device"）拒绝，客户端退出。它的 <code>deviceName</code> 必须与 <code>machines.json</code> 中的某个条目一致，条目中没有 <code>ssh</code> 字段的本机客户端也不例外</li>
+<li>对于其他所有断开情况（网络错误、服务器重启、心跳超时），客户端会无限重试</li>
+</ul>
+<h2 id="remote-command-execution">远程命令执行<a class="headerlink" href="#remote-command-execution" title="Permanent link">&para;</a></h2>
+<p>服务器发来的每条命令都包含 <code>action</code> 和 <code>params</code>，客户端将其分发给相应的处理程序：</p>
+<h3 id="bash">bash<a class="headerlink" href="#bash" title="Permanent link">&para;</a></h3>
+<p>在登录 shell 中执行：<code>/bin/bash -l -c "&lt;command&gt;"</code>。在 Windows 上，命令通过 Git Bash 运行：设置了 <code>CORTEX_GIT_BASH_PATH</code> 时使用该路径，否则依次查找 Program Files 下的标准位置和 <code>PATH</code>。<code>timeout</code> 参数取 1 到 600 的整数秒，默认 120。前台命令超时会返回退出码 124，并在 POSIX 上终止命令所在的进程组、在 Windows 上终止其进程树。stdout 超过 200 KB 或 stderr 超过 50 KB 时，输出只保留首尾部分。<code>run_in_background: true</code> 会立即返回 detached shell 的 PID，并忽略 <code>timeout</code>。Cortex 不监督长时间运行的任务：请自己启动它，并让它通过 <a href="../waitpoints/">waitpoint</a> 回报。这些远程执行工具通过 <code>cortex-core</code> MCP 服务器暴露给智能体——参见 <a href="../mcp/">mcp.md</a>。</p>
+<h3 id="read">read<a class="headerlink" href="#read" title="Permanent link">&para;</a></h3>
+<p>从磁盘读取文件。路径必须是绝对路径，超过 10 MB 的文件会被拒绝。文本带行号返回，默认 2,000 行；请求范围超过约 25,000 词时会被拒绝，并给出建议的 <code>limit</code>。图片文件（PNG、JPEG、WebP、GIF、BMP）和 PDF 以 base64 整体返回；如果 <code>sharp</code> 可用，服务器的 <code>remote_read</code> 工具会对大图做缩小处理。</p>
+<h3 id="filestat">file.stat<a class="headerlink" href="#filestat" title="Permanent link">&para;</a></h3>
+<p>元数据探测——大小、文件名、mtime——在文件传输之前执行，这样路径错误或文件过大时会给出真实的错误信息，而不是传到一半中断。路径必须是绝对路径。</p>
+<h3 id="sending-a-devices-file-to-the-chat">把设备上的文件发到聊天<a class="headerlink" href="#sending-a-devices-file-to-the-chat" title="Permanent link">&para;</a></h3>
+<p><code>send_file</code>（以及 <code>slack_send_file</code> / <code>feishu_send_file</code>）接受一个可选的 <code>device</code> 参数。带上它时，路径会在该设备上读取，字节经反向通道流回服务器，再作为普通附件发送：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nx">send_file</span><span class="p">({</span><span class="w"> </span><span class="nx">device</span><span class="o">:</span><span class="w"> </span><span class="s2">"trainer"</span><span class="p">,</span><span class="w"> </span><span class="nx">file_path</span><span class="o">:</span><span class="w"> </span><span class="s2">"/home/x/runs/loss.png"</span><span class="p">,</span><span class="w"> </span><span class="nx">caption</span><span class="o">:</span><span class="w"> </span><span class="s2">"latest curve"</span><span class="w"> </span><span class="p">})</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nx">send_file</span><span class="p">({</span><span class="w"> </span><span class="nx">device</span><span class="o">:</span><span class="w"> </span><span class="s2">"trainer"</span><span class="p">,</span><span class="w"> </span><span class="nx">files</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">file_path</span><span class="o">:</span><span class="w"> </span><span class="s2">"/home/x/runs/loss.png"</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">file_path</span><span class="o">:</span><span class="w"> </span><span class="s2">"/home/x/runs/eval.csv"</span><span class="w"> </span><span class="p">}]</span><span class="w"> </span><span class="p">})</span>
+</code></pre></div>
+<p>如果设备离线、路径不是可读文件，或文件超过 200 MB 上限，服务器会在传输任何内容之前就拒绝；传输提前结束时也会判定失败，而不是交付一个被截断的文件。运行早于该功能的客户端版本的设备不会上报 <code>file-stream</code> 能力，会收到说明这一点的拒绝消息；它们在下一次<a href="#client-updates">客户端更新</a>后获得该能力。</p>
+<h3 id="write-and-edit">write 和 edit<a class="headerlink" href="#write-and-edit" title="Permanent link">&para;</a></h3>
+<p><code>write</code> 创建或覆盖文件，必要时创建父目录。<code>edit</code> 在已有文件中查找并替换字符串。修改成功后返回一条简短的确认；session 活动只记录目标路径和设备，不复制文件内容。</p>
+<h3 id="glob-and-grep">glob 和 grep<a class="headerlink" href="#glob-and-grep" title="Permanent link">&para;</a></h3>
+<p><code>glob</code> 按模式查找文件（例如 <code>**/*.ts</code>），最多返回 500 个结果，并排除 VCS 目录、<code>node_modules</code>、<code>__pycache__</code>、<code>.tox</code> 和 <code>.mypy_cache</code>。<code>grep</code> 在可用时使用 <code>rg</code>（ripgrep），通过 <code>head_limit</code>（默认 250）和 <code>offset</code> 分页。未安装 <code>rg</code> 时回退到 <code>grep -rn</code>，此时会忽略分页、glob、type 和上下文选项。</p>
+<h3 id="remote-agentsmd-files">远程 AGENTS.md 文件<a class="headerlink" href="#remote-agentsmd-files" title="Permanent link">&para;</a></h3>
+<p>执行 <code>read</code>、<code>write</code> 和 <code>edit</code> 时，客户端还会从目标文件所在位置逐级向上查找，返回沿途找到的 <code>AGENTS.md</code> 和 <code>AGENTS.local.md</code> 文件（最多 20 级，每个文件最大 200 KB），外加设备上 <code>~/.cortex/AGENTS.md</code> 处的那一个。<code>remote_read</code>、<code>remote_write</code> 和 <code>remote_edit</code> 工具会把这些文件逐一加入结果，每个 session 只加一次。这样，放在设备上项目旁的指令也能像本地指令一样到达智能体。</p>
+<h3 id="port-forwarding">端口转发<a class="headerlink" href="#port-forwarding" title="Permanent link">&para;</a></h3>
+<p>服务器可以把设备上的某个 loopback 端口映射到自己机器上的 loopback 端口（同时最多 32 个）：每当有连接打到服务器侧端口，服务器就发送 <code>open-stream</code>，客户端随即回连，把字节转发到设备上的 <code>127.0.0.1:&lt;port&gt;</code>。有两项功能用到它：</p>
+<ul>
+<li><strong>设备上的浏览器。</strong> 输入框的浏览器选择器会列出本机和每台已连接的设备。选择某台设备后，会在该设备上启动 Chrome，并通过转发的调试端口把 session 的浏览器工具接上去。该浏览器由在这台设备上运行的各个 turn 共享，空闲 10 分钟后关闭。</li>
+<li><strong>停靠浏览器的端口面板</strong>会列出服务器或已连接设备上正在监听的端口，并在桌面 App 中预览；远程端口会先完成转发。</li>
+</ul>
+<h3 id="long-running-jobs">长时间运行的任务<a class="headerlink" href="#long-running-jobs" title="Permanent link">&para;</a></h3>
+<p>Cortex 不在设备上启动、监督或接管任何进程。按你平常的方式启动任务（<code>nohup</code>、<code>setsid</code>、tmux、某个调度器），再登记一个 <a href="../waitpoints/">waitpoint</a>，任务结束时 session 就会被唤醒。在设备上，任务只需往 <code>~/.cortex/tmp/signals/</code> 中写入一个小 JSON 文件。服务器每轮扫描时，会通过这个客户端已经保持着的连接，用普通的 <code>bash</code> 命令列出、读取并删除这些文件——仅限有已登记 waitpoint 的设备——因此设备上不需要额外安装任何东西。</p>
+<h2 id="checking-device-status">检查设备状态<a class="headerlink" href="#checking-device-status" title="Permanent link">&para;</a></h2>
+<p>智能体可以在其远程工具的描述中看到已注册的设备；调用离线设备会失败，并返回当前在线的设备列表。快速探测一下：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>remote_bash({ device: "trainer", command: "hostname" })
+</code></pre></div>
+<p>在 Web UI 和桌面 App 中，顶栏的机器标签显示在线机器数量，点开后会弹出一个面板，列出每台机器的 GPU、进程、负载、内存、磁盘和运行时长，这些信息按需通过客户端执行一条 shell 命令探测得到。在 Slack 或飞书中，<code>!devices</code>（别名 <code>!clients</code>）会列出已注册和已连接的机器，以及它们的平台、连接时长和最近一次心跳。</p>
+<p>在服务器的命令行中：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Check machine registry</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>cat<span class="w"> </span>~/.cortex/config/machines.json
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Check which clients are connected (via the server logs)</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>tail<span class="w"> </span>-f<span class="w"> </span>~/.cortex/logs/daemon.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>client-manager
+</code></pre></div>
+<h2 id="security-boundary">安全边界<a class="headerlink" href="#security-boundary" title="Permanent link">&para;</a></h2>
+<p>远程客户端系统遵循以下安全约束：</p>
+<ul>
+<li>客户端以启动它的同一用户身份运行——不提升权限</li>
+<li>每次客户端 WebSocket upgrade 都必须携带 <code>CORTEX_CLIENT_TOKEN</code>。防火墙、Tailscale ACL、localhost 绑定或 SSH 反向路由等网络控制仍作为纵深防御</li>
+<li>服务器对远程机器的 SSH 访问取决于运行 agent-server 的用户的 SSH 密钥。智能体的能力不会超出该用户的权限</li>
+<li>面向远程设备的 MCP 工具同样受 <a href="../safety-and-approvals/">safety-and-approvals.md</a> 中记录的安全边界规则约束</li>
+<li><code>cortex-client</code> npm 包不安装 postinstall 脚本，除 Node.js 自带的之外不使用原生扩展，除 <code>ws</code> 外没有外部依赖</li>
+<li>端口转发在服务器上只绑定 loopback，在设备上也只能到达 loopback 端口</li>
+</ul>
+<h2 id="multi-client-routing">多客户端路由<a class="headerlink" href="#multi-client-routing" title="Permanent link">&para;</a></h2>
+<p>没有自动的设备选择。智能体在每次工具调用中通过 <code>device</code> 参数显式指定目标设备。它从远程工具描述中的设备目录了解有哪些可用设备，该目录由 <code>machines.json</code> 生成，并标出了 Windows 机器。</p>
+<p>对于需要 GPU 的工作负载（训练），智能体可以从注册表读取每台机器的 <code>gpuCount</code>，并在决定在哪里运行之前检查设备上的 GPU 利用率。</p>
+<h2 id="the-client-manage-skill">client-manage 技能<a class="headerlink" href="#the-client-manage-skill" title="Permanent link">&para;</a></h2>
+<p>Cortex 包含一个 <code>client-manage</code> 技能（位于 cortex-system 插件中），为以下操作提供分步操作指导：
+- 引导新设备（注册、安装、配置、验证、重启）
+- 检查在线状态和连通性
+- 查看客户端日志
+- 更新客户端配置
+- 排查常见症状，给出根本原因和修复方法</p>
+<p>该技能自动对智能体可用，是跨机器管理的操作参考。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
