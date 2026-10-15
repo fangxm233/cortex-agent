@@ -321,6 +321,10 @@ function populateScenario(home: string): ScenarioPaths {
   writeFileSync(envFile, originalEnv);
   const settingsFile = path.join(home, 'config', 'settings.json');
   writeFileSync(settingsFile, JSON.stringify({ memoryIndexRegenEnabled: false }));
+  const model = { backend: 'claude', provider: null, model: 'claude-test' };
+  writeFileSync(path.join(home, 'config', 'models.json'), JSON.stringify({
+    default: { ...model, thinking: null, mode: 'plan' }, favorites: [model],
+  }));
   const binDir = path.join(home, 'test-bin');
   mkdirSync(binDir, { recursive: true });
   const fakeClaude = path.join(binDir, 'claude');

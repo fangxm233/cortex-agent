@@ -364,11 +364,17 @@ test('Test 3: Initialized environment has correct config content', async () => {
     assert.equal(state.activeProfile, undefined);
     assert.equal(state.defaultAgent, 'main');
 
-    const models = JSON.parse(readFileSync(path.join(tempDir, 'config', 'models.json'), 'utf-8'));
-    assert.equal(models.default.backend, 'claude');
-    assert.equal(models.default.provider, null);
-    assert.equal(typeof models.default.model, 'string');
-    assert.ok(models.favorites.some(ref => ref.backend === models.default.backend && ref.model === models.default.model));
+    // No discovered account means setup remains unconfigured; init must not invent a model.
+    const modelsFile = path.join(tempDir, 'config', 'models.json');
+    if (existsSync(modelsFile)) {
+      const models = JSON.parse(readFileSync(modelsFile, 'utf-8'));
+      assert.equal(models.default.backend, 'claude');
+      assert.equal(models.default.provider, null);
+      assert.equal(typeof models.default.model, 'string');
+      assert.ok(models.favorites.some(ref => ref.backend === models.default.backend && ref.model === models.default.model));
+    } else {
+      assert.equal(state.selectionDefault, undefined);
+    }
     assert.equal(existsSync(path.join(tempDir, 'config', 'profiles.json')), false);
 
     // The retired thread config is no longer seeded; environments are.
