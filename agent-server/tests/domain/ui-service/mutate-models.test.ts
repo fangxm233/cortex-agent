@@ -106,7 +106,7 @@ test('setDefault checks declared gateway routes before writing', async () => {
 
 test('setDefault rejects an endpoint absent from a readable gateway', async () => {
   const dir = await seed();
-  const gateway = () => ({ endpoints: {} });
+  const gateway = () => ({ top: {}, endpoints: {} });
   await assert.rejects(() => setDefaultModel(dir, { selection }, gateway), (e: any) => e.code === 'invalid-args');
   assert.deepEqual((await read(dir)).default, selection);
 });
