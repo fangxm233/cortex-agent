@@ -67,7 +67,7 @@ function ModelCard(props: MSettingsViewProps) {
           display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
         <span style={{ width: 34, height: 34, borderRadius: 'var(--r-chip)', background: MC.runBg, color: MC.run,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          font: `600 11px ${MONO}`, flex: 'none' }}>M</span>
+          font: `600 11px ${MONO}`, flex: 'none' }}>{L.stNavModels.slice(0, 1)}</span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <span style={{ ...TITLE, display: 'block' }}>{L.stDefaultModel}</span>
           {summary && <span style={{ ...SUB, display: 'block' }}>{summary}</span>}

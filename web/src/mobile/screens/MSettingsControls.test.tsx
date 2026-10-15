@@ -6,7 +6,7 @@ describe('mobile Settings primitives', () => {
   it('keeps the header outside the single content scroller', () => {
     const onBack = vi.fn();
     const view = create(<MSettingsPage title="Long settings title" onBack={onBack}>
-      <MSettingsRow title="profile/model/with/a/long/identifier" stacked trailing={<button>Edit</button>} />
+      <MSettingsRow title="provider/model/with/a/long/identifier" stacked trailing={<button>Edit</button>} />
     </MSettingsPage>);
     const frame = view.root.findByProps({ className: 'settings-surface mobile-settings mobile-settings-frame' });
     const scroll = view.root.findByProps({ className: 'mobile-settings-scroll' });
