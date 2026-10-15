@@ -116,7 +116,7 @@ const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> 
 
   // Other built-ins
   google: { url: 'https://generativelanguage.googleapis.com/v1beta', auth_style: 'bearer' },
-  // amazon-bedrock / google-vertex / azure-openai-responses / cloudflare-workers-ai use
+  // amazon-bedrock / google-vertex / azure / cloudflare-workers-ai use
   // env-driven URLs (region / account ID / resource name) — not safely templated here.
   // Users wanting these through the gateway must edit gateway.yaml manually.
 };
