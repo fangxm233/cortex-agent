@@ -15,10 +15,10 @@ CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/2"
 MUTATION_MANIFEST_SCHEMA_VERSION = "cortex-bench-mutation-manifest/1"
 SYNTHETIC_OBSERVATION_SCHEMA_VERSION = "cortex-bench-synthetic-capability-observation/1"
 DEEPSEEK_OFFLINE_CONTRACT = {
-    "implementation_commit": "56345345f9a72bbcdaef94004084cddceb803303",
+    "implementation_commit": "b329402e1342165d6a185881c3e3bbed7e52e368",
     "pi_version": "0.82.1",
     "model_metadata_sha256": "0dcc807a4e5827b488c6ceac87884ff6e735e01cf4f2ddfec9dd812e6fde041b",
-    "mutation_manifest_sha256": "a362d72a1c3fab94b0ac34dc2722695412a5c695278bba60ea7d964760456286",
+    "mutation_manifest_sha256": "664c88121463f72cee9585fc7b91a3923639eef82ee167f50c06007d1d5460c6",
 }
 # Moving the Claude Code pin. The CLI version and the model the campaign freezes move together,
 # because the container gets no model override and the proxy refuses any other model:

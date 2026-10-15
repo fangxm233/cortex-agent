@@ -17,7 +17,6 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   return {
     ...orig,
     getDefaultAgent: () => 'main',
-    getActiveProfile: () => 'default',
     resolveBackendForChannel: () => 'claude',
   };
 });
@@ -27,7 +26,7 @@ vi.mock('@domain/agents/environments/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    resolveEnvironmentByName: () => ({ profile: '__active__' }),
+    resolveEnvironmentByName: () => ({}),
   };
 });
 
@@ -39,10 +38,9 @@ import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
 import { runRegistry } from '../../src/core/run-registry.js';
-import { seedTestProfiles } from '../_seed-profiles.js';
+import { CLAUDE_SELECTION, seedSelections } from './selection-fixture.js';
 
-// startRun resolves the run's profile; a scoped run starts from an empty skeleton home.
-beforeAll(seedTestProfiles);
+beforeAll(seedSelections);
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -78,7 +76,7 @@ function sessionRecord(trackSessionId: string): Session {
     sessionId: trackSessionId, projectId: 'proj',
     channel: `web:${trackSessionId}`, backend: 'claude', kind: 'local', origin: 'direct',
     createdAt: '2020-01-01T00:00:00.000Z', lastUsedAt: '2020-01-01T00:00:00.000Z',
-    label: null, profileName: null, backendSessionId: `backend-${trackSessionId}`,
+    label: null, selection: CLAUDE_SELECTION, backendSessionId: `backend-${trackSessionId}`,
   };
 }
 

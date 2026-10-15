@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { CLAUDE_SELECTION, seedSelections } from './selection-fixture.js';
 
 const { mockStartRun } = vi.hoisted(() => ({ mockStartRun: vi.fn() }));
 
@@ -41,7 +42,7 @@ const FAKE_REQUEST = {
   request: {
     runId: 'run-turn',
     session: { sessionId: 's', backendSessionId: null, engineKey: 'c'},
-    profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
+    selection: CLAUDE_SELECTION, spec: {} as any, prompt: { text: 'hello', attachments: [] },
     context: { channel: 'c', project: 'general', trigger: 'user' }, policy: {} as any,
   } as any,
   backendPrompt: 'hello',
@@ -59,6 +60,7 @@ let restoreBus: unknown;
 let restoreDebug: string | undefined;
 
 beforeEach(() => {
+  seedSelections();
   mockStartRun.mockReset();
   // Same pin as turn-golden: an ambient DEBUG adds a fire-and-forget history write.
   restoreDebug = process.env.DEBUG;

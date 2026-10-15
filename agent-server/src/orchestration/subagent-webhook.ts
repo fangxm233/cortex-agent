@@ -1,6 +1,4 @@
-import { createLogger } from '@core/log.js';
-import type { Backend } from '../agent-adapter/types.js';
-import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import {
   detachSubagentRun, stopSubagentRun, waitForSubagentRun,
   type SubagentRunView,
@@ -11,9 +9,7 @@ import { backgroundNoticeSink, parentNoticeSink } from './subagent-attribution.j
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
 import type { SubagentParentContext } from '@domain/agents/subagent/runner.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
-import { resolveRunConfig } from '@domain/runs/config-resolver.js';
-
-const log = createLogger('subagent-webhook');
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 
 export interface SubagentWebhookReply {
   success: boolean;
@@ -21,39 +17,17 @@ export interface SubagentWebhookReply {
   error?: string;
 }
 
-/**
- * The delegating session's own routing, reconstructed from what its MCP sidecar knows about it.
- *
- * The profile is read only to learn what the PARENT is running — it never selects the child, which
- * takes its model from the task or the role. When there is no profile the daemon's current Claude
- * model and mode stand in, which is the same pair an unprofiled turn would have used.
- */
-function parentContextFor(data: Record<string, any>): SubagentParentContext {
+/** The parent's materialized choice supplies routing, not the child's task/role model. */
+async function parentContextFor(data: Record<string, any>): Promise<SubagentParentContext> {
   const channel = typeof data.channel === 'string' ? data.channel : undefined;
-  // D5: with no profile named, the parent's routing is whatever that channel's next run would
-  // use — the same profile, resolved the same way, instead of three retired global getters.
-  const channelDefault = resolveRunConfig({ channel }).profile;
-  const profile = resolveProfileSafely(data.profile) ?? channelDefault;
-  const backend = (profile.backend ?? data.backend) as Backend;
+  const sessionId = typeof data.sessionId === 'string' ? data.sessionId : null;
+  const session = sessionId ? await sessionStore.getById(sessionId) : null;
+  const selection = resolveRunSelection({ channel, session, selection: data.selection });
   return {
-    backend,
-    mode: profile.mode,
-    provider: profile.provider ?? null,
-    model: profile.model || null,
-    channel,
+    ...selection, channel, sessionId,
     project: typeof data.project === 'string' ? data.project : undefined,
     env: process.env,
   };
-}
-
-function resolveProfileSafely(name: unknown) {
-  if (typeof name !== 'string' || !name) return null;
-  try {
-    return resolveProfileConfig(name);
-  } catch (error) {
-    log.warn(`Subagent parent profile "${name}" could not be resolved: ${(error as Error).message}`);
-    return null;
-  }
 }
 
 function resultText(result: SubagentToolResult | null): string {
@@ -76,7 +50,7 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
   const sessionId = typeof data.sessionId === 'string' && data.sessionId ? data.sessionId : null;
   try {
     if (data.action === 'start') {
-      const parent = parentContextFor(data);
+      const parent = await parentContextFor(data);
       const background = !!data.background;
       const request = {
         params: data.params,

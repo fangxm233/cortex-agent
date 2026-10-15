@@ -6,7 +6,7 @@ import * as path from 'path';
 
 import { Scheduler } from '../src/domain/scheduling/scheduler.js';
 import { SCHEDULES_FILE } from '../src/store/schedule-repo.js';
-import { seedTestProfiles } from './_seed-profiles.js';
+import { DEFAULT_SELECTION, seedScheduleModels } from './domain/scheduling/selection-fixture.js';
 
 // Tripwire against ISS-CS-005-class pollution. See domain/scheduling/scheduler.test.ts for rationale.
 function snapshotProductionTaskIds(): string {
@@ -21,7 +21,7 @@ function snapshotProductionTaskIds(): string {
 let productionTaskIdSnapshot = '';
 beforeAll(() => {
   productionTaskIdSnapshot = snapshotProductionTaskIds();
-  seedTestProfiles();
+  seedScheduleModels();
 });
 afterAll(() => {
   const current = snapshotProductionTaskIds();
@@ -78,7 +78,7 @@ test('preCheck exit 0 allows task to run', withPreCheckSchedules(async ({ schedu
       intervalMs: 50,
       message: 'precheck pass test',
       projectId: 'precheck-project',
-      profile: null,
+      selection: DEFAULT_SELECTION,
       preCheck: 'exit 0',
       lastRun: null,
       nextRun: Date.now() + 10,
@@ -107,7 +107,7 @@ test('preCheck exit 1 skips task and sets lastSkipped', withPreCheckSchedules(as
       intervalMs: 50,
       message: 'precheck skip test',
       projectId: 'precheck-project',
-      profile: null,
+      selection: DEFAULT_SELECTION,
       preCheck: 'exit 1',
       lastRun: lastRunTs,
       nextRun: Date.now() + 10,
@@ -140,7 +140,7 @@ test('task without preCheck runs normally', withPreCheckSchedules(async ({ sched
       intervalMs: 50,
       message: 'no precheck test',
       projectId: 'precheck-project',
-      profile: null,
+      selection: DEFAULT_SELECTION,
       lastRun: null,
       nextRun: Date.now() + 10,
       createdAt: Date.now(),
@@ -169,7 +169,7 @@ test('preCheck receives PRECHECK_LAST_RUN env var', withPreCheckSchedules(async 
       intervalMs: 50,
       message: 'env var test',
       projectId: 'precheck-project',
-      profile: null,
+      selection: DEFAULT_SELECTION,
       preCheck: `bash -c 'echo $PRECHECK_LAST_RUN >> ${envFile}; exit 0'`,
       lastRun: lastRunMs,
       nextRun: Date.now() + 10,

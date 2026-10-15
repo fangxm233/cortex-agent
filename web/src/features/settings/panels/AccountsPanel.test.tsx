@@ -8,7 +8,7 @@ const harness = vi.hoisted(() => ({
   logoutCalls: [] as unknown[],
   invalidations: [] as unknown[],
   syncCalls: [] as unknown[],
-  syncResult: { configured: true, endpoints: 2, profiles: ['plan', 'execute'] } as Record<string, unknown>,
+  syncResult: { configured: true, endpoints: 2, defaultSet: false, favorites: [] } as Record<string, unknown>,
   toasts: [] as unknown[],
 }));
 
@@ -118,7 +118,7 @@ beforeEach(() => {
   harness.invalidations = [];
   harness.syncCalls = [];
   harness.toasts = [];
-  harness.syncResult = { configured: true, endpoints: 2, profiles: ['plan', 'execute'] };
+  harness.syncResult = { configured: true, endpoints: 2, defaultSet: false, favorites: [] };
 });
 
 function visibleText(renderer: ReactTestRenderer): string {
@@ -159,7 +159,7 @@ describe('desktop accounts settings', () => {
     expect(logout).toHaveLength(1);
     act(() => { logout[0]?.props.onClick(); });
     expect(harness.logoutCalls).toEqual([]);
-    expect(visibleText(renderer)).toContain('Profiles using it will stop working.');
+    expect(visibleText(renderer)).toContain('Models using this account will stop working.');
     act(() => { actions(renderer, 'openrouter', 'logout-confirm')[0]?.props.onClick(); });
 
     expect(harness.logoutCalls).toEqual([{ backend: 'pi', provider: 'openrouter', authType: 'oauth' }]);
@@ -193,7 +193,7 @@ describe('model rescan after a login', () => {
     return renderer.root.findAll(node => node.type === 'button' && node.props['data-accounts-sync'] !== undefined)[0];
   }
 
-  it('offers a rescan action that refreshes model routing and profile lists', () => {
+  it('offers a rescan action that refreshes model routing and favorite lists', () => {
     const renderer = mount();
 
     act(() => { rescanButton(renderer).props.onClick(); });

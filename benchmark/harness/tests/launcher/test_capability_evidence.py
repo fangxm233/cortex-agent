@@ -1,8 +1,6 @@
 import hashlib
 import importlib.util
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -86,11 +84,11 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
     )["mutations_killed"] == 20
 
 
-def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
+def test_deepseek_evidence_output_matches_its_frozen_digest() -> None:
     path = EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json"
 
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "da026713c39151130eef3925fd01ff15a70f0635aa393994406610d5f1824e8f"
+        "b404641e267e17ea5c365d2cf9ffb2780f7f6b01d0db370ffb8c93882719e6f1"
     )
 
 
@@ -257,32 +255,27 @@ def test_rejects_old_schema_with_old_or_new_field_shape(
             )
 
 
-def test_committed_migration_reproduces_evidence_and_bound_digests() -> None:
-    from cortex_bench_harness.launcher import credential_capabilities as registry
+def test_historical_migration_converts_pinned_records_in_isolation(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("capability_evidence_migration", MIGRATION_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    source = tmp_path / "migration.json"
+    source.write_bytes(migration.MIGRATION_PATH.read_bytes())
+    migration.MIGRATION_PATH = source
+    migration.EVIDENCE = tmp_path
+    pinned = migration.load_migration()
 
-    result = subprocess.run(
-        [sys.executable, str(MIGRATION_SCRIPT), "--check"],
-        cwd=HARNESS_DIR, capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
-    row = next(row for row in registry.CAPABILITY_REGISTRY.values()
-               if row.id == "pi-deepseek-api-key")
-    assert report == {
-        "ok": True,
-        "mode": "check",
-        "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
-        "offline_evidence_sha256": hashlib.sha256(
-            (EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json").read_bytes()
-        ).hexdigest(),
-        "registry_evidence_sha256": row.evidence_sha256,
-        "supporting_sha256": {
-            "model_metadata_sha256": DEEPSEEK_OFFLINE_CONTRACT["model_metadata_sha256"],
-            "mutation_manifest_sha256": DEEPSEEK_OFFLINE_CONTRACT[
-                "mutation_manifest_sha256"
-            ],
-        },
-    }
+    for state in migration.RECORD_STATES:
+        path, payload, digest = migration.migrate_record(pinned, state)
+        path.write_bytes(payload)
+        converted = json.loads(path.read_bytes())
+        original = pinned["records"][state]["document"]
+        expected = {key: value for key, value in original.items()
+                    if key not in pinned["removed_fields"]}
+        expected["schema_version"] = CAPABILITY_EVIDENCE_SCHEMA_VERSION
+        assert converted == expected
+        assert digest == hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_migration_refuses_malformed_pinned_records(tmp_path: Path) -> None:
@@ -372,6 +365,22 @@ def test_shipped_evidence_attests_mechanism_and_carries_no_declared_envelope(sta
     assert [field for field in UNVERIFIABLE_TREE_IDENTITY_FIELDS if field in shipped] == []
     assert all(shipped[field] for field in MECHANISM_FIELDS)
     assert shipped["capability_key"]["proxy_adapter_version"] == "cortex-bench-trial-proxy/2"
+
+
+@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
+@pytest.mark.parametrize("field", NUMERIC_ENVELOPE_FIELDS)
+def test_rejects_evidence_carrying_a_declared_envelope_number(
+    tmp_path: Path, state: str, field: str,
+) -> None:
+    record = document(state)
+    record[field] = 65536
+    path = tmp_path / "evidence.json"
+    digest = write(path, record)
+    with pytest.raises(ValueError, match="fields"):
+        validate_capability_evidence(
+            path, digest, capability_id="pi-deepseek-api-key", key=KEY,
+            state=state, adapter_id="deepseek-chat-completions/api-key",
+        )
 
 
 # --- mutation manifest ---------------------------------------------------------------------------

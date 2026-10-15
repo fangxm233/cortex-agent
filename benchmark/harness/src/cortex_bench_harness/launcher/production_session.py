@@ -308,10 +308,14 @@ class ProductionServerSession:
     async def _start_session(self, instruction: str, execute: Executor) -> str:
         """The trial's one unit of work, handed to a fresh direct session as its first message."""
         context = self._spec.materialized_home.production_evidence_context
-        response = await self._post("production-session-start.json", {
+        payload = {
             "action": "start", "message": instruction,
             "projectId": PROJECT_ID, "productionBenchmarkEvidenceContext": context,
-        }, execute)
+        }
+        cap = context["model_execution"]["max_output_tokens"]
+        if cap is not None:
+            payload["benchmarkMaxOutputTokens"] = cap
+        response = await self._post("production-session-start.json", payload, execute)
         return _required_text(self._response_data(response).get("sessionId"), "session id")
 
     def _run_deadline(self) -> float:

@@ -14,6 +14,7 @@ import { importLegacySessionStores } from './session-registry-import.js';
 import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
 import { retireCommissions } from './board-migration.js';
 import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
+import { retireProfiles } from './retire-profiles-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -54,9 +55,8 @@ export interface StepMigration {
   key: string;
   /** CalVer when this step was introduced. Same pending rule as file migrations. */
   version: string;
-  /** Idempotent action. Resolves on success; throws to signal failure (the runner logs, does not
-   *  bump the key, and continues with the next step — the step retries next boot). */
-  run(ctx: { dataDir: string; storeDir: string; defaultsDir: string }): Promise<void>;
+  /** Idempotent action. Return false to defer without bumping; throw to signal failure. */
+  run(ctx: { dataDir: string; storeDir: string; defaultsDir: string }): Promise<void | false>;
 }
 
 // ── Marker-block helpers (text migrations) ─────────────────────
@@ -538,6 +538,16 @@ const stepMigrations: StepMigration[] = [
     run: async ({ dataDir, defaultsDir }) => {
       if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return;
       await migrateToBuiltinOverlay({ dataDir, defaultsDir });
+    },
+  },
+  // S10: materialize engine selections before retiring the named preset snapshot. The helper owns
+  // its temporary registry repo and keeps raw names/overrides available until all patches land.
+  {
+    key: 'sentinel:retire-profiles',
+    version: '2026.10.15',
+    run: async ({ dataDir, storeDir }) => {
+      const report = await retireProfiles({ dataDir, storeDir });
+      if (report.skipped === 'immutable') return false;
     },
   },
 ];
@@ -1068,18 +1078,20 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
 
   // Step migrations run AFTER the file loop (so a step sees the file rewrites above) with the same
   // pending rule and the same versions.json, keyed by `key`. A throwing step logs and is skipped
-  // WITHOUT bumping — it retries next boot — and never blocks a later step. Only a step that
-  // resolves bumps its key.
+  // WITHOUT bumping — it retries next boot. S10 is required before runtime state writes. Only a step that
+  // completes (rather than returning false to defer) bumps its key.
   for (const step of opts.stepMigrations ?? stepMigrations) {
     const tracked = versions[step.key] || '0.0.0';
     const pending = compareCalVer(tracked, step.version) < 0 && compareCalVer(CORTEX_VERSION, step.version) >= 0;
     if (!pending) continue;
     try {
-      await step.run({ dataDir, storeDir, defaultsDir });
+      if (await step.run({ dataDir, storeDir, defaultsDir }) === false) continue;
       versions[step.key] = step.version;
       log.info(`Step migration ${step.version} applied for ${step.key}`);
     } catch (err) {
       log.error(`Step migration ${step.version} for ${step.key} failed: ${(err as Error).message}; not bumping`);
+      // Runtime state writes must not discard the legacy inputs needed to retry this conversion.
+      if (step.key === 'sentinel:retire-profiles') throw err;
     }
   }
 

@@ -51,29 +51,29 @@ function DaemonRow(props: Pick<MSettingsViewProps, 'connectionStatus' | 'onOpenD
   );
 }
 
-function profileSummary(vm: MSettingsVm): string | undefined {
-  const value = [vm.profileName, vm.profileModel, vm.profileThinking].filter(Boolean).join(' · ');
+function modelSummary(vm: MSettingsVm): string | undefined {
+  const value = [vm.modelLabel, vm.thinking].filter(Boolean).join(' · ');
   return value || undefined;
 }
 
-function ProfileCard(props: MSettingsViewProps) {
+function ModelCard(props: MSettingsViewProps) {
   const L = useVocab();
-  const summary = profileSummary(props.vm);
+  const summary = modelSummary(props.vm);
   return (
     <MCard padding={0}>
-      <button type="button" data-settings-entry="profiles"
-        onClick={() => props.onOpenSection('profiles')}
+      <button type="button" data-settings-entry="models"
+        onClick={() => props.onOpenSection('models')}
         style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
           display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
         <span style={{ width: 34, height: 34, borderRadius: 'var(--r-chip)', background: MC.runBg, color: MC.run,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          font: `600 11px ${MONO}`, flex: 'none' }}>P</span>
+          font: `600 11px ${MONO}`, flex: 'none' }}>{L.stNavModels.slice(0, 1)}</span>
         <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ ...TITLE, display: 'block' }}>{L.stNavProfiles}</span>
+          <span style={{ ...TITLE, display: 'block' }}>{L.stDefaultModel}</span>
           {summary && <span style={{ ...SUB, display: 'block' }}>{summary}</span>}
         </span>
         <span style={{ fontSize: 13, color: MC.run, maxWidth: '35%' }}>
-          {L.setSwitchProfile}
+          {L.setSwitchModel}
         </span>
       </button>
     </MCard>
@@ -113,7 +113,7 @@ function SettingsRow(props: {
 
 function SettingsList(props: MSettingsViewProps) {
   const L = useVocab();
-  const nav = getSettingsNav(L).filter((entry) => entry.key !== 'profiles');
+  const nav = getSettingsNav(L).filter((entry) => entry.key !== 'models');
   const sub = summaries(props, L);
   return (
     <MCard padding={0} style={{ overflow: 'hidden' }}>
@@ -160,7 +160,7 @@ export function MSettingsView(props: MSettingsViewProps) {
       <MScrollBody>
         <MCard padding={0}><DaemonRow connectionStatus={props.connectionStatus}
           onOpenDaemon={props.onOpenDaemon} /></MCard>
-        <ProfileCard {...props} />
+        <ModelCard {...props} />
         <SettingsList {...props} />
         <UpdateRow checkingUpdates={props.checkingUpdates} onCheckUpdates={props.onCheckUpdates} />
         <Footer />

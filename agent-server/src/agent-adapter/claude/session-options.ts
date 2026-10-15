@@ -3,10 +3,10 @@ import { resolveSpawnCwd } from '@core/paths.js';
 import { fromCanonical } from '@core/tool-names.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import { resolveMcpComposition } from '../types.js';
-import type { AgentProcessSpawner, EngineSpec, McpComposition } from '../types.js';
+import type { AgentProcessSpawner, CortexContextEnv, EngineSpec, McpComposition } from '../types.js';
 import {
   buildClaudeEnv, buildSpawnArgs, resolveClaudeMcpBundles,
-  type ClaudeSpawnOptions, type CortexAgentContext,
+  type ClaudeSpawnOptions,
 } from './spawn-args.js';
 import { writeClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { writeBrowserMcpConfig } from './browser-mcp.js';
@@ -31,8 +31,8 @@ export interface ClaudeSessionOptions {
   tools?: string | null;
   pluginDirs?: string[] | null;
   anthropicBaseUrl?: string;
-  extraEnv?: Record<string, string>;
-  /** Keys deleted from the child env after `extraEnv` is applied (EngineSpec.env.unsets). */
+  routeEnv?: Record<string, string>;
+  /** Keys deleted from the child env after route environment is applied (EngineSpec.env.unsets). */
   unsetEnv?: string[];
   /** Resolved spawn cwd; also where the transcript lives. */
   cwd: string;
@@ -58,13 +58,11 @@ export interface ClaudeSessionOptions {
   cliPath?: string;
   /** Exact allowlisted child environment for an isolated process. */
   pinnedEnv?: NodeJS.ProcessEnv;
-  /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
-  extraOption?: Record<string, string>;
-  /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
+  /** Selected thinking level → `--effort <level>`. Absent → no flag. */
   thinking?: string | null;
-  /** Cortex execution context surfaced to the MCP server child as CORTEX_PROFILE/PROJECT/SESSION_NAME env vars.
+  /** Cortex execution identity and engine selection surfaced to the MCP server child as env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
-  context?: CortexAgentContext;
+  context?: CortexContextEnv;
 }
 
 /** One launch of a session's process: which transcript, whether it resumes, and the options. */
@@ -90,7 +88,6 @@ function promptSpawnOptions(options: ClaudeSessionOptions) {
     claudeAgent: options.claudeAgent || null,
     pluginDirs: options.pluginDirs || null,
     outputStyle: options.outputStyle || null,
-    extraOption: options.extraOption,
     thinking: options.thinking ?? null,
   } satisfies Partial<ClaudeSpawnOptions>;
 }
@@ -138,7 +135,7 @@ export function claudeProcessLaunch(launch: ClaudeLaunchInput): { args: string[]
   const { options } = launch;
   const env = buildClaudeEnv(
     launch.channel, launch.sessionId, options.callbackSource || null, options.scheduleTaskId || null,
-    options.anthropicBaseUrl, options.extraEnv, options.context, options.pinnedEnv, options.unsetEnv,
+    options.anthropicBaseUrl, options.routeEnv, options.context, options.pinnedEnv, options.unsetEnv,
   );
   env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles(spawnOptions));
   return { args: buildSpawnArgs(spawnOptions), env };
@@ -203,7 +200,7 @@ function sessionRuntimeOptions(
     : null;
   return {
     anthropicBaseUrl: spec.route.anthropicBaseUrl,
-    extraEnv: spec.env.sets,
+    routeEnv: spec.env.sets,
     unsetEnv: spec.env.unsets,
     cwd: resolveSpawnCwd(spec.cwd),
     mcpComposition: composition,
@@ -222,7 +219,6 @@ function sessionRuntimeOptions(
     processSpawner: spec.process.spawner,
     cliPath: spec.process.cliPath,
     pinnedEnv: spec.env.pinned,
-    extraOption: spec.extraOption,
     context: spec.env.context,
   };
 }

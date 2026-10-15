@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import type { ScheduleRepo, ScheduleTask } from '@store/schedule-repo.js';
-import { getDefaultProfileName } from '../agents/profile-manager.js';
+import { getDefaultSelection } from '../agents/models.js';
 import {
   buildScheduleTask, normalizeSchedulePatch, retimeTask,
   type ScheduleSpec, type SchedulePatch,
@@ -11,16 +11,12 @@ import {
 
 type Repo = Pick<ScheduleRepo, 'mutate' | 'updateTask'>;
 
-export function resolveTaskProfile(profile: string | null | undefined): string {
-  return profile || getDefaultProfileName();
-}
-
 /** Persist a new schedule. With an idempotency key, a schedule already created under that key is
  *  returned instead of adding a second one. */
 export async function addSchedule(
   repo: Repo, spec: ScheduleSpec, opts: { idempotencyKey?: string } = {},
 ): Promise<{ task: ScheduleTask; created: boolean }> {
-  const task = buildScheduleTask(spec, randomBytes(4).toString('hex'), Date.now(), resolveTaskProfile(spec.profile));
+  const task = buildScheduleTask(spec, randomBytes(4).toString('hex'), Date.now(), spec.selection ?? getDefaultSelection());
   const key = opts.idempotencyKey;
   if (key) task.idempotencyKey = key;
   return repo.mutate<{ task: ScheduleTask; created: boolean }>((data) => {

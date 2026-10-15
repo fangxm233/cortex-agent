@@ -108,7 +108,12 @@ function resolveModel(
   });
   if (resolved.error) throw new Error(resolved.error);
   if (resolved.warning) log.warn(`PI model resolution for ${request.sessionKey}: ${resolved.warning}`);
-  return { model: resolved.model, thinking: thinking ?? resolved.thinkingLevel };
+  // The catalog belongs to the adapter, but a benchmark's frozen output cap belongs only to
+  // this session. Copy the resolved model: never mutate either the file or the SDK catalog.
+  const model = resolved.model && request.benchmarkMaxOutputTokens !== undefined
+    ? { ...resolved.model, maxTokens: request.benchmarkMaxOutputTokens }
+    : resolved.model;
+  return { model, thinking: thinking ?? resolved.thinkingLevel };
 }
 
 async function createRuntimeServices(

@@ -17,7 +17,7 @@ import { NotesOverviewCard } from '@/features/notes/NotesOverviewCard';
 import { useNotes } from '@/features/notes/NotesProvider';
 import {
   formatMoney,
-  scheduleProfileLabel,
+  scheduleModelLabel,
   nextRunLabel,
   lastRunLabel,
   execDurationMs,
@@ -502,14 +502,12 @@ export function OverviewView(): JSX.Element {
                       ? `${lastRunLabel(s.lastRun, now, lang, L)}`
                       : `${nextRunLabel(s.nextRun, now, lang, L)} · ${lastRunLabel(s.lastRun, now, lang, L)}`}
                   </span>
-                  {/* Real agent profile from ScheduleInfo.profile (schedule config source). Omitted
-                      when the schedule has no recorded profile — honest placeholder, no fabrication. */}
-                  {scheduleProfileLabel(s) && (
+                  {scheduleModelLabel(s) && (
                     <span
-                      title={L.wbProfile}
+                      title={L.scModel}
                       style={{ marginLeft: 7, font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}
                     >
-                      {scheduleProfileLabel(s)}
+                      {scheduleModelLabel(s)}
                     </span>
                   )}
                   <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 9 }}>

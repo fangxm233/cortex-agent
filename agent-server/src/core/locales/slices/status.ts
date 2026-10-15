@@ -16,16 +16,12 @@ export const statusEn = {
   'status.rateLimitedExhausted': 'Rate limited',
   'status.supersededSeeNewReply': 'see new reply',
   'status.errorBody': 'Error: ${message}',
-  'status.notRetriedAfterTools': '${message} — the turn had already run tools, so it was not retried on the fallback model (that would run them again). Send the message again to continue.',
-  'status.rateLimitedMidTurn': 'Rate limited mid-turn (${message}). The turn had already run tools, so it was not retried on the fallback model (that would run them again). Send the message again to continue.',
   // --- Turn-completion notification ---
   'notify.turnComplete': 'Turn complete',
   'notify.turnFailed': 'Turn failed',
   // --- Semantic chat notices ---
   'notify.contextCompacted': 'Context auto-compacted.',
   'notify.agentFallback': 'Model fallback: ${from} → ${to}.',
-  'notify.attemptFallback.rateLimited': '${from} is rate limited; falling back to ${to}.',
-  'notify.attemptFallback.transportError': 'Could not reach ${from}; falling back to ${to}.',
   'notify.backendSessionReset': 'Previous backend session was unavailable; started a fresh session.',
   'notify.pluginsUnavailable': 'Some plugin skills or MCP servers could not be loaded and are missing from this turn:\n${detail}',
   'notify.pluginsUnavailableMore': '…and ${n} more.',
@@ -75,16 +71,12 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'status.rateLimitedExhausted': '触发限流',
   'status.supersededSeeNewReply': '查看新回复',
   'status.errorBody': '错误：${message}',
-  'status.notRetriedAfterTools': '${message}——本回合已执行过工具，切换备用模型重试会重复执行它们，因此没有重试。请重新发送消息继续。',
-  'status.rateLimitedMidTurn': '回合进行中触发限流（${message}）。本回合已执行过工具，切换备用模型重试会重复执行它们，因此没有重试。请重新发送消息继续。',
   // --- Turn-completion notification ---
   'notify.turnComplete': '回合完成',
   'notify.turnFailed': '回合失败',
   // --- Semantic chat notices ---
   'notify.contextCompacted': '上下文已自动压缩。',
   'notify.agentFallback': '模型回退：${from} → ${to}。',
-  'notify.attemptFallback.rateLimited': '${from} 触发限流，回退到 ${to}。',
-  'notify.attemptFallback.transportError': '无法连接 ${from}，回退到 ${to}。',
   'notify.backendSessionReset': '之前的后端会话不可用，已启动新会话。',
   'notify.pluginsUnavailable': '部分插件技能或 MCP server 未能加载，本轮不可用：\n${detail}',
   'notify.pluginsUnavailableMore': '……另有 ${n} 项。',

@@ -12,8 +12,8 @@ import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
 import {
-  applyChannelSelection, clearChannelAgentSelection, getActiveProfile, getChannelOverride,
-  getSelectionDefault, resolveBackendForChannel, switchChannelAgent, switchChannelProfile,
+  applyChannelSelection, clearChannelAgentSelection, getModelMemory,
+  getSelectionDefault, resolveBackendForChannel, switchChannelAgent,
 } from '@domain/agents/index.js';
 import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
@@ -119,29 +119,25 @@ function sessionRunDeps(adapter: PlatformAdapter): SessionRunDeps {
 }
 
 type SessionSelectionDeps = Pick<UiServiceDeps,
-  | 'switchSessionProfile' | 'switchSessionAgent' | 'applySessionSelection'
-  | 'getChannelSelectionOverride' | 'getSelectionDefault'>;
+  | 'switchSessionAgent' | 'applySessionSelection'
+  | 'getModelMemory' | 'getSelectionDefault'>;
 
-/** The profile / agent / model a session runs: the same domain rules the chat commands apply. */
+/** The environment and engine a session runs: the shared domain rules. */
 function sessionSelectionDeps(): SessionSelectionDeps {
   return {
-    switchSessionProfile: (opts) => switchChannelProfile(opts),
     // A null name is the "follow the global default" row, which clears the channel's selection.
     switchSessionAgent: async ({ channel, name }) => {
       if (name === null) {
         await clearChannelAgentSelection(channel);
-        return { ok: true, agentName: null, effectiveProfile: getActiveProfile(channel) ?? '', backendChanged: false };
+        return { ok: true, agentName: null };
       }
       const res = await switchChannelAgent({ channel, name });
       return res.ok === true
-        ? { ok: true, agentName: res.agentName, effectiveProfile: res.effectiveProfile, backendChanged: res.backendChanged }
-        : {
-          ok: false, agentName: null, effectiveProfile: '', backendChanged: false,
-          reason: res.reason, currentBackend: res.currentBackend, targetBackend: res.targetBackend,
-        };
+        ? { ok: true, agentName: res.agentName }
+        : { ok: false, agentName: null, reason: res.reason };
     },
     applySessionSelection: (opts) => applyChannelSelection(opts),
-    getChannelSelectionOverride: (channel) => getChannelOverride(channel),
+    getModelMemory: () => getModelMemory(),
     // What a draft composer starts on before any session exists.
     getSelectionDefault: () => getSelectionDefault(),
   };

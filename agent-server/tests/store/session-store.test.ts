@@ -62,7 +62,7 @@ function liveSession(id: string, _name: string): Session {
     createdAt: '2025-01-01T00:00:00.000Z',
     lastUsedAt: '2025-01-01T00:00:00.000Z',
     label: null,
-    profileName: null,
+    selection: null,
     backendSessionId: null,
     scheduleId: null,
   };

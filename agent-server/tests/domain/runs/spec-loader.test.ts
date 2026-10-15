@@ -11,7 +11,7 @@ import type { ResolvedEnvironment } from '../../../src/core/types/environment-ty
 import type { AgentRole } from '../../../src/core/agents/roles.js';
 
 function slot(overrides: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
-  return { profile: '__active__', ...overrides } as ResolvedEnvironment;
+  return { ...overrides } as ResolvedEnvironment;
 }
 function role(overrides: Partial<AgentRole> = {}): AgentRole {
   return { name: 'explore', description: 'd', systemPrompt: 'ROLE BODY', ...overrides };

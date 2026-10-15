@@ -1,6 +1,7 @@
 import { useEffect, type CSSProperties } from 'react';
 import { CONTROL_HEIGHT, Select } from '@/design';
 import { useLang, useVocab } from '@/i18n';
+import { modelKey } from '@/lib/model-selection';
 import {
   visibleFields,
   nextRunParts,
@@ -8,6 +9,9 @@ import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
   scheduleOptionLabel,
+  scheduleModelPatch,
+  scheduleThinkingPatch,
+  type ScheduleModelOption,
   type ScheduleEditableFields,
   type ScheduleForm,
   type SchedType,
@@ -16,7 +20,7 @@ import {
 // New-schedule overlay (design 7c), rebuilt 1:1 from prototype.dc.html L1431-1459 (+ shared backdrop
 // L1291-1292). Exact inline styles / px / hex / font-size / weight / EN copy from the source; the
 // prototype's static mock is made interactive: TYPE drives which field cell shows, MESSAGE is
-// editable, PROFILE/DAY/unit are real controls, and Create schedule fires the real
+// editable, MODEL/DAY/unit are real controls, and Create schedule fires the real
 // `schedules.add` mutation (owned by useScheduleEditorController). The DAILY state is the visual-diff bar
 // (proto-shot 13); interval/weekly/once reuse the identical cell chrome, swapping the visible field.
 
@@ -69,12 +73,34 @@ export interface ScheduleModalProps {
   onCreate: () => void;
   valid: boolean;
   pending: boolean;
-  /** Real selectable agent profiles (from config.get); already includes the form's current value. */
-  profileOptions: string[];
+  modelOptions: ScheduleModelOption[];
+  thinkingOptions: string[];
   now?: Date;
 }
 
-export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
+function ModelFields({ form, editableFields, onChange, modelOptions, thinkingOptions }: ScheduleModalProps) {
+  const L = useVocab();
+  return <div style={{ minWidth: 0, display: 'grid', gap: 10 }}>
+    <div><div style={{ ...LABEL, marginBottom: 5 }}>{L.scModel}</div>
+      <div style={CELL_BOX}><Select data-schedule-select="model" density="bare" aria-label={L.scModel}
+        value={form.selection ? modelKey(form.selection) : ''} placeholder={L.scChooseModel}
+        disabled={!editableFields.selection} options={modelOptions.map((option) => ({
+          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !option.selection.mode,
+        }))} onValueChange={(value) => onChange(scheduleModelPatch(modelOptions, value))}
+        style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")} /></div>
+    </div>
+    <div><div style={{ ...LABEL, marginBottom: 5 }}>{L.scThinking}</div>
+      <div style={CELL_BOX}><Select data-schedule-select="thinking" density="bare" aria-label={L.scThinking}
+        value={form.selection?.thinking ?? ''} disabled={!editableFields.selection || !form.selection}
+        options={thinkingOptions.map((value) => ({ value, label: value || L.scThinkingDefault }))}
+        onValueChange={(value) => onChange(scheduleThinkingPatch(form, value))}
+        style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")} /></div>
+    </div>
+  </div>;
+}
+
+export function ScheduleModal(props: ScheduleModalProps) {
+  const { form, mode, editableFields, onChange, onCancel, onCreate, valid, pending, now } = props;
   const L = useVocab();
   const lang = useLang();
   useEffect(() => {
@@ -109,7 +135,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
   const onceTimingUnavailable = editing && form.type === 'once';
   const nextRun = onceTimingUnavailable ? null : nextRunParts(form, now ?? new Date(), lang);
 
-  // Left 130px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). PROFILE always on the right;
+  // Left 130px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). MODEL always on the right;
   // weekly inserts a DAY cell between them (grid widens to 130/130/1fr — daily stays 130/1fr, 1:1).
   const topGridCols = vis.dayOfWeek ? '130px 130px 1fr' : '130px 1fr';
 
@@ -205,7 +231,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
             })}
           </div>
 
-          {/* [left cell] + [DAY if weekly] + PROFILE (prototype L1443-1446) */}
+          {/* [left cell] + [DAY if weekly] + MODEL */}
           <div style={{ display: 'grid', gridTemplateColumns: topGridCols, gap: 12, marginTop: 12 }}>
             {/* left cell */}
             <div>
@@ -326,22 +352,7 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
               </div>
             )}
 
-            {/* PROFILE (prototype L1445) */}
-            <div>
-              <div style={{ ...LABEL, marginBottom: 5 }}>{L.scProfile}</div>
-              <div style={CELL_BOX}>
-                <Select
-                  data-schedule-select="profile"
-                  density="bare"
-                  aria-label={L.scProfile}
-                  value={form.profile}
-                  disabled={!editableFields.profile}
-                  options={profileOptions.map((profile) => ({ value: profile, label: profile }))}
-                  onValueChange={(profile) => onChange({ profile })}
-                  style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
-                />
-              </div>
-            </div>
+            <ModelFields {...props} />
           </div>
 
           {/* MESSAGE (prototype L1447-1448) */}

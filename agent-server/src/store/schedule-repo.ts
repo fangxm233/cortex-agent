@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 export const SCHEDULES_FILE = path.join(STORE_DIR, 'schedules.json');
 export const CHANNEL_REGISTRY_FILE = path.join(STORE_DIR, 'channel-registry.json');
@@ -11,7 +12,7 @@ export interface ScheduleTask {
   type: 'interval' | 'daily' | 'weekly' | 'once';
   message: string;
   projectId: string;
-  profile: string | null;
+  selection?: EngineSelection;
   intervalMs?: number;
   time?: string;
   dayOfWeek?: number;

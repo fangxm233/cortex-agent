@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from ..trial_assets import canonical_sha256
 from .production_arms import ProductionArmBundle, production_arm_bundle
 
-LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/5"
+LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/6"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
 LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
 # The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into
@@ -37,7 +37,7 @@ RESIDUE_SUFFIXES = ("_API_KEY", "_BASE_URL")
 # The arm is the committed bundle, so the process environment is composed, not filtered: only these
 # neutral base variables survive from the host, and everything else the trial runs on is written
 # below. A provider denylist cannot express this -- the server also reads host variables that name
-# no provider (PI_CODING_AGENT_DIR, CLAUDE_CONFIG_DIR, CORTEX_COSTS_FILE, CORTEX_PROFILE) and each
+# no provider (PI_CODING_AGENT_DIR, CLAUDE_CONFIG_DIR, CORTEX_COSTS_FILE) and each
 # of them redirects a credential or state file out of the sealed home, or overrides the arm.
 INHERITED_KEYS = ("LANG", "LC_ALL", "LC_CTYPE", "PATH", "TERM", "TZ")
 SAFE_DUMMY_TOKEN = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -238,23 +238,6 @@ def _write_dynamic_inputs(
     )
 
 
-def _write_profile_output_cap(cortex_home: Path, max_output_tokens: int) -> None:
-    path = cortex_home / "config/profiles.json"
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-        profile_name = document["defaultProfile"]
-        profile = document["profiles"][profile_name]
-        current = profile["maxOutputTokens"]
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        raise ProductionHomeError("bundle profile output cap is unavailable") from error
-    if not isinstance(current, int) or isinstance(current, bool) or current <= 0:
-        raise ProductionHomeError("bundle profile output cap is invalid")
-    if current == max_output_tokens:
-        return
-    profile["maxOutputTokens"] = max_output_tokens
-    _write_bytes(path, (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode())
-
-
 def _is_residue(key: str) -> bool:
     return key.startswith(RESIDUE_PREFIXES) or key.endswith(RESIDUE_SUFFIXES)
 
@@ -403,7 +386,6 @@ def materialize_production_home(
     manifest_hash = _bundle_manifest_hash(npm_sha256, facts.backend_cli_version, bundle.sha256)
     evidence_context = _evidence_context(facts, manifest_hash)
     _copy_snapshot(bundle, home)
-    _write_profile_output_cap(home, facts.max_output_tokens)
     _write_dynamic_inputs(home, facts.arm_bundle, proxy_base_url, facts.dummy_token_ref)
     _make_read_only(home)
     home_sha256, home_count = _digest_tree(home)

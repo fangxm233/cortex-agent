@@ -111,13 +111,12 @@ test('runMigrations - handles missing user config file gracefully', async () => 
   }
 });
 
-test('runMigrations - handles corrupt user config gracefully', async () => {
+test('runMigrations - leaves corrupt legacy selection config intact and blocks startup', async () => {
   const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
   await fs.mkdir(configDir, { recursive: true });
   await fs.writeFile(path.join(configDir, 'profiles.json'), '{ not valid json }');
 
-  // Should not throw
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await assert.rejects(() => runMigrations({ dataDir, defaultsDir, storeDir }), SyntaxError);
 
   // The file is left as it was, and its migrations stay pending
   assert.equal(await readText(path.join(configDir, 'profiles.json')), '{ not valid json }');
@@ -199,7 +198,7 @@ test('runMigrations - backfills pi provider from mode when missing', async () =>
     },
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const m = await readJson(path.join(configDir, 'profiles.json')) as any;
   assert.equal(m.profiles.plan.provider, undefined, 'claude profile gets no provider');
@@ -221,7 +220,7 @@ test('runMigrations - does not overwrite an existing pi provider', async () => {
     },
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const m = await readJson(path.join(configDir, 'profiles.json')) as any;
   assert.equal(m.profiles.execute.provider, 'deepseek', 'existing provider preserved');
@@ -246,7 +245,7 @@ test('runMigrations - backfills pi provider in fallback entries (inherits backen
     },
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const m = await readJson(path.join(configDir, 'profiles.json')) as any;
   assert.equal(m.profiles.p.provider, 'anthropic');
@@ -268,13 +267,32 @@ test('runMigrations - profiles.json migration is idempotent / no-op when already
   };
   await writeJson(path.join(configDir, 'profiles.json'), valid);
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
   const first = await readJson(path.join(configDir, 'profiles.json'));
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
   const second = await readJson(path.join(configDir, 'profiles.json'));
 
   assert.deepEqual(first, valid);
   assert.deepEqual(second, first);
+});
+
+test('runMigrations - S10 retires the backfilled snapshot and tracks its sentinel', async () => {
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as Record<string, string>;
+  assert.equal(versions['sentinel:retire-profiles'], '2026.10.15');
+  const models = await readJson(path.join(configDir, 'models.json')) as any;
+  assert.deepEqual(models.default, {
+    backend: 'pi', provider: 'anthropic', model: 'deepseek-v4-flash', thinking: null, mode: 'anthropic',
+  });
+  await assert.rejects(fs.stat(path.join(configDir, 'profiles.json')), { code: 'ENOENT' });
+  const archives = (await fs.readdir(path.join(configDir, 'archive'))).filter(name => name.startsWith('profiles-'));
+  assert.equal(archives.length, 1);
+  const archived = await readJson(path.join(configDir, 'archive', archives[0], 'profiles.json')) as any;
+  assert.equal(archived.profiles.execute.provider, 'anthropic');
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.deepEqual(await readJson(path.join(configDir, 'models.json')), models);
 });
 
 // ── M3: sessions.json conduit prefixing ────────────────────────
@@ -790,4 +808,17 @@ test('the registered built-in overlay step runs on the release that ships it', a
   const versions = await readJson(path.join(storeDir, 'versions.json')) as Record<string, string>;
   assert.ok(versions['sentinel:builtin-overlay'], 'step ran and was tracked');
   await assert.rejects(fs.stat(path.join(dataDir, 'rules', 'shipped.md')));
+});
+
+test('failed selection migration aborts startup without marking it complete', async () => {
+  const dirs = setupDirs(_testIdx++);
+  const stateFile = path.join(dirs.storeDir, 'agent-state.json');
+  const legacy = { channelProfiles: { 'web:old': 'plan' }, channelOverrides: { 'web:old': { thinking: 'high' } } };
+  await writeJson(stateFile, legacy);
+  const steps: StepMigration[] = [{
+    key: 'sentinel:retire-profiles', version: '2026.10.15',
+    run: async () => { throw new Error('registry append failed'); },
+  }];
+  await assert.rejects(() => runMigrations({ ...dirs, stepMigrations: steps }), /registry append failed/);
+  assert.deepEqual(await readJson(stateFile), legacy);
 });

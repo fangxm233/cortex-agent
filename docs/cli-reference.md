@@ -38,7 +38,9 @@ After writing configs, it detects local provider credentials and offers
 login, rescan, continue with configured providers, or a warned skip. Login
 uses the same flow as `cortex auth login`; choosing Claude Code reuses an
 existing installation or asks permission to install a missing copy. Continue
-configures gateway routes and profiles from detected endpoints. Detection
+configures gateway routes and asks for a default model and favorites from
+detected endpoints. The recommended default is preselected and included among
+favorites. Detection
 makes no paid inference request and does not verify model access.
 
 `--answers` and `--json` runs do not start provider login or wait for input.
@@ -48,8 +50,22 @@ Options:
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex/`)
 - `--gateway-config-dir <path>` — gateway config output directory (default: `~/.aistatus/`)
 - `--force` — overwrite existing configs (`.env`, `budget.json`, `agent-state.json`, etc.)
-- `--answers <file>` — read answers from a JSON document without prompting. Omitted fields use defaults; `{}` creates a single-machine installation using PI, with provider login still required if no credentials are detected. Used by the desktop installer. An explicit `backends` array retains its selection and installation semantics (`claude`, `pi`, or both); an explicit empty array retains the Claude fallback.
+- `--answers <file>` — read answers from a JSON document without prompting. Omitted fields use defaults; `{}` creates a single-machine installation using PI, with provider login still required if no credentials are detected. Used by the desktop installer. An explicit `backends` array retains its selection and installation semantics (`claude`, `pi`, or both); an explicit empty array selects Claude.
 - `--json` — emit newline-delimited progress events on stdout and move human-readable output to stderr. The final event reports the home directory, the version, the client token, and the local Web UI URL.
+
+Model answers use this shape (the selected pair must be among detected models):
+
+```json
+{
+  "defaultChoice": { "mode": "openai-codex", "model": "gpt-5.5" },
+  "favorites": [{ "mode": "openai-codex", "model": "gpt-5.5" }]
+}
+```
+
+An explicit `defaultChoice` replaces the saved default; otherwise it is preserved.
+Favorites are merged and include the selected default. The positional stdin
+protocol ends with two model lines: default `mode:model`, then comma-separated
+favorite `mode:model` pairs.
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
 
@@ -182,9 +198,9 @@ The default run is read-only and safe at any time. It inspects four areas:
   daemon is running.
 - Backend install / login — data directories exist and are writable, `.env`
   is present, the client and webhook tokens are set, `ANTHROPIC_API_KEY`
-  status, and that `agent-state.json`, `profiles.json`, and `mcp-config.json` are
-  present and valid. A missing `profiles.json` is a warning; invalid JSON or a
-  `defaultProfile` that names no profile is a failure. It also smoke-tests the installed PI runtime and its
+  status, and that `agent-state.json`, `models.json`, and `mcp-config.json` are
+  present and valid. A missing `models.json` is a warning; invalid JSON, an
+  invalid default selection, or a missing or invalid favorites array is a failure. It also smoke-tests the installed PI runtime and its
   `login` export, then summarizes expired or logged-out in-use providers from
   the credential-free backend auth snapshot. These two checks warn rather than
   fail. In API mode, a healthy gateway with no local key is reported as
@@ -244,7 +260,7 @@ without starting an authentication flow; help works without a TTY.
 
 The result is JSON on stdout, with human prompts and errors on stderr; no
 `--json` flag is needed or accepted. Results omit secrets. A successful login
-synchronizes gateway/profile configuration and reports the sync result with
+synchronizes gateway/model configuration and reports the sync result with
 `inferenceVerified: false`: credentials are configured, not inference-tested,
 and no paid model request is sent.
 
@@ -297,12 +313,18 @@ two writes contain and how a definition reaches an agent.
 
 Auto-detect Claude Code and PI configurations from their local config
 files, generate `~/.aistatus/gateway.yaml` (with backup of existing),
-and write `$CORTEX_HOME/config/profiles.json`. Run this whenever you add
+and write `$CORTEX_HOME/config/models.json`. Run this whenever you add
 a new API key or change models.
 
 Options:
 - `--dry-run` — print the generated gateway.yaml to stdout without writing
-- `--output-dir <path>` — write gateway.yaml and profiles.json under `<path>` instead of defaults
+- `--output-dir <path>` — write gateway.yaml and models.json under `<path>` instead of defaults
+
+Setup preserves an existing default selection and merges favorites. Its summary
+shows the default model and favorites; use **Settings → Models** to change the
+default. Provider-login sync also preserves existing choices, supplies a missing
+default, and adds a recommended favorite for each newly connected backend/provider
+group without one. Its result includes `defaultSet` and `favorites`.
 
 **`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
 
@@ -326,7 +348,7 @@ exits 1 with the valid values on stderr.
 - `list [--project <id>]` — all schedules, or one project's
 - `get <id>` — one schedule; an unknown id exits 1
 - `add --type <type> …` — create a schedule; prints `created: false` and the existing schedule when `--idempotency-key` matches one. A timing flag that does not belong to the type is rejected
-- `edit <id> …` — change the message, project, profile, pre-check, or the timing fields of the schedule's type; the type itself is fixed
+- `edit <id> …` — change the message, project, model selection, pre-check, or the timing fields of the schedule's type; the type itself is fixed
 - `pause <id>` / `resume <id>` — pause or resume a recurring schedule; repeating either changes nothing
 - `remove <id> [--dry-run]` — delete a schedule (`removed: false` when it does not exist); `--dry-run` prints `would_remove` and deletes nothing
 
@@ -338,7 +360,8 @@ Options:
 - `--delay <duration>` — `once`: fire this long from now; on `edit`, moves the fire time
 - `--message <text|->` — the prompt for the fired session; `-` reads it from stdin
 - `--project <id>` — project the fired session belongs to (default: `general`)
-- `--profile <name>` — agent profile to run under (default: the configured default profile, not necessarily the active session profile)
+- `--model <[provider/]model>` — model to run; PI accepts an explicit `provider/model`. Creation without model flags stores the configured default selection, which may differ from the active session
+- `--thinking <level>` — backend-native thinking level. With no model flag, applies to a copy of the configured default on creation or the schedule’s stored selection on edit; omitted on a model change, uses that model’s remembered level
 - `--pre-check <cmd>` — shell gate run before each fire; a non-zero exit skips that fire
 - `--idempotency-key <key>` — `add`: a retry with the same key returns the first schedule
 - `--help`, `-h` — show schedule help

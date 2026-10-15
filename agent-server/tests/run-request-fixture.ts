@@ -1,6 +1,6 @@
 //
 // `buildEngineSpec` takes a resolved `RunRequest` plus the attempt's engine selection — there is no
-// flat options bag in production any more. The spawn-seam and profile suites still want to state a
+// flat options bag in production any more. The spawn-seam and selection suites still want to state a
 // spawn in one terse literal, so this maps that literal onto the pair. Keep it a pure regrouping:
 // a default added here that production does not set would make the goldens lie. Where the old flat
 // bag had an implicit default (`loadCortexRules` undefined meant "load"), that default is restated
@@ -8,7 +8,7 @@
 
 import type { EngineSpec } from '../src/agent-adapter/types.js';
 import type { ModeEnv } from '../src/domain/runs/mode-env.js';
-import type { ResolvedProfileConfig, RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../src/domain/agents/engine-selection.js';
 import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import type { RunRequest } from '../src/domain/runs/request.js';
 import type { EngineSpecFixtureInput } from './engine-spec-fixture.js';
@@ -21,7 +21,6 @@ export interface RunRequestFixtureInput extends Omit<EngineSpecFixtureInput, 'to
    *  backend needs the text a caller would have sent. */
   promptText?: string;
   trackSessionId?: string | null;
-  profileName?: string | null;
   project?: string;
   trigger?: string;
   executionId?: string | null;
@@ -37,54 +36,36 @@ function defined<T extends object>(value: T): Partial<T> {
 }
 
 /** The attempt config a fixture implies, so a suite can pass the same literal to both. */
-export function attemptFixture(partial: Partial<RunAttemptConfig> = {}): RunAttemptConfig {
+export function attemptFixture(partial: Partial<EngineSelection> = {}): EngineSelection {
   return {
     model: partial.model ?? 'claude-sonnet-4-6',
     backend: partial.backend ?? 'claude',
-    mode: partial.mode ?? null,
+    mode: partial.mode ?? 'plan',
     provider: partial.provider ?? null,
-    extraEnv: partial.extraEnv ?? {},
-    extraOption: partial.extraOption ?? {},
     thinking: partial.thinking ?? null,
-    ...(partial.maxOutputTokens !== undefined ? { maxOutputTokens: partial.maxOutputTokens } : {}),
   };
 }
 
-/** The engine selection a resolved profile implies. The run layer keeps the two separate so the
- *  identity boundary can compare them; a fixture states both from one profile. */
-export function attemptOf(resolved: ResolvedProfileConfig): RunAttemptConfig {
-  return {
-    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
-    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    thinking: resolved.thinking,
-  };
+export function attemptOf(selection: EngineSelection): EngineSelection {
+  return { ...selection };
 }
 
 /** The engine selection a flat literal implies, with an explicit attempt layered on top. */
 export function attemptFromFixture(
   partial: RunRequestFixtureInput = {},
-  override: Partial<RunAttemptConfig> = {},
-): RunAttemptConfig {
+  override: Partial<EngineSelection> = {},
+): EngineSelection {
   return attemptFixture({
     model: partial.model,
     provider: partial.piProvider,
     thinking: partial.thinking,
-    extraEnv: partial.env,
-    extraOption: partial.extraOption,
-    maxOutputTokens: partial.piModelMaxTokens,
     ...defined(override),
   });
 }
 
-/** A single-attempt profile around one attempt config. An empty name is how a fixture says "this
- *  run was never looked up by profile name" — the same thing production says for a subagent. */
-export function profileFixture(attempt: RunAttemptConfig, name = ''): ResolvedProfileConfig {
-  return { name, ...attempt, fallback: [] };
-}
-
 export function runRequestFixture(
   partial: RunRequestFixtureInput = {},
-  attemptOverride: Partial<RunAttemptConfig> = {},
+  attemptOverride: Partial<EngineSelection> = {},
 ): RunRequest {
   const attempt = attemptFromFixture(partial, attemptOverride);
   return {
@@ -94,7 +75,8 @@ export function runRequestFixture(
       backendSessionId: partial.sessionId ?? null,
       engineKey: partial.sessionKey ?? partial.channel ?? '',
     },
-    profile: profileFixture(attempt, partial.profileName ?? ''),
+    selection: attempt,
+    benchmarkMaxOutputTokens: partial.benchmarkMaxOutputTokens,
     spec: {
       systemPrompt: partial.systemPrompt ?? null,
       appendSystemPrompt: partial.appendSystemPrompt ?? null,
@@ -153,7 +135,7 @@ export function runRequestFixture(
  */
 export function specFromFixture(
   partial: RunRequestFixtureInput = {},
-  attemptOverride: Partial<RunAttemptConfig> = {},
+  attemptOverride: Partial<EngineSelection> = {},
   route?: ModeEnv,
 ): EngineSpec {
   return buildEngineSpec(

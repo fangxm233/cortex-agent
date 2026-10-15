@@ -28,7 +28,6 @@ export const environmentFieldsShape = {
 export const environmentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  profile: z.string().min(1),
   persistSession: z.boolean().optional(),
   directive: z.string().optional(),
   systemPrompt: z.string().optional(),

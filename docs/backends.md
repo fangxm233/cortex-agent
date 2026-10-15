@@ -22,12 +22,12 @@ Three nouns cover the path from a message to a backend process: a **run**, a
 A **run** is one execution of one user request: a conversation turn, a
 hook-injected turn, an edit retry, an ask-user resume, or a subagent child.
 `startRun` (`domain/runs/service.ts`) opens one from a fully resolved
-`RunRequest` — profile, prompt, policy, and context — plus the observers that
+`RunRequest` — engine selection, prompt, policy, and context — plus the observers that
 watch it, and returns the `AgentRun` (`domain/runs/run.ts`) that owns the run's
-event stream, its cancel and steer handles, its fallback chain, and its result.
+event stream, its cancel and steer handles, and its result.
 
 A **session** is the conversation identity a run continues: the stable Cortex
-session id, the backend's own resume id, the profile it runs, and the channel
+session id, the backend's own resume id, its engine selection, and the channel
 it is bound to. A session owns the engine it resumes into. A run reuses its
 session's pooled engine; a hook-injected turn gets an engine key, and an
 engine, of its own.
@@ -40,15 +40,14 @@ identity, and otherwise retires it and opens a new one. The adapter is
 stateless; it opens a session from an `EngineSpec` and translates what that
 session emits.
 
-Configuration is resolved once per run. `resolveRunConfig`
-(`domain/runs/config-resolver.ts`) picks the profile by priority — an explicit
-override, the session's recorded profile, the channel's profile, the active
-profile, then `profiles.json`'s `defaultProfile` — and the profile supplies the
-backend, model, provider, gateway mode, thinking level, and fallback chain.
-`buildEngineSpec` (`domain/runs/engine-spec.ts`) turns the resolved run into a
-backend-neutral `EngineSpec`, which the adapter translates into backend-native
-form: command-line arguments for the Claude Code child process, session options
-for the in-process PI session.
+Configuration is resolved once per run. `resolveRunSelection`
+(`domain/runs/config-resolver.ts`) uses an explicit complete selection, then the
+session's recorded selection, the channel's selection, then `models.json`'s
+`default`. The selection supplies backend, model, provider, gateway mode, and
+thinking level. `buildEngineSpec` (`domain/runs/engine-spec.ts`) produces a
+backend-neutral `EngineSpec`, which the adapter translates into Claude Code
+command-line arguments or in-process PI session options. Each run uses one
+engine selection.
 
 From there the engine emits one `RunEvent` stream (`agent-adapter/run-events.ts`).
 Each adapter translates its backend's native events into the `NormalizedEvent`
@@ -202,7 +201,7 @@ past the retention cutoff and survive a second confirmation sweep.
 
 PI provider names are independent of Cortex backend names. In particular,
 `openai-codex` is a supported PI provider (including the
-`openai-codex-responses` API kind); profiles using it still set
+`openai-codex-responses` API kind); engine selections using it set
 `"backend": "pi"`.
 
 ## Subagents
@@ -231,17 +230,21 @@ ignored — and may set:
 | `tools` | Canonical tool names, translated into each backend's own spelling |
 | `model` | `provider/model[:thinking]` for a PI child, a bare model id for a Claude child |
 | `backend` | `claude` or `pi`; absent means "whatever the parent is running" |
-| `mode` | Explicit gateway route for the child; absent falls back to the provider name |
+| `mode` | PI child route: role value, then the PI parent’s route on the same provider, then the provider name. Claude children use their Claude parent’s route or the configured Claude-backend default route |
 
 When `$CORTEX_HOME/config/agents/` does not exist yet, roles found in an
 `agents/` directory inside Cortex's private PI agent directory are moved into
 it at startup, and that directory is renamed to `agents.migrated` so an edit
 there cannot silently do nothing.
 
-**Choosing the model.** No profile is consulted. The model is the task's
+**Choosing the model.** The model is the task's
 explicit `model` when given, then the role's `model`, then the parent's own
 model — but only when the child runs the same backend, since a Claude model id
-means nothing to PI and a PI `provider/model` means nothing to Claude.
+means nothing to PI and a PI `provider/model` means nothing to Claude. A Claude
+child without an explicit or same-backend parent model uses the Claude-backend
+default (the configured default if Claude, otherwise the first Claude favorite).
+A PI parent starting a Claude child also uses that Claude default’s route and
+requires a Claude default or favorite to be configured.
 
 **What the caller can see.** The `subagent_type`, `model`, and `backend` field
 descriptions are rendered at tool-registration time rather than hardcoded, from
@@ -395,151 +398,74 @@ The chat command deliberately has no key argument: a channel transcript is a
 poor place for a secret. Add the key from the CLI with `--key -` (read from
 stdin) or from the Web form, both of which keep it off any transcript.
 
-To use a custom provider, add a profile that names it — for example
-`{"backend": "pi", "provider": "my-vllm", "mode": "my-vllm", "model": "Model-27B"}`
-(see [configuration.md](./configuration.md) for the profiles schema). Deleting
-a provider removes both the catalog entry and the gateway route; profiles that
-still point at it will fail to resolve, so re-point them first.
+To use a custom provider, choose its model in the picker or enter
+`!model my-vllm/Model-27B`. You can favorite it and make it the default (see
+[configuration.md](./configuration.md#modelsjson)). Deleting a provider removes
+its catalog entry and gateway route; first move sessions, the default,
+favorites, and schedules using it to another provider.
 
 ## Selecting a backend
 
-Backends are selected per profile in `$CORTEX_HOME/config/profiles.json`
-(see [configuration.md](./configuration.md) for the full profiles schema):
+Each session stores a concrete engine selection: `backend`, `provider`, `model`,
+`thinking`, and `mode`. `backend` is `claude` or `pi`; Claude uses a null provider,
+while PI requires a provider id that selects its request protocol and gateway
+endpoint. The default selection and favorites live in
+[`config/models.json`](./configuration.md#modelsjson).
 
-```json
-{
-  "defaultProfile": "plan",
-  "profiles": {
-    "plan": {
-      "backend": "claude",
-      "model": "opus",
-      "mode": "plan"
-    },
-    "deepseek": {
-      "backend": "pi",
-      "provider": "deepseek",
-      "mode": "deepseek",
-      "model": "deepseek-v4-pro"
-    }
-  }
-}
-```
-
-The `backend` field accepts `"claude"` or `"pi"`. If omitted, it defaults
-to `"claude"`. A `pi` profile must name its `provider`, which selects the
-request protocol and the gateway endpoint; there is no default. `mode` is the
-gateway route the run takes — for an Anthropic endpoint, `plan` (the
-subscription) or `api` (a metered key). In chat, `!profile <name>` switches a
-channel's profile and `!backend <claude|pi>` switches it to that backend's
-default profile (`defaultProfileByBackend` in `profiles.json`). Both are refused
-for a conversation that already has turns on the other backend.
+`!backend <claude|pi>` selects the configured default if it belongs to the target
+backend, otherwise the first favorite on that backend with its remembered
+settings. If neither exists, favorite a model there first. A conversation with
+history cannot change backend; start a new session for that.
 
 ## Per-session model, thinking level and route
 
-In a direct conversation the profile is the **base**, not the whole answer.
-The Web composer's engine chip opens a picker whose sections are profile,
-model, thinking level and — where the endpoint bills more than one way —
-route. (Its `agent` row is the other axis entirely — the session's execution
-environment rather than its engine; see
-[configuration.md](./configuration.md#choosing-an-environment-per-conversation).)
-Everything below the profile is stored as a per-session override on top of
-whatever profile the session runs. The override is applied in one
-place (`effectiveProfile`), so the profile still supplies the backend,
-`extraEnv` and the fallback chain; only `model`, `provider` (on `pi`),
-`thinking` and `mode` can be replaced. Each picker section has a "follow profile" row that
-gives the field back to the profile.
+The Web and mobile composer's engine picker lists favorite models at its root,
+showing each model and its remembered thinking level, grouped by backend and
+provider. Open the full model list to choose another model or use a row's star
+to add or remove a favorite. The thinking picker includes a default option,
+which stores `null` and lets the backend choose. `/model` opens model selection.
+The execution environment is a separate choice; see
+[configuration.md](./configuration.md#choosing-an-environment-per-conversation).
 
-Two rules constrain the picker, both enforced on the server and previewed by
-the client:
+A selection is saved on the session. Choosing a model restores that model's
+remembered thinking and route; without a memory, thinking is null, Claude uses
+the first Anthropic route in `gateway.yaml` (`plan` if none is declared), and PI
+uses its provider name. User changes update the model's memory. A fresh Web
+conversation starts from the last selected engine on this host.
 
-- **Backend never changes under a live conversation.** A model that runs on
-  the other backend is reached by moving to a profile that runs it, and a
-  session that already has turns cannot make that move — the row is greyed
-  out and says a new session is needed. A fresh draft can move freely.
-- **Naming a profile clears the session's overrides.** Picking a profile
-  means "run this profile as declared"; the model and thinking level go back
-  to what it says.
+A conversation with history cannot change backend. The picker disables models
+on the other backend; a new draft can choose either backend.
 
-Choosing a PI model whose provider differs from the profile's re-bases the
-session onto a sibling profile that already runs that provider, so the
-configured gateway route is used rather than a guessed one; with no such
-profile the route falls back to the provider's own name. A thinking level
-chosen here also outranks any `--effort` / `--thinking` left in the profile's
-`extraOption`, which would otherwise silently win.
+**Route** is the gateway endpoint's billing lane: for example, `plan` for an
+Anthropic subscription or `api` for a metered key. The picker offers routes
+declared for the endpoint in `gateway.yaml`, and hides the route choice when
+only one is available. The model catalog supplies each endpoint's backend,
+provider, routes, and models. Thinking levels use the backend's range, narrowed
+to the model's own levels where PI reports them.
 
-**Route** is the gateway endpoint's billing lane: an Anthropic endpoint
-declares `plan` (the subscription) and `api` (a metered key), and picking one
-decides which of them pays for the next turn. Only the lanes the endpoint
-actually declares in `gateway.yaml` are offered, and an endpoint with a single
-lane offers no choice at all, so the section disappears.
+**Settings → Models** manages the default model and the favorites list. Platform
+channels use the same selection rules through these commands:
 
-The picker reads the same `models.catalog` the profile editor picks from: one
-entry per gateway endpoint, carrying that endpoint's backend, provider, lanes
-and models. The level list is the backend's own value range (see below),
-narrowed to the chosen model's own ladder wherever PI reports one — PI models
-differ in which rungs they accept. On a host with no PI profile and no PI
-credentials the PI half is skipped entirely, so the PI SDK is never loaded
-just to draw a menu; while its first provider scan is in flight the menu says
-so rather than presenting a half-list as the whole truth.
-
-A new conversation opens on the last engine chosen on this host — profile and
-overrides together — instead of falling back to the default profile every
-time.
-
-Platform channels keep their own controls: `!profile <name>` switches the
-channel's profile, `!model <id>` sets the channel's model on top of it, and
-`!thinking <level>` sets its thinking level. `!model reset` and
-`!thinking reset` give the field back to the profile. All of them write through
-the same rule the picker uses.
+| Command | What it does |
+|---|---|
+| `!model` | Shows the current selection and favorites, with favorite buttons |
+| `!model <id>` | Selects a model on the current backend |
+| `!model <provider/model>` | Selects a PI model with an explicit provider |
+| `!model reset` | Restores the complete configured default selection |
+| `!thinking [level]` | Shows or sets the reasoning level |
+| `!thinking reset` | Sets thinking to null, using the backend default |
+| `!mode [route]` | Shows or sets the gateway route, validated against the endpoint's routes |
 
 ## Thinking level
 
-The optional `thinking` profile field sets the backend's reasoning depth,
-in the backend's own value set. Claude Code accepts
-`low`/`medium`/`high`/`xhigh`/`max` and receives it as the `--effort`
-flag; PI accepts `off`/`minimal`/`low`/`medium`/`high`/`xhigh` and
-receives it as the session's thinking level. When the field is absent the
-backend applies its own default.
-Fallback entries do not inherit the primary's value — each entry declares
-its own.
-
-## Fallback behavior
-
-Each profile entry can specify a `fallback` array of alternative entries.
-When an attempt fails with a retryable error, Cortex moves on to the next entry
-in order. Retryable means a rate limit, usage limit, overload or quota refusal
-(including a result the backend flags as rate-limited), an HTTP 408 or 5xx, a
-transport failure such as a reset connection or a timeout, or a provider
-message saying the request can be retried. Authentication errors and permanent
-refusals — an invalid request, an exceeded context window, an exhausted
-balance — never fall back. An attempt that had already started a tool call is
-not retried either, because a fallback would run that tool a second time; the
-turn ends with a message asking you to send again.
-
-Each fallback entry declares its own `model`. It inherits `backend` and `mode`
-from the primary when it omits them and nothing else: `provider`, `thinking`,
-`extraEnv`, `extraOption` and `maxOutputTokens` apply only where they are
-written, and a `pi` entry must name its `provider`.
-
-Example:
-
-```json
-{
-  "plan": {
-    "backend": "claude",
-    "model": "opus",
-    "mode": "plan",
-    "fallback": [
-      { "backend": "pi", "provider": "deepseek", "mode": "deepseek", "model": "deepseek-v4-pro" }
-    ]
-  }
-}
-```
+`thinking` sets reasoning depth in the backend's native value set. Claude Code
+accepts `low`/`medium`/`high`/`xhigh`/`max`, passed as `--effort`. PI accepts
+`off`/`minimal`/`low`/`medium`/`high`/`xhigh`, passed as the session's thinking level.
+A null value uses the backend's own default.
 
 ## Usage-limit throttling and auto-resume
 
-The fallback chain handles individual failed calls. A separate mechanism
-handles rolling usage windows. Provider identifiers are opaque strings, so
+Cortex tracks rolling usage windows by provider. Provider identifiers are opaque strings, so
 the throttle can track any number of providers without a fixed provider
 enum. Each provider keeps its own window types and reset times. A provider
 and route mode are gated without blocking another provider that happens to

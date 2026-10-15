@@ -5,6 +5,8 @@ import pytest
 
 from cortex_bench_harness.launcher.production_arms import (
     PRODUCTION_ARM_BUNDLES,
+    _assert_bundle_selection,
+    _bundle_selection,
     ProductionArmError,
     production_arm_bundle,
     require_production_arm,
@@ -19,7 +21,7 @@ EXECUTION_LIMITS = {
 
 def arm(bundle_key: str = "direct-pi-deepseek", **overrides: object) -> dict[str, object]:
     value: dict[str, object] = {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex", "name": "an-arm",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "cortex", "name": "an-arm",
         **production_arm_bundle(bundle_key).arm_fields(),
         "limits": dict(EXECUTION_LIMITS),
     }
@@ -37,7 +39,6 @@ def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
     assert bundle.key == "direct-pi-deepseek"
     assert bundle.bundle_dir.name == "cortex-home"
     assert bundle.environment == "main"
-    assert bundle.profile_name == "direct"
     assert (bundle.backend, bundle.provider, bundle.model, bundle.thinking) == (
         "pi", "deepseek", "deepseek-v4-flash", "off")
     assert bundle.credential_capability == "pi-deepseek-api-key"
@@ -49,7 +50,6 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
     assert bundle.key == "direct-pi-openai-codex"
     assert bundle.bundle_dir.name == "cortex-home"
     assert bundle.environment == "main"
-    assert bundle.profile_name == "direct"
     assert bundle.provider == "openai-codex"
     assert bundle.model == "gpt-5.6-sol"
     assert bundle.credential_capability == "pi-openai-codex-oauth"
@@ -57,13 +57,11 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
     assert bundle.bundle_dir != require_production_arm(arm()).bundle_dir
 
 
-def test_bundle_identity_is_read_from_the_committed_profile() -> None:
+def test_bundle_identity_is_read_from_the_committed_selection() -> None:
     for bundle in PRODUCTION_ARM_BUNDLES:
-        profiles = read_json(bundle.bundle_dir / "config/profiles.json")
-        profile = profiles["profiles"][profiles["defaultProfile"]]
-        assert bundle.profile_name == profiles["defaultProfile"]
-        fields = ("backend", "provider", "model", "thinking")
-        assert {field: profile[field] for field in fields} == {
+        selection = read_json(bundle.bundle_dir / "config/models.json")["default"]
+        fields = ("backend", "provider", "model", "thinking", "mode")
+        assert {field: selection[field] for field in fields} == {
             field: getattr(bundle, field) for field in fields}
 
 
@@ -71,6 +69,7 @@ def test_bundle_identity_is_read_from_the_committed_profile() -> None:
     {"bundle": "no-such-bundle"},
     {"model": "deepseek-v4-pro"},
     {"thinking": "high"},
+    {"mode": "other"},
     {"provider": "openai-codex"},
     {"credential_capability": "pi-openai-codex-oauth"},
     {"kind": "vendor-baseline"},
@@ -100,7 +99,9 @@ def test_every_arm_records_the_one_session_endpoint_it_needs_open() -> None:
             "webhook_endpoints": ["POST /webhook/benchmark-session"],
         }
         assert bundle.attested_record() == {
-            "key": bundle.key, "profile_name": "direct", "environment": "main",
+            "key": bundle.key, "environment": "main",
+            "selection": {field: getattr(bundle, field) for field in
+                          ("backend", "provider", "model", "thinking", "mode")},
         }
 
 
@@ -115,7 +116,7 @@ def test_every_bundle_exposes_only_its_normal_named_environment_surface() -> Non
         config = sorted(path.relative_to(home / "config").as_posix()
                         for path in (home / "config").rglob("*") if path.is_file())
         assert config == [
-            "environments/main.json", "machines.json", "profiles.json", "settings.json",
+            "environments/main.json", "machines.json", "models.json", "settings.json",
         ]
         surface_files = [
             *(home / "config/environments").glob("*.json"),
@@ -129,22 +130,22 @@ def test_every_bundle_exposes_only_its_normal_named_environment_surface() -> Non
 
 def test_every_committed_bundle_ships_what_its_arm_declares() -> None:
     """The bundle is the arm: the environment its session opens in, a prompt file for each prompt
-    that environment names, and the profile it runs under all live in the committed tree.
+    that environment names, and the selection it runs under all live in the committed tree.
     """
     for bundle in PRODUCTION_ARM_BUNDLES:
         home = bundle.bundle_dir
         assert production_arm_bundle(bundle.key) is bundle
         environment = read_json(home / f"config/environments/{bundle.environment}.json")
         assert environment["name"] == bundle.environment
-        assert environment["profile"] == bundle.profile_name
         assert environment["disableHooks"] is True
-        profiles = read_json(home / "config/profiles.json")
-        assert profiles["defaultProfile"] == bundle.profile_name
-        assert bundle.profile_name in profiles["profiles"]
-        assert profiles["profiles"][bundle.profile_name]["thinking"] == bundle.thinking
+        models = read_json(home / "config/models.json")
+        assert models["default"]["thinking"] == bundle.thinking
+        assert models["favorites"] == [{
+            field: getattr(bundle, field) for field in ("backend", "provider", "model")
+        }]
         state = read_json(home / "data/agent-state.json")
         assert state == {
-            "activeProfile": bundle.profile_name, "defaultAgent": bundle.environment,
+            "defaultAgent": bundle.environment,
         }
         for field, kind in (("directive", "directives"), ("systemPrompt", "systemPrompts")):
             reference = str(environment[field])
@@ -169,8 +170,36 @@ def test_the_provider_pair_differs_in_exactly_one_file() -> None:
         for path in sorted(left.rglob("*")) if path.is_file()
         and (right / path.relative_to(left)).read_bytes() != path.read_bytes()
     }
-    assert differing == {"config/profiles.json"}
+    assert differing == {"config/models.json"}
     assert sorted(path.relative_to(left).as_posix()
                   for path in left.rglob("*") if path.is_file()) == sorted(
         path.relative_to(right).as_posix()
         for path in right.rglob("*") if path.is_file())
+
+
+@pytest.mark.parametrize("change", [
+    {"defaultAgent": "other"},
+    {"defaultAgent": "main", "channelSelections": {"web:trial": {}}},
+    {"defaultAgent": "main", "selectionDefault": {}},
+])
+def test_sealed_state_cannot_override_the_fresh_default(tmp_path: Path, change) -> None:
+    (tmp_path / "config/environments").mkdir(parents=True)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config/environments/main.json").write_text('{"name": "main"}')
+    (tmp_path / "data/agent-state.json").write_text(json.dumps(change))
+
+    with pytest.raises(ProductionArmError, match="fresh default"):
+        _assert_bundle_selection(tmp_path, "test")
+
+
+def test_bundle_selection_preserves_nullable_thinking(tmp_path: Path) -> None:
+    selection = {"backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
+                 "thinking": None, "mode": "trial"}
+    (tmp_path / "config").mkdir()
+    path = tmp_path / "config/models.json"
+    path.write_text(json.dumps({"default": selection, "favorites": []}))
+    assert _bundle_selection(tmp_path, "test") == selection
+    del selection["mode"]
+    path.write_text(json.dumps({"default": selection, "favorites": []}))
+    with pytest.raises(ProductionArmError, match="incomplete"):
+        _bundle_selection(tmp_path, "test")

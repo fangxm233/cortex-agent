@@ -1,6 +1,6 @@
 //
 // Source formats (src/core/status-format.ts + orchestration/turn/terminal.ts):
-//   processing: "⏳ Processing | <name> · `<uuid>` | <profile> | ⏱️ <dur>[ | 🔁 <n> turns]"
+//   processing: "⏳ Processing | <name> · `<uuid>` | <backend · model> | ⏱️ <dur>[ | 🔁 <n> turns]"
 //   done/error: "✅ Done | <name> · `<uuid>` | (<dur> · <n> turns · $<cost>)"
 // Parsing is defensive: any missing field is simply omitted.
 

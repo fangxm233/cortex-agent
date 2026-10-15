@@ -25,7 +25,7 @@ import {
   discoveredToEndpointMap,
   mergeGatewayConfig,
   serializeGatewayYaml,
-  validateProfilesAgainstGateway,
+  validateModelsAgainstGateway,
   type DiscoveredEndpoint,
   type ParsedGateway,
   type EndpointMap,
@@ -397,61 +397,53 @@ test('serializeGatewayYaml: flat (default) mode re-serializes flat', () => {
   assert.equal(reparsed.myep.default, undefined);
 });
 
-// ─── validateProfilesAgainstGateway ─────────────────────────────
+// ─── validateModelsAgainstGateway ─────────────────────────────
 
-function writeProfiles(dir: string, profiles: unknown): void {
-  fs.writeFileSync(nodePath.join(dir, 'profiles.json'), JSON.stringify({ defaultProfile: 'plan', profiles }, null, 2));
+function writeModels(dir: string, selection: unknown, favorites: unknown[] = []): void {
+  fs.writeFileSync(nodePath.join(dir, 'models.json'), JSON.stringify({ default: selection, favorites }));
 }
-
 const GW: EndpointMap = {
   anthropic: { plan: { base_url: 'x', auth_style: 'bearer' }, anthropic: { base_url: 'x', auth_style: 'anthropic' } },
   deepseek: { deepseek: { base_url: 'x', auth_style: 'openai' } },
 };
+const defaultModel = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' };
 
-test('validateProfilesAgainstGateway: flags pi profile with missing gateway mode', () => {
+test('gateway validation flags a default with a missing route', () => {
   const dir = tmpDir();
-  writeProfiles(dir, {
-    plan: { model: 'm', backend: 'claude', mode: 'plan' },
-    'deepseek-flash': { model: 'm', backend: 'pi', mode: 'qwen-local', provider: 'deepseek' },
-  });
-  const issues = validateProfilesAgainstGateway(GW, dir);
+  writeModels(dir, { backend: 'pi', model: 'flash', provider: 'deepseek', thinking: null, mode: 'qwen-local' });
+  const issues = validateModelsAgainstGateway(GW, dir);
   assert.equal(issues.length, 1);
-  assert.equal(issues[0].profile, 'deepseek-flash');
+  assert.equal(issues[0].model, 'flash');
   assert.match(issues[0].reason, /qwen-local/);
 });
-
-test('validateProfilesAgainstGateway: reads profiles.json from CORTEX_HOME/config by default', () => {
-  writeProfiles(nodePath.join(process.env.CORTEX_HOME!, 'config'), {
-    p: { model: 'm', backend: 'pi', mode: 'nope', provider: 'deepseek' },
-  });
-  const issues = validateProfilesAgainstGateway(GW);
-  assert.deepEqual(issues.map(i => i.profile), ['p']);
+test('gateway validation reads models.json from CORTEX_HOME/config by default', () => {
+  writeModels(nodePath.join(process.env.CORTEX_HOME!, 'config'), { ...defaultModel, mode: 'nope' });
+  assert.deepEqual(validateModelsAgainstGateway(GW).map(i => i.model), ['opus']);
 });
-
-test('validateProfilesAgainstGateway: passes when all modes exist', () => {
+test('favorites need any route, not a stored mode', () => {
   const dir = tmpDir();
-  writeProfiles(dir, {
-    plan: { model: 'm', backend: 'claude', mode: 'plan' },
-    'deepseek-flash': { model: 'm', backend: 'pi', mode: 'deepseek', provider: 'deepseek' },
-    execute: { model: 'm', backend: 'pi', mode: 'anthropic', provider: 'anthropic' },
-  });
-  assert.deepEqual(validateProfilesAgainstGateway(GW, dir), []);
+  writeModels(dir, defaultModel, [{ backend: 'pi', provider: 'deepseek', model: 'flash' }]);
+  assert.deepEqual(validateModelsAgainstGateway(GW, dir), []);
 });
-
-test('validateProfilesAgainstGateway: checks fallback entries too', () => {
+test('favorite provider endpoint must exist even if another endpoint has a route', () => {
   const dir = tmpDir();
-  writeProfiles(dir, {
-    plan: { model: 'm', backend: 'claude', mode: 'plan', fallback: [{ model: 'm', backend: 'pi', mode: 'nope', provider: 'deepseek' }] },
-  });
-  const issues = validateProfilesAgainstGateway(GW, dir);
-  assert.equal(issues.length, 1);
-  assert.match(issues[0].profile, /fallback/);
+  writeModels(dir, defaultModel, [{ backend: 'pi', provider: 'unknown', model: 'missing' }]);
+  assert.deepEqual(validateModelsAgainstGateway(GW, dir).map(i => i.model), ['missing']);
 });
-
-test('validateProfilesAgainstGateway: regression — deepseek survives empty discovery then validates', () => {
+test('missing PI provider is reported', () => {
   const dir = tmpDir();
-  // existing gateway had deepseek; discovery returns empty → merge keeps it
+  writeModels(dir, defaultModel, [{ backend: 'pi', provider: null, model: 'missing' }]);
+  assert.match(validateModelsAgainstGateway(GW, dir)[0].reason, /missing a provider/);
+});
+test('missing and invalid models files are non-fatal during gateway validation', () => {
+  const dir = tmpDir();
+  assert.deepEqual(validateModelsAgainstGateway(GW, dir), []);
+  fs.writeFileSync(nodePath.join(dir, 'models.json'), '{broken');
+  assert.deepEqual(validateModelsAgainstGateway(GW, dir), []);
+});
+test('deepseek survives empty discovery and still validates', () => {
+  const dir = tmpDir();
   const merged = mergeGatewayConfig([], { top: { mode: 'plan', port: 9880, status_check: true }, endpoints: { deepseek: { deepseek: { base_url: 'x', auth_style: 'openai' } } } });
-  writeProfiles(dir, { 'deepseek-flash': { model: 'm', backend: 'pi', mode: 'deepseek', provider: 'deepseek' } });
-  assert.deepEqual(validateProfilesAgainstGateway(merged.endpoints, dir), []);
+  writeModels(dir, { model: 'flash', backend: 'pi', mode: 'deepseek', provider: 'deepseek', thinking: null });
+  assert.deepEqual(validateModelsAgainstGateway(merged.endpoints, dir), []);
 });

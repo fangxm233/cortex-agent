@@ -1,4 +1,4 @@
-import { test, beforeAll } from 'vitest';
+import { test, beforeAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -14,30 +14,28 @@ import type { ResetProvider } from '../src/domain/costs/reset-account.js';
 import { usageResetNoticeActions } from '../src/orchestration/routing/commands/usage-reset.js';
 import { projectStore } from '../src/domain/projects/index.js';
 import {
-  clearChannelOverride, clearChannelProfile, getSelectionDefault, setChannelOverride,
+  clearChannelSelection, getSelectionDefault, setChannelSelection,
 } from '../src/domain/agents/config.js';
-import { resolveRunConfig } from '../src/domain/runs/config-resolver.js';
-import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
+import { resolveRunSelection } from '../src/domain/runs/config-resolver.js';
+import { getDefaultSelection } from '../src/domain/agents/models.js';
 import { costRepo } from '../src/store/cost-repo.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
-import { profileRepo } from '../src/store/profile-repo.js';
+import { modelsRepo } from '../src/store/models-repo.js';
 import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 import { runRegistry } from '../src/core/run-registry.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 
+const defaultSelection = { backend: 'claude' as const, provider: null, model: 'claude-sonnet-4-6', thinking: null, mode: 'plan' };
+const piFavorite = { backend: 'pi' as const, provider: 'anthropic', model: 'claude-sonnet-4-6' };
+function seedModels(favorites = [defaultSelection, piFavorite]) {
+  fs.writeFileSync(path.join(CONFIG_DIR, 'models.json'), JSON.stringify({ default: defaultSelection, favorites }));
+  modelsRepo.invalidate();
+}
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
-  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
-    defaultProfile: 'plan',
-    profiles: {
-      plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-      execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
-      qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-    },
-  }));
-  profileRepo.invalidate();
+  seedModels();
 });
 
 const originalSetInterval = global.setInterval;
@@ -89,156 +87,74 @@ function withTempCostData(t, entries) {
 }
 
 
-// D5/P3.1c: `!backend` moves THIS CHANNEL to that backend's default profile. There is no global
-// backend field any more — a backend is a property of a profile, so switching one means switching
-// the other, through the same rule `!profile` uses.
-test('!backend moves the channel to that backend default profile', async (t) => {
-  t.onTestFinished(() => clearChannelProfile('C-backend'));
+test('!backend moves only this channel to the first favorite on that backend', async (t) => {
+  t.onTestFinished(() => clearChannelSelection('C-backend'));
+  await handleBackendCmd('C-backend', new MockAdapter(), '!backend pi');
+  assert.equal(resolveRunSelection({ channel: 'C-backend' }).backend, 'pi');
+  assert.equal(resolveRunSelection({ channel: 'C-other' }).backend, 'claude');
+});
+
+test('!backend refuses a backend with no favorite', async (t) => {
+  t.onTestFinished(() => { clearChannelSelection('C-empty'); seedModels(); });
+  seedModels([defaultSelection]);
   const adapter = new MockAdapter();
-
-  assert.equal(resolveRunConfig({ channel: 'C-backend' }).profile.backend, 'claude');
-  await handleBackendCmd('C-backend', adapter, '!backend pi');
-
-  // `execute` is the only pi profile in the fixture, so it is that backend's default.
-  const after = resolveRunConfig({ channel: 'C-backend' });
-  assert.equal(after.profileName, 'execute');
-  assert.equal(after.profile.backend, 'pi');
-  // A sibling channel is untouched — the point of making this channel-scoped.
-  assert.equal(resolveRunConfig({ channel: 'C-other' }).profile.backend, 'claude');
+  await handleBackendCmd('C-empty', adapter, '!backend pi');
+  assert.match(adapter.posted[0].content.text, /favorite|收藏/i);
+  assert.equal(resolveRunSelection({ channel: 'C-empty' }).backend, 'claude');
 });
 
-test('!backend on a backend with no profile refuses instead of switching to something else', async (t) => {
-  t.onTestFinished(() => clearChannelProfile('C-noprofile'));
+test('!model sets, reports and resets a channel selection', async (t) => {
+  t.onTestFinished(() => clearChannelSelection('C-model'));
   const adapter = new MockAdapter();
-  const before = resolveRunConfig({ channel: 'C-noprofile' }).profileName;
-
-  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
-    defaultProfile: 'plan',
-    profiles: { plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' } },
-  }));
-  profileRepo.invalidate();
-  t.onTestFinished(() => {
-    fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
-      defaultProfile: 'plan',
-      profiles: {
-        plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-        execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
-        qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-      },
-    }));
-    profileRepo.invalidate();
-  });
-
-  await handleBackendCmd('C-noprofile', adapter, '!backend pi');
-  assert.match(adapter.posted[0].content.text, /No profile|没有使用/);
-  assert.equal(resolveRunConfig({ channel: 'C-noprofile' }).profileName, before);
+  await handleModelCmd('C-model', adapter, '!model haiku-test');
+  assert.equal(resolveRunSelection({ channel: 'C-model' }).model, 'haiku-test');
+  assert.deepEqual(getDefaultSelection(), defaultSelection);
+  assert.equal(resolveRunSelection({ channel: 'C-elsewhere' }).model, defaultSelection.model);
+  await handleModelCmd('C-model', adapter, '!model');
+  assert.match(adapter.posted.at(-1).content.text, /haiku-test/);
+  await handleModelCmd('C-model', adapter, '!model reset');
+  assert.deepEqual(resolveRunSelection({ channel: 'C-model' }), defaultSelection);
 });
 
-test('!backend honours defaultProfileByBackend over declaration order', async (t) => {
-  t.onTestFinished(() => clearChannelProfile('C-declared'));
-  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
-    defaultProfile: 'plan',
-    defaultProfileByBackend: { pi: 'pi-b' },
-    profiles: {
-      plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-      'pi-a': { model: 'm', backend: 'pi', provider: 'anthropic', mode: 'plan' },
-      'pi-b': { model: 'm', backend: 'pi', provider: 'anthropic', mode: 'plan' },
-    },
-  }));
-  profileRepo.invalidate();
-  t.onTestFinished(() => {
-    fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
-      defaultProfile: 'plan',
-      profiles: {
-        plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-        execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
-        qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-      },
-    }));
-    profileRepo.invalidate();
-  });
-
-  await handleBackendCmd('C-declared', new MockAdapter(), '!backend pi');
-  assert.equal(resolveRunConfig({ channel: 'C-declared' }).profileName, 'pi-b');
-});
-
-test('!model sets, reports and resets a channel-scoped override', async (t) => {
-  t.onTestFinished(() => clearChannelOverride('C-model'));
-
-  const show = new MockAdapter();
-  await handleModelCmd('C-model', show, '!model');
-  assert.match(show.posted[0].content.text, /claude-sonnet-4-6/, 'with no override the profile model is shown');
-
-  const set = new MockAdapter();
-  await handleModelCmd('C-model', set, '!model haiku-test');
-  assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, 'haiku-test');
-  // The profile itself is untouched, which is what makes `reset` a real undo.
-  assert.equal(resolveRunConfig({ channel: 'C-model' }).profile.model, 'claude-sonnet-4-6');
-  assert.equal(resolveRunConfig({ channel: 'C-elsewhere' }).modelOverride, null);
-
-  const shown = new MockAdapter();
-  await handleModelCmd('C-model', shown, '!model');
-  assert.match(shown.posted[0].content.text, /haiku-test/);
-
-  const reset = new MockAdapter();
-  await handleModelCmd('C-model', reset, '!model reset');
-  assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, null);
-});
-
-test('!thinking sets, reports and resets a channel-scoped level', async (t) => {
-  t.onTestFinished(() => clearChannelOverride('C-think'));
-
-  const show = new MockAdapter();
-  await handleThinkingCmd('C-think', show, '!thinking');
-  assert.match(show.posted[0].content.text, /default|默认/, 'the profile declares no level of its own');
-
-  const set = new MockAdapter();
-  await handleThinkingCmd('C-think', set, '!thinking xhigh');
-  assert.equal(resolveRunConfig({ channel: 'C-think' }).override?.thinking, 'xhigh');
-  assert.equal(resolveRunConfig({ channel: 'C-elsewhere' }).override, null);
-
-  const reset = new MockAdapter();
-  await handleThinkingCmd('C-think', reset, '!thinking reset');
-  assert.equal(resolveRunConfig({ channel: 'C-think' }).override, null);
-});
-
-test('!thinking refuses a level the channel\'s backend does not take', async (t) => {
-  t.onTestFinished(() => clearChannelOverride('C-think-bad'));
-
+test('!thinking sets, reports and clears only the channel level', async (t) => {
+  t.onTestFinished(() => clearChannelSelection('C-think'));
   const adapter = new MockAdapter();
-  // 'off' is a pi level; this channel runs claude, whose CLI would die on it.
+  await handleThinkingCmd('C-think', adapter, '!thinking');
+  assert.match(adapter.posted[0].content.text, /default|默认/);
+  await handleThinkingCmd('C-think', adapter, '!thinking xhigh');
+  assert.equal(resolveRunSelection({ channel: 'C-think' }).thinking, 'xhigh');
+  assert.equal(resolveRunSelection({ channel: 'C-elsewhere' }).thinking, null);
+  await handleThinkingCmd('C-think', adapter, '!thinking reset');
+  assert.equal(resolveRunSelection({ channel: 'C-think' }).thinking, null);
+});
+
+test('!thinking rejects an invalid backend level without changing selection', async (t) => {
+  t.onTestFinished(() => clearChannelSelection('C-think-bad'));
+  const adapter = new MockAdapter();
   await handleThinkingCmd('C-think-bad', adapter, '!thinking off');
-  assert.equal(resolveRunConfig({ channel: 'C-think-bad' }).override, null);
-
-  const bogus = new MockAdapter();
-  await handleThinkingCmd('C-think-bad', bogus, '!thinking ludicrous');
-  assert.match(bogus.posted[0].content.text, /xhigh/, 'the refusal names the levels that do work');
-  assert.equal(resolveRunConfig({ channel: 'C-think-bad' }).override, null);
+  assert.equal(resolveRunSelection({ channel: 'C-think-bad' }).thinking, null);
+  await handleThinkingCmd('C-think-bad', adapter, '!thinking ludicrous');
+  assert.match(adapter.posted.at(-1).content.text, /xhigh/);
+  assert.equal(resolveRunSelection({ channel: 'C-think-bad' }).thinking, null);
 });
 
 test('!thinking leaves a model chosen separately alone', async (t) => {
-  t.onTestFinished(() => clearChannelOverride('C-think-model'));
-  setChannelOverride('C-think-model', { model: 'haiku-test' });
-
+  t.onTestFinished(() => clearChannelSelection('C-think-model'));
+  setChannelSelection('C-think-model', { ...defaultSelection, model: 'haiku-test' });
   await handleThinkingCmd('C-think-model', new MockAdapter(), '!thinking high');
-  assert.deepEqual(resolveRunConfig({ channel: 'C-think-model' }).override, {
-    model: 'haiku-test', thinking: 'high',
-  });
-
+  assert.equal(resolveRunSelection({ channel: 'C-think-model' }).model, 'haiku-test');
+  assert.equal(resolveRunSelection({ channel: 'C-think-model' }).thinking, 'high');
   await handleThinkingCmd('C-think-model', new MockAdapter(), '!thinking reset');
-  assert.equal(resolveRunConfig({ channel: 'C-think-model' }).modelOverride, 'haiku-test',
-    'clearing the level is not a licence to drop the model too');
+  assert.equal(resolveRunSelection({ channel: 'C-think-model' }).model, 'haiku-test');
 });
 
-test('!model and !thinking on a web channel leave the next conversation\'s seed alone', async (t) => {
-  t.onTestFinished(() => clearChannelOverride('web:cmd-seed'));
+test('chat engine commands do not alter the new Web conversation seed', async (t) => {
+  t.onTestFinished(() => clearChannelSelection('web:cmd-seed'));
   const before = getSelectionDefault();
-
   await handleModelCmd('web:cmd-seed', new MockAdapter(), '!model haiku-test');
   await handleThinkingCmd('web:cmd-seed', new MockAdapter(), '!thinking high');
-
-  assert.deepEqual(resolveRunConfig({ channel: 'web:cmd-seed' }).override, { model: 'haiku-test', thinking: 'high' });
-  assert.deepEqual(getSelectionDefault(), before, 'a channel-scoped command is not a composer pick');
+  assert.equal(resolveRunSelection({ channel: 'web:cmd-seed' }).thinking, 'high');
+  assert.deepEqual(getSelectionDefault(), before);
 });
 
 test('!cost <project> filters report to the requested project scope', async (t) => {
@@ -596,7 +512,7 @@ test('!budget $X/d $Y/m still edits the globals and preserves overrides', async 
   assert.deepEqual(persisted.projects['proj-a'], { daily_usd: 5, monthly_usd: 80 });
 });
 
-test('!schedule add without --profile fixes task profile to defaultProfile', async () => {
+test('!schedule add leaves the default to schedule creation', async () => {
   const adapter = new MockAdapter();
   const added = [];
   const scheduler = {
@@ -608,7 +524,7 @@ test('!schedule add without --profile fixes task profile to defaultProfile', asy
         intervalMs: spec.intervalMs,
         message: spec.message,
         projectId: spec.projectId,
-        profile: spec.profile,
+        selection: spec.selection ?? getDefaultSelection(),
         nextRun: Date.now() + spec.intervalMs,
         createdAt: Date.now(),
       };
@@ -629,11 +545,11 @@ test('!schedule add without --profile fixes task profile to defaultProfile', asy
   assert.equal(added[0].type, 'interval');
   assert.equal(added[0].intervalMs, 1_800_000);
   assert.equal(added[0].message, 'test scheduled task');
-  assert.equal(added[0].profile, getDefaultProfileName());
-  assert.match(adapter.posted[0].content.text, new RegExp(`profile: \\*${getDefaultProfileName()}\\*`));
+  assert.equal(added[0].selection, undefined);
+  assert.match(adapter.posted[0].content.text, /claude-sonnet-4-6/);
 });
 
-test('!schedule add with --profile preserves explicit profile override', async () => {
+test('!schedule add resolves model and thinking', async () => {
   const adapter = new MockAdapter();
   const added = [];
   const scheduler = {
@@ -645,7 +561,7 @@ test('!schedule add with --profile preserves explicit profile override', async (
         intervalMs: spec.intervalMs,
         message: spec.message,
         projectId: spec.projectId,
-        profile: spec.profile,
+        selection: spec.selection ?? getDefaultSelection(),
         nextRun: Date.now() + spec.intervalMs,
         createdAt: Date.now(),
       };
@@ -659,13 +575,14 @@ test('!schedule add with --profile preserves explicit profile override', async (
     scheduler,
   });
 
-  assert.equal(dispatchCommand('!schedule add interval 30m --profile qa test scheduled task', 'C123', adapter), true);
+  assert.equal(dispatchCommand('!schedule add interval 30m --model openai/gpt-test --thinking high test scheduled task', 'C123', adapter), true);
   await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(added.length, 1);
-  assert.equal(added[0].profile, 'qa');
+  assert.equal(added[0].selection.model, 'gpt-test');
+  assert.equal(added[0].selection.thinking, 'high');
   assert.equal(added[0].message, 'test scheduled task');
-  assert.match(adapter.posted[0].content.text, /profile: \*qa\*/);
+  assert.match(adapter.posted[0].content.text, /gpt-test/);
 });
 
 test('!schedule pause/resume/remove accepts backtick-wrapped 8-char hex schedule ids', async () => {
@@ -673,7 +590,7 @@ test('!schedule pause/resume/remove accepts backtick-wrapped 8-char hex schedule
   const pausedIds = [];
   const resumedIds = [];
   const removedIds = [];
-  const task = (id: string, extra: object) => ({ id, type: 'interval' as const, intervalMs: 3600000, message: 'interval task', projectId: 'general', profile: null, createdAt: 1, ...extra });
+  const task = (id: string, extra: object) => ({ id, type: 'interval' as const, intervalMs: 3600000, message: 'interval task', projectId: 'general', selection: null, createdAt: 1, ...extra });
   const scheduler = {
     async pause(id) {
       pausedIds.push(id);
@@ -788,14 +705,14 @@ test('!cancel --all kills all running executions for current channel, spares oth
 
 // ── retired commands ───────────────────────────────────────────────────────
 
-test('!thread, !tasks and !dispatch are unknown commands', async () => {
+test('retired thread/task/profile commands are unknown', async () => {
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
-  for (const cmd of ['!thread cancel', '!tasks', '!dispatch thr_1 --profile x']) {
+  for (const cmd of ['!thread cancel', '!tasks', '!dispatch thr_1', '!profile plan']) {
     assert.equal(dispatchCommand(cmd, 'C123', adapter), true);
   }
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(adapter.posted.length, 3);
+  assert.equal(adapter.posted.length, 4);
   for (const post of adapter.posted) assert.match(post.content.text, /unknown command/i);
 });
 
@@ -879,3 +796,10 @@ test('!compact is exact and delegates to the shared channel coordinator', async 
   assert.deepEqual(calls, ['Ccompact'], 'arguments must not prefix-match the exact command');
   assert.match(adapter.posted[1].content.text, /unknown command/i);
 });
+
+vi.mock('@core/gateway-generator.js', async (original) => ({
+  ...await original<typeof import('../src/core/gateway-generator.js')>(),
+  readGatewayYaml: () => ({ top: {}, endpoints: {
+    anthropic: { plan: {}, api: {}, anthropic: {} }, openai: { openai: {} },
+  } }),
+}));

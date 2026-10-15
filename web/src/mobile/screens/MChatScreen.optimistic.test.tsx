@@ -4,15 +4,15 @@ import { LangProvider } from '@/i18n';
 import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
 
 const ALL_AGENTS = [
-  { name: 'main', description: 'the default environment', profile: '__active__' },
-  { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+  { name: 'main', description: 'the default environment' },
+  { name: 'nimbus', description: 'a clean room' },
 ];
 
 const harness = vi.hoisted(() => ({
   projectId: 'atlas',
   routeParam: 's1' as string,
   // What the HOST declares: the environment capsule exists only where there is a choice.
-  agents: [] as Array<{ name: string; description?: string; profile: string }>,
+  agents: [] as Array<{ name: string; description?: string }>,
   sessions: [] as any[],
   transcripts: {} as Record<string, any>,
   sendMutateAsync: vi.fn(),
@@ -43,13 +43,14 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       }
       if (options.__kind === 'config.get') return {
         data: {
-          profiles: {
-            defaultProfile: 'plan',
-            profiles: [
-              { name: 'plan', model: 'opus', backend: 'claude', thinking: 'high' },
-              { name: 'execute', model: 'sonnet', backend: 'claude' },
-              { name: 'ds', model: 'glm-5', backend: 'pi', provider: 'zai' },
+          models: {
+            default: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' },
+            favorites: [
+              { model: 'opus', backend: 'claude', provider: null },
+              { model: 'sonnet', backend: 'claude', provider: null },
+              { model: 'glm-5', backend: 'pi', provider: 'zai' },
             ],
+            memory: { '["claude",null,"sonnet"]': { thinking: null, mode: 'plan' } },
           },
           agents: harness.agents,
         },
@@ -112,7 +113,7 @@ vi.mock('@/lib/trpc', () => ({
         rewind: mutation('sessions.rewind'),
       },
       config: { get: query('config.get') },
-      models: { catalog: query('models.catalog') },
+      models: { catalog: query('models.catalog'), favorites: { add: mutation('models.favorites.add'), remove: mutation('models.favorites.remove') } },
       schedules: { list: query('schedules.list') },
       // The composer's activity strip asks what this session is waiting on.
       waitpoints: { list: query('waitpoints.list'), cancel: mutation('waitpoints.cancel') },
@@ -201,7 +202,7 @@ import { MChatScreen } from './MChatScreen';
 const SESSION = {
   sessionId: 's1', label: null, running: false, backgroundRunning: false,
   contextUsage: null, contextCompactionSupported: false, backendSessionId: null,
-  profileName: 'plan', numTurns: null, costUsd: null,
+  selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' }, numTurns: null, costUsd: null,
 };
 
 function emptyTranscript(sessionId: string) {
@@ -399,7 +400,7 @@ describe('mobile attachment send gate', () => {
 });
 
 describe('mobile UI slash shortcuts', () => {
-  it.each(['/unknown hello', '/tmp/file', '/pro', '/profile', '/profile missing', '/cancel'])('explains blocked input %s without sending or clearing it', (text) => {
+  it.each(['/unknown hello', '/tmp/file', '/mod', '/model', '/model missing', '/cancel'])('explains blocked input %s without sending or clearing it', (text) => {
     mounted = mountChat();
     typeAndSend(mounted, text);
     expect(view(mounted).props['data-system-lines']).toMatch(/not sent|未发送/i);
@@ -427,11 +428,13 @@ describe('mobile UI slash shortcuts', () => {
     expect(harness.sendMutateAsync).not.toHaveBeenCalled();
   });
 
-  it('switches a live profile and opens mobile settings locally', () => {
+  it('switches a live model and opens mobile settings locally', () => {
     mounted = mountChat();
 
-    typeAndSend(mounted, '/profile execute');
-    expect(harness.setSelectionMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', profileName: 'execute' });
+    typeAndSend(mounted, '/model sonnet');
+    expect(harness.setSelectionMutate.mock.calls[0][0]).toEqual({
+      sessionId: 's1', selection: { ...SESSION.selection, model: 'sonnet', thinking: null },
+    });
     typeAndSend(mounted, '/settings');
     expect(harness.navigate).toHaveBeenCalledWith('/m/settings');
     typeAndSend(mounted, '/usage');
@@ -439,32 +442,32 @@ describe('mobile UI slash shortcuts', () => {
     expect(harness.sendMutateAsync).not.toHaveBeenCalled();
   });
 
-  it('offers /profile only what the engine picker offers this conversation', () => {
+  it('disables cross-backend slash model choices in an existing conversation', () => {
     harness.transcripts.s1 = {
       sessionId: 's1',
       turns: [{ messages: [{ type: 'user', text: 'earlier', createdAt: '2026-05-01T00:00:00Z' }] }],
       pendingUserMessages: [],
     };
     mounted = mountChat();
-    act(() => { view(mounted!).props.onComposerChange('/profile '); });
-    const offered = view(mounted).props.slashSuggestions.map((s: { command: string }) => s.command);
-    expect(offered).toContain('/profile execute');
-    // A live conversation cannot change backend, so the picker holds the other one back — and so
-    // does the command.
-    expect(offered).not.toContain('/profile ds');
+    act(() => { view(mounted!).props.onComposerChange('/model '); });
+    const offered = view(mounted).props.slashSuggestions;
+    expect(offered.some((s: { command: string; disabled: boolean }) => s.command === '/model sonnet' && !s.disabled)).toBe(true);
+    expect(offered.some((s: { command: string; disabled: boolean }) => s.command.includes('glm-5') && !s.disabled)).toBe(false);
   });
 
-  it('uses a slash-selected profile when the draft session is created', () => {
+  it('uses a slash-selected model when the draft session is created', () => {
     harness.routeParam = 'new';
     harness.sessions = [];
     harness.createAndSendMutateAsync.mockReturnValue(new Promise(() => {}));
     mounted = mountChat();
 
-    typeAndSend(mounted, '/profile execute');
+    typeAndSend(mounted, '/model sonnet');
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
     typeAndSend(mounted, 'first turn');
 
-    expect(harness.createAndSendMutateAsync.mock.calls[0][0].profileName).toBe('execute');
+    expect(harness.createAndSendMutateAsync.mock.calls[0][0].selection).toEqual({
+      ...SESSION.selection, model: 'sonnet', thinking: null,
+    });
   });
 });
 
@@ -620,26 +623,25 @@ describe('mobile engine picker', () => {
 
     tap(mounted, 'model:claude::sonnet');
     expect(JSON.parse(view(mounted).props['data-system-lines'])).toEqual([]);
-    typeAndSend(mounted, '/profile execute');
+    typeAndSend(mounted, '/model sonnet');
     expect(JSON.parse(view(mounted).props['data-system-lines'])).toEqual([]);
   });
 
-  it('sends the whole selection, so an unstated field follows the profile again', () => {
+  it('sends complete model and thinking selections', () => {
     mounted = mountChat();
     tap(mounted, 'model:claude::sonnet');
     expect(harness.setSelectionMutate.mock.calls[0][0]).toEqual({
-      sessionId: 's1', selection: { model: 'sonnet' },
+      sessionId: 's1', selection: { ...SESSION.selection, model: 'sonnet', thinking: null },
     });
 
-    // The override only reaches the screen through sessions.list, so the second pick restates from
-    // the same base — what matters is that thinking is carried, not dropped silently.
+    // The selection reaches the screen through sessions.list; the second pick uses that same base.
     tap(mounted, 'thinking:low');
     expect(harness.setSelectionMutate.mock.calls[1][0]).toEqual({
-      sessionId: 's1', selection: { thinking: 'low' },
+      sessionId: 's1', selection: { ...SESSION.selection, thinking: 'low' },
     });
   });
 
-  it('a live conversation is not offered the other backend at all', () => {
+  it('a live conversation sees the other backend but cannot select it', () => {
     harness.transcripts.s1 = {
       sessionId: 's1',
       turns: [{ messages: [{ type: 'user', text: 'earlier', createdAt: '2026-05-01T00:00:00Z' }] }],
@@ -648,7 +650,8 @@ describe('mobile engine picker', () => {
     mounted = mountChat();
     const sheet = openSelection(mounted);
     const rows = sheet.vm.sections.flatMap((section: any) => section.rows);
-    expect(rows.find((row: any) => row.id === 'model:pi:zai:glm-5')).toBeUndefined();
+    expect(rows.find((row: any) => row.id === 'model:pi:zai:glm-5')).toMatchObject({ disabled: true, change: null });
+    tap(mounted, 'model:pi:zai:glm-5');
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
   });
 
@@ -663,8 +666,7 @@ describe('mobile engine picker', () => {
 
     typeAndSend(mounted, 'first turn');
     expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({
-      profileName: 'ds',
-      selection: { model: 'glm-5', provider: 'zai' },
+      selection: { backend: 'pi', model: 'glm-5', provider: 'zai', thinking: null, mode: 'zai' },
     });
   });
   it('carries no environment — the agent left the engine sheet for one of its own', () => {
@@ -700,7 +702,7 @@ describe('mobile environment picker', () => {
   });
 
   it('no capsule, and no sheet to open, where there is nothing to choose', () => {
-    harness.agents = [{ name: 'main', description: 'the default environment', profile: '__active__' }];
+    harness.agents = [{ name: 'main', description: 'the default environment' }];
     mounted = mountChat();
     expect(view(mounted).props.selectionView.agentChip).toBeNull();
     expect(openAgent(mounted)).toBeNull();

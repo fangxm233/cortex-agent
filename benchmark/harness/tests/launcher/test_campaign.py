@@ -648,7 +648,7 @@ def test_a_vendor_baseline_arm_parses_with_its_own_cli_version(tmp_path: Path) -
     (arm,) = load_campaign_config(write_campaign(tmp_path, document)).arms
 
     assert arm == {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "name": "pure-pi", "kind": "vendor-baseline", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
         "vendor_agent": "pi", "vendor_cli_version": "0.82.1",
@@ -1042,8 +1042,8 @@ def test_a_cortex_arm_reads_what_it_runs_from_its_bundle(tmp_path: Path) -> None
         tmp_path, cortex_pi_codex_campaign_document(tmp_path))).arms
 
     assert arm == {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex", "name": "cortex-pi-codex",
-        "bundle": "direct-pi-openai-codex", "backend": "pi", "provider": "openai-codex",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "cortex", "name": "cortex-pi-codex",
+        "bundle": "direct-pi-openai-codex", "mode": "trial", "backend": "pi", "provider": "openai-codex",
         "model": "gpt-5.6-sol", "thinking": "xhigh",
         "credential_capability": "pi-openai-codex-oauth",
         "limits": {

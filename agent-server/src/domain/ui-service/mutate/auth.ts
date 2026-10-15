@@ -119,7 +119,7 @@ export async function handleAuthLogout(
 }
 
 /**
- * Re-derive gateway modes and profiles from the backends this machine can reach.
+ * Re-derive gateway routes and favorites from the backends this machine can reach.
  *
  * Runs automatically after a login (see the `onLoginSuccess` wiring in entry/app.ts); this is the
  * manual entry point for the cases that misses — a credential that predates the automatic sync, or
@@ -137,7 +137,8 @@ export async function handleAuthSyncGateway(
     data: {
       configured: result.configured,
       endpoints: result.endpoints,
-      profiles: result.profiles,
+      defaultSet: result.defaultSet,
+      favorites: result.favorites,
       ...(result.reason ? { reason: result.reason } : {}),
     },
   };

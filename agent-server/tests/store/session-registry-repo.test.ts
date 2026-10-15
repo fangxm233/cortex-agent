@@ -34,7 +34,7 @@ function baseSession(id: string): Session {
     createdAt: '2025-01-01T00:00:00.000Z',
     lastUsedAt: '2025-01-01T00:00:00.000Z',
     label: 'label',
-    profileName: null,
+    selection: null,
     backendSessionId: null,
     scheduleId: null,
   };

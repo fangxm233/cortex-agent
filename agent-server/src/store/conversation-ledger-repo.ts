@@ -10,6 +10,7 @@ import {
   type ConversationHeader,
   type SessionRegistryRepo,
 } from './session-registry-repo.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import type { TurnRecord, TurnStatus } from './session-registry-journal.js';
 
 // --- Types ---
@@ -22,9 +23,8 @@ export type LedgerTurn = TurnRecord;
 export interface ChannelConversation {
   sessionId: string | null;
   backend: string;
-  /** Profile name used when the conversation was created or switched — needed
-   *  by !new / pre-close hooks to resume the session with the same profile. */
-  profileName: string | null;
+  /** Materialized engine choice retained across resume and hook turns. */
+  selection: EngineSelection | null;
   turns: LedgerTurn[];
   updatedAt: string;
 }
@@ -47,7 +47,7 @@ function toChannelConversation(header: ConversationHeader, turns: LedgerTurn[]):
   return {
     sessionId: header.sessionId,
     backend: header.backend,
-    profileName: header.profileName,
+    selection: header.selection,
     turns,
     updatedAt: deriveUpdatedAt(header, turns),
   };
@@ -85,14 +85,14 @@ export class ConversationLedgerRepo {
 
   async initConversation(channel: string, opts: {
     sessionId: string | null;
-      backend: string;
-    profileName?: string | null;
+    backend: string;
+    selection?: EngineSelection | null;
   }): Promise<ChannelConversation> {
     const now = nowIso();
     const header: ConversationHeader = {
       sessionId: opts.sessionId,
       backend: opts.backend,
-      profileName: opts.profileName ?? null,
+      selection: opts.selection ?? null,
       updatedAt: now,
     };
     await this.registry.batch(async (ops) => {
@@ -206,13 +206,13 @@ export class ConversationLedgerRepo {
 
   async switchSession(channel: string, opts: {
     sessionId: string;
-      backend: string;
-    profileName?: string | null;
+    backend: string;
+    selection?: EngineSelection | null;
   }): Promise<void> {
     const header: ConversationHeader = {
       sessionId: opts.sessionId,
       backend: opts.backend,
-      profileName: opts.profileName ?? null,
+      selection: opts.selection ?? null,
       updatedAt: nowIso(),
     };
     await this.registry.batch(async (ops) => {
@@ -228,8 +228,8 @@ export class ConversationLedgerRepo {
    */
   async initAndBeginTurn(channel: string, opts: {
     sessionId: string | null;
-      backend: string;
-    profileName?: string | null;
+    backend: string;
+    selection?: EngineSelection | null;
     userMessageTs: string;
     userMessageText: string;
     statusMessageTs: string;
@@ -238,8 +238,8 @@ export class ConversationLedgerRepo {
       if (!ops.getConversationHeader(channel)) {
         await ops.setConversation(channel, {
           sessionId: opts.sessionId,
-              backend: opts.backend,
-          profileName: opts.profileName ?? null,
+          backend: opts.backend,
+          selection: opts.selection ?? null,
           updatedAt: nowIso(),
         });
       }

@@ -1,286 +1,241 @@
-import { afterEach, beforeEach, test, vi } from 'vitest';
-import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { beforeEach, expect, test, vi } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
-// The write side of a channel's model selection. The rules under test are the product ones:
-// the profile is the base, a live conversation cannot change backend, a level must be one the
-// backend accepts, and picking a provider the home already has a profile for lands on that profile.
+vi.mock('@core/log.js', () => ({ createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
 
 const HOME = process.env.CORTEX_HOME!;
-const PROFILES = path.join(HOME, 'config', 'profiles.json');
-const STATE = path.join(HOME, 'data', 'agent-state.json');
-
-const PROFILES_FILE = {
-  defaultProfile: 'opus',
-  profiles: {
-    opus: { model: 'claude-opus-5', backend: 'claude', mode: 'plan', thinking: 'medium' },
-    sonnet: { model: 'claude-sonnet-5', backend: 'claude', mode: 'plan' },
-    ds: { model: 'deepseek-v4-flash', backend: 'pi', mode: 'deepseek', provider: 'deepseek' },
-    codex: { model: 'gpt-6-astra', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
-  },
-};
-
-/** Turns are what makes a conversation "live"; the registry write is best-effort and irrelevant here.
- *  T2: channelHasHistory now reads the channel's turns straight from the registry (sessionStore.getTurns),
- *  so the `turns` control map drives that method rather than the (removed) ledger lookup. */
-let turns: Record<string, number> = {};
-
-vi.mock('@store/session-registry-repo.js', () => ({
+const STATE = path.join(HOME, 'data/agent-state.json');
+const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'medium', mode: 'plan' };
+const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: null, mode: 'deepseek' };
+const gateway = { endpoints: { anthropic: { api: {}, plan: {} }, deepseek: { deepseek: {} }, other: { other: {} } } } as never;
+let turns = 0;
+let session: { sessionId: string; backend: string; backendSessionId?: string | null; selection?: EngineSelection } | null;
+let patches: unknown[] = [];
+let syncFailure = false;
+vi.mock('@store/session-registry-repo.js', async (importOriginal) => ({
+  effectiveBackendSessionId: (await importOriginal<typeof import('../../../src/store/session-registry-repo.js')>()).effectiveBackendSessionId,
   sessionStore: {
-    getTurns: async (channel: string) => Array(turns[channel] ?? 0).fill({}),
-    getBoundSessionId: async () => null,
-    getById: async () => null,
-    updateSession: async () => undefined,
+    getTurns: async () => Array(turns).fill({}),
+    getBoundSessionId: async () => session?.sessionId ?? null,
+    getById: async () => session,
+    updateSession: async (_id: string, patch: { backend: string; selection: EngineSelection }) => {
+      if (syncFailure) throw new Error('journal unavailable');
+      patches.push(patch);
+      if (session) session = { ...session, ...patch };
+    },
   },
 }));
-
-function seed(state: Record<string, unknown> = {}) {
-  mkdirSync(path.dirname(PROFILES), { recursive: true });
-  mkdirSync(path.dirname(STATE), { recursive: true });
-  writeFileSync(PROFILES, JSON.stringify(PROFILES_FILE));
-  writeFileSync(STATE, JSON.stringify(state));
-}
-
-function freshSelection() {
-  return importWithFreshRegistry(() => import('../../../src/domain/agents/model-selection.js'));
-}
-
-function storedOverride(channel: string): unknown {
-  return JSON.parse(readFileSync(STATE, 'utf8')).channelOverrides?.[channel] ?? null;
-}
-
-/** The seed a brand-new draft composer opens on. */
-function storedSeed(): unknown {
-  return JSON.parse(readFileSync(STATE, 'utf8')).selectionDefault ?? null;
-}
-
-beforeEach(() => { turns = {}; rmSync(STATE, { force: true }); });
-afterEach(() => { rmSync(STATE, { force: true }); rmSync(PROFILES, { force: true }); });
-
-test('a model and a level land on the channel and are reported back as effective', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({
-    channel: 'web:a', model: 'claude-sonnet-5', thinking: 'xhigh',
-  });
-  assert.equal(result.ok, true);
-  assert.deepEqual(
-    { model: result.model, thinking: result.thinking, profile: result.profileName },
-    { model: 'claude-sonnet-5', thinking: 'xhigh', profile: 'opus' },
-  );
-  assert.deepEqual(storedOverride('web:a'), { model: 'claude-sonnet-5', thinking: 'xhigh' });
+vi.mock('../../../src/core/gateway-generator.js', () => ({ readGatewayYaml: () => gateway }));
+vi.mock('../../../src/agent-adapter/pi/discovery.js', () => ({ piProviderDiscovery: { peekModels: () => [] } }));
+const fresh = () => importWithFreshRegistry(() => import('../../../src/domain/agents/model-selection.js'));
+const stored = () => JSON.parse(readFileSync(STATE, 'utf8'));
+function seed(state: Record<string, unknown> = {}) { writeFileSync(STATE, JSON.stringify(state)); }
+beforeEach(() => {
+  turns = 0; patches = []; syncFailure = false;
+  session = { sessionId: 's1', backend: 'claude', backendSessionId: null, selection: claude };
+  writeFileSync(path.join(HOME, 'config/models.json'), JSON.stringify({ default: claude, favorites: [pi] }));
+  seed();
 });
 
-test('null clears one field and leaves the other standing', async () => {
-  seed({ activeProfile: 'opus', channelOverrides: { 'web:a': { model: 'claude-sonnet-5', thinking: 'xhigh' } } });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', model: null });
-  assert.equal(result.model, 'claude-opus-5', 'back to what the profile says');
-  assert.equal(result.thinking, 'xhigh');
-  assert.deepEqual(storedOverride('web:a'), { thinking: 'xhigh' });
+test('read reports a complete default; model change writes channel, session, memory and web seed', async () => {
+  const api = await fresh();
+  expect(api.readChannelSelection('web:a')).toEqual(claude);
+  const result = await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: 'xhigh' });
+  const expected = { ...claude, model: 'sonnet', thinking: 'xhigh', mode: 'api' };
+  expect(result).toEqual({ ...expected, ok: true, backendChanged: false });
+  expect(stored().channelSelections['web:a']).toEqual(expected);
+  expect(stored().modelMemory['["claude",null,"sonnet"]']).toEqual({ thinking: 'xhigh', mode: 'api' });
+  expect(stored().selectionDefault).toEqual(expected);
+  expect(patches).toEqual([{ backend: 'claude', selection: expected }]);
+  expect((await fresh()).readChannelSelection('web:a')).toEqual(expected);
 });
 
-test('picking a profile runs it as declared — the old selection is dropped', async () => {
-  seed({ activeProfile: 'opus', channelOverrides: { 'web:a': { model: 'claude-haiku-4-5', thinking: 'max' } } });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', profileName: 'sonnet' });
-  assert.equal(result.profileName, 'sonnet');
-  assert.equal(result.model, 'claude-sonnet-5');
-  assert.equal(result.thinking, null);
-  assert.equal(storedOverride('web:a'), null);
+test('undefined leaves fields untouched and null thinking explicitly clears', async () => {
+  seed({ channelSelections: { 'web:a': claude } });
+  const api = await fresh();
+  const result = await api.applyChannelSelection({ channel: 'web:a', model: undefined, thinking: null });
+  expect(result).toEqual({ ...claude, thinking: null, ok: true, backendChanged: false });
+  expect(stored().modelMemory['["claude",null,"opus"]']).toEqual({ thinking: null, mode: 'plan' });
 });
 
-test('a profile and a selection in ONE call keep the selection', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({
-    channel: 'web:a', profileName: 'sonnet', model: 'claude-haiku-4-5', thinking: 'low',
-  });
-  assert.equal(result.profileName, 'sonnet');
-  assert.equal(result.model, 'claude-haiku-4-5');
-  assert.deepEqual(storedOverride('web:a'), { model: 'claude-haiku-4-5', thinking: 'low' });
+test('new model loads its own memory, not the previous model settings', async () => {
+  seed({ modelMemory: { '["claude",null,"sonnet"]': { thinking: 'low', mode: 'api' } } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' }))
+    .toMatchObject({ thinking: 'low', mode: 'api' });
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'haiku' }))
+    .toMatchObject({ thinking: null, mode: 'api' });
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: null, mode: 'plan' }))
+    .toMatchObject({ thinking: null, mode: 'plan' });
 });
 
-test('a live conversation cannot move to another backend', async () => {
-  seed({ activeProfile: 'opus' });
-  turns['web:a'] = 3;
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', profileName: 'ds' });
-  assert.equal(result.ok, false);
-  assert.equal(result.reason, 'cross-backend-live-session');
-  assert.equal(result.currentBackend, 'claude');
-  assert.equal(result.targetBackend, 'pi');
+test('switching back restores the last explicit choice including null thinking', async () => {
+  const api = await fresh();
+  await api.applyChannelSelection({ channel: 'web:a', thinking: null, mode: 'api' });
+  await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: 'high', mode: 'plan' });
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'opus' }))
+    .toMatchObject({ thinking: null, mode: 'api' });
 });
 
-test('a fresh session may move to another backend', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', profileName: 'ds' });
-  assert.equal(result.backend, 'pi');
-  assert.equal(result.backendChanged, true);
+test('a complete selection overrides memory, including an explicit reset to the default', async () => {
+  seed({ modelMemory: { '["claude",null,"opus"]': { thinking: 'low', mode: 'api' } } });
+  const api = await fresh();
+  await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' });
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...claude }))
+    .toEqual({ ...claude, ok: true, backendChanged: false });
 });
 
-test("a level the target backend does not accept is refused, and nothing is written", async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  // 'max' is claude-only; the request also switches to a pi profile, so the whole call must fail
-  // BEFORE the switch rather than leave the channel half-moved.
-  const result = await applyChannelSelection({ channel: 'web:a', profileName: 'ds', thinking: 'max' });
-  assert.equal(result.reason, 'invalid-thinking');
-  assert.deepEqual(result.allowed, ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']);
-  const { readChannelSelection } = await freshSelection();
-  assert.equal(readChannelSelection('web:a').profileName, 'opus', 'the channel never moved');
+test('live history rejects a backend change without any persistence', async () => {
+  turns = 3;
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi }))
+    .toMatchObject({ ...claude, ok: false, reason: 'cross-backend-live-session', currentBackend: 'claude', targetBackend: 'pi' });
+  expect(stored()).toEqual({});
+  expect(patches).toEqual([]);
 });
 
-test('a provider on a claude channel is refused', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', provider: 'deepseek', model: 'x' });
-  assert.equal(result.reason, 'provider-not-supported');
+test('the live session backend is authoritative even when the channel map is stale', async () => {
+  turns = 1;
+  seed({ channelSelections: { 'web:a': pi } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi, model: 'another-pi' }))
+    .toMatchObject({ ok: false, reason: 'cross-backend-live-session' });
 });
 
-test('choosing a provider the home has a profile for moves the channel to that profile', async () => {
-  seed({ activeProfile: 'ds' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({
-    channel: 'web:a', provider: 'openai-codex', model: 'gpt-5.6-sol',
-  });
-  assert.equal(result.profileName, 'codex', 'its route and env are the configured ones');
-  assert.equal(result.provider, 'openai-codex');
-  assert.equal(result.model, 'gpt-5.6-sol');
-  assert.deepEqual(storedOverride('web:a'), { model: 'gpt-5.6-sol' }, 'no provider override needed');
+test.each(['backend-claude-id', undefined])('resumed session with durable backend ID %s rejects switching despite an empty ledger', async (backendSessionId) => {
+  session = { ...session!, backendSessionId };
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:resumed', ...pi }))
+    .toMatchObject({ ok: false, reason: 'cross-backend-live-session', currentBackend: 'claude', targetBackend: 'pi' });
+  expect(stored()).toEqual({});
+  expect(patches).toEqual([]);
 });
 
-test('a provider with no profile of its own is carried as an override', async () => {
-  seed({ activeProfile: 'ds' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', provider: 'zai', model: 'glm-5' });
-  assert.equal(result.profileName, 'ds', 'the base profile stays');
-  assert.equal(result.provider, 'zai');
-  assert.deepEqual(storedOverride('web:a'), { model: 'glm-5', provider: 'zai' });
+test('partial edits after a cross-channel resume use the bound session, not stale channel settings', async () => {
+  const resumed = { ...claude, model: 'sonnet', thinking: 'high', mode: 'api' };
+  session = { ...session!, selection: resumed, backendSessionId: 'claude-resumed' };
+  seed({ channelSelections: { 'web:old': claude, 'web:resumed': claude } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:resumed', thinking: 'xhigh' }))
+    .toEqual({ ...resumed, thinking: 'xhigh', ok: true, backendChanged: false });
+  expect(stored().channelSelections['web:resumed']).toEqual({ ...resumed, thinking: 'xhigh' });
+  expect(stored().channelSelections['web:old']).toEqual(claude);
+  expect(patches).toEqual([{ backend: 'claude', selection: { ...resumed, thinking: 'xhigh' } }]);
 });
 
-test('an unknown profile is refused', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', profileName: 'ghost' });
-  assert.equal(result.reason, 'unknown-profile');
+test('a fresh session may change backend and updates the session selection', async () => {
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi }))
+    .toEqual({ ...pi, ok: true, backendChanged: true });
+  expect(patches).toEqual([{ backend: 'pi', selection: pi }]);
 });
 
-test('readChannelSelection reports the profile when the channel selected nothing', async () => {
-  seed({ activeProfile: 'opus' });
-  const { readChannelSelection } = await freshSelection();
-  assert.deepEqual(readChannelSelection('web:a'), {
-    profileName: 'opus', backend: 'claude', model: 'claude-opus-5', provider: null,
-    thinking: 'medium', mode: 'plan', override: null,
-  });
+test('backend-only change uses that backend default; missing favorites refuses', async () => {
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'pi' }))
+    .toMatchObject(pi);
+  writeFileSync(path.join(HOME, 'config/models.json'), JSON.stringify({ default: claude, favorites: [] }));
+  const empty = await fresh();
+  seed();
+  expect(await empty.applyChannelSelection({ channel: 'web:b', backend: 'pi' }))
+    .toMatchObject({ ok: false, reason: 'no-model-for-backend' });
 });
 
-// ── The billing route (anthropic plan vs api) ────────────────────────────────────────────────────
-
-/** A gateway.yaml the rule can read without the host owning one. */
-const GATEWAY = { endpoints: { anthropic: { plan: {}, api: {} }, deepseek: { deepseek: {} } } } as never;
-
-test('a route the gateway declares for the endpoint is accepted and stored', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', mode: 'api', readGateway: () => GATEWAY });
-  assert.equal(result.ok, true);
-  assert.equal(result.mode, 'api', 'the next turn bills to the metered key');
-  assert.deepEqual(storedOverride('web:a'), { mode: 'api' });
+test.each([false, true])('backend-only pick preserves all configured default settings (same backend: %s)', async (sameBackend) => {
+  const current = sameBackend ? { ...claude, model: 'sonnet', thinking: 'low', mode: 'api' } : pi;
+  session = { ...session!, selection: current, backend: current.backend };
+  seed({ channelSelections: { 'web:a': current }, modelMemory: { '["claude",null,"opus"]': { thinking: 'low', mode: 'api' } } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude' }))
+    .toEqual({ ...claude, ok: true, backendChanged: !sameBackend });
+  expect(stored().channelSelections['web:a']).toEqual(claude);
 });
 
-test('a route the endpoint does not declare is refused, and says what it does have', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', mode: 'bedrock', readGateway: () => GATEWAY });
-  assert.equal(result.ok, false);
-  assert.equal(result.reason, 'invalid-mode');
-  assert.deepEqual(result.allowed, ['plan', 'api']);
-  assert.equal(storedOverride('web:a'), null, 'a refused route leaves the channel untouched');
+test('backend-only pick without memory preserves default thinking and route, while explicit model loads memory', async () => {
+  session = { ...session!, selection: pi, backend: 'pi' };
+  seed({ channelSelections: { 'web:a': pi } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude' }))
+    .toMatchObject({ ...claude, ok: true });
+  await api.applyChannelSelection({ channel: 'web:a', ...pi });
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude', model: 'opus', thinking: 'low', mode: 'api' }))
+    .toMatchObject({ thinking: 'low', mode: 'api', ok: true });
+  await api.applyChannelSelection({ channel: 'web:a', ...pi });
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude', model: 'opus' }))
+    .toMatchObject({ thinking: 'low', mode: 'api', ok: true });
 });
 
-test('an unreadable gateway.yaml cannot refuse a route — the run falls back to a direct connection', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', mode: 'api', readGateway: () => null });
-  assert.equal(result.ok, true);
+test('target backend thinking is validated before any write', async () => {
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi, thinking: 'max' }))
+    .toMatchObject({ ok: false, reason: 'invalid-thinking', allowed: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] });
+  expect(stored()).toEqual({});
+  expect(patches).toEqual([]);
 });
 
-test('moving to another provider drops the route that belonged to the old endpoint', async () => {
-  seed({ activeProfile: 'ds' });
-  const { applyChannelSelection } = await freshSelection();
-  await applyChannelSelection({ channel: 'web:a', mode: 'deepseek', readGateway: () => GATEWAY });
-  assert.deepEqual(storedOverride('web:a'), { mode: 'deepseek' });
-
-  // 'codex' has a profile of its own, so the channel moves there and the stale route must not ride along.
-  const moved = await applyChannelSelection({ channel: 'web:a', provider: 'openai-codex', readGateway: () => GATEWAY });
-  assert.equal(moved.ok, true);
-  assert.equal(moved.profileName, 'codex');
-  assert.equal(moved.mode, 'openai-codex', 'the route is re-derived from the new endpoint');
+test('invalid provider, model and mode are refused without mutation', async () => {
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', provider: 'deepseek' }))
+    .toMatchObject({ reason: 'provider-not-supported' });
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: '' })).toMatchObject({ reason: 'invalid-model' });
+  expect(await api.applyChannelSelection({ channel: 'web:a', mode: 'absent' }))
+    .toMatchObject({ reason: 'invalid-mode', allowed: ['api', 'plan'] });
+  expect(stored()).toEqual({});
 });
 
-test('a second model from an override-only provider keeps the provider pointed where it was', async () => {
-  // 'glm' has no profile of its own, so the provider can only live as an override.
-  seed({ activeProfile: 'ds' });
-  const { applyChannelSelection } = await freshSelection();
-
-  const first = await applyChannelSelection({ channel: 'web:a', provider: 'glm', model: 'glm-5' });
-  assert.equal(first.ok, true);
-  assert.deepEqual(storedOverride('web:a'), { provider: 'glm', model: 'glm-5' });
-
-  // Picking another model from the SAME provider must not read the override as "already the
-  // profile's provider" and drop it — that would route a glm model through deepseek.
-  const second = await applyChannelSelection({ channel: 'web:a', provider: 'glm', model: 'glm-6' });
-  assert.equal(second.ok, true);
-  assert.equal(second.provider, 'glm');
-  assert.deepEqual(storedOverride('web:a'), { provider: 'glm', model: 'glm-6' });
+test('route check uses the target provider and rejects invalid remembered modes too', async () => {
+  seed({ modelMemory: { '["pi","other","model"]': { thinking: null, mode: 'deepseek' } } });
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'pi', provider: 'other', model: 'model' }))
+    .toMatchObject({ reason: 'invalid-mode', allowed: ['other'] });
+  expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'pi', provider: 'other', model: 'model', mode: 'other' }))
+    .toMatchObject({ ok: true, provider: 'other', mode: 'other' });
 });
 
-test('picking the profile\'s own provider carries no override', async () => {
-  seed({ activeProfile: 'ds' });
-  const { applyChannelSelection } = await freshSelection();
-  const result = await applyChannelSelection({ channel: 'web:a', provider: 'deepseek', model: 'deepseek-v4' });
-  assert.equal(result.ok, true);
-  assert.deepEqual(storedOverride('web:a'), { model: 'deepseek-v4' });
+test('unreadable gateway permits a safe route; injected gateway controls first Claude route', async () => {
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', mode: 'custom', readGateway: () => null }))
+    .toMatchObject({ ok: true, mode: 'custom' });
+  const injected = { endpoints: { anthropic: { custom: {} } } } as never;
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'new', readGateway: () => injected }))
+    .toMatchObject({ ok: true, mode: 'custom' });
 });
 
-test('a pick in the app becomes what the next new conversation opens on', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-
-  await applyChannelSelection({ channel: 'web:a', model: 'claude-sonnet-5', thinking: 'xhigh' });
-  // Always with the profile it was made on: a set of overrides with no base is not an engine.
-  assert.deepEqual(storedSeed(), { profileName: 'opus', model: 'claude-sonnet-5', thinking: 'xhigh' });
-
-  // Taking the choice back is itself a statement — the next draft follows the profile too.
-  await applyChannelSelection({ channel: 'web:a', model: null, thinking: null });
-  assert.deepEqual(storedSeed(), { profileName: 'opus' });
+test('changing provider resets settings and subsequent model picks keep that provider', async () => {
+  seed({ channelSelections: { 'web:a': pi } });
+  session = null;
+  const api = await fresh();
+  expect(await api.applyChannelSelection({ channel: 'web:a', provider: 'other' }))
+    .toMatchObject({ ok: true, provider: 'other', mode: 'other', thinking: null });
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'new' }))
+    .toMatchObject({ ok: true, provider: 'other', mode: 'other' });
 });
 
-test('a platform channel does not decide what the desktop composer opens on', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
-
-  await applyChannelSelection({ channel: 'web:a', model: 'claude-sonnet-5' });
-  // `!thinking` in Slack changes that channel and nothing else: its profile was chosen for it.
-  const result = await applyChannelSelection({ channel: 'slack:C1', thinking: 'max' });
-  assert.equal(result.ok, true);
-  assert.equal(result.thinking, 'max', 'the platform channel still got its level');
-  assert.deepEqual(storedSeed(), { profileName: 'opus', model: 'claude-sonnet-5' });
+test('platform picks and seedDefault false do not change the new-conversation seed', async () => {
+  seed({ selectionDefault: { ...claude, agentName: 'creative' } });
+  const api = await fresh();
+  await api.applyChannelSelection({ channel: 'slack:a', thinking: 'max' });
+  await api.applyChannelSelection({ channel: 'web:worker', model: 'haiku', seedDefault: false });
+  expect(stored().selectionDefault).toEqual({ ...claude, agentName: 'creative' });
+  await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' });
+  expect(stored().selectionDefault.agentName).toBe('creative');
 });
 
-test('a selection made with seedDefault false leaves what the next conversation opens on', async () => {
-  seed({ activeProfile: 'opus' });
-  const { applyChannelSelection } = await freshSelection();
+test('concurrent partial updates merge rather than losing either choice', async () => {
+  const api = await fresh();
+  await Promise.all([
+    api.applyChannelSelection({ channel: 'web:a', thinking: 'xhigh' }),
+    api.applyChannelSelection({ channel: 'web:a', mode: 'api' }),
+  ]);
+  expect(api.readChannelSelection('web:a')).toEqual({ ...claude, thinking: 'xhigh', mode: 'api' });
+});
 
-  await applyChannelSelection({ channel: 'web:a', model: 'claude-sonnet-5' });
-  const result = await applyChannelSelection({
-    channel: 'web:worker', model: 'claude-haiku-4-5', thinking: 'high', seedDefault: false,
-  });
-  assert.equal(result.ok, true);
-  assert.equal(result.model, 'claude-haiku-4-5', 'the channel itself still got the pick');
-  assert.deepEqual(storedSeed(), { profileName: 'opus', model: 'claude-sonnet-5' });
+test('session write failure is surfaced before channel, memory or seed writes', async () => {
+  syncFailure = true;
+  const api = await fresh();
+  await expect(api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' })).rejects.toThrow('journal unavailable');
+  expect(stored()).toEqual({});
 });

@@ -16,7 +16,7 @@ export interface ProviderOverride {
    * (e.g. deepseek's anthropic-compat endpoint: `/deepseek/anthropic`).
    */
   basePath?: string;
-  /** Exact built-in model metadata overrides for this spawn. */
+  /** Catalog-wide model metadata defaults. Never put per-session benchmark caps here. */
   modelOverrides?: Record<string, { maxTokens: number }>;
   /**
    * Complete provider block for a user-defined provider, written verbatim. PI knows nothing about
@@ -100,7 +100,7 @@ export function writeProvidersConfig(
  * Compute the set of PI providers whose baseUrl should be overridden to the gateway for a spawn.
  *
  * Design: "route through gateway" and "PI has credentials" are independent concerns. Discovery
- * (`pi --list-models`) only reports providers the user is authenticated to, but a profile may
+ * (`pi --list-models`) only reports providers the user is authenticated to, but an engine selection may
  * legitimately route a provider through the gateway even without direct PI credentials (the
  * gateway injects managed keys). So the override set is the union of:
  *   - `discovered`        — providers PI reports creds for (credential passthrough via auth.json)

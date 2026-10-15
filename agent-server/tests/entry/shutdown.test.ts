@@ -32,6 +32,15 @@ test('timers and the outbound loop stop before the stores drain; the gateway goe
   assert.equal(names.at(-1), 'gateway');
 });
 
+test('shutdown stops the models watcher before draining stores', async () => {
+  let stopped = false;
+  const steps = shutdownSteps({ ...handles([]), stopModelsWatcher: () => { stopped = true; } });
+  const index = steps.findIndex(step => step.name === 'models watcher');
+  assert.ok(index >= 0 && index < steps.findIndex(step => step.name === 'flush stores'));
+  await steps[index].run();
+  assert.equal(stopped, true);
+});
+
 test('the drain step closes the bus, flushes the outbound queue and every registered store', async () => {
   const calls: string[] = [];
   registerFlushable({ flush: async () => { calls.push('store.flush'); } });

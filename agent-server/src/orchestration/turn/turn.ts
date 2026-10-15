@@ -13,7 +13,8 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
-import { getActiveProfile } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
@@ -24,7 +25,7 @@ import { createResumeTargetSink } from '../resume-target-sink.js';
 import { trackPendingTask } from '../busy-tracker.js';
 import { buildDurableHooks } from '../durable-helpers.js';
 import {
-  buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback,
+  buildUserProcessingMessage, makeStreamingMessageCallback,
   writeStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks,
 } from '../status-helpers.js';
 import { publishAskUserRequested } from '../routing/hook-bridge.js';
@@ -169,11 +170,12 @@ export class Turn {
     const { sessionId, backendSessionId, projectId } = this.input.session;
     const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
     const prefix = this.input.statusPrefix ?? '';
+    const selection = resolveRunSelection({ channel, session: sessionId ? await sessionStore.getById(sessionId) : null });
 
     // 1. Post the status message WITHOUT a Cancel button — Cancel is added once the run creates
     //    the execution record (step 8), keyed by executionId (no thread).
     const statusText = prefix + buildUserProcessingMessage({
-      startTime: this.startTime, profileName: getActiveProfile(channel), sessionId,
+      startTime: this.startTime, selection, sessionId,
     });
     const blocksTemplate = { channel, sessionId, isDm: true };
     //    This is the turn's first platform call. When the platform is unreachable (2026-09-14:
@@ -224,11 +226,11 @@ export class Turn {
     const onMessagePosted = userMessageTs
       ? (ref: MessageRef) => void conversationLedger.addResponseTs(channel, userMessageTs, ref.messageId).catch((e) => log.error(e))
       : null;
-    // 5a. Agent callbacks (streaming, fallback, progress, todo). Registers this channel's
+    // 5a. Agent callbacks (streaming, progress, todo). Registers this channel's
     //     streaming callback for the duration of the turn.
     const callbacks = buildAgentCallbacks(
       adapter, dest, statusMsg, threadAnchorId, this.startTime, sessionId,
-      onMessagePosted, prefix,
+      onMessagePosted, prefix, selection,
     );
     // 5b. PI interactive-event callbacks (plan approval / ask-user-question routing).
     const interactiveCallbacks = buildInteractiveCallbacks(channel, sessionId);
@@ -297,12 +299,6 @@ export class Turn {
               },
               { num_turns: event.numTurns },
             );
-            return;
-          case 'run_fallback':
-            // The profile's fallback chain switched attempt. The chat notice is synthesized by the
-            // run (domain/runs/notices.ts) and reaches the sink as assistant_text; this only
-            // updates the platform status message.
-            void callbacks.onFallback(event.from, event.to, event.reason);
             return;
           // The run synthesizes the chat notices for compaction and gateway model fallback and
           // delivers them as assistant_text, so the sink already has them; these events are the
@@ -639,8 +635,6 @@ export function emitTurnProgress(deps: TurnProgressDeps, progress: { num_turns?:
 // --- Platform callbacks --------------------------------------------------------------------------
 
 export interface AgentCallbacks {
-  /** Attempt switch of the profile's fallback chain, as two `model/mode` labels. */
-  onFallback: (fromLabel: string, toLabel: string, reason: 'rate-limited' | 'transport-error') => Promise<void>;
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
   onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
@@ -648,9 +642,8 @@ export interface AgentCallbacks {
   onTodoUpdate: ((snapshot: TodoSnapshot) => void) | null;
 }
 
-function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination, statusMsg: MessageRef, threadAnchorId: string | null, startTime: number, sessionId: string | null, onMessagePosted: ((ref: MessageRef) => void) | null, statusPrefix = ''): AgentCallbacks {
+function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination, statusMsg: MessageRef, threadAnchorId: string | null, startTime: number, sessionId: string | null, onMessagePosted: ((ref: MessageRef) => void) | null, statusPrefix: string, selection: EngineSelection): AgentCallbacks {
   const channel = resolveDestinationConduit(destination);
-  const onFallback = makeFallbackLabelNotifier(statusMsg, adapter);
   const queue = getOutboundQueue();
   const durable = queue ? buildDurableHooks(queue) : null;
   const baseAssistantMsg = makeStreamingMessageCallback(adapter, destination, threadAnchorId, onMessagePosted, durable);
@@ -678,7 +671,7 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
       startTime,
       elapsed_s: lastProgress?.duration_ms != null ? lastProgress.duration_ms / 1000 : null,
       num_turns: lastProgress?.num_turns ?? null,
-      profileName: getActiveProfile(channel), sessionId,
+      selection, sessionId,
       todoProgress: todoProgress || null,
     }));
   };
@@ -695,7 +688,7 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
     todoProgress = next;
     renderStatus();
   };
-  return { onFallback, onAssistantMsg, onProgress, onToolUse, onTodoUpdate };
+  return { onAssistantMsg, onProgress, onToolUse, onTodoUpdate };
 }
 
 /** Route generic PI extension dialogs through the shared platform interaction UI. */

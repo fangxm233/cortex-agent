@@ -1,12 +1,7 @@
-// Usage: import { getActiveBackend, getActiveProfile, ... } from './domain/agents/index.js';
-//
-// Profiles / roles / channel selection only. Starting a run, compacting a session and the engine spec
-// all belong to the run layer: import `startRun` from `@domain/runs/service.js`,
-// `compactAgentContext` from `@domain/runs/compact.js`, `buildEngineSpec` from
-// `@domain/runs/engine-spec.js`.
-
+// Engine selection and environments. Run startup and engine specs belong to domain/runs.
+export * from './engine-selection.js';
+export * from './models.js';
 export * from './config.js';
-export * from './profile-switch.js';
 export * from './agent-switch.js';
 export * from './model-selection.js';
 export { resolveRateLimitProvider } from './provider-run-lifecycle.js';

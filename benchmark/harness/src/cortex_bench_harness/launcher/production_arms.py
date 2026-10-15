@@ -1,7 +1,7 @@
 #
 # An arm is a committed config bundle: the directory that becomes the sealed CORTEX_HOME. A campaign
 # arm names its bundle by key, and everything the bundle runs -- backend, provider, model, thinking,
-# the profile and the session environment -- is read from the bundle's own files rather than stated
+# the route and the session environment -- is read from the bundle's own files rather than stated
 # a second time. The one fact a bundle cannot carry is the credential route its provider spends,
 # which is the row below.
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 BUNDLES_DIR = Path(__file__).resolve().parent / "bundles"
 BUNDLE_HOME_DIRNAME = "cortex-home"
-ARM_SCHEMA_VERSION = "cortex-benchmark-arm/3"
+ARM_SCHEMA_VERSION = "cortex-benchmark-arm/4"
 # Every arm runs its one unit of work as a direct session: the launcher starts the session through
 # this route and polls it there. `CORTEX_WEBHOOK_BENCHMARK_ONLY=1` makes it the only route served.
 BENCHMARK_SESSION_ENDPOINT = "POST /webhook/benchmark-session"
@@ -20,13 +20,13 @@ BENCHMARK_SESSION_ENDPOINT = "POST /webhook/benchmark-session"
 # `config/environments/main.json` is the agent the trial runs.
 SESSION_ENVIRONMENT = "main"
 # The direct arm exists twice, once per provider. The pair differs in exactly one committed file --
-# the profile's provider/model/thinking -- and in nothing else, so the pair is a controlled
+# the default model selection -- and in nothing else, so the pair is a controlled
 # comparison of providers rather than of two arms that happen to share a name.
 BUNDLE_CREDENTIAL_CAPABILITIES: Mapping[str, str] = {
     "direct-pi-deepseek": "pi-deepseek-api-key",
     "direct-pi-openai-codex": "pi-openai-codex-oauth",
 }
-IDENTITY_FIELDS = ("backend", "provider", "model", "thinking")
+IDENTITY_FIELDS = ("backend", "provider", "model", "thinking", "mode")
 
 
 class ProductionArmError(RuntimeError):
@@ -39,16 +39,16 @@ class ProductionArmBundle:
 
     key: str
     bundle_dir: Path
-    profile_name: str
     environment: str
     backend: str
-    provider: str
+    provider: str | None
     model: str
-    thinking: str
+    thinking: str | None
+    mode: str
     credential_capability: str
     webhook_endpoints: tuple[str, ...]
 
-    def arm_fields(self) -> dict[str, str]:
+    def arm_fields(self) -> dict[str, str | None]:
         """What a campaign arm naming this bundle carries about it, for every reader downstream."""
         return {
             "bundle": self.key,
@@ -56,10 +56,11 @@ class ProductionArmBundle:
             "credential_capability": self.credential_capability,
         }
 
-    def attested_record(self) -> dict[str, str]:
+    def attested_record(self) -> dict[str, object]:
         """What the launch attestation states about which arm ran."""
         return {
-            "key": self.key, "profile_name": self.profile_name,
+            "key": self.key,
+            "selection": {field: getattr(self, field) for field in IDENTITY_FIELDS},
             "environment": self.environment,
         }
 
@@ -83,40 +84,40 @@ def _read_bundle_json(home: Path, key: str, relative: str) -> Mapping[str, objec
     return document
 
 
-def _bundle_profile(home: Path, key: str) -> tuple[str, dict[str, str]]:
-    document = _read_bundle_json(home, key, "config/profiles.json")
+def _bundle_selection(home: Path, key: str) -> dict[str, str | None]:
+    document = _read_bundle_json(home, key, "config/models.json")
     try:
-        name = document["defaultProfile"]
-        profile = document["profiles"][name]
-        identity = {field: profile[field] for field in IDENTITY_FIELDS}
+        identity = {field: document["default"][field] for field in IDENTITY_FIELDS}
     except (KeyError, TypeError) as error:
-        raise ProductionArmError(f"committed bundle {key!r} profile is incomplete") from error
-    if not all(isinstance(value, str) and value for value in (name, *identity.values())):
-        raise ProductionArmError(f"committed bundle {key!r} profile is incomplete")
-    return name, identity
+        raise ProductionArmError(f"committed bundle {key!r} selection is incomplete") from error
+    required = (identity[field] for field in ("backend", "model", "mode"))
+    nullable = (identity[field] for field in ("provider", "thinking"))
+    if not all(isinstance(value, str) and value for value in required):
+        raise ProductionArmError(f"committed bundle {key!r} selection is incomplete")
+    if not all(value is None or isinstance(value, str) and value for value in nullable):
+        raise ProductionArmError(f"committed bundle {key!r} selection is incomplete")
+    return identity
 
 
-def _assert_bundle_selection(home: Path, key: str, profile_name: str) -> None:
-    """The bundle's environment and its selected agent both run the bundle's default profile."""
+def _assert_bundle_selection(home: Path, key: str) -> None:
+    """A fresh session uses models.default in the bundle's main environment."""
     environment = _read_bundle_json(home, key, f"config/environments/{SESSION_ENVIRONMENT}.json")
     state = _read_bundle_json(home, key, "data/agent-state.json")
     consistent = (
         environment.get("name") == SESSION_ENVIRONMENT
-        and environment.get("profile") == profile_name
-        and state.get("activeProfile") == profile_name
-        and state.get("defaultAgent") == SESSION_ENVIRONMENT
+        and state == {"defaultAgent": SESSION_ENVIRONMENT}
     )
     if not consistent:
         raise ProductionArmError(
-            f"committed bundle {key!r} environment or selection runs another profile")
+            f"committed bundle {key!r} environment or selection is not the fresh default")
 
 
 def _load_bundle(key: str, credential_capability: str) -> ProductionArmBundle:
     home = BUNDLES_DIR / key / BUNDLE_HOME_DIRNAME
-    profile_name, identity = _bundle_profile(home, key)
-    _assert_bundle_selection(home, key, profile_name)
+    identity = _bundle_selection(home, key)
+    _assert_bundle_selection(home, key)
     return ProductionArmBundle(
-        key=key, bundle_dir=home, profile_name=profile_name,
+        key=key, bundle_dir=home,
         environment=SESSION_ENVIRONMENT, **identity,
         credential_capability=credential_capability,
         webhook_endpoints=(BENCHMARK_SESSION_ENDPOINT,),

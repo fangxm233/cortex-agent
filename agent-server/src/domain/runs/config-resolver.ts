@@ -1,214 +1,55 @@
-import { profileRepo } from '@store/profile-repo.js';
-import type { ChannelOverride } from '../agents/agent-state.js';
-import { getActiveProfile, getChannelOverride } from '../agents/config.js';
+import { modelsRepo } from '@store/models-repo.js';
+import type { Session } from '@store/session-registry-repo.js';
+import { getChannelSelection } from '../agents/config.js';
+import { getDefaultSelection } from '../agents/models.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import { resolveModeEnv, type ModeEnv } from './mode-env.js';
-import {
-  getDefaultProfileName, resolveModeForProvider, resolveProfileConfig,
-  type ResolvedProfileConfig, type RunAttemptConfig,
-} from '../agents/profile-manager.js';
 import type { RunRequest } from './request.js';
 
-export interface RunConfigQuery {
-  /** Conduit the run belongs to. Absent for runs with no channel (a scheduled job's first turn). */
+export interface RunSelectionQuery {
   channel?: string | null;
-  /** The Cortex session this run continues, when the caller has its record. Its recorded profile
-   *  beats the channel's: a session keeps the profile it was started under even if the channel
-   *  has since moved on. */
-  session?: { profileName?: string | null } | null;
-  /** A profile the caller was handed explicitly — a thread agent's `profile`, a step's override.
-   *  Highest priority, and deliberately NOT validated here: an unknown name must reach the run so
-   *  the run rejects it, after the execution record exists. */
-  override?: string | null;
+  session?: Partial<Pick<Session, 'selection' | 'backend' | 'sessionId' | 'backendSessionId'>> | null;
+  selection?: EngineSelection | null;
 }
 
-export interface ResolvedRunConfig {
-  /** The name that won the priority chain, whether or not it names a real profile. */
-  profileName: string;
-  /** Always usable. Synthetic when `resolved` is false — see `resolved`. */
-  profile: ResolvedProfileConfig;
-  /** The channel's selection (model / provider / thinking) to be layered on top of `profile`.
-   *  null is the normal case: the channel runs its profile as declared. */
-  override: ChannelOverride | null;
-  /** `!model` for this channel, to be layered on top of `profile.model`. null is the normal case.
-   *  Kept as its own field because the model is the one override with a display of its own
-   *  (`!model` prints "profile says X, this channel was told Y"). */
-  modelOverride: string | null;
-  /** False when `profileName` names no profile in profiles.json. The caller still gets a profile
-   *  so it can open an execution record with a truthful backend, and still has the bad name to
-   *  fail on. Callers that simply want to run should treat false as an error. */
-  resolved: boolean;
-}
-
-/** Startup and login exist before a first profile. Only a missing file is unconfigured. */
-export function resolveConfiguredDefaultRun(): ResolvedRunConfig | null {
-  if (!profileRepo.readIfPresent()) return null;
-  // Validate existing configuration even when the active selection could use a synthetic fallback.
-  getDefaultProfileName();
-  return resolveRunConfig();
-}
-
-const FALLBACK_BACKEND = 'claude' as const;
-const FALLBACK_MODE = 'plan';
-
-/**
- * The profile name for a run, by D5's priority: explicit override → the session's recorded
- * profile → the channel's profile → the global active profile → profiles.defaultProfile.
- *
- * `getActiveProfile(channel)` already folds the middle two together (and resolves init's
- * `'__active__'` placeholder), so only the ends are added here.
- */
-export function resolveProfileName(query: RunConfigQuery = {}): string {
-  return query.override
-    || query.session?.profileName
-    || getActiveProfile(query.channel ?? undefined)
-    || getDefaultProfileName();
-}
-
-/** A profile shaped like the requested one but carrying no configuration: it keeps the name so the
- *  run still rejects it, and borrows a backend/mode so the execution record is not a lie. Replaces
- *  three byte-identical copies that each hard-coded the retired global backend. */
-function syntheticProfile(
-  profileName: string, backend: ResolvedProfileConfig['backend'], mode: string | null,
-): ResolvedProfileConfig {
-  return {
-    name: profileName,
-    model: '',
-    backend,
-    mode,
-    provider: null,
-    extraEnv: {},
-    extraOption: {},
-    thinking: null,
-    maxOutputTokens: null,
-    fallback: [],
-  };
-}
-
-/**
- * What an unknown profile name borrows: the profile the channel would have used had the caller not
- * named one. Before D5 this was the stored global backend; with backend living on the profile, the
- * channel's own chain is the nearest honest answer, and it agrees with the old one whenever the
- * global backend matched the channel's profile — which is the only case where it was ever right.
- */
-function borrowedIdentity(query: RunConfigQuery): { backend: ResolvedProfileConfig['backend']; mode: string | null } {
-  const name = resolveProfileName({ channel: query.channel, session: query.session });
-  try {
-    const profile = resolveProfileConfig(name);
-    return { backend: profile.backend, mode: profile.mode };
-  } catch {
-    return { backend: FALLBACK_BACKEND, mode: FALLBACK_MODE };
+/** Explicit request > recorded session > channel > configured default. No overlays. */
+export function resolveRunSelection(query: RunSelectionQuery = {}): EngineSelection {
+  const selection = query.selection ?? query.session?.selection
+    ?? getChannelSelection(query.channel ?? undefined) ?? getDefaultSelection();
+  const session = query.session;
+  // Legacy records resume by sessionId; an explicit null is a history-free session.
+  const resumeId = session?.backendSessionId === undefined ? session?.sessionId : session.backendSessionId;
+  if (resumeId && session?.backend && selection.backend !== session.backend) {
+    throw new Error(`Cannot resume ${session.backend} session on ${selection.backend} backend`);
   }
+  return selection;
 }
 
-/**
- * Resolve everything a run needs to know about its configuration, in one place.
- *
- * Backend, model, provider, mode, thinking and the fallback chain come from the profile and only
- * from the profile (D5). The single exception is the channel's `!model` override, returned
- * separately rather than folded in so a caller can tell "the profile says X" from "this channel
- * was told to use Y" — the run applies it, the display distinguishes them.
- */
-export function resolveRunConfig(query: RunConfigQuery = {}): ResolvedRunConfig {
-  const profileName = resolveProfileName(query);
-  const override = getChannelOverride(query.channel);
-  const modelOverride = override?.model ?? null;
-  try {
-    return {
-      profileName, profile: resolveProfileConfig(profileName), override, modelOverride, resolved: true,
-    };
-  } catch {
-    const { backend, mode } = borrowedIdentity(query);
-    return {
-      profileName,
-      profile: syntheticProfile(profileName, backend, mode),
-      override,
-      modelOverride,
-      resolved: false,
-    };
-  }
+/** Startup and login can precede configuration; malformed configuration still throws. */
+export function resolveConfiguredDefaultRun(): EngineSelection | null {
+  if (!modelsRepo.readIfPresent()?.default) return null;
+  return getDefaultSelection();
 }
 
-/**
- * The Anthropic route (base URL + credentials) one attempt runs under. Per attempt, because a
- * fallback may be a different mode entirely, and per run because the project/trigger it carries
- * select the gateway's account: resolving this never writes a daemon global (K-053), the value
- * reaches exactly the one child env it was resolved for.
- */
+/** Resolve the route per run, never by changing the daemon's environment. */
 export function resolveRunRoute(
-  attempt: { mode?: RunAttemptConfig['mode'] },
+  selection: { mode?: EngineSelection['mode'] },
   context: { project?: string | null; trigger?: string | null } = {},
 ): ModeEnv {
   const metadata: Record<string, string> = {};
   if (context.project) metadata.project = context.project;
   if (context.trigger) metadata.trigger = context.trigger;
-  return resolveModeEnv(
-    attempt.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
-  );
+  return resolveModeEnv(selection.mode || 'api', Object.keys(metadata).length ? metadata : undefined);
 }
 
-/** The route one attempt of `request` runs under — the run's own choice, and what a command on the
- *  same engine has to ask for to be handed that engine. */
 export function requestRoute(
   request: { context: Pick<RunRequest['context'], 'project' | 'trigger' | 'routeTrigger'> },
-  attempt: { mode?: RunAttemptConfig['mode'] },
+  selection: { mode?: EngineSelection['mode'] },
 ): ModeEnv {
   const { project, trigger, routeTrigger } = request.context;
-  return resolveRunRoute(attempt, { project, trigger: routeTrigger ?? trigger });
+  return resolveRunRoute(selection, { project, trigger: routeTrigger ?? trigger });
 }
 
-/** The backend a channel's next run will use. Replaces `getActiveBackend()` on the run path. */
-export function resolveRunBackend(query: RunConfigQuery = {}): ResolvedProfileConfig['backend'] {
-  return resolveRunConfig(query).profile.backend;
-}
-
-/** The extraOption flag that would out-rank an explicitly chosen thinking level, per backend.
- *  Both adapters let extraOption win (claude appends it after `--effort`, PI reads
- *  `extraOption['--thinking']` in preference to the spec), so a profile carrying one would make the
- *  user's choice silently do nothing. */
-const THINKING_FLAG_BY_BACKEND = { claude: '--effort', pi: '--thinking' } as const;
-
-/**
- * The profile a run actually executes: the resolved profile with the channel's selection
- * (model / provider / thinking) applied to its primary attempt.
- *
- * What each field does:
- * - `model` — replaces the primary model (this is `!model`, unchanged).
- * - `mode` — which gateway route of the SAME endpoint bills the turn (anthropic `plan` vs `api`).
- * - `provider` — PI only. It selects both the request protocol and the gateway endpoint, so the
- *   route is re-derived with it (overriding any `mode` above), and the profile's `maxOutputTokens`
- *   is dropped: that cap was stated for the profile's own model and says nothing about the one now
- *   selected.
- * - `thinking` — replaces the level AND removes the profile's own thinking flag from extraOption,
- *   which both adapters would otherwise let win over the selection.
- *
- * The fallback chain is deliberately untouched. It is the profile's stated recovery path for when
- * the primary model is unavailable, not a second model choice the user made — overriding it too
- * would mean a selection on a rate-limited channel silently disabled the profile's own escape.
- */
-export function effectiveProfile(config: ResolvedRunConfig): ResolvedProfileConfig {
-  const override = config.override;
-  if (!override || Object.keys(override).length === 0) return config.profile;
-
-  const profile = { ...config.profile };
-  if (override.model) profile.model = override.model;
-  // The route is chosen WITHIN the profile's endpoint (same credentials, same provider), so it is
-  // applied before the provider branch below — which re-derives the route when the endpoint itself
-  // moves and therefore has the last word.
-  if (override.mode) profile.mode = override.mode;
-  // A claude profile has no provider to select — the write path rejects one, and a stale value
-  // from an older state file is ignored here rather than re-labelling the run's rate-limit identity.
-  if (profile.backend === 'pi' && override.provider && override.provider !== config.profile.provider) {
-    profile.provider = override.provider;
-    profile.mode = resolveModeForProvider(profile.backend, override.provider);
-    profile.maxOutputTokens = null;
-  }
-  if (override.thinking) {
-    profile.thinking = override.thinking;
-    const flag: string | undefined = THINKING_FLAG_BY_BACKEND[profile.backend];
-    if (flag && flag in profile.extraOption) {
-      profile.extraOption = { ...profile.extraOption };
-      delete profile.extraOption[flag];
-    }
-  }
-  return profile;
+export function resolveRunBackend(query: RunSelectionQuery = {}): EngineSelection['backend'] {
+  return resolveRunSelection(query).backend;
 }

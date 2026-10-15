@@ -11,7 +11,7 @@ const BASE_SESSION = {
   projectId: 'nimbus',
   channel: 'web:track-1',
   backend: 'pi',
-  profileName: 'deepseek',
+  selection: { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: null, mode: 'deepseek' },
   contextUsage: {
     usedTokens: 120000,
     contextWindow: 200000,

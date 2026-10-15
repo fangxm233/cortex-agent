@@ -13,13 +13,13 @@
 
 从一条消息到一个后端进程，涉及三个名词：**运行（run）**、**会话（session）**和**引擎（engine）**。
 
-**运行**是一次用户请求的一次执行：一个对话回合、一个钩子注入的回合、一次编辑重试、一次 ask-user 续跑，或一个子智能体。`startRun`（`domain/runs/service.ts`）根据一个完全解析好的 `RunRequest`（profile、提示、策略与上下文）以及观察它的 observer 打开一次运行，并返回 `AgentRun`（`domain/runs/run.ts`）；后者持有这次运行的事件流、取消与 steer 句柄、回退链和结果。
+**运行**是一次用户请求的一次执行：一个对话回合、一个钩子注入的回合、一次编辑重试、一次 ask-user 续跑，或一个子智能体。`startRun`（`domain/runs/service.ts`）根据一个完全解析好的 `RunRequest`（引擎选择、提示、策略与上下文）以及观察它的 observer 打开一次运行，并返回 `AgentRun`（`domain/runs/run.ts`）；后者持有这次运行的事件流、取消与 steer 句柄和结果。
 
-**会话**是运行所延续的对话身份：稳定的 Cortex session id、后端自身的 resume id、它运行的 profile，以及它绑定的频道。会话拥有它恢复进去的那个引擎。运行复用其会话池中的引擎；钩子注入的回合有自己的 engine key 与引擎。
+**会话**是运行所延续的对话身份：稳定的 Cortex session id、后端自身的 resume id、它的引擎选择，以及它绑定的频道。会话拥有它恢复进去的那个引擎。运行复用其会话池中的引擎；钩子注入的回合有自己的 engine key 与引擎。
 
 **引擎**就是后端进程本身——池化的 `claude` 子进程，或进程内的 PI SDK 会话。`SessionEngines`（`domain/runs/engines.ts`）是池化引擎的唯一持有者：`acquire(spec)` 在该 spec 的 engine key 对应的会话仍存活、且由同一 session identity 打开时复用它，否则将其退休并新开一个。适配器是无状态的；它依据 `EngineSpec` 打开一个会话，并翻译该会话发出的内容。
 
-配置每次运行只解析一次。`resolveRunConfig`（`domain/runs/config-resolver.ts`）按优先级选定 profile——显式 override、会话记录的 profile、频道的 profile、active profile，最后是 `profiles.json` 的 `defaultProfile`——由 profile 提供后端、模型、provider、gateway mode、思考档位与回退链。`buildEngineSpec`（`domain/runs/engine-spec.ts`）把解析后的运行变成后端中立的 `EngineSpec`，适配器再把它翻译成后端原生形式：对 Claude Code 子进程是命令行参数，对进程内 PI 会话是 session options。
+配置每次运行只解析一次。`resolveRunSelection`（`domain/runs/config-resolver.ts`）依次使用显式请求的完整选择、会话记录的选择、频道选择、`models.json` 的 `default`。选择提供后端、模型、provider、gateway mode 与思考档位。`buildEngineSpec`（`domain/runs/engine-spec.ts`）生成后端中立的 `EngineSpec`，适配器将其转换成 Claude Code 的命令行参数或进程内 PI 的 session options。每次运行使用一个引擎选择。
 
 此后引擎发出一条 `RunEvent` 流（`agent-adapter/run-events.ts`）。每个适配器把其后端的原生事件翻译成 `agent-adapter/normalize/` 中声明的 `NormalizedEvent` 形状，`toRunEvent` 再为它们标上运行的阶段，因此运行层永远不需要知道运行的是哪个后端。
 
@@ -74,7 +74,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 PI transcript 的保留基于文件系统。活跃的 PI 后端 session id 在保留扫描中受保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下的孤立 transcript bundle 只有在超过保留截止线后仍无引用、且经过第二轮确认扫描后才会删除。
 
-PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-codex` 是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的 profile 仍须设置 `"backend": "pi"`。
+PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-codex` 是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的引擎选择须设置 `"backend": "pi"`。
 
 ## 子智能体 {#subagents}
 
@@ -89,11 +89,11 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 | `tools` | 规范工具名，翻译成各后端自己的拼写 |
 | `model` | PI 子智能体用 `provider/model[:thinking]`，Claude 子智能体用裸模型 id |
 | `backend` | `claude` 或 `pi`；不填表示"父端运行的是哪个就用哪个" |
-| `mode` | 子智能体的显式 gateway 路由；不填时回退到 provider 名 |
+| `mode` | PI 子端依次使用角色值、同 provider 的 PI 父端路由、provider 名称。Claude 子端使用 Claude 父端路由或配置的 Claude 后端默认路由 |
 
 当 `$CORTEX_HOME/config/agents/` 尚不存在时，Cortex 私有 PI agent 目录内 `agents/` 目录中的角色会在启动时被移入其中，该目录随后被改名为 `agents.migrated`，这样在那里做的修改不会悄无声息地毫无效果。
 
-**模型如何选定。** 不查 profile。模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。
+**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。PI 父端创建 Claude 子端时也使用该 Claude 默认值的路由，需要事先配置 Claude 默认值或收藏。
 
 **调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——因此你新增的角色在下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父端读取自己的实时模型注册表；Claude 父端读不到，因为它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 Claude spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
 
@@ -161,80 +161,43 @@ cortex auth status --json
 
 聊天命令刻意不提供密钥参数：频道记录不适合放密钥。请用 CLI 的 `--key -`（从标准输入读取）或 Web 表单添加密钥，两者都不会把它留在任何记录里。
 
-要使用自定义 provider，添加一条指向它的 profile，例如 `{"backend": "pi", "provider": "my-vllm", "mode": "my-vllm", "model": "Model-27B"}`（profile 结构参见 [configuration.md](./configuration.md)）。删除 provider 会同时移除 catalog 条目与网关路由；仍指向它的 profile 将无法解析，因此请先把它们改指向别处。
+要使用自定义 provider，在模型选择器中选择它的模型，或输入 `!model my-vllm/Model-27B`。可将模型加入收藏，并在需要时设为默认（见 [configuration.md](./configuration.md#modelsjson)）。删除 provider 会同时移除 catalog 条目与网关路由；请先把使用它的会话、默认模型、收藏和定时任务改到其他 provider。
 
 ## 选择后端 {#selecting-a-backend}
 
-后端在 `$CORTEX_HOME/config/profiles.json` 中按 profile 选择（完整的 profile 结构参见 [configuration.md](./configuration.md)）：
+每个会话保存完整的引擎选择：`backend`、`provider`、`model`、`thinking` 和 `mode`。`backend` 为 `claude` 或 `pi`；Claude 的 provider 为 null，PI 则必须指定 provider id，用于选择请求协议和网关 endpoint。默认选择与收藏保存在 [`config/models.json`](./configuration.md#modelsjson)。
 
-```json
-{
-  "defaultProfile": "plan",
-  "profiles": {
-    "plan": {
-      "backend": "claude",
-      "model": "opus",
-      "mode": "plan"
-    },
-    "deepseek": {
-      "backend": "pi",
-      "provider": "deepseek",
-      "mode": "deepseek",
-      "model": "deepseek-v4-pro"
-    }
-  }
-}
-```
-
-`backend` 字段接受 `"claude"` 或 `"pi"`。省略时默认为 `"claude"`。`pi` profile 必须指定 `provider`，它决定请求协议和 gateway 端点；没有默认值。`mode` 是运行所走的 gateway 路由——对 Anthropic 端点而言是 `plan`（订阅）或 `api`（计量密钥）。在聊天中，`!profile <name>` 切换频道的 profile，`!backend <claude|pi>` 把频道切换到该后端的默认 profile（`profiles.json` 中的 `defaultProfileByBackend`）。对于已经在另一后端上有回合的对话，两者都会被拒绝。
+`!backend <claude|pi>` 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。有历史的对话不能切换后端；需要新建会话。
 
 ## 按会话选择模型、思考档位与路由 {#per-session-model-thinking-level-and-route}
 
-在直接对话里，profile 是**基座**而不是全部。Web 输入框上的引擎胶囊会打开一个选择器，分段依次是 profile、模型、思考档位，以及——当该端点有不止一种计费方式时——路由。（其中的 `agent` 一行完全属于另一条轴——会话的执行环境而非引擎；见 [configuration.md](./configuration.md#choosing-an-environment-per-conversation)。）profile 以下的所有选择都作为按会话生效的覆盖值，叠在该会话所用的 profile 之上。覆盖只在一个地方应用（`effectiveProfile`），所以后端、`extraEnv` 与回退链仍由 profile 提供；能被替换的只有 `model`、`provider`（在 `pi` 上）、`thinking` 和 `mode`。每个选择器分段都有一行「跟随 profile」，用来把该字段交还给 profile。
+Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示模型名与记住的思考档位，按 backend 和 provider 分组。打开完整模型列表可选择其他模型，也可用每行的星标收藏或取消收藏。思考档位包含默认选项，保存为 `null`，由后端决定。`/model` 打开模型选择。执行环境是独立选项，见 [configuration.md](./configuration.md#choosing-an-environment-per-conversation)。
 
-选择器受两条规则约束，两条都由服务端强制执行，并由客户端提前预览：
+选择保存在会话上。选模型会恢复该模型记住的思考档位与路由；没有记忆时，thinking 为 null，Claude 使用 `gateway.yaml` 中第一条 Anthropic 路由（未声明时用 `plan`），PI 使用 provider 名称。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。
 
-- **已开始的对话不换后端。** 想用另一后端上的模型，要切换到运行它的 profile；而已有回合的会话不能做这个切换——对应行会灰显，并提示需要新建会话。新草稿可以自由切换。
-- **指定 profile 会清除会话的覆盖值。** 选择 profile 意味着「按声明运行这个 profile」；模型与思考档位回到它所写的值。
+有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。
 
-选择一个 provider 与 profile 不同的 PI 模型时，会话会改挂到一个已经运行该 provider 的同级 profile 上，以便使用已配置的 gateway 路由而不是猜一个；没有这样的 profile 时，路由回退到 provider 自己的名字。在这里选定的思考档位也优先于 profile 的 `extraOption` 中残留的 `--effort` / `--thinking`，否则那些标志会不声不响地胜出。
+**路由**是 gateway 端点的计费通道，例如 Anthropic 订阅的 `plan` 或计量密钥的 `api`。选择器只提供该端点在 `gateway.yaml` 中声明的路由，只有一条时隐藏路由选择。模型目录提供各 endpoint 的 backend、provider、路由和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。
 
-**路由**是 gateway 端点的计费通道：Anthropic 端点声明 `plan`（订阅）与 `api`（计量密钥），选哪条就决定由哪条为下一个回合付费。只提供该端点在 `gateway.yaml` 中实际声明的通道；只有一条通道的端点不提供选择，这一段也就不出现。
+**设置 → 模型** 管理默认模型与收藏列表。平台频道通过以下命令使用同样的选择规则：
 
-选择器读取的正是 profile 编辑器所用的那份 `models.catalog`：每个 gateway 端点一条，带有该端点的后端、provider、通道与模型。档位列表是该后端自己的取值范围（见下文），并在 PI 报出所选模型自己的档位阶梯时收窄到那一份——PI 各模型接受的档位并不相同。如果主机上既没有 PI profile 也没有 PI 凭据，PI 那一半会被整体跳过，因此不会仅为画一个菜单就加载 PI SDK；首次 provider 扫描进行中时，菜单会如实说明，而不是把半份列表当作全部。
-
-新对话从本机上一次选定的引擎开始——profile 与覆盖值一起——而不是每次都退回默认 profile。
-
-平台频道保留自己的控制方式：`!profile <name>` 切换频道的 profile，`!model <id>` 在其之上设置频道的模型，`!thinking <level>` 设置其思考档位。`!model reset` 与 `!thinking reset` 把该字段交还给 profile。它们都按选择器所用的同一条规则写入。
+| 命令 | 作用 |
+|---|---|
+| `!model` | 显示当前选择与收藏，并提供收藏按钮 |
+| `!model <id>` | 在当前后端选择模型 |
+| `!model <provider/model>` | 指定 provider 选择 PI 模型 |
+| `!model reset` | 恢复完整的配置默认选择 |
+| `!thinking [level]` | 查看或设置思考档位 |
+| `!thinking reset` | 将 thinking 设为 null，使用后端默认值 |
+| `!mode [route]` | 查看或设置网关路由，按 endpoint 的路由校验 |
 
 ## 思考档位 {#thinking-level}
 
-可选的 `thinking` profile 字段设置后端的推理深度，取值使用后端自己的值集。Claude Code 接受 `low`/`medium`/`high`/`xhigh`/`max`，以 `--effort` 标志传入；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`，作为会话的思考档位传入。字段缺省时后端使用自身默认值。fallback 条目不继承主条目的值——每个条目自行声明。
-
-## 回退行为 {#fallback-behavior}
-
-每个 profile 条目可以指定一个 `fallback` 数组作为备选条目。当一次尝试因可重试错误失败时，Cortex 按顺序转到下一个条目。可重试指速率限制、用量限制、过载或额度拒绝（包括后端标记为 rate-limited 的结果）、HTTP 408 或 5xx、连接被重置或超时之类的传输失败，或 provider 消息表明请求可以重试。认证错误与永久性拒绝——无效请求、超出上下文窗口、余额耗尽——从不回退。已经开始工具调用的尝试也不会重试，因为回退会把该工具再运行一次；回合以一条请你重新发送的消息结束。
-
-每个 fallback 条目自行声明 `model`。省略时它从主条目继承 `backend` 与 `mode`，此外不继承任何字段：`provider`、`thinking`、`extraEnv`、`extraOption` 与 `maxOutputTokens` 只在写明处生效，`pi` 条目必须指定 `provider`。
-
-示例：
-
-```json
-{
-  "plan": {
-    "backend": "claude",
-    "model": "opus",
-    "mode": "plan",
-    "fallback": [
-      { "backend": "pi", "provider": "deepseek", "mode": "deepseek", "model": "deepseek-v4-pro" }
-    ]
-  }
-}
-```
+`thinking` 使用后端原生值域设置推理深度。Claude Code 接受 `low`/`medium`/`high`/`xhigh`/`max`，以 `--effort` 传入。PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`，作为会话的思考档位传入。值为 null 时使用后端默认值。
 
 ## 用量限流与自动恢复 {#usage-limit-throttling-and-auto-resume}
 
-回退链处理单次失败的调用，滚动用量窗口由另一套机制处理。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。每个 provider 保有自己的窗口类型和重置时间。限流门禁作用于 provider 与 route mode 的组合，不会阻塞恰好使用相同 mode 名称的另一个 provider。
+Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。每个 provider 保有自己的窗口类型和重置时间。限流门禁作用于 provider 与 route mode 的组合，不会阻塞恰好使用相同 mode 名称的另一个 provider。
 
 这套策略在 [`config/settings.json`](./configuration.md#configsettingsjson) 中以 `providerRateLimits` 配置，它是一个以 provider id 为键的对象。每个 provider 可以有一个由 `{ type, label?, enabled, threshold? }` 条目组成的 `windows` 数组，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口以及带标签的模型窗口都能独立配置。`threshold` 是大于 `0` 且不超过 `1` 的比率；省略时，weekly 窗口（`seven_day`、`seven_day_overage_included`）使用 `0.95`，其他所有窗口（包括 `five_hour`）使用 `0.90`。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端的用量页面编辑这些行；只统计花费的 provider 不显示额度控件。
 

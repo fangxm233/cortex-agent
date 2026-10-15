@@ -150,11 +150,11 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 
 def direct_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex", "name": "cortex-direct",
         "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
@@ -168,7 +168,7 @@ def trial_seed(overrides: dict[str, object] | None = None) -> dict[str, object]:
         "trial_id": "trial-install-only", "root_run_id": "root-install-only",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": {"upstream_base_url": "http://synthetic.invalid",
                        "route_identity_host": "api.deepseek.com",
                        "proxy_base_url": "http://trial-install-only.proxy.invalid",
@@ -226,7 +226,7 @@ def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
     )
     assert attestation["capture_boundary"] == "launcher_pre_boot"
     assert attestation["npm_artifact_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
-    assert (tmp_path / "agent/production-cortex-home/config/profiles.json").is_file()
+    assert (tmp_path / "agent/production-cortex-home/config/models.json").is_file()
 
 
 def test_setup_ignores_npm_human_output_for_known_bundle_root(tmp_path: Path) -> None:
@@ -262,7 +262,7 @@ def test_committed_zero_paid_direct_campaigns_materialize_the_production_bundle(
 
     asyncio.run(agent.setup(FakeEnvironment(setup_results())))
 
-    assert (tmp_path / "agent/production-cortex-home/config/profiles.json").is_file()
+    assert (tmp_path / "agent/production-cortex-home/config/models.json").is_file()
     assert not (tmp_path / "agent/arm-resolution.json").exists()
 
 
@@ -415,7 +415,7 @@ def test_failed_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("root_run_id", "another-run"), ("profile_name", "another-profile")],
+    [("root_run_id", "another-run")],
 )
 def test_constructor_rejects_trial_seed_binding_mismatch(
     tmp_path: Path, field: str, value: str,

@@ -1,7 +1,7 @@
 import type { AgentProcessSpawner, McpComposition, UserMessage } from '../../agent-adapter/types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '@domain/benchmark/benchmark-types.js';
-import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import type { RunEvent } from './events.js';
 import type { AgentSpec } from './spec-loader.js';
 
@@ -24,7 +24,9 @@ export interface RunRequest {
     /** Pool key: session id, `thr:<id>:<slot>` or `<sessionId>::hook`. */
     engineKey: string;
     };
-  profile: ResolvedProfileConfig;
+  selection: EngineSelection;
+  /** Benchmark-only output cap; ignored unless benchmark evidence is present and backend is PI. */
+  benchmarkMaxOutputTokens?: number;
   spec: AgentSpec;
   /** Working directory the engine runs in. Omitted (undefined) means the server's own cwd, which
    *  is what every surface except a subagent child wants. Mirrors `EngineSpec.cwd` (plan §3.3). */

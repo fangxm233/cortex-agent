@@ -1,4 +1,5 @@
 import { runRegistry } from '@core/run-registry.js';
+import { sessionBenchmarkMaxOutputTokens } from '../benchmark/session-evidence.js';
 import * as executionRegistry from '../executions/registry.js';
 import { AgentRunImpl, type AgentRun } from './run.js';
 import type { RunObserver, RunRequest } from './request.js';
@@ -8,19 +9,23 @@ import type { RunObserver, RunRequest } from './request.js';
  * `AgentRun` that owns the rest of the lifecycle. This is the single entry point every surface is
  * meant to call.
  *
- * The run walks its own attempt chain over pooled engine sessions and feeds every signal through
+ * The run opens one attempt on its pooled engine session and feeds every signal through
  * one `RunEvent` stream. `teardownExecution` and the registry removal happen exactly once, from
  * the run's terminal handler.
  */
 export function startRun(request: RunRequest, observers: RunObserver[]): AgentRun {
+  if (request.benchmark?.evidenceContext && request.session.sessionId) {
+    request = { ...request, benchmarkMaxOutputTokens: request.benchmarkMaxOutputTokens
+      ?? sessionBenchmarkMaxOutputTokens(request.session.sessionId) };
+  }
   const startedAt = Date.now();
   const execution = executionRegistry.startLocalExecution({
     kind: request.context.executionKind,
     channel: request.context.channel,
     project: request.context.project,
     trigger: request.context.trigger,
-    backend: request.profile.backend,
-    billingMode: request.profile.mode || 'api',
+    backend: request.selection.backend,
+    billingMode: request.selection.mode || 'api',
     sessionId: request.session.sessionId,
     ownerSessionId: request.context.ownerSessionId ?? null,
     label: request.prompt.text.substring(0, 60),

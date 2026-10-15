@@ -35,6 +35,11 @@ Every entry point applies the same validation and writes the same `schedules.jso
 | `!schedule` | Chat commands in Slack or Feishu (see [Chat commands](#chat-commands)) |
 | Web UI / desktop app | The schedule list and editor; it sets every field except `preCheck`, and a `once` schedule's time is fixed once created |
 
+The Web and mobile editor selects a model and thinking level. CLI and chat
+`--model` accept a model id or PI `provider/model` and restore its model memory;
+`--thinking` can override the level. Creation or editing stores the complete
+selection, and each fire uses that snapshot.
+
 ## Schedule Records
 
 Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
@@ -47,7 +52,13 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
       "type": "interval",
       "message": "Check the active projects and report blockers",
       "projectId": "general",
-      "profile": "claude-haiku",
+      "selection": {
+        "backend": "claude",
+        "provider": null,
+        "model": "haiku",
+        "thinking": null,
+        "mode": "plan"
+      },
       "intervalMs": 3600000,
       "createdAt": 1747680000000,
       "nextRun": 1747683600000,
@@ -65,14 +76,14 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `type` | `interval`, `daily`, `weekly`, or `once` |
 | `message` | The prompt to send when the schedule fires (a `[Scheduled Task]` prefix is added automatically at fire time) |
 | `projectId` | Project the schedule belongs to; each fire's session opens in it |
-| `profile` | Agent profile name. When none is given, the default profile at creation time is stored, so a later change of default does not move existing schedules |
+| `selection` | Complete engine choice: `backend`, `provider`, `model`, `thinking`, and `mode`. Without an explicit choice, stores the configured default at creation; later default or model-memory changes do not alter existing schedules |
 | `intervalMs` | For `interval` type: milliseconds between fires |
 | `time` | For `daily`/`weekly` types: `HH:MM` 24-hour time |
 | `dayOfWeek` | For `weekly` type: 0-6 (0=Sunday) |
 | `runAt` | For `once` type: epoch milliseconds when to fire |
 | `nextRun` | Computed epoch ms of next scheduled fire |
 | `createdAt` | Epoch ms when the schedule was created |
-| `lastRun` | Epoch ms of the last fire handed to the runner, including one the runner then skipped because the previous run was still going or the profile was rate-limited. A `once` schedule is deleted when it fires and never records one |
+| `lastRun` | Epoch ms of the last fire handed to the runner, including one the runner then skipped because the previous run was still going or the selected engine was rate-limited. A `once` schedule is deleted when it fires and never records one |
 | `lastSkipped` | Epoch ms of last skipped fire (preCheck failed) |
 | `isPaused` | Whether the schedule is currently paused |
 | `pausedAt` | Epoch ms when paused |
@@ -139,7 +150,7 @@ change another process made a moment earlier is kept rather than overwritten by 
 
 ### Config Hash for Change Detection
 
-Each task's scheduling-relevant fields are hashed: `type`, the type-specific timing (`intervalMs`, `time`, `dayOfWeek`, `runAt`), `message`, `projectId`, `profile`, `dispatchType`, `preCheck`, and whether it is paused. If the hash of a task in the file differs from the armed one, the timer is re-armed, so an edit, pause, or resume made by any writer takes effect without a restart.
+Each task's scheduling-relevant fields are hashed: `type`, the type-specific timing (`intervalMs`, `time`, `dayOfWeek`, `runAt`), `message`, `projectId`, `selection`, `dispatchType`, `preCheck`, and whether it is paused. If the hash of a task in the file differs from the armed one, the timer is re-armed, so an edit, pause, or resume made by any writer takes effect without a restart.
 
 ## In-Flight Protection
 
@@ -191,8 +202,9 @@ resolve the session project from session context or `cortex_context`, then pass
 `--project <id>` when adding a schedule. If the user requests the current project
 but none is available, ask which project to use rather than falling back to
 `general`. Bash is not guaranteed to carry session-specific environment variables,
-including on PI. Omit `--profile` to use the configured default profile, which may
-differ from the active session's profile.
+including on PI. Creating a schedule without model flags stores the configured default
+selection, which may differ from the active session. Use `--model` to pick a model
+and `--thinking` to set its backend-native reasoning level.
 
 Each message must be self-contained: the fired session needs the project, run,
 machine, and file paths, not references to the conversation that created it.
@@ -227,10 +239,10 @@ The `!schedule` command manages schedules from Slack or Feishu. A schedule added
 | Command | Description |
 |---------|-------------|
 | `!schedule` / `!schedule list` | List all schedules with status and next run time. The first ten get a button: **Pause** or **Resume** for a recurring schedule, **Remove** for a `once` schedule |
-| `!schedule add interval <duration> [--profile <name>] <message>` | Repeat every duration (`--profile` comes right after the timing words) |
-| `!schedule add daily <HH:MM> [--profile <name>] <message>` | Run every day at a time |
-| `!schedule add weekly <day> <HH:MM> [--profile <name>] <message>` | Run every week on a day |
-| `!schedule add once <duration> [--profile <name>] <message>` | Run once after a delay |
+| `!schedule add interval <duration> [--model <[provider/]model>] [--thinking <level>] <message>` | Repeat every duration (`--model` comes right after the timing words) |
+| `!schedule add daily <HH:MM> [--model <[provider/]model>] [--thinking <level>] <message>` | Run every day at a time |
+| `!schedule add weekly <day> <HH:MM> [--model <[provider/]model>] [--thinking <level>] <message>` | Run every week on a day |
+| `!schedule add once <duration> [--model <[provider/]model>] [--thinking <level>] <message>` | Run once after a delay |
 | `!schedule pause <id>` | Pause a recurring schedule |
 | `!schedule resume <id>` | Resume a paused schedule |
 | `!schedule remove <id>` | Remove a schedule |
@@ -241,4 +253,4 @@ Ordinary schedule records use the `scheduled-task` runner, which opens a new ses
 
 ## Rate limits
 
-When every configuration of a schedule's profile is rate-limited, the fire is skipped and the schedule keeps its timing: it fires again at its next time. The skip is announced as a warning notice, `Schedule <id> skipped: all configs rate-limited.`, and a fire that cannot start for another reason, such as a profile that no longer exists, raises an error notice. A run that hits a rate limit after it has started is paused and resumed like any other session.
+When the schedule’s selected engine is rate-limited, the fire is skipped with a warning notice. A recurring schedule keeps its timing and fires at its next scheduled time; a `once` schedule is deleted at fire time and is not retried. Other startup failures, such as an invalid route, also produce a notice. A run that hits a rate limit after starting is paused and resumed like any other session.

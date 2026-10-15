@@ -33,10 +33,10 @@ EVIDENCE_CONTEXT = {
 
 def direct_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "cortex",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "cortex",
         "name": "cortex-direct", "backend": "pi", "provider": "deepseek",
         "model": "deepseek-v4-flash", "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 90, "max_output_tokens": 65536,
@@ -358,6 +358,7 @@ def test_session_posts_the_task_with_its_context_and_export_identity(tmp_path: P
     assert start == {
         "action": "start", "message": "Solve only this task.", "projectId": "general",
         "productionBenchmarkEvidenceContext": EVIDENCE_CONTEXT,
+        "benchmarkMaxOutputTokens": 65536,
     }
     assert status == {"action": "status", "sessionId": "ses_production"}
     assert set(evidence) == {
@@ -537,3 +538,22 @@ def test_session_refuses_an_arm_no_bundle_declares(
 def test_session_refuses_a_materialized_home_from_another_arm(tmp_path: Path) -> None:
     with pytest.raises(ProductionSessionError, match="materialized home.*arm"):
         session(tmp_path, arm=direct_arm(), bundle=DIRECT_CODEX_BUNDLE)
+
+
+@pytest.mark.parametrize("cap", [256, None])
+def test_declared_output_cap_is_projected_into_the_session_request(tmp_path: Path, cap) -> None:
+    production = session(tmp_path)
+    context = {**EVIDENCE_CONTEXT, "model_execution": {
+        **EVIDENCE_CONTEXT["model_execution"], "max_output_tokens": cap,
+    }}
+    production._spec.materialized_home.production_evidence_context = context
+    runner = FakeExecutor(tmp_path)
+
+    asyncio.run(production._start_session("Solve the task.", runner))
+
+    payload = runner.payloads["production-session-start.json"]
+    assert payload["productionBenchmarkEvidenceContext"] == context
+    if cap is None:
+        assert "benchmarkMaxOutputTokens" not in payload
+    else:
+        assert payload["benchmarkMaxOutputTokens"] == cap

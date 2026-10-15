@@ -73,7 +73,7 @@ def vendor_arm(
     vendor: str, provider: str | None, model: str, *, thinking: str | None = None,
 ) -> dict[str, object]:
     arm = {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "vendor-baseline",
         "name": f"pure-{vendor}",
         "vendor_agent": vendor,
@@ -102,7 +102,7 @@ def vendor_trial_seed(arm: dict[str, object]) -> dict[str, object]:
             "task_id": "synthetic-task", "image_ref": f"image.invalid/task@{digest}",
             "image_digest": digest,
         },
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": {
             "upstream_base_url": "http://127.0.0.1:1",
             "route_identity_host": "api.deepseek.com",

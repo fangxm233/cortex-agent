@@ -1,11 +1,21 @@
 import * as assert from 'node:assert';
-import { describe, it } from 'vitest';
+import { beforeAll, describe, it } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { modelsRepo } from '@store/models-repo.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 import { registerSessionRecord, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { getActiveProfile } from '@domain/agents/index.js';
+import { getChannelSelection, setChannelSelection } from '@domain/agents/config.js';
+
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
+beforeAll(() => {
+  mkdirSync(`${process.env.CORTEX_HOME}/config`, { recursive: true });
+  writeFileSync(`${process.env.CORTEX_HOME}/config/models.json`, JSON.stringify({ default: selection, favorites: [selection] }));
+  modelsRepo.invalidate();
+});
 
 // ── registerSessionRecord ────────────────────────────────────────
 
@@ -35,7 +45,8 @@ describe('createDirectSession', () => {
     assert.ok(result.sessionId, 'returns a non-empty sessionId');
 
     const expectedChannel = 'web:' + result.sessionId;
-    assert.strictEqual(resolveCalls[0], expectedChannel, 'backend resolved for the web channel');
+    assert.deepStrictEqual(registered.selection, selection, 'engine selection is materialized');
+    assert.deepStrictEqual(ledger.selection, selection, 'ledger retains the same choice');
 
     assert.ok(registered, 'registerSession was called');
     assert.strictEqual(registered.sessionId, result.sessionId);
@@ -123,9 +134,9 @@ describe('createDirectSession', () => {
 // ── attachExistingSession ───────────────────────────────────────
 
 describe('attachExistingSession', () => {
-  it('switches session in sessions.json and conversation ledger (profileName null)', async () => {
+  it('switches session in sessions.json and conversation ledger (selection null)', async () => {
     const channel = 'c1-attach';
-    const opts = { sessionId: 'sid-attach', backend: 'claude', profileName: null };
+    const opts = { sessionId: 'sid-attach', backend: 'claude', selection: null };
 
     await attachExistingSession(channel, opts);
 
@@ -138,15 +149,15 @@ describe('attachExistingSession', () => {
     assert.strictEqual(conv!.backend, 'claude');
   });
 
-  it('restores the active profile when profileName is provided', async () => {
-    const channel = 'c1-attach-profile';
+  it('restores the complete session selection over a different channel selection', async () => {
+    const channel = 'c1-attach-selection';
+    setChannelSelection(channel, { ...selection, model: 'other', thinking: 'low', mode: 'api' });
     await attachExistingSession(channel, {
-      sessionId: 'sid-attach-p', backend: 'claude', profileName: 'qa',
+      sessionId: 'sid-attach-p', backend: 'claude', selection,
     });
-
-    assert.strictEqual(getActiveProfile(channel), 'qa', 'active profile restored to the session profile');
+    assert.deepStrictEqual(getChannelSelection(channel), selection);
     const conv = await conversationLedger.getConversation(channel);
-    assert.strictEqual(conv!.profileName, 'qa', 'ledger carries the restored profile');
+    assert.deepStrictEqual(conv!.selection, selection, 'thinking and mode survive resume');
   });
 });
 
@@ -155,7 +166,7 @@ describe('attachExistingSession', () => {
 describe('adoptScheduledSession', () => {
   const scheduledRecord = {
 sessionId: 'sid-sched-1', channel: 'cortex-self', backend: 'claude',
-    origin: 'scheduled' as const, profileName: null,
+    origin: 'scheduled' as const, selection: null,
   };
 
   type AdoptRecord = Omit<typeof scheduledRecord, 'origin'> & { origin: 'scheduled' | 'direct' };

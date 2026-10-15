@@ -4,10 +4,11 @@ import { handleSchedulesList } from '../../../src/domain/ui-service/query/schedu
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps } from './ui-deps-fixture.js';
 
+const selection = { backend: 'claude' as const, provider: null, model: 'haiku', thinking: null, mode: 'plan' };
 const mockSchedules = [
-  { id: 'sch1', type: 'interval' as const, message: 'Check health', projectId: 'proj1', profile: 'claude-haiku', intervalMs: 1_800_000, nextRun: Date.now() + 60000, lastRun: Date.now() - 300000, isPaused: false },
-  { id: 'sch2', type: 'daily' as const, message: 'Daily report', projectId: 'proj1', profile: 'claude-sonnet', time: '09:00', nextRun: Date.now() + 3600000, lastRun: Date.now() - 86400000, isPaused: false },
-  // sch3 has no profile (legacy record) → must map to null, not a fabricated default.
+  { id: 'sch1', type: 'interval' as const, message: 'Check health', projectId: 'proj1', selection, intervalMs: 1_800_000, nextRun: Date.now() + 60000, lastRun: Date.now() - 300000, isPaused: false },
+  { id: 'sch2', type: 'daily' as const, message: 'Daily report', projectId: 'proj1', selection: { ...selection, model: 'sonnet' }, time: '09:00', nextRun: Date.now() + 3600000, lastRun: Date.now() - 86400000, isPaused: false },
+  // A legacy record without a selection maps to null, not a fabricated default.
   { id: 'sch3', type: 'weekly' as const, message: 'Weekly review', projectId: 'proj2', dayOfWeek: 1, time: '10:00', nextRun: Date.now() + 7200000, lastRun: null, isPaused: true, pausedBy: 'user' },
 ];
 
@@ -30,11 +31,12 @@ test('schedules.list filters by paused', async () => {
   assert.equal(result[0].paused, true);
 });
 
-test('schedules.list carries the real profile from the schedule config source', async () => {
-  const result = await handleSchedulesList(makeDeps(), { projectId: 'proj1' });
+test('schedules.list carries the persisted selection, null for legacy records', async () => {
+  const result = await handleSchedulesList(makeDeps(), {});
   const byId = Object.fromEntries(result.map((s) => [s.id, s]));
-  assert.equal(byId['sch1'].profile, 'claude-haiku');
-  assert.equal(byId['sch2'].profile, 'claude-sonnet');
+  assert.deepEqual(byId['sch1'].selection, selection);
+  assert.deepEqual(byId['sch2'].selection, { ...selection, model: 'sonnet' });
+  assert.equal(byId['sch3'].selection, null);
 });
 
 test('schedules.list carries the timing spec for cadence labels and edit prefill', async () => {

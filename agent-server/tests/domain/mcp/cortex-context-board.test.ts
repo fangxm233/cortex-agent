@@ -6,6 +6,21 @@ import { resolveCortexContext, toolContextFromEnv } from '../../../src/domain/mc
 
 const BOARD = { id: 'b1', title: 'Ship it', dir: '/ctx/boards/ship-it' };
 
+test('context exposes the materialized selection and ignores legacy profile env', async () => {
+  const ctx = toolContextFromEnv({
+    CORTEX_PROFILE: 'obsolete', CORTEX_BACKEND: 'pi', CORTEX_MODEL: 'v4',
+    CORTEX_PROVIDER: 'deepseek', CORTEX_THINKING: 'high', CORTEX_MODE: 'deepseek',
+  });
+  assert.deepEqual(ctx.selection, { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', mode: 'deepseek' });
+  const scope = await resolveCortexContext(ctx);
+  assert.equal(scope.backend, 'pi');
+  assert.equal(scope.model, 'v4');
+  assert.equal(scope.thinking, 'high');
+  assert.equal(scope.mode, 'deepseek');
+  assert.equal(Object.hasOwn(scope, 'profile'), false);
+  assert.equal(Object.hasOwn(ctx, 'profile'), false);
+});
+
 test('a web session reports its bound board, or null when it has none', async () => {
   const ctx = toolContextFromEnv({ CORTEX_SESSION_ID: 's1' });
   const asked: string[] = [];

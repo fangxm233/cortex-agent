@@ -7,7 +7,12 @@ import { ComposerSendFailure } from '../composer/ComposerSendFailure';
 import { ComposerAttachmentChip } from '../composer/ComposerAttachmentChip';
 import { draftStorageKey, loadDraft, saveDraft } from '@/features/session/composer/composer-draft';
 import type { AttachmentMeta } from '@/features/attachments/types';
+import type { EngineSelection } from '@cortex-agent/ui-contract';
 import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
+
+const DEFAULT_SELECTION: EngineSelection = {
+  backend: 'claude', provider: null, model: 'claude-sonnet', thinking: null, mode: 'plan',
+};
 
 const harness = vi.hoisted(() => ({
   transcriptError: false,
@@ -37,10 +42,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       if (options.__kind === 'config.get') {
         return {
           data: {
-            profiles: {
-              defaultProfile: 'default',
-              profiles: [{ name: 'default', model: 'claude-sonnet', backend: 'claude', mode: 'plan' }],
-            },
+            models: { default: DEFAULT_SELECTION, favorites: [], memory: {} },
             settings: [{ key: 'teamEnabled', value: harness.teamEnabled }],
           },
         };
@@ -102,6 +104,10 @@ vi.mock('@/lib/trpc', () => ({
       },
       models: {
         catalog: query('models.catalog'),
+        favorites: {
+          add: mutation('models.favorites.add'),
+          remove: mutation('models.favorites.remove'),
+        },
       },
       sessions: {
         list: query('sessions.list'),
@@ -111,7 +117,6 @@ vi.mock('@/lib/trpc', () => ({
         createAndSend: mutation('sessions.createAndSend'),
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
-        setProfile: mutation('sessions.setProfile'),
         setAgent: mutation('sessions.setAgent'),
         setSelection: mutation('sessions.setSelection'),
       },
@@ -201,7 +206,7 @@ import { CenterChat } from './CenterChat';
 const SESSION = {
   sessionId: 's1', label: null, running: false, backgroundRunning: false,
   contextUsage: null, contextCompactionSupported: false, backendSessionId: null,
-  profileName: 'default', numTurns: null, costUsd: null,
+  selection: DEFAULT_SELECTION, numTurns: null, costUsd: null,
 };
 
 function emptyTranscript(sessionId: string) {
@@ -220,7 +225,7 @@ function selection(isDraft: boolean) {
     selectedSessionId: isDraft ? '__new__' : 's1',
     pendingCreatedSession: null,
     isDraft,
-    draftSelection: { profileName: null, override: null },
+    draftSelection: { selection: null, agentName: null },
     draftReloadToken: 0,
   };
 }
@@ -416,6 +421,27 @@ afterEach(() => {
 });
 
 describe('mounted optimistic sender wiring', () => {
+  it.each<EngineSelection>([
+    { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: null, mode: 'execute' },
+    { backend: 'pi', provider: 'gateway', model: 'deepseek', thinking: 'high', mode: 'deepseek' },
+  ])('sends the complete draft selection and independent agent ($backend)', async (engine) => {
+    harness.sessions = [];
+    harness.selection = { ...selection(true), draftSelection: { selection: engine, agentName: 'research' } };
+    harness.createAndSendMutateAsync.mockResolvedValue({ sessionId: 's-new', acceptedAt: '2026-08-01T01:00:00.000Z' });
+    mounted = mountCenterChat();
+
+    typeComposer(mounted, 'use this engine');
+    await act(async () => { clickSend(mounted!); });
+
+    expect(harness.createAndSendMutateAsync).toHaveBeenCalledOnce();
+    expect(harness.createAndSendMutateAsync).toHaveBeenCalledWith({
+      projectId: 'atlas', text: 'use this engine', selection: engine, agentName: 'research', draftUploadId: expect.any(String),
+    });
+    expect(harness.sendMutateAsync).not.toHaveBeenCalled();
+    expect(harness.selectCreatedSession).toHaveBeenCalledWith('s-new');
+    expect(renderedUsers(mounted)).toEqual(['use this engine']);
+  });
+
   it('centers an untouched New Session, then moves and shows running for its first optimistic send', async () => {
     const gate = deferred<{ sessionId: string; acceptedAt: string }>();
     harness.sessions = [];
@@ -428,7 +454,7 @@ describe('mounted optimistic sender wiring', () => {
 
     expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-title']).toBe('New conversation');
     typeAndSend(mounted, 'start here');
-    expect(harness.createAndSendMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'atlas', text: 'start here' }));
+    expect(harness.createAndSendMutateAsync).toHaveBeenCalledWith({ projectId: 'atlas', text: 'start here', draftUploadId: expect.any(String) });
 
     expect(mounted.root.findByProps({ 'data-chat-phase': 'active' })).toBeTruthy();
     expect(renderedUsers(mounted)).toEqual(['start here']);

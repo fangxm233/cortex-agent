@@ -37,7 +37,7 @@ export const initEn = {
   'init.auth.login': 'Login / install and login Claude Code',
   'init.auth.rescan': 'Rescan credentials',
   'init.auth.skip': 'Configure later (Agent may be unavailable)',
-  'init.auth.saved': 'Credentials saved. Gateway/profile setup follows; no inference request was made.',
+  'init.auth.saved': 'Credentials saved. Gateway/model setup follows; no inference request was made.',
   'init.auth.piFirst': 'PI is bundled. Add providers or install Claude Code in the login step.',
 
   // ── Clipboard / manifest copy prompt ──
@@ -191,42 +191,23 @@ export const initEn = {
   // ── Service registration prompt ──
   'init.serviceRegister.prompt': 'Register Cortex as a system service (auto-start on boot)?',
 
-  // ── Gateway & profile auto-setup ──
-  'init.gatewaySetup.overwritePrompt': 'Existing `plan` or `execute` profile detected. Overwrite with a new selection?',
-  'init.gatewaySetup.planPrompt': 'Pick model for the `plan` profile (used by executor agents — planner, doc-writer, coder, etc.):',
-  'init.gatewaySetup.executePrompt': 'Pick model for the `execute` profile (used by reviewer agents — reviewer, doc-reviewer, coder-reviewer, etc.):',
-  'init.gatewaySetup.planFallbackPrompt': 'Pick fallback models for `plan` (in order, space to toggle, enter to confirm, leave empty for no fallback):',
-  'init.gatewaySetup.executeFallbackPrompt': 'Pick fallback models for `execute` (in order, space to toggle, enter to confirm, leave empty for no fallback):',
-  'init.gatewaySetup.extraProfilesPrompt': 'Pick additional models to register as standalone profiles (profile name = model name, space to toggle, enter to confirm, leave empty to skip):',
+  // ── Gateway & model auto-setup ──
+  'init.gatewaySetup.overwritePrompt': 'An existing default model was found. Replace it with a new selection?',
+  'init.gatewaySetup.defaultPrompt': 'Pick the default model:',
+  'init.gatewaySetup.favoritesPrompt': 'Pick favorite models (space to toggle; the default model is always included):',
   'init.gatewaySetup.noBackends': 'No backends discovered. Make sure you have logged into Claude Code and/or PI first.',
   'init.gatewaySetup.rerunHint': 'You can re-run detection later with: cortex setup-gateway',
   'init.gatewaySetup.discovered': 'Discovered ${count} endpoint modes:\n${summary}',
   'init.gatewaySetup.gatewayWritten': 'Gateway config written to ${path}',
   'init.gatewaySetup.preservedModes': 'Preserved ${count} existing gateway mode(s) that discovery did not report: ${list}',
   'init.gatewaySetup.preservedModesHint': 'If these should have been auto-detected, check `cortex auth status`, log the provider in, and re-run.',
-  'init.gatewaySetup.profilesWritten': 'Profiles written to ${path}',
-  'init.gatewaySetup.generatedProfiles': 'Generated profiles: ${names} (default: ${default})',
-  'init.gatewaySetup.profileIssues': '${count} profile(s) reference a gateway mode that is not configured:\n${lines}',
-  'init.gatewaySetup.profileIssuesHint': 'These would fail at runtime with "Unknown mode". Add the mode to gateway.yaml or fix the profile.',
+  'init.gatewaySetup.modelsWritten': 'Models written to ${path}',
+  'init.gatewaySetup.generatedModels': 'Favorite models: ${names} (default: ${default})',
+  'init.gatewaySetup.modelIssues': '${count} model selection(s) lack a configured gateway route:\n${lines}',
+  'init.gatewaySetup.modelIssuesHint': 'Add the route to gateway.yaml or update the model selection.',
 
   // ── Local Web UI endpoint (desktop app setup) ──
   'init.localUi.enabled': 'Local Web UI endpoint enabled at ${url}',
-
-  // ── Gateway & profile setup note + readiness loop ──
-  'init.gatewayProfile.note': [
-    'Cortex can auto-detect your Claude Code and PI configurations',
-    'to generate gateway.yaml and profiles.json automatically.',
-    '',
-    'Make sure you have logged into:',
-    '${loginHints}',
-  ].join('\n'),
-  'init.gatewayProfile.noteTitle': 'Gateway & Profile Setup',
-  'init.gatewayProfile.readyPrompt': 'Have you logged in and are ready to auto-detect?',
-  'init.gatewayProfile.loginNow': 'Please log in now. Once done, come back and select "Yes".\n${loginHints}',
-  'init.gatewayProfile.actionPrompt': 'What would you like to do?',
-  'init.gatewayProfile.retryLabel': "I've logged in, retry detection",
-  'init.gatewayProfile.skipLabel': 'Skip for now (run `cortex setup-gateway` later)',
-  'init.gatewayProfile.skipped': 'Skipped. Run `cortex setup-gateway` later to auto-configure.',
 
   // ── Outro ──
   'init.outro': 'Cortex initialized at ${dataDir}. Run `cortex daemon` to launch.',
@@ -441,42 +422,23 @@ export const initZh: Record<keyof typeof initEn, string> = {
   // ── Service registration prompt ──
   'init.serviceRegister.prompt': '将 Cortex 注册为系统服务（开机自启）？',
 
-  // ── Gateway & profile auto-setup ──
-  'init.gatewaySetup.overwritePrompt': '检测到已有的 `plan` 或 `execute` 配置。是否用新的选择覆盖？',
-  'init.gatewaySetup.planPrompt': '为 `plan` 配置选择模型（由执行类代理使用 —— planner、doc-writer、coder 等）：',
-  'init.gatewaySetup.executePrompt': '为 `execute` 配置选择模型（由审查类代理使用 —— reviewer、doc-reviewer、coder-reviewer 等）：',
-  'init.gatewaySetup.planFallbackPrompt': '为 `plan` 选择回退模型（按顺序，空格切换，回车确认，留空表示无回退）：',
-  'init.gatewaySetup.executeFallbackPrompt': '为 `execute` 选择回退模型（按顺序，空格切换，回车确认，留空表示无回退）：',
-  'init.gatewaySetup.extraProfilesPrompt': '选择要注册为独立配置的其他模型（配置名 = 模型名，空格切换，回车确认，留空跳过）：',
+  // ── Gateway & model auto-setup ──
+  'init.gatewaySetup.overwritePrompt': '检测到已有默认模型，是否用新的选择替换？',
+  'init.gatewaySetup.defaultPrompt': '选择默认模型：',
+  'init.gatewaySetup.favoritesPrompt': '选择收藏模型（空格切换；默认模型始终包含在内）：',
   'init.gatewaySetup.noBackends': '未发现任何后端。请确保你已先登录 Claude Code 和/或 PI。',
   'init.gatewaySetup.rerunHint': '你可以稍后用以下命令重新检测：cortex setup-gateway',
   'init.gatewaySetup.discovered': '发现 ${count} 个端点模式：\n${summary}',
   'init.gatewaySetup.gatewayWritten': '网关配置已写入 ${path}',
   'init.gatewaySetup.preservedModes': '保留了 ${count} 个发现过程未报告的现有网关模式：${list}',
   'init.gatewaySetup.preservedModesHint': '如果这些本应被自动检测到，请检查 `cortex auth status`、登录对应 provider 后重新运行。',
-  'init.gatewaySetup.profilesWritten': '配置已写入 ${path}',
-  'init.gatewaySetup.generatedProfiles': '已生成配置：${names}（默认：${default}）',
-  'init.gatewaySetup.profileIssues': '${count} 个配置引用了未配置的网关模式：\n${lines}',
-  'init.gatewaySetup.profileIssuesHint': '这些在运行时会因 "Unknown mode" 而失败。请将该模式添加到 gateway.yaml，或修正该配置。',
+  'init.gatewaySetup.modelsWritten': '模型配置已写入 ${path}',
+  'init.gatewaySetup.generatedModels': '收藏模型：${names}（默认：${default}）',
+  'init.gatewaySetup.modelIssues': '${count} 个模型选择缺少已配置的网关路由：\n${lines}',
+  'init.gatewaySetup.modelIssuesHint': '请将路由添加到 gateway.yaml，或更新模型选择。',
 
   // ── Local Web UI endpoint (desktop app setup) ──
   'init.localUi.enabled': '本机 Web UI 端点已启用：${url}',
-
-  // ── Gateway & profile setup note + readiness loop ──
-  'init.gatewayProfile.note': [
-    'Cortex 可以自动检测你的 Claude Code 和 PI 配置，',
-    '以自动生成 gateway.yaml 和 profiles.json。',
-    '',
-    '请确保你已登录：',
-    '${loginHints}',
-  ].join('\n'),
-  'init.gatewayProfile.noteTitle': 'Gateway 与 Profile 设置',
-  'init.gatewayProfile.readyPrompt': '你是否已登录并准备好自动检测？',
-  'init.gatewayProfile.loginNow': '请现在登录。完成后回来选择 "Yes"。\n${loginHints}',
-  'init.gatewayProfile.actionPrompt': '你想做什么？',
-  'init.gatewayProfile.retryLabel': '我已登录，重试检测',
-  'init.gatewayProfile.skipLabel': '暂时跳过（稍后运行 `cortex setup-gateway`）',
-  'init.gatewayProfile.skipped': '已跳过。稍后运行 `cortex setup-gateway` 自动配置。',
 
   // ── Outro ──
   'init.outro': 'Cortex 已在 ${dataDir} 初始化。运行 `cortex daemon` 启动。',

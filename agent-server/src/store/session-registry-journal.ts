@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -42,9 +43,11 @@ export interface SessionRecord {
   label: string | null;
   starred?: boolean;
   labelRenamed?: boolean;
-  profileName: string | null;
+  selection: EngineSelection | null;
+  /** Read-only legacy data carried verbatim through pre-S10 import/compaction. */
+  readonly profileName?: unknown;
   /** The agent template this session runs as — its execution environment (prompt, tools, skills,
-   *  rules), the twin of `profileName` on the model axis. Absent/null means the session follows its
+   *  rules). Absent/null means the session follows its
    *  channel's selection, and beneath that the global default. */
   agentName?: string | null;
   backendSessionId?: string | null;
@@ -91,18 +94,20 @@ export interface TurnRecord {
 export interface ConversationHeader {
   sessionId: string | null;
   backend: string;
-  profileName: string | null;
+  selection: EngineSelection | null;
+  /** Read-only legacy data carried verbatim through pre-S10 import/compaction. */
+  readonly profileName?: unknown;
   updatedAt: string;
 }
 
 /** Header mutation payload for a `conversation set` event. A key present overwrites; a key absent is
  *  left untouched (the reducer merges onto the previous header, or onto a null base for a new one). */
-export type ConversationFields = Partial<ConversationHeader>;
+export type ConversationFields = Partial<Omit<ConversationHeader, 'profileName'>>;
 
 /** Patch payload: only the record keys a `patch` may carry. `sessionId` is identity and
  *  never travels in a patch (the event keys off it). A key set to `null` means "store null"; a key
  *  listed in `unset` is deleted (→ `undefined`); a key in neither is untouched. */
-export type SessionPatchFields = Partial<Omit<SessionRecord, 'sessionId'>>;
+export type SessionPatchFields = Partial<Omit<SessionRecord, 'sessionId' | 'profileName'>>;
 export type SessionPatchUnsetKey = keyof SessionPatchFields;
 
 export type SessionRegistryEvent =
@@ -406,7 +411,8 @@ function normalizeLegacyRecord(
     createdAt: toStringValue(raw.createdAt),
     lastUsedAt: toStringValue(raw.lastUsedAt),
     label,
-    profileName: toNullableString(raw.profileName),
+    selection: toSelection(raw.selection),
+    ...(raw.profileName !== undefined ? { profileName: raw.profileName } : {}),
     agentName: toOptionalNullableString(raw.agentName),
     backendSessionId: toOptionalNullableString(raw.backendSessionId),
     lastReadAt: toOptionalNullableString(raw.lastReadAt),
@@ -474,7 +480,9 @@ function requireField(row: Record<string, unknown>, key: string, lineNo: number)
 
 function normalizePatchEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
   const id = requireId(row, lineNo);
-  return { v: 1, op: 'patch', id, fields: assertPatchFields(row.fields), ...normalizeUnset(row.unset, lineNo) };
+  const fields = assertPatchFields(row.fields);
+  if (Array.isArray(row.unset) && row.unset.includes('profileName')) Object.assign(fields, { profileName: undefined });
+  return { v: 1, op: 'patch', id, fields, ...normalizeUnset(row.unset, lineNo) };
 }
 
 function normalizeUnset(raw: unknown, lineNo: number): { unset?: SessionPatchUnsetKey[] } {
@@ -541,7 +549,8 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     label: toNullableString(row?.label),
     starred: toOptionalBoolean(row?.starred),
     labelRenamed: toOptionalBoolean(row?.labelRenamed),
-    profileName: toNullableString(row?.profileName),
+    selection: toSelection(row?.selection),
+    ...(row?.profileName !== undefined ? { profileName: row.profileName } : {}),
     agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
@@ -554,6 +563,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     workerName: toOptionalNullableString(row?.workerName),
     workerBrief: toOptionalNullableString(row?.workerBrief),
   } satisfies SessionRecord;
+  if (record.selection) delete record.profileName;
   return assertRecordId(record, expectedId);
 }
 
@@ -571,6 +581,19 @@ function toNullableString(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string') throw new Error('Invalid session registry nullable string');
   return value;
+}
+
+function toSelection(value: unknown): EngineSelection | null {
+  if (value === null || value === undefined) return null;
+  const row = value as Record<string, unknown>;
+  if (row.backend !== 'claude' && row.backend !== 'pi') throw new Error('Invalid session registry selection backend');
+  return {
+    backend: row.backend,
+    provider: toTurnNullableString(row.provider),
+    model: toStringValue(row.model),
+    thinking: toTurnNullableString(row.thinking),
+    mode: toStringValue(row.mode),
+  };
 }
 
 function toOptionalBoolean(value: unknown): boolean | undefined {
@@ -642,7 +665,7 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   label: toNullableString,
   starred: toOptionalBoolean,
   labelRenamed: toOptionalBoolean,
-  profileName: toNullableString,
+  selection: toSelection,
   agentName: toOptionalNullableString,
   backendSessionId: toOptionalNullableString,
   lastReadAt: toOptionalNullableString,
@@ -671,6 +694,7 @@ const LEGACY_PATCH_KEYS: Readonly<Record<string, SessionPatchUnsetKey | null>> =
   commissionBlockFor: 'boardBlockFor',
   commissionDraft: null,
   workerRetiredAt: null,
+  profileName: null,
 };
 
 function patchKeyOf(key: string): SessionPatchUnsetKey | null {
@@ -682,6 +706,7 @@ function assertPatchFields(raw: unknown): SessionPatchFields {
   const row = raw as Record<string, unknown>;
   const fields: Record<string, unknown> = {};
   for (const rawKey of Object.keys(row)) {
+    if (rawKey === 'profileName') { fields[rawKey] = row[rawKey]; continue; }
     const key = patchKeyOf(rawKey);
     if (key === null) continue;
     if (key !== rawKey && Object.hasOwn(row, key)) continue;
@@ -736,10 +761,10 @@ function assertPartialTurn(raw: unknown): Partial<TurnRecord> {
 
 /** Whitelist for the `conversation set` payload. A key not listed is DROPPED on replay (the same
  *  toOptionalBrowserValue trap that silently lost fields, §8.1) — keep in lock-step with the header. */
-const CONVERSATION_FIELD_READERS: { [K in keyof ConversationHeader]: (value: unknown) => ConversationHeader[K] } = {
+const CONVERSATION_FIELD_READERS: { [K in keyof ConversationFields]: (value: unknown) => ConversationHeader[K] } = {
   sessionId: toTurnNullableString,
   backend: toStringValue,
-  profileName: toTurnNullableString,
+  selection: toSelection,
   updatedAt: toStringValue,
 };
 
@@ -748,8 +773,9 @@ function assertConversationFields(raw: unknown): ConversationFields {
   const row = raw as Record<string, unknown>;
   const fields: Record<string, unknown> = {};
   for (const key of Object.keys(row)) {
-    const reader = CONVERSATION_FIELD_READERS[key as keyof ConversationHeader];
-    if (key === 'sessionName') continue; // Legacy header field; never restore it into runtime state.
+    if (key === 'profileName') { fields[key] = row[key]; continue; }
+    const reader = CONVERSATION_FIELD_READERS[key as keyof ConversationFields];
+    if (key === 'sessionName') continue; // Retired display-only field.
     if (!reader) throw new Error(`Unknown session registry conversation field: ${key}`);
     fields[key] = reader(row[key]);
   }
@@ -802,6 +828,7 @@ function applyPatch(state: SessionRegistryState, event: Extract<SessionRegistryE
   if (!record) return;
   const next = { ...record, ...event.fields } as Record<string, unknown>;
   for (const key of event.unset ?? []) delete next[key];
+  if (next.selection || next.profileName === undefined) delete next.profileName;
   state.live.set(event.id, next as unknown as SessionRecord);
 }
 
@@ -839,8 +866,10 @@ function applyConversation(state: SessionRegistryState, event: Extract<SessionRe
     return;
   }
   const base: ConversationHeader = state.conversations.get(event.channel)
-    ?? { sessionId: null, backend: '', profileName: null, updatedAt: '' };
-  state.conversations.set(event.channel, { ...base, ...event.fields });
+    ?? { sessionId: null, backend: '', selection: null, updatedAt: '' };
+  const next = { ...base, ...event.fields };
+  if (next.selection) delete next.profileName;
+  state.conversations.set(event.channel, next);
 }
 
 function applyPut(state: SessionRegistryState, record: SessionRecord): void {

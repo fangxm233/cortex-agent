@@ -11,11 +11,11 @@ import {
   type CustomProviderView,
 } from '@domain/pi-providers/index.js';
 import { piProviderDiscovery } from '../../../agent-adapter/pi/discovery.js';
-import { THINKING_LEVELS_BY_BACKEND } from '@domain/agents/profile-manager.js';
+import { THINKING_LEVELS_BY_BACKEND } from '@domain/agents/engine-selection.js';
 import type { ModelCatalogRoute, ModelCatalogSnapshot, UiServiceDeps, QueryParams } from '../types.js';
 
 /**
- * The catalog is a UNION, never an intersection: a profile must stay writable for an endpoint the
+ * The catalog is a UNION, never an intersection: a model must stay selectable for an endpoint the
  * host cannot currently enumerate (PI reports only providers with usable auth, and a scan can fail
  * outright). Every source therefore only ADDS — an endpoint known solely from gateway.yaml still
  * appears, with an empty model list, and the editor falls back to free text for it.

@@ -95,7 +95,6 @@ function agentBody(name: string, pluginDirs?: string[]) {
   return {
     name,
     description: `${name} agent`,
-    profile: 'plan',
     persistSession: true,
     tools: 'Read',
     entryStage: 'work',

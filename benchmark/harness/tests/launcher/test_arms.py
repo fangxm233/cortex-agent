@@ -13,14 +13,14 @@ from cortex_bench_harness.launcher.arms import (
 
 def cortex_arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex",
         "name": "cortex-direct",
         "backend": "pi",
         "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8,
             "max_cost_usd": "2.50",
@@ -60,7 +60,7 @@ def baseline_arm(
         "codex": "codex-subscription",
     }
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "vendor-baseline",
         "name": f"pure-{vendor_agent}",
         "vendor_agent": vendor_agent,
@@ -84,7 +84,7 @@ def trial_seed() -> dict[str, object]:
         "trial_id": "trial-001", "root_run_id": "trial-001.cortex-direct",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{digest}",
                  "image_digest": digest},
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": {"upstream_base_url": "https://api.deepseek.com",
                        "route_identity_host": "api.deepseek.com",
                        "proxy_base_url": "http://trial-proxy.invalid",

@@ -14,8 +14,8 @@ export interface PIEnvOptions {
   channel?: string | null;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
-  extraEnv?: Record<string, string> | null;
-  /** Keys deleted after the `extraEnv` merge (EngineSpec.env.unsets). PI routes purely through
+  routeEnv?: Record<string, string> | null;
+  /** Keys deleted after the route environment merge (EngineSpec.env.unsets). PI routes purely through
    *  env, so this is how a mode expresses "this spawn must not carry ANTHROPIC_API_KEY". */
   unsetEnv?: string[] | null;
   context?: CortexContextEnv;
@@ -37,7 +37,8 @@ export interface PIEnvOptions {
 
 const RESET_CONTEXT_KEYS = [
   'SLACK_CHANNEL', 'FEISHU_CHANNEL',
-  'CORTEX_SESSION_ID', 'CORTEX_PROFILE',
+  'CORTEX_SESSION_ID', 'CORTEX_PROFILE', // Strip the retired context key from inherited env.
+  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_MODE',
   'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
@@ -53,10 +54,13 @@ function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void 
 
 function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
   const context = options.context;
+  setOptional(env, 'CORTEX_MODEL', context?.selection?.model);
+  setOptional(env, 'CORTEX_PROVIDER', context?.selection?.provider);
+  setOptional(env, 'CORTEX_THINKING', context?.selection?.thinking);
+  setOptional(env, 'CORTEX_MODE', context?.selection?.mode);
   setOptional(env, 'CORTEX_SESSION_ID', context?.trackSessionId ?? options.sessionId);
   setOptional(env, 'CORTEX_CALLBACK_SOURCE', options.callbackSource);
   setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
-  setOptional(env, 'CORTEX_PROFILE', context?.profile);
   setOptional(env, 'CORTEX_PROJECT', context?.project);
   setOptional(env, 'CORTEX_EXECUTION_ID', context?.executionId);
 }
@@ -70,7 +74,7 @@ export function buildPiEnv(
   options: PIEnvOptions,
   inheritedEnv: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...inheritedEnv, ...(options.extraEnv ?? {}) };
+  const env: NodeJS.ProcessEnv = { ...inheritedEnv, ...(options.routeEnv ?? {}) };
   for (const key of RESET_CONTEXT_KEYS) delete env[key];
   // After the merge: deletion is the only way to express "absent", since '' is a legal value here.
   for (const key of options.unsetEnv ?? []) delete env[key];
@@ -105,6 +109,8 @@ export interface PiSessionRequest {
   provider: string | null;
   /** Model id with any context-window suffix (`[1m]`) stripped. */
   model: string | null;
+  /** Benchmark-only output cap, applied to this session's selected model, never models.json. */
+  benchmarkMaxOutputTokens?: number;
   thinking: string | null;
   systemPrompt: string | null;
   appendSystemPrompt: string[];
@@ -116,9 +122,9 @@ export interface PiSessionRequest {
   /** Plugin/browser MCP servers, already filtered by composition. Empty when none apply. */
   pluginMcpServers: McpServerConfig[];
   /**
-   * The session's CORTEX_* environment. Nothing in-process reads scope from it; it exists for the
-   * two things that are still child processes (hook scripts, plugin MCP servers), for the child
-   * subagent of the transition period, and as the pool identity.
+   * The session's CORTEX_* environment. Both in-process MCP context and child processes (hook
+   * scripts, plugin MCP servers, subagents) read scope from this snapshot, also used as the pool
+   * identity.
    */
   env: NodeJS.ProcessEnv;
   streamDeltas: boolean;
@@ -172,17 +178,6 @@ export function pluginMcpServers(
   return servers;
 }
 
-/** Thinking level: the profile field wins unless `extraOption` carries an explicit `--thinking`. */
-function thinkingLevel(spec: EngineSpec): string | null {
-  const explicit = spec.extraOption?.['--thinking'];
-  return explicit || spec.model.thinking || null;
-}
-
-/** `extraOption` keys other than `--thinking` were PI CLI flags; there is no CLI to hand them to. */
-export function unsupportedExtraOptions(spec: EngineSpec): string[] {
-  return Object.keys(spec.extraOption ?? {}).filter((key) => key !== '--thinking');
-}
-
 export function buildSessionRequest(
   spec: EngineSpec,
   inputs: SessionRequestInputs,
@@ -194,7 +189,7 @@ export function buildSessionRequest(
     channel: spec.context.channel,
     callbackSource: spec.context.callbackSource,
     scheduleTaskId: spec.context.scheduleTaskId,
-    extraEnv: spec.env.sets,
+    routeEnv: spec.env.sets,
     unsetEnv: spec.env.unsets,
     context: spec.env.context,
     piAgentDir: inputs.agentDir,
@@ -220,7 +215,8 @@ export function buildSessionRequest(
     sessionPath: inputs.sessionPath,
     provider: spec.model.provider ?? null,
     model: spec.model.id ? stripModelSuffix(spec.model.id) : null,
-    thinking: thinkingLevel(spec),
+    benchmarkMaxOutputTokens: spec.model.benchmarkMaxOutputTokens,
+    thinking: spec.model.thinking ?? null,
     systemPrompt: spec.prompt.system || null,
     appendSystemPrompt: promptValues(spec.prompt.append),
     // PI has no skill layer of its own to switch off: its skills are exactly the roots handed to

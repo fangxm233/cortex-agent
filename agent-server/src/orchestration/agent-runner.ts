@@ -6,7 +6,8 @@ import * as crypto from 'node:crypto';
 import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
-import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { registerSessionRecord } from '@domain/sessions/session-lifecycle.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
@@ -149,7 +150,7 @@ export class AgentRunner {
       return tryInjectIntoLiveTurn(buildInjectDeps(sessionId, ctx.adapter), {
         channel: ctx.channel,
         sessionId,
-        profileName: getActiveProfile(ctx.channel),
+        selection: resolveRunSelection({ channel: ctx.channel, session: await sessionStore.getById(sessionId) }),
         text: ctx.userMessage || '',
         senderId: ctx.message.senderId,
         ...(ctx.message.systemOrigin ? { systemOrigin: ctx.message.systemOrigin } : {}),
@@ -183,7 +184,7 @@ export class AgentRunner {
     const backend = resolveBackendForChannel(channel);
     const { lease, backendSessionId } = await bindTurnSession(ctx, backend);
     const session = lease.session;
-    await withTurnBrowser({ backend, browser: session.browser ?? null }, (cdpEndpoint) => openTurn({
+    await withTurnBrowser({ backend: session.selection?.backend ?? backend, browser: session.browser ?? null }, (cdpEndpoint) => openTurn({
       channel, adapter, threadAnchorId,
       session: {
         sessionId: session.sessionId, backendSessionId,
@@ -239,7 +240,7 @@ async function bindTurnSession(
   await registerSessionRecord(sessionStore, {
     sessionId, channel: ctx.channel, backend,
     label: ctx.userMessage?.substring(0, 60) ?? null,
-    profileName: getActiveProfile(ctx.channel),
+    selection: resolveRunSelection({ channel: ctx.channel }),
     projectId: (await ctx.adapter.resolveInboundProject(ctx.channel)) ?? 'general',
   });
   await setSessionAsync(ctx.channel, sessionId);

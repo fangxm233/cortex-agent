@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readConfigSnapshot } from '../../../src/domain/ui-service/query/config.js';
+import { handleConfigGet, readConfigSnapshot } from '../../../src/domain/ui-service/query/config.js';
 import { SETTINGS_SPEC } from '../../../src/core/settings-spec.js';
 import { resolveSettingsSnapshot } from '../../../src/core/settings.js';
-import type { ConfigLang } from '../../../src/domain/ui-service/types.js';
+import type { ConfigLang, EngineSelection } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
+
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'm1', thinking: 'high', mode: 'plan' };
+const favorites = [
+  { backend: 'claude', provider: null, model: 'm1' },
+  { backend: 'pi', provider: 'deepseek', model: 'm2' },
+];
 
 const RAW_SECRET = 'sk-super-secret-value-123456';
 const LANG: ConfigLang = { value: 'en', source: 'default' };
@@ -23,14 +30,8 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
 
   await fs.writeFile(path.join(configDir, 'budget.json'), JSON.stringify({ daily_usd: 100, monthly_usd: 2000 }));
   await fs.writeFile(
-    path.join(configDir, 'profiles.json'),
-    JSON.stringify({
-      defaultProfile: 'plan',
-      profiles: {
-        plan: { model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high' },
-        fast: { model: 'm2', backend: 'pi', mode: 'plan' },
-      },
-    }),
+    path.join(configDir, 'models.json'),
+    JSON.stringify({ default: selection, favorites }),
   );
   await fs.writeFile(
     path.join(configDir, 'machines.json'),
@@ -137,21 +138,13 @@ test('readConfigSnapshot redacts .env secrets — raw value never appears in the
   assert.ok(!snap.env.some((e) => e.key.startsWith('#')));
 });
 
-test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks', async () => {
+test('readConfigSnapshot maps models / machines / mcp / environments / hooks', async () => {
   const { configDir } = await makeFixture();
   const snap = await readConfigSnapshot(configDir, [], LANG, null);
 
-  assert.equal(snap.profiles!.defaultProfile, 'plan');
-  assert.deepEqual(snap.profiles!.profiles, [
-    {
-      name: 'plan', model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high',
-      provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
-    },
-    {
-      name: 'fast', model: 'm2', backend: 'pi', mode: 'plan', thinking: null,
-      provider: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
-    },
-  ]);
+  assert.deepEqual(snap.models, { default: selection, favorites, memory: {} });
+  assert.equal(snap.selectionDefault, null);
+  assert.equal('profiles' in snap, false);
 
   const hub = snap.machines.find((m) => m.name === 'hub');
   const lab = snap.machines.find((m) => m.name === 'lab');
@@ -163,8 +156,8 @@ test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks',
   assert.deepEqual(snap.mcp!.servers.sort(), ['alpha', 'beta']);
   // The composer picker lists the execution environments only, never the thread agents.
   assert.deepEqual(snap.agents, [
-    { name: 'creative', profile: 'fast' },
-    { name: 'main', profile: '__active__', description: 'General' },
+    { name: 'creative' },
+    { name: 'main', description: 'General' },
   ]);
   assert.deepEqual(snap.hooks, [
     { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'user', overridden: false },
@@ -175,60 +168,35 @@ test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks',
   assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
 });
 
-test('readConfigSnapshot carries the editable profile fields but never an extraEnv VALUE', async () => {
+test('readConfigSnapshot never exposes foreign fields from models.json', async () => {
   const { configDir } = await makeFixture();
-  await fs.writeFile(
-    path.join(configDir, 'profiles.json'),
-    JSON.stringify({
-      defaultProfile: 'rich',
-      profiles: {
-        rich: {
-          model: 'm-rich',
-          backend: 'pi',
-          mode: 'deepseek',
-          provider: 'deepseek',
-          claudeBackend: 'tui',
-          extraOption: { '--thinking': 'xhigh', '--bad': 7 },
-          extraEnv: { PI_TOKEN: 'super-secret', OTHER: 'also-secret' },
-          fallback: [{ model: 'a', provider: 'deepseek' }, { model: 'b', provider: 'deepseek' }],
-        },
-      },
-    }),
-  );
-
+  await fs.writeFile(path.join(configDir, 'models.json'), JSON.stringify({
+    default: selection, favorites,
+    extraEnv: { PI_TOKEN: 'super-secret' },
+    arbitrary: 'also-secret',
+  }));
   const snap = await readConfigSnapshot(configDir, [], LANG, null);
-  const rich = snap.profiles!.profiles[0];
-  assert.equal(rich.provider, 'deepseek');
-  assert.ok(!('claudeBackend' in rich), 'the retired claudeBackend key is not carried');
-  assert.deepEqual(rich.extraOption, { '--thinking': 'xhigh' }, 'non-string option values are dropped');
-  assert.deepEqual(rich.extraEnvKeys, ['OTHER', 'PI_TOKEN']);
-  assert.equal(rich.fallbackCount, 2);
-  const serialized = JSON.stringify(snap);
-  assert.ok(!serialized.includes('super-secret'), 'extraEnv value leaked into the snapshot');
-  assert.ok(!serialized.includes('also-secret'), 'extraEnv value leaked into the snapshot');
+  assert.deepEqual(snap.models, { default: selection, favorites, memory: {} });
+  assert.ok(!JSON.stringify(snap).includes('super-secret'));
+  assert.ok(!JSON.stringify(snap).includes('also-secret'));
 });
 
-test('readConfigSnapshot omits persisted profiles with unsupported backends', async () => {
+test('readConfigSnapshot omits incomplete or unsupported engine choices', async () => {
   const { configDir } = await makeFixture();
-  await fs.writeFile(
-    path.join(configDir, 'profiles.json'),
-    JSON.stringify({
-      defaultProfile: 'legacy-codex',
-      profiles: {
-        'legacy-codex': { model: 'gpt-old', backend: 'codex', mode: 'plan' },
-        unknown: { model: 'm-unknown', backend: 'other', mode: 'plan' },
-        implicit: { model: 'm-default', mode: 'plan' },
-        claude: { model: 'm-claude', backend: 'claude', mode: 'plan' },
-        pi: { model: 'm-pi', backend: 'pi', mode: 'deepseek' },
-      },
-    }),
-  );
-
+  await fs.writeFile(path.join(configDir, 'models.json'), JSON.stringify({
+    default: { ...selection, backend: 'codex' },
+    favorites: [{ backend: 'other', provider: null, model: 'old' }, { model: 'implicit' }, ...favorites],
+  }));
   const snap = await readConfigSnapshot(configDir, [], LANG, null);
+  assert.deepEqual(snap.models, { default: null, favorites, memory: {} });
+});
 
-  assert.equal(snap.profiles!.defaultProfile, null);
-  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.name), ['implicit', 'claude', 'pi']);
-  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.backend), [null, 'claude', 'pi']);
+test('config.get joins live model memory and the complete draft seed', async () => {
+  const memory = { '["claude",null,"m1"]': { thinking: 'high', mode: 'plan' } };
+  const seed = { ...selection, agentName: 'main' };
+  const snap = await handleConfigGet(makeUiDeps({ getModelMemory: () => memory, getSelectionDefault: () => seed }), {});
+  assert.deepEqual(snap.models.memory, memory);
+  assert.deepEqual(snap.selectionDefault, seed);
 });
 
 test('readConfigSnapshot returns null / empty when files are absent', async () => {
@@ -237,7 +205,7 @@ test('readConfigSnapshot returns null / empty when files are absent', async () =
   const snap = await readConfigSnapshot(path.join(root, 'config'), [], LANG, null);
   error.mockRestore();
   assert.equal(snap.budget, null);
-  assert.equal(snap.profiles, null);
+  assert.deepEqual(snap.models, { default: null, favorites: [], memory: {} });
   assert.equal(snap.mcp, null);
   assert.deepEqual(snap.machines, []);
   assert.deepEqual(snap.hooks, []);

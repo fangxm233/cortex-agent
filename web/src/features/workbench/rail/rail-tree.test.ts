@@ -49,7 +49,7 @@ const schedule = (id: string, projectId: string): ScheduleInfo =>
     type: 'daily',
     message: 'daily check ' + id,
     projectId,
-    profile: null,
+    selection: null,
     nextRun: null,
     lastRun: null,
     paused: false,

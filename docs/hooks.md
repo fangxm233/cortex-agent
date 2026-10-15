@@ -172,7 +172,7 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 | `cortex:schedule.fired` | A schedule fires | `scheduleId`, `name`, `project` |
 | `cortex:client.connected` | A remote device client registers | `device` |
 | `cortex:client.disconnected` | A remote device client drops | `device`, `reason` when known |
-| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `backendSessionId`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
+| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `backendSessionId`, `executionId`, `backend`, `model`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
 
 In `cortex:schedule.fired`, `name` carries the schedule's message and

@@ -2,11 +2,12 @@ import type { TurnMutationRelease } from '../turn-mutation-lock.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
-import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { sessionStore } from '@store/session-registry-repo.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 interface TurnTrackingDeps {
-  resolveBackend(channel: string): string;
-  getProfile(channel: string): string | null;
+  getSelection(channel: string, sessionId: string | null): EngineSelection | Promise<EngineSelection>;
   ledger: Pick<typeof conversationLedger, 'initAndBeginTurn' | 'setBackupPath'>;
   backup: Pick<typeof sessionBackup, 'findPISessionFile' | 'backupSessionFile' | 'createBackup'>;
 }
@@ -18,8 +19,9 @@ export interface TurnTrackingOptions {
 }
 
 const defaultTurnTrackingDeps: TurnTrackingDeps = {
-  resolveBackend: resolveBackendForChannel,
-  getProfile: getActiveProfile,
+  getSelection: async (channel, sessionId) => resolveRunSelection({
+    channel, session: sessionId ? await sessionStore.getById(sessionId) : null,
+  }),
   ledger: conversationLedger,
   backup: sessionBackup,
 };
@@ -95,10 +97,11 @@ async function runTurnTracking(
   const release = options.mutationRelease ?? await acquireTurnMutationLock(args.channel);
   try {
     const deps = options.deps ?? defaultTurnTrackingDeps;
-    const backend = deps.resolveBackend(args.channel);
+    const selection = await deps.getSelection(args.channel, args.trackSessionId);
+    const backend = selection.backend;
     const { turnIndex } = await deps.ledger.initAndBeginTurn(args.channel, {
       sessionId: args.trackSessionId || null, backend,
-      profileName: deps.getProfile(args.channel), userMessageTs: args.userMessageTs,
+      selection, userMessageTs: args.userMessageTs,
       userMessageText: args.userMessageText || '', statusMessageTs: args.statusMessageTs,
     });
     const backupPath = await snapshotTurn(deps, backend, args.backendSessionId, turnIndex);

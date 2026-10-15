@@ -1,110 +1,33 @@
-import type {
-  ConfigProfileEntry, ConfigSelectionDefault, SessionInfo, SessionSelectionOverride,
-} from '@cortex-agent/ui-contract';
+import type { ConfigSelectionDefault, EngineSelection, SessionInfo } from '@cortex-agent/ui-contract';
 
-// Pure state logic for the cross-pane "selected session" (the session the center chat shows). A
-// user click in the LeftRail sets an explicit override; absent one (or when the override no longer
-// belongs to the current project's session list — e.g. after a project switch) the selection falls
-// back to the most-recently-used session. This is what makes clicking a session row switch the chat,
-// and makes switching project re-point the chat to that project's most-recent session.
-
-/** Sentinel value for the "+ New session" draft placeholder. Not a real session — the session is
- *  created lazily on first message send (task 15b). */
 export const DRAFT_SENTINEL = '__draft__';
-
-/** What the session's own list row will eventually say, held across the gap in which it does not
- *  exist yet. All of it travels together: a session created with an overridden model would
- *  otherwise flash its profile's model until `sessions.list` caught up. */
-export interface PendingCreatedSession {
+export interface DraftSelection {
+  selection: EngineSelection | null;
+  agentName?: string | null;
+}
+export interface PendingCreatedSession extends DraftSelection {
   sessionId: string;
-  profileName: string | null;
-  override: SessionSelectionOverride | null;
-  /** The environment it was created in; null means it follows the host's default agent. */
   agentName: string | null;
 }
-
-/** The composer's engine choice while there is no session to write it to. `profileName` null means
- *  "the configured default"; `override` null means "run that profile as declared". `agentName` is
- *  the other axis — the environment (prompt, tools, skills) — and is absent until picked. */
-export interface DraftSelection {
-  profileName: string | null;
-  override: SessionSelectionOverride | null;
-  agentName?: string | null;
-}
-
-/** A change from the picker. Model-axis fields go to `sessions.setSelection` in this exact shape:
- *  an optional profile plus, optionally, the WHOLE selection to run on top of it. `agentName` is
- *  the environment axis and travels alone, to `sessions.setAgent`. */
 export interface SelectionChange {
-  profileName?: string;
-  selection?: SessionSelectionOverride;
-  /** The agent to run in; `null` hands the conversation back to the host's default. */
+  selection?: EngineSelection;
   agentName?: string | null;
 }
+export const EMPTY_DRAFT_SELECTION: DraftSelection = { selection: null };
 
-export const EMPTY_DRAFT_SELECTION: DraftSelection = { profileName: null, override: null };
-
-/** Apply a picker change to the draft — the client-side twin of `applyChannelSelection`, keeping the
- *  same rule: naming a profile alone means "run it as declared", so the old selection goes with it. */
 export function applyDraftSelection(current: DraftSelection, change: SelectionChange): DraftSelection {
-  const stated = change.selection;
-  const kept = change.profileName ? null : current.override;
-  const override = stated && Object.keys(stated).length > 0 ? { ...stated } : stated ? null : kept;
-  const next: DraftSelection = {
-    profileName: change.profileName ?? current.profileName,
-    override,
-  };
-  // The environment is the other axis: naming a profile must not disturb it, and naming an agent
-  // must not disturb the model. `null` is a statement ("follow the default"), so only a change that
-  // says nothing at all about the agent leaves the draft's own pick alone.
-  const agentName = change.agentName !== undefined ? change.agentName : current.agentName;
-  if (agentName !== undefined) next.agentName = agentName;
-  return next;
+  return { ...current, ...change };
 }
 
-/**
- * What a fresh draft starts on: the last engine chosen on this host (`config.selectionDefault`,
- * written by the server every time a selection is applied), falling back to the configured default
- * profile. Returns null when there is nothing worth seeding — the caller then leaves the draft as it
- * is rather than re-rendering it with the same values.
- *
- * The override rides along ONLY when its own profile is still there. A model / thinking level /
- * billing route is a choice made on top of one profile's backend and gateway route; re-hanging it on
- * a substitute profile is how a claude draft would end up asking for a PI model.
- */
 export function seedDraftSelection(
   seed: ConfigSelectionDefault | null | undefined,
-  profiles: ConfigProfileEntry[],
-  defaultProfile: string | null,
+  fallback: EngineSelection | null,
 ): DraftSelection | null {
-  const named = seed?.profileName && profiles.some((entry) => entry.name === seed.profileName)
-    ? seed.profileName
-    : null;
-  const fallback = defaultProfile && profiles.some((entry) => entry.name === defaultProfile)
-    ? defaultProfile
-    : null;
-  const profileName = named ?? fallback;
-  const override: SessionSelectionOverride = {};
-  if (named && seed) {
-    if (seed.model) override.model = seed.model;
-    if (seed.provider) override.provider = seed.provider;
-    if (seed.thinking) override.thinking = seed.thinking;
-    if (seed.mode) override.mode = seed.mode;
-  }
-  const hasOverride = Object.keys(override).length > 0;
-  // The agent rides along on its own: it is not hung on a profile's backend, so a substitute
-  // profile is no reason to forget which environment the user last worked in.
-  const agentName = seed?.agentName ?? null;
-  if (!profileName && !hasOverride && !agentName) return null;
-  return {
-    profileName,
-    override: hasOverride ? override : null,
-    ...(agentName ? { agentName } : {}),
-  };
+  const picked = seed ?? fallback;
+  if (!picked) return null;
+  const { backend, provider, model, thinking, mode } = picked;
+  return { selection: { backend, provider, model, thinking, mode }, ...(seed?.agentName ? { agentName: seed.agentName } : {}) };
 }
-
-// The ⌘N predicate that used to live here moved into the menu accelerator registry
-// (shell/menu/menu-model `matchesAccel`), which now owns every app-wide shortcut.
 
 /** Most-recently-used session id (by lastUsedAt, then createdAt), else null. */
 export function deriveMostRecentSessionId(sessions: SessionInfo[]): string | null {
@@ -139,18 +62,6 @@ export function resolveSelectedSessionId(
   return deriveMostRecentSessionId(defaultPool);
 }
 
-/** Keep draft selection metadata only for its just-created session until the list snapshot arrives.
- *  The row wins the moment it exists — it is the server's answer, and the pending value was only
- *  ever a stand-in for it.
- *
- *  The two halves are resolved SEPARATELY. A session that names no profile is the normal case, not
- *  an absent row: it runs the configured default, and may still carry the model / thinking / route
- *  the user picked on top of it. Reading a null `profileName` as "nothing known yet" and dropping
- *  the override with it is what used to make such a session forget its own pick the moment
- *  `sessions.list` answered. */
-/** The same transition for the environment axis. A row that exists answers for itself — `null`
- *  there means "follows the host default", which is a statement, not a missing value — and only an
- *  absent row (`undefined`) falls back to what the draft was created with. */
 export function resolveTransitionAgent(
   rowAgent: string | null | undefined,
   pendingCreated: PendingCreatedSession | null,
@@ -162,15 +73,10 @@ export function resolveTransitionAgent(
 }
 
 export function resolveTransitionSelection(
-  row: { profileName: string | null | undefined; override: SessionSelectionOverride | null | undefined },
+  row: EngineSelection | null | undefined,
   pendingCreated: PendingCreatedSession | null,
   sessionId: string | null | undefined,
-): { profileName: string | null; override: SessionSelectionOverride | null } {
-  const rowOverride = row.override ?? null;
-  if (row.profileName != null) return { profileName: row.profileName, override: rowOverride };
-  const pending = sessionId && pendingCreated?.sessionId === sessionId ? pendingCreated : null;
-  return {
-    profileName: pending?.profileName ?? null,
-    override: rowOverride ?? pending?.override ?? null,
-  };
+): EngineSelection | null {
+  if (row !== undefined) return row;
+  return pendingCreated?.sessionId === sessionId ? pendingCreated?.selection ?? null : null;
 }

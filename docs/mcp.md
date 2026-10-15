@@ -139,7 +139,7 @@ subagents do not.
 |---|---|---|
 | `cost_query` | `projectId?` | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage; with `projectId`, scoped to that project |
 | `query_executions` | `execution_id?`, `status?` (`running`, `completed`, `failed`, `cancelled`, `stale`, `all`), `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
-| `cortex_context` | _(none)_ | Return the current execution context: `sessionId`, `profile`, `project`, `backend`, and for a scheduled or callback-triggered run `scheduleTaskId` and `callbackSource`; in a Web session also `board`, the board it is bound to (id, title, dir) or null |
+| `cortex_context` | _(none)_ | Return the current execution context: `sessionId`, `project`, `backend`, `model`, `thinking`, `mode`, and for a scheduled or callback-triggered run `scheduleTaskId` and `callbackSource`; in a Web session also `board`, the board it is bound to (id, title, dir) or null |
 | `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | Arm a waitpoint and return the id, a one-time secret, and ready-to-paste signal commands; then end the turn |
 | `wait_check` | `id?` | Inspect one waitpoint, or list everything this session is waiting on |
 | `wait_cancel` | `id` | Cancel a waitpoint so it can no longer fire |
@@ -441,7 +441,7 @@ same values are passed to the in-process server directly.
 | `SLACK_CHANNEL`, `FEISHU_CHANNEL` | The session's channel | Platform-bundle selection, interaction tools, file delivery, subagent and team routing |
 | `SLACK_BOT_TOKEN` | Server environment | cortex-slack (`slack_send_file`) |
 | `CORTEX_SESSION_ID` | Session context | Interaction tools, `cortex_context`, waitpoints, Web delivery |
-| `CORTEX_PROFILE`, `CORTEX_PROJECT`, `CORTEX_BACKEND` | Session context | `cortex_context` |
+| `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_MODE` | Session context | `cortex_context` |
 | `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | Set for scheduled or callback-triggered runs | `cortex_context` |
 | `CORTEX_WEBHOOK_TOKEN`, `WEBHOOK_PORT` | Server environment | Every tool that calls the loopback webhook |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | Bundle selection in the bundled server |

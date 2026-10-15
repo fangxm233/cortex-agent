@@ -20,14 +20,13 @@ export interface EngineSpecFixtureInput {
   rawTools?: string;
   piProvider?: string;
   thinking?: string;
-  piModelMaxTokens?: number;
+  benchmarkMaxOutputTokens?: number;
   pluginDirs?: string[];
   pluginSkillDirs?: string[];
   pluginCapabilityFingerprint?: string;
   env?: Record<string, string>;
   unsetEnv?: string[];
   pinnedEnv?: NodeJS.ProcessEnv;
-  extraOption?: Record<string, string>;
   mcpComposition?: McpComposition;
   mcpServers?: McpServerConfig[];
   mcpConfigPaths?: string[];
@@ -58,7 +57,7 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
   const looksLikePi = partial.piProvider !== undefined
     || partial.piGatewayPath !== undefined
     || partial.piGatewayBaseUrl !== undefined
-    || partial.piModelMaxTokens !== undefined;
+    || partial.benchmarkMaxOutputTokens !== undefined;
   return {
     engineKey: partial.sessionKey ?? partial.channel ?? 'default',
     cwd: partial.cwd,
@@ -70,7 +69,7 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
       id: partial.model,
       provider: partial.piProvider,
       thinking: partial.thinking,
-      maxOutputTokens: partial.piModelMaxTokens,
+      benchmarkMaxOutputTokens: partial.benchmarkMaxOutputTokens,
     },
     prompt: {
       system: partial.systemPrompt,
@@ -114,7 +113,6 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
       callbackSource: partial.callbackSource,
       scheduleTaskId: partial.scheduleTaskId,
     },
-    extraOption: partial.extraOption,
     backend: looksLikePi
       ? { kind: 'pi' }
       : {

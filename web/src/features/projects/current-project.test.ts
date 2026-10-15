@@ -13,7 +13,7 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   lastUsedAt,
   resumable: true,
   label: null,
-  profileName: null,
+  selection: null,
   running: false,
   backgroundRunning: false,
   awaitingInput: false,

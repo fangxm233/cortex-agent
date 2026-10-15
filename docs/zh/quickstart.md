@@ -6,7 +6,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 不想用终端？ {#prefer-not-to-use-a-terminal}
 
-[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以在 macOS、Linux 和 Windows 上替你安装并配置 Cortex。选择**安装 Cortex**，等待安装与启动自动完成，再登录并选择默认 Profile。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；已有机器、端口和服务设置会被保留。只有初始化、启动或连接失败才提供修复设置。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
+[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以在 macOS、Linux 和 Windows 上替你安装并配置 Cortex。选择**安装 Cortex**，等待安装与启动自动完成，再登录并选择默认模型。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；已有机器、端口和服务设置会被保留。只有初始化、启动或连接失败才提供修复设置。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
 
 安装包自带 Node.js，Windows 安装包另含 Git Bash，因此不需要终端、另行安装的 Node.js 或 Git、Homebrew 或管理员权限。本机安装支持 macOS 13.5+、glibc 2.28+ 的 x86_64 Linux，以及 x86_64 的 Windows 10/11；详见桌面应用指南。以下内容介绍终端安装与聊天平台设置。
 
@@ -104,7 +104,7 @@ Select language / 选择语言
 
 ### 2.2 内置 PI 与可选 Claude Code {#22-which-backends}
 
-交互式 `cortex init` 默认使用 **PI**，不询问后端选择。PI 随 Cortex 一起打包，只需配置 Provider 凭据，无需单独安装。继续填写平台与机器设置；配置文件写入后，再进入[第 2.10 节](#210-auto-detect-backends-for-gatewayprofiles)的凭据检测与登录。
+交互式 `cortex init` 默认使用 **PI**，不询问后端选择。PI 随 Cortex 一起打包，只需配置 Provider 凭据，无需单独安装。继续填写平台与机器设置；配置文件写入后，再进入[第 2.10 节](#210-detect-credentials-and-configure-models)的凭据检测与登录。
 
 **Claude Code** 是可选项，与 PI 中的 Anthropic Provider 相互独立。在登录步骤选择 Claude Code 时，会复用已有安装，或在缺失时询问是否允许安装。
 
@@ -262,16 +262,16 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 - **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。运行打印的启用命令后，守护进程会在登录时自动启动。如需登出后继续运行，再执行 `loginctl enable-linger`。
 - **Windows** — 不支持。需手动运行 `cortex daemon`。
 
-### 2.10 检测凭据、登录并配置 Profile {#210-auto-detect-backends-for-gatewayprofiles}
+### 2.10 检测凭据、登录并配置模型 {#210-detect-credentials-and-configure-models}
 
 写入配置文件后，Cortex 自动检测本地 Claude Code 与 PI 凭据。这是凭据检测，不是在线推理测试：不会发起付费推理请求，也不保证模型调用一定成功。
 
 终端提供以下操作：
 
-- **使用已配置的服务商继续**（Continue with configured providers）——检测到凭据后才出现。使用这些凭据，从发现的端点配置 gateway 路由与 Profile。选择用于 `plan`（planner、doc-writer、coder 等执行智能体）和 `execute`（审查智能体）的（mode, model）对。
+- **使用已配置的服务商继续**（Continue with configured providers）——检测到凭据后才出现。使用这些凭据，从发现的端点配置 gateway 路由与 `models.json`。先单选默认模型（预选推荐模型），再多选收藏。即使在此步骤取消勾选默认模型，它也会包含在收藏中。
 - **登录 / 安装并登录 Claude Code**（Login / install and login Claude Code）——选择后端、Provider 及其支持的 OAuth 或 API key 方式。PI 已内置；Claude Code 已安装时直接复用，只有选择其登录路径时才会询问是否安装缺失的程序。登录后返回凭据检测。
 - **重新扫描凭据**（Rescan credentials）——重新检测凭据（例如在其他终端配置的凭据），然后回到这个菜单。
-- **稍后配置**（Configure later (Agent may be unavailable)）——不配置 Provider 直接完成初始化；配置好凭据与 Profile 前，Agent 不可用。
+- **稍后配置**（Configure later (Agent may be unavailable)）——不配置 Provider 直接完成初始化；配置好凭据与默认模型 前，Agent 不可用。
 
 也可直接从终端登录，无需运行 daemon：
 
@@ -284,7 +284,9 @@ cortex auth status
 
 登录要求交互式 TTY。密钥与授权响应通过提示输入，不能作为命令参数传入。命令将 JSON 结果写入 stdout，将面向人的提示与指引写入 stderr。`cortex auth login --help` 列出选项，详见 [CLI 参考](./cli-reference.md#commands)。
 
-使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录；`cortex auth login` 成功后也会配置 gateway 路由与 Profile。`cortex setup-gateway` 可单独重新执行这一配置。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
+使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录；`cortex auth login` 成功后也会配置 gateway 路由、默认模型与收藏。`cortex setup-gateway` 可单独重新执行这一配置。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
+
+非交互式模型选择可通过 `--answers` 的 `defaultChoice` 和 `favorites` 指定，每个选择都是包含 `mode` 与 `model` 的对象。显式 `defaultChoice` 会替换已保存的默认值，否则保留它；收藏合并并包含所选默认模型。按位置读取的 stdin 协议末尾有两行模型选择：第一行为默认模型的 `mode:model`，第二行为逗号分隔的收藏 `mode:model`。
 
 ### 2.11 后端登录过期怎么办 {#211-when-the-backend-login-expires}
 
@@ -301,7 +303,7 @@ Re-authenticate to continue.
 
 Cortex 也会主动提醒。运行中的智能体一旦撞上认证过期，就会发出点名 provider 的通知卡，卡上带一键重登按钮；每日扫描还会对临近过期的凭据发出预警。
 
-登录完成后，刷新的凭据会在下一次智能体运行时被识别。如果端点或模型发生了变化，重新运行 `cortex setup-gateway`，让 `plan` 与 `execute` 配置指向新的后端。
+登录完成后，刷新的凭据会在下一次智能体运行时被识别。如果端点或模型发生了变化，重新运行 `cortex setup-gateway` 刷新网关与模型列表，再在**设置 → 模型**中选择所需默认模型。同步保留已有默认值。
 
 ---
 
@@ -330,10 +332,10 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── mcp-config-core.json    # 远程执行/时间分层
 │   ├── mcp-config-empty.json   # 不含 MCP 服务器
 │   ├── mcp-config-interaction.json # 共享交互分层
-│   ├── profiles.json           # 命名的（后端、模型）配置，检测到凭据后生成
+│   ├── models.json             # 默认引擎与收藏，检测到凭据后生成
 │   └── environments/           # 执行环境：main.json、creative.json
 ├── data/
-│   ├── agent-state.json        # 活跃 profile、默认智能体、频道级 override
+│   ├── agent-state.json        # 频道选择、模型记忆、新会话选择、默认智能体
 │   └── schedules.json          # 初始化的内置定时任务
 ├── context/                    # 项目日志存放在这里
 │   ├── AGENTS.md、projects/、decisions/、scans/、ideas/、retrospectives/、user/
@@ -344,7 +346,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 └── logs/                       # 守护进程 + LLM 日志
 ```
 
-正常使用时你**不应该**手动编辑任何这些文件。再次运行 `cortex init` 时，已有的 `.env`、`machines.json`、Agent 状态、语言偏好、计划任务和预算保持不变，MCP 配置会重新生成。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并更新 init 写入 `.env` 的键，同时保留已有的客户端与 webhook token 以及你手动添加的键。两种情况下，已有的执行环境和脚手架文件都会保留，替换已有 Profile 需要确认。使用 `--force` 前请备份自定义文件。要给已经可用的安装添加平台，把该平台的键加入 `.env` 并重启守护进程即可（见 [2.3](#23-which-interaction-platforms)）。
+正常使用时你**不应该**手动编辑任何这些文件。再次运行 `cortex init` 时，已有的 `.env`、`machines.json`、Agent 状态、语言偏好、计划任务和预算保持不变，MCP 配置会重新生成。`cortex init --force` 会重置 `machines.json`、Agent 状态、语言偏好、计划任务和预算，并更新 init 写入 `.env` 的键，同时保留已有的客户端与 webhook token 以及你手动添加的键。两种情况下，已有的执行环境和脚手架文件都会保留，交互式设置会在替换已有默认模型前询问，收藏则与已有列表合并。使用 `--force` 前请备份自定义文件。要给已经可用的安装添加平台，把该平台的键加入 `.env` 并重启守护进程即可（见 [2.3](#23-which-interaction-platforms)）。
 
 Cortex 的内置插件、钩子、规则、子智能体角色与系统提示词从安装目录读取，不会复制到这里，所以 `plugins/`、`prompts/` 和 `hooks/` 一开始是空的。你放进去的文件会替换同名的内置文件，或新增一个；见[内置资源与你的覆盖](./configuration.md#built-in-assets-and-your-overrides)。
 

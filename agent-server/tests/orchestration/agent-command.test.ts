@@ -6,13 +6,13 @@ import assert from 'node:assert/strict';
 // behind the explicit `global` prefix. The rules themselves are tested in
 // tests/domain/agents/agent-switch.test.ts — here we only pin the dispatch.
 
-const AGENTS: Record<string, { name: string; profile: string; claudeAgent?: string }> = {
-  main: { name: 'main', profile: '__active__' },
-  nimbus: { name: 'nimbus', profile: 'execute' },
+const AGENTS: Record<string, { name: string; claudeAgent?: string }> = {
+  main: { name: 'main' },
+  nimbus: { name: 'nimbus' },
 };
 
 let calls: string[] = [];
-let switchResult: unknown = { ok: true, agentName: 'nimbus', effectiveProfile: 'execute', backendChanged: false };
+let switchResult: unknown = { ok: true, agentName: 'nimbus' };
 let channelAgents: Record<string, string> = {};
 let globalAgent: string | null = null;
 
@@ -27,12 +27,6 @@ vi.mock('@domain/agents/index.js', () => ({
     return switchResult;
   },
   clearChannelAgentSelection: async (channel: string) => { calls.push(`clear(${channel})`); },
-  // Unused by `!agent`, but mode.ts imports them at module level.
-  applyChannelSelection: async () => ({ ok: true }),
-  getActiveProfile: () => 'execute',
-  setActiveProfile: () => {},
-  clearChannelProfile: () => {},
-  switchChannelProfile: async () => ({ ok: true }),
 }));
 
 vi.mock('@domain/agents/environments/registry.js', () => ({
@@ -61,7 +55,7 @@ beforeEach(() => {
   calls = [];
   channelAgents = {};
   globalAgent = null;
-  switchResult = { ok: true, agentName: 'nimbus', effectiveProfile: 'execute', backendChanged: false };
+  switchResult = { ok: true, agentName: 'nimbus' };
 });
 
 test('`!agent <name>` goes through the per-channel switch rule', async () => {
@@ -99,13 +93,6 @@ test('an unknown name is reported with the list, and changes nothing', async () 
   const text = await run('!agent ghost');
   assert.match(text, /ghost/);
   assert.match(text, /nimbus/, 'the available agents are named');
-});
-
-test('a cross-backend refusal explains the backend, not the agent', async () => {
-  switchResult = { ok: false, reason: 'cross-backend-live-session', currentBackend: 'claude', targetBackend: 'pi' };
-  const text = await run('!agent nimbus');
-  assert.match(text, /claude/);
-  assert.match(text, /pi/);
 });
 
 test('`!agent` names both layers: this conversation\'s agent and the global default', async () => {

@@ -49,7 +49,7 @@ export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }:
   );
 }
 
-/** Escape and outside-click dismissal, matching the profile chip's menu. */
+/** Escape and outside-click dismissal, matching the model chip's menu. */
 function useDismissMenu(open: boolean, close: () => void): void {
   useEffect(() => {
     // No window under SSR or a node test environment; the menu simply keeps no global listeners.
@@ -212,7 +212,7 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
 /**
  * The ＋ button and its menu — the single left-side entry point of the composer toolbar. Rarely-used
  * controls (attach, browser opt-in, local slash commands) fold in here so the toolbar itself stays
- * three elements: ＋, profile, send. The browser row opens a second menu page listing devices.
+ * three elements: ＋, model, send. The browser row opens a second menu page listing devices.
  */
 function ComposerPlusMenu({ browser, onAttach, onCommands }: {
   browser: ComposerBrowserControl | null;
@@ -318,7 +318,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
 /**
  * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commands) sits
  * left, with the browser capsule beside it once a browser is on; agent,
- * profile, context ring and the send/stop cluster sit right, so every affordance shares one row and
+ * model, context ring and the send/stop cluster sit right, so every affordance shares one row and
  * the input above keeps the card's full width.
  *
  * The right cluster reads outside-in: WHERE the turn runs (the environment), then WHAT runs it (the
@@ -332,7 +332,7 @@ export function ComposerActionRow({ browser, onAttach, onCommands, agentControl,
   /** The environment chip (which agent the conversation runs in). Draws nothing of its own on a
    *  host with fewer than two agents — a list of one is not a choice. */
   agentControl?: ReactNode;
-  /** The engine chip (profile + model + thinking). */
+  /** The engine chip (model + model + thinking). */
   selectionControl: ReactNode;
   contextControl?: ReactNode;
   sendControl: ReactNode;

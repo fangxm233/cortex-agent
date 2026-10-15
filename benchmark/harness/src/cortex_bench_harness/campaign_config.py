@@ -304,16 +304,14 @@ class CampaignConfig:
         return {
             "arm": dict(plan.arm),
             "trial_id": plan.trial_id, "root_run_id": plan.root_run_id,
-            "task": plan.task.as_seed_task(), "profile_name": PROFILE_NAME,
+            "task": plan.task.as_seed_task(),
             "paid_run": self.paid,
             "credential": self.trial_credential(plan),
             "model_alias_policy": dict(MODEL_ALIAS_POLICY),
         }
 
 
-# The benchmark profile and the exact-alias policy are properties of the harness, not choices a
-# campaign makes: the agent refuses any other profile name and an alias would unfreeze the model.
-PROFILE_NAME = "benchmark"
+# An alias would unfreeze the model, so campaigns use exact matching.
 MODEL_ALIAS_POLICY = {"kind": "exact"}
 
 

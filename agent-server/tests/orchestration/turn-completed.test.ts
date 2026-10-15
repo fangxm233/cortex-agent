@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { CLAUDE_SELECTION, seedSelections } from './selection-fixture.js';
 
 const { mockStartRun } = vi.hoisted(() => ({ mockStartRun: vi.fn() }));
 
@@ -38,7 +39,7 @@ const FAKE_REQUEST = {
   request: {
     runId: 'run-tc',
     session: { sessionId: 's', backendSessionId: null, engineKey: 'c'},
-    profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
+    selection: CLAUDE_SELECTION, spec: {} as any, prompt: { text: 'hello', attachments: [] },
     context: { channel: 'c', project: 'general', trigger: 'user' }, policy: {} as any,
   } as any,
   backendPrompt: 'hello',
@@ -49,6 +50,7 @@ let completed: any[];
 const adapter = new MockAdapter();
 
 beforeEach(() => {
+  seedSelections();
   mockStartRun.mockReset();
   completed = [];
   restoreBus = getOrchestrationRuntime().bus;

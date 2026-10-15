@@ -10,7 +10,6 @@ function makeDeps(session: Session | null, sink: CancelCall[], killed: number): 
   return {
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
     cancelSessionRun: async (opts: { channel: string }) => { sink.push(opts); return killed; },
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
   } as unknown as UiServiceDeps;
 }
 

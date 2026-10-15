@@ -2,12 +2,19 @@ import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
+import type { ModelOption } from '@/features/session/list/selection-menu';
+
+const MODEL_OPTION: ModelOption = {
+  id: 'claude-sonnet', backend: 'claude', provider: null, group: 'claude',
+  active: false, disabled: false, disabledReason: null, favorite: true,
+  selection: { backend: 'claude', provider: null, model: 'claude-sonnet', thinking: null, mode: 'execute' },
+};
 
 const harness = vi.hoisted(() => ({
   send: vi.fn(),
   cancel: vi.fn(),
   setSelectedSession: vi.fn(),
-  pickProfile: vi.fn(),
+  pickModel: vi.fn(),
   openSettings: vi.fn(),
   openUsage: vi.fn(),
   attachmentItems: [] as any[],
@@ -49,7 +56,7 @@ vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
       return {
         selectCreatedSession: vi.fn(),
         setSelectedSession: harness.setSelectedSession,
-        draftSelection: { profileName: null, override: null },
+        draftSelection: { selection: null, agentName: null },
         setDraftSelection: vi.fn(),
         pendingCreatedSession: null,
         draftReloadToken: 0,
@@ -71,13 +78,14 @@ vi.mock('@/features/session/composer/useSessionSelection', () => {
     useSessionSelection: () => ({
       open: false, setOpen: vi.fn(),
       effective: {
-        profileName: 'plan', backend: 'claude', model: 'claude-opus-5', provider: null,
-        thinking: 'high', modelOverridden: false, thinkingOverridden: false,
+        backend: 'claude', model: 'claude-opus-5', provider: null,
+        thinking: 'high', mode: 'plan',
       },
-      profileOptions: [{ name: 'execute', sub: 'sonnet', model: 'sonnet', thinking: null, active: false, backend: 'claude', disabled: false }],
-      modelGroups: [], thinkingOptions: [], profileModel: 'claude-opus-5', profileThinking: 'high',
+      agentName: null,
+      favoriteOptions: [MODEL_OPTION],
+      modelGroups: [], thinkingOptions: [], modeOptions: [],
       modelsReady: true,
-      pickProfile: harness.pickProfile, pickModel: vi.fn(), pickThinking: vi.fn(),
+      pickModel: harness.pickModel, pickThinking: vi.fn(),
     }),
   };
 });
@@ -116,8 +124,7 @@ function mountComposer(
         turns={1}
         cost={null}
         turnClock={null}
-        currentProfile="plan"
-        currentOverride={null}
+        currentSelection={{ backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' }}
         hasHistory
         optimistic={{
           pendingUser: [],
@@ -170,7 +177,7 @@ describe('Composer draft project selector', () => {
 });
 
 describe('Composer UI slash shortcuts', () => {
-  it.each(['/unknown hello', '/profile missing', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
+  it.each(['/unknown hello', '/model missing', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
     const renderer = mountComposer(() => {});
     enterCommand(renderer, text);
     expect(renderer.root.findByProps({ 'data-slash-error': true }).props.children).toMatch(/not sent|未发送/i);
@@ -197,14 +204,14 @@ describe('Composer UI slash shortcuts', () => {
     enterCommand(renderer, '/new');
     enterCommand(renderer, '/cancel');
     enterCommand(renderer, '/compact');
-    enterCommand(renderer, '/profile execute');
+    enterCommand(renderer, '/model claude-sonnet');
     enterCommand(renderer, '/settings');
     enterCommand(renderer, '/usage');
 
     expect(harness.setSelectedSession).toHaveBeenCalledWith('__draft__');
     expect(harness.cancel).toHaveBeenCalledWith({ sessionId: 's1' });
     expect(compact).toHaveBeenCalledOnce();
-    expect(harness.pickProfile).toHaveBeenCalledWith('execute');
+    expect(harness.pickModel).toHaveBeenCalledWith(MODEL_OPTION);
     expect(harness.openSettings).toHaveBeenCalledOnce();
     expect(harness.openUsage).toHaveBeenCalledOnce();
     expect(harness.send).not.toHaveBeenCalled();

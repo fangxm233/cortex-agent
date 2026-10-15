@@ -109,7 +109,7 @@ async function runLogin(login: LoginFlowConsumer, key: string) {
 
 async function readClaudeStatus(getAuthStatus: GetAuthStatus) {
   const snapshot = await getAuthStatus({
-    getClaudeMode: () => 'api', getActiveBackend: () => 'claude', listProfiles: () => [],
+    getClaudeMode: () => 'api', getActiveBackend: () => 'claude', listFavorites: () => [],
     readClaudeAuthStatus: async () => ({
       loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
     }),

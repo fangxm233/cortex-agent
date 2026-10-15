@@ -86,7 +86,7 @@ test('!skills lists only the plugins of the environment the channel runs, extern
   const envDir = path.join(CONFIG_DIR, 'environments');
   fs.mkdirSync(envDir, { recursive: true });
   fs.writeFileSync(path.join(envDir, 'main.json'), JSON.stringify({
-    name: 'main', profile: '__active__', pluginDirs: ['plugins/beta', external],
+    name: 'main', pluginDirs: ['plugins/beta', external],
   }));
   loadEnvironments();
   const adapter = new MockAdapter();
@@ -102,10 +102,10 @@ test('skills.session lists the skills a conversation loads, with what a palette 
   const envDir = path.join(CONFIG_DIR, 'environments');
   fs.mkdirSync(envDir, { recursive: true });
   fs.writeFileSync(path.join(envDir, 'main.json'), JSON.stringify({
-    name: 'main', profile: '__active__', pluginDirs: ['plugins/beta', 'plugins/alpha'],
+    name: 'main', pluginDirs: ['plugins/beta', 'plugins/alpha'],
   }));
   fs.writeFileSync(path.join(envDir, 'bare.json'), JSON.stringify({
-    name: 'bare', profile: '__active__', pluginDirs: ['plugins/alpha'], skills: false,
+    name: 'bare', pluginDirs: ['plugins/alpha'], skills: false,
   }));
   loadEnvironments();
   const sessions: Record<string, unknown> = {

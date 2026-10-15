@@ -10,7 +10,7 @@ vi.mock('@/i18n', async (importOriginal) => {
     useVocab: () => ({
       ...actual.en,
       stNavAppearance: 'Appearance', stNavPlatform: 'Platform', stNavAccounts: 'Accounts',
-      stNavProfiles: 'Profiles', stNavBudget: 'Budget', stNavUsage: 'Usage',
+      stNavModels: 'Models', stNavBudget: 'Budget', stNavUsage: 'Usage',
       stNavMachines: 'Machines', stNavEnvironments: 'Environments', stNavPlugins: 'Plugins',
       stNavMcp: 'MCP', stNavNotifications: 'Notifications', stNavHooks: 'Hooks',
       stNavAdvanced: 'Advanced', connConnected: 'Connected', connConnecting: 'Connecting',
@@ -21,7 +21,7 @@ vi.mock('@/i18n', async (importOriginal) => {
   };
 });
 
-const vm: MSettingsVm = { profileName: 'default', profileModel: 'sonnet', profileThinking: 'high' };
+const vm: MSettingsVm = { modelLabel: 'sonnet', thinking: 'high' };
 
 function renderSettings(overrides: Partial<Parameters<typeof MSettingsView>[0]> = {}) {
   return create(
@@ -55,6 +55,9 @@ describe('MSettingsView parity', () => {
 
     act(() => renderer.root.findByProps({ 'data-settings-entry': 'budget' }).props.onClick());
     expect(onOpenSection).toHaveBeenCalledWith('budget');
+    act(() => renderer.root.findByProps({ 'data-settings-entry': 'models' }).props.onClick());
+    expect(onOpenSection).toHaveBeenCalledWith('models');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Default model');
     expect(renderer.root.findByProps({ 'data-settings-entry': 'environments' }).props.onClick).toBeUndefined();
     expect(renderer.root.findByProps({ 'data-settings-entry': 'plugins' }).props.onClick).toBeUndefined();
   });

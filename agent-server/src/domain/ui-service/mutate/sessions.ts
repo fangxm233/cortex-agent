@@ -11,7 +11,6 @@ import type {
   SessionsCompactReturn,
   SessionsMarkManyReadReturn,
   SessionsCancelReturn,
-  SessionsSetProfileReturn,
   SessionsSetAgentReturn,
   SessionsSetSelectionReturn,
   SessionsCreateAndSendReturn,
@@ -154,8 +153,8 @@ export async function handleMarkManyReadSessions(
 
 // Create a fresh session AND send the first message in one atomic operation. Used by the workbench
 // "New Conversation" draft flow (task 15b): the session is created only when the user sends their
-// first message, at which point the profile is already known and the backend is resolved correctly.
-// Creates the session via `createDirectSession` with the given profileName, then routes the
+// first message, at which point the engine choice is known and the backend is resolved correctly.
+// Creates the session via `createDirectSession` with the given selection, then routes the
 // message as a fire-and-forget send. Returns the new sessionId so the client can transition from
 // draft to a real session.
 export async function handleCreateAndSend(
@@ -167,17 +166,12 @@ export async function handleCreateAndSend(
   }
   const { sessionId, channel } = await deps.createDirectSession({
     projectId: args.projectId,
-    profileName: args.profileName ?? null,
     // The draft composer's environment choice, applied at creation for the same reason as the
     // selection below: the agent decides the spawned process's prompt and tool surface, and there
     // is no session to `setAgent` on before the first turn.
     agentName: args.agentName ?? null,
-    // The draft composer's model/thinking choice, applied at creation so the FIRST turn already
-    // runs it — there is no session to `setSelection` on before this call. A composer that sends
-    // none is stating the empty selection ("follow the profile"), not staying silent: this is the
-    // one create path that always has a composer behind it, and the empty case is exactly the one
-    // that has to re-seed what the NEXT new conversation opens on.
-    selection: args.selection ?? {},
+    // Apply the complete engine choice before the first turn.
+    selection: args.selection,
     browser: args.browser ?? null,
   });
 
@@ -202,43 +196,7 @@ export async function handleCreateAndSend(
   return { ok: true, data: { sessionId, acceptedAt } };
 }
 
-// Switch the session's active profile under the shared profile-switch rule (the same
-// `switchChannelProfile` the Slack/Feishu `!profile` command uses, injected as `switchSessionProfile`).
-// Resolves the session→channel, delegates to the rule, and maps its structured outcome to a Result:
-//   • unknown-profile            → invalid-args
-//   • cross-backend-live-session → conflict (the conversation can't swap backends; start a new session)
-// A same-backend switch keeps the conversation (no reset) — only the model changes on the next turn.
-export async function handleSetProfile(
-  deps: UiServiceDeps,
-  args: MutateArgs<'sessions.setProfile'>,
-): Promise<Result<SessionsSetProfileReturn>> {
-  const session = await deps.sessionStore.getById(args.sessionId);
-  if (!session) {
-    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
-  }
-  const res = await deps.switchSessionProfile({ channel: session.channel, name: args.profileName });
-  if (!res.ok) {
-    if (res.reason === 'unknown-profile') {
-      return { ok: false, code: 'invalid-args', message: t('ui.session.unknownProfile', { name: args.profileName }) };
-    }
-    return {
-      ok: false,
-      code: 'backend-locked', // maps to CONFLICT in the tRPC layer
-      message: t('ui.session.backendLockedNamed', {
-        name: res.name, target: res.targetBackend, current: res.currentBackend,
-      }),
-    };
-  }
-  return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
-}
-
-// Switch the session's agent — its execution environment — under the shared agent-switch rule (the
-// same `switchChannelAgent` the Slack/Feishu `!agent` command uses, injected as `switchSessionAgent`).
-// The error mapping is `handleSetProfile`'s, for the same reasons:
-//   • unknown-agent              → invalid-args
-//   • cross-backend-live-session → conflict (an agent pinning a profile on the other backend is a
-//                                  backend move; a live conversation can't be resumed there)
-// A null `agentName` clears the selection: the session follows the global default again.
+// Switch execution environment independently of the engine. Null follows the default agent.
 export async function handleSetAgent(
   deps: UiServiceDeps,
   args: MutateArgs<'sessions.setAgent'>,
@@ -250,34 +208,33 @@ export async function handleSetAgent(
   const name = args.agentName ?? null;
   const res = await deps.switchSessionAgent({ channel: session.channel, name });
   if (!res.ok) {
-    if (res.reason === 'unknown-agent') {
-      return { ok: false, code: 'invalid-args', message: t('ui.session.unknownAgent', { name: String(name) }) };
-    }
-    return {
-      ok: false,
-      code: 'backend-locked', // maps to CONFLICT in the tRPC layer
-      message: t('ui.session.backendLockedNamed', {
-        name: String(name), target: res.targetBackend, current: res.currentBackend,
-      }),
-    };
+    return { ok: false, code: 'invalid-args', message: t('ui.session.unknownAgent', { name: String(name) }) };
   }
-  return {
-    ok: true,
-    data: {
-      agentName: res.agentName,
-      profileName: res.effectiveProfile,
-      backendChanged: res.backendChanged,
-    },
-  };
+  return { ok: true, data: { agentName: res.agentName } };
 }
 
-// Change what the session's next turn runs — its profile, its model, its PI provider, its thinking
-// level, or any combination — through the ONE domain rule (`applyChannelSelection`, injected as
-// `applySessionSelection`). The composer's greying-out is a preview of that rule; this is where it
-// is enforced. Refusals map to:
-//   • unknown-profile / provider-not-supported / invalid-thinking → invalid-args
-//   • cross-backend-live-session                                  → conflict (start a new session)
-// A same-backend change keeps the conversation — only the next turn differs.
+type SelectionResult = Awaited<ReturnType<UiServiceDeps['applySessionSelection']>>;
+
+function selectionError(result: SelectionResult, args: MutateArgs<'sessions.setSelection'>): Result<never> {
+  if (result.reason === 'cross-backend-live-session') {
+    return {
+      ok: false, code: 'backend-locked',
+      message: t('ui.session.backendLocked', { target: result.targetBackend, current: result.currentBackend }),
+    };
+  }
+  const messages: Record<string, () => string> = {
+    'invalid-thinking': () => t('ui.session.invalidThinking', {
+      level: String(args.selection.thinking), expected: expectedOneOf(result.allowed),
+    }),
+    'invalid-mode': () => t('ui.session.invalidMode', {
+      mode: args.selection.mode, expected: expectedOneOf(result.allowed),
+    }),
+    'provider-not-supported': () => t('ui.session.noProvider', { provider: String(args.selection.provider) }),
+  };
+  return { ok: false, code: 'invalid-args', message: messages[result.reason]?.() ?? result.reason ?? 'Invalid selection' };
+}
+
+/** Apply the whole engine choice through the shared domain rule, preserving explicit nulls. */
 export async function handleSetSelection(
   deps: UiServiceDeps,
   args: MutateArgs<'sessions.setSelection'>,
@@ -286,64 +243,10 @@ export async function handleSetSelection(
   if (!session) {
     return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
-  // Wire shape → domain shape: the client states the whole selection, the domain takes a patch, so
-  // a field the client left out is an explicit "back to the profile's value".
-  const stated = args.selection;
-  const result = await deps.applySessionSelection({
-    channel: session.channel,
-    profileName: args.profileName,
-    ...(stated
-      ? {
-        model: stated.model ?? null, provider: stated.provider ?? null,
-        thinking: stated.thinking ?? null, mode: stated.mode ?? null,
-      }
-      : {}),
-  });
-  if (!result.ok) {
-    if (result.reason === 'cross-backend-live-session') {
-      return {
-        ok: false,
-        code: 'backend-locked', // maps to CONFLICT in the tRPC layer
-        message: t('ui.session.backendLocked', { target: result.targetBackend, current: result.currentBackend }),
-      };
-    }
-    if (result.reason === 'invalid-thinking') {
-      return {
-        ok: false, code: 'invalid-args',
-        message: t('ui.session.invalidThinking', {
-          level: String(args.selection?.thinking), expected: expectedOneOf(result.allowed),
-        }),
-      };
-    }
-    if (result.reason === 'invalid-mode') {
-      return {
-        ok: false, code: 'invalid-args',
-        message: t('ui.session.invalidMode', {
-          mode: String(args.selection?.mode), expected: expectedOneOf(result.allowed),
-        }),
-      };
-    }
-    if (result.reason === 'provider-not-supported') {
-      return {
-        ok: false, code: 'invalid-args',
-        message: t('ui.session.noProvider', { provider: String(args.selection?.provider) }),
-      };
-    }
-    return { ok: false, code: 'invalid-args', message: t('ui.session.unknownProfile', { name: String(args.profileName) }) };
-  }
-  return {
-    ok: true,
-    data: {
-      profileName: result.profileName,
-      backend: result.backend,
-      model: result.model,
-      provider: result.provider,
-      thinking: result.thinking,
-      mode: result.mode,
-      override: result.override,
-      backendChanged: result.backendChanged,
-    },
-  };
+  const result = await deps.applySessionSelection({ channel: session.channel, ...args.selection });
+  if (!result.ok) return selectionError(result, args);
+  const { backend, provider, model, thinking, mode, backendChanged } = result;
+  return { ok: true, data: { backend, provider, model, thinking, mode, backendChanged } };
 }
 
 // Message edit + rewind (desktop design 23 / mobile 7): resolve session→channel and delegate to

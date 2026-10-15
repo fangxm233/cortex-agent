@@ -148,12 +148,14 @@ export function MChatScreen(): JSX.Element {
   const [pendingCreatedSession, setPendingCreatedSession] = usePendingCreatedSession(active?.sessionId, isDraft, sessionId);
   const selection = useSessionSelection({
     sessionId, isDraft, hasHistory: chat.hasHistory,
-    currentProfile: active?.profileName ?? null,
-    currentOverride: active?.selectionOverride ?? null,
+    currentSelection: active?.selection,
     currentAgent: active?.agentName,
     draftSelection, setDraftSelection, pendingCreatedSession,
   });
-  const onPickSelection = (row: SelectionSheetRow): void => selection.apply(row.change);
+  const onPickSelection = (row: SelectionSheetRow): void => {
+    if (row.modelOption) selection.pickModel(row.modelOption);
+    else selection.apply(row.change);
+  };
 
   // Browser control is chosen on the draft only: it decides what the agent's process spawns with,
   // so a live session can report it but never change it.
@@ -171,11 +173,11 @@ export function MChatScreen(): JSX.Element {
       browserDevice: draftBrowserDevice,
     },
     slash: {
-      profileOptions: selection.profileOptions,
+      modelOptions: selection.favoriteOptions,
       backend: selection.effective.backend,
       agentName: selection.agentName,
       onNew: () => navigate(DRAFT_PATH),
-      onProfile: (name) => selection.pickProfile(name),
+      onModel: (option) => selection.pickModel(option),
       onSettings: () => navigate('/m/settings'),
       onUsage: () => navigate('/m/settings/usage', { state: { from: 'chat' } satisfies UsageNavState }),
     },
@@ -183,8 +185,7 @@ export function MChatScreen(): JSX.Element {
       if (!onDraftScreen.current) return;
       setPendingCreatedSession({
         sessionId: createdId,
-        profileName: draftSelection.profileName,
-        override: draftSelection.override,
+        selection: draftSelection.selection,
         agentName: draftSelection.agentName ?? null,
       });
       // The same screen carries on as the created session, so the row and chip stay put.

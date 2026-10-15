@@ -562,7 +562,7 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
   );
 }
 
-// Client-annotated system line in the stream (scheme 1p L808) — e.g. a real profile switch.
+// Client-annotated system line in the stream (scheme 1p L808) — e.g. a model switch.
 export function SystemLine({ text }: { text: string }): JSX.Element {
   return (
     <div

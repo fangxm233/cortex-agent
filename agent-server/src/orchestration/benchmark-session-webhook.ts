@@ -85,10 +85,22 @@ function subscribeTurns(deps: BenchmarkSessionDeps): void {
   });
 }
 
+function outputCap(value: unknown, frozen: number | null): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw new BenchmarkSessionError('benchmarkMaxOutputTokens must be a positive safe integer');
+  }
+  if (value !== frozen) {
+    throw new BenchmarkSessionError('benchmarkMaxOutputTokens differs from frozen max_output_tokens');
+  }
+  return value;
+}
+
 async function start(data: Record<string, any>, deps: BenchmarkSessionDeps): Promise<BenchmarkSessionReply> {
   const message = str(data.message);
   if (!message) throw new BenchmarkSessionError('message required');
   const context = parseProductionBenchmarkEvidenceContext(data.productionBenchmarkEvidenceContext);
+  const cap = outputCap(data.benchmarkMaxOutputTokens, context.model_execution.max_output_tokens);
   const run = `${context.trial_id}/${context.root_run_id}`;
   if (startingRuns.has(run) || sessionForRun(context.trial_id, context.root_run_id)) {
     throw new BenchmarkSessionError(`trial run ${run} already has a session`);
@@ -98,7 +110,7 @@ async function start(data: Record<string, any>, deps: BenchmarkSessionDeps): Pro
     subscribeTurns(deps);
     const { sessionId, channel } = await deps.createSession(str(data.projectId) || 'general');
     // Bound before the delivery, so the first turn's runs already carry the context.
-    bindSessionEvidenceContext(sessionId, context);
+    bindSessionEvidenceContext(sessionId, context, cap);
     const entry: TrackedSession = { channel, delivering: true, deliveryError: null, turns: [] };
     tracked.set(sessionId, entry);
     void deps.deliver(channel, message).then(

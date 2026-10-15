@@ -183,7 +183,7 @@ export function registerSubagentTools(server: McpServer, ctx: CortexToolContext)
           background: !!background,
           cwd: process.cwd(),
           // The parent's own scope: it decides where children run and what routing they inherit.
-          profile: ctx.profile,
+          selection: ctx.selection,
           project: ctx.project,
           channel: ctx.channel,
           backend: ctx.backend,

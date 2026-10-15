@@ -121,7 +121,6 @@
 .mobile-settings .ps-grid { grid-template-columns: minmax(0, 1fr); }
 .mobile-settings-choice { flex-wrap: wrap; }
 .mobile-settings-choice > :first-child { flex-basis: 140px !important; }
-.mobile-settings-profile-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 8px; align-items: end; }
 .mobile-settings [data-usage-policy-controls] { flex-wrap: wrap; }
 .mobile-settings [data-usage-threshold-reset] { width: 44px !important; height: 44px !important; }
 .mobile-settings [data-usage-threshold-input] { width: 100%; }

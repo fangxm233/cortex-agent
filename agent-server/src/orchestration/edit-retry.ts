@@ -6,7 +6,8 @@ import { enqueue } from './conduit-queue.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { sessionStore, effectiveBackendSessionId, type Session } from '@store/session-registry-repo.js';
-import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import {
   buildUserProcessingMessage, writeStatus, buildStatusActionBlocks, initStatusBlocks,
 } from './status-helpers.js';
@@ -39,7 +40,8 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   const retryDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
 
   const retryPrefix = `${Icons.refresh} ${t('status.retry')} (${t('status.retryEdited')}) | `;
-  const retryStatusText = retryPrefix + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionId });
+  const selection = resolveRunSelection({ channel, session });
+  const retryStatusText = retryPrefix + buildUserProcessingMessage({ startTime, selection, sessionId });
   const retryBlocksTemplate = { channel, sessionId, isDm: true };
   const statusMsg = await adapter.postMessage(retryDest, {
     text: retryStatusText,
@@ -47,7 +49,7 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   });
   initStatusBlocks(statusMsg, retryBlocksTemplate);
 
-  updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionId);
+  updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionId, selection);
   const turnTrackingToken = await initTurnTracking(
     channel, sessionId, backendSessionId,
     userMessageTs, text, statusMsg.messageId,
@@ -80,7 +82,7 @@ export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
   if (!leased) return;
   const backendSessionId = session ? effectiveBackendSessionId(session) : null;
   const projectId = session?.projectId ?? 'general';
-  const backend = resolveBackendForChannel(channel);
+  const backend = resolveRunSelection({ channel, session }).backend;
   await withTurnBrowser({ backend, browser: session?.browser ?? null }, (cdpEndpoint) => openTurn({
     channel, adapter, threadAnchorId: null,
     session: { sessionId, backendSessionId, projectId, lease: leased.lease },
@@ -136,7 +138,7 @@ async function leaseRetrySession(args: RetryTurnArgs): Promise<{ lease: TurnSess
   }
 }
 
-function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMessageTs: string, statusMsg: MessageRef, supersededTimestamps: string[] | undefined, retryPrefix: string, startTime: number, sessionId: string | null): void {
+function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMessageTs: string, statusMsg: MessageRef, supersededTimestamps: string[] | undefined, retryPrefix: string, startTime: number, sessionId: string | null, selection: EngineSelection): void {
   const userPermalinkP = adapter.getPermalink({ conduit: channel, messageId: userMessageTs }).catch(() => null);
   const statusPermalinkP = supersededTimestamps?.length
     ? adapter.getPermalink(statusMsg).catch(() => null)
@@ -144,7 +146,7 @@ function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMe
 
   Promise.all([userPermalinkP, statusPermalinkP]).then(([userPermalink, statusPermalink]) => {
     if (userPermalink) {
-      writeStatus(adapter, statusMsg, `${Icons.refresh} ${t('status.retry')} (<${userPermalink}|${t('status.retryEdited')}>) | ` + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionId }));
+      writeStatus(adapter, statusMsg, `${Icons.refresh} ${t('status.retry')} (<${userPermalink}|${t('status.retryEdited')}>) | ` + buildUserProcessingMessage({ startTime, selection, sessionId }));
     }
     if (statusPermalink && supersededTimestamps?.length) {
       for (const oldTs of supersededTimestamps) {

@@ -13,7 +13,7 @@ const ENV_DIR = path.join(CONFIG_DIR, 'environments');
 const PROMPT_DIR = path.join(PROMPTS_DIR, 'systemPrompts');
 
 function seedEnvironment(name: string, extra: Record<string, unknown> = {}): void {
-  const body = { name, profile: 'plan', tools: 'Read', ...extra };
+  const body = { name, tools: 'Read', ...extra };
   writeFileSync(path.join(ENV_DIR, `${name}.json`), `${JSON.stringify(body, null, 2)}\n`, 'utf8');
 }
 
@@ -126,7 +126,7 @@ describe('environments.savePrompt', () => {
     seedEnvironment('lit', { systemPrompt: 'Be brief.', description: 'after' });
     const result = await save('lit', 'Be thorough.');
     assert.ok(result.ok, JSON.stringify(result));
-    assert.deepEqual(Object.keys(readBody('lit')), ['name', 'profile', 'tools', 'systemPrompt', 'description']);
+    assert.deepEqual(Object.keys(readBody('lit')), ['name', 'tools', 'systemPrompt', 'description']);
     assert.equal(readBody('lit').systemPrompt, 'file:lit.md');
   });
 

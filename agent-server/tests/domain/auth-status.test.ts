@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'vitest';
-import { profileRepo, PROFILES_FILE } from '../../src/store/profile-repo.js';
+import { modelsRepo, MODELS_FILE } from '../../src/store/models-repo.js';
 import { getSavedApiEnv } from '../../src/domain/auth/anthropic-env.js';
 import {
   getAuthStatus,
@@ -132,14 +132,12 @@ function baseStatusOptions(
     getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: '\uE104\uE105', ANTHROPIC_BASE_URL: undefined }),
     getClaudeMode: () => 'api',
     getActiveBackend: () => 'pi' as const,
-    listProfiles: () => [
-      {
-        name: 'primary', model: 'fixture', backend: 'pi' as const, provider: 'fresh',
-        fallback: [{ model: 'fixture-fallback', backend: 'pi' as const, provider: 'soon' }],
-      },
-      { name: 'claude', model: 'fixture-claude' },
+    listFavorites: () => [
+      { model: 'fixture', backend: 'pi' as const, provider: 'fresh' },
+      { model: 'fixture-soon', backend: 'pi' as const, provider: 'soon' },
+      { model: 'fixture-claude', backend: 'claude' as const, provider: null },
     ],
-    getActiveProfileConfig: () => ({ backend: 'pi' as const, provider: 'expired' }),
+    getDefaultSelection: () => ({ backend: 'pi' as const, provider: 'expired' }),
     readClaudeAuthStatus: async () => ({
       loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
     }),
@@ -323,7 +321,7 @@ test('Claude status reads expiry metadata from an explicitly named Claude config
       getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: undefined, ANTHROPIC_BASE_URL: undefined }),
       getClaudeMode: () => 'plan',
       getActiveBackend: () => 'claude',
-      listProfiles: () => [],
+      listFavorites: () => [],
       readClaudeAuthStatus: async () => ({
         loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
       }),
@@ -460,24 +458,43 @@ test('PI import and export failures degrade without suppressing Claude status', 
   }
 });
 
-test('fresh install auth status does not require a configured profile', async () => {
+test('fresh install auth status does not require a configured model', async () => {
+  fs.rmSync(MODELS_FILE, { force: true });
+  modelsRepo.invalidate();
   const fixture = createPiFixture();
   const options = baseStatusOptions(fixture, await loadFixture(fixture), path.join(fixture.root, 'missing'));
   try {
     const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getClaudeMode: undefined,
-      listProfiles: undefined, getActiveProfileConfig: undefined });
+      listFavorites: undefined, getDefaultSelection: undefined });
     assert.ok(snapshot.accounts.length > 0);
     assert.ok(snapshot.accounts.every(item => !item.inUse));
   } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
-test('auth status still rejects an existing corrupt profile file', async () => {
-  fs.writeFileSync(PROFILES_FILE, '{ broken');
-  profileRepo.invalidate();
+test('default-less models file is unconfigured but does not hide credentials', async () => {
+  const fixture = createPiFixture();
+  const options = baseStatusOptions(fixture, await loadFixture(fixture), path.join(fixture.root, 'missing'));
+  fs.writeFileSync(MODELS_FILE, JSON.stringify({ favorites: [] }));
+  modelsRepo.invalidate();
+  try {
+    const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getClaudeMode: undefined,
+      listFavorites: undefined, getDefaultSelection: undefined });
+    assert.ok(snapshot.accounts.length > 0);
+    assert.ok(snapshot.accounts.every(item => !item.inUse));
+  } finally {
+    fs.rmSync(MODELS_FILE, { force: true });
+    modelsRepo.invalidate();
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('auth status still rejects an existing corrupt models file', async () => {
+  fs.writeFileSync(MODELS_FILE, '{ broken');
+  modelsRepo.invalidate();
   try {
     await assert.rejects(() => getAuthStatus(), /JSON|Unexpected|property name/i);
   } finally {
-    fs.rmSync(PROFILES_FILE, { force: true });
-    profileRepo.invalidate();
+    fs.rmSync(MODELS_FILE, { force: true });
+    modelsRepo.invalidate();
   }
 });

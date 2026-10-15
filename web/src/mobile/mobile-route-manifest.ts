@@ -18,7 +18,7 @@ const ROUTES = [
   { id: 'settingsAccounts', path: '/m/settings/accounts', parent: 'settings' },
   { id: 'settingsAppearance', path: '/m/settings/appearance', parent: 'settings' },
   { id: 'settingsPlatform', path: '/m/settings/platform', parent: 'settings' },
-  { id: 'settingsProfiles', path: '/m/settings/profiles', parent: 'settings' },
+  { id: 'settingsModels', path: '/m/settings/models', parent: 'settings' },
   { id: 'settingsBudget', path: '/m/settings/budget', parent: 'settings' },
   { id: 'settingsMcp', path: '/m/settings/mcp', parent: 'settings' },
   { id: 'settingsNotifications', path: '/m/settings/notifications', parent: 'settings' },

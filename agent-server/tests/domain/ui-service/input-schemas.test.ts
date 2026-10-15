@@ -125,18 +125,14 @@ test('mutate schemas require their mandatory fields', () => {
   assert.throws(() => mutateInputSchemas['notes.update'].parse({ projectId: 'p', id: 'n1', text: '' }));
 });
 
-test('config.set accepts valid budget / profiles sections and rejects illegal values / sections', () => {
+test('config.set accepts budget and rejects retired or unknown sections', () => {
   const configSet = mutateInputSchemas['config.set'];
   assert.deepEqual(
     configSet.parse({ section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } }),
     { section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } },
   );
-  // profiles section: a non-empty defaultProfile name
-  assert.deepEqual(
-    configSet.parse({ section: 'profiles', value: { defaultProfile: 'plan' } }),
-    { section: 'profiles', value: { defaultProfile: 'plan' } },
-  );
-  // profiles: empty defaultProfile rejected
+  assert.throws(() => configSet.parse({ section: 'profiles', value: { defaultProfile: 'plan' } }));
+  // Retired section is rejected regardless of its value.
   assert.throws(() => configSet.parse({ section: 'profiles', value: { defaultProfile: '' } }));
   // unknown section rejected
   assert.throws(() => configSet.parse({ section: 'mcp', value: {} }));

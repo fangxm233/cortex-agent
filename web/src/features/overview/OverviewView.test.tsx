@@ -16,7 +16,7 @@ const schedule = {
   type: 'daily',
   message: 'Review project status',
   projectId: 'nimbus',
-  profile: 'default',
+  selection: { backend: 'claude', provider: null, model: 'claude-opus', thinking: 'high', mode: 'plan' },
   nextRun: '2030-01-02T09:00:00.000Z',
   lastRun: null,
   paused: true,
@@ -118,6 +118,11 @@ afterEach(() => {
 });
 
 describe('Overview schedule actions', () => {
+  it('shows the schedule model name in the chip', async () => {
+    const renderer = await mount();
+    expect(renderer.root.findAllByType('span').some((span) => span.children.includes('claude-opus'))).toBe(true);
+    act(() => renderer.unmount());
+  });
   it('keeps every execution column inside a keyboard-scrollable region', async () => {
     const renderer = await mount();
     const region = renderer.root.findByProps({ className: 'overview-table-scroll' });

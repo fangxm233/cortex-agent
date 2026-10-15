@@ -45,7 +45,7 @@ function registerTools(
 
 function ctx(overrides: Partial<CortexToolContext> = {}): CortexToolContext {
   return {
-    channel: 'web:42', sessionId: 'sess-1', profile: 'main', project: 'proj', backend: 'claude',
+    channel: 'web:42', sessionId: 'sess-1', selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' }, project: 'proj', backend: 'claude',
     scheduleTaskId: null, callbackSource: null, branchMachine: null,
     webhookBaseUrl: 'http://127.0.0.1:3001', webhookToken: 'tok',
     slackBotToken: null, toolAllowlist: null,
@@ -120,7 +120,8 @@ test('a foreground call starts the run, then polls until it settles', async () =
   assert.equal(start.background, false);
   assert.deepEqual(start.params, { description: 'd', prompt: 'p', subagent_type: 'general-purpose' });
   // The parent's own scope travels with the call — that is what the child inherits routing from.
-  assert.equal(start.profile, 'main');
+  assert.deepEqual(start.selection, { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' });
+  assert.equal(Object.hasOwn(start, 'profile'), false);
   assert.equal(start.channel, 'web:42');
   assert.equal(start.backend, 'claude');
   assert.deepEqual(waits.map(w => w.action), ['wait', 'wait']);

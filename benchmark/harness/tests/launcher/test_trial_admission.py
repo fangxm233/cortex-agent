@@ -175,14 +175,14 @@ def write_manifest_inputs(root: Path) -> dict[str, object]:
 
 def arm() -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex",
         "name": "cortex-direct",
         "backend": "pi",
         "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8,
             "max_cost_usd": "2.50",
@@ -208,7 +208,7 @@ def vendor_arm(vendor_agent: str) -> dict[str, object]:
         vendor_agent
     ]
     return {
-        "schema_version": "cortex-benchmark-arm/3", "kind": "vendor-baseline",
+        "schema_version": "cortex-benchmark-arm/4", "kind": "vendor-baseline",
         "name": f"pure-{vendor_agent}", "vendor_agent": vendor_agent,
         "vendor_cli_version": "1.2.3", "provider": provider,
         "model": "representative-model", "credential_capability": "fixture-capability",
@@ -226,7 +226,6 @@ def seed() -> dict[str, object]:
             "image_ref": IMAGE_REF,
             "image_digest": DIGEST,
         },
-        "profile_name": "benchmark",
         "paid_run": False,
         "credential": {
             "upstream_base_url": "https://api.anthropic.com",

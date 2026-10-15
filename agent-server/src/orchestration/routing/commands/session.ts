@@ -5,7 +5,7 @@ import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import { formatTimeAgo } from './time-ago.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { getActiveProfile } from '@domain/agents/index.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { engines } from '@domain/runs/engines.js';
 
 import { fireAndForgetPreCloseHook, resolveOnNewThreadAnchor } from '@domain/sessions/session-hooks.js';
@@ -31,7 +31,7 @@ export async function handleNewCmd(
   }
 
   void engines.close(channel);
-  const profileName = getActiveProfile(channel) || 'default';
+  const selection = resolveRunSelection({ channel });
   await resetChannelSession(channel);
   const cleared = planApprovals.clearByChannel(channel);
   if (cleared > 0) log.info('Cleared pending plan for channel:', channel);
@@ -39,7 +39,7 @@ export async function handleNewCmd(
   // resolves (broadcasts session.interaction) instead of dangling.
   void interactionRecords.resolvePendingByChannel(channel, 'cancelled', 'command');
   log.info('New conversation started in channel:', channel);
-  await adapter.postMessage(dest, { text: t('cmd.session.newConversation', { profile: profileName }) });
+  await adapter.postMessage(dest, { text: t('cmd.session.newConversation', { selection: `${selection.backend} · ${selection.model}` }) });
 }
 
 const MAX_RESUME_BUTTONS = 10;
@@ -75,11 +75,11 @@ export function createResumeHandler(router?: CommandActionRouter) {
         }
         return;
       }
-      await attachExistingSession(ctx.channelId, { sessionId: record.sessionId, backend: record.backend, profileName: record.profileName });
-      const profileNote = record.profileName ? t('cmd.session.profileNote', { profile: record.profileName }) : '';
+      await attachExistingSession(ctx.channelId, { sessionId: record.sessionId, backend: record.backend, selection: record.selection });
+      const selectionNote = record.selection ? ` (${record.selection.backend} · ${record.selection.model})` : '';
       if (ctx.messageRef) {
         await adapter.updateMessage(ctx.messageRef, {
-          text: `${Icons.refresh} ${t('cmd.session.switched', { name: shortSessionId(record.sessionId), profileNote })}`,
+          text: `${Icons.refresh} ${t('cmd.session.switched', { name: shortSessionId(record.sessionId), selectionNote })}`,
         }).catch(() => {});
       }
     };
@@ -109,9 +109,9 @@ export function createResumeHandler(router?: CommandActionRouter) {
         return;
       }
       const { record } = resolved;
-      await attachExistingSession(channel, { sessionId: record.sessionId, backend: record.backend, profileName: record.profileName });
-      const profileNote = record.profileName ? t('cmd.session.profileNote', { profile: record.profileName }) : '';
-      await adapter.postMessage(dest, { text: `${Icons.refresh} ${t('cmd.session.switched', { name: shortSessionId(record.sessionId), profileNote })}` });
+      await attachExistingSession(channel, { sessionId: record.sessionId, backend: record.backend, selection: record.selection });
+      const selectionNote = record.selection ? ` (${record.selection.backend} · ${record.selection.model})` : '';
+      await adapter.postMessage(dest, { text: `${Icons.refresh} ${t('cmd.session.switched', { name: shortSessionId(record.sessionId), selectionNote })}` });
       return;
     }
 

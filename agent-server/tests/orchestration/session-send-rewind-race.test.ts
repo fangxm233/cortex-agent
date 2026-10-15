@@ -15,7 +15,7 @@ function deferred<T>() {
 
 function conversation(channel: string) {
   return {
-    sessionId: 'track-race', backend: 'claude', profileName: null,
+    sessionId: 'track-race', backend: 'claude', selection: null,
     turns: [{
       turnIndex: 0, userMessageTs: 'm0', userMessageText: 'original', statusMessageTs: null,
       responseMessageTimestamps: [], executionId: null, backupPath: null,

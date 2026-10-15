@@ -29,7 +29,9 @@ import { fireAndForgetPreCloseHook } from '../../../src/domain/sessions/session-
 import { handleDefaultAgentResult } from '../../../src/orchestration/turn/terminal.js';
 import { MockAdapter, MockOutputStream } from '../../../src/platform/testing.js';
 import { runRequestFixture } from '../../run-request-fixture.js';
-import { seedTestProfiles } from '../../_seed-profiles.js';
+import { setChannelSelection } from '../../../src/domain/agents/config.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'session-model', thinking: 'high', mode: 'session-route' };
 
 const CAPTURE = path.join(HOOKS_DIR, 'hook-payload.json');
 const CAPTURE_SCRIPT = [
@@ -58,9 +60,10 @@ function freshSession() {
 async function register(s: ReturnType<typeof freshSession>, backendSessionId: string | null): Promise<void> {
   await sessionStore.registerSession({
     sessionId: s.trackId, backendSessionId, channel: s.channel, backend: 'claude', kind: 'local',
-    profileName: 'scan',
+    selection,
   });
   await sessionStore.bindChannel(s.channel, s.trackId);
+  setChannelSelection(s.channel, { ...selection, model: 'wrong-channel-model', thinking: 'low', mode: 'wrong-route' });
 }
 
 function writeHooks(entries: HookEntry[]): void {
@@ -94,7 +97,7 @@ function finishTurn(s: ReturnType<typeof freshSession>, request: ReturnType<type
   });
 }
 
-beforeAll(seedTestProfiles);
+beforeAll(() => {});
 beforeEach(() => {
   started.length = 0;
   rmSync(CAPTURE, { force: true });
@@ -108,7 +111,7 @@ test('the onNew follow-up turn resumes the session\'s backend id, not its track 
   await vi.waitFor(() => expect(started).toHaveLength(1));
   expect(started[0].session.sessionId).toBe(s.trackId);
   expect(started[0].session.backendSessionId).toBe(s.backendId);
-  expect(started[0].profile.name).toBe('scan');
+  expect(started[0].selection).toEqual(selection);
 });
 
 test('a session with no backend conversation yet runs the onNew hook but injects nothing', async () => {
@@ -120,7 +123,7 @@ test('a session with no backend conversation yet runs the onNew hook but injects
   expect(started).toHaveLength(0);
 });
 
-test('onMessageEnd hands the hook the track id, the registry profile and the backend id', async () => {
+test('onMessageEnd hands the hook the track id, the registry selection and the backend id', async () => {
   const s = freshSession();
   await register(s, s.backendId);
   writeHooks([hook('cortex:session.messageEnd', { script: 'capture.mjs' })]);
@@ -128,7 +131,9 @@ test('onMessageEnd hands the hook the track id, the registry profile and the bac
   const seen = JSON.parse(readFileSync(CAPTURE, 'utf8'));
   expect(seen.payload.sessionId).toBe(s.trackId);
   expect(seen.payload.backendSessionId).toBe(s.backendId);
-  expect(seen.payload.profile).toBe('scan');
+  expect(seen.payload.backend).toBe(selection.backend);
+  expect(seen.payload.model).toBe(selection.model);
+  expect(seen.payload).not.toHaveProperty('profile');
   expect(seen.sessionEnv).toBe(s.trackId);
   expect(seen.backendEnv).toBe(s.backendId);
 });

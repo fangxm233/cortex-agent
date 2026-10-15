@@ -65,7 +65,7 @@
 .provider-setup .setup-install-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; }
 .provider-setup .setup-install-row .setup-button { flex: none; }
 .provider-setup .setup-hint { color: var(--proto-muted); font-size: 12px; }
-.provider-setup .setup-profile-body .setup-hint { margin-top: 7px; font-size: 11px; }
+.provider-setup .setup-model-body .setup-hint { margin-top: 7px; font-size: 11px; }
 .provider-setup .setup-footer { margin-top: 20px; }
 .provider-setup .setup-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .provider-setup .setup-footnote { margin-top: 14px; color: var(--proto-muted-3); font-size: 11px; text-align: center; }

@@ -20,14 +20,14 @@ const tag = process.env.SCHED_TAG;
 process.stdout.write('ready\\n');
 await new Promise((resolve) => process.stdin.once('data', resolve));
 for (let i = 0; i < Number(process.env.SCHED_OPS); i++) {
-  await repo.addTask({ id: tag + '-' + i, type: 'interval', message: tag, projectId: 'p', profile: null, createdAt: Date.now(), intervalMs: 60000 });
+  await repo.addTask({ id: tag + '-' + i, type: 'interval', message: tag, projectId: 'p', selection: { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' }, createdAt: Date.now(), intervalMs: 60000 });
   await repo.updateTask('shared', (task) => { task.lastRun = (task.lastRun ?? 0) + 1; });
 }
 process.exit(0);
 `;
 
 function sharedTask(): ScheduleTask {
-  return { id: 'shared', type: 'interval', message: 'counter', projectId: 'p', profile: null, createdAt: 0, intervalMs: 60_000, lastRun: 0 };
+  return { id: 'shared', type: 'interval', message: 'counter', projectId: 'p', selection: { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' }, createdAt: 0, intervalMs: 60_000, lastRun: 0 };
 }
 
 function spawnWriter(file: string, tag: string): ChildProcessWithoutNullStreams {

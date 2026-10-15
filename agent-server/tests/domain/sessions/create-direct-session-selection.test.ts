@@ -3,115 +3,73 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
-
-// What a draft composer carries into the session it creates. Two things happen, and they are the
-// same rule the live picker runs (`applyChannelSelection`): the stated selection lands on the new
-// channel, and it becomes the seed the NEXT new conversation opens on.
-//
-// The case under guard is the EMPTY selection — "follow the profile". That is how a user takes a
-// model back in a draft, and it used to be dropped on the floor: the seed kept the model that had
-// just been abandoned, so every later draft re-opened on it, however many times it was cleared.
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
 const HOME = process.env.CORTEX_HOME!;
-const PROFILES = path.join(HOME, 'config', 'profiles.json');
+const MODELS = path.join(HOME, 'config', 'models.json');
 const STATE = path.join(HOME, 'data', 'agent-state.json');
-
-const PROFILES_FILE = {
-  defaultProfile: 'opus',
-  profiles: {
-    opus: { model: 'claude-opus-5', backend: 'claude', mode: 'plan', thinking: 'xhigh' },
-    sonnet: { model: 'claude-sonnet-5', backend: 'claude', mode: 'plan' },
-  },
-};
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' };
+const other: EngineSelection = { ...selection, model: 'claude-sonnet-5', thinking: 'low' };
 
 function seed(state: Record<string, unknown> = {}): void {
-  mkdirSync(path.dirname(PROFILES), { recursive: true });
+  mkdirSync(path.dirname(MODELS), { recursive: true });
   mkdirSync(path.dirname(STATE), { recursive: true });
-  writeFileSync(PROFILES, JSON.stringify(PROFILES_FILE));
+  writeFileSync(MODELS, JSON.stringify({ default: selection, favorites: [selection, other] }));
   writeFileSync(STATE, JSON.stringify(state));
 }
 
-/** Re-import with the state file as written: config.ts reads agent-state.json at import time. */
 function freshLifecycle() {
   return importWithFreshRegistry(() => import('../../../src/domain/sessions/session-lifecycle.js'));
 }
 
-function deps(): any {
+function deps() {
+  const registered: any[] = [];
+  const headers: any[] = [];
   return {
-    sessionStore: { registerSession: async () => {} },
+    registered, headers,
+    sessionStore: { registerSession: async (record: unknown) => { registered.push(record); } },
     setChannelSession: async () => {},
-    initConversation: async () => {},
+    initConversation: async (_channel: string, header: unknown) => { headers.push(header); },
     resolveBackend: () => 'claude',
   };
 }
 
-function storedOverride(channel: string): unknown {
-  return JSON.parse(readFileSync(STATE, 'utf8')).channelOverrides?.[channel] ?? null;
-}
-
-/** The seed a brand-new draft composer opens on. */
-function storedSeed(): unknown {
-  return JSON.parse(readFileSync(STATE, 'utf8')).selectionDefault ?? null;
-}
-
+function state(): any { return JSON.parse(readFileSync(STATE, 'utf8')); }
 beforeEach(() => { rmSync(STATE, { force: true }); });
-afterEach(() => { rmSync(STATE, { force: true }); rmSync(PROFILES, { force: true }); });
+afterEach(() => { rmSync(STATE, { force: true }); rmSync(MODELS, { force: true }); });
 
-test('a stated selection lands on the new channel and seeds the next conversation', async () => {
-  seed({ activeProfile: 'opus' });
+test('a full draft selection is materialized on channel, session, ledger and next draft', async () => {
+  seed({ activeProfile: 'obsolete', channelOverrides: { unused: { thinking: 'max' } } });
   const { createDirectSession } = await freshLifecycle();
-
-  const { sessionId } = await createDirectSession(deps(), {
-    projectId: 'p', profileName: 'opus', selection: { model: 'claude-sonnet-5', thinking: 'low' },
-  });
-
-  assert.deepEqual(storedOverride(`web:${sessionId}`), { model: 'claude-sonnet-5', thinking: 'low' },
-    'the first turn already runs what the draft picked');
-  assert.deepEqual(storedSeed(), { profileName: 'opus', model: 'claude-sonnet-5', thinking: 'low' },
-    'and the next new conversation opens on it');
+  const d = deps();
+  const { channel } = await createDirectSession(d, { projectId: 'p', selection: other });
+  assert.deepEqual(state().channelSelections[channel], other);
+  assert.deepEqual(state().selectionDefault, other);
+  assert.deepEqual(d.registered[0].selection, other);
+  assert.deepEqual(d.headers[0].selection, other);
 });
 
-test('a draft cleared back to its profile drops the model from the seed', async () => {
-  // The state a user is left in after picking a model once: the seed carries it, so every new
-  // conversation opens on it until something says otherwise.
-  seed({
-    activeProfile: 'opus',
-    selectionDefault: { profileName: 'opus', model: 'claude-haiku-4-5', thinking: 'low' },
-  });
+test('resetting a draft to models.default replaces all remembered fields', async () => {
+  seed({ selectionDefault: other });
   const { createDirectSession } = await freshLifecycle();
-
-  // "Follow the profile" in the draft: a selection with nothing in it. It is a statement, not
-  // silence — the composer said to run the profile as declared.
-  const { sessionId } = await createDirectSession(deps(), {
-    projectId: 'p', profileName: 'opus', selection: {},
-  });
-
-  assert.equal(storedOverride(`web:${sessionId}`), null, 'the session runs its profile as declared');
-  assert.deepEqual(storedSeed(), { profileName: 'opus' },
-    'and the next new conversation no longer opens on the model that was taken back');
+  const { channel } = await createDirectSession(deps(), { projectId: 'p', selection });
+  assert.deepEqual(state().channelSelections[channel], selection);
+  assert.deepEqual(state().selectionDefault, selection);
 });
 
-test('an empty selection still records the profile the draft chose', async () => {
-  seed({
-    activeProfile: 'opus',
-    selectionDefault: { profileName: 'opus', model: 'claude-haiku-4-5' },
-  });
+test('a worker explicit selection does not move the user draft seed', async () => {
+  seed({ selectionDefault: other });
   const { createDirectSession } = await freshLifecycle();
-
-  await createDirectSession(deps(), { projectId: 'p', profileName: 'sonnet', selection: {} });
-
-  assert.deepEqual(storedSeed(), { profileName: 'sonnet' },
-    'the seed follows the profile the composer moved to, with no override left hanging on it');
+  const { channel } = await createDirectSession(deps(), { projectId: 'p', selection, seedDefault: false });
+  assert.deepEqual(state().channelSelections[channel], selection);
+  assert.deepEqual(state().selectionDefault, other);
 });
 
-test('a create with no composer behind it leaves the seed alone', async () => {
-  const untouched = { profileName: 'opus', model: 'claude-haiku-4-5', thinking: 'low' };
-  seed({ activeProfile: 'opus', selectionDefault: untouched });
+test('a create without a composer materializes the default and leaves the seed alone', async () => {
+  seed({ selectionDefault: other });
   const { createDirectSession } = await freshLifecycle();
-
-  // sessions.create / an issue's session: no draft composer, so nothing was stated and the seed is
-  // not a statement of theirs to make.
-  await createDirectSession(deps(), { projectId: 'p' });
-
-  assert.deepEqual(storedSeed(), untouched, 'the last composer pick still stands');
+  const d = deps();
+  await createDirectSession(d, { projectId: 'p' });
+  assert.deepEqual(d.registered[0].selection, selection);
+  assert.deepEqual(state().selectionDefault, other);
 });

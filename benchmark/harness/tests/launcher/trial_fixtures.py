@@ -15,11 +15,11 @@ def closed_upstream() -> str:
 
 def cortex_arm(capability_id: str, *, model: str, backend: str = "pi") -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex", "name": ARM_NAME, "backend": backend,
         "provider": "deepseek" if backend == "pi" else "anthropic", "model": model,
         "credential_capability": capability_id,
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": 120, "max_output_tokens": 65536,
@@ -33,7 +33,7 @@ def trial_seed(upstream: str, capability_id: str, *, model: str) -> dict[str, ob
         "trial_id": "trial-fixture", "root_run_id": f"trial-fixture.{ARM_NAME}",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": {
             "upstream_base_url": upstream, "route_identity_host": "api.anthropic.com",
             "proxy_base_url": "http://trial-proxy.invalid",

@@ -3,6 +3,7 @@ import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.j
 import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 // Re-exported so every `import { Backend } from '.../agent-adapter/types.js'` keeps working;
 // the definition moved to core so `core/agents/*` can name a backend without importing up.
@@ -39,7 +40,8 @@ export type RateLimitReporter = (
 
 /** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
 export interface CortexContextEnv {
-  profile?: string | null;
+  /** The actual selected attempt, not the request's original selection. */
+  selection?: EngineSelection;
   project?: string | null;
   /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
    *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
@@ -59,7 +61,7 @@ export interface EngineSpec {
   engineKey: string;
   cwd?: string;
   resume: { backendSessionId: string | null; resume: boolean };
-  model: { id?: string; provider?: string; thinking?: string; maxOutputTokens?: number };
+  model: { id?: string; provider?: string; thinking?: string; benchmarkMaxOutputTokens?: number };
   prompt: { system?: string; append?: string };
   tools: { canonical?: string[]; rawClaude?: string };
   plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string;
@@ -80,7 +82,6 @@ export interface EngineSpec {
            /** Team worker: a direct session that also gets the `cortex-worker-report` tool. */
            teamWorker?: boolean };
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
-  extraOption?: Record<string, string>;
   backend:
     | { kind: 'claude'; claudeAgent?: string; outputStyle?: string }
     | { kind: 'pi' };

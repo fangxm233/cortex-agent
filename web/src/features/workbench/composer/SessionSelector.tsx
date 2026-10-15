@@ -25,14 +25,8 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
     triggerRef.current?.focus({ preventScroll: true });
   };
   useDismissMenu(open, escape, close);
-  // A pick inside a sub-pane returns to the root with the picker still open: model and thinking
-  // level are usually chosen together, and the root now shows what the change amounted to. Naming a
-  // profile is the wholesale move — it also drops the overrides — so that one closes.
   const backToRoot = () => setPane('root');
   const parts = selectionChipParts(selection.effective);
-  const overridden = selection.effective.modelOverridden
-    || selection.effective.thinkingOverridden
-    || selection.effective.modeOverridden;
 
   return (
     <span
@@ -46,13 +40,13 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
         ref={triggerRef}
         className={MENU_FOCUS}
         aria-expanded={open}
-        // The chip shows the model; its tooltip names the profile.
-        title={`${L.wbProfile} · ${selection.effective.profileName}`}
+        // The chip shows the model.
+        title={`${L.wbModel} · ${selection.effective.model}`}
         onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
         style={{
           font: CHIP_FONT, background: 'transparent',
-          border: `1.5px solid ${hover || overridden ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-          color: hover || overridden ? 'var(--proto-accent)' : 'var(--proto-muted)',
+          border: `1.5px solid ${hover ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
+          color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)',
           padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, maxWidth: 280,
         }}
@@ -66,49 +60,25 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
       </button>
       {open ? (
         <SelectionMenu
-          profiles={selection.profileOptions}
-          hiddenProfiles={selection.hiddenProfiles}
-          hiddenProfileBackend={selection.hiddenProfileBackend}
+          favorites={selection.favoriteOptions}
           modelGroups={selection.modelGroups}
-          hiddenModelsCrossBackend={selection.hiddenModelsCrossBackend}
-          hiddenModelsBackend={selection.hiddenModelsBackend}
-          hiddenModelsNoProfile={selection.hiddenModelsNoProfile}
           thinking={selection.thinkingOptions}
           modes={selection.modeOptions}
           rootRows={selection.rootRows}
-          profileModel={selection.profileModel}
-          profileThinking={selection.profileThinking}
-          profileMode={selection.profileMode}
-          modelOverridden={selection.effective.modelOverridden}
-          thinkingOverridden={selection.effective.thinkingOverridden}
-          modeOverridden={selection.effective.modeOverridden}
-          anyOverridden={overridden}
           modelsReady={selection.modelsReady}
           pane={pane}
           setPane={setPane}
-          onPickProfile={(name) => { close(); selection.pickProfile(name); }}
+          onPickFavorite={(option) => { close(); selection.pickFavorite(option); }}
+          onToggleFavorite={selection.toggleFavorite}
           onPickModel={(option) => { backToRoot(); selection.pickModel(option); }}
           onPickThinking={(level) => { backToRoot(); selection.pickThinking(level); }}
           onPickMode={(mode) => { backToRoot(); selection.pickMode(mode); }}
-          onClearAll={() => { close(); selection.clearAll(); }}
         />
       ) : null}
     </span>
   );
 }
 
-/**
- * The composer's environment chip, to the LEFT of the engine one: where the conversation runs,
- * before what runs it.
- *
- * It says the agent's name outright rather than hiding it in a tooltip, because the environment is
- * what decides whether the session has the skills and rules for the job at all — a fact worth a
- * glance, not a hover. Following the host's default is drawn muted, the same way the engine chip is
- * muted while nothing overrides its profile; the name shown then is what the conversation falls
- * back to, not a choice anyone made.
- *
- * Nothing is drawn on a host with fewer than two agents: a list of one is not a choice.
- */
 export function AgentSelectorView({ selection }: { selection: SessionSelection }): JSX.Element | null {
   const L = useVocab();
   const { agentOpen: open, setAgentOpen: setOpen } = selection;
@@ -148,8 +118,7 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
         <AgentMenu
           agents={selection.agentOptions}
           overridden={!parts.followingDefault}
-          // One level, so a pick is the whole visit — the menu closes behind it, the way naming a
-          // profile closes the engine one.
+          // Close after choosing an environment.
           onPick={(name) => { close(); selection.pickAgent(name); }}
         />
       ) : null}

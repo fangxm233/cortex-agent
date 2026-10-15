@@ -4,7 +4,7 @@ import { buildSessionIdRows } from '@/features/session/list/session-id';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { SelectionRootRow } from '@/features/session/list/selection-menu';
+import type { ModelOption, SelectionRootRow } from '@/features/session/list/selection-menu';
 import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
 import type { MChatSelection, MChatSelectionView } from './m-chat-selection';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
@@ -125,10 +125,25 @@ export function ContextUsageSheet({ usage, compactAction, onClose }: {
   );
 }
 
-function SelectionRow({ row, last, onPick }: {
+function FavoriteStar({ option, onToggle }: {
+  option: ModelOption;
+  onToggle: (option: ModelOption) => void;
+}): JSX.Element {
+  const copy = useVocabOptional();
+  return <button
+    type="button" data-model-star={option.id}
+    aria-label={option.favorite ? copy.chatFavoriteRemove : copy.chatFavoriteAdd}
+    aria-pressed={option.favorite}
+    onClick={(event) => { event.stopPropagation(); onToggle(option); }}
+    style={{ flex: 'none', background: 'transparent', border: 0, padding: '8px', fontSize: 18, color: option.favorite ? MC.run : MC.muted, cursor: 'pointer' }}
+  >{option.favorite ? '★' : '☆'}</button>;
+}
+
+function SelectionRow({ row, last, onPick, onToggleFavorite }: {
   row: SelectionSheetRow;
   last: boolean;
   onPick: (row: SelectionSheetRow) => void;
+  onToggleFavorite?: (option: ModelOption) => void;
 }): JSX.Element {
   const copy = useVocabOptional();
   return (
@@ -141,17 +156,17 @@ function SelectionRow({ row, last, onPick }: {
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ font: `600 13px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
-          {row.current && <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.chatProfileCurrent}</span>}
+          {row.current && <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.chatSelectionCurrent}</span>}
         </div>
         {row.sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' }}>{row.sub}</div>}
       </div>
       {row.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+      {row.modelOption && onToggleFavorite && <FavoriteStar option={row.modelOption} onToggle={onToggleFavorite} />}
     </div>
   );
 }
 
-/** A collapsed override on the root: what it is, the value in force, and a dot when that value is
- *  the session's own choice rather than the profile's. */
+/** A collapsed model, thinking or route row showing the concrete selection. */
 function SelectionDrillRow({ row, last, onOpen }: {
   row: SelectionRootRow;
   last: boolean;
@@ -164,8 +179,7 @@ function SelectionDrillRow({ row, last, onOpen }: {
       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}
     >
       <span style={{ fontSize: 13, color: MC.body, flex: 'none' }}>{row.label}</span>
-      <span style={{ marginLeft: 'auto', minWidth: 0, font: `600 12.5px ${MONO}`, color: row.overridden ? MC.run : MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
-      {row.overridden && <span style={{ fontSize: 13, color: MC.run, flex: 'none' }}>•</span>}
+      <span style={{ marginLeft: 'auto', minWidth: 0, font: `600 12.5px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
       <span style={{ fontSize: 15, color: MC.muted, flex: 'none' }}>›</span>
     </div>
   );
@@ -179,37 +193,37 @@ function SheetNote({ text }: { text: string }): JSX.Element {
   return <div style={{ font: `400 11px ${MONO}`, color: MC.muted, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
 }
 
-function SectionRows({ section, onPick }: {
+function SectionRows({ section, onPick, onToggleFavorite }: {
   section: SelectionSheetSection;
-  onPick: (row: SelectionSheetRow) => void;
-}): JSX.Element {
+} & Pick<SelectionSheetProps, 'onPick' | 'onToggleFavorite'>): JSX.Element {
   return (
     <SheetCard>
       {section.rows.map((row, index) => (
-        <SelectionRow key={row.id} row={row} last={index === section.rows.length - 1} onPick={onPick} />
+        <div key={row.id}>
+          {row.group && row.group !== section.rows[index - 1]?.group && (
+            <div data-selection-group={row.group} style={{ padding: '8px 13px 2px', font: `500 10px ${MONO}`, color: MC.muted }}>{row.group}</div>
+          )}
+          <SelectionRow row={row} last={index === section.rows.length - 1} onPick={onPick} onToggleFavorite={onToggleFavorite} />
+        </div>
       ))}
     </SheetCard>
   );
 }
 
-/** The engine sheet, two levels deep. The ROOT is the profile list plus one collapsed row per
- *  override; each of those opens a pane of its own. A pick inside a pane returns to the root with
- *  the sheet still open — model and level are usually chosen together — while naming a profile is
- *  the wholesale move (it drops the overrides too), so that one closes the sheet.
- *  The rows come from `buildSelectionSheet`, which is the desktop menu's arithmetic; this file only
- *  draws them. */
+/** Favorites close the sheet; model/thinking/route picks return to its root. Stars stay in place. */
 interface SelectionSheetProps {
   vm: SelectionSheetVM;
   /** PI is configured but has not reported its models yet. */
   pending?: boolean;
   onClose: () => void;
   onPick: (row: SelectionSheetRow) => void;
+  onToggleFavorite?: (option: ModelOption) => void;
 }
 
-function SelectionSection({ section, pending, back, onPick }: {
+function SelectionSection({ section, pending, back, onPick, onToggleFavorite }: {
   section: SelectionSheetSection;
   back: () => void;
-} & Pick<SelectionSheetProps, 'pending' | 'onPick'>): JSX.Element {
+} & Pick<SelectionSheetProps, 'pending' | 'onPick' | 'onToggleFavorite'>): JSX.Element {
   const copy = useVocabOptional();
   return (
     <>
@@ -217,9 +231,8 @@ function SelectionSection({ section, pending, back, onPick }: {
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
       </div>
-      <SectionRows section={section} onPick={(row) => { back(); onPick(row); }} />
+      <SectionRows section={section} onPick={(row) => { back(); onPick(row); }} onToggleFavorite={onToggleFavorite} />
       {section.key === 'model' && pending && <SheetNote text={copy.wbModelsPending} />}
-      {section.footer && <SheetNote text={section.footer} />}
     </>
   );
 }
@@ -231,22 +244,18 @@ function SelectionRoot({ vm, onClose, onPick, setPane }: SelectionSheetProps & {
   const pick = (row: SelectionSheetRow): void => { onClose(); onPick(row); };
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.chatProfileTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.chatProfileSubtitle}</span></div>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.chatFavoritesTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.chatSelectionSubtitle}</span></div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-        {vm.sections[0] && (
-          <div>
-            <SectionRows section={vm.sections[0]} onPick={pick} />
-            {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
-          </div>
-        )}
+        {vm.sections[0]?.rows.length
+          ? <SectionRows section={vm.sections[0]} onPick={pick} />
+          : <SheetNote text={copy.chatFavoritesEmpty} />}
         <SheetCard>
           {vm.rootRows.map((row, index) => (
-            <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
+            <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1} onOpen={() => setPane(row.key)} />
           ))}
-          {vm.clearRow && <SelectionRow row={vm.clearRow} last onPick={pick} />}
         </SheetCard>
       </div>
-      <SheetNote text={copy.chatProfileFooter} />
+      <SheetNote text={copy.chatSelectionFooter} />
     </>
   );
 }
@@ -353,7 +362,7 @@ export function SelectionSheets({ selection, view, onPick }: {
   return (
     <>
       {view.sheet && (
-        <SelectionSheet vm={view.sheet.vm} pending={view.sheet.pending} onClose={() => selection.setOpen(false)} onPick={onPick} />
+        <SelectionSheet vm={view.sheet.vm} pending={view.sheet.pending} onClose={() => selection.setOpen(false)} onPick={onPick} onToggleFavorite={selection.toggleFavorite} />
       )}
       {view.agentRows && <AgentSheet rows={view.agentRows} onClose={() => selection.setAgentOpen(false)} onPick={onPick} />}
     </>

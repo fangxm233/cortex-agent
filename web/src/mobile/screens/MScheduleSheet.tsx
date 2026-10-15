@@ -97,7 +97,8 @@ function editorLevelContent(level: SheetLevel, editor: ScheduleEditorController,
   if (level.kind !== 'editor') return null;
   if (!editor.form || !editor.mode) return null;
   return <MScheduleEditor form={editor.form} mode={editor.mode}
-    editableFields={editor.editableFields} profileOptions={editor.profileOptions}
+    editableFields={editor.editableFields} modelOptions={editor.modelOptions}
+    thinkingOptions={editor.thinkingOptions}
     valid={editor.valid} pending={editor.pending} error={editor.error}
     onChange={editor.onChange} onSubmit={submit} onBack={back} />;
 }

@@ -4,11 +4,11 @@ import { markSelectOutsideInteraction } from './select-outside-interaction';
 
 // Select 2.3.2 shares Dialog 1.1.18's dismissable-layer stack, so Escape closes only the top layer.
 // It also strips `className`/`style` off ItemText, so the popup row size lives on the Item instead —
-// the rows then read at the same size as the composer's profile menu rather than at body size.
+// the rows then read at the same size as the composer's model menu rather than at body size.
 
 export type SelectValue = string | number;
 /**
- * `compact` is the profile-chip size, for a select that carries its own chrome. `bare` adds no
+ * `compact` is the model-chip size, for a select that carries its own chrome. `bare` adds no
  * inline styling at all, leaving the whole box to the call site's className/style — that is how a
  * select is matched to the height of the input or button standing next to it. Either way the call
  * site's own `style` wins over the density defaults.

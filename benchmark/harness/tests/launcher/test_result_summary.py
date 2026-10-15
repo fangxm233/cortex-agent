@@ -43,14 +43,14 @@ def outcome(arm: dict[str, object]) -> SimpleNamespace:
 
 def cortex_arm(**overrides: object) -> dict[str, object]:
     arm = {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex",
         "name": "cortex-arm",
         "backend": "pi",
         "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": dict(LIMITS),
     }
     arm.update(overrides)

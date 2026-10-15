@@ -2,7 +2,7 @@
 // Two jobs, both about narration rather than execution:
 //
 //   1. Classify assistant prose the backend emits (`API Error:` → an error notice).
-//   2. Synthesize lines the backend never sends: "falling back to X", "context compacted",
+//   2. Synthesize lines the backend never sends: "context compacted",
 //      "rate-limited, will auto-resume".
 //
 // The subtle part is a HELD rate-limit card. A backend surfaces a 429 as an assistant message
@@ -13,10 +13,8 @@
 import { t } from '../../core/i18n.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
-import type { RunAttemptConfig } from '../agents/profile-manager.js';
-import { isApiRateLimitError, isNotRetriedFailure, type FallbackReason } from './retryable-errors.js';
+import { isApiRateLimitError } from './retryable-errors.js';
 import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
-import { attemptLabel } from './fallback.js';
 
 /** `API Error:` prose is the backend reporting its own failure, not the agent talking. */
 export function assistantNoticeLevel(text: string): ChatNoticeLevel | undefined {
@@ -49,8 +47,7 @@ export type NoticeEmit = (
 
 /**
  * Tracks error notices within one attempt so terminal handling is durable but not noisy: an
- * attempt that already showed an error card does not get a second one, and a fallback opens a
- * fresh dedupe window so the new provider's failure is not hidden by the old provider's notice.
+ * attempt that already showed an error card does not get a second one.
  */
 export class AttemptNoticeTracker {
   private readonly synthesize: boolean;
@@ -117,22 +114,6 @@ export class AttemptNoticeTracker {
     return true;
   }
 
-  /** This attempt is over and another one follows: its held card is now terminal for that
-   *  provider, and the next attempt starts with a clean dedupe window. */
-  transitionToFallback(
-    current: Pick<RunAttemptConfig, 'model' | 'mode'>,
-    next: Pick<RunAttemptConfig, 'model' | 'mode'>,
-    reason: FallbackReason,
-  ): void {
-    this.flushHeldError();
-    if (this.synthesize) {
-      const key = reason === 'rate-limited'
-        ? 'notify.attemptFallback.rateLimited' : 'notify.attemptFallback.transportError';
-      this.observe(t(key, { from: attemptLabel(current), to: attemptLabel(next) }), undefined, 'warning');
-    }
-    this.attemptHasErrorNotice = false;
-  }
-
   emitTerminalError(error: unknown): void {
     const value = error as {
       message?: unknown;
@@ -143,24 +124,10 @@ export class AttemptNoticeTracker {
     const message = typeof value?.message === 'string' && value.message.length > 0
       ? value.message
       : String(error);
-    if (isNotRetriedFailure(error)) {
-      this.emitNotRetried(message);
-      return;
-    }
     const resumableDirectError = this.ctx.trigger !== 'edit-retry'
       && isApiRateLimitError(message)
       && this.emitAutoResume(value?.rateLimitProvider);
     if (!resumableDirectError) this.emitTerminal(message);
-  }
-
-  /** A failure the chain chose not to retry is told as is: its message already carries the
-   *  provider's own error and says why nothing was retried, so neither a held card nor an earlier
-   *  error line (which say less) stands in for it, and a rate limit in it is not auto-resumed. */
-  private emitNotRetried(message: string): void {
-    this.heldError = null;
-    if (!this.synthesize || !this.emit) return;
-    this.attemptHasErrorNotice = true;
-    this.emit(terminalErrorText(message), undefined, 'error');
   }
 
   emitTerminalRateLimit(result: AgentResult): void {

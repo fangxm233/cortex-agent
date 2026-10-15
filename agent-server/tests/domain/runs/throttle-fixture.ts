@@ -7,22 +7,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-/** A profile with a two-step fallback chain plus a single-attempt profile. */
-export function writeProfilesFixture(home: string): void {
+/** One concrete default selection; rate limiting is provider/route scoped. */
+export function writeModelsFixture(home: string): void {
   const configDir = path.join(home, 'config');
   mkdirSync(configDir, { recursive: true });
-  writeFileSync(path.join(configDir, 'profiles.json'), JSON.stringify({
-    defaultProfile: 'plan',
-    profiles: {
-      plan: {
-        model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan',
-        fallback: [
-          { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'api' },
-          { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-        ],
-      },
-      scan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-    },
+  writeFileSync(path.join(configDir, 'models.json'), JSON.stringify({
+    default: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan', provider: null, thinking: null },
+    favorites: [],
   }));
 }
 
@@ -34,7 +25,7 @@ export interface ThrottleHome {
 }
 
 /**
- * Bind a private CORTEX_HOME, seed profiles, and load the throttle against it. Call at module
+ * Bind a private CORTEX_HOME, seed models, and load the throttle against it. Call at module
  * scope (top-level await) so the home is in place before any import that reads it.
  */
 export async function loadThrottleHome(prefix: string): Promise<ThrottleHome> {
@@ -48,14 +39,14 @@ export async function loadThrottleHome(prefix: string): Promise<ThrottleHome> {
   };
 
   try {
-    writeProfilesFixture(home);
+    writeModelsFixture(home);
     const { setProcessLogPolicy } = await import('../../../src/core/log.js');
     const restoreLogPolicy = setProcessLogPolicy({ consoleToStderr: false, files: false });
     try {
-      const [testing, rl, profiles] = await Promise.all([
+      const [testing, rl, models] = await Promise.all([
         import('../../../src/platform/testing.js'),
         import('../../../src/domain/costs/rate-limit-throttle.js'),
-        import('../../../src/store/profile-repo.js'),
+        import('../../../src/store/models-repo.js'),
       ]);
       return {
         rl,
@@ -79,7 +70,7 @@ export async function loadThrottleHome(prefix: string): Promise<ThrottleHome> {
         dispose() {
           try {
             rl._testReset();
-            profiles.profileRepo.invalidate();
+            models.modelsRepo.invalidate();
           } finally {
             restoreHome();
             rmSync(home, { recursive: true, force: true });

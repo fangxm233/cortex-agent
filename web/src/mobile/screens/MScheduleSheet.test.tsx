@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
 import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import type { ScheduleEditorController } from '@/features/schedule/useScheduleEditorController';
+import { scheduleModelOptions } from '@/features/schedule/schedule-modal-vm';
+import { modelKey } from '@/lib/model-selection';
 
 vi.mock('@/mobile/ui/kit', async () => ({
   ...(await vi.importActual<typeof import('@/mobile/ui/kit')>('@/mobile/ui/kit')),
@@ -18,9 +20,11 @@ vi.mock('@/mobile/ui/kit', async () => ({
 
 import { MScheduleSheetView } from './MScheduleSheet';
 
+const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+
 function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
-    id: 'sch-1', type: 'once', message: 'ship report', projectId: 'nimbus', profile: 'review',
+    id: 'sch-1', type: 'once', message: 'ship report', projectId: 'nimbus', selection,
     nextRun: '2030-01-01T08:00:00.000Z', lastRun: null, paused: false, pausedBy: null,
     intervalMs: null, time: null, dayOfWeek: null, ...p,
   } as ScheduleInfo;
@@ -30,7 +34,7 @@ function run(p: Partial<SessionInfo> = {}): SessionInfo {
   return {
     sessionId: 'run-1', backendSessionId: null, projectId: 'nimbus', backend: 'claude',
     kind: 'scheduled', origin: 'scheduled', scheduleId: 'repeat-1', createdAt: '2030-01-01T07:00:00.000Z',
-    lastUsedAt: '2030-01-01T07:00:00.000Z', resumable: true, label: null, profileName: null,
+    lastUsedAt: '2030-01-01T07:00:00.000Z', resumable: true, label: null, selection: null,
     running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null,
     unread: false, ...p, boardId: p.boardId ?? null, teamLeadId: p.teamLeadId ?? null, workerName: p.workerName ?? null,
   };
@@ -41,15 +45,16 @@ function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {
     form: {
       type: formSchedule.type,
       message: formSchedule.message,
-      profile: formSchedule.profile ?? '',
+      selection: formSchedule.selection,
       time: '09:00', dayOfWeek: 1, intervalValue: 30, intervalUnit: 'min',
       delayValue: 10, delayUnit: 'min', projectId: formSchedule.projectId,
     },
     mode: 'edit',
-    profileOptions: ['review'],
+    modelOptions: scheduleModelOptions(undefined, undefined, formSchedule.selection),
+    thinkingOptions: ['', 'high', 'xhigh'],
     editableFields: {
       type: false, time: false, interval: false, dayOfWeek: false, delay: false,
-      message: true, profile: true, projectId: true,
+      message: true, selection: true, projectId: true,
     },
     valid: true,
     pending: false,
@@ -75,6 +80,21 @@ function mount(rows: ReturnType<typeof buildScheduleRows>, editor: ScheduleEdito
 }
 
 describe('MScheduleSheetView', () => {
+  it('writes full model and thinking selections from mobile controls', () => {
+    const real = schedule();
+    const editor = editorFor(real);
+    const { renderer } = mount(buildScheduleRows([real], []), editor);
+    act(() => renderer.root.findByProps({ 'data-schedule-row': 'sch-1' }).props.onClick());
+    const pick = (field: string, value: string) => act(() => {
+      renderer.root.findByProps({ 'data-schedule-select': field }).props.onChange({ target: { value } });
+    });
+    pick('model', modelKey(selection));
+    pick('thinking', 'high');
+    pick('thinking', '');
+    expect(editor.onChange).toHaveBeenNthCalledWith(1, { selection });
+    expect(editor.onChange).toHaveBeenNthCalledWith(2, { selection: { ...selection, thinking: 'high' } });
+    expect(editor.onChange).toHaveBeenNthCalledWith(3, { selection: { ...selection, thinking: null } });
+  });
   it('pushes a pending row into an editor level in the same bottom sheet with real ScheduleInfo', () => {
     const real = schedule();
     const rows = buildScheduleRows([real], []);

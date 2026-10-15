@@ -69,7 +69,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
   try {
     const response = await handleCreateAndSend(deps, {
       projectId: 'nimbus',
-      profileName: 'pi-default',
+      selection: { backend: 'pi', provider: 'anthropic', model: 'claude-sonnet-4-6', thinking: null, mode: 'anthropic' },
       text: 'hello',
     });
     timeline.push('response');

@@ -40,11 +40,11 @@ def closed_upstream() -> str:
 
 def cortex_arm(credential_capability: str = "pi-deepseek-api-key") -> dict[str, object]:
     return {
-        "schema_version": "cortex-benchmark-arm/3",
+        "schema_version": "cortex-benchmark-arm/4",
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": MODEL,
         "credential_capability": credential_capability,
-        "bundle": "direct-pi-deepseek", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,
@@ -67,7 +67,7 @@ def trial_seed(upstream: str, **overrides: object) -> dict[str, object]:
         "root_run_id": ROOT_RUN_ID,
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
-        "profile_name": "benchmark", "paid_run": False,
+        "paid_run": False,
         "credential": seed_credential(upstream), "model_alias_policy": {"kind": "exact"},
         **overrides,
     }

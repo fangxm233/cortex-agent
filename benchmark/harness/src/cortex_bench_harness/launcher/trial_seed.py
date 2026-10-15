@@ -9,14 +9,13 @@ class TrialSeed:
     trial_id: str
     root_run_id: str
     task: Mapping[str, object]
-    profile_name: str
     paid_run: bool
     credential: Mapping[str, object]
     model_alias_policy: object
 
 
 SEED_REQUIRED_FIELDS = frozenset({
-    "arm", "trial_id", "root_run_id", "task", "profile_name", "paid_run",
+    "arm", "trial_id", "root_run_id", "task", "paid_run",
     "credential", "model_alias_policy",
 })
 # Nothing reads `arm_path` any more. It is accepted and dropped, so a seed that still names it
@@ -68,7 +67,6 @@ def parse_trial_seed(source: Mapping[str, object]) -> TrialSeed:
         trial_id=_seed_text(values, "trial_id"),
         root_run_id=_seed_text(values, "root_run_id"),
         task=_seed_mapping(values, "task"),
-        profile_name=_seed_text(values, "profile_name"),
         paid_run=paid_run,
         credential=_seed_mapping(values, "credential"),
         model_alias_policy=values["model_alias_policy"],

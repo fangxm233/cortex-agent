@@ -60,7 +60,7 @@ function run(sessionId: string): SessionInfo {
     sessionId, backendSessionId: null, projectId: 'proj', backend: 'claude',
     kind: 'scheduled', origin: 'scheduled', scheduleId: 'sch-1',
     createdAt: '2030-01-01T00:00:00.000Z', lastUsedAt: '2030-01-01T00:00:00.000Z',
-    resumable: true, label: null, profileName: null, running: false,
+    resumable: true, label: null, selection: null, running: false,
     backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: 1, unread: false,
     boardId: null,
     teamLeadId: null,
@@ -147,7 +147,7 @@ describe('RunListModal shared shell', () => {
     const onOpenRun = vi.fn();
     const onManage = vi.fn();
     const value = { ...row(), schedule: {
-      id: 'sch-1', type: 'daily', message: 'Nightly scan', projectId: 'proj', profile: null,
+      id: 'sch-1', type: 'daily', message: 'Nightly scan', projectId: 'proj', selection: null,
       nextRun: null, lastRun: null, paused: false, pausedBy: null, intervalMs: null,
       time: '00:00', dayOfWeek: null, target: null,
     } } as ScheduleRow;

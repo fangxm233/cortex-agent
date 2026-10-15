@@ -85,7 +85,7 @@ function harness(persist: Promise<void>) {
 }
 
 const ctx = {
-  channel: CHANNEL, sessionId: 'sess-1', profileName: 'default', text: 'change direction', senderId: 'U1', messageId: 'web-1',
+  channel: CHANNEL, sessionId: 'sess-1', selection: { backend: 'claude' as const, model: 'opus', provider: null, thinking: null, mode: 'plan' }, text: 'change direction', senderId: 'U1', messageId: 'web-1',
 };
 
 test('accepted injection is durably stored before its pending event is published', async () => {

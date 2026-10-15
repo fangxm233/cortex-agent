@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import type { ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
+import { modelKey } from '@/lib/model-selection';
 import {
   defaultScheduleForm,
   buildScheduleAddArgs,
   validateScheduleForm,
   editableScheduleFields,
   computeNextRun,
-  profileOptions,
+  scheduleModelOptions,
+  scheduleModelPatch,
+  scheduleThinkingOptions,
   type ScheduleForm,
 } from './schedule-modal-vm';
 
@@ -13,27 +17,66 @@ function form(overrides: Partial<ScheduleForm> = {}): ScheduleForm {
   return { ...defaultScheduleForm('nimbus'), ...overrides };
 }
 
-describe('profileOptions', () => {
-  it('appends current once when it is not among the real names', () => {
-    expect(profileOptions(['default', 'research'], 'claude-haiku')).toEqual([
-      'default',
-      'research',
-      'claude-haiku',
+const selection = { backend: 'claude' as const, provider: null, model: 'claude-haiku', thinking: 'high', mode: 'api' };
+
+const piSelection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const catalog: ModelCatalogSnapshot = {
+  routes: [
+    { backend: 'claude', provider: null, endpoint: 'anthropic', modes: ['plan', 'api'], models: ['claude-haiku', 'flash'], source: 'builtin' },
+    { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', modes: ['deepseek'], models: ['flash'], source: 'pi', modelThinking: { flash: ['high', 'xhigh'] } },
+  ],
+  thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'low', 'high', 'xhigh'] }, piPending: false,
+};
+
+function modelConfig(): Pick<ConfigSnapshot, 'models'> {
+  return { models: { default: selection, favorites: [piSelection, selection],
+    memory: { [modelKey(piSelection)]: { thinking: 'xhigh', mode: 'deepseek' },
+      [modelKey(selection)]: { thinking: 'low', mode: 'plan' } } } };
+}
+
+describe('scheduleModelOptions', () => {
+  it('retains a full current selection without config or catalog', () => {
+    expect(scheduleModelOptions(undefined, undefined, selection)).toEqual([
+      expect.objectContaining({ selection, favorite: false }),
+    ]);
+    expect(scheduleModelOptions(undefined, undefined, null)).toEqual([]);
+  });
+  it('merges favorites then catalog, retaining identity and full remembered choices', () => {
+    const options = scheduleModelOptions(modelConfig(), catalog, selection);
+    expect(options.map((option) => option.value)).toEqual([
+      modelKey(piSelection), modelKey(selection), modelKey({ ...selection, model: 'flash' }),
+    ]);
+    expect(options.map((option) => option.favorite)).toEqual([true, true, false]);
+    expect(options.map((option) => option.selection)).toEqual([
+      piSelection, selection, { ...selection, model: 'flash', thinking: null, mode: 'plan' },
+    ]);
+    expect(options[0].label).toContain('deepseek');
+    expect(options[2].label).toContain('claude');
+  });
+  it('renders favorites and their remembered settings before catalog loads', () => {
+    const options = scheduleModelOptions(modelConfig(), undefined, null);
+    expect(options.map((option) => option.selection)).toEqual([
+      piSelection, { ...selection, thinking: 'low', mode: 'plan' },
     ]);
   });
-  it('no source (undefined names) → only the current value, nothing fabricated', () => {
-    expect(profileOptions(undefined, 'claude-haiku')).toEqual(['claude-haiku']);
+  it('uses model-specific thinking levels and tolerates an older catalog without ladders', () => {
+    expect(scheduleThinkingOptions(catalog, piSelection)).toEqual(['', 'high', 'xhigh']);
+    expect(scheduleThinkingOptions({ routes: [], piPending: false }, selection)).toEqual(['', 'high']);
+  });
+  it('keeps default thinking and the current level available before catalog loads', () => {
+    expect(scheduleThinkingOptions(undefined, selection)).toEqual(['', 'high']);
+    expect(scheduleThinkingOptions(undefined, null)).toEqual(['']);
   });
 });
 
 describe('buildScheduleAddArgs', () => {
-  it('daily → type + time + message + projectId + profile, no interval/delay/dayOfWeek', () => {
-    const args = buildScheduleAddArgs(form({ type: 'daily', message: '  ping  ', profile: 'claude-haiku' }));
+  it('daily stores the full selection with no interval/delay/dayOfWeek', () => {
+    const args = buildScheduleAddArgs(form({ type: 'daily', message: '  ping  ', selection }));
     expect(args.type).toBe('daily');
     expect(args.time).toBe('09:00');
     expect(args.message).toBe('ping');
     expect(args.projectId).toBe('nimbus');
-    expect(args.profile).toBe('claude-haiku');
+    expect(args.selection).toEqual(selection);
     expect(args).not.toHaveProperty('fallback');
     expect(args.intervalMs).toBeUndefined();
     expect(args.delay).toBeUndefined();
@@ -58,10 +101,10 @@ describe('buildScheduleAddArgs', () => {
     expect(args.projectId).toBe('nimbus');
     expect(args).not.toHaveProperty('target');
   });
-  it('omits projectId/profile when absent', () => {
-    const args = buildScheduleAddArgs(form({ projectId: null, profile: '', message: 'x' }));
+  it('omits projectId/selection when absent', () => {
+    const args = buildScheduleAddArgs(form({ projectId: null, selection: null, message: 'x' }));
     expect(args.projectId).toBeUndefined();
-    expect(args.profile).toBeUndefined();
+    expect(args.selection).toBeUndefined();
   });
 });
 
@@ -95,7 +138,7 @@ describe('editableScheduleFields', () => {
       type: false,
       delay: false,
       message: true,
-      profile: true,
+      selection: true,
     });
   });
 
@@ -139,7 +182,7 @@ import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 
 function sched(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
-    id: 'sch1', type: 'daily', message: 'scan arXiv', projectId: 'nimbus', profile: 'claude-haiku',
+    id: 'sch1', type: 'daily', message: 'scan arXiv', projectId: 'nimbus', selection,
     nextRun: null, lastRun: null, paused: false, pausedBy: null,
     intervalMs: null, time: '07:30', dayOfWeek: null,
     ...p,
@@ -151,7 +194,7 @@ describe('formFromSchedule', () => {
     const f = formFromSchedule(sched());
     expect(f.type).toBe('daily');
     expect(f.message).toBe('scan arXiv');
-    expect(f.profile).toBe('claude-haiku');
+    expect(f.selection).toEqual(selection);
     expect(f.time).toBe('07:30');
     expect(f.projectId).toBe('nimbus');
   });
@@ -169,31 +212,41 @@ describe('formFromSchedule', () => {
     expect(formFromSchedule(sched({ type: 'weekly', dayOfWeek: 3 })).dayOfWeek).toBe(3);
   });
 
-  it('maps a null profile to an empty form value (never fabricates one)', () => {
-    expect(formFromSchedule(sched({ profile: null })).profile).toBe('');
+  it('preserves a null selection (never fabricates one)', () => {
+    expect(formFromSchedule(sched({ selection: null })).selection).toBeNull();
   });
 });
 
 describe('buildScheduleUpdateArgs', () => {
-  it('daily → scheduleId + message/profile/projectId/time only', () => {
+  it('daily → scheduleId + message/selection/projectId/time only', () => {
     const args = buildScheduleUpdateArgs('sch1', formFromSchedule(sched()));
     expect(args).toEqual({
-      scheduleId: 'sch1', message: 'scan arXiv', profile: 'claude-haiku', projectId: 'nimbus', time: '07:30',
+      scheduleId: 'sch1', message: 'scan arXiv', selection, projectId: 'nimbus', time: '07:30',
     });
   });
 
   it('interval → intervalMs from value+unit', () => {
-    const f = form({ type: 'interval', intervalValue: 45, intervalUnit: 'min', profile: '', projectId: null, message: 'm' });
+    const f = form({ type: 'interval', intervalValue: 45, intervalUnit: 'min', selection: null, projectId: null, message: 'm' });
     expect(buildScheduleUpdateArgs('sch2', f)).toEqual({ scheduleId: 'sch2', message: 'm', intervalMs: 2_700_000 });
   });
 
   it('weekly → time + dayOfWeek', () => {
-    const f = form({ type: 'weekly', time: '10:00', dayOfWeek: 5, profile: '', projectId: null, message: 'm' });
+    const f = form({ type: 'weekly', time: '10:00', dayOfWeek: 5, selection: null, projectId: null, message: 'm' });
     expect(buildScheduleUpdateArgs('sch3', f)).toEqual({ scheduleId: 'sch3', message: 'm', time: '10:00', dayOfWeek: 5 });
   });
 
   it('once → no timing patch (runAt is not editable from the web)', () => {
-    const f = form({ type: 'once', profile: '', projectId: null, message: 'm' });
+    const f = form({ type: 'once', selection: null, projectId: null, message: 'm' });
     expect(buildScheduleUpdateArgs('sch4', f)).toEqual({ scheduleId: 'sch4', message: 'm' });
+  });
+});
+
+describe('scheduleModelPatch', () => {
+  it('waits for the catalog route when a favorite has no remembered mode', () => {
+    const config = { models: { default: null, favorites: [selection], memory: {} } };
+    const pending = scheduleModelOptions(config, undefined, null);
+    expect(scheduleModelPatch(pending, modelKey(selection))).toEqual({});
+    const ready = scheduleModelOptions(config, catalog, null);
+    expect(scheduleModelPatch(ready, modelKey(selection))).toEqual({ selection: { ...selection, thinking: null, mode: 'plan' } });
   });
 });

@@ -5,7 +5,7 @@ import type { Backend, EngineSpec } from '../../agent-adapter/types.js';
 import type { ProductionBenchmarkEvidenceContext } from './benchmark-types.js';
 import { parseProductionBenchmarkEvidenceContext } from './production-benchmark-evidence.js';
 import type { RunRequest } from '../runs/request.js';
-import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
 } from './identity.js';
@@ -14,12 +14,12 @@ import {
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
 } from './production-attempt-journal.js';
 
-const RECORD_SCHEMA = 'cortex-production-attempt-identity/4';
+const RECORD_SCHEMA = 'cortex-production-attempt-identity/5';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_STORE_PATH = path.join(STORE_DIR, 'benchmark-attempt-identities.jsonl');
 const RECORD_KEYS = [
   'schema_version', 'trial_id', 'root_run_id', 'attempt_id', 'root_attempt_id',
-  'spawn_parent_attempt_id', 'execution_id', 'session_id', 'profile_name',
+  'spawn_parent_attempt_id', 'execution_id', 'session_id', 'thinking', 'mode',
   'backend', 'provider', 'requested_model', 'model_execution_identity_hash',
   'role_tool_surface_hash', 'bundle_manifest_hash', 'frozen_at',
 ] as const;
@@ -33,7 +33,8 @@ export type ProductionAttemptIdentityRecord = Readonly<{
   spawn_parent_attempt_id: string | null;
   execution_id: string;
   session_id: string;
-  profile_name: string;
+  thinking: string | null;
+  mode: string;
   backend: Backend;
   provider: string | null;
   requested_model: string;
@@ -44,7 +45,7 @@ export type ProductionAttemptIdentityRecord = Readonly<{
 }>;
 
 interface ConfigurationRevision {
-  profiles: number;
+  models: number;
   environments: number;
 }
 
@@ -65,7 +66,7 @@ interface FreezeAttemptInput {
   request: RunRequest;
   /** The execution record this attempt belongs to — the attested attempt id is derived from it. */
   executionId: string | null;
-  resolvedProfile: ResolvedProfileConfig | undefined;
+  selection: EngineSelection | undefined;
 }
 
 let activeState: ActiveIdentityState | null = null;
@@ -96,10 +97,10 @@ function isNullableString(value: unknown): boolean {
 function storedRecordValid(value: Record<string, unknown>): boolean {
   const strings = [
     'trial_id', 'root_run_id', 'attempt_id', 'root_attempt_id', 'execution_id',
-    'session_id', 'profile_name', 'requested_model', 'model_execution_identity_hash',
+    'session_id', 'mode', 'requested_model', 'model_execution_identity_hash',
     'role_tool_surface_hash', 'bundle_manifest_hash', 'frozen_at',
   ];
-  const nullable = ['spawn_parent_attempt_id', 'provider'];
+  const nullable = ['spawn_parent_attempt_id', 'provider', 'thinking'];
   const hashes = [
     value.model_execution_identity_hash, value.role_tool_surface_hash, value.bundle_manifest_hash,
   ];
@@ -322,36 +323,30 @@ function configuredRouteHost(spec: EngineSpec, backend: Backend): string | null 
   }
 }
 
-function assertSpawnMatchesProfile(
-  spec: EngineSpec,
-  profile: ResolvedProfileConfig,
-): void {
-  if (spec.model.id !== profile.model) {
+function assertSpawnMatchesSelection(spec: EngineSpec, selection: EngineSelection): void {
+  if (spec.model.id !== selection.model) {
     throw new Error('Production benchmark resolved model drifted before adapter spawn');
   }
-  if ((spec.model.thinking ?? null) !== profile.thinking) {
+  if ((spec.model.thinking ?? null) !== selection.thinking) {
     throw new Error('Production benchmark resolved thinking drifted before adapter spawn');
   }
-  if (profile.backend === 'pi' && (spec.model.provider ?? null) !== profile.provider) {
+  if (selection.backend === 'pi' && (spec.model.provider ?? null) !== selection.provider) {
     throw new Error('Production benchmark resolved provider drifted before adapter spawn');
   }
 }
 
-function assertProfile(
+function assertSelection(
   input: FreezeAttemptInput,
   context: ProductionBenchmarkEvidenceContext,
-): ResolvedProfileConfig {
-  const profile = input.resolvedProfile;
-  if (!profile) throw new Error('Production benchmark attempt is missing resolved profile');
-  if (profile.fallback.length > 0) {
-    throw new Error('Production benchmark identity refuses profiles with fallbacks');
-  }
-  if (profile.backend !== context.model_execution.cli_name
-    || profile.backend !== input.adapterBackend) {
+): EngineSelection {
+  const selection = input.selection;
+  if (!selection) throw new Error('Production benchmark attempt is missing selection');
+  if (selection.backend !== context.model_execution.cli_name
+    || selection.backend !== input.adapterBackend) {
     throw new Error('Production benchmark backend differs from injected CLI identity');
   }
-  assertSpawnMatchesProfile(input.spec, profile);
-  return profile;
+  assertSpawnMatchesSelection(input.spec, selection);
+  return selection;
 }
 
 function maxOutputTokens(
@@ -359,7 +354,7 @@ function maxOutputTokens(
   context: ProductionBenchmarkEvidenceContext,
 ): number | null {
   const injected = context.model_execution.max_output_tokens;
-  const resolved = spec.model.maxOutputTokens ?? null;
+  const resolved = spec.model.benchmarkMaxOutputTokens ?? null;
   if (resolved !== injected) {
     throw new Error('Production benchmark max output token identity drifted');
   }
@@ -370,7 +365,7 @@ type AttemptLinkage = Pick<ProductionAttemptIdentityRecord,
   'attempt_id' | 'root_attempt_id' | 'spawn_parent_attempt_id' | 'execution_id' | 'session_id'>;
 
 type AttemptModel = Pick<ProductionAttemptIdentityRecord,
-  'profile_name' | 'backend' | 'provider' | 'requested_model' |
+  'thinking' | 'mode' | 'backend' | 'provider' | 'requested_model' |
   'model_execution_identity_hash' | 'role_tool_surface_hash'>;
 
 function attemptLinkage(
@@ -399,21 +394,20 @@ function attemptLinkage(
 function modelExecutionHash(
   context: ProductionBenchmarkEvidenceContext,
   spec: EngineSpec,
-  profile: ResolvedProfileConfig,
+  selection: EngineSelection,
 ): string {
   const cli = context.model_execution;
   return computeModelExecutionIdentityHash({
-    backend: profile.backend,
-    requestedModel: profile.model,
+    backend: selection.backend,
+    requestedModel: selection.model,
     modelAliasPolicy: cli.model_alias_policy,
-    providerProtocol: profile.provider,
-    configuredRouteBaseHost: configuredRouteHost(spec, profile.backend),
-    claudeCliVersion: profile.backend === 'claude' ? cli.cli_version : null,
+    providerProtocol: selection.provider,
+    configuredRouteBaseHost: configuredRouteHost(spec, selection.backend),
+    claudeCliVersion: selection.backend === 'claude' ? cli.cli_version : null,
     cliName: cli.cli_name,
     cliVersion: cli.cli_version,
-    reasoningEffort: profile.thinking,
+    reasoningEffort: selection.thinking,
     maxOutputTokens: maxOutputTokens(spec, context),
-    fallbackEmpty: true,
   });
 }
 
@@ -421,16 +415,17 @@ function attemptModel(
   context: ProductionBenchmarkEvidenceContext,
   input: FreezeAttemptInput,
 ): AttemptModel {
-  const profile = assertProfile(input, context);
+  const selection = assertSelection(input, context);
   const directive = typeof input.request.benchmark?.identityDirective === 'string'
     ? input.request.benchmark.identityDirective : '';
   const roleSurface = roleSurfaceFromSpec(input.spec, directive);
   return {
-    profile_name: profile.name,
-    backend: profile.backend,
-    provider: profile.provider,
-    requested_model: profile.model,
-    model_execution_identity_hash: modelExecutionHash(context, input.spec, profile),
+    thinking: selection.thinking,
+    mode: selection.mode,
+    backend: selection.backend,
+    provider: selection.provider,
+    requested_model: selection.model,
+    model_execution_identity_hash: modelExecutionHash(context, input.spec, selection),
     role_tool_surface_hash: computeRoleToolSurfaceHash(roleSurface),
   };
 }
@@ -459,7 +454,7 @@ function assertRootBaseline(
   const root = repo.firstRootAttempt(record);
   if (!root) return;
   const rootFields = [
-    'trial_id', 'root_run_id', 'bundle_manifest_hash', 'profile_name', 'backend', 'provider',
+    'trial_id', 'root_run_id', 'bundle_manifest_hash', 'thinking', 'mode', 'backend', 'provider',
     'requested_model', 'model_execution_identity_hash',
   ] as const;
   if (rootFields.some(field => root[field] !== record[field])) {

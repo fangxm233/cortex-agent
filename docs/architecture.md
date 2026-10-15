@@ -64,7 +64,7 @@ The shared kernel every other layer builds on: types, path constants, settings, 
 | `types/environment-types.ts` | Execution environment types: `AgentDefinition` (one `config/environments/*.json` file) and the `ResolvedEnvironment` a run opens with |
 | `config-generator.ts` | Config file initialization for new installs, and the MCP configs written at every start |
 | `gateway-generator.ts` | API gateway YAML generation |
-| `profile-generator.ts` | Profile JSON generation |
+| `models-generator.ts` | Default model and favorites JSON generation |
 
 ### Layer 1: `store/` — Persistence
 
@@ -83,7 +83,7 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` with reverse channel lookup |
 | `schedule-repo.ts` | Schedule persistence. `ScheduleTask` interface; `schedules.json` is shared with out-of-process writers |
 | `cost-repo.ts` | Costs in JSONL (append-only), budget in JSON. 90-day pruning at startup |
-| `profile-repo.ts` | Hybrid sync/async reader. `startProfileWatcher()` for hot-reload |
+| `models-repo.ts` | Synchronous cached reader. `startModelsWatcher()` for hot-reload |
 | `waitpoint-repo.ts`, `provider-state-repo.ts`, `board-repo.ts` | Waitpoints, provider throttle state and the resume queue, and the board registry |
 | `team-inbox-repo.ts`, `team-outbox-repo.ts` | Messages between team leads and their workers, kept across restarts |
 | `hook-registry.ts`, `hook-writer.ts` | The hook registry: built-in declarations with `config/hooks/` laid over them, and the writer behind hook switches |
@@ -114,8 +114,8 @@ The thickest layer. Contains one subdirectory per domain concern.
 
 | Subdirectory | Purpose |
 |-------------|---------|
-| `agents/` | Profiles, execution environments (`agents/environments/`), subagent runners and credentials: what a run may be configured as. Starting one belongs to `runs/` |
-| `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` profile/spec/prompt resolution and its shared builders (`builders.ts`), the backend-neutral `RunEvent` stream, retryable-error classification for fallback, and the `SessionEngines` pool |
+| `agents/` | Engine selections, favorites, model memory, execution environments (`agents/environments/`), subagent runners and credentials: what a run may be configured as. Starting one belongs to `runs/` |
+| `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` selection/spec/prompt resolution and its shared builders (`builders.ts`), the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
 | `sessions/` | Session lifecycle and records, the session hook pipeline (`onNew`, `onMessageEnd`, pre-close) with optional agent injection, team sessions, and the retention sweep |
 | `executions/` | Execution registry access over `store/execution-repo.ts`, plus teardown and stop of live executions |
 | `auth/` | Claude Code, PI and Codex credentials and login flows, auth status and expiry watching, and gateway sync after a login |
@@ -166,7 +166,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `busy-tracker.ts` | Tracks active LLM count, sends IPC `busy`/`idle` to parent daemon process |
 | `human-answer-backstop.ts` | Leaf registry of channels waiting on a human's free-text reply, consulted by every entry into a session so the answer is consumed instead of opening a turn |
 | `routing/message-router.ts` | Platform message entry point: registers the inbound message handler on the adapter and delegates to the orchestrator |
-| `routing/commands/` | `!command` handlers, one module per family: `cancel`, `channel`, `compact`, `cost`, `device`, `lang`, `login` (with `login-custom`), `mode`, `nvtop`, `orient`, `restart`, `schedule`, `sendfile`, `session`, `status`, `tail`, `usage` (with `usage-reset`). `index.ts` maps the command words — `!agent`, `!backend`, `!model`, `!profile`, `!thinking`, `!new`, `!resume`, `!usage` and the rest — to them |
+| `routing/commands/` | `!command` handlers, one module per family: `cancel`, `channel`, `compact`, `cost`, `device`, `lang`, `login` (with `login-custom`), `mode`, `nvtop`, `orient`, `restart`, `schedule`, `sendfile`, `session`, `status`, `tail`, `usage` (with `usage-reset`). `index.ts` maps the command words — `!agent`, `!backend`, `!model`, `!thinking`, `!new`, `!resume`, `!usage` and the rest — to them |
 | `routing/webhook.ts` | The loopback webhook server (`WEBHOOK_PORT`, default 3001): hook callbacks, `cortex-signal`, subagent, team and board callbacks |
 | `routing/hook-bridge.ts` | PreToolUse hook → EventBus bridge. Publishes `plan.submitted` and `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | Subscribers that turn a question or a submitted plan into an interaction record, which each surface renders as a card |
@@ -325,8 +325,8 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 
 | Path | Purpose |
 |------|---------|
-| `data/agent-state.json` | Selected profile, default agent, and per-channel overrides (migrated once from `mode.json`) |
-| `config/profiles.json` | Named agent profile list |
+| `data/agent-state.json` | Channel selections, model memory, new-session choice, and default agent |
+| `config/models.json` | Default engine selection and favorite models |
 | `config/budget.json` | Daily and monthly budget limits |
 | `config/environments/` | Execution environments — one JSON file per environment |
 | `data/schedules.json` | Persistent schedule list |

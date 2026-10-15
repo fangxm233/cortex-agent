@@ -1,7 +1,7 @@
 import { act, create } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';
-import type { AuthAccountStatus } from '@cortex-agent/ui-contract';
+import type { AuthAccountStatus, ConfigModels } from '@cortex-agent/ui-contract';
 import { ProviderSetupPage, ProviderSetupView } from './ProviderSetupPage';
 import { useTRPCClient } from '@/lib/trpc';
 import { ProviderSetupController } from './provider-setup';
@@ -15,18 +15,22 @@ vi.mock('./setup-native', () => ({ canSetupClaude: () => false, setupClaude: vi.
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 const initialConnection = { serverUrl: 'http://127.0.0.1:3004', token: 'fixture-original', providerSetupPending: true };
-function pageFixture(defaultProfile = '') {
+const emptyModels: ConfigModels = { default: null, favorites: [], memory: {} };
+const catalog = async () => ({ routes: [], piPending: false });
+function pageFixture(defaultModel = '') {
   const status = vi.fn().mockResolvedValue({ accounts: [{ backend: 'pi', provider: 'openai', label: 'OpenAI',
     state: 'logged-in', capabilities: ['oauth'], credentials: [] }], piRuntime: { available: true } });
-  const config = vi.fn().mockResolvedValue({ profiles: { defaultProfile, profiles: [
-    { name: 'ready', backend: 'pi', provider: 'openai', model: 'fixture-model' },
-  ] } });
+  const ref = { backend: 'pi', provider: 'openai', model: 'fixture-model' } as const;
+  const config = vi.fn().mockResolvedValue({ models: {
+    default: defaultModel ? { ...ref, provider: defaultModel === 'ready' ? 'openai' : 'unready', thinking: null, mode: 'openai' } : null,
+    favorites: [ref], memory: { [JSON.stringify(['pi', 'openai', 'fixture-model'])]: { thinking: null, mode: 'openai' } },
+  } });
   const sync = vi.fn().mockResolvedValue({ configured: true });
   const select = vi.fn();
   const sharingSet = vi.fn();
   const sharing = { get: { query: vi.fn().mockResolvedValue({ enabled: false, name: '', org: '', email: '' }) }, set: { mutate: sharingSet } };
   vi.mocked(useTRPCClient).mockReturnValue({ auth: { status: { query: status }, syncGateway: { mutate: sync } },
-    config: { get: { query: config }, set: { mutate: select } }, usageSharing: sharing } as unknown as ReturnType<typeof useTRPCClient>);
+    config: { get: { query: config } }, models: { catalog: { query: catalog }, setDefault: { mutate: select } }, usageSharing: sharing } as unknown as ReturnType<typeof useTRPCClient>);
   const invoke = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('__TAURI__', { core: { invoke } });
   vi.stubGlobal('__CORTEX_DESKTOP__', true);
@@ -49,7 +53,7 @@ it.each(['skip', 'continue'])('actual page persists %s before navigating and blo
   const { invoke, sync, select, status, config } = pageFixture('ready');
   if (action === 'skip') {
     status.mockResolvedValue({ accounts: [], piRuntime: { available: true } });
-    config.mockResolvedValue({ profiles: null });
+    config.mockResolvedValue({ models: emptyModels });
   }
   const resolve = pendingSave(invoke);
   const view = await renderPage();
@@ -70,8 +74,8 @@ it.each(['skip', 'continue'])('actual page persists %s before navigating and blo
   act(() => view.unmount());
 });
 
-it.each(['', 'nondefault'])('actual page refuses Continue without a ready default (%s), but permits skip', async defaultProfile => {
-  const { invoke } = pageFixture(defaultProfile);
+it.each(['', 'nondefault'])('actual page refuses Continue without a ready default (%s), but permits skip', async defaultModel => {
+  const { invoke } = pageFixture(defaultModel);
   const view = await renderPage();
   expect(exitButton(view, 'continue').props.disabled).toBe(true);
   await act(async () => exitButton(view, 'continue').props.onClick());
@@ -83,8 +87,8 @@ it.each(['', 'nondefault'])('actual page refuses Continue without a ready defaul
   act(() => view.unmount());
 });
 
-it.each([['ready', false], ['', true]])('the optional leaderboard card leaves Continue as it was (default %j)', async (defaultProfile, blocked) => {
-  const { invoke, sharingSet } = pageFixture(defaultProfile);
+it.each([['ready', false], ['', true]])('the optional leaderboard card leaves Continue as it was (default %j)', async (defaultModel, blocked) => {
+  const { invoke, sharingSet } = pageFixture(defaultModel);
   const view = await renderPage();
   const card = view.root.findByProps({ 'data-usage-sharing': 'setup' });
   expect(card.findByProps({ role: 'switch' }).props['aria-checked']).toBe(false);
@@ -96,6 +100,18 @@ it.each([['ready', false], ['', true]])('the optional leaderboard card leaves Co
   expect(invoke).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledTimes(1);
   expect(sharingSet).not.toHaveBeenCalled();
+  act(() => view.unmount());
+});
+
+it('writes the selected favorite as a complete default engine selection', async () => {
+  const { select } = pageFixture();
+  const view = await renderPage();
+  const picker = view.root.findByProps({ id: 'setup-model' });
+  const key = JSON.stringify(['pi', 'openai', 'fixture-model']);
+  await act(async () => picker.props.onChange({ target: { value: key } }));
+  expect(select).toHaveBeenCalledWith({ selection: {
+    backend: 'pi', provider: 'openai', model: 'fixture-model', thinking: null, mode: 'openai',
+  } });
   act(() => view.unmount());
 });
 
@@ -163,7 +179,7 @@ it('always offers warned skip, disables unready continuation and refreshes login
   const sync = vi.fn().mockResolvedValue({ configured: false, reason: 'no-endpoints' });
   const controller = new ProviderSetupController({
     status: async () => ({ accounts: [], piRuntime: { available: true, version: null, entry: null, error: null }, generatedAt: '' }),
-    config: async () => ({ profiles: null }), sync, select: vi.fn(), claude: vi.fn(), install: vi.fn(), canInstall: () => false,
+    config: async () => ({ models: emptyModels }), catalog, sync, select: vi.fn(), claude: vi.fn(), install: vi.fn(), canInstall: () => false,
   });
   const leave = vi.fn();
   let view!: ReturnType<typeof create>;
@@ -182,7 +198,7 @@ it('opens the login target for the tapped provider row', async () => {
   } as AuthAccountStatus));
   const controller = new ProviderSetupController({
     status: async () => ({ accounts, piRuntime: { available: true, version: null, entry: null, error: null }, generatedAt: '' }),
-    config: async () => ({ profiles: null }), sync: vi.fn(), select: vi.fn(), claude: vi.fn(), install: vi.fn(), canInstall: () => false,
+    config: async () => ({ models: emptyModels }), catalog, sync: vi.fn(), select: vi.fn(), claude: vi.fn(), install: vi.fn(), canInstall: () => false,
   });
   let view!: ReturnType<typeof create>;
   await act(async () => { await controller.load(); view = create(<ProviderSetupView controller={controller} leave={vi.fn()} />); });

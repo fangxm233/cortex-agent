@@ -7,7 +7,9 @@ import { createLogger } from '@core/log.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask } from '@store/schedule-repo.js';
 import { nextFireDelayMs, type ScheduleSpec, type SchedulePatch } from './schedule-spec.js';
-import { addSchedule, pauseSchedule, resolveTaskProfile, resumeSchedule, updateSchedule } from './schedule-ops.js';
+import { addSchedule, pauseSchedule, resumeSchedule, updateSchedule } from './schedule-ops.js';
+import { getDefaultSelection } from '../agents/models.js';
+import type { EngineSelection } from '../agents/engine-selection.js';
 
 const log = createLogger('scheduler');
 
@@ -18,7 +20,7 @@ function taskConfigHash(task: ScheduleTask): string {
   const keys: Record<string, string> = { interval: 'intervalMs', daily: 'time', once: 'runAt', weekly: 'dayOfWeek' };
   const key = keys[task.type] as keyof ScheduleTask;
   const extra = task.type === 'weekly' ? `${task.dayOfWeek}:${task.time}` : (String(task[key] || ''));
-  return `${task.type}:${extra}:${task.message}:${task.projectId}:${task.profile || ''}:${task.dispatchType || ''}:${task.preCheck || ''}:${task.isPaused ? 'paused' : ''}`;
+  return `${task.type}:${extra}:${task.message}:${task.projectId}:${JSON.stringify(task.selection ?? null)}:${task.dispatchType || ''}:${task.preCheck || ''}:${task.isPaused ? 'paused' : ''}`;
 }
 
 // --- Scheduler class ---
@@ -27,7 +29,7 @@ interface RunnerParams {
   message: string;
   projectId: string;
   scheduleTaskId: string;
-  profileName: string;
+  selection: EngineSelection;
 }
 
 interface ProgrammaticHandlerParams {
@@ -299,33 +301,35 @@ class Scheduler {
 
   // Internal: invoke the runner for a task
   async _runTask(task: ScheduleTask): Promise<void> {
-    const profileName = resolveTaskProfile(task.profile);
-    const resolvedChannel = task.projectId;
-    log.info(`Firing task ${task.id} (${task.type}, dispatch=${task.dispatchType || 'llm'}, profile=${profileName}, project=${task.projectId}): "${task.message}"`);
+    log.info(`Firing task ${task.id} (${task.type}, dispatch=${task.dispatchType || 'llm'}, model=${task.selection?.model || 'default'}, project=${task.projectId}): "${task.message}"`);
     void emitCortexEvent('cortex:schedule.fired', {
       scheduleId: task.id,
       name: task.message,
       project: task.projectId,
     }).catch(() => {});
     try {
-      if (task.dispatchType) {
-        const handler = this.programmaticHandlers[task.dispatchType];
-        if (!handler) {
-          log.warn(`Skipping task ${task.id}: unregistered dispatch type "${task.dispatchType}"`);
-          return;
-        }
-        await handler({ channel: resolvedChannel, scheduleTaskId: task.id });
-      } else {
-        await this.runner({
-          message: `[Scheduled Task] ${task.message}`,
-          projectId: task.projectId,
-          scheduleTaskId: task.id,
-          profileName,
-        });
-      }
+      await this._dispatchTask(task);
     } catch (e) {
       log.error(`Task ${task.id} runner error:`, (e as Error).message);
     }
+  }
+
+  async _dispatchTask(task: ScheduleTask): Promise<void> {
+    if (!task.dispatchType) {
+      await this.runner({
+        message: `[Scheduled Task] ${task.message}`,
+        projectId: task.projectId,
+        scheduleTaskId: task.id,
+        selection: task.selection ?? getDefaultSelection(),
+      });
+      return;
+    }
+    const handler = this.programmaticHandlers[task.dispatchType];
+    if (!handler) {
+      log.warn(`Skipping task ${task.id}: unregistered dispatch type "${task.dispatchType}"`);
+      return;
+    }
+    await handler({ channel: task.projectId, scheduleTaskId: task.id });
   }
 }
 

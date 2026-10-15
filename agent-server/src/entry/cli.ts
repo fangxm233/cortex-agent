@@ -19,8 +19,8 @@ import {
 import type { ConfigStatus } from './init.js';
 import { cmdFeishu } from './feishu-login.js';
 import { cmdDoctor } from './doctor-cli.js';
-import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
-import { generateProfiles, writeProfilesJson } from '@core/profile-generator.js';
+import { discoverEndpoints, writeMergedGatewayYaml, validateModelsAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
+import { readExistingModels, writeModelsJson } from '@core/models-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { getAuthStatus } from '@domain/auth/auth-status.js';
 import { defaultCustomProviderStores } from '@domain/pi-providers/index.js';
@@ -339,7 +339,7 @@ export interface RunCliDeps extends AuthCliDeps {}
 
 type CliHandler = (args: string[], deps: RunCliDeps) => Promise<CliResult> | CliResult;
 type GatewayMergeResult = ReturnType<typeof writeMergedGatewayYaml>['result'];
-type GatewayIssues = ReturnType<typeof validateProfilesAgainstGateway>;
+type GatewayIssues = ReturnType<typeof validateModelsAgainstGateway>;
 
 function optionValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
@@ -394,43 +394,43 @@ function appendDroppedWarnings(lines: string[], result: GatewayMergeResult): voi
   lines.push('  (if these should auto-detect, check `cortex auth status` and log the provider in)');
 }
 
-function appendProfileIssues(lines: string[], issues: GatewayIssues): void {
+function appendModelIssues(lines: string[], issues: GatewayIssues): void {
   if (issues.length === 0) return;
-  lines.push(`WARNING: ${issues.length} profile(s) reference an unconfigured gateway mode (would fail with "Unknown mode"):`);
-  for (const issue of issues) lines.push(`  - ${issue.profile}: ${issue.reason}`);
+  lines.push(`WARNING: ${issues.length} model selection(s) reference an unconfigured gateway route:`);
+  for (const issue of issues) lines.push(`  - ${issue.model}: ${issue.reason}`);
 }
 
 function gatewayOutput(
   endpoints: Awaited<ReturnType<typeof discoverEndpoints>>,
   outputDir: string | undefined,
   gatewayPath: string,
-  profilesPath: string,
+  modelsPath: string,
   mergeResult: GatewayMergeResult,
 ): string {
-  const profiles = generateProfiles(endpoints);
-  const profileNames = Object.keys(profiles.profiles).join(', ');
+  const models = readExistingModels(path.dirname(modelsPath))!;
+  const favorites = models.favorites!.map(ref => ref.model).join(', ');
   const lines = [
     outputDir ? `[TEST MODE] Output directory: ${outputDir}` : '',
     `Gateway config: ${gatewayPath}`,
-    `Profiles: ${profilesPath}`,
+    `Models: ${modelsPath}`,
     `Discovered ${endpoints.length} endpoint modes`,
-    `Generated profiles: ${profileNames} (default: ${profiles.defaultProfile})`,
+    `Favorites: ${favorites} (default: ${models.default!.model})`,
   ];
   appendDroppedWarnings(lines, mergeResult);
-  appendProfileIssues(lines, validateProfilesAgainstGateway(mergeResult.endpoints, outputDir));
+  appendModelIssues(lines, validateModelsAgainstGateway(mergeResult.endpoints, outputDir));
   return lines.filter(Boolean).join('\n');
 }
 
 async function writeGatewayConfiguration(outputDir: string | undefined): Promise<CliResult> {
   const endpoints = await discoverEndpoints();
-  if (endpoints.length === 0) {
+  if (!endpoints.some(endpoint => endpoint.models.length > 0)) {
     return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
   }
   const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, outputDir);
-  const profilesPath = writeProfilesJson(endpoints, { outputDir });
+  const modelsPath = writeModelsJson(endpoints, { outputDir });
   return {
     exitCode: 0,
-    stdout: gatewayOutput(endpoints, outputDir, gatewayPath, profilesPath, result),
+    stdout: gatewayOutput(endpoints, outputDir, gatewayPath, modelsPath, result),
     stderr: '',
   };
 }

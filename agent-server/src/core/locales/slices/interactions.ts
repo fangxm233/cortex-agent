@@ -11,9 +11,9 @@ export const interactionsEn = {
   'interaction.planFeedbackSent': 'Plan feedback sent — Cortex will revise.\n> ${feedback}',
   'interaction.noSpecificFeedback': 'No specific feedback',
   'interaction.cancelledPreserved': 'Cancelled. Session preserved — next message will resume.',
-  'interaction.sessionActive': 'Session `${sessionId}` active — send your message below.${profileNote}',
-  'interaction.sessionProfileNote': ' (profile: ${profileName})',
-  'interaction.newConversation': '--- new conversation --- (profile: ${profileName})',
+  'interaction.sessionActive': 'Session `${sessionId}` active — send your message below.${selectionNote}',
+  'interaction.sessionSelectionNote': ' (${selection})',
+  'interaction.newConversation': '--- new conversation --- (${selection})',
 
   // --- update-prompt.ts ---
   'update.installing': 'Installing @cortex-agent/server@${version}... daemon will restart shortly.',
@@ -63,9 +63,9 @@ export const interactionsZh: Record<keyof typeof interactionsEn, string> = {
   'interaction.planFeedbackSent': '计划反馈已发送 — Cortex 将进行修订。\n> ${feedback}',
   'interaction.noSpecificFeedback': '没有具体反馈',
   'interaction.cancelledPreserved': '已取消。会话已保留 — 下一条消息将继续。',
-  'interaction.sessionActive': '会话 `${sessionId}` 已激活 — 请在下方发送你的消息。${profileNote}',
-  'interaction.sessionProfileNote': '（配置：${profileName}）',
-  'interaction.newConversation': '--- 新会话 ---（配置：${profileName}）',
+  'interaction.sessionActive': '会话 `${sessionId}` 已激活 — 请在下方发送你的消息。${selectionNote}',
+  'interaction.sessionSelectionNote': '（${selection}）',
+  'interaction.newConversation': '--- 新会话 ---（${selection}）',
 
   // --- update-prompt.ts ---
   'update.installing': '正在安装 @cortex-agent/server@${version}……守护进程稍后将重启。',

@@ -25,7 +25,7 @@ import { computeRoleToolSurfaceHash } from '../../../src/domain/benchmark/identi
 import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.js';
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
-import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   attemptFromFixture, attemptOf, runRequestFixture, type RunRequestFixtureInput,
@@ -40,14 +40,14 @@ const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
 const SHA = 'c'.repeat(64);
 let root: string;
 let storePath: string;
-let revision: { profiles: number; environments: number };
+let revision: { models: number; environments: number };
 let pool: SessionEngines;
 let piFake: FakeRuntimeFactory;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-evidence-context-'));
   storePath = path.join(root, 'data', 'attempt-identities.jsonl');
-  revision = { profiles: 1, environments: 1 };
+  revision = { models: 1, environments: 1 };
   piFake = makeFakeRuntimeFactory();
   const piAdapter = new PIAdapter(
     piFake.factory,
@@ -89,14 +89,12 @@ function evidence(
   };
 }
 
-function profile(backend: Backend): ResolvedProfileConfig {
+function selection(backend: Backend): EngineSelection {
   return {
-    name: `benchmark-${backend}`,
     model: backend === 'claude' ? 'claude-fixture' : 'deepseek-fixture',
     backend,
     mode: 'trial',
-    provider: backend === 'claude' ? 'anthropic' : 'deepseek',
-    extraEnv: {}, extraOption: {}, thinking: null, fallback: [],
+    provider: backend === 'claude' ? null : 'deepseek', thinking: null,
   };
 }
 
@@ -152,12 +150,11 @@ function runAttempt(
   spawns: EngineSpec[],
   input: AttemptOptions,
 ): RunAttempt {
-  const resolved = profile(backend);
+  const resolved = selection(backend);
   const override = attemptOf(resolved);
   const partial: RunRequestFixtureInput = {
     sessionKey: input.executionId,
     trackSessionId: input.sessionId,
-    profileName: resolved.name,
     model: resolved.model,
     piProvider: backend === 'pi' ? resolved.provider : undefined,
    

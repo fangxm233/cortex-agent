@@ -9,6 +9,7 @@ import {
 import {
   _resetSessionEvidence,
   sessionEvidenceContext,
+  sessionBenchmarkMaxOutputTokens,
 } from '../src/domain/benchmark/session-evidence.js';
 
 const CONTEXT = {
@@ -126,6 +127,27 @@ describe('benchmark-session webhook', () => {
         executionIds: ['session-1-exec-1', 'session-1-exec-2'],
       },
     });
+  });
+
+  it('binds the benchmark-only output cap before delivering the first turn', async () => {
+    const h = harness();
+    const reply = await handleBenchmarkSessionWebhook({
+      action: 'start', message: 'task', productionBenchmarkEvidenceContext: CONTEXT,
+      benchmarkMaxOutputTokens: 65536,
+    }, h.deps);
+    expect(reply.success).toBe(true);
+    expect(sessionBenchmarkMaxOutputTokens('session-1')).toBe(65536);
+    expect(sessionBenchmarkMaxOutputTokens('ordinary-session')).toBeUndefined();
+  });
+
+  it.each([0, -1, 1.5, '65536', Infinity, 1024])('rejects an invalid or drifting cap %s before creating a session', async (cap) => {
+    const h = harness();
+    const reply = await handleBenchmarkSessionWebhook({
+      action: 'start', message: 'task', productionBenchmarkEvidenceContext: CONTEXT,
+      benchmarkMaxOutputTokens: cap,
+    }, h.deps);
+    expect(reply.success).toBe(false);
+    expect(h.created).toEqual([]);
   });
 
   it('reports the last turn when the session ran more than one', async () => {

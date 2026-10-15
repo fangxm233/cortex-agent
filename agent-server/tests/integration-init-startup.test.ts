@@ -357,28 +357,25 @@ test('Test 3: Initialized environment has correct config content', async () => {
   try {
     await cortexInit(tempDir, 'claude\nnone\nn\nn\nn\nn\n');
 
-    // Verify agent-state.json content
-    const mode = JSON.parse(readFileSync(path.join(tempDir, 'data', 'agent-state.json'), 'utf-8'));
-    // The retired backend/mode/claudeModel globals are no longer written;
-    // backend and model selection live in profiles.json.
-    assert.equal(mode.backend, undefined);
-    assert.equal(mode.mode, undefined);
-    assert.equal(mode.claudeModel, undefined);
-    // activeProfile should be set to profiles.json's defaultProfile, not the __active__ sentinel
-    const profiles = JSON.parse(readFileSync(path.join(tempDir, 'config', 'profiles.json'), 'utf-8'));
-    assert.equal(mode.activeProfile, profiles.defaultProfile);
-    assert.equal(mode.defaultAgent, 'main');
+    const state = JSON.parse(readFileSync(path.join(tempDir, 'data', 'agent-state.json'), 'utf-8'));
+    assert.equal(state.backend, undefined);
+    assert.equal(state.mode, undefined);
+    assert.equal(state.claudeModel, undefined);
+    assert.equal(state.activeProfile, undefined);
+    assert.equal(state.defaultAgent, 'main');
 
-    // Profile-generator new contract: defaultProfile is unsuffixed 'plan';
-    // no plan-*/execute-*/write-*/qa-* suffixed names should exist.
-    assert.equal(profiles.defaultProfile, 'plan');
-    assert.ok(profiles.profiles.plan, 'profiles.json must contain a "plan" profile');
-    for (const name of Object.keys(profiles.profiles)) {
-      assert.ok(!/^(plan|execute|write|qa)-/.test(name),
-        `profile name "${name}" must not have a plan-/execute-/write-/qa- suffix`);
-      assert.ok(name !== 'write', 'write profile must not be generated');
-      assert.ok(name !== 'qa', 'qa profile must not be generated');
+    // No discovered account means setup remains unconfigured; init must not invent a model.
+    const modelsFile = path.join(tempDir, 'config', 'models.json');
+    if (existsSync(modelsFile)) {
+      const models = JSON.parse(readFileSync(modelsFile, 'utf-8'));
+      assert.equal(models.default.backend, 'claude');
+      assert.equal(models.default.provider, null);
+      assert.equal(typeof models.default.model, 'string');
+      assert.ok(models.favorites.some(ref => ref.backend === models.default.backend && ref.model === models.default.model));
+    } else {
+      assert.equal(state.selectionDefault, undefined);
     }
+    assert.equal(existsSync(path.join(tempDir, 'config', 'profiles.json')), false);
 
     // The retired thread config is no longer seeded; environments are.
     assert.equal(existsSync(path.join(tempDir, 'config', 'thread-templates')), false);

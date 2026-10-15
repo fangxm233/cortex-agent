@@ -13,18 +13,13 @@ import { describe, it, expect } from 'vitest';
 import { DIRECT_RUN_POLICY, continuationRunRequest } from '../../../src/domain/runs/builders.js';
 import { bareSpec } from '../../../src/domain/runs/spec-loader.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
-import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** A stand-in for whatever `resolveRunProfile` / `resolveProfileConfig` / `resolveRunConfig`
- *  returns at the call site: the builder must pass it through by reference, untouched. */
-function profile(name: string): ResolvedProfileConfig {
-  return {
-    name, model: 'sonnet', backend: 'claude', mode: null, provider: null,
-    extraEnv: {}, extraOption: {}, thinking: null,
-    maxOutputTokens: null, fallback: [],
-  } as ResolvedProfileConfig;
+/** The builder must pass the selected engine through untouched. */
+function selection(model: string): EngineSelection {
+  return { model, backend: 'claude', mode: 'plan', provider: null, thinking: null };
 }
 
 const FIXED = '00000000-0000-4000-8000-000000000000';
@@ -44,15 +39,15 @@ function expectIdentical(built: RunRequest, legacy: RunRequest): void {
   expect(built.runId).toMatch(UUID_RE);
   expect(normalizeRunId(built)).toEqual(normalizeRunId(legacy));
   expectSameShape(built, legacy);
-  // The profile is passed through, not rebuilt.
-  expect(built.profile).toBe(legacy.profile);
+  // The selection is passed through, not rebuilt.
+  expect(built.selection).toBe(legacy.selection);
 }
 
 // --- domain/sessions/session-hooks.ts (the onNew pre-close turn) ---
 
 function legacyContinuation(i: {
   sessionId: string; backendSessionId: string | null; channel: string;
-  profile: ResolvedProfileConfig; responseText: string; projectId: string;
+  selection: EngineSelection; responseText: string; projectId: string;
 }): RunRequest {
   return {
     runId: FIXED,
@@ -61,7 +56,7 @@ function legacyContinuation(i: {
       backendSessionId: i.backendSessionId,
       engineKey: i.channel,
       },
-    profile: i.profile,
+    selection: i.selection,
     spec: bareSpec(),
     prompt: { text: i.responseText, attachments: [] },
     context: {
@@ -86,10 +81,10 @@ function legacyContinuation(i: {
 
 describe('continuationRunRequest', () => {
   it('matches the pre-migration literal', () => {
-    const p = profile('ask-profile');
+    const p = selection('ask-selection');
     const input = {
       sessionId: 'sess-ask', backendSessionId: 'backend-ask', channel: 'slack:C2',
-      profile: p, responseText: 'the answer', projectId: 'general',
+      selection: p, responseText: 'the answer', projectId: 'general',
     };
     const base = continuationRunRequest({
       session: {
@@ -97,7 +92,7 @@ describe('continuationRunRequest', () => {
         backendSessionId: input.backendSessionId,
         engineKey: input.channel,
         },
-      profile: p,
+      selection: p,
       prompt: input.responseText,
       channel: input.channel,
       project: input.projectId,
@@ -112,10 +107,10 @@ describe('continuationRunRequest', () => {
 describe('DIRECT_RUN_POLICY', () => {
 
   it('hands every request its own copy, so one call site cannot poison another', () => {
-    const p = profile('x');
+    const p = selection('x');
     const session = { sessionId: null, backendSessionId: null, engineKey: 'c'};
-    const a = continuationRunRequest({ session, profile: p, prompt: 'a', channel: 'c', project: 'general', trigger: 't' });
-    const b = continuationRunRequest({ session, profile: p, prompt: 'b', channel: 'c', project: 'general', trigger: 't' });
+    const a = continuationRunRequest({ session, selection: p, prompt: 'a', channel: 'c', project: 'general', trigger: 't' });
+    const b = continuationRunRequest({ session, selection: p, prompt: 'b', channel: 'c', project: 'general', trigger: 't' });
     expect(a.policy).not.toBe(b.policy);
     expect(a.policy).not.toBe(DIRECT_RUN_POLICY);
     expect(a.spec).not.toBe(b.spec);

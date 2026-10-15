@@ -78,12 +78,12 @@ function attemptFixture(root: string, input: {
   const journalPath = path.join(root, `${attemptId}.source.ndjson`);
   fs.writeFileSync(journalPath, bytes);
   const identity = {
-    schema_version: 'cortex-production-attempt-identity/4', trial_id: 'trial-1',
+    schema_version: 'cortex-production-attempt-identity/5', trial_id: 'trial-1',
     root_run_id: rootRunId, attempt_id: attemptId,
     root_attempt_id: input.rootAttemptId ?? attemptId,
     spawn_parent_attempt_id: input.parentAttemptId ?? null,
     execution_id: input.executionId, session_id: sessionId,
-    profile_name: 'benchmark', backend: 'claude',
+    thinking: null, mode: 'plan', backend: 'claude',
     provider: 'anthropic', requested_model: 'model-requested',
     model_execution_identity_hash: SHA, role_tool_surface_hash: SHA,
     bundle_manifest_hash: BUNDLE,

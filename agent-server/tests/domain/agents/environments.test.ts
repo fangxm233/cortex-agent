@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import * as path from 'node:path';
 import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '../../../src/core/paths.js';
 import { listBuiltinPluginIds } from '../../../src/domain/plugins/builtin.js';
+import { environmentSchema } from '../../../src/domain/agents/environments/schema.js';
 
 vi.mock('../../../src/domain/agents/config.js', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -20,7 +21,7 @@ function seed(name: string, body: unknown): void {
 }
 
 function env(name: string, extra: Record<string, unknown> = {}) {
-  return { name, profile: '__active__', ...extra };
+  return { name, ...extra };
 }
 
 beforeEach(() => {
@@ -39,6 +40,16 @@ describe('environment registry', () => {
     loadEnvironments();
     expect(listEnvironments().map((e) => e.name)).toEqual(['main']);
     expect(getEnvironment('alias')).toBeNull();
+  });
+
+  test('legacy engine fields are stripped rather than required or applied', () => {
+    seed('main', env('main', { profile: 'retired' }));
+    loadEnvironments();
+    expect(environmentSchema.parse(env('main', { profile: 'retired' }))).not.toHaveProperty('profile');
+    expect(resolveEnvironmentByName('main')).not.toHaveProperty('profile');
+    expect(getEnvironment('main')).not.toHaveProperty('profile');
+    expect(listEnvironments()[0]).not.toHaveProperty('profile');
+    expect(validateEnvironment('main', env('main', { profile: 42 })).errors).toEqual([]);
   });
 
   test('resolves file prompt refs and plugin dirs on read, leaving the stored definition raw', () => {
@@ -93,7 +104,7 @@ describe('environment validation and writes', () => {
     expect(readEnvironment(ENVIRONMENTS_DIR, 'c').body?.tools).toBe('Read');
     expect(() => saveEnvironment(ENVIRONMENTS_DIR, { name: 'c', body: env('c'), baseHash: created.sha256 }))
       .toThrow(expect.objectContaining({ code: 'conflict' }));
-    expect(() => saveEnvironment(ENVIRONMENTS_DIR, { name: 'd', body: { name: 'd' }, baseHash: null }))
+    expect(() => saveEnvironment(ENVIRONMENTS_DIR, { name: 'd', body: { name: 'd', tools: 42 }, baseHash: null }))
       .toThrow(expect.objectContaining({ code: 'invalid-args' }));
     expect(existsSync(path.join(ENVIRONMENTS_DIR, 'd.json'))).toBe(false);
     expect(updated.sha256).not.toBe(created.sha256);

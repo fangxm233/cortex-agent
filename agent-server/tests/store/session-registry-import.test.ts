@@ -163,6 +163,7 @@ test('imports bindings, headers and turns; retained fields survive a reload', as
     assert.equal(conv.header.sessionId, header.sessionId);
     assert.equal(Object.hasOwn(conv.header, 'sessionName'), false);
     assert.equal(conv.header.backend, header.backend);
+    assert.equal(conv.header.selection, null);
     assert.equal(conv.header.profileName, header.profileName);
     assert.equal(conv.header.updatedAt, header.updatedAt);
     assert.deepEqual(await repo.getTurns(channel), header.turns, `turns for ${channel}`);
