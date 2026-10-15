@@ -231,7 +231,7 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
   const stale = {
     SLACK_CHANNEL: 'stale-channel',
     FEISHU_CHANNEL: 'stale-feishu',
-    CORTEX_PROFILE: 'stale-profile',
+    CORTEX_PROFILE: 'stale-selection',
     CORTEX_PROJECT: 'stale-project',
     CORTEX_SESSION_NAME: 'stale-name',
     CORTEX_EXECUTION_ID: 'stale-execution',
@@ -374,14 +374,14 @@ test('PIAdapter hands plugin MCP servers to the session only for compositions th
   }
 });
 
-// --- D1: provider passed through from the profile, not hardcoded ---
+// --- D1: provider passed through from the selection, not hardcoded ---
 
-test('PIAdapter passes the profile provider and model to the session', () => {
+test('PIAdapter passes the selection provider and model to the session', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
   const engine = piPool(adapter).open(engineSpecFixture({
     sessionId: null,
-    sessionKey: 'openai-codex-profile',
+    sessionKey: 'openai-codex-selection',
     resume: false,
     model: 'gpt-5.4-mini',
     piProvider: 'openai-codex',
@@ -402,7 +402,7 @@ test('PIAdapter does not default the provider to "anthropic" when only a model i
     model: 'claude-opus-4-7',
   }));
 
-  assert.equal(fake.requests[0].provider, null, 'PI infers the provider when the profile names none');
+  assert.equal(fake.requests[0].provider, null, 'PI infers the provider when the selection names none');
   assert.equal(fake.requests[0].model, 'claude-opus-4-7');
   engine.kill();
 });

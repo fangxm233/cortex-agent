@@ -1,6 +1,6 @@
 //
 // These cases used to ride `facade.runAgent`'s decorator chain. That chain is gone: the pre-flight
-// gate (`shouldSkipAttempt`), the provider attribution (`attemptProvider`) and the fallback walk now
+// gate (`shouldSkipAttempt`), provider attribution (`attemptProvider`), and single attempt now
 // live in `domain/runs/run.ts` over `domain/runs/fallback.ts`, and a caller opens a run with
 // `startRun`. The evidence case belongs here too: a run blocked before its attempt spawns must not
 // freeze an attempt identity or open a journal.

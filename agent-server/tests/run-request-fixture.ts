@@ -1,6 +1,6 @@
 //
 // `buildEngineSpec` takes a resolved `RunRequest` plus the attempt's engine selection — there is no
-// flat options bag in production any more. The spawn-seam and profile suites still want to state a
+// flat options bag in production any more. The spawn-seam and selection suites still want to state a
 // spawn in one terse literal, so this maps that literal onto the pair. Keep it a pure regrouping:
 // a default added here that production does not set would make the goldens lie. Where the old flat
 // bag had an implicit default (`loadCortexRules` undefined meant "load"), that default is restated

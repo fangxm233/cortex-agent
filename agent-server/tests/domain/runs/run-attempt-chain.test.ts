@@ -50,7 +50,7 @@ function result(overrides: Partial<RunResult> = {}): RunResult {
 function request(): RunRequest {
   const attempt = { model: 'm1', backend: 'claude' as const, mode: 'plan', provider: null, thinking: null };
   return {
-    runId: 'run-chain',
+    runId: 'run-single',
     session: { sessionId: 's-1', backendSessionId: null, engineKey: 's-1'},
     selection: attempt,
     spec: {
@@ -75,7 +75,7 @@ test('a rate-limited foreground never opens a second attempt and keeps its backg
   const seen: RunEvent[] = [];
   const observer: RunObserver = { onEvent: (event) => { seen.push(event); } };
   const run = new AgentRunImpl({
-    request: request(), observers: [observer], executionId: 'exec-chain',
+    request: request(), observers: [observer], executionId: 'exec-single',
     registry: new RunRegistry(), onTerminal: () => {}, startedAt: Date.now(),
   });
   run.start();
