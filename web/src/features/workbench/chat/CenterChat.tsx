@@ -1,5 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useLang, useVocab } from '@/i18n';
+import { MENU_FOCUS } from '@/design/MenuChrome';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { ChatHeader } from './ChatHeader';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
@@ -96,6 +98,21 @@ function DraftHero({ title, projectName }: { title: string; projectName: string 
   );
 }
 
+function SelectionPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }): JSX.Element {
+  const L = useVocab();
+  return (
+    <div role={failed ? 'alert' : 'status'} style={{ alignSelf: 'start', justifySelf: 'center', padding: 16, fontSize: 12 }}>
+      {failed ? L.wbSessionsFailed : L.cmLoading}
+      {failed && (
+        <button type="button" className={MENU_FOCUS} onClick={onRetry}
+          style={{ marginLeft: 8, color: 'var(--proto-accent)', cursor: 'pointer' }}>
+          {L.cmRetry}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // `grow` is the pane's share of the fluid center region — 1 normally, `1 - split` while a preview
 // is pinned beside the chat (WorkbenchView owns the split).
 export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
@@ -133,11 +150,13 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
   const chat = useChatSession(sessionId, active, {
     isDraft, projectId: currentProjectId ?? 'general', scheduledRuns: scheduledSessionsQuery.data,
   });
+  const selectionFailed = sessionsQuery.isError || scheduledSessionsQuery.isError;
+  const selectionTitle = sessionId ? shortSessionId(sessionId) : selectionFailed ? L.wbSessionsFailed : L.cmLoading;
   const title = isDraft
     ? L.wbNewConversation
     : active
       ? sessionDisplayTitle(active, chat.runTitle)
-      : L.wbNoSession;
+      : selectionTitle;
 
   const rows = useMemo(
     () => buildTranscriptRows(chat.transcript, chat.liveTail, {
@@ -216,7 +235,12 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
           transition: 'grid-template-rows 420ms cubic-bezier(.22,1,.36,1)',
         }}
       >
-        {preFirstMessage ? (
+        {!isDraft && !sessionId ? (
+          <SelectionPending failed={selectionFailed} onRetry={() => {
+            void sessionsQuery.refetch();
+            void scheduledSessionsQuery.refetch();
+          }} />
+        ) : preFirstMessage ? (
           <DraftHero title={L.wbNewConversation} projectName={projectName} />
         ) : chat.transcriptError && rows.length === 0 ? (
           <TranscriptLoadError onRetry={chat.retryTranscript} />

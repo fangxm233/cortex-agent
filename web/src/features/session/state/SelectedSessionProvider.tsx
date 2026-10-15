@@ -60,21 +60,24 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
     [sessions, scheduledSessionsQuery.data],
   );
   const pendingCreatedId = pendingCreatedSession?.sessionId ?? null;
-  const selectedSessionId = resolveSelectedSessionId(override, selectableSessions, pendingCreatedId, sessions);
+  const resolvedSessionId = resolveSelectedSessionId(override, selectableSessions, pendingCreatedId, sessions);
+  const listsLoaded = sessionsQuery.isSuccess && scheduledSessionsQuery.isSuccess;
+  const selectedSessionId = resolvedSessionId
+    ?? (currentProjectId && listsLoaded ? DRAFT_SENTINEL : null);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
   const [draftSelection, setDraftSelection] = useDraftSelection(isDraft);
 
   // The most-recent fallback is a starting point, not a live value: latch it once both lists are in.
   // A stale override is replaced only when it provably belongs to another project, never while the
   // list merely has not caught up with a session selected elsewhere.
-  const listsLoaded = sessionsQuery.isSuccess && scheduledSessionsQuery.isSuccess;
   const overrideElsewhere = override !== null && override !== DRAFT_SENTINEL
     && [...(allDirectQuery.data ?? []), ...(allScheduledQuery.data ?? [])]
       .some((s) => s.sessionId === override && s.projectId !== currentProjectId);
   useEffect(() => {
-    if (!listsLoaded || !selectedSessionId || selectedSessionId === override) return;
-    if (override === null || overrideElsewhere) setOverride(selectedSessionId);
-  }, [listsLoaded, selectedSessionId, override, overrideElsewhere]);
+    // Only real selections latch; the empty-project draft must not follow a project switch.
+    if (!listsLoaded || !resolvedSessionId || resolvedSessionId === override) return;
+    if (override === null || overrideElsewhere) setOverride(resolvedSessionId);
+  }, [listsLoaded, resolvedSessionId, override, overrideElsewhere]);
 
   // Once the freshly created session appears in the list, drop the pending marker — the plain
   // override now resolves it via the normal list-membership path.

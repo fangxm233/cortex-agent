@@ -11,6 +11,8 @@ import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/
 
 const harness = vi.hoisted(() => ({
   transcriptError: false,
+  listError: false,
+  retryList: vi.fn(),
   retryTranscript: vi.fn(),
   projectId: 'atlas',
   sessions: [] as any[],
@@ -47,8 +49,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       // empty here (no scheduled runs in these scenarios).
       if (options.__kind === 'sessions.list') {
         return options.input?.origin === 'scheduled'
-          ? { data: [], isPending: false }
-          : { data: harness.sessions, isPending: false };
+          ? { data: [], isPending: false, isError: harness.listError, refetch: harness.retryList }
+          : { data: harness.sessions, isPending: false, isError: harness.listError, refetch: harness.retryList };
       }
       // The engine picker's catalog: present but empty — these scenarios never open the menu.
       if (options.__kind === 'models.catalog') {
@@ -177,7 +179,7 @@ vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInte
 vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
-vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.team}{props.board}</div> }));
+vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-title={props.title} data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.team}{props.board}</div> }));
 vi.mock('@/features/board/BoardCapsule', () => ({ DockedBoardCapsule: ({ boardId }: { boardId: string }) => <span data-board-capsule={boardId} /> }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
@@ -282,10 +284,34 @@ describe('desktop chat metadata target', () => {
     act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
     expect(metadata()).toBeNull();
   });
-  it('does not offer metadata actions for an unresolved selection', () => {
+  it('shows a short ID without metadata actions for an unresolved selection', () => {
     harness.sessions = [];
+    harness.selection = { ...selection(false), selectedSessionId: 'created-session-id' };
     mounted = mountCenterChat();
     expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-metadata-session']).toBeNull();
+    expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-title']).toBe('created-');
+  });
+});
+
+describe('desktop chat selection loading', () => {
+  it('shows loading rather than an empty conversation before selection resolves', () => {
+    harness.sessions = [];
+    harness.selection = { ...selection(false), selectedSessionId: null };
+    mounted = mountCenterChat();
+    expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-title']).toBe('Loading…');
+    expect(mounted.root.findByProps({ role: 'status' }).children).toContain('Loading…');
+    expect(mounted.root.findByProps({ 'data-action': 'send' }).props.disabled).toBe(true);
+  });
+
+  it('shows list failure with retry rather than opening a draft', () => {
+    harness.sessions = [];
+    harness.selection = { ...selection(false), selectedSessionId: null };
+    harness.listError = true;
+    mounted = mountCenterChat();
+    expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-title']).toBe('Failed to load conversations');
+    act(() => mounted!.root.findByProps({ role: 'alert' }).findByType('button').props.onClick());
+    expect(harness.retryList).toHaveBeenCalled();
+    expect(mounted.root.findByProps({ 'data-action': 'send' }).props.disabled).toBe(true);
   });
 });
 
@@ -365,6 +391,8 @@ let mounted: ReactTestRenderer | null = null;
 
 beforeEach(() => {
   harness.transcriptError = false;
+  harness.listError = false;
+  harness.retryList.mockReset();
   harness.retryTranscript.mockReset();
   harness.projectId = 'atlas';
   harness.sessions = [SESSION];
@@ -398,7 +426,9 @@ describe('mounted optimistic sender wiring', () => {
     expect(mounted.root.findByProps({ 'data-chat-phase': 'pre-start' })).toBeTruthy();
     expect(mounted.root.findAllByProps({ 'data-composer-status-line': 'true' })).toHaveLength(0);
 
+    expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-title']).toBe('New conversation');
     typeAndSend(mounted, 'start here');
+    expect(harness.createAndSendMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'atlas', text: 'start here' }));
 
     expect(mounted.root.findByProps({ 'data-chat-phase': 'active' })).toBeTruthy();
     expect(renderedUsers(mounted)).toEqual(['start here']);
