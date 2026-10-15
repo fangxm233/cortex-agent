@@ -367,6 +367,22 @@ def test_shipped_evidence_attests_mechanism_and_carries_no_declared_envelope(sta
     assert shipped["capability_key"]["proxy_adapter_version"] == "cortex-bench-trial-proxy/2"
 
 
+@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
+@pytest.mark.parametrize("field", NUMERIC_ENVELOPE_FIELDS)
+def test_rejects_evidence_carrying_a_declared_envelope_number(
+    tmp_path: Path, state: str, field: str,
+) -> None:
+    record = document(state)
+    record[field] = 65536
+    path = tmp_path / "evidence.json"
+    digest = write(path, record)
+    with pytest.raises(ValueError, match="fields"):
+        validate_capability_evidence(
+            path, digest, capability_id="pi-deepseek-api-key", key=KEY,
+            state=state, adapter_id="deepseek-chat-completions/api-key",
+        )
+
+
 # --- mutation manifest ---------------------------------------------------------------------------
 
 
