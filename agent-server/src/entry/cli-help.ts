@@ -22,17 +22,17 @@ export function getInitHelp(): string {
 
 export function getSetupGatewayHelp(): string {
   return [
-    'Auto-detect Claude Code / PI configurations and generate gateway.yaml + profiles.json',
+    'Auto-detect Claude Code / PI configurations and generate gateway.yaml + models.json',
     '',
     'Usage: cortex setup-gateway [--dry-run] [--output-dir <path>]',
     '',
     'Discovers backend endpoints from local Claude Code and PI configs, then',
-    'writes ~/.aistatus/gateway.yaml (with backup) and $CORTEX_HOME/config/profiles.json.',
+    'writes ~/.aistatus/gateway.yaml (with backup) and $CORTEX_HOME/config/models.json.',
     'Without flags, this command writes files in place.',
     '',
     'Options:',
     '  --dry-run               Print the generated gateway.yaml to stdout without writing anything',
-    '  --output-dir <path>     Write gateway.yaml and profiles.json under <path> instead of the defaults',
+    '  --output-dir <path>     Write gateway.yaml and models.json under <path> instead of the defaults',
     '  --help, -h              Show this help',
   ].join('\n');
 }
@@ -137,7 +137,7 @@ export function getScheduleHelp(): string {
       { name: 'list', description: 'List schedules (--project to filter)' },
       { name: 'get <id>', description: 'Show one schedule' },
       { name: 'add --type <type>', description: 'Create a schedule' },
-      { name: 'edit <id>', description: 'Change message, project, profile, pre-check or timing (the type is fixed)' },
+      { name: 'edit <id>', description: 'Change message, project, model, thinking, pre-check or timing (the type is fixed)' },
       { name: 'pause <id>', description: 'Pause a recurring schedule' },
       { name: 'resume <id>', description: 'Resume a paused schedule' },
       { name: 'remove <id>', description: 'Delete a schedule (--dry-run to preview)' },
@@ -150,7 +150,8 @@ export function getScheduleHelp(): string {
       { flag: '--delay <duration>', description: 'once: fire this long from now, e.g. 90m, 2h' },
       { flag: '--message <text|->', description: 'Prompt for the fired session; "-" reads stdin' },
       { flag: '--project <id>', description: 'Project the fired session belongs to', default: 'general' },
-      { flag: '--profile <name>', description: 'Agent profile to run under', default: 'the default profile' },
+      { flag: '--model [provider/]model', description: 'Model to run', default: 'the default model' },
+      { flag: '--thinking <level>', description: 'Thinking level for the selected model' },
       { flag: '--pre-check <cmd>', description: 'Shell gate run before each fire; non-zero exit skips it' },
       { flag: '--idempotency-key <key>', description: 'add: return the schedule already created with this key' },
       { flag: '--dry-run', description: 'remove: show what would be removed' },
@@ -185,7 +186,7 @@ function getCliCommands() {
     { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },
     { name: 'auth status', description: t('cmd.auth.cli.statusDescription') },
     { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
-    { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
+    { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + models.json' },
     { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
     { name: 'client remove', description: 'Unregister a remote machine and uninstall its cortex-client' },
     { name: 'schedule', description: 'List, add, edit, pause, resume and remove scheduled tasks' },

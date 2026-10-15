@@ -81,7 +81,7 @@ import { runMigrations, migrateAistatusConfigLocation } from '@store/version-mig
 import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
-import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
+import { getModelsConfigRevision, MODELS_FILE, modelsRepo, startModelsWatcher, setAdminNotifier as setModelsNotifier } from '@store/models-repo.js';
 import { startBoardWatcher } from '@domain/boards/board-watcher.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
@@ -200,16 +200,15 @@ function initConfiguredHooks(): void {
   log.info(`Startup: mounted ${enabled.length} hooks (${ccCount} cc / ${cortexCount} cortex)`);
 }
 
-/** Preload the PI SDK at boot when any profile can route to it, so the first PI session of this
+/** Preload the PI SDK at boot when the default or any favorite uses it, so the first PI session of this
  *  process does not wait out its multi-second module import. */
 function prewarmPiBackend(): void {
   try {
-    const profiles = profileRepo.readIfPresent()?.profiles ?? {};
-    const usesPi = Object.values(profiles).some((profile) => profile.backend === 'pi'
-      || profile.fallback?.some((entry) => entry.backend === 'pi'));
+    const models = modelsRepo.readIfPresent();
+    const usesPi = models?.default?.backend === 'pi' || models?.favorites?.some(ref => ref.backend === 'pi');
     if (usesPi) prewarmPiSdk();
   } catch (error) {
-    log.warn(`Startup: PI preload skipped (profiles unreadable): ${(error as Error).message}`);
+    log.warn(`Startup: PI preload skipped (models unreadable): ${(error as Error).message}`);
   }
 }
 
@@ -275,8 +274,8 @@ createEventLogger(bus);
 initAuthEvents(bus);
 // A login only becomes useful once the models it unlocks are routable, and that mapping is derived
 // by scanning local backend state. Re-derive it whenever a login lands, so a user who authenticates
-// from the workbench gets working profiles without dropping to a terminal for `cortex setup-gateway`.
-// Merge-aware and non-throwing (see gateway-sync.ts) — hand-edited profiles are never overwritten.
+// from the workbench gets usable models without dropping to a terminal for `cortex setup-gateway`.
+// Merge-aware and non-throwing (see gateway-sync.ts) — the existing default is never overwritten.
 onLoginSuccess((event) => {
   void syncGatewayFromBackends({ backends: [event.backend] }).then((result) => {
     if (!result.configured && result.reason !== 'no-endpoints') {
@@ -336,7 +335,7 @@ if (tuiGateway) {
 const notifyAdmin = (text: string) => {
   void emitSystemNotice(adapter, { text });
 };
-setProfileNotifier(notifyAdmin);
+setModelsNotifier(notifyAdmin);
 setMachineNotifier(notifyAdmin);
 setMachineReloadListener(() => {
   void releaseUnregisteredDevices().catch((e) => log.error(`Releasing removed machines failed: ${(e as Error).message}`));
@@ -414,7 +413,7 @@ registerInteractionHandlers(adapter);
 registerMessageHandler(adapter, { dispatchCommand, handleMessageEdit });
 
 // --- Graceful shutdown ---
-// Boot fills in the platform connections, the Web UI host and the profile watcher as it starts them.
+// Boot fills in the platform connections, the Web UI host and the models watcher as it starts them.
 const shutdownHandles: ShutdownHandles = {
   bus, outboundQueue: oq, scheduler, retention: retentionController,
 };
@@ -494,11 +493,11 @@ installSigtermShutdown(shutdownHandles);
   startEnvironmentWatcher();
   initializeProductionAttemptIdentity({
     configurationRevision: () => ({
-      profiles: getProfileConfigRevision(), environments: getEnvironmentRevision(),
+      models: getModelsConfigRevision(), environments: getEnvironmentRevision(),
     }),
   });
-  shutdownHandles.stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
-    bus.publish({ type: 'config.changed', section: 'profiles' });
+  shutdownHandles.stopModelsWatcher = startModelsWatcher(modelsRepo, MODELS_FILE, () => {
+    bus.publish({ type: 'config.changed', section: 'models' });
   });
   // Open boards refresh live: their directories and the user stylesheet are watched.
   shutdownHandles.stopBoardWatcher = startBoardWatcher(bus);
@@ -610,14 +609,13 @@ installSigtermShutdown(shutdownHandles);
     version: CORTEX_VERSION,
     pid: process.pid,
   }).catch(() => {});
-  // D5: there is no global backend any more — the default profile's is what a channel with no
-  // selection of its own will use, and that is what belongs in the banner.
-  const bootConfig = resolveConfiguredDefaultRun();
-  const profileSummary = bootConfig
-    ? `profile: ${bootConfig.profileName} · backend: ${bootConfig.profile.backend}`
+  // Show the selection an unconfigured channel will use.
+  const bootConfig = modelsRepo.readIfPresent()?.default ? resolveConfiguredDefaultRun() : null;
+  const selectionSummary = bootConfig
+    ? `model: ${bootConfig.model} · backend: ${bootConfig.backend}`
     : 'provider setup required';
   log.info(
-    `Cortex agent is running (${adapter.name}) — ${profileSummary}`
+    `Cortex agent is running (${adapter.name}) — ${selectionSummary}`
     + ` · boot ${Math.round(performance.now())}ms (imports ${importsMs}ms)`,
   );
 })();

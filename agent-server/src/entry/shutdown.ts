@@ -30,7 +30,7 @@ export interface ShutdownHandles {
   retention: { stop(): Promise<void> };
   platformConnections?: { stop(): Promise<void> } | null;
   uiHttpServer?: { close(): Promise<void> } | null;
-  stopProfileWatcher?: (() => void) | null;
+  stopModelsWatcher?: (() => void) | null;
   stopBoardWatcher?: (() => void) | null;
 }
 
@@ -43,7 +43,7 @@ function serviceSteps(h: ShutdownHandles): ShutdownStep[] {
     { name: 'agent engines', run: () => engines.closeAll() },
     { name: 'client manager', run: stopClientManager },
     { name: 'machine watcher', run: stopMachineRegistryWatcher },
-    { name: 'profile watcher', run: () => h.stopProfileWatcher?.() },
+    { name: 'models watcher', run: () => h.stopModelsWatcher?.() },
     { name: 'board watcher', run: () => h.stopBoardWatcher?.() },
     // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
     // an instance nothing is supervising.

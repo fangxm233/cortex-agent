@@ -27,12 +27,12 @@ function greenPiRuntime() {
 }
 
 const GREEN_PRESENT = new Set([
-  '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/profiles.json',
+  '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/models.json',
   '/c/mcp-config.json', '/h/.aistatus/gateway.yaml',
 ]);
 const GREEN_TEXTS: Record<string, string> = {
   '/c/.env': '', '/s/mode.json': '{"backend":"claude"}',
-  '/c/profiles.json': '{"profiles":{"default":{"model":"x"}},"defaultProfile":"default"}',
+  '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"mode":"plan"},"favorites":[]}',
   '/c/mcp-config.json': '{}', '/h/.aistatus/gateway.yaml': 'x: 1',
 };
 
@@ -55,7 +55,7 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
       generatedAt: '2026-08-02T00:00:00.000Z', accounts: [],
       piRuntime: { available: true, version: '0.82.1', entry: '/pi/index.js', error: null },
     }),
-    defaultProfile: () => ({ backend: 'claude', mode: 'plan' }),
+    defaultSelection: () => ({ backend: 'claude', mode: 'plan' }),
     ...over,
   };
 }

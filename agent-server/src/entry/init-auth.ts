@@ -30,7 +30,7 @@ export async function onboardInitAuth(interactive: boolean, emit: (event: Record
     if (action === 'skip') return [];
     if (action === 'continue') return available;
     if (action === 'login') {
-      const result = await runAuthLoginCli([], { ...deps, sync: async () => ({ configured: false, endpoints: 0, profiles: [], reason: 'deferred-to-init' }) });
+      const result = await runAuthLoginCli([], { ...deps, sync: async () => ({ configured: false, endpoints: 0, defaultSet: false, favorites: [], reason: 'deferred-to-init' }) });
       if (result.exitCode === 130) throw new LoginCliError(t('init.cancel'), 130);
       deps.ui.notify({ kind: 'info', message: result.stderr || t('init.auth.saved') });
     }

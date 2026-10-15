@@ -7,7 +7,7 @@ import { createAuthLoginService } from '../src/domain/auth/login-service.js';
 import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 const snapshot = { accounts: [{ backend: 'pi', provider: 'fixture', label: 'Fixture', capabilities: ['api_key'], state: 'logged-in', credentials: [] }], piRuntime: { available: true } } as AuthStatusSnapshot;
 function dependencies(): LoginCliDeps {
-  return { tty: true, readStatus: vi.fn(async () => snapshot), ui: { select: vi.fn(async () => 'continue'), secret: vi.fn(async () => 'test-only-secret'), confirm: vi.fn(async () => false), notify: vi.fn() }, service: {} as LoginCliDeps['service'], ensureClaude: vi.fn(async () => true), sync: vi.fn(async () => ({ configured: false, endpoints: 0, profiles: [], reason: 'no-endpoints' })) };
+  return { tty: true, readStatus: vi.fn(async () => snapshot), ui: { select: vi.fn(async () => 'continue'), secret: vi.fn(async () => 'test-only-secret'), confirm: vi.fn(async () => false), notify: vi.fn() }, service: {} as LoginCliDeps['service'], ensureClaude: vi.fn(async () => true), sync: vi.fn(async () => ({ configured: false, endpoints: 0, defaultSet: false, favorites: [], reason: 'no-endpoints' })) };
 }
 afterEach(() => setLocale('en'));
 it.each(['en', 'zh'] as const)('localizes init choices and installation confirmation in %s', async locale => {

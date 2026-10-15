@@ -36,7 +36,7 @@ export interface MergeGatewayResult {
 }
 
 export interface GatewayValidationIssue {
-  profile: string;
+  model: string;
   mode: string;
   provider?: string;
   reason: string;
@@ -57,7 +57,7 @@ const FLAT_MODE = 'default';
 // ─── Types ────────────────────────────────────────────────────────
 
 export interface DiscoveredEndpoint {
-  /** Mode key in gateway.yaml + cortex profile (e.g. "plan", "deepseek", "openai-codex") */
+  /** Mode key in gateway.yaml (e.g. "plan", "deepseek", "openai-codex") */
   mode: string;
   /** Endpoint group name (e.g. "anthropic", "deepseek", "openai-codex") */
   endpoint: string;
@@ -68,7 +68,7 @@ export interface DiscoveredEndpoint {
   /** Model IDs known to be available for this endpoint */
   models: string[];
   /** Whether gateway.yaml should render an endpoint section for this entry. PI providers without a
-   *  known upstream URL are surfaced as profiles but skipped in gateway.yaml. */
+   *  known upstream URL are surfaced as models but skipped in gateway.yaml. */
   gatewayManaged: boolean;
   /** The model this endpoint recommends when nothing is chosen — PI's per-provider default, or the
    *  newest Claude flagship. Always one of `models`; absent when the endpoint has no preference. */
@@ -81,7 +81,7 @@ export interface DiscoveredEndpoint {
  * Map a PI built-in provider name to its real upstream URL. Used by `generateGatewayYaml` so PI
  * traffic can be routed through the gateway. Entries are sourced from PI source / docs.
  *
- * Providers absent from this table are still surfaced as cortex profiles, but no gateway endpoint
+ * Providers absent from this table are still surfaced as models, but no gateway endpoint
  * is generated for them (gatewayManaged=false). PI will then either fail (if the cortex spawn path
  * forces gateway routing) or direct-call the upstream (if the spawn path leaves models.json
  * untouched for that provider). Full provider plumbing remains future work.
@@ -217,12 +217,12 @@ export interface DiscoverEndpointsOptions {
  * @param backends - Optional filter: when provided, only discover endpoints for the listed backends
  *   (e.g. `['claude']`, `['pi']`, `['claude', 'pi']`). When omitted, all backends are discovered.
  *
- * Claude endpoints come first, then PI providers in PI's order; profile defaults follow that order.
+ * Claude endpoints come first, then PI providers in PI's order; model recommendations follow that order.
  * - Claude Code plan mode: only when Claude Code holds a subscription login.
  * - Claude Code api mode: only when a real ANTHROPIC_API_KEY is available.
  * - PI providers: those PI reports usable auth for. Each provider becomes one endpoint with
  *   `mode = endpoint = provider name`. `gatewayManaged` is true only if the provider has a known
- *   upstream URL in PI_PROVIDER_UPSTREAM (otherwise profile is generated but gateway.yaml entry is
+ *   upstream URL in PI_PROVIDER_UPSTREAM (otherwise the model is discovered but gateway.yaml entry is
  *   skipped).
  */
 export async function discoverEndpoints(
@@ -256,7 +256,7 @@ function anthropicEndpoint(
 
 /**
  * Claude Code's endpoints, each present only when its credential is: an endpoint nobody logged
- * into would otherwise become the default profile and lock the user out of the one they did log
+ * into would otherwise become the default selection and lock the user out of the one they did log
  * into (merges never overwrite an existing plan/execute).
  */
 async function discoverClaudeEndpoints(options: DiscoverEndpointsOptions): Promise<DiscoveredEndpoint[]> {
@@ -318,7 +318,7 @@ function capitalize(s: string): string {
  * Generate gateway.yaml content from discovered endpoints.
  * Outputs a formatted YAML string with comments explaining each mode.
  *
- * Endpoints with gatewayManaged=false are skipped (their profile still exists in profiles.json,
+ * Endpoints with gatewayManaged=false are skipped (their models still exist in models.json,
  * but gateway.yaml has no entry for them — PI traffic to those providers is currently direct).
  */
 export function generateGatewayYaml(endpoints: DiscoveredEndpoint[], defaultMode?: string): string {
@@ -386,7 +386,7 @@ export function generateGatewayYaml(endpoints: DiscoveredEndpoint[], defaultMode
     for (const s of skipped) {
       lines.push(`#   ${s.mode} (${s.models.length} model${s.models.length === 1 ? '' : 's'})`);
     }
-    lines.push('# These providers appear in profiles.json but are not routed through this gateway.');
+    lines.push('# These providers appear in models.json but are not routed through this gateway.');
   }
 
   lines.push('');
@@ -463,7 +463,7 @@ export function discoveredToEndpointMap(endpoints: DiscoveredEndpoint[]): Endpoi
 /**
  * Merge freshly discovered endpoints over an existing gateway config.
  *
- * Add-only at the (endpoint, mode) PAIR level (mirrors mergeProfilesJson overwrite=false): a pair
+ * Add-only at the (endpoint, mode) PAIR level (preserving existing operator choices): a pair
  * absent from the existing file is added from discovery; any pair that already exists is preserved
  * verbatim — its base_url, auth_style and (critically) managed keys are never clobbered. This both
  * fixes the original bug (a missing mode gets added) and protects hand-customized routes, e.g. a
@@ -598,69 +598,36 @@ export function writeMergedGatewayYaml(
 }
 
 /**
- * Validate that every profile (and its fallback chain) in profiles.json references a gateway mode
- * that actually exists in the merged endpoint map. Pure + non-fatal — returns the list of problems
- * so the caller can warn loudly. This is what catches the `400 Unknown mode: <x>` class of bug.
+ * Check the default's selected route and whether each favorite has an available endpoint route.
  */
-export function validateProfilesAgainstGateway(
+export function validateModelsAgainstGateway(
   mergedEndpoints: EndpointMap,
-  profilesConfigDir: string = CONFIG_DIR,
+  configDir: string = CONFIG_DIR,
 ): GatewayValidationIssue[] {
-  const profilesPath = path.join(profilesConfigDir, 'profiles.json');
-
+  const file = path.join(configDir, 'models.json');
   let parsed: unknown;
   try {
-    if (!existsSync(profilesPath)) return [];
-    parsed = JSON.parse(readFileSync(profilesPath, 'utf-8'));
-  } catch (e) {
-    log.warn(`Failed to read profiles.json for validation: ${(e as Error).message}`);
+    if (!existsSync(file)) return [];
+    parsed = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (error) {
+    log.warn(`Failed to read models.json for validation: ${(error as Error).message}`);
     return [];
   }
-  if (!isPlainObject(parsed) || !isPlainObject(parsed.profiles)) return [];
+  if (!isPlainObject(parsed)) return [];
+  const entries = [parsed.default, ...(Array.isArray(parsed.favorites) ? parsed.favorites : [])];
+  return entries.filter(isPlainObject).flatMap(entry => validateModelRoute(entry, mergedEndpoints));
+}
 
-  const modeExistsAnywhere = (mode: string): boolean =>
-    Object.values(mergedEndpoints).some((modes) => mode in modes);
-
-  const issues: GatewayValidationIssue[] = [];
-
-  const checkEntry = (entry: Record<string, unknown>, label: string): void => {
-    const backend = typeof entry.backend === 'string' ? entry.backend : undefined;
-    const mode = typeof entry.mode === 'string' ? entry.mode : undefined;
-    const provider = typeof entry.provider === 'string' ? entry.provider : undefined;
-
-    // No mode → PI uses direct /<provider> routing (no gateway mode indirection); nothing to check.
-    if (!mode) return;
-
-    let endpoint: string | undefined;
-    if (backend === 'claude') endpoint = 'anthropic';
-    else if (backend === 'pi') endpoint = provider;
-    else return; // Unknown backends do not route through gateway modes here.
-
-    if (backend === 'pi' && !provider) {
-      issues.push({ profile: label, mode, reason: `pi profile is missing a provider (cannot resolve gateway endpoint)` });
-      return;
-    }
-
-    if (!endpoint || !mergedEndpoints[endpoint]?.[mode]) {
-      const reason = !modeExistsAnywhere(mode)
-        ? `mode "${mode}" is not configured in gateway.yaml`
-        : `endpoint "${endpoint}" is not configured under mode "${mode}"`;
-      issues.push({ profile: label, mode, provider, reason });
-    }
-  };
-
-  for (const [name, profileVal] of Object.entries(parsed.profiles as Record<string, unknown>)) {
-    if (!isPlainObject(profileVal)) continue;
-    checkEntry(profileVal, name);
-    const fallback = profileVal.fallback;
-    if (Array.isArray(fallback)) {
-      fallback.forEach((fb, i) => {
-        if (isPlainObject(fb)) checkEntry(fb, `${name} (fallback #${i + 1})`);
-      });
-    }
-  }
-
-  return issues;
+function validateModelRoute(entry: Record<string, unknown>, endpoints: EndpointMap): GatewayValidationIssue[] {
+  const provider = typeof entry.provider === 'string' ? entry.provider : undefined;
+  const endpoint = entry.backend === 'claude' ? 'anthropic' : provider;
+  const mode = typeof entry.mode === 'string' ? entry.mode : '';
+  const model = String(entry.model ?? '(unknown)');
+  if (!endpoint) return [{ model, mode, reason: 'PI model is missing a provider (cannot resolve gateway endpoint)' }];
+  const routes = endpoints[endpoint] ?? {};
+  const available = mode ? !!routes[mode] : Object.keys(routes).length > 0;
+  if (available) return [];
+  return [{ model, mode, provider, reason: `endpoint "${endpoint}" has no configured ${mode ? `mode "${mode}"` : 'route'} in gateway.yaml` }];
 }
 
 /**

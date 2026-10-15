@@ -15,7 +15,8 @@ import {
   type AuthAccountStatus,
   type AuthStatusSnapshot,
 } from '../auth/auth-status.js';
-import { resolveRunConfig } from '../runs/config-resolver.js';
+import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
+import { validateEngineSelection, validateModelRef } from '../agents/engine-selection.js';
 import type { Backend } from '@core/types/agent-types.js';
 import {
   loadPiRuntime as loadInstalledPiRuntime,
@@ -80,11 +81,11 @@ export interface DoctorDeps {
   resolvePiSdk(): PiSdkInfo | null;
   loadPiRuntime(): Promise<PiRuntimeLoadResult>;
   getAuthStatus(): Promise<AuthStatusSnapshot>;
-  /** Backend and route of the profile a channel with no selection runs; null when unreadable. */
-  defaultProfile(): DefaultProfileInfo | null;
+  /** Backend and route used by an unconfigured channel; null when unreadable. */
+  defaultSelection(): DefaultSelectionInfo | null;
 }
 
-export interface DefaultProfileInfo {
+export interface DefaultSelectionInfo {
   backend: Backend;
   mode: string | null;
 }
@@ -135,10 +136,10 @@ function buildEnvReader(deps: DoctorDeps): (name: string) => string | undefined 
 
 // ─── Section: Runtime & Process ───────────────────────────────────
 
-/** The default profile's backend (D5), else claude. PI runs in-process from the SDK bundled with
+/** The default selection's backend, else claude. PI runs in-process from the SDK bundled with
  *  this package, so only the Claude backend still needs a CLI on PATH. */
 function backendRuntimeCheck(deps: DoctorDeps): CheckResult {
-  const backend = deps.defaultProfile()?.backend ?? 'claude';
+  const backend = deps.defaultSelection()?.backend ?? 'claude';
   if (backend === 'pi') {
     return { id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: 'backend: pi runs in-process from the bundled SDK (no CLI needed)' };
   }
@@ -208,11 +209,11 @@ function pushEnvAndTokenChecks(
     : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
 }
 
-/** Whether the default profile runs Claude on a key-billed route. Mirrors the run path: a profile
+/** Whether the default selection runs Claude on a key-billed route. Mirrors the run path: a selection
  *  without a mode routes as `api` (resolveRunRoute), and every route but `plan` carries a key. */
 function usesClaudeApiMode(deps: DoctorDeps): boolean {
-  const profile = deps.defaultProfile();
-  return profile?.backend === 'claude' && (profile.mode || 'api') !== 'plan';
+  const selection = deps.defaultSelection();
+  return selection?.backend === 'claude' && (selection.mode || 'api') !== 'plan';
 }
 
 function gatewayBacksClaudeApi(
@@ -250,7 +251,7 @@ function pushConfigChecks(checks: CheckResult[], deps: DoctorDeps): void {
     deps.fileExists(statePath) ? statePath : path.join(store, 'mode.json'),
     'mode-json', stateLabel, 'warn',
   );
-  checks.push(checkProfiles(deps, path.join(config, 'profiles.json')));
+  checks.push(checkModels(deps, path.join(config, 'models.json')));
   const mcpPath = path.join(config, 'mcp-config.json');
   if (!deps.fileExists(mcpPath)) {
     checks.push({ id: 'mcp-config', label: 'mcp-config.json', status: 'warn', detail: `missing (${mcpPath})`, hint: 'run `cortex doctor --fix` to regenerate', fixable: true });
@@ -370,23 +371,20 @@ function pushJsonCheck(checks: CheckResult[], deps: DoctorDeps, p: string, id: s
     : { id, label, status: missingStatus, detail: 'invalid JSON' });
 }
 
-function checkProfiles(deps: DoctorDeps, p: string): CheckResult {
+function checkModels(deps: DoctorDeps, p: string): CheckResult {
+  const base = { id: 'models', label: 'models.json' };
   if (!deps.fileExists(p)) {
-    return { id: 'profiles', label: 'profiles.json', status: 'warn', detail: `missing (${p})`, hint: 'run `cortex setup-gateway`' };
+    return { ...base, status: 'warn', detail: `missing (${p})`, hint: 'run `cortex setup-gateway`' };
   }
-  const text = deps.readText(p);
-  let parsed: any;
-  try { parsed = JSON.parse(text ?? ''); } catch {
-    return { id: 'profiles', label: 'profiles.json', status: 'fail', detail: 'invalid JSON', hint: 're-run `cortex setup-gateway`' };
+  try {
+    const parsed = JSON.parse(deps.readText(p) ?? '') as { default?: unknown; favorites?: unknown } | null;
+    validateEngineSelection(parsed?.default);
+    if (!Array.isArray(parsed?.favorites)) throw new Error('missing `favorites` array');
+    parsed.favorites.forEach(validateModelRef);
+    return { ...base, status: 'pass', detail: `default: ${parsed.default.model}; favorites: ${parsed.favorites.length}` };
+  } catch (error) {
+    return { ...base, status: 'fail', detail: (error as Error).message, hint: 're-run `cortex setup-gateway`' };
   }
-  if (!parsed || typeof parsed !== 'object' || typeof parsed.profiles !== 'object' || parsed.profiles == null) {
-    return { id: 'profiles', label: 'profiles.json', status: 'fail', detail: 'missing `profiles` object' };
-  }
-  if (parsed.defaultProfile && !(parsed.defaultProfile in parsed.profiles)) {
-    return { id: 'profiles', label: 'profiles.json', status: 'fail', detail: `defaultProfile "${parsed.defaultProfile}" not found in profiles` };
-  }
-  const names = Object.keys(parsed.profiles).join(', ');
-  return { id: 'profiles', label: 'profiles.json', status: 'pass', detail: `profiles: ${names || '(none)'}` };
 }
 
 // ─── Section: Messaging Platform ──────────────────────────────────
@@ -571,14 +569,13 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     resolvePiSdk: resolveBundledPiSdk,
     loadPiRuntime: () => loadInstalledPiRuntime(),
     getAuthStatus: () => readAuthStatus(),
-    defaultProfile: readDefaultProfile,
+    defaultSelection: readDefaultSelection,
   };
 }
 
-function readDefaultProfile(): DefaultProfileInfo | null {
+function readDefaultSelection(): DefaultSelectionInfo | null {
   try {
-    const { profile } = resolveRunConfig();
-    return { backend: profile.backend, mode: profile.mode };
+    return resolveConfiguredDefaultRun();
   } catch {
     return null;
   }

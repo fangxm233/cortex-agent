@@ -5,14 +5,10 @@ import { readClaudeStore } from '@core/claude-credentials.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
-import { getActiveProfile } from '../agents/config.js';
+import { modelsRepo } from '@store/models-repo.js';
 import { getSavedApiEnv as readSavedApiEnv } from './anthropic-env.js';
-import {
-  listProfiles as readProfiles,
-  resolveProfileConfig,
-  type ProfileEntry,
-  type ResolvedProfile,
-} from '../agents/profile-manager.js';
+import { listFavorites as readFavorites } from '../agents/models.js';
+import type { ModelRef } from '../agents/engine-selection.js';
 import {
   readClaudeAuthStatus as readInstalledClaudeAuthStatus,
   type ClaudeAuthStatus,
@@ -73,7 +69,7 @@ export function preferredAuthType(
   return account?.capabilities.includes('api_key') ? 'api_key' : null;
 }
 
-interface ActiveProfileReference {
+interface SelectionReference {
   backend: Backend;
   provider: string | null;
 }
@@ -91,8 +87,8 @@ export interface GetAuthStatusOptions {
   };
   getClaudeMode?: () => string;
   getActiveBackend?: () => Backend;
-  listProfiles?: () => ResolvedProfile[];
-  getActiveProfileConfig?: () => ActiveProfileReference;
+  listFavorites?: () => ModelRef[];
+  getDefaultSelection?: () => SelectionReference | null;
   readClaudeAuthStatus?: () => Promise<ClaudeAuthStatus>;
 }
 
@@ -363,50 +359,39 @@ function buildPiAccount(
   }
 }
 
-function addProfileReference(usage: InUseAccounts, entry: ProfileEntry, inherited: Backend = 'claude'): void {
-  const backend = entry.backend ?? inherited;
-  if (backend === 'claude') usage.claude = true;
-  if (backend === 'pi' && entry.provider) usage.pi.add(entry.provider);
+function addModelReference(usage: InUseAccounts, entry: SelectionReference): void {
+  if (entry.backend === 'claude') usage.claude = true;
+  if (entry.backend === 'pi' && entry.provider) usage.pi.add(entry.provider);
 }
 
-function addProfile(usage: InUseAccounts, profile: ResolvedProfile): void {
-  const primaryBackend = profile.backend ?? 'claude';
-  addProfileReference(usage, profile);
-  for (const fallback of profile.fallback ?? []) addProfileReference(usage, fallback, primaryBackend);
+function configuredDefault() {
+  return modelsRepo.readIfPresent()?.default ? resolveConfiguredDefaultRun() : null;
 }
 
-function defaultActiveProfileConfig(): ActiveProfileReference {
-  const profile = resolveProfileConfig(getActiveProfile());
-  return { backend: profile.backend, provider: profile.provider };
-}
-
-/** The backend and Claude mode a channel with no selection of its own will run (D5): the default
- *  profile's, replacing the retired daemon-wide `backend` / `claudeMode` fields. */
 function defaultRunBackend(): Backend | null {
-  return resolveConfiguredDefaultRun()?.profile.backend ?? null;
+  return configuredDefault()?.backend ?? null;
 }
 
 function defaultClaudeMode(): string {
-  return resolveConfiguredDefaultRun()?.profile.mode ?? 'plan';
+  return configuredDefault()?.mode ?? 'plan';
 }
 
 function collectInUse(options: GetAuthStatusOptions): InUseAccounts {
   const usage: InUseAccounts = { claude: false, pi: new Set<string>() };
   try {
-    for (const profile of (options.listProfiles ?? readProfiles)()) addProfile(usage, profile);
+    for (const model of (options.listFavorites ?? readFavorites)()) addModelReference(usage, model);
   } catch {
-    // A broken profile file must not hide credential state.
+    // A broken models file must not hide credential state.
   }
-  // D5: there is no daemon-wide backend. What "in use" means for a credential is the backend the
-  // default profile runs, which is what an unconfigured channel will pick up.
+  // Include the configured default even if it is not favorited.
   const backend = (options.getActiveBackend ?? defaultRunBackend)();
   if (backend === 'claude') usage.claude = true;
   if (backend !== 'pi') return usage;
   try {
-    const active = (options.getActiveProfileConfig ?? defaultActiveProfileConfig)();
-    if (active.backend === 'pi' && active.provider) usage.pi.add(active.provider);
+    const active = (options.getDefaultSelection ?? configuredDefault)();
+    if (active) addModelReference(usage, active);
   } catch {
-    // Active profile resolution is advisory for inUse only.
+    // Default selection resolution is advisory for inUse only.
   }
   return usage;
 }

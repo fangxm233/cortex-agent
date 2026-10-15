@@ -58,13 +58,13 @@ function authSnapshot(accounts: AuthAccountStatus[] = [authAccount()]): AuthStat
 }
 
 const BASE_PRESENT = new Set([
-  '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/profiles.json',
+  '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/models.json',
   '/c/mcp-config.json', '/h/.aistatus/gateway.yaml',
 ]);
 const BASE_TEXTS: Record<string, string> = {
   '/c/.env': '',
   '/s/mode.json': '{"backend":"claude","mode":"api"}',
-  '/c/profiles.json': '{"profiles":{"default":{"model":"x"}},"defaultProfile":"default"}',
+  '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"mode":"api"},"favorites":[]}',
   '/c/mcp-config.json': '{}',
   '/h/.aistatus/gateway.yaml': 'endpoints: {}',
 };
@@ -90,7 +90,7 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
     resolvePiSdk: () => ({ ...PI_SDK }),
     loadPiRuntime: async () => healthyPiRuntime(),
     getAuthStatus: async () => authSnapshot(),
-    defaultProfile: () => ({ backend: 'claude', mode: 'api' }),
+    defaultSelection: () => ({ backend: 'claude', mode: 'api' }),
     ...over,
   };
 }
@@ -101,6 +101,21 @@ function byId(report: DoctorReport): Record<string, { status: string; fixable?: 
   for (const s of report.sections) for (const c of s.checks) out[c.id] = c;
   return out;
 }
+
+describe('models configuration diagnostics', () => {
+  it('warns when models.json is missing', async () => {
+    const deps = baseDeps({ fileExists: p => p !== '/c/models.json' && BASE_PRESENT.has(p) });
+    assert.equal(byId(await runDiagnostics(deps)).models.status, 'warn');
+  });
+
+  it('rejects missing default, invalid JSON, and invalid favorite identities', async () => {
+    const valid = JSON.parse(BASE_TEXTS['/c/models.json']);
+    for (const text of ['{broken', '{"favorites":[]}', JSON.stringify({ ...valid, favorites: [{ backend: 'pi', model: 'x' }] })]) {
+      const deps = baseDeps({ readText: p => p === '/c/models.json' ? text : BASE_TEXTS[p] ?? null });
+      assert.equal(byId(await runDiagnostics(deps)).models.status, 'fail');
+    }
+  });
+});
 
 // ─── runDiagnostics: happy path ───────────────────────────────────
 
@@ -113,7 +128,7 @@ describe('runDiagnostics — all green', () => {
   });
 
   it('never looks for a pi binary when the PI backend is selected', async () => {
-    const deps = baseDeps({ defaultProfile: () => ({ backend: 'pi', mode: 'openai-codex' }) });
+    const deps = baseDeps({ defaultSelection: () => ({ backend: 'pi', mode: 'openai-codex' }) });
     const checked: string[] = [];
     deps.commandExists = (bin) => { checked.push(bin); return true; };
 
@@ -243,9 +258,9 @@ describe('runDiagnostics — backend authentication', () => {
     delete env.ANTHROPIC_API_KEY;
     const report = await runDiagnostics(baseDeps({
       env,
-      // The default profile decides (D5) — a stale `claudeMode` in agent-state.json does not.
+      // The default selection decides — a stale `claudeMode` in agent-state.json does not.
       readText: p => p === '/s/mode.json' ? '{"backend":"claude","claudeMode":"plan"}' : BASE_TEXTS[p] ?? null,
-      defaultProfile: () => ({ backend: 'claude', mode: 'api' }),
+      defaultSelection: () => ({ backend: 'claude', mode: 'api' }),
       probeGateway: async () => true,
       getAuthStatus: async () => authSnapshot([
         authAccount({ authType: null, state: 'logged-out', source: null }),
@@ -258,13 +273,13 @@ describe('runDiagnostics — backend authentication', () => {
     assert.equal(report.counts.warn, 0);
   });
 
-  it('does not credit the gateway when the default profile runs plan, whatever agent-state says', async () => {
+  it('does not credit the gateway when the default selection runs plan, whatever agent-state says', async () => {
     const env = { ...baseDeps().env };
     delete env.ANTHROPIC_API_KEY;
     const checks = byId(await runDiagnostics(baseDeps({
       env,
       readText: p => p === '/s/mode.json' ? '{"backend":"claude","claudeMode":"api"}' : BASE_TEXTS[p] ?? null,
-      defaultProfile: () => ({ backend: 'claude', mode: 'plan' }),
+      defaultSelection: () => ({ backend: 'claude', mode: 'plan' }),
       probeGateway: async () => true,
     })));
     assert.equal(checks['anthropic-key'].status, 'warn');

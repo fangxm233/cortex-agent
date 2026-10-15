@@ -16,10 +16,10 @@ import {
   buildFullConfig,
   buildInteractionConfig,
 } from '@core/config-generator.js';
-import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
-import { generateProfiles, writeProfilesJson, listChoices, recommendedChoice } from '@core/profile-generator.js';
+import { discoverEndpoints, writeMergedGatewayYaml, validateModelsAgainstGateway } from '@core/gateway-generator.js';
+import { readExistingModels, writeModelsJson, listChoices, recommendedChoice } from '@core/models-generator.js';
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
-import type { ModelChoice } from '@core/profile-generator.js';
+import type { ModelChoice, WriteModelsOpts } from '@core/models-generator.js';
 import { createLogger } from '@core/log.js';
 import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
 import { writeUsageSharing, type UsageSharingUpdate } from '@domain/costs/aistatus-config.js';
@@ -100,13 +100,10 @@ export interface InitAnswers {
   /** Omitted when a scripted caller did not make an upload choice. */
   gatewayUsage?: GatewayUsageConfig;
   installService: boolean;
-  /** Explicit (mode, model) for the `plan` profile. Non-interactive only; interactive picks
-   *  inside runGatewaySetup once endpoints are discovered. Undefined → auto-infer. */
-  planChoice?: ModelChoice;
-  /** Explicit (mode, model) for the `execute` profile. Same semantics as planChoice. */
-  executeChoice?: ModelChoice;
-  /** Additional models to register as standalone named profiles. Non-interactive only. */
-  extraProfiles?: ModelChoice[];
+  /** Default model; omitted uses the discovery recommendation. */
+  defaultChoice?: ModelChoice;
+  /** Favorite models; the default model is always included. */
+  favorites?: ModelChoice[];
   /**
    * Enable the loopback Web UI endpoint the native desktop app connects to. Set by the desktop
    * setup wizard (`--answers`); the terminal wizard leaves it undefined, so a normal `cortex init`
@@ -195,10 +192,9 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
     feishuConfig: input.feishuConfig as FeishuInitConfig | undefined,
     gatewayUsage,
     installService: input.installService === true,
-    planChoice: parseChoiceValue(input.planChoice),
-    executeChoice: parseChoiceValue(input.executeChoice),
-    extraProfiles: Array.isArray(input.extraProfiles)
-      ? input.extraProfiles.map(parseChoiceValue).filter((c): c is ModelChoice => !!c)
+    defaultChoice: parseChoiceValue(input.defaultChoice),
+    favorites: Array.isArray(input.favorites)
+      ? input.favorites.map(parseChoiceValue).filter((c): c is ModelChoice => !!c)
       : undefined,
     localUi: parseLocalUi(input.localUi),
     localClient: parseLocalClientAnswer(input.localClient),
@@ -219,8 +215,8 @@ function parseChoiceLine(raw: string | undefined): ModelChoice | undefined {
   };
 }
 
-/** Parse comma-separated "mode:model" pairs for extra profiles. Returns undefined for empty. */
-function parseExtraProfilesLine(raw: string | undefined): ModelChoice[] | undefined {
+/** Parse comma-separated "mode:model" favorites. Returns undefined for empty. */
+function parseFavoritesLine(raw: string | undefined): ModelChoice[] | undefined {
   if (!raw) return undefined;
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
@@ -288,7 +284,6 @@ export function generateDotEnvContent(answers: InitAnswers): string {
 /** Generate default agent-state.json content (compact JSON, single line). */
 export function generateDefaultModeJson(): string {
   return JSON.stringify({
-    activeProfile: '__active__',
     defaultAgent: 'main',
   });
 }
@@ -1032,10 +1027,15 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
   for await (const line of rl) {
     lines.push(line);
   }
+  log.info('Cortex Initialization (non-interactive)');
+  return parseInitAnswersLines(lines);
+}
 
+export function parseInitAnswersLines(lines: string[]): InitAnswers {
   // Line format:
   //   backends, platform, gatewayEnabled, name, org, email, installService
   //   [+ platform-specific token blocks, concatenated in fixed order: slack first, then feishu]
+  //   defaultChoice, favorites (comma-separated mode:model pairs)
   // `platform` is a comma-separated list (e.g. "slack,feishu"); single values are back-compat.
   const [backendsRaw, platformRaw, gatewayEnabledRaw, name, org, email, installServiceRaw] = lines;
 
@@ -1057,11 +1057,9 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
 
   const gatewayChoice = gatewayEnabledRaw?.trim().toLowerCase();
 
-  log.info('Cortex Initialization (non-interactive)');
-
   // Parse platform token blocks from remaining lines (starting at index 7). Blocks are
   // concatenated in fixed order — slack (3 lines), then feishu (3 lines) — regardless of the
-  // order given in the platform list. The profile-choice lines (optional "mode:model"; empty
+  // order given in the platform list. The two model-choice lines (optional "mode:model"; empty
   // → auto-infer) follow whatever token lines were consumed. Single-platform layouts are
   // back-compatible: slack-only → choices at 10; feishu-only → choices at 10.
   let slackConfig: SlackInitConfig | undefined;
@@ -1087,11 +1085,8 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
     };
     cursor += 3;
   }
-  const profileChoiceStart = cursor;
-
-  const planChoice = parseChoiceLine(lines[profileChoiceStart]);
-  const executeChoice = parseChoiceLine(lines[profileChoiceStart + 1]);
-  const extraProfiles = parseExtraProfilesLine(lines[profileChoiceStart + 2]);
+  const defaultChoice = parseChoiceLine(lines[cursor]);
+  const favorites = parseFavoritesLine(lines[cursor + 1]);
 
   return {
     lang: process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : detectSystemLocale(),
@@ -1105,9 +1100,8 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
       ? { enabled: true, name: name || '', org: org || '', email: email || '' }
       : gatewayChoice === 'n' ? { enabled: false } : undefined,
     installService: installServiceRaw?.toLowerCase() === 'y',
-    planChoice,
-    executeChoice,
-    extraProfiles,
+    defaultChoice,
+    favorites,
   };
 }
 
@@ -1297,138 +1291,37 @@ export function writeDotEnv(paths: InitPaths, answers: InitAnswers, force: boole
   writeFileSync(envPath, content);
 }
 
-// ─── Gateway & profile auto-setup ──────────────────────────────
+// ─── Gateway & model auto-setup ──────────────────────────────
 
-/** Detect whether a profiles.json at <configDir>/profiles.json already has `plan` or `execute`. */
-function detectExistingPlanOrExecute(configDir: string): boolean {
-  const profilesPath = path.join(configDir, 'profiles.json');
-  if (!existsSync(profilesPath)) return false;
-  try {
-    const data = JSON.parse(readFileSync(profilesPath, 'utf-8'));
-    return !!(data?.profiles?.plan || data?.profiles?.execute);
-  } catch {
-    return false;
-  }
+async function confirmDefaultOverwrite(configDir: string): Promise<boolean> {
+  if (!readExistingModels(configDir)?.default) return true;
+  const confirm = await clack.confirm({ message: t('init.gatewaySetup.overwritePrompt'), initialValue: false });
+  handleCancel(confirm);
+  return confirm as boolean;
 }
 
-/**
- * Interactively pick plan / execute (mode, model) from discovered endpoints, plus optional
- * fallback chains. Lists are sorted lexicographically; the recommended choice is pre-selected.
- *
- * Returns `overwrite: false` if the user declined to overwrite an existing profile — in that
- * case all *Choice / *Fallback fields are undefined.
- */
-async function pickPlanExecuteInteractive(
+/** Pick a recommended default and favorites. The default is included even if untoggled. */
+async function pickModelsInteractive(
   endpoints: Awaited<ReturnType<typeof discoverEndpoints>>,
   configDir: string,
-): Promise<{
-  planChoice?: ModelChoice;
-  executeChoice?: ModelChoice;
-  planFallback?: ModelChoice[];
-  executeFallback?: ModelChoice[];
-  extraProfiles?: ModelChoice[];
-  overwrite: boolean;
-}> {
-  // If existing profiles.json has plan/execute, ask before overwriting
-  if (detectExistingPlanOrExecute(configDir)) {
-    const confirm = await clack.confirm({
-      message: t('init.gatewaySetup.overwritePrompt'),
-      initialValue: false,
-    });
-    handleCancel(confirm);
-    if (!confirm) {
-      return { overwrite: false };
-    }
-  }
-
+): Promise<WriteModelsOpts> {
+  if (!await confirmDefaultOverwrite(configDir)) return { overwrite: false };
   const choices = listChoices(endpoints);
-  if (choices.length === 0) return { overwrite: true };
-
-  const formatValue = (c: ModelChoice) => `${c.mode}:${c.model}`;
-  const parseValue = (v: string): ModelChoice => {
-    const colonIdx = v.indexOf(':');
-    return { mode: v.substring(0, colonIdx), model: v.substring(colonIdx + 1) };
-  };
-
-  const options = choices.map(c => ({
-    value: formatValue(c),
-    label: `${c.mode} / ${c.model}`,
-  }));
-
-  // Pre-select the same model a non-interactive setup would pick.
-  const firstChoiceValue = formatValue(recommendedChoice(endpoints) ?? choices[0]);
-
-  const planSel = await clack.select({
-    message: t('init.gatewaySetup.planPrompt'),
-    options,
-    initialValue: firstChoiceValue,
+  if (!choices.length) return { overwrite: true };
+  const format = (choice: ModelChoice) => `${choice.mode}:${choice.model}`;
+  const options = choices.map(choice => ({ value: format(choice), label: `${choice.mode} / ${choice.model}` }));
+  const selected = await clack.select({
+    message: t('init.gatewaySetup.defaultPrompt'), options,
+    initialValue: format(recommendedChoice(endpoints) ?? choices[0]),
   });
-  handleCancel(planSel);
-
-  const execSel = await clack.select({
-    message: t('init.gatewaySetup.executePrompt'),
-    options,
-    initialValue: firstChoiceValue,
+  handleCancel(selected);
+  const favorites = await clack.multiselect({
+    message: t('init.gatewaySetup.favoritesPrompt'), options,
+    required: false, initialValues: [selected as string],
   });
-  handleCancel(execSel);
-
-  const planChoice = parseValue(planSel as string);
-  const execChoice = parseValue(execSel as string);
-
-  // ── Fallback selection (multi-select, ordered) ──
-  // Build fallback options excluding the primary choice. If no candidates remain (e.g. only
-  // one discovered model), skip the prompt entirely.
-  const planFallbackOptions = options.filter(o => o.value !== planSel);
-  const execFallbackOptions = options.filter(o => o.value !== execSel);
-
-  let planFallback: ModelChoice[] | undefined;
-  if (planFallbackOptions.length > 0) {
-    const sel = await clack.multiselect({
-      message: t('init.gatewaySetup.planFallbackPrompt'),
-      options: planFallbackOptions,
-      required: false,
-      initialValues: [],
-    });
-    handleCancel(sel);
-    const arr = sel as string[];
-    if (arr.length > 0) planFallback = arr.map(parseValue);
-  }
-
-  let executeFallback: ModelChoice[] | undefined;
-  if (execFallbackOptions.length > 0) {
-    const sel = await clack.multiselect({
-      message: t('init.gatewaySetup.executeFallbackPrompt'),
-      options: execFallbackOptions,
-      required: false,
-      initialValues: [],
-    });
-    handleCancel(sel);
-    const arr = sel as string[];
-    if (arr.length > 0) executeFallback = arr.map(parseValue);
-  }
-
-  // ── Extra profiles: additional models to register as standalone named profiles ──
-  let extraProfiles: ModelChoice[] | undefined;
-  if (options.length > 0) {
-    const sel = await clack.multiselect({
-      message: t('init.gatewaySetup.extraProfilesPrompt'),
-      options,
-      required: false,
-      initialValues: [],
-    });
-    handleCancel(sel);
-    const arr = sel as string[];
-    if (arr.length > 0) extraProfiles = arr.map(parseValue);
-  }
-
-  return {
-    planChoice,
-    executeChoice: execChoice,
-    planFallback,
-    executeFallback,
-    extraProfiles,
-    overwrite: true,
-  };
+  handleCancel(favorites);
+  const values = new Set([selected as string, ...favorites as string[]]);
+  return { defaultChoice: parseChoiceLine(selected as string), favorites: [...values].map(v => parseChoiceLine(v)!), overwrite: true };
 }
 
 /** Returns false when no backend is logged in yet, so nothing could be generated. */
@@ -1436,7 +1329,7 @@ async function runGatewaySetup(
   backends: InitBackend[],
   paths: InitPaths,
   gatewayConfigDir?: string,
-  answers?: Pick<InitAnswers, 'planChoice' | 'executeChoice' | 'extraProfiles'>,
+  answers?: Pick<InitAnswers, 'defaultChoice' | 'favorites'>,
   interactive = false,
 ): Promise<boolean> {
   // Discover endpoints from Claude/PI local configs — filtered by user-selected backends
@@ -1466,54 +1359,20 @@ async function runGatewaySetup(
     clack.log.info(t('init.gatewaySetup.preservedModesHint'));
   }
 
-  // Resolve plan/execute choices + fallback chains + extra profiles + overwrite intent.
-  let planChoice = answers?.planChoice;
-  let executeChoice = answers?.executeChoice;
-  let planFallback: ModelChoice[] | undefined;
-  let executeFallback: ModelChoice[] | undefined;
-  let extraProfiles = answers?.extraProfiles;
-  let overwrite: boolean;
-
-  if (interactive) {
-    // Interactive: prompt for selection (with overwrite confirmation if needed)
-    const picked = await pickPlanExecuteInteractive(endpoints, paths.CONFIG_DIR);
-    planChoice = picked.planChoice ?? planChoice;
-    executeChoice = picked.executeChoice ?? executeChoice;
-    planFallback = picked.planFallback;
-    executeFallback = picked.executeFallback;
-    extraProfiles = picked.extraProfiles ?? extraProfiles;
-    overwrite = picked.overwrite;
-  } else {
-    // Non-interactive: stdin already provided choices (or empty → lex-first default).
-    // Fallback chains are not configurable via stdin in this iteration — extend the stdin
-    // protocol if scripted installs need fallback.
-    overwrite = !!(answers?.planChoice || answers?.executeChoice || answers?.extraProfiles);
-  }
-
-  // Generate profiles.json
-  const profilesPath = writeProfilesJson(endpoints, {
-    outputDir: paths.CONFIG_DIR,
-    planChoice,
-    executeChoice,
-    planFallback,
-    executeFallback,
-    extraProfiles,
-    overwrite,
-  });
-  clack.log.success(t('init.gatewaySetup.profilesWritten', { path: profilesPath }));
-
-  // Show profile summary (reflects what was actually generated, not what was merged)
-  const profiles = generateProfiles(endpoints, { planChoice, executeChoice, planFallback, executeFallback, extraProfiles });
-  const profileNames = Object.keys(profiles.profiles).join(', ');
-  clack.log.info(t('init.gatewaySetup.generatedProfiles', { names: profileNames, default: profiles.defaultProfile }));
-
-  // Validate profile ↔ gateway mode coupling. A profile referencing a non-existent gateway mode is
-  // exactly what produces a silent `400 Unknown mode: <x>` at runtime. Non-fatal — warn only.
-  const issues = validateProfilesAgainstGateway(mergeResult.endpoints, paths.CONFIG_DIR);
+  const options: WriteModelsOpts = interactive
+    ? await pickModelsInteractive(endpoints, paths.CONFIG_DIR)
+    : { ...answers, overwrite: !!answers?.defaultChoice };
+  const modelsPath = writeModelsJson(endpoints, { ...options, outputDir: paths.CONFIG_DIR });
+  clack.log.success(t('init.gatewaySetup.modelsWritten', { path: modelsPath }));
+  const models = readExistingModels(paths.CONFIG_DIR)!;
+  clack.log.info(t('init.gatewaySetup.generatedModels', {
+    names: models.favorites!.map(ref => ref.model).join(', '), default: models.default!.model,
+  }));
+  const issues = validateModelsAgainstGateway(mergeResult.endpoints, paths.CONFIG_DIR);
   if (issues.length > 0) {
-    const lines = issues.map(i => `  - ${i.profile}: ${i.reason}`).join('\n');
-    clack.log.warn(t('init.gatewaySetup.profileIssues', { count: issues.length, lines }));
-    clack.log.info(t('init.gatewaySetup.profileIssuesHint'));
+    const lines = issues.map(i => `  - ${i.model}: ${i.reason}`).join('\n');
+    clack.log.warn(t('init.gatewaySetup.modelIssues', { count: issues.length, lines }));
+    clack.log.info(t('init.gatewaySetup.modelIssuesHint'));
   }
   return true;
 }
@@ -1644,7 +1503,7 @@ async function runInitSteps(
   } else {
     // Non-interactive: auto-detect silently, passing caller-supplied choices. A machine with no
     // backend logged in yet yields no endpoints — expected on a fresh desktop install, where the
-    // user logs in from the workbench afterwards and the server syncs profiles from that login.
+    // user logs in from the workbench afterwards and the server syncs models from that login.
     try {
       const configured = await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
       emit({ step: 'gateway', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
@@ -1654,25 +1513,7 @@ async function runInitSteps(
     }
   }
 
-  // 8. Patch the stored activeProfile to match profiles.json defaultProfile
-  try {
-    const profilesJsonPath = path.join(paths.CONFIG_DIR, 'profiles.json');
-    const statePath = path.join(paths.STORE_DIR, 'agent-state.json');
-    const modeJsonPath = existsSync(statePath) ? statePath : path.join(paths.STORE_DIR, 'mode.json');
-    if (existsSync(profilesJsonPath) && existsSync(modeJsonPath)) {
-      const profilesData = JSON.parse(readFileSync(profilesJsonPath, 'utf8'));
-      const modeData = JSON.parse(readFileSync(modeJsonPath, 'utf8'));
-      if (modeData.activeProfile === '__active__' && profilesData.defaultProfile) {
-        modeData.activeProfile = profilesData.defaultProfile;
-        writeFileSync(modeJsonPath, JSON.stringify(modeData));
-        log.info(`${path.basename(modeJsonPath)} activeProfile set to "${profilesData.defaultProfile}"`);
-      }
-    }
-  } catch (e) {
-    log.warn(`Failed to update the stored activeProfile: ${(e as Error).message}`);
-  }
-
-  // 9. Done
+  // 8. Done
   clack.outro(t('init.outro', { dataDir: paths.DATA_DIR }));
   emit({
     step: 'result',
