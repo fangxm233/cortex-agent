@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -42,9 +43,9 @@ export interface SessionRecord {
   label: string | null;
   starred?: boolean;
   labelRenamed?: boolean;
-  profileName: string | null;
+  selection: EngineSelection | null;
   /** The agent template this session runs as — its execution environment (prompt, tools, skills,
-   *  rules), the twin of `profileName` on the model axis. Absent/null means the session follows its
+   *  rules). Absent/null means the session follows its
    *  channel's selection, and beneath that the global default. */
   agentName?: string | null;
   backendSessionId?: string | null;
@@ -91,7 +92,7 @@ export interface TurnRecord {
 export interface ConversationHeader {
   sessionId: string | null;
   backend: string;
-  profileName: string | null;
+  selection: EngineSelection | null;
   updatedAt: string;
 }
 
@@ -406,7 +407,7 @@ function normalizeLegacyRecord(
     createdAt: toStringValue(raw.createdAt),
     lastUsedAt: toStringValue(raw.lastUsedAt),
     label,
-    profileName: toNullableString(raw.profileName),
+    selection: toSelection(raw.selection),
     agentName: toOptionalNullableString(raw.agentName),
     backendSessionId: toOptionalNullableString(raw.backendSessionId),
     lastReadAt: toOptionalNullableString(raw.lastReadAt),
@@ -541,7 +542,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     label: toNullableString(row?.label),
     starred: toOptionalBoolean(row?.starred),
     labelRenamed: toOptionalBoolean(row?.labelRenamed),
-    profileName: toNullableString(row?.profileName),
+    selection: toSelection(row?.selection),
     agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
@@ -571,6 +572,19 @@ function toNullableString(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string') throw new Error('Invalid session registry nullable string');
   return value;
+}
+
+function toSelection(value: unknown): EngineSelection | null {
+  if (value === null || value === undefined) return null;
+  const row = value as Record<string, unknown>;
+  if (row.backend !== 'claude' && row.backend !== 'pi') throw new Error('Invalid session registry selection backend');
+  return {
+    backend: row.backend,
+    provider: toTurnNullableString(row.provider),
+    model: toStringValue(row.model),
+    thinking: toTurnNullableString(row.thinking),
+    mode: toStringValue(row.mode),
+  };
 }
 
 function toOptionalBoolean(value: unknown): boolean | undefined {
@@ -642,7 +656,7 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   label: toNullableString,
   starred: toOptionalBoolean,
   labelRenamed: toOptionalBoolean,
-  profileName: toNullableString,
+  selection: toSelection,
   agentName: toOptionalNullableString,
   backendSessionId: toOptionalNullableString,
   lastReadAt: toOptionalNullableString,
@@ -671,6 +685,7 @@ const LEGACY_PATCH_KEYS: Readonly<Record<string, SessionPatchUnsetKey | null>> =
   commissionBlockFor: 'boardBlockFor',
   commissionDraft: null,
   workerRetiredAt: null,
+  profileName: null,
 };
 
 function patchKeyOf(key: string): SessionPatchUnsetKey | null {
@@ -739,7 +754,7 @@ function assertPartialTurn(raw: unknown): Partial<TurnRecord> {
 const CONVERSATION_FIELD_READERS: { [K in keyof ConversationHeader]: (value: unknown) => ConversationHeader[K] } = {
   sessionId: toTurnNullableString,
   backend: toStringValue,
-  profileName: toTurnNullableString,
+  selection: toSelection,
   updatedAt: toStringValue,
 };
 
@@ -749,7 +764,7 @@ function assertConversationFields(raw: unknown): ConversationFields {
   const fields: Record<string, unknown> = {};
   for (const key of Object.keys(row)) {
     const reader = CONVERSATION_FIELD_READERS[key as keyof ConversationHeader];
-    if (key === 'sessionName') continue; // Legacy header field; never restore it into runtime state.
+    if (key === 'sessionName' || key === 'profileName') continue; // Legacy fields are replay-only.
     if (!reader) throw new Error(`Unknown session registry conversation field: ${key}`);
     fields[key] = reader(row[key]);
   }
@@ -839,7 +854,7 @@ function applyConversation(state: SessionRegistryState, event: Extract<SessionRe
     return;
   }
   const base: ConversationHeader = state.conversations.get(event.channel)
-    ?? { sessionId: null, backend: '', profileName: null, updatedAt: '' };
+    ?? { sessionId: null, backend: '', selection: null, updatedAt: '' };
   state.conversations.set(event.channel, { ...base, ...event.fields });
 }
 

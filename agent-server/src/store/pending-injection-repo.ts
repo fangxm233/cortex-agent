@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import path from 'node:path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
@@ -11,7 +12,7 @@ export interface PendingInjectionRecord {
   channel: string;
   messageId: string;
   backend: string;
-  profileName: string | null;
+  selection: EngineSelection | null;
   text: string;
   attachments?: PendingAttachment[];
   agentMessage?: string;
@@ -27,11 +28,13 @@ interface PendingInjectionData {
 }
 
 function cloneRecord(record: PendingInjectionRecord): PendingInjectionRecord {
-  // Old JSON may carry sessionName. Ignore it in memory without rewriting persisted data.
-  const current = { ...record } as PendingInjectionRecord & { sessionName?: unknown };
+  // Ignore retired keys in memory without rewriting persisted data.
+  const current = { ...record } as PendingInjectionRecord & { sessionName?: unknown; profileName?: unknown };
   delete current.sessionName;
+  delete current.profileName;
   return {
     ...current,
+    selection: record.selection ? { ...record.selection } : null,
     ...(record.attachments
       ? { attachments: record.attachments.map((attachment) => ({ ...attachment })) }
       : {}),

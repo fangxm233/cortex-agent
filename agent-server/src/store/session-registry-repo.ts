@@ -1,3 +1,4 @@
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import * as path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { AsyncMutex } from '@core/async-mutex.js';
@@ -76,7 +77,7 @@ export type SessionRegistryData = Record<string, Session>;
 export type SessionRegistryRepoOptions = SessionRegistryJournalOptions;
 
 type UpdateFields = Partial<Pick<Session,
-  'lastUsedAt' | 'label' | 'profileName' | 'agentName' | 'backendSessionId' | 'contextUsage' | 'browser'
+  'lastUsedAt' | 'label' | 'selection' | 'agentName' | 'backendSessionId' | 'contextUsage' | 'browser'
 >> & { sessionId?: never };
 
 export interface RegisterSessionOpts {
@@ -87,7 +88,7 @@ export interface RegisterSessionOpts {
   origin?: SessionOrigin;
   projectId?: string;
   label?: string | null;
-  profileName?: string | null;
+  selection?: EngineSelection | null;
   agentName?: string | null;
   backendSessionId?: string | null;
   scheduleId?: string | null;
@@ -118,7 +119,7 @@ export interface SessionRegistryBatch {
 }
 
 function cloneSession(record: SessionRecord): Session {
-  return { ...record } as Session;
+  return { ...record, selection: record.selection ? { ...record.selection } : null } as Session;
 }
 
 function toStoredRecord(session: Session): SessionRecord {
@@ -190,7 +191,7 @@ export class SessionRegistryRepo {
       createdAt: now,
       lastUsedAt: now,
       label: trimLabel(opts.label),
-      profileName: opts.profileName ?? null,
+      selection: opts.selection ? { ...opts.selection } : null,
       agentName: opts.agentName ?? null,
       backendSessionId: opts.backendSessionId ?? null,
       scheduleId: opts.scheduleId ?? null,
@@ -226,7 +227,7 @@ export class SessionRegistryRepo {
       ...current,
       lastUsedAt: updates.lastUsedAt ?? current.lastUsedAt,
       label: updates.label !== undefined ? trimLabel(updates.label) : current.label,
-      profileName: updates.profileName !== undefined ? updates.profileName : current.profileName,
+      selection: updates.selection !== undefined ? updates.selection : current.selection,
       agentName: updates.agentName !== undefined ? updates.agentName : current.agentName,
       backendSessionId: updates.backendSessionId !== undefined
         ? updates.backendSessionId

@@ -18,7 +18,7 @@ function record(id: string, sessionId = 'sess-1'): PendingInjectionRecord {
     channel: `web:${sessionId}`,
     messageId: `web-${id}`,
     backend: 'claude',
-    profileName: 'default',
+    selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' },
     text: `message ${id}`,
     createdAt: `2026-07-26T00:00:0${id.slice(-1)}.000Z`,
   };
@@ -27,13 +27,15 @@ function record(id: string, sessionId = 'sess-1'): PendingInjectionRecord {
 test('legacy pending sessionName is ignored in memory without migrating disk', async () => {
   const storeFile = file('legacy');
   const legacy = JSON.stringify({ records: {
-    'pin-legacy': { ...record('pin-legacy'), sessionName: 'cortex-legacy' },
+    'pin-legacy': { ...record('pin-legacy'), selection: undefined, sessionName: 'cortex-legacy', profileName: 'retired' },
   } });
   await fs.mkdir(path.dirname(storeFile), { recursive: true });
   await fs.writeFile(storeFile, legacy);
   const repo = new PendingInjectionRepo(storeFile);
   const [loaded] = await repo.listAll();
   assert.equal((loaded as any).sessionName, undefined);
+  assert.equal((loaded as any).profileName, undefined);
+  assert.equal(loaded.selection, null);
   assert.equal(loaded.sessionId, 'sess-1');
   assert.equal(await fs.readFile(storeFile, 'utf8'), legacy);
 });
@@ -75,5 +77,7 @@ test('returned records are copies, not mutable references into the repo cache', 
   await repo.add(record('pin-copy'));
   const listed = await repo.listAll();
   listed[0].text = 'mutated by caller';
+  listed[0].selection!.thinking = 'low';
+  assert.equal((await repo.listAll())[0].selection!.thinking, 'high');
   assert.equal((await repo.listAll())[0].text, 'message pin-copy');
 });

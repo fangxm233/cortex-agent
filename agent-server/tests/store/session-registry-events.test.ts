@@ -74,11 +74,11 @@ test('legacy names in put, patch and conversation lines are ignored, including m
   await repo.registerSession(registerOpts('sess-legacy-name'));
   const put = jsonl(filePath)[0];
   await fs.writeFile(filePath, [
-    JSON.stringify({ ...put, record: { ...put.record, name: { obsolete: true } } }),
-    JSON.stringify({ v: 1, op: 'patch', id: 'sess-legacy-name', name: 42, fields: { label: 'legacy patch' } }),
+    JSON.stringify({ ...put, record: { ...put.record, name: { obsolete: true }, profileName: { obsolete: true } } }),
+    JSON.stringify({ v: 1, op: 'patch', id: 'sess-legacy-name', name: 42, fields: { label: 'legacy patch', profileName: 42 }, unset: ['profileName'] }),
     JSON.stringify({ v: 1, op: 'conversation', channel: 'C001', kind: 'set', fields: {
       sessionId: 'sess-legacy-name', sessionName: { obsolete: true }, backend: 'claude',
-      profileName: null, updatedAt: '2025-01-01T00:00:00.000Z',
+      profileName: { obsolete: true }, updatedAt: '2025-01-01T00:00:00.000Z',
     } }),
     '',
   ].join('\n'));
@@ -88,6 +88,7 @@ test('legacy names in put, patch and conversation lines are ignored, including m
   assert.equal(Object.hasOwn((await reopened.getConversationHeader('C001'))!, 'sessionName'), false);
   await reopened.compactNow();
   assert.equal(JSON.stringify(jsonl(filePath)).includes('sessionName'), false);
+  assert.equal(JSON.stringify(jsonl(filePath)).includes('profileName'), false);
 });
 
 test('contextUsage update appends exactly one small patch line', async () => {
@@ -133,7 +134,7 @@ test('a journal written before boards replays: legacy commission keys map onto b
   const filePath = nextPath();
   const record = (id: string, extra: Record<string, unknown> = {}) => ({
     sessionId: id, projectId: 'proj', channel: `web:${id}`, backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: '2026-09-01T00:00:00.000Z', lastUsedAt: '2026-09-01T00:00:00.000Z', label: null, profileName: null,
+    createdAt: '2026-09-01T00:00:00.000Z', lastUsedAt: '2026-09-01T00:00:00.000Z', label: null, selection: null,
     ...extra,
   });
   const lines = [
@@ -173,7 +174,7 @@ test('a journal written while workers could be retired replays: workerRetiredAt 
   const filePath = nextPath();
   const record = {
     sessionId: 'w', projectId: 'proj', channel: 'web:w', backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: '2026-10-01T00:00:00.000Z', lastUsedAt: '2026-10-01T00:00:00.000Z', label: null, profileName: null,
+    createdAt: '2026-10-01T00:00:00.000Z', lastUsedAt: '2026-10-01T00:00:00.000Z', label: null, selection: null,
     teamLeadId: 'lead', workerName: 'scout', workerRetiredAt: null,
   };
   const lines = [
@@ -240,7 +241,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
     teamLeadId: 'sess-lead', workerName: 'scout',
   }));
   await repo.updateSession('sess-rt', {
-    label: 'renamed', profileName: 'coder', backendSessionId: 'be-9', lastUsedAt: '2025-02-02T00:00:00.000Z',
+    label: 'renamed', selection: { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', mode: 'deepseek' }, backendSessionId: 'be-9', lastUsedAt: '2025-02-02T00:00:00.000Z',
   });
   await repo.updateContextUsage('sess-rt', usage(9.9));
   await repo.markRead('sess-rt');
@@ -255,7 +256,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   const assertPreserved = async (r: SessionRegistryRepo) => {
     const rec = await r.getById('sess-rt') as Session;
     assert.equal(rec.label, 'renamed');
-    assert.equal(rec.profileName, 'coder');
+    assert.deepEqual(rec.selection, { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', mode: 'deepseek' });
     assert.equal(rec.backendSessionId, 'be-9');
     assert.equal(rec.lastUsedAt, '2025-02-02T00:00:00.000Z');
     assert.equal(rec.scheduleId, 'sched-1');
@@ -357,7 +358,7 @@ test('undefined vs null backendSessionId survives patch, compaction and replay',
   const filePath = nextPath();
   const base = {
     projectId: 'proj', channel: 'C001', backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z', label: null, profileName: null,
+    createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z', label: null, selection: null,
   };
   const recU = { sessionId: 'sess-u', ...base };                          // backendSessionId absent → undefined
   const recN = { sessionId: 'sess-n', ...base, backendSessionId: null };  // explicit fresh backend
@@ -386,7 +387,7 @@ test('an old-format journal with only put/delete-* events still replays', async 
   const record = {
     name: 'cortex-legacy', sessionId: 'sess-legacy', projectId: 'proj', channel: 'C001', backend: 'claude',
     kind: 'local', origin: 'direct', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z',
-    label: null, profileName: null, backendSessionId: null,
+    label: null, selection: null, backendSessionId: null,
   };
   const live = { ...record, name: 'cortex-live', sessionId: 'sess-live' };
   await fs.writeFile(filePath, [

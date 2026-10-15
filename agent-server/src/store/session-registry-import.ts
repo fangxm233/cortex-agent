@@ -139,7 +139,7 @@ function parseBindings(data: unknown): Array<[string, string]> {
 }
 
 /** conversation-ledger.json is a flat `{ "<channel>": { sessionId, sessionName, backend, profileName,
- *  turns[], updatedAt } }`. Legacy sessionName is ignored; other header fields (including
+ *  turns[], updatedAt } }`. Legacy sessionName/profileName are ignored; other header fields (including
  *  `sessionId: null`) and source `updatedAt` are preserved; turns keep their order and indices. */
 function parseConversations(data: unknown): LegacyConversation[] {
   if (!isPlainObject(data)) return [];
@@ -149,7 +149,7 @@ function parseConversations(data: unknown): LegacyConversation[] {
     const header: ConversationFields = {
       sessionId: headerString(value.sessionId),
       backend: typeof value.backend === 'string' ? value.backend : '',
-      profileName: headerString(value.profileName),
+      selection: null,
       updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '',
     };
     const turns = Array.isArray(value.turns) ? value.turns.filter(isPlainObject).map(toTurnRecord) : [];
