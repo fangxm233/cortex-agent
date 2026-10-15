@@ -53,7 +53,7 @@ that turn. Turns you start yourself by typing in a worker are not reported; the 
 marks that worker as one you have talked to. A server restart does not lose a report: one that
 ends while a restart is pending reaches the lead once the server is back. A worker's finished
 turn raises no notification on the web page, the desktop app or Android; you hear about it when
-the lead's own turn ends. Retired workers stay silent too.
+the lead's own turn ends.
 
 **Routine updates.** A turn with nothing new for the lead, such as a stale or duplicate signal, a
 routine check that found everything as expected, or work still running with no change, should not
@@ -76,10 +76,17 @@ with `cortex_ask_user` when it is unsure what you would want. You can answer on 
 yourself; whichever answer arrives first is the one the worker gets.
 
 **Roster.** While a lead has active workers or unread updates, each of its turns opens with a
-short `[Team]` block: a few working rules, one line per worker (status, brief, last report, and
-whether you have talked to it) and any unread updates. A worker with no turn running that still
-holds an open waitpoint is listed as waiting on external, not idle. A worker's first turn opens
-with a `[Worker]` block telling it who its lead is and how its replies are used.
+short `[Team]` block: a few working rules, one line per active worker (status, brief, last report,
+and whether you have talked to it), one line counting the inactive ones, and any unread updates. A
+worker with no turn running that still holds an open waitpoint is listed as waiting on external,
+not idle. A worker's first turn opens with a `[Worker]` block telling it who its lead is and how its
+replies are used.
+
+**Inactive workers.** A worker counts as inactive once it has nothing running, no question or plan
+waiting, no open waitpoint, and no activity for three hours. Workers are never deleted; an inactive
+one simply folds out of view. The `[Team]` block counts it instead of listing it, `worker_list` names
+it on a single *Inactive* line, and the workbench lists it last. `worker_send` reaches an inactive
+worker like any other, and the new turn makes it active again.
 
 **Transcripts.** Every session's first turn names the directory holding all session transcripts
 (`<sessionId>.jsonl`). When a report is not enough, the lead can read a worker's full transcript
@@ -92,9 +99,9 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
 | Tool | Parameters | What it does |
 |---|---|---|
 | `worker_spawn` | `name`, `prompt`, `backend?`, `model?` | Starts a worker named by a short slug and gives it its first task |
-| `worker_send` | `worker`, `message` | Continues, redirects or briefs a worker; revives a retired one |
+| `worker_send` | `worker`, `message` | Continues, redirects or briefs a worker, inactive ones included |
 | `worker_list` | `worker?` | The roster, or one worker in detail with its model and full last report |
-| `worker_stop` | `worker`, `retire?` | Stops the worker's current turn; `retire` also takes it off the roster |
+| `worker_stop` | `worker` | Stops the worker's current turn |
 | `worker_answer` | `request_id`, `answers?` or `approved?` + `feedback?` | Answers a worker's question, or approves or rejects its plan |
 
 Workers get one tool of their own from the `cortex-worker-report` bundle: `mark_routine`, which
@@ -105,17 +112,17 @@ takes no parameters and marks the current turn as a routine update (see above).
 ![A lead session with its team list open, an approved worker plan, and two worker report cards](images/ui/team.png)
 
 - The sidebar nests a lead's workers under it, behind a caret with a worker count. The lead's
-  dot summarizes its workers, and retired workers are listed last and dimmed.
+  dot summarizes its workers, and inactive workers are listed last and dimmed.
 - A lead's chat header carries its team as one capsule: up to six status dots for its active
   workers, running ones first, then a summary such as *7 workers · 3 running*. Clicking it opens the
   team list, headed *Team · N*. Each row shows a worker's status and how long it has been running or
   idle, and underneath it what the worker is doing: its current task while it runs, or the brief
-  the lead spawned it with. A row opens that worker. Retired workers are folded at the bottom of the
-  list under *Retired N*, and the capsule disappears once every worker is retired.
+  the lead spawned it with. A row opens that worker. Inactive workers are folded at the bottom of the
+  list under *Inactive N*, and the capsule disappears once every worker is inactive.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
   shows as running while any worker runs, and as unread while any worker has news. In the lead's
   chat, a team capsule above the composer shows up to three worker dots and the count of active
-  workers, and opens the same team list as a sheet. Retired workers count toward neither state and
+  workers, and opens the same team list as a sheet. Inactive workers count toward neither state and
   are folded at the bottom of the list.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
@@ -127,7 +134,7 @@ takes no parameters and marks the current turn as a routine update (see above).
 - In the lead's chat, what the lead does to its workers shows as quiet rows of its own rather than
   tool calls. A spawn is a small card with the worker, its model and the first two lines of its
   brief. A message or an answer is one line naming the worker; click it for the full text. A stop
-  is one line too, and says so when the worker was also retired. An answer that directly follows
+  is one line too. An answer that directly follows
   its request folds into that request's card.
 - Worker traffic in between the lead's replies (reports, routine updates and requests) gathers
   into one card per run. The card shows the worker, its live status, a summary such as *Plan
@@ -164,8 +171,8 @@ closed state: it stays available, and the page itself says where the work stands
 it is finished.
 
 **Who is bound.** A session is bound to at most one board. When a lead opens a board, each of its
-workers that is not retired and has no board yet is bound along with it. A worker spawned later,
-or a retired worker the lead brings back, joins the lead's board if it has none of its own. A
+workers that is not inactive and has no board yet is bound along with it. A worker spawned later,
+or one the lead sends work to, joins the lead's board if it has none of its own. A
 worker that opens a board binds only itself. Once a session is bound, its next turn opens with a
 short `[Board]` block naming the board and its directory, and the block comes back after context
 compaction.
@@ -192,7 +199,7 @@ card headed *Board created*, set apart from the folded tool calls. The card show
 and title, up to four bound sessions as a status dot and a name each with a count of the rest, how
 many requests are waiting on you (*N awaiting you*), and **Open board**. A worker goes by its worker
 name; any other session goes by *lead*, or by its title when more than one such session is on the
-board. Retired workers are left out. The card updates live, and its flag turns amber while any
+board. Inactive workers are left out. The card updates live, and its flag turns amber while any
 bound session waits on you.
 When the agent attaches to an existing board, the conversation shows a single line:
 *Attached to board* followed by the title and an **Open** link. If the board has since been deleted,

@@ -56,7 +56,7 @@ PI 会话永远拿不到 MCP 版的 `agent` 和 `agent_stop`：PI 注册了自�
 | `worker_spawn` | `name`, `prompt`, `backend?`, `model?` | 启动一个持久的 worker 会话并交给它第一个任务；除非用 `backend`/`model`（格式同 `agent`）指定其他模型，否则沿用主会话当前的模型 |
 | `worker_send` | `worker`, `message` | 给 worker 发送消息：并入它正在运行的一轮，或开启新的一轮 |
 | `worker_list` | `worker?` | 主会话的 worker 名单，或某个 worker 及其完整的上一份汇报 |
-| `worker_stop` | `worker`, `retire?` | 停止 worker 当前这一轮，可选同时将其退役 |
+| `worker_stop` | `worker` | 停止 worker 当前这一轮 |
 | `worker_answer` | `request_id`, `answers?`, `approved?`, `feedback?` | 处理 worker 挂起的提问或计划审批 |
 
 该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具位于 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由提供服务。
