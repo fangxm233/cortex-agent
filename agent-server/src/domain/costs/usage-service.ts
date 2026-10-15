@@ -465,6 +465,20 @@ function applyCodexRecord(draft: RowDraft, record: ProviderUsage): void {
   if (record.resetCredits) draft.resetCredits = record.resetCredits;
 }
 
+/** Legacy rows without billing can carry quota, but metered rows never establish a subscription. */
+function isAnthropicQuotaRow(record: ProviderUsage): boolean {
+  return record.provider === ANTHROPIC_PROVIDER && record.billing !== 'api';
+}
+
+function hasQuotaEvidence(record: ProviderUsage): boolean {
+  return record.windows.length > 0 || record.observedAt !== null || record.resetCredits !== undefined;
+}
+
+/** Default modes and failure notes alone were enough to persist these old placeholders. */
+function isEmptyAnthropicPlaceholder(record: ProviderUsage): boolean {
+  return isAnthropicQuotaRow(record) && !hasQuotaEvidence(record) && record.spend === undefined;
+}
+
 function staleCopy(record: ProviderUsage, note: string): ProviderUsage {
   const { note: _priorNote, ...retained } = record;
   // 'unsupported' means the row has no quota concept at all, so ageing it to 'never'
@@ -584,20 +598,23 @@ export class UsageService {
   ): void {
     if (anthropicModes.length === 0) {
       const existing = drafts.get(draftKey(ANTHROPIC_PROVIDER, 'subscription'));
-      if (existing) existing.notes.push(t('ux.usage.anthropicDisabled'));
+      existing?.notes.push(t('ux.usage.anthropicDisabled'));
       return;
     }
     const quota = settledAnthropicQuota(result);
+    const inUse = drafts.has(draftKey(ANTHROPIC_PROVIDER, 'subscription'))
+      || prior.some((row) => isAnthropicQuotaRow(row) && hasQuotaEvidence(row));
+    if (!quota.snapshot && !inUse) return;
     const draft = ensureDraft(drafts, ANTHROPIC_PROVIDER, 'subscription');
     draft.quotaPolled = true;
-    for (const mode of anthropicModes) draft.modes.add(mode);
+    anthropicModes.forEach((mode) => draft.modes.add(mode));
     draft.notes.push(...quota.notes);
     if (quota.snapshot) {
       draft.windows = quota.snapshot.windows;
       draft.observedAt = quota.snapshot.observedAt;
       draft.freshness = quota.snapshot.live ? 'live' : 'stale';
     } else {
-      this.carryQuotaFromPrior(draft, prior);
+      this.carryQuotaFromPrior(draft, prior.filter((row) => !isEmptyAnthropicPlaceholder(row)));
     }
     draft.resetCredits = anthropicResets(quota, prior);
   }
@@ -633,7 +650,7 @@ export class UsageService {
 
   /**
    * Deleting a row is only safe when spend collection actually answered. If the gateway is
-   * unreachable, fall back to "add but never remove" so a transient outage cannot wipe history.
+   * unreachable, retain history, except empty Anthropic placeholders that never held any data.
    */
   private guardDeletions(
     composed: ProviderUsage[],
@@ -646,7 +663,7 @@ export class UsageService {
     const note = t('ux.usage.gatewayFailed', { error: errorMessage(reason) });
     const seen = new Set(composed.map(usageRecordKey));
     const retained = prior
-      .filter((row) => !seen.has(usageRecordKey(row)))
+      .filter((row) => !seen.has(usageRecordKey(row)) && !isEmptyAnthropicPlaceholder(row))
       .map((row) => staleCopy(row, note));
     return [...composed.map((row) => (row.note ? row : { ...row, note })), ...retained];
   }

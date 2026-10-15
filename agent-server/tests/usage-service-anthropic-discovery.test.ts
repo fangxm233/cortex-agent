@@ -156,6 +156,17 @@ describe('Anthropic usage evidence', () => {
     assert.deepEqual(anthropicSubscription(await service.refresh())?.windows, WINDOWS);
   });
 
+  test.each(['none', 'all'] as const)('an empty placeholder cannot mask legacy quota history (outage: %s)', async (outage) => {
+    const legacy = { ...EMPTY, billing: undefined, windows: WINDOWS, observedAt: 1_800_000_000 };
+    const { service } = await discovery([EMPTY, legacy], { fetch: outageFetch(outage) });
+
+    const row = anthropicSubscription(await service.refresh());
+
+    assert.deepEqual(row?.windows, WINDOWS);
+    assert.equal(row?.observedAt, legacy.observedAt);
+    assert.equal(row?.freshness, 'stale');
+  });
+
   test.each(['none', 'all', 'today', 'month'] as const)('API spend is neither deleted nor subscription evidence (gateway outage: %s)', async (outage) => {
     const api = usage('anthropic', 'unsupported', {
       billing: 'api', modes: ['api'], spend: { today: 2, month: 8, all: 20 },
