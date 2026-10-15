@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, onTestFinished, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -37,14 +37,15 @@ import {
   pluginServerStateName,
 } from '../src/agent-adapter/pi/mcp-bridge.js';
 import { safeNativeComposite } from '@core/native-name.js';
-import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/session-options.js';
+import { buildSessionRequest, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/session-options.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { getSavedApiEnv } from '../src/domain/auth/anthropic-env.js';
 import type { ModeEnv } from '../src/domain/runs/mode-env.js';
-import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
+import type { EngineSelection } from '../src/domain/agents/engine-selection.js';
+import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import { startAttempt } from '../src/domain/runs/attempt.js';
 import { resolveRunRoute } from '../src/domain/runs/config-resolver.js';
 import { engines } from '../src/domain/runs/engines.js';
@@ -61,9 +62,13 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 // coverage model when the variable is absent, so a Claude spawn has to say so explicitly.
 // AMENDED a third time, in `environment` only: CLAUDE_CONFIG_DIR=<CORTEX_HOME>/data/claude was added,
 // so every host spawn runs against Cortex's own Claude config dir instead of the terminal's ~/.claude.
+// AMENDED for engine selection, in `environment` only: CORTEX_PROFILE is removed; the selected
+// model and mode join CORTEX_BACKEND. Null provider/thinking have no environment keys.
 // Everything else in the goldens is still the untouched base capture.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
-const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
+const FIXTURE_CONFIG: EngineSelection = {
+  model: 'claude-fixture', backend: 'claude', mode: 'plan', provider: null, thinking: null,
+};
 const originalEnv = { ...process.env };
 
 beforeAll(() => {
@@ -139,7 +144,6 @@ function directSpawnConfig(): EngineSpec {
     channel: 'general',
     sessionId: '11111111-1111-4111-8111-111111111111',
     sessionKey: 'direct-fixture',
-    profileName: 'fixture-profile',
     trackSessionId: 'tracked-direct',
     executionId: 'exec-direct',
   }, FIXTURE_CONFIG);
@@ -338,7 +342,7 @@ function assertPortableRuntimePropagation(): void {
     const options = pluginRuntimeSpawnOptions();
     const claude = specFromFixture(options, FIXTURE_CONFIG);
     const pi = specFromFixture(options, {
-      model: 'pi-fixture', backend: 'pi', mode: null, provider: 'anthropic',
+      model: 'pi-fixture', backend: 'pi', mode: 'anthropic', provider: 'anthropic',
     });
     assertClaudePluginRuntime(claude);
     assertPiPluginRuntime(pi);
@@ -390,6 +394,39 @@ test(
   'buildEngineSpec ignores malformed pluginDirs values instead of crashing',
   assertMalformedPluginDirsIgnored,
 );
+
+const SELECTION_ENV_KEYS = [
+  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_MODE',
+  'CORTEX_PROFILE',
+] as const;
+
+function piSessionRequest(spec: EngineSpec) {
+  return buildSessionRequest(spec, {
+    agentDir: path.join(DATA_DIR, 'pi'), sessionDir: path.join(DATA_DIR, 'pi-sessions'),
+    sessionPath: null, cwd: DATA_DIR, streamDeltas: false,
+  });
+}
+
+test.each([
+  { ...FIXTURE_CONFIG },
+  { ...FIXTURE_CONFIG, thinking: 'high', mode: 'api' },
+  { ...FIXTURE_CONFIG, backend: 'pi' as const, provider: 'deepseek', mode: 'deepseek' },
+  { ...FIXTURE_CONFIG, backend: 'pi' as const, provider: 'deepseek', mode: 'deepseek', thinking: 'high' },
+])('launch context reflects $backend selection thinking=$thinking mode=$mode', (selection) => {
+  onTestFinished(overrideEnvironment(Object.fromEntries(
+    SELECTION_ENV_KEYS.map(key => [key, 'stale-parent-value']),
+  )));
+  const spec = specFromFixture({ loadCortexRules: false }, selection);
+  const env = selection.backend === 'claude' ? childEnvironment(spec) : piSessionRequest(spec).env;
+  assert.deepEqual(Object.fromEntries(SELECTION_ENV_KEYS.map(key => [key, env[key]])), {
+    CORTEX_BACKEND: selection.backend,
+    CORTEX_MODEL: selection.model,
+    CORTEX_PROVIDER: selection.provider ?? undefined,
+    CORTEX_THINKING: selection.thinking ?? undefined,
+    CORTEX_MODE: selection.mode,
+    CORTEX_PROFILE: undefined,
+  });
+});
 
 test('ordinary direct spawn argv and environment match the base golden byte-for-byte', () => {
   deterministicEnvironment();
@@ -483,6 +520,72 @@ test(
     assert.deepEqual(states, ['core', pluginServerStateName('portable-private')]);
   },
 );
+
+function benchmarkSpec(cap: number | undefined, benchmark = true, backend: 'claude' | 'pi' = 'pi'): EngineSpec {
+  const request = runRequestFixture({
+    sessionKey: `benchmark-cap-${cap ?? 'default'}`, loadCortexRules: false,
+    benchmarkMaxOutputTokens: cap,
+  }, {
+    backend, model: 'deepseek-v4-flash', provider: backend === 'pi' ? 'deepseek' : null,
+    mode: backend === 'pi' ? 'deepseek' : 'plan', thinking: 'high',
+  });
+  if (benchmark) request.benchmark = {
+    identityDirective: '',
+    evidenceContext: {
+      schema_version: 'cortex-production-benchmark-evidence-context/1',
+      trial_id: 'spawn-trial', root_run_id: 'spawn-root', bundle_manifest_hash: 'a'.repeat(64),
+      model_execution: {
+        cli_name: backend, cli_version: 'fixture', model_alias_policy: null,
+        max_output_tokens: cap ?? null,
+      },
+    },
+  };
+  return buildEngineSpec(request, request.selection);
+}
+
+test.each([
+  ['pi', true, 8192], ['pi', false, undefined], ['claude', true, undefined],
+] as const)('output cap reaches only benchmark PI specs: %s benchmark=%s', (backend, benchmark, expected) => {
+  assert.equal(benchmarkSpec(8192, benchmark, backend).model.benchmarkMaxOutputTokens, expected);
+});
+
+test('PI benchmark caps reach individual runtimes without mutating the shared catalog', async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'pi-spawn-benchmark-'));
+  const agentDir = path.join(root, 'agent');
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, path.join(root, 'sessions'), undefined, { agentDir });
+  const pool = piPool(adapter);
+  const caps = [undefined, 8192, 4096, undefined];
+  t.onTestFinished(async () => {
+    for (const key of pool.listSessions()) await pool.close(key);
+    rmSync(root, { recursive: true, force: true });
+  });
+  let catalog: string | undefined;
+  for (const [index, cap] of caps.entries()) {
+    const spec = benchmarkSpec(cap, cap !== undefined);
+    spec.engineKey = `benchmark-isolated-${index}`;
+    pool.open(spec);
+    assert.equal(fake.requests[index].benchmarkMaxOutputTokens, cap);
+    const current = readFileSync(path.join(agentDir, 'models.json'), 'utf8');
+    catalog ??= current;
+    assert.equal(current, catalog, 'a per-session output cap may not rewrite the shared model catalog');
+  }
+  assert.deepEqual(fake.requests.map(request => request.benchmarkMaxOutputTokens), caps);
+});
+
+test('retired PI options cannot reach the runtime request', () => {
+  const spec = retiredFieldsSpec({
+    ...FIXTURE_CONFIG, backend: 'pi', provider: 'deepseek', mode: 'deepseek', thinking: 'high',
+  }, { ANTHROPIC_API_KEY: null, ANTHROPIC_BASE_URL: undefined });
+  const request = piSessionRequest(spec);
+  assert.equal(request.thinking, 'high');
+  assert.equal(request.benchmarkMaxOutputTokens, undefined);
+  assert.equal(request.env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(request.env.ANTHROPIC_BASE_URL, undefined);
+  assert.equal(request.env.CORTEX_PROFILE, undefined);
+  assert.ok(!('extraOption' in request));
+  assert.ok(!('extraEnv' in request));
+});
 
 function installFakeClaude(binDir: string): void {
   const fakeClaude = path.join(binDir, 'claude');
@@ -830,15 +933,15 @@ function pinRouteEnvironment(): () => void {
 function routeSpawnConfig(
   key: string,
   route: ModeEnv,
-  config: Partial<RunAttemptConfig> = FIXTURE_CONFIG,
+  config: EngineSelection = FIXTURE_CONFIG,
 ): EngineSpec {
   return specFromFixture({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
   }, config, route);
 }
 
-function planConfig(extraEnv?: Record<string, string>): Partial<RunAttemptConfig> {
-  return { ...FIXTURE_CONFIG, mode: 'plan', extraEnv };
+function planConfig(): EngineSelection {
+  return { ...FIXTURE_CONFIG, mode: 'plan' };
 }
 
 /** Simulates another mode configuring the daemon between this spawn's route resolution and its
@@ -909,33 +1012,45 @@ test('a route without a base URL deletes the one the daemon left behind', (t) =>
   assert.equal(env.ANTHROPIC_API_KEY, undefined);
 });
 
-test('profile extraEnv outranks the credentials a mode route sets', (t) => {
+/** Pass obsolete properties straight to production, not through a fixture that strips them. */
+function retiredFieldsSpec(selection: EngineSelection, route: ModeEnv): EngineSpec {
+  const retired = {
+    profileName: 'retired-selection',
+    extraEnv: { ANTHROPIC_API_KEY: 'retired-key', ANTHROPIC_BASE_URL: 'https://retired.example' },
+    extraOption: { '--effort': 'low', '--thinking': 'low', '--retired-option': 'injected' },
+    maxOutputTokens: 17,
+  };
+  const request = { ...runRequestFixture({ loadCortexRules: false }, selection), ...retired };
+  return buildEngineSpec(request, { ...selection, ...retired }, { route });
+}
+
+test('retired selection fields cannot override route credentials or Claude thinking', (t) => {
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(true);
-  const codex: Partial<RunAttemptConfig> = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
-  const route = resolveRunRoute(codex);
-  assert.equal(route.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY, 'the route sets a key to be overridden');
-  const spawn = routeSpawnConfig('route-extra-wins', route, {
-    ...codex, extraEnv: { ANTHROPIC_API_KEY: 'profile-key' },
-  });
+  const selection: EngineSelection = { ...FIXTURE_CONFIG, mode: 'openai-codex', thinking: 'high' };
+  const spec = retiredFieldsSpec(selection, resolveRunRoute(selection));
+  const launch = childLaunch(spec);
 
-  assert.equal(spawn.env.sets?.ANTHROPIC_API_KEY, 'profile-key');
-  assert.equal(childEnvironment(spawn).ANTHROPIC_API_KEY, 'profile-key');
+  assert.equal(spec.env.sets?.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
+  assert.equal(launch.env.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
+  assert.equal(launch.env.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/anthropic`);
+  assert.equal(launch.env.CORTEX_PROFILE, undefined);
+  assert.equal(launch.args[launch.args.indexOf('--effort') + 1], 'high');
+  assert.ok(!launch.args.includes('--thinking'));
+  assert.ok(!launch.args.includes('--retired-option'));
+  assert.equal(spec.model.benchmarkMaxOutputTokens, undefined);
 });
 
-test('a key the profile sets explicitly is never deleted by the route', (t) => {
+test('retired extraEnv cannot restore credentials deleted by a plan route', (t) => {
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(false);
-  const route = resolveRunRoute(planConfig());
-  const spawn = routeSpawnConfig('route-extra-kept', route, planConfig({
-    ANTHROPIC_API_KEY: 'profile-key', ANTHROPIC_BASE_URL: 'https://profile.example',
-  }));
+  const spec = retiredFieldsSpec(planConfig(), resolveRunRoute(planConfig()));
 
-  assert.equal(spawn.env.unsets, undefined,
-    'the profile configured both keys explicitly, so the mode may not delete either');
-  const env = childEnvironment(spawn);
-  assert.equal(env.ANTHROPIC_API_KEY, 'profile-key');
-  assert.equal(env.ANTHROPIC_BASE_URL, 'https://profile.example');
+  assert.deepEqual([...spec.env.unsets!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
+  const launch = childLaunch(spec);
+  assert.equal(launch.env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(launch.env.ANTHROPIC_BASE_URL, undefined);
+  assert.ok(!launch.args.includes('--effort'), 'null thinking must not fall back to extraOption');
 });
 
 // --- pool: a live session may only be reused when its child took the same route ---
@@ -949,7 +1064,7 @@ const poolSpawner = (() => ({ process: stubBackendChild() })) as any;
 function pooledRouteSpawn(
   key: string,
   route: ModeEnv,
-  config: Partial<RunAttemptConfig> = FIXTURE_CONFIG,
+  config: EngineSelection = FIXTURE_CONFIG,
 ): EngineSpec {
   return specFromFixture({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
@@ -968,7 +1083,7 @@ function pooledRouteConfig(
 }
 
 test('the pooled route identity fingerprints a credential instead of keeping it', () => {
-  const route = { anthropicBaseUrl: POOL_ROUTE_URL, extraEnv: { ANTHROPIC_API_KEY: POOL_SECRET } };
+  const route = { anthropicBaseUrl: POOL_ROUTE_URL, routeEnv: { ANTHROPIC_API_KEY: POOL_SECRET } };
   const identity = claudeRouteIdentity(route);
 
   assert.ok(!identity.includes(POOL_SECRET),
@@ -978,20 +1093,20 @@ test('the pooled route identity fingerprints a credential instead of keeping it'
   assert.equal(identity, claudeRouteIdentity({ ...route }),
     'the same route must always produce the same identity');
   assert.notEqual(identity, claudeRouteIdentity({
-    ...route, extraEnv: { ANTHROPIC_API_KEY: `${POOL_SECRET}-rotated` },
+    ...route, routeEnv: { ANTHROPIC_API_KEY: `${POOL_SECRET}-rotated` },
   }), 'rotating the credential must change the identity');
 });
 
 test('a set, an inherited and a deleted credential are three different routes', () => {
-  const set = claudeRouteIdentity({ extraEnv: { ANTHROPIC_API_KEY: POOL_SECRET } });
+  const set = claudeRouteIdentity({ routeEnv: { ANTHROPIC_API_KEY: POOL_SECRET } });
   const inherited = claudeRouteIdentity({});
   const deleted = claudeRouteIdentity({ unsetEnv: ['ANTHROPIC_API_KEY'] });
 
   assert.equal(new Set([set, inherited, deleted]).size, 3,
     'inheriting the daemon key and deleting it leave the child with different credentials');
   assert.equal(claudeRouteIdentity({
-    extraEnv: { ANTHROPIC_API_KEY: POOL_SECRET }, unsetEnv: ['ANTHROPIC_API_KEY'],
-  }), deleted, 'unsetEnv runs after extraEnv, exactly as buildClaudeEnv applies them');
+    routeEnv: { ANTHROPIC_API_KEY: POOL_SECRET }, unsetEnv: ['ANTHROPIC_API_KEY'],
+  }), deleted, 'unsetEnv runs after routeEnv, exactly as buildClaudeEnv applies them');
   assert.notEqual(claudeRouteIdentity({ unsetEnv: ['ANTHROPIC_BASE_URL'] }), inherited,
     'a direct route deletes the base URL the daemon left behind — that is another endpoint');
 });
@@ -1001,7 +1116,7 @@ test('a mode switch on one channel cannot reuse the session started on the old r
   _testSetHealthy(true);
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-switch';
-  const codex: Partial<RunAttemptConfig> = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
+  const codex: EngineSelection = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
 
   claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
   const first = claudePool(adapter).getPooledSession(key);
