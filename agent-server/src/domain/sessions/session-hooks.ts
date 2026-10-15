@@ -3,8 +3,8 @@ import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import type { PlatformAdapter, OutputStream } from '@platform/index.js';
-import { resolveBackendForChannel } from '@domain/agents/index.js';
-import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { startRun } from '@domain/runs/service.js';
 import type { RunObserver, RunRequest } from '@domain/runs/request.js';
 import { continuationRunRequest } from '@domain/runs/builders.js';
@@ -49,7 +49,7 @@ export interface SessionHookContext {
   /** The backend's own id for the session's conversation (its transcript), when it has one. */
   backendSessionId?: string | null;
   executionId?: string | null;
-  profile?: string | null;
+  selection?: EngineSelection | null;
 }
 
 /** Caller-supplied formatters — keep wording per-hook so existing UX text doesn't change.
@@ -75,7 +75,7 @@ export interface SessionHookInject {
   /** The backend conversation it resumes. Differs from `sessionId` once the backend has assigned
    *  its own id (Slack, Feishu, the Web after a first turn) or a rewind has moved it. */
   backendSessionId: string;
-  profileName: string | null;
+  selection: EngineSelection | null;
   /** Session-pool key for the injected turn.
    *  - onNew: an ISOLATED key (onNewInjectSessionKey(channel)) so resuming the old session for
    *    the pre-close turn never collides with the channel's live pool slot — see the race below.
@@ -112,20 +112,6 @@ export interface InjectDeps {
   closeInjectedSession: (channel: string, sessionKey: string) => void | Promise<void>;
 }
 
-/** Synthetic profile for an unknown/missing configured name: keeps the requested name so the
- *  run still rejects it, while its backend mirrors the channel's live session. */
-function hookInjectionProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
-  try {
-    return resolveProfileConfig(profileName);
-  } catch {
-    return {
-      name: profileName ?? '', model: '', backend: resolveBackendForChannel(channel), mode: null,
-      provider: null, extraEnv: {}, extraOption: {}, thinking: null,
-      maxOutputTokens: null, fallback: [],
-    };
-  }
-}
-
 const defaultInjectDeps: InjectDeps = {
   startRun,
   closeInjectedSession: async (channel: string, sessionKey: string) => {
@@ -137,7 +123,7 @@ const defaultInjectDeps: InjectDeps = {
   },
 };
 
-/** The next turn on the engine `after` ran on: same session, agent, profile, policy and route —
+/** The next turn on the engine `after` ran on: same session, agent, selection, policy and route —
  *  the route keeps `after`'s trigger, since the gateway URL names it and the process was spawned on
  *  it; the follow-up's own trigger is what its execution and cost are recorded under. */
 function followUpRequest(
@@ -183,7 +169,7 @@ export async function runHookInjection(
         // session id.
         engineKey: inject.sessionKey,
       },
-      profile: hookInjectionProfile(inject.profileName, spec.ctx.channel),
+      selection: resolveRunSelection({ selection: inject.selection, channel: spec.ctx.channel }),
       prompt: output,
       channel: spec.ctx.channel,
       project: 'general',
@@ -236,7 +222,8 @@ function buildHookPayload(
     sessionId: ctx.sessionId,
     backendSessionId: ctx.backendSessionId ?? null,
     executionId: ctx.executionId ?? null,
-    profile: ctx.profile ?? null,
+    backend: ctx.selection?.backend ?? null,
+    model: ctx.selection?.model ?? null,
     trigger: name === 'onNew' ? 'new' : 'messageEnd',
     timestampIso: new Date().toISOString(),
   };
@@ -356,35 +343,31 @@ export async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?:
 }
 
 interface SessionHookTarget {
-  profile: string | null;
+  selection: EngineSelection | null;
   /** The backend conversation an injected turn resumes; null when the session has none yet. */
   backendSessionId: string | null;
 }
 
-/** What a session hook reads about its session, from the registry, keyed by the Cortex session id.
- *  The registry is the SINGLE source of truth for the profile (B.T2): the per-session record is
- *  right for every kind of session, where the old channel-level ledger fallback could name another
- *  session on the same channel and resume with the wrong profile (wrong gateway mode → Anthropic
- *  400 on thinking blocks). */
+/** Read the engine choice from the session record, never another session's channel state. */
 async function sessionHookTarget(sessionId: string): Promise<SessionHookTarget> {
   const record = await sessionStore.getById(sessionId);
   return {
-    profile: record?.profileName ?? null,
+    selection: record?.selection ?? null,
     backendSessionId: record ? effectiveBackendSessionId(record) : null,
   };
 }
 
 function onNewHookSpec(channel: string, sessionId: string, target: SessionHookTarget): SessionHookSpec {
-  const { profile, backendSessionId } = target;
+  const { selection, backendSessionId } = target;
   return {
     name: 'onNew',
-    ctx: { channel, sessionId, profile, backendSessionId },
+    ctx: { channel, sessionId, selection, backendSessionId },
     format: ONNEW_FORMAT,
     // A session with no backend conversation yet has nothing for a pre-close turn to continue.
     inject: backendSessionId ? {
       sessionId,
       backendSessionId,
-      profileName: profile,
+      selection,
       sessionKey: onNewInjectSessionKey(channel),
       trigger: 'hook:onNew',
     } : null,
@@ -436,7 +419,7 @@ export interface OnMessageEndArgs {
   /** The backend conversation the turn ran on; a follow-up turn resumes it. */
   backendSessionId: string | null;
   executionId: string;
-  profile?: string | null;
+  selection?: EngineSelection | null;
   /** The finished turn's request; see {@link SessionHookInject.follows}. */
   request?: RunRequest | null;
   /** OutputStream to extend — pass the assistant turn's stream so the hook lines
@@ -455,13 +438,13 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
       sessionId: args.sessionId,
       backendSessionId: args.backendSessionId,
       executionId: args.executionId,
-      profile: args.profile ?? null,
+      selection: args.selection ?? null,
     },
     format: ONMESSAGEEND_FORMAT,
     inject: args.backendSessionId ? {
       sessionId: args.sessionId,
       backendSessionId: args.backendSessionId,
-      profileName: args.profile ?? null,
+      selection: args.selection ?? null,
       // onMessageEnd continues the live conversation — keep it on the channel pool slot.
       sessionKey: args.channel,
       trigger: 'hook:onMessageEnd',
@@ -474,7 +457,7 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
 /** Run the onMessageEnd hook for a turn that just finished. The hook's lines extend the assistant
  *  turn's OutputStream, so hook output (status / preview / error) and any injected agent turn share
  *  one continuous thread with the reply we just finished — no top-level leak, no detached stream.
- *  The profile comes from the turn's conversation record, never from a global. */
+ *  The selection comes from the turn's conversation record, never from a global. */
 export async function runMessageEndForTurn(args: {
   channel: string;
   /** The Cortex session id (the registry key), not the backend's. */
@@ -490,7 +473,7 @@ export async function runMessageEndForTurn(args: {
     return;
   }
   try {
-    // Profile comes from the session registry (the single source of truth), keyed by the turn's
+    // Selection comes from the session registry (the single source of truth), keyed by the turn's
     // sessionId — never from the channel-level ledger, which could name a different session.
     const target = await sessionHookTarget(args.sessionId);
     await runMessageEndSessionHook({
@@ -498,7 +481,7 @@ export async function runMessageEndForTurn(args: {
       sessionId: args.sessionId,
       backendSessionId: args.backendSessionId ?? target.backendSessionId,
       executionId: args.executionId ?? '',
-      profile: target.profile,
+      selection: target.selection,
       stream: args.stream,
       request: args.request,
     });

@@ -1,10 +1,10 @@
 import * as crypto from 'node:crypto';
 import { setSessionAsync, deleteSessionAsync } from './session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import {
-  applyChannelSelection, setActiveProfile, setDefaultAgent, setSelectionDefaultAgent,
-} from '@domain/agents/index.js';
-import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
+import { applyChannelSelection } from '@domain/agents/model-selection.js';
+import { setChannelSelection, setDefaultAgent, setSelectionDefaultAgent } from '@domain/agents/config.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 import type { SessionBrowserOption } from '@store/session-registry-journal.js';
@@ -13,7 +13,7 @@ export interface SessionRegistryWriter {
   registerSession(opts: {
     sessionId: string; channel: string; backend: string;
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
-    label?: string | null; profileName?: string | null; agentName?: string | null;
+    label?: string | null; selection?: EngineSelection | null; agentName?: string | null;
     browser?: SessionBrowserOption | null;
     boardId?: string | null;
     teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
@@ -27,41 +27,27 @@ export interface RegisterSessionRecordOpts {
   backend: string;
   projectId: string;
   label?: string | null;
-  profileName?: string | null;
-  /** The agent template the session runs as; null/absent means it follows the channel's selection
-   *  and, beneath that, the global default. */
+  selection?: EngineSelection | null;
+  /** The agent template; absent means the channel/global default. */
   agentName?: string | null;
-  /** Opt-in browser access for this session; null/absent means no browser tools at all. */
   browser?: SessionBrowserOption | null;
-  /** The board a new session starts bound to (a worker inherits its lead's). */
   boardId?: string | null;
-  /** Team mode: the owning lead's sessionId, this worker's name and its brief. Absent for ordinary
-   *  sessions. */
   teamLeadId?: string | null;
   workerName?: string | null;
   workerBrief?: string | null;
-  /** The schedule whose fire opened this session. Present, the session is that schedule's run
-   *  (kind and origin 'scheduled') until a reply adopts it as an ordinary direct session. */
+  /** Provenance retained when the user adopts a scheduled session. */
   scheduleId?: string | null;
 }
 
-/** Register a session by its stable ID. */
+/** Register a session by its stable ID, freezing the engine choice for future resumes. */
 export async function registerSessionRecord(store: SessionRegistryWriter, opts: RegisterSessionRecordOpts): Promise<void> {
-  // Every caller path but a schedule's fire (inbound direct message, TUI and web fresh sessions,
-  // team workers) is user-initiated.
   const scheduled = !!opts.scheduleId;
+  const selection = resolveRunSelection({ channel: opts.channel, selection: opts.selection });
   await store.registerSession({
-    sessionId: opts.sessionId,
-    channel: opts.channel,
-    backend: opts.backend,
-    kind: scheduled ? 'scheduled' : 'local',
-    origin: scheduled ? 'scheduled' : 'direct',
-    projectId: opts.projectId,
-    label: opts.label ?? null,
-    profileName: opts.profileName ?? null,
-    agentName: opts.agentName ?? null,
-    browser: opts.browser ?? null,
-    boardId: opts.boardId ?? null,
+    sessionId: opts.sessionId, channel: opts.channel, backend: selection.backend,
+    kind: scheduled ? 'scheduled' : 'local', origin: scheduled ? 'scheduled' : 'direct',
+    projectId: opts.projectId, label: opts.label ?? null, selection,
+    agentName: opts.agentName ?? null, browser: opts.browser ?? null, boardId: opts.boardId ?? null,
     ...(opts.teamLeadId
       ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerBrief: opts.workerBrief ?? null }
       : {}),
@@ -71,127 +57,72 @@ export async function registerSessionRecord(store: SessionRegistryWriter, opts: 
 
 export interface CreateDirectSessionDeps {
   sessionStore: SessionRegistryWriter;
-  /** Bind the channel to the new session in the registry (so a later send resumes it). */
   setChannelSession(channel: string, sessionId: string): Promise<void>;
-  /** Initialize the conversation ledger for the new channel/session. */
-  initConversation(channel: string, opts: { sessionId: string; backend: string }): Promise<void>;
-  /** Resolve the backend the send path will use for the channel (agent-runner reads the same). */
+  initConversation(channel: string, opts: { sessionId: string; backend: string; selection: EngineSelection }): Promise<void>;
   resolveBackend(channel: string): string;
 }
 
-/** Create a fresh, live session for a web/UI conversation: mint a sessionId, derive its own
- *  `web:<sessionId>` conduit channel, register by ID, bind the channel→session mapping
- *  and conversation ledger. Returns the sessionId + channel. The session is
- *  user-initiated (origin='direct') unless `scheduleId` names the schedule whose fire opened it.
- *
- *  When `profileName` is provided, the backend is resolved directly from the profile config (not
- *  from the channel's profile state) so the session is bound to the correct backend even before any
- *  channel profile is set. The channel profile is then set so subsequent sends resolve correctly.
- *
- *  Because the channel is bound with the same backend the send path resolves, a subsequent send
- *  resumes THIS session rather than spawning a new one. */
+interface CreateDirectSessionOpts {
+  projectId: string; sessionId?: string; agentName?: string | null;
+  selection?: EngineSelection | null;
+  seedDefault?: boolean;
+  browser?: SessionBrowserOption | null; boardId?: string | null;
+  teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
+  label?: string | null; scheduleId?: string | null;
+}
+
+/** A draft's explicit selection goes through the picker rule before the channel is bound. */
+async function initializeSelection(channel: string, opts: CreateDirectSessionOpts): Promise<EngineSelection> {
+  const selection = resolveRunSelection({ channel, selection: opts.selection });
+  const seedDefault = opts.seedDefault ?? !!opts.selection;
+  const applied = await applyChannelSelection({ channel, ...selection, seedDefault });
+  if (!applied.ok) throw new Error(applied.reason ?? 'Invalid engine selection');
+  if (opts.agentName) setDefaultAgent(opts.agentName, channel);
+  if (seedDefault) setSelectionDefaultAgent(opts.agentName ?? null);
+  return selection;
+}
+
+/** Mint a session and bind its conduit, registry and ledger to one materialized engine choice. */
 export async function createDirectSession(
   deps: CreateDirectSessionDeps,
-  opts: {
-    projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null;
-    selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
-    browser?: SessionBrowserOption | null; boardId?: string | null;
-    teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
-    label?: string | null; scheduleId?: string | null;
-  },
+  opts: CreateDirectSessionOpts,
 ): Promise<{ sessionId: string; channel: string }> {
   const sessionId = opts.sessionId ?? crypto.randomUUID();
   const channel = `web:${sessionId}`;
-
-  let backend: string;
-  if (opts.profileName) {
-    backend = resolveProfileConfig(opts.profileName).backend;
-    setActiveProfile(opts.profileName, channel);
-  } else {
-    backend = deps.resolveBackend(channel);
-  }
-
-  // The draft composer's choice, carried onto the new channel before the first turn is routed —
-  // through the SAME rule the picker writes with, not a direct state write. A draft has no history
-  // to protect, but it can still name a level the backend does not take or a provider on a claude
-  // profile: without the rule those land unchecked and the first turn dies at the CLI. The channel
-  // is minted here, so the cross-backend guard has nothing to refuse.
-  //
-  // An EMPTY selection is a statement too — "run this profile as declared" — and it has to reach
-  // the rule, because the rule is also what re-seeds `selectionDefault` (what the NEXT new
-  // conversation opens on). Skipping it left a draft that had just been cleared back to its profile
-  // re-opening the next one on the model it had dropped, however many times it was taken back.
-  // `null`/`undefined` is the other thing entirely: a caller with no composer behind it
-  // (sessions.create, an issue's session) states nothing and must not move the seed.
-  if (opts.selection) {
-    await applyChannelSelection({
-      channel,
-      model: opts.selection.model ?? null,
-      provider: opts.selection.provider ?? null,
-      thinking: opts.selection.thinking ?? null,
-      mode: opts.selection.mode ?? null,
-    });
-  }
-
-  // The environment the session opens in, written to the channel BEFORE the first turn is routed
-  // (the run path resolves the agent per turn from the session record, then this map). No switch
-  // rule is needed: a channel minted here has no history, so the cross-backend guard the rule
-  // exists for has nothing to refuse.
-  if (opts.agentName) setDefaultAgent(opts.agentName, channel);
-  // Seeded on the same condition as the selection above: `selection` present is what marks a
-  // composer behind this call, and a composer that named no agent stated the default.
-  if (opts.selection) setSelectionDefaultAgent(opts.agentName ?? null);
-
+  const selection = await initializeSelection(channel, opts);
   await registerSessionRecord(deps.sessionStore, {
-    sessionId,
-    channel,
-    backend,
-    projectId: opts.projectId,
-    label: opts.label ?? null,
-    profileName: opts.profileName ?? null,
-    agentName: opts.agentName ?? null,
-    browser: opts.browser ?? null,
-    boardId: opts.boardId ?? null,
-    teamLeadId: opts.teamLeadId ?? null,
-    workerName: opts.workerName ?? null,
-    workerBrief: opts.workerBrief ?? null,
-    scheduleId: opts.scheduleId ?? null,
+    ...opts, sessionId, channel, backend: selection.backend, selection,
   });
   await deps.setChannelSession(channel, sessionId);
-  await deps.initConversation(channel, { sessionId, backend });
+  await deps.initConversation(channel, { sessionId, backend: selection.backend, selection });
   return { sessionId, channel };
 }
 
 export interface AttachExistingSessionOpts {
   sessionId: string;
   backend: string;
-  profileName?: string | null;
+  selection?: EngineSelection | null;
 }
 
-/** Attach a channel to an existing session: restore its profile (if any), bind the channel to it in
- *  the registry, and switch the conversation ledger. Mirrors the !resume switch sequence. */
+/** Resume restores the record verbatim, not the last choice of the channel it replaces. */
 export async function attachExistingSession(channel: string, opts: AttachExistingSessionOpts): Promise<void> {
-  if (opts.profileName) setActiveProfile(opts.profileName, channel);
+  const selection = resolveRunSelection({ channel, selection: opts.selection });
+  // This restores another session rather than switching the engine of the current session.
+  setChannelSelection(channel, selection);
   await setSessionAsync(channel, opts.sessionId);
   await conversationLedger.switchSession(channel, {
-    sessionId: opts.sessionId, backend: opts.backend, profileName: opts.profileName,
+    sessionId: opts.sessionId, backend: selection.backend, selection,
   });
 }
 
 export interface AdoptScheduledSessionStore {
   getById(sessionId: string): Promise<{
-    channel: string; backend: string; origin: SessionOrigin; profileName: string | null;
+    channel: string; backend: string; origin: SessionOrigin; selection: EngineSelection | null;
   } | null>;
-  /** Re-point the registry record: channel → the adopted channel, kind → local, origin → direct. */
   convertToDirect(sessionId: string, opts: { channel: string }): Promise<unknown | null>;
 }
 
-/** Convert a scheduled run's session into a normal direct web session (replying adopts the run).
- *  A run opened on its own `web:<sessionId>` conduit is already bound there and only needs its record
- *  re-pointed; an older run that lived on the shared project channel first gets that conduit attached
- *  — the same switch sequence as !resume, so a later send resumes the run's transcript. `scheduleId`
- *  is intentionally KEPT on the record (provenance for the trigger card / schedule grouping).
- *  Idempotent: a non-scheduled record just returns its current channel; an unknown id returns null. */
+/** Re-home older shared-channel scheduled runs; preserve provenance and engine selection. */
 export async function adoptScheduledSession(
   store: AdoptScheduledSessionStore,
   sessionId: string,
@@ -200,24 +131,21 @@ export async function adoptScheduledSession(
   if (!record) return null;
   if (record.origin !== 'scheduled') return { channel: record.channel };
   const channel = `web:${sessionId}`;
-  // Re-attaching the conduit it already runs on would switch the ledger under a turn that may be live.
   if (record.channel !== channel) {
     await attachExistingSession(channel, {
-      sessionId, backend: record.backend, profileName: record.profileName,
+      sessionId, backend: record.backend, selection: record.selection,
     });
   }
   await store.convertToDirect(sessionId, { channel });
   return { channel };
 }
 
-/** Clear a channel's session state: unbind the channel in the registry, clean session
- *  backups, and clear the conversation ledger. Mirrors the store-level half of !new. */
+/** Clear the channel's binding, backups and conversation ledger. */
 export async function resetChannelSession(channel: string): Promise<void> {
   const conv = await conversationLedger.getConversation(channel);
   if (conv) {
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
   }
-  // One channel, one binding: `deleteSessionAsync` unbinds the channel in the registry.
   await deleteSessionAsync(channel).catch(() => {});
 }

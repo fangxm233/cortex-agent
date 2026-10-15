@@ -10,6 +10,8 @@ import {
   type InjectDeps,
 } from '../src/domain/sessions/session-hooks.js';
 
+const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 /** Minimal OutputStream stub — records emitted text, no platform coupling. */
@@ -51,12 +53,12 @@ function makeDeps() {
 function onNewSpec(channel: string, oldSessionId: string): SessionHookSpec {
   return {
     name: 'onNew',
-    ctx: { channel, sessionId: oldSessionId, profile: null },
+    ctx: { channel, sessionId: oldSessionId, selection },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
       sessionId: `track-${oldSessionId}`,
       backendSessionId: oldSessionId,
-      profileName: null,
+      selection,
       sessionKey: onNewInjectSessionKey(channel),
       trigger: 'hook:onNew',
     },
@@ -85,6 +87,7 @@ test('runHookInjection (onNew) — injects on the isolated key, resumes the OLD 
 
   assert.equal(startRunCalls.length, 1, 'startRun called exactly once');
   const request = startRunCalls[0].request;
+  assert.deepEqual(request.selection, selection, 'full selection retained without channel re-resolution');
   assert.equal(request.session.backendSessionId, 'old-sess', 'injection resumes the OLD session (pre-close turn)');
   assert.equal(request.session.sessionId, 'track-old-sess', 'as a turn of its Cortex session');
   assert.equal(request.session.engineKey, onNewInjectSessionKey(channel), 'injection uses the isolated pool key');
@@ -103,10 +106,10 @@ test('runHookInjection (onMessageEnd) — injects on the channel key and does NO
   const stream = makeStream();
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',
-    ctx: { channel, sessionId: 'live-sess', profile: null },
+    ctx: { channel, sessionId: 'live-sess', selection },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
-      sessionId: 'track-live', backendSessionId: 'live-sess', profileName: null, sessionKey: channel,
+      sessionId: 'track-live', backendSessionId: 'live-sess', selection, sessionKey: channel,
       trigger: 'hook:onMessageEnd',
     },
   };
@@ -146,7 +149,7 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   const turn = {
     runId: 'run-turn',
     session: { sessionId: 'track-live', backendSessionId: null, engineKey: channel},
-    profile: { name: 'plan' },
+    selection,
     spec: { tools: 'Bash,Read', pluginDirs: ['/plugins/coder'] },
     prompt: { text: 'hello', attachments: [] },
     context: { channel, project: 'proj', trigger: 'user', isUserInitiated: true, teamLead: true },
@@ -154,10 +157,10 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   } as unknown as RunRequest;
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',
-    ctx: { channel, sessionId: 'track-live', backendSessionId: 'backend-live', profile: null },
+    ctx: { channel, sessionId: 'track-live', backendSessionId: 'backend-live', selection },
     format: { statusLine: () => '', previewLine: () => '', errorLine: () => '' },
     inject: {
-      sessionId: 'track-live', backendSessionId: 'backend-live', profileName: null, sessionKey: channel,
+      sessionId: 'track-live', backendSessionId: 'backend-live', selection, sessionKey: channel,
       trigger: 'hook:onMessageEnd', follows: turn,
     },
   };
@@ -172,5 +175,5 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   assert.deepEqual(injected.context, { ...turn.context, trigger: 'hook:onMessageEnd', routeTrigger: 'user' });
   assert.equal(injected.spec, turn.spec);
   assert.equal(injected.policy, turn.policy);
-  assert.equal(injected.profile, turn.profile);
+  assert.equal(injected.selection, turn.selection);
 });
