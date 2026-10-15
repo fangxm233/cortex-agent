@@ -6,7 +6,8 @@ import { parseNativeError } from '@/lib/native-error';
 // Failed starts offer repair settings. Commands and tool selection are owned by the native shell.
 
 export type LocalSetupStage = 'prepare' | 'configure' | 'start' | 'ready';
-export type LocalSetupStep = 'check' | 'install' | 'config' | 'daemon' | 'autostart' | 'connect';
+export type LocalSetupStep = 'check' | 'install' | 'config' | 'daemon' | 'autostart' | 'terminal' | 'connect';
+export type LocalSetupWarning = 'AUTOSTART_FAILED' | 'CLI_PATH_FAILED';
 export type LocalStepStatus = 'pending' | 'running' | 'done' | 'error' | 'warning';
 interface Endpoint { url: string; token: string }
 
@@ -18,6 +19,7 @@ export interface LocalSetupPorts {
   enableUi: (bin: string, port?: number) => Promise<Endpoint>;
   startDaemon: (bin: string, endpoint: Endpoint, restart?: boolean) => Promise<boolean>;
   enableAutostart: () => Promise<unknown>;
+  installCli: (bin: string) => Promise<unknown>;
   connect: (endpoint: Endpoint, cortexBin: string, newInstall?: boolean) => Promise<NativePageConfig | null | void>;
 }
 
@@ -34,7 +36,7 @@ export interface LocalSetupState {
   endpoint: Endpoint | null;
   progress: Partial<Record<LocalSetupStep, LocalStepStatus>>;
   answers: NativeSetupAnswers | null;
-  warning: 'AUTOSTART_FAILED' | null;
+  warning: LocalSetupWarning | null;
   newInstall: boolean | null;
   /** Condense automatic installation and startup into one visible step. */
   automatic: boolean;
@@ -105,7 +107,7 @@ export class LocalSetupFlow {
 
   private defaultAnswers(lang: string): NativeSetupAnswers {
     return { lang, machineName: this.state.probe?.hostname ?? '', backends: ['pi'],
-      port: 3004, installService: false, ...(!this.state.needsInit ? { preserveEndpoint: true } : {}) };
+      port: 3004, installService: false, installCli: true, ...(!this.state.needsInit ? { preserveEndpoint: true } : {}) };
   }
 
   cancelInstall = async () => {
@@ -135,7 +137,8 @@ export class LocalSetupFlow {
     const restart = answers.restartDaemon === true;
     if (!await this.ports.startDaemon(bin, endpoint, restart)) throw new Error('DAEMON_TIMEOUT');
     this.mark('daemon', 'done');
-    if (answers.installService) await this.autostart();
+    if (answers.installService) await this.optionalStep('autostart', () => this.ports.enableAutostart(), 'AUTOSTART_FAILED');
+    if (answers.installCli) await this.optionalStep('terminal', () => this.ports.installCli(bin), 'CLI_PATH_FAILED');
     this.mark('connect', 'running');
     const connection = await this.ports.connect(endpoint, bin, this.state.newInstall === true);
     const pending = connection?.providerSetupPending ?? this.state.newInstall;
@@ -167,14 +170,15 @@ export class LocalSetupFlow {
     return endpoint;
   }
 
-  private async autostart() {
-    this.mark('autostart', 'running');
+  /** A step whose failure leaves a usable install: report it and carry on. */
+  private async optionalStep(step: LocalSetupStep, run: () => Promise<unknown>, warning: LocalSetupWarning) {
+    this.mark(step, 'running');
     try {
-      await this.ports.enableAutostart();
-      this.mark('autostart', 'done');
+      await run();
+      this.mark(step, 'done');
     } catch {
-      this.patch({ warning: 'AUTOSTART_FAILED' });
-      this.mark('autostart', 'warning');
+      this.patch({ warning });
+      this.mark(step, 'warning');
     }
   }
 }

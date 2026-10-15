@@ -3,7 +3,7 @@ import { useLang, useVocab, type Vocab } from '@/i18n';
 import { invokeNative, listenNativeEvent } from '@/lib/native-bridge';
 import {
   LocalSetupFlow, localSetupErrorText, setupLogLine,
-  type LocalSetupPorts, type LocalSetupState, type LocalSetupStep, type LocalStepStatus,
+  type LocalSetupPorts, type LocalSetupState, type LocalSetupStep, type LocalSetupWarning, type LocalStepStatus,
 } from './local-setup';
 import { ChevronIcon, MonitorIcon } from './onboarding-icons';
 
@@ -15,6 +15,7 @@ const nativePorts: LocalSetupPorts = {
   enableUi: (bin, port) => invokeNative('setup_enable_ui', { run: 'start', bin, port }),
   startDaemon: (bin, { url, token }, restart) => invokeNative('setup_start_daemon', { run: 'start', bin, url, token, restart }),
   enableAutostart: () => invokeNative('setup_enable_autostart', { run: 'start' }),
+  installCli: bin => invokeNative('setup_install_cli', { run: 'start', bin }),
   connect: ({ url, token }, cortexBin, newInstall) => invokeNative('connect', {
     serverUrl: url, token, local: { cortexBin, ...(newInstall === true ? { providerSetupPending: true } : {}) },
   }),
@@ -22,7 +23,10 @@ const nativePorts: LocalSetupPorts = {
 
 const STEP_LABEL: Record<LocalSetupStep, keyof Vocab> = {
   check: 'onbStepCheck', install: 'onbStepInstall', config: 'onbStepConfig',
-  daemon: 'onbStepDaemon', autostart: 'onbStepAutostart', connect: 'onbStepConnect',
+  daemon: 'onbStepDaemon', autostart: 'onbStepAutostart', terminal: 'onbStepTerminal', connect: 'onbStepConnect',
+};
+const WARNING_TEXT: Record<LocalSetupWarning, keyof Vocab> = {
+  AUTOSTART_FAILED: 'onbAutostartWarning', CLI_PATH_FAILED: 'onbTerminalWarning',
 };
 const STATUS_LABEL: Record<LocalStepStatus, keyof Vocab> = {
   pending: 'onbStatusPending', running: 'onbStatusRunning', done: 'onbStatusDone',
@@ -32,7 +36,11 @@ const STATUS_ICON: Partial<Record<LocalStepStatus, string>> = { done: '✓', err
 
 function visibleSteps(state: LocalSetupState): LocalSetupStep[] {
   if (state.stage === 'prepare' || state.automatic) return ['install'];
-  return state.answers?.installService ? ['config', 'daemon', 'autostart', 'connect'] : ['config', 'daemon', 'connect'];
+  const optional: LocalSetupStep[] = [
+    ...(state.answers?.installService ? ['autostart' as const] : []),
+    ...(state.answers?.installCli ? ['terminal' as const] : []),
+  ];
+  return ['config', 'daemon', ...optional, 'connect'];
 }
 
 function stepStatus(step: LocalSetupStep, state: LocalSetupState): LocalStepStatus {
@@ -57,7 +65,7 @@ function ProgressSection({ state, log }: { state: LocalSetupState; log: string }
   const logView = useRef<HTMLPreElement>(null);
   useEffect(() => { if (logView.current) logView.current.scrollTop = logView.current.scrollHeight; }, [log]);
   const title = state.stage === 'ready' ? L.onbReadyTitle : starting ? L.onbOpeningTitle : L.onbPreparingTitle;
-  const intro = state.stage === 'ready' && state.warning ? L.onbAutostartWarning
+  const intro = state.stage === 'ready' && state.warning ? L[WARNING_TEXT[state.warning]]
     : state.automatic ? L.onbAutomaticIntro : starting ? L.onbOpeningIntro : L.onbPreparingIntro;
   return <section>
     <div className="setup-eyebrow">{starting ? L.onbAlmostThere : L.onbLocalInstallation}</div>
@@ -76,13 +84,14 @@ function ProgressSection({ state, log }: { state: LocalSetupState; log: string }
   </section>;
 }
 
-type StartLocal = (machine: string, autostart: boolean, port: number) => void;
+type StartLocal = (machine: string, autostart: boolean, terminal: boolean, port: number) => void;
 
 function useMachineSettings(state: LocalSetupState, start: StartLocal) {
   const L = useVocab();
   // Editing after a failed start reopens this form with what was submitted.
   const [machine, setMachine] = useState(state.answers?.machineName ?? state.probe?.hostname ?? '');
   const [autostart, setAutostart] = useState(state.answers?.installService ?? false);
+  const [terminal, setTerminal] = useState(state.answers?.installCli ?? true);
   const [port, setPort] = useState(String(state.answers?.port ?? 3004));
   const machineInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -94,9 +103,11 @@ function useMachineSettings(state: LocalSetupState, start: StartLocal) {
       form.current?.reportValidity();
       return;
     }
-    start(machine.trim(), autostart && autostartOffered && state.needsInit, Number(port));
+    start(machine.trim(), autostart && autostartOffered && state.needsInit, terminal, Number(port));
   };
-  return { machine, setMachine, autostart, setAutostart, port, setPort, machineInput, form, autostartOffered, submit };
+  return {
+    machine, setMachine, autostart, setAutostart, terminal, setTerminal, port, setPort, machineInput, form, autostartOffered, submit,
+  };
 }
 
 function ConfigureSection({ state, start }: { state: LocalSetupState; start: StartLocal }) {
@@ -131,6 +142,10 @@ function MachineFields({ needsInit, settings: s }: { needsInit: boolean; setting
         <input className="onb-toggle" type="checkbox" checked={s.autostart} onChange={event => s.setAutostart(event.target.checked)} />
       </label> : null}
     </fieldset>
+    <label className="onb-toggle-row">
+      <div><strong>{L.onbTerminalCommand}</strong><p className="setup-hint">{L.onbTerminalCommandHint}</p></div>
+      <input className="onb-toggle" type="checkbox" checked={s.terminal} onChange={event => s.setTerminal(event.target.checked)} />
+    </label>
     <details className="onb-advanced"><summary>{L.onbAdvanced}</summary>
       <label className="onb-field" htmlFor="onb-port"><span className="onb-label">{L.onbLocalPort}</span>
         <input id="onb-port" className="setup-input onb-mono" type="number" min={1} max={65535} required
@@ -160,9 +175,9 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   const state = useSyncExternalStore(flow.subscribe, flow.snapshot);
   const L = useVocab();
   const lang = useLang();
-  const start = (machineName: string, installService: boolean, port: number) => {
+  const start = (machineName: string, installService: boolean, installCli: boolean, port: number) => {
     clearLog();
-    void flow.start({ lang, machineName, backends: ['pi'], installService, port, restartDaemon: true });
+    void flow.start({ lang, machineName, backends: ['pi'], installService, installCli, port, restartDaemon: true });
   };
   const retry = () => {
     if (state.stage === 'prepare') void flow.prepare(lang);

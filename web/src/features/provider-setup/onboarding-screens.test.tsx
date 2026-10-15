@@ -81,7 +81,7 @@ it.each(['linux', 'windows'])('retries installation from the real %s screen and 
   failing = false;
   await act(async () => view.root.findByProps({ 'data-action': 'onb-retry' }).props.onClick());
   expect(invoke).toHaveBeenCalledWith('setup_run_init', { run: 'start', bin: '/bin/cortex',
-    answers: { lang: 'en', machineName: 'host', backends: ['pi'], port: 3004, installService: false } });
+    answers: { lang: 'en', machineName: 'host', backends: ['pi'], port: 3004, installService: false, installCli: true } });
   expect(invoke).toHaveBeenCalledWith('connect', expect.anything());
   expect(view.root.findAllByType('form')).toHaveLength(0);
   act(() => view.unmount());
@@ -170,7 +170,7 @@ it('shows a failed start with its fix, and edits reopen the submitted settings',
     probe: async () => ({ node: 'v22', nodeOk: true, npm: '10', git: 'git', cortexBin: '/bin/cortex', serverVersion: '2026.10.1',
       serverOk: true, homeExists: false, hostname: 'host', os: 'linux' }),
     installServer: async () => ({ cortexBin: '/bin/cortex', serverVersion: '2026.10.1' }),
-    enableUi: vi.fn(), enableAutostart: vi.fn(), connect: vi.fn(), cancelInstall: vi.fn(),
+    enableUi: vi.fn(), enableAutostart: vi.fn(), installCli: vi.fn(), connect: vi.fn(), cancelInstall: vi.fn(),
     runInit: async () => ({ version: null, uiUrl: 'http://127.0.0.1:3004', clientToken: 't' }),
     startDaemon: async () => false,
   };
@@ -186,6 +186,7 @@ it('shows a failed start with its fix, and edits reopen the submitted settings',
   expect(view.root.findAllByProps({ 'data-action': 'onb-cancel' })).toHaveLength(0);
   act(() => view.root.findByProps({ children: en.onbEditSettings }).props.onClick());
   expect(view.root.findByProps({ id: 'onb-machine' }).props.value).toBe('desk');
+  expect(text(view)).toContain(en.onbTerminalCommand);
   expect(text(view)).not.toContain('2026.10.1');
 });
 
@@ -197,7 +198,7 @@ it('keeps installation compact and technical diagnostics folded even after failu
       cortexBin: '/private/cortex', serverVersion: '2026.10.1', serverOk: true,
       homeExists: false, hostname: 'host', os: 'macos' }),
     installServer: () => installing, runInit: vi.fn(), startDaemon: vi.fn(), cancelInstall: vi.fn(),
-    enableUi: vi.fn(), enableAutostart: vi.fn(), connect: vi.fn(),
+    enableUi: vi.fn(), enableAutostart: vi.fn(), installCli: vi.fn(), connect: vi.fn(),
   };
   const flow = new LocalSetupFlow(ports);
   const details = { open: false };

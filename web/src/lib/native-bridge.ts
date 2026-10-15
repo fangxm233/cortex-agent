@@ -71,6 +71,8 @@ export interface NativeSetupAnswers {
   machineName: string;
   backends: string[];
   installService: boolean;
+  /** Put this install's `cortex` on new terminals' PATH (`cortex path install`). */
+  installCli?: boolean;
   port: number;
   /** Internal setup intent: reuse the configured UI port when enabling an existing endpoint. */
   preserveEndpoint?: boolean;
@@ -133,6 +135,7 @@ interface NativeCommandMap {
   setup_enable_ui: { args: { run: string; bin: string; port?: number }; result: { url: string; token: string } };
   setup_start_daemon: { args: { run: string; bin: string; url: string; token: string; restart?: boolean }; result: boolean };
   setup_enable_autostart: { args: { run: string }; result: boolean };
+  setup_install_cli: { args: { run: string; bin: string }; result: null };
   check_for_updates: { args: undefined; result: NativeCheckReport };
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };
