@@ -3,19 +3,6 @@ import { useVocab } from '@/i18n';
 import { agentRowSub, type AgentOption } from '@/features/session/list/selection-menu';
 import { MenuCard, MenuRow, SectionTitle } from '@/design/MenuChrome';
 
-// The conversation's ENVIRONMENT picker: which agent template runs it — system prompt, tools,
-// skills, rules.
-//
-// One flat level, because an agent is a whole answer with nothing to refine underneath it. That is
-// also why it is not a row of the engine menu: a profile owns the model and may be overridden model
-// by model, an agent owns what the session is *for*, and the server keeps the two apart
-// (domain/agents/agent-switch.ts). They meet only at the backend, which is the one rule they share.
-//
-// This is the one list that DRAWS what it cannot offer. A live conversation may not change backend,
-// so an agent pinning the other backend's profile is greyed with the backend named, rather than
-// hidden behind a count the way seventeen unusable models are: there are a handful of environments,
-// and "exists, but needs a new conversation" is the answer a user can act on.
-
 export interface AgentMenuProps {
   /** Every environment this host declares, including the ones this conversation cannot take. */
   agents: AgentOption[];

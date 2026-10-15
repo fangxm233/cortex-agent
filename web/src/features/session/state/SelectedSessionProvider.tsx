@@ -23,13 +23,12 @@ import { useDraftSelection } from './useDraftSelection';
 interface SelectedSessionContextValue {
   selectedSessionId: string | null;
   setSelectedSession: (id: string) => void;
-  /** Select a just-created session while retaining its profile until sessions.list catches up. */
+  /** Select a just-created session while retaining its selection until sessions.list catches up. */
   selectCreatedSession: (id: string) => void;
   pendingCreatedSession: PendingCreatedSession | null;
   /** True when the user is in a "New Conversation" draft (no session created yet). */
   isDraft: boolean;
-  /** The engine the draft session will be created with: a profile (null = system default) plus the
-   *  model / provider / thinking chosen on top of it. */
+  /** The engine the draft session will be created with: a concrete selection. */
   draftSelection: DraftSelection;
   /** Patch the draft's engine choice — same semantics as the server's `sessions.setSelection`. */
   setDraftSelection: (change: SelectionChange) => void;
@@ -99,8 +98,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const selectCreatedSession = useCallback((id: string) => {
     setPendingCreatedSession({
       sessionId: id,
-      profileName: draftSelection.profileName,
-      override: draftSelection.override,
+      selection: draftSelection.selection,
       agentName: draftSelection.agentName ?? null,
     });
     setOverride(id);

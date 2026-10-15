@@ -24,7 +24,7 @@ export const SLASH_COMMANDS = [
   { cmd: '/new', desc: 'chatSlashNew' },
   { cmd: '/cancel', desc: 'chatSlashCancel' },
   { cmd: '/compact', desc: 'chatSlashCompact' },
-  { cmd: '/profile', desc: 'chatSlashProfile' },
+  { cmd: '/model', desc: 'chatSlashModel' },
   { cmd: '/settings', desc: 'chatSlashSettings' },
   { cmd: '/usage', desc: 'chatSlashUsage' },
 ] as const;
