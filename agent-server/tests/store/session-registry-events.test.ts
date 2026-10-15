@@ -68,7 +68,7 @@ test('nameless registration and patch persist without name keys across replay an
   assert.equal((await new SessionRegistryRepo(filePath).getById('sess-nameless'))?.label, 'new label');
 });
 
-test('legacy names in put, patch and conversation lines are ignored, including malformed names', async () => {
+test('legacy labels are ignored while model names survive compaction until selection is materialized', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
   await repo.registerSession(registerOpts('sess-legacy-name'));
@@ -88,7 +88,8 @@ test('legacy names in put, patch and conversation lines are ignored, including m
   assert.equal(Object.hasOwn((await reopened.getConversationHeader('C001'))!, 'sessionName'), false);
   await reopened.compactNow();
   assert.equal(JSON.stringify(jsonl(filePath)).includes('sessionName'), false);
-  assert.equal(JSON.stringify(jsonl(filePath)).includes('profileName'), false);
+  assert.equal((await reopened.getById('sess-legacy-name'))?.profileName, undefined);
+  assert.deepEqual((await new SessionRegistryRepo(filePath).getConversationHeader('C001'))?.profileName, { obsolete: true });
 });
 
 test('contextUsage update appends exactly one small patch line', async () => {
