@@ -151,6 +151,14 @@ describe('parseBlocks', () => {
     expect(t.rows[0][1][0].text).toBe('76%');
   });
 
+  it('keeps an escaped pipe inside its table cell', () => {
+    const src = '| a | b |\n| --- | --- |\n| x | kt\\|v_t\\| holds |\n| y | ends \\| |';
+    const t = parseBlocks(src)[0] as any;
+    expect(t.rows[0]).toHaveLength(2);
+    expect(t.rows[0][1][0].text).toBe('kt|v_t| holds');
+    expect(t.rows[1].map((c: any[]) => c[0].text)).toEqual(['y', 'ends |']);
+  });
+
   it('parses a fenced code block and keeps its text verbatim', () => {
     const src = '```ts\nconst x = 1;\n```';
     const blocks = parseBlocks(src);

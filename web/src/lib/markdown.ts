@@ -215,11 +215,33 @@ export function parseInline(text: string, options: ParseOptions = {}): InlineNod
   return nodes.length ? nodes : [{ type: 'text', text: '' }];
 }
 
+/** Cuts a row at its pipes. As in GFM, `\|` is a literal pipe inside the cell, not a boundary:
+ *  that is how a cell holds `|x|` or `kt\|v_t\|`, in code and math too. */
+function scanCells(value: string): string[] {
+  const cells: string[] = [];
+  let cell = '';
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === '\\' && value[i + 1] === '|') {
+      cell += '|';
+      i++;
+    } else if (value[i] === '|') {
+      cells.push(cell);
+      cell = '';
+    } else {
+      cell += value[i];
+    }
+  }
+  cells.push(cell);
+  return cells;
+}
+
+/** A leading or trailing pipe opens or closes the row rather than bounding an empty cell. */
 function splitCells(row: string): string[] {
-  let value = row.trim();
-  if (value.startsWith('|')) value = value.slice(1);
-  if (value.endsWith('|')) value = value.slice(0, -1);
-  return value.split('|').map((cell) => cell.trim());
+  const value = row.trim();
+  const cells = scanCells(value);
+  if (value.startsWith('|')) cells.shift();
+  if (value.endsWith('|') && !value.endsWith('\\|')) cells.pop();
+  return cells.map((cell) => cell.trim());
 }
 
 function isTableSeparator(line: string): boolean {
