@@ -44,9 +44,23 @@ function resetLayout(table: HTMLTableElement, cols: HTMLTableColElement[]): void
   for (const col of cols) col.style.width = '';
 }
 
+/** Fixes the columns at `widths`. A fixed table in the collapsed border model adds its outer
+ *  half-borders on top of the columns, so it comes out a pixel wider than `budget` — enough to grow
+ *  a scrollbar in a box exactly that wide. The excess comes off the widest (wrapping) column. */
+function applyWidths(table: HTMLTableElement, cols: HTMLTableColElement[], widths: number[], budget: number): void {
+  widths.forEach((width, index) => {
+    if (cols[index]) cols[index].style.width = `${width}px`;
+  });
+  table.style.tableLayout = 'fixed';
+  table.style.width = `${budget}px`;
+  const excess = table.offsetWidth - budget;
+  const widest = widths.indexOf(Math.max(...widths));
+  if (excess > 0 && cols[widest]) cols[widest].style.width = `${widths[widest] - excess}px`;
+}
+
 /** Lays a too-wide table out with `fitColumns`. In auto layout the table already settles at
  *  `min(one-line width, cap)`, which is the budget; forcing every cell onto one line for a moment
- *  then reads each column's one-line width. Both reads happen before paint. A table that fits is
+ *  then reads each column's one-line width. All reads happen before paint. A table that fits is
  *  left in auto layout, exactly as the browser drew it. */
 export function fitTable(table: HTMLTableElement): void {
   const cols = Array.from(table.querySelectorAll('col'));
@@ -56,11 +70,7 @@ export function fitTable(table: HTMLTableElement): void {
   const natural = widestRow(table).map((cell) => cell.offsetWidth);
   table.style.whiteSpace = '';
   if (natural.reduce((total, width) => total + width, 0) <= budget + SLACK_PX) return;
-  fitColumns(natural, budget).forEach((width, index) => {
-    if (cols[index]) cols[index].style.width = `${width}px`;
-  });
-  table.style.tableLayout = 'fixed';
-  table.style.width = `${budget}px`;
+  applyWidths(table, cols, fitColumns(natural, budget), budget);
 }
 
 /** Calls `callback` when `el` changes width; height changes (the table re-wrapping) are ignored. */
