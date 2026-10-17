@@ -50,9 +50,9 @@ export function WorkerDotStack({ workers }: { workers: SessionInfo[] }): JSX.Ele
 export function TeamSummaryLabel({ active }: { active: SessionInfo[] }): JSX.Element {
   const s = teamSummary(active, useVocabOptional());
   return (
-    <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)' }}>{s.workers}</span>
-      {s.running && <span style={{ font: `500 11.5px ${MONO}`, color: 'var(--proto-muted)' }}>{' · '}{s.running}</span>}
+    <span style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <span style={{ color: 'var(--proto-ink-2)' }}>{s.workers}</span>
+      {s.running && <span style={{ font: `500 11.5px/1.2 ${MONO}`, color: 'var(--proto-muted)' }}>{' · '}{s.running}</span>}
     </span>
   );
 }
