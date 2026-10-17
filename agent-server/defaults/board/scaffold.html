@@ -60,6 +60,21 @@ Rows serve acceptance criteria, checkpoints, decisions, risks and outputs alike.
   </div>
 </div>
 
+Results: every board image opens full size on click; a gallery keeps a set the same size. Videos
+     over 2 MB become a play tile. Wide tables go in .tbl, numbers in .num; logs in pre.
+<div class="card">
+  <div class="h">Results</div>
+  <div class="gallery">
+    <figure><img src="assets/loss.png" alt="loss curve"><figcaption>loss · run-12</figcaption></figure>
+    <figure><video src="assets/rollout.mp4" poster="assets/rollout.jpg" controls></video><figcaption>rollout · seed 3</figcaption></figure>
+  </div>
+  <div class="tbl"><table>
+    <tr><th>run</th><th class="num">success</th><th class="num">steps</th></tr>
+    <tr><td>run-12</td><td class="num">0.84</td><td class="num">1200</td></tr>
+  </table></div>
+  <pre>step 1200 | loss 0.0123 | success 0.84</pre>
+</div>
+
 Timeline: newest first, a date then a state chip. Images go in assets/ as
      <img src="assets/x.png">; name other outputs by path in <code>.
 <div class="card tl">
