@@ -45,6 +45,15 @@
 .settings-surface .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .settings-surface .settings-stack { display: flex; flex-direction: column; gap: var(--settings-section-gap); min-width: 0; }
 .settings-surface .settings-mono { font-family: 'IBM Plex Mono', monospace !important; }
+.settings-surface .settings-model-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.settings-surface .settings-model-provider > span { min-width: 0; }
+.settings-surface .settings-model-provider > [data-provider-icon] { color: var(--proto-ink); }
 
 .settings-surface :where(input, select, textarea, button) { max-width: 100%; }
 .settings-surface :where(input, select, textarea) { min-width: 0; }

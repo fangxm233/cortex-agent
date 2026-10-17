@@ -63,6 +63,25 @@ describe('desktop favorite thinking', () => {
 });
 
 describe('desktop models', () => {
+  it.each([
+    { backend: 'pi' as const, provider: 'deepseek', brand: 'deepseek' },
+    { backend: 'pi' as const, provider: 'openai-codex', brand: 'codex' },
+    { backend: 'pi' as const, provider: 'custom-proxy', brand: 'server' },
+    { backend: 'claude' as const, provider: '', brand: 'claude' },
+  ])('shows $brand icons in the favorite heading and catalog', ({ backend, provider, brand }) => {
+    const model = { backend, provider, model: 'test-model' };
+    const c = { ...controller(), catalogOpen: true, catalogModels: [model],
+      facts: [{ ref: model, key: modelKey(model), thinking: null, current: false }] };
+    const view = render(c);
+    const icons = view.root.findAllByProps({ 'data-provider-icon': provider || backend });
+    expect(icons).toHaveLength(2);
+    for (const icon of icons) {
+      expect(icon.props['data-provider-brand']).toBe(brand);
+      expect(icon.props['aria-hidden']).toBe(true);
+      expect(icon.props.style.fontSize).toBe(16);
+    }
+    view.unmount();
+  });
   it('renders complete identifiers and remembered thinking; default favorites can be removed', () => {
     const c = controller();
     const view = render(c);
@@ -94,6 +113,7 @@ describe('desktop models', () => {
     const group = view.root.find(node => node.type === 'div' && node.props['data-model-group'] === 'pi · deepseek');
     expect(group.findAll(node => node.type === 'div' && !!node.props['data-model-row'])).toHaveLength(2);
     expect(group.children).toHaveLength(2);
+    expect(view.root.findAllByProps({ 'data-provider-icon': 'deepseek' })).toHaveLength(1);
     const dividers = group.findAll(node => node.type === 'div' && node.props.style?.borderBottom);
     expect(dividers).toHaveLength(1);
     view.unmount();

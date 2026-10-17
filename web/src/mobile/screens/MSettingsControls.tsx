@@ -85,7 +85,7 @@ export function MSettingsQueryPage<T>(props: {
   </MSettingsPage>;
 }
 
-export function MSettingsCard(props: { children: ReactNode; title?: string; note?: string }) {
+export function MSettingsCard(props: { children: ReactNode; title?: ReactNode; note?: string }) {
   return (
     <div>
       {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 700 }}>{props.title}</div>}

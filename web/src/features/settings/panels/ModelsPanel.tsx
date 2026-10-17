@@ -2,6 +2,7 @@ import '@/features/settings/ui/desktop-panels.css';
 import { useState } from 'react';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
+import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useVocab } from '@/i18n';
 import { matchesModelFilter, modelKey } from '@/lib/model-selection';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
@@ -35,7 +36,12 @@ function FavoriteGroups({ controller: c }: { controller: ModelsController }) {
   const L = useVocab();
   return <SSection label={L.stModelFavorites}>
     {!c.facts.length && <SNotice tone="muted">{L.stNoFavorites}</SNotice>}
-    {groupModelFacts(c.facts).map(([group, facts]) => <SSection key={group} label={group}>
+    {groupModelFacts(c.facts).map(([group, facts]) => <SSection key={group} label={
+      <span className="settings-model-provider">
+        <ProviderIcon provider={facts[0].ref.provider || facts[0].ref.backend} />
+        <span>{group}</span>
+      </span>
+    }>
       <SRowGroup data-model-group={group}>{facts.map(fact => <SRow className="settings-model-row" key={fact.key} data-model-row={fact.key}
         title={<span className="settings-model-name">{fact.ref.model} {fact.current && <SPill tone="accent">{L.default}</SPill>}</span>}
         control={<div className="settings-model-controls">
@@ -59,7 +65,12 @@ function Catalog({ controller: c }: { controller: ModelsController }) {
     {c.catalogPending && <SNotice tone="muted">{L.stModelCatalogPending}</SNotice>}
     {c.catalogError && <SNotice tone="danger">{c.catalogError.message}</SNotice>}
     {!c.catalogPending && !c.catalogModels.length && <SNotice tone="muted">{L.stNoCatalogModels}</SNotice>}
-    <SRowGroup>{c.catalogModels.filter(ref => matchesModelFilter(ref.model, filter)).map(ref => <SRow key={modelKey(ref)} title={modelOptionLabel(ref)} control={
+    <SRowGroup>{c.catalogModels.filter(ref => matchesModelFilter(ref.model, filter)).map(ref => <SRow key={modelKey(ref)} title={
+      <span className="settings-model-provider">
+        <ProviderIcon provider={ref.provider || ref.backend} />
+        <span>{modelOptionLabel(ref)}</span>
+      </span>
+    } control={
       <SLinkAction disabled={c.pending || keys.has(modelKey(ref))} onClick={() => c.add(ref)}>
         {keys.has(modelKey(ref)) ? L.stFavorited : L.stAddFavorite}
       </SLinkAction>
