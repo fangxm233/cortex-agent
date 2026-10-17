@@ -178,18 +178,20 @@ const MIN_COL_W = 96;
 /** Widest a table may grow before its cells start wrapping, in two parts.
  *
  *  Reading width — a bled-out transcript table (`wide`) may reach `--chat-table-max-w`, twice the
- *  prose column, published by the host. A table that lives in a box it cannot break out of (mobile
- *  bubble, decision card, plan reader) gets `100%` of that box instead: it has nowhere to expand
- *  into, and a sideways scroll inside a vertically-scrolled feed is worse than a wrapped row.
+ *  prose column, published by the host, but no further than the pane it bled out to: on a pane
+ *  narrower than that it wraps to the pane rather than hiding its right side behind a scroll. A
+ *  table that lives in a box it cannot break out of (mobile bubble, decision card, plan reader)
+ *  gets `100%` of that box: it has nowhere to expand into, and a sideways scroll inside a
+ *  vertically-scrolled feed is worse than a wrapped row.
  *  Column floor — `MIN_COL_W` per column, so column count, not just box width, decides.
  *
  *  Whichever is larger wins; the table takes `min(its own max-content, that)`. Under it nothing
  *  changes (no wrapping, no scrollbar); over it the cells wrap; over it AND wider than the visible
- *  box — a many-column table on a narrow pane — the block scrolls, as before. */
+ *  box — a many-column table on a narrow pane or a phone — the block scrolls. */
 function tableMaxWidth(columns: number, wide: boolean): string {
-  // 200% is the fallback for a `wide` host that publishes no variable: `width` falls back to 100%
-  // too, so the pair still means "twice the column this table sits in".
-  return `max(${wide ? 'var(--chat-table-max-w, 200%)' : '100%'}, ${columns * MIN_COL_W}px)`;
+  // `100%` is the bled-out block, i.e. the pane; a host that publishes no variables leaves both
+  // at the prose column.
+  return `max(${wide ? 'min(var(--chat-table-max-w, 100%), 100%)' : '100%'}, ${columns * MIN_COL_W}px)`;
 }
 
 function columnCount(block: BlockOf<'table'>): number {
