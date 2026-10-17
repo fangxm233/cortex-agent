@@ -13,6 +13,7 @@ vi.mock('../../src/domain/remote/device-file.js', () => ({
 }));
 import { prepareRemoteFetch, fetchRemoteFile } from '../../src/domain/remote/device-file.js';
 import { parseMediaSrc, snapshotInlineMedia, MAX_INLINE_MEDIA_BYTES } from '../../src/orchestration/inline-media.js';
+import { eagerSnapshotInlineMedia } from '../../src/orchestration/inline-media-eager.js';
 
 let serial = 0;
 let sessionId: string;
@@ -71,6 +72,15 @@ test('snapshot is immutable for one message, with new versions per message and s
   expect(await snapshotInlineMedia({ sessionId: 'other', ts, src })).not.toEqual(result);
   await fs.unlink(src);
   expect(await snapshot(src)).toEqual(result);
+});
+
+test('eager capture and lazy resolution share the exact key for paths with spaces', async () => {
+  const src = await source('plot version (1).png');
+  await eagerSnapshotInlineMedia({ sessionId, ts, text: `![plot](${src})` });
+  await fs.writeFile(src, 'later version');
+  const result = await snapshot(src);
+  if ('error' in result) throw new Error(result.error.reason);
+  expect(await fs.readFile(resolveWorkspaceRelPath(result.path)!, 'utf8')).toBe('first');
 });
 
 test.each(['mp4', 'webm', 'mov', 'm4v'])('classifies %s as video', async ext => {

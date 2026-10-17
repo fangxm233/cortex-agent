@@ -4,18 +4,24 @@ import { eagerSnapshotInlineMedia, extractMediaSources } from '../../src/orchest
 
 const message = { sessionId: 'test', ts: '2026-10-17T00:00:00.000Z' };
 
-test('extracts inline images including titles, angle paths, nested parentheses and escapes', () => {
-  const text = '![one](/a.png) ![two](<figs/a b.png> "title") ![](figs/plot(1).png) ![](figs/a\\(2\\).png)';
-  expect(extractMediaSources(text)).toEqual(['/a.png', 'figs/a b.png', 'figs/plot(1).png', 'figs/a(2).png']);
+test('preserves the exact destination strings used by the chat Markdown renderer', () => {
+  const sources = ['/a.png', 'figs/a b.png', 'figs/plot(1).png', String.raw`my-pc:C:\Users\x\_plot.png`,
+    String.raw`my-pc:C:\Users\x\(plot).png`, String.raw`my-pc:\\server\share\a.png`];
+  expect(extractMediaSources(sources.map(src => `![plot](${src})`).join(' '))).toEqual(sources);
 });
 
-test('ignores code blocks, inline code, escaped images and ordinary links', () => {
-  const text = '```md\n![](/code.png)\n```\n`![](/inline.png)` \\![](/escaped.png) [link](/link.png) ![](/real.png)';
+test('does not normalize angle paths, titles or escaped parentheses independently of the UI', () => {
+  const sources = ['<figs/a b.png> "title"', String.raw`figs/a\(2\).png`];
+  expect(extractMediaSources(sources.map(src => `![](${src})`).join(' '))).toEqual(sources);
+});
+
+test('ignores code blocks, inline code, emphasis content and ordinary links', () => {
+  const text = '```md\n![](/code.png)\n```\n`![](/inline.png)` **![](/bold.png)** [link](/link.png) ![](/real.png)';
   expect(extractMediaSources(text)).toEqual(['/real.png']);
 });
 
-test('resolves reference images and deduplicates sources', () => {
-  const text = '![a][plot] ![Plot][] ![plot]\n\n[plot]: /a.png "title"\n![](/a.png)';
+test('ignores unsupported reference syntax and deduplicates inline sources', () => {
+  const text = '![a][plot] ![Plot][] ![plot]\n\n[plot]: /reference.png\n![](/a.png) ![](/a.png)';
   expect(extractMediaSources(text)).toEqual(['/a.png']);
 });
 

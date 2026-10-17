@@ -10,52 +10,40 @@ interface EagerDeps {
 }
 const defaults: EagerDeps = { snapshot: snapshotInlineMedia, warn: message => log.warn(message) };
 
-function unescapeMarkdown(src: string): string {
-  return src.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~])/g, '$1');
-}
+// Match web/src/lib/markdown.ts: destinations are verbatim, not CommonMark-normalized.
+const TARGET = String.raw`(?:[^()]|\((?:[^()]|\([^()]*\))*\))+`;
+const INLINE_MEDIA = new RegExp([
+  String.raw`\*\*[^*]+\*\*`,
+  String.raw`(?<ticks>\x60+).*?\k<ticks>`,
+  String.raw`!\[[^\]]*\]\((?<src>${TARGET})\)`,
+  String.raw`\[[^\]]+\]\(${TARGET}\)`,
+  String.raw`\*[^*]+\*`,
+  String.raw`_[^_]+_`,
+].join('|'), 'g');
 
-/** Read a Markdown destination, retaining nested parentheses and Windows path separators. */
-function destination(text: string): { src: string; end: number } {
-  const angle = /^<([^<>\n]*)>/.exec(text);
-  if (angle) return { src: unescapeMarkdown(angle[1]), end: angle[0].length };
-  let depth = 0;
-  let end = 0;
-  for (; end < text.length; end++) {
-    const char = text[end];
-    if (char === '\\' && /[\\()]/.test(text[end + 1] ?? '')) { end++; continue; }
-    if (/\s/.test(char) || (char === ')' && depth === 0)) break;
-    depth += Number(char === '(') - Number(char === ')');
+function withoutFencedCode(markdown: string): string {
+  const body: string[] = [];
+  let fence: { marker: string; length: number } | undefined;
+  for (const line of markdown.replace(/\r\n/g, '\n').split('\n')) {
+    if (fence) {
+      const trimmed = line.trim();
+      if (trimmed.length >= fence.length && [...trimmed].every(char => char === fence!.marker)) fence = undefined;
+      continue;
+    }
+    const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (opening && !(opening[1][0] === '`' && opening[2].includes('`'))) {
+      fence = { marker: opening[1][0], length: opening[1].length };
+      continue;
+    }
+    body.push(line);
   }
-  return { src: unescapeMarkdown(text.slice(0, end)), end };
+  return body.join('\n');
 }
 
-function inlineDestination(text: string): string | undefined {
-  const { src, end } = destination(text);
-  const suffix = text.slice(end);
-  if (!/^\s*(?:(?:"[^"\n]*"|'[^'\n]*'|\([^\n)]*\))\s*)?\)/.test(suffix)) return undefined;
-  return src || undefined;
-}
-
-function normalizeLabel(label: string): string {
-  return unescapeMarkdown(label).trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-/** No HTML or normal links: only Markdown image nodes, outside fenced/inline code. */
 export function extractMediaSources(markdown: string): string[] {
-  const text = markdown
-    .replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm, '')
-    .replace(/(`+)[\s\S]*?\1/g, '');
-  const definitions = new Map<string, string>();
-  for (const match of text.matchAll(/^ {0,3}\[([^\]\n]+)\]:[ \t]*(.+)$/gm)) {
-    definitions.set(normalizeLabel(match[1]), destination(match[2]).src);
-  }
   const sources = new Set<string>();
-  for (const match of text.matchAll(/(?<!\\)!\[((?:\\.|[^\]\\])*)\](?:\[([^\]]*)\])?/g)) {
-    const rest = text.slice(match.index! + match[0].length);
-    const src = rest.startsWith('(')
-      ? inlineDestination(rest.slice(1).trimStart())
-      : definitions.get(normalizeLabel(match[2] || match[1]));
-    if (src) sources.add(src);
+  for (const match of withoutFencedCode(markdown).matchAll(INLINE_MEDIA)) {
+    if (match.groups?.src) sources.add(match.groups.src);
   }
   return [...sources];
 }
