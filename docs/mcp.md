@@ -201,6 +201,22 @@ or Feishu-originated session never sees these tools.
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
 | `board_open` | `title` or `board` (exactly one) | Create a board, or attach to an existing one by id or slug, and bind the session to it |
 
+Assistant Markdown can place an image or video inside the reply with `![alt](src)`.
+Use a server path (`/absolute/plot.png`, `~/plot.png`, or `figs/plot.png` relative
+to `CORTEX_HOME`, normally `~/.cortex`), an existing `workspace/...` path, a
+registered device path such as `lab-ksu:/home/xinmin/plot.png` or
+`my-pc:C:/Users/x/clip.mp4`, or an external `https://...` URL. Local and device
+files are snapshotted per message, with a 200MB limit; reusing a source in a later
+message creates a separate snapshot. Workspace paths use the existing file.
+Video extensions are `.mp4`, `.webm`, `.mov`, and `.m4v`; other supported media
+extensions render as images, and an external URL without an extension is treated
+as an image. Previews load near the viewport and open the media viewer when clicked.
+During streaming, local and device references show a placeholder until the reply
+is saved. External media loads directly in the browser without a referrer;
+non-HTTPS, local-network hostnames and private IP literals are not embedded.
+This Markdown behavior is limited to assistant chat text in the Web UI and native
+apps; `send_file` remains the way to share downloadable attachment cards.
+
 `send_file`, `send_view` and `send_decision` proxy their payload to the daemon over the loopback webhook rather
 than returning it as tool output: the normalized event stream carries tool
 results as flat strings, and the PI backend flattens rich MCP content to text,

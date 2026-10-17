@@ -36,6 +36,7 @@ import { cancelChannelRuns, cancelLiveExecution } from '@orch/routing/commands/c
 import { deliverToSessionDetached } from '@orch/session-gateway.js';
 import { compactSessionContext } from '../orchestration/session-compact.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
+import { snapshotInlineMedia } from '@orch/inline-media.js';
 import { moveDraftAttachments } from './draft-attachments.js';
 
 export interface UiServiceWiring {
@@ -48,6 +49,7 @@ export interface UiServiceWiring {
 export function buildUiService(w: UiServiceWiring): UiService {
   return createUiService({
     checkServerUpdate: () => w.serverUpdateCoordinator.check(),
+    resolveMedia: snapshotInlineMedia,
     projectStore,
     sessionStore,
     scheduler: w.scheduler,

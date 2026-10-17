@@ -424,6 +424,7 @@ function messageRow(m: FlatMessage, stripScheduledPrefix: boolean): ChatRow {
   }
   return {
     kind: 'assistant', text: m.text ?? '', streaming: false, attachments: m.attachments,
+    ...(m.ts ? { ts: m.ts } : {}),
     ...(m.decisions?.length ? { decisions: m.decisions } : {}),
   };
 }

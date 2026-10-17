@@ -1,39 +1,40 @@
 import { useEffect, useState } from 'react';
 import { fetchFileObjectUrl } from '@/lib/files';
 
-// Fetch a workspace `path` (image / video) into an authenticated object URL for inline preview.
-// A plain <img>/<video src> cannot set the x-cortex-token header, so previews go through the same
-// authenticated blob fetch as downloads (lib/files) and are wrapped in an object URL — correct in
-// browser/ui-http (proxy/Access) and desktop/remote (token header) modes alike. The URL is revoked
-// on unmount / path change.
+interface WorkspaceMediaUrl {
+  url: string | null;
+  failed: boolean;
+}
+const EMPTY: WorkspaceMediaUrl = { url: null, failed: false };
 
-export function useWorkspaceObjectUrl(path: string | null | undefined): string | null {
-  const [url, setUrl] = useState<string | null>(null);
+function loadWorkspaceUrl(path: string, report: (state: WorkspaceMediaUrl) => void): () => void {
+  const controller = new AbortController();
+  let alive = true;
+  let created: string | null = null;
+  fetchFileObjectUrl(path, 'inline', controller.signal)
+    .then((url) => {
+      if (!alive) { URL.revokeObjectURL(url); return; }
+      created = url;
+      report({ url, failed: false });
+    })
+    .catch(() => { if (alive) report({ url: null, failed: true }); });
+  return () => {
+    alive = false;
+    controller.abort();
+    if (created) URL.revokeObjectURL(created);
+  };
+}
+
+export function useWorkspaceObjectUrlState(path: string | null | undefined): WorkspaceMediaUrl {
+  const [state, setState] = useState<WorkspaceMediaUrl>(EMPTY);
   useEffect(() => {
-    if (!path) {
-      setUrl(null);
-      return;
-    }
-    const controller = new AbortController();
-    let alive = true;
-    let created: string | null = null;
-    fetchFileObjectUrl(path, 'inline', controller.signal)
-      .then((u) => {
-        if (alive) {
-          created = u;
-          setUrl(u);
-        } else {
-          URL.revokeObjectURL(u);
-        }
-      })
-      .catch(() => {
-        if (alive) setUrl(null);
-      });
-    return () => {
-      alive = false;
-      controller.abort();
-      if (created) URL.revokeObjectURL(created);
-    };
+    setState(EMPTY);
+    if (path) return loadWorkspaceUrl(path, setState);
   }, [path]);
-  return url;
+  return state;
+}
+
+// Authenticated workspace fetch; the object URL is revoked on path change or unmount.
+export function useWorkspaceObjectUrl(path: string | null | undefined): string | null {
+  return useWorkspaceObjectUrlState(path).url;
 }

@@ -19,6 +19,7 @@ import {
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { writeToolImages } from '@store/tool-image-files.js';
 import { workerNameForRequest } from './team-state.js';
+import { eagerSnapshotInlineMedia } from './inline-media-eager.js';
 
 const log = createLogger('transcript-sink');
 
@@ -87,6 +88,7 @@ export interface TranscriptSinkDeps extends ToolImageDeps {
   publishTodos: typeof publishSessionTodos;
   publishDebugUpdated: typeof publishSessionDebugUpdated;
   persistContextUsage: typeof persistSessionContextUsage;
+  snapshotMedia: (message: { sessionId: string; ts: string; text: string }) => void;
   /** The worker that raised a request a lead's `worker_answer` names, when known. */
   workerForRequest: (requestId: string) => string | null;
 }
@@ -102,6 +104,9 @@ const DEFAULT_DEPS: TranscriptSinkDeps = {
   publishTodos: publishSessionTodos,
   publishDebugUpdated: publishSessionDebugUpdated,
   persistContextUsage: persistSessionContextUsage,
+  snapshotMedia: message => {
+    void eagerSnapshotInlineMedia(message).catch(error => log.warn('Inline media snapshot failed:', String(error)));
+  },
   workerForRequest: (requestId) => workerNameForRequest(requestId),
 };
 
@@ -248,7 +253,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
       text, ts, noticeLevel, noticeAction,
       ...(ref ? { subagent: ref } : {}),
       ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
-    }));
+    }), () => deps.snapshotMedia({ sessionId, ts, text }));
     deps.publishMessage({
       sessionId, channel, role: 'assistant', text, ts,
       ...(blockId ? { blockId } : {}),

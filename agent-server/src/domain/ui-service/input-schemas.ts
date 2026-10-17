@@ -274,6 +274,13 @@ export const sessionsRespondDecisionInput = z.object({
   message: z.string().optional(),
 });
 
+/** Message identity keys an immutable snapshot of this media source. */
+export const sessionsResolveMediaInput = z.object({
+  sessionId: z.string().regex(/^[\w-]+$/),
+  ts: z.string().min(1),
+  src: z.string().min(1),
+});
+
 /** Args for `sessions.cancelResume`: decline the auto-resume promised when a rate limit
  *  interrupted this session's turn. */
 export const sessionsCancelResumeInput = z.object({
@@ -815,6 +822,7 @@ export const mutateInputSchemas = {
   'sessions.respondDecision': sessionsRespondDecisionInput,
   'sessions.cancelResume': sessionsCancelResumeInput,
   'sessions.rewind': sessionsRewindInput,
+  'sessions.resolveMedia': sessionsResolveMediaInput,
   'executions.cancel': executionsCancelInput,
   'waitpoints.cancel': waitpointsCancelInput,
   'schedules.pause': scheduleActionInput,

@@ -59,7 +59,7 @@ async function sendFiles(ctx: CortexToolContext, input: SendFileInput): Promise<
 export function registerUiFileTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'send_file',
-    'Share produced files as downloadable chat cards (images preview inline). Send one file or an ordered group with a shared caption. Supports local or remote-device files.',
+    'Share produced files as downloadable chat cards (images preview inline). Send one file or an ordered group with a shared caption. Supports local or remote-device files. Embed images or videos in reply text with ![alt](src), using a local absolute/~/relative path, workspace/... path, registered-device:/absolute/path (or device:C:/path on Windows), or https:// URL.',
     {
       file_path: z.string().optional().describe(`${FILE_PATH_DESC} Use this OR \`files\`.`),
       file_name: z.string().optional().describe('Display filename override for file_path.'),

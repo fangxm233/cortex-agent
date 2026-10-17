@@ -1,6 +1,9 @@
 import type { PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
 export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnapshot, PlatformFieldKey } from '@core/platform-settings-spec.js';
 
+import type { ResolveMediaInput, ResolveMediaResult } from './inline-media-types.js';
+export type { InlineMediaErrorCode, ResolveMediaInput, ResolveMediaResult } from './inline-media-types.js';
+
 import type { SessionsSetStarredReturn, SessionsRenameReturn } from './session-metadata-schemas.js';
 export type {
   SessionsSetStarredArgs, SessionsSetStarredReturn, SessionsRenameArgs, SessionsRenameReturn,
@@ -1655,6 +1658,7 @@ export interface MutateReturnMap {
   'sessions.respondDecision': SessionsRespondDecisionReturn;
   'sessions.cancelResume': SessionsCancelResumeReturn;
   'sessions.rewind': SessionsRewindReturn;
+  'sessions.resolveMedia': ResolveMediaResult;
   'executions.cancel': ExecutionsCancelReturn;
   'waitpoints.cancel': WaitpointsCancelReturn;
   'schedules.pause': void;
@@ -1731,6 +1735,8 @@ export interface UiService {
 // ── Deps ──────────────────────────────────────────────────────────
 
 export interface UiServiceDeps {
+  /** Entry-layer callback: domain handlers never import orchestration. */
+  resolveMedia: (input: ResolveMediaInput) => Promise<ResolveMediaResult>;
   /** Shared with background timers; bounded discovery, never waits for update consent. */
   checkServerUpdate: () => Promise<SystemUpdateCheckResult>;
   /** Optional seams for deterministic authentication dispatch tests. */

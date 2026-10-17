@@ -122,6 +122,7 @@ import {
 import { handleUsageSharingSet } from './mutate/usage-sharing.js';
 import { createSubscription } from './subscribe.js';
 import { AssistantSnapshots } from './assistant-snapshots.js';
+import { handleResolveMedia } from './mutate/resolve-media.js';
 
 /** One handler per query scope; a missing or mistyped handler fails compilation. */
 export type QueryHandlerMap = {
@@ -194,6 +195,7 @@ export const mutateHandlers = {
   'sessions.respondDecision': (deps, args) => handleRespondDecision(deps, args),
   'sessions.cancelResume': (_deps, args) => handleCancelResume(args),
   'sessions.rewind': (deps, args) => handleRewindSession(deps, args),
+  'sessions.resolveMedia': (deps, args) => handleResolveMedia(deps, args),
   'executions.cancel': (deps, args) => handleCancelExecution(deps, args),
   'waitpoints.cancel': (deps, args) => handleCancelWaitpoint(deps, args),
   'schedules.pause': (deps, args) => handlePauseSchedule(deps, args),

@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { test, vi, expect } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
@@ -79,6 +79,19 @@ function harness(opts: {
 
   return { history, published, debug, todos, context, order, assistants, sink };
 }
+
+test('assistant media snapshots start after persistence with the exact published timestamp', async () => {
+  let persist!: () => void;
+  const writing = new Promise<void>(resolve => { persist = resolve; });
+  const snapshotMedia = vi.fn();
+  const h = harness({ deps: { appendAssistant: () => writing, snapshotMedia } });
+  h.sink.onEvent({ type: 'assistant_text', text: '![](/a.png)', phase: 'background' });
+  expect(snapshotMedia).not.toHaveBeenCalled();
+  expect(h.published).toHaveLength(1);
+  persist();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(snapshotMedia).toHaveBeenCalledWith({ sessionId: SESSION, ts: h.published[0].ts, text: '![](/a.png)' });
+});
 
 // ── tool_use ─────────────────────────────────────────────────────────────────
 

@@ -6,9 +6,10 @@ import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { useNearViewport } from '@/features/media/useNearViewport';
-import { stageFallback, thumbStageStyle } from '@/features/media/thumb-stage';
+import { thumbStageStyle } from '@/features/media/thumb-stage';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
+import { MediaPreview } from '@/features/media/MediaPreview';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDockIntake } from '@/design/dock-intake';
@@ -219,34 +220,6 @@ function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   );
 }
 
-const agentMediaStyle: CSSProperties = {
-  position: 'relative', maxWidth: 320, borderRadius: 'var(--r-card)',
-  boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
-  overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer',
-};
-const largePlayStyle: CSSProperties = {
-  position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 40,
-  height: 40, borderRadius: '50%', background: 'var(--media-control-bg-dark)', color: 'var(--ink-solid-fg)',
-  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box',
-};
-const agentMediaNameStyle: CSSProperties = {
-  position: 'absolute', left: 8, bottom: 7, maxWidth: 'calc(100% - 16px)',
-  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  font: `500 11px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 'var(--r-chip)',
-};
-
-function AgentMediaBody({ url, kind, name }: {
-  url: string | null;
-  kind: 'image' | 'video';
-  name: string;
-}): JSX.Element {
-  const style: CSSProperties = { display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' };
-  if (!url) return <div style={{ width: 320, height: 180 }} />;
-  if (kind === 'image') return <img src={url} alt={name} style={style} />;
-  return <VideoThumb src={url} style={style} />;
-}
-
 function MediaDownload({ a, onDownload }: {
   a: Attachment;
   onDownload: (path: string, name: string) => void;
@@ -268,15 +241,10 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
   const url = useWorkspaceObjectUrl(near ? a.path : null);
   const [hover, setHover] = useState(false);
   return (
-    <div
-      ref={hostRef} role="button" title={a.name} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      onClick={() => openMedia({ kind, name: a.name, path: a.path })}
-      style={{ ...agentMediaStyle, background: url ? 'var(--media-stage-bg)' : stageFallback }}
-    >
-      <AgentMediaBody url={url} kind={kind} name={a.name} />
-      {kind === 'video' && <span style={largePlayStyle}>▶</span>}
-      <span style={agentMediaNameStyle}>{a.name}</span>
-      {hover && <MediaDownload a={a} onDownload={dl} />}
+    <div ref={hostRef} style={{ maxWidth: '100%' }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <MediaPreview url={url} kind={kind} name={a.name} onOpen={() => openMedia({ kind, name: a.name, path: a.path })}>
+        {hover && <MediaDownload a={a} onDownload={dl} />}
+      </MediaPreview>
     </div>
   );
 }

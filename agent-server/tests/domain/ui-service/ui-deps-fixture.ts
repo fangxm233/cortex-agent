@@ -12,6 +12,7 @@ export type UiDepsOverrides = Partial<Omit<UiServiceDeps, NestedDep>> & {
 export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
   const base: UiServiceDeps = {
     checkServerUpdate: async () => ({ status: 'error', reason: 'check_failed' }),
+    resolveMedia: async () => ({ error: { code: 'load_failed', reason: 'stub' } }),
     projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
     sessionStore: {
       listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null,
