@@ -203,3 +203,18 @@ test('resolveHandshake: resume-found assembles transcript from conversation hist
   assert.deepEqual(result.transcript!.messages[1], { role: 'tool', text: '', toolName: 'Read', toolInput: 'foo.ts' });
   assert.deepEqual(result.transcript!.messages[2], { role: 'assistant', text: 'an answer' });
 });
+
+
+test('session replay drops thinking history rows', async () => {
+  const deps = makeFakeDeps({ conversationHistory: { getHistory: async () => ({
+    sessionId: 'thought', events: [
+      { type: 'thinking', text: 'consider', ts: '2026-01-01T00:00:00Z', turnIndex: 0 },
+      { type: 'assistant', text: 'answer', ts: '2026-01-01T00:00:01Z', turnIndex: 0 },
+    ],
+  }) } });
+  await deps.sessionStore.registerSession({ sessionId: 'thought', channel: 'tui:c', projectId: 'general', backend: 'tui', kind: 'local' });
+  const result = await createTuiSessionService(deps).resolveHandshake({
+    conduitId: 'tui:c', projectId: 'general', resumeSessionId: 'thought',
+  });
+  assert.deepEqual(result.transcript?.messages, [{ role: 'assistant', text: 'answer' }]);
+});

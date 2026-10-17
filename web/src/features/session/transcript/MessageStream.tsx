@@ -2,7 +2,7 @@ import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
-import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
+import { SystemHintRow, ThinkingRow } from './HintRow';
 import { ChatNavRail } from './ChatNavRail';
 import { buildNavMarks, sameNavRows, visibleNavRows } from './chat-nav';
 import { ToolCallsRow } from './ToolCallsRow';
@@ -17,7 +17,7 @@ import { DeskAskCard, DeskPlanCard } from '@/features/session/interaction/Intera
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
-import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginDisplay, systemOriginLabel } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote } from './MessageEdit';
@@ -187,106 +187,6 @@ function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdi
   );
 }
 
-/**
- * A turn Cortex wrote, not the human: a resume signal, a task or thread callback, a subtask's
- * question, a backgrounded agent's result.
- *
- * The model reads these as user turns and must — but drawing them as a user bubble puts words in
- * the reader's mouth and buries the actual conversation under machine prose. So the row states the
- * FACT (what produced it, one clipped line of what it said) and nothing else: no copy of its own,
- * no edit, no rewind — there is no human message here to restore. The complete text remains
- * reachable through the `{ }` inspector, which the server only populates while DEBUG is on.
- * (Its caller may hang the whole-TURN copy action under it when the row ends a turn — that button
- * copies the assistant's reply, not this row.)
- */
-function SystemHintRow({ origin, text, ts, pending, debug, expandable = false }: {
-  origin: SystemTurnOrigin;
-  /** The row opens to the full text (a worker's report or request — see systemOriginDisplay). */
-  expandable?: boolean;
-  text: string;
-  ts?: string;
-  /** Injected into the running turn but not read by the model yet — dims, like a pending bubble. */
-  pending?: boolean;
-  debug?: { agentMessage: string };
-}): JSX.Element {
-  const L = useVocab();
-  const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
-  const [open, setOpen] = useState(false);
-  const summary = systemOriginSummary(text);
-  const timeLabel = messageTimeLabel(ts);
-  const body = expandable ? systemOriginBody(text) : '';
-  const canOpen = body.length > 0;
-  const row = (
-    <div
-      className="group"
-      data-system-origin={origin}
-      role={canOpen ? 'button' : undefined}
-      tabIndex={canOpen ? 0 : undefined}
-      aria-expanded={canOpen ? open : undefined}
-      title={canOpen ? (open ? L.wbTeamHideFull : L.wbTeamShowFull) : undefined}
-      onClick={canOpen ? () => setOpen((v) => !v) : undefined}
-      onKeyDown={canOpen ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen((v) => !v); } } : undefined}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-        padding: '4px 2px', opacity: pending ? 0.55 : 1,
-        animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
-        cursor: canOpen ? 'pointer' : undefined,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{ width: 3, alignSelf: 'stretch', minHeight: 14, borderRadius: 2, background: 'var(--proto-line)', flex: 'none' }}
-      />
-      <span style={{ font: `600 11px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
-        {systemOriginLabel(origin, L)}
-      </span>
-      {summary && !open && (
-        <span
-          title={canOpen ? undefined : summary}
-          style={{ fontSize: 11.5, color: 'var(--proto-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        >
-          {summary}
-        </span>
-      )}
-      {canOpen && (
-        <span aria-hidden="true" style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }}>›</span>
-      )}
-      <span style={{ flex: 1 }} />
-      {timeLabel && (
-        <span className="opacity-0 transition-opacity group-hover:opacity-100" style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', whiteSpace: 'nowrap', flex: 'none' }}>
-          {timeLabel}
-        </span>
-      )}
-      {debug && (
-        <DebugInspectButton
-          compact
-          onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
-        />
-      )}
-      {!expandable && <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />}
-    </div>
-  );
-  if (!expandable) return row;
-  // The modal sits outside the clickable row: portal events still bubble through the React tree.
-  return (
-    <div>
-      {row}
-      {open && (
-        <div
-          data-system-origin-body=""
-          style={{
-            margin: '2px 0 4px 11px', padding: '8px 12px', borderLeft: '1px solid var(--proto-line)',
-            fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word',
-          }}
-        >
-          <ChatMarkdown text={body} wideTables />
-        </div>
-      )}
-      <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
-    </div>
-  );
-}
-
 function TurnCopyAction({ text }: { text?: string }): JSX.Element | null {
   if (!text) return null;
   return (
@@ -450,6 +350,8 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
       );
     case 'divider':
       return <Divider text={row.text} />;
+    case 'thinking':
+      return <ThinkingRow text={row.text} preview={row.preview} />;
     case 'user':
       if (row.systemOrigin && systemOriginDisplay(row.systemOrigin) === 'bubble') {
         // A lead's message to its worker: the bubble it is, labelled with its sender; copyable but
@@ -472,7 +374,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
       return (
         <div className="group" data-row="tools">
           <ToolCallsRow
-            calls={row.calls.map((c) => ({ kind: c.kind, input: c.input, ...(c.images ? { images: c.images } : {}), ...(c.debug ? { debug: c.debug } : {}) }))}
+            calls={row.calls}
             sessionId={streamKey}
           />
           <TurnCopyAction text={assistantCopyText} />

@@ -238,3 +238,28 @@ describe('createSessionDeltaStream — who is allowed to stream at all', () => {
     assert.equal(s.out.length, 0);
   });
 });
+
+
+test('thinking kind survives coalescing without marking neighboring text blocks', () => {
+  const out: DeltaFlush[] = [];
+  const c = createDeltaCoalescer({ onFlush: f => out.push(f) });
+  c.push('m:0', 'con', 'thinking');
+  c.push('m:1', 'answer');
+  c.push('m:0', 'sider', 'thinking');
+  c.flush();
+  c.dispose();
+  assert.deepEqual(out, [
+    { blockId: 'm:0', text: 'consider', seq: 0, kind: 'thinking' },
+    { blockId: 'm:1', text: 'answer', seq: 0 },
+  ]);
+});
+
+
+test('session delta publishing carries thinking kind through the stream', () => {
+  const out: unknown[] = [];
+  const stream = createSessionDeltaStream({ sessionId: 's', channel: 'web:s', publish: p => out.push(p) })!;
+  stream.onDelta('consider', 'm:0', 'thinking');
+  stream.flush('m:0');
+  stream.dispose();
+  assert.deepEqual(out, [{ sessionId: 's', channel: 'web:s', blockId: 'm:0', text: 'consider', seq: 0, kind: 'thinking' }]);
+});

@@ -48,7 +48,7 @@ export function createPIEventParserState(): PIEventParserState {
  * NormalizedEvents.
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
- * queue_update, compaction_end, auto_retry_start/end, message_update without text_delta,
+ * queue_update, compaction_end, auto_retry_start/end, unsupported message_update events,
  * fire-and-forget extension_ui_request.
  * message_end emits a turn_progress heartbeat (non-terminal, state.turnProgressCount++).
  * compaction_start emits a context_compacted event (user notification); compaction_end is dropped
@@ -63,34 +63,7 @@ export function piEventToNormalized(
   if (typeof ev['type'] !== 'string') return [];
   const type = ev['type'] as string;
 
-  // --- message_update → assistant_text (text_delta only) ---
-  if (type === 'message_update') {
-    const ame = ev['assistantMessageEvent'];
-    if (ame && typeof ame === 'object') {
-      const delta = (ame as Record<string, unknown>)['delta'];
-      if (
-        (ame as Record<string, unknown>)['type'] === 'text_delta' &&
-        typeof delta === 'string' &&
-        delta.length > 0
-      ) {
-        // blockId groups every delta of one assistant message and ties them to the finalizing
-        // whole-message assistant_text. PI's AssistantMessage carries no `id`: the stable
-        // per-message identifier is `responseId`, which the provider assigns once when the
-        // stream opens (anthropic msg_… / openai-compatible chatcmpl-…), before any text_delta.
-        // `id` is kept first so any producer that does supply one keeps working.
-        const msgObj = ev['message'];
-        const blockId =
-          msgObj && typeof msgObj === 'object'
-            ? (((msgObj as Record<string, unknown>)['id'] ??
-                (msgObj as Record<string, unknown>)['responseId']) as string | undefined)
-            : undefined;
-        const result: NormalizedEvent = { type: 'assistant_text', text: delta };
-        if (typeof blockId === 'string') (result as any).blockId = blockId;
-        return [result];
-      }
-    }
-    return [];
-  }
+  if (type === 'message_update') return handleMessageUpdate(ev);
 
   // --- tool_execution_start → tool_use ---
   if (type === 'tool_execution_start') {
@@ -157,6 +130,46 @@ export function piEventToNormalized(
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
+/** Real PI messages use responseId; keep id first for producers that already supply it. */
+function messageId(message: unknown): string | undefined {
+  const msg = record(message);
+  const id = msg?.id ?? msg?.responseId;
+  return typeof id === 'string' ? id : undefined;
+}
+
+function redactedBlock(message: unknown, index: unknown): boolean {
+  const content = record(message)?.content;
+  if (!Array.isArray(content) || typeof index !== 'number') return false;
+  return record(content[index])?.redacted === true;
+}
+
+function handleThinkingUpdate(ev: Record<string, unknown>, ame: Record<string, unknown>): NormalizedEvent[] {
+  const redacted = ame.redacted === true
+    || redactedBlock(ev.message, ame.contentIndex)
+    || redactedBlock(ame.partial, ame.contentIndex);
+  const text = ame.type === 'thinking_end' ? ame.content : ame.delta;
+  if (redacted || typeof text !== 'string' || text.length === 0) return [];
+  const id = messageId(ev.message);
+  const blockId = id !== undefined && typeof ame.contentIndex === 'number' ? `${id}:t${ame.contentIndex}` : undefined;
+  if (ame.type === 'thinking_end') {
+    return [{ type: 'assistant_thinking', text, ...(blockId !== undefined ? { blockId } : {}) }];
+  }
+  return blockId !== undefined ? [{ type: 'assistant_thinking_delta', text, blockId }] : [];
+}
+
+function handleMessageUpdate(ev: Record<string, unknown>): NormalizedEvent[] {
+  const ame = record(ev.assistantMessageEvent);
+  if (!ame) return [];
+  if (ame.type === 'thinking_delta' || ame.type === 'thinking_end') return handleThinkingUpdate(ev, ame);
+  if (ame.type !== 'text_delta' || typeof ame.delta !== 'string' || ame.delta.length === 0) return [];
+  const blockId = messageId(ev.message);
+  return [{ type: 'assistant_text', text: ame.delta, ...(blockId !== undefined ? { blockId } : {}) }];
+}
 
 function handleToolExecutionStart(ev: Record<string, unknown>): NormalizedEvent[] {
   const toolCallId = ev['toolCallId'];

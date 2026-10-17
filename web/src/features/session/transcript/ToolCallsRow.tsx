@@ -5,6 +5,7 @@ import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from '@/features/session/composer/chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { ToolCallImages } from './ToolCallImages';
+import { ThinkingRow } from './HintRow';
 import { toolCallOverflowText } from './tool-call-overflow';
 import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflow';
 
@@ -103,9 +104,10 @@ function collapsedRowStyle(hover: boolean, touch: boolean): CSSProperties {
 }
 
 function ToolChip({ call }: { call: ToolCall }): JSX.Element {
+  const L = useVocab();
   return (
     <span style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
-      {call.kind}
+      {call.thinking ? L.chatThinking : call.kind}
     </span>
   );
 }
@@ -137,7 +139,8 @@ function SummaryButton({ text, expanded, hover, touch, onToggle, onHover, button
 }
 
 function ToolCallsSummaryRow({ calls, ...summary }: SummaryProps & { calls: ToolCall[] }): JSX.Element {
-  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.kind), COLLAPSED_GAP);
+  const L = useVocab();
+  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.thinking ? L.chatThinking : call.kind), COLLAPSED_GAP);
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <SummaryButton {...summary}>
@@ -175,6 +178,10 @@ function ExpandedToolCall({ call, first, touch, onInspect }: {
   touch: boolean;
   onInspect: Inspect;
 }): JSX.Element {
+  if (call.thinking) return <div onClick={(event) => event.stopPropagation()}
+    style={{ padding: '2px 13px', ...(first ? {} : callDividerStyle) }}>
+    <ThinkingRow text={call.input} touch={touch} />
+  </div>;
   if (!call.images?.length) return <ExpandedCallLine call={call} first={first} touch={touch} onInspect={onInspect} />;
   return (
     <div style={first ? undefined : callDividerStyle}>
@@ -222,9 +229,10 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
   const [hover, setHover] = useState(false);
   const [selected, setSelected] = useState<DebugDetail | null>(null);
   const images = imageCount(calls);
+  const count = calls.filter((call) => !call.thinking).length;
   const text = images > 0
     ? fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images })
-    : calls.length > 1 ? `${calls.length} ${L.toolCallsUnit}` : `1 ${L.toolCallUnit}`;
+    : count > 1 ? `${count} ${L.toolCallsUnit}` : `1 ${L.toolCallUnit}`;
   const inspect: Inspect = (event, call) => {
     event.stopPropagation();
     const detail = detailFor(call);

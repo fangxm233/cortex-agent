@@ -24,6 +24,7 @@ export class AssistantSnapshots {
   }
 
   private append(event: AssistantDelta): void {
+    if (event.kind === 'thinking') return;
     const previous = this.active.get(event.sessionId);
     const sameBlock = previous?.blockId === event.blockId;
     if (sameBlock && event.seq <= previous.seq) return;

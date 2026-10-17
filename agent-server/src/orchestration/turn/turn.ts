@@ -274,6 +274,9 @@ export class Turn {
             // Platform tool trace first, then the sink — the background hold keeps the same order.
             callbacks.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
             return sink.onEvent(event);
+          case 'assistant_thinking_delta':
+            if (event.phase === 'foreground') deltaStream?.onDelta(event.text, event.blockId, 'thinking');
+            return;
           case 'assistant_delta':
             if (event.phase === 'foreground') deltaStream?.onDelta(event.text, event.blockId);
             return;

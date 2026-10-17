@@ -3,6 +3,8 @@ import { Writable } from 'stream';
 import * as path from 'path';
 import { readableTimestamp } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
+import { handleAssistantBlocks } from './assistant-blocks.js';
 import type {
   AgentCompactUsage, BackgroundTurnSink, InjectionAckSink, RateLimitObservation, RateLimitOrigin,
   UserMessage,
@@ -16,11 +18,8 @@ import {
   clearActivePlanFile,
   extractResult,
   formatEvent,
-  isPlanFilePath,
-  setActivePlanFile,
   createStreamDeltaState,
   parseStreamEvent,
-  takeTextBlockId,
   parseModelFallbackEvent,
   type ModelFallbackEvent,
   type StreamDeltaState,
@@ -63,6 +62,8 @@ export interface PendingTurn {
   /** Incremental text chunk while a block is still being generated (never the accumulated total).
    *  Web UI preview only — the complete message above stays authoritative. */
   onAssistantDelta: ((text: string, blockId: string) => void) | null;
+  onAssistantThinking: ((text: string, blockId?: string) => void) | null;
+  onAssistantThinkingDelta: ((text: string, blockId: string) => void) | null;
   /** `subagent` is set only when a native subagent made the call (see ToolUseSubagent).
    *  Optional so existing implementations that ignore attribution still satisfy the type. */
   onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
@@ -290,6 +291,8 @@ export class ClaudeTurnMachine {
       onProgress: options.onProgress || null,
       onAssistantMessage: options.onAssistantMessage || null,
       onAssistantDelta: options.onAssistantDelta || null,
+      onAssistantThinking: options.onAssistantThinking || null,
+      onAssistantThinkingDelta: options.onAssistantThinkingDelta || null,
       onToolUse: options.onToolUse || null,
       onToolResult: options.onToolResult || null,
       onCompact: options.onCompact || null,
@@ -387,6 +390,8 @@ export class ClaudeTurnMachine {
       onAssistantMessage: (
         text: string, _blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
       ) => this.deliverContinuation(sink => sink.onAssistantText(text, model, subagent)),
+      onAssistantThinking: (text: string, blockId?: string) =>
+        this.deliverContinuation(sink => sink.onAssistantThinking?.(text, blockId)),
       onToolUse: (name: string, input: any, id: string, subagent?: ToolUseSubagent) =>
         this.deliverContinuation(sink => sink.onToolUse?.(name, input, id, subagent)),
       onToolResult: (
@@ -414,7 +419,7 @@ export class ClaudeTurnMachine {
       capturePairKey: streams.pairKey,
       releaseCapture: streams.releaseCapture,
       onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null,
-      onSubagentEnd: null,
+      onSubagentEnd: null, onAssistantThinkingDelta: null,
       rawStream: streams.rawStream, txtStream: streams.txtStream,
       killed: false, spontaneous: true,
     };
@@ -563,60 +568,19 @@ export class ClaudeTurnMachine {
     }
   }
 
-  private handleAssistantToolBlock(turn: PendingTurn, block: any, subagent?: ToolUseSubagent): void {
-    if (block.name === 'Write' && isPlanFilePath(block.input?.file_path)) {
-      turn.planFilePath = block.input.file_path;
-      setActivePlanFile(this.host.sessionId, block.input.file_path);
-    }
-    if (block.name === 'EnterPlanMode') turn.enteredPlanMode = true;
-    if (block.name === 'ExitPlanMode') turn.exitedPlanMode = true;
-    if (typeof turn.onToolUse !== 'function') return;
-    try {
-      turn.onToolUse(block.name || '?', block.input || {}, typeof block.id === 'string' ? block.id : '', subagent);
-    } catch (error) {
-      log.warn('onToolUse threw:', (error as Error).message);
-    }
-  }
-
-  private handleAssistantTextBlock(
-    turn: PendingTurn, data: any, block: any, subagent?: ToolUseSubagent,
-  ): void {
-    if (!block.text) return;
-    const model = typeof data.message?.model === 'string' ? data.message.model : null;
-    // A subagent's text is NOT this turn's answer, and it did not stream: the CLI attaches subagent
-    // linkage only to complete `assistant`/`user` messages, never to `stream_event`. So it must not
-    // become finalOutput, must not win longestOutput, and — above all — must not consume the delta
-    // cursor, which belongs to a main-agent block still being streamed.
-    if (subagent) {
-      turn.onAssistantMessage?.(block.text, undefined, model, subagent);
-      return;
-    }
-    turn.finalOutput = block.text;
-    if (block.text.length > (turn.longestOutput?.length || 0)) turn.longestOutput = block.text;
-    const blockId = takeTextBlockId(this.streamDeltaState) ?? undefined;
-    const streamedModel = this.streamDeltaState.messageId === data.message?.id
-      ? this.streamDeltaState.model
-      : null;
-    turn.onAssistantMessage?.(block.text, blockId, model ?? streamedModel);
-  }
-
   private handleAssistantEvent(turn: PendingTurn, data: any): void {
-    // Every line still walks every branch below — subagent lines are TAGGED, never dropped, so the
-    // journal keeps a complete trajectory. What the tag changes is attribution: a subagent's turns
-    // are counted apart from the main agent's, and its text cannot be mistaken for the answer.
-    const subagent = subagentAttribution(data);
-    if (subagent) turn.subagentTurnCount += 1;
-    else turn.turnCount += 1;
-    for (const block of (data.message?.content || [])) {
-      if (block.type === 'tool_use') this.handleAssistantToolBlock(turn, block, subagent);
-      if (block.type === 'text') this.handleAssistantTextBlock(turn, data, block, subagent);
-    }
-    // A subagent's message did not advance the main agent's turn, so re-rendering progress would
-    // redraw the same number. The JSONL path withholds turn_progress on sidechain records for the
-    // same reason.
-    if (!subagent) {
-      turn.onProgress?.({ num_turns: turn.turnCount, total_cost_usd: null, duration_ms: null });
-    }
+    handleAssistantBlocks(turn, data, this.streamDeltaState, this.host.sessionId, subagentAttribution(data));
+  }
+
+  private handleStreamEvent(data: any): void {
+    this.emitContextUsage(data);
+    const delta = parseStreamEvent(data, this.streamDeltaState);
+    if (!delta) return;
+    const callback = delta.kind === 'thinking'
+      ? (getSettings().showThinking ? this.currentTurn?.onAssistantThinkingDelta : null)
+      : this.currentTurn?.onAssistantDelta;
+    try { callback?.(delta.text, delta.blockId); }
+    catch (e) { log.warn('assistant delta callback threw:', (e as Error).message); }
   }
 
   private emitContextUsage(data: unknown): void {
@@ -670,12 +634,7 @@ export class ClaudeTurnMachine {
     // are deliberately kept out of the per-turn raw jsonl and the daemon log. Handled first, and
     // separately, because everything below is about complete events.
     if (isJson && parsed?.type === 'stream_event') {
-      this.emitContextUsage(parsed);
-      const delta = parseStreamEvent(parsed, this.streamDeltaState);
-      if (delta && typeof this.currentTurn?.onAssistantDelta === 'function') {
-        try { this.currentTurn.onAssistantDelta(delta.text, delta.blockId); }
-        catch (e) { log.warn('onAssistantDelta threw:', (e as Error).message); }
-      }
+      this.handleStreamEvent(parsed);
       return;
     }
 

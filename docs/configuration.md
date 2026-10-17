@@ -547,7 +547,8 @@ Unknown keys are ignored.
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
 | `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
-| `streamDeltas` | boolean | `true` | Stream assistant text token by token. Disable to deliver each assistant message in one piece | `CORTEX_STREAM_DELTAS` |
+| `showThinking` | boolean | `true` | Capture model-provided thinking for Web and mobile chat. Disable to stop capturing new thinking; saved rows remain visible. Claude requests a thinking summary; PI displays the text the provider returns | `CORTEX_SHOW_THINKING` |
+| `streamDeltas` | boolean | `true` | Stream assistant text and captured thinking token by token. Disable to deliver only complete blocks | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | Forward the output of background tasks back into the conversation when they finish | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | Write the event bus to the daily rolling JSONL event log | `CORTEX_EVENT_LOG` |
 | `diskMonitor` | boolean | `true` | Check free space on the filesystem containing `$CORTEX_HOME` every five minutes and send a system notice below 500 MiB. `false` stops the timer; switching back to `true` runs an immediate check | `CORTEX_DISK_MONITOR` |

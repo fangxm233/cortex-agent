@@ -49,3 +49,14 @@ test('assistant messages carry their real text (no "(response)" placeholder)', (
   assert.equal(result.items[1].content.text, 'hello **world**');
   assert.equal((result.items[1].content.text as string).includes('(response)'), false);
 });
+
+
+test('thinking is never replayed in the TUI', () => {
+  const result = buildTranscriptReplay(makeData([
+    { role: 'thinking', text: 'consider' },
+    { role: 'assistant', text: 'answer' },
+  ]))!;
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].content.text, 'answer');
+  assert.equal(result.seqEnd, 1);
+});

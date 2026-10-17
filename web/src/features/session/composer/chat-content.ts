@@ -9,6 +9,8 @@ export interface ToolCallImage {
 export interface ToolCall {
   kind: string;
   input: string;
+  /** A thinking entry interleaved with tools; input holds its markdown. */
+  thinking?: true;
   /** Present only when the call's result carried images; such calls render in their own row. */
   images?: ToolCallImage[];
   debug?: {

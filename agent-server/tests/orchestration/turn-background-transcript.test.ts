@@ -122,6 +122,7 @@ test('platform hold: background rows are written like in-turn rows; Slack still 
 
   await run.emit({ type: 'tool_use', phase: 'background', name: 'Grep', input: { pattern: 'x' }, toolUseId: 'toolu_child', subagent });
   await run.emit({ type: 'subagent_end', phase: 'background', parentToolUseId: 'toolu_bg', status: 'completed' });
+  await run.emit({ type: 'assistant_thinking', phase: 'background', text: 'consider the build', blockId: 'blk-thought' });
   await run.emit({ type: 'assistant_text', phase: 'background', text: 'the build finished' });
   await run.emit({ type: 'todo_update', phase: 'background', toolUseId: 'toolu_todo', snapshot });
   await settle();
@@ -134,7 +135,9 @@ test('platform hold: background rows are written like in-turn rows; Slack still 
     'the continuation answer is a transcript row too');
   assert.ok(bus.some((e) => e.type === 'session.todos'), 'the background task list is published');
 
+  assert.equal(messages().filter(m => m.role === 'thinking' && m.blockId === 'blk-thought').length, 1);
   const texts = platformTexts(adapter);
+  assert.ok(!texts.some(t => t.includes('consider the build')));
   assert.equal(texts.filter((t) => t.includes('the build finished')).length, 1, 'posted to Slack exactly once');
   assert.ok(texts.some((t) => /Agent ×1/.test(t) && /survey 1/.test(t)),
     'the subagent call counts on the shared subagent trace line');

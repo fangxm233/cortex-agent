@@ -414,3 +414,18 @@ test('unrelated RunEvents are ignored without touching any seam', () => {
   assert.deepEqual(h.debug, []);
   assert.deepEqual(h.todos, []);
 });
+
+
+test('thinking persists and publishes separately without reaching platform output', () => {
+  const appendThinking = vi.fn(async () => {});
+  const h = harness({ deps: { appendThinking } });
+  h.sink.onEvent({ type: 'assistant_thinking', text: 'Consider the options', blockId: 'm:0', phase: 'foreground' });
+  expect(h.order).toEqual(['flush:m:0', 'publish']);
+  expect(h.assistants).toEqual([]);
+  expect(appendThinking).toHaveBeenCalledWith(SESSION, {
+    text: 'Consider the options', blockId: 'm:0', ts: h.published[0].ts,
+  });
+  expect(h.published[0]).toMatchObject({ role: 'thinking', blockId: 'm:0', text: 'Consider the options' });
+  h.sink.onEvent({ type: 'assistant_thinking', text: '', phase: 'background' });
+  expect(appendThinking).toHaveBeenCalledTimes(1);
+});

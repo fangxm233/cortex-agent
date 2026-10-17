@@ -86,6 +86,8 @@ export interface SessionLiveState {
    *  streaming. Pass it to `buildTranscriptRows` as `streamingText`. Always null unless the caller
    *  opted into deltas — every other surface renders complete messages exactly as before. */
   streamingText: string | null;
+  /** Independent thinking preview, retired only by its own complete block. */
+  thinkingText: string | null;
   /** Messages sent into a turn already running and written to its backend, which the model has not
    *  read yet. Kept OUT of `liveTail` on purpose: they are not in conversation history and nothing
    *  the agent is currently emitting was produced with them, so a surface that shows them must pin
@@ -174,6 +176,7 @@ export function useSessionMessageLiveSync(
   // The assistant block being previewed plus finalized block ids. The latter span the shared
   // message stream and scoped delta stream, preventing a late delta from reopening a settled row.
   const [assistantPreview, setAssistantPreview] = useState<AssistantPreviewState>(initialAssistantPreviewState);
+  const [thinkingPreview, setThinkingPreview] = useState<AssistantPreviewState>(initialAssistantPreviewState);
   // Messages written into the running turn's backend that the model has not read yet. Deliberately
   // a separate list, not part of the ordered tail — see SessionLiveState.pendingUser.
   const [pendingUser, setPendingUser] = useState<PendingUserMessage[]>([]);
@@ -205,6 +208,7 @@ export function useSessionMessageLiveSync(
     setLiveContextUsage(null);
     setLiveTodos(null);
     setAssistantPreview(initialAssistantPreviewState());
+    setThinkingPreview(initialAssistantPreviewState());
     deliveredPendingIdsRef.current.clear();
     setPending([]);
     return () => {
@@ -232,10 +236,22 @@ export function useSessionMessageLiveSync(
     if (next !== pendingRef.current) setPending(next);
   }, [sessionId, transcript, setPending]);
 
+  // A reconnect can lose both the complete thought and idle event; history still seals the block.
+  useEffect(() => {
+    if (!transcript || transcript.sessionId !== sessionId) return;
+    const finished = new Set(transcript.turns.flatMap(turn => turn.messages
+      .filter(message => message.type === 'thinking').map(message => message.blockId)));
+    setThinkingPreview(previous => {
+      const blockId = previous.active?.blockId;
+      return blockId && finished.has(blockId) ? finalizeAssistantPreview(previous, blockId) : previous;
+    });
+  }, [sessionId, transcript]);
+
   // Token-level preview. Accumulate only — the transcript query is NOT invalidated per delta (a
   // reply produces dozens of these, and none of them changes persisted history).
   useAssistantDeltaStream(sessionId, !!options.deltas, (ev) => {
-    setAssistantPreview((prev) => applyAssistantPreviewDelta(prev, ev));
+    const setPreview = ev.kind === 'thinking' ? setThinkingPreview : setAssistantPreview;
+    setPreview((prev) => applyAssistantPreviewDelta(prev, ev));
   });
 
   // Reconnect recovery: after a stream drop (sleep, network blip) events are lost for good — when the
@@ -277,6 +293,7 @@ export function useSessionMessageLiveSync(
           // …and seal any preview the turn left behind. Keep its block id tombstoned: status and
           // delta use different SSE connections, so an already-in-flight late delta may arrive next.
           setAssistantPreview((prev) => finalizeAssistantPreview(prev, undefined));
+          setThinkingPreview((prev) => finalizeAssistantPreview(prev, undefined));
           if (idleTimer.current) clearTimeout(idleTimer.current);
         }
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
@@ -318,6 +335,7 @@ export function useSessionMessageLiveSync(
       if (raw.type === 'session.rewound') {
         setLiveTail([]);
         setAssistantPreview((prev) => finalizeAssistantPreview(prev, undefined));
+        setThinkingPreview((prev) => finalizeAssistantPreview(prev, undefined));
         setPending([]);
         invalidateTranscriptQuery(queryClient, trpc, sessionId);
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
@@ -376,7 +394,7 @@ export function useSessionMessageLiveSync(
       const p = raw.payload as
         | { sessionId?: string; role?: string; text?: string; systemOrigin?: LiveSessionMessage['systemOrigin']; toolName?: string; toolInput?: string; toolDevice?: string; teamAction?: LiveSessionMessage['teamAction']; boardAction?: LiveSessionMessage['boardAction']; worker?: LiveSessionMessage['worker']; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
         | undefined;
-      if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool' && p.role !== 'worker-progress')) return;
+      if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool' && p.role !== 'worker-progress' && p.role !== 'thinking')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
       // no history entry, and everything the agent is emitting right now was produced without it —
       // so it is held out of the ordered tail entirely until its delivered event commits it. It
@@ -404,6 +422,7 @@ export function useSessionMessageLiveSync(
       const msg: LiveSessionMessage = {
         sessionId: p.sessionId ?? sessionId,
         role: p.role,
+        blockId: p.blockId,
         text: p.text ?? '',
         systemOrigin: p.systemOrigin,
         toolName: p.toolName,
@@ -433,6 +452,9 @@ export function useSessionMessageLiveSync(
       if (p.role === 'assistant' && !p.noticeLevel && !p.subagentId) {
         setAssistantPreview((prev) => finalizeAssistantPreview(prev, p.blockId));
       }
+      if (p.role === 'thinking' && !p.subagentId) {
+        setThinkingPreview((prev) => finalizeAssistantPreview(prev, p.blockId));
+      }
       // A worker's interim reply is not the lead producing output: it must not read as the lead
       // streaming, which would flip an idle lead to running until the quiet gap elapses.
       if (!p.noticeLevel && p.role !== 'worker-progress') {
@@ -460,6 +482,7 @@ export function useSessionMessageLiveSync(
   const todos = resolveTodos(currentLiveTodos, options.todos);
   return {
     liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns,
-    contextUsage, todos, streamingText: assistantPreview.active?.text ?? null, pendingUser,
+    contextUsage, todos, streamingText: assistantPreview.active?.text ?? null,
+    thinkingText: thinkingPreview.active?.text ?? null, pendingUser,
   };
 }

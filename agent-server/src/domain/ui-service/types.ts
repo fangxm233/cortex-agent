@@ -428,7 +428,8 @@ export interface TranscriptMessage {
   /** `worker-progress`: a team worker's final reply for a turn that ended while it still had work
    *  pending (queued message, background task, open waitpoint or interaction). Recorded in the
    *  LEAD's history for display only: it never reaches the lead model and is not a user turn. */
-  type: 'user' | 'assistant' | 'tool' | 'interaction' | 'worker-progress';
+  type: 'user' | 'assistant' | 'thinking' | 'tool' | 'interaction' | 'worker-progress';
+  blockId?: string;
   /** user / assistant / interaction / worker-progress text; null for tool events. */
   text: string | null;
   /** tool name (tool events only). */

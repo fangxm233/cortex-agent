@@ -8,6 +8,8 @@
     "--verbose",
     "--replay-user-messages",
     "--include-partial-messages",
+    "--thinking-display",
+    "summarized",
     "--dangerously-skip-permissions",
     "--permission-mode",
     "bypassPermissions",

@@ -30,7 +30,7 @@ export const CONVERSATION_HISTORY_DIR = path.join(STORE_DIR, 'conversation-histo
 
 /** `worker-progress`: a team worker's interim final reply, recorded in its LEAD's history for
  *  display. It is not a user turn (no turn boundary) and never reaches the lead model. */
-export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction' | 'worker-progress';
+export type HistoryEventType = 'user' | 'assistant' | 'thinking' | 'tool' | 'interaction' | 'worker-progress';
 
 /** Terminal state of one native subagent, as the backend's own task lifecycle reports it. */
 export type SubagentEndStatus = 'completed' | 'failed' | 'killed';
@@ -105,6 +105,7 @@ export interface HistoryEvent {
   type: HistoryEventType;
   /** user / assistant message text (omitted for tool events). */
   text?: string;
+  blockId?: string;
   /** User events only: this turn was authored by Cortex (resume signal, task/thread callback,
    *  subtask question, backgrounded agent result), not typed by a human. Absent = human, which is
    *  what every row written before this field existed reads as. */
@@ -181,6 +182,7 @@ export interface RawEvent {
   /** edit-marker lines only. */
   originalTs?: string;
   text?: string;
+  blockId?: string;
   /** user lines only: Cortex authored this turn rather than a human (see HistoryEvent). */
   systemOrigin?: SystemTurnOrigin;
   noticeLevel?: ChatNoticeLevel;
@@ -606,6 +608,12 @@ export class ConversationHistoryRepo {
       ...(opts.decisions?.length ? { decisions: opts.decisions } : {}),
       ...(opts.subagentSpawns?.length ? { subagentSpawns: opts.subagentSpawns } : {}),
       ...subagentRowFields(opts.subagent),
+    });
+  }
+
+  appendThinking(sessionId: string, opts: { text: string; blockId?: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'thinking', text: opts.text, blockId: opts.blockId, ts: opts.ts ?? nowIso(),
     });
   }
 

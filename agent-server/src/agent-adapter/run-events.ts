@@ -26,6 +26,8 @@ export type RunEvent =
       noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction;
     }
   | { type: 'assistant_delta'; text: string; blockId: string; phase: RunPhase }
+  | { type: 'assistant_thinking'; text: string; blockId?: string; phase: RunPhase }
+  | { type: 'assistant_thinking_delta'; text: string; blockId: string; phase: RunPhase }
   | {
       type: 'tool_use'; toolUseId: string; name: string; input: unknown;
       subagent?: ToolUseSubagent; phase: RunPhase;
@@ -124,6 +126,8 @@ export function toRunEvent(event: NormalizedEvent, phase: RunPhase): RunEvent {
       };
     case 'assistant_text':
       return { ...event, phase };
+    case 'assistant_thinking':
+    case 'assistant_thinking_delta':
     case 'assistant_delta':
       return { ...event, phase };
     case 'tool_use':

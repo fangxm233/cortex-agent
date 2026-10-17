@@ -10,6 +10,7 @@ export interface StreamingBlock {
 
 /** A scoped `session.message.delta` payload (ordinary increment or subscription seed). */
 export interface AssistantDeltaEvent {
+  kind?: 'thinking';
   blockId?: string;
   text?: string;
   seq?: number;

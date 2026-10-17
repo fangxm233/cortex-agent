@@ -37,6 +37,7 @@ function recordingSinkDeps(): Recorded & { deps: Partial<TranscriptSinkDeps> } {
   };
   const deps: Partial<TranscriptSinkDeps> = {
     appendAssistant: row('assistant'),
+    appendThinking: row('thinking'),
     appendTool: row('tool'),
     appendToolResult: row('toolResult'),
     appendSubagentEnd: row('subagentEnd'),
@@ -58,6 +59,7 @@ function recordingSinkDeps(): Recorded & { deps: Partial<TranscriptSinkDeps> } {
 /** One of every row kind a continuation can produce, tagged with `phase`. */
 function continuationEvents(phase: RunPhase): RunEvent[] {
   return [
+    { type: 'assistant_thinking', text: 'consider', blockId: 'blk-0', phase },
     { type: 'assistant_text', text: 'looking now', blockId: 'blk-1', phase },
     { type: 'assistant_text', text: 'notes', subagent, phase },
     {

@@ -22,6 +22,7 @@ export function buildTranscriptReplay(
   let seq = 0;
 
   messages.forEach((msg, i) => {
+    if (msg.role === 'thinking') return;
     const ref: MessageRef = {
       conduit: sessionId,
       messageId: `${sessionId}-${i}`,

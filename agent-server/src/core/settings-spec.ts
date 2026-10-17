@@ -20,6 +20,7 @@ export interface Settings {
   showToolCalls: boolean;
   statusNewqButton: boolean;
   autoResume: boolean;
+  showThinking: boolean;
   streamDeltas: boolean;
   bgContinuation: boolean;
   eventLog: boolean;
@@ -169,6 +170,12 @@ export const SETTINGS_SPEC = {
     type: 'boolean',
     default: true,
     legacyParse: (raw: string) => raw !== '0' && raw !== 'false',
+  },
+  showThinking: {
+    envVar: 'CORTEX_SHOW_THINKING',
+    type: 'boolean',
+    default: true,
+    legacyParse: (raw: string) => !['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase()),
   },
   streamDeltas: {
     envVar: 'CORTEX_STREAM_DELTAS',

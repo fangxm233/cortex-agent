@@ -36,7 +36,7 @@ async function assembleTranscript(
 
   // A worker's interim reply is shown in its lead's web chat only; the TUI replays the turns.
   const messages: TranscriptMessage[] = hist.events.flatMap((e): TranscriptMessage[] => {
-    if (e.type === 'worker-progress') return [];
+    if (e.type === 'worker-progress' || e.type === 'thinking') return [];
     return [e.type === 'tool'
       ? { role: 'tool' as const, text: '', toolName: e.toolName ?? '', toolInput: e.toolInput ?? '' }
       : { role: e.type, text: e.text ?? '' }];

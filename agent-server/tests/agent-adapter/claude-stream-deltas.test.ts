@@ -47,7 +47,7 @@ describe('parseStreamEvent', () => {
     assert.deepEqual(parseStreamEvent(textDelta(0, 'lo'), st), { text: 'lo', blockId: 'msg_1:0' });
   });
 
-  test('ignores thinking_delta and input_json_delta (v1 streams text only)', () => {
+  test('ignores empty thinking_delta and input_json_delta', () => {
     const st = createStreamDeltaState();
     parseStreamEvent(messageStart('msg_1'), st);
     parseStreamEvent(blockStart(0, 'thinking'), st);

@@ -360,6 +360,7 @@ test('hold: background rows reach the transcript sink unchanged — blockId, not
   const h = makeHarness();
   await h.install({ pendingBackgroundTasks: 1 });
   const events: RunEvent[] = [
+    { type: 'assistant_thinking', phase: 'background', text: 'consider', blockId: 'blk-0' },
     { type: 'assistant_text', phase: 'background', text: 'done', blockId: 'blk-1' },
     { type: 'assistant_text', phase: 'background', text: 'compacted', noticeLevel: 'info' },
     { type: 'todo_update', phase: 'background', toolUseId: 'toolu_todo', snapshot: { items: [], total: 0, completed: 0, activeLabel: null, updatedAt: 1 } },

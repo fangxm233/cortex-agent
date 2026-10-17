@@ -160,12 +160,12 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
 
   const rows = useMemo(
     () => buildTranscriptRows(chat.transcript, chat.liveTail, {
-      streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText,
+      streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText, thinkingText: chat.thinkingText,
       pendingUser: chat.pendingUser,
       formatDivider: capsDayDivider(lang),
       stripScheduledPrefix: !!active?.scheduleId || chat.isScheduledRun,
     }),
-    [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.pendingUser,
+    [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.thinkingText, chat.pendingUser,
       lang, active?.scheduleId, chat.isScheduledRun],
   );
   // A New Session is only a draft until its first optimistic row is enqueued. Keep this derived from
