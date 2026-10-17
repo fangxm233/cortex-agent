@@ -299,7 +299,7 @@ unstar models. For backend details, see [backends.md](./backends.md).
 Favorites store model identities, not thinking levels or routes. The default
 need not be a favorite, and the favorites list may be empty. `thinking` accepts
 `low`/`medium`/`high`/`xhigh`/`max` on Claude and
-`off`/`minimal`/`low`/`medium`/`high`/`xhigh` on PI.
+`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` on PI.
 
 ### Selection resolution
 

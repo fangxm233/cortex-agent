@@ -11,7 +11,7 @@ for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
     expect(() => validateEngineSelection({ ...claude, thinking: level })).not.toThrow();
   });
 }
-for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']) {
+for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
   test(`PI accepts thinking=${level}`, () => {
     expect(isValidThinkingLevel('pi', level)).toBe(true);
     expect(() => validateEngineSelection({ ...pi, thinking: level })).not.toThrow();
@@ -20,7 +20,7 @@ for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']) {
 
 test('thinking validation is backend-specific; null explicitly means CLI default', () => {
   expect(() => validateEngineSelection({ ...claude, thinking: 'off' })).toThrow(/thinking/);
-  expect(() => validateEngineSelection({ ...pi, thinking: 'max' })).toThrow(/thinking/);
+  expect(() => validateEngineSelection({ ...pi, thinking: 'ultra' })).toThrow(/thinking/);
   expect(() => validateEngineSelection({ ...claude, thinking: undefined })).toThrow(/thinking/);
   expect(() => validateEngineSelection(claude)).not.toThrow();
   expect(() => validateEngineSelection(pi)).not.toThrow();

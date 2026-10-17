@@ -125,6 +125,7 @@ test('a PI model\'s own thinking ladder rides along; the backend ladders are ser
   assert.equal('deepseek-v4-flash' in deepseek.modelThinking, false);
   assert.ok(snapshot.thinkingLevels.claude.includes('max'));
   assert.ok(snapshot.thinkingLevels.pi.includes('xhigh'));
+  assert.ok(snapshot.thinkingLevels.pi.includes('max'));
   assert.deepEqual(routeOf(snapshot.routes, 'anthropic').modelThinking, {});
 });
 

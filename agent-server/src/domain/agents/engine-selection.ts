@@ -21,7 +21,7 @@ export function modelKey(ref: ModelRef): string {
 
 export const THINKING_LEVELS_BY_BACKEND: Record<Backend, readonly string[]> = {
   claude: ['low', 'medium', 'high', 'xhigh', 'max'],
-  pi: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+  pi: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
 };
 
 export function isValidThinkingLevel(backend: Backend, level: string): boolean {

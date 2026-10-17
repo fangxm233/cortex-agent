@@ -193,7 +193,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 
 ## 思考档位 {#thinking-level}
 
-`thinking` 使用后端原生值域设置推理深度。Claude Code 接受 `low`/`medium`/`high`/`xhigh`/`max`，以 `--effort` 传入。PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`，作为会话的思考档位传入。值为 null 时使用后端默认值。
+`thinking` 使用后端原生值域设置推理深度。Claude Code 接受 `low`/`medium`/`high`/`xhigh`/`max`，以 `--effort` 传入。PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`，作为会话的思考档位传入。值为 null 时使用后端默认值。所选模型不支持的档位会由 PI 收敛到最接近的支持档位。
 
 ## 用量限流与自动恢复 {#usage-limit-throttling-and-auto-resume}
 

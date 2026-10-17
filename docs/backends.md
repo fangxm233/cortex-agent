@@ -460,8 +460,9 @@ channels use the same selection rules through these commands:
 
 `thinking` sets reasoning depth in the backend's native value set. Claude Code
 accepts `low`/`medium`/`high`/`xhigh`/`max`, passed as `--effort`. PI accepts
-`off`/`minimal`/`low`/`medium`/`high`/`xhigh`, passed as the session's thinking level.
-A null value uses the backend's own default.
+`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`, passed as the session's thinking level.
+A null value uses the backend's own default. A level the selected model does not
+accept is clamped by PI to the nearest one it does.
 
 ## Usage-limit throttling and auto-resume
 

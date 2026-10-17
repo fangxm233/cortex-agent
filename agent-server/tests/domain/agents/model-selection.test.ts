@@ -170,8 +170,8 @@ test('backend-only pick without memory preserves default thinking and route, whi
 
 test('target backend thinking is validated before any write', async () => {
   const api = await fresh();
-  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi, thinking: 'max' }))
-    .toMatchObject({ ok: false, reason: 'invalid-thinking', allowed: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] });
+  expect(await api.applyChannelSelection({ channel: 'web:a', ...pi, thinking: 'ultra' }))
+    .toMatchObject({ ok: false, reason: 'invalid-thinking', allowed: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] });
   expect(stored()).toEqual({});
   expect(patches).toEqual([]);
 });
