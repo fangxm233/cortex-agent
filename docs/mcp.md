@@ -204,8 +204,8 @@ or Feishu-originated session never sees these tools.
 Assistant Markdown can place an image or video inside the reply with `![alt](src)`.
 Use a server path (`/absolute/plot.png`, `~/plot.png`, or `figs/plot.png` relative
 to `CORTEX_HOME`, normally `~/.cortex`), an existing `workspace/...` path, a
-registered device path such as `lab-ksu:/home/xinmin/plot.png` or
-`my-pc:C:/Users/x/clip.mp4`, or an external `https://...` URL. Local and device
+registered device path such as `gpu-box:/home/user/plot.png` or
+`win-pc:C:/Users/x/clip.mp4`, or an external `https://...` URL. Local and device
 files are snapshotted per message, with a 200MB limit; reusing a source in a later
 message creates a separate snapshot. Workspace paths use the existing file.
 Video extensions are `.mp4`, `.webm`, `.mov`, and `.m4v`; other supported media

@@ -5,8 +5,8 @@ import { eagerSnapshotInlineMedia, extractMediaSources } from '../../src/orchest
 const message = { sessionId: 'test', ts: '2026-10-17T00:00:00.000Z' };
 
 test('preserves the exact destination strings used by the chat Markdown renderer', () => {
-  const sources = ['/a.png', 'figs/a b.png', 'figs/plot(1).png', String.raw`my-pc:C:\Users\x\_plot.png`,
-    String.raw`my-pc:C:\Users\x\(plot).png`, String.raw`my-pc:\\server\share\a.png`];
+  const sources = ['/a.png', 'figs/a b.png', 'figs/plot(1).png', String.raw`win-pc:C:\Users\x\_plot.png`,
+    String.raw`win-pc:C:\Users\x\(plot).png`, String.raw`win-pc:\\server\share\a.png`];
   expect(extractMediaSources(sources.map(src => `![plot](${src})`).join(' '))).toEqual(sources);
 });
 

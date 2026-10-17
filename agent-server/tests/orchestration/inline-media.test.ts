@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { DATA_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath } from '../../src/core/paths.js';
 
 vi.mock('../../src/domain/remote/machine-registry.js', () => ({
-  getMachineRegistry: () => ({ lab: {}, 'my-pc': {} }),
+  getMachineRegistry: () => ({ lab: {}, 'win-pc': {} }),
 }));
 vi.mock('../../src/domain/remote/device-file.js', () => ({
   prepareRemoteFetch: vi.fn(), fetchRemoteFile: vi.fn(),
@@ -40,9 +40,9 @@ test('parses absolute, home and DATA_DIR-relative sources', () => {
 
 test('parses registered devices including Windows drive and UNC paths', () => {
   expect(parseMediaSrc('lab:/tmp/a.png')).toEqual({ type: 'device', device: 'lab', filePath: '/tmp/a.png' });
-  expect(parseMediaSrc('my-pc:C:/Users/x/a.mp4')).toEqual({ type: 'device', device: 'my-pc', filePath: 'C:/Users/x/a.mp4' });
-  expect(parseMediaSrc('my-pc:C:\\Users\\x\\a.png')).toEqual({ type: 'device', device: 'my-pc', filePath: 'C:\\Users\\x\\a.png' });
-  expect(parseMediaSrc('my-pc:\\\\server\\share\\a.png')).toMatchObject({ type: 'device' });
+  expect(parseMediaSrc('win-pc:C:/Users/x/a.mp4')).toEqual({ type: 'device', device: 'win-pc', filePath: 'C:/Users/x/a.mp4' });
+  expect(parseMediaSrc('win-pc:C:\\Users\\x\\a.png')).toEqual({ type: 'device', device: 'win-pc', filePath: 'C:\\Users\\x\\a.png' });
+  expect(parseMediaSrc('win-pc:\\\\server\\share\\a.png')).toMatchObject({ type: 'device' });
 });
 
 test.each(['unknown:/tmp/a.png', 'lab:relative.png', 'http://example.com/a.png', 'data:image/png,x', 'file:///tmp/a.png', 'C:/Users/x/a.png'])('rejects unsupported or ambiguous source %s', src => {

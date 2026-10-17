@@ -21,15 +21,15 @@ describe('inline media URLs', () => {
   ])('allows %s', (src) => expect(isAllowedMediaUrl(src)).toBe(true));
 
   it('distinguishes device paths from URLs', () => {
-    expect(isMediaUrl('my-pc:C:/Users/x/a.mp4')).toBe(false);
-    expect(isMediaUrl('lab-ksu:/home/x/a.png')).toBe(false);
+    expect(isMediaUrl('win-pc:C:/Users/x/a.mp4')).toBe(false);
+    expect(isMediaUrl('gpu-box:/home/x/a.png')).toBe(false);
     expect(isMediaUrl('https://example.org/a.png')).toBe(true);
     expect(isMediaUrl('data:image/png;base64,abc')).toBe(true);
   });
 
   it('detects video extensions ignoring URL queries, and defaults to images', () => {
     expect(inlineMediaKind('https://example.org/a.MOV?q=.png')).toBe('video');
-    expect(inlineMediaKind('my-pc:C:/Users/x/a.mp4')).toBe('video');
+    expect(inlineMediaKind('win-pc:C:/Users/x/a.mp4')).toBe('video');
     expect(inlineMediaKind('https://example.org/image?id=1')).toBe('image');
   });
 });

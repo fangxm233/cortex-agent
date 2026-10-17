@@ -123,7 +123,7 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（其频道带 
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | 记录智能体刚做出的决策，并在聊天里以卡片展示 |
 | `board_open` | `title` or `board` (exactly one) | 新建看板，或按 id、slug 接入已有看板，并把会话绑定到它 |
 
-助手可以在 Markdown 回复里用 `![alt](src)` 把图片或视频放在正文对应位置。`src` 支持服务器路径（`/absolute/plot.png`、`~/plot.png`，或相对 `CORTEX_HOME`、通常是 `~/.cortex` 的 `figs/plot.png`）、已有的 `workspace/...` 路径、已登记设备路径（例如 `lab-ksu:/home/xinmin/plot.png`、`my-pc:C:/Users/x/clip.mp4`），以及外部 `https://...` 链接。本机和设备文件按消息保存快照，单文件上限 200MB；后续消息再次引用同一路径时保存另一份快照。Workspace 路径直接使用已有文件。`.mp4`、`.webm`、`.mov`、`.m4v` 显示为视频，其他支持的媒体扩展名显示为图片；没有扩展名的外链按图片处理。预览在滚动到附近时加载，点击打开媒体查看器；流式回复中的本机和设备引用先显示占位，回复保存后加载。外链由浏览器直接加载，不发送 referrer；非 HTTPS、本地网络主机名和私有 IP 地址不内嵌。该 Markdown 行为仅用于 Web UI 和原生应用的助手聊天正文；分享可下载附件卡片使用 `send_file`。
+助手可以在 Markdown 回复里用 `![alt](src)` 把图片或视频放在正文对应位置。`src` 支持服务器路径（`/absolute/plot.png`、`~/plot.png`，或相对 `CORTEX_HOME`、通常是 `~/.cortex` 的 `figs/plot.png`）、已有的 `workspace/...` 路径、已登记设备路径（例如 `gpu-box:/home/user/plot.png`、`win-pc:C:/Users/x/clip.mp4`），以及外部 `https://...` 链接。本机和设备文件按消息保存快照，单文件上限 200MB；后续消息再次引用同一路径时保存另一份快照。Workspace 路径直接使用已有文件。`.mp4`、`.webm`、`.mov`、`.m4v` 显示为视频，其他支持的媒体扩展名显示为图片；没有扩展名的外链按图片处理。预览在滚动到附近时加载，点击打开媒体查看器；流式回复中的本机和设备引用先显示占位，回复保存后加载。外链由浏览器直接加载，不发送 referrer；非 HTTPS、本地网络主机名和私有 IP 地址不内嵌。该 Markdown 行为仅用于 Web UI 和原生应用的助手聊天正文；分享可下载附件卡片使用 `send_file`。
 
 `send_file`、`send_view` 和 `send_decision` 不把载荷作为工具输出返回，而是经 loopback webhook 代理给 daemon：归一化事件流中的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，所以比字符串更复杂的东西只能走带外通道。daemon 把字节复制到 `workspace/outputs/<sessionId>/`（视图再深一层，落在 `views/`），记录一条带附件的 assistant 消息，并发布实时事件。传递的只有路径——大文档既不会进入 transcript，也不会进入事件流。
 

@@ -47,7 +47,7 @@ describe('assistant inline media', () => {
     expect(mocks.open).toHaveBeenCalledWith({ path: 'workspace/outputs/s1/inline/a.png', name: 'plot', kind: 'image' });
   });
 
-  it.each(['/tmp/a.png', 'lab-ksu:/home/x/a.png', 'my-pc:C:/Users/x/a.mp4'])('keeps streaming %s as a placeholder', async (src) => {
+  it.each(['/tmp/a.png', 'gpu-box:/home/x/a.png', 'win-pc:C:/Users/x/a.mp4'])('keeps streaming %s as a placeholder', async (src) => {
     await render(src, '');
     expect(renderer.root.findAllByProps({ 'data-media-placeholder': true })).toHaveLength(1);
     expect(mocks.resolve).not.toHaveBeenCalled();
@@ -100,10 +100,10 @@ describe('assistant inline media', () => {
 
   it('shows a localized device failure and retries for a new message identity', async () => {
     mocks.resolve.mockResolvedValueOnce({ error: { code: 'offline', reason: 'internal detail' } });
-    await render('lab-ksu:/home/x/a.png');
+    await render('gpu-box:/home/x/a.png');
     expect(JSON.stringify(renderer.toJSON())).toContain('Device offline');
     expect(JSON.stringify(renderer.toJSON())).not.toContain('internal detail');
-    await act(async () => { renderer.update(<Message src="lab-ksu:/home/x/a.png" ts="2026-10-15T12:01:00Z" />); });
+    await act(async () => { renderer.update(<Message src="gpu-box:/home/x/a.png" ts="2026-10-15T12:01:00Z" />); });
     expect(renderer.root.findAllByType('img')).toHaveLength(1);
   });
 
