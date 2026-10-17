@@ -25,6 +25,7 @@ import {
   sessionsRespondDecisionInput,
   sessionsCancelResumeInput,
   sessionsRewindInput,
+  sessionsResolveMediaInput,
   sessionsPendingInteractionInput,
   schedulesListInput,
   boardsListInput,
@@ -226,6 +227,7 @@ function sessionsRouter(service: UiService) {
     respondDecision: makeMutation(service, 'sessions.respondDecision', sessionsRespondDecisionInput),
     cancelResume: makeMutation(service, 'sessions.cancelResume', sessionsCancelResumeInput),
     rewind: makeMutation(service, 'sessions.rewind', sessionsRewindInput),
+    resolveMedia: makeMutation(service, 'sessions.resolveMedia', sessionsResolveMediaInput),
   });
 }
 
