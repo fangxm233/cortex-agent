@@ -10,6 +10,7 @@ import {
   useActivePreset, useApplyPreset, useResetPalette,
   useTheme, useSetTheme,
 } from '@/theme';
+import { setWorkLogMode, useWorkLogMode } from '@/features/session/transcript/work-log-pref';
 import { MAppearanceView } from './MAppearanceView';
 
 export function MAppearanceScreen() {
@@ -32,6 +33,7 @@ export function MAppearanceScreen() {
   const setGlass = useSetGlass();
   const motionMode = useMotionMode();
   const setMotionMode = useSetMotionMode();
+  const workLogMode = useWorkLogMode();
   return (
     <MAppearanceView
       lang={lang}
@@ -52,6 +54,8 @@ export function MAppearanceScreen() {
       onSetGlass={setGlass}
       motionMode={motionMode}
       onSetMotionMode={setMotionMode}
+      workLogMode={workLogMode}
+      onSetWorkLogMode={setWorkLogMode}
       onBack={() => mobileHeaderBack(navigate, '/m/settings')}
     />
   );

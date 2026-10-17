@@ -32,10 +32,11 @@ function MathMarkup({ text, display }: { text: string; display: boolean }): JSX.
 
 const INLINE_RENDERERS: InlineRenderers = {
   text: (node, key) => <Fragment key={key}>{node.text}</Fragment>,
-  bold: (node, key) => <strong key={key} style={{ fontWeight: 650 }}>{node.text}</strong>,
+  bold: (node, key) => <strong key={key} style={{ fontWeight: 600, color: 'var(--proto-ink)' }}>{node.text}</strong>,
   italic: (node, key) => <em key={key}>{node.text}</em>,
   code: (node, key) => (
-    <code key={key} style={{ font: `500 12.5px ${mono}`, background: 'var(--proto-gray)', borderRadius: 'var(--r-chip)', padding: '1px 5px' }}>
+    // A light tint, not a chip: prose that names a lot of paths and flags should not read as spotted.
+    <code key={key} style={{ font: `500 0.88em ${mono}`, background: 'var(--proto-rail)', borderRadius: 4, padding: '1px 4px' }}>
       {node.text}
     </code>
   ),
@@ -52,13 +53,15 @@ function Inline({ nodes }: { nodes: InlineNode[] }): JSX.Element {
 
 type BlockOf<T extends Block['type']> = Extract<Block, { type: T }>;
 /** Render options a block may consult. Renderers that ignore them simply omit the parameter. */
-type RenderCtx = { wideTables: boolean };
+type RenderCtx = { wideTables: boolean; first: boolean };
 type BlockRenderer = (block: Block, ctx: RenderCtx) => JSX.Element | null;
 
-function HeadingBlock({ block }: { block: BlockOf<'heading'> }): JSX.Element {
-  const size = block.level <= 1 ? 17 : block.level === 2 ? 15.5 : 14.5;
+/** Headings step up from the body by a clear margin and take room above them, so a long reply reads
+ *  as sections rather than one wall; the first block of a message needs no room above. */
+function HeadingBlock({ block, first }: { block: BlockOf<'heading'>; first: boolean }): JSX.Element {
+  const size = block.level <= 1 ? '1.25em' : block.level === 2 ? '1.14em' : '1.05em';
   return (
-    <div style={{ fontSize: size, fontWeight: 650, color: 'var(--proto-ink)', margin: '2px 0' }}>
+    <div style={{ fontSize: size, fontWeight: 600, lineHeight: 1.45, color: 'var(--proto-ink)', margin: first ? '0 0 -2px' : '10px 0 -2px' }}>
       <Inline nodes={block.inline} />
     </div>
   );
@@ -67,7 +70,8 @@ function HeadingBlock({ block }: { block: BlockOf<'heading'> }): JSX.Element {
 function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
   const Tag = block.ordered ? 'ol' : 'ul';
   return (
-    <Tag style={{ margin: '2px 0', paddingLeft: 22, display: 'flex', flexDirection: 'column', gap: 3 }}>
+    // The base stylesheet strips list markers; a reply's lists read as lists only with them back.
+    <Tag style={{ margin: '0', paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {block.items.map((item, index) => <li key={index}><Inline nodes={item} /></li>)}
     </Tag>
   );
@@ -224,7 +228,7 @@ function TableBlock({ block, wide }: { block: BlockOf<'table'>; wide: boolean })
 }
 
 const BLOCK_RENDERERS: Record<Block['type'], BlockRenderer> = {
-  heading: (block) => <HeadingBlock block={block as BlockOf<'heading'>} />,
+  heading: (block, ctx) => <HeadingBlock block={block as BlockOf<'heading'>} first={ctx.first} />,
   paragraph: (block) => <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}><Inline nodes={(block as BlockOf<'paragraph'>).inline} /></div>,
   list: (block) => <ListBlock block={block as BlockOf<'list'>} />,
   code: (block) => <CodeBlock block={block as BlockOf<'code'>} />,
@@ -259,7 +263,7 @@ export function ChatMarkdown({ text, dropTrailingHr = false, renderMath = false,
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {blocks.map((b, i) => (
-        <BlockView key={i} block={b} ctx={{ wideTables }} />
+        <BlockView key={i} block={b} ctx={{ wideTables, first: i === 0 }} />
       ))}
     </div>
   );

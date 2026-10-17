@@ -483,6 +483,12 @@ export const enBase = {
   stMotionFull: 'Full',
   stMotionReduced: 'Reduced',
 
+  // ── Appearance / chat work log ──
+  stChatWorkLabel: 'Work in chat',
+  stChatWorkHint: 'Each finished turn folds its tool calls and working notes into one line above the answer.',
+  stChatWorkFold: 'Fold when done',
+  stChatWorkExpanded: 'Always show',
+
   // ── Appearance / glass control ──
   stGlassLabel: 'Glass',
   stGlassHint: 'Pick Off if scrolling feels slow — every surface turns solid.',

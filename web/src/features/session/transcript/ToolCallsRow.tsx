@@ -1,66 +1,41 @@
-import { useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type Ref } from 'react';
-import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
+import { useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from '@/features/session/composer/chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { ToolCallImages } from './ToolCallImages';
 import { ThinkingRow } from './HintRow';
-import { toolCallOverflowText } from './tool-call-overflow';
-import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflow';
+import { EventIcon, eventRowStyle, type EventIconName } from './EventRow';
+import { bareToolName, leadingCategory, toolCategory, toolRunText, type ToolCategory } from './tool-summary';
 
 const mono = "'IBM Plex Mono',monospace";
-const COLLAPSED_GAP = 7;
-const chipStyle: CSSProperties = {
-  font: `400 11px ${mono}`,
-  // Control material, no filter: these chips live in the scrolling transcript.
-  background: 'var(--material-control-bg)',
-  boxShadow: 'var(--material-control-shadow)',
-  border: '1px solid var(--proto-line-2)',
-  padding: '1px 6px',
-  borderRadius: 'var(--r-chip)',
-  flex: 'none',
+
+// A run of consecutive tool calls: one quiet line saying what the run did ("Ran 6 commands · Edited
+// parser.ts"), which opens to the calls themselves — one line each, the command or path in mono.
+// The line is the same in both states: opening it turns its caret and hangs the list under it.
+
+const CATEGORY_ICON: Record<ToolCategory | 'thought', EventIconName> = {
+  command: 'terminal', read: 'file', edit: 'pencil', search: 'search', web: 'globe', todo: 'list', other: 'circle', thought: 'spark',
 };
-const overflowStyle: CSSProperties = {
-  font: `500 11px ${mono}`,
-  color: 'var(--proto-muted)',
-  flex: 'none',
+
+const panelStyle: CSSProperties = {
+  display: 'flex', flexDirection: 'column', padding: '2px 0 4px 26px', cursor: 'pointer', animation: 'cxfade .2s ease',
 };
-const collapsedCallsStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP,
-  flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative',
-};
-const measureStyle: CSSProperties = {
-  ...collapsedCallsStyle,
-  position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
-  width: 'max-content', overflow: 'visible',
-};
-const expandedPanelStyle: CSSProperties = {
-  background: 'var(--material-card-bg)',
-  boxShadow: 'var(--material-card-shadow)',
-  border: '1px solid var(--proto-line)',
-  borderRadius: 'var(--r-card)',
-  padding: '2px 0',
-  cursor: 'pointer',
-  animation: 'cxfade .2s ease',
-};
-const expandedCallStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8,
-  padding: '6px 13px', borderTop: '1px solid var(--proto-line-2)',
-};
-const callDividerStyle: CSSProperties = { borderTop: '1px solid var(--proto-line-2)' };
+const callStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, minHeight: 24, minWidth: 0 };
 const kindStyle: CSSProperties = {
-  font: `600 11px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '1.5px 7px',
-  borderRadius: 'var(--r-chip)', flex: 'none',
+  fontSize: 11.5, fontWeight: 500, color: 'var(--proto-faint)', flex: 'none', padding: '0 5px', margin: '0 -5px',
+  borderRadius: 'var(--r-chip)', border: '1px solid transparent',
 };
 const inputStyle: CSSProperties = {
-  font: `400 11px ${mono}`, color: 'var(--proto-ink-2)',
+  font: `400 12px ${mono}`, color: 'var(--proto-ink-3)', minWidth: 0,
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 };
 
 type Inspect = (event: MouseEvent<HTMLButtonElement>, call: ToolCall) => void;
 
+/** A call whose output went over the debug character threshold: a debugging signal, shown only in
+ *  the open list (calls carry `debug` only while the server runs with debugging on). */
 function toolWarningStyle(warned: boolean): CSSProperties {
   if (!warned) return {};
   return {
@@ -81,111 +56,28 @@ function detailFor(call: ToolCall): DebugDetail | null {
   };
 }
 
-/** Touch rows keep the same chrome and only grow to a finger-sized hit target. The extra height is
- *  handed back through a negative margin (as desktop does with its own -8px), so the visible gap to
- *  the neighbouring prose stays close to desktop instead of adding ~14px of empty target each side. */
-const TOUCH_ROW_HEIGHT = 44;
-const TOUCH_SLACK = 14;
-
-/** Only the summary row carries the slack: an open panel ends the group, so its edge stays put. */
-function touchMargin(expanded: boolean): string {
-  return expanded ? `-${TOUCH_SLACK}px 0 0` : `-${TOUCH_SLACK}px 0`;
-}
-
-function collapsedRowStyle(hover: boolean, touch: boolean): CSSProperties {
-  return {
-    ...MENU_BUTTON_STYLE, padding: 0, background: 'transparent',
-    ...(touch ? { minHeight: TOUCH_ROW_HEIGHT } : {}),
-    display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP, fontSize: 11.5,
-    color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
-    flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden',
-    cursor: 'pointer',
-  };
-}
-
-function ToolChip({ call }: { call: ToolCall }): JSX.Element {
-  const L = useVocab();
+function CallLine({ call, touch, onInspect }: { call: ToolCall; touch: boolean; onInspect: Inspect }): JSX.Element {
+  const category = toolCategory(call.kind);
   return (
-    <span style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
-      {call.thinking ? L.chatThinking : call.kind}
-    </span>
-  );
-}
-
-interface SummaryProps {
-  text: string;
-  expanded: boolean;
-  hover: boolean;
-  touch: boolean;
-  onToggle: () => void;
-  onHover: (hovered: boolean) => void;
-  buttonRef: Ref<HTMLButtonElement>;
-}
-
-// The summary row is the same in both states — expanding flips its caret and hangs a panel under
-// it rather than replacing it, so the chips stay readable while the detail is open.
-function SummaryButton({ text, expanded, hover, touch, onToggle, onHover, buttonRef, children }: SummaryProps & {
-  children?: ReactNode;
-}): JSX.Element {
-  return (
-    <div>
-      <button ref={buttonRef} type="button" className={MENU_FOCUS} aria-expanded={expanded} onClick={onToggle} onMouseEnter={touch ? undefined : () => onHover(true)} onMouseLeave={touch ? undefined : () => onHover(false)} style={collapsedRowStyle(hover, touch)}>
-        <span style={{ fontSize: 9, color: 'var(--proto-muted)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
-        <span style={{ flex: 'none' }}>{text}</span>
-        {children}
-      </button>
-    </div>
-  );
-}
-
-function ToolCallsSummaryRow({ calls, ...summary }: SummaryProps & { calls: ToolCall[] }): JSX.Element {
-  const L = useVocab();
-  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.thinking ? L.chatThinking : call.kind), COLLAPSED_GAP);
-  const overflowText = toolCallOverflowText(layout.hiddenCount);
-  return (
-    <SummaryButton {...summary}>
-      <span ref={containerRef} style={collapsedCallsStyle}>
-        {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
-        {overflowText ? <span style={overflowStyle}>{overflowText}</span> : null}
-        <span ref={measureRef} aria-hidden="true" style={measureStyle}>
-          {calls.slice(0, TOOL_CALL_MEASURE_CAP).map((call, index) => <ToolChip key={index} call={call} />)}
-          <span style={overflowStyle}>+{calls.length}</span>
-        </span>
+    <div className={call.debug ? 'group/tool-call' : undefined} data-tool-call="" style={{ ...callStyle, minHeight: touch ? 30 : 24 }}>
+      <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
+        {category === 'other' ? bareToolName(call.kind) : call.kind}
       </span>
-    </SummaryButton>
-  );
-}
-
-function ExpandedCallLine({ call, first, touch, onInspect }: {
-  call: ToolCall;
-  first: boolean;
-  touch: boolean;
-  onInspect: Inspect;
-}): JSX.Element {
-  return (
-    <div className={call.debug ? 'group/tool-call' : undefined} style={{ ...expandedCallStyle, ...(first ? { borderTop: 'none' } : {}) }}>
-      <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>{call.kind}</span>
-      <span style={{ ...inputStyle, ...(call.debug ? { minWidth: 0, flex: 1 } : {}) }}>{call.input}</span>
+      <span style={{ ...inputStyle, flex: 1 }}>{call.input}</span>
       {call.debug ? <DebugInspectButton compact hoverGroup="tool-call" visible={touch} onClick={(event) => onInspect(event, call)} /> : null}
     </div>
   );
 }
 
-/** One call in the open panel; a call that returned images hangs them under its line. */
-function ExpandedToolCall({ call, first, touch, onInspect }: {
-  call: ToolCall;
-  first: boolean;
-  touch: boolean;
-  onInspect: Inspect;
-}): JSX.Element {
-  if (call.thinking) return <div onClick={(event) => event.stopPropagation()}
-    style={{ padding: '2px 13px', ...(first ? {} : callDividerStyle) }}>
-    <ThinkingRow text={call.input} touch={touch} />
-  </div>;
-  if (!call.images?.length) return <ExpandedCallLine call={call} first={first} touch={touch} onInspect={onInspect} />;
+/** One call in the open list; a call that returned images hangs them under its line. */
+function OpenCall({ call, touch, onInspect }: { call: ToolCall; touch: boolean; onInspect: Inspect }): JSX.Element {
+  if (call.thinking) {
+    return <div onClick={(event) => event.stopPropagation()}><ThinkingRow text={call.input} touch={touch} /></div>;
+  }
+  if (!call.images?.length) return <CallLine call={call} touch={touch} onInspect={onInspect} />;
   return (
-    <div style={first ? undefined : callDividerStyle}>
-      <ExpandedCallLine call={call} first touch={touch} onInspect={onInspect} />
+    <div>
+      <CallLine call={call} touch={touch} onInspect={onInspect} />
       <ToolCallImages images={call.images} />
     </div>
   );
@@ -198,24 +90,6 @@ function imageCount(calls: ToolCall[]): number {
     : 0;
 }
 
-function ExpandedToolCalls({ calls, selected, touch, onInspect, onClose, onCollapse }: {
-  calls: ToolCall[];
-  selected: DebugDetail | null;
-  touch: boolean;
-  onInspect: Inspect;
-  onClose: () => void;
-  onCollapse: () => void;
-}): JSX.Element {
-  return (
-    <>
-      <div data-tool-calls-panel onClick={onCollapse} style={expandedPanelStyle}>
-        {calls.map((call, index) => <ExpandedToolCall key={index} call={call} first={index === 0} touch={touch} onInspect={onInspect} />)}
-      </div>
-      <DebugDetailsModal detail={selected} onClose={onClose} />
-    </>
-  );
-}
-
 export function ToolCallsRow({ calls, sessionId, touch = false }: {
   calls: ToolCall[];
   sessionId?: string;
@@ -226,13 +100,12 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
   const client = useTRPCClient();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const [hover, setHover] = useState(false);
   const [selected, setSelected] = useState<DebugDetail | null>(null);
   const images = imageCount(calls);
-  const count = calls.filter((call) => !call.thinking).length;
   const text = images > 0
     ? fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images })
-    : count > 1 ? `${count} ${L.toolCallsUnit}` : `1 ${L.toolCallUnit}`;
+    : toolRunText(calls, L);
+  const icon = images > 0 ? 'file' : CATEGORY_ICON[leadingCategory(calls)];
   const inspect: Inspect = (event, call) => {
     event.stopPropagation();
     const detail = detailFor(call);
@@ -248,11 +121,22 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
   };
   const collapse = (): void => { setExpanded(false); buttonRef.current?.focus(); };
   return (
-    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: touch ? touchMargin(expanded) : '-8px 0' }}>
-      {images > 0
-        ? <SummaryButton text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />
-        : <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />}
-      {expanded ? <ExpandedToolCalls calls={calls} selected={selected} touch={touch} onInspect={inspect} onClose={() => setSelected(null)} onCollapse={collapse} /> : null}
+    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <button ref={buttonRef} type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}
+        className={`${MENU_FOCUS}${touch ? '' : ' hover:bg-[var(--proto-gray)]'}`} style={eventRowStyle(touch, true)}>
+        <span style={{ width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)' }}>
+          <EventIcon name={expanded ? 'chevron' : icon} open={expanded} />
+        </span>
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
+      </button>
+      {expanded ? (
+        <>
+          <div data-tool-calls-panel onClick={collapse} style={panelStyle}>
+            {calls.map((call, index) => <OpenCall key={index} call={call} touch={touch} onInspect={inspect} />)}
+          </div>
+          <DebugDetailsModal detail={selected} onClose={() => setSelected(null)} />
+        </>
+      ) : null}
     </div>
   );
 }

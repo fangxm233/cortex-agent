@@ -42,35 +42,32 @@ const imageCalls: ToolCall[] = [
 beforeEach(() => { harness.query.mockReset(); harness.openMedia.mockReset(); });
 
 describe('ToolCallsRow', () => {
-  it('keeps the same mounted toggle and chip measurement across expansion and collapse', () => {
+  it('says what the run did in one line, and keeps the same toggle across expansion and collapse', () => {
     const renderer = mount();
     const toggle = renderer.root.findByType('button');
-    const measure = toggle.findByProps({ 'aria-hidden': 'true' });
+    expect(text(toggle)).toBe('Read file.ts · Ran 1 command');
     expect(toggle.props['aria-expanded']).toBe(false);
     expect(toggle.props.className).toContain('focus-visible:outline');
     act(() => toggle.props.onClick());
     expect(renderer.root.findByType('button') === toggle).toBe(true);
     expect(toggle.props['aria-expanded']).toBe(true);
-    expect(toggle.findByProps({ 'aria-hidden': 'true' }) === measure).toBe(true);
     expect(renderer.root.findAllByType(DebugInspectButton)).toHaveLength(1);
     act(() => toggle.props.onClick());
     expect(renderer.root.findByType('button') === toggle).toBe(true);
     expect(toggle.props['aria-expanded']).toBe(false);
-    expect(toggle.findByProps({ 'aria-hidden': 'true' }) === measure).toBe(true);
     expect(renderer.root.findAllByType(DebugInspectButton)).toHaveLength(0);
     expect(harness.query).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 
-  it('keeps the summary and clickable details in one spaced group', () => {
+  it('opens to one line per call, and a click on the list folds it back', () => {
     const renderer = mount();
     const toggle = renderer.root.findByType('button');
     act(() => toggle.props.onClick());
-    const group = renderer.root.findByProps({ 'data-tool-calls': true });
     const panel = renderer.root.findByProps({ 'data-tool-calls-panel': true });
-    expect(group.props.style).toMatchObject({ display: 'flex', flexDirection: 'column', gap: 6 });
-    expect(panel.props.style.marginTop ?? 0).toBeGreaterThanOrEqual(0);
-    expect(toggle.parent!.props.style?.margin ?? 0).toBe(0);
+    expect(panel.findAllByProps({ 'data-tool-call': '' })).toHaveLength(2);
+    expect(text(panel)).toContain('file.ts');
+    expect(text(panel)).toContain('pwd');
     act(() => panel.props.onClick());
     expect(toggle.props['aria-expanded']).toBe(false);
     expect(renderer.root.findAllByProps({ 'data-tool-calls-panel': true })).toHaveLength(0);
@@ -110,25 +107,22 @@ describe('ToolCallsRow', () => {
   it('touch rows keep the same chrome with a finger-sized target and visible inspection', () => {
     const renderer = mount(calls, true);
     const toggle = renderer.root.findByType('button');
-    expect(toggle.props.style.minHeight).toBe(44);
-    expect(toggle.props.onMouseEnter).toBeUndefined();
-    expect(renderer.root.findByProps({ 'data-tool-calls': true }).props.style.margin).toBe('-14px 0');
+    expect(toggle.props.style.minHeight).toBe(40);
+    expect(toggle.props.className).not.toContain('hover:');
     act(() => toggle.props.onClick());
-    expect(renderer.root.findByProps({ 'data-tool-calls': true }).props.style.margin).toBe('-14px 0 0');
     expect(renderer.root.findByType(DebugInspectButton).props.visible).toBe(true);
     act(() => renderer.unmount());
   });
 
-  it('an image row reads as a count of images, with no chips and no image while collapsed', () => {
+  it('an image row reads as a count of images, with no image while collapsed', () => {
     const renderer = mount(imageCalls);
     const toggle = renderer.root.findByType('button');
-    expect(text(toggle)).toBe('▸Read 3 images');
-    expect(renderer.root.findAllByProps({ 'aria-hidden': 'true' })).toHaveLength(0);
+    expect(text(toggle)).toBe('Read 3 images');
     expect(renderer.root.findAllByProps({ 'data-tool-image': true })).toHaveLength(0);
     act(() => renderer.unmount());
 
     const single = mount([imageCalls[0]]);
-    expect(text(single.root.findByType('button'))).toBe('▸Read 1 image');
+    expect(text(single.root.findByType('button'))).toBe('Read 1 image');
     act(() => single.unmount());
   });
 
@@ -161,7 +155,7 @@ describe('ToolCallsRow', () => {
 
   it('a mixed run still renders as an ordinary tool row', () => {
     const renderer = mount([imageCalls[0], calls[1]]);
-    expect(text(renderer.root.findByType('button'))).toContain('2 tool calls');
+    expect(text(renderer.root.findByType('button'))).toBe('Read a.png · Ran 1 command');
     act(() => renderer.unmount());
   });
 });

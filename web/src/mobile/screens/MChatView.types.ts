@@ -64,6 +64,11 @@ export interface MChatViewProps {
   /** Project the session belongs to; prefixes the header status line when known. */
   project?: string;
   rows: ChatRow[];
+  /** The foreground turn is running (not merely held open by background work): the turn being
+   *  written keeps its work log open. */
+  live?: boolean;
+  /** The turn ended but background work holds the session; the stream says so at its end. */
+  backgroundRunning?: boolean;
   /** The session's history is still loading — the transcript window follows the tail until it lands. */
   loading?: boolean;
   transcriptError?: boolean;

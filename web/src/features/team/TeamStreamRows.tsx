@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
-import { MENU_FOCUS, MONO } from '@/design/MenuChrome';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useLangOptional, useVocabOptional, type Vocab } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
 import { TeamRowSlot, type TeamRowRenderer } from '@/features/session/transcript/team-row-slot';
@@ -38,11 +38,14 @@ const CLAMP2: CSSProperties = {
   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minWidth: 0,
   overflowWrap: 'anywhere',
 };
-const TIME: CSSProperties = { font: `400 11px ${MONO}`, color: 'var(--proto-faint)', flex: 'none', whiteSpace: 'nowrap' };
+const TIME: CSSProperties = { fontSize: 12, color: 'var(--proto-faint)', flex: 'none', whiteSpace: 'nowrap' };
+// A worker's traffic is something the lead answers from, so it keeps a surface — a quiet one: a
+// hairline and the inset fill, no shadow, the same radius as every other transcript card.
 const CARD: CSSProperties = {
-  background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
+  background: 'var(--material-inset-bg)',
   border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', overflow: 'hidden',
 };
+const VERB: CSSProperties = { fontSize: 13, fontWeight: 550, color: 'var(--proto-ink-3)', flex: 'none' };
 /** Ink of an update's line: routine reads quieter than a report or request. */
 function lineInk(update: WorkerUpdate, strong = false): string {
   if (update.kind === 'progress') return 'var(--proto-muted)';
@@ -99,14 +102,14 @@ function WorkerPill({ name, worker }: { name: string; worker: SessionInfo | null
   const style: CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 220, padding: '1px 8px 1px 6px',
     borderRadius: 'var(--r-pill)', background: 'var(--material-control-bg)', border: '1px solid var(--proto-line-2)',
-    font: `500 11.5px ${MONO}`, color: 'var(--proto-ink-2)', lineHeight: '18px',
+    fontSize: 12.5, fontWeight: 500, color: 'var(--proto-ink-2)', lineHeight: '18px',
   };
   const content = <><Dot worker={worker} /><span style={ELLIPSIS}>{name}</span></>;
   if (!open) return <span data-worker-pill={name} style={style}>{content}</span>;
   return (
     <button type="button" data-worker-pill={name} className={MENU_FOCUS} title={L.wbTeamOpenWorker}
       onClick={(event) => { event.stopPropagation(); open(); }}
-      style={{ ...style, cursor: 'pointer', fontFamily: MONO }}>
+      style={{ ...style, cursor: 'pointer', fontFamily: 'inherit' }}>
       {content}
     </button>
   );
@@ -118,7 +121,7 @@ function OpenLink({ worker, label }: { worker: SessionInfo | null; label: string
   return (
     <button type="button" data-open-worker="" className={MENU_FOCUS}
       onClick={(event) => { event.stopPropagation(); onOpenWorker(worker.sessionId); }}
-      style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: `500 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>
+      style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 550, color: 'var(--proto-accent)', flex: 'none' }}>
       {label} ↗
     </button>
   );
@@ -150,18 +153,18 @@ function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }
   const worker = findWorker(workers, action.worker) ?? (action.worker ? null : spawnedWorker(workers, action.text));
   const name = action.worker ?? worker?.workerName ?? null;
   return (
-    <div data-team-action="spawn" style={{ ...CARD, padding: touch ? '9px 12px' : '8px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>{actionVerb(action, L)}</span>
+    <div data-team-action="spawn" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, minHeight: touch ? 40 : 30 }}>
+        <span style={{ ...VERB, color: 'var(--proto-accent)' }}>{actionVerb(action, L)}</span>
         {name && <WorkerPill name={name} worker={worker} />}
-        {action.model && <span style={{ ...ELLIPSIS, font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{action.model}</span>}
+        {action.model && <span style={{ ...ELLIPSIS, fontSize: 12, color: 'var(--proto-faint)' }}>{action.model}</span>}
         <span style={{ flex: 1 }} />
         <OpenLink worker={worker} label={L.wbTeamOpenShort} />
       </div>
       {action.text && (
         <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
           title={open ? L.wbTeamHideFull : L.wbTeamShowFull}
-          style={{ ...BODY, fontSize: touch ? 13 : 12.5, lineHeight: 1.5, cursor: 'pointer', ...(open ? {} : CLAMP2) }}>
+          style={{ ...BODY, fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: 'var(--proto-muted)', cursor: 'pointer', paddingLeft: 2, ...(open ? { color: 'var(--proto-ink-2)' } : CLAMP2) }}>
           {open ? <ChatMarkdown text={fullText(action.text, action.partial)} /> : action.text}
         </div>
       )}
@@ -182,11 +185,11 @@ function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean 
     <div data-team-action={action.op} {...(canOpen ? toggleKeys(() => setOpen((v) => !v)) : {})}
       aria-expanded={canOpen ? open : undefined}
       style={{
-        display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: touch ? '4px 0' : '2px 2px',
-        minHeight: touch ? 30 : undefined, fontSize: touch ? 13 : 12.5, color: 'var(--proto-muted)',
+        display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: 0,
+        minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13, color: 'var(--proto-muted)',
         cursor: canOpen ? 'pointer' : undefined,
       }}>
-      <span style={{ font: `600 11px ${MONO}`, letterSpacing: '.02em', color: 'var(--proto-muted)', flex: 'none' }}>{actionVerb(action, L)}</span>
+      <span style={{ ...VERB, color: 'var(--proto-muted)' }}>{actionVerb(action, L)}</span>
       {action.worker && <WorkerPill name={action.worker} worker={worker} />}
       {message && (
         <span style={{ ...ELLIPSIS, color: action.op === 'stop' ? 'var(--proto-muted)' : 'var(--proto-ink-2)' }}>
@@ -215,7 +218,7 @@ export function TeamActionRow({ action, touch = false }: { action: TeamActionVie
 // ── worker updates ──────────────────────────────────────────────────────────────────────────────
 
 const TAG_BASE: CSSProperties = {
-  font: `600 10.5px ${MONO}`, padding: '0 6px', borderRadius: 5, marginRight: 6, whiteSpace: 'nowrap', display: 'inline-block', lineHeight: '16px',
+  fontSize: 11, fontWeight: 600, padding: '0 6px', borderRadius: 5, marginRight: 6, whiteSpace: 'nowrap', display: 'inline-block', lineHeight: '17px',
 };
 const TAG_PLAN: CSSProperties = { ...TAG_BASE, background: 'var(--proto-amber-bg)', color: 'var(--proto-amber-fg)', boxShadow: 'inset 0 0 0 1px var(--proto-amber-border)' };
 const TAG_QUESTION: CSSProperties = { ...TAG_BASE, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' };
@@ -254,7 +257,7 @@ function TimelineItem({ update, last, showName, touch }: { update: WorkerUpdate;
       <span style={{ ...TIME, paddingTop: 2 }}>{messageTimeLabel(update.ts ?? undefined) ?? ''}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ ...(open ? { overflowWrap: 'anywhere' } : ELLIPSIS), fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: lineInk(update, last) }}>
-          {showName && <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-ink-2)' }}>{update.worker} · </span>}
+          {showName && <span style={{ fontWeight: 550, color: 'var(--proto-ink-2)' }}>{update.worker} · </span>}
           <KindTag update={update} />
           {!open && update.line}
           <AnswerTag update={update} />
@@ -264,7 +267,7 @@ function TimelineItem({ update, last, showName, touch }: { update: WorkerUpdate;
             {update.body && <ChatMarkdown text={update.body} wideTables={!touch} dropTrailingHr={touch} />}
             {update.answer?.text && (
               <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: '2px solid var(--proto-line-3)' }}>
-                <div style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-muted)', letterSpacing: '.04em' }}>{L.wbTeamLeadReply}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.wbTeamLeadReply}</div>
                 <ChatMarkdown text={fullText(update.answer.text, update.answer.partial)} />
               </div>
             )}
@@ -291,7 +294,7 @@ function ThreadStatus({ thread, worker, waiting, now, range = true }: {
 }): JSX.Element | null {
   const L = useVocabOptional();
   const lang = useLangOptional();
-  const base: CSSProperties = { font: `400 11px ${MONO}`, whiteSpace: 'nowrap', flex: 'none' };
+  const base: CSSProperties = { fontSize: 12, whiteSpace: 'nowrap', flex: 'none' };
   if (waiting) {
     return <span data-thread-status="waiting" style={{ ...base, color: 'var(--proto-ink-2)', fontWeight: 600 }}>
       {waiting.kind === 'plan' ? L.wbTeamPlanWaiting : L.wbTeamQuestionWaiting}
@@ -324,7 +327,7 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
         <span style={{ ...ELLIPSIS, flex: '0 1 auto', fontSize: touch ? 14 : 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
         <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={!touch} />
         <span style={{ flex: 1 }} />
-        <span style={{ ...ELLIPSIS, flex: '0 100 auto', font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>{threadSummary(thread, L, worker)}</span>
+        <span style={{ ...ELLIPSIS, flex: '0 100 auto', fontSize: 12, color: 'var(--proto-muted)' }}>{threadSummary(thread, L, worker)}</span>
         <span style={{ color: 'var(--proto-muted)', display: 'inline-flex' }}><Chevron open={open} /></span>
       </div>
       {!open && (
@@ -392,7 +395,7 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 6px' }}>
         <button type="button" className={MENU_FOCUS} aria-expanded={open} onClick={toggle}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', padding: touch ? '6px 0' : 0, font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', padding: touch ? '6px 0' : 0, fontFamily: 'inherit', fontSize: 12, color: 'var(--proto-muted)' }}>
           {n === 1 ? L.wbTeamItemsOne : fmt(L.wbTeamItemsMany, { n })} · {open ? L.wbTeamHideFull : L.wbTeamExpandTimeline}
           <Chevron open={open} />
         </button>
@@ -428,13 +431,15 @@ export function LeadWaitingLine({ touch = false, offset = 0 }: {
   let text: ReactNode;
   if (waited.length === 1) {
     const [before, after] = L.wbTeamLeadWaitingOne.split('{name}');
-    text = <>{before}<span style={{ font: `500 11.5px ${MONO}`, color: 'var(--proto-ink-2)' }}>{waited[0].workerName ?? ''}</span>{after}</>;
+    text = <>{before}<span style={{ fontWeight: 550, color: 'var(--proto-ink-2)' }}>{waited[0].workerName ?? ''}</span>{after}</>;
   } else {
     text = fmt(L.wbTeamLeadWaitingMany, { n: waited.length });
   }
   return (
-    <div data-lead-waiting="" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: offset, padding: '4px 2px', fontSize: touch ? 12.5 : 12, color: 'var(--proto-muted)' }}>
-      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box', border: '1.5px solid var(--proto-muted-3)', flex: 'none' }} />
+    <div data-lead-waiting="" style={{ display: 'flex', alignItems: 'center', gap: touch ? 9 : 10, marginTop: offset, minHeight: touch ? 36 : 28, fontSize: touch ? 13 : 12.5, color: 'var(--proto-muted)' }}>
+      <span style={{ width: 16, display: 'flex', justifyContent: 'center', flex: 'none' }}>
+        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box', border: '1.5px solid var(--proto-muted-3)', flex: 'none' }} />
+      </span>
       <span style={{ minWidth: 0 }}>{text}</span>
     </div>
   );

@@ -5,6 +5,7 @@ import { SSegmented } from '@/features/settings/ui/settings-kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
 import { useVocab, type Lang, type LangSource } from '@/i18n';
+import type { WorkLogMode } from '@/features/session/transcript/work-log-pref';
 import {
   languageHint, languageOptions, useAccentCopy, usePaletteCopy,
 } from '@/features/settings/useAppearanceCopy';
@@ -97,6 +98,8 @@ export function MAppearanceView({
   onSetGlass,
   motionMode,
   onSetMotionMode,
+  workLogMode = 'fold',
+  onSetWorkLogMode,
   onBack,
 }: {
   lang: Lang;
@@ -118,6 +121,9 @@ export function MAppearanceView({
   onSetGlass: (level: GlassLevel) => void;
   motionMode: MotionMode;
   onSetMotionMode: (mode: MotionMode) => void;
+  /** How a finished turn's work shows in the chat. */
+  workLogMode?: WorkLogMode;
+  onSetWorkLogMode?: (mode: WorkLogMode) => void;
   onBack: () => void;
 }) {
   const L = useVocab();
@@ -183,7 +189,7 @@ export function MAppearanceView({
             onChange={onSetGlass}
           />
           <ChoiceRow
-            divider={false} title={L.stMotionLabel} ariaLabel={L.stMotionLabel} value={motionMode}
+            divider={!!onSetWorkLogMode} title={L.stMotionLabel} ariaLabel={L.stMotionLabel} value={motionMode}
             options={[
               { id: 'system', label: L.stMotionSystem },
               { id: 'full', label: L.stMotionFull },
@@ -191,6 +197,16 @@ export function MAppearanceView({
             ] as const}
             onChange={onSetMotionMode}
           />
+          {onSetWorkLogMode && (
+            <ChoiceRow
+              divider={false} title={L.stChatWorkLabel} hint={L.stChatWorkHint} ariaLabel={L.stChatWorkLabel} value={workLogMode}
+              options={[
+                { id: 'fold', label: L.stChatWorkFold },
+                { id: 'expanded', label: L.stChatWorkExpanded },
+              ] as const}
+              onChange={onSetWorkLogMode}
+            />
+          )}
         </Card>
       </MScrollBody>
     </MScreen>

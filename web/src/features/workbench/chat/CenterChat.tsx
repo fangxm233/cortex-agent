@@ -6,6 +6,7 @@ import { ChatHeader } from './ChatHeader';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
+import { TranscriptStatusProvider } from '@/features/session/transcript/WorkLog';
 import { Composer } from '@/features/workbench/composer/Composer';
 import { ContextUsageControl } from '@/features/session/composer/ContextUsageControl';
 import { useChatSession } from '@/features/session/chat/useChatSession';
@@ -247,13 +248,16 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
         ) : (
           <TeamStreamProvider workers={team.workers} leadRunning={chat.running} onOpenWorker={setSelectedSession}>
             <BoardStreamProvider>
-              <MessageStream
-                rows={rows}
-                loading={!!sessionId && chat.transcriptPending}
-                interactionActions={chat.interactionActions}
-                edit={edit}
-                streamKey={sessionId}
-              />
+              <TranscriptStatusProvider backgroundRunning={chat.backgroundRunning} waitpoints={chat.waitpoints.waitpoints}>
+                <MessageStream
+                  rows={rows}
+                  loading={!!sessionId && chat.transcriptPending}
+                  interactionActions={chat.interactionActions}
+                  edit={edit}
+                  streamKey={sessionId}
+                  live={chat.running && !chat.backgroundRunning}
+                />
+              </TranscriptStatusProvider>
             </BoardStreamProvider>
           </TeamStreamProvider>
         )}

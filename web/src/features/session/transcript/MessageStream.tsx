@@ -1,6 +1,6 @@
 import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import { SystemHintRow, ThinkingRow } from './HintRow';
 import { ChatNavRail } from './ChatNavRail';
@@ -26,6 +26,9 @@ import { useTranscriptWindow } from './useTranscriptWindow';
 import { useStickToBottom } from './useStickToBottom';
 import { useTeamRowSlot } from './team-row-slot';
 import { useBoardRowSlot } from './board-row-slot';
+import { EventIcon, EventRow } from './EventRow';
+import { SessionStateLine, WaitpointRow, WorkLog } from './WorkLog';
+import { copyHosts, itemIndexes, layoutTurns, type TurnItem } from './turn-layout';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
@@ -200,8 +203,10 @@ function TurnCopyAction({ text }: { text?: string }): JSX.Element | null {
   );
 }
 
-function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey, ts }: {
+function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey, ts, narration = false }: {
   text: string;
+  /** A working note inside a turn's open work log: a step quieter than the answer. */
+  narration?: boolean;
   attachments?: Attachment[];
   /** Decisions announced with this row (send_decision) — cards hang under the text. */
   decisions?: DecisionItem[];
@@ -220,7 +225,13 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
   return (
     <div
       className="group"
-      style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.7, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
+      data-narration={narration ? 'true' : undefined}
+      style={{
+        position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
+        fontSize: narration ? 14 : 14.5, lineHeight: narration ? 1.7 : 1.75, color: narration ? 'var(--proto-ink-3)' : 'var(--proto-ink-2)',
+        ...(narration ? { margin: '3px 0' } : {}),
+        minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word',
+      }}
     >
       {regen && <div style={{ marginBottom: 4 }}><RegenNote /></div>}
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
@@ -234,22 +245,52 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
   );
 }
 
-/** One-line summary row for resolved / expired / cancelled interactions (and legacy rows). */
+/** One-line summary row for expired / cancelled interactions (and legacy rows). */
 function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected' | 'inactive'; label: string; text: string }): JSX.Element {
-  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted)' : 'var(--proto-success)';
-  const icon = tone === 'rejected' ? '✗' : tone === 'inactive' ? '◌' : '✓';
+  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? undefined : 'var(--proto-success)';
+  const icon = tone === 'rejected' ? 'cross' : tone === 'inactive' ? 'circle' : 'check';
+  return <EventRow icon={<EventIcon name={icon} color={color} />} label={label} summary={text} attrs={{ 'data-interaction-summary': tone }} />;
+}
+
+/** A question the reader has answered: one line that opens to the questions and answers. */
+function SealedAskRow({ children, count, time }: { children: JSX.Element; count: number; time: string | null }): JSX.Element {
+  const copy = useVocab();
+  const [open, setOpen] = useState(false);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
-      <span style={{ fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <EventRow icon={<EventIcon name={open ? 'chevron' : 'check'} open={open} color={open ? undefined : 'var(--proto-success)'} />}
+        label={copy.ixAnswered} summary={count === 1 ? copy.chatAskAnsweredOne : fmt(copy.chatAskAnsweredMany, { n: count })}
+        meta={time} expanded={open} onClick={() => setOpen((v) => !v)} attrs={{ 'data-interaction-sealed': 'ask' }} />
+      {open && children}
     </div>
   );
 }
 
-/** Interaction row — the transcript-inline card (scheme 13b/13c). Entity rows render the full
- *  desktop cards (pending actionable · resolved sealed in place); expired/cancelled + legacy rows
- *  render one-line summaries. The row owns the 13b answer state, the 13c 请求修改 expansion and
- *  the reading overlay (阅读 › / 查看计划 ›). */
+/** A plan the reader has settled: one line, its title, and the way back into the plan. A rejected
+ *  plan keeps the reader's feedback under it — those are the reader's own words. */
+function SealedPlanRow({ approved, title, time, feedback, onOpen }: {
+  approved: boolean; title: string; time: string | null; feedback: string | null; onOpen: () => void;
+}): JSX.Element {
+  const copy = useVocab();
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <EventRow icon={<EventIcon name={approved ? 'check' : 'cross'} color={approved ? 'var(--proto-success)' : 'var(--proto-danger)'} />}
+        label={approved ? copy.chatPlanApproved : copy.chatPlanRejected} summary={title}
+        meta={<>{time}<span style={{ color: 'var(--proto-accent)', fontWeight: 550 }}>{copy.chatPlanView}</span></>}
+        onClick={onOpen} attrs={{ 'data-interaction-sealed': approved ? 'plan-approved' : 'plan-rejected' }} />
+      {!approved && feedback && (
+        <div style={{ alignSelf: 'flex-end', maxWidth: '75%', background: 'var(--glass-2)', boxShadow: '0 0 0 1px var(--proto-line)', borderRadius: 'var(--r-float) var(--r-float) var(--r-chip) var(--r-float)', padding: '9px 14px', fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', whiteSpace: 'pre-wrap' }}>
+          {feedback}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Interaction row — the transcript-inline card (scheme 13b/13c). A pending question or plan is the
+ *  full actionable card; once settled it folds to one line (an answered question opens back to its
+ *  answers, a settled plan opens the reader); expired/cancelled + legacy rows are one-line
+ *  summaries. The row owns the 13b answer state, the 13c 请求修改 expansion and the reading overlay. */
 export function InteractionRowCard({ row, actions }: {
   row: Extract<ChatRow, { kind: 'interaction' }>;
   actions?: InteractionActions;
@@ -262,7 +303,7 @@ export function InteractionRowCard({ row, actions }: {
 
   if (v.kind === 'ask') {
     const m = v.model;
-    return (
+    const card = (
       <DeskAskCard
         model={m}
         state={askState}
@@ -272,24 +313,31 @@ export function InteractionRowCard({ row, actions }: {
         busy={!!actions?.busy}
       />
     );
+    return m.status === 'pending' ? card : <SealedAskRow count={m.questions.length} time={m.timeLabel}>{card}</SealedAskRow>;
   }
   if (v.kind === 'plan') {
     const m = v.model;
+    const settled = m.status === 'approved' || m.status === 'rejected';
     return (
       <>
-        <DeskPlanCard
-          model={m}
-          copy={copy}
-          feedbackOpen={feedbackOpen}
-          onFeedbackOpen={setFeedbackOpen}
-          onApprove={() => actions?.approvePlan(m.requestId)}
-          onReject={(fb) => {
-            actions?.rejectPlan(m.requestId, fb);
-            setFeedbackOpen(false);
-          }}
-          onOpenRead={() => setReadOpen(true)}
-          busy={!!actions?.busy}
-        />
+        {settled ? (
+          <SealedPlanRow approved={m.status === 'approved'} title={m.title} time={m.timeLabel} feedback={m.feedback}
+            onOpen={() => setReadOpen(true)} />
+        ) : (
+          <DeskPlanCard
+            model={m}
+            copy={copy}
+            feedbackOpen={feedbackOpen}
+            onFeedbackOpen={setFeedbackOpen}
+            onApprove={() => actions?.approvePlan(m.requestId)}
+            onReject={(fb) => {
+              actions?.rejectPlan(m.requestId, fb);
+              setFeedbackOpen(false);
+            }}
+            onOpenRead={() => setReadOpen(true)}
+            busy={!!actions?.busy}
+          />
+        )}
         {readOpen && (
           <PlanReadOverlay
             model={m}
@@ -311,8 +359,12 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, actions = false, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor }: {
+function Row({ row, interactionActions, actions = false, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor, inWork = false, background = false }: {
   row: ChatRow;
+  /** Drawn inside a turn's open work log (see WorkLog): working notes read a step quieter. */
+  inWork?: boolean;
+  /** A subagent still running after its turn ended. */
+  background?: boolean;
   interactionActions?: InteractionActions;
   /** True → user bubbles carry their copy/edit affordances (off for the rows around an open edit). */
   actions?: boolean;
@@ -381,7 +433,14 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
         </div>
       );
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} narration={inWork} />;
+    case 'waitpoint':
+      return (
+        <div className="group" data-row={row.kind}>
+          <WaitpointRow wait={row.wait} />
+          <TurnCopyAction text={assistantCopyText} />
+        </div>
+      );
     case 'notice':
       return (
         <div className="group">
@@ -411,6 +470,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
             model={row.model}
             status={row.status}
             toolCount={row.toolCount}
+            background={background}
           >
             {row.detailMode === 'lazy' && row.hasDetails && streamKey ? (
               <SubagentTranscriptDetail
@@ -433,24 +493,43 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
   }
 }
 
+/** Space above an item in a laid-out stream: a new turn stands apart, the rows of one turn sit close. */
+function itemGap(item: TurnItem, prev: TurnItem | undefined, rows: ChatRow[]): number {
+  if (!prev) return 0;
+  if (item.kind === 'row' && rows[item.index].kind === 'divider') return 28;
+  if (prev.kind === 'row' && rows[prev.index].kind === 'divider') return 20;
+  return item.segment !== prev.segment ? 30 : 8;
+}
+
 /** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid
  *  out vertically. Framework-free of the scroll/stick behavior so it can be embedded wherever a
- *  transcript needs rendering (the workbench center chat, nested subagent transcripts). Owns the
- *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
- *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
- *  the rewind. */
-export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true, anchors = false, start = 0 }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean;
+ *  transcript needs rendering (the workbench center chat, nested subagent transcripts). With `group`
+ *  (the top-level chat) the rows are laid out as turns — work folded into one line, the answer, what
+ *  the turn produced (see turn-layout); without it they stand in a flat list, as a nested subagent
+ *  transcript does. Owns the sec-23 message-edit state when an `edit` context is passed (the
+ *  workbench center chat): the edited bubble becomes an in-place EditBox, later rows dim under a
+ *  「将被回退」badge, and submit fires the rewind. */
+export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true, anchors = false, start = 0, group = false, live = false }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean;
   /** True → user rows publish their index as a `data-chat-anchor`, which is what the nav rail
    *  scrolls to. Only the top-level workbench transcript sets it: a nested subagent transcript
    *  renders through this same component and its rows are not session-level destinations. */
   anchors?: boolean;
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
-  start?: number }): JSX.Element {
+  start?: number;
+  /** Lay the rows out as turns (the top-level chat). */
+  group?: boolean;
+  /** The foreground turn is running: its work stays open and its trailing text is the answer so far. */
+  live?: boolean }): JSX.Element {
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
   // shape enough that the anchor no longer matches (guard inside the render below).
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const regenIdx = regenNoteIndexes(rows);
-  const assistantCopies = turnCopy ? assistantTurnCopyTargets(rows) : new Map<number, string>();
+  const items = useMemo(() => (group ? layoutTurns(rows, { live }) : null), [rows, group, live]);
+  const copies = useMemo(() => {
+    if (!turnCopy) return new Map<number, string>();
+    const targets = assistantTurnCopyTargets(rows);
+    return items ? copyHosts(items, targets, rows) : targets;
+  }, [rows, items, turnCopy]);
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && !editingRow.systemOrigin && editingRow.turnIndex !== undefined;
@@ -466,55 +545,86 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
 
   // Anchors mirror the nav rail's marks, which skip system-authored rows — see buildNavMarks.
   const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && row.kind === 'user' && !row.systemOrigin ? i : undefined);
-  const plainRows = (from: number, to?: number): JSX.Element[] => rows.slice(from, to).map((row, j) => (
-    <Row key={rowKey(row, from + j)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, from + j)} />
-  ));
+  const rowEl = (i: number, withActions: boolean, opts: { copyText?: string; inWork?: boolean; background?: boolean } = {}): JSX.Element => {
+    const row = rows[i];
+    return (
+      <Row
+        key={rowKey(row, i)}
+        row={row}
+        interactionActions={interactionActions}
+        actions={withActions}
+        assistantCopyText={opts.copyText}
+        regen={withActions && regenIdx.has(i)}
+        onStartEdit={withActions && edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
+        editDisabled={edit?.running || edit?.busy}
+        streamKey={streamKey}
+        anchor={anchorOf(row, i)}
+        inWork={opts.inWork}
+        background={opts.background}
+      />
+    );
+  };
+
+  /** The rows from `from` up to (not including) `to`: laid out as turns when grouping, else flat. */
+  const range = (from: number, to: number, withActions: boolean): JSX.Element[] => {
+    if (!items) {
+      return rows.slice(from, to).map((_, j) => rowEl(from + j, withActions, { copyText: withActions ? copies.get(from + j) : undefined }));
+    }
+    const out: JSX.Element[] = [];
+    let prev: TurnItem | undefined;
+    items.forEach((item, k) => {
+      const indexes = itemIndexes(item);
+      if (indexes[indexes.length - 1] < from || indexes[0] >= to) return;
+      const gap = itemGap(item, prev, rows);
+      if (gap) out.push(<div key={`gap-${k}`} aria-hidden="true" style={{ height: gap, flex: 'none' }} />);
+      prev = item;
+      const copyText = withActions ? copies.get(k) : undefined;
+      if (item.kind === 'row') {
+        const row = rows[item.index];
+        out.push(rowEl(item.index, withActions, { copyText, background: item.role === 'pinned' && row.kind === 'subagent' }));
+        return;
+      }
+      out.push(
+        <div key={item.key} className="group">
+          <WorkLog stats={item.stats} live={item.live} footer={<TurnCopyAction text={copyText} />}>
+            {item.indexes.map((i) => rowEl(i, withActions, { inWork: true }))}
+          </WorkLog>
+        </div>,
+      );
+    });
+    return out;
+  };
 
   if (editingValid) {
     return (
       <EditingRows rows={rows} editingIdx={editingIdx!} from={Math.min(start, editingIdx!)} edit={edit!}
-        plainRows={plainRows} onDone={() => setEditingIdx(null)} />
+        range={(from, to) => range(from, to ?? rows.length, false)} gap={items ? 0 : 18} onDone={() => setEditingIdx(null)} />
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {rows.slice(start).map((row, j) => {
-        const i = start + j;
-        return (
-          <Row
-            key={rowKey(row, i)}
-            row={row}
-            interactionActions={interactionActions}
-            actions
-            assistantCopyText={assistantCopies.get(i)}
-            regen={regenIdx.has(i)}
-            onStartEdit={edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
-            editDisabled={edit?.running || edit?.busy}
-            streamKey={streamKey}
-            anchor={anchorOf(row, i)}
-          />
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: items ? 0 : 18 }}>
+      {range(start, rows.length, true)}
     </div>
   );
 }
 
 /** sec-23 edit mode: the edited bubble becomes an in-place EditBox and the rows after it dim under
  *  the「将被回退」badge. */
-function EditingRows({ rows, editingIdx, from, edit, plainRows, onDone }: {
+function EditingRows({ rows, editingIdx, from, edit, range, gap, onDone }: {
   rows: ChatRow[];
   editingIdx: number;
   from: number;
   edit: MessageEditCtx;
-  plainRows: (from: number, to?: number) => JSX.Element[];
+  range: (from: number, to?: number) => JSX.Element[];
+  gap: number;
   onDone: () => void;
 }): JSX.Element {
   const er = rows[editingIdx] as Extract<ChatRow, { kind: 'user' }>;
   const stats = rewindStats(rows, editingIdx);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {plainRows(from, editingIdx)}
+      {from < editingIdx && <div style={{ display: 'flex', flexDirection: 'column', gap }}>{range(from, editingIdx)}</div>}
       <EditBox
         initialText={er.text}
         busy={edit.busy}
@@ -524,7 +634,7 @@ function EditingRows({ rows, editingIdx, from, edit, plainRows, onDone }: {
         }}
       />
       {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} />}
-      {editingIdx + 1 < rows.length && <RewindTail>{plainRows(editingIdx + 1)}</RewindTail>}
+      {editingIdx + 1 < rows.length && <RewindTail>{range(editingIdx + 1)}</RewindTail>}
     </div>
   );
 }
@@ -537,7 +647,9 @@ function scrollToAnchor(el: HTMLElement | null, row: number): void {
   else el.scrollTop = top;
 }
 
-export function MessageStream({ rows, loading, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
+export function MessageStream({ rows, loading, interactionActions, edit, streamKey, live = false }: { rows: ChatRow[]; loading: boolean; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string;
+  /** The foreground turn is running (not merely held open by background work). */
+  live?: boolean }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -631,8 +743,9 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0, scrollbarGutter: 'stable both-edges' }}>
         <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
-          <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
+          <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors group live={live} />
           {team?.tail}
+          <SessionStateLine running={live} offset={14} />
         </div>
       </div>
       <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />

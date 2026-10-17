@@ -24,6 +24,7 @@ import {
   type Theme,
 } from '@/theme';
 import { SRowGroup, SRow, SSection, SSegmented } from '@/features/settings/ui/settings-kit';
+import { setWorkLogMode, useWorkLogMode, type WorkLogMode } from '@/features/session/transcript/work-log-pref';
 import {
   languageHint, languageOptions, useAccentCopy, usePaletteCopy,
 } from '@/features/settings/useAppearanceCopy';
@@ -149,6 +150,7 @@ function SurfaceSection() {
   const setMotionMode = useSetMotionMode();
   const glass = useGlass();
   const setGlass = useSetGlass();
+  const workLogMode = useWorkLogMode();
   return (
     <SSection label={L.stGlassLabel}>
       <SRowGroup>
@@ -167,6 +169,11 @@ function SurfaceSection() {
               { id: 'system', label: L.stMotionSystem }, { id: 'full', label: L.stMotionFull },
               { id: 'reduced', label: L.stMotionReduced },
             ]} />
+        } />
+        <SRow title={L.stChatWorkLabel} desc={L.stChatWorkHint} control={
+          <SSegmented<WorkLogMode> value={workLogMode} dataAttr="data-work-log-option" ariaLabel={L.stChatWorkLabel}
+            onChange={setWorkLogMode}
+            options={[{ id: 'fold', label: L.stChatWorkFold }, { id: 'expanded', label: L.stChatWorkExpanded }]} />
         } />
       </SRowGroup>
     </SSection>
