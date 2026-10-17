@@ -1,3 +1,4 @@
+import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
@@ -299,7 +300,7 @@ function TurnCopyAction({ text }: { text?: string }): JSX.Element | null {
   );
 }
 
-function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey }: {
+function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey, ts }: {
   text: string;
   attachments?: Attachment[];
   /** Decisions announced with this row (send_decision) — cards hang under the text. */
@@ -312,6 +313,7 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
   preview?: boolean;
   /** Identity of the stream the preview belongs to (the session) — a change settles the reveal. */
   streamKey?: string;
+  ts?: string;
 }): JSX.Element {
   const hasAttachments = !!attachments && attachments.length > 0;
   const shown = useRevealedText(text, !!preview, streamKey);
@@ -324,7 +326,7 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
           composer already reports the running turn, so a blinking block only adds noise. The
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
-      {shown.trim() && <ChatMarkdown text={shown} renderMath wideTables />}
+      {shown.trim() && <ChatMediaProvider sessionId={streamKey} ts={ts}><ChatMarkdown text={shown} renderMath wideTables /></ChatMediaProvider>}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
       {!!decisions && decisions.length > 0 && <DecisionCardGroup decisions={decisions} sessionId={streamKey} />}
       <TurnCopyAction text={copyText} />
@@ -477,7 +479,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
         </div>
       );
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} />;
     case 'notice':
       return (
         <div className="group">

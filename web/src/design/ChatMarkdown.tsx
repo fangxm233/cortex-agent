@@ -5,6 +5,7 @@ import { useVocabOptional } from '@/i18n';
 import { parseBlocks, type Block, type InlineNode } from '@/lib/markdown';
 import { TABLE_AUTO_WIDTH, useFitTableColumns } from './table-fit';
 import { useClipboardFeedback } from './useClipboardFeedback';
+import { ChatMarkdownMedia } from './ChatMediaContext';
 
 const mono = "'IBM Plex Mono',monospace";
 type InlineRenderer = (node: InlineNode, key: number) => ReactNode;
@@ -42,9 +43,7 @@ const INLINE_RENDERERS: InlineRenderers = {
   link: (node, key) => (
     <a key={key} href={node.href} target="_blank" rel="noreferrer" style={{ color: 'var(--proto-accent)', textDecoration: 'underline' }}>{node.text}</a>
   ),
-  // The transcript renders untrusted model output, so an image reference stays inert text here:
-  // fetching an arbitrary src from a chat message would be a new outbound request per message.
-  image: (node, key) => <Fragment key={key}>{node.alt || node.src}</Fragment>,
+  image: (node, key) => <ChatMarkdownMedia key={key} alt={node.alt} src={node.src} />,
 };
 
 function Inline({ nodes }: { nodes: InlineNode[] }): JSX.Element {

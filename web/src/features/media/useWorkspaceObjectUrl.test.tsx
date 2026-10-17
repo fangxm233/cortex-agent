@@ -1,7 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchFileObjectUrl } from '@/lib/files';
-import { useWorkspaceObjectUrl } from './useWorkspaceObjectUrl';
+import { useWorkspaceObjectUrl, useWorkspaceObjectUrlState } from './useWorkspaceObjectUrl';
 
 vi.mock('@/lib/files', () => ({ fetchFileObjectUrl: vi.fn() }));
 const fetchUrl = vi.mocked(fetchFileObjectUrl);
@@ -54,5 +54,27 @@ describe('workspace preview downloads', () => {
     act(() => view.unmount());
     await act(async () => { resolve('blob:late'); });
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:late');
+  });
+});
+
+function StateProbe({ path }: { path: string | null }): JSX.Element {
+  const state = useWorkspaceObjectUrlState(path);
+  return <span data-url={state.url} data-failed={state.failed} />;
+}
+describe('workspace media preview loading', () => {
+  it('reports download failures', async () => {
+    fetchUrl.mockRejectedValueOnce(new Error('missing'));
+    await act(async () => { view = create(<StateProbe path="workspace/a.png" />); });
+    expect(view.root.findByType('span').props['data-failed']).toBe(true);
+  });
+
+  it('clears old URLs on path changes and revokes them on cleanup', async () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    fetchUrl.mockResolvedValueOnce('blob:first');
+    await act(async () => { view = create(<StateProbe path="workspace/a.png" />); });
+    expect(view.root.findByType('span').props['data-url']).toBe('blob:first');
+    act(() => { view.update(<StateProbe path={null} />); });
+    expect(view.root.findByType('span').props['data-url']).toBeNull();
+    expect(revoke).toHaveBeenCalledWith('blob:first');
   });
 });

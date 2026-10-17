@@ -112,6 +112,17 @@ describe('assistantTurnCopyTargets', () => {
 });
 
 describe('buildTranscriptRows', () => {
+  it('keeps the same assistant timestamp in live and persisted rows, but not in a preview', () => {
+    const live = buildTranscriptRows(tx([]), [{ sessionId: 's1', role: 'assistant', text: '![plot](a.png)', ts: T }]);
+    const persisted = buildTranscriptRows(tx([{ turnIndex: 0, messages: [{
+      type: 'assistant', text: '![plot](a.png)', ts: T, toolName: null, toolInput: null, elapsedMs: null,
+    }] }]), []);
+    expect(live.find((row) => row.kind === 'assistant')).toEqual(persisted.find((row) => row.kind === 'assistant'));
+    expect(live.find((row) => row.kind === 'assistant')).toHaveProperty('ts', T);
+    const preview = buildTranscriptRows(tx([]), [], { streamingText: '![plot](a.png)' });
+    expect(preview.find((row) => row.kind === 'assistant')).not.toHaveProperty('ts');
+  });
+
   it('qualifies fetched and live remote tools with their device', () => {
     expect(toolCallLabel('remote_bash', 'hub')).toBe('bash:hub');
     expect(toolCallLabel('mcp__cortex__remote_read', 'gpu')).toBe('read:gpu');
@@ -153,7 +164,7 @@ describe('buildTranscriptRows', () => {
     );
     expect(rows[0].kind).toBe('divider');
     expect(rows[1]).toEqual({ kind: 'user', text: 'hi there', turnIndex: 0, ts: T });
-    expect(rows[2]).toEqual({ kind: 'assistant', text: 'hello back', streaming: false });
+    expect(rows[2]).toEqual({ kind: 'assistant', text: 'hello back', streaming: false, ts: T });
   });
 
   it('maps fetched and live assistant notices to notice rows', () => {
@@ -796,7 +807,7 @@ describe('buildTranscriptRows — the live streaming row', () => {
     const rows = buildTranscriptRows(oneTurn, tail, { streamingText: null });
     const assistants = rows.filter((r) => r.kind === 'assistant');
     expect(assistants).toHaveLength(1);
-    expect(assistants[0]).toEqual({ kind: 'assistant', text: 'Tea begins as a leaf.', streaming: false });
+    expect(assistants[0]).toEqual({ kind: 'assistant', text: 'Tea begins as a leaf.', streaming: false, ts: T });
   });
 
   it('the streaming row sits last, after any tool calls of the same turn', () => {
@@ -995,7 +1006,7 @@ describe('buildTranscriptRows — pending user rows are pinned to the bottom', (
     const rows = buildTranscriptRows(oneTurn, tail, { pendingUser: [] });
     expect(rows.slice(-2)).toEqual([
       { kind: 'user', text: 'stop', attachments: undefined, ts: '2026-07-07T07:42:06.000Z' },
-      { kind: 'assistant', text: 'TEXT-INTERRUPTED', streaming: false, attachments: undefined },
+      { kind: 'assistant', text: 'TEXT-INTERRUPTED', streaming: false, attachments: undefined, ts: '2026-07-07T07:42:07.000Z' },
     ]);
   });
 });

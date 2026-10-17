@@ -1,5 +1,10 @@
 // File/media previewers (modal, lightbox and their docked bodies).
 export const mediaEn = {
+  mediaInlineFailed: 'Could not load media.',
+  mediaInlineOffline: 'Device offline. Reconnect and reload.',
+  mediaInlineNotFound: 'File not found.',
+  mediaInlineUnsupported: 'Unsupported image or video format.',
+  mediaInlineTooLarge: 'File exceeds 200 MB.',
   mediaTextTooLarge: 'File too large to preview — download to view.',
   mediaPdfLoading: 'Loading PDF…',
   mediaPdfFailed: 'Failed to render {name}',
@@ -12,6 +17,11 @@ export const mediaEn = {
   mediaViewTooLarge: 'View too large to render — download to open it.',
 };
 export const mediaZh: Record<keyof typeof mediaEn, string> = {
+  mediaInlineFailed: '无法加载图片或视频。',
+  mediaInlineOffline: '设备离线，请连接后重新加载。',
+  mediaInlineNotFound: '文件不存在。',
+  mediaInlineUnsupported: '不支持的图片或视频格式。',
+  mediaInlineTooLarge: '文件超过 200 MB。',
   mediaTextTooLarge: '文件太大，无法预览 —— 请下载后查看。',
   mediaPdfLoading: '正在加载 PDF…',
   mediaPdfFailed: '无法渲染 {name}',

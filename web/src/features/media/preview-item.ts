@@ -12,7 +12,7 @@ export interface MediaItem {
   name: string;
   /** Workspace-relative `workspace/…` path → authenticated blob fetch (sent messages / agent files). */
   path?: string;
-  /** A ready object URL (a local composer File preview) — used directly, not fetched. */
+  /** A ready object URL or guarded external HTTPS URL — used directly, not auth-fetched. */
   url?: string;
 }
 

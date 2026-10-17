@@ -1,3 +1,4 @@
+import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
@@ -216,14 +217,15 @@ const NO_WORKERS: SessionInfo[] = [];
  * `dropTrailingHr` — assistant messages often end with a `---` separator; on mobile that dangling
  * horizontal rule reads as cruft, so it is stripped.
  */
-function MAssistantBlock({ text, preview, streamKey }: {
+function MAssistantBlock({ text, preview, streamKey, ts }: {
   text: string;
   preview?: boolean;
   streamKey?: string;
+  ts?: string;
 }): JSX.Element | null {
   const shown = useRevealedText(text, !!preview, streamKey);
   if (!shown.trim()) return null;
-  return <ChatMarkdown text={shown} dropTrailingHr renderMath />;
+  return <ChatMediaProvider sessionId={streamKey} ts={ts}><ChatMarkdown text={shown} dropTrailingHr renderMath /></ChatMediaProvider>;
 }
 
 /** Interaction row for the mobile stream (scheme 6a/5b/4a-c). Entity rows render the full cards
@@ -460,7 +462,7 @@ function AssistantRow({ row, index, dimmed, copyText, ctx }: RowProps<'assistant
           {L.msgRegenNote}
         </div>
       )}
-      <MAssistantBlock text={row.text} preview={row.preview} streamKey={ctx.streamKey} />
+      <MAssistantBlock text={row.text} preview={row.preview} streamKey={ctx.streamKey} ts={row.ts} />
       {row.attachments && row.attachments.length > 0 && (
         <div style={{ marginTop: 8 }}>
           <AttachmentGroup attachments={row.attachments} side="left" />

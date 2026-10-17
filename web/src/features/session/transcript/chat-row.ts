@@ -51,7 +51,7 @@ export type ChatRow =
   // message would re-type text the reader has already seen and leave it animating past turn end.
   // `decisions` carries agent-announced decision cards (send_decision) — rendered as compact
   // expandable cards under the text, one per decision.
-  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; decisions?: DecisionItem[]; preview?: true }
+  | { kind: 'assistant'; text: string; streaming: boolean; ts?: string; attachments?: Attachment[]; decisions?: DecisionItem[]; preview?: true }
   | { kind: 'notice'; level: ChatNoticeLevel; text: string; noticeAction?: NoticeAction; authAction?: AuthNoticeAction }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
