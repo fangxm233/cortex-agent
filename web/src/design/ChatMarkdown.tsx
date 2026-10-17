@@ -1,8 +1,9 @@
-import { Fragment, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useRef, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { useVocabOptional } from '@/i18n';
 import { parseBlocks, type Block, type InlineNode } from '@/lib/markdown';
+import { TABLE_AUTO_WIDTH, useFitTableColumns } from './table-fit';
 import { useClipboardFeedback } from './useClipboardFeedback';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -135,7 +136,7 @@ function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
 /** Cells wrap only once the table has hit its cap (see `TableBlock`) — until then the table is laid
  *  out at its max-content width, so a table that fits reads exactly as it did when cells were
  *  `nowrap`. `anywhere` rather than `break-word` so an unbreakable token (a long path, a hash)
- *  cannot hold the whole column above the cap and force a scrollbar on its own. */
+ *  breaks inside the width its column is given instead of overflowing the cell. */
 const CELL: CSSProperties = { border: '1px solid var(--proto-line)', padding: '4px 8px', overflowWrap: 'anywhere' };
 
 function TableHead({ header }: { header: InlineNode[][] }): JSX.Element {
@@ -185,11 +186,14 @@ const MIN_COL_W = 96;
  *  Whichever is larger wins; the table takes `min(its own max-content, that)`. Under it nothing
  *  changes (no wrapping, no scrollbar); over it the cells wrap; over it AND wider than the visible
  *  box — a many-column table on a narrow pane — the block scrolls, as before. */
-function tableMaxWidth(block: BlockOf<'table'>, wide: boolean): string {
-  const columns = block.rows.reduce((max, row) => Math.max(max, row.length), block.header.length);
+function tableMaxWidth(columns: number, wide: boolean): string {
   // 200% is the fallback for a `wide` host that publishes no variable: `width` falls back to 100%
   // too, so the pair still means "twice the column this table sits in".
   return `max(${wide ? 'var(--chat-table-max-w, 200%)' : '100%'}, ${columns * MIN_COL_W}px)`;
+}
+
+function columnCount(block: BlockOf<'table'>): number {
+  return block.rows.reduce((max, row) => Math.max(max, row.length), block.header.length);
 }
 
 /** Prose is capped to a readable column, but a table is data: folding it into that column costs
@@ -198,12 +202,19 @@ function tableMaxWidth(block: BlockOf<'table'>, wide: boolean): string {
  *  centres the table on the whole pane; anything wider than the cap still scrolls inside the block.
  *  Without the variable the calc collapses to zero, so every other host keeps the old box.
  *  `max-content` (not the default shrink-to-fit) is what lets a table outgrow the block and scroll
- *  rather than silently wrap to the pane; `maxWidth` is then the only thing that makes it wrap. */
+ *  rather than silently wrap to the pane; `maxWidth` is then the only thing that makes it wrap.
+ *  Which columns wrap is `useFitTableColumns`' call: short columns keep their one-line width and
+ *  the long ones share the rest, rather than every column shrinking by the same fraction. */
 function TableBlock({ block, wide }: { block: BlockOf<'table'>; wide: boolean }): JSX.Element {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  useFitTableColumns(wrapperRef, tableRef, JSON.stringify(block));
+  const columns = columnCount(block);
   const width = wide ? 'var(--chat-bleed-w, 100%)' : '100%';
   return (
-    <div style={{ width, marginLeft: wide ? `calc((100% - ${width}) / 2)` : undefined, overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 13, margin: '0 auto', width: 'max-content', maxWidth: tableMaxWidth(block, wide) }}>
+    <div ref={wrapperRef} style={{ width, marginLeft: wide ? `calc((100% - ${width}) / 2)` : undefined, overflowX: 'auto' }}>
+      <table ref={tableRef} style={{ borderCollapse: 'collapse', fontSize: 13, margin: '0 auto', width: TABLE_AUTO_WIDTH, maxWidth: tableMaxWidth(columns, wide) }}>
+        <colgroup>{Array.from({ length: columns }, (_, index) => <col key={index} />)}</colgroup>
         <TableHead header={block.header} />
         <TableBody rows={block.rows} />
       </table>
