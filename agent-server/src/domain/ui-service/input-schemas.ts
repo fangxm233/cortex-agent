@@ -544,7 +544,9 @@ export const modelsFavoriteInput = z.object({
   model: z.string().min(1),
 }).strict();
 
-export const modelsSetThinkingInput = z.object({ ref: modelRefInput, thinking: z.string().nullable() }).strict();
+type ModelsSetThinkingInput = { ref: ModelRef; thinking: string | null };
+export const modelsSetThinkingInput = z.object({ ref: modelRefInput, thinking: z.string().nullable() }).strict() as
+  z.ZodType<ModelsSetThinkingInput, ModelsSetThinkingInput>;
 
 export const modelsSetDefaultInput = z.object({ selection: engineSelectionInput }).strict();
 

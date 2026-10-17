@@ -1,7 +1,8 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ConfigSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AppRouter, ConfigSnapshot, ModelRef } from '@cortex-agent/ui-contract';
+import type { inferRouterInputs } from '@trpc/server';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
 import { useModelsController, type ModelsController } from './useModelsController';
@@ -41,6 +42,10 @@ beforeEach(() => {
 });
 
 describe('favorite thinking writes', () => {
+  it('preserves required nullable fields in the generated request contract', () => {
+    type Input = inferRouterInputs<AppRouter>['models']['setThinking'];
+    expectTypeOf<Input>().toEqualTypeOf<{ ref: ModelRef; thinking: string | null }>();
+  });
   it.each(['high', 'off', null])('writes only the ref and thinking (%s), then refreshes config', async thinking => {
     const { view, invalidate } = await mount();
     const target = thinking === 'off' ? other : ref;
