@@ -121,6 +121,7 @@ function printModeArgs(options: ClaudeSpawnOptions): string[] {
   if (options.streamDeltas ?? isStreamDeltasEnabled()) {
     args.push('--include-partial-messages');
   }
+  if (getSettings().showThinking) args.push('--thinking-display', 'summarized');
   return args;
 }
 

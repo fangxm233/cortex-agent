@@ -351,6 +351,9 @@ export function sinkToRunEvents(emit: (event: RunEvent) => void): BackgroundEven
         ...(subagent !== undefined ? { subagent } : {}),
       });
     },
+    onAssistantThinking: (text, blockId) => emit({
+      type: 'assistant_thinking', text, phase: 'background', ...(blockId ? { blockId } : {}),
+    }),
     onToolUse: (name, input, toolUseId, subagent) => {
       emit({
         type: 'tool_use', toolUseId: toolUseId ?? '', name, input, phase: 'background',

@@ -222,3 +222,14 @@ test('mergeContinuation sums cost and turns, and lets the latest output win', ()
   // Both null stays null: "unreported" must not become 0.
   assert.equal(mergeContinuation(result({ total_cost_usd: null }), result({ total_cost_usd: null })).total_cost_usd, null);
 });
+
+
+test('background thinking keeps its own event type and block identity', () => {
+  const base = result({ pendingBackgroundTasks: 1, finalOutput: 'answer' });
+  const h = harness('hold', base);
+  h.phase.start(base);
+  h.phase.sink().onAssistantThinking?.('consider', 'm:0');
+  assert.deepEqual(h.events.at(-1), { type: 'assistant_thinking', text: 'consider', blockId: 'm:0', phase: 'background' });
+  assert.equal(h.foreground.value?.finalOutput, 'answer');
+  h.phase.handOff();
+});

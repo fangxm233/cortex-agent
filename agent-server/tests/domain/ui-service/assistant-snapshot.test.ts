@@ -117,3 +117,13 @@ describe('UI service active assistant snapshots', () => {
     expect(await snapshot()).toMatchObject(empty);
   });
 });
+
+
+it('thinking deltas and completions never replace the assistant snapshot', async () => {
+  delta();
+  bus.publish({ type: 'session.message.delta', sessionId: 'A', channel: 'web:c', blockId: 't0', text: 'consider', seq: 0, kind: 'thinking' });
+  bus.publish({ type: 'session.message', sessionId: 'A', channel: 'web:c', role: 'thinking', text: 'consider', blockId: 't0' });
+  expect(await snapshot()).toMatchObject({ text: 'prefix', blockId: 'b1' });
+  bus.publish({ type: 'session.message.delta', sessionId: 'B', channel: 'web:c', blockId: 't0', text: 'consider', seq: 0, kind: 'thinking' });
+  expect(await snapshot('B')).toMatchObject({ text: '', snapshot: true });
+});

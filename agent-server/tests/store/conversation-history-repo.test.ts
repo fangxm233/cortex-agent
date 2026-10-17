@@ -1016,3 +1016,20 @@ test('summarizeToolInputForHistory names the files of a multi-file send_file', (
   const input = { files: [{ file_path: '/runs/loss.png' }, { file_path: 'D:\\out\\report.pdf' }], caption: 'x' };
   assert.equal(summarizeToolInputForHistory(input), 'loss.png, report.pdf');
 });
+
+
+test('thinking round-trips without collapsing assistant rows or opening a turn', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-thinking';
+  await repo.appendUser(sid, { text: 'go' });
+  await repo.appendAssistant(sid, { text: 'before' });
+  await repo.appendThinking(sid, { text: 'consider', blockId: 'm:0' });
+  await repo.appendAssistant(sid, { text: 'after' });
+  const history = await repo.getHistory(sid);
+  assert.deepEqual(history!.events.map(e => e.type), ['user', 'assistant', 'thinking', 'assistant']);
+  assert.equal(history!.events[2].blockId, 'm:0');
+  assert.equal(history!.events[2].text, 'consider');
+  assert.ok(history!.events.every(e => e.turnIndex === 0));
+  const compact = await repo.getCompactHistory(sid);
+  assert.equal(compact!.events[2].type, 'thinking');
+});

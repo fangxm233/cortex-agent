@@ -35,9 +35,8 @@ export function parseModelFallbackEvent(raw: any): ModelFallbackEvent | null {
 //  2. The `assistant` event arrives just BEFORE its block's content_block_stop, so the id must
 //     survive the stop event.
 //
-// Only text streams in v1: `thinking_delta` carries no content anyway (the CLI redacts it to an
-// empty string plus a token estimate) and `input_json_delta` is tool arguments, which Cortex
-// renders from the complete tool_use block.
+// Thinking summaries have their own cursor and callback; they never consume a text block id.
+// `input_json_delta` remains ignored: tools render from the complete tool_use block.
 
 /** Per-session cursor over the `stream_event` sequence. Cheap and self-healing: every
  *  `message_start` resets it, so a missed line can at worst drop one block's deltas. */
@@ -48,30 +47,51 @@ export interface StreamDeltaState {
   model: string | null;
   /** blockId of the text block currently open, awaiting its complete `assistant` event. */
   textBlockId: string | null;
+  /** Independent cursor for complete thinking summaries. */
+  thinkingBlockId: string | null;
 }
 
 export function createStreamDeltaState(): StreamDeltaState {
-  return { messageId: null, model: null, textBlockId: null };
+  return { messageId: null, model: null, textBlockId: null, thinkingBlockId: null };
 }
 
 function observeMessageStart(event: any, state: StreamDeltaState): void {
   state.messageId = typeof event.message?.id === 'string' ? event.message.id : null;
   state.model = typeof event.message?.model === 'string' ? event.message.model : null;
   state.textBlockId = null;
+  state.thinkingBlockId = null;
 }
 
 function observeBlockStart(event: any, state: StreamDeltaState): void {
-  if (event.content_block?.type !== 'text' || !state.messageId) return;
-  if (typeof event.index !== 'number') return;
-  state.textBlockId = `${state.messageId}:${event.index}`;
+  if (!state.messageId || typeof event.index !== 'number') return;
+  const blockId = `${state.messageId}:${event.index}`;
+  if (event.content_block?.type === 'text') state.textBlockId = blockId;
+  if (event.content_block?.type === 'thinking') state.thinkingBlockId = blockId;
 }
 
-/** Translate a partial stdout event into one text delta while advancing the message cursor. */
+export type StreamDelta = { text: string; blockId: string; kind?: 'thinking' };
+
+function parseBlockDelta(event: any, state: StreamDeltaState): StreamDelta | null {
+  const kind = event.delta?.type;
+  if (kind !== 'text_delta' && kind !== 'thinking_delta') return null;
+  const text = kind === 'thinking_delta' ? event.delta.thinking : event.delta.text;
+  if (typeof text !== 'string' || text.length === 0) return null;
+  if (!state.messageId || typeof event.index !== 'number') return null;
+  const blockId = `${state.messageId}:${event.index}`;
+  if (kind === 'thinking_delta') {
+    state.thinkingBlockId = blockId;
+    return { kind: 'thinking', text, blockId };
+  }
+  state.textBlockId = blockId;
+  return { text, blockId };
+}
+
+/** Translate a partial stdout event while advancing only its own block cursor. */
 export function parseStreamEvent(
   data: any,
   state: StreamDeltaState,
-): { text: string; blockId: string } | null {
-  if (!data || data.type !== 'stream_event') return null;
+): StreamDelta | null {
+  if (!data || data.type !== 'stream_event' || data.parent_tool_use_id) return null;
   const event = data.event;
   if (!event || typeof event.type !== 'string') return null;
   if (event.type === 'message_start') {
@@ -82,13 +102,7 @@ export function parseStreamEvent(
     observeBlockStart(event, state);
     return null;
   }
-  if (event.type !== 'content_block_delta' || event.delta?.type !== 'text_delta') return null;
-  const text = event.delta.text;
-  if (typeof text !== 'string' || text.length === 0) return null;
-  if (!state.messageId || typeof event.index !== 'number') return null;
-  const blockId = `${state.messageId}:${event.index}`;
-  state.textBlockId = blockId;
-  return { text, blockId };
+  return event.type === 'content_block_delta' ? parseBlockDelta(event, state) : null;
 }
 
 /**
@@ -102,6 +116,12 @@ export function parseStreamEvent(
 export function takeTextBlockId(state: StreamDeltaState): string | null {
   const id = state.textBlockId;
   state.textBlockId = null;
+  return id;
+}
+
+export function takeThinkingBlockId(state: StreamDeltaState): string | null {
+  const id = state.thinkingBlockId;
+  state.thinkingBlockId = null;
   return id;
 }
 

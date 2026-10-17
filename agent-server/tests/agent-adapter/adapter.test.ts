@@ -57,6 +57,8 @@ void function normalizedEventExhaustive(event: NormalizedEvent): string {
     case 'session_started': return event.sessionId;
     case 'assistant_text': return event.text;
     case 'assistant_delta': return event.blockId;
+    case 'assistant_thinking': return event.text;
+    case 'assistant_thinking_delta': return event.blockId;
     case 'tool_use': return event.toolUseId;
     case 'tool_result': return event.toolUseId;
     case 'todo_update': return event.toolUseId;
@@ -78,3 +80,13 @@ void function normalizedEventExhaustive(event: NormalizedEvent): string {
     }
   }
 };
+
+
+test('thinking events translate with phase without becoming assistant output', async () => {
+  const { toRunEvent } = await import('../../src/agent-adapter/run-events.js');
+  for (const type of ['assistant_thinking', 'assistant_thinking_delta'] as const) {
+    assert.deepEqual(toRunEvent({ type, text: 'consider', blockId: 'm:0' }, 'background'), {
+      type, text: 'consider', blockId: 'm:0', phase: 'background',
+    });
+  }
+});

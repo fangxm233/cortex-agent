@@ -1,7 +1,7 @@
 import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import type { EngineRun } from '../../src/agent-adapter/types.js';
@@ -126,6 +126,53 @@ test('PI keeps attribution on a subagent assistant message instead of merging it
     parentToolUseId: 'agent-call#0', type: 'explore',
     description: 'Inspect adapter', model: 'gpt-5.4-mini',
   });
+});
+
+function thinkingUpdate(type: 'thinking_delta' | 'thinking_end', text: string) {
+  return {
+    type: 'message_update', message: { responseId: 'm1' },
+    assistantMessageEvent: { type, contentIndex: 1, delta: text, content: text },
+  };
+}
+
+for (const streamDeltas of [true, false]) {
+  test(`PI flushes text before thinking and keeps complete thinking with streamDeltas=${streamDeltas}`, async (t) => {
+    vi.stubEnv('CORTEX_SHOW_THINKING', '1');
+    vi.stubEnv('CORTEX_STREAM_DELTAS', streamDeltas ? '1' : '0');
+    resetSettingsForTests();
+    t.onTestFinished(() => { vi.unstubAllEnvs(); resetSettingsForTests(); });
+    const { run, tap, runtime } = await spawnStreaming(`thinking-order-${streamDeltas}`);
+    t.onTestFinished(() => run.cancel());
+    runtime.emit(textDelta('Answer', 'm1'));
+    runtime.emit(thinkingUpdate('thinking_delta', 'Sum'));
+    runtime.emit(thinkingUpdate('thinking_end', 'Summary'));
+    runtime.emit({ type: 'message_end' });
+    const events = await tap.collect(streamDeltas ? 5 : 3);
+    assert.deepEqual(events, [
+      ...(streamDeltas ? [{ type: 'assistant_delta', text: 'Answer', blockId: 'm1' }] : []),
+      { type: 'assistant_text', text: 'Answer', blockId: 'm1' },
+      ...(streamDeltas ? [{ type: 'assistant_thinking_delta', text: 'Sum', blockId: 'm1:t1' }] : []),
+      { type: 'assistant_thinking', text: 'Summary', blockId: 'm1:t1' },
+      { type: 'turn_progress', numTurns: 1 },
+    ]);
+    runtime.emit({ type: 'agent_end', messages: [] });
+    runtime.emit({ type: 'agent_settled' });
+    assert.equal((await run.result).finalOutput, 'Answer');
+  });
+}
+
+test('PI showThinking off suppresses complete and delta thinking without merging it into text', async (t) => {
+  vi.stubEnv('CORTEX_SHOW_THINKING', '0');
+  resetSettingsForTests();
+  t.onTestFinished(() => { vi.unstubAllEnvs(); resetSettingsForTests(); });
+  const { run, tap, runtime } = await spawnStreaming('thinking-off');
+  t.onTestFinished(() => run.cancel());
+  runtime.emit(thinkingUpdate('thinking_delta', 'Sum'));
+  runtime.emit(thinkingUpdate('thinking_end', 'Summary'));
+  runtime.emit(textDelta('Answer', 'm1'));
+  runtime.emit({ type: 'message_end' });
+  const events = await tap.collect(3);
+  assert.deepEqual(events.map(e => e.type), ['assistant_delta', 'assistant_text', 'turn_progress']);
 });
 
 // --- (a) per-delta assistant_delta with a stable, shared blockId ---

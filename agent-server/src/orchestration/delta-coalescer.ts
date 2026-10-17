@@ -14,6 +14,7 @@ export interface DeltaFlush {
   text: string;
   /** 0 for a block's first published event, +1 per event after that. Lets a consumer detect gaps. */
   seq: number;
+  kind?: 'thinking';
 }
 
 export interface DeltaCoalescerOptions {
@@ -24,7 +25,7 @@ export interface DeltaCoalescerOptions {
 
 export interface DeltaCoalescer {
   /** Accumulate one incremental chunk. Empty chunks are ignored. */
-  push(blockId: string, text: string): void;
+  push(blockId: string, text: string, kind?: 'thinking'): void;
   /** Publish what is pending for `blockId` (or for every block when omitted) right now. Callers
    *  MUST do this before the block's complete message goes out, so the preview never trails the
    *  authoritative text. */
@@ -48,6 +49,7 @@ export function resolveFlushMs(env: Record<string, string | undefined>): number 
 interface BlockState {
   pending: string;
   seq: number;
+  kind?: 'thinking';
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -62,7 +64,7 @@ export function createDeltaCoalescer(opts: DeltaCoalescerOptions): DeltaCoalesce
       state.timer = null;
     }
     if (state.pending.length === 0) return;
-    const flush: DeltaFlush = { blockId, text: state.pending, seq: state.seq };
+    const flush: DeltaFlush = { blockId, text: state.pending, seq: state.seq, ...(state.kind ? { kind: state.kind } : {}) };
     state.pending = '';
     state.seq += 1;
     // A failing sink is not the streaming path's problem: the block keeps accumulating and the
@@ -71,11 +73,11 @@ export function createDeltaCoalescer(opts: DeltaCoalescerOptions): DeltaCoalesce
   }
 
   return {
-    push(blockId: string, text: string): void {
+    push(blockId: string, text: string, kind?: 'thinking'): void {
       if (disposed || !text) return;
       let state = blocks.get(blockId);
       if (!state) {
-        state = { pending: '', seq: 0, timer: null };
+        state = { pending: '', seq: 0, timer: null, kind };
         blocks.set(blockId, state);
       }
       state.pending += text;
@@ -116,7 +118,7 @@ export function createDeltaCoalescer(opts: DeltaCoalescerOptions): DeltaCoalesce
 
 export interface SessionDeltaStream {
   /** Feed one incremental chunk from the adapter. */
-  onDelta(text: string, blockId: string): void;
+  onDelta(text: string, blockId: string, kind?: 'thinking'): void;
   /** Publish what is pending — call this immediately before the block's complete message. */
   flush(blockId?: string): void;
   /** End of turn: cancel timers, drop anything unpublished. */
@@ -141,7 +143,7 @@ export function createSessionDeltaStream(args: {
   sessionId: string | null;
   channel: string;
   /** Injected for tests; defaults to the real EventBus publish. */
-  publish?: (p: { sessionId: string; channel: string; blockId: string; text: string; seq: number }) => void;
+  publish?: (p: { sessionId: string; channel: string; blockId: string; text: string; seq: number; kind?: 'thinking' }) => void;
   flushMs?: number;
 }): SessionDeltaStream | null {
   const { sessionId, channel } = args;
@@ -152,11 +154,11 @@ export function createSessionDeltaStream(args: {
   const publish = args.publish ?? publishSessionMessageDelta;
   const coalescer = createDeltaCoalescer({
     flushMs: args.flushMs,
-    onFlush: ({ blockId, text, seq }) => publish({ sessionId, channel, blockId, text, seq }),
+    onFlush: (flush) => publish({ sessionId, channel, ...flush }),
   });
 
   return {
-    onDelta: (text: string, blockId: string) => coalescer.push(blockId, text),
+    onDelta: (text: string, blockId: string, kind?: 'thinking') => coalescer.push(blockId, text, kind),
     flush: (blockId?: string) => coalescer.flush(blockId),
     dispose: () => coalescer.dispose(),
   };

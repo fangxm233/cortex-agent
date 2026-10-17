@@ -160,6 +160,7 @@ export interface BackgroundTurnSink {
   /** Assistant text from the continuation turn (append to the original reply). `subagent` is set
    *  only when a native subagent produced it (see ToolUseSubagent). */
   onAssistantText: (text: string, model?: string | null, subagent?: ToolUseSubagent) => void;
+  onAssistantThinking?: (text: string, blockId?: string) => void;
   /** Optional tool_use trace from the continuation turn, preserving its correlation id and,
    *  when a native subagent made the call, its attribution. */
   onToolUse?: (name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent) => void;

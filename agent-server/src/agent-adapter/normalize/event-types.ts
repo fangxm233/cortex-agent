@@ -41,6 +41,8 @@ export type NormalizedEvent =
   // subagent linkage re-emits only complete `assistant`/`user` messages. So every delta belongs to
   // the main agent, and a subagent's complete message must not consume the delta cursor.
   | { type: 'assistant_delta'; text: string; blockId: string }
+  | { type: 'assistant_thinking'; text: string; blockId?: string }
+  | { type: 'assistant_thinking_delta'; text: string; blockId: string }
   | { type: 'tool_use'; toolUseId: string; name: string; input: unknown;
       /** Present only when a native subagent made the call. See ToolUseSubagent. */
       subagent?: ToolUseSubagent }

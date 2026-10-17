@@ -42,6 +42,8 @@ export interface ClaudeTurnCallbacks {
     text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
   ) => void) | null;
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
+  onAssistantThinking?: ((text: string, blockId?: string) => void) | null;
+  onAssistantThinkingDelta?: ((text: string, blockId: string) => void) | null;
   onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   onToolResult?: ((
     toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
@@ -78,6 +80,10 @@ export function claudeTurnCallbacks(push: (event: NormalizedEvent) => void): Cla
     // before the complete message that supersedes it.
     onAssistantDelta: (text: string, blockId: string) =>
       push({ type: 'assistant_delta', text, blockId }),
+    onAssistantThinking: (text: string, blockId?: string) =>
+      push({ type: 'assistant_thinking', text, ...(blockId ? { blockId } : {}) }),
+    onAssistantThinkingDelta: (text: string, blockId: string) =>
+      push({ type: 'assistant_thinking_delta', text, blockId }),
     onToolUse: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
       push({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}) });
       // Derived semantic event alongside the raw call (cf. plan_written /

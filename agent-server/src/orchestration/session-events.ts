@@ -9,7 +9,7 @@ export interface SessionMessagePayload {
   sessionId: string;
   channel: string;
   /** `worker-progress`: a team worker's interim reply, shown in its lead's chat (see `worker`). */
-  role: 'user' | 'assistant' | 'tool' | 'worker-progress';
+  role: 'user' | 'assistant' | 'thinking' | 'tool' | 'worker-progress';
   text: string;
   /** User messages only: Cortex authored this turn (resume signal, backgrounded agent result,
    *  waitpoint signal, team hand-off) rather than a human. Chat surfaces render it as a hint
@@ -141,6 +141,7 @@ export function publishSessionMessageDelta(p: {
   text: string;
   /** 0-based, per blockId; lets a client notice it missed one. */
   seq: number;
+  kind?: 'thinking';
 }): void {
   orchestrationBus()?.publish({
     type: 'session.message.delta',
@@ -149,6 +150,7 @@ export function publishSessionMessageDelta(p: {
     blockId: p.blockId,
     text: p.text,
     seq: p.seq,
+    ...(p.kind ? { kind: p.kind } : {}),
   });
 }
 

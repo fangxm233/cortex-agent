@@ -1,5 +1,9 @@
 [
   {
+    "type": "assistant_thinking",
+    "text": "Let me check the repo first."
+  },
+  {
     "type": "turn_progress",
     "numTurns": 1
   },

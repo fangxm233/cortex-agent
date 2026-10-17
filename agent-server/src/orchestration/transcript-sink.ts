@@ -83,6 +83,7 @@ export interface TranscriptSinkDeps extends ToolImageDeps {
   appendToolResult: (sessionId: string, opts: Parameters<typeof conversationHistory.appendToolResult>[1]) => Promise<void>;
   appendSubagentEnd: (sessionId: string, opts: Parameters<typeof conversationHistory.appendSubagentEnd>[1]) => Promise<void>;
   appendAssistant: (sessionId: string, opts: Parameters<typeof conversationHistory.appendAssistant>[1]) => Promise<void>;
+  appendThinking: (sessionId: string, opts: Parameters<typeof conversationHistory.appendThinking>[1]) => Promise<void>;
   setTodos: (sessionId: string, snapshot: TodoSnapshot) => void;
   publishMessage: typeof publishSessionMessage;
   publishTodos: typeof publishSessionTodos;
@@ -99,6 +100,7 @@ const DEFAULT_DEPS: TranscriptSinkDeps = {
   appendToolResult: (sessionId, opts) => conversationHistory.appendToolResult(sessionId, opts),
   appendSubagentEnd: (sessionId, opts) => conversationHistory.appendSubagentEnd(sessionId, opts),
   appendAssistant: (sessionId, opts) => conversationHistory.appendAssistant(sessionId, opts),
+  appendThinking: (sessionId, opts) => conversationHistory.appendThinking(sessionId, opts),
   setTodos: (sessionId, snapshot) => sessionTodos.set(sessionId, snapshot),
   publishMessage: publishSessionMessage,
   publishTodos: publishSessionTodos,
@@ -131,7 +133,7 @@ export interface TranscriptSinkOptions {
 
 /** The event kinds this sink writes as transcript rows (context usage is stored beside them). */
 const ROW_EVENT_TYPES: ReadonlySet<RunEvent['type']> = new Set<RunEvent['type']>([
-  'assistant_text', 'tool_use', 'tool_result', 'todo_update', 'subagent_end', 'context_usage',
+  'assistant_text', 'assistant_thinking', 'tool_use', 'tool_result', 'todo_update', 'subagent_end', 'context_usage',
 ]);
 
 /** A background-phase event this sink would write: what a hold or the injection ledger forwards. */
@@ -227,6 +229,16 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     });
   }
 
+  function persistThinking(text: string, blockId?: string): void {
+    if (blockId) opts.flushDelta?.(blockId);
+    if (!text) return;
+    const ts = new Date().toISOString();
+    recordHistory(deps.appendThinking(sessionId, { text, ts, ...(blockId ? { blockId } : {}) }));
+    deps.publishMessage({
+      sessionId, channel, role: 'thinking', text, ts, ...(blockId ? { blockId } : {}),
+    });
+  }
+
   function persistAssistant(
     text: string, blockId: string | undefined,
     noticeLevel: ChatNoticeLevel | undefined, noticeAction: NoticeAction | undefined,
@@ -295,6 +307,9 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
           deps.publishTodos({ sessionId, channel, snapshot: event.snapshot });
           // The platform status line belongs to the foreground turn; a held turn shows its own.
           if (event.phase === 'foreground') opts.onTodoUpdate?.(event.snapshot);
+          return;
+        case 'assistant_thinking':
+          persistThinking(event.text, event.blockId);
           return;
         case 'assistant_text':
           persistAssistant(

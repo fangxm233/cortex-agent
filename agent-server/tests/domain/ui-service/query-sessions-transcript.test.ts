@@ -475,3 +475,14 @@ test('sessions.transcript keeps re-sending interaction rows, whose rendering is 
   assert.deepEqual(delta.delta!.changed.map((row) => row.index), [1]);
   assert.equal(delta.delta!.changed[0].message.interaction!.status, 'expired');
 });
+
+
+test('sessions.transcript preserves thinking text and block identity', async () => {
+  const deps = makeDeps({ sessionId: 'thought', events: [
+    { type: 'thinking', text: 'consider', blockId: 'm:0', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
+  ] });
+  const result = await handleSessionsTranscript(deps, { sessionId: 'thought' });
+  assert.equal(result.turns[0].messages[0].type, 'thinking');
+  assert.equal(result.turns[0].messages[0].text, 'consider');
+  assert.equal(result.turns[0].messages[0].blockId, 'm:0');
+});

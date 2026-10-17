@@ -309,6 +309,7 @@ function messageFromEvent(
     ...(event.type === 'tool' && event.teamAction ? { teamAction: event.teamAction } : {}),
     ...(event.type === 'tool' && event.boardAction ? { boardAction: event.boardAction } : {}),
     ...(event.type === 'worker-progress' && event.worker ? { worker: event.worker } : {}),
+    ...(event.type === 'thinking' && event.blockId ? { blockId: event.blockId } : {}),
     ts: event.ts,
     elapsedMs,
     // Tool rows carry the images the call returned (see `appendToolImages`).

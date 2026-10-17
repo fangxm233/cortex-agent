@@ -255,6 +255,13 @@ function pushWorkerProgress(state: ParseState, ev: RawEvent): void {
   });
 }
 
+function pushThinking(state: ParseState, ev: RawEvent): void {
+  pushEvent(state, {
+    type: 'thinking', text: ev.text ?? '', ts: ev.ts, turnIndex: turnFor(state),
+    ...(ev.blockId ? { blockId: ev.blockId } : {}),
+  });
+}
+
 function mergeResolvedInteraction(prior: HistoryEvent, ev: RawEvent): void {
   prior.status = ev.status;
   if (ev.result !== undefined) prior.result = ev.result;
@@ -309,6 +316,7 @@ function consumeParsedEvent(state: ParseState, ev: RawEvent, chars: number): voi
   if (ev.type === 'tool-images') return consumeToolImages(state, ev);
   if (ev.type === 'user') return pushUser(state, ev);
   if (ev.type === 'assistant') return pushAssistant(state, ev);
+  if (ev.type === 'thinking') return pushThinking(state, ev);
   if (ev.type === 'tool') return pushTool(state, ev, chars);
   if (ev.type === 'worker-progress') return pushWorkerProgress(state, ev);
   pushInteraction(state, ev);

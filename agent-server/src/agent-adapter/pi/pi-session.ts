@@ -471,6 +471,10 @@ export class PISession {
       this.turnStream?.push(evt);
       return;
     }
+    if (evt.type === 'assistant_thinking' || evt.type === 'assistant_thinking_delta') {
+      this.emitThinkingEvent(evt);
+      return;
+    }
     // Forwarded subagent prose is already a complete message, not a token delta. Putting it in the
     // main-agent text buffer would erase attribution when flushTextBuffer reconstructs the event.
     if (evt.type === 'assistant_text' && evt.subagent) {
@@ -486,6 +490,17 @@ export class PISession {
       if (evt.type === 'turn_complete') this.closeTurnStream();
       return;
     }
+    this.bufferTextEvent(evt);
+  }
+
+  private emitThinkingEvent(evt: Extract<NormalizedEvent, { type: 'assistant_thinking' | 'assistant_thinking_delta' }>): void {
+    if (!getSettings().showThinking) return;
+    this.flushTextBuffer();
+    if (evt.type === 'assistant_thinking_delta' && !this.request.streamDeltas) return;
+    this.turnStream?.push(evt);
+  }
+
+  private bufferTextEvent(evt: Extract<NormalizedEvent, { type: 'assistant_text' }>): void {
     const blockId = evt.blockId ?? null;
     if (this.textBuffer.length > 0 && blockId !== this.textBlockId) this.flushTextBuffer();
     this.textBlockId = blockId;
