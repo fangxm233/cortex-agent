@@ -27,11 +27,38 @@ a { color: var(--proto-accent); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
 a[data-open] { cursor: pointer; }
 code { font-family: var(--b-mono); font-size: 11px; background: var(--proto-gray); border-radius: 5px; padding: 0 4px; }
+pre { margin: 4px 0 6px; padding: 8px 10px; max-height: 24em; overflow: auto; font: 11px/1.5 var(--b-mono); white-space: pre; overflow-wrap: normal; background: var(--material-inset-bg); border: 1px solid var(--border-card); border-radius: var(--r-control); }
+pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
 img, svg, video { max-width: 100%; }
 img, video { height: auto; border-radius: var(--r-chip); }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
 th, td { text-align: left; vertical-align: baseline; padding: 4px 10px 4px 0; border-top: 1px solid var(--proto-line); }
 th { font: 600 11px var(--b-mono); color: var(--proto-muted); border-top: 0; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+figure { margin: 0; min-width: 0; }
+figcaption { margin-top: 4px; font: 400 11px/1.4 var(--b-mono); color: var(--proto-muted); }
+
+/* Media: a board image opens in the app's viewer on click (unless a link wraps it). A file that was
+   not inlined (missing, or over the size cap) shows as a dashed box; a video like that becomes a
+   .b-play tile, added by the frame, that plays it in the app. Its badge sits on the video frame, so
+   it stays light-on-dark in both themes, as the app's own media controls do. */
+img[data-board-src] { cursor: zoom-in; }
+a img[data-board-src], [data-open] img[data-board-src] { cursor: pointer; }
+.b-play { position: relative; display: inline-block; max-width: 100%; vertical-align: top; cursor: pointer; }
+.b-play video { display: block; min-width: 200px; min-height: 112px; background: var(--material-inset-bg); border: 1px solid var(--border-card); }
+.b-play::after { content: "\25B6"; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding-left: 3px; font-size: 15px; color: #fff; background: var(--media-control-bg-dark, rgba(25, 28, 34, .72)); pointer-events: none; }
+
+/* Gallery: same-size thumbnails, each opening full size; --b-thumb sets the minimum column width */
+.gallery { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(var(--b-thumb, 160px), 100%), 1fr)); }
+.gallery img, .gallery video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--material-inset-bg); border: 1px solid var(--border-card); }
+.gallery .b-play { display: block; }
+.gallery .b-play video { min-width: 0; min-height: 0; }
+img[data-board-missing] { min-width: 96px; min-height: 48px; background: var(--material-inset-bg); border: 1px dashed var(--proto-faint); }
+
+/* Wide table: scrolls sideways instead of breaking words into a column of letters */
+.tbl { overflow-x: auto; }
+.tbl table { width: auto; min-width: 100%; }
+.tbl th, .tbl td { overflow-wrap: normal; }
 
 /* Card, stack, grid, section heading */
 .card { background: var(--material-card-bg); border: 1px solid var(--border-card); border-radius: var(--r-card); box-shadow: var(--material-card-shadow); padding: 12px 14px; min-width: 0; }

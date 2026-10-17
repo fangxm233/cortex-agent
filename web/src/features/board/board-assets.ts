@@ -3,6 +3,8 @@ import { resolveBoardRef } from './board-paths';
 // The board frame has an opaque origin and no credentials, so it cannot fetch `assets/x.png`
 // itself. The parent resolves every relative image reference against the board directory, fetches
 // it through the authenticated asset route, and inlines it as a data URI before the body goes in.
+// Images and videos also keep the reference as written, so a click in the frame can open the file
+// itself in the app's viewer (see the bootstrap in board-document.ts).
 
 export const ASSET_MAX_BYTES = 2 * 1024 * 1024;
 export const ASSETS_TOTAL_MAX_BYTES = 16 * 1024 * 1024;
@@ -53,16 +55,37 @@ export function assetRefs(html: string, slug: string): string[] {
   return [...out];
 }
 
+// Tags whose own `src` is what a click opens: an image to zoom, a video to play at full size.
+const OPENABLE_TAG = /^<(?:img|video|source)\b/i;
+const SRC_ATTR = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+
+/** `data-board-src` keeps the reference as written once `src` is a data URI; `data-board-missing`
+ *  marks a source that was not inlined (absent, over a cap), which the frame then shows as such. */
+function openMarks(tag: string, slug: string, uris: Map<string, string>): string {
+  if (!OPENABLE_TAG.test(tag)) return '';
+  const src = tag.match(SRC_ATTR);
+  const ref = src ? src[1] ?? src[2] ?? '' : '';
+  const path = resolveBoardRef(slug, ref);
+  if (!path) return '';
+  const mark = ` data-board-src="${ref.replace(/"/g, '&quot;')}"`;
+  return uris.has(path) ? mark : `${mark} data-board-missing=""`;
+}
+
 function replaceRefs(html: string, slug: string, uris: Map<string, string>): string {
   const swap = (ref: string): string | null => {
     const path = resolveBoardRef(slug, ref);
     return path ? uris.get(path) ?? null : null;
   };
-  return outsideComments(html, (part) => part
-    .replace(MEDIA_TAG, (tag) => tag.replace(MEDIA_ATTR, (whole, lead: string, dq?: string, sq?: string) => {
+  const swapTag = (tag: string): string => {
+    const marks = openMarks(tag, slug, uris);
+    const swapped = tag.replace(MEDIA_ATTR, (whole, lead: string, dq?: string, sq?: string) => {
       const uri = swap(dq ?? sq ?? '');
       return uri ? `${lead}"${uri}"` : whole;
-    }))
+    });
+    return marks ? swapped.replace(/^<[a-z]+/i, (name) => name + marks) : swapped;
+  };
+  return outsideComments(html, (part) => part
+    .replace(MEDIA_TAG, swapTag)
     .replace(CSS_URL, (whole, dq?: string, sq?: string, bare?: string) => {
       const uri = swap(dq ?? sq ?? bare ?? '');
       return uri ? `url("${uri}")` : whole;
@@ -78,15 +101,8 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/**
- * Inline the body's board-relative media as data URIs. A reference that is outside the board,
- * missing, over the per-asset cap, or past the count/total budget is left as written (it then
- * simply fails to load inside the frame).
- */
-export async function inlineBoardAssets(html: string, slug: string, fetchAsset: AssetFetcher): Promise<string> {
-  const refs = assetRefs(html, slug).slice(0, ASSETS_MAX_COUNT);
-  if (refs.length === 0) return html;
-  const fetched = await Promise.all(refs.map((path) => fetchAsset(path, ASSET_MAX_BYTES).catch(() => null)));
+/** Data URIs for the fetched assets that fit the per-asset cap and the running total. */
+function dataUris(refs: string[], fetched: Array<FetchedAsset | null>): Map<string, string> {
   const uris = new Map<string, string>();
   let total = 0;
   refs.forEach((path, i) => {
@@ -97,5 +113,18 @@ export async function inlineBoardAssets(html: string, slug: string, fetchAsset: 
     const mime = asset.mime.split(';')[0]!.trim() || 'application/octet-stream';
     uris.set(path, `data:${mime};base64,${bytesToBase64(asset.bytes)}`);
   });
-  return uris.size ? replaceRefs(html, slug, uris) : html;
+  return uris;
+}
+
+/**
+ * Inline the body's board-relative media as data URIs. A reference that is outside the board is
+ * left alone; one that is missing, over the per-asset cap, or past the count/total budget is left
+ * as written and marked `data-board-missing` (it fails to load inside the frame, but a click still
+ * opens the file).
+ */
+export async function inlineBoardAssets(html: string, slug: string, fetchAsset: AssetFetcher): Promise<string> {
+  const refs = assetRefs(html, slug).slice(0, ASSETS_MAX_COUNT);
+  if (refs.length === 0) return html;
+  const fetched = await Promise.all(refs.map((path) => fetchAsset(path, ASSET_MAX_BYTES).catch(() => null)));
+  return replaceRefs(html, slug, dataUris(refs, fetched));
 }

@@ -72,7 +72,9 @@ export function parseBoardMessage(data: unknown): BoardMessage | null {
 }
 
 // Reports the content height (the parent scrolls, so a reload keeps the reader's place) and turns
-// link clicks into requests: `data-open` opens a board file, an http(s) link opens outside.
+// clicks into requests: `data-open` opens a board file, an http(s) link opens outside, and a board
+// image (`data-board-src`, set by board-assets.ts) opens in the app's viewer unless a link wraps it.
+// A video whose file was not inlined cannot play here, so it becomes a tile that plays it in the app.
 // No literal markup in this script — it would close the script element early.
 const BOOTSTRAP = `
 (function () {
@@ -85,17 +87,41 @@ const BOOTSTRAP = `
     last = h;
     post({ __cortexBoard: 'height', value: h });
   }
-  document.addEventListener('click', function (e) {
-    var t = e.target && e.target.closest ? e.target.closest('[data-open],a[href]') : null;
-    if (!t) return;
+  function follow(e, t) {
     var open = t.getAttribute('data-open');
     if (open) { e.preventDefault(); post({ __cortexBoard: 'open', path: open }); return; }
     var href = t.getAttribute('href') || '';
     if (href.charAt(0) === '#') return;
     e.preventDefault();
     if (/^https?:/i.test(href)) post({ __cortexBoard: 'link', href: t.href });
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target || !e.target.closest) return;
+    var link = e.target.closest('[data-open],a[href]');
+    if (link) { follow(e, link); return; }
+    var img = e.target.closest('img[data-board-src]');
+    if (img) { e.preventDefault(); post({ __cortexBoard: 'open', path: img.getAttribute('data-board-src') }); }
   }, true);
+  function unplayable(v) {
+    if (v.hasAttribute('data-board-missing')) return v;
+    if (v.querySelector('source[data-board-src]:not([data-board-missing])')) return null;
+    return v.querySelector('source[data-board-missing]');
+  }
+  function tile(v) {
+    var src = unplayable(v);
+    if (!src || v.closest('[data-open],a[href]')) return;
+    var t = document.createElement('span');
+    t.className = 'b-play';
+    t.setAttribute('role', 'button');
+    t.setAttribute('data-open', src.getAttribute('data-board-src'));
+    v.removeAttribute('controls');
+    v.removeAttribute('autoplay');
+    v.preload = 'none';
+    v.parentNode.insertBefore(t, v);
+    t.appendChild(v);
+  }
   function watch() {
+    Array.prototype.forEach.call(document.querySelectorAll('video'), tile);
     report();
     if (typeof ResizeObserver === 'function') {
       try { new ResizeObserver(report).observe(document.body || document.documentElement); } catch (e) {}
