@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const harness = vi.hoisted(() => ({
@@ -574,7 +575,11 @@ describe('MChatView overlays', () => {
       id: 'fast', backend: 'claude', provider: null, group: 'claude', active: false,
       disabled: false, disabledReason: null, favorite: true, selection: { ...selection.effective, model: 'fast' },
     }];
-    const r = mount({ selection: { ...selection, open: true, setOpen, favoriteOptions }, onPickSelection });
+    let r!: ReactTestRenderer;
+    act(() => { r = create(<MemoryRouter><LangProvider>
+      <MChatView {...baseProps} rows={[]} status={status} sessionId="s1"
+        selection={{ ...selection, open: true, setOpen, favoriteOptions }} onPickSelection={onPickSelection} />
+    </LangProvider></MemoryRouter>); });
     act(() => r.root.findByProps({ 'data-selection-row': 'favorite:claude::fast' }).props.onClick());
     expect(setOpen).toHaveBeenCalledWith(false);
     expect(onPickSelection.mock.calls[0][0]).toMatchObject({ id: 'favorite:claude::fast', label: 'fast' });
