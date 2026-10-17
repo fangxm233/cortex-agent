@@ -365,7 +365,8 @@ Cortex 随包提供两个：
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
 | `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目包含由 `{ type, label?, enabled, threshold? }` 组成的 `windows` 数组；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
-| `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本。关闭后每条助手消息整条投递 | `CORTEX_STREAM_DELTAS` |
+| `showThinking` | boolean | `true` | 采集模型返回的思考内容，在 Web 和手机聊天中显示。关闭后停止采集新的思考，已保存的行仍可见。Claude 请求思考摘要，PI 显示 provider 返回的文本 | `CORTEX_SHOW_THINKING` |
+| `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本和已采集的思考。关闭后只投递完整内容块 | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | 后台任务结束时，把其输出转回会话 | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | 把事件总线写入按日滚动的 JSONL 事件日志 | `CORTEX_EVENT_LOG` |
 | `diskMonitor` | boolean | `true` | 每五分钟检查 `$CORTEX_HOME` 所在文件系统的可用空间，低于 500 MiB 时发送系统通知。`false` 停止计时器；切回 `true` 会立即检查一次 | `CORTEX_DISK_MONITOR` |
