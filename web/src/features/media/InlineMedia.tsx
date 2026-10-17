@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { ChatMediaProps } from '@/design/ChatMediaContext';
 import { useVocabOptional } from '@/i18n';
-import { isAllowedMediaUrl, isMediaUrl, inlineMediaKind } from './inline-media-source';
+import { isAllowedMediaUrl, isMediaUrl, inlineMediaKind, isSupportedExternalMedia } from './inline-media-source';
 import { useNearViewport } from './useNearViewport';
 import { useInlineMediaResource, type InlineMediaError } from './useInlineMediaResource';
 import { useWorkspaceObjectUrlState } from './useWorkspaceObjectUrl';
@@ -45,6 +45,7 @@ export function InlineMedia(props: ChatMediaProps): JSX.Element {
   const near = useNearViewport(host);
   const external = isMediaUrl(props.src);
   if (external && !isAllowedMediaUrl(props.src)) return <BlockedMedia {...props} />;
+  if (external && !isSupportedExternalMedia(props.src)) return <MediaFailure name={props.alt || props.src} error="unsupported" />;
   const item: MediaItem = { url: props.src, name: props.alt || props.src, kind: inlineMediaKind(props.src) };
   return (
     <span ref={host} style={{ display: 'block', maxWidth: '100%', margin: '4px 0' }}>

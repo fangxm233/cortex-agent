@@ -38,6 +38,12 @@ export function isMediaUrl(src: string): boolean {
   return /^(?:[a-z][a-z\d+.-]*:)?\/\//i.test(src) || /^(?:https?|data|javascript|blob|file):/i.test(src);
 }
 
+export function isSupportedExternalMedia(src: string): boolean {
+  const name = new URL(src).pathname.split('/').pop() ?? '';
+  const extension = name.match(/\.([^.]*)$/)?.[1].toLowerCase();
+  return !extension || /^(png|jpe?g|gif|webp|svg|bmp|ico|avif|mp4|webm|mov|m4v)$/.test(extension);
+}
+
 export function inlineMediaKind(src: string): MediaKind {
   return /\.(mp4|webm|mov|m4v)$/i.test(src.split(/[?#]/)[0]) ? 'video' : 'image';
 }

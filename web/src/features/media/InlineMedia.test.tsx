@@ -75,6 +75,13 @@ describe('assistant inline media', () => {
     expect(mocks.resolve).not.toHaveBeenCalled();
   });
 
+  it('rejects unsupported external extensions without loading them', async () => {
+    await render('https://example.org/a.pdf');
+    expect(renderer.root.findAllByType('img')).toHaveLength(0);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Unsupported image or video format.');
+    expect(mocks.resolve).not.toHaveBeenCalled();
+  });
+
   it('does not make dangerous schemes clickable', async () => {
     await render('javascript:alert(1)');
     expect(renderer.root.findAllByType('a')).toHaveLength(0);
