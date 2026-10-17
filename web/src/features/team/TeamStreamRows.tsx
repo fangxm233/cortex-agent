@@ -5,6 +5,7 @@ import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useLangOptional, useVocabOptional, type Vocab } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
 import { TeamRowSlot, type TeamRowRenderer } from '@/features/session/transcript/team-row-slot';
+import { EventIcon, eventRowStyle, type EventIconName } from '@/features/session/transcript/EventRow';
 import {
   headlineUpdate, messageTimeLabel, type TeamActionView, type TeamChatRow, type TeamUpdatesRow, type WorkerThread,
   type WorkerUpdate,
@@ -13,11 +14,12 @@ import { workerDotStyle } from './TeamRoster';
 import { workerState, workerStatusText } from './worker-roster';
 import { isInactiveWorker } from './worker-groups';
 import {
-  findWorker, spawnedWorker, threadSummary, updateTimeRange, waitedWorkers, waitingRequest,
+  findWorker, requestState, spawnedWorker, updateTimeRange, waitedWorkers, waitingRequest,
 } from './team-stream';
 
 // Team rows in a lead's chat (see the transcript's team-rows): the lead's actions on its workers as
-// quiet one-line rows (a spawn as a small card), and its workers' traffic as one update card per run.
+// quiet one-line rows (a spawn with its brief under it), and its workers' traffic as one update line
+// per worker per run — the transcript's quiet line (see EventRow), opening to the run's timeline.
 // A card's status comes from the live team, and only on each worker's latest card: an older card is
 // history and shows when it happened instead. Routine updates read quieter than what the lead acts on,
 // and a collapsed card leads with the latest report or request rather than the latest routine line.
@@ -39,12 +41,16 @@ const CLAMP2: CSSProperties = {
   overflowWrap: 'anywhere',
 };
 const TIME: CSSProperties = { fontSize: 12, color: 'var(--proto-faint)', flex: 'none', whiteSpace: 'nowrap' };
-// A worker's traffic is something the lead answers from, so it keeps a surface — a quiet one: a
-// hairline and the inset fill, no shadow, the same radius as every other transcript card.
-const CARD: CSSProperties = {
-  background: 'var(--material-inset-bg)',
-  border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', overflow: 'hidden',
-};
+/** One worker's line: the transcript's quiet line, so a run of worker traffic reads like the rest of
+ *  the turn's record instead of a card in the middle of it. */
+function lineStyle(touch: boolean): CSSProperties {
+  return { ...eventRowStyle(touch, true), color: 'var(--proto-muted)' };
+}
+const ICON_BOX: CSSProperties = { width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+// The name keeps its width (up to a cap) and the headline gives way first: on a phone a clipped name
+// tells the reader nothing, a clipped headline still says what it was about.
+const NAME: CSSProperties = { ...ELLIPSIS, flex: 'none', maxWidth: '45%', fontWeight: 550, color: 'var(--proto-ink-3)' };
+const META: CSSProperties = { marginLeft: 'auto', paddingLeft: 12, flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--proto-faint)' };
 const VERB: CSSProperties = { fontSize: 13, fontWeight: 550, color: 'var(--proto-ink-3)', flex: 'none' };
 /** Ink of an update's line: routine reads quieter than a report or request. */
 function lineInk(update: WorkerUpdate, strong = false): string {
@@ -99,10 +105,11 @@ function WorkerPill({ name, worker }: { name: string; worker: SessionInfo | null
   const L = useVocabOptional();
   const { onOpenWorker } = useStream();
   const open = worker && onOpenWorker ? () => onOpenWorker(worker.sessionId) : null;
+  // A name in the line, not a capsule: the dot carries the worker's state, the name opens it.
   const style: CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 220, padding: '1px 8px 1px 6px',
-    borderRadius: 'var(--r-pill)', background: 'var(--material-control-bg)', border: '1px solid var(--proto-line-2)',
-    fontSize: 12.5, fontWeight: 500, color: 'var(--proto-ink-2)', lineHeight: '18px',
+    display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', maxWidth: 220, padding: 0,
+    border: 0, background: 'transparent', borderRadius: 4,
+    fontSize: 'inherit', fontWeight: 550, color: 'var(--proto-ink-2)', lineHeight: 'inherit',
   };
   const content = <><Dot worker={worker} /><span style={ELLIPSIS}>{name}</span></>;
   if (!open) return <span data-worker-pill={name} style={style}>{content}</span>;
@@ -131,14 +138,32 @@ function OpenLink({ worker, label }: { worker: SessionInfo | null; label: string
 
 function actionVerb(action: TeamActionView, L: Vocab): string {
   switch (action.op) {
-    case 'spawn': return `＋ ${L.wbTeamActSpawn}`;
-    case 'send': return `→ ${L.wbTeamActSend}`;
-    case 'stop': return `■ ${L.wbTeamActStop}`;
+    case 'spawn': return L.wbTeamActSpawn;
+    case 'send': return L.wbTeamActSend;
+    case 'stop': return L.wbTeamActStop;
     case 'answer':
-      if (action.approved === true) return `✓ ${L.wbTeamActApproved}`;
-      if (action.approved === false) return `✗ ${L.wbTeamActRejected}`;
-      return `↩ ${L.wbTeamActAnswered}`;
+      if (action.approved === true) return L.wbTeamActApproved;
+      if (action.approved === false) return L.wbTeamActRejected;
+      return L.wbTeamActAnswered;
   }
+}
+
+/** The action's mark in the line's icon column. */
+function actionIcon(action: TeamActionView): { name: EventIconName; color?: string } {
+  switch (action.op) {
+    case 'spawn': return { name: 'plus', color: 'var(--proto-accent)' };
+    case 'send': return { name: 'arrow' };
+    case 'stop': return { name: 'stop' };
+    case 'answer':
+      if (action.approved === true) return { name: 'check', color: 'var(--proto-success)' };
+      if (action.approved === false) return { name: 'cross', color: 'var(--proto-danger)' };
+      return { name: 'reply' };
+  }
+}
+
+function ActionIcon({ action }: { action: TeamActionView }): JSX.Element {
+  const { name, color } = actionIcon(action);
+  return <span style={{ ...ICON_BOX, color: color ?? 'var(--proto-faint)' }}><EventIcon name={name} /></span>;
 }
 
 function fullText(text: string, partial: boolean): string {
@@ -154,8 +179,9 @@ function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }
   const name = action.worker ?? worker?.workerName ?? null;
   return (
     <div data-team-action="spawn" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, minHeight: touch ? 40 : 30 }}>
-        <span style={{ ...VERB, color: 'var(--proto-accent)' }}>{actionVerb(action, L)}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: touch ? 9 : 10, minWidth: 0, minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13 }}>
+        <ActionIcon action={action} />
+        <span style={VERB}>{actionVerb(action, L)}</span>
         {name && <WorkerPill name={name} worker={worker} />}
         {action.model && <span style={{ ...ELLIPSIS, fontSize: 12, color: 'var(--proto-faint)' }}>{action.model}</span>}
         <span style={{ flex: 1 }} />
@@ -164,7 +190,7 @@ function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }
       {action.text && (
         <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
           title={open ? L.wbTeamHideFull : L.wbTeamShowFull}
-          style={{ ...BODY, fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: 'var(--proto-muted)', cursor: 'pointer', paddingLeft: 2, ...(open ? { color: 'var(--proto-ink-2)' } : CLAMP2) }}>
+          style={{ ...BODY, fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: 'var(--proto-muted)', cursor: 'pointer', paddingLeft: 26, ...(open ? { color: 'var(--proto-ink-2)' } : CLAMP2) }}>
           {open ? <ChatMarkdown text={fullText(action.text, action.partial)} /> : action.text}
         </div>
       )}
@@ -185,14 +211,15 @@ function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean 
     <div data-team-action={action.op} {...(canOpen ? toggleKeys(() => setOpen((v) => !v)) : {})}
       aria-expanded={canOpen ? open : undefined}
       style={{
-        display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: 0,
+        display: 'flex', alignItems: 'center', gap: touch ? 9 : 10, minWidth: 0, padding: 0,
         minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13, color: 'var(--proto-muted)',
         cursor: canOpen ? 'pointer' : undefined,
       }}>
-      <span style={{ ...VERB, color: 'var(--proto-muted)' }}>{actionVerb(action, L)}</span>
+      <ActionIcon action={action} />
+      <span style={VERB}>{actionVerb(action, L)}</span>
       {action.worker && <WorkerPill name={action.worker} worker={worker} />}
       {message && (
-        <span style={{ ...ELLIPSIS, color: action.op === 'stop' ? 'var(--proto-muted)' : 'var(--proto-ink-2)' }}>
+        <span style={{ ...ELLIPSIS, color: 'var(--proto-muted)' }}>
           {open ? null : message}
         </span>
       )}
@@ -204,7 +231,7 @@ function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean 
   return (
     <div>
       {line}
-      <div data-team-action-body="" style={{ ...BODY, margin: '2px 0 4px 22px', padding: '6px 12px', borderLeft: '2px solid var(--proto-accent-border)' }}>
+      <div data-team-action-body="" style={{ ...BODY, margin: '0 0 4px 26px', padding: '2px 0 6px' }}>
         <ChatMarkdown text={fullText(action.text, action.partial)} />
       </div>
     </div>
@@ -225,12 +252,16 @@ const TAG_QUESTION: CSSProperties = { ...TAG_BASE, background: 'var(--proto-acce
 const TAG_OK: CSSProperties = { ...TAG_BASE, background: 'var(--proto-success-bg)', color: 'var(--proto-success)' };
 const TAG_BAD: CSSProperties = { ...TAG_BASE, background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' };
 
-/** The kind tag before a request's line, and the outcome of a turn that went wrong. */
-function KindTag({ update }: { update: WorkerUpdate }): JSX.Element | null {
+/** The kind tag before a request's line, and the outcome of a turn that went wrong. `plain` drops the
+ *  pill for the one-line form, where a coloured word is enough. */
+function KindTag({ update, plain = false }: { update: WorkerUpdate; plain?: boolean }): JSX.Element | null {
   const L = useVocabOptional();
-  if (update.kind === 'plan') return <span style={TAG_PLAN}>{L.wbTeamTagPlan}</span>;
-  if (update.kind === 'question') return <span style={TAG_QUESTION}>{L.wbTeamTagQuestion}</span>;
-  if (update.outcome) return <span style={TAG_BAD}>{update.outcome === 'failed' ? L.wbTeamOutcomeFailed : L.wbTeamOutcomeStopped}</span>;
+  const tag = (style: CSSProperties, text: string): JSX.Element => (plain
+    ? <span style={{ color: style.color, fontWeight: 550, marginRight: 6 }}>{text}</span>
+    : <span style={style}>{text}</span>);
+  if (update.kind === 'plan') return tag(TAG_PLAN, L.wbTeamTagPlan);
+  if (update.kind === 'question') return tag(TAG_QUESTION, L.wbTeamTagQuestion);
+  if (update.outcome) return tag(TAG_BAD, update.outcome === 'failed' ? L.wbTeamOutcomeFailed : L.wbTeamOutcomeStopped);
   return null;
 }
 
@@ -309,7 +340,8 @@ function ThreadStatus({ thread, worker, waiting, now, range = true }: {
   return when ? <span data-thread-status="history" style={{ ...base, color: 'var(--proto-muted)' }}>{when}</span> : null;
 }
 
-/** One worker's run: header (dot · name · status · summary), its headline update, the timeline open. */
+/** One worker's run as one line — dot · name · what it said · where the request stands and when —
+ *  that opens to the run's timeline. */
 function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; now: number }): JSX.Element {
   const L = useVocabOptional();
   const { workers } = useStream();
@@ -318,42 +350,37 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
   const worker = findWorker(workers, thread.worker, thread.sessionId);
   const waiting = waitingRequest(thread, worker);
   const shown = headlineUpdate(thread.updates);
+  const state = requestState(thread, L, worker);
   return (
-    <div data-team-card="" data-team-card-open={open ? 'true' : undefined}
-      style={{ ...CARD, opacity: row.pending ? 0.55 : 1 }}>
+    <div data-team-card="" data-team-card-open={open ? 'true' : undefined} style={{ opacity: row.pending ? 0.55 : 1, minWidth: 0 }}>
       <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: open ? '8px 12px 6px' : '8px 12px 2px', cursor: 'pointer', minWidth: 0 }}>
-        <Dot worker={thread.latest ? worker : null} />
-        <span style={{ ...ELLIPSIS, flex: '0 1 auto', fontSize: touch ? 14 : 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
-        <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={!touch} />
-        <span style={{ flex: 1 }} />
-        <span style={{ ...ELLIPSIS, flex: '0 100 auto', fontSize: 12, color: 'var(--proto-muted)' }}>{threadSummary(thread, L, worker)}</span>
-        <span style={{ color: 'var(--proto-muted)', display: 'inline-flex' }}><Chevron open={open} /></span>
+        className={`${MENU_FOCUS}${touch ? '' : ' hover:bg-[var(--proto-gray)]'}`} style={lineStyle(touch)}>
+        <span style={ICON_BOX}><Dot worker={thread.latest ? worker : null} /></span>
+        <span style={NAME}>{thread.worker}</span>
+        <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown) }}>
+          <KindTag update={shown} plain />{shown.line}
+        </span>
+        <span style={META}>
+          {/* The status names an open request itself. */}
+          {state && !waiting && !touch && <span>{state}</span>}
+          <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={!touch} />
+        </span>
       </div>
-      {!open && (
-        <div {...toggleKeys(() => setOpen(true))}
-          style={{ display: 'flex', alignItems: 'flex-end', gap: 10, padding: '3px 12px 9px 27px', cursor: 'pointer' }}>
-          <span data-team-headline={shown.kind} style={{ ...CLAMP2, flex: 1, fontSize: touch ? 13.5 : 13, lineHeight: 1.55, color: lineInk(shown) }}>
-            <KindTag update={shown} />{shown.line}
-          </span>
-          <span style={TIME}>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>
-        </div>
-      )}
       {open && (
-        <>
+        <div style={{ padding: touch ? '0 0 4px 17px' : '0 0 4px 18px' }}>
           <Timeline updates={thread.updates} showName={false} touch={touch} />
           {worker && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 8px' }}>
+            <div style={{ display: 'flex', padding: '0 0 4px 8px' }}>
               <OpenLink worker={worker} label={L.wbTeamOpenWorker} />
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-/** Several workers in one run: one row per worker with its headline line; the timeline opens below. */
+/** Several workers in one run: one line per worker with its headline; the timeline opens below. */
 function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; now: number }): JSX.Element {
   const L = useVocabOptional();
   const { workers } = useStream();
@@ -361,45 +388,37 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
   const toggle = () => setOpen((v) => !v);
   const n = row.updates.length;
   return (
-    <div data-team-card="" data-team-card-open={open ? 'true' : undefined} style={{ ...CARD, opacity: row.pending ? 0.55 : 1 }}>
-      {row.threads.map((thread, i) => {
+    <div data-team-card="" data-team-card-open={open ? 'true' : undefined} style={{ opacity: row.pending ? 0.55 : 1, minWidth: 0 }}>
+      {row.threads.map((thread) => {
         const worker = findWorker(workers, thread.worker, thread.sessionId);
         const waiting = waitingRequest(thread, worker);
         const shown = waiting ?? headlineUpdate(thread.updates);
         return (
-          // A phone puts the line under the name: beside it, it would be cut to a few characters.
           <div key={thread.worker} data-team-thread={thread.worker} {...toggleKeys(toggle)}
-            style={{
-              display: 'grid', alignItems: 'center', columnGap: 8, rowGap: 2,
-              gridTemplateColumns: touch ? '10px auto minmax(0, 1fr) auto' : '10px auto auto minmax(0, 1fr) auto',
-              padding: touch ? '8px 12px' : '6px 12px', cursor: 'pointer', fontSize: touch ? 13 : 12.5,
-              borderTop: i > 0 ? '1px solid var(--proto-line-2)' : undefined,
-            }}>
-            <Dot worker={thread.latest ? worker : null} />
-            <span style={{ ...ELLIPSIS, maxWidth: 180, fontWeight: 600, color: 'var(--proto-ink)' }}>{thread.worker}</span>
-            {touch
-              ? <span style={{ minWidth: 0, display: 'flex' }}><ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} /></span>
-              : <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} />}
-            <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown), ...(touch ? { gridRow: 2, gridColumn: '2 / 5' } : {}) }}>
+            className={`${MENU_FOCUS}${touch ? '' : ' hover:bg-[var(--proto-gray)]'}`} style={lineStyle(touch)}>
+            <span style={ICON_BOX}><Dot worker={thread.latest ? worker : null} /></span>
+            <span style={NAME}>{thread.worker}</span>
+            <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown) }}>
               {/* The status already names an open request. */}
-              {!waiting && <KindTag update={shown} />}{shown.line}
+              {!waiting && <KindTag update={shown} plain />}{shown.line}
             </span>
-            <span style={{ ...TIME, ...(touch ? { gridRow: 1, gridColumn: 4 } : {}) }}>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>
+            <span style={META}>
+              <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} />
+              {!waiting && <span>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>}
+            </span>
           </div>
         );
       })}
       {open && (
-        <div style={{ borderTop: '1px solid var(--proto-line-2)', paddingTop: 4 }}>
+        <div style={{ padding: touch ? '0 0 4px 17px' : '0 0 4px 18px' }}>
           <Timeline updates={row.updates} showName touch={touch} />
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 6px' }}>
-        <button type="button" className={MENU_FOCUS} aria-expanded={open} onClick={toggle}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', padding: touch ? '6px 0' : 0, fontFamily: 'inherit', fontSize: 12, color: 'var(--proto-muted)' }}>
-          {n === 1 ? L.wbTeamItemsOne : fmt(L.wbTeamItemsMany, { n })} · {open ? L.wbTeamHideFull : L.wbTeamExpandTimeline}
-          <Chevron open={open} />
-        </button>
-      </div>
+      <button type="button" className={MENU_FOCUS} aria-expanded={open} onClick={toggle}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', padding: touch ? '6px 0 6px 26px' : '2px 0 2px 26px', fontFamily: 'inherit', fontSize: 12, color: 'var(--proto-faint)' }}>
+        {n === 1 ? L.wbTeamItemsOne : fmt(L.wbTeamItemsMany, { n })} · {open ? L.wbTeamHideFull : L.wbTeamExpandTimeline}
+        <Chevron open={open} />
+      </button>
     </div>
   );
 }

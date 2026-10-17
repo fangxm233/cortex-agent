@@ -135,18 +135,18 @@ takes no parameters and marks the current turn as a routine update (see above).
 - In a worker's transcript, messages from the lead appear as your own messages labelled *From
   lead session*.
 - In the lead's chat, what the lead does to its workers shows as quiet rows of its own rather than
-  tool calls. A spawn is a small card with the worker, its model and the first two lines of its
-  brief. A message or an answer is one line naming the worker; click it for the full text. A stop
-  is one line too. An answer that directly follows
-  its request folds into that request's card.
+  tool calls. A spawn is one line with the worker and its model, with the first two lines of its
+  brief under it. A message or an answer is one line naming the worker; click it for the full text.
+  A stop is one line too. An answer that directly follows its request folds into that request's
+  line.
 - Worker traffic in between the lead's replies (reports, routine updates and requests) gathers
-  into one card per run. The card shows the worker, its live status, a summary such as *Plan
-  approved · 3 reports · 5 routine*, and the latest report or request, or the latest routine
-  update in muted text when the run holds nothing else. It opens into a timeline where routine
-  updates read quieter than reports and each entry expands to the full text, with a link to the
-  worker's session. Several workers in one run get a row each. A worker whose question or plan is
-  still unanswered turns its row amber. Live status appears only on a worker's latest card; older
-  cards show when they happened.
+  into one line per worker per run: the worker, its latest report or request (or the latest
+  routine update in muted text when the run holds nothing else), where its request stands, such as
+  *Question answered*, and its live status or when it happened. Click it to open a timeline where
+  routine updates read quieter than reports and each entry expands to the full text, with a link
+  to the worker's session. Several workers in one run get a line each. A worker whose question or
+  plan is still unanswered says so in its status. Live status appears only on a worker's latest
+  line; older lines show when they happened.
 - When the lead is idle while workers are still running or waiting on something, the chat ends
   with a line naming who it is waiting on, such as *Lead is waiting for docs to report*.
 

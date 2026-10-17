@@ -9,7 +9,7 @@ import { MENU_FOCUS } from '@/design/MenuChrome';
 
 export type EventIconName =
   | 'chevron' | 'check' | 'cross' | 'terminal' | 'file' | 'pencil' | 'search' | 'globe' | 'list'
-  | 'layers' | 'diamond' | 'hourglass' | 'reply' | 'arrow' | 'circle' | 'spark';
+  | 'layers' | 'diamond' | 'hourglass' | 'reply' | 'arrow' | 'circle' | 'spark' | 'plus' | 'stop';
 
 const PATHS: Record<EventIconName, ReactNode> = {
   chevron: <path d="m6 4 4 4-4 4" />,
@@ -28,6 +28,8 @@ const PATHS: Record<EventIconName, ReactNode> = {
   arrow: <path d="M5 11 11 5M6 5h5v5" />,
   circle: <circle cx="8" cy="8" r="4.5" />,
   spark: <path d="M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3M4.2 4.2l2 2M9.8 9.8l2 2M11.8 4.2l-2 2M6.2 9.8l-2 2" />,
+  plus: <path d="M8 3.5v9M3.5 8h9" />,
+  stop: <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" />,
 };
 
 export function EventIcon({ name, open = false, color, size = 13 }: {
