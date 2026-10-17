@@ -5,7 +5,7 @@ import { buildViewCsp } from '@/features/media/html-sandbox';
 // document, so the app's theme variables do not cascade into it: the parent reads the values the
 // stylesheets reference off its own root and hands them over. The document is stacked
 //
-//   theme variables → default preset → user override → board.html body
+//   theme variables → KaTeX (only with formulas) → default preset → user override → board.html body
 //
 // so the preset can be restyled by the override, and the body can restyle anything.
 
@@ -144,6 +144,8 @@ export interface BoardDocumentParts {
   themeCss: string;
   defaultCss: string;
   userCss: string | null;
+  /** KaTeX's stylesheet with fonts inlined, when the body has a formula (board-math-css.ts). */
+  mathCss?: string | null;
   body: string;
   pendingContent: string;
   theme: 'light' | 'dark';
@@ -158,6 +160,7 @@ export function assembleBoardDocument(parts: BoardDocumentParts): string {
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
     + `<meta http-equiv="Content-Security-Policy" content="${buildViewCsp()}">`
     + `<style data-board-layer="theme">${base}${styleText(parts.themeCss)}</style>`
+    + (parts.mathCss ? `<style data-board-layer="math">${styleText(parts.mathCss)}</style>` : '')
     + `<style data-board-layer="preset">${styleText(parts.defaultCss)}</style>`
     + (parts.userCss ? `<style data-board-layer="user">${styleText(parts.userCss)}</style>` : '')
     + `<script>${BOOTSTRAP}</script>`

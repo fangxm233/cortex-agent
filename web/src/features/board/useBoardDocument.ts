@@ -5,6 +5,7 @@ import { boardAssetUrl } from '@/lib/files';
 import { readCappedBody } from '@/features/media/workspace-bytes';
 import { inlineBoardAssets, type FetchedAsset } from './board-assets';
 import { assembleBoardDocument, readThemeVars, referencedVars } from './board-document';
+import { hasBoardMath, renderBoardMath } from './board-math';
 
 const THEME_SETTLE_MS = 120;
 
@@ -56,24 +57,36 @@ export interface BoardDocumentInput {
   refresh: number;
 }
 
-function useInlinedBody({ projectId, slug, body, refresh }: BoardDocumentInput): string | null {
-  const [inlined, setInlined] = useState<string | null>(null);
+interface PreparedBody {
+  html: string;
+  mathCss: string | null;
+}
+
+/** Inline the body's media and render its formulas; KaTeX's stylesheet loads only when needed. */
+async function prepareBody(body: string, projectId: string, slug: string): Promise<PreparedBody> {
+  const html = await inlineBoardAssets(body, slug, (path, limit) => fetchBoardAsset(projectId, path, limit)).catch(() => body);
+  if (!hasBoardMath(html)) return { html, mathCss: null };
+  const mathCss = await import('./board-math-css').then((m) => m.BOARD_MATH_CSS).catch(() => null);
+  return { html: renderBoardMath(html), mathCss };
+}
+
+function usePreparedBody({ projectId, slug, body, refresh }: BoardDocumentInput): PreparedBody | null {
+  const [prepared, setPrepared] = useState<PreparedBody | null>(null);
   useEffect(() => {
     if (body === null || !projectId || !slug) return;
     let cancelled = false;
-    void inlineBoardAssets(body, slug, (path, limit) => fetchBoardAsset(projectId, path, limit))
-      .catch(() => body)
-      .then((html) => { if (!cancelled) setInlined(html); });
+    void prepareBody(body, projectId, slug)
+      .then((next) => { if (!cancelled) setPrepared(next); });
     return () => { cancelled = true; };
   }, [body, projectId, slug, refresh]);
 
-  return inlined;
+  return prepared;
 }
 
 /** The frame's `srcdoc`, or null until the body, stylesheets and assets are ready. */
 export function useBoardDocument(input: BoardDocumentInput): string | null {
   const { body, style } = input;
-  const inlined = useInlinedBody(input);
+  const prepared = usePreparedBody(input);
   const { boardPendingContent } = useVocab();
   const tick = useAppearanceTick();
   const names = useMemo(
@@ -87,14 +100,15 @@ export function useBoardDocument(input: BoardDocumentInput): string | null {
   );
 
   return useMemo(() => {
-    if (inlined === null || style === null) return null;
+    if (prepared === null || style === null) return null;
     return assembleBoardDocument({
       themeCss: theme.css,
+      mathCss: prepared.mathCss,
       defaultCss: style.defaultCss,
       userCss: style.userCss,
-      body: inlined,
+      body: prepared.html,
       pendingContent: boardPendingContent,
       theme: theme.mode,
     });
-  }, [inlined, style, theme, boardPendingContent]);
+  }, [prepared, style, theme, boardPendingContent]);
 }

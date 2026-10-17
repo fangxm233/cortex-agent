@@ -71,6 +71,15 @@ describe('assembleBoardDocument', () => {
     expect(doc).toMatch(/<meta http-equiv="Content-Security-Policy" content="default-src 'none'/);
   });
 
+  it('stacks KaTeX between the theme and the preset, only when the body has formulas', () => {
+    const withMath = assembleBoardDocument({ themeCss: '', mathCss: '.katex{font:1em KaTeX_Main}', defaultCss: 'a{}',
+      userCss: null, body: '', pendingContent: 'Pending', theme: 'light' });
+    const at = (needle: string) => withMath.indexOf(needle);
+    expect(at('data-board-layer="theme"')).toBeLessThan(at('data-board-layer="math"'));
+    expect(at('data-board-layer="math"')).toBeLessThan(at('data-board-layer="preset"'));
+    expect(doc).not.toContain('data-board-layer="math"');
+  });
+
   it('omits the user layer when there is no override', () => {
     const plain = assembleBoardDocument({ themeCss: '', defaultCss: 'a{}', userCss: null, body: '', pendingContent: 'Pending', theme: 'light' });
     expect(plain).not.toContain('data-board-layer="user"');

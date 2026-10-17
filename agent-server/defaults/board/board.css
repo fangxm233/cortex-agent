@@ -55,6 +55,11 @@ a img[data-board-src], [data-open] img[data-board-src] { cursor: pointer; }
 .gallery .b-play video { min-width: 0; min-height: 0; }
 img[data-board-missing] { min-width: 96px; min-height: 48px; background: var(--material-inset-bg); border: 1px dashed var(--proto-faint); }
 
+/* Formulas: the app renders .tex with KaTeX; a display formula too wide for the card scrolls */
+.tex { overflow-wrap: normal; }
+div.tex { margin: 4px 0 6px; overflow-x: auto; overflow-y: hidden; }
+div.tex .katex-display { margin: 0; }
+
 /* Wide table: scrolls sideways instead of breaking words into a column of letters */
 .tbl { overflow-x: auto; }
 .tbl table { width: auto; min-width: 100%; }

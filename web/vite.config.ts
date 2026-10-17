@@ -1,8 +1,9 @@
 /// <reference types="vitest/config" />
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type HttpProxy } from 'vite';
+import { defineConfig, type HttpProxy, type Plugin } from 'vite';
 
 // Build stamp inlined into the bundle via `define` below and shown in the mobile Settings footer.
 // Recomputed each build (timestamp + git short sha), so every build has a distinct value AND a
@@ -51,8 +52,25 @@ const proxyAsDevPage = (proxy: HttpProxy.Server): void => {
   });
 };
 
+// `import uri from './x.woff2?data-uri'` → the file as a base64 `data:` URI string. The board
+// frame has an opaque origin and cannot load the app's own files, so the KaTeX fonts it needs
+// travel inside its document; importing them this way lands them in the lazy chunk that uses them.
+const DATA_URI_MIME: Record<string, string> = { '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf' };
+
+const dataUriImports = (): Plugin => ({
+  name: 'cortex:data-uri',
+  enforce: 'pre',
+  async load(id) {
+    const [file, query] = id.split('?');
+    if (query !== 'data-uri' || !file) return null;
+    const mime = DATA_URI_MIME[path.extname(file)] ?? 'application/octet-stream';
+    const base64 = (await readFile(file)).toString('base64');
+    return `export default ${JSON.stringify(`data:${mime};base64,${base64}`)};`;
+  },
+});
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), dataUriImports()],
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
   },
