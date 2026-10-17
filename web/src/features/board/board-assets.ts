@@ -27,7 +27,7 @@ const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")\s]+))\s*\)/gi;
 const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 
 /** Apply `edit` to the html between comments, leaving the comments as written. */
-function outsideComments(html: string, edit: (part: string) => string): string {
+export function outsideComments(html: string, edit: (part: string) => string): string {
   let out = '';
   let last = 0;
   for (const m of html.matchAll(COMMENT)) {

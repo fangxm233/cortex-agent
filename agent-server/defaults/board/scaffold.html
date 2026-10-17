@@ -61,7 +61,8 @@ Rows serve acceptance criteria, checkpoints, decisions, risks and outputs alike.
 </div>
 
 Results: every board image opens full size on click; a gallery keeps a set the same size. Videos
-     over 2 MB become a play tile. Wide tables go in .tbl, numbers in .num; logs in pre.
+     over 2 MB become a play tile. Wide tables go in .tbl, numbers in .num; logs in pre; formulas in
+     .tex as TeX text.
 <div class="card">
   <div class="h">Results</div>
   <div class="gallery">
@@ -72,6 +73,8 @@ Results: every board image opens full size on click; a gallery keeps a set the s
     <tr><th>run</th><th class="num">success</th><th class="num">steps</th></tr>
     <tr><td>run-12</td><td class="num">0.84</td><td class="num">1200</td></tr>
   </table></div>
+  <p>Objective <span class="tex">\mathcal{L} = \lVert x - \hat{x} \rVert^2</span>, weighted as</p>
+  <div class="tex">w_t = \frac{1}{1 + e^{-t}}</div>
   <pre>step 1200 | loss 0.0123 | success 0.84</pre>
 </div>
 

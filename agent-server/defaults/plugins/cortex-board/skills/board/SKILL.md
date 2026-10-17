@@ -4,7 +4,7 @@ description: "Open and keep a board: the live HTML status page the Web UI shows 
 allowed-tools: Read, Edit, Write, Bash, mcp__cortex-core__board_open, mcp__cortex-core__send_decision, mcp__cortex-core__current_time, mcp__cortex-core__cortex_context
 metadata:
   author: "Cortex"
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # Board
@@ -42,6 +42,7 @@ A session is bound to at most one board. The tool returns the board directory; l
 - **Use the preset classes** below. They follow the user's theme (light/dark, palette, accent) without any work from you. When they do not fit, write your own HTML, inline SVG charts, or a little inline `style`, and take colours from theme variables (`var(--proto-accent)`, `var(--proto-muted)`, …) rather than fixed values so the page still reads in dark mode.
 - **Images** go in `assets/` and are referenced relatively: `<img src="assets/loss.png" alt="loss curve">`. A click opens any board image full size in the app's viewer, so a thumbnail need not be readable at board size; put a set of screenshots or plots in a `gallery`. The app inlines each image up to 2 MB, so resize or compress larger screenshots; a larger one shows as a dashed box that still opens on click. Wrap an image in `<a data-open="…">` to open something else instead.
 - **Videos**: `<video src="assets/rollout.mp4" poster="assets/rollout.jpg" controls></video>`. Up to 2 MB plays in place; a larger one shows as a play tile (its `poster` frame, if any) that plays it in the app's viewer.
+- **Formulas**: `<span class="tex">\mathcal{L} = \lVert x - \hat{x} \rVert^2</span>` inline, `<div class="tex">…</div>` on a line of its own. Write the TeX as text, with `<` as `&lt;`; the app renders it with KaTeX, as in the chat. Do not use `$…$`: nothing on a board reads it.
 - **Outputs**: put a file the user should open into the board's `assets/` and link it with `<a data-open="assets/report.md">report.md</a>`; a click opens it in the app. `data-open` only reaches files inside the board directory, so name anything elsewhere as path text without a link: `<code>experiments/run-12/metrics.json</code>`. Ordinary `https://` links open in the browser.
 - **Keep it static.** The page runs in a sandbox; scripts are not needed for anything the presets do.
 - **Decisions**: record them with `send_decision`; the strip shows them. On the page, keep at most a short "key decisions" row list.
@@ -80,6 +81,7 @@ Use `ask` only for things truly waiting on the user, so the amber stays meaningf
 | `ic` + state, `ic risk`, `ic todo` | the icon at the start of a row; you choose the glyph (✓ ◐ ● ◌ ▲ ○) | `<span class="ic risk">▲</span>` |
 | `tl` | a timeline card: each row starts with `.when` | `<div class="card tl"><div class="rows"><div class="row"><span class="when">MM-DD HH:MM</span><span class="chip ok">done</span><span class="body">…</span></div></div></div>` |
 | `gallery` > `figure` | same-size thumbnails of images or videos, each with an optional `figcaption`; `style="--b-thumb:240px"` sets the minimum column width (default 160px) | `<div class="gallery"><figure><img src="assets/a.png" alt="…"><figcaption>run-12 · loss</figcaption></figure>…</div>` |
+| `tex` on a `span` / `div` | a formula, inline or on its own line | `<span class="tex">\alpha_t</span>`, `<div class="tex">\frac{a}{b}</div>` |
 | `tbl`, `num` | a wide table that scrolls sideways instead of squeezing; `num` right-aligns a numeric `th`/`td` | `<div class="tbl"><table><tr><th>run</th><th class="num">success</th></tr><tr><td>run-12</td><td class="num">0.84</td></tr></table></div>` |
 | `mono`, `muted`, `faint`, `code` | text tones and inline code | `<span class="mono faint">…</span>`, `<code>path</code>` |
 
