@@ -18,6 +18,7 @@ export interface MobileChatRowOpts {
   streaming?: boolean;
   running?: boolean;
   streamingText?: string | null;
+  thinkingText?: string | null;
   pendingUser?: PendingUserMessage[];
   stripScheduledPrefix?: boolean;
   lang?: TimeLang;
@@ -33,6 +34,7 @@ export function buildMobileChatRows(
     streaming: opts.streaming,
     running: opts.running,
     streamingText: opts.streamingText,
+    thinkingText: opts.thinkingText,
     pendingUser: opts.pendingUser,
     stripScheduledPrefix: opts.stripScheduledPrefix,
     formatDivider: (ts, now) => dayDivider(ts, now, opts.lang ?? 'en'),

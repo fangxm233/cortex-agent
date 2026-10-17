@@ -24,6 +24,8 @@ export interface DebugToolDetail {
 export interface ToolCallEntry {
   kind: string;
   input: string;
+  /** A thought in an ordered tool run; input carries its markdown, not a tool argument. */
+  thinking?: true;
   /** The images the call's result carried; absent for every other call. */
   images?: ToolCallImage[];
   debug?: DebugToolDetail;
@@ -31,6 +33,7 @@ export interface ToolCallEntry {
 
 export type ChatRow =
   | { kind: 'divider'; text: string }
+  | { kind: 'thinking'; text: string; preview?: true }
   // `turnIndex` is the rewind anchor (sessions.rewind) — absent on live-tail rows (not editable
   // until the transcript reconciles). `edited` backs the「已编辑」badge + original-message card;
   // `ts` backs its HH:MM stamp. `pending` marks a message written to the backend but not yet read
@@ -144,7 +147,7 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
       continue;
     }
     if (row.kind === 'assistant' && row.text.length > 0) texts.push(row.text);
-    if (row.kind !== 'divider' && texts.length > 0) tailIndex = i;
+    if (row.kind !== 'divider' && row.kind !== 'thinking' && texts.length > 0) tailIndex = i;
   }
   flush();
   return targets;

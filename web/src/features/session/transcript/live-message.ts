@@ -23,7 +23,8 @@ export type TranscriptMessageWithSpawns = TranscriptMessage & {
 export interface LiveSessionMessage {
   sessionId: string;
   /** `worker-progress`: a team worker's interim reply, shown in its lead's chat (see `worker`). */
-  role: 'user' | 'assistant' | 'tool' | 'worker-progress';
+  role: 'user' | 'assistant' | 'tool' | 'worker-progress' | 'thinking';
+  blockId?: string;
   text: string;
   /** User messages only: Cortex authored this turn rather than a human. */
   systemOrigin?: SystemTurnOrigin;
@@ -62,6 +63,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
   const isTool = m.role === 'tool';
   return {
     type: m.role,
+    ...(m.blockId ? { blockId: m.blockId } : {}),
     text: isTool ? null : (m.text ?? ''),
     toolName: isTool ? (m.toolName ?? '') : null,
     toolInput: isTool ? (m.toolInput ?? '') : null,

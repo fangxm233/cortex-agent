@@ -51,6 +51,8 @@ export interface BuildOpts {
    * complete message enters the live tail — so the text never flickers or doubles.
    */
   streamingText?: string | null;
+  /** Independent thinking block preview; never becomes assistant prose. */
+  thinkingText?: string | null;
   /**
    * Messages written into the running turn's backend but not yet read by the model. They render as
    * the LAST rows of the stream — below the streaming preview too — in send order among themselves,
@@ -114,6 +116,7 @@ function isSubagentSpawnTool(toolName: string | null | undefined): boolean {
 }
 
 function msgKey(m: TranscriptMessageWithSpawns): string {
+  if (m.type === 'thinking' && m.blockId) return `thinking|${m.blockId}`;
   // Interaction entities have a stable id — key on it so a status change (pending → approved)
   // REPLACES the row instead of duplicating it.
   if (m.type === 'interaction' && m.interaction?.id) return `interaction|${m.interaction.id}`;
@@ -228,15 +231,26 @@ function createBuildState(transcript: SessionTranscript, flat: FlatMessage[]): B
  */
 function flushTools(sink: RowSink): void {
   let calls: ToolCallEntry[] = [];
+  let images: boolean | undefined;
   for (const call of sink.toolBuf) {
-    if (calls.length > 0 && !calls[0].images !== !call.images) {
-      sink.rows.push({ kind: 'tools', count: calls.length, calls });
+    if (!call.thinking && images !== undefined && images !== !!call.images) {
+      flushToolRun(sink.rows, calls);
       calls = [];
     }
     calls.push(call);
+    if (!call.thinking) images = !!call.images;
   }
-  if (calls.length > 0) sink.rows.push({ kind: 'tools', count: calls.length, calls });
+  flushToolRun(sink.rows, calls);
   sink.toolBuf = [];
+}
+
+function flushToolRun(rows: ChatRow[], calls: ToolCallEntry[]): void {
+  const count = calls.filter((call) => !call.thinking).length;
+  if (count > 0) {
+    rows.push({ kind: 'tools', count, calls });
+    return;
+  }
+  for (const call of calls) rows.push({ kind: 'thinking', text: call.input });
 }
 
 function flushAll(state: BuildState): void {
@@ -369,8 +383,13 @@ function routeMessage(state: BuildState, m: FlatMessage): { sink: RowSink; block
   }
   const block = m.subagentId ? openBlock(state, m, m.subagentId) : null;
   // A worker's interim reply is not the main agent acting, any more than a system-authored turn is.
-  if (!block && !(m.type === 'user' && m.systemOrigin) && m.type !== 'worker-progress') closeBlocksTheMainAgentOutran(state.blocks);
+  if (!block && mainAgentActed(m)) closeBlocksTheMainAgentOutran(state.blocks);
   return { sink: block ? block.sink : state.top, block };
+}
+
+function mainAgentActed(m: FlatMessage): boolean {
+  if (m.type === 'thinking' || m.type === 'worker-progress') return false;
+  return !(m.type === 'user' && m.systemOrigin);
 }
 
 function toolDebug(debug: TranscriptMessage['debug']): DebugToolDetail | undefined {
@@ -495,6 +514,7 @@ function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the
   // smooth reveal paces.
+  if (opts.thinkingText) rows.push({ kind: 'thinking', text: opts.thinkingText, preview: true });
   if (opts.streamingText) {
     rows.push({ kind: 'assistant', text: opts.streamingText, streaming: true, preview: true });
   }
@@ -552,6 +572,10 @@ export function buildTranscriptRows(
     const route = routeMessage(state, m);
     if (!route) continue;
     if (!route.block && (placeTeamMessage(state, m) || placeBoardMessage(state, m))) continue;
+    if (m.type === 'thinking') {
+      if (m.text?.trim()) route.sink.toolBuf.push({ kind: 'thinking', input: m.text, thinking: true });
+      continue;
+    }
     if (m.type === 'tool') {
       if (route.block && !route.block.summary) route.block.row.toolCount += 1;
       route.sink.toolBuf.push(toolEntry(m));
@@ -564,7 +588,7 @@ export function buildTranscriptRows(
   }
   flushAll(state);
   // Legacy compatibility only: a known running child can outlive its parent's turn.
-  const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText);
+  const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText || !!opts.thinkingText);
   if (!sessionLive) closeOpenBlocks(state.blocks);
   if (state.summaryAuthority) applySummaries(state.blocks, sessionLive);
   appendTail(state.rows, opts, state.team);

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import type { SessionTranscript } from '@cortex-agent/ui-contract';
 
 interface Handlers {
   onData(raw: unknown): void;
@@ -46,8 +47,8 @@ import { useSessionMessageLiveSync, type SessionLiveState } from './useSessionMe
 
 let state: SessionLiveState;
 let mounted: ReactTestRenderer;
-function Probe({ sessionId = 'A', enabled = true }) {
-  state = useSessionMessageLiveSync(sessionId, true, false, { deltas: enabled });
+function Probe({ sessionId = 'A', enabled = true, transcript }: { sessionId?: string; enabled?: boolean; transcript?: SessionTranscript }) {
+  state = useSessionMessageLiveSync(sessionId, true, false, { deltas: enabled, transcript });
   return null;
 }
 function render(sessionId = 'A', enabled = true) {
@@ -73,6 +74,38 @@ afterEach(() => {
 });
 
 describe('real assistant delta + session live hook lifecycle', () => {
+  it('keeps thinking independent and replaces only its matching final block', () => {
+    render();
+    send({ blockId: 'answer', text: 'answer partial', seq: 0 });
+    send({ kind: 'thinking', blockId: 'thought', text: 'first\nlatest', seq: 0 });
+    expect(state.streamingText).toBe('answer partial');
+    expect(state.thinkingText).toBe('first\nlatest');
+    shared('session.message', { role: 'thinking', blockId: 'other', text: 'other thought' });
+    expect(state.thinkingText).toBe('first\nlatest');
+    shared('session.message', { role: 'thinking', blockId: 'thought', text: 'complete thought' });
+    expect(state.thinkingText).toBeNull();
+    expect(state.streamingText).toBe('answer partial');
+    expect(state.liveTail.at(-1)).toMatchObject({ role: 'thinking', blockId: 'thought', text: 'complete thought' });
+    send({ kind: 'thinking', blockId: 'thought', text: 'late', seq: 1 });
+    expect(state.thinkingText).toBeNull();
+  });
+
+  it.each(['session.status', 'session.rewound'])('seals thinking previews on %s', (type) => {
+    render();
+    send({ kind: 'thinking', blockId: 'thought', text: 'partial', seq: 0 });
+    shared(type, { running: false });
+    send({ kind: 'thinking', blockId: 'thought', text: 'late', seq: 1 });
+    expect(state.thinkingText).toBeNull();
+  });
+
+  it('clears thinking on session switch without clearing it for an assistant seed', () => {
+    render();
+    send({ kind: 'thinking', blockId: 'thought', text: 'partial', seq: 0 });
+    send({ snapshot: true, text: '' });
+    expect(state.thinkingText).toBe('partial');
+    act(() => mounted.update(<Probe sessionId="B" />));
+    expect(state.thinkingText).toBeNull();
+  });
   it('recovers A/B/A, keeps the seed after reset, and ignores the disposed A callback', () => {
     h.seeds.set('A', seed('prefix'));
     h.seeds.set('B', seed('other', 0, 'other-block'));
@@ -152,4 +185,23 @@ describe('real assistant delta + session live hook lifecycle', () => {
     act(() => h.subs[0].handlers.onError());
     expect(vi.getTimerCount()).toBe(0);
   });
+});
+
+
+it('retires a stranded thought when refreshed history holds its final block', () => {
+  render();
+  send({ kind: 'thinking', blockId: 'thought', text: 'partial', seq: 0 });
+  send({ blockId: 'answer', text: 'answer partial', seq: 0 });
+  const transcript: SessionTranscript = { sessionId: 'A', turns: [{ turnIndex: 0, messages: [{
+    type: 'thinking', text: 'complete thought', blockId: 'other', ts: '2026-07-07T00:00:00Z',
+    elapsedMs: null, toolName: null, toolInput: null,
+  }] }] };
+  act(() => mounted.update(<Probe transcript={transcript} />));
+  expect(state.thinkingText).toBe('partial');
+  const recovered = { ...transcript, turns: [{ turnIndex: 0, messages: [{ ...transcript.turns[0].messages[0], blockId: 'thought' }] }] };
+  act(() => mounted.update(<Probe transcript={recovered} />));
+  expect(state.thinkingText).toBeNull();
+  expect(state.streamingText).toBe('answer partial');
+  send({ kind: 'thinking', blockId: 'thought', text: 'late', seq: 1 });
+  expect(state.thinkingText).toBeNull();
 });

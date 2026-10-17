@@ -1,5 +1,5 @@
 import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
@@ -11,9 +11,10 @@ import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/session/transcript/SubagentTranscriptDetail';
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
+import { SystemHintRow, ThinkingRow } from '@/features/session/transcript/HintRow';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
-import { fmt, useVocab, useVocabOptional } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
+import { fmt, useVocabOptional } from '@/i18n';
+import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard } from './MInteractionCards';
@@ -189,12 +190,7 @@ function MToolCallsRow({ row, sessionId }: {
   row: Extract<ChatRow, { kind: 'tools' }>;
   sessionId?: string;
 }): JSX.Element {
-  const calls = row.calls.map((call) => ({
-    kind: call.kind, input: call.input,
-    ...(call.images ? { images: call.images } : {}),
-    ...(call.debug ? { debug: call.debug } : {}),
-  }));
-  return <ToolCallsRow calls={calls} sessionId={sessionId} touch />;
+  return <ToolCallsRow calls={row.calls} sessionId={sessionId} touch />;
 }
 
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──
@@ -278,49 +274,8 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
  * has no DEBUG inspector, so the desktop chat is where it is read.
  */
 function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): JSX.Element {
-  const L = useVocab();
-  const [open, setOpen] = useState(false);
-  const summary = systemOriginSummary(row.text);
-  // A worker's report or request opens to its full text (systemOriginDisplay); other hints stay one line.
-  const body = systemOriginDisplay(row.systemOrigin!) === 'expandable' ? systemOriginBody(row.text) : '';
-  const canOpen = body.length > 0;
-  const line = (
-    <div
-      data-system-origin={row.systemOrigin}
-      role={canOpen ? 'button' : undefined}
-      aria-expanded={canOpen ? open : undefined}
-      aria-label={canOpen ? (open ? L.wbTeamHideFull : L.wbTeamShowFull) : undefined}
-      onClick={canOpen ? () => setOpen((v) => !v) : undefined}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 7, padding: '2px 0',
-        opacity: row.pending ? 0.55 : 1,
-        cursor: canOpen ? 'pointer' : undefined,
-      }}
-    >
-      <span aria-hidden="true" style={{ width: 3, alignSelf: 'stretch', minHeight: 13, borderRadius: 2, background: MC.divider, flexShrink: 0 }} />
-      <span style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted, flexShrink: 0 }}>
-        {systemOriginLabel(row.systemOrigin!, L)}
-      </span>
-      {summary && !open && (
-        <span style={{ fontSize: 11, color: MC.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {summary}
-        </span>
-      )}
-      {canOpen && (
-        <span aria-hidden="true" style={{ font: `400 11px ${MONO}`, color: MC.muted, flexShrink: 0, transform: open ? 'rotate(90deg)' : 'none' }}>›</span>
-      )}
-    </div>
-  );
-  if (!canOpen || !open) return line;
-  return (
-    <div>
-      {line}
-      <div data-system-origin-body="" style={{ margin: '4px 0 2px 10px', padding: '2px 0 2px 10px', borderLeft: `1px solid ${MC.divider}`,
-        fontSize: 13, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-        <ChatMarkdown text={body} dropTrailingHr />
-      </div>
-    </div>
-  );
+  return <SystemHintRow origin={row.systemOrigin!} text={row.text} pending={row.pending}
+    expandable={systemOriginDisplay(row.systemOrigin!) === 'expandable'} touch />;
 }
 
 const DIM: CSSProperties = { opacity: 0.35, pointerEvents: 'none' };
@@ -486,6 +441,9 @@ const ROW_RENDERERS: { [K in ChatRow['kind']]: RowRenderer<K> } = {
   divider: DividerRow,
   user: UserRow,
   assistant: AssistantRow,
+  thinking: ({ row, dimmed }) => (
+    <Dimmable dimmed={dimmed}><ThinkingRow text={row.text} preview={row.preview} touch /></Dimmable>
+  ),
   subagent: ({ row, dimmed, copyText, ctx }) => (
     <Dimmable dimmed={dimmed} copyText={copyText}><MSubagentBlock row={row} sessionId={ctx.streamKey} /></Dimmable>
   ),

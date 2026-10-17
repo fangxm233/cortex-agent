@@ -1,5 +1,7 @@
 // Chat surface (desktop and mobile): composer, context usage, slash commands, transcript chrome.
 export const chatEn = {
+  chatThinking: 'Thinking',
+  chatThinkingLive: 'Thinking…',
   chatSelectionFailed: 'Could not change selection',
   chatCtxTitle: 'Context usage',
   chatCtxCurrent: 'Current context',
@@ -88,6 +90,8 @@ export const chatEn = {
   chatToolImagesMany: 'Read {n} images',
 };
 export const chatZh: Record<keyof typeof chatEn, string> = {
+  chatThinking: '思考',
+  chatThinkingLive: '思考中…',
   chatSelectionFailed: '切换失败',
   chatCtxTitle: '上下文用量',
   chatCtxCurrent: '当前上下文',

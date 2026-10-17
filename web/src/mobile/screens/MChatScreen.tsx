@@ -133,10 +133,10 @@ export function MChatScreen(): JSX.Element {
   });
   const rows = useMemo(
     () => buildMobileChatRows(chat.transcript, chat.liveTail, {
-      streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText,
+      streaming: chat.streaming, running: chat.running, streamingText: chat.streamingText, thinkingText: chat.thinkingText,
       pendingUser: chat.pendingUser, stripScheduledPrefix: !!active?.scheduleId || chat.isScheduledRun, lang,
     }),
-    [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.pendingUser,
+    [chat.transcript, chat.liveTail, chat.streaming, chat.running, chat.streamingText, chat.thinkingText, chat.pendingUser,
       active?.scheduleId, chat.isScheduledRun, lang],
   );
 
