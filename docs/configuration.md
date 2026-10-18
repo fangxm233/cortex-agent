@@ -807,8 +807,8 @@ Boards are styled by a preset stylesheet that ships with Cortex in
 `agent-server/defaults/board/board.css`. It is read from the package and never
 copied into `$CORTEX_HOME`, so every upgrade brings its current version. The
 preset uses only the app's theme variables (`--proto-*`, `--material-*`,
-`--border-card`, `--r-*`), so boards follow light and dark mode, the palette
-and the accent.
+`--border-card`, `--r-*`, and the faces `--font-ui` and `--font-code`), so
+boards follow light and dark mode, the palette and the accent.
 
 To restyle every board, create `$CORTEX_HOME/config/board.css`. The file does
 not exist by default. It loads after the preset, so it can redefine any
@@ -817,7 +817,7 @@ rule:
 
 ```css
 :root { --proto-accent: #0f766e; --b-gap: 16px; }
-.card { border-radius: 4px; }
+.h { font-size: 14px; }
 ```
 
 Open boards pick up a save within a few seconds, and deleting the file

@@ -114,6 +114,47 @@ describe('assembleBoardDocument', () => {
   });
 });
 
+describe('the shipped preset', () => {
+  const read = (rel: string) => readFileSync(path.resolve(import.meta.dirname, rel), 'utf8');
+  const preset = read('../../../../agent-server/defaults/board/board.css');
+  /** Custom properties a stylesheet declares (`--x:`), at any nesting. */
+  const declared = (css: string) => new Set([...css.matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)].map((m) => m[1]!));
+  /** `selector { … }` rules, flattened out of @media blocks, comments dropped. */
+  const rules = (css: string) => [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((m) => ({ selector: m[1]!.trim(), body: m[2]! }));
+
+  it('takes every variable it reads from the app (so the frame is handed it) or defines it itself', () => {
+    const app = new Set([...declared(read('../../../public/theme.css')), ...declared(read('../../index.css'))]);
+    const own = declared(preset);
+    const withFallback = new Set([...preset.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)\s*,/g)].map((m) => m[1]!));
+    const unresolved = referencedVars(preset).filter((name) => !app.has(name) && !own.has(name) && !withFallback.has(name));
+    expect(unresolved).toEqual([]);
+    // The app's two faces reach the frame through the same hand-over as the colours.
+    expect(referencedVars(preset)).toEqual(expect.arrayContaining(['--font-ui', '--font-code']));
+  });
+
+  it('keeps the mono face for code and drops capitals and letter-spaced labels', () => {
+    const mono = rules(preset).filter((r) => r.body.includes('var(--b-mono)')).map((r) => r.selector);
+    expect(mono.sort()).toEqual(['.mono', '.row .id', 'code', 'pre'].sort());
+    expect(preset).not.toMatch(/text-transform\s*:\s*uppercase/);
+    expect(rules(preset).filter((r) => /letter-spacing\s*:\s*[0-9.]*[1-9]/.test(r.body)).map((r) => r.selector)).toEqual([]);
+  });
+
+  it('draws sections, chips and steps without boxes; only a callout is boxed', () => {
+    const body = (selector: string) => rules(preset).filter((r) => r.selector.split(',').map((s) => s.trim()).includes(selector))
+      .map((r) => r.body).join(';');
+    for (const quiet of ['.card', '.chip', '.step']) {
+      expect(body(quiet), quiet).not.toMatch(/box-shadow|border-radius:\s*var\(--r-card\)|background:\s*var\(--material/);
+      expect(body(quiet), quiet).not.toMatch(/(^|;)\s*border\s*:(?!\s*0\s*(;|$))/);
+    }
+    expect(body('.callout')).toMatch(/border:\s*1px solid/);
+    // Every class boards were written with is still styled.
+    for (const cls of ['.stack', '.grid', '.h', '.head', '.lead', '.chip', '.meter', '.legend', '.steps', '.rows', '.row', '.ic', '.tl', '.gallery', '.tex', '.tbl', '.num', '.mono', '.muted', '.faint']) {
+      expect(preset, cls).toContain(cls);
+    }
+  });
+});
+
 describe('parseBoardMessage', () => {
   it('accepts the three board messages', () => {
     expect(parseBoardMessage({ __cortexBoard: 'height', value: 812.4 })).toEqual({ type: 'height', value: 812 });
