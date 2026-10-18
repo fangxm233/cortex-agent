@@ -12,7 +12,9 @@ export type ButtonSize = 'sm' | 'md';
 // dark theme through the `--ink-solid-*` pair. Keyboard focus uses the shared solid outline.
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
   primary: '[background:var(--ink-solid-bg)] text-[var(--ink-solid-fg)] hover:opacity-90',
-  secondary: 'border border-proto-faint [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink hover:[background:var(--material-inset-bg)]',
+  // A hairline, the same weight as a field's ring: a secondary action should not out-draw the
+  // inputs beside it.
+  secondary: 'border border-proto-line-4 [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink hover:[background:var(--material-inset-bg)]',
   ghost: 'text-proto-ink-2 hover:bg-surface-canvas-alt',
   danger: 'bg-state-fail text-[var(--ink-solid-fg)] hover:bg-state-fail/90',
   // The first step of a destructive pair: quiet until hovered, so the filled `danger` that arms
