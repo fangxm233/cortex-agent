@@ -231,12 +231,15 @@ function layoutSegment(rows: ChatRow[], from: number, to: number, segment: numbe
     }
     const thoughtsOnly = s.indexes.every((i) => rows[i].kind === 'thinking' || isInvisible(rows[i]));
     const substantive = s.indexes.filter((i) => !isInvisible(rows[i]));
-    if (thoughtsOnly || substantive.length < 2) {
+    // A settled lone tool run reads better as its own line than as a one-row fold. The live tail is
+    // different: it is where the "working" line lives, and the reader needs it from the first run.
+    const liveTail = live && s === lastRun;
+    if (thoughtsOnly || substantive.length < (liveTail ? 1 : 2)) {
       for (const i of s.indexes) out.push({ kind: 'row', index: i, role: 'plain', segment });
       continue;
     }
     out.push({
-      kind: 'work', key: `work-${s.indexes[0]}`, indexes: s.indexes, live: live && s === lastRun, segment,
+      kind: 'work', key: `work-${s.indexes[0]}`, indexes: s.indexes, live: liveTail, segment,
       stats: workStats(rows, s.indexes, from, to),
     });
   }
