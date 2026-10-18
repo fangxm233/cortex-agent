@@ -13,7 +13,6 @@ const node = (): RailProjectNode => ({
   empty: false,
   attention: 0,
   attentionTone: 'unread',
-  hotkey: null,
   idleAge: null,
   starredSessions: [],
   starsExpanded: true,

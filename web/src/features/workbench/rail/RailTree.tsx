@@ -611,10 +611,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   <AddIcon />
                 </IconButton>
               </span>
-            ) : node.idleAge !== null ? (
-              <span style={META}>{node.idleAge}</span>
             ) : (
-              node.hotkey && <span style={META}>{node.hotkey}</span>
+              node.idleAge !== null && <span style={META}>{node.idleAge}</span>
             )}
           </span>
         </div>

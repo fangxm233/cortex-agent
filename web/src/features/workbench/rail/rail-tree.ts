@@ -61,8 +61,6 @@ export interface RailProjectNode {
   attention: number;
   /** 'action' when any session is actually blocked on you (amber), else 'unread' (muted). */
   attentionTone: ProjectAttentionBadgeTone;
-  /** '⌘1'…'⌘9' by visible order, non-empty projects only; null past nine or when an age shows. */
-  hotkey: string | null;
   /** Last-activity age, only for quiet rows that show no attention count. */
   idleAge: string | null;
   starredSessions: RailSessionRow[];
@@ -204,7 +202,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
   const currentProjectId =
     projectOfSession(selectedSessionId, directSessions, scheduledSessions) ?? fallbackProjectId;
 
-  let hotkeyIndex = 0;
   const nodes: RailProjectNode[] = orderedProjects.map((project) => {
     const partition = partitionStarredSessions(
       sessionsByProject.get(project.id) ?? [], scheduledByProject.get(project.id) ?? [],
@@ -254,7 +251,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
 
     const activityMs = lastActivity[project.id];
     const hasSignal = attention > 0;
-    const hotkey = !empty && hotkeyIndex < 9 ? '⌘' + ++hotkeyIndex : null;
 
     return {
       id: project.id,
@@ -265,7 +261,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       empty,
       attention,
       attentionTone: badge.tone,
-      hotkey,
       idleAge:
         !hasSignal && typeof activityMs === 'number' ? relTime(activityMs, now, lang) : null,
       starredSessions: orderSessions(matchingStars).map(toSessionRow),
