@@ -82,13 +82,15 @@ export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingPr
   const size = variant === 'desktop' ? 20 : 22;
   const center = size / 2;
   const wedge = contextWedgePath(vm.progress, center, center - 3.5);
-  const label = `${L.chatCtxUsage}: ${vm.percentLabel}`;
+  // Named as context, not bare "usage": beside the top bar's usage (spend) button the bare word
+  // reads as money.
+  const label = `${L.chatCtxTitle}: ${vm.percentLabel}`;
   return (
     <button {...buttonProps} ref={ref} className={`${MENU_FOCUS} ${className ?? ''}`} type="button" data-context-usage-ring={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={label} title={label} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"
-        aria-label={L.chatCtxUsage}
+        aria-label={L.chatCtxTitle}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={vm.progress ?? undefined}

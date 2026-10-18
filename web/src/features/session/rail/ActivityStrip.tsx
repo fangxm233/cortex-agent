@@ -18,8 +18,16 @@ type Open = 'todo' | 'wait' | null;
 
 /** A capsule's text is cut off (its scroll width exceeds its box). */
 function stripTruncates(strip: HTMLDivElement): boolean {
-  return Array.from(strip.querySelectorAll<HTMLElement>('[data-activity-chip] span'))
-    .some((span) => span.scrollWidth > span.clientWidth + 1);
+  return Array.from(strip.querySelectorAll<HTMLElement>('[data-activity-chip] span')).some(labelOverflows);
+}
+
+/** `scrollWidth` rounds to whole pixels, so a label less than a pixel too wide still draws its
+ *  ellipsis without tripping it; the text's own box says whether it was cut. */
+function labelOverflows(span: HTMLElement): boolean {
+  if (span.scrollWidth > span.clientWidth) return true;
+  const range = document.createRange();
+  range.selectNodeContents(span);
+  return range.getBoundingClientRect().width > span.getBoundingClientRect().width + 0.01;
 }
 
 const STRIP: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, marginBottom: 8 };
