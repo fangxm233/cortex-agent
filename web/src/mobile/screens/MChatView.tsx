@@ -1,6 +1,6 @@
 import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
-import { useRef, type CSSProperties, type ReactNode } from 'react';
-import type { SessionInfo } from '@cortex-agent/ui-contract';
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import type { SessionInfo, WaitpointInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
@@ -12,10 +12,13 @@ import { SubagentTranscriptDetail } from '@/features/session/transcript/Subagent
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { SystemHintRow, ThinkingRow } from '@/features/session/transcript/HintRow';
+import { EventIcon, EventRow } from '@/features/session/transcript/EventRow';
+import { SessionStateLine, TranscriptStatusProvider, WaitpointRow, WorkLog } from '@/features/session/transcript/WorkLog';
+import { copyHosts, itemIndexes, layoutTurns, type TurnItem } from '@/features/session/transcript/turn-layout';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { fmt, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
-import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
+import { interactionView, emptyAskAnswers, type PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard } from './MInteractionCards';
 import { AttachmentGroup } from './MChatAttachments';
@@ -173,13 +176,14 @@ function MSubagentDetail({ row, sessionId }: {
 }
 
 /** The desktop subagent card in its touch form; only the body renderer stays mobile-specific. */
-function MSubagentBlock({ row, sessionId }: {
+function MSubagentBlock({ row, sessionId, background = false }: {
   row: Extract<ChatRow, { kind: 'subagent' }>;
   sessionId?: string;
+  background?: boolean;
 }): JSX.Element {
   return (
     <SubagentBlock agentType={row.agentType} description={row.description} prompt={row.prompt}
-      model={row.model} status={row.status} toolCount={row.toolCount} touch>
+      model={row.model} status={row.status} toolCount={row.toolCount} background={background} touch>
       <MSubagentDetail row={row} sessionId={sessionId} />
     </SubagentBlock>
   );
@@ -197,6 +201,7 @@ function MToolCallsRow({ row, sessionId }: {
 
 const NOOP = (): void => {};
 const NO_WORKERS: SessionInfo[] = [];
+const NO_WAITPOINTS: WaitpointInfo[] = [];
 
 /**
  * One assistant block. `preview` marks the block being written RIGHT NOW (the token-level
@@ -230,6 +235,14 @@ function MAssistantBlock({ text, preview, streamKey, ts }: {
 function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 'interaction' }>; interactions?: MChatInteractions }): JSX.Element {
   const copy = useVocabOptional();
   const v = interactionView(row, copy);
+  if (v.kind === 'ask' && v.model.status !== 'pending') {
+    const m = v.model;
+    return (
+      <MSealedAsk count={m.questions.length} time={m.timeLabel}>
+        <MAskCard model={m} state={emptyAskAnswers} copy={copy} onPick={NOOP} onToggle={NOOP} onConfirmMulti={NOOP} />
+      </MSealedAsk>
+    );
+  }
   if (v.kind === 'ask') {
     const m = v.model;
     return (
@@ -243,25 +256,47 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
       />
     );
   }
-  if (v.kind === 'plan') {
-    const m = v.model;
-    return (
-      <MPlanCard
-        model={m}
-        copy={copy}
-        dimmed={interactions?.rejectingId === m.requestId}
-        onApprove={interactions ? () => interactions.onApprove(m) : NOOP}
-        onRejectStart={interactions ? () => interactions.onRejectStart(m) : NOOP}
-        onOpenRead={interactions ? () => interactions.onOpenRead(m) : NOOP}
-      />
-    );
+  if (v.kind === 'plan') return <MPlanInteraction model={v.model} interactions={interactions} />;
+  const color = v.tone === 'rejected' ? 'var(--proto-danger)' : v.tone === 'inactive' ? undefined : MC.done;
+  const icon = v.tone === 'rejected' ? 'cross' : v.tone === 'inactive' ? 'circle' : 'check';
+  return <EventRow touch icon={<EventIcon name={icon} color={color} />} label={v.label} summary={v.text} attrs={{ 'data-interaction-summary': v.tone }} />;
+}
+
+function MPlanInteraction({ model: m, interactions }: { model: PlanCardModel; interactions?: MChatInteractions }): JSX.Element {
+  const copy = useVocabOptional();
+  if (m.status !== 'approved' && m.status !== 'rejected') {
+    return <MPlanCard model={m} copy={copy} dimmed={interactions?.rejectingId === m.requestId}
+      onApprove={interactions ? () => interactions.onApprove(m) : NOOP}
+      onRejectStart={interactions ? () => interactions.onRejectStart(m) : NOOP}
+      onOpenRead={interactions ? () => interactions.onOpenRead(m) : NOOP} />;
   }
-  const color = v.tone === 'rejected' ? 'var(--proto-danger)' : v.tone === 'inactive' ? MC.muted : MC.done;
-  const icon = v.tone === 'rejected' ? '✗' : v.tone === 'inactive' ? '◌' : '✓';
+  const approved = m.status === 'approved';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{icon} {v.label}</span>
-      <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.text}</span>
+    <>
+      <EventRow touch icon={<EventIcon name={approved ? 'check' : 'cross'} color={approved ? 'var(--proto-success)' : 'var(--proto-danger)'} />}
+        label={approved ? copy.chatPlanApproved : copy.chatPlanRejected} summary={m.title}
+        meta={<span style={{ color: 'var(--proto-accent)', fontWeight: 550 }}>{copy.chatPlanView}</span>}
+        onClick={interactions ? () => interactions.onOpenRead(m) : undefined}
+        attrs={{ 'data-interaction-sealed': approved ? 'plan-approved' : 'plan-rejected' }} />
+      {!approved && m.feedback && (
+        <div style={{ alignSelf: 'flex-end', maxWidth: '82%', background: MC.inkSolid, color: 'var(--ink-solid-fg)', borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)', padding: '9px 13px', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+          {m.feedback}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** An answered question: one line that opens back to the questions and answers. */
+function MSealedAsk({ count, time, children }: { count: number; time: string | null; children: ReactNode }): JSX.Element {
+  const copy = useVocabOptional();
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <EventRow touch icon={<EventIcon name={open ? 'chevron' : 'check'} open={open} color={open ? undefined : MC.done} />}
+        label={copy.ixAnswered} summary={count === 1 ? copy.chatAskAnsweredOne : fmt(copy.chatAskAnsweredMany, { n: count })}
+        meta={time} expanded={open} onClick={() => setOpen((v) => !v)} attrs={{ 'data-interaction-sealed': 'ask' }} />
+      {open && children}
     </div>
   );
 }
@@ -306,6 +341,10 @@ interface RowProps<K extends ChatRow['kind']> {
   /** The turn's whole answer when this row closes it; the copy action rides the last row. */
   copyText?: string;
   ctx: StreamContext;
+  /** Drawn inside a turn's open work log: working notes read a step quieter. */
+  inWork?: boolean;
+  /** A subagent still running after its turn ended. */
+  background?: boolean;
 }
 
 function DividerRow({ row, dimmed }: RowProps<'divider'>): JSX.Element {
@@ -406,10 +445,13 @@ function UserRow(props: RowProps<'user'>): JSX.Element {
   );
 }
 
-function AssistantRow({ row, index, dimmed, copyText, ctx }: RowProps<'assistant'>): JSX.Element {
+function AssistantRow({ row, index, dimmed, copyText, ctx, inWork }: RowProps<'assistant'>): JSX.Element {
   const L = useVocabOptional();
   return (
-    <div style={{ fontSize: 15, lineHeight: 1.6, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', ...(dimmed ? DIM : {}) }}>
+    <div data-narration={inWork ? 'true' : undefined} style={{
+      fontSize: inWork ? 14 : 15, lineHeight: 1.6, color: inWork ? MC.sub : MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word',
+      ...(inWork ? { margin: '2px 0' } : {}), ...(dimmed ? DIM : {}),
+    }}>
       {/* 由编辑重新生成 — footnote atop the first regenerated reply after an edit */}
       {ctx.regen?.has(index) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `400 11px ${MONO}`, color: MC.muted, marginBottom: 4 }}>
@@ -444,8 +486,11 @@ const ROW_RENDERERS: { [K in ChatRow['kind']]: RowRenderer<K> } = {
   thinking: ({ row, dimmed }) => (
     <Dimmable dimmed={dimmed}><ThinkingRow text={row.text} preview={row.preview} touch /></Dimmable>
   ),
-  subagent: ({ row, dimmed, copyText, ctx }) => (
-    <Dimmable dimmed={dimmed} copyText={copyText}><MSubagentBlock row={row} sessionId={ctx.streamKey} /></Dimmable>
+  subagent: ({ row, dimmed, copyText, ctx, background }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><MSubagentBlock row={row} sessionId={ctx.streamKey} background={background} /></Dimmable>
+  ),
+  waitpoint: ({ row, dimmed, copyText }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><WaitpointRow wait={row.wait} touch /></Dimmable>
   ),
   tools: ({ row, dimmed, copyText, ctx }) => (
     <Dimmable dimmed={dimmed} copyText={copyText}><MToolCallsRow row={row} sessionId={ctx.streamKey} /></Dimmable>
@@ -481,7 +526,15 @@ function StreamRow(props: RowProps<ChatRow['kind']>): JSX.Element | null {
   return <Render {...props} />;
 }
 
-export function MChatStream({ rows, start = 0, interactions, editing, onLongPress, onShowOriginal, onOpenBoard, streamKey }: {
+/** Space above an item in a laid-out stream: a new turn stands apart, the rows of one turn sit close. */
+function itemGap(item: TurnItem, prev: TurnItem | undefined, rows: ChatRow[]): number {
+  if (!prev) return 0;
+  if (item.kind === 'row' && rows[item.index].kind === 'divider') return 24;
+  if (prev.kind === 'row' && rows[prev.index].kind === 'divider') return 16;
+  return item.segment !== prev.segment ? 26 : 6;
+}
+
+export function MChatStream({ rows, start = 0, interactions, editing, onLongPress, onShowOriginal, onOpenBoard, streamKey, group = false, live = false }: {
   rows: ChatRow[];
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
   start?: number;
@@ -498,8 +551,16 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
   /** A board card's Open: the full-screen board. */
   onOpenBoard?: (boardId: string) => void;
+  /** Lay the rows out as turns, as the desktop chat does (see turn-layout). */
+  group?: boolean;
+  /** The foreground turn is running: its work stays open and its trailing text is the answer so far. */
+  live?: boolean;
 }): JSX.Element {
-  const assistantCopies = assistantTurnCopyTargets(rows);
+  const items = useMemo(() => (group ? layoutTurns(rows, { live }) : null), [rows, group, live]);
+  const copies = useMemo(() => {
+    const targets = assistantTurnCopyTargets(rows);
+    return items ? copyHosts(items, targets, rows) : targets;
+  }, [rows, items]);
   const editingIdx = editing?.rowIndex ?? null;
   const ctx: StreamContext = {
     interactions, streamKey, editing, onShowOriginal, onOpenBoard,
@@ -509,17 +570,43 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
     holdFor: (row, index) => (onLongPress && editingIdx == null && row.kind === 'user' && !row.systemOrigin
       ? longPressHandlers((anchorTop) => onLongPress(index, anchorTop)) : null),
   };
-  return (
-    <>
-      {rows.slice(start).map((row, j) => {
-        const i = start + j;
-        return (
-          <StreamRow key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : row.kind === 'team-updates' ? `team-${row.id}` : i}
-            row={row} index={i} dimmed={editingIdx != null && i > editingIdx} copyText={assistantCopies.get(i)} ctx={ctx} />
-        );
-      })}
-    </>
-  );
+  const rowKey = (row: ChatRow, i: number): string | number =>
+    row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : row.kind === 'team-updates' ? `team-${row.id}` : i;
+  const dimmedAt = (i: number): boolean => editingIdx != null && i > editingIdx;
+  if (!items) {
+    return (
+      <>
+        {rows.slice(start).map((row, j) => {
+          const i = start + j;
+          return <StreamRow key={rowKey(row, i)} row={row} index={i} dimmed={dimmedAt(i)} copyText={copies.get(i)} ctx={ctx} />;
+        })}
+      </>
+    );
+  }
+  const out: JSX.Element[] = [];
+  let prev: TurnItem | undefined;
+  items.forEach((item, k) => {
+    const indexes = itemIndexes(item);
+    if (indexes[indexes.length - 1] < start) return;
+    const gap = itemGap(item, prev, rows);
+    if (gap) out.push(<div key={`gap-${k}`} aria-hidden="true" style={{ height: gap, flex: 'none' }} />);
+    prev = item;
+    if (item.kind === 'row') {
+      const row = rows[item.index];
+      out.push(<StreamRow key={rowKey(row, item.index)} row={row} index={item.index} dimmed={dimmedAt(item.index)}
+        copyText={copies.get(k)} ctx={ctx} background={item.role === 'pinned' && row.kind === 'subagent'} />);
+      return;
+    }
+    out.push(
+      <div key={item.key} style={dimmedAt(item.indexes[0]) ? DIM : undefined}>
+        <WorkLog stats={item.stats} live={item.live} touch footer={<AssistantTurnCopyAction text={copies.get(k)} />}>
+          {item.indexes.map((i) => <StreamRow key={rowKey(rows[i], i)} row={rows[i]} index={i} dimmed={false} ctx={ctx} inWork />)}
+        </WorkLog>
+      </div>,
+    );
+  });
+  // One flex column of its own, so the turn spacing above is the only spacing between items.
+  return <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>{out}</div>;
 }
 
 // Client-annotated system line in the stream (scheme 1p L808) — e.g. a model switch.
@@ -592,8 +679,9 @@ function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal, onOpe
         {props.transcriptError && props.rows.length === 0 && props.onRetryTranscript && <TranscriptLoadError onRetry={props.onRetryTranscript} />}
         <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
           onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} onOpenBoard={onOpenBoard}
-          streamKey={props.sessionId} />
+          streamKey={props.sessionId} group live={props.live} />
         <LeadWaitingLine touch />
+        <SessionStateLine running={!!props.live} touch />
         {props.systemLines?.map((t, i) => <SystemLine key={i} text={t} />)}
         {/* Tail clearance for the floating composer, which no longer takes flow height. */}
         <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
@@ -677,6 +765,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   return (
     <TeamStreamProvider workers={props.workers ?? NO_WORKERS} leadRunning={props.status.running}
       onOpenWorker={props.onOpenWorkerFromChat ?? props.onOpenWorker}>
+      <TranscriptStatusProvider backgroundRunning={!!props.backgroundRunning} waitpoints={props.waitpoints?.waitpoints ?? NO_WAITPOINTS}>
       <div
         ref={clearance.rootRef}
         data-screen-label="1b chat detail"
@@ -691,6 +780,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         <MChatBody props={props} overlay={overlay} selection={selection} />
         <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />
       </div>
+      </TranscriptStatusProvider>
     </TeamStreamProvider>
   );
 }

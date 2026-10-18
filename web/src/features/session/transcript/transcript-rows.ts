@@ -14,6 +14,7 @@ import {
 } from './live-message';
 import type { PendingUserMessage } from './pending-user';
 import { boardActionOf } from './board-rows';
+import { waitpointOf } from './wait-rows';
 import {
   addWorkerUpdate, createTeamBuild, finishTeamRows, parseWorkerMessage, placeTeamAction, progressUpdate,
   teamActionOf, type TeamBuild,
@@ -508,6 +509,15 @@ function placeBoardMessage(state: BuildState, m: FlatMessage): boolean {
   return true;
 }
 
+/** A wait_create call at the top level: its own row, after the tool run before it. */
+function placeWaitMessage(state: BuildState, m: FlatMessage): boolean {
+  const wait = waitpointOf(m);
+  if (!wait) return false;
+  flushTools(state.top);
+  state.top.rows.push({ kind: 'waitpoint', wait });
+  return true;
+}
+
 /** Rows after every persisted/live message: the in-flight block, the streaming flag, then the
  *  messages the model has not read yet. */
 function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
@@ -571,7 +581,7 @@ export function buildTranscriptRows(
     }
     const route = routeMessage(state, m);
     if (!route) continue;
-    if (!route.block && (placeTeamMessage(state, m) || placeBoardMessage(state, m))) continue;
+    if (!route.block && (placeTeamMessage(state, m) || placeBoardMessage(state, m) || placeWaitMessage(state, m))) continue;
     if (m.type === 'thinking') {
       if (m.text?.trim()) route.sink.toolBuf.push({ kind: 'thinking', input: m.text, thinking: true });
       continue;

@@ -482,6 +482,12 @@ export const zhBase = {
   stMotionFull: '完整',
   stMotionReduced: '减弱',
 
+  // ── Appearance / chat work log ──
+  stChatWorkLabel: '对话中的工作过程',
+  stChatWorkHint: '回合完成后，工具调用和中间播报收成答案上方的一行。',
+  stChatWorkFold: '完成后收起',
+  stChatWorkExpanded: '始终展开',
+
   // ── Appearance / glass control ──
   stGlassLabel: '毛玻璃',
   stGlassHint: '滚动卡顿时选“关闭”，所有表面变为不透明。',

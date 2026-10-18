@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useDockIntake } from '@/design/dock-intake';
-import { MENU_FOCUS, MONO } from '@/design/MenuChrome';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { BoardRowSlot, type BoardRowRenderer } from '@/features/session/transcript/board-row-slot';
 import type { BoardActionView } from '@/features/session/transcript/board-rows';
@@ -61,7 +61,7 @@ function CreatedCard({ action, onOpen, touch }: { action: BoardActionView; onOpe
         <BoardIcon size={15} stroke={missing ? 'var(--proto-muted)' : BOARD_FLAG_COLOR[tone]} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ font: `500 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.boardCreatedKicker}</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--proto-muted)' }}>{L.boardCreatedKicker}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 1 }}>
           <b title={title} style={{ ...ELLIPSIS, fontSize: 14, fontWeight: 650, color: 'var(--proto-ink)' }}>{title}</b>
           <BoardPendingChip count={pending.length} />
@@ -85,16 +85,18 @@ function AttachedLine({ action, onOpen, touch }: { action: BoardActionView; onOp
   const title = board?.title ?? action.title;
   return (
     <div data-board-line={action.boardId} data-board-missing={missing ? '' : undefined} style={{
-      display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: touch ? '4px 0' : '2px 2px',
-      minHeight: touch ? 30 : undefined, fontSize: touch ? 13 : 12.5, color: 'var(--proto-muted)',
+      display: 'flex', alignItems: 'center', gap: touch ? 9 : 10, minWidth: 0, padding: 0,
+      minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13, color: 'var(--proto-muted)',
     }}>
-      <BoardIcon size={12} stroke={missing ? 'var(--proto-muted)' : 'var(--proto-accent)'} />
+      <span style={{ width: 16, display: 'flex', justifyContent: 'center', flex: 'none' }}>
+        <BoardIcon size={12} stroke={missing ? 'var(--proto-muted)' : 'var(--proto-accent)'} />
+      </span>
       <span style={{ flex: 'none' }}>{L.boardAttachedLine}</span>
       <b title={title} style={{ ...ELLIPSIS, fontWeight: 600, color: 'var(--proto-ink)' }}>{title}</b>
       <button type="button" className={MENU_FOCUS} data-board-card-open="" disabled={missing}
         title={missing ? L.boardMissing : undefined} onClick={() => onOpen(action.boardId)}
         style={{
-          flex: 'none', border: 0, padding: '0 2px', background: 'transparent', font: `400 11px ${MONO}`, whiteSpace: 'nowrap',
+          flex: 'none', border: 0, padding: '0 2px', background: 'transparent', fontFamily: 'inherit', fontSize: 12, fontWeight: 550, whiteSpace: 'nowrap',
           color: missing ? 'var(--proto-muted)' : 'var(--proto-accent)', cursor: missing ? 'default' : 'pointer',
         }}>
         · {L.boardBarOpen} →

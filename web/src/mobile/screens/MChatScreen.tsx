@@ -238,6 +238,8 @@ export function MChatScreen(): JSX.Element {
       status={status}
       project={route.projectId ?? undefined}
       rows={rows}
+      live={chat.running && !chat.backgroundRunning}
+      backgroundRunning={chat.backgroundRunning}
       loading={!!sessionId && chat.transcriptPending}
       transcriptError={chat.transcriptError}
       onRetryTranscript={chat.retryTranscript}

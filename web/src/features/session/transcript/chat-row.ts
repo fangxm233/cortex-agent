@@ -11,6 +11,7 @@ import type { ToolCallImage } from '@/features/session/composer/chat-content';
 import { systemOriginDisplay } from './system-origin';
 import type { BoardActionRow } from './board-rows';
 import type { TeamChatRow } from './team-rows';
+import type { WaitpointRow } from './wait-rows';
 
 // The chat-row model the transcript builder produces, and the queries both streams run over it.
 
@@ -74,7 +75,9 @@ export type ChatRow =
   // out of the tool-chip run, and one card per consecutive run of worker traffic. See team-rows.
   | TeamChatRow
   // A board_open call: a card for a board it created, one line for one it attached to. See board-rows.
-  | BoardActionRow;
+  | BoardActionRow
+  // A wait_create call: the waitpoint the turn ends on. See wait-rows.
+  | WaitpointRow;
 
 /**
  * What an edit at `rowIndex` (a user row) would discard: the count of assistant replies and tool
@@ -88,7 +91,7 @@ export function rewindStats(rows: ChatRow[], rowIndex: number): { replies: numbe
     const r = rows[i];
     if (r.kind === 'assistant') replies++;
     else if (r.kind === 'tools') toolCalls += r.count;
-    else if (r.kind === 'team-action' || r.kind === 'board-action') toolCalls += 1;
+    else if (r.kind === 'team-action' || r.kind === 'board-action' || r.kind === 'waitpoint') toolCalls += 1;
   }
   return { replies, toolCalls };
 }

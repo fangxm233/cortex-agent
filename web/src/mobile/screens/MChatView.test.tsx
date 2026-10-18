@@ -315,7 +315,7 @@ describe('MChatStream subagent prompt', () => {
       : Array.isArray(node) ? node.map(text).join('')
       : node?.children ? text(node.children) : '';
     const rendered = text(renderer.toJSON());
-    const order = ['first note', '2 tool calls', 'second note', '1 tool call']
+    const order = ['first note', 'Read a.ts · Ran 1 command', 'second note', 'Edited b.ts']
       .map((needle) => rendered.indexOf(needle));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);

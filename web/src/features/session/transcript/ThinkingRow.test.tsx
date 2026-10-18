@@ -51,7 +51,7 @@ describe('thinking display', () => {
     const toolRow = mounted.root.findByType(ToolCallsRow);
     expect(toolRow.props.calls[1].thinking).toBe(true);
     const toggle = toolRow.findByType('button');
-    expect(toggle.findAll((node) => node.type === 'span' && node.children.includes('Thinking')).length).toBeGreaterThan(0);
+    expect(toggle.findAll((node) => node.type === 'span' && node.children.some((child) => typeof child === 'string' && child.includes('Thinking'))).length).toBeGreaterThan(0);
     act(() => toggle.props.onClick());
     const panel = toolRow.findByProps({ 'data-tool-calls-panel': true });
     expect(panel.children.map((child) => typeof child === 'string' ? child : child.props.call.kind))

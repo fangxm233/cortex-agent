@@ -32,9 +32,11 @@ describe('SubagentBlock', () => {
     expect(header.props.className).toContain('focus-visible:outline');
     expect(header.props.style.position).toBe('sticky');
     expect(header.props.style.top).toBe('var(--transcript-sticky-top, 0px)');
-    expect(header.props.style.background).toBe('var(--proto-card)');
+    // Collapsed it is one more quiet line; open, the pinned header occludes its own body.
+    expect(header.props.style.background).toBe('transparent');
     expect(header.props.style.backdropFilter).toBeUndefined();
     act(() => header.props.onClick());
+    expect(renderer.root.findByProps({ role: 'button' }).props.style.background).toBe('var(--proto-card)');
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
@@ -52,7 +54,7 @@ describe('SubagentBlock', () => {
       );
     });
     const header = renderer.root.findByProps({ role: 'button' });
-    expect(header.props.style).toMatchObject({ minHeight: 44, flexWrap: 'wrap', background: 'var(--proto-card)', top: 'var(--transcript-sticky-top, 0px)' });
+    expect(header.props.style).toMatchObject({ minHeight: 44, flexWrap: 'wrap', background: 'transparent', top: 'var(--transcript-sticky-top, 0px)' });
     expect(header.props.onMouseEnter).toBeUndefined();
     act(() => header.props.onClick());
     expect(JSON.stringify(renderer.toJSON())).toContain('child output');
