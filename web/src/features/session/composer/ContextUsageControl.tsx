@@ -52,7 +52,8 @@ const TRIGGER_STYLE: CSSProperties = { borderRadius: 'var(--r-pill)', border: 0,
 
 /** Compact circular usage gauge — the toolbar form of context usage: the desktop composer row, and
  *  on mobile the chat header beside ⋯. The percent lives in the tooltip/aria label rather than
- *  beside the ring, so the control stays icon-sized. Callers may restyle it through `style`
+ *  beside the ring, so the control stays icon-sized. The arc is muted ink: how full the context is
+ *  is reference, not a state the accent should announce. Callers may restyle it through `style`
  *  (mobile makes it a 36px bare key on the floating header) — it is the button itself, so do not
  *  wrap it in one. */
 export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingProps>(function ContextUsageRing(
@@ -86,7 +87,7 @@ export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingPr
               cy={size / 2}
               r={r}
               fill="none"
-              stroke="var(--proto-accent)"
+              stroke="var(--proto-muted)"
               strokeWidth={stroke}
               strokeLinecap="round"
               strokeDasharray={`${filled} ${circumference}`}
@@ -144,7 +145,7 @@ export function ContextUsageDetails({ usage }: { usage: SessionContextUsage | nu
       {rows.map(([label, value]) => (
         <div key={label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 20, borderBottom: '1px solid var(--proto-line-2)', paddingBottom: 8 }}>
           <span style={{ color: 'var(--proto-muted)' }}>{label}</span>
-          <span style={{ font: "600 12px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-ink)', textAlign: 'right' }}>{value}</span>
+          <span style={{ fontWeight: 550, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-ink)', textAlign: 'right' }}>{value}</span>
         </div>
       ))}
       {note ? (

@@ -295,7 +295,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
       {chat.isScheduledRun && (
         <div
           style={{
-            font: "400 9.5px 'IBM Plex Mono',monospace",
+            fontSize: 12,
             color: 'var(--proto-faint)',
             maxWidth: 760,
             margin: '0 auto',

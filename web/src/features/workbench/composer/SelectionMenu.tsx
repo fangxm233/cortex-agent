@@ -6,12 +6,25 @@ import type {
   ModeOption, ModelOption, SelectionPane, SelectionRootRow, ThinkingOption,
 } from '@/features/session/list/selection-menu';
 import {
-  Divider, MenuCard, MenuRow, MONO as mono, Note, rowBackground, SectionTitle, type HoverProps,
+  Divider, MenuCard, MenuRow, Note, rowBackground, SectionTitle, type HoverProps,
   MENU_BUTTON_STYLE, MENU_FOCUS,
 } from '@/design/MenuChrome';
 
 import { groupModelOptions } from '@/features/session/list/selection-menu';
 import { matchesModelFilter, modelKey, modelLabel } from '@/lib/model-selection';
+
+// The engine menu. Model names, levels and modes are names, not code, so every row is in the UI
+// face: an ink label, its value muted on the right, and an ink tick on what runs now.
+
+function Caret({ back = false }: { back?: boolean }): JSX.Element {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
+      <path d={back ? 'm10 4-4 4 4 4' : 'm6 4 4 4-4 4'} />
+    </svg>
+  );
+}
+
 function DrillRow({ row, onOpen, hover, setHover }: {
   row: SelectionRootRow;
   onOpen: () => void;
@@ -27,21 +40,20 @@ function DrillRow({ row, onOpen, hover, setHover }: {
       data-selection-pane={row.key}
       style={{
         ...MENU_BUTTON_STYLE,
-        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', cursor: 'pointer',
         background: rowBackground(id, hover, false),
       }}
     >
-      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-ink-2)', flex: 'none' }}>
+      <span style={{ fontSize: 13, color: 'var(--proto-ink-2)', flex: 'none' }}>
         {row.label}
       </span>
       <span style={{
-        marginLeft: 'auto', font: `500 11px ${mono}`, minWidth: 0,
-        color: 'var(--proto-ink)',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
+        fontSize: 12.5, color: 'var(--proto-muted)',
       }}>
-        {row.value}
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
+        <Caret />
       </span>
-      <span style={{ color: 'var(--proto-muted)', fontSize: 11, flex: 'none' }}>›</span>
     </button>
   );
 }
@@ -65,11 +77,8 @@ function BackRow({ title, onBack, hover, setHover }: {
         background: rowBackground('back', hover, false),
       }}
     >
-      <span style={{ color: 'var(--proto-accent)', fontSize: 12, fontWeight: 700 }}>‹</span>
-      <span style={{
-        font: `600 11px ${mono}`, letterSpacing: '0.05em', textTransform: 'uppercase',
-        color: 'var(--proto-muted)',
-      }}>
+      <span style={{ display: 'inline-flex', color: 'var(--proto-muted)' }}><Caret back /></span>
+      <span style={{ font: '550 12px/1.4 var(--font-ui)', color: 'var(--proto-muted)' }}>
         {title}
       </span>
     </button>
@@ -82,7 +91,7 @@ function GroupLabel({ text }: { text: string }): JSX.Element {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px 2px',
-      font: `500 10px ${mono}`, color: 'var(--proto-muted-2)',
+      font: '400 11.5px/1.4 var(--font-ui)', color: 'var(--proto-faint)',
     }}>
       <span style={{ flex: 'none' }}>{text}</span>
       <span style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
@@ -116,11 +125,14 @@ function FavoriteRow({ option, onPick, hover, setHover }: { option: ModelOption;
       data-selection-row={id} title={option.disabled ? L.wbModelCrossBackend : option.id}
       onMouseEnter={() => setHover(id)} onMouseLeave={() => setHover(null)}
       onClick={(event) => { event.stopPropagation(); onPick(); }}
-      style={{ ...MENU_BUTTON_STYLE, display: 'flex', gap: 8, alignItems: 'center', padding: '5px 8px',
+      style={{ ...MENU_BUTTON_STYLE, display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px',
         opacity: option.disabled ? 0.45 : 1, cursor: option.disabled ? 'default' : 'pointer', background: rowBackground(id, hover, option.active) }}>
-      <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-ink)', flex: 1 }}>{modelLabel(option.selection)}</span>
-      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', width: '8ch' }}>{option.selection.thinking ?? L.default}</span>
-      <span style={{ width: 10, color: 'var(--proto-accent)', fontSize: 11 }}>{option.active ? '✓' : ''}</span>
+      <span style={{
+        fontSize: 13, fontWeight: option.active ? 550 : 400, color: option.active ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
+        flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{modelLabel(option.selection)}</span>
+      <span style={{ fontSize: 12.5, color: 'var(--proto-muted)', flex: 'none', textAlign: 'right' }}>{option.selection.thinking ?? L.default}</span>
+      <span style={{ width: 12, flex: 'none', color: 'var(--proto-ink)', fontSize: 12, fontWeight: 700 }}>{option.active ? '✓' : ''}</span>
     </button>
   );
 }
@@ -133,7 +145,7 @@ function SelectionHeader({ onClose }: { onClose: () => void }) {
     <button type="button" className={MENU_FOCUS} data-selection-settings
       onClick={(event) => { event.stopPropagation(); onClose(); openSection('models'); }}
       style={{ border: 0, background: 'transparent', color: 'var(--proto-accent)',
-        font: `400 11px ${mono}`, padding: '6px 8px 3px', cursor: 'pointer' }}>
+        font: '400 12px/1.4 var(--font-ui)', padding: '6px 8px 3px', cursor: 'pointer' }}>
       {L.wbModelSettings}
     </button>
   </div>;
@@ -162,7 +174,7 @@ function CatalogRow({ option, props, shared }: { option: ModelOption; props: Sel
     <button type="button" className={MENU_FOCUS} aria-pressed={option.favorite}
       aria-label={`${option.favorite ? L.wbRemoveFavorite : L.wbAddFavorite}: ${option.id}`}
       onClick={(event) => { event.stopPropagation(); props.onToggleFavorite(option); }}
-      style={{ border: 0, background: 'transparent', color: option.favorite ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '5px 9px', cursor: 'pointer' }}>
+      style={{ border: 0, background: 'transparent', color: option.favorite ? 'var(--proto-ink)' : 'var(--proto-faint)', padding: '5px 9px', cursor: 'pointer' }}>
       {option.favorite ? '★' : '☆'}
     </button>
   </div>;
@@ -179,7 +191,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
     <div style={{ padding: '6px 8px 4px' }} onClick={(event) => event.stopPropagation()}>
       <input data-selection-filter="model" aria-label={L.wbFilterModels} placeholder={L.wbFilterModels}
         value={filter} onChange={(event) => setFilter(event.target.value)} className={MENU_FOCUS}
-        style={{ width: '100%', boxSizing: 'border-box', font: `400 11px ${mono}`, color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 7px' }} />
+        style={{ width: '100%', boxSizing: 'border-box', font: '400 12.5px var(--font-ui)', color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', padding: '5px 8px' }} />
     </div>
     {groups.map((group) => <div key={`${group.backend}:${group.group}`}>
       <GroupLabel text={group.group} />

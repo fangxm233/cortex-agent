@@ -55,6 +55,7 @@ vi.mock('@/lib/trpc', () => {
 
 import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
 import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
+import { selectionChipParts } from '@/features/session/list/selection-menu';
 
 const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' };
 const sonnet: EngineSelection = { ...current, model: 'claude-sonnet-5', thinking: 'low', mode: 'api' };
@@ -328,6 +329,38 @@ describe('independent environment and transition state', () => {
     open(renderer);
     expect(renderer.root.findAllByProps({ 'data-menu': 'agent' })).toHaveLength(0);
     expect(renderer.root.findByProps({ 'data-menu': 'selection' })).toBeDefined();
+  });
+});
+
+describe('chip and menu faces', () => {
+  it('draws both chips as filled quiet chips that read "model · sub" in the UI face', () => {
+    const renderer = mount({ currentAgent: 'research' });
+    for (const chip of ['agent', 'selection']) {
+      const style = renderer.root.findByProps({ 'data-chip': chip }).props.style;
+      expect(style.background).toBe('var(--proto-line-2)');
+      expect(style.border).toBe(0);
+      expect(style.height).toBe(28);
+      expect(style.font).toContain('var(--font-ui)');
+    }
+    const texts = renderer.root.findByProps({ 'data-chip': 'selection' }).findAllByType('span')
+      .map((node) => node.children.join(''));
+    expect(texts).toEqual([selectionChipParts(current).main, '· high']);
+  });
+
+  it('keeps every engine pane free of the code face, uppercase titles and the accent tick', () => {
+    const renderer = mount();
+    const scan = (): string => JSON.stringify(renderer.toJSON());
+    open(renderer);
+    expect(scan()).not.toMatch(/Plex|uppercase/);
+    for (const pane of ['model', 'thinking', 'mode']) {
+      drill(renderer, pane);
+      expect(scan()).not.toMatch(/Plex|uppercase/);
+      press(renderer.root.findByProps({ 'data-selection-back': 'true' }));
+    }
+    const active = row(renderer, `favorite:${modelKey(current)}`);
+    const tick = active.findAllByType('span').at(-1)!;
+    expect(tick.children.join('')).toBe('✓');
+    expect(tick.props.style.color).toBe('var(--proto-ink)');
   });
 });
 

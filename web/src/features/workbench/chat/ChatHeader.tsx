@@ -8,17 +8,7 @@ import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { NotesGlyph } from '@/features/notes/NotesGlyph';
 import { useDockIntake } from '@/design/dock-intake';
-
-const MONO = "'IBM Plex Mono',monospace";
-
-function FolderGlyph(): JSX.Element {
-  return (
-    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flex: 'none' }} aria-hidden="true">
-      <path d="M1.6 12.2V4.4a1.3 1.3 0 0 1 1.3-1.3h2.7l1.3 1.5h5.5a1.3 1.3 0 0 1 1.3 1.3v1.2" stroke="var(--proto-accent)" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M2.9 13h8.8a1.2 1.2 0 0 0 1.13-.79l1.4-3.9A.6.6 0 0 0 13.66 7.5H5.1a1.2 1.2 0 0 0-1.13.79l-1.63 4.5A.5.5 0 0 0 2.9 13z" fill="var(--proto-accent)" />
-    </svg>
-  );
-}
+import { ProjectGlyph } from '@/features/workbench/composer/composer-chip';
 
 function GlobeGlyph(): JSX.Element {
   return (
@@ -39,7 +29,7 @@ function BrowserIconButton(): JSX.Element | null {
     <IconButton
       data-browser-button=""
       size={28}
-      tone="accent"
+      tone="neutral"
       active={active && activeKind === 'web'}
       aria-pressed={active && activeKind === 'web'}
       label={L.wbOpenWebPage}
@@ -80,7 +70,7 @@ function ParentCrumb({ parent }: { parent: ChatHeaderParent }): JSX.Element {
         background: 'transparent',
         cursor: 'pointer',
         fontFamily: 'inherit',
-        fontSize: 13.5,
+        fontSize: 13,
         color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
       }}
     >
@@ -125,8 +115,8 @@ export function ChatHeader({
         borderBottom: '1px solid var(--proto-line)',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '0 20px',
+        gap: 8,
+        padding: '0 14px 0 20px',
       }}
     >
       {running && (
@@ -144,10 +134,11 @@ export function ChatHeader({
       {parent && <ParentCrumb parent={parent} />}
       <div
         style={{
-          fontSize: 13.5,
+          fontSize: 15,
           fontWeight: 600,
           color: 'var(--proto-ink)',
-          maxWidth: 280,
+          minWidth: 0,
+          maxWidth: 320,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -157,65 +148,75 @@ export function ChatHeader({
       </div>
       {projectName && (
         <span
+          data-project-chip=""
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 5,
-            font: `500 11px ${MONO}`,
+            height: 22,
+            fontSize: 12,
             color: 'var(--proto-muted)',
             background: 'var(--proto-line-2)',
-            borderRadius: 'var(--r-chip)',
-            padding: '2px 7px',
+            borderRadius: 6,
+            padding: '0 8px 0 7px',
             flex: 'none',
+            whiteSpace: 'nowrap',
           }}
         >
-          <FolderGlyph />
+          <ProjectGlyph />
           {projectName}
         </span>
       )}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted)' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, color: 'var(--proto-muted)' }}>
         {team}
         {board}
-        <BrowserIconButton />
-        <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <IconButton
-            data-notes-button=""
-            size={28}
-            tone="accent"
-            active={notes.isOpen}
-            aria-pressed={notes.isOpen}
-            label={`${L.noteTitle} · ⌘⇧N`}
-            onClick={() => notes.isOpen ? notes.close() : notes.open()}
-          >
-            <NotesGlyph />
-          </IconButton>
-          {/* The button lost its label in this row, but not its count: a badge keeps the number on
-              screen rather than demoting it into a tooltip nobody hovers. */}
-          {notes.vm.activeCount > 0 && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: -3,
-                right: -3,
-                minWidth: 16,
-                height: 16,
-                padding: '0 3px',
-                boxSizing: 'border-box',
-                borderRadius: 'var(--r-pill)',
-                font: `600 11px ${MONO}`,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--proto-accent)',
-                color: 'var(--ink-solid-fg)',
-              }}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flex: 'none' }}>
+          <BrowserIconButton />
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <IconButton
+              data-notes-button=""
+              size={28}
+              tone="neutral"
+              active={notes.isOpen}
+              aria-pressed={notes.isOpen}
+              label={`${L.noteTitle} · ⌘⇧N`}
+              onClick={() => notes.isOpen ? notes.close() : notes.open()}
             >
-              {notes.vm.activeCount}
-            </span>
-          )}
+              <NotesGlyph />
+            </IconButton>
+            {/* The button lost its label in this row, but not its count: a quiet number on the
+                button's corner keeps it on screen rather than demoting it into a tooltip nobody
+                hovers. A plain figure on the card, not a filled accent badge — a note is not an alert. */}
+            {notes.vm.activeCount > 0 && (
+              <span
+                aria-hidden="true"
+                data-notes-count=""
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -4,
+                  minWidth: 15,
+                  height: 15,
+                  padding: '0 3px',
+                  boxSizing: 'border-box',
+                  borderRadius: 'var(--r-pill)',
+                  font: '550 10.5px/1 var(--font-ui)',
+                  fontVariantNumeric: 'tabular-nums',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--proto-card)',
+                  boxShadow: '0 0 0 1px var(--proto-line-3)',
+                  color: 'var(--proto-ink-2)',
+                  pointerEvents: 'none',
+                }}
+              >
+                {notes.vm.activeCount}
+              </span>
+            )}
+          </span>
+          <ChatSessionMenu session={metadataSession} onSessionId={() => setSessionIdOpen(true)} />
         </span>
-        <ChatSessionMenu session={metadataSession} onSessionId={() => setSessionIdOpen(true)} />
       </div>
       {sessionIdOpen ? (
         <SessionIdModal

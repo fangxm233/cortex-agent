@@ -1,11 +1,10 @@
 import { createPortal } from 'react-dom';
 import { useVocab } from '@/i18n';
 
-const mono = "'IBM Plex Mono',monospace";
-
 // The whole chat pane accepts drops, so the cue covers the whole pane rather than only the composer.
 // It never takes pointer events: the drag keeps landing on the pane's own children, which is what the
 // drop target's enter/leave depth counting expects. The host element must be `position: relative`.
+// The dashed accent edge is the drop-target indicator; the label inside is an ordinary floating card.
 export function ChatDropOverlay({ target, fileCount, attachedCount }: {
   target: HTMLElement | null;
   fileCount: number;
@@ -46,14 +45,14 @@ export function ChatDropOverlay({ target, fileCount, attachedCount }: {
           alignItems: 'center',
           gap: 3,
           background: 'var(--proto-card)',
-          border: '1px solid var(--proto-accent-border)',
+          border: '1px solid var(--proto-line)',
           borderRadius: 'var(--r-card)',
           padding: '10px 18px',
-          boxShadow: 'var(--shadow-accent-soft)',
+          boxShadow: 'var(--material-overlay-shadow)',
         }}
       >
-        <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>{headline}</span>
-        {detail && <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{detail}</span>}
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{headline}</span>
+        {detail && <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)' }}>{detail}</span>}
       </div>
     </div>,
     target,

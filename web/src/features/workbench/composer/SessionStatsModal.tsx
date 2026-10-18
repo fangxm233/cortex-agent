@@ -5,9 +5,8 @@ import type { SessionStatsRow } from '@/features/session/list/session-stats';
 // SESSION STATS MODAL — opened from the composer status line's totals segment. Spells out what the
 // one-line summary compresses: how many runs, how many agent turns, how long the agent actually
 // worked, how long the conversation has been open, what it cost, and how much of that cost was
-// spent by Agent-tool children. Same card/scrim chrome as SessionIdModal.
-
-const mono = "'IBM Plex Mono',monospace";
+// spent by Agent-tool children. Same card/scrim chrome as SessionIdModal. Counts, spans and money
+// are not code: they stay in the UI face with aligned digits.
 
 export function SessionStatsModal({
   rows,
@@ -49,7 +48,7 @@ export function SessionStatsModal({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionStats}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.wbSessionStats}</span>
         <button
           type="button"
           aria-label={L.winClose}
@@ -57,7 +56,8 @@ export function SessionStatsModal({
           onClick={onClose}
           style={{
             marginLeft: 'auto',
-            font: `500 11px ${mono}`,
+            font: '400 12px var(--font-ui)',
+            background: 'transparent',
             color: 'var(--proto-muted)',
             border: '1px solid var(--proto-line)',
             borderRadius: 'var(--r-chip)',
@@ -82,15 +82,15 @@ export function SessionStatsModal({
               borderBottom: '1px solid var(--proto-line)',
             }}
           >
-            <span style={{ fontSize: 12, color: 'var(--proto-muted)' , flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 13, color: 'var(--proto-muted)', flex: 1, minWidth: 0 }}>
               {row.label}
             </span>
-            <span style={{ font: `600 12.5px ${mono}`, color: 'var(--proto-ink)', flex: 'none' }}>
+            <span style={{ fontSize: 13, fontWeight: 550, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-ink)', flex: 'none' }}>
               {row.value}
             </span>
           </div>
         ))}
-        <div style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--proto-muted)', paddingTop: 10 }}>
+        <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted)', paddingTop: 10 }}>
           {L.wbSessionStatsHint}
         </div>
       </div>

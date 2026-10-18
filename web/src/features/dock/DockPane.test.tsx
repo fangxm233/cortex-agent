@@ -121,6 +121,27 @@ describe('DockPane tab lifetime', () => {
     expect(renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-1' })).toBe(secondFrame);
   });
 
+  it('marks each tab with a kind glyph rather than a chip, keeping a web tab\'s port beside its label', () => {
+    const renderer = mount();
+    action(renderer, 'web');
+    navigate(renderer, 'http://127.0.0.1:5173/');
+    action(renderer, 'file');
+    const [webId, fileId] = tabIds(renderer);
+    const tab = (id: string) => renderer.root.findByProps({ 'data-dock-tab': id });
+    const icons = (id: string) => tab(id).findAll((node) => node.type === 'span' && node.props.className === 'dock-tab-icon');
+    expect(icons(webId)).toHaveLength(1);
+    expect(icons(fileId)).toHaveLength(1);
+    // The port the label dropped stays on screen, reading straight on from the untitled host.
+    const where = tab(webId).findByProps({ 'data-tab-where': 'plain' });
+    expect(where.props.children).toBe(':5173');
+    expect(where.props['data-attached']).toBe('true');
+    expect(tab(fileId).findAll((node) => node.props['data-tab-where'] !== undefined)).toHaveLength(0);
+    // Nothing in the strip is set in the code face any more.
+    const strip = renderer.root.findAll((node) => node.props.className === 'dock-strip')[0];
+    expect(strip.findAll((node) => /Plex|font-code/.test(String(node.props.style?.font ?? '')))).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
   it('keeps address drafts and viewport choices independent per web tab', () => {
     const renderer = mount();
     action(renderer, 'web');

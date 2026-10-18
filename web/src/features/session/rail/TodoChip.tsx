@@ -3,22 +3,24 @@ import { useVocabOptional } from '@/i18n';
 import type { TodoRailViewModel, TodoRowViewModel } from './todo-vm';
 import { ActivityChip, CHIP_COUNT, CHIP_TEXT } from './ActivityChip';
 
+/** The status-dot language in a 14px slot: a check once done, the running dot (accent with a soft
+ *  halo) on the current item, a hollow ring for what is still to come. */
 function StatusDot({ status }: { status: TodoStatus }): JSX.Element {
-  const base = { width: 14, height: 14, borderRadius: '50%', flex: 'none' as const, boxSizing: 'border-box' as const };
+  const slot = { width: 14, height: 14, flex: 'none' as const, display: 'inline-grid', placeItems: 'center' };
   if (status === 'completed') {
     return (
       <span style={{
-        ...base, background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700,
+        ...slot, borderRadius: '50%', background: 'var(--proto-success-bg)', color: 'var(--proto-success)',
+        fontSize: 8, fontWeight: 700,
       }}>
         ✓
       </span>
     );
   }
-  if (status === 'in_progress') {
-    return <span style={{ ...base, background: 'var(--proto-accent)', boxShadow: '0 0 0 3px var(--proto-accent-bg)' }} />;
-  }
-  return <span style={{ ...base, border: '1.5px solid var(--proto-line-3)' }} />;
+  const dot = status === 'in_progress'
+    ? { width: 8, height: 8, background: 'var(--proto-accent)', boxShadow: '0 0 0 3px var(--proto-accent-bg)' }
+    : { width: 9, height: 9, border: '1.5px solid var(--proto-muted-3)' };
+  return <span style={slot}><span style={{ ...dot, borderRadius: '50%', boxSizing: 'border-box' }} /></span>;
 }
 
 function TodoRow({ row }: { row: TodoRowViewModel }): JSX.Element {
@@ -48,14 +50,15 @@ export function TodoList({ vm }: { vm: TodoRailViewModel }): JSX.Element {
     <div data-todo-list="">
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 0 10px' }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.todoLabel}</span>
-        <span style={{ ...CHIP_COUNT, color: vm.allDone ? 'var(--proto-success)' : 'var(--proto-accent)' }}>{vm.counts}</span>
+        <span style={{ ...CHIP_COUNT, fontWeight: 400, fontSize: 12, color: 'var(--proto-muted)' }}>{vm.counts}</span>
       </div>
       {vm.rows.map((row) => <TodoRow key={row.key} row={row} />)}
     </div>
   );
 }
 
-/** A ring filling with the completed share; a check once all is done. */
+/** A ring filling with the completed share; a check once all is done. The arc is the one coloured
+ *  mark on the capsule — progress is what the accent is for; the count beside it stays plain ink. */
 function ProgressRing({ progress, done }: { progress: number; done: boolean }): JSX.Element {
   const r = 5.5;
   const length = 2 * Math.PI * r;
@@ -83,7 +86,7 @@ export function TodoChip({ vm, floating, expanded, onToggle }: {
     <ActivityChip data="todo" grow label={[L.todoLabel, vm.counts, text].filter(Boolean).join(' · ')}
       floating={floating} expanded={expanded} onClick={onToggle}>
       <ProgressRing progress={vm.progress} done={vm.allDone} />
-      <span style={{ ...CHIP_COUNT, color: vm.allDone ? 'var(--proto-success)' : 'var(--proto-accent)' }}>{vm.counts}</span>
+      <span style={CHIP_COUNT}>{vm.counts}</span>
       {text && <span style={{ ...CHIP_TEXT, color: 'var(--proto-muted)' }}>{text}</span>}
     </ActivityChip>
   );

@@ -11,7 +11,9 @@ import {
   attachmentMime, attachmentName, attachmentSize, attachmentType, type AttachmentUploadItem,
 } from '@/features/attachments/types';
 
-const mono = "'IBM Plex Mono',monospace";
+// File names, extensions, sizes and upload percentages are labels, not code: the chip keeps them in
+// the UI face, with aligned digits where a number ticks.
+const NUM: CSSProperties = { fontVariantNumeric: 'tabular-nums' };
 
 interface ChipModel {
   mime: string;
@@ -41,7 +43,7 @@ function chipModel(a: AttachmentUploadItem): ChipModel {
 
 const mediaWrapStyle: CSSProperties = { position: 'relative', width: 54, height: 54, flex: 'none' };
 const mediaExtStyle: CSSProperties = {
-  position: 'absolute', left: 4, bottom: 3, font: `500 11px ${mono}`, color: 'var(--proto-muted)',
+  position: 'absolute', left: 4, bottom: 3, font: '500 10.5px var(--font-ui)', color: 'var(--proto-muted)',
   background: 'var(--media-label-bg)', padding: '1px 4px', borderRadius: 'var(--r-chip)',
 };
 const playStyle: CSSProperties = {
@@ -51,10 +53,10 @@ const playStyle: CSSProperties = {
 };
 const uploadOverlayStyle: CSSProperties = {
   position: 'absolute', inset: 0, background: 'var(--media-label-bg-soft)', display: 'flex',
-  alignItems: 'center', justifyContent: 'center', font: `600 11px ${mono}`, color: 'var(--proto-accent)',
+  alignItems: 'center', justifyContent: 'center', font: '600 11.5px var(--font-ui)', ...NUM, color: 'var(--proto-ink-2)',
 };
 const errorOverlayStyle: CSSProperties = {
-  ...uploadOverlayStyle, border: 0, padding: 0, width: '100%', cursor: 'pointer', font: `600 11px ${mono}`, color: 'var(--proto-danger)',
+  ...uploadOverlayStyle, border: 0, padding: 0, width: '100%', cursor: 'pointer', color: 'var(--proto-danger)',
 };
 const removeStyle: CSSProperties = {
   position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%',
@@ -138,7 +140,7 @@ const fileBaseStyle: CSSProperties = {
   background: 'var(--material-control-bg)', borderRadius: 'var(--r-chip)', padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
 };
 const fileNameStyle: CSSProperties = {
-  font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', maxWidth: 140,
+  font: '500 12.5px var(--font-ui)', color: 'var(--proto-ink)', maxWidth: 140,
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
@@ -154,7 +156,7 @@ function fileChipStyle(a: AttachmentUploadItem, preview: boolean): CSSProperties
 function FileIcon({ model }: { model: ChipModel }): JSX.Element {
   const style: CSSProperties = {
     width: 26, height: 32, borderRadius: 'var(--r-chip)', background: model.colors.bg, color: model.colors.fg,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 10.5px ${mono}`, flex: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 10px var(--font-ui)', flex: 'none',
   };
   return <span style={style}>{model.ext}</span>;
 }
@@ -174,9 +176,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
   onOpen?: () => void;
 }): JSX.Element {
   const L = useVocab();
-  const statusColor = a.status === 'uploading'
-    ? 'var(--proto-accent)'
-    : a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-muted)';
+  const statusColor = a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-muted)';
   return (
     <div role={onOpen ? 'button' : undefined} title={onOpen ? model.name : undefined} onClick={onOpen} style={fileChipStyle(a, !!onOpen)}>
       <FileIcon model={model} />
@@ -185,7 +185,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
         <span
           role={a.status === 'error' ? 'button' : undefined}
           onClick={a.status === 'error' ? (event) => { event.stopPropagation(); onRetry(a.id); } : undefined}
-          style={{ font: `400 11px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
+          style={{ fontSize: 11.5, ...NUM, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
         >{fileStatus(a, L)}</span>
       </span>
       <RemoveButton id={a.id} onRemove={onRemove} />

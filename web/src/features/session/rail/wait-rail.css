@@ -11,15 +11,26 @@
   border-radius: var(--r-control);
 }
 
+/* The status-dot language's "waiting": a hollow ring. Waiting on a machine asks nothing of the user,
+   so it never takes the amber reserved for that. */
 .wait-rail-ring {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   flex: none;
   box-sizing: border-box;
   border: 1.5px solid var(--proto-muted-3);
-  border-top-color: var(--proto-accent);
   border-radius: 50%;
 }
+
+/* A failure signal, a rate limit or a stuck delivery: one dot on the capsule; the panel spells it out. */
+.wait-rail-alert {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--proto-warn);
+}
+.wait-rail-alert[data-tone='danger'] { background: var(--proto-danger); }
 
 .wait-rail-item-heading {
   display: flex;
@@ -47,12 +58,12 @@
   gap: 3px 10px;
   min-width: 0;
   color: var(--proto-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.wait-rail-received { color: var(--proto-accent); font-weight: 500; }
-.wait-rail-ttl[data-urgent='true'] { color: var(--proto-amber); }
+.wait-rail-received { color: var(--proto-ink-2); font-weight: 500; }
+.wait-rail-ttl[data-urgent='true'] { color: var(--proto-warn); font-weight: 500; }
 .wait-rail-item + .wait-rail-item { border-top: 1px solid var(--proto-line); }
 .wait-rail-item-heading { padding: 0 0 5px; }
 .wait-rail-item + .wait-rail-item .wait-rail-item-heading { padding-top: 9px; }
@@ -63,10 +74,10 @@
   box-sizing: border-box;
   padding: 2px 6px;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: var(--r-chip);
-  background: color-mix(in srgb, var(--proto-amber) 6%, transparent);
-  color: var(--proto-amber);
-  font-size: 11px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--proto-warn) 6%, transparent);
+  color: var(--proto-warn);
+  font-size: 12px;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -78,11 +89,11 @@
 
 .wait-rail-body { border-top: 1px solid var(--proto-line); }
 .wait-rail-members { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.wait-rail-members caption { padding: 5px 0; text-align: left; color: var(--proto-muted); font-size: 11px; }
+.wait-rail-members caption { padding: 7px 0 4px; text-align: left; color: var(--proto-muted); font-weight: 550; }
 .wait-rail-status-col { width: 24%; }
-.wait-rail-time-col { width: 54px; }
+.wait-rail-time-col { width: 58px; }
 .wait-rail-members :is(th, td) { padding: 4px 6px; text-align: left; overflow-wrap: anywhere; }
-.wait-rail-members thead { background: var(--proto-accent-bg); color: var(--proto-muted); font-size: 10px; }
+.wait-rail-members thead { color: var(--proto-muted); border-bottom: 1px solid var(--proto-line); }
 .wait-rail-members thead th { font-weight: 500; }
 .wait-rail-members tbody th { font-weight: 500; }
 .wait-rail-members [data-wait-status]::before {
@@ -98,22 +109,23 @@
 .wait-rail-members :is([data-wait-status='ok'], [data-wait-status='fail'])::before { background: currentColor; }
 .wait-rail-members tbody tr + tr { border-top: 1px solid var(--proto-line); }
 .wait-rail-members :is(th, td):last-child { text-align: right; }
-.wait-rail-time { color: var(--proto-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wait-rail-time { color: var(--proto-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wait-rail [data-wait-status='ok'] { color: var(--proto-success); }
 .wait-rail [data-wait-status='fail'] { color: var(--proto-danger); }
 .wait-rail :is([data-wait-status='progress'], [data-wait-status='pending']) { color: var(--proto-muted); }
 
 .wait-rail-details { margin-top: 7px; border-top: 1px solid var(--proto-line); }
 .wait-rail-details details + details { border-top: 1px solid var(--proto-line); }
-.wait-rail-details summary { padding: 7px 2px; color: var(--proto-muted); cursor: pointer; font-size: 11px; }
+.wait-rail-details summary { padding: 7px 2px; color: var(--proto-muted); cursor: pointer; }
 .wait-rail-log-count { margin-left: 6px; font-variant-numeric: tabular-nums; }
 .wait-rail-verbatim { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .wait-rail-signals { list-style: none; margin: 0; padding: 0; }
 .wait-rail-signal { padding: 6px 0; border-top: 1px solid var(--proto-line); }
-.wait-rail-signal pre { font: 11px/1.6 'IBM Plex Mono', monospace; }
-.wait-rail-signal-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 4px; color: var(--proto-muted); font-size: 10px; }
+/* The signal's own text is log output, verbatim — the one place in this panel that takes the code face. */
+.wait-rail-signal pre { font: 11.5px/1.6 var(--font-code); }
+.wait-rail-signal-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 4px; color: var(--proto-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .wait-rail-signal-meta > * { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.wait-rail-note, .wait-rail-empty { margin: 5px 0 8px; color: var(--proto-muted); font-size: 11px; }
+.wait-rail-note, .wait-rail-empty { margin: 5px 0 8px; color: var(--proto-muted); }
 
 .wait-rail-footer {
   display: flex;
@@ -124,8 +136,8 @@
   border-top: 1px solid var(--proto-line);
 }
 
-.wait-rail-context { display: flex; flex-wrap: wrap; gap: 3px 8px; min-width: 0; color: var(--proto-muted); font-size: 10px; overflow-wrap: anywhere; }
-.wait-rail-cancel { flex: none; padding: 6px; border: 0; border-radius: var(--r-control); background: transparent; color: var(--proto-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.wait-rail-context { display: flex; flex-wrap: wrap; gap: 3px 8px; min-width: 0; color: var(--proto-muted); font-size: 11.5px; overflow-wrap: anywhere; }
+.wait-rail-cancel { flex: none; padding: 6px 8px; border: 0; border-radius: var(--r-chip); background: transparent; color: var(--proto-muted); font: inherit; cursor: pointer; }
 .wait-rail-cancel:hover:not(:disabled) { color: var(--proto-danger); background: color-mix(in srgb, var(--proto-danger) 8%, transparent); }
 .wait-rail-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 

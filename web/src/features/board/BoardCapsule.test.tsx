@@ -66,7 +66,7 @@ describe('DockedBoardCapsule', () => {
     expect(render(<DockedBoardCapsule boardId="b1" />).toJSON()).toBeNull();
   });
 
-  it('turns amber and counts the sessions waiting on the user, never a worker', () => {
+  it('counts the sessions waiting on the user in amber, never a worker, without filling the capsule', () => {
     h.live = { board: BOARD, missing: false, decisions: [], sessions: [
       session('lead', { teamLeadId: null, workerName: null, awaitingInput: true }),
       session('alpha', { running: true }),
@@ -74,14 +74,22 @@ describe('DockedBoardCapsule', () => {
     ] };
     const el = capsule(render(<DockedBoardCapsule boardId="b1" />))!;
     expect(el.props['data-board-flag']).toBe('ask');
-    expect(el.findByProps({ 'data-board-pending-count': 1 }).children.join('')).toBe('1 awaiting you');
+    const count = el.findByProps({ 'data-board-pending-count': 1 });
+    expect(count.children.join('')).toBe('1 awaiting you');
+    expect(count.props.style.color).toBe('var(--proto-amber-fg)');
+    // The header's one capsule: the same hairline and fill whatever waits.
+    expect(el.props.style.background).not.toContain('amber');
+    expect(el.props.style.border).toBe('1px solid var(--proto-line)');
+    expect(el.props.style.borderRadius).toBe('var(--r-pill)');
   });
 
-  it('keeps the flag accent and drops the count when nobody waits', () => {
+  it('keeps a quiet flag and drops the count when nobody waits', () => {
     h.live = { board: BOARD, missing: false, decisions: [], sessions: [session('alpha', { running: true })] };
     const el = capsule(render(<DockedBoardCapsule boardId="b1" />))!;
     expect(el.props['data-board-flag']).toBe('active');
     expect(el.findAll((n) => n.props['data-board-pending-count'] !== undefined)).toHaveLength(0);
+    expect(el.findByType('svg').props.stroke).toBe('var(--proto-muted)');
+    expect(String(el.props.style.font)).not.toMatch(/Plex|font-code/);
   });
 });
 

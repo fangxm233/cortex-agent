@@ -38,7 +38,7 @@ import { ChatDropOverlay } from './ChatDropOverlay';
 // Attachment chips show type badges, filenames, sizes, upload progress, and remove buttons.
 // The send button enables when text is non-empty OR uploaded attachments are present.
 
-// Auto-grow cap: ~15 lines at 13.5px × 1.5 line-height (≈20.25px/line), then internal scroll.
+// Auto-grow cap: ~14 lines at 14px × 1.5 line-height (21px/line), then internal scroll.
 const COMPOSER_MAX_HEIGHT = 305;
 
 export interface ComposerProps {
@@ -137,6 +137,7 @@ export function Composer({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const [btnHover, setBtnHover] = useState(false);
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerSend = useComposerSend({
@@ -202,10 +203,11 @@ export function Composer({
 
   const hasAttachments = attachments.length > 0;
   const canSend = composerSend.canSend;
-  // The accent ring is the card's only state cue now that it carries no resting border: it lights up
-  // when the draft is sendable, and while the slash palette is anchored to the card.
-  const composerRing = canSend || slashOpen;
-  const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
+  // The card's hairline firms up one step while focus is inside it, when the draft is sendable, and
+  // while the slash palette is anchored to it. Deliberately neutral: the composer holds focus almost
+  // all the time, so an accent ring here would be a permanent one, and the ink send button already
+  // says "press ⏎".
+  const composerRing = focused || canSend || slashOpen;
   const statusLine = runStatusLine({
     isDraft, running, backgroundRunning, starting: optimistic.pendingUser.length > 0, turns, cost, turnClock,
     waitingOn, browserDevice: sessionBrowser?.device ?? browserDevice, turnProgressStarted,
@@ -308,18 +310,16 @@ export function Composer({
 
           {/* Composer card. The whole chat pane is the drop zone; ChatDropOverlay carries the drag cue. */}
           <div
-            className="focus-within:outline focus-within:outline-2 focus-within:outline-[var(--proto-accent-border)]"
+            onFocus={() => setFocused(true)}
+            onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}
             style={{
               position: 'relative',
               borderRadius: 'var(--r-float)',
               // CenterChat gives the composer its own grid row, outside the transcript scroller.
               // A filter-free card also lets its floating menus sample the workspace backdrop.
               background: 'var(--material-card-bg)',
-              // Floating-sheet lift, plus an accent ring the moment the draft is actually sendable —
-              // the ring IS the "press ⏎" affordance.
-              boxShadow: composerRing
-                ? 'var(--material-card-shadow), 0 0 0 1.5px var(--proto-accent-border)'
-                : 'var(--material-card-shadow), 0 0 0 1px var(--proto-line)',
+              // Floating-sheet lift and a hairline, one step firmer while focused or sendable.
+              boxShadow: `var(--material-card-shadow), 0 0 0 1px ${composerRing ? 'var(--proto-line-3)' : 'var(--proto-line)'}`,
               transition: 'box-shadow .15s',
               padding: '12px 12px 10px 16px',
             }}
@@ -364,7 +364,7 @@ export function Composer({
               placeholder={hasAttachments ? L.wbAttachPlaceholder : L.composerPh}
               style={{
                 width: '100%',
-                fontSize: 13.5,
+                fontSize: 14,
                 lineHeight: 1.5,
                 color: 'var(--proto-ink)',
                 fontFamily: 'inherit',
@@ -409,16 +409,14 @@ export function Composer({
                     onClick={doSend}
                     style={{
                       flex: 'none',
-                      width: running ? 30 : 34,
-                      height: running ? 30 : 34,
+                      width: 30,
+                      height: 30,
                       padding: 0,
                       borderRadius: '50%',
-                      // Running: outlined/secondary so Stop stays the primary action.
-                      background: running ? 'transparent' : sendBg,
-                      border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
-                      // Glow only on the filled, armed state — a disabled or outlined send
-                      // button that still floated would read as the primary action it is not.
-                      boxShadow: !running && canSend ? 'var(--accent-glow)' : undefined,
+                      // Idle: the ink circle when there is something to send, a faint gray disc when
+                      // there is not. Running: outlined/secondary so Stop stays the primary action.
+                      background: running ? 'transparent' : canSend ? 'var(--ink-solid-bg)' : 'var(--proto-line)',
+                      border: running ? `1px solid ${canSend ? 'var(--proto-line-3)' : 'var(--proto-line)'}` : 'none',
                       boxSizing: 'border-box',
                       display: 'flex',
                       alignItems: 'center',
@@ -427,12 +425,17 @@ export function Composer({
                     }}
                   >
                     <svg
-                      width={running ? 12 : 14}
-                      height={running ? 12 : 14}
+                      width={running ? 12 : 13}
+                      height={running ? 12 : 13}
                       viewBox="0 0 14 14"
                       fill="none"
-                      stroke={running ? (canSend ? 'var(--proto-accent)' : 'var(--proto-line-3)') : 'var(--ink-solid-fg)'}
+                      stroke={running
+                        ? (canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)')
+                        : (canSend ? 'var(--ink-solid-fg)' : 'var(--proto-faint)')}
                       strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
                     >
                       <path d="M7 12V2M3 6l4-4 4 4" />
                     </svg>
@@ -450,19 +453,18 @@ export function Composer({
                       onMouseLeave={() => setBtnHover(false)}
                       style={{
                         flex: 'none',
-                        width: 34,
-                        height: 34,
+                        width: 30,
+                        height: 30,
                         border: 0, padding: 0,
                         borderRadius: '50%',
-                        background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
-                        boxShadow: 'var(--shadow-key-lift)',
+                        background: btnHover ? 'var(--ink-solid-hover)' : 'var(--ink-solid-bg)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: composerSend.stopPending ? 'default' : 'pointer',
                       }}
                     >
-                      <span style={{ width: 11, height: 11, background: 'var(--ink-solid-fg)', borderRadius: 2 }} />
+                      <span aria-hidden="true" style={{ width: 10, height: 10, background: 'var(--ink-solid-fg)', borderRadius: 2 }} />
                     </button>
                   )}
                 </span>

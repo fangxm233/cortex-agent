@@ -17,8 +17,11 @@ describe('dock file chrome', () => {
     expect(toggle).toHaveBeenCalledOnce();
     expect(download).toHaveBeenCalledOnce();
     const path = view.root.findByProps({ 'data-file-path': 'project/docs/readme.md' });
-    expect(path.props.style.font).toContain('11px');
+    // The path is the bar's one piece of code; the toggle beside it is a label in the UI face.
+    expect(path.props.style.font).toContain('var(--font-code)');
     expect(path.props.style.color).toBe('var(--proto-muted)');
+    expect(buttons[0].props.style.font).toContain('var(--font-ui)');
+    expect(buttons[0].props.style.background).toBe('var(--proto-gray)');
     act(() => view.unmount());
   });
 });

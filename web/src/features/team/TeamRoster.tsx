@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState, type CSSProperties } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { MENU_FOCUS, MENU_SURFACE, MONO, useDismissMenu } from '@/design/MenuChrome';
+import { MENU_FOCUS, MENU_SURFACE, useDismissMenu } from '@/design/MenuChrome';
 import { fmt, useLangOptional, useVocabOptional } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
+import { capsuleStyle } from '@/features/session/rail/ActivityChip';
 import { useWorkerQuestions } from './useWorkerQuestions';
 import {
-  teamRoster, teamSummary, workerDoing, workerState, workerStatusText, workerTitle, type TeamRoster,
+  teamRoster, teamSummary, workerAgeText, workerDoing, workerState, workerStatusText, workerTitle, type TeamRoster,
 } from './worker-roster';
 
 // The lead's view of its team: a summary (dot stack + counts) that opens a list with one row per
@@ -45,38 +46,30 @@ export function WorkerDotStack({ workers }: { workers: SessionInfo[] }): JSX.Ele
   );
 }
 
-/** "8 workers · 5 running" — the running count in mono. A worker never waits on the user (its
- *  questions go to the lead), so the summary carries no amber. */
+/** "8 workers · 5 running" — the running count a step quieter, in the same face. A worker never waits
+ *  on the user (its questions go to the lead), so the summary carries no amber. */
 export function TeamSummaryLabel({ active }: { active: SessionInfo[] }): JSX.Element {
   const s = teamSummary(active, useVocabOptional());
   return (
-    <span style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+    <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
       <span style={{ color: 'var(--proto-ink-2)' }}>{s.workers}</span>
-      {s.running && <span style={{ font: `500 11.5px/1.2 ${MONO}`, color: 'var(--proto-muted)' }}>{' · '}{s.running}</span>}
+      {s.running && <span style={{ color: 'var(--proto-muted)' }}>{' · '}{s.running}</span>}
     </span>
   );
 }
 
-function Chevron({ open, direction = 'down' }: { open: boolean; direction?: 'down' | 'right' }): JSX.Element {
-  const turn = direction === 'down' ? (open ? 180 : 0) : (open ? 90 : 0);
+/** The fold's caret: points right while folded, down once open. */
+function Chevron({ open }: { open: boolean }): JSX.Element {
   return (
     <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-      style={{ flex: 'none', transform: `rotate(${turn}deg)`, transition: 'transform 160ms ease' }}>
-      <path d={direction === 'down' ? 'm4 6 4 4 4-4' : 'm6 4 4 4-4 4'} />
+      style={{ flex: 'none', transform: `rotate(${open ? 90 : 0}deg)`, transition: 'transform 160ms ease' }}>
+      <path d="m6 4 4 4-4 4" />
     </svg>
   );
 }
 
 const ELLIPSIS: CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
-
-function statusColor(s: SessionInfo): CSSProperties {
-  switch (workerState(s)) {
-    case 'you': return { color: 'var(--proto-amber-fg)', fontWeight: 600 };
-    case 'running': return { color: 'var(--proto-accent)' };
-    default: return { color: 'var(--proto-muted)' };
-  }
-}
 
 function WorkerRow({ worker, question, now, touch, hover, setHover, onOpen }: {
   worker: SessionInfo;
@@ -90,12 +83,19 @@ function WorkerRow({ worker, question, now, touch, hover, setHover, onOpen }: {
   const L = useVocabOptional();
   const lang = useLangOptional();
   const id = worker.sessionId;
-  const idle = workerState(worker) === 'idle';
+  const state = workerState(worker);
+  const idle = state === 'idle';
   const doing = workerDoing(worker, question);
+  // The dot says the state, so the trailing slot keeps only how long; the full status ("running 4m",
+  // "needs you") stays in the tooltip and in the row's accessible text.
+  const status = workerStatusText(worker, now, L, lang);
+  const age = workerAgeText(worker, now, lang);
+  const strong = worker.unread || state === 'you';
   return (
     <button
       type="button"
       data-worker-row={id}
+      title={`${workerTitle(worker)} · ${status}`}
       className={MENU_FOCUS}
       onClick={() => onOpen(id)}
       onMouseEnter={() => setHover(id)}
@@ -109,16 +109,19 @@ function WorkerRow({ worker, question, now, touch, hover, setHover, onOpen }: {
     >
       <span style={{ display: 'grid', placeItems: 'center' }}><WorkerDot worker={worker} /></span>
       <span style={{
-        ...ELLIPSIS, fontSize: touch ? 14 : 13, fontWeight: worker.unread ? 600 : 400,
-        color: worker.unread ? 'var(--proto-ink)' : idle ? 'var(--proto-muted)' : 'var(--proto-ink-2)',
+        ...ELLIPSIS, fontSize: touch ? 14 : 13, fontWeight: strong ? 600 : 400,
+        color: strong ? 'var(--proto-ink)' : idle ? 'var(--proto-muted)' : 'var(--proto-ink-2)',
       }}>
         {workerTitle(worker)}
+        <span className="sr-only">{` · ${status}`}</span>
       </span>
-      <span data-worker-status="" style={{ font: `400 11px ${MONO}`, whiteSpace: 'nowrap', ...statusColor(worker) }}>
-        {workerStatusText(worker, now, L, lang)}
+      <span data-worker-status={state} style={{
+        fontSize: 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: 'var(--proto-faint)',
+      }}>
+        {age}
       </span>
       {doing && (
-        <span data-worker-doing="" style={{ ...ELLIPSIS, gridColumn: '2 / 4', fontSize: touch ? 12.5 : 11.5, color: 'var(--proto-muted)' }}>
+        <span data-worker-doing="" style={{ ...ELLIPSIS, gridColumn: '2 / 4', fontSize: touch ? 12.5 : 12, color: 'var(--proto-muted)' }}>
           {doing}
         </span>
       )}
@@ -143,12 +146,12 @@ export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
     <WorkerRow key={w.sessionId} worker={w} question={questions[w.sessionId] ?? null} now={now} touch={touch}
       hover={hover} setHover={setHover} onOpen={onOpen} />
   );
-  const meta: CSSProperties = { font: `500 11px ${MONO}`, color: 'var(--proto-muted)' };
+  const meta: CSSProperties = { fontSize: 12, color: 'var(--proto-muted)' };
   return (
     <div data-team-list="" role="group" aria-label={L.wbTeamWorkers}>
-      <div style={{ ...meta, display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 10px 8px' }}>
-        <span>{fmt(L.wbTeamPanelTitle, { n: roster.active.length })}</span>
-        <span style={ELLIPSIS}>{L.wbTeamPanelHint}</span>
+      <div style={{ ...meta, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '6px 10px 8px' }}>
+        <span style={{ fontWeight: 600, color: 'var(--proto-ink-2)' }}>{fmt(L.wbTeamPanelTitle, { n: roster.active.length })}</span>
+        <span style={{ ...ELLIPSIS, color: 'var(--proto-faint)' }}>{L.wbTeamPanelHint}</span>
       </div>
       {roster.active.map(row)}
       {roster.inactive.length > 0 && (
@@ -157,12 +160,12 @@ export function TeamRosterList({ roster, questions, touch = false, onOpen }: {
           <button type="button" data-team-inactive="" className={MENU_FOCUS} aria-expanded={showInactive}
             onClick={() => setShowInactive((v) => !v)}
             style={{
-              ...meta, fontWeight: 400, display: 'inline-flex', alignItems: 'center', gap: 4, border: 0,
+              ...meta, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4, border: 0,
               background: 'transparent', cursor: 'pointer', borderRadius: 'var(--r-chip)',
               padding: touch ? '12px 10px' : '6px 10px 4px',
             }}>
             {fmt(L.wbTeamInactive, { n: roster.inactive.length })}
-            <Chevron open={showInactive} direction="right" />
+            <Chevron open={showInactive} />
           </button>
           {showInactive && <div data-team-inactive-rows="" style={{ opacity: 0.55 }}>{roster.inactive.map(row)}</div>}
         </>
@@ -181,8 +184,9 @@ export function TeamRosterPanel({ roster, touch, onOpen }: {
   return <TeamRosterList roster={roster} questions={questions} touch={touch} onOpen={onOpen} />;
 }
 
-/** Desktop: the lead's chat header carries its team as one capsule; it opens the list as a popover.
- *  Nothing while the lead has no active worker. */
+/** Desktop: the lead's chat header carries its team as one capsule — the shared `capsuleStyle`, so it
+ *  is the same object as the board capsule beside it and the activity strip's — and it opens the list
+ *  as a popover. Nothing while the lead has no active worker. */
 export function TeamCapsule({ workers, onOpen }: {
   workers: SessionInfo[];
   onOpen: (sessionId: string) => void;
@@ -194,9 +198,8 @@ export function TeamCapsule({ workers, onOpen }: {
   const close = useCallback(() => setOpen(false), []);
   useDismissMenu(open, close, close);
   if (roster.active.length === 0) return null;
-  const lit = open || hover;
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', marginRight: 4 }}>
+    <span style={{ position: 'relative', display: 'inline-flex', flex: 'none' }}>
       <button
         type="button"
         data-team-capsule=""
@@ -206,17 +209,10 @@ export function TeamCapsule({ workers, onOpen }: {
         onClick={(event) => { event.stopPropagation(); setOpen((v) => !v); }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, height: 28, maxWidth: 420, padding: '0 9px',
-          border: 0, borderRadius: 'var(--r-chip)', cursor: 'pointer', fontFamily: 'inherit',
-          background: lit ? 'var(--proto-card)' : 'color-mix(in srgb, var(--proto-card) 60%, transparent)',
-          boxShadow: `0 0 0 1px ${open ? 'var(--proto-line-3)' : 'var(--proto-line)'}`,
-          color: 'var(--proto-muted)',
-        }}
+        style={{ ...capsuleStyle({ lit: hover, pressed: open }), maxWidth: 360 }}
       >
         <WorkerDotStack workers={roster.active} />
         <TeamSummaryLabel active={roster.active} />
-        <Chevron open={open} />
       </button>
       {open && (
         <div

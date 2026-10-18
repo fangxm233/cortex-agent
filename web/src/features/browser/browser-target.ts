@@ -259,12 +259,12 @@ export function browserTabForwardSource(tab: BrowserTabState): string | null {
 }
 
 /**
- * The compact port marker a tab shows in its favicon slot.
+ * The compact port marker a dock tab shows after its label.
  *
  * A forward is the case worth marking: the address is a locally mapped port, so the original
- * `device:port` is provenance the URL itself no longer carries — it gets the accent chip, with the
- * device omitted when the port is the server's own. A plain address gets a muted chip echoing the
- * port from its URL, which keeps every tab the same shape and lets the label drop the port.
+ * `device:port` is provenance the URL itself no longer carries — the device is omitted when the
+ * port is the server's own. A plain address echoes the port from its URL, which lets the label
+ * drop the port without losing it.
  */
 export interface BrowserTabChip {
   text: string;

@@ -105,7 +105,7 @@ export const zhBase = {
   wbModel: '模型',
   wbThinking: '思考强度',
   wbRoute: '计费路由',
-  wbAgent: 'agent',
+  wbAgent: 'Agent',
   wbAgentDefault: '默认',
   wbAgentFollowDefault: '跟随全局默认',
   wbFilterModels: '筛选…',

@@ -5,7 +5,7 @@ import { en, LangProvider, zh } from '@/i18n';
 import { TeamCapsule } from './TeamRoster';
 import { teamContext } from './worker-groups';
 import {
-  pendingQuestionText, teamRoster, teamSummaryText, workerDoing, workerStatusText,
+  pendingQuestionText, teamRoster, teamSummaryText, workerAgeText, workerDoing, workerStatusText,
 } from './worker-roster';
 import { ChatHeader } from '@/features/workbench/chat/ChatHeader';
 
@@ -100,6 +100,17 @@ describe('worker roster', () => {
     expect(workerStatusText(run, NOW, zh, 'zh')).toBe('运行中 4分钟');
   });
 
+  it('keeps only the span for the row\'s trailing slot, and nothing where the status has none', () => {
+    expect(workerAgeText(run, NOW, 'en')).toBe('4m');
+    expect(workerAgeText({ ...run, backgroundRunning: true }, NOW, 'en')).toBeNull();
+    expect(workerAgeText(idle, NOW, 'en')).toBe('12m');
+    expect(workerAgeText({ ...idle, lastUsedAt: '' }, NOW, 'en')).toBeNull();
+    expect(workerAgeText(you, NOW, 'en')).toBe(workerStatusText(you, NOW, en, 'en').replace(/^running /, ''));
+    expect(workerAgeText(session('solo', { awaitingInput: true }), NOW, 'en')).toBeNull();
+    expect(workerAgeText(signal, NOW, 'en')).toBeNull();
+    expect(workerAgeText(run, NOW, 'zh')).toBe('4分钟');
+  });
+
   it('describes the work: question, then current task while running, then brief, then a distinct label', () => {
     const todos = { items: [], total: 2, completed: 1, activeLabel: 'Running the sweep', updatedAt: 0 };
     const briefed = { ...run, todos, workerBrief: 'Sweep the grasp set', label: 'run' };
@@ -166,6 +177,35 @@ describe('TeamCapsule', () => {
     act(() => r.unmount());
   });
 
+  it('shares the activity strip\'s capsule, in the UI face, with no chevron', () => {
+    const r = render(<TeamCapsule workers={[w1, w2]} onOpen={vi.fn()} />);
+    const el = capsule(r)[0];
+    expect(el.props.style.height).toBe(28);
+    expect(el.props.style.border).toBe('1px solid var(--proto-line)');
+    expect(el.props.style.borderRadius).toBe('var(--r-pill)');
+    expect(el.props.style.font).toContain('var(--font-ui)');
+    expect(el.findAllByType('svg')).toHaveLength(0);
+    act(() => el.props.onClick({ stopPropagation: vi.fn() }));
+    expect(capsule(r)[0].props.style.border).toBe('1px solid var(--proto-line-3)');
+    act(() => r.unmount());
+  });
+
+  it('shows how long in a row\'s trailing slot and leaves the state to its dot', () => {
+    const r = render(<TeamCapsule workers={[w1, w2]} onOpen={vi.fn()} />);
+    act(() => capsule(r)[0].props.onClick({ stopPropagation: vi.fn() }));
+    const [running, waiting] = rows(r);
+    const meta = (row: typeof running) => row.findAll((n) => n.type === 'span' && n.props['data-worker-status'] !== undefined)[0];
+    expect(meta(running).props['data-worker-status']).toBe('running');
+    expect(meta(running).children.join('')).toBe('1h');
+    expect(meta(waiting).children).toHaveLength(0);
+    // The status words are not lost: they stay in the tooltip and in the row's accessible text.
+    expect(running.props.title).toBe('bench · running 1h');
+    expect(running.findByProps({ className: 'sr-only' }).children.join('')).toBe(' · running 1h');
+    expect(waiting.findByProps({ className: 'sr-only' }).children.join('')).toBe(' · waiting');
+    expect(meta(running).props.style.font ?? '').not.toMatch(/Plex/);
+    act(() => r.unmount());
+  });
+
   it('folds inactive workers at the bottom until asked', () => {
     const onOpen = vi.fn();
     const r = render(<TeamCapsule workers={[w1, gone]} onOpen={onOpen} />);
@@ -198,8 +238,20 @@ describe('ChatHeader lead breadcrumb', () => {
     const r = render(header({ title: 'Plan the port', onSelect }));
     const crumb = r.root.findByProps({ 'data-lead-crumb': '' });
     expect(crumb.props.title).toBe('Open lead session · Plan the port');
+    expect(crumb.props.style.color).toBe('var(--proto-muted)');
     act(() => crumb.props.onClick());
     expect(onSelect).toHaveBeenCalledOnce();
+    act(() => r.unmount());
+  });
+
+  it('sets the title at 15/600 and the project chip in the UI face with a muted glyph', () => {
+    const r = render(header(null));
+    const chip = r.root.findByProps({ 'data-project-chip': '' });
+    expect(chip.props.style.font).toBeUndefined();
+    expect(chip.props.style.color).toBe('var(--proto-muted)');
+    expect(chip.findByType('svg').props.stroke).toBe('var(--proto-muted)');
+    const title = r.root.findAll((n) => n.type === 'div' && n.children.join('') === 'Worker')[0];
+    expect(title.props.style).toMatchObject({ fontSize: 15, fontWeight: 600 });
     act(() => r.unmount());
   });
 });

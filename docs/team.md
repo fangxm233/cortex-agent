@@ -118,10 +118,10 @@ takes no parameters and marks the current turn as a routine update (see above).
   dot summarizes its workers, and inactive workers are listed last and dimmed.
 - A lead's chat header carries its team as one capsule: up to six status dots for its active
   workers, running ones first, then a summary such as *7 workers · 3 running*. Clicking it opens the
-  team list, headed *Team · N*. Each row shows a worker's status and how long it has been running or
-  idle, and underneath it what the worker is doing: its current task while it runs, or the brief
-  the lead spawned it with. A row opens that worker. Inactive workers are folded at the bottom of the
-  list under *Inactive N*, and the capsule disappears once every worker is inactive.
+  team list, headed *Team · N*. Each row shows a worker's status as its dot and how long it has been
+  running or idle, and underneath it what the worker is doing: its current task while it runs, or
+  the brief the lead spawned it with. A row opens that worker. Inactive workers are folded at the
+  bottom of the list under *Inactive N*, and the capsule disappears once every worker is inactive.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
   shows as running while any worker runs, and as unread while any worker has news. In the lead's
   chat, a team capsule above the composer shows up to three worker dots and the count of active
@@ -215,10 +215,10 @@ again. On mobile, nothing opens by itself, and the card's button opens the board
 
 **In the workbench.** A session bound to a board carries a board capsule among its chat header's
 actions. The capsule shows the board's flag and title; while a session on the board waits on you,
-it turns amber and adds the count of those requests. Workers never count here, since their
-requests go to their lead. Clicking the capsule opens the board in the right-hand dock, and the
-capsule stays hidden while the dock shows that board. On mobile the board sits in the row of
-capsules above the composer as its flag alone, with the waiting count beside it once there is
+its flag turns amber and it adds the count of those requests in amber. Workers never count here,
+since their requests go to their lead. Clicking the capsule opens the board in the right-hand dock,
+and the capsule stays hidden while the dock shows that board. On mobile the board sits in the row
+of capsules above the composer as its flag alone, with the waiting count beside it once there is
 one, and tapping it opens the board full screen.
 
 The command palette reaches every board, including those of old sessions. With an empty query it

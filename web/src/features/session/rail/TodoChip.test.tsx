@@ -54,6 +54,17 @@ describe('task capsule', () => {
     expect(popovers(r)).toHaveLength(0);
   });
 
+  it('is the shared hairline capsule, its count a plain number and only the ring coloured', () => {
+    const el = chip(mount(snapshot));
+    expect(el.props.style.border).toBe('1px solid var(--proto-line)');
+    expect(el.props.style.borderRadius).toBe('var(--r-pill)');
+    expect(el.props.style.font).toContain('var(--font-ui)');
+    const count = el.findAllByType('span').find((node) => node.children.join('') === '1/2')!;
+    expect(count.props.style.color).toBeUndefined();
+    expect(count.props.style.fontVariantNumeric).toBe('tabular-nums');
+    expect(el.findAllByType('circle').map((node) => node.props.stroke)).toContain('var(--proto-accent)');
+  });
+
   it('keeps a finished list up only while its turn runs', () => {
     expect(chip(mount(done, true)).props['aria-label']).toBe('Task list · 2/2');
     expect(mount(done, false).toJSON()).toBeNull();

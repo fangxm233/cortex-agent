@@ -5,11 +5,11 @@ import type { SessionSelection } from '@/features/session/composer/useSessionSel
 import { AgentMenu } from './AgentMenu';
 import { MENU_FOCUS, useDismissMenu } from '@/design/MenuChrome';
 import { SelectionMenu } from './SelectionMenu';
+import { AgentGlyph, ModelGlyph, quietChipStyle } from './composer-chip';
 
 // The composer's two chips, drawn off the one headless `useSessionSelection`: the engine chip and,
-// to its left, the environment chip. The rules behind both live in that hook.
-
-const CHIP_FONT = "500 11.5px 'IBM Plex Mono',monospace";
+// to its left, the environment chip. The rules behind both live in that hook. Both are the toolbar's
+// filled quiet chip (`composer-chip`), and the model chip reads "model · sub".
 
 function SelectionTrigger({ selection, hover, triggerRef }: {
   selection: SessionSelection; hover: boolean; triggerRef: RefObject<HTMLButtonElement>;
@@ -19,15 +19,10 @@ function SelectionTrigger({ selection, hover, triggerRef }: {
   return <button type="button" data-chip="selection" ref={triggerRef} className={MENU_FOCUS}
     aria-expanded={selection.open} title={`${L.wbModel} · ${selection.effective.model}`}
     onClick={(event) => { event.stopPropagation(); selection.setOpen(!selection.open); }}
-    style={{
-      font: CHIP_FONT, background: 'transparent',
-      border: `1.5px solid ${hover ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-      color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)',
-      padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
-      display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, maxWidth: 280,
-    }}>
+    style={{ ...quietChipStyle(hover || selection.open), maxWidth: 280 }}>
+    <ModelGlyph />
     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{parts.main}</span>
-    {parts.sub ? <span style={{ color: 'var(--proto-muted)', flex: 'none' }}>· {parts.sub}</span> : null}
+    {parts.sub ? <span style={{ flex: 'none', whiteSpace: 'nowrap' }}>· {parts.sub}</span> : null}
   </button>;
 }
 
@@ -80,7 +75,6 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
   const parts = agentChipParts(selection.agentOptions, selection.agentName);
   if (!hasAgentChoice(selection.agentOptions)) return null;
   const label = parts.name ?? L.wbAgentDefault;
-  const lit = hover || !parts.followingDefault;
 
   return (
     <span
@@ -95,13 +89,12 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
       onMouseLeave={() => setHover(false)}
       onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
       style={{
-        position: 'relative', font: CHIP_FONT,
-        border: `1.5px solid ${lit ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-        color: lit ? 'var(--proto-accent)' : 'var(--proto-muted)',
-        padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 180,
+        ...quietChipStyle(hover || open), position: 'relative', flex: 'none', maxWidth: 180,
+        // Following the host default reads a step quieter than an agent the conversation picked.
+        color: parts.followingDefault ? 'var(--proto-muted)' : 'var(--proto-ink-2)',
       }}
     >
+      <AgentGlyph />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {label}
       </span>
