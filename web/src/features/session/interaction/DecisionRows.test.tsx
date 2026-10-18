@@ -1,9 +1,10 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { DecisionList, DecisionRow } from './DecisionRows';
 import type { DecisionActions } from './useDecisionActions';
+import { forgetDecisionDrafts } from './decision-draft';
 import { messageTimeLabel } from '@/features/session/transcript/transcript-vm';
 
 const T = '2026-08-27T08:00:00.000Z';
@@ -49,7 +50,23 @@ function toggle(tree: ReactTestRenderer, id = 'ab12cd34'): void {
   act(() => { tree.root.findByProps({ 'data-decision-toggle': id }).props.onClick(); });
 }
 
+afterEach(() => forgetDecisionDrafts());
+
 describe('DecisionRow', () => {
+  it('keeps a half-written reply when the chat moves the line and mounts it again', () => {
+    const first = mount(dec(), fakeActions());
+    toggle(first);
+    act(() => findButton(first.root, 'Reply').props.onClick());
+    act(() => first.root.findByType('textarea').props.onChange({ target: { value: 'why not' } }));
+    act(() => first.unmount());
+    const again = mount(dec(), fakeActions());
+    expect(again.root.findByType('textarea').props.value).toBe('why not');
+    act(() => findButton(again.root, 'Cancel').props.onClick());
+    act(() => again.unmount());
+    const closed = mount(dec(), fakeActions());
+    expect(closed.root.findAllByType('textarea')).toHaveLength(0);
+  });
+
   it('reads as one line: a hollow mark and the title, no badge, no "pending" word', () => {
     const tree = mount(dec(), fakeActions());
     const line = tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' });

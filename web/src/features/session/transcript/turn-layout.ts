@@ -27,6 +27,14 @@ import { systemOriginDisplay } from './system-origin';
 //   text is part of the work, not a second log. Only a plan or question card splits the work,
 //   because the reader acted there: what the agent did before it and after it are two pieces.
 //
+// While the segment is still being written, the work keeps everything in the order it happened:
+// once it has begun, a pinned row that lands in it — a decision, a file, a long note — joins the open
+// log where it arrived, and only the reply being written sits below. Pinned rows that stayed below
+// the log made every working note written after one appear under it and then jump above it into
+// the log at the next tool call. When the segment settles the log folds and those rows step out
+// below it, as above. A plan or question card still splits the work, and messages the agent has not
+// read yet stay at the tail.
+//
 // A work item of a single row stays that row — a lone tool run already is one line — and one of
 // nothing but thoughts stays as its thought lines.
 
@@ -125,12 +133,19 @@ function classify(row: ChatRow, live: boolean): Role {
   }
 }
 
+/** Text and nothing else: pinned, if at all, only for its length. */
+function isNote(row: ChatRow): boolean {
+  return row.kind === 'assistant' && !row.attachments?.length && !row.decisions?.length;
+}
+
 /** The row the segment's answer is, or null. */
 function answerOf(rows: ChatRow[], body: number[], roles: Map<number, Role>, live: boolean): number | null {
   for (let k = body.length - 1; k >= 0; k--) {
     const i = body[k];
     const row = rows[i];
-    if (hasText(row)) return roles.get(i) === 'process' ? i : null;
+    // While it is still trailing, a long note is the reply so far too; it is pinned only once work
+    // follows it.
+    if (hasText(row)) return roles.get(i) === 'process' || (live && isNote(row)) ? i : null;
     // Still being written: only a trailing text is the answer so far. Cards and messages after it do
     // not end it; anything the agent did after it does.
     if (live && roles.get(i) === 'process') return null;
@@ -179,7 +194,52 @@ function workStats(rows: ChatRow[], indexes: number[], from: number, to: number)
   return { toolCalls, subagents, startTs, endTs };
 }
 
-type Slot = { kind: 'row'; index: number; role: TurnRowRole } | { kind: 'run'; indexes: number[] };
+type RunSlot = { kind: 'run'; indexes: number[] };
+type Slot = { kind: 'row'; index: number; role: TurnRowRole } | RunSlot;
+
+/** A pinned row that joins a live segment's work once the work has begun (see the header). */
+function joinsLiveWork(row: ChatRow, role: Role): boolean {
+  if (role !== 'pinned' || row.kind === 'interaction') return false;
+  return !('pending' in row && row.pending);
+}
+
+function buildSlots(rows: ChatRow[], body: number[], roles: Map<number, Role>, answer: number | null, live: boolean): Slot[] {
+  const slots: Slot[] = [];
+  let run: RunSlot | null = null;
+  // Only the work still being written takes pinned rows in: work before a plan or question card is
+  // already folded, and a decision in it would fold away with it.
+  const openFrom = live ? Math.max(-1, ...body.filter((i) => rows[i].kind === 'interaction')) : Infinity;
+  for (const i of body) {
+    const role = roles.get(i)!;
+    const takesIn = run !== null && i > openFrom && joinsLiveWork(rows[i], role);
+    const joins = i !== answer && (role === 'process' || takesIn);
+    if (!joins) {
+      if (rows[i].kind === 'interaction') run = null;
+      slots.push({ kind: 'row', index: i, role: i === answer || role === 'process' ? 'answer' : role });
+      continue;
+    }
+    if (!run) {
+      run = { kind: 'run', indexes: [] };
+      slots.push(run);
+    }
+    run.indexes.push(i);
+  }
+  return slots;
+}
+
+/** Work after a settled segment's answer joins the work before it. */
+function joinWorkAfterAnswer(slots: Slot[], answer: number): void {
+  const at = slots.findIndex((s) => s.kind === 'row' && s.index === answer);
+  const before = slots.slice(0, at).reverse().find((s): s is RunSlot => s.kind === 'run');
+  if (!before) return;
+  for (let k = slots.length - 1; k > at; k--) {
+    const s = slots[k];
+    if (s.kind !== 'run') continue;
+    before.indexes.push(...s.indexes);
+    slots.splice(k, 1);
+  }
+  before.indexes.sort((a, b) => a - b);
+}
 
 function layoutSegment(rows: ChatRow[], from: number, to: number, segment: number, live: boolean, out: TurnItem[]): void {
   let start = from;
@@ -191,38 +251,13 @@ function layoutSegment(rows: ChatRow[], from: number, to: number, segment: numbe
   for (let i = start; i < to; i++) body.push(i);
   const roles = new Map<number, Role>(body.map((i) => [i, classify(rows[i], live)]));
   const answer = answerOf(rows, body, roles, live);
+  const slots = buildSlots(rows, body, roles, answer, live);
+  if (answer !== null && !live) joinWorkAfterAnswer(slots, answer);
+  emitSlots(rows, slots, { from, to, segment, live }, out);
+}
 
-  const slots: Slot[] = [];
-  let run: Extract<Slot, { kind: 'run' }> | null = null;
-  for (const i of body) {
-    const role = roles.get(i)!;
-    if (i === answer || role !== 'process') {
-      if (rows[i].kind === 'interaction') run = null;
-      slots.push({ kind: 'row', index: i, role: i === answer || role === 'process' ? 'answer' : role });
-      continue;
-    }
-    if (!run) {
-      run = { kind: 'run', indexes: [] };
-      slots.push(run);
-    }
-    run.indexes.push(i);
-  }
-
-  // Work after the answer joins the work before it.
-  if (answer !== null && !live) {
-    const at = slots.findIndex((s) => s.kind === 'row' && s.index === answer);
-    const before = slots.slice(0, at).reverse().find((s): s is Extract<Slot, { kind: 'run' }> => s.kind === 'run');
-    if (before) {
-      for (let k = slots.length - 1; k > at; k--) {
-        const s = slots[k];
-        if (s.kind !== 'run') continue;
-        before.indexes.push(...s.indexes);
-        slots.splice(k, 1);
-      }
-      before.indexes.sort((a, b) => a - b);
-    }
-  }
-
+function emitSlots(rows: ChatRow[], slots: Slot[], seg: { from: number; to: number; segment: number; live: boolean }, out: TurnItem[]): void {
+  const { from, to, segment, live } = seg;
   const lastRun = slots.reduce<Slot | null>((acc, s) => (s.kind === 'run' ? s : acc), null);
   for (const s of slots) {
     if (s.kind === 'row') {

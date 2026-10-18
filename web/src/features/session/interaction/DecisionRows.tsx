@@ -8,6 +8,7 @@ import { messageTimeLabel } from '@/features/session/transcript/transcript-vm';
 import { EventIcon, eventRowStyle } from '@/features/session/transcript/EventRow';
 import { decisionStatus, buildDecisionMessage, type DecisionStatus } from './decision-vm';
 import { useDecisionActions, type DecisionActions } from './useDecisionActions';
+import { useDecisionDraft } from './decision-draft';
 
 // Decisions (send_decision) — choices the agent made on the reader's behalf. Non-blocking by design,
 // so each is a record first: one quiet line under the reply that announced it, saying what was
@@ -91,9 +92,7 @@ export function DecisionRow({ d, actions, touch = false, labelled = true, at }: 
   at?: string;
 }): JSX.Element {
   const L = useVocab();
-  const [open, setOpen] = useState(false);
-  const [replying, setReplying] = useState(false);
-  const [text, setText] = useState('');
+  const [{ open, replying, text }, setDraft] = useDecisionDraft(d.id);
   const status = decisionStatus(d);
   const approved = status === 'approved';
   const word = statusWord(status, L);
@@ -106,9 +105,9 @@ export function DecisionRow({ d, actions, touch = false, labelled = true, at }: 
   const templates = { explain: L.wbDecExplainTemplate, explainBare: L.wbDecExplainTemplateBare, revise: L.wbDecReviseTemplate };
   const change = buildDecisionMessage(templates, 'revise', d.title, text);
 
-  const close = (): void => { setOpen(false); setReplying(false); setText(''); };
-  const toggle = (): void => { if (open) close(); else setOpen(true); };
-  const reply = (): void => { setOpen(true); setReplying(true); };
+  const close = (): void => setDraft({ open: false, replying: false, text: '' });
+  const toggle = (): void => { if (open) close(); else setDraft({ open: true }); };
+  const reply = (): void => setDraft({ open: true, replying: true });
   const approve = (): void => { if (!busy) actions?.respond(d.id, 'approve'); };
   const send = (kind: 'explain' | 'revise'): void => {
     const message = buildDecisionMessage(templates, kind, d.title, text);
@@ -198,14 +197,14 @@ export function DecisionRow({ d, actions, touch = false, labelled = true, at }: 
                 autoFocus
                 rows={2}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => setDraft({ text: e.target.value })}
                 placeholder={L.wbDecReplyPlaceholder}
                 style={{ width: '100%', minWidth: 0, resize: touch ? 'none' : 'vertical', border: 0, outline: 'none', background: 'transparent', padding: 0, fontFamily: 'inherit', fontSize: touch ? 16 : 13, lineHeight: 1.6, color: 'var(--proto-ink)', boxSizing: 'border-box' }}
               />
               <div style={{ display: 'flex', flexWrap: touch ? 'nowrap' : 'wrap', alignItems: 'center', gap: 8 }}>
                 {!touch && <span style={{ fontSize: 12, color: 'var(--proto-faint)' }}>{L.wbDecReplyHint}</span>}
                 {!touch && <span style={{ flex: 1 }} />}
-                <button type="button" className={MENU_FOCUS} onClick={() => { setReplying(false); setText(''); }} style={buttonStyle('ghost', touch)}>
+                <button type="button" className={MENU_FOCUS} onClick={() => setDraft({ replying: false, text: '' })} style={buttonStyle('ghost', touch)}>
                   {L.wbDecCancel}
                 </button>
                 <button type="button" className={MENU_FOCUS} disabled={busy} onClick={() => send('explain')} style={buttonStyle('secondary', touch, busy)}>

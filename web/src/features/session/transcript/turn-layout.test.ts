@@ -108,6 +108,28 @@ describe('layoutTurns', () => {
     expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3:live', 'row:4:pinned']);
   });
 
+  it('keeps a live turn in the order it happened, cards included, and lifts the cards out once it settles', () => {
+    const decision = say('', { decisions: [{ id: 'd1' } as never] });
+    const rows = [user('go'), tools(1), say('recording the choices'), tools(1), decision, tools(1), say('next up')];
+    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3,4,5:live', 'row:6:answer']);
+    const more = [...rows, tools(1)];
+    expect(shape(layoutTurns(more, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3,4,5,6,7:live']);
+    const done = [...more, say('All set.')];
+    expect(shape(layoutTurns(done))).toEqual(['row:0:opener', 'work:1,2,3,5,6,7', 'row:4:pinned', 'row:8:answer']);
+  });
+
+  it('reads a long trailing note as the reply so far, and takes it into the live work once work follows', () => {
+    const long = say('x'.repeat(LONG_FORM_CHARS));
+    expect(shape(layoutTurns([user('go'), tools(1), long], { live: true }))).toEqual(['row:0:opener', 'work:1:live', 'row:2:answer']);
+    expect(shape(layoutTurns([user('go'), tools(1), long, tools(1)], { live: true }))).toEqual(['row:0:opener', 'work:1,2,3:live']);
+  });
+
+  it('leaves cards in work a plan card already closed where they were', () => {
+    const decision = say('', { decisions: [{ id: 'd1' } as never] });
+    const rows = [user('go'), tools(1), decision, tools(1), plan(), tools(1), decision];
+    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,3', 'row:2:pinned', 'row:4:pinned', 'work:5,6:live']);
+  });
+
   it('opens on worker reports but not on routine worker updates', () => {
     const update = (kind: 'report' | 'progress'): ChatRow => ({
       kind: 'team-updates', id: kind, threads: [],
