@@ -17,7 +17,7 @@ import { DeskAskCard, DeskPlanCard } from '@/features/session/interaction/Intera
 import { DecisionList } from '@/features/session/interaction/DecisionRows';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
-import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginDisplay, systemOriginLabel } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, liveToolsIndex, systemOriginDisplay, systemOriginLabel } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { useNarrationHandoff } from './narration-handoff';
 import { useEntryAnimation } from '@/design/Collapse';
@@ -365,8 +365,10 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, actions = false, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor, inWork = false, background = false }: {
+function Row({ row, interactionActions, actions = false, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor, inWork = false, background = false, liveTools = false }: {
   row: ChatRow;
+  /** A tool run that is what the agent is doing right now (see liveToolsIndex). */
+  liveTools?: boolean;
   /** Drawn inside a turn's open work log (see WorkLog): working notes read a step quieter. */
   inWork?: boolean;
   /** A subagent still running after its turn ended. */
@@ -434,6 +436,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
           <ToolCallsRow
             calls={row.calls}
             sessionId={streamKey}
+            live={liveTools}
           />
           <TurnCopyAction text={assistantCopyText} />
         </div>
@@ -536,6 +539,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     const targets = assistantTurnCopyTargets(rows, { live });
     return items ? copyHosts(items, targets, rows) : targets;
   }, [rows, items, turnCopy, live]);
+  const liveTools = useMemo(() => liveToolsIndex(rows, live), [rows, live]);
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && !editingRow.systemOrigin && editingRow.turnIndex !== undefined;
@@ -567,6 +571,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
         anchor={anchorOf(row, i)}
         inWork={opts.inWork}
         background={opts.background}
+        liveTools={i === liveTools}
       />
     );
   };

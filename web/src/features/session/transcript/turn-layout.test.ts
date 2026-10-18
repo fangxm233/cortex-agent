@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatRow } from './chat-row';
+import { liveToolsIndex, type ChatRow } from './chat-row';
 import { copyHosts, isLongForm, itemIndexes, layoutTurns, LONG_FORM_CHARS, type TurnItem } from './turn-layout';
 
 const user = (text: string, extra: Partial<Extract<ChatRow, { kind: 'user' }>> = {}): ChatRow => ({ kind: 'user', text, ...extra });
@@ -153,5 +153,21 @@ describe('copyHosts', () => {
     const host = [...hosts.keys()][0];
     expect(items[host]).toMatchObject({ kind: 'work' });
     expect([...hosts.values()]).toEqual(['note\n\nanswer']);
+  });
+});
+
+describe('liveToolsIndex', () => {
+  const tools: ChatRow = { kind: 'tools', count: 1, calls: [{ kind: 'bash', input: 'pwd' }] };
+  const said: ChatRow = { kind: 'assistant', text: 'done', streaming: false };
+  const pending: ChatRow = { kind: 'user', text: 'also this', pending: true };
+
+  it('is the tool run a running turn ended on, past messages the agent has not read yet', () => {
+    expect(liveToolsIndex([said, tools], true)).toBe(1);
+    expect(liveToolsIndex([said, tools, pending], true)).toBe(1);
+  });
+
+  it('is none once the agent moved past the run, or the turn is not running', () => {
+    expect(liveToolsIndex([tools, said], true)).toBe(-1);
+    expect(liveToolsIndex([said, tools], false)).toBe(-1);
   });
 });

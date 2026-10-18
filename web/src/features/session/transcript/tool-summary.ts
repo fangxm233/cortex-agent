@@ -89,7 +89,7 @@ function partText(part: ToolRunPart, L: Vocab): string {
     case 'search': return fmt(n === 1 ? L.chatToolSearchOne : L.chatToolSearchMany, { n });
     case 'web': return fmt(n === 1 ? L.chatToolWebOne : L.chatToolWebMany, { n });
     case 'todo': return L.chatToolTodo;
-    case 'thought': return n === 1 ? L.chatThinking : fmt(L.chatToolThoughtMany, { n });
+    case 'thought': return n === 1 ? L.chatToolThoughtOne : fmt(L.chatToolThoughtMany, { n });
     case 'other': return fmt(n === 1 ? L.chatToolOtherOne : L.chatToolOtherMany, { name: part.name ?? '', n });
   }
 }
@@ -102,4 +102,31 @@ export function toolRunText(calls: ToolCall[], L: Vocab): string {
 /** The category that leads a run (its first call's), which picks the run's icon. */
 export function leadingCategory(calls: ToolCall[]): ToolCategory | 'thought' {
   return toolRunParts(calls)[0]?.category ?? 'other';
+}
+
+/** A command as one line: its first line, spaces run together. */
+function commandLine(input: string): string {
+  return (input.trim().split(/\r?\n/)[0] ?? '').replace(/\s+/g, ' ');
+}
+
+type NowCategory = ToolCategory | 'thought';
+const NOW_TEXT: Record<NowCategory, (call: ToolCall, L: Vocab) => string> = {
+  thought: (_, L) => L.chatToolNowThought,
+  command: (call, L) => fmt(L.chatToolNowCommand, { input: commandLine(call.input) }),
+  read: (call, L) => fmt(L.chatToolNowRead, { name: fileName(call.input) ?? call.input.trim() }),
+  edit: (call, L) => fmt(L.chatToolNowEdit, { name: fileName(call.input) ?? call.input.trim() }),
+  search: (call, L) => fmt(L.chatToolNowSearch, { input: commandLine(call.input) }),
+  web: (_, L) => L.chatToolNowWeb,
+  todo: (_, L) => L.chatToolNowTodo,
+  other: (call, L) => fmt(L.chatToolNowOther, { name: bareToolName(call.kind) }),
+};
+
+/** What a call or thought is, as the run's latest step. */
+export function callCategory(call: ToolCall): NowCategory {
+  return call.thinking ? 'thought' : toolCategory(call.kind);
+}
+
+/** The run's latest step as what is happening now: "Thinking", "Running pnpm test", "Reading parser.ts". */
+export function toolRunNow(call: ToolCall, L: Vocab): string {
+  return NOW_TEXT[callCategory(call)](call, L).trim();
 }

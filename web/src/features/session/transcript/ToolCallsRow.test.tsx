@@ -159,3 +159,24 @@ describe('ToolCallsRow', () => {
     act(() => renderer.unmount());
   });
 });
+
+describe('ToolCallsRow as the live step', () => {
+  const live: ToolCall[] = [
+    { kind: 'bash', input: 'pwd' },
+    { kind: 'Read', input: '/src/parser.ts' },
+    { kind: 'thinking', input: 'so the parser…', thinking: true, preview: true },
+  ];
+  const line = (renderer: ReactTestRenderer): string[] => renderer.root.findByType('button')
+    .findAll((n) => n.type === 'span' && typeof n.children[0] === 'string').map((n) => n.children[0] as string);
+
+  it('leads with the step under way, then what the run did before it', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><ToolCallsRow calls={live} sessionId="s1" live /></LangProvider>); });
+    expect(line(renderer)).toEqual(['Thinking', 'Ran 1 command · Read parser.ts']);
+    act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" live /></LangProvider>));
+    expect(line(renderer)).toEqual(['Reading parser.ts', 'Ran 1 command']);
+    act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" /></LangProvider>));
+    expect(line(renderer)).toEqual(['Ran 1 command · Read parser.ts']);
+    act(() => renderer.unmount());
+  });
+});

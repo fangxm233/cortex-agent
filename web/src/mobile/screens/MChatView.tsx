@@ -17,7 +17,7 @@ import { SessionStateLine, TranscriptStatusProvider, WaitpointRow, WorkLog } fro
 import { copyHosts, itemIndexes, layoutTurns, type TurnItem } from '@/features/session/transcript/turn-layout';
 import { DecisionList } from '@/features/session/interaction/DecisionRows';
 import { fmt, useVocabOptional } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
+import { assistantTurnCopyTargets, liveToolsIndex, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers, type PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import { MBackChevron, MComposer, MC, M_NUM } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard } from './MInteractionCards';
@@ -182,11 +182,12 @@ function MSubagentBlock({ row, sessionId, background = false }: {
 }
 
 /** The desktop tool group in its touch form. */
-function MToolCallsRow({ row, sessionId }: {
+function MToolCallsRow({ row, sessionId, live = false }: {
   row: Extract<ChatRow, { kind: 'tools' }>;
   sessionId?: string;
+  live?: boolean;
 }): JSX.Element {
-  return <ToolCallsRow calls={row.calls} sessionId={sessionId} touch />;
+  return <ToolCallsRow calls={row.calls} sessionId={sessionId} live={live} touch />;
 }
 
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──
@@ -323,6 +324,8 @@ interface StreamContext {
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
   /** Opens a board a chat card names, full screen. */
   onOpenBoard?: (boardId: string) => void;
+  /** The tool run that is what the agent is doing right now, or -1 (see liveToolsIndex). */
+  liveTools: number;
 }
 
 interface RowProps<K extends ChatRow['kind']> {
@@ -484,8 +487,8 @@ const ROW_RENDERERS: { [K in ChatRow['kind']]: RowRenderer<K> } = {
   waitpoint: ({ row, dimmed, copyText }) => (
     <Dimmable dimmed={dimmed} copyText={copyText}><WaitpointRow wait={row.wait} touch /></Dimmable>
   ),
-  tools: ({ row, dimmed, copyText, ctx }) => (
-    <Dimmable dimmed={dimmed} copyText={copyText}><MToolCallsRow row={row} sessionId={ctx.streamKey} /></Dimmable>
+  tools: ({ row, index, dimmed, copyText, ctx }) => (
+    <Dimmable dimmed={dimmed} copyText={copyText}><MToolCallsRow row={row} sessionId={ctx.streamKey} live={index === ctx.liveTools} /></Dimmable>
   ),
   notice: ({ row, dimmed, copyText, ctx }) => (
     <Dimmable dimmed={dimmed} copyText={copyText}>
@@ -555,8 +558,9 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
     return items ? copyHosts(items, targets, rows) : targets;
   }, [rows, items, live]);
   const editingIdx = editing?.rowIndex ?? null;
+  const liveTools = useMemo(() => liveToolsIndex(rows, !!live), [rows, live]);
   const ctx: StreamContext = {
-    interactions, streamKey, editing, onShowOriginal, onOpenBoard,
+    interactions, streamKey, editing, onShowOriginal, onOpenBoard, liveTools,
     editable: !!onLongPress,
     regen: onLongPress ? regenNoteIndexes(rows) : null,
     // Long-press (复制 / 编辑消息) is human-messages-only — agent messages carry no copy.

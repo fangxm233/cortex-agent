@@ -518,13 +518,24 @@ function placeWaitMessage(state: BuildState, m: FlatMessage): boolean {
   return true;
 }
 
+/** The thought being written. Right after a tool run it is that run's next entry, where the thought
+ *  lands once it is complete, so it does not first show apart from the run and then jump into it. */
+function appendThinkingPreview(rows: ChatRow[], text: string): void {
+  const last = rows.at(-1);
+  if (last?.kind !== 'tools') {
+    rows.push({ kind: 'thinking', text, preview: true });
+    return;
+  }
+  rows[rows.length - 1] = { ...last, calls: [...last.calls, { kind: 'thinking', input: text, thinking: true, preview: true }] };
+}
+
 /** Rows after every persisted/live message: the in-flight block, the streaming flag, then the
  *  messages the model has not read yet. */
 function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the
   // smooth reveal paces.
-  if (opts.thinkingText) rows.push({ kind: 'thinking', text: opts.thinkingText, preview: true });
+  if (opts.thinkingText) appendThinkingPreview(rows, opts.thinkingText);
   if (opts.streamingText) {
     rows.push({ kind: 'assistant', text: opts.streamingText, streaming: true, preview: true });
   }

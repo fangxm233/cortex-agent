@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { SwapText } from './SwapText';
 
 interface FakeAnimation { onfinish: (() => void) | null; cancel: ReturnType<typeof vi.fn> }
@@ -18,6 +18,8 @@ function allowMotion(): void {
   vi.stubGlobal('document', { documentElement: { getAttribute: () => null } });
 }
 
+const view = (text: string): JSX.Element => <SwapText swapKey={text}><span>{text}</span></SwapText>;
+
 function mount(text: string): void {
   const createNodeMock = () => ({
     animate: () => {
@@ -26,16 +28,16 @@ function mount(text: string): void {
       return animation;
     },
   });
-  act(() => { mounted = create(<SwapText text={text} />, { createNodeMock }); });
+  act(() => { mounted = create(view(text), { createNodeMock }); });
 }
 
-const lines = (): string[] => mounted.root.findAll((n) => n.type === 'span' && typeof n.children[0] === 'string')
-  .map((n) => `${n.props['aria-hidden'] ? 'out' : 'in'}:${n.children[0]}`);
+const lines = (): string[] => mounted.root.findAll((n) => n.type === 'span' && n.parent?.props['data-swap-text'] !== undefined)
+  .map((n) => `${n.props['aria-hidden'] ? 'out' : 'in'}:${(n.children[0] as ReactTestInstance).children[0]}`);
 
 describe('SwapText', () => {
   it('swaps in one step without a DOM to animate', () => {
     mount('Ran 1 command');
-    act(() => mounted.update(<SwapText text="Ran 2 commands" />));
+    act(() => mounted.update(view('Ran 2 commands')));
     expect(lines()).toEqual(['in:Ran 2 commands']);
   });
 
@@ -43,19 +45,27 @@ describe('SwapText', () => {
     allowMotion();
     mount('Ran 1 command');
     expect(animations).toHaveLength(0);
-    act(() => mounted.update(<SwapText text="Ran 1 command · Thinking" />));
+    act(() => mounted.update(view('Ran 1 command · Thinking')));
     expect(lines()).toEqual(['in:Ran 1 command · Thinking', 'out:Ran 1 command']);
     expect(animations).toHaveLength(2);
     act(() => animations[1].onfinish?.());
     expect(lines()).toEqual(['in:Ran 1 command · Thinking']);
   });
 
+  it('does not roll when the content re-renders under the same key', () => {
+    allowMotion();
+    mount('Thinking');
+    act(() => mounted.update(<SwapText swapKey="Thinking"><span>Thinking</span></SwapText>));
+    expect(animations).toHaveLength(0);
+    expect(lines()).toEqual(['in:Thinking']);
+  });
+
   it('cuts a roll short when the text changes again mid-way', () => {
     allowMotion();
     mount('A');
-    act(() => mounted.update(<SwapText text="B" />));
+    act(() => mounted.update(view('B')));
     const [rise, fall] = animations;
-    act(() => mounted.update(<SwapText text="C" />));
+    act(() => mounted.update(view('C')));
     expect(rise.cancel).toHaveBeenCalled();
     expect(fall.cancel).toHaveBeenCalled();
     expect(lines()).toEqual(['in:C', 'out:B']);

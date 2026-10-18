@@ -11,6 +11,8 @@ export interface ToolCall {
   input: string;
   /** A thinking entry interleaved with tools; input holds its markdown. */
   thinking?: true;
+  /** The thought still being written: the run's latest entry, its text still arriving. */
+  preview?: true;
   /** Present only when the call's result carried images; such calls render in their own row. */
   images?: ToolCallImage[];
   debug?: {

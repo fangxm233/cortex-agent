@@ -27,6 +27,8 @@ export interface ToolCallEntry {
   input: string;
   /** A thought in an ordered tool run; input carries its markdown, not a tool argument. */
   thinking?: true;
+  /** The thought still being written (the streaming preview), always the run's last entry. */
+  preview?: true;
   /** The images the call's result carried; absent for every other call. */
   images?: ToolCallImage[];
   debug?: DebugToolDetail;
@@ -159,4 +161,24 @@ export function assistantTurnCopyTargets(rows: ChatRow[], opts: { live?: boolean
   }
   if (!opts.live) flush();
   return targets;
+}
+
+/** Rows that trail the stream without being what the agent is doing: messages it has not read
+ *  yet, and kept rows that render nothing. */
+function trailsWithoutActing(row: ChatRow): boolean {
+  if (row.kind === 'user' || row.kind === 'team-updates') return !!row.pending;
+  return row.kind === 'assistant' && !row.preview && !row.text.trim() && !row.attachments?.length && !row.decisions?.length;
+}
+
+/**
+ * The tool run that is what the agent is doing right now — the last thing it put in a running
+ * turn — or -1. Its line says what is happening ("Running pnpm test") rather than what was done.
+ */
+export function liveToolsIndex(rows: ChatRow[], live: boolean): number {
+  if (!live) return -1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (trailsWithoutActing(rows[i])) continue;
+    return rows[i].kind === 'tools' ? i : -1;
+  }
+  return -1;
 }

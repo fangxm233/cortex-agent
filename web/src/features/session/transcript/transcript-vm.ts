@@ -16,7 +16,7 @@ export {
   type TurnClock,
 } from './turn-clock';
 export {
-  assistantTurnCopyTargets, regenNoteIndexes, rewindStats, type ChatRow, type DebugToolDetail, type ToolCallEntry,
+  assistantTurnCopyTargets, liveToolsIndex, regenNoteIndexes, rewindStats, type ChatRow, type DebugToolDetail, type ToolCallEntry,
 } from './chat-row';
 export {
   buildTranscriptRows, capsDayDivider, messageTimeLabel, toolCallLabel, type BuildOpts,

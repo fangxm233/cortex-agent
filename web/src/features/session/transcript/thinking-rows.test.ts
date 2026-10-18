@@ -85,3 +85,24 @@ describe('thinking transcript rows', () => {
     expect(rewindStats(grouped, 0)).toEqual({ replies: 0, toolCalls: 1 });
   });
 });
+
+describe('a thought being written after a tool run', () => {
+  const tool = (name: string, input: string): TranscriptMessage => ({ ...message('tool', name), toolInput: input });
+
+  it('joins that run as its latest entry instead of a row of its own', () => {
+    const built = buildTranscriptRows({ sessionId: 's', turns: [{ turnIndex: 0, messages: [tool('Bash', 'pwd')] }] }, [], {
+      running: true, thinkingText: 'check the output',
+    }).filter((row) => row.kind !== 'divider');
+    expect(built).toMatchObject([{ kind: 'tools', count: 1, calls: [
+      { kind: 'Bash', input: 'pwd' },
+      { kind: 'thinking', input: 'check the output', thinking: true, preview: true },
+    ] }]);
+  });
+
+  it('keeps its own row when no tool run comes right before it', () => {
+    const built = buildTranscriptRows({ sessionId: 's', turns: [{ turnIndex: 0, messages: [message('user', 'go')] }] }, [], {
+      running: true, thinkingText: 'first thought',
+    }).filter((row) => row.kind !== 'divider');
+    expect(built.at(-1)).toMatchObject({ kind: 'thinking', text: 'first thought', preview: true });
+  });
+});
