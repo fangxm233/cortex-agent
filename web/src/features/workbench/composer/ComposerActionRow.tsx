@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
+import { Divider, MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS, MENU_INSET, MENU_ROW_PAD_X } from '@/design/MenuChrome';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
@@ -23,7 +23,9 @@ export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }:
   if (suggestions.length === 0) return null;
   return (
     <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', ...MENU_SURFACE, overflow: 'hidden', zIndex: 10 }}>
-      <div role="listbox" style={{ maxHeight: 320, overflowY: 'auto' }}>
+      {/* The same inset rows as the composer's MenuCard menus: rounded tints that stop short of the
+          card's edges, and a footer rule inset the same way. */}
+      <div role="listbox" style={{ maxHeight: 320, overflowY: 'auto', padding: MENU_INSET }}>
         {suggestions.map((suggestion, index) => (
           <button
             type="button"
@@ -37,14 +39,14 @@ export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }:
             data-slash-active={index === active || undefined}
             onMouseEnter={() => onHover(index)}
             onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
-            style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', minWidth: 0, padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: index === active ? 'var(--proto-line-2)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
+            style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', minWidth: 0, padding: `8px ${MENU_ROW_PAD_X}px`, opacity: suggestion.disabled ? 0.45 : 1, background: index === active ? 'var(--proto-line-2)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
           >
             <span style={{ flex: 'none', font: `500 12px ${CODE}`, color: index === active ? 'var(--proto-ink)' : 'var(--proto-ink-2)' }}>{suggestion.command}</span>
             <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-line-2)', background: 'transparent' }}>
+      <div style={{ display: 'flex', alignItems: 'center', margin: `0 ${MENU_INSET}px`, padding: `7px ${MENU_ROW_PAD_X}px 8px`, borderTop: '1px solid var(--proto-line)', background: 'transparent' }}>
         <span style={{ fontSize: 12, color: 'var(--proto-faint)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
       </div>
     </div>
@@ -80,7 +82,7 @@ export interface ComposerBrowserControl {
 
 const MENU_ROW_STYLE: CSSProperties = {
   ...MENU_BUTTON_STYLE, background: 'transparent',
-  display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: '0 13px',
+  display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: `0 ${MENU_ROW_PAD_X}px`,
   cursor: 'pointer', fontSize: 13, color: 'var(--proto-ink)',
 };
 
@@ -291,10 +293,11 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 type="button" className={MENU_FOCUS}
                 data-plus-back
                 onClick={(e) => { e.stopPropagation(); setPage('root'); }}
-                style={{ ...MENU_ROW_STYLE, minHeight: 28, borderBottom: '1px solid var(--proto-line-2)', color: 'var(--proto-muted)', fontSize: 12, fontWeight: 550 }}
+                style={{ ...MENU_ROW_STYLE, minHeight: 28, color: 'var(--proto-muted)', fontSize: 12, fontWeight: 550 }}
               >
                 ‹ {L.wbBrowser}
               </button>
+              <Divider />
               <BrowserDeviceRows
                 options={options}
                 current={browser!.device}

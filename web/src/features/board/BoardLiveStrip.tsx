@@ -21,14 +21,13 @@ const ELLIPSIS: CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: '
 /** The narrowest a session gets before the line wraps: its dot, a few letters of name, its age. */
 const SESSION_MIN = 120;
 
-/** The rail's dot (workerDotStyle), except that an idle session is a hollow ring rather than a gray
- *  disc: on a board, idle mostly means "done with its part", and a filled dot reads as still pending.
- *  It is lighter than the waiting ring, which keeps the rail's darker stroke. A running dot breathes;
- *  the app's reduced-motion setting stills it. */
+/** The team's dot (workerDotStyle) at strip size. An idle session is its light hollow ring — on a
+ *  board, idle mostly means "done with its part", and a filled dot would read as still pending — kept
+ *  lighter than the waiting ring's darker stroke. The rings draw a size up so their stroke matches a
+ *  filled dot's weight. A running dot breathes; the app's reduced-motion setting stills it. */
 export function stripDotStyle(s: SessionInfo): CSSProperties {
   switch (workerState(s)) {
     case 'idle':
-      return { ...workerDotStyle(s, 8), background: 'transparent', border: '1.5px solid color-mix(in srgb, var(--proto-faint) 60%, transparent)' };
     case 'waiting':
       return workerDotStyle(s, 8);
     case 'running':

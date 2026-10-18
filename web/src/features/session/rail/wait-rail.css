@@ -122,7 +122,7 @@
 .wait-rail-signals { list-style: none; margin: 0; padding: 0; }
 .wait-rail-signal { padding: 6px 0; border-top: 1px solid var(--proto-line); }
 /* The signal's own text is log output, verbatim — the one place in this panel that takes the code face. */
-.wait-rail-signal pre { font: 11.5px/1.6 var(--font-code); }
+.wait-rail-signal pre { margin: 0; font: 11.5px/1.6 var(--font-code); }
 .wait-rail-signal-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 4px; color: var(--proto-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .wait-rail-signal-meta > * { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .wait-rail-note, .wait-rail-empty { margin: 5px 0 8px; color: var(--proto-muted); }

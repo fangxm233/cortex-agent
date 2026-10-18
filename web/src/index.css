@@ -373,9 +373,10 @@ textarea::placeholder {
   width: 336px;
 }
 
+/* No reserved scrollbar gutter: it inset the rows on the right only. The list's own symmetric
+   padding (MENU_INSET) is the inset; a long catalog simply scrolls inside it. */
 .selection-menu [data-menu-scroll] {
   overflow-x: hidden;
-  scrollbar-gutter: stable;
 }
 
 .selection-menu [data-selection-row] > span {

@@ -643,4 +643,7 @@ export const enBase = {
   palKeyNavigate: 'select',
   palKeyOpen: 'open',
   palKeyClose: 'close',
+
+  // ── redesign: workbench ──
+  waitShort: 'Waiting on {label}',
 };

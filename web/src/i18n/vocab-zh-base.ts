@@ -642,4 +642,7 @@ export const zhBase = {
   palKeyNavigate: '选择',
   palKeyOpen: '打开',
   palKeyClose: '关闭',
+
+  // ── redesign: workbench ──
+  waitShort: '等待 {label}',
 };

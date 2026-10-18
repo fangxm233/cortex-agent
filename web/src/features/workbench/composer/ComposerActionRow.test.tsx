@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
-import { MenuCard, MenuRow } from '@/design/MenuChrome';
+import { MENU_INSET, MenuCard, MenuRow } from '@/design/MenuChrome';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl,
@@ -42,6 +42,8 @@ describe('shared picker chrome', () => {
     expect(card.props.style.overflow).toBe('hidden');
     const scroller = card.findByProps({ 'data-menu-scroll': true });
     expect(scroller.props.style.overflowY).toBe('auto');
+    // Rows sit in from the card's edges, so a tint is a rounded inset shape on both sides alike.
+    expect(scroller.props.style.padding).toBe(MENU_INSET);
     expect(scroller.props.style.backdropFilter).toBeUndefined();
     expect(row.props.style.backdropFilter).toBeUndefined();
   });
@@ -84,6 +86,7 @@ describe('ComposerSlashMenu', () => {
     );
     const row = renderer.root.findByProps({ 'data-slash-command': '/new' });
     expect(row.props.style.background).toBe('var(--proto-line-2)');
+    expect(renderer.root.findByProps({ role: 'listbox' }).props.style.padding).toBe(MENU_INSET);
     const [command, description] = row.findAllByType('span');
     expect(command.props.style.font).toContain('var(--font-code)');
     expect(description.props.style.font).toBeUndefined();

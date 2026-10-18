@@ -3,10 +3,11 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { MENU_FOCUS, MENU_SURFACE, useDismissMenu } from '@/design/MenuChrome';
 import { fmt, useLangOptional, useVocabOptional } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
-import { capsuleStyle } from '@/features/session/rail/ActivityChip';
+import { CHIP_COUNT, capsuleStyle, useHeaderCapsuleFit } from '@/features/session/rail/ActivityChip';
 import { useWorkerQuestions } from './useWorkerQuestions';
 import {
-  teamRoster, teamSummary, workerAgeText, workerDoing, workerState, workerStatusText, workerTitle, type TeamRoster,
+  teamRoster, teamSummary, teamSummaryText, workerAgeText, workerDoing, workerState, workerStatusText, workerTitle,
+  type TeamRoster,
 } from './worker-roster';
 
 // The lead's view of its team: a summary (dot stack + counts) that opens a list with one row per
@@ -16,24 +17,29 @@ import {
 const STACK_MAX = 6;
 const NOW_TICK_MS = 30_000;
 
-/** The rail's dot language: amber = blocked on you, accent = running, hollow ring = waiting on a
- *  machine, faint = idle. */
+/** The dot language for a worker among others — a stack, a peer list: amber = blocked on you,
+ *  accent = running, hollow ring = waiting on a machine, and a light hollow ring = idle, so an idle
+ *  worker still counts in a row of dots (the board's live strip draws the same light ring). A list
+ *  ROW, where the name stands on its own, drops the idle mark entirely: see `WorkerDot`. */
 export function workerDotStyle(s: SessionInfo, size = 6): CSSProperties {
   const base: CSSProperties = { width: size, height: size, borderRadius: '50%', boxSizing: 'border-box', flex: 'none' };
   switch (workerState(s)) {
     case 'you': return { ...base, background: 'var(--proto-amber)' };
     case 'running': return { ...base, background: 'var(--proto-accent)' };
     case 'waiting': return { ...base, border: '1.5px solid var(--proto-muted-3)' };
-    case 'idle': return { ...base, background: 'var(--proto-line-3)' };
+    case 'idle': return { ...base, background: 'transparent', border: '1.5px solid color-mix(in srgb, var(--proto-faint) 60%, transparent)' };
   }
 }
 
-/** A running worker's dot breathes; the app's reduced-motion setting stills it. */
-function WorkerDot({ worker }: { worker: SessionInfo }): JSX.Element {
-  const running = workerState(worker) === 'running';
+/** A roster row's status column: a running worker's dot breathes (the app's reduced-motion setting
+ *  stills it), and an idle worker has no dot at all — "no dot = idle"; its status stays in the row's
+ *  tooltip and accessible text. */
+function WorkerDot({ worker }: { worker: SessionInfo }): JSX.Element | null {
+  const state = workerState(worker);
+  if (state === 'idle') return null;
   return (
-    <span aria-hidden="true" data-worker-dot={workerState(worker)}
-      style={{ ...workerDotStyle(worker, 7), ...(running ? { animation: 'cxring 1.8s ease-out infinite' } : null) }} />
+    <span aria-hidden="true" data-worker-dot={state}
+      style={{ ...workerDotStyle(worker, 7), ...(state === 'running' ? { animation: 'cxring 1.8s ease-out infinite' } : null) }} />
   );
 }
 
@@ -186,12 +192,14 @@ export function TeamRosterPanel({ roster, touch, onOpen }: {
 
 /** Desktop: the lead's chat header carries its team as one capsule — the shared `capsuleStyle`, so it
  *  is the same object as the board capsule beside it and the activity strip's — and it opens the list
- *  as a popover. Nothing while the lead has no active worker. */
+ *  as a popover. When the header runs short it folds to the dots and a worker count, the summary
+ *  moving to the tooltip. Nothing while the lead has no active worker. */
 export function TeamCapsule({ workers, onOpen }: {
   workers: SessionInfo[];
   onOpen: (sessionId: string) => void;
 }): JSX.Element | null {
   const L = useVocabOptional();
+  const compact = useHeaderCapsuleFit().team === 'compact';
   const roster = useMemo(() => teamRoster(workers), [workers]);
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
@@ -206,13 +214,17 @@ export function TeamCapsule({ workers, onOpen }: {
         className={MENU_FOCUS}
         aria-expanded={open}
         aria-label={L.wbTeamWorkers}
+        title={`${L.wbTeamWorkers} · ${teamSummaryText(roster.active, L)}`}
+        data-compact={compact ? 'true' : undefined}
         onClick={(event) => { event.stopPropagation(); setOpen((v) => !v); }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{ ...capsuleStyle({ lit: hover, pressed: open }), maxWidth: 360 }}
       >
         <WorkerDotStack workers={roster.active} />
-        <TeamSummaryLabel active={roster.active} />
+        {compact
+          ? <span data-team-count={roster.active.length} style={CHIP_COUNT}>{roster.active.length}</span>
+          : <TeamSummaryLabel active={roster.active} />}
       </button>
       {open && (
         <div

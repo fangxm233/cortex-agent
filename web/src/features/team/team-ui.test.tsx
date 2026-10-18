@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { en, LangProvider, zh } from '@/i18n';
-import { TeamCapsule } from './TeamRoster';
+import { TeamCapsule, workerDotStyle } from './TeamRoster';
+import { HeaderCapsuleFitContext } from '@/features/session/rail/ActivityChip';
 import { teamContext } from './worker-groups';
 import {
   pendingQuestionText, teamRoster, teamSummaryText, workerAgeText, workerDoing, workerStatusText,
@@ -206,6 +207,36 @@ describe('TeamCapsule', () => {
     act(() => r.unmount());
   });
 
+  it('gives an idle worker a light hollow ring in the stack and no dot at all in its row', () => {
+    const idle = session('quiet', { teamLeadId: 'lead', workerName: 'quiet' });
+    expect(workerDotStyle(idle)).toMatchObject({ background: 'transparent', border: expect.stringContaining('solid') });
+    const r = render(<TeamCapsule workers={[w1, idle]} onOpen={vi.fn()} />);
+    const stack = r.root.findByProps({ 'data-worker-stack': '' });
+    expect(stack.findAllByType('span').filter((n) => n !== stack)).toHaveLength(2);
+    act(() => capsule(r)[0].props.onClick({ stopPropagation: vi.fn() }));
+    const quiet = rows(r).find((n) => n.props['data-worker-row'] === 'quiet')!;
+    expect(quiet.findAll((n) => n.props['data-worker-dot'] !== undefined)).toHaveLength(0);
+    expect(quiet.props.title).toContain('idle');
+    const busy = rows(r).find((n) => n.props['data-worker-row'] === 'w1')!;
+    expect(busy.findAll((n) => n.props['data-worker-dot'] !== undefined)).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
+  it('folds to its dots and a worker count when the header runs short, keeping the summary in its tooltip', () => {
+    const r = render(
+      <HeaderCapsuleFitContext.Provider value={{ board: 'compact', team: 'compact' }}>
+        <TeamCapsule workers={[w1, w2]} onOpen={vi.fn()} />
+      </HeaderCapsuleFitContext.Provider>,
+    );
+    const el = capsule(r)[0];
+    expect(el.props['data-compact']).toBe('true');
+    expect(el.findByProps({ 'data-team-count': 2 }).children.join('')).toBe('2');
+    const visible = (n: typeof el): string => n.children.map((c) => (typeof c === 'string' ? c : visible(c))).join('');
+    expect(visible(el)).toBe('2');
+    expect(el.props.title).toBe('Workers · 2 workers · 1 running');
+    act(() => r.unmount());
+  });
+
   it('folds inactive workers at the bottom until asked', () => {
     const onOpen = vi.fn();
     const r = render(<TeamCapsule workers={[w1, gone]} onOpen={onOpen} />);
@@ -244,12 +275,13 @@ describe('ChatHeader lead breadcrumb', () => {
     act(() => r.unmount());
   });
 
-  it('sets the title at 15/600 and the project chip in the UI face with a muted glyph', () => {
+  it('leads the 15/600 title with the project as plain muted text', () => {
     const r = render(header(null));
-    const chip = r.root.findByProps({ 'data-project-chip': '' });
-    expect(chip.props.style.font).toBeUndefined();
-    expect(chip.props.style.color).toBe('var(--proto-muted)');
-    expect(chip.findByType('svg').props.stroke).toBe('var(--proto-muted)');
+    const crumb = r.root.findByProps({ 'data-project-crumb': '' });
+    expect(crumb.props.style.color).toBe('var(--proto-muted)');
+    expect(crumb.props.style.background).toBeUndefined();
+    expect(crumb.findAllByType('svg')).toHaveLength(0);
+    expect(crumb.children[0]).toBe('atlas');
     const title = r.root.findAll((n) => n.type === 'div' && n.children.join('') === 'Worker')[0];
     expect(title.props.style).toMatchObject({ fontSize: 15, fontWeight: 600 });
     act(() => r.unmount());

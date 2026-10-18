@@ -190,8 +190,10 @@ describe('Composer send cluster', () => {
     act(() => tree.unmount());
   });
 
-  it('keeps send as the outlined secondary beside an ink stop while a turn runs', () => {
+  it('shows only Stop mid-turn until there is something to send, then send as the outlined secondary', () => {
     const tree = mountComposer(vi.fn(), { running: true });
+    expect(tree.root.findAllByProps({ 'data-action': 'send' })).toHaveLength(0);
+    expect(tree.root.findAllByProps({ 'data-action': 'stop' })).toHaveLength(1);
     act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'steer' } }));
     expect(send(tree).props.style.background).toBe('transparent');
     const stop = tree.root.findByProps({ 'data-action': 'stop' });
@@ -313,7 +315,8 @@ describe('Composer attachment send gate', () => {
       { id: 'done', status: 'done', progress: 100, meta: { name: 'ok', path: 'ok', size: 1, mimeType: 'text/plain', type: 'file' } },
       { id: 'error', status: 'error', progress: 0, file: new File(['x'], 'bad') },
     ];
-    const renderer = mountComposer(() => {});
+    // Idle, so the gated send stays on screen as a disabled circle (mid-turn it would be hidden).
+    const renderer = mountComposer(() => {}, { running: false });
     act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'send me' } }));
 
     expect(renderer.root.findByProps({ 'data-action': 'send' }).props.disabled).toBe(true);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MenuCard, MENU_BUTTON_STYLE, MENU_FOCUS, useDismissMenu } from '@/design/MenuChrome';
+import { MenuCard, MENU_BUTTON_STYLE, MENU_FOCUS, MENU_ROW_PAD_X, useDismissMenu } from '@/design/MenuChrome';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';
@@ -33,7 +33,7 @@ function ProjectMenu({ projects, current, onPick }: {
           onMouseEnter={() => setHover(project.id)}
           onMouseLeave={() => setHover((id) => id === project.id ? null : id)}
           onClick={(event) => { event.stopPropagation(); onPick(project.id); }}
-          style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', padding: '6px 8px', cursor: 'pointer', background: hover === project.id ? 'var(--proto-gray)' : project.id === current ? 'var(--proto-line-2)' : 'transparent' }}
+          style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', padding: `7px ${MENU_ROW_PAD_X}px`, cursor: 'pointer', background: hover === project.id ? 'var(--proto-gray)' : project.id === current ? 'var(--proto-line-2)' : 'transparent' }}
         >
           <span style={{ font: `${project.id === current ? 550 : 400} 13px var(--font-ui)`, color: 'var(--proto-ink)' }}>{project.id}</span>
           {project.id === current && <span style={{ marginLeft: 'auto', color: 'var(--proto-ink)', fontSize: 12, fontWeight: 700 }}>✓</span>}

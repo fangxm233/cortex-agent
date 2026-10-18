@@ -12,6 +12,7 @@ vi.mock('@/design/dock-intake', () => ({ useDockIntake: () => ({ ...h.dock, open
 vi.mock('./useBoard', () => ({ useBoardLive: () => h.live }));
 
 import { BoardChip, DockedBoardCapsule } from './BoardCapsule';
+import { HeaderCapsuleFitContext } from '@/features/session/rail/ActivityChip';
 
 const BOARD: BoardInfo = {
   id: 'b1', projectId: 'p', slug: 'survey', title: 'Survey',
@@ -81,6 +82,20 @@ describe('DockedBoardCapsule', () => {
     expect(el.props.style.background).not.toContain('amber');
     expect(el.props.style.border).toBe('1px solid var(--proto-line)');
     expect(el.props.style.borderRadius).toBe('var(--r-pill)');
+  });
+
+  it('folds to the flag and the bare amber count when the header runs short, keeping the words in its label', () => {
+    h.live = { board: BOARD, missing: false, decisions: [], sessions: [session('lead', { teamLeadId: null, workerName: null, awaitingInput: true })] };
+    const el = capsule(render(
+      <HeaderCapsuleFitContext.Provider value={{ board: 'compact', team: 'full' }}>
+        <DockedBoardCapsule boardId="b1" />
+      </HeaderCapsuleFitContext.Provider>,
+    ))!;
+    expect(el.props['data-compact']).toBe('true');
+    expect(text(el)).toBe('1');
+    expect(el.findByProps({ 'data-board-pending-count': 1 }).props.style.color).toBe('var(--proto-amber-fg)');
+    expect(el.props['aria-label']).toBe('Open board · Survey · 1 awaiting you');
+    expect(el.props.title).toBe('Board · Survey · 1 awaiting you');
   });
 
   it('keeps a quiet flag and drops the count when nobody waits', () => {

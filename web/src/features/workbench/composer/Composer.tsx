@@ -380,10 +380,11 @@ export function Composer({
             />
 
             {/* Toolbar: ＋ menu left; agent, model, context ring and Send/Stop right.
-                Send is ALWAYS rendered. While a turn is running the composer still sends —
-                the server injects the text into the live turn rather than queuing it behind
-                that turn. Showing send as the secondary action next to Stop makes the
-                keyboard behaviour (⏎ mid-turn) visible instead of accidental. */}
+                While a turn is running the composer still sends — the server injects the text into
+                the live turn rather than queuing it behind that turn. Send therefore comes back as
+                the secondary action next to Stop as soon as there is something to send, which
+                makes the keyboard behaviour (⏎ mid-turn) visible instead of accidental; with an
+                empty input mid-turn it would only be a disabled circle, so Stop stands alone. */}
             <ComposerActionRow
               browser={isDraft
                 ? { device: browserDevice, onChange: setBrowserDevice } satisfies ComposerBrowserControl
@@ -399,7 +400,7 @@ export function Composer({
               contextControl={contextControl}
               sendControl={(
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <button
+                  {(!running || canSend) && <button
                     type="button"
                     className={MENU_FOCUS}
                     data-action="send"
@@ -416,7 +417,7 @@ export function Composer({
                       // Idle: the ink circle when there is something to send, a faint gray disc when
                       // there is not. Running: outlined/secondary so Stop stays the primary action.
                       background: running ? 'transparent' : canSend ? 'var(--ink-solid-bg)' : 'var(--proto-line)',
-                      border: running ? `1px solid ${canSend ? 'var(--proto-line-3)' : 'var(--proto-line)'}` : 'none',
+                      border: running ? '1px solid var(--proto-line-3)' : 'none',
                       boxSizing: 'border-box',
                       display: 'flex',
                       alignItems: 'center',
@@ -429,9 +430,7 @@ export function Composer({
                       height={running ? 12 : 13}
                       viewBox="0 0 14 14"
                       fill="none"
-                      stroke={running
-                        ? (canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)')
-                        : (canSend ? 'var(--ink-solid-fg)' : 'var(--proto-faint)')}
+                      stroke={running ? 'var(--proto-ink)' : canSend ? 'var(--ink-solid-fg)' : 'var(--proto-faint)'}
                       strokeWidth="1.8"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -439,7 +438,7 @@ export function Composer({
                     >
                       <path d="M7 12V2M3 6l4-4 4 4" />
                     </svg>
-                  </button>
+                  </button>}
                   {running && (
                     <button
                       type="button"

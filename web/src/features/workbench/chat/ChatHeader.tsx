@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { IconButton } from '@/design/IconButton';
 import { useVocab } from '@/i18n';
@@ -8,7 +8,8 @@ import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { NotesGlyph } from '@/features/notes/NotesGlyph';
 import { useDockIntake } from '@/design/dock-intake';
-import { ProjectGlyph } from '@/features/workbench/composer/composer-chip';
+import { useFitLevel } from '@/lib/useFitLevel';
+import { HeaderCapsuleFitContext, type HeaderCapsuleFit } from '@/features/session/rail/ActivityChip';
 
 function GlobeGlyph(): JSX.Element {
   return (
@@ -81,6 +82,25 @@ function ParentCrumb({ parent }: { parent: ChatHeaderParent }): JSX.Element {
   );
 }
 
+// The header folds as its pane narrows, one step at a time and only as far as it must (useFitLevel):
+// the title first gives up width down to TITLE_MIN, then
+//   1 · the project crumb goes,
+//   2 · the board capsule folds to its flag and amber count,
+//   3 · the team capsule folds to its dots and a worker count,
+//   4 · the title may shrink below TITLE_MIN,
+//   5 · the capsules go (the last resort of a pane narrower than any header).
+// Globe, notes and ⋯ never fold: they are how the header is used, so they always stay in the pane.
+const TITLE_MIN = 140;
+const FIT_MAX = 5;
+
+/** The row no longer fits when the action cluster's right edge runs past the header's content box. */
+function headerOverflows(header: HTMLDivElement): boolean {
+  const actions = header.querySelector<HTMLElement>('[data-header-actions]');
+  if (!actions) return false;
+  const padRight = parseFloat(getComputedStyle(header).paddingRight) || 0;
+  return actions.getBoundingClientRect().right > header.getBoundingClientRect().right - padRight + 0.5;
+}
+
 export function ChatHeader({
   title,
   running,
@@ -93,7 +113,7 @@ export function ChatHeader({
 }: {
   title: string;
   running: boolean;
-  /** The session's project, already resolved by CenterChat. Null ⇒ no chip. */
+  /** The session's project, already resolved by CenterChat. Null ⇒ no crumb. */
   projectName: string | null;
   backendSessionId: string | null;
   metadataSession: MetadataSession | null;
@@ -106,12 +126,23 @@ export function ChatHeader({
   const L = useVocab();
   const notes = useNotes();
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
+  const { ref, level } = useFitLevel<HTMLDivElement>(FIT_MAX, headerOverflows,
+    [title, projectName ?? '', parent?.title ?? '', team ? 't' : '', board ? 'b' : ''].join('\n'));
+  const fit = useMemo<HeaderCapsuleFit>(() => ({
+    board: level >= 2 ? 'compact' : 'full',
+    team: level >= 3 ? 'compact' : 'full',
+  }), [level]);
 
   return (
     <div
+      ref={ref}
+      data-chat-header=""
+      data-fit-level={level}
       style={{
         height: 50,
         flex: 'none',
+        minWidth: 0,
+        boxSizing: 'border-box',
         borderBottom: '1px solid var(--proto-line)',
         display: 'flex',
         alignItems: 'center',
@@ -131,14 +162,30 @@ export function ChatHeader({
           }}
         />
       )}
+      {/* "project /" leads the title as plain muted text, the way the lead crumb does for a worker. */}
+      {projectName && level < 1 && (
+        <span
+          data-project-crumb=""
+          title={`${L.project} · ${projectName}`}
+          style={{
+            flex: 'none', maxWidth: 180, fontSize: 13, color: 'var(--proto-muted)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}
+        >
+          {projectName}
+          <span aria-hidden="true" style={{ color: 'var(--proto-muted-3)' }}>{' /'}</span>
+        </span>
+      )}
       {parent && <ParentCrumb parent={parent} />}
       <div
+        title={title}
         style={{
           fontSize: 15,
           fontWeight: 600,
           color: 'var(--proto-ink)',
-          minWidth: 0,
-          maxWidth: 320,
+          flex: '0 1 auto',
+          minWidth: level >= 4 ? 0 : TITLE_MIN,
+          maxWidth: 360,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -146,30 +193,13 @@ export function ChatHeader({
       >
         {title}
       </div>
-      {projectName && (
-        <span
-          data-project-chip=""
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 22,
-            fontSize: 12,
-            color: 'var(--proto-muted)',
-            background: 'var(--proto-line-2)',
-            borderRadius: 6,
-            padding: '0 8px 0 7px',
-            flex: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <ProjectGlyph />
-          {projectName}
-        </span>
-      )}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, color: 'var(--proto-muted)' }}>
-        {team}
-        {board}
+      <div data-header-actions="" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flex: 'none', color: 'var(--proto-muted)' }}>
+        {level < 5 && (
+          <HeaderCapsuleFitContext.Provider value={fit}>
+            {team}
+            {board}
+          </HeaderCapsuleFitContext.Provider>
+        )}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flex: 'none' }}>
           <BrowserIconButton />
           <span style={{ position: 'relative', display: 'inline-flex' }}>

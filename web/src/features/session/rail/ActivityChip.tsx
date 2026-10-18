@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 
 // One capsule in the chat's activity strip — the single line above the composer that stands in for
@@ -23,11 +23,25 @@ export function capsuleStyle({ lit = false, pressed = false }: { lit?: boolean; 
   };
 }
 
-function chipStyle(tone: ActivityChipTone, floating: boolean, grow: boolean, pressed: boolean, lit: boolean): CSSProperties {
+/** How much room the desktop chat header leaves its capsules. The header folds them as its pane
+ *  narrows — the board to its flag and the count of what waits on the user, the team to its dots and
+ *  a worker count — and says so here, so each capsule keeps its full words in its tooltip and label
+ *  instead. Outside the header the capsules are always full. */
+export interface HeaderCapsuleFit {
+  board: 'full' | 'compact';
+  team: 'full' | 'compact';
+}
+const FULL_FIT: HeaderCapsuleFit = { board: 'full', team: 'full' };
+export const HeaderCapsuleFitContext = createContext<HeaderCapsuleFit>(FULL_FIT);
+export function useHeaderCapsuleFit(): HeaderCapsuleFit {
+  return useContext(HeaderCapsuleFitContext);
+}
+
+function chipStyle(tone: ActivityChipTone, floating: boolean, grow: number, pressed: boolean, lit: boolean): CSSProperties {
   const base = capsuleStyle({ lit, pressed });
   return {
     ...base,
-    flex: grow ? '0 1 auto' : 'none', minWidth: grow ? 0 : undefined, maxWidth: '100%', overflow: 'hidden',
+    flex: grow ? `0 ${grow} auto` : 'none', minWidth: grow ? 0 : undefined, maxWidth: '100%', overflow: 'hidden',
     // An `ask` capsule (the phone's board, once something waits on the user) only turns its text and
     // count amber; the fill and hairline stay those of every other capsule.
     color: tone === 'ask' ? 'var(--proto-amber-fg)' : base.color,
@@ -46,8 +60,9 @@ export function ActivityChip({ data, label, tone = 'plain', floating = false, gr
   tone?: ActivityChipTone;
   /** Mobile: hangs over the scrolling transcript, so it takes the frosted chrome. */
   floating?: boolean;
-  /** The one chip that carries text and gives way first when the row runs short. */
-  grow?: boolean;
+  /** A chip that carries text and gives way when the row runs short. A number weights how much
+   *  sooner it yields than a `true` (1) chip — the wait capsule gives way before the task's label. */
+  grow?: boolean | number;
   expanded?: boolean;
   onClick: () => void;
   children: ReactNode;
@@ -57,7 +72,7 @@ export function ActivityChip({ data, label, tone = 'plain', floating = false, gr
     <button type="button" data-activity-chip={data} className={MENU_FOCUS} aria-label={label} title={label}
       aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onClick(); }}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={chipStyle(tone, floating, grow, !!expanded, hover)}>
+      style={chipStyle(tone, floating, grow === true ? 1 : grow || 0, !!expanded, hover)}>
       {children}
     </button>
   );

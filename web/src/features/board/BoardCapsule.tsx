@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { useDockIntake } from '@/design/dock-intake';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useVocab } from '@/i18n';
-import { ActivityChip, CHIP_COUNT, capsuleStyle } from '@/features/session/rail/ActivityChip';
+import { ActivityChip, CHIP_COUNT, capsuleStyle, useHeaderCapsuleFit } from '@/features/session/rail/ActivityChip';
 import { BoardIcon } from './BoardIcon';
 import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from './board-summary';
 import { useBoardLive } from './useBoard';
@@ -15,23 +15,32 @@ const PENDING: CSSProperties = { flex: 'none', fontWeight: 550, color: 'var(--pr
 
 /** Desktop: the board's flag and title, plus how many wait on the user. The header's shared capsule:
  *  a quiet flag at rest; once something waits on the user the flag and the count turn amber, while
- *  the capsule itself keeps its hairline and fill. */
+ *  the capsule itself keeps its hairline and fill. When the header runs short it folds to the flag
+ *  and the bare amber count; the title and the full count stay in its tooltip and label. */
 export function BoardCapsule({ boardId, onOpen }: { boardId: string; onOpen: () => void }): JSX.Element | null {
   const L = useVocab();
+  const compact = useHeaderCapsuleFit().board === 'compact';
   const { board, sessions } = useBoardLive(boardId);
   const [hover, setHover] = useState(false);
   if (!board) return null;
   const { pending } = boardSummary(sessions);
   const tone = boardFlagTone(pending.length);
   const ask = tone === 'ask';
+  const waiting = ask ? fmt(L.boardNeedsYou, { n: pending.length }) : null;
   return (
-    <button type="button" data-board-capsule={boardId} data-board-flag={tone} className={MENU_FOCUS}
-      aria-label={`${L.boardOpen} · ${board.title}`} title={`${L.boardTitle} · ${board.title}`} onClick={onOpen}
+    <button type="button" data-board-capsule={boardId} data-board-flag={tone} data-compact={compact ? 'true' : undefined}
+      className={MENU_FOCUS} onClick={onOpen}
+      aria-label={[`${L.boardOpen} · ${board.title}`, waiting].filter(Boolean).join(' · ')}
+      title={[`${L.boardTitle} · ${board.title}`, waiting].filter(Boolean).join(' · ')}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{ ...capsuleStyle({ lit: hover }), maxWidth: 260, minWidth: 0 }}>
+      style={{ ...capsuleStyle({ lit: hover }), maxWidth: 260, minWidth: 0, ...(compact ? { padding: '0 10px' } : null) }}>
       <BoardIcon size={13} stroke={ask ? BOARD_FLAG_COLOR.ask : 'var(--proto-muted)'} />
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{board.title}</span>
-      {ask && <span data-board-pending-count={pending.length} style={PENDING}>{fmt(L.boardNeedsYou, { n: pending.length })}</span>}
+      {!compact && <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{board.title}</span>}
+      {ask && (
+        <span data-board-pending-count={pending.length} style={PENDING}>
+          {compact ? pending.length : waiting}
+        </span>
+      )}
     </button>
   );
 }

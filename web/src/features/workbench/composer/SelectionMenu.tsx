@@ -7,7 +7,7 @@ import type {
 } from '@/features/session/list/selection-menu';
 import {
   Divider, MenuCard, MenuRow, Note, rowBackground, SectionTitle, type HoverProps,
-  MENU_BUTTON_STYLE, MENU_FOCUS,
+  MENU_BUTTON_STYLE, MENU_FOCUS, MENU_ROW_PAD_X,
 } from '@/design/MenuChrome';
 
 import { groupModelOptions } from '@/features/session/list/selection-menu';
@@ -40,7 +40,7 @@ function DrillRow({ row, onOpen, hover, setHover }: {
       data-selection-pane={row.key}
       style={{
         ...MENU_BUTTON_STYLE,
-        display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 8, padding: `7px ${MENU_ROW_PAD_X}px`, cursor: 'pointer',
         background: rowBackground(id, hover, false),
       }}
     >
@@ -62,26 +62,30 @@ function BackRow({ title, onBack, hover, setHover }: {
   title: string;
   onBack: () => void;
 } & HoverProps): JSX.Element {
+  // The rule under the back row is its own divider rather than the row's border, so it is inset
+  // like every other rule and the row's hover tint keeps its rounded corners.
   return (
-    <button
-      type="button"
-      className={MENU_FOCUS}
-      onMouseEnter={() => setHover('back')}
-      onMouseLeave={() => setHover(hover === 'back' ? null : hover)}
-      onClick={(event) => { event.stopPropagation(); onBack(); }}
-      data-selection-back="true"
-      style={{
-        ...MENU_BUTTON_STYLE,
-        display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', cursor: 'pointer',
-        borderBottom: '1px solid var(--proto-line)',
-        background: rowBackground('back', hover, false),
-      }}
-    >
-      <span style={{ display: 'inline-flex', color: 'var(--proto-muted)' }}><Caret back /></span>
-      <span style={{ font: '550 12px/1.4 var(--font-ui)', color: 'var(--proto-muted)' }}>
-        {title}
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        className={MENU_FOCUS}
+        onMouseEnter={() => setHover('back')}
+        onMouseLeave={() => setHover(hover === 'back' ? null : hover)}
+        onClick={(event) => { event.stopPropagation(); onBack(); }}
+        data-selection-back="true"
+        style={{
+          ...MENU_BUTTON_STYLE,
+          display: 'flex', alignItems: 'center', gap: 7, padding: `6px ${MENU_ROW_PAD_X}px`, cursor: 'pointer',
+          background: rowBackground('back', hover, false),
+        }}
+      >
+        <span style={{ display: 'inline-flex', color: 'var(--proto-muted)' }}><Caret back /></span>
+        <span style={{ font: '550 12px/1.4 var(--font-ui)', color: 'var(--proto-muted)' }}>
+          {title}
+        </span>
+      </button>
+      <Divider />
+    </>
   );
 }
 
@@ -90,7 +94,7 @@ function BackRow({ title, onBack, hover, setHover }: {
 function GroupLabel({ text }: { text: string }): JSX.Element {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px 2px',
+      display: 'flex', alignItems: 'center', gap: 6, padding: `6px ${MENU_ROW_PAD_X}px 2px`,
       font: '400 11.5px/1.4 var(--font-ui)', color: 'var(--proto-faint)',
     }}>
       <span style={{ flex: 'none' }}>{text}</span>
@@ -125,7 +129,7 @@ function FavoriteRow({ option, onPick, hover, setHover }: { option: ModelOption;
       data-selection-row={id} title={option.disabled ? L.wbModelCrossBackend : option.id}
       onMouseEnter={() => setHover(id)} onMouseLeave={() => setHover(null)}
       onClick={(event) => { event.stopPropagation(); onPick(); }}
-      style={{ ...MENU_BUTTON_STYLE, display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px',
+      style={{ ...MENU_BUTTON_STYLE, display: 'flex', gap: 8, alignItems: 'center', padding: `7px ${MENU_ROW_PAD_X}px`,
         opacity: option.disabled ? 0.45 : 1, cursor: option.disabled ? 'default' : 'pointer', background: rowBackground(id, hover, option.active) }}>
       <span style={{
         fontSize: 13, fontWeight: option.active ? 550 : 400, color: option.active ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
@@ -145,7 +149,7 @@ function SelectionHeader({ onClose }: { onClose: () => void }) {
     <button type="button" className={MENU_FOCUS} data-selection-settings
       onClick={(event) => { event.stopPropagation(); onClose(); openSection('models'); }}
       style={{ border: 0, background: 'transparent', color: 'var(--proto-accent)',
-        font: '400 12px/1.4 var(--font-ui)', padding: '6px 8px 3px', cursor: 'pointer' }}>
+        font: '400 12px/1.4 var(--font-ui)', padding: `6px ${MENU_ROW_PAD_X}px 3px`, cursor: 'pointer' }}>
       {L.wbModelSettings}
     </button>
   </div>;
@@ -188,10 +192,10 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
   })).filter((group) => group.options.length);
   return <>
     <BackRow title={L.wbAllModels} onBack={() => props.setPane('root')} {...shared} />
-    <div style={{ padding: '6px 8px 4px' }} onClick={(event) => event.stopPropagation()}>
+    <div style={{ padding: '4px 0' }} onClick={(event) => event.stopPropagation()}>
       <input data-selection-filter="model" aria-label={L.wbFilterModels} placeholder={L.wbFilterModels}
         value={filter} onChange={(event) => setFilter(event.target.value)} className={MENU_FOCUS}
-        style={{ width: '100%', boxSizing: 'border-box', font: '400 12.5px var(--font-ui)', color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', padding: '5px 8px' }} />
+        style={{ width: '100%', boxSizing: 'border-box', font: '400 12.5px var(--font-ui)', color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', padding: `5px ${MENU_ROW_PAD_X}px` }} />
     </div>
     {groups.map((group) => <div key={`${group.backend}:${group.group}`}>
       <GroupLabel text={group.group} />
