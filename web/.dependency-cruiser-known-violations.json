@@ -137,23 +137,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/session/interaction/DecisionCards.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/session/transcript/SubagentTranscriptDetail.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",

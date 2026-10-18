@@ -198,7 +198,7 @@ or Feishu-originated session never sees these tools.
 |---|---|---|
 | `send_file` | `file_path` or `files[]` (`{file_path, file_name?}`), `file_name?`, `caption?`, `device?` | Send one file, or several as one grouped message with a single caption, into the chat as downloadable cards (images and video preview inline); with `device`, the files are read on that remote device |
 | `send_view` | `title`, `html` or `file_path`, `caption?`, `height?` (160–900, default 360), `width?` (`narrow`, `wide`, `full`) | Render an HTML view inline in the chat as a live, interactive card |
-| `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
+| `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as lines in the chat |
 | `board_open` | `title` or `board` (exactly one) | Create a board, or attach to an existing one by id or slug, and bind the session to it |
 
 Assistant Markdown can place an image or video inside the reply with `![alt](src)`.
@@ -247,12 +247,14 @@ the mobile chat always fill the space they have.
 `send_decision` is non-blocking: the agent announces choices it made on the
 user's behalf and keeps working, rather than putting a question to the user the
 way `cortex_ask_user` does. Each decision (up to 10 per call, title ≤120 chars, other fields ≤1000)
-renders as a collapsed card in the chat; opening it shows context, decision, and
-reasoning. The user can approve (recorded only — nothing is sent to the agent),
-request an explanation, or propose a revision; the latter two compose a
-templated message that is both recorded on the decision and delivered to the
-agent as an ordinary user message. Decisions and their action log persist in the
-conversation history, so cards keep their state across reloads and devices.
+renders as one line under the reply that announced it: its title, and its status once the user has
+answered it. A batch shows three lines and folds the rest into one line that can also approve them
+all. Opening a line shows the decision, then why, then the context. The user can approve (recorded
+only — nothing is sent to the agent; on desktop also straight from the hovered line) or reply: one
+box that either asks why (the text is optional) or requests a change (the text is required). Both
+compose a templated message that is recorded on the decision and delivered to the agent as an
+ordinary user message. Decisions and their action log persist in the conversation history, so they
+keep their state across reloads and devices.
 
 `board_open` opens the status page of a long task: who is bound to it, how
 agents write it, and how it shows in the chat and the workbench are described

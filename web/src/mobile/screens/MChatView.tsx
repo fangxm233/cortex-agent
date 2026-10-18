@@ -15,7 +15,7 @@ import { SystemHintRow, ThinkingRow } from '@/features/session/transcript/HintRo
 import { EventIcon, EventRow } from '@/features/session/transcript/EventRow';
 import { SessionStateLine, TranscriptStatusProvider, WaitpointRow, WorkLog } from '@/features/session/transcript/WorkLog';
 import { copyHosts, itemIndexes, layoutTurns, type TurnItem } from '@/features/session/transcript/turn-layout';
-import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
+import { DecisionList } from '@/features/session/interaction/DecisionRows';
 import { fmt, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
@@ -464,7 +464,7 @@ function AssistantRow({ row, index, dimmed, copyText, ctx, inWork }: RowProps<'a
         </div>
       )}
       {row.decisions && row.decisions.length > 0 && (
-        <DecisionCardGroup decisions={row.decisions} sessionId={ctx.streamKey} touch />
+        <DecisionList decisions={row.decisions} sessionId={ctx.streamKey} touch />
       )}
       <AssistantTurnCopyAction text={copyText} />
     </div>

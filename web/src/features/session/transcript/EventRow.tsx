@@ -32,15 +32,17 @@ const PATHS: Record<EventIconName, ReactNode> = {
   stop: <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" />,
 };
 
-export function EventIcon({ name, open = false, color, size = 13 }: {
+export function EventIcon({ name, open = false, color, fill = 'none', size = 13 }: {
   name: EventIconName;
   /** chevron only: points down when open. */
   open?: boolean;
   color?: string;
+  /** A tint inside closed shapes (the diamond, the circle): a state worn by the mark itself. */
+  fill?: string;
   size?: number;
 }): JSX.Element {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color ?? 'currentColor'} strokeWidth={1.7}
+    <svg width={size} height={size} viewBox="0 0 16 16" fill={fill} stroke={color ?? 'currentColor'} strokeWidth={1.7}
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
       style={name === 'chevron' ? { transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 140ms ease' } : undefined}>
       {PATHS[name]}

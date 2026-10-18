@@ -4,8 +4,8 @@ import type { BoardDecisionEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const h = vi.hoisted(() => ({ respond: vi.fn(), sessions: [] as string[] }));
-vi.mock('@/features/session/interaction/DecisionCards', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@/features/session/interaction/DecisionCards')>();
+vi.mock('@/features/session/interaction/useDecisionActions', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/features/session/interaction/useDecisionActions')>();
   return {
     ...real,
     useDecisionActions: (sessionId: string) => {

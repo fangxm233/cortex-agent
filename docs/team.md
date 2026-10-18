@@ -229,10 +229,10 @@ The top of the board is drawn by the app and updates live. It shows the title an
 session with its status; clicking a session opens it. While anything waits on you, an amber
 *N awaiting you* chip appears: with one session waiting it opens that session, and with several it
 lists them with their pending questions. The *Decisions N* chip unfolds the decision stream, newest
-first. The decision cards are the chat's: each shows its status and offers **Approve**, **Explain**
-and **Revise**, answering the session that announced it. **Approve** records your acknowledgement
-without messaging the agent; **Explain**, with an optional question, and **Revise**, with the
-change you want, send the session a message.
+first. The decision lines are the chat's: each shows its status and offers **Approve** and
+**Reply**, answering the session that announced it. **Approve** records your acknowledgement
+without messaging the agent; a reply either asks why, with an optional question, or requests a
+change, with the change you want, and sends the session a message.
 
 Below the strip, `board.html` renders in a sandboxed frame. Images in `assets/` show inline. A link
 marked `data-open` opens a file from the board directory in the viewer the chat uses for files,
