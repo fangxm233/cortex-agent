@@ -26,7 +26,7 @@ export function BlamePane({ rows }: { rows: BlameRow[] }): JSX.Element {
             }}
           >
             <span style={{ ...GUTTER, width: 32, textAlign: 'right' }}>{r.lineNo}</span>
-            <span style={{ ...GUTTER, width: 64 }}>{r.groupStart && r.commit ? r.commit : ''}</span>
+            <span style={{ ...GUTTER, width: 64, fontFamily: 'var(--font-code)', fontSize: 11 }}>{r.groupStart && r.commit ? r.commit : ''}</span>
             <span style={{ ...GUTTER, width: 52 }}>
               {r.groupStart && r.taskRef && (
                 <span
