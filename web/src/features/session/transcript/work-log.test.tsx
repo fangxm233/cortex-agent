@@ -136,7 +136,31 @@ describe('waitpoints and background work', () => {
   });
 });
 
-describe('settled interactions', () => {
+describe.each([['desktop', false], ['mobile', true]])('settled interactions in the %s stream', (_name, mobile) => {
+  const stream = (plan: ChatRow): JSX.Element => (mobile
+    ? <MChatStream rows={[plan]} group />
+    : <ChatRows rows={[plan]} group />);
+
+  it('keeps rejection feedback visible below the sealed plan', () => {
+    const feedback = 'Keep the current layout.\nAdd the missing regression test.';
+    const plan: ChatRow = {
+      kind: 'interaction', subtype: 'plan', text: 'plan',
+      detail: {
+        id: 'p1', kind: 'plan', status: 'rejected',
+        payload: { planContent: '# Update layout\n\nsteps', filePath: '/repo/plan/layout.md' },
+        result: { approved: false, feedback },
+      } as never,
+    };
+    mount(stream(plan));
+    const line = byAttr('data-interaction-sealed')[0];
+    expect(line.props['data-interaction-sealed']).toBe('plan-rejected');
+    expect(text(line)).not.toContain(feedback);
+    const bubble = mounted.root.findAll((n) => typeof n.type === 'string' && n.children.includes(feedback));
+    expect(bubble).toHaveLength(1);
+    expect(bubble[0].props.style.whiteSpace).toBe('pre-wrap');
+    expect(bubble[0].props.style.alignSelf).toBe('flex-end');
+  });
+
   it('folds an approved plan into one line', () => {
     const plan: ChatRow = {
       kind: 'interaction', subtype: 'plan', text: 'plan', ts: '2026-10-17T16:34:00Z',
@@ -145,7 +169,7 @@ describe('settled interactions', () => {
         payload: { planContent: '# Thinking display\n\nsteps', filePath: '/repo/plan/thinking-display.md' },
       } as never,
     };
-    mount(<ChatRows rows={[plan]} group />);
+    mount(stream(plan));
     const line = byAttr('data-interaction-sealed')[0];
     expect(line.props['data-interaction-sealed']).toBe('plan-approved');
     expect(text(line)).toContain('Plan approved');

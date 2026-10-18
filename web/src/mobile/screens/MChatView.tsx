@@ -18,7 +18,7 @@ import { copyHosts, itemIndexes, layoutTurns, type TurnItem } from '@/features/s
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { fmt, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
-import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
+import { interactionView, emptyAskAnswers, type PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard } from './MInteractionCards';
 import { AttachmentGroup } from './MChatAttachments';
@@ -243,17 +243,6 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
       </MSealedAsk>
     );
   }
-  if (v.kind === 'plan' && (v.model.status === 'approved' || v.model.status === 'rejected')) {
-    const m = v.model;
-    const approved = m.status === 'approved';
-    return (
-      <EventRow touch icon={<EventIcon name={approved ? 'check' : 'cross'} color={approved ? 'var(--proto-success)' : 'var(--proto-danger)'} />}
-        label={approved ? copy.chatPlanApproved : copy.chatPlanRejected} summary={m.title}
-        meta={<span style={{ color: 'var(--proto-accent)', fontWeight: 550 }}>{copy.chatPlanView}</span>}
-        onClick={interactions ? () => interactions.onOpenRead(m) : undefined}
-        attrs={{ 'data-interaction-sealed': approved ? 'plan-approved' : 'plan-rejected' }} />
-    );
-  }
   if (v.kind === 'ask') {
     const m = v.model;
     return (
@@ -267,22 +256,35 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
       />
     );
   }
-  if (v.kind === 'plan') {
-    const m = v.model;
-    return (
-      <MPlanCard
-        model={m}
-        copy={copy}
-        dimmed={interactions?.rejectingId === m.requestId}
-        onApprove={interactions ? () => interactions.onApprove(m) : NOOP}
-        onRejectStart={interactions ? () => interactions.onRejectStart(m) : NOOP}
-        onOpenRead={interactions ? () => interactions.onOpenRead(m) : NOOP}
-      />
-    );
-  }
+  if (v.kind === 'plan') return <MPlanInteraction model={v.model} interactions={interactions} />;
   const color = v.tone === 'rejected' ? 'var(--proto-danger)' : v.tone === 'inactive' ? undefined : MC.done;
   const icon = v.tone === 'rejected' ? 'cross' : v.tone === 'inactive' ? 'circle' : 'check';
   return <EventRow touch icon={<EventIcon name={icon} color={color} />} label={v.label} summary={v.text} attrs={{ 'data-interaction-summary': v.tone }} />;
+}
+
+function MPlanInteraction({ model: m, interactions }: { model: PlanCardModel; interactions?: MChatInteractions }): JSX.Element {
+  const copy = useVocabOptional();
+  if (m.status !== 'approved' && m.status !== 'rejected') {
+    return <MPlanCard model={m} copy={copy} dimmed={interactions?.rejectingId === m.requestId}
+      onApprove={interactions ? () => interactions.onApprove(m) : NOOP}
+      onRejectStart={interactions ? () => interactions.onRejectStart(m) : NOOP}
+      onOpenRead={interactions ? () => interactions.onOpenRead(m) : NOOP} />;
+  }
+  const approved = m.status === 'approved';
+  return (
+    <>
+      <EventRow touch icon={<EventIcon name={approved ? 'check' : 'cross'} color={approved ? 'var(--proto-success)' : 'var(--proto-danger)'} />}
+        label={approved ? copy.chatPlanApproved : copy.chatPlanRejected} summary={m.title}
+        meta={<span style={{ color: 'var(--proto-accent)', fontWeight: 550 }}>{copy.chatPlanView}</span>}
+        onClick={interactions ? () => interactions.onOpenRead(m) : undefined}
+        attrs={{ 'data-interaction-sealed': approved ? 'plan-approved' : 'plan-rejected' }} />
+      {!approved && m.feedback && (
+        <div style={{ alignSelf: 'flex-end', maxWidth: '82%', background: MC.inkSolid, color: 'var(--ink-solid-fg)', borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)', padding: '9px 13px', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+          {m.feedback}
+        </div>
+      )}
+    </>
+  );
 }
 
 /** An answered question: one line that opens back to the questions and answers. */
