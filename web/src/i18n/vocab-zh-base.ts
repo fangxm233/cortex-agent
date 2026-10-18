@@ -570,6 +570,9 @@ export const zhBase = {
   winClose: '关闭',
   // ── redesign: shell ──
   wbRowWaitingOn: '等待信号',
+  wbFileKindImage: '图片',
+  wbFileKindVideo: '视频',
+  wbFileKindFile: '文件',
 
   // ── redesign: mobile ──
   mSectionNeedsYou: '需要你',

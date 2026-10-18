@@ -147,7 +147,7 @@ export const enBase = {
   wbBrowserThisHost: 'this host',
   wbBrowserStarting: 'Starting Chrome on {device} and connecting browser tools…',
   wbFileDownload: 'Download',
-  wbFileOpen: 'open',
+  wbFileOpen: 'Open',
   wbFileDownloadAll: 'download all',
   wbFileFiles: 'files',
   wbFileDownloadDone: 'Download complete',
@@ -155,7 +155,7 @@ export const enBase = {
   wbFileSavedTo: 'Saved to {path}',
   wbFileOpenFile: 'Open file',
   wbFileOpenFolder: 'Open folder',
-  wbViewBadge: 'VIEW',
+  wbViewBadge: 'View',
   wbViewExpand: 'Expand',
   wbViewDock: 'Dock beside the chat',
   wbViewSource: 'Source',
@@ -571,6 +571,9 @@ export const enBase = {
   winClose: 'Close',
   // ── redesign: shell ──
   wbRowWaitingOn: 'Waiting on a signal',
+  wbFileKindImage: 'Image',
+  wbFileKindVideo: 'Video',
+  wbFileKindFile: 'File',
 
   // ── redesign: mobile ──
   mSectionNeedsYou: 'Needs you',

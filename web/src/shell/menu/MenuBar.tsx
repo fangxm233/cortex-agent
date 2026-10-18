@@ -58,8 +58,9 @@ function ItemRow({ node, onRun }: { node: MenuNode; onRun: () => void }): JSX.El
       <span style={{ width: 14, textAlign: 'center', color: 'inherit' }}>{node.checked ? '✓' : ''}</span>
       <span>{node.label}</span>
       {node.accel && (
-        // A key hint is a label, not code: UI face, with tabular digits so the column lines up.
-        <span style={{ marginLeft: 'auto', font: '400 12px var(--font-ui)', fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)' }}>
+        // A key hint is a label, not code: UI face, with tabular digits so the column lines up. It
+        // dims with its row, so a disabled item never advertises a shortcut that does nothing.
+        <span style={{ marginLeft: 'auto', font: '400 12px var(--font-ui)', fontVariantNumeric: 'tabular-nums', color: node.disabled ? 'var(--proto-faint)' : 'var(--proto-muted)' }}>
           {formatAccel(node.accel, commandKey)}
         </span>
       )}
@@ -68,7 +69,8 @@ function ItemRow({ node, onRun }: { node: MenuNode; onRun: () => void }): JSX.El
 }
 
 // The highlighted row is a quiet ink tint, the same as every other menu: an accent-filled row would
-// spend the accent on a pointer position.
+// spend the accent on a pointer position. A disabled row is dim but still legible — the reader should
+// see what exists and that it does not apply here, not hunt for a blank line.
 function rowStyle(active: boolean, disabled: boolean): React.CSSProperties {
   return {
     display: 'flex',
@@ -80,7 +82,7 @@ function rowStyle(active: boolean, disabled: boolean): React.CSSProperties {
     fontSize: 12.5,
     whiteSpace: 'nowrap',
     cursor: disabled ? 'default' : 'pointer',
-    color: disabled ? 'var(--proto-line-3)' : 'var(--proto-ink)',
+    color: disabled ? 'var(--proto-faint)' : 'var(--proto-ink)',
     background: active ? 'var(--proto-gray)' : 'transparent',
   };
 }
@@ -93,20 +95,12 @@ const panelBase: React.CSSProperties = {
   zIndex: 60,
 };
 
-// A floating glass sheet, like `design/Popover`: `--glass-2` over its own backdrop filter, with the
-// hairline ring carried by the shadow so the panel keeps its exact geometry over the blur. Unlike
-// `MenuChrome`'s opaque panel this one never scrolls, so the backdrop is sampled once per open.
-const panelStyle: React.CSSProperties = {
-  ...panelBase,
-  background: 'var(--glass-2)',
-  backdropFilter: 'var(--glass-filter)',
-  WebkitBackdropFilter: 'var(--glass-filter)',
-};
-
-// A submenu opens beside its parent, i.e. outside the parent's painted box but still inside the
-// backdrop root that parent's filter creates — so its own `backdrop-filter` would sample nothing
-// and leave bare translucency over live text. It stays opaque instead, like `MenuChrome`.
-const submenuStyle: React.CSSProperties = { ...panelBase, background: 'var(--proto-card)' };
+// The panels are opaque, with the hairline ring carried by the shadow. A translucent glass sheet
+// here let the transcript under it read straight through — a menu is read at a glance, so nothing may
+// show behind its rows. A submenu has a second reason: it opens outside its parent's painted box but
+// inside the backdrop root a filtered parent creates, where its own `backdrop-filter` samples nothing.
+const panelStyle: React.CSSProperties = { ...panelBase, background: 'var(--proto-card)' };
+const submenuStyle: React.CSSProperties = panelStyle;
 
 export function MenuBar({ menus }: { menus: MenuDef[] }): JSX.Element {
   const [openId, setOpenId] = useState<string | null>(null);

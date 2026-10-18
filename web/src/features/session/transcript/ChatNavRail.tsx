@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MENU_SURFACE } from '@/design/MenuChrome';
 import { fmt, useVocab, type Vocab } from '@/i18n';
-import { attachmentFileExt, attachmentTypeColor } from '@/features/attachments/attachment-presentation';
 import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-nav';
+import { EventIcon } from './EventRow';
 
 // A session's own table of contents. Every prompt the user sent is a tick on the left edge of the
 // transcript; the ticks under the pointer swell so one can be picked out of a dense column, hovering
@@ -15,8 +15,6 @@ import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-
 // gutter, and dragging a selection through that gutter has to keep working. The preview card is a
 // sibling of the tick column rather than a child — the column clips (it scrolls once a session
 // outgrows the pane) and a card drawn inside it would be clipped to the strip's own width.
-
-const mono = "'IBM Plex Mono',monospace";
 
 /** Strip width. Wide enough to be an easy target, narrow enough to stay inside the prose gutter
  *  (MessageStream's GUTTER): inset + the fully swollen tick must not reach the text. */
@@ -46,21 +44,14 @@ interface Probe {
   centre: number;
 }
 
+// The transcript's file row in miniature: the file glyph and the name in the UI face, no type chip.
 function AttachmentChip({ a }: { a: NavMarkAttachment }): JSX.Element {
-  const colors = attachmentTypeColor(a.type);
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' }}>
+      <span style={{ display: 'flex', flex: 'none', color: 'var(--proto-faint)' }}><EventIcon name="file" size={12} /></span>
       <span
         style={{
-          minWidth: 28, height: 22, padding: '0 4px', borderRadius: 'var(--r-chip)', background: colors.bg, color: colors.fg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 11px ${mono}`, flex: 'none',
-        }}
-      >
-        {attachmentFileExt(a.name)}
-      </span>
-      <span
-        style={{
-          font: `500 11px ${mono}`, color: 'var(--proto-muted)', overflow: 'hidden',
+          font: '500 12px var(--font-ui)', color: 'var(--proto-muted)', overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}
       >
@@ -102,7 +93,7 @@ function PreviewCard({ mark, copy }: { mark: NavMark; copy: Vocab }): JSX.Elemen
             <AttachmentChip key={i} a={a} />
           ))}
           {extra > 0 && (
-            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{fmt(copy.navAttachments, { n: extra })}</span>
+            <span style={{ font: '400 12px var(--font-ui)', color: 'var(--proto-muted)' }}>{fmt(copy.navAttachments, { n: extra })}</span>
           )}
         </div>
       )}
