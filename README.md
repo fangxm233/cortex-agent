@@ -174,7 +174,7 @@ conversational rather than a sandbox:
 - **Plan approval.** Non-trivial work starts with a plan that waits until you approve it or send
   it back for changes.
 - **Questions and decisions.** Agents ask through cards that you answer in place, and record the
-  choices they make on their own as decision cards you can review.
+  choices they make on their own as decisions you can review.
 - **Your rules.** A safety boundary in your `$CORTEX_HOME/AGENTS.md` tells every session what it may
   do alone, what needs sign-off, and what is forbidden. Operations that need sign-off wait in the
   **Approval Center**.

@@ -14,7 +14,7 @@ import { AgentFileGroup, AttachmentCard } from './MessageAttachmentCards';
 import { interactionView, emptyDeskAsk, type DeskAskState } from '@/features/session/interaction/interaction-vm';
 import type { InteractionActions } from '@/features/session/interaction/useInteractionActions';
 import { DeskAskCard, DeskPlanCard } from '@/features/session/interaction/InteractionCards';
-import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
+import { DecisionList } from '@/features/session/interaction/DecisionRows';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
 import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginDisplay, systemOriginLabel } from './transcript-vm';
@@ -239,7 +239,7 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
       {shown.trim() && <ChatMediaProvider sessionId={streamKey} ts={ts}><ChatMarkdown text={shown} renderMath wideTables /></ChatMediaProvider>}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
-      {!!decisions && decisions.length > 0 && <DecisionCardGroup decisions={decisions} sessionId={streamKey} />}
+      {!!decisions && decisions.length > 0 && <DecisionList decisions={decisions} sessionId={streamKey} />}
       <TurnCopyAction text={copyText} />
     </div>
   );
