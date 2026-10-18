@@ -45,7 +45,7 @@ function RebuildCard({ rebuild }: { rebuild: DaemonRebuildVm }) {
       >
         <MDot color={dotColor(rebuildStatusTone(rebuild.status))} />
         <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{L.dmRebuild}</span>
-        <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>
+        <span style={{ fontSize: 12.5, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>
           {fmt(L.dmnRebuildProgress, { done: rebuild.completed, total: rebuild.total })} · {rebuild.elapsed}
         </span>
         <span style={{ marginLeft: 'auto' }}>
@@ -58,7 +58,9 @@ function RebuildCard({ rebuild }: { rebuild: DaemonRebuildVm }) {
           display: 'flex',
           flexDirection: 'column',
           gap: 6,
-          font: `400 12px/1.5 ${MONO}`,
+          fontSize: 13,
+          lineHeight: 1.5,
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
         {rebuild.steps.map((step) => (
@@ -78,7 +80,7 @@ function RebuildCard({ rebuild }: { rebuild: DaemonRebuildVm }) {
   );
 }
 
-// ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime sub-line ──
+// ── Process row: dot (real DTO status) + process name (code face) + label + real pid/port + uptime ──
 function ProcRow({ proc, border }: { proc: MDaemonProcess; border: boolean }) {
   const L = useVocab();
   const dash = DASH;
@@ -97,12 +99,12 @@ function ProcRow({ proc, border }: { proc: MDaemonProcess; border: boolean }) {
         {proc.label && (
           <span style={{ fontSize: 13, color: MC.muted }}>{proc.label}</span>
         )}
-        <span style={{ marginLeft: 'auto', font: `400 12px ${MONO}`, color: MC.muted }}>
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>
           {L.dmPid} {proc.pid ?? dash}
           {proc.port != null ? ` · :${proc.port}` : ''}
         </span>
       </div>
-      <div style={{ font: `400 12px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
+      <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 4, paddingLeft: 15, fontVariantNumeric: 'tabular-nums' }}>
         {L.mUptime} {proc.uptime ?? dash}
       </div>
     </div>
@@ -237,7 +239,7 @@ export function MDaemonView({
   return (
     <MScreen label="1r daemon" header={<MDrillHeader onBack={onBack}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
+          <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>
             {L.dmnTitle}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

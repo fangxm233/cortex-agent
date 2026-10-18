@@ -1,5 +1,5 @@
 import { fmt, useLang, type Vocab } from '@/i18n';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MBackChevron, MC, M_NUM } from '@/mobile/ui/kit';
 import type { TimeLang } from '@/i18n/time-format';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
@@ -37,7 +37,7 @@ function Subline({ row, copy, now }: { row: ScheduleRow; copy: Vocab; now: numbe
   const lang = useLang();
   const sub = scheduleSubline(row, now, lang);
   return (
-    <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 2 }}>
+    <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 2, ...M_NUM }}>
       <RunSubline sub={sub} />
       <PendingSubline sub={sub} copy={copy} />
       <PausedSubline sub={sub} copy={copy} />
@@ -48,11 +48,11 @@ function Subline({ row, copy, now }: { row: ScheduleRow; copy: Vocab; now: numbe
 function ListHeader({ rows, copy }: { rows: ScheduleRow[]; copy: Vocab }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 10px' }}>
-      <ClockIcon size={14} color={MC.run} />
-      <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
+      <ClockIcon size={14} color={MC.muted} />
+      <span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>
         {copy.schedSheetTitle}
       </span>
-      <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
+      <span style={{ fontSize: 13, color: MC.muted, ...M_NUM }}>
         {fmt(copy.schedSheetCount, { n: rows.length })}
       </span>
     </div>
@@ -69,7 +69,7 @@ function scheduleRowStyle(last: boolean): React.CSSProperties {
 
 function ScheduleRowMeta({ row, copy }: { row: ScheduleRow; copy: Vocab }) {
   return <>
-    <span style={{ font: `500 11px ${MONO}`, color: MC.muted, flex: 'none' }}>
+    <span style={{ fontSize: 12.5, color: MC.muted, flex: 'none', ...M_NUM }}>
       {row.kind === 'repeat' ? `×${row.runs.length}` : copy.scTypeOnce}
     </span>
     {row.unread && <span style={{ width: 7, height: 7, borderRadius: '50%', background: MC.run, flex: 'none' }} />}
@@ -83,7 +83,7 @@ function ScheduleRowView({ row, copy, now, last, onRow }: {
 }) {
   return (
     <div data-schedule-row={row.scheduleId} onClick={() => onRow(row)} style={scheduleRowStyle(last)}>
-      <ClockIcon size={13} color={row.unread ? MC.run : MC.muted} />
+      <ClockIcon size={13} color={MC.muted} />
       <ScheduleRowText row={row} copy={copy} now={now} />
       <ScheduleRowMeta row={row} copy={copy} />
     </div>
@@ -142,13 +142,15 @@ function RunsHeader({ row, copy, now, onBack }: {
   const subline = runsSubline(row, copy, now, lang);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 10px' }}>
-      <span data-action="sheet-back" onClick={onBack}
-        style={{ fontSize: 15, color: MC.run, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>‹</span>
-      <ClockIcon size={14} color={MC.run} />
+      <span data-action="sheet-back" role="button" aria-label={copy.back} onClick={onBack}
+        style={{ color: MC.ink, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, margin: '0 -8px 0 -10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <MBackChevron />
+      </span>
+      <ClockIcon size={14} color={MC.muted} />
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em',
+        <div style={{ fontSize: 17, fontWeight: 650, color: MC.ink,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.title}</div>
-        {subline && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1 }}>{subline}</div>}
+        {subline && <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 1, ...M_NUM }}>{subline}</div>}
       </div>
     </div>
   );
@@ -157,7 +159,7 @@ function RunsHeader({ row, copy, now, onBack }: {
 function RunsCaptions({ copy }: { copy: Vocab }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 70px', gap: 10,
-      padding: '4px 15px 6px', font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em' }}>
+      padding: '4px 15px 6px', fontSize: 12, fontWeight: 600, color: MC.muted }}>
       <span>{copy.schedColRun}</span><span>{copy.schedColFired}</span><span style={{ textAlign: 'right' }}>{copy.schedColCost}</span>
     </div>
   );
@@ -174,7 +176,7 @@ function runRowStyle(first: boolean): React.CSSProperties {
 function RunOrdinal({ run, ordinal }: {
   run: ScheduleRow['runs'][number]; ordinal: number | undefined;
 }) {
-  return <span style={{ font: `${run.unread ? 600 : 400} 12px ${MONO}`,
+  return <span style={{ fontSize: 13, fontWeight: run.unread ? 600 : 400, ...M_NUM,
     color: run.unread ? MC.ink : 'var(--proto-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
     #{ordinal}
     {run.unread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run }} />}
@@ -182,7 +184,7 @@ function RunOrdinal({ run, ordinal }: {
 }
 
 function RunCost({ cost }: { cost: number | null }) {
-  return <span style={{ font: `400 12px ${MONO}`, color: MC.muted, textAlign: 'right' }}>
+  return <span style={{ fontSize: 13, color: MC.muted, textAlign: 'right', ...M_NUM }}>
     {cost != null ? formatUsd(cost) : '—'}
   </span>;
 }
@@ -194,7 +196,7 @@ function RunRow({ run, ordinal, first, now, onOpenRun }: {
   return (
     <div data-run-row={run.sessionId} onClick={() => onOpenRun(run.sessionId)} style={runRowStyle(first)}>
       <RunOrdinal run={run} ordinal={ordinal} />
-      <span style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)' }}>{sessionStamp(run, now)}</span>
+      <span style={{ fontSize: 13, color: 'var(--proto-muted-2)', ...M_NUM }}>{sessionStamp(run, now)}</span>
       <RunCost cost={run.costUsd} />
     </div>
   );
@@ -223,7 +225,7 @@ function MarkAllReadAction({ unreadIds, copy, pending, onMarkAllRead }: {
     <button type="button" data-action="mark-all-read" disabled={pending}
       onClick={() => onMarkAllRead(unreadIds)}
       style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: MC.run,
-        fontSize: 11.5, fontWeight: 600, cursor: pending ? 'default' : 'pointer',
+        fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, cursor: pending ? 'default' : 'pointer',
         opacity: pending ? 0.5 : 1, padding: 0 }}>
       {fmt(copy.schedMarkRead, { n: unreadIds.length })}
     </button>
@@ -237,11 +239,11 @@ function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }
   const unreadIds = unreadRunIds(row);
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', padding: '10px 4px 0', gap: 10 }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: MC.muted, ...M_NUM }}>
         {fmt(copy.schedAllRuns, { n: row.runs.length })}
       </span>
       {onEdit && <button type="button" data-action="edit-schedule" onClick={onEdit}
-        style={{ border: 0, background: 'transparent', color: MC.run, fontSize: 11.5,
+        style={{ border: 0, background: 'transparent', color: MC.run, fontFamily: 'var(--font-ui)', fontSize: 13,
           fontWeight: 600, cursor: 'pointer' }}>{copy.scEditSchedule}</button>}
       {onMarkAllRead && unreadIds.length > 0 ? (
         <MarkAllReadAction unreadIds={unreadIds} copy={copy} pending={markAllPending}
@@ -260,7 +262,7 @@ export function RunsLevel({ row, copy, now, onBack, onOpenRun, onEdit, onMarkAll
   return (
     <>
       <RunsHeader row={row} copy={copy} now={now} onBack={onBack} />
-      {/* Column captions follow the UI language; en keeps the mono uppercase look. */}
+      {/* Column captions follow the UI language, in sentence case like every other label. */}
       <RunsCaptions copy={copy} />
       <RunsList row={row} now={now} onOpenRun={onOpenRun} />
       <RunsFooter row={row} copy={copy} onEdit={onEdit} onMarkAllRead={onMarkAllRead}

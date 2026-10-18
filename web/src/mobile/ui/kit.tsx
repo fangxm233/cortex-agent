@@ -3,7 +3,7 @@
 // <MScreen> with its own header, scroll body, and optional footer.
 import { Children, Fragment, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
 import type { Tone } from '@/design/tone';
-import { MC, MONO, M_GUTTER } from '@/design/mobile-tokens';
+import { MC, M_GUTTER, M_NUM } from '@/design/mobile-tokens';
 import { useVocabOptional } from '@/i18n';
 
 export { MC, MONO, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
@@ -114,13 +114,13 @@ export function MScreen({
 }
 
 // ── MTabHeader — the tab header (会话 / 线程 / 任务 / 项目) ──────────────────────
-// A full-bleed bar under the status bar (render it through `MScreen floatingHeader`): the 22/700
+// A full-bleed bar under the status bar (render it through `MScreen floatingHeader`): the 24/680
 // title sits straight on the mesh at rest and the bar frosts once rows scroll beneath it. The title
 // shares the row text x (gutter + 14). Optional `leading` (brand mark), passive QN scope tag,
 // `trailing` keys (bare — no frame of their own) and a `below` second row (线程 budget band).
 // `titleMenu` turns the title into a ▾ button (会话: the title is the current project).
 const TAB_TITLE: CSSProperties = {
-  fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em',
+  fontSize: 24, fontWeight: 680, color: MC.ink, letterSpacing: '-.01em',
   minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
@@ -149,7 +149,7 @@ function TabTitle({ title, menu }: { title: string; menu?: MTabTitleMenu }) {
 
 function ScopeTag({ text }: { text: string }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 650, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 'var(--r-pill)', flex: 'none' }}>
+    <span style={{ fontSize: 11, fontWeight: 600, color: MC.sub, background: 'var(--proto-gray)', padding: '2px 7px', borderRadius: 6, flex: 'none' }}>
       {text}
     </span>
   );
@@ -192,7 +192,19 @@ export function MTabHeader({ title, titleMenu, leading, qn, trailing, below }: {
 }
 
 // ── MDrillHeader — ‹ back + middle content + trailing (⋯ / pill) ───────────────
-// scheme 1b/1f/1g L136-143: 15px accent chevron + middle (title/statusline) + trailing slot.
+// Back chevron in ink (the accent is for links and running, not for navigation chrome) + middle
+// (title/statusline) + trailing slot.
+
+/** The drill-in back glyph every mobile header shares: a stroked chevron in the current colour. */
+export function MBackChevron({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 3.5 5.5 8l4.5 4.5" />
+    </svg>
+  );
+}
+
 export function MDrillHeader({
   onBack,
   children,
@@ -223,20 +235,18 @@ export function MDrillHeader({
         style={{
           border: 'none',
           background: 'transparent',
-          color: MC.run,
-          fontSize: 22,
-          lineHeight: 1,
-          padding: '0 2px',
-          margin: 0,
+          color: MC.ink,
+          padding: 0,
+          margin: '0 -6px 0 -10px',
           cursor: 'pointer',
           flex: 'none',
           minHeight: 44,
           minWidth: 44,
-          display: 'flex',
-          alignItems: 'center',
+          display: 'grid',
+          placeItems: 'center',
         }}
       >
-        ‹
+        <MBackChevron />
       </button>
       {children}
       {trailing && <div style={{ marginLeft: 'auto', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>{trailing}</div>}
@@ -244,7 +254,8 @@ export function MDrillHeader({
   );
 }
 
-// The ⋯ round button used in drill headers (rename/export/archive menu trigger).
+// The ⋯ key used in drill headers (rename/export/archive menu trigger): a bare muted glyph — the
+// header is already the frame, so the key takes no fill or ring of its own.
 export function MMoreButton({ onClick }: { onClick?: () => void }) {
   const vocab = useVocabOptional();
   return (
@@ -255,15 +266,14 @@ export function MMoreButton({ onClick }: { onClick?: () => void }) {
       style={{
         width: 44,
         height: 44,
-        borderRadius: '50%',
-        background: 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)',
-        border: `1px solid ${MC.hairline}`,
+        borderRadius: 'var(--r-control)',
+        background: 'transparent',
+        border: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         color: MC.muted,
-        fontSize: 14,
+        fontSize: 18,
         letterSpacing: 1,
         cursor: 'pointer',
       }}
@@ -354,18 +364,16 @@ export function MCard({
 }
 
 // ── MButton — the 44px action key ──────────────────────────────────────────────────────────────
-// Filled (`accent`, `ink`) for the one decision a card asks for, outlined for the rest; settings
-// actions take the accent outline. `compact` is for actions that sit inside a row: chip corners
-// and tighter padding, same touch height.
-export type MButtonVariant = 'accent' | 'ink' | 'outline' | 'accent-outline' | 'danger-outline';
+// Ink-filled for the one decision a card or a sheet asks for, a hairline outline for the rest (the
+// accent marks focus, links and running — never a button's fill or ring). `compact` is for actions
+// that sit inside a row: chip corners and tighter padding, same touch height.
+export type MButtonVariant = 'ink' | 'outline' | 'danger-outline';
 const M_BUTTON_TONE: Record<MButtonVariant, { bg: string; fg: string; line?: string }> = {
-  accent: { bg: MC.run, fg: 'var(--ink-solid-fg)' },
   ink: { bg: MC.inkSolid, fg: MC.inkSolidFg },
   outline: { bg: 'var(--material-control-bg)', fg: MC.ink, line: 'var(--proto-line-3)' },
-  'accent-outline': { bg: 'var(--material-control-bg)', fg: MC.run, line: MC.run },
   'danger-outline': { bg: 'var(--material-control-bg)', fg: 'var(--proto-danger)', line: 'var(--proto-danger-bg)' },
 };
-const M_BUTTON_FULL = { padding: '0 8px', fontSize: 14, borderRadius: 'var(--r-control)', lineWidth: 1.5 };
+const M_BUTTON_FULL = { padding: '0 8px', fontSize: 15, borderRadius: 'var(--r-control)', lineWidth: 1 };
 const M_BUTTON_COMPACT = { padding: '0 12px', fontSize: 13, borderRadius: 'var(--r-chip)', lineWidth: 1 };
 export interface MButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: MButtonVariant;
@@ -416,9 +424,9 @@ export function MCollapsedCard({ title, meta, leading, sub, onExpand }: {
         <span style={{ fontSize: 13, fontWeight: 600, color: MC.body, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {title}
         </span>
-        {meta && <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{meta}</span>}
+        {meta && <span style={{ fontSize: 12, color: MC.muted, flex: 'none', ...M_NUM }}>{meta}</span>}
       </div>
-      {sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 5, paddingLeft: 2 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 12, color: MC.muted, marginTop: 5, paddingLeft: 2, ...M_NUM }}>{sub}</div>}
     </MCard>
   );
 }

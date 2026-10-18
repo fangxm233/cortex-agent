@@ -572,6 +572,16 @@ export const enBase = {
   // ── redesign: shell ──
   wbRowWaitingOn: 'Waiting on a signal',
 
+  // ── redesign: mobile ──
+  mSectionNeedsYou: 'Needs you',
+  mSectionActive: 'In progress',
+  mSectionRecent: 'Recent',
+  mChatPlanWaiting: 'Plan waiting for your approval',
+  mChatAnswerWaiting: 'Waiting for your answer{counter}',
+  mStripTodo: 'Tasks {counts}',
+  mPlanAwaiting: 'Plan · waiting for your approval',
+  mPlanReadFull: 'Read in full ›',
+
   // ── redesign: memory ──
   memModeLabel: 'View',
   memModeRead: 'Read',

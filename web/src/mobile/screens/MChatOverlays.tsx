@@ -1,5 +1,5 @@
 import { useVocabOptional } from '@/i18n';
-import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MBottomSheet, MC } from '@/mobile/ui/kit';
 import { AttachMenu } from './MChatComposerPresentation';
 import {
   BrowserSheet, ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
@@ -20,7 +20,7 @@ interface OverlayProps {
 function OriginalMessageSheet({ text, onClose }: { text: string; onClose: () => void }): JSX.Element {
   return (
     <MBottomSheet onClose={onClose}>
-      <div style={{ font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em', padding: '0 2px 8px' }}>{useVocabOptional().chatOriginalMessage}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: MC.muted, padding: '0 2px 8px' }}>{useVocabOptional().chatOriginalMessage}</div>
       <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px', fontSize: 13, lineHeight: 1.6, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '50vh', overflow: 'auto' }}>
         {text}
       </div>

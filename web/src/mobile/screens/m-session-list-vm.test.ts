@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { teamContext } from '@/features/team/worker-groups';
-import { buildProjectSessionList, buildSessionRows, sessionStatusLine } from './m-session-list-vm';
+import { buildProjectSessionList, buildSessionRows, sessionSections, sessionStatusLine, type MSessionRow } from './m-session-list-vm';
 import { en, zh } from '@/i18n';
 
 // Neutral placeholder sessions (守则11 — no real project names / ids).
@@ -194,5 +194,24 @@ describe('team workers in the session list', () => {
     expect(off.rows.map(r => r.id)).toEqual(['lead', 'orphan', 'w-active', 'w-inactive']);
     const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', en, true);
     expect(on.rows.map(r => r.id)).toEqual(['lead', 'orphan']);
+  });
+});
+
+describe('sessionSections', () => {
+  const row = (id: string, kind: MSessionRow['status']['kind']): MSessionRow => ({
+    id, title: id, time: '', unread: false, status: { kind, text: '' },
+  });
+
+  it('puts what waits on the user first, then what moves or waits on a machine, then the rest', () => {
+    const sections = sessionSections([row('a', 'idle'), row('b', 'background'), row('c', 'awaiting'),
+      row('d', 'running'), row('e', 'waiting-external'), row('f', 'idle')]);
+    expect(sections.map((s) => [s.key, s.rows.map((r) => r.id)])).toEqual([
+      ['needsYou', ['c']], ['active', ['b', 'd', 'e']], ['recent', ['a', 'f']],
+    ]);
+  });
+
+  it('leaves empty sections out', () => {
+    expect(sessionSections([row('a', 'idle')]).map((s) => s.key)).toEqual(['recent']);
+    expect(sessionSections([])).toEqual([]);
   });
 });

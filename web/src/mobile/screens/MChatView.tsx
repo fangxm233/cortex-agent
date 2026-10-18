@@ -19,7 +19,7 @@ import { DecisionList } from '@/features/session/interaction/DecisionRows';
 import { fmt, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginDisplay, systemOriginLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers, type PlanCardModel } from '@/features/session/interaction/interaction-vm';
-import { MComposer, MC, MONO } from '@/mobile/ui/kit';
+import { MBackChevron, MComposer, MC, M_NUM } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard } from './MInteractionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
@@ -39,29 +39,25 @@ import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.t
 
 export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
 
-// ── floating header — back chevron · title + status line · context ring · ⋯ ───
+// ── floating header — back chevron · status dot + title over a plain-words status line · ⋯ ───
 interface MChatHeaderProps {
   title: string;
   /** Team mode: the worker's lead, a tappable prefix before the title. */
   parent?: { title: string; onSelect: () => void } | null;
   status: ChatHeaderStatus;
-  /** Project the session belongs to; prefixes the status line when known. */
-  project?: string;
   onBack: () => void;
   onMore: () => void;
-  /** Context usage, as a round key left of ⋯. Absent on a session that reports no window. */
-  contextControl?: ReactNode;
 }
 
 /** The floating header pill, measured once (useHeaderClearance) so the transcript clears it. */
 const HEADER_STACK: CSSProperties = {
-  position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 12, right: 12, zIndex: 5,
+  position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 10, right: 10, zIndex: 5,
   display: 'flex', flexDirection: 'column', gap: 6,
 };
 
 const CHAT_HEADER: CSSProperties = {
-  position: 'relative', height: 52, flex: 'none',
-  display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px 0 4px',
+  position: 'relative', height: 56, flex: 'none',
+  display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px',
   borderRadius: 'var(--r-float)', background: MC.glass,
   backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
   boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
@@ -70,47 +66,45 @@ const CHAT_HEADER: CSSProperties = {
 
 const HEADER_KEY: CSSProperties = {
   flex: 'none', width: 44, height: 44, border: 0, background: 'transparent', padding: 0,
-  cursor: 'pointer',
+  borderRadius: 'var(--r-control)', cursor: 'pointer',
 };
 
-function BackChevron(): JSX.Element {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m15 6-6 6 6 6" />
-    </svg>
-  );
+/** The title row's dot speaks the same status language as the session list: amber while the session
+ *  waits on the user, accent while it runs, a faint mark at rest. */
+function headerDot(status: ChatHeaderStatus): string {
+  if (status.tone === 'waiting') return 'var(--proto-amber)';
+  return status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)';
 }
 
 /** The header floats over the transcript rather than docking above it, so it is built here instead
- *  of through `MDrillHeader`: that kit header is a bordered flex band the other drill screens still
+ *  of through `MDrillHeader`: that kit header is a flat flex band the other drill screens still
  *  want. */
 export function MChatHeader(props: MChatHeaderProps): JSX.Element {
   const vocab = useVocabOptional();
   return (
     <div data-chat-header="true" style={CHAT_HEADER}>
       <button type="button" aria-label={vocab.back} onClick={props.onBack}
-        style={{ ...HEADER_KEY, color: 'var(--proto-accent)', display: 'grid', placeItems: 'center' }}>
-        <BackChevron />
+        style={{ ...HEADER_KEY, color: MC.ink, display: 'grid', placeItems: 'center' }}>
+        <MBackChevron />
       </button>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: props.status.tone === 'waiting' ? 'var(--proto-amber)' : props.status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)' }} />
+      <div style={{ flex: 1, minWidth: 0, padding: '0 2px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span data-chat-status-dot={props.status.tone} style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: headerDot(props.status) }} />
           {props.parent && (
             <button type="button" data-lead-crumb="" aria-label={`${vocab.wbTeamOpenLead} · ${props.parent.title}`}
               onClick={props.parent.onSelect}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '45%', flexShrink: 1,
-                padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: MC.muted }}>
+                padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 15, color: MC.muted }}>
               <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.parent.title}</span>
               <span aria-hidden="true" style={{ flex: 'none' }}>/</span>
             </button>
           )}
-          <span style={{ minWidth: 0, fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ minWidth: 0, fontSize: 15.5, fontWeight: 620, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {props.title}
           </span>
         </div>
-        <MChatStatusLine {...props} />
+        <MChatStatusLine status={props.status} />
       </div>
-      {props.contextControl}
       <button type="button" aria-label={vocab.more} onClick={props.onMore}
         style={{ ...HEADER_KEY, color: 'var(--proto-muted-2)', fontSize: 18, letterSpacing: '1px' }}>
         ⋯
@@ -119,21 +113,16 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
   );
 }
 
-/** Context usage is a bare ring here, not a bordered key: the header pill is already a framed
- *  surface, so a second frame inside it reads as a control on a control. The ring is itself the
- *  button — nesting one inside a round wrapper would nest a button in a button. */
-const HEADER_CONTEXT_KEY: CSSProperties = {
-  width: 44, height: 44, borderRadius: '50%', background: 'transparent', border: 0, flexShrink: 0,
-  boxSizing: 'border-box', justifyContent: 'center',
-};
-
-/** Flat muted ink: the waiting tone the line used to carry in amber now rides the title-row dot. */
-function MChatStatusLine({ status, project }: MChatHeaderProps): JSX.Element {
+/** Plain words in the UI face, muted — amber while the session waits on the user, matching its dot. */
+function MChatStatusLine({ status }: { status: ChatHeaderStatus }): JSX.Element {
   const now = useNowTick(!!status.liveText);
   const text = status.liveText ? status.liveText(now) : status.text;
   return (
-    <div data-chat-status-line="true" style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      {project ? `${project} · ${text}` : text}
+    <div data-chat-status-line="true" style={{
+      fontSize: 12.5, color: status.tone === 'waiting' ? 'var(--proto-amber-fg)' : MC.muted, marginTop: 1,
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...M_NUM,
+    }}>
+      {text}
     </div>
   );
 }
@@ -351,7 +340,7 @@ function DividerRow({ row, dimmed }: RowProps<'divider'>): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, ...(dimmed ? { opacity: 0.35 } : {}) }}>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>{row.text}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: MC.muted, ...M_NUM }}>{row.text}</div>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
     </div>
   );
@@ -386,7 +375,7 @@ function WillRewindBadge({ editing }: { editing: MEditMode }): JSX.Element {
   const L = useVocabOptional();
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-      <span style={{ font: `600 11px ${MONO}`, color: 'var(--m-amber-ink)', background: MC.amberBg, padding: '2px 7px', borderRadius: 4 }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--m-amber-ink)', background: MC.amberBg, padding: '2px 7px', borderRadius: 6, ...M_NUM }}>
         {fmt(L.chatWillRewind, {
           replies: fmt(editing.replies === 1 ? L.msgReplyOne : L.msgReplyMany, { n: editing.replies }),
           tools: fmt(editing.toolCalls === 1 ? L.msgToolCallOne : L.msgToolCallMany, { n: editing.toolCalls }),
@@ -399,7 +388,7 @@ function WillRewindBadge({ editing }: { editing: MEditMode }): JSX.Element {
 /** 已编辑 note — tap opens the original-message sheet. */
 function EditedNote({ onTap }: { onTap?: () => void }): JSX.Element {
   return (
-    <span role="button" onClick={onTap} style={{ font: `400 11px ${MONO}`, color: MC.muted, cursor: 'pointer' }}>
+    <span role="button" onClick={onTap} style={{ fontSize: 12, color: MC.muted, cursor: 'pointer' }}>
       <span style={{ borderBottom: `1px dotted ${MC.muted}` }}>{useVocabOptional().msgEdited}</span>
     </span>
   );
@@ -416,10 +405,10 @@ function UserBubbleRow({ row, index, dimmed, ctx }: RowProps<'user'>): JSX.Eleme
       <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? DIM : {}) }}>
         {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
         {editingRow && (
-          <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{L.chatEditingBadge}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 6 }}>{L.chatEditingBadge}</span>
         )}
         {row.systemOrigin && (
-          <span data-bubble-label="" style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
+          <span data-bubble-label="" style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
         )}
         <div {...(hold ?? {})} data-msg-bubble={hold ? index : undefined} style={userBubbleStyle(row.pending, !!hold, editingRow)}>
           {row.text}
@@ -454,7 +443,7 @@ function AssistantRow({ row, index, dimmed, copyText, ctx, inWork }: RowProps<'a
     }}>
       {/* 由编辑重新生成 — footnote atop the first regenerated reply after an edit */}
       {ctx.regen?.has(index) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `400 11px ${MONO}`, color: MC.muted, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: MC.muted, marginBottom: 4 }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
           {L.msgRegenNote}
         </div>
@@ -618,7 +607,7 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        font: `400 11px ${MONO}`,
+        fontSize: 12,
         color: MC.muted,
         background: 'var(--material-control-bg)',
         boxShadow: 'var(--material-control-shadow)',
@@ -627,7 +616,7 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
         borderRadius: 'var(--r-pill)',
       }}
     >
-      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run }} />
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.faint }} />
       {text}
     </div>
   );
@@ -709,6 +698,7 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
       leading={takenOver ? undefined : <ComposerKeys browser={props.browser} overlay={overlay} />}
       tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
+      trailing={composerContextControl(props, () => overlay.open('context'))}
       above={<ComposerAbove props={props} overlay={overlay} />}
       commandMenu={commandMenu}
       onPlus={() => overlay.toggle('attach')}
@@ -743,19 +733,27 @@ function MChatBody({ props, overlay, selection }: {
   );
 }
 
-function headerContextControl(props: MChatViewProps, onOpen: () => void): ReactNode {
+/** Context usage rides the composer's action row, left of Send — the same seat the desktop composer
+ *  gives it. A bare ring: the composer card is already the frame, and the ring is itself the button
+ *  (nesting it in a round wrapper would nest a button in a button). */
+function composerContextControl(props: MChatViewProps, onOpen: () => void): ReactNode {
   if (!props.contextUsageSupported && props.contextUsage == null) return null;
   return (
     <ContextUsageRing
       usage={props.contextUsage ?? null}
       variant="mobile"
       onClick={onOpen}
-      data-context-usage-position="chat-header"
+      data-context-usage-position="composer"
       data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
-      style={HEADER_CONTEXT_KEY}
+      style={COMPOSER_CONTEXT_KEY}
     />
   );
 }
+
+const COMPOSER_CONTEXT_KEY: CSSProperties = {
+  width: 34, height: 34, borderRadius: '50%', background: 'transparent', border: 0, flexShrink: 0,
+  boxSizing: 'border-box', justifyContent: 'center',
+};
 
 export function MChatView(props: MChatViewProps): JSX.Element {
   const overlay = useChatOverlay(props.sessionId ?? '');
@@ -773,9 +771,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       >
         {files.input}
         <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
-          <MChatHeader title={props.title} parent={props.parent} status={props.status} project={props.project}
-            onBack={props.onBack} onMore={() => overlay.toggle('more')}
-            contextControl={headerContextControl(props, () => overlay.open('context'))} />
+          <MChatHeader title={props.title} parent={props.parent} status={props.status}
+            onBack={props.onBack} onMore={() => overlay.toggle('more')} />
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />
         <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />

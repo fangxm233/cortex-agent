@@ -571,6 +571,16 @@ export const zhBase = {
   // ── redesign: shell ──
   wbRowWaitingOn: '等待信号',
 
+  // ── redesign: mobile ──
+  mSectionNeedsYou: '需要你',
+  mSectionActive: '进行中',
+  mSectionRecent: '最近',
+  mChatPlanWaiting: '计划等你批准',
+  mChatAnswerWaiting: '等你回答{counter}',
+  mStripTodo: '任务 {counts}',
+  mPlanAwaiting: '计划 · 等你批准',
+  mPlanReadFull: '读全文 ›',
+
   // ── redesign: memory ──
   memModeLabel: '视图',
   memModeRead: '阅读',

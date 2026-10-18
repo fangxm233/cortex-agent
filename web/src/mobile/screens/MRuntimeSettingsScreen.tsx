@@ -126,7 +126,7 @@ function NumberSettingRow(props: {
         min={props.descriptor.min} max={props.descriptor.max}
         placeholder={placeholderKey ? L[placeholderKey] : undefined}
         step={1} />
-      <MButton compact variant="accent-outline" disabled={!canSave}
+      <MButton compact variant="outline" disabled={!canSave}
         onClick={() => { if (next.valid) props.write.onSet(props.descriptor.setting, next.value); }}>{L.stBuiltinSave}</MButton>
     </div>} />;
 }
@@ -168,7 +168,7 @@ function JobInterval(props: {
       onChange={(event) => setDraft({ ...draft, unit: event.target.value as typeof draft.unit })}>
       {durationUnits(L).map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
     </MSettingsSelect>
-    <div style={{ gridColumn: '1 / -1' }}><MButton compact variant="accent-outline"
+    <div style={{ gridColumn: '1 / -1' }}><MButton compact variant="outline"
       disabled={current === null || next === null || next === current || props.write.pending}
       onClick={() => { if (next !== null) props.write.onSet(props.descriptor.interval, next); }}>
       {L.stBuiltinSave}

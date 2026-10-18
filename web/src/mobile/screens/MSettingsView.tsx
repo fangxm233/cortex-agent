@@ -4,7 +4,7 @@ import { connectionDot, connectionLabelKey } from '@/features/connection/connect
 import { getSettingsNav, type SettingsSectionKey } from '@/features/settings/settings-nav';
 import { fmt, useVocab, type Vocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody } from './MSettingsControls';
 import type { MSettingsVm } from './m-settings-vm';
@@ -65,9 +65,9 @@ function ModelCard(props: MSettingsViewProps) {
         onClick={() => props.onOpenSection('models')}
         style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
           display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-        <span style={{ width: 34, height: 34, borderRadius: 'var(--r-chip)', background: MC.runBg, color: MC.run,
+        <span style={{ width: 34, height: 34, borderRadius: 'var(--r-chip)', background: 'var(--proto-gray)', color: MC.sub,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          font: `600 11px ${MONO}`, flex: 'none' }}>{L.stNavModels.slice(0, 1)}</span>
+          fontSize: 13, fontWeight: 600, flex: 'none' }}>{L.stNavModels.slice(0, 1)}</span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <span style={{ ...TITLE, display: 'block' }}>{L.stDefaultModel}</span>
           {summary && <span style={{ ...SUB, display: 'block' }}>{summary}</span>}
@@ -143,7 +143,7 @@ function UpdateRow(props: Pick<MSettingsViewProps, 'checkingUpdates' | 'onCheckU
 function Footer() {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '2px 4px', font: `400 12px ${MONO}`, color: MC.faint }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '2px 4px', fontSize: 12.5, color: MC.faint, fontVariantNumeric: 'tabular-nums' }}>
       <span style={{ marginLeft: 'auto' }}>{L.dmnBuild} {BUILD_STAMP}</span>
     </div>
   );

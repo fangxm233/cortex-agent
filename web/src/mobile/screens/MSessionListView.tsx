@@ -2,15 +2,9 @@ import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
-import { MScreen, MTabHeader, type MTabTitleMenu, MScrollBody, MGroup, MEmpty, MC, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, type MTabTitleMenu, MScrollBody, MGroupLabel, MEmpty, MC, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { fmt, useVocabOptional } from '@/i18n';
-import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
-
-function isLive(status: MSessionStatus): boolean {
-  // A turn or a background task is actually advancing. `awaiting` is blocked ON the user, so it
-  // keeps its amber semantics and stays out of this.
-  return status.kind === 'running' || status.kind === 'background';
-}
+import { sessionSections, type MSessionRow, type MSessionSectionKey, type MSessionStatus } from './m-session-list-vm';
 
 const PRESENCE: Record<ConnectionStatus, string> = {
   connected: 'var(--proto-success)',
@@ -56,7 +50,7 @@ function BrandTile({ presence }: { presence: ConnectionStatus }) {
 }
 
 // The brand mark opens the Projects panel, which also slides in on a rightward swipe. Pending
-// approvals ride on it as the amber「需要你」count, so they stay in sight on the home screen.
+// approvals ride beside it as a plain amber「需要你」count, so they stay in sight on the home screen.
 function ProjectsButton({ presence, projects }: { presence: ConnectionStatus; projects: MSessionListProjects }) {
   const L = useVocabOptional();
   const count = projects.needsYou;
@@ -64,69 +58,36 @@ function ProjectsButton({ presence, projects }: { presence: ConnectionStatus; pr
   return (
     <button type="button" aria-label={label} data-projects-button="" onClick={projects.onOpen} style={PROJECTS_BUTTON}>
       <BrandTile presence={presence} />
-      {count > 0 && <span aria-hidden="true" style={NEEDS_YOU_BADGE}>{count}</span>}
+      {count > 0 && <span aria-hidden="true" data-needs-you-count="" style={NEEDS_YOU_COUNT}>{count}</span>}
     </button>
   );
 }
 
 const PROJECTS_BUTTON: CSSProperties = {
-  position: 'relative', width: 44, height: 44, margin: '0 -9px', padding: 0, flex: 'none',
-  border: 0, background: 'transparent', display: 'grid', placeItems: 'center', cursor: 'pointer',
+  position: 'relative', minWidth: 44, height: 44, margin: '0 -4px 0 -9px', padding: '0 9px', flex: 'none',
+  border: 0, background: 'transparent', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+  boxSizing: 'border-box',
 };
 
-const NEEDS_YOU_BADGE: CSSProperties = {
-  // Over the mark's top-right corner, clear of the title.
-  position: 'absolute', top: 3, left: 22, minWidth: 16, height: 16, padding: '0 4px', boxSizing: 'border-box',
-  borderRadius: 'var(--r-pill)', background: 'var(--proto-amber)', color: 'var(--amber-fill-fg)',
-  fontSize: 11, fontWeight: 600, ...M_NUM, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  boxShadow: '0 0 0 2px var(--m-canvas)',
+const NEEDS_YOU_COUNT: CSSProperties = {
+  fontSize: 13, fontWeight: 650, color: 'var(--proto-amber-fg)', ...M_NUM,
 };
 
-// The Scheduled entry (scheme-mobile 8a): a bare clock key in the header pill (the pill is already
-// the frame); unread schedules ride as a badge (blue — failed runs have no data source, so the badge
-// never turns red here).
+// The Scheduled entry (scheme-mobile 8a): a bare clock key in the header (the header is already the
+// frame); unread schedules ride as a plain accent count — failed runs have no data source, so it
+// never turns red here.
 function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => void }) {
   const L = useVocabOptional();
   return (
     <div style={{ position: 'relative', flex: 'none' }}>
-      <button
-        type="button"
-        aria-label={L.schedSheetTitle}
-        onClick={onClick}
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 'var(--r-control)',
-          background: 'transparent',
-          border: 0,
-          color: 'var(--proto-muted)',
-          display: 'grid',
-          placeItems: 'center',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        <svg width={18} height={18} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.4}>
-          <circle cx="7" cy="7" r="5.6" />
-          <path d="M7 4v3.2l2.2 1.3" />
+      <button type="button" aria-label={L.schedSheetTitle} onClick={onClick} style={HEADER_KEY}>
+        <svg width={19} height={19} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="5.5" />
+          <path d="M8 5v3l2 1.5" />
         </svg>
       </button>
       {unread > 0 && (
-        <span
-          aria-label={fmt(L.slUnreadScheduled, { n: unread })}
-          style={{
-            position: 'absolute',
-            top: 4,
-            right: 2,
-            background: MC.run,
-            color: 'var(--ink-solid-fg)',
-            fontSize: 11,
-            fontWeight: 600,
-            ...M_NUM,
-            padding: '1px 4.5px',
-            borderRadius: 'var(--r-pill)',
-          }}
-        >
+        <span aria-label={fmt(L.slUnreadScheduled, { n: unread })} style={UNREAD_SCHEDULED}>
           {unread}
         </span>
       )}
@@ -134,96 +95,102 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
   );
 }
 
-// A session row's status glyph: live and background share the run-blue dot, awaiting is the amber
-// 「需要你」dot, an external wait is a hollow ring.
-const STATUS_GLYPH: Record<Exclude<MSessionStatus['kind'], 'idle'>, CSSProperties> = {
-  running: { background: 'var(--proto-accent)' },
-  background: { background: 'var(--proto-accent)' },
+const HEADER_KEY: CSSProperties = {
+  width: 44, height: 44, borderRadius: 'var(--r-control)', background: 'transparent', border: 0,
+  color: 'var(--proto-muted)', display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0,
+};
+
+const UNREAD_SCHEDULED: CSSProperties = {
+  position: 'absolute', top: 5, right: 4, color: 'var(--proto-accent)', fontSize: 11, fontWeight: 650, ...M_NUM,
+};
+
+// A session row's status column: live and background share the accent dot with its soft halo,
+// awaiting is the amber「需要你」dot, an external wait is a hollow ring, idle has no mark.
+const STATUS_DOT: Record<Exclude<MSessionStatus['kind'], 'idle'>, CSSProperties> = {
+  running: { background: 'var(--proto-accent)', boxShadow: '0 0 0 3px var(--proto-accent-bg)' },
+  background: { background: 'var(--proto-accent)', boxShadow: '0 0 0 3px var(--proto-accent-bg)' },
   awaiting: { background: 'var(--proto-amber)' },
   'waiting-external': { border: `1.5px solid ${MC.muted}` },
 };
 
-const STATUS_COLOR: Record<MSessionStatus['kind'], string> = {
-  running: 'var(--proto-accent)',
-  background: 'var(--proto-accent)',
-  awaiting: 'var(--proto-amber-fg)',
-  'waiting-external': MC.muted,
-  idle: MC.muted,
-};
-
 const TRUNCATE: CSSProperties = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
+function StatusMark({ status }: { status: MSessionStatus }) {
+  return (
+    <span aria-hidden="true" style={{ width: 12, flex: 'none', display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+      {status.kind !== 'idle' && (
+        <span data-status-dot={status.kind}
+          style={{ width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box', flex: 'none', ...STATUS_DOT[status.kind] }} />
+      )}
+    </span>
+  );
+}
+
+// The second line: what the session is doing, muted — except a row blocked on the user, whose reason
+// reads in amber. Idle rows have nothing to add (the list has no last-message preview to show).
 function StatusLine({ status }: { status: MSessionStatus }) {
   if (status.kind === 'idle') return null;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: 12, color: STATUS_COLOR[status.kind], ...M_NUM }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', boxSizing: 'border-box', flex: 'none', ...STATUS_GLYPH[status.kind] }} />
-      <span style={{ minWidth: 0, ...TRUNCATE }}>{status.text}</span>
-    </div>
-  );
+  const color = status.kind === 'awaiting' ? 'var(--proto-amber-fg)' : MC.muted;
+  return <div style={{ marginTop: 2, fontSize: 14, color, ...M_NUM, ...TRUNCATE }}>{status.text}</div>;
 }
 
 // Time on the title line; an unread session adds the accent dot after it (mirrors the desktop rail's
 // unread marker, cleared by useMarkSessionRead once the chat opens).
-function RowMeta({ row, twoLine }: { row: MSessionRow; twoLine: boolean }) {
+function RowMeta({ row }: { row: MSessionRow }) {
   const L = useVocabOptional();
   return (
-    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, alignSelf: twoLine ? 'flex-start' : 'center', paddingTop: twoLine ? 2 : 0 }}>
-      <span style={{ fontSize: 12, color: row.unread ? 'var(--proto-accent)' : MC.muted, ...M_NUM }}>{row.time}</span>
-      {row.unread && <span aria-label={L.slUnread} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, paddingTop: 3 }}>
+      <span style={{ fontSize: 13, color: MC.faint, ...M_NUM }}>{row.time}</span>
+      {row.unread && <span aria-label={L.slUnread} style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
     </div>
   );
 }
 
-// A live row takes a faint accent wash so a running session stands out while scanning the list.
-const LIVE_WASH = 'color-mix(in srgb, var(--proto-accent) 7%, transparent)';
-
+// One row grammar: 12px status column · title over its status line · time. A live row is told by
+// its dot alone — no wash; unread and needs-you rows bold their title.
 function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }) {
-  const twoLine = row.status.kind !== 'idle';
-  const strong = row.unread || twoLine;
+  const strong = row.unread || row.status.kind === 'awaiting';
   return (
     <div
       className="m-press"
       data-session-id={row.id}
       onClick={() => onOpen(row.id)}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        minHeight: 48,
-        padding: twoLine ? '9px 14px' : '0 14px',
-        boxSizing: 'border-box',
-        borderRadius: 10,
-        cursor: 'pointer',
-        background: isLive(row.status) ? LIVE_WASH : undefined,
+        display: 'flex', alignItems: 'flex-start', gap: 12, minHeight: 48, padding: '11px 14px',
+        boxSizing: 'border-box', borderRadius: 'var(--r-control)', cursor: 'pointer',
       }}
     >
+      <StatusMark status={row.status} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: strong ? 600 : 400, color: strong ? MC.ink : MC.body, ...TRUNCATE }}>
+        <div style={{ fontSize: 16, lineHeight: '22px', fontWeight: strong ? 650 : 550, color: MC.ink, ...TRUNCATE }}>
           {row.title}
         </div>
         <StatusLine status={row.status} />
       </div>
-      <RowMeta row={row} twoLine={twoLine} />
+      <RowMeta row={row} />
     </div>
   );
 }
 
-// New session: a round accent FAB in thumb reach, on the list's right edge.
+// New session: an ink pill in thumb reach, on the list's right edge.
 const FAB_STYLE: CSSProperties = {
   position: 'absolute',
-  right: M_GUTTER,
+  right: M_GUTTER + 10,
   bottom: M_FLOAT_BOTTOM,
-  width: 52,
-  height: 52,
+  height: 50,
+  padding: '0 20px 0 16px',
   border: 0,
-  borderRadius: '50%',
-  background: 'var(--proto-accent)',
-  color: 'var(--ink-solid-fg)',
-  display: 'grid',
-  placeItems: 'center',
+  borderRadius: 'var(--r-pill)',
+  background: MC.inkSolid,
+  color: MC.inkSolidFg,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  fontFamily: 'var(--font-ui)',
+  fontSize: 15,
+  fontWeight: 600,
   cursor: 'pointer',
-  boxShadow: '0 8px 20px -8px color-mix(in srgb, var(--proto-accent) 75%, transparent), 0 1px 3px rgba(16, 24, 40, 0.12)',
+  boxShadow: 'var(--shadow-key-lift)',
 };
 
 function SessionListHeader({ title, presence, project, projects, scheduled }: {
@@ -244,24 +211,35 @@ function SessionListHeader({ title, presence, project, projects, scheduled }: {
   );
 }
 
+const SECTION_LABEL: Record<MSessionSectionKey, 'mSectionNeedsYou' | 'mSectionActive' | 'mSectionRecent'> = {
+  needsYou: 'mSectionNeedsYou',
+  active: 'mSectionActive',
+  recent: 'mSectionRecent',
+};
+
+/** Stars stay on top as their own fold; the rest is sectioned by status (需要你 · 进行中 · 最近). */
 function SessionListBody({ rows, stars, empty, onOpen }: {
   rows: MSessionRow[];
   stars?: MSessionListStars;
   empty: string;
   onOpen: (id: string) => void;
 }) {
+  const L = useVocabOptional();
   return (
     <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
       {stars && <StarredSessionGroup projectId={stars.projectId} count={stars.rows.length}
         expanded={stars.expanded} onToggle={stars.onToggle} mobile>
-        <MGroup>{stars.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
+        {stars.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}
       </StarredSessionGroup>}
       {rows.length === 0 && !stars?.rows.length && <MEmpty>{empty}</MEmpty>}
-      {rows.length > 0 && (
-        <MGroup>{rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
-      )}
+      {sessionSections(rows).map((section) => (
+        <section key={section.key} data-session-section={section.key}>
+          <MGroupLabel style={{ fontSize: 13, padding: '14px 14px 2px' }}>{L[SECTION_LABEL[section.key]]}</MGroupLabel>
+          {section.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}
+        </section>
+      ))}
       {/* Room for the FAB, so the last row can scroll clear of it. */}
-      <div style={{ height: 64, flex: 'none' }} />
+      <div style={{ height: 72, flex: 'none' }} />
     </MScrollBody>
   );
 }
@@ -290,7 +268,7 @@ export function MSessionListView({ rows, stars, presence, project, projects, new
   presence: ConnectionStatus;
   project?: MSessionListProject;
   projects?: MSessionListProjects;
-  /** Accessible label for the new-session FAB (vocab `wbNewSession`). */
+  /** The new-session pill's label (vocab `wbNewSession`). */
   newLabel: string;
   /** Scheduled entry (8a): hidden while the project has no schedules and no runs. */
   scheduled?: MSessionListScheduled;
@@ -300,7 +278,8 @@ export function MSessionListView({ rows, stars, presence, project, projects, new
   const L = useVocabOptional();
   const fab = (
     <button type="button" aria-label={newLabel} title={newLabel} onClick={onNew} style={FAB_STYLE}>
-      <PlusGlyph size={20} strokeWidth={2} />
+      <PlusGlyph size={16} strokeWidth={2} />
+      <span aria-hidden="true">{newLabel}</span>
     </button>
   );
   return (

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { zh } from '@/i18n';
+import { en, zh } from '@/i18n';
 import type { ConfigSnapshot, EngineSelection, ModelCatalogSnapshot, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
   buildFavoriteOptions, buildModelOptions, buildThinkingOptions, buildModeOptions,
   groupModelOptions, selectionRootRows,
 } from '@/features/session/list/selection-menu';
 import { modelKey } from '@/lib/model-selection';
-import { interactionHeaderStatus, buildAgentSheet, buildSelectionSheet, buildMobileChatRows } from './m-chat-vm';
+import { interactionHeaderStatus, buildAgentSheet, buildSelectionSheet, buildMobileChatRows, mobileRunStatus, type MobileRunStatusInput } from './m-chat-vm';
 
 const current: EngineSelection = { backend: 'claude', provider: null, model: 'sonnet-4.5', thinking: 'high', mode: 'plan' };
 const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4', thinking: 'xhigh', mode: 'deepseek' };
@@ -39,8 +39,44 @@ function sheet(hasHistory = false, source: ModelCatalogSnapshot | null = catalog
 }
 
 describe('interactionHeaderStatus', () => {
-  it('marks pending interactions as waiting and paused', () => {
-    expect(interactionHeaderStatus('plan-approval', 0, 1, zh)).toMatchObject({ tone: 'waiting', running: false });
+  it('marks pending interactions as waiting, in plain words', () => {
+    expect(interactionHeaderStatus('plan-approval', 0, 1, zh)).toEqual({ tone: 'waiting', running: false, text: '计划等你批准' });
+    expect(interactionHeaderStatus('ask-user', 1, 3, en).text).toBe('Waiting for your answer 2/3');
+    expect(interactionHeaderStatus('ask-user', 0, 1, en).text).toBe('Waiting for your answer');
+  });
+});
+
+describe('mobileRunStatus', () => {
+  const NOW = Date.parse('2026-07-15T10:00:00Z');
+  const base: MobileRunStatusInput = {
+    isDraft: false, running: false, backgroundRunning: false, starting: false, turns: 3, cost: 0.12,
+    turnClock: null, waitingOn: 0, browserDevice: null, turnProgressStarted: true,
+    workers: 0, lastUsedAt: '2026-07-15T09:58:00Z', now: NOW,
+  };
+
+  it('says how long an idle session has been quiet, without turns or cost', () => {
+    expect(mobileRunStatus(base, zh, 'zh')).toEqual({ active: false, text: '空闲 · 2分钟前' });
+    expect(mobileRunStatus({ ...base, turns: null }, en, 'en').text).toBe('Idle');
+    expect(mobileRunStatus({ ...base, isDraft: true }, en, 'en').text).toBe('Idle');
+  });
+
+  it('ticks a running turn and names the team and the waits', () => {
+    const turnClock = { startMs: NOW - 70_000, lastMs: NOW - 10_000 };
+    const line = mobileRunStatus({ ...base, running: true, turnClock, workers: 2, waitingOn: 1 }, zh, 'zh');
+    expect(line.active).toBe(true);
+    expect(line.text).toBe('运行中 · 1分 · 2 个 worker · 等 1 个信号');
+    expect(line.liveText?.(NOW)).toBe('运行中 · 1分10秒 · 2 个 worker · 等 1 个信号');
+    expect(mobileRunStatus({ ...base, running: true, turnClock: null, workers: 1 }, en, 'en').text).toBe('Running · 1 worker');
+  });
+
+  it('holds a background session apart from a running turn', () => {
+    expect(mobileRunStatus({ ...base, running: true, backgroundRunning: true }, en, 'en'))
+      .toEqual({ active: true, text: 'Running in background' });
+  });
+
+  it('lets browser start-up outrank the run line', () => {
+    const line = mobileRunStatus({ ...base, running: true, browserDevice: 'laptop', turnProgressStarted: false }, en, 'en');
+    expect(line.text).toBe(en.wbBrowserStarting.replace('{device}', 'laptop'));
   });
 });
 

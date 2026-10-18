@@ -124,8 +124,8 @@ takes no parameters and marks the current turn as a routine update (see above).
   bottom of the list under *Inactive N*, and the capsule disappears once every worker is inactive.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
   shows as running while any worker runs, and as unread while any worker has news. In the lead's
-  chat, a team capsule above the composer shows up to three worker dots and the count of active
-  workers, and opens the same team list as a sheet. Inactive workers count toward neither state and
+  chat, a team capsule above the composer shows up to three worker dots and the active workers in
+  words (*2 workers*), and opens the same team list as a sheet. Inactive workers count toward neither state and
   are folded at the bottom of the list.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
@@ -218,8 +218,8 @@ actions. The capsule shows the board's flag and title; while a session on the bo
 its flag turns amber and it adds the count of those requests in amber. Workers never count here,
 since their requests go to their lead. Clicking the capsule opens the board in the right-hand dock,
 and the capsule stays hidden while the dock shows that board. On mobile the board sits in the row
-of capsules above the composer as its flag alone, with the waiting count beside it once there is
-one, and tapping it opens the board full screen.
+of capsules above the composer as its flag and the word *Board*, with the waiting count beside it
+once there is one, and tapping it opens the board full screen.
 
 The command palette reaches every board, including those of old sessions. With an empty query it
 lists the eight most recently used boards, where a board is used when it is created, when a session

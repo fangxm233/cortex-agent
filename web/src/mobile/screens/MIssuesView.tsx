@@ -1,6 +1,6 @@
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
 import { useVocabOptional, type Vocab } from '@/i18n';
-import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MC, M_NUM } from '@/mobile/ui/kit';
 
 export interface MIssuesViewProps {
   cards: IssueDetailVm[];
@@ -29,19 +29,17 @@ export function MIssuesView({
       header={
         <MDrillHeader onBack={onBack}>
           <div
-            style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', flex: 'none' }}
+            style={{ fontSize: 16, fontWeight: 650, color: MC.ink, flex: 'none' }}
           >
             {copy.issuesTitle}
           </div>
           {cards.length > 0 && (
             <span
               style={{
-                font: `600 11px ${MONO}`,
-                color: MC.sub,
-                background: 'var(--proto-line-2)',
-                padding: '2px 8px',
-                borderRadius: 'var(--r-pill)',
+                fontSize: 14,
+                color: MC.muted,
                 flex: 'none',
+                ...M_NUM,
               }}
             >
               {cards.length}
@@ -104,19 +102,15 @@ function ExpandedCard({
 }) {
   const fieldSep = copy.issueFieldSep;
   return (
-    <MCard
-      tone="blue"
-      padding={0}
-      style={{ overflow: 'hidden', boxShadow: 'var(--material-card-shadow)' }}
-    >
+    <MCard padding={0} style={{ overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: real date only — the design's source slot has no markdown field */}
         {card.date && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{card.date}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted, ...M_NUM }}>{card.date}</span>
           </div>
         )}
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: MC.ink, lineHeight: 1.4, marginTop: card.date ? 8 : 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, lineHeight: 1.4, marginTop: card.date ? 8 : 0 }}>
           {card.title}
         </div>
         {card.desc && (
@@ -130,12 +124,12 @@ function ExpandedCard({
           </div>
         ))}
       </div>
-      {/* decision buttons (24c: 删除 104px danger outline + 处理 flex accent, 44px touch) */}
+      {/* decision buttons (24c: 删除 104px danger outline + 处理 flex ink, 44px touch) */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
         <MButton variant="danger-outline" disabled={busy} onClick={() => onDelete(card.id)} style={{ flex: 'none', width: 104 }}>
           {copy.isDelete}
         </MButton>
-        <MButton variant="accent" disabled={busy} onClick={() => onHandle(card.id)} style={{ flex: 1 }}>
+        <MButton variant="ink" disabled={busy} onClick={() => onHandle(card.id)} style={{ flex: 1 }}>
           {copy.isHandle}
         </MButton>
       </div>

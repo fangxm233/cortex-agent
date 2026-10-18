@@ -3,7 +3,7 @@ import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, type ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/session/list/session-id';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
-import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MBackChevron, MBottomSheet, MC, MONO, M_NUM } from '@/mobile/ui/kit';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ModelOption, SelectionRootRow } from '@/features/session/list/selection-menu';
 import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
@@ -27,8 +27,8 @@ export function MoreMenu({ onClose, onSessionId, onSessionStats, metadataItems }
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   const copy = useVocabOptional();
-  // The header status line is ~10px mono and already ellipsised, so the desktop's second segment
-  // does not fit there: on mobile the whole-session totals live behind this menu instead.
+  // The header status line is one short glance and already ellipsised, so the desktop's second
+  // segment does not fit there: on mobile the whole-session totals live behind this menu instead.
   const items = [
     { label: copy.wbSessionId, onTap: onSessionId },
     ...(onSessionStats ? [{ label: copy.wbSessionStats, onTap: onSessionStats }] : []),
@@ -54,10 +54,10 @@ function SessionIdRow({ row, copied, onCopy }: SessionIdRowProps): JSX.Element {
   const copy = useVocabOptional();
   return (
     <div>
-      <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>{row.label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: MC.muted, padding: '0 2px 5px' }}>{row.label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--material-inset-bg)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', padding: '10px 12px' }}>
         <span style={{ flex: 1, minWidth: 0, font: `500 12px ${MONO}`, color: MC.ink, wordBreak: 'break-all', userSelect: 'all' }}>{row.value}</span>
-        <span role="button" onClick={onCopy} style={{ flex: 'none', font: `600 11px ${MONO}`, color: copied ? MC.run : MC.muted, border: `1px solid ${copied ? MC.runBorder : 'var(--proto-line-3)'}`, borderRadius: 'var(--r-chip)', padding: '4px 9px', cursor: row.value === '—' ? 'default' : 'pointer', opacity: row.value === '—' ? 0.4 : 1 }}>{copied ? copy.cmCopied : copy.cmCopy}</span>
+        <span role="button" onClick={onCopy} style={{ flex: 'none', fontSize: 13, fontWeight: 600, color: copied ? MC.done : MC.sub, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '4px 10px', cursor: row.value === '—' ? 'default' : 'pointer', opacity: row.value === '—' ? 0.4 : 1 }}>{copied ? copy.cmCopied : copy.cmCopy}</span>
       </div>
     </div>
   );
@@ -76,7 +76,7 @@ export function SessionIdSheet({ sessionId, backendUuid, onClose }: {
   };
   return (
     <MBottomSheet onClose={onClose}>
-      <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{copy.wbSessionId}</div>
+      <div style={{ fontSize: 17, fontWeight: 650, color: MC.ink, padding: '0 2px 12px' }}>{copy.wbSessionId}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>{rows.map((row) => <SessionIdRow key={row.key} row={row} copied={copiedKey === row.key} onCopy={() => doCopy(row.key, row.value)} />)}</div>
     </MBottomSheet>
   );
@@ -90,7 +90,7 @@ export function SessionStatsSheet({ rows, onClose }: {
   return (
     <MBottomSheet onClose={onClose}>
       <div data-mobile-session-stats-sheet="true">
-        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{copy.wbSessionStats}</div>
+        <div style={{ fontSize: 17, fontWeight: 650, color: MC.ink, padding: '0 2px 12px' }}>{copy.wbSessionStats}</div>
         <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '4px 13px' }}>
           {rows.map((row, index) => (
             <div
@@ -98,12 +98,12 @@ export function SessionStatsSheet({ rows, onClose }: {
               data-session-stats-row={row.key}
               style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '10px 0', borderBottom: index < rows.length - 1 ? `1px solid ${MC.hairline}` : undefined }}
             >
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: MC.body }}>{row.label}</span>
-              <span style={{ flex: 'none', font: `600 12.5px ${MONO}`, color: MC.ink }}>{row.value}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: MC.body }}>{row.label}</span>
+              <span style={{ flex: 'none', fontSize: 14, fontWeight: 600, color: MC.ink, ...M_NUM }}>{row.value}</span>
             </div>
           ))}
         </div>
-        <div style={{ fontSize: 11, lineHeight: 1.55, color: MC.muted, padding: '10px 2px 0' }}>{copy.wbSessionStatsHint}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.55, color: MC.muted, padding: '10px 2px 0' }}>{copy.wbSessionStatsHint}</div>
       </div>
     </MBottomSheet>
   );
@@ -118,7 +118,7 @@ export function ContextUsageSheet({ usage, compactAction, onClose }: {
   return (
     <MBottomSheet onClose={onClose}>
       <div data-mobile-context-usage-sheet="true">
-        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 10px' }}>{L.chatCtxTitle}</div>
+        <div style={{ fontSize: 17, fontWeight: 650, color: MC.ink, padding: '0 2px 10px' }}>{L.chatCtxTitle}</div>
         <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '12px 13px' }}><ContextUsageDetails usage={usage} /></div>
         {compactAction ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px 0' }}><ContextCompactFooter action={compactAction} /></div> : null}
       </div>
@@ -136,7 +136,7 @@ function FavoriteStar({ option, onToggle }: {
     aria-label={option.favorite ? copy.chatFavoriteRemove : copy.chatFavoriteAdd}
     aria-pressed={option.favorite}
     onClick={(event) => { event.stopPropagation(); onToggle(option); }}
-    style={{ flex: 'none', background: 'transparent', border: 0, padding: '8px', fontSize: 18, color: option.favorite ? MC.run : MC.muted, cursor: 'pointer' }}
+    style={{ flex: 'none', background: 'transparent', border: 0, padding: '8px', fontSize: 18, color: option.favorite ? MC.ink : MC.muted, cursor: 'pointer' }}
   >{option.favorite ? '★' : '☆'}</button>;
 }
 
@@ -156,12 +156,12 @@ function SelectionRow({ row, last, onPick, onToggleFavorite }: {
     >
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
-          {row.current && <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.chatSelectionCurrent}</span>}
+          <span style={{ fontSize: 15, fontWeight: row.current ? 600 : 500, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+          {row.current && <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 7px', borderRadius: 6, background: 'var(--proto-gray)', color: MC.muted, flex: 'none' }}>{copy.chatSelectionCurrent}</span>}
         </div>
-        {row.sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' }}>{row.sub}</div>}
+        {row.sub && <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' }}>{row.sub}</div>}
       </div>
-      {row.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+      {row.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.ink, flex: 'none' }}>✓</span>}
       {row.modelOption && onToggleFavorite && <FavoriteStar option={row.modelOption} onToggle={onToggleFavorite} />}
     </div>
   );
@@ -179,8 +179,8 @@ function SelectionDrillRow({ row, last, onOpen }: {
       onClick={onOpen}
       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}
     >
-      <span style={{ fontSize: 13, color: MC.body, flex: 'none' }}>{row.label}</span>
-      <span style={{ marginLeft: 'auto', minWidth: 0, font: `600 12.5px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
+      <span style={{ fontSize: 14, color: MC.body, flex: 'none' }}>{row.label}</span>
+      <span style={{ marginLeft: 'auto', minWidth: 0, fontSize: 14, fontWeight: 600, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
       <span style={{ fontSize: 15, color: MC.muted, flex: 'none' }}>›</span>
     </div>
   );
@@ -191,7 +191,7 @@ function SheetCard({ children }: { children: ReactNode }): JSX.Element {
 }
 
 function SheetNote({ text }: { text: string }): JSX.Element {
-  return <div style={{ font: `400 11px ${MONO}`, color: MC.muted, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
+  return <div style={{ fontSize: 12.5, color: MC.muted, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
 }
 
 function SectionRows({ section, onPick, onToggleFavorite }: {
@@ -202,7 +202,7 @@ function SectionRows({ section, onPick, onToggleFavorite }: {
       {section.rows.map((row, index) => (
         <div key={row.id}>
           {row.group && row.group !== section.rows[index - 1]?.group && (
-            <div data-selection-group={row.group} style={{ padding: '8px 13px 2px', font: `500 10px ${MONO}`, color: MC.muted }}>{row.group}</div>
+            <div data-selection-group={row.group} style={{ padding: '10px 13px 2px', fontSize: 12, fontWeight: 600, color: MC.muted }}>{row.group}</div>
           )}
           <SelectionRow row={row} last={index === section.rows.length - 1} onPick={onPick} onToggleFavorite={onToggleFavorite} />
         </div>
@@ -229,8 +229,8 @@ function SelectionSection({ section, pending, back, onPick, onToggleFavorite }: 
   return (
     <>
       <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
-        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
+        <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', color: MC.ink, margin: '0 -2px 0 -4px' }}><MBackChevron /></span>
+        <span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>{section.title}</span>
       </div>
       <SectionRows section={section} onPick={(row) => { back(); onPick(row); }} onToggleFavorite={onToggleFavorite} />
       {section.key === 'model' && pending && <SheetNote text={copy.wbModelsPending} />}
@@ -246,8 +246,8 @@ function ModelSettingsRow({ onClose }: { onClose: () => void }): JSX.Element {
       onClick={() => { onClose(); navigate('/m/settings/models'); }}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
         minHeight: 44, padding: '12px 13px', border: 0, background: 'transparent',
-        font: 'inherit', color: MC.run, textAlign: 'left', cursor: 'pointer' }}>
-      <span>{copy.wbModelSettings}</span><span aria-hidden="true">›</span>
+        font: 'inherit', fontSize: 14, color: MC.ink, textAlign: 'left', cursor: 'pointer' }}>
+      <span>{copy.wbModelSettings}</span><span aria-hidden="true" style={{ color: MC.muted }}>›</span>
     </button>
   </SheetCard>;
 }
@@ -259,7 +259,7 @@ function SelectionRoot({ vm, onClose, onPick, setPane }: SelectionSheetProps & {
   const pick = (row: SelectionSheetRow): void => { onClose(); onPick(row); };
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.chatFavoritesTitle}</span></div>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>{copy.chatFavoritesTitle}</span></div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
         {vm.sections[0]?.rows.length
           ? <SectionRows section={vm.sections[0]} onPick={pick} />
@@ -304,7 +304,7 @@ export function AgentSheet({ rows, onClose, onPick }: {
   return (
     <MBottomSheet onClose={onClose}>
       <div data-mobile-agent-sheet="true">
-        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{title}</div>
+        <div style={{ fontSize: 17, fontWeight: 650, color: MC.ink, padding: '0 2px 12px' }}>{title}</div>
         <SheetCard>
           {rows.map((row, index) => (
             <SelectionRow
@@ -330,8 +330,8 @@ function OptionRow({ item, attr, last, current, onPick }: {
 }): JSX.Element {
   return (
     <div {...{ [attr]: item.value ?? '__off__' }} onClick={() => onPick(item.value)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
-      <div style={{ minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}><span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{item.label}</span>{item.sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 3 }}>{item.sub}</div>}</div>
-      {item.value === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+      <div style={{ minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}><span style={{ fontSize: 15, fontWeight: item.value === current ? 600 : 500, color: MC.ink }}>{item.label}</span>{item.sub && <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 3 }}>{item.sub}</div>}</div>
+      {item.value === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.ink, flex: 'none' }}>✓</span>}
     </div>
   );
 }
@@ -346,7 +346,7 @@ function OptionSheet({ items, attr, title, current, onClose, onPick }: {
 }): JSX.Element {
   return (
     <MBottomSheet onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{title}</span></div>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>{title}</span></div>
       <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>{items.map((item, index) => <OptionRow key={item.value ?? '__off__'} item={item} attr={attr} last={index === items.length - 1} current={current} onPick={onPick} />)}</div>
     </MBottomSheet>
   );

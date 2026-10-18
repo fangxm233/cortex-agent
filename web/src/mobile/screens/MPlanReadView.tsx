@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { useVocabOptional } from '@/i18n';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MBackChevron, MC, M_NUM } from '@/mobile/ui/kit';
 import type { PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import { readProgressPct, planStatusLabel, planMetaLine } from '@/features/session/interaction/plan-read-vm';
 
@@ -40,26 +40,28 @@ export function MPlanReadView({ model, onBack, onApprove, onReject }: MPlanReadV
       style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}
     >
       {/* header — back · title · meta · status pill · progress bar (scheme L136-146) */}
-      <div style={{ flex: 'none', padding: '8px 14px 10px', paddingTop: 'calc(8px + env(safe-area-inset-top))', borderBottom: `1px solid ${MC.hairline}`, background: MC.glassRaised }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      <div style={{ flex: 'none', padding: '8px 14px 10px 8px', paddingTop: 'calc(8px + env(safe-area-inset-top))', borderBottom: `1px solid ${MC.hairline}`, background: MC.glassRaised }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             type="button"
             aria-label={vocab.back}
             onClick={onBack}
-            style={{ border: 'none', background: 'transparent', color: MC.run, fontSize: 15, lineHeight: 1, padding: '0 2px', margin: 0, cursor: 'pointer', flex: 'none', minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center' }}
+            style={{ border: 'none', background: 'transparent', color: MC.ink, padding: 0, margin: 0, cursor: 'pointer', flex: 'none', minHeight: 44, minWidth: 44, display: 'grid', placeItems: 'center' }}
           >
-            ‹
+            <MBackChevron />
           </button>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
-            <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {planMetaLine(model.filePath, model.lineCount, statusLabel, vocab)}
+            <div style={{ fontSize: 15.5, fontWeight: 620, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
+            {/* The full path is the one piece of code on the line, so only it takes the code face. */}
+            <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...M_NUM }}>
+              {model.filePath && <span style={{ font: '400 11.5px var(--font-code)' }}>{model.filePath}</span>}
+              {model.filePath ? ' · ' : ''}{planMetaLine(null, model.lineCount, statusLabel, vocab)}
             </div>
           </div>
           {pending ? (
-            <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{vocab.ixPlanPending}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{vocab.ixPlanPending}</span>
           ) : (
-            <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
           )}
         </div>
         {pending && (
@@ -73,13 +75,13 @@ export function MPlanReadView({ model, onBack, onApprove, onReject }: MPlanReadV
       <div style={{ flex: 1, minHeight: 0, position: 'relative', background: 'var(--proto-card)' }}>
         <div ref={scrollRef} onScroll={onScroll} style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: '16px 18px 24px', boxSizing: 'border-box' }}>
           {/* `由 X 生成` source line has no entity field (GAP) — only the real row time shows. */}
-          {model.timeLabel && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, paddingBottom: 8 }}>{model.timeLabel}</div>}
-          <div style={{ fontSize: 13, lineHeight: 1.7, color: MC.body, overflowWrap: 'anywhere' }}>
+          {model.timeLabel && <div style={{ fontSize: 12, color: MC.muted, paddingBottom: 8, ...M_NUM }}>{model.timeLabel}</div>}
+          <div style={{ fontSize: 14.5, lineHeight: 1.7, color: MC.body, overflowWrap: 'anywhere' }}>
             <ChatMarkdown text={model.planContent} />
           </div>
           {model.status === 'rejected' && model.feedback && (
             <div style={{ marginTop: 16, border: `1px solid ${MC.amberBorder}`, background: MC.amberCard, borderRadius: 'var(--r-control)', padding: '10px 13px' }}>
-              <div style={{ font: `600 11px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{vocab.ixRejectFeedback}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: MC.amberText, paddingBottom: 4 }}>{vocab.ixRejectFeedback}</div>
               <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
             </div>
           )}
@@ -91,20 +93,20 @@ export function MPlanReadView({ model, onBack, onApprove, onReject }: MPlanReadV
       {/* resident action bar (pending) / status stamp (sealed) — scheme L160-165 */}
       <div style={{ flex: 'none', background: 'var(--proto-card)', borderTop: '1px solid var(--proto-line-2)', padding: '10px 14px', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' }}>
         {pending ? (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
             <button
               type="button"
               onClick={onReject}
-              style={{ flex: 1, height: 48, borderRadius: 'var(--r-card)', border: '1.5px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
+              style={{ flex: 1, height: 48, borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', color: MC.ink, fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
             >
               {vocab.ixRejectNote}
             </button>
             <button
               type="button"
               onClick={onApprove}
-              style={{ flex: 1.3, height: 48, borderRadius: 'var(--r-control)', background: MC.inkSolid, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
+              style={{ flex: 1, height: 48, borderRadius: 'var(--r-control)', background: MC.inkSolid, color: MC.inkSolidFg, border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{vocab.ixApproveRun}</span>
+              <span style={{ fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600 }}>{vocab.ixApproveRun}</span>
             </button>
           </div>
         ) : (

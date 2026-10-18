@@ -24,7 +24,7 @@ export function MNewProjectView({
     <MBottomSheet onClose={onClose}>
       {/* title row (L511) */}
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 12px' }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
+        <span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>
           {copy.newProject}
         </span>
       </div>
@@ -41,8 +41,8 @@ export function MNewProjectView({
         style={{
           width: '100%',
           height: 48,
-          border: '1.5px solid var(--proto-line-3)',
-          borderRadius: 'var(--r-card)',
+          border: '1px solid var(--proto-line-3)',
+          borderRadius: 'var(--r-control)',
           background: 'var(--material-inset-bg)',
           padding: '0 14px',
           fontSize: 16,
@@ -55,7 +55,7 @@ export function MNewProjectView({
       {error && (
         <div
           data-project-create-error={true}
-          style={{ marginTop: 8, fontSize: 11, lineHeight: 1.5, color: 'var(--proto-danger)' }}
+          style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.5, color: 'var(--proto-danger)' }}
         >
           {error}
         </div>
@@ -71,14 +71,14 @@ export function MNewProjectView({
           width: '100%',
           height: 48,
           border: 'none',
-          borderRadius: 'var(--r-card)',
+          borderRadius: 'var(--r-control)',
           background: MC.inkSolid,
-          boxShadow: submittable ? 'var(--accent-glow)' : undefined,
           color: 'var(--ink-solid-fg)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 14,
+          fontFamily: 'var(--font-ui)',
+          fontSize: 15,
           fontWeight: 600,
           marginTop: 12,
           opacity: submittable ? 1 : 0.45,

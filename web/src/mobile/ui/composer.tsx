@@ -48,9 +48,10 @@ function SendGlyph({ size = 16, color = 'var(--ink-solid-fg)' }: { size?: number
 
 const circleKeyBase: CSSProperties = {
   flex: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  boxSizing: 'border-box',
+  boxSizing: 'border-box', border: 'none', padding: 0,
 };
 
+/** Send beside Stop while a turn runs: a quiet gray key, so the ink Stop stays the one decision. */
 function SecondarySendKey({ enabled, onSend, size = 36 }: {
   enabled: boolean;
   onSend?: () => void;
@@ -63,13 +64,15 @@ function SecondarySendKey({ enabled, onSend, size = 36 }: {
       aria-label={vocab.cmSend}
       disabled={!enabled}
       onClick={onSend}
-      style={{ ...circleKeyBase, width: size, height: size, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1.5px solid ${enabled ? MC.ink : 'var(--proto-line-3)'}`, opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
+      style={{ ...circleKeyBase, width: size, height: size, background: 'var(--proto-gray)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
     >
       <SendGlyph size={14} color={MC.ink} />
     </button>
   );
 }
 
+/** The ink key: Send (an arrow) or, while a turn runs, Stop (a square). Disarmed it fades to a faint
+ *  gray disc — still in place, plainly not the thing to press. No glow either way. */
 function PrimaryKey({ running, enabled, onSend, onStop, size = 36 }: {
   running: boolean;
   enabled: boolean;
@@ -84,13 +87,12 @@ function PrimaryKey({ running, enabled, onSend, onStop, size = 36 }: {
       aria-label={running ? vocab.stop : vocab.cmSend}
       disabled={!enabled}
       onClick={running ? onStop : onSend}
-      style={{ ...circleKeyBase, width: size, height: size, background: MC.inkSolid, border: 'none',
-        // Glow only on the filled, armed Send: Stop is destructive and a disabled key is not
-        // the primary action, so neither should float.
-        boxShadow: !running && enabled ? 'var(--accent-glow)' : undefined,
-        opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
+      data-armed={enabled ? 'true' : 'false'}
+      style={{ ...circleKeyBase, width: size, height: size,
+        background: enabled ? MC.inkSolid : 'var(--proto-line-3)',
+        cursor: enabled ? 'pointer' : 'default' }}
     >
-      {running ? <span style={{ width: 12, height: 12, background: MC.inkSolidFg, borderRadius: 3 }} /> : <SendGlyph size={15} />}
+      {running ? <span style={{ width: 11, height: 11, background: MC.inkSolidFg, borderRadius: 2.5 }} /> : <SendGlyph size={15} />}
     </button>
   );
 }
@@ -116,8 +118,12 @@ export interface MComposerProps {
   shellRef?: React.Ref<HTMLDivElement>;
   above?: ReactNode;
   commandMenu?: ReactNode;
+  /** The toolbar's left end (＋ and mode keys). */
   leading?: ReactNode;
+  /** Chips seated at the right, before `trailing` and the send keys. */
   tools?: ReactNode;
+  /** A key between the chips and Send (context usage). */
+  trailing?: ReactNode;
   sendEnabled?: boolean;
   value?: string;
   onChange?: (value: string) => void;
@@ -147,18 +153,18 @@ const composerShellStyle: CSSProperties = {
 const COMPOSER_LIFT = 'var(--shadow-chrome-rise), var(--shadow-chrome-float)';
 
 /** The card is the one chrome you write in, so it sits a step more solid than the header pill: the
- *  raised glass fill, an ink-tinted ring (the chips' own outline) rather than a near-white hairline
- *  that vanishes on a light ground, and a shallow upward shadow so its top edge separates from the
- *  transcript above it, not only its bottom from the ground. The tone/focus accent replaces that
- *  ring in the shadow stack rather than being a border: a real border would resize the card the
- *  moment the field takes focus. */
+ *  raised glass fill, an ink-tinted ring rather than a near-white hairline that vanishes on a light
+ *  ground, and a shallow upward shadow so its top edge separates from the transcript above it, not
+ *  only its bottom from the ground. The tone/focus accent replaces that ring in the shadow stack
+ *  rather than being a border: a real border would resize the card the moment the field takes
+ *  focus. */
 function composerCardStyle(tone: MComposerProps['tone'], focused: boolean): CSSProperties {
   const accent = tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : null;
   return {
     borderRadius: 'var(--r-float)', background: MC.glassRaised,
     backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
-    boxShadow: `${COMPOSER_LIFT}, 0 0 0 1px ${accent ?? 'var(--proto-line-3)'}`,
-    boxSizing: 'border-box', padding: '12px 12px 10px 14px',
+    boxShadow: `${COMPOSER_LIFT}, 0 0 0 1px ${accent ?? 'var(--proto-line)'}`,
+    boxSizing: 'border-box', padding: '12px 10px 10px 16px',
   };
 }
 
@@ -194,19 +200,18 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
   );
 }
 
+/** ＋ and the mode keys at the left; the chips, context usage and the send keys gathered at the right
+ *  — the chips carry the push themselves (an empty spacer would also claim a gap on each side, and
+ *  on a phone toolbar those pixels are width the engine chip needs). */
 function ComposerToolbar(props: MComposerProps): JSX.Element {
   const running = props.running ?? false;
   return (
-    <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+    <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
       {props.leading}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
-      {/* The send pair carries the push itself rather than sitting behind a spacer element: an empty
-          spacer would also claim a gap on each side, and on a phone toolbar those 8px are width the
-          engine chip needs. */}
-      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-        {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
-        <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={38} />
-      </span>
+      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
+      {props.trailing}
+      {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
+      <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={34} />
     </div>
   );
 }
@@ -276,8 +281,8 @@ const fullscreenTextareaStyle: CSSProperties = {
   fontFamily: 'inherit', boxSizing: 'border-box',
 };
 const fullscreenToolStyle: CSSProperties = {
-  flex: 'none', width: 30, height: 30, borderRadius: '50%', border: `1px solid ${MC.hairline}`,
-  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.muted,
+  flex: 'none', width: 32, height: 32, borderRadius: '50%', border: 'none', padding: 0,
+  background: 'var(--proto-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.sub,
   cursor: 'pointer',
 };
 
@@ -306,11 +311,11 @@ function FullscreenTools({ props, insertSlash }: {
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderTop: `1px solid ${MC.divider}` }}>
       <button type="button" aria-label={vocab.cmAttach} onClick={props.onPlus} style={fullscreenToolStyle}><PlusGlyph /></button>
       <button type="button" aria-label={vocab.chatSlashCommand} onClick={insertSlash} style={{ ...fullscreenToolStyle, font: `600 13px ${MONO}` }}>/</button>
-      <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', font: `400 11px ${MONO}`, color: MC.muted }}>
+      <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', fontSize: 12, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>
         {composerCountLabel(props.value, props.lineUnit ?? vocab.chatLineUnit, props.charUnit ?? vocab.chatCharUnit)}
       </span>
-      {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={34} />}
-      <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={38} />
+      {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
+      <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={34} />
     </div>
   );
 }

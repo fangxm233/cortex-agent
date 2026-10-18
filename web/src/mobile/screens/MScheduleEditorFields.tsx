@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MBackChevron, MC } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
@@ -18,8 +18,7 @@ import {
 } from '@/features/schedule/schedule-modal-vm';
 
 const label: CSSProperties = {
-  display: 'block', marginBottom: 5, color: MC.muted,
-  font: `600 11px ${MONO}`, letterSpacing: '.05em',
+  display: 'block', marginBottom: 5, color: MC.muted, fontSize: 13, fontWeight: 600,
 };
 const field: CSSProperties = {
   width: '100%', minWidth: 0, minHeight: 44, boxSizing: 'border-box',
@@ -50,10 +49,10 @@ export function EditorHeader({ copy, mode, onBack }: FieldsProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 12px' }}>
       <button type="button" data-action="sheet-back" onClick={onBack} aria-label={copy.back}
-        style={{ border: 0, background: 'transparent', color: MC.run, fontSize: 20, padding: '0 3px', cursor: 'pointer', minWidth: 44, minHeight: 44 }}>
-        ‹
+        style={{ border: 0, background: 'transparent', color: MC.ink, padding: 0, margin: '0 -8px 0 -10px', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'grid', placeItems: 'center' }}>
+        <MBackChevron />
       </button>
-      <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink }}>
+      <span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>
         {mode === 'edit' ? copy.scEditSchedule : copy.scNewSchedule}
       </span>
     </div>
@@ -84,9 +83,9 @@ function TypeButton({ type, form, disabled, label: text, onChange }: {
   return (
     <button type="button" disabled={disabled} aria-pressed={selected} onClick={() => onChange({ type })}
       style={{ border: 0, borderRight: type === 'once' ? 0 : `1px solid ${MC.hairline}`,
-        padding: '8px 2px', minHeight: 44, background: selected ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)',
-        color: selected ? MC.run : MC.muted, fontSize: 11 }}>
+        padding: '8px 2px', minHeight: 44, background: selected ? 'var(--proto-gray)' : 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)', fontFamily: 'var(--font-ui)',
+        color: selected ? MC.ink : MC.muted, fontSize: 13, fontWeight: selected ? 600 : 400 }}>
       {text}
     </button>
   );
@@ -208,11 +207,11 @@ function MessageField({ copy, form, editableFields, onChange }: FieldsProps) {
 function SubmitFields({ copy, mode, valid, pending, error, onSubmit }: FieldsProps) {
   return (
     <>
-      {error && <div role="alert" style={{ color: MC.fail, fontSize: 11.5 }}>{error}</div>}
+      {error && <div role="alert" style={{ color: MC.fail, fontSize: 12.5 }}>{error}</div>}
       <button type="button" data-action="save-schedule" disabled={!valid || pending} onClick={onSubmit}
-        style={{ border: 0, borderRadius: 'var(--r-chip)', padding: 11, background: MC.run,
-          boxShadow: valid && !pending ? 'var(--accent-glow)' : undefined,
-          color: 'var(--ink-solid-fg)', fontSize: 13, fontWeight: 700 }}>
+        style={{ border: 0, borderRadius: 'var(--r-control)', height: 44, background: MC.inkSolid,
+          color: MC.inkSolidFg, fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600,
+          opacity: valid && !pending ? 1 : 0.45, cursor: valid && !pending ? 'pointer' : 'default' }}>
         {mode === 'edit' ? copy.scSaveSchedule : copy.scCreateSchedule}
       </button>
     </>

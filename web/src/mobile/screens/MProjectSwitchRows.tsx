@@ -12,6 +12,8 @@ const INITIALS_SIZE = {
   row: { side: 34, radius: 10, font: 12 },
 };
 
+/** The project's initials tile. `accent` (the current project) takes a deeper gray tint with ink
+ *  initials — the switcher's ✓ names the current project; the tile only weights it. */
 export function Initials({ text, accent, large = false }: { text: string; accent: boolean; large?: boolean }) {
   const size = INITIALS_SIZE[large ? 'large' : 'row'];
   return (
@@ -20,13 +22,12 @@ export function Initials({ text, accent, large = false }: { text: string; accent
         width: size.side,
         height: size.side,
         borderRadius: size.radius,
-        background: accent ? MC.run : MC.gray,
-        color: accent ? 'var(--ink-solid-fg)' : MC.sub,
+        background: accent ? 'var(--proto-line-3)' : MC.gray,
+        color: accent ? MC.ink : MC.sub,
         display: 'grid',
         placeItems: 'center',
         fontSize: size.font,
-        fontWeight: 700,
-        letterSpacing: '.02em',
+        fontWeight: 650,
         flex: 'none',
       }}
     >
@@ -45,24 +46,26 @@ function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: Vocab }) {
   );
 }
 
-// One attention badge: unread + awaiting-input sessions + pending approvals; any action turns it amber.
+// One attention count: unread + awaiting-input sessions + pending approvals, as a plain number —
+// amber once any of it asks for action, the unread accent otherwise.
 function AttentionBadge({ row }: { row: MProjectSwitchRow }) {
   const label = useVocabOptional().projAttention;
   if (row.badgeCount <= 0) return null;
   return (
     <span
       aria-label={label}
-      style={{ minWidth: 18, height: 18, padding: '0 6px', boxSizing: 'border-box', borderRadius: 'var(--r-pill)', background: row.badgeTone === 'action' ? MC.amber : MC.run, color: 'var(--ink-solid-fg)', fontSize: 11, fontWeight: 600, display: 'grid', placeItems: 'center', flex: 'none', ...M_NUM }}
+      data-attention-tone={row.badgeTone}
+      style={{ color: row.badgeTone === 'action' ? 'var(--proto-amber-fg)' : 'var(--proto-accent)', fontSize: 13, fontWeight: 650, flex: 'none', ...M_NUM }}
     >
       {row.badgeCount}
     </span>
   );
 }
 
-const CURRENT_MARK = <span aria-hidden="true" style={{ fontSize: 15, fontWeight: 700, lineHeight: 1, color: MC.run, flex: 'none' }}>✓</span>;
+const CURRENT_MARK = <span aria-hidden="true" style={{ fontSize: 15, fontWeight: 700, lineHeight: 1, color: MC.ink, flex: 'none' }}>✓</span>;
 const CHEVRON = <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, color: MC.faint, flex: 'none' }}>›</span>;
 
-/** A project row; `current` marks the active project (accent initials + check) in the switcher sheet. */
+/** A project row; `current` marks the active project (deeper initials tile + check) in the switcher sheet. */
 export function SwitchRow({ row, current = false, onSwitch }: {
   row: MProjectSwitchRow;
   current?: boolean;
@@ -85,8 +88,8 @@ export function SwitchRow({ row, current = false, onSwitch }: {
 export function NewProjectRow({ onClick }: { onClick: () => void }) {
   const copy = useVocabOptional();
   return (
-    <div className="m-press" onClick={onClick} style={{ ...ROW, color: MC.run }}>
-      <span style={{ width: 34, height: 34, borderRadius: 10, background: MC.runBg, display: 'grid', placeItems: 'center', flex: 'none' }}>
+    <div className="m-press" onClick={onClick} style={{ ...ROW, color: MC.ink }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: MC.gray, color: MC.sub, display: 'grid', placeItems: 'center', flex: 'none' }}>
         <PlusGlyph size={14} strokeWidth={2} />
       </span>
       <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.newProject}</span>

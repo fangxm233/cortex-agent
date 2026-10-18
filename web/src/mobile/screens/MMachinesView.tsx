@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MPill, MDot, MC } from '@/mobile/ui/kit';
 import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
   MSettingsSurfaceCard as MCard } from './MSettingsControls';
 import type { MachineDetailVm, MachineGpuRow, MachineMeter } from '@/features/machines/machine-detail-vm';
@@ -14,7 +14,8 @@ export interface MMachineDetailPanel {
   uptime: string;
 }
 
-const META: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted };
+// Vitals, counts and times are figures, not code: the UI face with aligned digits.
+const META: React.CSSProperties = { fontSize: 12.5, color: MC.muted, fontVariantNumeric: 'tabular-nums' };
 
 // ── header trailing: daemon · N/M 在线 (real online/total; scheme L564) ──────────
 function DaemonStatus({ vm, L }: { vm: MMachinesVm; L: Vocab }) {
@@ -146,7 +147,7 @@ function OnlineCard({
         style={{ padding: '11px 13px 9px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{card.name}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: MC.ink }}>{card.name}</span>
           <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
           <span style={{ marginLeft: 'auto', flex: 'none' }}>
             <MPill tone="done">{L.machOnline}</MPill>
@@ -212,7 +213,7 @@ function OfflineCard({
     <MCard tone="fail" padding="11px 13px">
       <div role="button" aria-expanded={expanded} onClick={() => onToggle(card.name)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ font: `600 13px ${MONO}`, color: MC.sub }}>{card.name}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: MC.sub }}>{card.name}</span>
           <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
           <span style={{ marginLeft: 'auto', flex: 'none' }}>
             <MPill tone="failed">{L.machOffline}</MPill>
@@ -266,7 +267,7 @@ export function MMachinesView({
   const L = useVocab();
   return (
     <MSettingsFrame label="Settings · Machines" header={<MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} L={L} />}>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{L.stNavMachines}</div>
+        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.stNavMachines}</div>
       </MDrillHeader>}>
       <MScrollBody>
         {vm.cards.length === 0 && (
@@ -293,8 +294,8 @@ export function MMachinesView({
           ),
         )}
         <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
-          style={{ border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-chip)', padding: '9px 12px',
-            background: MC.runBg, color: MC.run, fontSize: 11, fontWeight: 650 }}>
+          style={{ border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '9px 12px',
+            background: 'var(--material-control-bg)', color: MC.ink, fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 600 }}>
           {L.machAdd}
         </button>
         {vm.cards.length > 0 && <RegistryFooter L={L} />}
