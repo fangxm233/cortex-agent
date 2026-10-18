@@ -240,8 +240,8 @@ Dense Context 系统遵循以下运行约定：
 
 ![Memory 视图：项目文件树和渲染后的实验记录](../images/ui/memory.png)
 
-Web 工作台以只读方式展示项目记忆。桌面端可通过**视图 → 记忆**或项目 Overview 上的**打开记忆查看器**进入；
-手机端则是项目面板中的**项目记忆**。它列出 `mission.md`、`roadmap.md`、`STATUS.md`，以及
+Web 工作台以只读方式展示项目记忆。桌面端可通过**视图 → 记忆**或项目 Overview 上「项目记忆」一栏的**打开**进入，
+这一栏还列出最近改动过的记忆文件；手机端则是项目面板中的**项目记忆**。它列出 `mission.md`、`roadmap.md`、`STATUS.md`，以及
 `experiments/`、`knowledge/`、`patterns/` 和 `decisions/` 中的文件（不含自动生成的 `index.md`），渲染所选
 文件。桌面端把文件呈现为文档——frontmatter 变成属性行、标题和摘要，窗格够宽时旁边列出文件的章节；项目位于
 git 工作树中时，还显示与 `HEAD` 相比改动了多少行，标题栏中**阅读**旁的**变更**显示每一行最近一次的修改。

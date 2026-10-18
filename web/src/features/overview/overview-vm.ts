@@ -1,15 +1,24 @@
 import type {
+  BoardDecisionEntry,
+  BoardInfo,
   ScheduleInfo,
   ExecutionInfo,
   CostSummary,
+  SessionInfo,
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import { timeAgo, timeUntil, type TimeLang } from '@/i18n/time-format';
+import { clockTime, dayLabel, timeAgo, timeUntil, type TimeLang } from '@/i18n/time-format';
 import { execStatusWord } from '@/features/execution/execution-drawer-view';
+import { decisionStatus } from '@/features/session/interaction/decision-vm';
+import { shortSessionId } from '@/features/session/metadata/short-session-id';
+import { effectiveMs } from '@/features/session/list/session-groups';
+import { workerState } from '@/features/team/worker-roster';
+import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
+import { sessionTitle } from '@/features/workbench/rail/rail-tree';
 import { fmt, type Vocab } from '@/i18n';
 
-// Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
-// task df67). No JSX, no hex outside the verbatim-prototype status-pill map.
+// Pure view-model helpers for the project Overview. No JSX and no colours: the view maps the
+// states these return onto theme tokens.
 
 /** `$4.21` — two decimals, null/undefined → `$0.00`. */
 export function formatMoney(n: number | null | undefined): string {
@@ -143,36 +152,227 @@ export function execCost(cost: number | null): string {
   return cost == null ? '—' : formatUsd(cost);
 }
 
-export interface ExecPill {
-  text: string;
-  bg: string;
-  color: string;
-  dot: boolean;
+/**
+ * Fallback name for an execution whose session is not in the client's session lists (a thread
+ * run, or a session that has since been deleted): the short id, the way the rail names an
+ * unlabeled session. ExecutionInfo has no summary text of its own.
+ */
+export function execSummary(e: ExecutionInfo, L: Vocab): string {
+  if (e.sessionId) return fmt(L.ovSummarySession, { id: shortSessionId(e.sessionId) });
+  return L.ovSummaryExec;
 }
 
-/** Status → prototype pill tones (§5 state palette; verbatim hexes); the word follows the UI language. */
-export function execStatusPill(status: ExecutionInfo['status'], L: Vocab): ExecPill {
-  const word = (s: ExecutionInfo['status']) => execStatusWord(s, L);
-  switch (status) {
-    case 'running':
-      return { text: word('running'), bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', dot: true };
-    case 'completed':
-      return { text: word('completed'), bg: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)', dot: false };
-    case 'failed':
-      return { text: word('failed'), bg: 'var(--pill-failed-bg)', color: 'var(--pill-failed-fg)', dot: false };
-    case 'cancelled':
-      return { text: word('cancelled'), bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
-    case 'stale':
-    default:
-      return { text: word('stale'), bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
+/** When something happened, for a list column: `16:31` today, otherwise the day (`Yesterday` / `Sep 24`). */
+export function clockOrDayLabel(iso: string, now: number, lang: TimeLang): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '—';
+  const day = dayLabel(t, new Date(now), lang);
+  return day === dayLabel(now, new Date(now), lang) ? clockTime(t) : day;
+}
+
+/** A recent-runs row's leading mark. `scheduled` is a finished run a schedule fired — the clock
+ *  says where it came from; a scheduled run that failed still shows `failed`. */
+export type ExecMark = 'running' | 'done' | 'scheduled' | 'failed' | 'stopped';
+
+export interface ExecRowVm {
+  id: string;
+  /** The session's rail title, or the short-id fallback when the session is not known here. */
+  title: string;
+  /** Where the run came from, when the session record says: a team worker or a schedule. */
+  tag: string | null;
+  mark: ExecMark;
+  /** The status in words, for the mark's accessible name. */
+  statusWord: string;
+  duration: number | null;
+  cost: string;
+  time: string;
+}
+
+function execMark(e: ExecutionInfo, session: SessionInfo | undefined): ExecMark {
+  switch (e.status) {
+    case 'running': return 'running';
+    case 'completed': return session?.origin === 'scheduled' ? 'scheduled' : 'done';
+    case 'failed': return 'failed';
+    default: return 'stopped';
   }
 }
 
 /**
- * Best-effort summary. ExecutionInfo has no free-text summary field (the prototype's
- * "review step · thr_8f2c" is mock), so we surface the strongest identifier we have. Flagged.
+ * Recent-runs rows. An execution carries only its session id, so the title, the worker/schedule
+ * tag and the scheduled mark all come from the session lists the rail already holds. Exit codes
+ * and turn numbers are not on ExecutionInfo, so a row never shows them.
  */
-export function execSummary(e: ExecutionInfo, L: Vocab): string {
-  if (e.sessionId) return fmt(L.ovSummarySession, { id: e.sessionId });
-  return L.ovSummaryExec;
+export function execRows(
+  executions: ExecutionInfo[],
+  sessionsById: ReadonlyMap<string, SessionInfo>,
+  now: number,
+  lang: TimeLang,
+  L: Vocab,
+): ExecRowVm[] {
+  return executions.map((e) => {
+    const session = e.sessionId ? sessionsById.get(e.sessionId) : undefined;
+    const tag = session?.teamLeadId ? L.ovTagWorker : session?.origin === 'scheduled' ? L.wbSchedGroup : null;
+    return {
+      id: e.id,
+      title: session ? sessionTitle(session) : execSummary(e, L),
+      tag,
+      mark: execMark(e, session),
+      statusWord: execStatusWord(e.status, L),
+      duration: execDurationMs(e, now),
+      cost: execCost(e.cost),
+      time: clockOrDayLabel(e.startedAt, now, lang),
+    };
+  });
+}
+
+// ── Needs you / In progress — the rail's dot language (features/team/worker-roster), one row
+//    per session. Both lists come from the same sessions.list snapshot the rail renders, so the
+//    overview and the rail never disagree about who is waiting on the user.
+
+export type OverviewSessionState = 'you' | 'running' | 'waiting';
+
+export interface OverviewSessionRow {
+  sessionId: string;
+  projectId: string;
+  title: string;
+  state: OverviewSessionState;
+  /** In progress: what the session is doing or waiting on, when the record says. */
+  doing: string | null;
+  /** Last activity (ms), the same stamp the rail's age reads. */
+  at: number;
+}
+
+export interface OverviewSessionGroups {
+  needsYou: OverviewSessionRow[];
+  inProgress: OverviewSessionRow[];
+}
+
+function sessionDoing(s: SessionInfo, state: OverviewSessionState, L: Vocab): string | null {
+  if (state === 'waiting') {
+    const n = s.waitingOn ?? 0;
+    return n === 1 ? L.ovWaitingOne : fmt(L.ovWaitingMany, { n });
+  }
+  if (state !== 'running') return null;
+  return s.todos?.activeLabel || s.workerBrief || (s.backgroundRunning ? L.pillBackground : null);
+}
+
+const STATE_ORDER: Record<OverviewSessionState, number> = { you: 0, running: 1, waiting: 2 };
+
+/**
+ * Split a project's sessions into what is blocked on the user and what is still moving. A worker's
+ * questions go to its lead, so a worker never lands in Needs you (workerState); idle sessions are
+ * in neither list. Most recent first; running ahead of waiting.
+ */
+export function groupSessions(sessions: SessionInfo[], L: Vocab): OverviewSessionGroups {
+  const seen = new Set<string>();
+  const rows: OverviewSessionRow[] = [];
+  for (const s of sessions) {
+    if (seen.has(s.sessionId)) continue;
+    seen.add(s.sessionId);
+    const state = workerState(s);
+    if (state === 'idle') continue;
+    rows.push({
+      sessionId: s.sessionId,
+      projectId: s.projectId,
+      title: sessionTitle(s),
+      state,
+      doing: sessionDoing(s, state, L),
+      at: effectiveMs(s),
+    });
+  }
+  rows.sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || b.at - a.at);
+  return {
+    needsYou: rows.filter((r) => r.state === 'you'),
+    inProgress: rows.filter((r) => r.state !== 'you'),
+  };
+}
+
+/** A Needs-you row's second line: what it asks (when the pending interaction is loaded) and when. */
+export function needsYouReason(question: string | undefined, at: number, now: number, lang: TimeLang): string {
+  const ago = at ? timeAgo(at, now, lang) : '';
+  return [question, ago].filter(Boolean).join(' · ');
+}
+
+export interface PendingDecisionsRow {
+  boardId: string;
+  boardTitle: string;
+  /** Decisions nobody has answered yet (no approve / explain / revise). */
+  pending: number;
+  /** ISO ts of the newest unanswered decision. */
+  latestTs: string;
+}
+
+/**
+ * One row per board of the project that holds unanswered decisions. `decisions[i]` belongs to
+ * `boards[i]` and is undefined while its query loads. A decision is unanswered while it carries no
+ * user action — the same `none` status the decision line itself shows.
+ */
+export function pendingDecisionRows(
+  boards: BoardInfo[],
+  decisions: (BoardDecisionEntry[] | undefined)[],
+): PendingDecisionsRow[] {
+  const rows: PendingDecisionsRow[] = [];
+  boards.forEach((board, i) => {
+    const open = (decisions[i] ?? []).filter((d) => decisionStatus(d.item) === 'none');
+    if (open.length === 0) return;
+    const latestTs = open.reduce((max, d) => (d.ts > max ? d.ts : max), open[0].ts);
+    rows.push({ boardId: board.id, boardTitle: board.title, pending: open.length, latestTs });
+  });
+  return rows.sort((a, b) => b.latestTs.localeCompare(a.latestTs));
+}
+
+// ── Spend ──
+
+const TRIGGER_KEY: Record<string, 'ovTriggerChat' | 'wbSchedGroup'> = {
+  user: 'ovTriggerChat',
+  scheduled: 'wbSchedGroup',
+};
+
+/** Cost-record trigger names in words where the UI has them; other triggers keep their raw key. */
+export function triggerLabel(trigger: string, L: Vocab): string {
+  const key = TRIGGER_KEY[trigger];
+  return key ? L[key] : trigger;
+}
+
+// Colour follows the trigger, not its rank this week: chat is always the first series colour and
+// schedules the second, whichever spent more; other triggers take the remaining slots in order.
+const TRIGGER_SLOT: Record<string, number> = { user: 0, scheduled: 1 };
+
+/** The series-colour slot of each where-it-goes row, given how many slots the palette has. */
+export function triggerSlots(rows: WhereItGoesRow[], slots: number): number[] {
+  let next = Object.keys(TRIGGER_SLOT).length;
+  return rows.map((r) => TRIGGER_SLOT[r.label] ?? Math.min(next++, slots - 1));
+}
+
+/** True when today's projection already passes the daily budget (no budget → never over). */
+export function forecastOverBudget(
+  forecastToday: number | null | undefined,
+  dailyBudget: number | null | undefined,
+): boolean {
+  return dailyBudget != null && dailyBudget > 0 && (forecastToday ?? 0) > dailyBudget;
+}
+
+/** A 14-day series date (`YYYY-MM-DD`, local) as an axis label: `Oct 5` · `10月5日`. */
+export function seriesDayLabel(date: string, now: number, lang: TimeLang): string {
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return date;
+  return dayLabel(new Date(y, m - 1, d).getTime(), new Date(now), lang);
+}
+
+// ── Project memory ──
+
+export interface RecentMemoryFile {
+  path: string;
+  name: string;
+  modifiedAt: string;
+}
+
+/** The project's most recently modified memory files, across the top level and every memory dir. */
+export function recentMemoryFiles(facts: MemoryTreeFacts, limit = 3): RecentMemoryFile[] {
+  const all = [...facts.topLevelFiles, ...facts.dirs.flatMap((dir) => dir.entries)];
+  return all
+    .filter((f) => !Number.isNaN(Date.parse(f.modifiedAt)))
+    .sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt))
+    .slice(0, limit)
+    .map((f) => ({ path: f.path, name: f.name, modifiedAt: f.modifiedAt }));
 }

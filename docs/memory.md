@@ -252,14 +252,15 @@ Two consequences worth knowing:
 
 ![The Memory view: a project's file tree and a rendered experiment record](images/ui/memory.png)
 
-The Web workbench shows a project's memory read-only. On desktop, **View → Memory** or **Open memory
-viewer** on the project's Overview opens it; on a phone, it is **Project memory** in the Projects
-panel. It lists `mission.md`, `roadmap.md`, `STATUS.md`, and the files in `experiments/`,
-`knowledge/`, `patterns/` and `decisions/` (without the generated `index.md`) and renders the
-selected file. On desktop the file reads as a document — its frontmatter becomes a property line, a
-title and the summary, and a wide pane lists the file's sections beside it — and, when the project
-is in a git work tree, the view shows how many lines differ from `HEAD`; **Changes**, next to
-**Read** in the header, shows the latest change behind each line.
+The Web workbench shows a project's memory read-only. On desktop, **View → Memory** or **Open** in the
+Project memory section of the project's Overview opens it; the section also lists the memory files
+that changed most recently. On a phone, it is **Project memory** in the Projects panel. It lists
+`mission.md`, `roadmap.md`, `STATUS.md`, and the files in `experiments/`, `knowledge/`, `patterns/`
+and `decisions/` (without the generated `index.md`) and renders the selected file. On desktop the
+file reads as a document — its frontmatter becomes a property line, a title and the summary, and a
+wide pane lists the file's sections beside it — and, when the project is in a git work tree, the
+view shows how many lines differ from `HEAD`; **Changes**, next to **Read** in the header, shows the
+latest change behind each line.
 
 ## Fresh Session Test
 

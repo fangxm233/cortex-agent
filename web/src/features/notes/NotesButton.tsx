@@ -1,52 +1,38 @@
-import type { CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import { useVocabOptional } from '@/i18n';
 
-function buttonStyle(active: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    border: active ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line-2)',
-    borderRadius: 'var(--r-control)',
-    padding: '4px 9px',
-    // Raised glass rather than an opaque chip: this button sits on a header that is now translucent,
-    // and a solid fill would punch a white hole in it.
-    background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
-    boxShadow: 'var(--material-control-shadow)',
-    color: active ? 'var(--proto-accent)' : 'var(--proto-ink)',
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-  };
-}
-
 function NotesIcon() {
   return (
-    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M9.8 1.8l2.4 2.4L4.6 11.8l-3 .6.6-3z" />
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: 'var(--proto-muted)', flex: 'none' }}>
+      <path d="M3 13h3l7-7-3-3-7 7z" />
     </svg>
   );
 }
 
-export function NotesButton({ count, active, onClick }: {
+/**
+ * The notes toggle. Its chrome comes from the caller's `className` — the Overview header renders it
+ * as one of its hairline capsules, where the open state is the shared gray tint (aria-pressed), not
+ * an accent fill. The open-note count is a plain number, shown only when there is one.
+ */
+export function NotesButton({ count, active, onClick, className }: {
   count: number;
   active: boolean;
   onClick: () => void;
+  className?: string;
 }) {
   const copy = useVocabOptional();
   return (
     <button
-      className="content-surface"
+      className={['content-surface', className].filter(Boolean).join(' ')}
       type="button"
       data-notes-button=""
       aria-pressed={active}
       onClick={onClick}
       title={`${copy.noteTitle} · ⌘⇧N`}
-      style={buttonStyle(active)}
     >
       <NotesIcon />
-      <span style={{ fontSize: 11, fontWeight: 600 }}>{copy.noteTitle}</span>
-      <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>{count}</span>
+      <span>{copy.noteTitle}</span>
+      {count > 0 && <span style={{ color: 'var(--proto-muted-3)', fontVariantNumeric: 'tabular-nums' }}>{count}</span>}
     </button>
   );
 }

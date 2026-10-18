@@ -2,8 +2,8 @@ import { defineModal } from '@/design/modal-registry';
 import { IssueCenterModal } from './IssueCenterModal';
 
 // Open/close for the Issues modal (design sec-24 24b). A single modal instance is mounted by
-// shell/ShellModals; the Overview header `N issues` stat and the Overview Issues card rows open it
-// via useIssues().open(issueId?) — an id pre-selects that entry in the queue.
+// shell/ShellModals; the Overview Issues section's rows and its View all link open it via
+// useIssues().open(issueId?) — an id pre-selects that entry in the queue.
 
 const issuesModal = defineModal<string | undefined>('issues');
 

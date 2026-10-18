@@ -1,629 +1,454 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, type CSSProperties, type KeyboardEvent } from 'react';
 import '@/design/content-surfaces.css';
+import './overview.css';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
+import type { ExecutionInfo, IssueInfo, ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import { Button, IconButton } from '@/design';
 import { confirmDialog } from '@/design/dialog-store';
-import { useLang, useVocab } from '@/i18n';
-import { formatSpanOrDash } from '@/i18n/time-format';
+import { useDockIntake } from '@/design/dock-intake';
+import { fmt, useLang, useVocab } from '@/i18n';
+import { formatSpanOrDash, relTime } from '@/i18n/time-format';
+import { useNowTick } from '@/lib/useNowTick';
 import { useExecutionDrawer } from '@/features/execution/useExecutionDrawer';
 import { useScheduleModal } from '@/features/schedule/useScheduleModal';
 import { cadenceLabel } from '@/features/session/list/scheduled-chat';
 import { useIssues } from '@/features/issues/useIssues';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
+import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
+import { useSettings } from '@/features/settings/useSettings';
 import { NotesButton } from '@/features/notes/NotesButton';
 import { NotesOverviewCard } from '@/features/notes/NotesOverviewCard';
 import { useNotes } from '@/features/notes/NotesProvider';
+import { useOverviewData, type OverviewData } from './useOverviewData';
+import { OverviewSpend } from './OverviewSpend';
 import {
-  formatMoney,
-  scheduleModelLabel,
-  nextRunLabel,
+  ChevronLeftIcon,
+  ClockIcon,
+  DecisionIcon,
+  ELLIPSIS,
+  FileIcon,
+  IconCell,
+  IssueIcon,
+  LINK,
+  META,
+  PlusIcon,
+  RunMark,
+  SectionHead,
+  StatusDot,
+} from './overview-parts';
+import {
+  clockOrDayLabel,
+  execRows,
   lastRunLabel,
-  execDurationMs,
-  execCost,
-  execStatusPill,
-  execSummary,
-  budgetPercent,
-  formatPerDay,
-  dailySeriesBars,
-  dailyAverage,
-  whereItGoesRows,
+  needsYouReason,
+  nextRunLabel,
+  scheduleModelLabel,
+  type OverviewSessionRow,
+  type PendingDecisionsRow,
+  type RecentMemoryFile,
 } from './overview-vm';
 
-// PROJECT OVERVIEW 6a — 1:1 from prototype.dc.html L525–655 (Stage-R R2, task df67). Exact inline
-// styles / px / hex / font / weight / EN copy reproduced verbatim; real tRPC data substituted into
-// the design's structure: cost header (today/week/month) = real cost.summary; Schedules = real
-// schedules.list; Executions = real executions.list.
-//   - REAL (task 302b, CostSummary c489 fields): budget bar + `$/day` = real dailyBudget denom + today %;
-//     forecast today = real forecastToday; Last 14 days = real dailyCost per-day series + real avg;
-//     Where it goes = real project-scoped byTriggerScoped breakdown. Honest guards remain: absent/0
-//     dailyBudget → empty bar + `—`; empty byTriggerScoped → no-spend line (never fabricated numbers).
-//   - Project memory — real memory viewer link (memory.tree/memory.file fs scope).
-//   - Adjust-budget + ⋯ are inert here; budgets (global and per-project) are edited in Settings ▸ Budget.
+// PROJECT OVERVIEW — one project's state on one page (design: canvas Overview). The work column
+// (left) answers "what needs me, what is moving, what ran"; the right column holds spend,
+// schedules, project memory and notes. Sections are small headings on the pane; the only card is
+// Needs you, because it is the only thing on the page the user must act on.
+//   - Needs you / In progress come from the rail's own session snapshot and dot language, so the
+//     page and the rail never disagree; decisions count the project's boards' unanswered ones.
+//   - Recent runs name each execution by its session's rail title; the execution id stays in the
+//     row's tooltip.
+//   - Adjust budget opens Settings ▸ Budget, where the global and per-project budgets live.
 
-// Stable content fill with one subtle boundary; outer chrome owns the glass.
+const INK: CSSProperties = { color: 'var(--proto-ink)', fontWeight: 550 };
+const EMPTY: CSSProperties = { fontSize: 12.5, color: 'var(--proto-muted-3)' };
+const ACTION_BUTTON: CSSProperties = { height: 28, padding: '0 11px', fontSize: 12.5, fontWeight: 500, flex: 'none' };
+// The one card on the page: the content fill and hairline the workspace uses for things to act on.
 const CARD: CSSProperties = {
   background: 'var(--material-card-bg)',
   border: '1px solid var(--proto-line-2)',
   borderRadius: 'var(--r-card)',
   boxShadow: 'var(--material-card-shadow)',
-  // minWidth:0 lets the 1fr grid track shrink below its content's min-content size, so long real
-  // data (schedule prompts, execution ids) truncates instead of blowing the column wide.
   minWidth: 0,
 };
 
-function CardHeader({ title, right }: { title: string; right?: ReactNode }) {
+function activate(event: KeyboardEvent, run: () => void): void {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    run();
+  }
+}
+
+function actionRowStyle(index: number): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 52,
+    boxSizing: 'border-box',
+    padding: '8px 10px 8px 14px',
+    fontSize: 13,
+    borderTop: index > 0 ? '1px solid var(--proto-line-2)' : undefined,
+  };
+}
+
+function TwoLines({ title, sub }: { title: string; sub: string }): JSX.Element {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '10px 14px',
-        borderBottom: '1px solid var(--proto-line-2)',
-      }}
-    >
-      <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{title}</span>
-      {right != null && (
-        <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-          {right}
-        </span>
+    <span style={{ flex: 1, minWidth: 0 }}>
+      <span style={{ ...ELLIPSIS, ...INK, display: 'block' }}>{title}</span>
+      {sub && <span style={{ ...ELLIPSIS, display: 'block', marginTop: 2, fontSize: 12.5, color: 'var(--proto-muted)' }}>{sub}</span>}
+    </span>
+  );
+}
+
+function NeedsYouSection({ data, now, onReply, onViewBoard }: {
+  data: OverviewData;
+  now: number;
+  onReply: (row: OverviewSessionRow) => void;
+  onViewBoard: (row: PendingDecisionsRow) => void;
+}): JSX.Element | null {
+  const L = useVocab();
+  const lang = useLang();
+  const { needsYou, decisions, questions } = data;
+  const count = needsYou.length + decisions.length;
+  if (count === 0) return null;
+  return (
+    <section data-overview-needs-you="">
+      <SectionHead title={L.ovNeedsYou} count={count} />
+      <div style={CARD}>
+        {needsYou.map((row, i) => (
+          <div key={row.sessionId} data-needs-you-session={row.sessionId} style={actionRowStyle(i)}>
+            <IconCell><StatusDot state="you" /></IconCell>
+            <TwoLines title={row.title} sub={needsYouReason(questions[row.sessionId], row.at, now, lang)} />
+            <Button variant="primary" aria-label={`${L.ovReply} · ${row.title}`} onClick={() => onReply(row)} style={ACTION_BUTTON}>
+              {L.ovReply}
+            </Button>
+          </div>
+        ))}
+        {decisions.map((row, i) => (
+          <div key={row.boardId} data-needs-you-board={row.boardId} style={actionRowStyle(needsYou.length + i)}>
+            <IconCell><DecisionIcon /></IconCell>
+            <TwoLines
+              title={fmt(row.pending === 1 ? L.ovDecisionsPendingOne : L.ovDecisionsPendingMany, { n: row.pending })}
+              sub={fmt(L.ovDecisionsWhere, { board: row.boardTitle, time: clockOrDayLabel(row.latestTs, now, lang) })}
+            />
+            <Button variant="secondary" aria-label={`${L.ovView} · ${row.boardTitle}`} onClick={() => onViewBoard(row)} style={ACTION_BUTTON}>
+              {L.ovView}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InProgressSection({ rows, now, onOpen }: {
+  rows: OverviewSessionRow[];
+  now: number;
+  onOpen: (row: OverviewSessionRow) => void;
+}): JSX.Element | null {
+  const L = useVocab();
+  const lang = useLang();
+  if (rows.length === 0) return null;
+  return (
+    <section data-overview-in-progress="">
+      <SectionHead title={L.ovInProgress} count={rows.length} />
+      {rows.map((row) => {
+        // The dot carries the state; its word goes to assistive tech with the row's name.
+        const state = row.state === 'running' ? L.wbTeamStatusRunning : L.wbTeamStatusWaiting;
+        return (
+          <div
+            key={row.sessionId}
+            data-in-progress-session={row.sessionId}
+            className="ov-row ov-row-link"
+            role="button"
+            tabIndex={0}
+            aria-label={[row.title, state, row.doing].filter(Boolean).join(' · ')}
+            onClick={() => onOpen(row)}
+            onKeyDown={(event) => activate(event, () => onOpen(row))}
+          >
+            <IconCell><StatusDot state={row.state} /></IconCell>
+            <span style={{ ...ELLIPSIS, ...INK, flex: 'none', maxWidth: '60%' }}>{row.title}</span>
+            {row.doing && <span style={ELLIPSIS}>{row.doing}</span>}
+            <span style={{ ...META, marginLeft: 'auto', flex: 'none', paddingLeft: 12 }}>{relTime(row.at, now, lang)}</span>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+// Issues (design sec-24 24a): per-project ISSUES.md entries; rows open the issue center located at
+// that entry. Hidden entirely at 0. The entry has no markdown field → only title + date.
+function IssuesSection({ issues, onOpen }: { issues: IssueInfo[]; onOpen: (id?: string) => void }): JSX.Element | null {
+  const L = useVocab();
+  if (issues.length === 0) return null;
+  return (
+    <section data-issues-card="">
+      <SectionHead
+        title={L.issuesTitle}
+        count={issues.length}
+        action={<button type="button" className="content-text-action" onClick={() => onOpen()} style={LINK}>{L.isViewAll} ›</button>}
+      />
+      {issues.slice(0, 3).map((issue) => (
+        <div
+          key={issue.id}
+          className="ov-row ov-row-link"
+          role="button"
+          tabIndex={0}
+          onClick={() => onOpen(issue.id)}
+          onKeyDown={(event) => activate(event, () => onOpen(issue.id))}
+        >
+          <IconCell><IssueIcon /></IconCell>
+          <span style={{ ...ELLIPSIS, color: 'var(--proto-ink)' }}>{issue.title}</span>
+          {issue.date && <span style={{ ...META, marginLeft: 'auto', flex: 'none', paddingLeft: 12 }}>{issue.date}</span>}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function RecentRunsSection({ executions, sessionsById, now, onLogs }: {
+  executions: ExecutionInfo[];
+  sessionsById: ReadonlyMap<string, SessionInfo>;
+  now: number;
+  onLogs: (executionId: string) => void;
+}): JSX.Element {
+  const L = useVocab();
+  const lang = useLang();
+  const rows = useMemo(
+    () => execRows(executions, sessionsById, now, lang, L),
+    [executions, sessionsById, now, lang, L],
+  );
+  return (
+    <section data-overview-runs="">
+      <SectionHead title={L.ovRecentRuns} />
+      {rows.length === 0 ? (
+        <div style={EMPTY}>{L.ovNoExecutions}</div>
+      ) : (
+        <div role="table" aria-label={L.ovRecentRuns}>
+          <div role="row" className="ov-run ov-run-head">
+            <span role="columnheader" />
+            <span role="columnheader">{L.ovColSession}</span>
+            <span role="columnheader" className="ov-num ov-run-dur">{L.ovColDur}</span>
+            <span role="columnheader" className="ov-num">{L.ovColCost}</span>
+            <span role="columnheader" className="ov-num">{L.ovColTime}</span>
+            <span role="columnheader" />
+          </div>
+          {rows.map((row) => (
+            // The whole row opens the run's logs for the pointer; the Logs link is the keyboard way in.
+            <div key={row.id} role="row" className="ov-run" data-execution-row={row.id}
+              onClick={() => onLogs(row.id)} style={{ cursor: 'pointer' }}>
+              <span role="cell"><RunMark mark={row.mark} label={row.statusWord} /></span>
+              <span role="cell" title={`${row.title} · ${row.id}`} style={{ color: 'var(--proto-ink)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                <span style={ELLIPSIS}>{row.title}</span>
+                {row.tag && <span style={{ marginLeft: 8, flex: 'none', color: 'var(--proto-muted-3)' }}>{row.tag}</span>}
+              </span>
+              <span role="cell" className="ov-num ov-run-dur">{formatSpanOrDash(row.duration, lang)}</span>
+              <span role="cell" className="ov-num">{row.cost}</span>
+              <span role="cell" className="ov-num">{row.time}</span>
+              <span role="cell" className="ov-num">
+                <button
+                  type="button"
+                  className="content-text-action ov-reveal"
+                  aria-label={`${L.ovLogs} · ${row.title}`}
+                  onClick={(event) => { event.stopPropagation(); onLogs(row.id); }}
+                  style={LINK}
+                >
+                  {L.ovLogs}
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
       )}
-    </div>
+    </section>
+  );
+}
+
+function SchedulesSection({ schedules, now, onNew, onEdit, onDelete, onResume, deleting }: {
+  schedules: ScheduleInfo[];
+  now: number;
+  onNew: () => void;
+  onEdit: (s: ScheduleInfo) => void;
+  onDelete: (s: ScheduleInfo) => void;
+  onResume: (s: ScheduleInfo) => void;
+  deleting: boolean;
+}): JSX.Element {
+  const L = useVocab();
+  const lang = useLang();
+  const action: CSSProperties = { ...LINK, fontSize: 12 };
+  return (
+    <section data-overview-schedules="">
+      <SectionHead
+        title={L.scheduleCard}
+        action={<button type="button" className="content-text-action" onClick={onNew} style={LINK}>+ {L.newSchedule}</button>}
+      />
+      {schedules.length === 0 && <div style={EMPTY}>{L.ovNoSchedules}</div>}
+      {schedules.map((s) => {
+        const model = scheduleModelLabel(s);
+        const when = s.paused
+          ? [L.paused, lastRunLabel(s.lastRun, now, lang, L)]
+          : [nextRunLabel(s.nextRun, now, lang, L)];
+        return (
+          <div key={s.id} className="ov-row" style={{ alignItems: 'flex-start', padding: '6px 8px' }}>
+            <IconCell top><ClockIcon /></IconCell>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span title={s.message} style={{ ...ELLIPSIS, ...INK, display: 'block', color: s.paused ? 'var(--proto-muted)' : 'var(--proto-ink)' }}>
+                {s.message}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 1, fontSize: 12.5, color: 'var(--proto-muted-3)' }}>
+                <span style={{ ...ELLIPSIS, flex: '1 1 auto' }}>
+                  {[cadenceLabel(s, lang), ...when].join(' · ')}
+                  {model && <span title={L.scModel}>{' · '}{model}</span>}
+                </span>
+                <span style={{ display: 'inline-flex', gap: 10, flex: 'none' }}>
+                  {/* A paused schedule's way back stays in view; edit and delete wait for the row. */}
+                  {s.paused && (
+                    <button type="button" className="content-text-action" data-schedule-resume={s.id} onClick={() => onResume(s)} style={action}>
+                      {L.resume}
+                    </button>
+                  )}
+                  <span className="ov-reveal-collapse">
+                    <button type="button" className="content-text-action" data-schedule-edit={s.id} onClick={() => onEdit(s)} style={action}>
+                      {L.scEditSchedule}
+                    </button>
+                    <button
+                      type="button"
+                      className="content-text-action"
+                      data-schedule-delete={s.id}
+                      onClick={() => onDelete(s)}
+                      style={{ ...action, color: 'var(--proto-danger)', cursor: deleting ? 'not-allowed' : 'pointer' }}
+                    >
+                      {L.delete}
+                    </button>
+                  </span>
+                </span>
+              </span>
+            </span>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+// Project memory: the link into the memory viewer, plus the files that changed most recently (the
+// memory.tree modification times). The viewer has no per-file deep link, so the rows only inform.
+function MemorySection({ files, now, onOpen }: { files: RecentMemoryFile[]; now: number; onOpen: () => void }): JSX.Element {
+  const L = useVocab();
+  const lang = useLang();
+  return (
+    <section data-overview-memory="">
+      <SectionHead
+        title={L.projectMemory}
+        action={
+          <button type="button" className="content-text-action" aria-label={L.ovOpenMemoryViewer} title={L.ovOpenMemoryViewer} onClick={onOpen} style={LINK}>
+            {L.ovOpen} ›
+          </button>
+        }
+      />
+      {files.map((file) => (
+        <div key={file.path} className="ov-row" title={file.path}>
+          <IconCell><FileIcon /></IconCell>
+          <span style={{ ...ELLIPSIS, color: 'var(--proto-ink)' }}>{file.name}</span>
+          <span style={{ ...META, marginLeft: 'auto', flex: 'none', paddingLeft: 12 }}>{relTime(file.modifiedAt, now, lang)}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 
 export function OverviewView(): JSX.Element {
   const L = useVocab();
-  const lang = useLang();
   const navigate = useNavigate();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
+  // One minute tick for every age on the page, the same cadence the rail's ages use.
+  const now = useNowTick(true, 60_000);
   const { open: openExecutionDrawer } = useExecutionDrawer();
   const { open: openScheduleModal, openEdit: openScheduleEditor } = useScheduleModal();
   const { open: openIssues } = useIssues();
+  const { openSection } = useSettings();
+  const { openBoard } = useDockIntake();
   const notes = useNotes();
-  const now = Date.now();
 
   // Active project = the shared cross-pane current project (task 569c) — the same value the LeftRail
-  // switcher writes. Using it here (instead of re-deriving the most-recent-session project) fixes the
-  // overview showing a different project than the one selected in the rail.
-  const { currentProjectId: activeProjectId } = useCurrentProject();
-  const projName = activeProjectId ?? '—';
+  // switcher writes, so the overview always shows the project selected in the rail.
+  const { currentProjectId: projectId, setCurrentProject } = useCurrentProject();
+  const { setSelectedSession } = useSelectedSession();
+  const data = useOverviewData(projectId);
 
-  const costQuery = useQuery({
-    ...trpc.cost.summary.queryOptions({ projectId: activeProjectId ?? undefined }),
-    enabled: !!activeProjectId,
-  });
-  const cost = costQuery.data;
-
-  // Real cost-derived view models (task 302b). budgetPct is null when there is no daily-budget
-  // denominator → the bar renders empty. dailyBars / avg / whereRows are the honest empty [] / null
-  // when the scoped series or breakdown carries no spend.
-  const budgetPct = budgetPercent(cost?.today, cost?.dailyBudget);
-  const dailyBars = useMemo(() => dailySeriesBars(cost?.dailyCost), [cost?.dailyCost]);
-  const avgPerDay = useMemo(() => dailyAverage(cost?.dailyCost), [cost?.dailyCost]);
-  const whereRows = useMemo(() => whereItGoesRows(cost?.byTriggerScoped), [cost?.byTriggerScoped]);
-
-  const schedulesQuery = useQuery({
-    ...trpc.schedules.list.queryOptions({ projectId: activeProjectId ?? undefined }),
-    enabled: !!activeProjectId,
-  });
-  const schedules = schedulesQuery.data ?? [];
-
-  // executions.list has no projectId filter → fetch recent and filter client-side by project.
-  const executionsQuery = useQuery(trpc.executions.list.queryOptions({ limit: 50 }));
-  const executions = useMemo<ExecutionInfo[]>(() => {
-    const all = executionsQuery.data ?? [];
-    const scoped = activeProjectId ? all.filter((e) => e.projectId === activeProjectId) : all;
-    return scoped.slice(0, 6);
-  }, [executionsQuery.data, activeProjectId]);
-
-  // Issues (design sec-24 24a): per-project ISSUES.md entries. Count stat hidden at 0; card hidden
-  // at 0 too (为 0 时整项隐藏).
-  const issuesQuery = useQuery({
-    ...trpc.issues.list.queryOptions({ projectId: activeProjectId ?? '' }),
-    enabled: !!activeProjectId,
-  });
-  const issues = useMemo<IssueInfo[]>(() => issuesQuery.data ?? [], [issuesQuery.data]);
-
-  const resume = useMutation(
-    trpc.schedules.resume.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
-      },
-    }),
-  );
-  const remove = useMutation(
-    trpc.schedules.remove.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
-      },
-    }),
-  );
+  // The rail's own two writes for opening a session, then the workbench that shows it.
+  const openSession = (row: OverviewSessionRow) => {
+    setCurrentProject(row.projectId);
+    setSelectedSession(row.sessionId);
+    navigate('/workbench');
+  };
+  // File → New session's draft: the current project is already this one.
+  const newSessionHere = () => {
+    setSelectedSession(DRAFT_SENTINEL);
+    navigate('/workbench');
+  };
+  // The dock lives on the workbench, so a board opens there — as from the command palette.
+  const viewBoard = (row: PendingDecisionsRow) => {
+    navigate('/workbench');
+    openBoard(row.boardId);
+  };
+  const deleteSchedule = async (s: ScheduleInfo) => {
+    if (data.removeSchedule.isPending) return;
+    const confirmed = await confirmDialog({
+      title: L.scDeleteTitle, description: s.message, confirmLabel: L.delete, tone: 'danger',
+    });
+    if (confirmed) data.removeSchedule.mutate({ scheduleId: s.id });
+  };
+  const resumeSchedule = (s: ScheduleInfo) => {
+    if (!data.resumeSchedule.isPending) data.resumeSchedule.mutate({ scheduleId: s.id });
+  };
 
   return (
     // No background of its own: the overview reads directly on the workspace pane's glass, the same
     // way the chat transcript does.
-    <div className="content-surface" data-pane="center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* header bar */}
-      <div
-        className="overview-header"
-        style={{
-          flex: 'none',
-          borderBottom: '1px solid var(--proto-line-2)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 9,
-          padding: '0 20px',
-        }}
-      >
-        <button type="button" className="content-text-action"
-          onClick={() => navigate('/workbench')}
-          aria-label={L.back}
-          style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
-        >
-          ‹
-        </button>
-        <span style={{ font: "500 12px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{projName}</span>
-        <span style={{ color: 'var(--proto-line-3)' }}>/</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.overview}</span>
-        <span className="overview-actions" style={{ position: 'relative', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          {/* Issues stat (24a): count from ISSUES.md, hidden at 0; click opens the 24b modal */}
-          {issues.length > 0 && (
-            <button type="button" className="content-text-action"
-              data-issues-stat=""
-              onClick={() => openIssues()}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                font: "500 11px 'IBM Plex Mono',monospace",
-                color: 'var(--proto-muted)',
-                padding: '3px 8px',
-                cursor: 'pointer',
-              }}
-            >
-              <b style={{ color: 'var(--proto-accent)' }}>{issues.length}</b> {L.issuesStat}
-            </button>
-          )}
-          <span style={{ width: 1, height: 18, background: 'var(--proto-line)', flex: 'none' }} />
-          <NotesButton
-            count={notes.vm.activeCount}
-            active={notes.isOpen}
-            onClick={() => notes.isOpen ? notes.close() : notes.open()}
-          />
-          {/* Adjust budget — no budget-mutate scope, inert (GAP, Stage 7) */}
-          <span
-            style={{
-              fontSize: 11.5,
-              fontWeight: 600,
-              border: '1px solid var(--proto-line-3)',
-              borderRadius: 'var(--r-control)',
-              padding: '4px 12px',
-              color: 'var(--proto-ink)',
-              background: 'var(--material-control-bg)',
-              boxShadow: 'var(--material-control-shadow)',
-              cursor: 'pointer',
-            }}
-          >
-            {L.adjustBudget}
-          </span>
-          {/* ⋯ overflow menu — decorative for this view */}
-          <span style={{ color: 'var(--proto-muted)', fontSize: 15, letterSpacing: 1, padding: '2px 6px', borderRadius: 'var(--r-control)', cursor: 'pointer' }}>
-            ⋯
-          </span>
-        </span>
-      </div>
-
-      {/* cost summary bar */}
-      <div className="overview-stats"
-        style={{
-          flex: 'none',
-          borderBottom: '1px solid var(--proto-line-2)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 30,
-          padding: '12px 20px 14px',
-        }}
-      >
-        <div style={{ minWidth: 180 }}>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginBottom: 3 }}>{L.today}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ font: "600 22px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
-              {formatMoney(cost?.today)}
-            </span>
-            {/* budget progress bar — REAL: today's scoped spend as % of the daily budget (empty when
-                there is no positive daily-budget denominator, honest placeholder) */}
-            <div style={{ flex: 1, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 2 }}>
-              <div style={{ width: `${budgetPct ?? 0}%`, height: '100%', background: 'var(--proto-accent)' }} />
-            </div>
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginBottom: 3 }}>{L.thisWeek}</div>
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>{formatMoney(cost?.week)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginBottom: 3 }}>{L.month}</div>
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>{formatMoney(cost?.month)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginBottom: 3 }}>{L.budgetPerDay}</div>
-          {/* REAL: dailyBudget from budget.json, scope-resolved (this project's override when it
-              has one, else the global cap). `—` when unset (honest). */}
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
-            {formatPerDay(cost?.dailyBudget)}
-            <span style={{ fontSize: 11, color: 'var(--proto-muted)', fontWeight: 400 }}> {L.perDay}</span>
-          </div>
-        </div>
-        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginBottom: 3 }}>{L.forecastToday}</div>
-          {/* REAL: forecastToday = scoped spend extrapolated by elapsed fraction of the local day */}
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-amber-text)' }}>{formatMoney(cost?.forecastToday)}</div>
-        </div>
-      </div>
-
-      {/* card grid */}
-      <div className="overview-grid"
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          scrollbarGutter: 'stable',
-          minHeight: 0,
-          padding: '14px 20px',
-          display: 'grid',
-          gridAutoRows: 'min-content',
-          gap: 12,
-          background: 'transparent',
-          alignContent: 'start',
-        }}
-      >
-        {/* Last 14 days — REAL: per-calendar-day scoped cost series (oldest→newest, last = today),
-            normalized to the series max; the today bar carries its real cost label. avg = real mean. */}
-        <div style={CARD}>
-          <CardHeader title={L.ovLast14Days} right={`${L.ovAvg} ${avgPerDay == null ? '—' : formatMoney(avgPerDay)}${L.perDay}`} />
-          <div style={{ padding: '14px 14px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 96 }}>
-              {dailyBars.map((bar) =>
-                bar.isToday ? (
-                  <div
-                    key={bar.date}
-                    title={`${bar.date} · ${formatMoney(bar.cost)}`}
-                    style={{ flex: 1, position: 'relative', background: 'var(--proto-accent)', borderRadius: '3px 3px 0 0', height: `${bar.pct}%` }}
-                  >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '100%',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        marginBottom: 5,
-                        font: "600 11px 'IBM Plex Mono',monospace",
-                        color: 'var(--proto-accent)',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {formatMoney(bar.cost)}
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    key={bar.date}
-                    title={`${bar.date} · ${formatMoney(bar.cost)}`}
-                    style={{ flex: 1, background: 'var(--proto-line-4)', borderRadius: '3px 3px 0 0', height: `${bar.pct}%` }}
-                  />
-                ),
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', marginTop: 7, font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-              <span>{dailyBars[0]?.date ?? '—'}</span>
-              <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontWeight: 600 }}>{L.today}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Project memory — REAL: memory viewer 7b now backed by the memory.tree/memory.file fs scope */}
-        <div style={{ ...CARD, cursor: 'pointer' }} role="button" tabIndex={0}
-          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate('/memory'); } }}
-          onClick={() => navigate('/memory')}>
-          <CardHeader title={L.projectMemory} />
-          <div style={{ padding: '18px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' }}>{L.ovOpenMemoryViewer} ›</div>
-          </div>
-        </div>
-
-        <NotesOverviewCard
-          vm={notes.vm}
-          onOpen={notes.open}
-          onAdd={notes.add}
+    <div className="content-surface ov-root" data-pane="center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="ov-header">
+        <IconButton label={L.back} size={28} onClick={() => navigate('/workbench')}>
+          <ChevronLeftIcon />
+        </IconButton>
+        <h1 style={{ ...ELLIPSIS, margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--proto-ink)' }}>{projectId ?? '—'}</h1>
+        <span style={{ flex: 'none', fontSize: 15, color: 'var(--proto-muted-3)' }}>/ {L.overview}</span>
+        <span style={{ flex: 1 }} />
+        <NotesButton
+          className="ov-capsule"
+          count={notes.vm.activeCount}
+          active={notes.isOpen}
+          onClick={() => notes.isOpen ? notes.close() : notes.open()}
         />
-
-        {/* Issues (design sec-24 24a) — per-project ISSUES.md entries; rows open the 24b modal
-            located at that entry. No status labels (在列表即待处理). Hidden entirely at 0. The
-            design mock's source slot has no markdown field → only title + date (honest). */}
-        {issues.length > 0 && (
-          <div style={CARD} data-issues-card="">
-            <CardHeader title={L.issuesTitle} />
-            <div style={{ padding: '4px 14px 6px' }}>
-              {issues.slice(0, 3).map((i, idx) => (
-                <div
-                  key={i.id}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openIssues(i.id); } }}
-                  onClick={() => openIssues(i.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 9,
-                    padding: '8px 0',
-                    borderBottom: idx < Math.min(issues.length, 3) - 1 ? '1px solid var(--proto-alt)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-muted)" strokeWidth="1.5" style={{ flex: 'none' }}>
-                    <circle cx="7" cy="7" r="5.5" />
-                    <path d="M7 4.2v3.3" />
-                    <circle cx="7" cy="9.8" r=".4" fill="var(--proto-muted)" />
-                  </svg>
-                  <span
-                    style={{
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      color: 'var(--proto-ink-2)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flex: 1,
-                      minWidth: 0,
-                    }}
-                  >
-                    {i.title}
-                  </span>
-                  {i.date && (
-                    <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', flex: 'none' }}>
-                      {i.date}
-                    </span>
-                  )}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
-                </div>
-              ))}
-            </div>
-            <button type="button" className="content-text-action"
-              onClick={() => openIssues()}
-              style={{
-                width: '100%',
-                borderTop: '1px solid var(--proto-line-2)',
-                padding: '9px 14px',
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'var(--proto-accent)',
-                cursor: 'pointer',
-              }}
-            >
-              {L.isViewAll} {issues.length} ›
-            </button>
-          </div>
+        {projectId && (
+          <button type="button" className="ov-capsule" data-new-session-here="" onClick={newSessionHere}>
+            <PlusIcon />
+            {L.ovNewSessionHere}
+          </button>
         )}
+      </div>
 
-        {/* Where it goes — REAL: project-scoped byTriggerScoped weekly breakdown. Rows are real trigger
-            names (not the prototype's mock threads/sessions/schedules labels), sorted desc + capped;
-            proportional bars. Empty → honest no-spend line (never fabricated bars). */}
-        <div style={CARD}>
-          <CardHeader title={L.ovWhereItGoes} right={L.thisWeek} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '13px 14px 14px' }}>
-            {whereRows.length === 0 && (
-              <div style={{ fontSize: 11, color: 'var(--proto-muted)', padding: '2px 0' }}>{L.ovNoSpend}</div>
-            )}
-            {whereRows.map((row, i) => (
-              <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <span
-                  title={row.label}
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--proto-muted)',
-                    width: 56,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {row.label}
-                </span>
-                <div style={{ flex: 1, height: 6, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width: `${row.pct}%`,
-                      height: '100%',
-                      background: ['var(--proto-accent)', 'var(--proto-accent-2)', 'var(--proto-accent-bg)'][i % 3],
-                    }}
-                  />
-                </div>
-                <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)', width: 40, textAlign: 'right' }}>
-                  {formatMoney(row.cost)}
-                </span>
-              </div>
-            ))}
+      <div className="ov-scroll">
+        <div className="ov-page">
+          <div className="ov-col">
+            <NeedsYouSection data={data} now={now} onReply={openSession} onViewBoard={viewBoard} />
+            <InProgressSection rows={data.inProgress} now={now} onOpen={openSession} />
+            <IssuesSection issues={data.issues} onOpen={openIssues} />
+            <RecentRunsSection executions={data.executions} sessionsById={data.sessionsById} now={now} onLogs={openExecutionDrawer} />
           </div>
-        </div>
-
-        {/* Schedules — REAL schedules.list */}
-        <div style={CARD}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
-            <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.scheduleCard}</span>
-            {/* + New — opens the New-schedule overlay (design 7c), real schedules.add */}
-            <button type="button" className="content-text-action"
-              onClick={() => openScheduleModal({ projectId: activeProjectId })}
-              style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-            >
-              + {L.newSchedule}
-            </button>
-          </div>
-          <div style={{ padding: '9px 14px 11px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {schedules.length === 0 && (
-              <div style={{ fontSize: 11, color: 'var(--proto-muted)', padding: '4px 0' }}>{L.ovNoSchedules}</div>
-            )}
-            {schedules.map((s: ScheduleInfo, idx: number) => (
-              <div key={s.id}>
-                {idx > 0 && <div style={{ height: 1, background: 'var(--proto-line-soft)', margin: '0 0 9px' }} />}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="var(--proto-muted)" strokeWidth="1.5">
-                    <circle cx="7" cy="7" r="5.6" />
-                    <path d="M7 4v3.2l2.2 1.3" />
-                  </svg>
-                  <span
-                    title={s.message}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      color: s.paused ? 'var(--proto-muted)' : 'var(--proto-ink)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {s.message}
-                  </span>
-                  {s.paused && (
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--r-pill)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)' }}>
-                      {L.paused}
-                    </span>
-                  )}
-                  <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-                    {cadenceLabel(s, lang)}
-                  </span>
-                </div>
-                <div className="overview-schedule-meta" style={{ display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 18 }}>
-                  <span>
-                    {s.paused
-                      ? `${lastRunLabel(s.lastRun, now, lang, L)}`
-                      : `${nextRunLabel(s.nextRun, now, lang, L)} · ${lastRunLabel(s.lastRun, now, lang, L)}`}
-                  </span>
-                  {scheduleModelLabel(s) && (
-                    <span
-                      title={L.scModel}
-                      style={{ marginLeft: 7, font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}
-                    >
-                      {scheduleModelLabel(s)}
-                    </span>
-                  )}
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 9 }}>
-                    <button
-                      type="button"
-                      data-schedule-edit={s.id}
-                      onClick={() => openScheduleEditor(s)}
-                      style={{ padding: 0, border: 0, background: 'none', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-                    >
-                      {L.scEditSchedule}
-                    </button>
-                    <button
-                      type="button"
-                      data-schedule-delete={s.id}
-                      onClick={async () => {
-                        if (remove.isPending) return;
-                        const confirmed = await confirmDialog({
-                          title: L.scDeleteTitle, description: s.message, confirmLabel: L.delete, tone: 'danger',
-                        });
-                        if (confirmed) remove.mutate({ scheduleId: s.id });
-                      }}
-                      style={{ padding: 0, border: 0, background: 'none', fontSize: 11, fontWeight: 600, color: 'var(--proto-danger)', cursor: remove.isPending ? 'not-allowed' : 'pointer' }}
-                    >
-                      {L.delete}
-                    </button>
-                    {s.paused && (
-                      <button
-                        type="button"
-                        data-schedule-resume={s.id}
-                        onClick={() => !resume.isPending && resume.mutate({ scheduleId: s.id })}
-                        style={{ padding: 0, border: 0, background: 'none', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-                      >
-                        {L.resume}
-                      </button>
-                    )}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Executions — REAL executions.list (span 2) */}
-        <div className="overview-executions" style={{ ...CARD, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
-            <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.execFlow}</span>
-          </div>
-          <div className="overview-table-scroll" tabIndex={0} role="region" aria-label={L.execFlow}>
-          <div
-            className="overview-table-row"
-            style={{
-              padding: '6px 14px',
-              borderBottom: '1px solid var(--proto-line-soft)',
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '.05em',
-              color: 'var(--proto-muted)',
-            }}
-          >
-            <span>{L.ovColId}</span>
-            <span>{L.ovColSummary}</span>
-            <span>{L.ovColDur}</span>
-            <span>{L.ovColCost}</span>
-            <span>{L.ovColStatus}</span>
-            <span />
-          </div>
-          {executions.length === 0 && (
-            <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-muted)' }}>{L.ovNoExecutions}</div>
-          )}
-          {executions.map((x: ExecutionInfo) => {
-            const pill = execStatusPill(x.status, L);
-            return (
-              <div
-                key={x.id}
-                className="overview-table-row"
-                style={{
-                  padding: '7.5px 14px',
-                  borderBottom: '1px solid var(--proto-alt)',
-                  alignItems: 'center',
-                  fontSize: 11,
-                  color: 'var(--proto-ink-2)',
-                }}
-              >
-                <span
-                  title={x.id}
-                  style={{
-                    font: "400 11px 'IBM Plex Mono',monospace",
-                    color: 'var(--proto-muted)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    paddingRight: 8,
-                  }}
-                >
-                  {x.id}
-                </span>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 12 }}>
-                  {execSummary(x, L)}
-                </span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatSpanOrDash(execDurationMs(x, now), lang)}</span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
-                <span>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.color }}>
-                    {pill.dot ? '• ' : ''}
-                    {pill.text}
-                  </span>
-                </span>
-                <button type="button" className="content-text-action"
-                  onClick={() => openExecutionDrawer(x.id)}
-                  style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-                >
-                  {L.ovLogs}
-                </button>
-              </div>
-            );
-          })}
+          <div className="ov-col">
+            <OverviewSpend cost={data.cost} now={now} onAdjustBudget={() => openSection('budget')} />
+            <SchedulesSection
+              schedules={data.schedules}
+              now={now}
+              onNew={() => openScheduleModal({ projectId })}
+              onEdit={openScheduleEditor}
+              onDelete={deleteSchedule}
+              onResume={resumeSchedule}
+              deleting={data.removeSchedule.isPending}
+            />
+            <MemorySection files={data.memoryFiles} now={now} onOpen={() => navigate('/memory')} />
+            <NotesOverviewCard vm={notes.vm} onOpen={notes.open} onAdd={notes.add} />
           </div>
         </div>
       </div>

@@ -1,0 +1,121 @@
+/* Project Overview layout. Two columns — the work on the left, money / schedules / memory / notes in
+   a 320px column on the right — that fold into one column when the PANE (not the window) gets
+   narrow: the rail and the dock both take width, so a viewport media query would fold too late.
+   Every rule is scoped under `.ov-root` so it outranks content-surfaces.css's button defaults
+   (`.content-surface :where(button, [role='button'])`) instead of depending on stylesheet order. */
+
+.ov-root .ov-header {
+  flex: none;
+  min-height: 52px;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 12px;
+  border-bottom: 1px solid var(--proto-line-2);
+}
+.ov-root .ov-header > * { min-width: 0; }
+
+.ov-root .ov-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  container: overview / inline-size;
+}
+.ov-root .ov-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 26px 36px;
+  align-content: start;
+  padding: 22px 28px 28px;
+}
+.ov-root .ov-col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+
+@container overview (max-width: 900px) {
+  .ov-root .ov-page { grid-template-columns: minmax(0, 1fr); }
+}
+@container overview (max-width: 520px) {
+  .ov-root .ov-page { padding: 16px; }
+  .ov-root .ov-run { grid-template-columns: 16px minmax(0, 1fr) 56px 64px 40px !important; }
+  .ov-root .ov-run-dur { display: none !important; }
+}
+
+/* One row grammar: 16px status column, label, right-aligned meta. Rows bleed 8px into the gutter so
+   the hover tint has room around the text while the text stays on the section's edge. */
+.ov-root .ov-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border-radius: var(--r-chip);
+  font-size: 13px;
+  color: var(--proto-muted);
+}
+.ov-root .ov-row-link { cursor: pointer; }
+.ov-root .ov-row-link:hover,
+.ov-root .ov-run:hover { background: var(--proto-alt); }
+
+.ov-root .ov-run {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 70px 60px 64px 40px;
+  column-gap: 10px;
+  align-items: center;
+  min-height: 34px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border-radius: var(--r-chip);
+  border-bottom: 1px solid var(--proto-line-soft);
+  font-size: 13px;
+  color: var(--proto-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ov-root .ov-run > * { min-width: 0; display: flex; align-items: center; }
+.ov-root .ov-run-head { min-height: 28px; font-size: 12px; color: var(--proto-muted-3); }
+.ov-root .ov-run-head:hover { background: transparent; }
+.ov-root .ov-num { justify-content: flex-end; white-space: nowrap; }
+
+/* Row actions (Logs, Edit / Delete) stay out of the way until the row is pointed at or holds focus;
+   a touch screen has no hover, so there they are always shown. `.ov-reveal` only fades (it keeps its
+   grid column); `.ov-reveal-collapse` also gives its width back to the text beside it while hidden.
+   Both stay in the tab order — neither is display:none — so focusing one is what reveals it. */
+.ov-root .ov-reveal { opacity: 0; transition: opacity 120ms ease; }
+.ov-root .ov-reveal-collapse {
+  display: inline-flex;
+  gap: 10px;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity 120ms ease;
+}
+.ov-root .ov-run:hover .ov-reveal,
+.ov-root .ov-run:focus-within .ov-reveal,
+.ov-root .ov-row:hover .ov-reveal-collapse,
+.ov-root .ov-row:focus-within .ov-reveal-collapse { opacity: 1; max-width: 16em; overflow: visible; }
+@media (hover: none) {
+  .ov-root .ov-reveal,
+  .ov-root .ov-reveal-collapse { opacity: 1; max-width: none; overflow: visible; }
+}
+
+/* The header's persistent actions: one hairline capsule each (design language rule 7). */
+.ov-root .ov-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--proto-line);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--proto-card) 60%, transparent);
+  font: 400 12.5px var(--font-ui);
+  color: var(--proto-ink-3);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+.ov-root .ov-capsule:hover { background: var(--proto-card); }
+.ov-root .ov-capsule[aria-pressed='true'] { background: var(--proto-gray); color: var(--proto-ink); }
