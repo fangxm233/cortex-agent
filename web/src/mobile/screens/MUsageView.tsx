@@ -30,7 +30,9 @@ const POLICY_INPUT: CSSProperties = {
   background: 'var(--material-inset-bg)',
   color: MC.ink,
   fontSize: 16,
-  padding: '7px 22px 7px 8px',
+  fontVariantNumeric: 'tabular-nums',
+  textAlign: 'right',
+  padding: '0 22px 0 8px',
   boxSizing: 'border-box',
 };
 
@@ -70,7 +72,7 @@ function PolicyThresholdInput(props: {
   onSubmit: () => void;
 }) {
   return (
-    <div style={{ position: 'relative', width: 84 }}>
+    <div style={{ position: 'relative', width: 68, flex: 'none', marginLeft: 'auto' }}>
       <input
         data-usage-threshold-input={usagePolicyTargetKey(props.target)}
         aria-label={props.label}
@@ -111,6 +113,7 @@ function PolicySaveButton(props: PolicyThresholdButtonsProps) {
     <MButton
       compact variant="outline" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)}
       disabled={props.saveDisabled} onClick={() => saveThreshold(props)}
+      style={{ flex: 'none' }}
     >
       {props.pending ? props.L.usagePolicySaving : props.L.usagePolicySave}
     </MButton>
@@ -142,7 +145,7 @@ function PolicyResetButton(props: PolicyThresholdButtonsProps) {
       aria-label={props.L.usagePolicyResetDefault} title={props.L.usagePolicyResetDefault}
       disabled={props.resetDisabled}
       onClick={() => props.onSavePolicy(props.policy.target, { enabled: true, thresholdPercent: null })}
-      style={{ width: 44, padding: 0 }}
+      style={{ width: 44, padding: 0, flex: 'none' }}
     >
       <ResetIcon />
     </MButton>
@@ -168,14 +171,13 @@ function PolicyEditor(props: PolicyEditorProps) {
     onSavePolicy: props.onSavePolicy,
   };
   return (
-    <div data-usage-policy-controls={usagePolicyTargetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
+    <div data-usage-policy-controls={usagePolicyTargetKey(props.policy.target)} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
       <PolicyToggle
         target={props.policy.target} label={props.L.usageThrottleToggle} enabled={props.policy.enabled} disabled={state.disabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
           enabled: !props.policy.enabled, thresholdPercent: props.policy.thresholdPercent,
         })}
       />
-      <span style={{ ...META, marginLeft: 'auto' }}>{props.L.usagePolicyThreshold}</span>
       <PolicyThresholdInput target={props.policy.target} label={props.L.usagePolicyThreshold} value={draft}
         disabled={state.disabled} onChange={setDraft} onSubmit={() => saveThreshold(buttons)} />
       <PolicySaveButton {...buttons} />

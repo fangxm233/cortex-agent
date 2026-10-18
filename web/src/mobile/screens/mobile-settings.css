@@ -120,8 +120,8 @@
 .mobile-settings .ps-grid { grid-template-columns: minmax(0, 1fr); }
 .mobile-settings-choice { flex-wrap: wrap; }
 .mobile-settings-choice > :first-child { flex-basis: 140px !important; }
-.mobile-settings [data-usage-policy-controls] { flex-wrap: wrap; }
-.mobile-settings [data-usage-threshold-reset] { width: 44px !important; height: 44px !important; }
-.mobile-settings [data-usage-threshold-input] { width: 100%; }
+.mobile-settings [data-usage-threshold-input] { -moz-appearance: textfield; appearance: textfield; }
+.mobile-settings [data-usage-threshold-input]::-webkit-inner-spin-button,
+.mobile-settings [data-usage-threshold-input]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .mobile-settings-number-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mobile-settings-number-control input { width: 88px; border: 1px solid var(--settings-control-boundary); background: var(--material-control-bg); box-shadow: var(--material-control-shadow); color: var(--m-ink); padding: 8px; }
