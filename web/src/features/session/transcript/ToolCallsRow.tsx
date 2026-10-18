@@ -35,10 +35,11 @@ const kindStyle: CSSProperties = {
 const iconBoxStyle: CSSProperties = {
   width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)',
 };
+// The line cuts from its end: what the run did keeps its words, and the step under way gives way.
 const nowStyle: CSSProperties = {
-  color: 'var(--proto-ink-3)', fontWeight: 550, flex: 'none', maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis',
+  color: 'var(--proto-ink-3)', fontWeight: 550, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
 };
-const doneStyle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' };
+const doneStyle: CSSProperties = { flex: 'none', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' };
 const inputStyle: CSSProperties = {
   font: `400 12px ${mono}`, color: 'var(--proto-ink-3)', minWidth: 0,
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -116,7 +117,7 @@ interface RunLine {
 }
 
 /** The run's line: what it did, and — while it is the live step — what it is doing now, last, where
- *  the eye lands at the end of the line. A long summary gives way before the step does. */
+ *  the eye lands at the end of the line. */
 function runLine(calls: ToolCall[], live: boolean, L: Vocab): RunLine {
   const icon = imageCount(calls) > 0 ? 'file' : CATEGORY_ICON[leadingCategory(calls)];
   if (!live) return { icon, now: null, done: doneText(calls, L) };
