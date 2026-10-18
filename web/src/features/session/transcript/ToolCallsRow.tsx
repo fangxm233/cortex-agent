@@ -1,6 +1,7 @@
 import { useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { Collapse, useEntryAnimation } from '@/design/Collapse';
 import { MENU_FOCUS } from '@/design/MenuChrome';
+import { SwapText } from '@/design/SwapText';
 import { fmt, useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from '@/features/session/composer/chat-content';
@@ -14,7 +15,8 @@ const mono = "'IBM Plex Mono',monospace";
 
 // A run of consecutive tool calls: one quiet line saying what the run did ("Ran 6 commands · Edited
 // parser.ts"), which opens to the calls themselves — one line each, the command or path in mono.
-// The line is the same in both states: opening it turns its caret and hangs the list under it.
+// The line is the same in both states: opening it turns its caret and hangs the list under it. When
+// the run takes in another call or thought while it is on screen, its words roll to the new count.
 
 const CATEGORY_ICON: Record<ToolCategory | 'thought', EventIconName> = {
   command: 'terminal', read: 'file', edit: 'pencil', search: 'search', web: 'globe', todo: 'list', other: 'circle', thought: 'spark',
@@ -129,7 +131,7 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
         <span style={{ width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)' }}>
           <EventIcon name={expanded ? 'chevron' : icon} open={expanded} />
         </span>
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
+        <SwapText text={text} style={{ flex: 1 }} />
       </button>
       <Collapse open={expanded}>
         <div data-tool-calls-panel onClick={collapse} style={panelStyle}>
