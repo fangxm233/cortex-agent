@@ -52,6 +52,14 @@ describe('BoardDecisionStream', () => {
     expect(all).not.toContain('worker-session');
   });
 
+  it('says so in one muted line of the app face when there is nothing yet', () => {
+    const stream = render([]).root.findByProps({ 'data-board-decision-stream': '' });
+    expect(text(stream)).toBe('No decisions recorded yet.');
+    const line = stream.children[0] as ReactTestInstance;
+    expect(line.props.style).toMatchObject({ color: 'var(--proto-muted)' });
+    expect(JSON.stringify(line.props.style)).not.toMatch(/font"|Mono|monospace/);
+  });
+
   it('answers a decision on the session that announced it', () => {
     const r = render([entry('d1', 'lead-session', 'First'), entry('d2', 'worker-session', 'Second')]);
     act(() => r.root.findByProps({ 'data-decision-toggle': 'd2' }).props.onClick());

@@ -7,7 +7,8 @@ import { useSelectedSession } from '@/features/session/state/SelectedSessionProv
 import { BoardView } from './BoardView';
 import { useBoardTitle } from './useBoard';
 
-/** The dock's board tab body: opening a bound session selects it in the workbench beside the dock. */
+/** The dock's board tab body: opening a bound session selects it in the workbench beside the dock.
+ *  The tab names the board, so the strip below it carries no title of its own. */
 export function BoardDockBody({ boardId }: { boardId: string }): JSX.Element {
   const navigate = useNavigate();
   const { setCurrentProject } = useCurrentProject();
@@ -17,7 +18,7 @@ export function BoardDockBody({ boardId }: { boardId: string }): JSX.Element {
     setSelectedSession(session.sessionId);
     navigate('/workbench');
   }, [navigate, setCurrentProject, setSelectedSession]);
-  return <BoardView boardId={boardId} onOpenSession={openSession} />;
+  return <BoardView boardId={boardId} onOpenSession={openSession} showTitle={false} />;
 }
 
 /** A board tab's label: the board's live title. */

@@ -1,6 +1,6 @@
 import { useCallback, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
-import { MENU_FOCUS, MENU_SURFACE, MONO, useDismissMenu } from '@/design/MenuChrome';
+import { MENU_FOCUS, MENU_SURFACE, useDismissMenu } from '@/design/MenuChrome';
 import { fmt, useLang, useVocab } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
 import { workerDotStyle } from '@/features/team/TeamRoster';
@@ -10,30 +10,53 @@ import { BoardIcon } from './BoardIcon';
 import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from './board-summary';
 
 // The native strip above the board body: what the server knows live, which the agent-written body
-// cannot — each bound session's state, what is waiting on the user, and the decision stream. Amber is
-// spent only on "waiting on you".
+// cannot — each bound session's state, what is waiting on the user, and the decision stream. One
+// quiet line on the pane, in the app's row grammar: a status dot, the name, a short muted state; the
+// two actions on the right are text links, not chips. Amber is spent only on "waiting on you".
 
 const ELLIPSIS: CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
-function StripChip({ tone, pressed, onClick, children, data }: {
-  tone: 'ask' | 'plain';
-  pressed?: boolean;
+/** The rail's dot (workerDotStyle), except that an idle session is a hollow ring rather than a gray
+ *  disc: on a board, idle mostly means "done with its part", and a filled dot reads as still pending.
+ *  It is lighter than the waiting ring, which keeps the rail's darker stroke. A running dot breathes;
+ *  the app's reduced-motion setting stills it. */
+export function stripDotStyle(s: SessionInfo): CSSProperties {
+  switch (workerState(s)) {
+    case 'idle':
+      return { ...workerDotStyle(s, 8), background: 'transparent', border: '1.5px solid color-mix(in srgb, var(--proto-faint) 60%, transparent)' };
+    case 'waiting':
+      return workerDotStyle(s, 8);
+    case 'running':
+      return { ...workerDotStyle(s, 7), animation: 'cxring 1.8s ease-out infinite' };
+    case 'you':
+      return workerDotStyle(s, 7);
+  }
+}
+
+/** "Decisions 7 ›" / "2 awaiting you ›": a text link in the strip's face. The chevron turns down
+ *  while what it opens is open. */
+function StripLink({ tone, expanded, onClick, children, data }: {
+  tone: 'ask' | 'accent';
+  expanded: boolean;
   onClick: () => void;
   children: ReactNode;
   data: string;
 }): JSX.Element {
-  const ask = tone === 'ask';
   return (
-    <button type="button" className={MENU_FOCUS} onClick={(e) => { e.stopPropagation(); onClick(); }}
-      aria-expanded={pressed} {...{ [data]: '' }}
+    <button type="button" className={`${MENU_FOCUS} hover:underline underline-offset-[3px]`}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      aria-expanded={expanded} {...{ [data]: '' }}
       style={{
-        flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, height: 20, padding: '0 7px',
-        font: `500 11px ${MONO}`, border: 0, borderRadius: 'var(--r-chip)', cursor: 'pointer',
-        color: ask ? 'var(--proto-amber-fg)' : pressed ? 'var(--proto-ink-2)' : 'var(--proto-muted)',
-        background: ask ? 'var(--proto-amber-bg)' : pressed ? 'var(--proto-line-3)' : 'var(--proto-gray)',
-        boxShadow: ask ? 'inset 0 0 0 1px var(--proto-amber-border)' : 'none',
+        flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, height: 24, padding: '0 3px', margin: '0 -3px',
+        border: 0, borderRadius: 4, background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap',
+        fontFamily: 'inherit', fontSize: 12.5, fontWeight: 550, fontVariantNumeric: 'tabular-nums',
+        color: tone === 'ask' ? 'var(--proto-amber-fg)' : 'var(--proto-accent)',
       }}>
       {children}
+      <span aria-hidden="true" style={{
+        display: 'inline-block', fontSize: 14, lineHeight: 1, transition: 'transform .15s ease',
+        transform: expanded ? 'rotate(90deg)' : 'none',
+      }}>›</span>
     </button>
   );
 }
@@ -45,19 +68,16 @@ function SessionStatus({ session, now, onOpen }: {
 }): JSX.Element {
   const L = useVocab();
   const lang = useLang();
-  const you = workerState(session) === 'you';
   return (
     <button type="button" className={MENU_FOCUS} data-board-session={session.sessionId} onClick={() => onOpen(session)}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, maxWidth: 280, padding: '1px 3px',
+        display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: 280, height: 24, padding: '0 3px',
         margin: '0 -3px', border: 0, borderRadius: 4, background: 'transparent', cursor: 'pointer',
-        fontFamily: 'inherit', fontSize: 12, color: 'var(--proto-ink)',
+        fontFamily: 'inherit', fontSize: 12.5, color: 'var(--proto-faint)',
       }}>
-      <span style={workerDotStyle(session, 7)} data-board-dot={workerState(session)} />
-      <b style={{ ...ELLIPSIS, fontWeight: 600, flexShrink: 0, maxWidth: 140 }}>{workerTitle(session)}</b>
-      <span style={{ ...ELLIPSIS, color: you ? 'var(--proto-amber-fg)' : 'var(--proto-muted)' }}>
-        {workerStatusText(session, now, L, lang)}
-      </span>
+      <span style={stripDotStyle(session)} data-board-dot={workerState(session)} />
+      <span style={{ ...ELLIPSIS, fontWeight: 550, color: 'var(--proto-ink-3)', flexShrink: 0, maxWidth: 160 }}>{workerTitle(session)}</span>
+      <span style={ELLIPSIS}>{workerStatusText(session, now, L, lang)}</span>
     </button>
   );
 }
@@ -66,7 +86,7 @@ function PendingList({ sessions, onOpen }: { sessions: SessionInfo[]; onOpen: (s
   const questions = useWorkerQuestions(sessions);
   return (
     <div data-board-pending-list="" onClick={(e) => e.stopPropagation()} style={{
-      position: 'absolute', right: 0, top: 26, width: 300, maxHeight: 280, overflowY: 'auto', zIndex: 20,
+      position: 'absolute', right: 0, top: 28, width: 300, maxHeight: 280, overflowY: 'auto', zIndex: 20,
       padding: 4, boxSizing: 'border-box', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
       ...MENU_SURFACE,
     }}>
@@ -84,7 +104,7 @@ function PendingList({ sessions, onOpen }: { sessions: SessionInfo[]; onOpen: (s
             <span style={ELLIPSIS}>{workerTitle(s)}</span>
           </span>
           {questions[s.sessionId] && (
-            <span style={{ ...ELLIPSIS, fontSize: 11.5, color: 'var(--proto-muted)', paddingLeft: 13 }}>{questions[s.sessionId]}</span>
+            <span style={{ ...ELLIPSIS, fontSize: 12, color: 'var(--proto-muted)', paddingLeft: 13 }}>{questions[s.sessionId]}</span>
           )}
         </button>
       ))}
@@ -99,11 +119,15 @@ export interface BoardLiveStripProps {
   decisionsOpen: boolean;
   onToggleDecisions: () => void;
   onOpenSession: (session: SessionInfo) => void;
+  /** Lead with the board's flag and title. Off in the dock, whose tab already names the board. */
+  showTitle?: boolean;
+  /** Side padding, matching the board body below. */
+  gutter?: number;
 }
 
 export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
   const L = useVocab();
-  const { board } = props;
+  const { board, showTitle = true, gutter = 20 } = props;
   const now = useNowTick(true, 30_000);
   const [pendingOpen, setPendingOpen] = useState(false);
   const closePending = useCallback(() => setPendingOpen(false), []);
@@ -117,29 +141,33 @@ export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
 
   return (
     <div data-board-strip="" style={{
-      flex: 'none', margin: '10px 12px 0', padding: '9px 12px', borderRadius: 'var(--r-card)',
-      background: 'var(--material-inset-bg)', border: '1px solid var(--border-card)',
+      flex: 'none', padding: `6px ${gutter}px`, borderBottom: '1px solid var(--proto-line-2)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <BoardIcon stroke={BOARD_FLAG_COLOR[boardFlagTone(pending.length)]} />
-        <span title={board.title} style={{ ...ELLIPSIS, fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>
-          {board.title}
-        </span>
-      </div>
+      {showTitle && (
+        <div data-board-strip-title="" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: '4px 0 2px' }}>
+          <BoardIcon stroke={BOARD_FLAG_COLOR[boardFlagTone(pending.length)]} />
+          <span title={board.title} style={{ ...ELLIPSIS, fontSize: 13.5, fontWeight: 600, color: 'var(--proto-ink)' }}>
+            {board.title}
+          </span>
+        </div>
+      )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 7, rowGap: 4 }}>
-        {shown.length === 0
-          ? <span style={{ fontSize: 12, color: 'var(--proto-muted)' }}>{L.boardNoSessions}</span>
-          : shown.map((s) => <SessionStatus key={s.sessionId} session={s} now={now} onOpen={props.onOpenSession} />)}
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, position: 'relative' }}>
+      {/* Sessions wrap among themselves; the links hold the first line's right end. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 16px', minHeight: 28 }}>
+          {shown.length === 0
+            ? <span style={{ fontSize: 12.5, color: 'var(--proto-muted)' }}>{L.boardNoSessions}</span>
+            : shown.map((s) => <SessionStatus key={s.sessionId} session={s} now={now} onOpen={props.onOpenSession} />)}
+        </div>
+        <span style={{ flex: 'none', height: 28, display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
           {pending.length > 0 && (
-            <StripChip tone="ask" data="data-board-pending" pressed={pendingOpen} onClick={openPending}>
-              {fmt(L.boardNeedsYou, { n: pending.length })} →
-            </StripChip>
+            <StripLink tone="ask" data="data-board-pending" expanded={pendingOpen} onClick={openPending}>
+              {fmt(L.boardNeedsYou, { n: pending.length })}
+            </StripLink>
           )}
-          <StripChip tone="plain" data="data-board-decisions" pressed={props.decisionsOpen} onClick={props.onToggleDecisions}>
-            {fmt(L.boardDecisions, { n: props.decisionCount })} {props.decisionsOpen ? '↑' : '→'}
-          </StripChip>
+          <StripLink tone="accent" data="data-board-decisions" expanded={props.decisionsOpen} onClick={props.onToggleDecisions}>
+            {fmt(L.boardDecisions, { n: props.decisionCount })}
+          </StripLink>
           {pendingOpen && pending.length > 1 && (
             <PendingList sessions={pending} onOpen={(s) => { setPendingOpen(false); props.onOpenSession(s); }} />
           )}

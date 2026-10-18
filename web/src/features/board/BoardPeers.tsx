@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { MONO } from '@/design/MenuChrome';
 import { fmt, useVocab } from '@/i18n';
 import { workerDotStyle } from '@/features/team/TeamRoster';
 import { workerTitle } from '@/features/team/worker-roster';
@@ -35,19 +34,19 @@ export function BoardPeers({ sessions }: { sessions: SessionInfo[] }): JSX.Eleme
   return (
     <>
       {visible.map((s) => <Peer key={s.sessionId} session={s} leadLabel={leadLabel} />)}
-      {more > 0 && <span data-board-peers-more="" style={{ flex: 'none', font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>+{more}</span>}
+      {more > 0 && <span data-board-peers-more="" style={{ flex: 'none', fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)' }}>+{more}</span>}
     </>
   );
 }
 
-/** "n awaiting you", in light amber; nothing when n is 0. */
+/** "n awaiting you" as amber words, not a filled badge; nothing when n is 0. */
 export function BoardPendingChip({ count }: { count: number }): JSX.Element | null {
   const L = useVocab();
   if (count === 0) return null;
   return (
     <span data-board-pending-count={count} style={{
-      flex: 'none', font: `500 11px ${MONO}`, lineHeight: '18px', borderRadius: 'var(--r-chip)', padding: '0 7px', whiteSpace: 'nowrap',
-      color: 'var(--proto-amber-fg)', background: 'var(--proto-amber-bg)', boxShadow: 'inset 0 0 0 1px var(--proto-amber-border)',
+      flex: 'none', fontSize: 12, fontWeight: 550, lineHeight: '18px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
+      color: 'var(--proto-amber-fg)',
     }}>
       {fmt(L.boardNeedsYou, { n: count })}
     </span>

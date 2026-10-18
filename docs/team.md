@@ -225,14 +225,16 @@ The command palette reaches every board, including those of old sessions. With a
 lists the eight most recently used boards, where a board is used when it is created, when a session
 attaches to it, and when its files change; typing searches all of them.
 
-The top of the board is drawn by the app and updates live. It shows the title and every bound
-session with its status; clicking a session opens it. While anything waits on you, an amber
-*N awaiting you* chip appears: with one session waiting it opens that session, and with several it
-lists them with their pending questions. The *Decisions N* chip unfolds the decision stream, newest
-first. The decision lines are the chat's: each shows its status and offers **Approve** and
-**Reply**, answering the session that announced it. **Approve** records your acknowledgement
-without messaging the agent; a reply either asks why, with an optional question, or requests a
-change, with the change you want, and sends the session a message.
+The top of the board is drawn by the app and updates live: one quiet line under the dock's tabs,
+which already name the board (on mobile the line starts with the title). It shows every bound
+session as a status dot, its name and a short state; clicking a session opens it. While anything
+waits on you, an amber *N awaiting you ›* link appears on the right: with one session waiting it
+opens that session, and with several it lists them with their pending questions. The
+*Decisions N ›* link beside it unfolds the decision stream, newest first. The decision lines are
+the chat's: each shows its status and offers **Approve** and **Reply**, answering the session that
+announced it. **Approve** records your acknowledgement without messaging the agent; a reply
+either asks why, with an optional question, or requests a change, with the change you want, and
+sends the session a message.
 
 Below the strip, `board.html` renders in a sandboxed frame. Images in `assets/` show inline. A link
 marked `data-open` opens a file from the board directory in the viewer the chat uses for files,
@@ -241,10 +243,13 @@ Ordinary web links open in a new browser tab. The page re-renders within a few s
 with no reload.
 
 **Styling.** Cortex ships a default stylesheet with components the agent is encouraged to use:
-`card`, state chips (`chip`), progress meters (`meter`), stage cards (`steps`), row lists for
-acceptance criteria, decisions and risks (`rows`), and timelines (`tl`), among others. The agent can
-also write its own HTML and SVG. The stylesheet takes its colours from the app's theme, so a board
-follows light and dark mode, the palette and the accent. To restyle every board, write
+sections (`card`), state labels drawn as a status dot and a word (`chip`), progress meters
+(`meter`), stages as rows with a status column (`steps`), row lists for acceptance criteria,
+decisions and risks (`rows`), and timelines (`tl`), among others. The page reads as one document:
+sections are set apart by space and a small heading rather than boxed, and only a `callout` is boxed,
+for something you have to act on. Text is in the app's face, with the mono face kept for code. The
+agent can also write its own HTML and SVG. The stylesheet takes its colours from the app's theme, so
+a board follows light and dark mode, the palette and the accent. To restyle every board, write
 `~/.cortex/config/board.css` (see [Boards](./configuration.md#boards) in the configuration guide).
 
 ## Limits
