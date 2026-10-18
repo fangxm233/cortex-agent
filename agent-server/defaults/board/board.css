@@ -39,12 +39,14 @@ img, svg, video { max-width: 100%; }
 img, video { height: auto; border-radius: var(--r-chip); }
 
 /* Tables: the app's face, sentence-case headers in a quieter tone, hairline rules, aligned figures.
-   .num right-aligns a numeric th/td. */
+   .num right-aligns a numeric th/td. A header or a figure never breaks across lines ("Median s" must
+   not leave its "s" behind): a table too wide for the page scrolls sideways instead — inside its .tbl
+   wrapper, or, on a narrow page, as its own scroll box (below). */
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; vertical-align: baseline; padding: 7px 14px 7px 0; border-bottom: 1px solid var(--proto-line-2); }
-th { font: 550 12.5px/1.4 var(--b-font); color: var(--proto-faint); padding-top: 5px; border-bottom-color: var(--proto-line-4); }
+th { font: 550 12.5px/1.4 var(--b-font); color: var(--proto-faint); padding-top: 5px; border-bottom-color: var(--proto-line-4); white-space: nowrap; }
 th:last-child, td:last-child { padding-right: 0; }
-th.num, td.num { text-align: right; }
+th.num, td.num { text-align: right; white-space: nowrap; }
 figure { margin: 0; min-width: 0; }
 figcaption { margin-top: 6px; font: 400 12px/1.45 var(--b-font); color: var(--proto-faint); }
 
@@ -70,10 +72,17 @@ img[data-board-missing] { min-width: 96px; min-height: 48px; background: var(--m
 div.tex { margin: 4px 0 8px; overflow-x: auto; overflow-y: hidden; }
 div.tex .katex-display { margin: 0; }
 
-/* Wide table: scrolls sideways instead of breaking words into a column of letters */
+/* Wide table: scrolls sideways instead of breaking words into a column of letters. On a narrow page a
+   table written without the .tbl wrapper becomes its own scroll box; its row group (the one the
+   browser adds when the rows are written straight into the table) keeps the full width. */
 .tbl { overflow-x: auto; }
 .tbl table { width: auto; min-width: 100%; }
 .tbl th, .tbl td { overflow-wrap: normal; }
+@media (max-width: 560px) {
+  table:not(.tbl table) { display: block; overflow-x: auto; }
+  table:not(.tbl table) > tbody:only-child { display: table; width: 100%; }
+  table:not(.tbl table) :is(th, td) { overflow-wrap: normal; }
+}
 
 /* Section, callout, stack, grid, section heading. A .card is one topic: a plain stretch of the page
    with no box, set apart by the stack's space and its .h heading. A .callout (alone or on a .card)
@@ -86,15 +95,22 @@ div.tex .katex-display { margin: 0; }
 .grid > * { min-width: 0; }
 .grid.wide-left { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 @media (max-width: 560px) { .grid.wide-left { grid-template-columns: minmax(0, 1fr); } }
-.h { font: 620 13.5px/1.4 var(--b-font); color: var(--proto-ink); margin: 0 0 10px; display: flex; align-items: baseline; gap: 8px; }
+.h { font: 620 13.5px/1.4 var(--b-font); color: var(--proto-ink); margin: 0 0 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .h .n { font-size: 12.5px; font-weight: 400; color: var(--proto-faint); font-variant-numeric: tabular-nums; }
 
 /* Head: an optional kicker line (scope, and the updated time as .meta on the right), the title line
-   with the overall state, then the lead — one line on where things stand, its key fact in bold. */
+   with the overall state, then the lead — one line on where things stand, its key fact in bold.
+   The .meta goes last behind a spacer that takes the line's free room, so it sits at the right end
+   while it fits and starts the next line at the left when it wraps (an auto margin would push a
+   wrapped .meta to the right on a line of its own). The spacer's negative margin cancels its gap,
+   so it never wraps by itself. */
 .kicker { display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; margin: 0 0 6px; font-size: 12.5px; line-height: 1.45; color: var(--proto-faint); }
 .head { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
 .head h1 { font-size: 21px; line-height: 1.35; font-weight: 650; letter-spacing: -.01em; color: var(--proto-ink); margin: 0; }
-.head .meta, .kicker .meta { margin-left: auto; font: 400 12.5px/1.45 var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }
+.head .meta, .kicker .meta { order: 2; font: 400 12.5px/1.45 var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }
+.head::after, .kicker::after { content: ""; order: 1; flex: 1 1 0; }
+.head::after { margin-left: -12px; }
+.kicker::after { margin-left: -8px; }
 .lead { margin: 8px 0 12px; font-size: 14.5px; line-height: 1.7; color: var(--proto-ink-3); }
 .lead:last-child { margin-bottom: 0; }
 .lead b, .lead strong { color: var(--proto-ink); }

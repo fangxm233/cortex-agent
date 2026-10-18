@@ -4,6 +4,7 @@ import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { DecisionList, DecisionRow } from './DecisionRows';
 import type { DecisionActions } from './useDecisionActions';
+import { messageTimeLabel } from '@/features/session/transcript/transcript-vm';
 
 const T = '2026-08-27T08:00:00.000Z';
 
@@ -82,6 +83,20 @@ describe('DecisionRow', () => {
     toggle(tree);
     expect(findButtons(tree.root, '✓ Approve')).toHaveLength(0);
     expect(findButtons(tree.root, 'Reply')).toHaveLength(1);
+  });
+
+  it('in a list of decisions only, drops the kind label and dates an unanswered line by its announcement', () => {
+    let tree!: ReactTestRenderer;
+    act(() => { tree = create(<LangProvider><DecisionRow d={dec()} actions={fakeActions()} labelled={false} at={T} /></LangProvider>); });
+    const line = text(tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' }));
+    expect(line).not.toContain('Decision');
+    expect(line).toBe(`Use SQLite${messageTimeLabel(T)}`);
+    // The latest answer still wins over the announcement.
+    const later = '2026-08-27T09:30:00.000Z';
+    act(() => { tree.update(<LangProvider><DecisionRow d={dec([{ action: 'approve', ts: later }])} labelled={false} at={T} /></LangProvider>); });
+    expect(text(tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' }))).toBe(`Use SQLiteApproved${messageTimeLabel(later)}`);
+    // The chat's line is unchanged: labelled, and no time until answered.
+    expect(text(mount(dec(), fakeActions()).root.findByProps({ 'data-decision-toggle': 'ab12cd34' }))).toBe('DecisionUse SQLite');
   });
 
   it('reply is one box: ask why sends even when empty, a change needs text', () => {

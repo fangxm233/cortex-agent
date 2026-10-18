@@ -227,12 +227,13 @@ attaches to it, and when its files change; typing searches all of them.
 
 The top of the board is drawn by the app and updates live: one quiet line under the dock's tabs,
 which already name the board (on mobile the line starts with the title). It shows every bound
-session as a status dot, its name and a short state; clicking a session opens it. While anything
-waits on you, an amber *N awaiting you ›* link appears on the right: with one session waiting it
-opens that session, and with several it lists them with their pending questions. The
-*Decisions N ›* link beside it unfolds the decision stream, newest first. The decision lines are
-the chat's: each shows its status and offers **Approve** and **Reply**, answering the session that
-announced it. **Approve** records your acknowledgement without messaging the agent; a reply
+session as a status dot, its name and how long since it was last active, with its state spelled out
+on hover; clicking a session opens it. While anything waits on you, an amber *N awaiting you ›*
+link appears on the right: with one session waiting it opens that session, and with several it
+lists them with their pending questions. The *Decisions N ›* link beside it unfolds the decision
+stream, newest first. The decision lines are the chat's, without its *Decision* label: each shows
+its status and the time of its latest answer, or of the announcement while unanswered, and offers
+**Approve** and **Reply**, answering the session that announced it. **Approve** records your acknowledgement without messaging the agent; a reply
 either asks why, with an optional question, or requests a change, with the change you want, and
 sends the session a message.
 

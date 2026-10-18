@@ -4,7 +4,7 @@ description: "Open and keep a board: the live HTML status page the Web UI shows 
 allowed-tools: Read, Edit, Write, Bash, mcp__cortex-core__board_open, mcp__cortex-core__send_decision, mcp__cortex-core__current_time, mcp__cortex-core__cortex_context
 metadata:
   author: "Cortex"
-  version: "1.5.0"
+  version: "1.5.1"
 ---
 
 # Board
@@ -85,7 +85,7 @@ Use `ask` only for things truly waiting on the user, so the amber stays meaningf
 | `tl` | a timeline section: each row starts with `.when` | `<div class="card tl"><div class="rows"><div class="row"><span class="when">MM-DD HH:MM</span><span class="chip ok">done</span><span class="body">…</span></div></div></div>` |
 | `gallery` > `figure` | same-size thumbnails of images or videos, each with an optional `figcaption`; `style="--b-thumb:240px"` sets the minimum column width (default 160px) | `<div class="gallery"><figure><img src="assets/a.png" alt="…"><figcaption>run-12 · loss</figcaption></figure>…</div>` |
 | `tex` on a `span` / `div` | a formula, inline or on its own line | `<span class="tex">\alpha_t</span>`, `<div class="tex">\frac{a}{b}</div>` |
-| `tbl`, `num` | a wide table that scrolls sideways instead of squeezing; `num` right-aligns a numeric `th`/`td` | `<div class="tbl"><table><tr><th>Run</th><th class="num">Success</th></tr><tr><td>run-12</td><td class="num">0.84</td></tr></table></div>` |
+| `tbl`, `num` | a table in a wrapper that scrolls sideways instead of squeezing: headers and `num` cells stay on one line, so wrap any table wider than a phone in it; `num` right-aligns a numeric `th`/`td` | `<div class="tbl"><table><tr><th>Run</th><th class="num">Success</th></tr><tr><td>run-12</td><td class="num">0.84</td></tr></table></div>` |
 | `mono`, `muted`, `faint`, `code` | the code face (code only) and text tones; inline code | `<span class="muted">…</span>`, `<code>path</code>` |
 
 Plain `p`, `ul`, `table`, `img`, `figure` and `pre` are styled to match; `pre` (a log tail, a command) scrolls in place rather than widening the page. The scaffold written by `board_open` has a working example of each component.

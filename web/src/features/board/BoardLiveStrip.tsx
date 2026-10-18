@@ -2,6 +2,7 @@ import { useCallback, useState, type CSSProperties, type ReactNode } from 'react
 import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { MENU_FOCUS, MENU_SURFACE, useDismissMenu } from '@/design/MenuChrome';
 import { fmt, useLang, useVocab } from '@/i18n';
+import { formatSpan, type TimeLang } from '@/i18n/time-format';
 import { useNowTick } from '@/lib/useNowTick';
 import { workerDotStyle } from '@/features/team/TeamRoster';
 import { workerState, workerStatusText, workerTitle } from '@/features/team/worker-roster';
@@ -11,10 +12,14 @@ import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from './board-summary';
 
 // The native strip above the board body: what the server knows live, which the agent-written body
 // cannot — each bound session's state, what is waiting on the user, and the decision stream. One
-// quiet line on the pane, in the app's row grammar: a status dot, the name, a short muted state; the
+// quiet line on the pane, in the app's row grammar: a status dot, the name, a muted age; the
 // two actions on the right are text links, not chips. Amber is spent only on "waiting on you".
+// The line holds as long as it can: sessions share it, their names truncating, and only wrap once
+// each is down to a readable minimum.
 
 const ELLIPSIS: CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+/** The narrowest a session gets before the line wraps: its dot, a few letters of name, its age. */
+const SESSION_MIN = 120;
 
 /** The rail's dot (workerDotStyle), except that an idle session is a hollow ring rather than a gray
  *  disc: on a board, idle mostly means "done with its part", and a filled dot reads as still pending.
@@ -33,8 +38,17 @@ export function stripDotStyle(s: SessionInfo): CSSProperties {
   }
 }
 
+/** What follows a session's name: only how long since it was last active. The dot carries the state,
+ *  so no status word repeats it; the roster's full wording ("running 4m", "waiting") is the row's
+ *  tooltip and accessible name. Null when the time is unknown. */
+export function stripAge(s: SessionInfo, now: number, lang: TimeLang): string | null {
+  const at = Date.parse(s.lastUsedAt);
+  return Number.isNaN(at) ? null : formatSpan(now - at, lang);
+}
+
 /** "Decisions 7 ›" / "2 awaiting you ›": a text link in the strip's face. The chevron turns down
- *  while what it opens is open. */
+ *  while what it opens is open. Only the words underline on hover: a decoration on the button would
+ *  reach the chevron too, and turn into a vertical tick when it rotates. */
 function StripLink({ tone, expanded, onClick, children, data }: {
   tone: 'ask' | 'accent';
   expanded: boolean;
@@ -43,7 +57,7 @@ function StripLink({ tone, expanded, onClick, children, data }: {
   data: string;
 }): JSX.Element {
   return (
-    <button type="button" className={`${MENU_FOCUS} hover:underline underline-offset-[3px]`}
+    <button type="button" className={`${MENU_FOCUS} group/strip-link`}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       aria-expanded={expanded} {...{ [data]: '' }}
       style={{
@@ -52,7 +66,7 @@ function StripLink({ tone, expanded, onClick, children, data }: {
         fontFamily: 'inherit', fontSize: 12.5, fontWeight: 550, fontVariantNumeric: 'tabular-nums',
         color: tone === 'ask' ? 'var(--proto-amber-fg)' : 'var(--proto-accent)',
       }}>
-      {children}
+      <span className="group-hover/strip-link:underline underline-offset-[3px]">{children}</span>
       <span aria-hidden="true" style={{
         display: 'inline-block', fontSize: 14, lineHeight: 1, transition: 'transform .15s ease',
         transform: expanded ? 'rotate(90deg)' : 'none',
@@ -68,16 +82,22 @@ function SessionStatus({ session, now, onOpen }: {
 }): JSX.Element {
   const L = useVocab();
   const lang = useLang();
+  const full = `${workerTitle(session)} · ${workerStatusText(session, now, L, lang)}`;
+  const age = stripAge(session, now, lang);
   return (
     <button type="button" className={MENU_FOCUS} data-board-session={session.sessionId} onClick={() => onOpen(session)}
+      title={full} aria-label={full}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: 280, height: 24, padding: '0 3px',
+        // Grow from nothing to at most the content's width, so the sessions share the line and
+        // truncate their names before the line wraps at SESSION_MIN each.
+        flex: '1 1 0', minWidth: SESSION_MIN, maxWidth: 'max-content',
+        display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 3px',
         margin: '0 -3px', border: 0, borderRadius: 4, background: 'transparent', cursor: 'pointer',
         fontFamily: 'inherit', fontSize: 12.5, color: 'var(--proto-faint)',
       }}>
       <span style={stripDotStyle(session)} data-board-dot={workerState(session)} />
-      <span style={{ ...ELLIPSIS, fontWeight: 550, color: 'var(--proto-ink-3)', flexShrink: 0, maxWidth: 160 }}>{workerTitle(session)}</span>
-      <span style={ELLIPSIS}>{workerStatusText(session, now, L, lang)}</span>
+      <span style={{ ...ELLIPSIS, fontWeight: 550, color: 'var(--proto-ink-3)', maxWidth: 160 }}>{workerTitle(session)}</span>
+      {age && <span style={{ flex: 'none', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{age}</span>}
     </button>
   );
 }
@@ -141,7 +161,7 @@ export function BoardLiveStrip(props: BoardLiveStripProps): JSX.Element {
 
   return (
     <div data-board-strip="" style={{
-      flex: 'none', padding: `6px ${gutter}px`, borderBottom: '1px solid var(--proto-line-2)',
+      flex: 'none', padding: `6px ${gutter}px`, borderBottom: '1px solid var(--proto-line)',
     }}>
       {showTitle && (
         <div data-board-strip-title="" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: '4px 0 2px' }}>

@@ -155,6 +155,27 @@ describe('the shipped preset', () => {
   });
 });
 
+describe('the shipped preset on a narrow page', () => {
+  const preset = readFileSync(path.resolve(import.meta.dirname, '../../../../agent-server/defaults/board/board.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const body = (selector: string) => [...preset.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((m) => m[1]!.split(',').map((x) => x.trim()).includes(selector)).map((m) => m[2]!).join(';');
+
+  it('keeps headers and figures on one line and scrolls a too-wide table instead', () => {
+    expect(body('th')).toMatch(/white-space:\s*nowrap/);
+    expect(body('td.num')).toMatch(/white-space:\s*nowrap/);
+    expect(body('.tbl')).toMatch(/overflow-x:\s*auto/);
+    const narrow = preset.match(/@media \(max-width: 560px\) \{\s*table:not\(\.tbl table\) \{([^}]*)\}/);
+    expect(narrow?.[1]).toMatch(/display:\s*block;\s*overflow-x:\s*auto/);
+  });
+
+  it('lets a wrapped updated time start the next line at the left, not on its own at the right', () => {
+    expect(body('.head .meta')).not.toMatch(/margin-left:\s*auto/);
+    expect(body('.head .meta')).toMatch(/order:\s*2/);
+    expect(body('.head::after')).toMatch(/order:\s*1;\s*flex:\s*1 1 0/);
+  });
+});
+
 describe('parseBoardMessage', () => {
   it('accepts the three board messages', () => {
     expect(parseBoardMessage({ __cortexBoard: 'height', value: 812.4 })).toEqual({ type: 'height', value: 812 });

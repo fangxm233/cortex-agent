@@ -79,8 +79,17 @@ function Lead({ label, children, ink }: { label: string; children: ReactNode; in
 
 // ── the row ──────────────────────────────────────────────────────────────────────────────────────
 
-/** One decision: a line that opens in place into the decision, its reasons and the reply box. */
-export function DecisionRow({ d, actions, touch = false }: { d: DecisionItem; actions?: DecisionActions; touch?: boolean }): JSX.Element {
+/** One decision: a line that opens in place into the decision, its reasons and the reply box.
+ *  In a list that is all decisions (the board's stream) the host drops the repeated kind label with
+ *  `labelled={false}`, and passes `at`, when the decision was announced, so a line not yet answered
+ *  still carries a time; the chat's lines sit under the reply that announced them and need neither. */
+export function DecisionRow({ d, actions, touch = false, labelled = true, at }: {
+  d: DecisionItem;
+  actions?: DecisionActions;
+  touch?: boolean;
+  labelled?: boolean;
+  at?: string;
+}): JSX.Element {
   const L = useVocab();
   const [open, setOpen] = useState(false);
   const [replying, setReplying] = useState(false);
@@ -89,8 +98,10 @@ export function DecisionRow({ d, actions, touch = false }: { d: DecisionItem; ac
   const approved = status === 'approved';
   const word = statusWord(status, L);
   const last = d.actions[d.actions.length - 1];
-  // A phone keeps the line's room for the title; the time is in the log when the line opens.
-  const time = last && !touch ? messageTimeLabel(last.ts) : null;
+  // A phone keeps the line's room for the title; the time is in the log when the line opens. The
+  // latest answer's time wins; before any, the announcement's when the host knows it.
+  const stamp = last?.ts ?? at;
+  const time = stamp && !touch ? messageTimeLabel(stamp) : null;
   const busy = !!actions?.busy;
   const templates = { explain: L.wbDecExplainTemplate, explainBare: L.wbDecExplainTemplateBare, revise: L.wbDecReviseTemplate };
   const change = buildDecisionMessage(templates, 'revise', d.title, text);
@@ -117,7 +128,7 @@ export function DecisionRow({ d, actions, touch = false }: { d: DecisionItem; ac
           <span style={{ width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)' }}>
             {open ? <EventIcon name="chevron" open /> : <StatusIcon status={status} />}
           </span>
-          <span style={{ fontWeight: 550, color: 'var(--proto-ink-3)', flex: 'none' }}>{L.wbDecLabel}</span>
+          {labelled && <span style={{ fontWeight: 550, color: 'var(--proto-ink-3)', flex: 'none' }}>{L.wbDecLabel}</span>}
           <span style={TITLE}>{d.title}</span>
           {(word || time) && (
             // The class hides the meta while the quick buttons stand in its place; it sits on a
