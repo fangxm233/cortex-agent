@@ -4,6 +4,13 @@
 /* Sized by the pane, not the window: an open dock narrows the pane without resizing the window. */
 .memory-view { container: memory-view / inline-size; }
 
+/* The reading surface. In light, a control-material fill: near-opaque white, so prose does not read
+   the mesh through every line, yet still the same glass family as the pane. In dark that mix lands
+   within a shade of the pane glass and the column stops reading as a surface, so dark lifts it to
+   the opaque raised tone instead — one step up from the file column at every glass level. */
+.memory-view { --memory-reading-bg: var(--material-control-bg); }
+[data-theme='dark'] .memory-view { --memory-reading-bg: var(--surface-raised); }
+
 /* One row grammar: hover is a faint ink tint; a selected row carries its gray tint inline, and an
    inline background wins over this rule, so selection never flickers under the pointer. */
 .memory-view .memory-tree-row[role='button']:hover { background: var(--proto-line-soft); }
@@ -13,6 +20,7 @@
 .memory-view .memory-seg-option:not([aria-pressed='true']):hover,
 .memory-view .memory-outline-link:not([aria-current]):hover,
 .memory-view .memory-copy:not([data-copied]):hover { color: var(--proto-ink) !important; }
+.memory-view .memory-copy:hover { background: var(--proto-line-2); }
 
 .memory-view .memory-props > summary { list-style: none; }
 .memory-view .memory-props > summary::-webkit-details-marker { display: none; }

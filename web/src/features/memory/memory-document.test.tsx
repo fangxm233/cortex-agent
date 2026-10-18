@@ -17,7 +17,7 @@ const EXP = [
   '---',
   '# EXP-001: Fixed-protocol optimizer comparison',
   '## Run command',
-  '```',
+  '```bash',
   'python benchmark.py --output results/digits.json',
   '```',
   '## Results',
@@ -88,9 +88,14 @@ describe('MarkdownView', () => {
     expect(headings.map((h) => h.props.id)).toEqual(doc.outline.map((entry) => entry.id));
     expect(headings[0].props.style).toMatchObject({ fontSize: 17, fontWeight: 620 });
 
-    const copy = root.findAllByType('button').find((b) => b.props['aria-label'] === en.wbCopy);
+    // The copy button and language sit in a strip above the code, never inside the scrolling text.
+    const copy = root.findAllByType('button').find((b) => b.props['aria-label'] === en.wbCopy)!;
     expect(copy).toBeDefined();
-    expect(root.findByType('pre').props.style.overflowX).toBe('auto');
+    const pre = root.findByType('pre');
+    expect(pre.props.style.overflowX).toBe('auto');
+    expect(pre.findAllByType('button')).toHaveLength(0);
+    expect(copy.props.style.position).toBeUndefined();
+    expect(text(copy.parent!)).toContain('bash');
 
     const [label, number] = root.findAllByType('th');
     expect(label.props.style.textAlign).toBe('left');

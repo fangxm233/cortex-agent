@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import '@/design/content-surfaces.css';
 import './memory-view.css';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +19,7 @@ import {
   type LineDiffLabel,
   type MemoryMode,
 } from './memory-vm';
-import { MarkdownView } from './MarkdownView';
+import { MarkdownView, type MarkdownBleed } from './MarkdownView';
 import { MemoryTree } from './MemoryTree';
 import { MemoryDocHeader, ClockGlyph, LineDiffText } from './MemoryDocHeader';
 import { MemoryOutline } from './MemoryOutline';
@@ -35,6 +35,12 @@ import { BlamePane } from './BlamePane';
 
 /** How far below the scroller's top edge a heading counts as the section being read. */
 const OUTLINE_THRESHOLD_PX = 48;
+
+/** The doc row's gap between the reading column and the outline; a wide table keeps clear of it. */
+const DOC_ROW_GAP = 40;
+
+/** Keys that scroll the document; pressing one hands the outline back to the scroll position. */
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
 
 function BackGlyph(): JSX.Element {
   return (
@@ -153,7 +159,12 @@ export function MemoryView(): JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
   const frameRef = useRef<number | null>(null);
+  // The outline entry the reader jumped to; it stays current until they scroll by hand.
+  const pinnedRef = useRef<string | null>(null);
+  const [bleed, setBleed] = useState<MarkdownBleed>({ left: 0, right: 0 });
 
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
   const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}));
@@ -201,8 +212,38 @@ export function MemoryView(): JSX.Element {
 
   // Each file opens at its top, so the outline below starts from its first section.
   useEffect(() => {
+    pinnedRef.current = null;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [effectivePath]);
+
+  // The free room beside the reading column — inside the row's padding and clear of the outline —
+  // which a table wider than the column may reach into (MarkdownView splits it between the sides).
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    const article = articleRef.current;
+    if (!row || !article) return undefined;
+    const measure = (): void => {
+      const box = row.getBoundingClientRect();
+      const style = getComputedStyle(row);
+      const contentLeft = box.left + parseFloat(style.paddingLeft);
+      const contentRight = box.right - parseFloat(style.paddingRight);
+      const side = row.querySelector<HTMLElement>('.memory-side');
+      const sideShown = !!side && getComputedStyle(side).display !== 'none';
+      const limitRight = sideShown ? side.getBoundingClientRect().left - DOC_ROW_GAP : contentRight;
+      const column = article.getBoundingClientRect();
+      const next = {
+        left: Math.max(0, Math.floor(column.left - contentLeft)),
+        right: Math.max(0, Math.floor(limitRight - column.right)),
+      };
+      setBleed((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    observer.observe(article);
+    return () => observer.disconnect();
+  }, [outline, blamePane]);
 
   const updateActive = useCallback(() => {
     frameRef.current = null;
@@ -214,7 +255,7 @@ export function MemoryView(): JSX.Element {
       return el ? [{ id: entry.id, top: el.getBoundingClientRect().top - origin }] : [];
     });
     const atEnd = scroller.scrollTop > 0 && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
-    setActiveId(activeOutlineId(tops, OUTLINE_THRESHOLD_PX, atEnd));
+    setActiveId(activeOutlineId(tops, OUTLINE_THRESHOLD_PX, atEnd, pinnedRef.current));
   }, [outline]);
 
   useEffect(() => {
@@ -229,10 +270,20 @@ export function MemoryView(): JSX.Element {
     if (outline && frameRef.current == null) frameRef.current = requestAnimationFrame(updateActive);
   };
 
+  // A heading near the end cannot scroll to the top, so neither the threshold nor the end-of-page
+  // rule would name it once the jump settles: the clicked entry stays pinned until the reader
+  // scrolls by hand (wheel, touch, a scroll key, or a press in the pane such as a scrollbar drag).
   const jumpTo = (id: string): void => {
+    pinnedRef.current = id;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
     setActiveId(id);
+  };
+  const unpin = (): void => {
+    pinnedRef.current = null;
+  };
+  const onScrollKey = (event: KeyboardEvent): void => {
+    if (SCROLL_KEYS.has(event.key)) unpin();
   };
 
   return (
@@ -280,16 +331,20 @@ export function MemoryView(): JSX.Element {
           onToggle={toggleDir}
         />
 
-        {/* The document pane is more opaque than the pane glass (a control-material fill): long
-            prose over a fully translucent surface reads the mesh through every line, which is
-            exactly what a reading pane must not do. It goes fully opaque with the glass level. */}
+        {/* The document pane is more opaque than the pane glass (`--memory-reading-bg`, see
+            memory-view.css): long prose over a fully translucent surface reads the mesh through
+            every line, which is exactly what a reading pane must not do. */}
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          style={{ flex: 1, minWidth: 0, overflow: 'auto', scrollbarGutter: 'stable', background: 'var(--material-control-bg)' }}
+          onWheel={unpin}
+          onTouchMove={unpin}
+          onPointerDown={unpin}
+          onKeyDown={onScrollKey}
+          style={{ flex: 1, minWidth: 0, overflow: 'auto', scrollbarGutter: 'stable', background: 'var(--memory-reading-bg)' }}
         >
-          <div className="memory-doc-row" style={{ display: 'flex', justifyContent: 'center', gap: 40, padding: '32px 32px 48px' }}>
-            <article style={{ flex: `0 1 ${blamePane ? 880 : 680}px`, minWidth: 0 }}>
+          <div ref={rowRef} className="memory-doc-row" style={{ display: 'flex', justifyContent: 'center', gap: DOC_ROW_GAP, padding: '32px 32px 48px' }}>
+            <article ref={articleRef} style={{ flex: `0 1 ${blamePane ? 880 : 680}px`, minWidth: 0 }}>
               {mode === 'changes' && file && (
                 <ChangesSummary updated={updated} lineDiff={lineDiff} hasBlame={!!blameRows} />
               )}
@@ -306,7 +361,7 @@ export function MemoryView(): JSX.Element {
                       lineDiff={lineDiff}
                       onShowChanges={mode === 'read' ? () => setMode('changes') : undefined}
                     />
-                    <MarkdownView blocks={doc.blocks} />
+                    <MarkdownView blocks={doc.blocks} bleed={bleed} />
                   </>
                 )
               )}

@@ -1,11 +1,11 @@
 import {
-  createContext, useContext, useEffect, useState,
-  type CSSProperties, type ReactNode, Fragment,
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState,
+  type CSSProperties, type ReactNode, type RefObject, Fragment,
 } from 'react';
 import { useVocab } from '@/i18n';
 import type { InlineNode, Block } from '@/lib/markdown';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
-import { inlineText, numericColumns, type MemoryDocBlock } from './memory-doc';
+import { edgeFadeMask, inlineText, numericColumns, splitBleed, type MemoryDocBlock } from './memory-doc';
 
 /** Resolves a markdown image `src` to a displayable URL. Async because the bytes behind a Cortex
  *  image need an authenticated fetch — an `<img>` tag cannot carry the `x-cortex-token` header, so
@@ -137,72 +137,165 @@ function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
   );
 }
 
-/** How far the right edge of a code block fades. The pre carries as much padding on that side, so
- *  the last characters scroll clear of the fade instead of ending under it. */
-const CODE_FADE_PX = 44;
-const CODE_FADE_MASK = `linear-gradient(to right, #000 calc(100% - ${CODE_FADE_PX}px), transparent)`;
+/**
+ * Fades a horizontally scrolling box at whichever edge hides content — the trailing edge while
+ * there is more to the right, the leading one once something has scrolled out — and drops the fade
+ * at the scroll end. A mask on the content rather than a painted overlay, so it matches whatever
+ * translucent surface the box sits on. Re-read on scroll, on resize and when `contentKey` changes.
+ */
+function useEdgeFade(ref: RefObject<HTMLElement>, contentKey: string): { mask: string | undefined; onScroll: () => void } {
+  const [edges, setEdges] = useState({ before: false, after: false });
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const before = el.scrollLeft > 1;
+    const after = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setEdges((prev) => (prev.before === before && prev.after === after ? prev : { before, after }));
+  }, [ref]);
+  useLayoutEffect(() => {
+    update();
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [ref, update, contentKey]);
+  return { mask: edgeFadeMask(edges.before, edges.after), onScroll: update };
+}
+
+function maskStyle(mask: string | undefined): CSSProperties {
+  return mask ? { WebkitMaskImage: mask, maskImage: mask } : {};
+}
 
 /** Long command lines scroll sideways rather than wrap (a wrapped command is a different command
- *  to copy by eye). The fade is a mask on the scrolling text, not a painted overlay, so it matches
- *  whatever translucent surface the block sits on; the tint and corners belong to the wrapper so the
- *  mask cannot fade them too. The copy button is a sibling, outside the mask. */
+ *  to copy by eye), fading at the edge that hides text. The language and the copy button sit in a
+ *  header strip above the code, outside the scrolling area, so they never cover a character and no
+ *  faded text peeks out beside them. The tint and corners belong to the wrapper so the mask cannot
+ *  fade them too. */
 function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
   const L = useVocab();
   const { copiedKey, copy } = useClipboardFeedback<true>(1500);
+  const preRef = useRef<HTMLPreElement>(null);
+  const fade = useEdgeFade(preRef, block.text);
   const label = copiedKey === true ? L.wbCopied : L.wbCopy;
   return (
-    <div style={{ position: 'relative', margin: '6px 0 14px', background: 'var(--proto-rail)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>
+    <div style={{ margin: '6px 0 14px', background: 'var(--proto-rail)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, height: 30, padding: '0 6px 0 14px' }}>
+        <span style={{ fontSize: 11.5, color: 'var(--proto-muted-3)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {block.lang ?? ''}
+        </span>
+        <button
+          type="button"
+          className="memory-copy"
+          data-copied={copiedKey === true || undefined}
+          aria-label={label}
+          title={label}
+          onClick={() => { void copy(block.text, true); }}
+          style={{
+            flex: 'none',
+            height: 22,
+            padding: '0 8px',
+            border: 0,
+            borderRadius: 6,
+            font: '500 11.5px/22px var(--font-ui)',
+            color: copiedKey === true ? 'var(--proto-success)' : 'var(--proto-muted-2)',
+            cursor: 'pointer',
+          }}
+        >
+          {label}
+        </button>
+      </div>
       <pre
+        ref={preRef}
+        onScroll={fade.onScroll}
         style={{
           margin: 0,
-          padding: `12px ${CODE_FADE_PX + 12}px 12px 14px`,
+          padding: '0 14px 12px',
           font: '400 12.5px/1.7 var(--font-code)',
           color: 'var(--proto-ink-2)',
           whiteSpace: 'pre',
           overflowWrap: 'normal',
           overflowX: 'auto',
-          WebkitMaskImage: CODE_FADE_MASK,
-          maskImage: CODE_FADE_MASK,
+          ...maskStyle(fade.mask),
         }}
       >
         <code>{block.text}</code>
       </pre>
-      <button
-        type="button"
-        className="memory-copy"
-        data-copied={copiedKey === true || undefined}
-        aria-label={label}
-        title={label}
-        onClick={() => { void copy(block.text, true); }}
-        style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          height: 24,
-          padding: '0 8px',
-          border: 0,
-          borderRadius: 6,
-          background: 'var(--material-control-bg)',
-          boxShadow: '0 0 0 1px var(--proto-line)',
-          font: '500 11.5px/24px var(--font-ui)',
-          color: copiedKey === true ? 'var(--proto-success)' : 'var(--proto-muted-2)',
-          cursor: 'pointer',
-        }}
-      >
-        {label}
-      </button>
     </div>
   );
 }
 
+/** Free room beside the reading column that a wide block may reach into, in px (see MemoryView). */
+export interface MarkdownBleed {
+  left: number;
+  right: number;
+}
+
+const NO_BLEED: MarkdownBleed = { left: 0, right: 0 };
+
 /** A cell this short — a label, a name, a value — never wraps; only prose-length cells fold. */
 const SHORT_CELL_CHARS = 24;
 
+/**
+ * Sizes a table's scroll box: as wide as the column for a table that fits it; for one that wants
+ * more, out into the free room beside the column (`splitBleed` keeps it centred under the column
+ * while both sides have room). Only a table wider than all that room scrolls. The table is first
+ * laid out in the whole room so its shrink-to-fit width — prose cells folded, numbers whole — is
+ * what gets measured; all of it happens before paint.
+ */
+function useTableBleed(
+  boxRef: RefObject<HTMLDivElement>,
+  scrollRef: RefObject<HTMLDivElement>,
+  tableRef: RefObject<HTMLTableElement>,
+  bleed: MarkdownBleed,
+  contentKey: string,
+): void {
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const scroller = scrollRef.current;
+    const table = tableRef.current;
+    if (!box || !scroller || !table) return undefined;
+    const fit = (): void => {
+      const column = box.clientWidth;
+      scroller.style.marginLeft = `${-bleed.left}px`;
+      scroller.style.width = `${column + bleed.left + bleed.right}px`;
+      table.style.minWidth = '0';
+      const wants = table.offsetWidth;
+      table.style.minWidth = '100%';
+      const reach = splitBleed(wants - column, bleed.left, bleed.right);
+      scroller.style.marginLeft = reach.left ? `${-reach.left}px` : '';
+      scroller.style.width = reach.left || reach.right ? `${column + reach.left + reach.right}px` : '';
+    };
+    fit();
+    let live = true;
+    void document.fonts?.ready.then(() => { if (live) fit(); });
+    let width = box.clientWidth;
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      if (box.clientWidth === width) return;
+      width = box.clientWidth;
+      fit();
+    });
+    observer?.observe(box);
+    return () => {
+      live = false;
+      observer?.disconnect();
+    };
+  }, [boxRef, scrollRef, tableRef, bleed.left, bleed.right, contentKey]);
+}
+
 /** A table is data: headers in sentence case and the muted meta weight, numeric columns right-aligned
  *  in tabular figures. Numbers and short cells stay on one line and only prose-length cells wrap, so
- *  a results table does not shred into word stacks; one that still does not fit scrolls sideways in
- *  its own box instead of squeezing every column. */
-function TableBlock({ block }: { block: BlockOf<'table'> }): JSX.Element {
+ *  a results table does not shred into word stacks. A table wider than the column reaches out into
+ *  the free room beside it; one wider than that scrolls sideways — headers with their columns —
+ *  under an edge fade that says there is more. */
+function TableBlock({ block, bleed }: { block: BlockOf<'table'>; bleed: MarkdownBleed }): JSX.Element {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const contentKey = JSON.stringify(block);
+  useTableBleed(boxRef, scrollRef, tableRef, bleed, contentKey);
+  const fade = useEdgeFade(scrollRef, contentKey);
   const numeric = numericColumns(block.header, block.rows);
   const cols = numeric.length || 1;
   const cell = (column: number, nodes: InlineNode[] | undefined): CSSProperties => ({
@@ -213,58 +306,60 @@ function TableBlock({ block }: { block: BlockOf<'table'> }): JSX.Element {
     verticalAlign: 'top',
   });
   return (
-    <div style={{ overflowX: 'auto', margin: '4px 0 14px' }}>
-      <table style={{ borderCollapse: 'collapse', minWidth: '100%', fontSize: 13, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
-        <thead>
-          <tr>
-            {Array.from({ length: cols }, (_, c) => (
-              <th
-                key={c}
-                style={{
-                  ...cell(c, undefined),
-                  // A long header may fold onto two lines; the column's values decide its width.
-                  whiteSpace: 'normal',
-                  overflowWrap: 'normal',
-                  paddingTop: 7,
-                  paddingBottom: 7,
-                  fontSize: 12.5,
-                  fontWeight: 550,
-                  color: 'var(--proto-muted-3)',
-                  borderBottom: '1px solid var(--proto-line-4)',
-                  verticalAlign: 'bottom',
-                }}
-              >
-                {block.header[c] ? renderInline(block.header[c]) : null}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {block.rows.map((row, r) => (
-            <tr key={r}>
+    <div ref={boxRef} style={{ margin: '4px 0 14px' }}>
+      <div ref={scrollRef} onScroll={fade.onScroll} style={{ overflowX: 'auto', ...maskStyle(fade.mask) }}>
+        <table ref={tableRef} style={{ borderCollapse: 'collapse', minWidth: '100%', fontSize: 13, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
+          <thead>
+            <tr>
               {Array.from({ length: cols }, (_, c) => (
-                <td
+                <th
                   key={c}
                   style={{
-                    ...cell(c, row[c]),
-                    paddingTop: 8,
-                    paddingBottom: 8,
-                    color: 'var(--proto-ink-3)',
-                    borderBottom: '1px solid var(--proto-line-2)',
+                    ...cell(c, undefined),
+                    // A long header may fold onto two lines; the column's values decide its width.
+                    whiteSpace: 'normal',
+                    overflowWrap: 'normal',
+                    paddingTop: 7,
+                    paddingBottom: 7,
+                    fontSize: 12.5,
+                    fontWeight: 550,
+                    color: 'var(--proto-muted-3)',
+                    borderBottom: '1px solid var(--proto-line-4)',
+                    verticalAlign: 'bottom',
                   }}
                 >
-                  {row[c] ? renderInline(row[c]) : null}
-                </td>
+                  {block.header[c] ? renderInline(block.header[c]) : null}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {block.rows.map((row, r) => (
+              <tr key={r}>
+                {Array.from({ length: cols }, (_, c) => (
+                  <td
+                    key={c}
+                    style={{
+                      ...cell(c, row[c]),
+                      paddingTop: 8,
+                      paddingBottom: 8,
+                      color: 'var(--proto-ink-3)',
+                      borderBottom: '1px solid var(--proto-line-2)',
+                    }}
+                  >
+                    {row[c] ? renderInline(row[c]) : null}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-function renderBlock({ block: b, anchor }: MemoryDocBlock, i: number): ReactNode {
+function renderBlock({ block: b, anchor }: MemoryDocBlock, i: number, bleed: MarkdownBleed): ReactNode {
   switch (b.type) {
     case 'heading':
       return <HeadingBlock key={i} block={b} anchor={anchor} />;
@@ -277,7 +372,7 @@ function renderBlock({ block: b, anchor }: MemoryDocBlock, i: number): ReactNode
     case 'list':
       return <ListBlock key={i} block={b} />;
     case 'table':
-      return <TableBlock key={i} block={b} />;
+      return <TableBlock key={i} block={b} bleed={bleed} />;
     case 'code':
       return <CodeBlock key={i} block={b} />;
     case 'blockquote':
@@ -296,13 +391,15 @@ function renderBlock({ block: b, anchor }: MemoryDocBlock, i: number): ReactNode
   }
 }
 
-export function MarkdownView({ blocks, resolveImage }: {
+export function MarkdownView({ blocks, resolveImage, bleed = NO_BLEED }: {
   blocks: MemoryDocBlock[];
   resolveImage?: MarkdownImageResolver;
+  /** Room beside the reading column that wide tables may use; none by default. */
+  bleed?: MarkdownBleed;
 }): JSX.Element {
   return (
     <ImageResolverContext.Provider value={resolveImage ?? null}>
-      <div>{blocks.map(renderBlock)}</div>
+      <div>{blocks.map((block, i) => renderBlock(block, i, bleed))}</div>
     </ImageResolverContext.Provider>
   );
 }

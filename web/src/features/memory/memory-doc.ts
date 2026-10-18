@@ -235,14 +235,18 @@ export function numericColumns(header: InlineNode[][], rows: InlineNode[][][]): 
 /**
  * The outline entry to highlight: the last heading scrolled to (or past) `threshold` px from the
  * top of the scroller; the first one before any has; the last one once the scroller cannot move
- * further, since a short closing section never reaches the top.
+ * further, since a short closing section never reaches the top. A `pinned` entry — the one the
+ * reader just jumped to from the outline — wins over all of that until they scroll by hand: a
+ * heading near the end cannot reach the top, and neither rule would otherwise name it.
  */
 export function activeOutlineId(
   tops: ReadonlyArray<{ id: string; top: number }>,
   threshold: number,
   atEnd: boolean,
+  pinned: string | null = null,
 ): string | null {
   if (tops.length === 0) return null;
+  if (pinned && tops.some((heading) => heading.id === pinned)) return pinned;
   if (atEnd) return tops[tops.length - 1].id;
   let active = tops[0].id;
   for (const heading of tops) {
@@ -250,4 +254,33 @@ export function activeOutlineId(
     active = heading.id;
   }
   return active;
+}
+
+/**
+ * How far a block wider than the reading column may reach out of it on each side. `extra` is the
+ * width it wants beyond the column; `left`/`right` the free room beside the column. The block
+ * stays centred under the column while both sides have room and leans into whichever side has
+ * more once one runs out, never past either.
+ */
+export function splitBleed(extra: number, left: number, right: number): { left: number; right: number } {
+  const total = Math.max(0, Math.min(extra, left + right));
+  const toLeft = Math.min(left, Math.max(total - right, total / 2));
+  return { left: Math.floor(toLeft), right: Math.floor(total - toLeft) };
+}
+
+/** Width of the fade at a scroll box's leading / trailing edge. */
+export const FADE_START_PX = 24;
+export const FADE_END_PX = 44;
+
+/**
+ * Mask for a horizontally scrolling box: its trailing edge fades while more content lies beyond
+ * it, its leading edge once some has scrolled out; undefined when nothing is hidden either way.
+ */
+export function edgeFadeMask(hiddenBefore: boolean, hiddenAfter: boolean): string | undefined {
+  if (!hiddenBefore && !hiddenAfter) return undefined;
+  const stops = [
+    ...(hiddenBefore ? ['transparent', `#000 ${FADE_START_PX}px`] : ['#000']),
+    ...(hiddenAfter ? [`#000 calc(100% - ${FADE_END_PX}px)`, 'transparent'] : ['#000']),
+  ];
+  return `linear-gradient(to right, ${stops.join(', ')})`;
 }

@@ -3,6 +3,8 @@ import { parseInline } from '@/lib/markdown';
 import {
   activeOutlineId,
   deriveMemoryDoc,
+  edgeFadeMask,
+  splitBleed,
   isCodeValue,
   isNumericCell,
   numericColumns,
@@ -172,5 +174,50 @@ describe('activeOutlineId', () => {
     expect(activeOutlineId([{ id: 'a', top: 200 }, { id: 'b', top: 500 }], 48, false)).toBe('a');
     expect(activeOutlineId(tops, 48, true)).toBe('c');
     expect(activeOutlineId([], 48, false)).toBeNull();
+  });
+
+  it('keeps a heading jumped to from the outline current, even where it cannot reach the top', () => {
+    // Jumped to `b` near the end of a short page: the scroll settles at the end with `b` well below
+    // the threshold, where the plain rules would name `c` (end) or `a` (threshold).
+    const settled = [
+      { id: 'a', top: -300 },
+      { id: 'b', top: 160 },
+      { id: 'c', top: 420 },
+    ];
+    expect(activeOutlineId(settled, 48, true)).toBe('c');
+    expect(activeOutlineId(settled, 48, false)).toBe('a');
+    expect(activeOutlineId(settled, 48, true, 'b')).toBe('b');
+    expect(activeOutlineId(settled, 48, false, 'b')).toBe('b');
+  });
+
+  it('ignores a pin that is not a heading of this page', () => {
+    expect(activeOutlineId(tops, 48, true, 'gone')).toBe('c');
+    expect(activeOutlineId([], 48, false, 'b')).toBeNull();
+  });
+});
+
+describe('splitBleed', () => {
+  it('stays centred under the column while both sides have room', () => {
+    expect(splitBleed(100, 200, 200)).toEqual({ left: 50, right: 50 });
+  });
+
+  it('leans into the side with room once the other runs out, never past either', () => {
+    expect(splitBleed(100, 200, 0)).toEqual({ left: 100, right: 0 });
+    expect(splitBleed(100, 30, 200)).toEqual({ left: 30, right: 70 });
+    expect(splitBleed(1000, 120, 80)).toEqual({ left: 120, right: 80 });
+  });
+
+  it('does not reach out for a table that fits the column', () => {
+    expect(splitBleed(0, 200, 200)).toEqual({ left: 0, right: 0 });
+    expect(splitBleed(-40, 200, 200)).toEqual({ left: 0, right: 0 });
+  });
+});
+
+describe('edgeFadeMask', () => {
+  it('fades only the edges that hide content, and nothing at rest or at the scroll end', () => {
+    expect(edgeFadeMask(false, false)).toBeUndefined();
+    expect(edgeFadeMask(false, true)).toBe('linear-gradient(to right, #000, #000 calc(100% - 44px), transparent)');
+    expect(edgeFadeMask(true, false)).toBe('linear-gradient(to right, transparent, #000 24px, #000)');
+    expect(edgeFadeMask(true, true)).toBe('linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 44px), transparent)');
   });
 });
