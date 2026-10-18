@@ -126,8 +126,12 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
  * row: a turn that trails off into「后台代理结果」hints would otherwise keep its button above them,
  * stranded mid-answer again until the next assistant row pushed it down. Divider rows and real user
  * bubbles carry no copy affordance, so landing the key on one would hide the button entirely.
+ *
+ * With `live` the last turn is still being written, so it offers nothing to copy yet: its button
+ * would copy half an answer, and it would sit under the running work. A message the agent has not
+ * read yet (`pending`) belongs to that running turn rather than opening a new one.
  */
-export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
+export function assistantTurnCopyTargets(rows: ChatRow[], opts: { live?: boolean } = {}): Map<number, string> {
   const targets = new Map<number, string>();
   let texts: string[] = [];
   let tailIndex: number | null = null;
@@ -139,6 +143,7 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row.kind === 'user') {
+      if (row.pending) continue;
       // A lead's message to its worker opens a turn exactly like the human's own.
       if (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') {
         flush();
@@ -152,6 +157,6 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
     if (row.kind === 'assistant' && row.text.length > 0) texts.push(row.text);
     if (row.kind !== 'divider' && row.kind !== 'thinking' && texts.length > 0) tailIndex = i;
   }
-  flush();
+  if (!opts.live) flush();
   return targets;
 }

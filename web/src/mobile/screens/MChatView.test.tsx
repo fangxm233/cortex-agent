@@ -269,6 +269,26 @@ describe('MChatStream assistant turn copy', () => {
     expect(writeText).toHaveBeenCalledWith('part one\n\npart two');
     vi.unstubAllGlobals();
   });
+
+  it('offers no copy under the turn still being written, and offers it once the turn ends', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'first' },
+      { kind: 'assistant', text: 'done answer', streaming: false },
+      { kind: 'user', text: 'second' },
+      { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
+      { kind: 'assistant', text: 'merging now', streaming: false },
+      { kind: 'tools', count: 2, calls: [{ kind: 'bash', input: 'pwd' }, { kind: 'bash', input: 'ls' }] },
+    ];
+    const copies = (live: boolean) => {
+      let renderer!: ReactTestRenderer;
+      act(() => { renderer = create(<LangProvider><MChatStream rows={rows} group live={live} /></LangProvider>); });
+      const n = renderer.root.findAllByProps({ 'data-assistant-turn-copy': 'true' }).length;
+      act(() => renderer.unmount());
+      return n;
+    };
+    expect(copies(true)).toBe(1);
+    expect(copies(false)).toBe(2);
+  });
 });
 
 describe('MChatStream window', () => {

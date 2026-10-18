@@ -527,9 +527,9 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   const items = useMemo(() => (group ? layoutTurns(rows, { live }) : null), [rows, group, live]);
   const copies = useMemo(() => {
     if (!turnCopy) return new Map<number, string>();
-    const targets = assistantTurnCopyTargets(rows);
+    const targets = assistantTurnCopyTargets(rows, { live });
     return items ? copyHosts(items, targets, rows) : targets;
-  }, [rows, items, turnCopy]);
+  }, [rows, items, turnCopy, live]);
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && !editingRow.systemOrigin && editingRow.turnIndex !== undefined;

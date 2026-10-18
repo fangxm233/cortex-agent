@@ -547,9 +547,10 @@ export function MChatStream({ rows, start = 0, interactions, editing, onLongPres
 }): JSX.Element {
   const items = useMemo(() => (group ? layoutTurns(rows, { live }) : null), [rows, group, live]);
   const copies = useMemo(() => {
-    const targets = assistantTurnCopyTargets(rows);
+    // A turn still being written offers nothing to copy until it ends.
+    const targets = assistantTurnCopyTargets(rows, { live });
     return items ? copyHosts(items, targets, rows) : targets;
-  }, [rows, items]);
+  }, [rows, items, live]);
   const editingIdx = editing?.rowIndex ?? null;
   const ctx: StreamContext = {
     interactions, streamKey, editing, onShowOriginal, onOpenBoard,

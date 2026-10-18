@@ -3,7 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import type { SessionInfo, SessionTranscript, TranscriptMessage } from '@cortex-agent/ui-contract';
 import { en, LangProvider } from '@/i18n';
 import { buildTranscriptRows, type ChatRow, type TeamUpdatesRow } from '@/features/session/transcript/transcript-vm';
-import { LeadWaitingLine, TeamRow, TeamStreamProvider } from './TeamStreamRows';
+import { LeadWaitingLine, TeamActionRow, TeamRow, TeamStreamProvider } from './TeamStreamRows';
 import { findWorker, spawnedWorker, threadSummary, updateTimeRange, waitedWorkers } from './team-stream';
 
 // Placeholder workers and text only.
@@ -39,6 +39,11 @@ function render(node: JSX.Element, workers: SessionInfo[], leadRunning = false):
 }
 
 const text = (r: ReactTestRenderer): string => JSON.stringify(r.toJSON());
+/** What the reader sees: text children only, no attributes (a tooltip is not on screen). */
+const visible = (node: ReactTestInstance): string =>
+  node.children.map((c) => (typeof c === 'string' ? c : visible(c))).join('');
+const times = (r: ReactTestRenderer): string[] =>
+  r.root.findAll((n) => typeof n.type === 'string' && n.props['data-thread-time'] !== undefined).map(visible);
 const statuses = (r: ReactTestRenderer): string[] =>
   r.root.findAll((n) => typeof n.type === 'string' && n.props['data-thread-status'] !== undefined).map((n) => n.props['data-thread-status']);
 
@@ -83,11 +88,29 @@ describe('team rows', () => {
     act(() => r.unmount());
   });
 
+  it.each([false, true])('keeps the trailing slot for the time and the status words for the tooltip (touch: %s)', (touch) => {
+    const list = rows([report('atlas', 'first', 0), msg({ text: 'noted', ts: at(1) }), report('atlas', 'second', 2)]);
+    const cards = list.filter((r): r is TeamUpdatesRow => r.kind === 'team-updates');
+    const r = render(<>{cards.map((c) => <TeamRow key={c.id} row={c} touch={touch} />)}</>, [session('atlas', { running: true })]);
+    // A time (with its date off today), or an older card's span — never a status word.
+    for (const when of times(r)) expect(when).toMatch(/^(\d\d-\d\d )?\d\d:\d\d( – (\d\d-\d\d )?\d\d:\d\d)?$/);
+    expect(times(r)).toHaveLength(2);
+    const live = r.root.find((n) => typeof n.type === 'string' && n.props['data-thread-status'] === 'running');
+    expect(live.props.title).toMatch(/running/);
+    expect(live.props['aria-label']).toBe(live.props.title);
+    expect(visible(live)).not.toMatch(/running/);
+    act(() => r.unmount());
+  });
+
   it('names a worker\'s open question in its latest card', () => {
     const [card] = rows([ask('atlas', 0)]) as TeamUpdatesRow[];
     const r = render(<TeamRow row={card} />, [session('atlas', { waitingOnLead: 1, awaitingInput: true })]);
     expect(statuses(r)).toEqual(['waiting']);
-    expect(text(r)).toContain(en.wbTeamQuestionWaiting);
+    const line = r.root.find((n) => typeof n.type === 'string' && n.props['data-thread-status'] === 'waiting');
+    // The line shows the request's kind tag and its time; where it stands is the tooltip's to say.
+    expect(line.props.title).toContain(en.wbTeamQuestionWaiting);
+    expect(visible(line)).not.toContain(en.wbTeamQuestionWaiting);
+    expect(visible(line)).toContain(en.wbTeamTagQuestion);
     act(() => r.unmount());
   });
 
@@ -139,6 +162,21 @@ describe('team rows', () => {
     expect(headline.props.style.color).toBe('var(--proto-muted)');
     expect(text(r)).toContain('Still idle');
     act(() => r.unmount());
+  });
+
+  it('keeps a spawn\'s model off the phone line and lets it give way first on desktop', () => {
+    const action = { op: 'spawn' as const, worker: 'atlas', text: 'Implement the parser.', partial: false, model: 'provider/model-x', requestId: null, ts: at(0) };
+    const models = (r: ReactTestRenderer) => r.root.findAll((n) => typeof n.type === 'string' && n.props['data-spawn-model'] !== undefined);
+    const desktop = render(<TeamActionRow action={action} />, [session('atlas')]);
+    expect(models(desktop).map(visible)).toEqual(['provider/model-x']);
+    expect(models(desktop)[0].props.style.flex).toBe('0 1000 auto');
+    act(() => desktop.unmount());
+    const touch = render(<TeamActionRow action={action} touch />, [session('atlas')]);
+    expect(models(touch)).toHaveLength(0);
+    expect(touch.root.find((n) => typeof n.type === 'string' && typeof n.props.title === 'string' && n.props.title.includes('provider/model-x'))).toBeTruthy();
+    act(() => touch.root.find((n) => n.props.role === 'button' && n.props['aria-expanded'] === false).props.onClick());
+    expect(models(touch).map(visible)).toEqual(['provider/model-x']);
+    act(() => touch.unmount());
   });
 
   it('the lead line names the worker it waits on, and stays away while the lead runs', () => {

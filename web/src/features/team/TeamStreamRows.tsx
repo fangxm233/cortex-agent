@@ -4,6 +4,7 @@ import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useLangOptional, useVocabOptional, type Vocab } from '@/i18n';
 import { useNowTick } from '@/lib/useNowTick';
+import type { TimeLang } from '@/i18n/time-format';
 import { TeamRowSlot, type TeamRowRenderer } from '@/features/session/transcript/team-row-slot';
 import { EventIcon, eventRowStyle, type EventIconName } from '@/features/session/transcript/EventRow';
 import {
@@ -21,7 +22,8 @@ import {
 // quiet one-line rows (a spawn with its brief under it), and its workers' traffic as one update line
 // per worker per run — the transcript's quiet line (see EventRow), opening to the run's timeline.
 // A card's status comes from the live team, and only on each worker's latest card: an older card is
-// history and shows when it happened instead. Routine updates read quieter than what the lead acts on,
+// history. The status is the dot's to show (its words ride the line's tooltip and accessible name);
+// the trailing slot always says when. Routine updates read quieter than what the lead acts on,
 // and a collapsed card leads with the latest report or request rather than the latest routine line.
 // The desktop stream and the mobile stream draw the same rows; `touch` sizes them for a finger.
 
@@ -170,20 +172,26 @@ function fullText(text: string, partial: boolean): string {
   return partial ? `${text}…` : text;
 }
 
-/** A spawn: who was started, on what model, with the first two lines of the brief. */
+/** A spawn: who was started, with the first two lines of the brief. The model is a detail: on desktop
+ *  it trails the name and is the first thing to give way (the name never does); on a phone there is
+ *  no width for it beside the name and the open link, so it moves to the line's tooltip and the
+ *  opened brief. */
 function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }): JSX.Element {
   const L = useVocabOptional();
   const { workers } = useStream();
   const [open, setOpen] = useState(false);
   const worker = findWorker(workers, action.worker) ?? (action.worker ? null : spawnedWorker(workers, action.text));
   const name = action.worker ?? worker?.workerName ?? null;
+  const title = [actionVerb(action, L), name, action.model].filter(Boolean).join(' · ');
   return (
     <div data-team-action="spawn" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: touch ? 9 : 10, minWidth: 0, minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13 }}>
+      <div title={title} style={{ display: 'flex', alignItems: 'center', gap: touch ? 9 : 10, minWidth: 0, minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13 }}>
         <ActionIcon action={action} />
         <span style={VERB}>{actionVerb(action, L)}</span>
         {name && <WorkerPill name={name} worker={worker} />}
-        {action.model && <span style={{ ...ELLIPSIS, fontSize: 12, color: 'var(--proto-faint)' }}>{action.model}</span>}
+        {action.model && !touch && (
+          <span data-spawn-model="" style={{ ...ELLIPSIS, flex: '0 1000 auto', fontSize: 12, color: 'var(--proto-faint)' }}>{action.model}</span>
+        )}
         <span style={{ flex: 1 }} />
         <OpenLink worker={worker} label={L.wbTeamOpenShort} />
       </div>
@@ -191,6 +199,9 @@ function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }
         <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
           title={open ? L.wbTeamHideFull : L.wbTeamShowFull}
           style={{ ...BODY, fontSize: touch ? 13 : 12.5, lineHeight: 1.55, color: 'var(--proto-muted)', cursor: 'pointer', paddingLeft: 26, ...(open ? { color: 'var(--proto-ink-2)' } : CLAMP2) }}>
+          {open && touch && action.model && (
+            <div data-spawn-model="" style={{ fontSize: 12, color: 'var(--proto-faint)', marginBottom: 2 }}>{action.model}</div>
+          )}
           {open ? <ChatMarkdown text={fullText(action.text, action.partial)} /> : action.text}
         </div>
       )}
@@ -252,17 +263,24 @@ const TAG_QUESTION: CSSProperties = { ...TAG_BASE, background: 'var(--proto-acce
 const TAG_OK: CSSProperties = { ...TAG_BASE, background: 'var(--proto-success-bg)', color: 'var(--proto-success)' };
 const TAG_BAD: CSSProperties = { ...TAG_BASE, background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' };
 
+/** The word a request or a failed turn is tagged with; null for an ordinary report or routine line. */
+function kindLabel(update: WorkerUpdate, L: Vocab): string | null {
+  if (update.kind === 'plan') return L.wbTeamTagPlan;
+  if (update.kind === 'question') return L.wbTeamTagQuestion;
+  if (update.outcome) return update.outcome === 'failed' ? L.wbTeamOutcomeFailed : L.wbTeamOutcomeStopped;
+  return null;
+}
+
 /** The kind tag before a request's line, and the outcome of a turn that went wrong. `plain` drops the
  *  pill for the one-line form, where a coloured word is enough. */
 function KindTag({ update, plain = false }: { update: WorkerUpdate; plain?: boolean }): JSX.Element | null {
   const L = useVocabOptional();
-  const tag = (style: CSSProperties, text: string): JSX.Element => (plain
+  const text = kindLabel(update, L);
+  if (!text) return null;
+  const style = update.kind === 'plan' ? TAG_PLAN : update.kind === 'question' ? TAG_QUESTION : TAG_BAD;
+  return plain
     ? <span style={{ color: style.color, fontWeight: 550, marginRight: 6 }}>{text}</span>
-    : <span style={style}>{text}</span>);
-  if (update.kind === 'plan') return tag(TAG_PLAN, L.wbTeamTagPlan);
-  if (update.kind === 'question') return tag(TAG_QUESTION, L.wbTeamTagQuestion);
-  if (update.outcome) return tag(TAG_BAD, update.outcome === 'failed' ? L.wbTeamOutcomeFailed : L.wbTeamOutcomeStopped);
-  return null;
+    : <span style={style}>{text}</span>;
 }
 
 /** How the lead settled a request: "Lead approved 10:06" / "Answered 10:06". */
@@ -317,33 +335,38 @@ function Timeline({ updates, showName, touch }: { updates: WorkerUpdate[]; showN
   );
 }
 
-/** Live status on a worker's latest card; when it happened on an older one. */
-function ThreadStatus({ thread, worker, waiting, now, range = true }: {
-  thread: WorkerThread; worker: SessionInfo | null; waiting: WorkerUpdate | null; now: number;
-  /** Show when an older card happened; off where the row already carries its time. */
-  range?: boolean;
-}): JSX.Element | null {
-  const L = useVocabOptional();
-  const lang = useLangOptional();
-  const base: CSSProperties = { fontSize: 12, whiteSpace: 'nowrap', flex: 'none' };
-  if (waiting) {
-    return <span data-thread-status="waiting" style={{ ...base, color: 'var(--proto-ink-2)', fontWeight: 600 }}>
-      {waiting.kind === 'plan' ? L.wbTeamPlanWaiting : L.wbTeamQuestionWaiting}
-    </span>;
-  }
+type ThreadStatusKind = 'waiting' | ReturnType<typeof workerState> | 'history';
+
+/** Where a worker's run stands, in words: an open request, the live status on the worker's latest
+ *  card, or nothing on an older card (that one is history). The words go into the line's tooltip and
+ *  accessible name — the dot already shows the state, and the trailing slot is for the time. */
+function threadStatus(thread: WorkerThread, worker: SessionInfo | null, waiting: WorkerUpdate | null, now: number, L: Vocab, lang: TimeLang): { kind: ThreadStatusKind; text: string | null } {
+  if (waiting) return { kind: 'waiting', text: waiting.kind === 'plan' ? L.wbTeamPlanWaiting : L.wbTeamQuestionWaiting };
   if (thread.latest && worker && !isInactiveWorker(worker, now)) {
-    const state = workerState(worker);
-    const color = state === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted)';
-    return <span data-thread-status={state} style={{ ...base, color }}>{workerStatusText(worker, now, L, lang)}</span>;
+    return { kind: workerState(worker), text: workerStatusText(worker, now, L, lang) };
   }
-  const when = range ? updateTimeRange(thread.updates) : null;
-  return when ? <span data-thread-status="history" style={{ ...base, color: 'var(--proto-muted)' }}>{when}</span> : null;
+  return { kind: 'history', text: null };
 }
 
-/** One worker's run as one line — dot · name · what it said · where the request stands and when —
- *  that opens to the run's timeline. */
+/** The line's trailing slot: when it happened — the headline's time, or an older card's span where
+ *  there is room for it. Never a status word. */
+function ThreadTime({ thread, shown, range }: { thread: WorkerThread; shown: WorkerUpdate; range: boolean }): JSX.Element | null {
+  const when = (range && !thread.latest ? updateTimeRange(thread.updates) : null) ?? messageTimeLabel(shown.ts ?? undefined);
+  return when ? <span data-thread-time="" style={TIME}>{when}</span> : null;
+}
+
+/** The line's tooltip and accessible name: who, the kind tag, what it said, and where it stands. */
+function threadLabel(name: string, shown: WorkerUpdate, parts: (string | null)[], L: Vocab): string {
+  const said = [kindLabel(shown, L), shown.line].filter(Boolean).join(' ');
+  return [name, said, ...parts].filter(Boolean).join(' · ');
+}
+
+/** One worker's run as one line — dot · name · what it said · when — that opens to the run's
+ *  timeline. Where the run stands (an open request, the worker's live status) is the dot's and the
+ *  tooltip's to say. */
 function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; now: number }): JSX.Element {
   const L = useVocabOptional();
+  const lang = useLangOptional();
   const { workers } = useStream();
   const [open, setOpen] = useState(false);
   const thread = row.threads[0];
@@ -351,20 +374,19 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
   const waiting = waitingRequest(thread, worker);
   const shown = headlineUpdate(thread.updates);
   const state = requestState(thread, L, worker);
+  const status = threadStatus(thread, worker, waiting, now, L, lang);
+  const label = threadLabel(thread.worker, shown, [status.text, waiting ? null : state], L);
   return (
     <div data-team-card="" data-team-card-open={open ? 'true' : undefined} style={{ opacity: row.pending ? 0.55 : 1, minWidth: 0 }}>
-      <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open}
+      <div {...toggleKeys(() => setOpen((v) => !v))} aria-expanded={open} aria-label={label} title={label}
+        data-thread-status={status.kind}
         className={`${MENU_FOCUS}${touch ? '' : ' hover:bg-[var(--proto-gray)]'}`} style={lineStyle(touch)}>
         <span style={ICON_BOX}><Dot worker={thread.latest ? worker : null} /></span>
         <span style={NAME}>{thread.worker}</span>
         <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown) }}>
           <KindTag update={shown} plain />{shown.line}
         </span>
-        <span style={META}>
-          {/* The status names an open request itself. */}
-          {state && !waiting && !touch && <span>{state}</span>}
-          <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={!touch} />
-        </span>
+        <span style={META}><ThreadTime thread={thread} shown={shown} range={!touch} /></span>
       </div>
       {open && (
         <div style={{ padding: touch ? '0 0 4px 17px' : '0 0 4px 18px' }}>
@@ -383,6 +405,7 @@ function SingleCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; 
 /** Several workers in one run: one line per worker with its headline; the timeline opens below. */
 function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; now: number }): JSX.Element {
   const L = useVocabOptional();
+  const lang = useLangOptional();
   const { workers } = useStream();
   const [open, setOpen] = useState(false);
   const toggle = () => setOpen((v) => !v);
@@ -393,19 +416,18 @@ function MultiCard({ row, touch, now }: { row: TeamUpdatesRow; touch: boolean; n
         const worker = findWorker(workers, thread.worker, thread.sessionId);
         const waiting = waitingRequest(thread, worker);
         const shown = waiting ?? headlineUpdate(thread.updates);
+        const status = threadStatus(thread, worker, waiting, now, L, lang);
+        const label = threadLabel(thread.worker, shown, [status.text], L);
         return (
-          <div key={thread.worker} data-team-thread={thread.worker} {...toggleKeys(toggle)}
+          <div key={thread.worker} data-team-thread={thread.worker} {...toggleKeys(toggle)} aria-label={label} title={label}
+            data-thread-status={status.kind}
             className={`${MENU_FOCUS}${touch ? '' : ' hover:bg-[var(--proto-gray)]'}`} style={lineStyle(touch)}>
             <span style={ICON_BOX}><Dot worker={thread.latest ? worker : null} /></span>
             <span style={NAME}>{thread.worker}</span>
             <span data-team-headline={shown.kind} style={{ ...ELLIPSIS, color: lineInk(shown) }}>
-              {/* The status already names an open request. */}
-              {!waiting && <KindTag update={shown} plain />}{shown.line}
+              <KindTag update={shown} plain />{shown.line}
             </span>
-            <span style={META}>
-              <ThreadStatus thread={thread} worker={worker} waiting={waiting} now={now} range={false} />
-              {!waiting && <span>{messageTimeLabel(shown.ts ?? undefined) ?? ''}</span>}
-            </span>
+            <span style={META}><ThreadTime thread={thread} shown={shown} range={false} /></span>
           </div>
         );
       })}

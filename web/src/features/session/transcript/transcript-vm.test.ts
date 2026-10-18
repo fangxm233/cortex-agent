@@ -109,6 +109,31 @@ describe('assistantTurnCopyTargets', () => {
 
     expect([...assistantTurnCopyTargets(rows)]).toEqual([]);
   });
+
+  it('offers nothing to copy for the turn still being written, and keeps the earlier turns', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'first' },
+      { kind: 'assistant', text: 'first answer', streaming: false },
+      { kind: 'user', text: 'second' },
+      { kind: 'assistant', text: 'half an answer', streaming: false },
+      { kind: 'tools', count: 1, calls: [{ kind: 'bash', input: 'pwd' }] },
+    ];
+    expect([...assistantTurnCopyTargets(rows, { live: true })]).toEqual([[1, 'first answer']]);
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([[1, 'first answer'], [4, 'half an answer']]);
+  });
+
+  it('keeps a message the agent has not read yet inside the running turn', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'question' },
+      { kind: 'assistant', text: 'working on it', streaming: false },
+      { kind: 'tools', count: 1, calls: [{ kind: 'bash', input: 'pwd' }] },
+      { kind: 'user', text: 'also check the docs', pending: true },
+    ];
+    // Live: the running turn has no button yet, and the unread message does not split it off.
+    expect([...assistantTurnCopyTargets(rows, { live: true })]).toEqual([]);
+    // Settled: the button stays on the reply, above the unread message.
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([[2, 'working on it']]);
+  });
 });
 
 describe('buildTranscriptRows', () => {
